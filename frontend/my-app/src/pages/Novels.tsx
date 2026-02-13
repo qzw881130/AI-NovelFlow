@@ -143,13 +143,13 @@ export default function Novels() {
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
         <input
           type="text"
           placeholder="搜索小说..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="input-field pl-10"
+          className="input-field pl-10 h-10"
         />
       </div>
 
@@ -203,50 +203,43 @@ export default function Novels() {
                   <span className="text-sm text-gray-500">
                     {novel.chapterCount} 章节
                   </span>
-                  <div className="flex gap-1">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => parseCharacters(novel.id)}
                       disabled={parsingNovelId === novel.id}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors disabled:opacity-50 text-sm font-medium whitespace-nowrap"
+                      className="flex items-center justify-center w-9 h-9 rounded-lg bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors disabled:opacity-50"
                       title="AI解析角色"
                     >
                       {parsingNovelId === novel.id ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
-                          <span>解析中...</span>
-                        </>
+                        <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <>
-                          <Sparkles className="h-4 w-4 flex-shrink-0" />
-                          <span>AI解析角色</span>
-                        </>
+                        <Sparkles className="h-4 w-4" />
                       )}
                     </button>
                     <Link
                       to={`/characters?novel=${novel.id}`}
-                      className="p-2 text-gray-400 hover:text-primary-600 transition-colors"
+                      className="flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-gray-100 transition-colors"
                       title="查看角色"
                     >
                       <Users className="h-4 w-4" />
                     </Link>
                     <button
                       onClick={() => setEditingNovel(novel)}
-                      className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                      className="flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                       title="编辑"
                     >
                       <Edit2 className="h-4 w-4" />
                     </button>
                     <button
                       onClick={() => deleteNovel(novel.id)}
-                      className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                      className="flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
                       title="删除"
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                     <Link
                       to={`/novels/${novel.id}`}
-                      className="btn-primary text-sm py-1.5 px-3"
-                    >
+                      className="btn-primary text-sm py-2 px-3 ml-1"
                       <Play className="h-3 w-3 mr-1" />
                       管理章节
                     </Link>
