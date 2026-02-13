@@ -339,73 +339,89 @@ class ComfyUIService:
     def _build_z_image_workflow(
         self, 
         prompt: str, 
-        width: int = 512, 
-        height: int = 768,
+        width: int = 1024, 
+        height: int = 1024,
         seed: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        构建 z-image 人设生成工作流
+        构建 Flux 角色人设生成工作流
         
-        这是一个简化的工作流结构，实际需要根据你的 ComfyUI 中 z-image 工作流的具体节点来配置
+        使用 Flux1-dev 模型生成高质量角色概念图
         """
         if seed is None:
-            seed = uuid.uuid4().int % (2**32)
+            import random
+            seed = random.randint(1, 2**32 - 1)
         
-        # 基础工作流结构 - 需要根据实际 ComfyUI 工作流调整
+        # Flux1-dev 工作流配置
         workflow = {
             "1": {
                 "inputs": {
-                    "text": prompt,
-                    "clip": ["4", 1]
+                    "clip_name1": "clip_l.safetensors",
+                    "clip_name2": "t5xxl_fp8_e4m3fn.safetensors",
+                    "type": "flux"
                 },
-                "class_type": "CLIPTextEncode"
+                "class_type": "DualCLIPLoader"
             },
             "2": {
                 "inputs": {
-                    "text": "text, watermark, low quality, blurry",
-                    "clip": ["4", 1]
+                    "unet_name": "flux1-dev-fp8-e4m3fn.safetensors",
+                    "weight_dtype": "fp8_e4m3fn"
                 },
-                "class_type": "CLIPTextEncode"
+                "class_type": "UNETLoader"
             },
             "3": {
                 "inputs": {
-                    "seed": seed,
-                    "steps": 20,
-                    "cfg": 7.0,
-                    "sampler_name": "euler_ancestral",
-                    "scheduler": "normal",
-                    "denoise": 1.0,
-                    "model": ["4", 0],
-                    "positive": ["1", 0],
-                    "negative": ["2", 0],
-                    "latent_image": ["5", 0]
+                    "vae_name": "ae.safetensors"
                 },
-                "class_type": "KSampler"
+                "class_type": "VAELoader"
             },
             "4": {
-                "inputs": {
-                    "ckpt_name": "z-image.safetensors"  # 需要根据实际模型名称调整
-                },
-                "class_type": "CheckpointLoaderSimple"
-            },
-            "5": {
                 "inputs": {
                     "width": width,
                     "height": height,
                     "batch_size": 1
                 },
-                "class_type": "EmptyLatentImage"
+                "class_type": "EmptyFlux2LatentImage"
+            },
+            "5": {
+                "inputs": {
+                    "seed": seed,
+                    "steps": 20,
+                    "cfg": 1,
+                    "sampler_name": "euler",
+                    "scheduler": "simple",
+                    "denoise": 1,
+                    "model": ["2", 0],
+                    "positive": ["11", 0],
+                    "negative": ["12", 0],
+                    "latent_image": ["4", 0]
+                },
+                "class_type": "KSampler"
             },
             "6": {
                 "inputs": {
-                    "samples": ["3", 0],
-                    "vae": ["4", 2]
+                    "samples": ["5", 0],
+                    "vae": ["3", 0]
                 },
                 "class_type": "VAEDecode"
             },
-            "7": {
+            "11": {
                 "inputs": {
-                    "filename_prefix": "character",
+                    "text": prompt,
+                    "clip": ["1", 0]
+                },
+                "class_type": "CLIPTextEncode"
+            },
+            "12": {
+                "inputs": {
+                    "text": "",
+                    "clip": ["1", 0]
+                },
+                "class_type": "CLIPTextEncode"
+            },
+            "13": {
+                "inputs": {
+                    "filename_prefix": "character_",
                     "images": ["6", 0]
                 },
                 "class_type": "SaveImage"
