@@ -541,54 +541,56 @@ class ComfyUIService:
         
         # API 格式 - 直接注入 prompt
         api_workflow = workflow
-        modified = False
+        modified_count = 0
         
-        # 遍历所有节点查找 CLIPTextEncode 类型
+        # 遍历所有节点，查找包含 {CHARACTER_PROMPT} 占位符的节点
         for node_id, node in api_workflow.items():
             if not isinstance(node, dict):
                 continue
                 
-            class_type = node.get("class_type", "")
             inputs = node.get("inputs", {})
+            class_type = node.get("class_type", "")
             
-            # 1. 查找 CLIPTextEncode 节点（正向提示词）
-            if class_type == "CLIPTextEncode":
-                # 检查是否是正向提示词节点（通常没有负面关键词）
+            # 查找包含 text 输入的节点（CLIPTextEncode 和 CR Text）
+            if "text" in inputs:
                 current_text = inputs.get("text", "")
                 if isinstance(current_text, str):
-                    # 如果是负面提示词（包含 negative、bad 等关键词），跳过
-                    if any(kw in current_text.lower() for kw in ["negative", "bad", "worst", "low quality"]):
-                        continue
-                
-                # 替换为新的 prompt
-                inputs["text"] = prompt
-                modified = True
-                print(f"[Workflow] Injected prompt to CLIPTextEncode node {node_id}")
+                    # 如果包含 {CHARACTER_PROMPT} 占位符，替换为实际提示词
+                    if "{CHARACTER_PROMPT}" in current_text:
+                        inputs["text"] = prompt
+                        modified_count += 1
+                        print(f"[Workflow] Injected prompt to {class_type} node {node_id}")
+                    # 如果是空文本或默认占位符，也替换
+                    elif current_text == "" or current_text == "prompt here":
+                        inputs["text"] = prompt
+                        modified_count += 1
+                        print(f"[Workflow] Injected prompt to {class_type} node {node_id} (empty/default)")
         
-        # 2. 如果没有找到 CLIPTextEncode，查找其他可能的提示词节点
-        if not modified:
+        # 如果没有找到占位符，回退到原来的逻辑（替换第一个 CLIPTextEncode）
+        if modified_count == 0:
             for node_id, node in api_workflow.items():
                 if not isinstance(node, dict):
                     continue
                     
+                class_type = node.get("class_type", "")
                 inputs = node.get("inputs", {})
                 
-                # 查找包含 "prompt" 或 "text" 输入的节点
-                if "prompt" in inputs:
-                    inputs["prompt"] = prompt
-                    modified = True
-                    print(f"[Workflow] Injected prompt to node {node_id} (prompt field)")
-                    break
-                elif "text" in inputs:
-                    # 检查文本内容长度，优先替换较长的（可能是主提示词）
+                if class_type == "CLIPTextEncode":
                     current_text = inputs.get("text", "")
-                    if isinstance(current_text, str) and len(current_text) > 10:
-                        inputs["text"] = prompt
-                        modified = True
-                        print(f"[Workflow] Injected prompt to node {node_id} (text field)")
-                        break
+                    if isinstance(current_text, str):
+                        # 跳过负面提示词
+                        if any(kw in current_text.lower() for kw in ["negative", "bad", "worst", "low quality"]):
+                            continue
+                        # 跳过三视图提示词
+                        if "三视图" in current_text or "正面" in current_text:
+                            continue
+                    
+                    inputs["text"] = prompt
+                    modified_count += 1
+                    print(f"[Workflow] Injected prompt to CLIPTextEncode node {node_id} (fallback)")
+                    break
         
-        # 3. 设置随机种子（如果有）
+        # 设置随机种子（如果有）
         for node_id, node in api_workflow.items():
             if not isinstance(node, dict):
                 continue
