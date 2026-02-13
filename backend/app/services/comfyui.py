@@ -414,18 +414,121 @@ class ComfyUIService:
         
         return workflow
     
+    # 不需要在 API 中执行的节点类型（UI 辅助节点）
+    UI_ONLY_NODE_TYPES = {"Note", "Reroute", "PrimitiveNode", "Comment", "Group"}
+    
+    def _convert_ui_workflow_to_api(self, workflow: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        将 ComfyUI UI 格式（nodes/links）转换为 API 格式（prompt）
+        
+        UI 格式: {"nodes": [...], "links": [...], ...}
+        API 格式: {"node_id": {"inputs": {...}, "class_type": "..."}, ...}
+        """
+        # 如果已经是 API 格式，直接返回
+        if "nodes" not in workflow:
+            return workflow
+        
+        api_workflow = {}
+        nodes = workflow.get("nodes", [])
+        links = workflow.get("links", [])
+        
+        # 过滤掉 UI 辅助节点
+        valid_nodes = [n for n in nodes if n.get("type") not in self.UI_ONLY_NODE_TYPES]
+        valid_node_ids = {str(n.get("id")) for n in valid_nodes}
+        
+        # 构建 link 查找表: link_id -> (source_node, source_slot, target_node, target_slot)
+        link_map = {}
+        for link in links:
+            if len(link) >= 4:
+                link_id = link[0]
+                source_node = str(link[1])
+                source_slot = link[2]
+                target_node = str(link[3])
+                target_slot = link[4] if len(link) > 4 else 0
+                # 只保留连接到有效节点的 link
+                if source_node in valid_node_ids and target_node in valid_node_ids:
+                    link_map[link_id] = (source_node, source_slot, target_node, target_slot)
+        
+        # 转换每个节点
+        for node in valid_nodes:
+            node_id = str(node.get("id"))
+            node_type = node.get("type", "")
+            inputs_data = node.get("inputs", [])
+            outputs_data = node.get("outputs", [])
+            widgets = node.get("widgets_values", [])
+            
+            # 构建 inputs
+            inputs = {}
+            
+            # 处理输入连接
+            for i, inp in enumerate(inputs_data):
+                if not isinstance(inp, dict):
+                    continue
+                input_name = inp.get("name", f"input_{i}")
+                link = inp.get("link")
+                
+                if link and link in link_map:
+                    # 这是一个连接输入
+                    source_node, source_slot, _, _ = link_map[link]
+                    inputs[input_name] = [str(source_node), source_slot]
+                elif "widget" in inp and inp.get("widget"):
+                    # 这是一个 widget 输入，使用 widgets_values
+                    widget_config = inp.get("widget", {})
+                    widget_name = widget_config.get("name", input_name)
+                    # 从 widgets_values 中找到对应的值
+                    widget_idx = None
+                    for wi, w in enumerate(inputs_data):
+                        if w.get("name") == widget_name:
+                            widget_idx = wi
+                            break
+                    if widget_idx is not None and widget_idx < len(widgets):
+                        inputs[input_name] = widgets[widget_idx]
+            
+            # 添加 widget 值作为输入（对于没有连接的 widget）
+            widget_idx = 0
+            for inp in inputs_data:
+                if not isinstance(inp, dict):
+                    continue
+                input_name = inp.get("name", "")
+                # 如果这个输入还没有被设置，且是 widget
+                if input_name not in inputs and inp.get("widget"):
+                    if widget_idx < len(widgets):
+                        inputs[input_name] = widgets[widget_idx]
+                    widget_idx += 1
+            
+            # 处理特殊节点类型
+            if node_type == "CheckpointLoaderSimple":
+                # 确保 ckpt_name 被正确设置
+                if widgets and len(widgets) > 0:
+                    inputs["ckpt_name"] = widgets[0]
+            
+            api_workflow[node_id] = {
+                "inputs": inputs,
+                "class_type": node_type
+            }
+        
+        return api_workflow
+    
     def _inject_prompt_to_workflow(self, workflow: Dict[str, Any], prompt: str) -> Dict[str, Any]:
         """
         将提示词注入到工作流中
         
-        策略：
-        1. 查找 CLIPTextEncode 节点，替换其 text 输入
-        2. 如果没有找到，查找包含 "text" 和 "prompt" 相关输入的节点
+        支持两种格式：
+        1. API 格式: {"node_id": {"inputs": {...}, "class_type": "..."}}
+        2. UI 格式: {"nodes": [...], "links": [...]} - 将使用内置工作流
         """
+        # 检测工作流格式
+        if "nodes" in workflow:
+            # UI 格式 - 使用内置的简化工作流
+            print("[Workflow] Detected UI format workflow, using built-in workflow")
+            return self._build_z_image_workflow(prompt)
+        
+        # API 格式 - 直接注入 prompt
+        api_workflow = workflow
         modified = False
         
         # 遍历所有节点查找 CLIPTextEncode 类型
-        for node_id, node in workflow.items():
+        for node_id, node in api_workflow.items():
             if not isinstance(node, dict):
                 continue
                 
@@ -448,7 +551,7 @@ class ComfyUIService:
         
         # 2. 如果没有找到 CLIPTextEncode，查找其他可能的提示词节点
         if not modified:
-            for node_id, node in workflow.items():
+            for node_id, node in api_workflow.items():
                 if not isinstance(node, dict):
                     continue
                     
@@ -470,7 +573,7 @@ class ComfyUIService:
                         break
         
         # 3. 设置随机种子（如果有）
-        for node_id, node in workflow.items():
+        for node_id, node in api_workflow.items():
             if not isinstance(node, dict):
                 continue
                 
@@ -484,7 +587,7 @@ class ComfyUIService:
                     inputs["seed"] = random.randint(1, 2**32)
                     print(f"[Workflow] Set random seed for {class_type} node {node_id}")
         
-        return workflow
+        return api_workflow
     
     def _build_qwen_edit_workflow(
         self,
