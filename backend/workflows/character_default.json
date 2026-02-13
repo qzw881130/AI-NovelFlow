@@ -1,1 +1,411 @@
-{"id":"9012ba17-6fe2-4615-a655-8397aaa8f09b","revision":0,"last_node_id":133,"last_link_id":228,"nodes":[{"id":115,"type":"VAEEncode","pos":[391.310546875,254.18116760253906],"size":[190,46],"flags":{"collapsed":false},"order":23,"mode":0,"inputs":[{"label":"pixels","localized_name":"pixels","name":"pixels","type":"IMAGE","link":204},{"label":"vae","localized_name":"vae","name":"vae","type":"VAE","link":205}],"outputs":[{"label":"LATENT","localized_name":"LATENT","name":"LATENT","type":"LATENT","links":[200,201]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"VAEEncode","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":[],"color":"#2a363b","bgcolor":"#3f5159"},{"id":116,"type":"ReferenceLatent","pos":[386.30279541015625,366.69091796875],"size":[204.134765625,46],"flags":{"collapsed":false},"order":27,"mode":0,"inputs":[{"label":"conditioning","localized_name":"conditioning","name":"conditioning","type":"CONDITIONING","link":202},{"label":"latent","localized_name":"latent","name":"latent","shape":7,"type":"LATENT","link":201}],"outputs":[{"label":"CONDITIONING","localized_name":"CONDITIONING","name":"CONDITIONING","type":"CONDITIONING","links":[206]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"ReferenceLatent","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":[],"color":"#2a363b","bgcolor":"#3f5159"},{"id":114,"type":"ReferenceLatent","pos":[383.7386169433594,479.00482177734375],"size":[204.134765625,46],"flags":{"collapsed":false},"order":26,"mode":0,"inputs":[{"label":"conditioning","localized_name":"conditioning","name":"conditioning","type":"CONDITIONING","link":203},{"label":"latent","localized_name":"latent","name":"latent","shape":7,"type":"LATENT","link":200}],"outputs":[{"label":"CONDITIONING","localized_name":"CONDITIONING","name":"CONDITIONING","type":"CONDITIONING","links":[207]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"ReferenceLatent","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":[],"color":"#2a363b","bgcolor":"#3f5159"},{"id":110,"type":"CLIPTextEncode","pos":[352.72308349609375,18.338529586791992],"size":[243.14598083496094,99.4832534790039],"flags":{"collapsed":false},"order":12,"mode":0,"inputs":[{"label":"clip","localized_name":"clip","name":"clip","type":"CLIP","link":185},{"label":"text","localized_name":"text","name":"text","type":"STRING","widget":{"name":"text"},"link":208}],"outputs":[{"label":"CONDITIONING","localized_name":"CONDITIONING","name":"CONDITIONING","type":"CONDITIONING","slot_index":0,"links":[198,202]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"CLIPTextEncode","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{"text":true},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":[""],"color":"#2a363b","bgcolor":"#3f5159"},{"id":108,"type":"CFGGuider","pos":[630.7366333007812,-126.22308349609375],"size":[270,98],"flags":{},"order":28,"mode":0,"inputs":[{"label":"model","localized_name":"model","name":"model","type":"MODEL","link":177},{"label":"positive","localized_name":"positive","name":"positive","type":"CONDITIONING","link":206},{"label":"negative","localized_name":"negative","name":"negative","type":"CONDITIONING","link":207},{"label":"cfg","localized_name":"cfg","name":"cfg","type":"FLOAT","widget":{"name":"cfg"}}],"outputs":[{"label":"GUIDER","localized_name":"GUIDER","name":"GUIDER","type":"GUIDER","links":[179]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"CFGGuider","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{"cfg":true},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":[1],"color":"#2a363b","bgcolor":"#3f5159"},{"id":99,"type":"KSamplerSelect","pos":[638.1453247070312,46.767372131347656],"size":[270,58],"flags":{},"order":0,"mode":0,"inputs":[{"label":"sampler_name","localized_name":"sampler_name","name":"sampler_name","type":"COMBO","widget":{"name":"sampler_name"}}],"outputs":[{"label":"SAMPLER","localized_name":"SAMPLER","name":"SAMPLER","type":"SAMPLER","links":[180]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"KSamplerSelect","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{"sampler_name":true},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":["euler"],"color":"#2a363b","bgcolor":"#3f5159"},{"id":111,"type":"ConditioningZeroOut","pos":[638.7587280273438,156.66529846191406],"size":[204.134765625,26],"flags":{},"order":15,"mode":0,"inputs":[{"label":"conditioning","localized_name":"conditioning","name":"conditioning","type":"CONDITIONING","link":198}],"outputs":[{"label":"CONDITIONING","localized_name":"CONDITIONING","name":"CONDITIONING","type":"CONDITIONING","links":[203]}],"properties":{"cnr_id":"comfy-core","ver":"0.9.1","Node name for S&R":"ConditioningZeroOut","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":[],"color":"#2a363b","bgcolor":"#3f5159"},{"id":103,"type":"UNETLoader","pos":[-47.814476013183594,-133.23446655273438],"size":[364.4270935058594,82],"flags":{},"order":1,"mode":0,"inputs":[{"label":"unet_name","localized_name":"unet_name","name":"unet_name","type":"COMBO","widget":{"name":"unet_name"}},{"label":"weight_dtype","localized_name":"weight_dtype","name":"weight_dtype","type":"COMBO","widget":{"name":"weight_dtype"}}],"outputs":[{"label":"MODEL","localized_name":"MODEL","name":"MODEL","type":"MODEL","links":[177]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"UNETLoader","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{"weight_dtype":true,"unet_name":true},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":["flux-2-klein-9b.safetensors","default"],"color":"#322","bgcolor":"#533"},{"id":104,"type":"CLIPLoader","pos":[-47.814476013183594,16.765552520751953],"size":[364.4270935058594,106],"flags":{},"order":2,"mode":0,"inputs":[{"label":"clip_name","localized_name":"clip_name","name":"clip_name","type":"COMBO","widget":{"name":"clip_name"}},{"label":"type","localized_name":"type","name":"type","type":"COMBO","widget":{"name":"type"}},{"label":"device","localized_name":"device","name":"device","shape":7,"type":"COMBO","widget":{"name":"device"}}],"outputs":[{"label":"CLIP","localized_name":"CLIP","name":"CLIP","type":"CLIP","links":[185]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"CLIPLoader","hasSecondTab":false,"models":[{"directory_invalid":true,"name":"qwen_3_8b_fp8mixed.safetensors","directory":"text_encoders","url":"https://huggingface.co/Comfy-Org/flux2-klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors"}],"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"widget_ue_connectable":{"clip_name":true,"type":true,"device":true},"secondTabText":"Send Back","enableTabs":false,"tabXOffset":10},"widgets_values":["qwen_3_8b.safetensors","flux2","default"],"color":"#322","bgcolor":"#533"},{"id":105,"type":"VAELoader","pos":[-58.46558405994198,184.86791016237197],"size":[364.4270935058594,58],"flags":{},"order":3,"mode":0,"inputs":[{"label":"vae_name","localized_name":"vae_name","name":"vae_name","type":"COMBO","widget":{"name":"vae_name"}}],"outputs":[{"label":"VAE","localized_name":"VAE","name":"VAE","type":"VAE","links":[184,205]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"VAELoader","hasSecondTab":false,"models":[{"directory_invalid":true,"name":"flux2-vae.safetensors","directory":"vae","url":"https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors"}],"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"widget_ue_connectable":{"vae_name":true},"secondTabText":"Send Back","enableTabs":false,"tabXOffset":10},"widgets_values":["flux2-vae.safetensors"],"color":"#322","bgcolor":"#533"},{"id":117,"type":"CR Text","pos":[628.4793147454756,603.8494080359126],"size":[432.81454836192756,201.57745899641588],"flags":{},"order":4,"mode":0,"inputs":[{"label":"text","localized_name":"text","name":"text","type":"STRING","widget":{"name":"text"}}],"outputs":[{"label":"text","localized_name":"text","name":"text","type":"*","links":[208]},{"label":"show_help","localized_name":"show_help","name":"show_help","type":"STRING"}],"properties":{"cnr_id":"ComfyUI_Comfyroll_CustomNodes","ver":"d78b780ae43fcf8c6b7c6505e6ffb4584281ceca","Node name for S&R":"CR Text","ue_properties":{"version":"7.5.2","widget_ue_connectable":{},"input_ue_unconnectable":{}}},"widgets_values":["生成这张角色三视图，包括正面，侧面，背面"],"color":"#232","bgcolor":"#353"},{"id":107,"type":"ImageScaleToTotalPixels","pos":[-53.66615295410156,307.6044616699219],"size":[270,106],"flags":{},"order":21,"mode":0,"inputs":[{"label":"image","localized_name":"image","name":"image","type":"IMAGE","link":228},{"label":"upscale_method","localized_name":"upscale_method","name":"upscale_method","type":"COMBO","widget":{"name":"upscale_method"}},{"label":"megapixels","localized_name":"megapixels","name":"megapixels","type":"FLOAT","widget":{"name":"megapixels"}},{"label":"resolution_steps","localized_name":"resolution_steps","name":"resolution_steps","type":"INT","widget":{"name":"resolution_steps"}}],"outputs":[{"label":"IMAGE","localized_name":"IMAGE","name":"IMAGE","type":"IMAGE","links":[191,204,209]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"ImageScaleToTotalPixels","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{"megapixels":true,"resolution_steps":true,"upscale_method":true},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":["bicubic",1,1],"color":"#2a363b","bgcolor":"#3f5159"},{"id":101,"type":"VAEDecode","pos":[945.5528575708134,77.57897562433348],"size":[210.3070068359375,46],"flags":{},"order":30,"mode":0,"inputs":[{"label":"samples","localized_name":"samples","name":"samples","type":"LATENT","link":183},{"label":"vae","localized_name":"vae","name":"vae","type":"VAE","link":184}],"outputs":[{"label":"IMAGE","localized_name":"IMAGE","name":"IMAGE","type":"IMAGE","slot_index":0,"links":[186,210]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"VAEDecode","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":[],"color":"#2a363b","bgcolor":"#3f5159"},{"id":100,"type":"SamplerCustomAdvanced","pos":[1359.726614488252,-125.72534271471764],"size":[212.3638671875,326],"flags":{},"order":29,"mode":0,"inputs":[{"label":"noise","localized_name":"noise","name":"noise","type":"NOISE","link":178},{"label":"guider","localized_name":"guider","name":"guider","type":"GUIDER","link":179},{"label":"sampler","localized_name":"sampler","name":"sampler","type":"SAMPLER","link":180},{"label":"sigmas","localized_name":"sigmas","name":"sigmas","type":"SIGMAS","link":181},{"label":"latent_image","localized_name":"latent_image","name":"latent_image","type":"LATENT","link":182}],"outputs":[{"label":"output","localized_name":"output","name":"output","type":"LATENT","links":[183]},{"label":"denoised_output","localized_name":"denoised_output","name":"denoised_output","type":"LATENT","links":[]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"SamplerCustomAdvanced","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":[],"color":"#2a363b","bgcolor":"#3f5159"},{"id":106,"type":"EmptyFlux2LatentImage","pos":[679.1458589211082,387.963173863583],"size":[270,106],"flags":{},"order":24,"mode":0,"inputs":[{"label":"width","localized_name":"width","name":"width","type":"INT","widget":{"name":"width"},"link":213},{"label":"height","localized_name":"height","name":"height","type":"INT","widget":{"name":"height"},"link":212},{"label":"batch_size","localized_name":"batch_size","name":"batch_size","type":"INT","widget":{"name":"batch_size"}}],"outputs":[{"label":"LATENT","localized_name":"LATENT","name":"LATENT","type":"LATENT","links":[182]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"EmptyFlux2LatentImage","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{"batch_size":true,"width":true,"height":true},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":[1024,1024,1],"color":"#2a363b","bgcolor":"#3f5159"},{"id":109,"type":"Flux2Scheduler","pos":[981.5253528177876,186.1350746789508],"size":[210.70172119140625,106],"flags":{},"order":25,"mode":0,"inputs":[{"label":"steps","localized_name":"steps","name":"steps","type":"INT","widget":{"name":"steps"}},{"label":"width","localized_name":"width","name":"width","type":"INT","widget":{"name":"width"},"link":215},{"label":"height","localized_name":"height","name":"height","type":"INT","widget":{"name":"height"},"link":214}],"outputs":[{"label":"SIGMAS","localized_name":"SIGMAS","name":"SIGMAS","type":"SIGMAS","links":[181]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"Flux2Scheduler","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{"width":true,"steps":true,"height":true},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":[8,1024,1024],"color":"#2a363b","bgcolor":"#3f5159"},{"id":112,"type":"GetImageSize","pos":[159.01913914659997,659.51515975665],"size":[210,136],"flags":{},"order":22,"mode":0,"inputs":[{"label":"image","localized_name":"image","name":"image","type":"IMAGE","link":191}],"outputs":[{"label":"width","localized_name":"width","name":"width","type":"INT","links":[212,214]},{"label":"height","localized_name":"height","name":"height","type":"INT","links":[213,215]},{"label":"batch_size","localized_name":"batch_size","name":"batch_size","type":"INT","links":[]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"GetImageSize","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":["width: 771, height: 1360\n batch size: 1"],"color":"#2a363b","bgcolor":"#3f5159"},{"id":120,"type":"SaveImage","pos":[1126.2223165852872,614.5511662372204],"size":[340.69877268934556,282],"flags":{},"order":33,"mode":4,"inputs":[{"label":"images","localized_name":"images","name":"images","type":"IMAGE","link":211},{"label":"filename_prefix","localized_name":"filename_prefix","name":"filename_prefix","type":"STRING","widget":{"name":"filename_prefix"}}],"outputs":[{"label":"image_urls","name":"image_urls","type":"STRING"}],"properties":{"cnr_id":"comfy-core","ver":"0.9.1","Node name for S&R":"SaveImage","ue_properties":{"version":"7.5.2","widget_ue_connectable":{},"input_ue_unconnectable":{}}},"widgets_values":["ComfyUI"]},{"id":119,"type":"ImageConcanate","pos":[1073.3503747191353,419.02230628284764],"size":[270,102],"flags":{},"order":32,"mode":4,"inputs":[{"label":"image1","localized_name":"image1","name":"image1","type":"IMAGE","link":209},{"label":"image2","localized_name":"image2","name":"image2","type":"IMAGE","link":210},{"label":"direction","localized_name":"direction","name":"direction","type":"COMBO","widget":{"name":"direction"}},{"label":"match_image_size","localized_name":"match_image_size","name":"match_image_size","type":"BOOLEAN","widget":{"name":"match_image_size"}}],"outputs":[{"label":"IMAGE","localized_name":"IMAGE","name":"IMAGE","type":"IMAGE","links":[211]}],"properties":{"cnr_id":"comfyui-kjnodes","ver":"dc21a414e48ef34492dfe3faefef43a489fb1df0","Node name for S&R":"ImageConcanate","ue_properties":{"version":"7.5.2","widget_ue_connectable":{},"input_ue_unconnectable":{}}},"widgets_values":["down",true]},{"id":121,"type":"CLIPLoader","pos":[-716.5745607600471,1498.4304930357416],"size":[270,106],"flags":{},"order":5,"mode":0,"inputs":[{"localized_name":"clip_name","name":"clip_name","type":"COMBO","widget":{"name":"clip_name"},"link":null},{"localized_name":"type","name":"type","type":"COMBO","widget":{"name":"type"},"link":null},{"localized_name":"device","name":"device","shape":7,"type":"COMBO","widget":{"name":"device"},"link":null}],"outputs":[{"localized_name":"CLIP","name":"CLIP","type":"CLIP","links":[227]}],"properties":{"cnr_id":"comfy-core","ver":"0.3.73","Node name for S&R":"CLIPLoader","ue_properties":{"widget_ue_connectable":{"clip_name":true,"type":true,"device":true},"version":"7.5.2","input_ue_unconnectable":{}},"models":[{"name":"qwen_3_4b.safetensors","url":"https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors","directory":"text_encoders"}],"enableTabs":false,"tabWidth":65,"tabXOffset":10,"hasSecondTab":false,"secondTabText":"Send Back","secondTabOffset":80,"secondTabWidth":65},"widgets_values":["qwen_3_4b.safetensors","lumina2","default"]},{"id":122,"type":"VAELoader","pos":[-716.5745607600471,1648.4304930357416],"size":[270,58],"flags":{},"order":6,"mode":0,"inputs":[{"localized_name":"vae_name","name":"vae_name","type":"COMBO","widget":{"name":"vae_name"},"link":null}],"outputs":[{"localized_name":"VAE","name":"VAE","type":"VAE","links":[218]}],"properties":{"cnr_id":"comfy-core","ver":"0.3.73","Node name for S&R":"VAELoader","ue_properties":{"widget_ue_connectable":{"vae_name":true},"version":"7.5.2","input_ue_unconnectable":{}},"models":[{"name":"ae.safetensors","url":"https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors","directory":"vae"}],"enableTabs":false,"tabWidth":65,"tabXOffset":10,"hasSecondTab":false,"secondTabText":"Send Back","secondTabOffset":80,"secondTabWidth":65},"widgets_values":["ae.safetensors"]},{"id":124,"type":"ConditioningZeroOut","pos":[-227.5030809451136,1917.5643393888217],"size":[204.134765625,26],"flags":{},"order":16,"mode":0,"inputs":[{"localized_name":"conditioning","name":"conditioning","type":"CONDITIONING","link":216}],"outputs":[{"localized_name":"CONDITIONING","name":"CONDITIONING","type":"CONDITIONING","links":[223]}],"properties":{"cnr_id":"comfy-core","ver":"0.3.73","Node name for S&R":"ConditioningZeroOut","ue_properties":{"widget_ue_connectable":{},"version":"7.5.2","input_ue_unconnectable":{}},"enableTabs":false,"tabWidth":65,"tabXOffset":10,"hasSecondTab":false,"secondTabText":"Send Back","secondTabOffset":80,"secondTabWidth":65},"widgets_values":[]},{"id":126,"type":"ModelSamplingAuraFlow","pos":[60.41565507220464,1324.3751006445113],"size":[310,60],"flags":{},"order":17,"mode":0,"inputs":[{"localized_name":"model","name":"model","type":"MODEL","link":219},{"localized_name":"shift","name":"shift","type":"FLOAT","widget":{"name":"shift"},"link":null}],"outputs":[{"localized_name":"MODEL","name":"MODEL","type":"MODEL","slot_index":0,"links":[221]}],"properties":{"cnr_id":"comfy-core","ver":"0.3.64","Node name for S&R":"ModelSamplingAuraFlow","ue_properties":{"widget_ue_connectable":{"shift":true},"version":"7.5.2","input_ue_unconnectable":{}},"enableTabs":false,"tabWidth":65,"tabXOffset":10,"hasSecondTab":false,"secondTabText":"Send Back","secondTabOffset":80,"secondTabWidth":65},"widgets_values":[3]},{"id":127,"type":"LoraLoaderModelOnly","pos":[-385.6340272741576,1200.7644562106855],"size":[370,82],"flags":{},"order":14,"mode":4,"inputs":[{"localized_name":"model","name":"model","type":"MODEL","link":220},{"localized_name":"lora_name","name":"lora_name","type":"COMBO","widget":{"name":"lora_name"},"link":null},{"localized_name":"strength_model","name":"strength_model","type":"FLOAT","widget":{"name":"strength_model"},"link":null}],"outputs":[{"localized_name":"MODEL","name":"MODEL","type":"MODEL","links":[219]}],"properties":{"cnr_id":"comfy-core","ver":"0.3.75","Node name for S&R":"LoraLoaderModelOnly","ue_properties":{"widget_ue_connectable":{"lora_name":true,"strength_model":true},"version":"7.5.2","input_ue_unconnectable":{}},"models":[{"name":"pixel_art_style_z_image_turbo.safetensors","url":"https://huggingface.co/tarn59/pixel_art_style_lora_z_image_turbo/resolve/main/pixel_art_style_z_image_turbo.safetensors","directory":"loras"}],"enableTabs":false,"tabWidth":65,"tabXOffset":10,"hasSecondTab":false,"secondTabText":"Send Back","secondTabOffset":80,"secondTabWidth":65},"widgets_values":["famous\\ssyy_lora_copy.safetensors",1]},{"id":128,"type":"UNETLoader","pos":[-716.5745607600471,1368.4304930357416],"size":[270,82],"flags":{},"order":7,"mode":0,"inputs":[{"localized_name":"unet_name","name":"unet_name","type":"COMBO","widget":{"name":"unet_name"},"link":null},{"localized_name":"weight_dtype","name":"weight_dtype","type":"COMBO","widget":{"name":"weight_dtype"},"link":null}],"outputs":[{"localized_name":"MODEL","name":"MODEL","type":"MODEL","links":[220]}],"properties":{"cnr_id":"comfy-core","ver":"0.3.73","Node name for S&R":"UNETLoader","ue_properties":{"widget_ue_connectable":{"unet_name":true,"weight_dtype":true},"version":"7.5.2","input_ue_unconnectable":{}},"models":[{"name":"z_image_turbo_bf16.safetensors","url":"https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_bf16.safetensors","directory":"diffusion_models"}],"enableTabs":false,"tabWidth":65,"tabXOffset":10,"hasSecondTab":false,"secondTabText":"Send Back","secondTabOffset":80,"secondTabWidth":65},"widgets_values":["z_image_turbo_bf16.safetensors","default"]},{"id":132,"type":"EmptySD3LatentImage","pos":[-716.5745607600471,1798.4304930357412],"size":[260,110],"flags":{},"order":8,"mode":0,"inputs":[{"localized_name":"width","name":"width","type":"INT","widget":{"name":"width"},"link":null},{"localized_name":"height","name":"height","type":"INT","widget":{"name":"height"},"link":null},{"localized_name":"batch_size","name":"batch_size","type":"INT","widget":{"name":"batch_size"},"link":null}],"outputs":[{"localized_name":"LATENT","name":"LATENT","type":"LATENT","slot_index":0,"links":[224]}],"properties":{"cnr_id":"comfy-core","ver":"0.3.64","Node name for S&R":"EmptySD3LatentImage","ue_properties":{"widget_ue_connectable":{"width":true,"height":true,"batch_size":true},"version":"7.5.2","input_ue_unconnectable":{}},"enableTabs":false,"tabWidth":65,"tabXOffset":10,"hasSecondTab":false,"secondTabText":"Send Back","secondTabOffset":80,"secondTabWidth":65},"widgets_values":[1088,1920,1]},{"id":125,"type":"VAEDecode","pos":[388.59471184554246,1194.5345057293653],"size":[210,46],"flags":{},"order":19,"mode":0,"inputs":[{"localized_name":"samples","name":"samples","type":"LATENT","link":217},{"localized_name":"vae","name":"vae","type":"VAE","link":218}],"outputs":[{"localized_name":"IMAGE","name":"IMAGE","type":"IMAGE","slot_index":0,"links":[225,228]}],"properties":{"cnr_id":"comfy-core","ver":"0.3.64","Node name for S&R":"VAEDecode","ue_properties":{"widget_ue_connectable":{},"version":"7.5.2","input_ue_unconnectable":{}},"enableTabs":false,"tabWidth":65,"tabXOffset":10,"hasSecondTab":false,"secondTabText":"Send Back","secondTabOffset":80,"secondTabWidth":65},"widgets_values":[]},{"id":76,"type":"LoadImage","pos":[-644.085734073979,-2.774945844736509],"size":[356.95730937429084,593.5954623297184],"flags":{},"order":9,"mode":4,"inputs":[{"label":"image","localized_name":"image","name":"image","type":"COMBO","widget":{"name":"image"}},{"label":"upload","localized_name":"choose file to upload","name":"upload","type":"IMAGEUPLOAD","widget":{"name":"upload"}}],"outputs":[{"label":"IMAGE","localized_name":"IMAGE","name":"IMAGE","type":"IMAGE","links":[]},{"label":"MASK","localized_name":"MASK","name":"MASK","type":"MASK"}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"LoadImage","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{"image":true,"upload":true},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10,"image":"clipspace/clipspace-painted-masked-1770651812027.png [input]"},"widgets_values":["z-image_00013_.png","image"],"color":"#322","bgcolor":"#533"},{"id":123,"type":"Note","pos":[71.4004836503143,1153.353774967002],"size":[210,88],"flags":{},"order":10,"mode":0,"inputs":[],"outputs":[],"title":"LoRA trigger word","properties":{"ue_properties":{"widget_ue_connectable":{},"version":"7.5.2","input_ue_unconnectable":{}}},"widgets_values":["Pixel art style"],"color":"#432","bgcolor":"#653"},{"id":129,"type":"KSampler","pos":[93.07459638525417,1429.7172214871746],"size":[315,474],"flags":{},"order":18,"mode":0,"inputs":[{"localized_name":"model","name":"model","type":"MODEL","link":221},{"localized_name":"positive","name":"positive","type":"CONDITIONING","link":222},{"localized_name":"negative","name":"negative","type":"CONDITIONING","link":223},{"localized_name":"latent_image","name":"latent_image","type":"LATENT","link":224},{"localized_name":"seed","name":"seed","type":"INT","widget":{"name":"seed"},"link":null},{"localized_name":"steps","name":"steps","type":"INT","widget":{"name":"steps"},"link":null},{"localized_name":"cfg","name":"cfg","type":"FLOAT","widget":{"name":"cfg"},"link":null},{"localized_name":"sampler_name","name":"sampler_name","type":"COMBO","widget":{"name":"sampler_name"},"link":null},{"localized_name":"scheduler","name":"scheduler","type":"COMBO","widget":{"name":"scheduler"},"link":null},{"localized_name":"denoise","name":"denoise","type":"FLOAT","widget":{"name":"denoise"},"link":null}],"outputs":[{"localized_name":"LATENT","name":"LATENT","type":"LATENT","slot_index":0,"links":[217]}],"properties":{"cnr_id":"comfy-core","ver":"0.3.64","Node name for S&R":"KSampler","ue_properties":{"widget_ue_connectable":{"seed":true,"steps":true,"cfg":true,"sampler_name":true,"scheduler":true,"denoise":true},"version":"7.5.2","input_ue_unconnectable":{}},"enableTabs":false,"tabWidth":65,"tabXOffset":10,"hasSecondTab":false,"secondTabText":"Send Back","secondTabOffset":80,"secondTabWidth":65},"widgets_values":[1108006843890786,"fixed",9,1,"res_multistep","simple",1]},{"id":102,"type":"RandomNoise","pos":[343.408447265625,-127.691650390625],"size":[270,82],"flags":{},"order":11,"mode":0,"inputs":[{"label":"noise_seed","localized_name":"noise_seed","name":"noise_seed","type":"INT","widget":{"name":"noise_seed"}}],"outputs":[{"label":"NOISE","localized_name":"NOISE","name":"NOISE","type":"NOISE","links":[178]}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"RandomNoise","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{"noise_seed":true},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":[969943272411251,"fixed"],"color":"#2a363b","bgcolor":"#3f5159"},{"id":130,"type":"PreviewImage","pos":[467.49349177045286,1334.438405410465],"size":[274.41708069755373,373.4364512187011],"flags":{},"order":20,"mode":0,"inputs":[{"localized_name":"images","name":"images","type":"IMAGE","link":225}],"outputs":[],"properties":{"cnr_id":"comfy-core","ver":"0.3.75","Node name for S&R":"PreviewImage","ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.5.2"}},"widgets_values":[]},{"id":9,"type":"SaveImage","pos":[768.8616919450244,1340.5614713406594],"size":[480.7369741584023,387.06283615688153],"flags":{},"order":31,"mode":0,"inputs":[{"label":"images","localized_name":"images","name":"images","type":"IMAGE","link":186},{"label":"filename_prefix","localized_name":"filename_prefix","name":"filename_prefix","type":"STRING","widget":{"name":"filename_prefix"}}],"outputs":[{"label":"image_urls","name":"image_urls","type":"STRING"}],"properties":{"cnr_id":"comfy-core","ver":"0.8.2","Node name for S&R":"SaveImage","hasSecondTab":false,"ue_properties":{"widget_ue_connectable":{},"input_ue_unconnectable":{},"version":"7.4.1"},"widget_ue_connectable":{"filename_prefix":true},"secondTabText":"Send Back","enableTabs":false,"secondTabOffset":80,"tabWidth":65,"secondTabWidth":65,"tabXOffset":10},"widgets_values":["jpm/Han_Daoguo"],"color":"#2a363b","bgcolor":"#3f5159"},{"id":133,"type":"CLIPTextEncode","pos":[-396.5745607600474,1368.4304930357416],"size":[410,370],"flags":{},"order":13,"mode":0,"inputs":[{"localized_name":"clip","name":"clip","type":"CLIP","link":227},{"localized_name":"text","name":"text","type":"STRING","widget":{"name":"text"},"link":null}],"outputs":[{"localized_name":"CONDITIONING","name":"CONDITIONING","type":"CONDITIONING","links":[216,222]}],"properties":{"cnr_id":"comfy-core","ver":"0.3.73","Node name for S&R":"CLIPTextEncode","ue_properties":{"widget_ue_connectable":{"text":true},"version":"7.5.2","input_ue_unconnectable":{}},"enableTabs":false,"tabWidth":65,"tabXOffset":10,"hasSecondTab":false,"secondTabText":"Send Back","secondTabOffset":80,"secondTabWidth":65},"widgets_values":["3D Pixar-style stylized character design. Han Daoguo has a round face with a short beard, and a serious expression.\n\nWears a large hat with an eye veil (大帽眼纱) over Song Dynasty formal attire."],"color":"#232","bgcolor":"#353"}],"links":[[177,103,0,108,0,"MODEL"],[178,102,0,100,0,"NOISE"],[179,108,0,100,1,"GUIDER"],[180,99,0,100,2,"SAMPLER"],[181,109,0,100,3,"SIGMAS"],[182,106,0,100,4,"LATENT"],[183,100,0,101,0,"LATENT"],[184,105,0,101,1,"VAE"],[185,104,0,110,0,"CLIP"],[186,101,0,9,0,"IMAGE"],[191,107,0,112,0,"IMAGE"],[198,110,0,111,0,"CONDITIONING"],[200,115,0,114,1,"LATENT"],[201,115,0,116,1,"LATENT"],[202,110,0,116,0,"CONDITIONING"],[203,111,0,114,0,"CONDITIONING"],[204,107,0,115,0,"IMAGE"],[205,105,0,115,1,"VAE"],[206,116,0,108,1,"CONDITIONING"],[207,114,0,108,2,"CONDITIONING"],[208,117,0,110,1,"STRING"],[209,107,0,119,0,"IMAGE"],[210,101,0,119,1,"IMAGE"],[211,119,0,120,0,"IMAGE"],[212,112,0,106,1,"INT"],[213,112,1,106,0,"INT"],[214,112,0,109,2,"INT"],[215,112,1,109,1,"INT"],[216,133,0,124,0,"CONDITIONING"],[217,129,0,125,0,"LATENT"],[218,122,0,125,1,"VAE"],[219,127,0,126,0,"MODEL"],[220,128,0,127,0,"MODEL"],[221,126,0,129,0,"MODEL"],[222,133,0,129,1,"CONDITIONING"],[223,124,0,129,2,"CONDITIONING"],[224,132,0,129,3,"LATENT"],[225,125,0,130,0,"IMAGE"],[227,121,0,133,0,"CLIP"],[228,125,0,107,0,"IMAGE"]],"groups":[{"id":1,"title":"B站、Youtube：T8star-Aix","bounding":[-1880.77099609375,-697.6839599609375,4168,309],"color":"#3f789e","font_size":240,"flags":{}},{"id":2,"title":"生成三视图","bounding":[-755.6827959381635,-282.60183268351756,2997.408871632181,1204.6880187308157],"color":"#3f789e","font_size":24,"flags":{}},{"id":3,"title":"Step3 - Prompt","bounding":[-416.8383709444991,1303.1759879935469,450,540],"color":"#3f789e","font_size":24,"flags":{}},{"id":4,"title":"Ctrl-B to enable LoRA input","bounding":[-416.8383709444991,1133.1759879935469,440,160],"color":"#3f789e","font_size":24,"flags":{}},{"id":5,"title":"文生图","bounding":[-765.2786006438075,1065.1353354273901,3012.7088082131395,922.5729149817682],"color":"#3f789e","font_size":24,"flags":{}}],"config":{},"extra":{"VHS_KeepIntermediate":true,"links_added_by_ue":[],"VHS_MetadataImage":true,"ue_links":[],"0246.VERSION":[0,0,4],"workflowRendererVersion":"LG","VHS_latentpreviewrate":0,"frontendVersion":"1.23.0","VHS_latentpreview":false,"ds":{"scale":0.687533738323913,"offset":[702.4460602650789,63.85182796164366]}},"version":0.4}
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "jpm/Han_Daoguo",
+      "images": [
+        "101",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "99": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "100": {
+    "inputs": {
+      "noise": [
+        "102",
+        0
+      ],
+      "guider": [
+        "108",
+        0
+      ],
+      "sampler": [
+        "99",
+        0
+      ],
+      "sigmas": [
+        "109",
+        0
+      ],
+      "latent_image": [
+        "106",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "101": {
+    "inputs": {
+      "samples": [
+        "100",
+        0
+      ],
+      "vae": [
+        "105",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "102": {
+    "inputs": {
+      "noise_seed": 969943272411251
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "103": {
+    "inputs": {
+      "unet_name": "flux-2-klein-9b.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "104": {
+    "inputs": {
+      "clip_name": "qwen_3_8b.safetensors",
+      "type": "flux2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "105": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "106": {
+    "inputs": {
+      "width": [
+        "112",
+        1
+      ],
+      "height": [
+        "112",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Flux 2 Latent"
+    }
+  },
+  "107": {
+    "inputs": {
+      "upscale_method": "bicubic",
+      "megapixels": 1,
+      "resolution_steps": 1,
+      "image": [
+        "125",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "ImageScaleToTotalPixels"
+    }
+  },
+  "108": {
+    "inputs": {
+      "cfg": 1,
+      "model": [
+        "103",
+        0
+      ],
+      "positive": [
+        "116",
+        0
+      ],
+      "negative": [
+        "114",
+        0
+      ]
+    },
+    "class_type": "CFGGuider",
+    "_meta": {
+      "title": "CFGGuider"
+    }
+  },
+  "109": {
+    "inputs": {
+      "steps": 8,
+      "width": [
+        "112",
+        1
+      ],
+      "height": [
+        "112",
+        0
+      ]
+    },
+    "class_type": "Flux2Scheduler",
+    "_meta": {
+      "title": "Flux2Scheduler"
+    }
+  },
+  "110": {
+    "inputs": {
+      "text": [
+        "117",
+        0
+      ],
+      "clip": [
+        "104",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "111": {
+    "inputs": {
+      "conditioning": [
+        "110",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "112": {
+    "inputs": {
+      "image": [
+        "107",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "114": {
+    "inputs": {
+      "conditioning": [
+        "111",
+        0
+      ],
+      "latent": [
+        "115",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "ReferenceLatent"
+    }
+  },
+  "115": {
+    "inputs": {
+      "pixels": [
+        "107",
+        0
+      ],
+      "vae": [
+        "105",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "116": {
+    "inputs": {
+      "conditioning": [
+        "110",
+        0
+      ],
+      "latent": [
+        "115",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "ReferenceLatent"
+    }
+  },
+  "117": {
+    "inputs": {
+      "text": "生成这张角色三视图，包括正面，侧面，背面"
+    },
+    "class_type": "CR Text",
+    "_meta": {
+      "title": "🔤 CR Text"
+    }
+  },
+  "121": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "122": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "124": {
+    "inputs": {
+      "conditioning": [
+        "133",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "125": {
+    "inputs": {
+      "samples": [
+        "129",
+        0
+      ],
+      "vae": [
+        "122",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "126": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "128",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "128": {
+    "inputs": {
+      "unet_name": "z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "129": {
+    "inputs": {
+      "seed": 1108006843890786,
+      "steps": 9,
+      "cfg": 1,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "126",
+        0
+      ],
+      "positive": [
+        "133",
+        0
+      ],
+      "negative": [
+        "124",
+        0
+      ],
+      "latent_image": [
+        "132",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "130": {
+    "inputs": {
+      "images": [
+        "125",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "132": {
+    "inputs": {
+      "width": 1088,
+      "height": 1920,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "133": {
+    "inputs": {
+      "text": "3D Pixar-style stylized character design. Han Daoguo has a round face with a short beard, and a serious expression.\n\nWears a large hat with an eye veil (大帽眼纱) over Song Dynasty formal attire.",
+      "clip": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  }
+}
