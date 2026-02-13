@@ -57,8 +57,11 @@ async def check_comfyui():
                     ram_total = system_data.get("ram_total", 0)
                     ram_free = system_data.get("ram_free", 0)
                     if ram_total > 0:
-                        system_info["ram_total"] = round(ram_total / (1024**3), 1)
-                        system_info["ram_used"] = round((ram_total - ram_free) / (1024**3), 1)
+                        ram_total_gb = ram_total / (1024**3)
+                        ram_used_gb = (ram_total - ram_free) / (1024**3)
+                        system_info["ram_total"] = round(ram_total_gb, 1)
+                        system_info["ram_used"] = round(ram_used_gb, 1)
+                        print(f"[ComfyUI] RAM: {system_info['ram_used']} / {system_info['ram_total']} GB")
                 
                 # 提取设备信息 (devices 部分)
                 devices = data.get("devices", [])
@@ -66,11 +69,24 @@ async def check_comfyui():
                     device = devices[0]
                     # GPU信息
                     system_info["device_name"] = device.get("name", "Unknown GPU")
+                    
+                    # 显存计算 (字节转GB)
                     vram_total = device.get("vram_total", 0)
-                    vram_free = device.get("vram_free", device.get("vram_total", 0))
+                    # vram_free 可能是 comfyui 计算的可用显存
+                    # torch_vram_free 是 pytorch 实际可用的
+                    # 我们使用 vram_total - torch_vram_total 来估算已用显存
+                    torch_vram_total = device.get("torch_vram_total", 0)
+                    
                     if vram_total > 0:
-                        system_info["vram_total"] = round(vram_total / (1024**3), 1)
-                        system_info["vram_used"] = round((vram_total - vram_free) / (1024**3), 1)
+                        vram_total_gb = vram_total / (1024**3)
+                        # 已用显存 = 总显存 - (总显存 - torch占用的) 的估算
+                        # 或者直接用 torch_vram_total 作为已用显存
+                        vram_used_gb = torch_vram_total / (1024**3) if torch_vram_total > 0 else 0
+                        
+                        system_info["vram_total"] = round(vram_total_gb, 1)
+                        system_info["vram_used"] = round(vram_used_gb, 1)
+                        
+                        print(f"[ComfyUI] VRAM: {system_info['vram_used']} / {system_info['vram_total']} GB")
                     
                     # GPU使用率 (某些ComfyUI版本可能提供)
                     system_info["gpu_usage"] = device.get("gpu_usage", 0)

@@ -15,12 +15,14 @@ const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}
 interface ComfyUIStats {
   status: 'online' | 'offline';
   gpuUsage: number;
+  vramPercent: number;
   vramUsed: number;
   vramTotal: number;
   queueSize: number;
   deviceName: string;
   // 新增字段
   cpuUsage?: number;
+  ramPercent?: number;
   ramUsed?: number;
   ramTotal?: number;
   temperature?: number;
@@ -31,6 +33,7 @@ export default function ComfyUIStatus() {
   const [stats, setStats] = useState<ComfyUIStats>({
     status: 'offline',
     gpuUsage: 0,
+    vramPercent: 0,
     vramUsed: 0,
     vramTotal: 16,
     queueSize: 0,
@@ -62,19 +65,30 @@ export default function ComfyUIStatus() {
             // 忽略队列错误
           }
           
+          // 计算百分比
+          const vramPercent = systemStats.vram_total > 0 
+            ? Math.round((systemStats.vram_used / systemStats.vram_total) * 100)
+            : 0;
+          
+          const ramPercent = systemStats.ram_total > 0
+            ? Math.round((systemStats.ram_used / systemStats.ram_total) * 100)
+            : 0;
+          
           setStats({
             status: 'online',
-            gpuUsage: systemStats.gpu_usage || 0,
+            gpuUsage: Math.round(systemStats.gpu_usage || 0),
+            vramPercent: vramPercent,
             vramUsed: systemStats.vram_used || 0,
             vramTotal: systemStats.vram_total || 16,
             queueSize: queueSize,
             deviceName: systemStats.device_name || 'NVIDIA GPU',
             // 新增字段
-            cpuUsage: systemStats.cpu_usage,
-            ramUsed: systemStats.ram_used,
-            ramTotal: systemStats.ram_total,
-            temperature: systemStats.temperature,
-            hddUsage: systemStats.hdd_usage,
+            cpuUsage: systemStats.cpu_usage !== undefined ? Math.round(systemStats.cpu_usage) : undefined,
+            ramPercent: ramPercent,
+            ramUsed: systemStats.ram_used || 0,
+            ramTotal: systemStats.ram_total || 0,
+            temperature: systemStats.temperature !== undefined ? Math.round(systemStats.temperature) : undefined,
+            hddUsage: systemStats.hdd_usage !== undefined ? Math.round(systemStats.hdd_usage) : undefined,
           });
           setDebugInfo(data.raw);
           setError(null);
@@ -102,13 +116,6 @@ export default function ComfyUIStatus() {
     return () => clearInterval(interval);
   }, []);
 
-  const formatNumber = (num: number | undefined, decimals: number = 1) => {
-    if (num === undefined || num === null) return '--';
-    return num.toFixed(decimals);
-  };
-
-  const formatVRAM = (gb: number) => `${gb.toFixed(1)} GB`;
-
   if (isLoading) {
     return (
       <div className="bg-slate-800 rounded-xl p-4 flex items-center justify-center">
@@ -119,7 +126,7 @@ export default function ComfyUIStatus() {
   }
 
   // 计算要显示的项目数量
-  const hasExtraStats = stats.cpuUsage !== undefined || stats.ramUsed !== undefined || 
+  const hasExtraStats = stats.cpuUsage !== undefined || stats.ramPercent !== undefined || 
                         stats.temperature !== undefined || stats.hddUsage !== undefined;
   
   // 动态网格列数
@@ -151,20 +158,18 @@ export default function ComfyUIStatus() {
           </div>
           <div>
             <p className="text-xs text-slate-400">GPU使用率</p>
-            <p className="text-sm font-medium">{formatNumber(stats.gpuUsage, 0)}%</p>
+            <p className="text-sm font-medium">{stats.gpuUsage}%</p>
           </div>
         </div>
 
-        {/* 显存占用 */}
+        {/* 显存占用 - 改为百分比 */}
         <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
           <div className="p-2 bg-slate-700 rounded-lg">
             <HardDrive className="h-4 w-4 text-slate-300" />
           </div>
           <div>
             <p className="text-xs text-slate-400">显存占用</p>
-            <p className="text-sm font-medium">
-              {formatNumber(stats.vramUsed, 1)} / {formatNumber(stats.vramTotal, 1)} GB
-            </p>
+            <p className="text-sm font-medium">{stats.vramPercent}%</p>
           </div>
         </div>
 
@@ -187,27 +192,25 @@ export default function ComfyUIStatus() {
             </div>
             <div>
               <p className="text-xs text-slate-400">CPU</p>
-              <p className="text-sm font-medium">{formatNumber(stats.cpuUsage, 0)}%</p>
+              <p className="text-sm font-medium">{stats.cpuUsage}%</p>
             </div>
           </div>
         )}
 
-        {/* RAM使用率 - 如果有数据 */}
-        {stats.ramUsed !== undefined && stats.ramTotal !== undefined && (
+        {/* RAM使用率 - 改为百分比 */}
+        {stats.ramPercent !== undefined && (
           <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
             <div className="p-2 bg-slate-700 rounded-lg">
               <MemoryStick className="h-4 w-4 text-green-300" />
             </div>
             <div>
               <p className="text-xs text-slate-400">RAM</p>
-              <p className="text-sm font-medium">
-                {formatNumber(stats.ramUsed, 1)} / {formatNumber(stats.ramTotal, 1)} GB
-              </p>
+              <p className="text-sm font-medium">{stats.ramPercent}%</p>
             </div>
           </div>
         )}
 
-        {/* 温度 - 如果有数据 */}
+        {/* 温度 */}
         {stats.temperature !== undefined && (
           <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
             <div className="p-2 bg-slate-700 rounded-lg">
@@ -215,12 +218,12 @@ export default function ComfyUIStatus() {
             </div>
             <div>
               <p className="text-xs text-slate-400">温度</p>
-              <p className="text-sm font-medium">{formatNumber(stats.temperature, 0)}°C</p>
+              <p className="text-sm font-medium">{stats.temperature}°C</p>
             </div>
           </div>
         )}
 
-        {/* HDD使用率 - 如果有数据 */}
+        {/* HDD使用率 */}
         {stats.hddUsage !== undefined && (
           <div className="flex items-center gap-2 border-l border-slate-600 pl-3">
             <div className="p-2 bg-slate-700 rounded-lg">
@@ -228,17 +231,27 @@ export default function ComfyUIStatus() {
             </div>
             <div>
               <p className="text-xs text-slate-400">HDD</p>
-              <p className="text-sm font-medium">{formatNumber(stats.hddUsage, 0)}%</p>
+              <p className="text-sm font-medium">{stats.hddUsage}%</p>
             </div>
           </div>
         )}
       </div>
 
-      {/* 显卡名称 - 单独一行显示完整 */}
+      {/* 显卡信息 - 显示完整名称和显存详情 */}
       {stats.status === 'online' && stats.deviceName && (
         <div className="mt-3 pt-3 border-t border-slate-700">
-          <p className="text-xs text-slate-400">显卡信息</p>
-          <p className="text-sm font-medium text-emerald-400 truncate">{stats.deviceName}</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-slate-400">显卡信息</p>
+              <p className="text-sm font-medium text-emerald-400">{stats.deviceName}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-slate-400">显存详情</p>
+              <p className="text-sm text-slate-300">
+                {stats.vramUsed.toFixed(1)} / {stats.vramTotal.toFixed(1)} GB ({stats.vramPercent}%)
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
