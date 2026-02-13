@@ -11,7 +11,10 @@ import {
   Film,
   User,
   AlertCircle,
-  Play
+  Play,
+  ChevronDown,
+  ChevronUp,
+  Terminal
 } from 'lucide-react';
 import ComfyUIStatus from '../components/ComfyUIStatus';
 import type { Task } from '../types';
@@ -23,6 +26,7 @@ export default function Tasks() {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'running' | 'completed' | 'failed'>('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetchTasks();
@@ -61,6 +65,18 @@ export default function Tasks() {
     } catch (error) {
       console.error('删除失败:', error);
     }
+  };
+
+  const toggleErrorDetail = (taskId: string) => {
+    setExpandedErrors(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
   };
 
   const handleRetry = async (taskId: string) => {
@@ -255,8 +271,33 @@ export default function Tasks() {
                     
                     {/* Error Message */}
                     {task.status === 'failed' && task.errorMessage && (
-                      <div className="mt-2 p-2 bg-red-100 rounded text-xs text-red-700">
-                        错误: {task.errorMessage}
+                      <div className="mt-2">
+                        <div 
+                          className="p-2 bg-red-100 rounded text-xs text-red-700 flex items-start gap-2 cursor-pointer hover:bg-red-200 transition-colors"
+                          onClick={() => toggleErrorDetail(task.id)}
+                        >
+                          <Terminal className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium">错误: {task.errorMessage.slice(0, 100)}{task.errorMessage.length > 100 ? '...' : ''}</span>
+                              {task.errorMessage.length > 100 && (
+                                <span className="text-red-500 ml-2 flex-shrink-0">
+                                  {expandedErrors.has(task.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                </span>
+                              )}
+                            </div>
+                            {expandedErrors.has(task.id) && task.errorMessage.length > 100 && (
+                              <div className="mt-2 p-2 bg-red-50 rounded border border-red-200 font-mono whitespace-pre-wrap break-all">
+                                {task.errorMessage}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        {task.errorMessage.includes('ComfyUI') && (
+                          <p className="text-xs text-red-600 mt-1 ml-6">
+                            提示: 请检查 ComfyUI 中是否已安装所需的模型和节点
+                          </p>
+                        )}
                       </div>
                     )}
                     

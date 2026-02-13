@@ -1,6 +1,7 @@
 import json
 import os
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from pathlib import Path
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -27,8 +28,13 @@ DEFAULT_WORKFLOWS = {
 
 
 def get_workflows_dir():
-    """获取工作流文件目录"""
-    return os.path.join(os.path.dirname(os.path.dirname(__file__)), "workflows")
+    """获取系统工作流文件目录"""
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "workflows")
+
+
+def get_user_workflows_dir():
+    """获取用户工作流文件目录"""
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "user_workflows")
 
 
 def load_default_workflows(db: Session):
@@ -106,7 +112,7 @@ async def list_workflows(
     }
 
 
-@router.get("/{workflow_id}", response_model=dict)
+@router.get("/{workflow_id}/", response_model=dict)
 async def get_workflow(workflow_id: str, db: Session = Depends(get_db)):
     """获取工作流详情"""
     workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
@@ -129,11 +135,11 @@ async def get_workflow(workflow_id: str, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/upload", response_model=dict)
+@router.post("/upload/", response_model=dict)
 async def upload_workflow(
-    name: str,
-    type: str,
-    description: Optional[str] = None,
+    name: str = Form(...),
+    type: str = Form(...),
+    description: Optional[str] = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
@@ -146,9 +152,30 @@ async def upload_workflow(
     try:
         # 验证JSON格式
         workflow_data = json.loads(content)
-        workflow_json = json.dumps(workflow_data, ensure_ascii=False)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="无效的JSON文件")
+        workflow_json = json.dumps(workflow_data, ensure_ascii=False, indent=2)
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=400, detail=f"无效的JSON文件: {str(e)}")
+    
+    # 确保用户工作流目录存在
+    user_workflows_dir = get_user_workflows_dir()
+    os.makedirs(user_workflows_dir, exist_ok=True)
+    
+    # 保存文件到用户工作流目录
+    safe_name = "".join(c for c in name if c.isalnum() or c in ('-', '_')).strip()
+    filename = f"{safe_name}_{type}.json"
+    file_path = os.path.join(user_workflows_dir, filename)
+    
+    # 如果文件已存在，添加数字后缀
+    counter = 1
+    original_file_path = file_path
+    while os.path.exists(file_path):
+        filename = f"{safe_name}_{type}_{counter}.json"
+        file_path = os.path.join(user_workflows_dir, filename)
+        counter += 1
+    
+    # 写入文件
+    with open(file_path, 'w', encoding='utf-8') as f:
+        f.write(workflow_json)
     
     # 创建工作流记录
     workflow = Workflow(
@@ -157,8 +184,9 @@ async def upload_workflow(
         type=type,
         workflow_json=workflow_json,
         is_system=False,
-        is_active=True,
-        created_by="user"
+        is_active=False,  # 上传后不是默认，需要手动设置
+        created_by="user",
+        file_path=file_path
     )
     db.add(workflow)
     db.commit()
@@ -171,11 +199,12 @@ async def upload_workflow(
             "id": workflow.id,
             "name": workflow.name,
             "type": workflow.type,
+            "filePath": file_path
         }
     }
 
 
-@router.put("/{workflow_id}", response_model=dict)
+@router.put("/{workflow_id}/", response_model=dict)
 async def update_workflow(
     workflow_id: str,
     data: dict,
@@ -205,10 +234,17 @@ async def update_workflow(
         if "workflowJson" in data:
             # 验证JSON
             try:
-                json.loads(data["workflowJson"])
+                workflow_data = json.loads(data["workflowJson"])
                 workflow.workflow_json = data["workflowJson"]
-            except:
-                raise HTTPException(status_code=400, detail="无效的JSON内容")
+                
+                # 同时更新文件
+                if workflow.file_path and os.path.exists(workflow.file_path):
+                    with open(workflow.file_path, 'w', encoding='utf-8') as f:
+                        json.dump(workflow_data, f, ensure_ascii=False, indent=2)
+            except json.JSONDecodeError as e:
+                raise HTTPException(status_code=400, detail=f"无效的JSON内容: {str(e)}")
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"保存文件失败: {str(e)}")
     
     db.commit()
     db.refresh(workflow)
@@ -223,7 +259,7 @@ async def update_workflow(
     }
 
 
-@router.delete("/{workflow_id}")
+@router.delete("/{workflow_id}/")
 async def delete_workflow(workflow_id: str, db: Session = Depends(get_db)):
     """删除工作流"""
     workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
@@ -240,7 +276,7 @@ async def delete_workflow(workflow_id: str, db: Session = Depends(get_db)):
     return {"success": True, "message": "删除成功"}
 
 
-@router.post("/{workflow_id}/set-default")
+@router.post("/{workflow_id}/set-default/")
 async def set_default_workflow(
     workflow_id: str,
     db: Session = Depends(get_db)

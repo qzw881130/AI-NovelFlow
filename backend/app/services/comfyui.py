@@ -65,13 +65,15 @@ class ComfyUIService:
             )
             
             # 提交任务到 ComfyUI
-            prompt_id = await self._queue_prompt(workflow)
+            queue_result = await self._queue_prompt(workflow)
             
-            if not prompt_id:
+            if not queue_result.get("success"):
                 return {
                     "success": False,
-                    "message": "提交任务失败"
+                    "message": queue_result.get("error", "提交任务失败")
                 }
+            
+            prompt_id = queue_result.get("prompt_id")
             
             # 等待任务完成
             result = await self._wait_for_result(prompt_id)
@@ -124,13 +126,15 @@ class ComfyUIService:
                 height=kwargs.get('height', 1080)
             )
             
-            prompt_id = await self._queue_prompt(workflow)
+            queue_result = await self._queue_prompt(workflow)
             
-            if not prompt_id:
+            if not queue_result.get("success"):
                 return {
                     "success": False,
-                    "message": "提交任务失败"
+                    "message": queue_result.get("error", "提交任务失败")
                 }
+            
+            prompt_id = queue_result.get("prompt_id")
             
             result = await self._wait_for_result(prompt_id)
             
@@ -176,13 +180,15 @@ class ComfyUIService:
                 num_frames=kwargs.get('num_frames', 48)
             )
             
-            prompt_id = await self._queue_prompt(workflow)
+            queue_result = await self._queue_prompt(workflow)
             
-            if not prompt_id:
+            if not queue_result.get("success"):
                 return {
                     "success": False,
-                    "message": "提交任务失败"
+                    "message": queue_result.get("error", "提交任务失败")
                 }
+            
+            prompt_id = queue_result.get("prompt_id")
             
             result = await self._wait_for_result(prompt_id, timeout=300)  # 视频生成时间较长
             
@@ -198,7 +204,7 @@ class ComfyUIService:
                 "message": f"生成失败: {str(e)}"
             }
     
-    async def _queue_prompt(self, workflow: Dict[str, Any]) -> Optional[str]:
+    async def _queue_prompt(self, workflow: Dict[str, Any]) -> Dict[str, Any]:
         """提交任务到 ComfyUI"""
         try:
             async with httpx.AsyncClient() as client:
@@ -213,14 +219,34 @@ class ComfyUIService:
                 
                 if response.status_code == 200:
                     data = response.json()
-                    return data.get("prompt_id")
+                    return {
+                        "success": True,
+                        "prompt_id": data.get("prompt_id")
+                    }
                 else:
-                    print(f"Queue prompt failed: {response.status_code} - {response.text}")
-                    return None
+                    error_text = response.text
+                    try:
+                        # 尝试解析 JSON 错误
+                        error_data = response.json()
+                        if "error" in error_data:
+                            error_text = error_data["error"]
+                        elif "detail" in error_data:
+                            error_text = str(error_data["detail"])
+                    except:
+                        pass
+                    
+                    print(f"Queue prompt failed: {response.status_code} - {error_text}")
+                    return {
+                        "success": False,
+                        "error": f"ComfyUI 错误 (HTTP {response.status_code}): {error_text}"
+                    }
                     
         except Exception as e:
             print(f"Queue prompt error: {e}")
-            return None
+            return {
+                "success": False,
+                "error": f"连接 ComfyUI 失败: {str(e)}"
+            }
     
     async def _wait_for_result(
         self, 

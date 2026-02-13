@@ -15,9 +15,12 @@ import {
   Star,
   Trash2,
   X,
-  Plus
+  Plus,
+  Check,
+  Download
 } from 'lucide-react';
 import { useConfigStore } from '../stores/configStore';
+import JSONEditor from '../components/JSONEditor';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
@@ -69,6 +72,12 @@ export default function Settings() {
   const [uploadType, setUploadType] = useState<'character' | 'shot' | 'video'>('character');
   const [uploadForm, setUploadForm] = useState({ name: '', description: '', file: null as File | null });
   const [uploading, setUploading] = useState(false);
+  
+  // 编辑工作流
+  const [editingWorkflow, setEditingWorkflow] = useState<Workflow | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', description: '', workflowJson: '' });
+  const [loadingEdit, setLoadingEdit] = useState(false);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // 加载工作流
   useEffect(() => {
@@ -77,7 +86,7 @@ export default function Settings() {
 
   const fetchWorkflows = async () => {
     try {
-      const res = await fetch(`${API_BASE}/workflows`);
+      const res = await fetch(`${API_BASE}/workflows/`);
       const data = await res.json();
       if (data.success) {
         setWorkflows(data.data);
@@ -101,7 +110,7 @@ export default function Settings() {
 
   const handleSetDefault = async (workflow: Workflow) => {
     try {
-      const res = await fetch(`${API_BASE}/workflows/${workflow.id}/set-default`, {
+      const res = await fetch(`${API_BASE}/workflows/${workflow.id}/set-default/`, {
         method: 'POST'
       });
       if (res.ok) {
@@ -120,7 +129,7 @@ export default function Settings() {
     if (!confirm('确定要删除这个工作流吗？')) return;
     
     try {
-      await fetch(`${API_BASE}/workflows/${workflow.id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/workflows/${workflow.id}/`, { method: 'DELETE' });
       fetchWorkflows();
     } catch (error) {
       console.error('删除失败:', error);
@@ -138,26 +147,129 @@ export default function Settings() {
     const formData = new FormData();
     formData.append('name', uploadForm.name);
     formData.append('type', uploadType);
-    formData.append('description', uploadForm.description);
+    formData.append('description', uploadForm.description || '');
     formData.append('file', uploadForm.file);
     
     try {
-      const res = await fetch(`${API_BASE}/workflows/upload`, {
+      const res = await fetch(`${API_BASE}/workflows/upload/`, {
         method: 'POST',
         body: formData
       });
+      const data = await res.json();
       if (res.ok) {
         setShowUploadModal(false);
         setUploadForm({ name: '', description: '', file: null });
         fetchWorkflows();
       } else {
-        alert('上传失败');
+        // 处理 FastAPI 验证错误格式
+        let errorMsg = '上传失败';
+        if (data.detail) {
+          if (typeof data.detail === 'string') {
+            errorMsg = data.detail;
+          } else if (Array.isArray(data.detail)) {
+            errorMsg = data.detail.map((e: any) => e.msg || e).join(', ');
+          } else {
+            errorMsg = JSON.stringify(data.detail);
+          }
+        }
+        alert(errorMsg);
       }
     } catch (error) {
       console.error('上传失败:', error);
-      alert('上传失败');
+      alert('上传失败: ' + (error instanceof Error ? error.message : '网络错误'));
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleOpenEdit = async (workflow: Workflow) => {
+    setLoadingEdit(true);
+    setEditingWorkflow(workflow);
+    
+    try {
+      const res = await fetch(`${API_BASE}/workflows/${workflow.id}/`);
+      const data = await res.json();
+      if (data.success) {
+        const wf = data.data;
+        setEditForm({
+          name: wf.name,
+          description: wf.description || '',
+          workflowJson: wf.workflowJson ? JSON.stringify(JSON.parse(wf.workflowJson), null, 2) : ''
+        });
+      }
+    } catch (error) {
+      console.error('加载工作流详情失败:', error);
+      alert('加载工作流详情失败');
+      setEditingWorkflow(null);
+    } finally {
+      setLoadingEdit(false);
+    }
+  };
+
+  const handleDownload = async (workflow: Workflow) => {
+    try {
+      const res = await fetch(`${API_BASE}/workflows/${workflow.id}/`);
+      const data = await res.json();
+      if (data.success) {
+        const wf = data.data;
+        const blob = new Blob([wf.workflowJson], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${wf.name}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    } catch (error) {
+      console.error('下载失败:', error);
+      alert('下载失败');
+    }
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingWorkflow) return;
+    
+    setSavingEdit(true);
+    
+    try {
+      // 验证 JSON 格式（如果是用户工作流且修改了 JSON）
+      let payload: any = {
+        name: editForm.name,
+        description: editForm.description
+      };
+      
+      if (!editingWorkflow.isSystem && editForm.workflowJson) {
+        try {
+          JSON.parse(editForm.workflowJson);
+          payload.workflowJson = editForm.workflowJson;
+        } catch {
+          alert('JSON 格式错误，请检查工作流内容');
+          setSavingEdit(false);
+          return;
+        }
+      }
+      
+      const res = await fetch(`${API_BASE}/workflows/${editingWorkflow.id}/`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        setEditingWorkflow(null);
+        fetchWorkflows();
+      } else {
+        alert(data.detail || '保存失败');
+      }
+    } catch (error) {
+      console.error('保存失败:', error);
+      alert('保存失败');
+    } finally {
+      setSavingEdit(false);
     }
   };
 
@@ -341,15 +453,33 @@ export default function Settings() {
                         className={`flex items-center justify-between p-3 rounded-lg border ${
                           workflow.isActive 
                             ? 'border-primary-500 bg-primary-50' 
-                            : 'border-gray-200 bg-gray-50'
+                            : 'border-gray-200 hover:border-gray-300 bg-white'
                         }`}
                       >
                         <div className="flex items-center gap-3">
-                          {workflow.isActive && (
-                            <Star className="h-4 w-4 text-primary-500 fill-current" />
-                          )}
+                          {/* 单选按钮选择默认 */}
+                          <button
+                            type="button"
+                            onClick={() => !workflow.isActive && handleSetDefault(workflow)}
+                            className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
+                              workflow.isActive 
+                                ? 'border-primary-500 bg-primary-500' 
+                                : 'border-gray-300 hover:border-primary-400'
+                            }`}
+                            title={workflow.isActive ? '当前默认' : '设为默认'}
+                          >
+                            {workflow.isActive && <div className="w-2 h-2 bg-white rounded-full" />}
+                          </button>
+                          
                           <div>
-                            <p className="font-medium text-sm text-gray-900">{workflow.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-sm text-gray-900">{workflow.name}</p>
+                              {workflow.isActive && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 font-medium">
+                                  默认
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-gray-500">
                               {workflow.isSystem ? '系统预设' : '自定义'} 
                               {workflow.description && ` · ${workflow.description}`}
@@ -358,21 +488,19 @@ export default function Settings() {
                         </div>
                         
                         <div className="flex items-center gap-1">
-                          {!workflow.isActive && (
-                            <button
-                              type="button"
-                              onClick={() => handleSetDefault(workflow)}
-                              className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-100 rounded transition-colors"
-                              title="设为默认"
-                            >
-                              <Star className="h-4 w-4" />
-                            </button>
-                          )}
                           <button
                             type="button"
-                            onClick={() => alert('查看/编辑功能开发中')}
+                            onClick={() => handleDownload(workflow)}
+                            className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-100 rounded transition-colors"
+                            title="下载工作流"
+                          >
+                            <Download className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEdit(workflow)}
                             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                            title="查看/编辑"
+                            title={workflow.isSystem ? '查看' : '编辑'}
                           >
                             <Edit2 className="h-4 w-4" />
                           </button>
@@ -495,6 +623,100 @@ export default function Settings() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 编辑/查看工作流弹窗 */}
+      {editingWorkflow && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-5xl max-h-[95vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {editingWorkflow.isSystem ? '查看工作流' : '编辑工作流'}
+                {editingWorkflow.isSystem && (
+                  <span className="ml-2 text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">系统预设（只读）</span>
+                )}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingWorkflow(null)}
+                className="p-1 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            {loadingEdit ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+              </div>
+            ) : (
+              <form onSubmit={handleSaveEdit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">工作流名称</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="input-field mt-1"
+                    placeholder="工作流名称"
+                    readOnly={editingWorkflow.isSystem}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">描述</label>
+                  <textarea
+                    rows={2}
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                    className="input-field mt-1"
+                    placeholder="工作流描述..."
+                    readOnly={editingWorkflow.isSystem}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    工作流 JSON
+                    {!editingWorkflow.isSystem && (
+                      <span className="text-xs text-gray-500 ml-2">可编辑，请确保 JSON 格式正确</span>
+                    )}
+                  </label>
+                  <JSONEditor
+                    value={editForm.workflowJson}
+                    onChange={(value) => setEditForm({ ...editForm, workflowJson: value })}
+                    readOnly={editingWorkflow.isSystem}
+                    height="60vh"
+                  />
+                </div>
+                
+                <div className="flex justify-end gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setEditingWorkflow(null)}
+                    className="btn-secondary"
+                  >
+                    {editingWorkflow.isSystem ? '关闭' : '取消'}
+                  </button>
+                  {!editingWorkflow.isSystem && (
+                    <button
+                      type="submit"
+                      disabled={savingEdit}
+                      className="btn-primary"
+                    >
+                      {savingEdit ? (
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />保存中...</>
+                      ) : (
+                        <><Save className="mr-2 h-4 w-4" />保存</>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
