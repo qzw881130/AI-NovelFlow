@@ -5,7 +5,8 @@ import {
   HardDrive, 
   ListTodo,
   AlertCircle,
-  Loader2
+  Loader2,
+  Activity
 } from 'lucide-react';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
@@ -17,6 +18,7 @@ interface ComfyUIStats {
   vramTotal: number;
   queueSize: number;
   deviceName?: string;
+  raw?: any;  // 调试信息
 }
 
 export default function ComfyUIStatus() {
@@ -29,42 +31,57 @@ export default function ComfyUIStatus() {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   const fetchStatus = async () => {
     try {
+      // 获取系统状态
       const res = await fetch(`${API_BASE}/health/comfyui`);
+      
       if (res.ok) {
         const data = await res.json();
-        if (data.status === 'ok') {
-          // 解析ComfyUI返回的系统状态
-          const systemStats = data.data || {};
+        console.log('[ComfyUI Status] API Response:', data);
+        
+        if (data.status === 'ok' && data.data) {
+          const systemStats = data.data;
           
           // 获取队列信息
-          const queueRes = await fetch(`${API_BASE}/health/comfyui-queue`);
           let queueSize = 0;
-          if (queueRes.ok) {
-            const queueData = await queueRes.json();
-            queueSize = queueData.queue_size || 0;
+          try {
+            const queueRes = await fetch(`${API_BASE}/health/comfyui-queue`);
+            if (queueRes.ok) {
+              const queueData = await queueRes.json();
+              queueSize = queueData.queue_size || 0;
+            }
+          } catch (e) {
+            console.log('[ComfyUI Status] Queue fetch failed:', e);
           }
           
           setStats({
             status: 'online',
-            gpuUsage: systemStats.gpu_usage || Math.floor(Math.random() * 30) + 50, // 模拟数据
-            vramUsed: systemStats.vram_used || 8.5,
+            gpuUsage: systemStats.gpu_usage || 0,
+            vramUsed: systemStats.vram_used || 0,
             vramTotal: systemStats.vram_total || 16,
             queueSize: queueSize,
             deviceName: systemStats.device_name || 'NVIDIA GPU',
+            raw: data.raw,  // 保存原始数据用于调试
           });
+          setDebugInfo(data.raw);
           setError(null);
         } else {
           setStats(prev => ({ ...prev, status: 'offline' }));
+          setError('ComfyUI 返回异常数据');
         }
       } else {
+        const errorData = await res.json().catch(() => ({}));
+        console.error('[ComfyUI Status] API Error:', errorData);
         setStats(prev => ({ ...prev, status: 'offline' }));
+        setError(errorData.detail || '无法连接到 ComfyUI');
       }
-    } catch (err) {
+    } catch (err: any) {
+      console.error('[ComfyUI Status] Fetch Error:', err);
       setStats(prev => ({ ...prev, status: 'offline' }));
-      setError('无法连接到ComfyUI');
+      setError(err.message || '网络连接失败');
     } finally {
       setIsLoading(false);
     }
@@ -83,6 +100,7 @@ export default function ComfyUIStatus() {
     return (
       <div className="bg-slate-800 rounded-xl p-4 flex items-center justify-center">
         <Loader2 className="h-5 w-5 text-slate-400 animate-spin" />
+        <span className="ml-2 text-slate-400">正在连接 ComfyUI...</span>
       </div>
     );
   }
@@ -103,6 +121,9 @@ export default function ComfyUIStatus() {
                 {stats.status === 'online' ? '在线' : '离线'}
               </span>
             </div>
+            {stats.deviceName && stats.status === 'online' && (
+              <p className="text-xs text-slate-500 mt-0.5 truncate max-w-[120px]">{stats.deviceName}</p>
+            )}
           </div>
         </div>
 
@@ -142,11 +163,22 @@ export default function ComfyUIStatus() {
         </div>
       </div>
 
+      {/* 错误信息 */}
       {error && (
-        <div className="mt-3 flex items-center gap-2 text-red-400 text-sm">
+        <div className="mt-3 flex items-center gap-2 text-red-400 text-sm bg-red-900/20 p-2 rounded">
           <AlertCircle className="h-4 w-4" />
           <span>{error}</span>
         </div>
+      )}
+
+      {/* 调试信息 (仅在开发环境显示) */}
+      {process.env.NODE_ENV === 'development' && debugInfo && (
+        <details className="mt-2 text-xs text-slate-500">
+          <summary className="cursor-pointer hover:text-slate-400">调试信息</summary>
+          <pre className="mt-1 p-2 bg-slate-900 rounded overflow-auto max-h-40">
+            {JSON.stringify(debugInfo, null, 2)}
+          </pre>
+        </details>
       )}
     </div>
   );
