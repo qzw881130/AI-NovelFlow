@@ -326,16 +326,27 @@ export default function Characters() {
                 <p className="text-xs text-primary-600 mt-1">
                   {getNovelName(character.novelId)}
                 </p>
-                <p className="text-sm text-gray-600 mt-2 line-clamp-2 h-10">
-                  {character.description || '暂无描述'}
-                </p>
                 
+                {/* 角色描述 - 可滚动显示完整内容 */}
+                {character.description && (
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-400 mb-1">描述</p>
+                    <div className="text-sm text-gray-600 max-h-20 overflow-y-auto pr-1 scrollbar-thin">
+                      {character.description}
+                    </div>
+                  </div>
+                )}
+                
+                {/* 外貌特征 - 可滚动显示完整内容 */}
                 {character.appearance ? (
-                  <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-500 line-clamp-2">
-                    <strong>外貌:</strong> {character.appearance}
+                  <div className="mt-3">
+                    <p className="text-xs text-gray-400 mb-1">外貌特征</p>
+                    <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 max-h-24 overflow-y-auto scrollbar-thin">
+                      {character.appearance}
+                    </div>
                   </div>
                 ) : (
-                  <div className="mt-2">
+                  <div className="mt-3">
                     <button
                       onClick={() => generateAppearance(character)}
                       disabled={generatingAppearanceId === character.id || !character.description}
