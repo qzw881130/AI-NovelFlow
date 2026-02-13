@@ -16,6 +16,7 @@ interface NovelState {
   createNovel: (data: Partial<Novel>) => Promise<void>;
   deleteNovel: (id: string) => Promise<void>;
   importNovel: (file: File) => Promise<void>;
+  updateNovel: (id: string, data: Partial<Novel>) => Promise<void>;
 }
 
 export const useNovelStore = create<NovelState>((set, get) => ({
@@ -104,6 +105,25 @@ export const useNovelStore = create<NovelState>((set, get) => ({
       }
     } catch (error) {
       set({ error: '导入小说失败' });
+    }
+  },
+
+  updateNovel: async (id, novelData) => {
+    try {
+      const res = await fetch(`${API_BASE}/novels/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(novelData),
+      });
+      const data = await res.json();
+      if (data.success) {
+        set((state) => ({
+          novels: state.novels.map((n) => (n.id === id ? data.data : n)),
+          currentNovel: state.currentNovel?.id === id ? data.data : state.currentNovel,
+        }));
+      }
+    } catch (error) {
+      set({ error: '更新小说失败' });
     }
   },
 }));

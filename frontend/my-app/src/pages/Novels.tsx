@@ -9,7 +9,8 @@ import {
   BookOpen,
   Loader2,
   Users,
-  Sparkles
+  Sparkles,
+  Edit2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useNovelStore } from '../stores/novelStore';
@@ -19,12 +20,13 @@ import type { Novel } from '../types';
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
 export default function Novels() {
-  const { novels, isLoading, fetchNovels, createNovel, deleteNovel, importNovel } = useNovelStore();
+  const { novels, isLoading, fetchNovels, createNovel, deleteNovel, importNovel, updateNovel } = useNovelStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newNovel, setNewNovel] = useState({ title: '', author: '', description: '' });
   const [importing, setImporting] = useState(false);
   const [parsingNovelId, setParsingNovelId] = useState<string | null>(null);
+  const [editingNovel, setEditingNovel] = useState<Novel | null>(null);
 
   useEffect(() => {
     fetchNovels();
@@ -214,6 +216,13 @@ export default function Novels() {
                       <Users className="h-4 w-4" />
                     </Link>
                     <button
+                      onClick={() => setEditingNovel(novel)}
+                      className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                      title="编辑"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+                    <button
                       onClick={() => deleteNovel(novel.id)}
                       className="p-2 text-gray-400 hover:text-red-600 transition-colors"
                       title="删除"
@@ -285,6 +294,74 @@ export default function Novels() {
                 </button>
                 <button type="submit" className="btn-primary">
                   创建
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editingNovel && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">编辑小说</h2>
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                updateNovel(editingNovel.id, {
+                  title: editingNovel.title,
+                  author: editingNovel.author,
+                  description: editingNovel.description,
+                });
+                setEditingNovel(null);
+              }} 
+              className="space-y-4"
+            >
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  标题
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={editingNovel.title}
+                  onChange={(e) => setEditingNovel({ ...editingNovel, title: e.target.value })}
+                  className="input-field mt-1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  作者
+                </label>
+                <input
+                  type="text"
+                  value={editingNovel.author}
+                  onChange={(e) => setEditingNovel({ ...editingNovel, author: e.target.value })}
+                  className="input-field mt-1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  描述
+                </label>
+                <textarea
+                  rows={3}
+                  value={editingNovel.description || ''}
+                  onChange={(e) => setEditingNovel({ ...editingNovel, description: e.target.value })}
+                  className="input-field mt-1"
+                />
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setEditingNovel(null)}
+                  className="btn-secondary"
+                >
+                  取消
+                </button>
+                <button type="submit" className="btn-primary">
+                  保存
                 </button>
               </div>
             </form>

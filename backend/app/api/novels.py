@@ -84,6 +84,40 @@ async def get_novel(novel_id: str, db: Session = Depends(get_db)):
     }
 
 
+@router.put("/{novel_id}", response_model=dict)
+async def update_novel(novel_id: str, data: dict, db: Session = Depends(get_db)):
+    """更新小说信息"""
+    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    
+    # 更新字段
+    if "title" in data:
+        novel.title = data["title"]
+    if "author" in data:
+        novel.author = data["author"]
+    if "description" in data:
+        novel.description = data["description"]
+    
+    db.commit()
+    db.refresh(novel)
+    
+    return {
+        "success": True,
+        "data": {
+            "id": novel.id,
+            "title": novel.title,
+            "author": novel.author,
+            "description": novel.description,
+            "cover": novel.cover,
+            "status": novel.status,
+            "chapterCount": novel.chapter_count,
+            "createdAt": novel.created_at.isoformat() if novel.created_at else None,
+            "updatedAt": novel.updated_at.isoformat() if novel.updated_at else None,
+        }
+    }
+
+
 @router.delete("/{novel_id}")
 async def delete_novel(novel_id: str, db: Session = Depends(get_db)):
     """删除小说"""
