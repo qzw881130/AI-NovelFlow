@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Save, Loader2, Eye, EyeOff } from 'lucide-react';
+import { Save, Loader2, Eye, EyeOff, Upload, Edit2, Play, Server, User, Image as ImageIcon, Film, CheckCircle } from 'lucide-react';
 import { useConfigStore } from '../stores/configStore';
 
 export default function Settings() {
@@ -88,22 +88,6 @@ export default function Settings() {
               </p>
             </div>
 
-            <div>
-              <label htmlFor="comfyUIHost" className="block text-sm font-medium text-gray-700">
-                ComfyUI 地址
-              </label>
-              <input
-                type="url"
-                id="comfyUIHost"
-                value={formData.comfyUIHost}
-                onChange={(e) => setFormData({ ...formData, comfyUIHost: e.target.value })}
-                className="input-field mt-1"
-                placeholder="http://localhost:8188"
-              />
-              <p className="mt-1 text-xs text-gray-500">
-                您的 ComfyUI 服务地址，例如：http://192.168.50.1:8288
-              </p>
-            </div>
           </div>
         </div>
 
@@ -146,36 +130,331 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* 工作流配置 */}
+        {/* ComfyUI 服务器配置 */}
         <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">ComfyUI 工作流</h2>
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Server className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">ComfyUI 配置</h2>
+                <p className="text-sm text-gray-500">本地AI模型服务配置</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => alert('测试全部工作流连接')}
+            >
+              测试全部
+            </button>
+          </div>
+
+          {/* 服务器地址 */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              服务器地址
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={formData.comfyUIHost}
+                onChange={(e) => setFormData({ ...formData, comfyUIHost: e.target.value })}
+                className="input-field flex-1"
+                placeholder="http://localhost:8188"
+              />
+              <span className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium bg-green-100 text-green-700">
+                <CheckCircle className="h-4 w-4 mr-1" />
+                已连接
+              </span>
+            </div>
+          </div>
+
+          {/* 工作流列表 */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">人设生成</p>
-                <p className="text-sm text-gray-500">工作流: z-image</p>
+            {/* 人设生成工作流 */}
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <User className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900">人设生成工作流</h3>
+                    <p className="text-sm text-gray-500">工作流: z-image</p>
+                  </div>
+                </div>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  已配置
+                </span>
               </div>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                已配置
-              </span>
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('上传工作流文件')}
+                >
+                  <Upload className="h-4 w-4" />
+                  重新上传
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('查看/编辑工作流')}
+                >
+                  <Edit2 className="h-4 w-4" />
+                  查看/编辑
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('测试工作流')}
+                >
+                  <Play className="h-4 w-4" />
+                  测试
+                </button>
+              </div>
             </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">分镜生图</p>
-                <p className="text-sm text-gray-500">工作流: qwen-edit-2511</p>
+
+            {/* 分镜生图工作流 */}
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-100 rounded-lg">
+                    <ImageIcon className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900">分镜生图工作流</h3>
+                    <p className="text-sm text-gray-500">工作流: qwen-edit-2511</p>
+                  </div>
+                </div>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  已配置
+                </span>
               </div>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                已配置
-              </span>
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('上传工作流文件')}
+                >
+                  <Upload className="h-4 w-4" />
+                  重新上传
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('查看/编辑工作流')}
+                >
+                  <Edit2 className="h-4 w-4" />
+                  查看/编辑
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('测试工作流')}
+                >
+                  <Play className="h-4 w-4" />
+                  测试
+                </button>
+              </div>
             </div>
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <p className="font-medium text-gray-900">视频生成</p>
-                <p className="text-sm text-gray-500">工作流: ltx-2</p>
+
+            {/* 分镜生视频工作流 */}
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-pink-100 rounded-lg">
+                    <Film className="h-5 w-5 text-pink-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900">分镜生视频工作流</h3>
+                    <p className="text-sm text-gray-500">工作流: ltx-2</p>
+                  </div>
+                </div>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  已配置
+                </span>
               </div>
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                已配置
-              </span>
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('上传工作流文件')}
+                >
+                  <Upload className="h-4 w-4" />
+                  重新上传
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('查看/编辑工作流')}
+                >
+                  <Edit2 className="h-4 w-4" />
+                  查看/编辑
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('测试工作流')}
+                >
+                  <Play className="h-4 w-4" />
+                  测试
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Server className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">ComfyUI 配置</h2>
+                <p className="text-sm text-gray-500">本地AI模型服务配置</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => alert('测试全部工作流连接')}
+            >
+              测试全部
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {/* 人设生成工作流 */}
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <User className="h-5 w-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900">人设生成工作流</h3>
+                    <p className="text-sm text-gray-500">工作流: z-image</p>
+                  </div>
+                </div>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  已配置
+                </span>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('上传工作流文件')}
+                >
+                  <Upload className="h-4 w-4" />
+                  重新上传
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('查看/编辑工作流')}
+                >
+                  <Edit2 className="h-4 w-4" />
+                  查看/编辑
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('测试工作流')}
+                >
+                  <Play className="h-4 w-4" />
+                  测试
+                </button>
+              </div>
+            </div>
+
+            {/* 分镜生图工作流 */}
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-amber-100 rounded-lg">
+                    <ImageIcon className="h-5 w-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900">分镜生图工作流</h3>
+                    <p className="text-sm text-gray-500">工作流: qwen-edit-2511</p>
+                  </div>
+                </div>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  已配置
+                </span>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('上传工作流文件')}
+                >
+                  <Upload className="h-4 w-4" />
+                  重新上传
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('查看/编辑工作流')}
+                >
+                  <Edit2 className="h-4 w-4" />
+                  查看/编辑
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('测试工作流')}
+                >
+                  <Play className="h-4 w-4" />
+                  测试
+                </button>
+              </div>
+            </div>
+
+            {/* 分镜生视频工作流 */}
+            <div className="p-4 bg-gray-50 rounded-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-pink-100 rounded-lg">
+                    <Film className="h-5 w-5 text-pink-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-900">分镜生视频工作流</h3>
+                    <p className="text-sm text-gray-500">工作流: ltx-2</p>
+                  </div>
+                </div>
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                  已配置
+                </span>
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('上传工作流文件')}
+                >
+                  <Upload className="h-4 w-4" />
+                  重新上传
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('查看/编辑工作流')}
+                >
+                  <Edit2 className="h-4 w-4" />
+                  查看/编辑
+                </button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => alert('测试工作流')}
+                >
+                  <Play className="h-4 w-4" />
+                  测试
+                </button>
+              </div>
             </div>
           </div>
         </div>
