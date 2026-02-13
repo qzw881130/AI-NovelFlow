@@ -157,7 +157,7 @@ export default function Characters() {
 
   const generatePortrait = async (character: Character) => {
     // 检查是否已经在生成中
-    if (character.portraitStatus === 'generating') {
+    if (character.generatingStatus === 'running') {
       alert('该角色正在生成形象中，请稍后再试');
       return;
     }
@@ -173,7 +173,7 @@ export default function Characters() {
       if (data.success) {
         // 更新本地状态为生成中
         setCharacters(prev => prev.map(c => 
-          c.id === character.id ? { ...c, portraitStatus: 'generating' } : c
+          c.id === character.id ? { ...c, generatingStatus: 'running' } : c
         ));
         alert('人设图生成任务已创建，请前往任务队列查看进度');
         // 跳转到任务队列
@@ -284,20 +284,20 @@ export default function Characters() {
                 )}
                 
                 {/* Status Badge */}
-                {character.portraitStatus === 'generating' && (
+                {character.generatingStatus === 'running' && (
                   <div className="absolute top-2 left-2 px-2 py-1 bg-blue-500 text-white text-xs rounded-full flex items-center gap-1">
                     <Loader2 className="h-3 w-3 animate-spin" />
                     生成中
                   </div>
                 )}
-                {character.portraitStatus === 'failed' && (
+                {character.generatingStatus === 'failed' && (
                   <div className="absolute top-2 left-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full">
                     生成失败
                   </div>
                 )}
                 
                 {/* Generate Button Overlay */}
-                {!character.imageUrl && character.portraitStatus !== 'generating' && (
+                {!character.imageUrl && character.generatingStatus !== 'running' && (
                   <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => generatePortrait(character)}
