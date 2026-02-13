@@ -293,7 +293,7 @@ async def list_chapters(novel_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{novel_id}/chapters", response_model=dict)
-async def create_chapter(novel_id: str, chapter: ChapterCreate, db: Session = Depends(get_db)):
+async def create_chapter(novel_id: str, data: dict, db: Session = Depends(get_db)):
     """创建章节"""
     novel = db.query(Novel).filter(Novel.id == novel_id).first()
     if not novel:
@@ -301,23 +301,126 @@ async def create_chapter(novel_id: str, chapter: ChapterCreate, db: Session = De
     
     db_chapter = Chapter(
         novel_id=novel_id,
-        title=chapter.title,
-        number=chapter.number,
-        content=chapter.content,
+        title=data.get('title', '未命名章节'),
+        number=data.get('number', 1),
+        content=data.get('content', ''),
     )
     db.add(db_chapter)
     
-    # 更新章节数
-    novel.chapter_count = db.query(Chapter).filter(Chapter.novel_id == novel_id).count() + 1
-    
     db.commit()
     db.refresh(db_chapter)
+    
+    # 更新章节数
+    novel.chapter_count = db.query(Chapter).filter(Chapter.novel_id == novel_id).count()
+    db.commit()
+    
     return {
         "success": True,
         "data": {
             "id": db_chapter.id,
+            "novelId": db_chapter.novel_id,
+            "number": db_chapter.number,
             "title": db_chapter.title,
             "status": db_chapter.status,
             "progress": db_chapter.progress,
+            "content": db_chapter.content,
+            "createdAt": db_chapter.created_at.isoformat() if db_chapter.created_at else None,
         }
     }
+
+
+@router.get("/{novel_id}/chapters/{chapter_id}", response_model=dict)
+async def get_chapter(novel_id: str, chapter_id: str, db: Session = Depends(get_db)):
+    """获取章节详情"""
+    chapter = db.query(Chapter).filter(
+        Chapter.id == chapter_id,
+        Chapter.novel_id == novel_id
+    ).first()
+    
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    
+    return {
+        "success": True,
+        "data": {
+            "id": chapter.id,
+            "novelId": chapter.novel_id,
+            "number": chapter.number,
+            "title": chapter.title,
+            "content": chapter.content,
+            "status": chapter.status,
+            "progress": chapter.progress,
+            "parsedData": chapter.parsed_data,
+            "characterImages": chapter.character_images,
+            "shotImages": chapter.shot_images,
+            "shotVideos": chapter.shot_videos,
+            "finalVideo": chapter.final_video,
+            "createdAt": chapter.created_at.isoformat() if chapter.created_at else None,
+            "updatedAt": chapter.updated_at.isoformat() if chapter.updated_at else None,
+        }
+    }
+
+
+@router.put("/{novel_id}/chapters/{chapter_id}", response_model=dict)
+async def update_chapter(
+    novel_id: str, 
+    chapter_id: str, 
+    data: dict, 
+    db: Session = Depends(get_db)
+):
+    """更新章节"""
+    chapter = db.query(Chapter).filter(
+        Chapter.id == chapter_id,
+        Chapter.novel_id == novel_id
+    ).first()
+    
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    
+    # 更新字段
+    if "title" in data:
+        chapter.title = data["title"]
+    if "content" in data:
+        chapter.content = data["content"]
+    if "number" in data:
+        chapter.number = data["number"]
+    
+    db.commit()
+    db.refresh(chapter)
+    
+    return {
+        "success": True,
+        "data": {
+            "id": chapter.id,
+            "novelId": chapter.novel_id,
+            "number": chapter.number,
+            "title": chapter.title,
+            "content": chapter.content,
+            "status": chapter.status,
+            "progress": chapter.progress,
+            "updatedAt": chapter.updated_at.isoformat() if chapter.updated_at else None,
+        }
+    }
+
+
+@router.delete("/{novel_id}/chapters/{chapter_id}")
+async def delete_chapter(novel_id: str, chapter_id: str, db: Session = Depends(get_db)):
+    """删除章节"""
+    chapter = db.query(Chapter).filter(
+        Chapter.id == chapter_id,
+        Chapter.novel_id == novel_id
+    ).first()
+    
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    
+    db.delete(chapter)
+    
+    # 更新小说章节数
+    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    if novel:
+        novel.chapter_count = db.query(Chapter).filter(Chapter.novel_id == novel_id).count() - 1
+    
+    db.commit()
+    
+    return {"success": True, "message": "删除成功"}

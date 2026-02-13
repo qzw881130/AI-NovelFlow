@@ -234,7 +234,7 @@ export default function Novels() {
                       className="btn-primary text-sm py-1.5 px-3"
                     >
                       <Play className="h-3 w-3 mr-1" />
-                      开始
+                      管理章节
                     </Link>
                   </div>
                 </div>
