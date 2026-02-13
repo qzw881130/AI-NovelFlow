@@ -86,3 +86,20 @@ export interface ApiResponse<T> {
   data?: T;
   message?: string;
 }
+
+export interface TestCase {
+  id: string;
+  name: string;
+  description?: string;
+  type: 'full' | 'character' | 'shot' | 'video';
+  isActive: boolean;
+  isPreset: boolean;
+  novelId: string;
+  novelTitle: string;
+  chapterCount: number;
+  characterCount: number;
+  expectedCharacterCount?: number;
+  expectedShotCount?: number;
+  notes?: string;
+  createdAt: string;
+}

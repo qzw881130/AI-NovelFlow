@@ -20,6 +20,7 @@ class Novel(Base):
     cover = Column(String, nullable=True)
     status = Column(String, default="pending")  # pending, processing, completed
     chapter_count = Column(Integer, default=0)
+    is_preset = Column(Boolean, default=False)  # 是否预设测试用例小说
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

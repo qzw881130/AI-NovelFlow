@@ -7,6 +7,7 @@ import NovelDetail from './pages/NovelDetail';
 import ChapterDetail from './pages/ChapterDetail';
 import Characters from './pages/Characters';
 import Tasks from './pages/Tasks';
+import TestCases from './pages/TestCases';
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
         <Route path="novels/:id/chapters/:cid" element={<ChapterDetail />} />
         <Route path="characters" element={<Characters />} />
         <Route path="tasks" element={<Tasks />} />
+        <Route path="test-cases" element={<TestCases />} />
       </Route>
     </Routes>
   );

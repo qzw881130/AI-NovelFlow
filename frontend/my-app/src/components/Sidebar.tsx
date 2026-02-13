@@ -5,7 +5,8 @@ import {
   BookOpen, 
   ListTodo, 
   Users,
-  Sparkles
+  Sparkles,
+  FlaskConical
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -14,6 +15,7 @@ const navigation = [
   { name: '小说管理', href: '/novels', icon: BookOpen },
   { name: '角色库', href: '/characters', icon: Users },
   { name: '任务队列', href: '/tasks', icon: ListTodo },
+  { name: '测试用例', href: '/test-cases', icon: FlaskConical },
   { name: '系统配置', href: '/settings', icon: Settings },
 ];
 
