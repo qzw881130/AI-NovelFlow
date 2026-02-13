@@ -32,6 +32,9 @@ wheels/
 .env.local
 .env.*.local
 
+# 但保留示例文件
+!.env.example
+
 # Node
 node_modules/
 npm-debug.log*
