@@ -38,12 +38,13 @@ class ComfyUIService:
             "shot_video": "ltx-2"
         }
     
-    async def generate_character_image(self, prompt: str, **kwargs) -> Dict[str, Any]:
+    async def generate_character_image(self, prompt: str, workflow_json: str = None, **kwargs) -> Dict[str, Any]:
         """
-        使用 z-image 工作流生成角色人设图
+        使用指定工作流生成角色人设图
         
         Args:
             prompt: 提示词
+            workflow_json: 工作流 JSON 字符串（可选，不提供则使用默认工作流）
             width: 图片宽度 (默认 512)
             height: 图片高度 (默认 768)
             seed: 随机种子
@@ -56,13 +57,19 @@ class ComfyUIService:
             }
         """
         try:
-            # 构建 z-image 工作流提示
-            workflow = self._build_z_image_workflow(
-                prompt=prompt,
-                width=kwargs.get('width', 512),
-                height=kwargs.get('height', 768),
-                seed=kwargs.get('seed')
-            )
+            # 使用提供的工作流或构建默认工作流
+            if workflow_json:
+                workflow = json.loads(workflow_json)
+                # 在工作流中查找并替换 prompt（根据常见的 ComfyUI 节点结构）
+                workflow = self._inject_prompt_to_workflow(workflow, prompt)
+            else:
+                # 构建 z-image 工作流提示
+                workflow = self._build_z_image_workflow(
+                    prompt=prompt,
+                    width=kwargs.get('width', 512),
+                    height=kwargs.get('height', 768),
+                    seed=kwargs.get('seed')
+                )
             
             # 提交任务到 ComfyUI
             queue_result = await self._queue_prompt(workflow)
@@ -404,6 +411,78 @@ class ComfyUIService:
                 "class_type": "SaveImage"
             }
         }
+        
+        return workflow
+    
+    def _inject_prompt_to_workflow(self, workflow: Dict[str, Any], prompt: str) -> Dict[str, Any]:
+        """
+        将提示词注入到工作流中
+        
+        策略：
+        1. 查找 CLIPTextEncode 节点，替换其 text 输入
+        2. 如果没有找到，查找包含 "text" 和 "prompt" 相关输入的节点
+        """
+        modified = False
+        
+        # 遍历所有节点查找 CLIPTextEncode 类型
+        for node_id, node in workflow.items():
+            if not isinstance(node, dict):
+                continue
+                
+            class_type = node.get("class_type", "")
+            inputs = node.get("inputs", {})
+            
+            # 1. 查找 CLIPTextEncode 节点（正向提示词）
+            if class_type == "CLIPTextEncode":
+                # 检查是否是正向提示词节点（通常没有负面关键词）
+                current_text = inputs.get("text", "")
+                if isinstance(current_text, str):
+                    # 如果是负面提示词（包含 negative、bad 等关键词），跳过
+                    if any(kw in current_text.lower() for kw in ["negative", "bad", "worst", "low quality"]):
+                        continue
+                
+                # 替换为新的 prompt
+                inputs["text"] = prompt
+                modified = True
+                print(f"[Workflow] Injected prompt to CLIPTextEncode node {node_id}")
+        
+        # 2. 如果没有找到 CLIPTextEncode，查找其他可能的提示词节点
+        if not modified:
+            for node_id, node in workflow.items():
+                if not isinstance(node, dict):
+                    continue
+                    
+                inputs = node.get("inputs", {})
+                
+                # 查找包含 "prompt" 或 "text" 输入的节点
+                if "prompt" in inputs:
+                    inputs["prompt"] = prompt
+                    modified = True
+                    print(f"[Workflow] Injected prompt to node {node_id} (prompt field)")
+                    break
+                elif "text" in inputs:
+                    # 检查文本内容长度，优先替换较长的（可能是主提示词）
+                    current_text = inputs.get("text", "")
+                    if isinstance(current_text, str) and len(current_text) > 10:
+                        inputs["text"] = prompt
+                        modified = True
+                        print(f"[Workflow] Injected prompt to node {node_id} (text field)")
+                        break
+        
+        # 3. 设置随机种子（如果有）
+        for node_id, node in workflow.items():
+            if not isinstance(node, dict):
+                continue
+                
+            inputs = node.get("inputs", {})
+            class_type = node.get("class_type", "")
+            
+            # 查找 KSampler 或类似采样节点，设置随机种子
+            if class_type in ["KSampler", "KSamplerAdvanced", "SamplerCustom", "SamplerCustomAdvanced", "RandomNoise"]:
+                if "seed" in inputs:
+                    import random
+                    inputs["seed"] = random.randint(1, 2**32)
+                    print(f"[Workflow] Set random seed for {class_type} node {node_id}")
         
         return workflow
     

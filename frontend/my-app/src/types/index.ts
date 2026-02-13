@@ -73,6 +73,8 @@ export interface Task {
   currentStep?: string;
   resultUrl?: string;
   errorMessage?: string;
+  workflowId?: string;
+  workflowName?: string;
   novelId?: string;
   chapterId?: string;
   characterId?: string;

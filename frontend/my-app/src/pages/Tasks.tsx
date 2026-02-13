@@ -247,6 +247,11 @@ export default function Tasks() {
                       <span className="text-xs px-2 py-0.5 bg-white rounded-full">
                         {getTaskTypeName(task.type)}
                       </span>
+                      {task.workflowName && (
+                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full" title="使用的工作流">
+                          📋 {task.workflowName}
+                        </span>
+                      )}
                     </div>
                     
                     {task.description && (

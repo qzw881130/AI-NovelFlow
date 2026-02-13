@@ -42,6 +42,8 @@ async def list_tasks(
                 "currentStep": t.current_step,
                 "resultUrl": t.result_url,
                 "errorMessage": t.error_message,
+                "workflowId": t.workflow_id,
+                "workflowName": t.workflow_name,
                 "novelId": t.novel_id,
                 "chapterId": t.chapter_id,
                 "characterId": t.character_id,
@@ -73,6 +75,8 @@ async def get_task(task_id: str, db: Session = Depends(get_db)):
             "currentStep": task.current_step,
             "resultUrl": task.result_url,
             "errorMessage": task.error_message,
+            "workflowId": task.workflow_id,
+            "workflowName": task.workflow_name,
             "novelId": task.novel_id,
             "chapterId": task.chapter_id,
             "characterId": task.character_id,
@@ -213,6 +217,7 @@ async def generate_portrait_task(
 ):
     """后台任务：生成角色人设图"""
     from app.core.database import SessionLocal
+    from app.models.workflow import Workflow
     
     db = SessionLocal()
     try:
@@ -221,10 +226,23 @@ async def generate_portrait_task(
         if not task:
             return
         
+        # 获取当前激活的 character 工作流
+        workflow = db.query(Workflow).filter(
+            Workflow.type == "character",
+            Workflow.is_active == True
+        ).first()
+        
+        # 记录工作流信息
+        if workflow:
+            task.workflow_id = workflow.id
+            task.workflow_name = workflow.name
+            task.current_step = f"使用工作流: {workflow.name}"
+        else:
+            task.current_step = "使用默认工作流"
+        
         # 更新任务状态为运行中
         task.status = "running"
         task.started_at = datetime.utcnow()
-        task.current_step = "正在调用 ComfyUI 生成图片..."
         db.commit()
         
         # 构建提示词
@@ -232,8 +250,9 @@ async def generate_portrait_task(
         task.current_step = f"提示词: {prompt[:100]}..."
         db.commit()
         
-        # 调用 ComfyUI 生成图片
-        result = await comfyui_service.generate_character_image(prompt)
+        # 调用 ComfyUI 生成图片（使用指定的工作流）
+        workflow_json = workflow.workflow_json if workflow else None
+        result = await comfyui_service.generate_character_image(prompt, workflow_json=workflow_json)
         
         if result.get("success"):
             task.status = "completed"

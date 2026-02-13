@@ -36,6 +36,10 @@ class Task(Base):
     # ComfyUI相关
     comfyui_prompt_id = Column(String, nullable=True)  # ComfyUI的任务ID
     
+    # 工作流信息（记录执行时使用的 workflow）
+    workflow_id = Column(String, nullable=True)  # 执行时使用的 workflow ID
+    workflow_name = Column(String, nullable=True)  # 执行时使用的 workflow 名称
+    
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     started_at = Column(DateTime(timezone=True), nullable=True)
