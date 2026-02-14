@@ -431,6 +431,7 @@ export default function Novels() {
                   author: editingNovel.author,
                   description: editingNovel.description,
                   promptTemplateId: editingNovel.promptTemplateId,
+                  chapterSplitPromptTemplateId: editingNovel.chapterSplitPromptTemplateId,
                   aspectRatio: editingNovel.aspectRatio,
                 });
                 setEditingNovel(null);
