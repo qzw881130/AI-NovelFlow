@@ -6,7 +6,8 @@ import {
   ListTodo, 
   Users,
   Sparkles,
-  FlaskConical
+  FlaskConical,
+  FileText
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -17,6 +18,7 @@ const navigation = [
   { name: '任务队列', href: '/tasks', icon: ListTodo },
   { name: '测试用例', href: '/test-cases', icon: FlaskConical },
   { name: '系统配置', href: '/settings', icon: Settings },
+  { name: '提示词配置', href: '/prompt-config', icon: FileText, highlight: true },
 ];
 
 export default function Sidebar() {
@@ -39,16 +41,24 @@ export default function Sidebar() {
                       to={item.href}
                       className={clsx(
                         location.pathname === item.href
-                          ? 'bg-primary-50 text-primary-600'
-                          : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50',
+                          ? item.highlight
+                            ? 'bg-red-50 text-red-600'
+                            : 'bg-primary-50 text-primary-600'
+                          : item.highlight
+                            ? 'text-red-500 hover:text-red-600 hover:bg-red-50'
+                            : 'text-gray-700 hover:text-primary-600 hover:bg-gray-50',
                         'group flex gap-x-3 rounded-md p-2 text-sm leading-6 font-semibold transition-colors'
                       )}
                     >
                       <item.icon
                         className={clsx(
                           location.pathname === item.href
-                            ? 'text-primary-600'
-                            : 'text-gray-400 group-hover:text-primary-600',
+                            ? item.highlight
+                              ? 'text-red-600'
+                              : 'text-primary-600'
+                            : item.highlight
+                              ? 'text-red-400 group-hover:text-red-600'
+                              : 'text-gray-400 group-hover:text-primary-600',
                           'h-6 w-6 shrink-0 transition-colors'
                         )}
                         aria-hidden="true"
