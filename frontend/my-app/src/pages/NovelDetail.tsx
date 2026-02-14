@@ -11,7 +11,8 @@ import {
   Sparkles,
   CheckCircle,
   AlertCircle,
-  Clock
+  Clock,
+  Wand2
 } from 'lucide-react';
 import type { Novel, Chapter } from '../types';
 
@@ -212,6 +213,13 @@ export default function NovelDetail() {
                   >
                     <Edit3 className="h-3 w-3 mr-1" />
                     编辑
+                  </Link>
+                  <Link
+                    to={`/novels/${id}/chapters/${chapter.id}/generate`}
+                    className="btn-secondary text-sm py-1.5 px-3 bg-purple-50 text-purple-600 hover:bg-purple-100 border-purple-200"
+                  >
+                    <Wand2 className="h-3 w-3 mr-1" />
+                    生成
                   </Link>
                 </div>
               </div>
