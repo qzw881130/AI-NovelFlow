@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -14,8 +14,10 @@ import {
   Fullscreen,
   Play,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  X
 } from 'lucide-react';
+import type { Chapter } from '../types';
 
 // 静态数据
 const MOCK_DATA = {
@@ -115,12 +117,39 @@ const STEPS = [
   { key: 'compose', label: '合成视频', icon: CheckCircle }
 ];
 
+const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+
 export default function ChapterGenerate() {
   const { id, cid } = useParams<{ id: string; cid: string }>();
   const [activeTab, setActiveTab] = useState<'json' | 'characters' | 'scenes' | 'script'>('json');
   const [currentShot, setCurrentShot] = useState(1);
   const [currentVideo, setCurrentVideo] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [chapter, setChapter] = useState<Chapter | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showFullTextModal, setShowFullTextModal] = useState(false);
+
+  // 获取真实章节数据
+  useEffect(() => {
+    if (cid) {
+      fetchChapter();
+    }
+  }, [cid]);
+
+  const fetchChapter = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/chapters/${cid}`);
+      const data = await res.json();
+      if (data.success) {
+        setChapter(data.data);
+      }
+    } catch (error) {
+      console.error('获取章节数据失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // 获取当前步骤索引
   const currentStepIndex = 3; // 模拟当前在"生成视频"步骤
@@ -257,7 +286,9 @@ export default function ChapterGenerate() {
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{MOCK_DATA.chapter.title}</h1>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {loading ? '加载中...' : chapter?.title || '未命名章节'}
+            </h1>
             <p className="text-sm text-gray-500">AI动画生成中...</p>
           </div>
         </div>
@@ -291,12 +322,15 @@ export default function ChapterGenerate() {
           <div className="card">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-semibold text-gray-900">原文内容</h3>
-              <button className="text-sm text-blue-600 hover:underline">
+              <button 
+                onClick={() => setShowFullTextModal(true)}
+                className="text-sm text-blue-600 hover:underline"
+              >
                 展开全文
               </button>
             </div>
             <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">
-              {MOCK_DATA.chapter.content}
+              {loading ? '加载中...' : chapter?.content || '暂无内容'}
             </p>
           </div>
 
@@ -471,6 +505,41 @@ export default function ChapterGenerate() {
           </div>
         </div>
       </div>
+
+      {/* 展开全文弹层 */}
+      {showFullTextModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h3 className="text-lg font-semibold text-gray-900">原文内容</h3>
+              <button
+                onClick={() => setShowFullTextModal(false)}
+                className="p-1 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              <h2 className="text-xl font-bold text-gray-900 mb-4">
+                {chapter?.title || '未命名章节'}
+              </h2>
+              <div className="prose prose-gray max-w-none">
+                <p className="text-gray-700 leading-loose whitespace-pre-wrap text-base">
+                  {chapter?.content || '暂无内容'}
+                </p>
+              </div>
+            </div>
+            <div className="p-6 border-t bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setShowFullTextModal(false)}
+                className="btn-secondary"
+              >
+                关闭
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
