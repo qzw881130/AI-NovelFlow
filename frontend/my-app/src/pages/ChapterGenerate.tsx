@@ -1098,17 +1098,6 @@ export default function ChapterGenerate() {
 
         {/* 右侧边栏 */}
         <div className="col-span-4 space-y-6">
-          {/* 生成日志 */}
-          <div className="card">
-            <h3 className="font-semibold text-gray-900 mb-4">生成日志</h3>
-            <div className="space-y-3 max-h-64 overflow-y-auto">
-              <div className="flex gap-3 text-sm">
-                <span className="text-gray-400 flex-shrink-0">{new Date().toLocaleTimeString()}</span>
-                <span className="text-blue-600">点击 AI拆分分镜头 按钮开始生成</span>
-              </div>
-            </div>
-          </div>
-
           {/* 系统状态 */}
           <ComfyUIStatus />
         </div>
