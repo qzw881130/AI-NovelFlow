@@ -139,7 +139,8 @@ export default function ChapterGenerate() {
   const fetchChapter = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/chapters/${cid}`);
+      // 使用正确的 API 路径：/api/novels/{novel_id}/chapters/{chapter_id}
+      const res = await fetch(`${API_BASE}/novels/${id}/chapters/${cid}`);
       const data = await res.json();
       if (data.success) {
         setChapter(data.data);
