@@ -28,7 +28,8 @@ DEFAULT_WORKFLOWS = {
 
 # 额外的系统工作流文件列表
 EXTRA_SYSTEM_WORKFLOWS = [
-    {"filename": "character_single.json", "type": "character", "name": "Z-image-turbo 单图生成", "description": "Z-image-turbo【非三视图】"}
+    {"filename": "character_single.json", "type": "character", "name": "Z-image-turbo 单图生成", "description": "Z-image-turbo【非三视图】"},
+    {"filename": "shot_flux2_klein.json", "type": "shot", "name": "Flux2-Klein-9B 分镜生图", "description": "Flux2-Klein-9B 图像编辑工作流，支持角色参考图"}
 ]
 
 
@@ -78,6 +79,12 @@ def load_default_workflows(db: Session):
     for wf_config in EXTRA_SYSTEM_WORKFLOWS:
         file_path = os.path.join(workflows_dir, wf_config["filename"])
         
+        if not os.path.exists(file_path):
+            continue
+            
+        with open(file_path, 'r', encoding='utf-8') as f:
+            workflow_json = f.read()
+        
         # 检查是否已存在
         existing = db.query(Workflow).filter(
             Workflow.file_path == file_path,
@@ -85,24 +92,51 @@ def load_default_workflows(db: Session):
         ).first()
         
         if existing:
+            # 检查内容是否有变化，有则更新
+            if existing.workflow_json != workflow_json:
+                existing.workflow_json = workflow_json
+                existing.name = wf_config["name"]
+                existing.description = wf_config["description"]
+                print(f"[Workflow] Updated: {wf_config['name']}")
             continue
         
-        if os.path.exists(file_path):
-            with open(file_path, 'r', encoding='utf-8') as f:
-                workflow_json = f.read()
-            
-            workflow = Workflow(
-                name=wf_config["name"],
-                description=wf_config["description"],
-                type=wf_config["type"],
-                workflow_json=workflow_json,
-                is_system=True,
-                is_active=False,  # 额外工作流默认不激活
-                file_path=file_path
-            )
-            db.add(workflow)
+        # 检查该类型是否已有激活的工作流
+        has_active = db.query(Workflow).filter(
+            Workflow.type == wf_config["type"],
+            Workflow.is_active == True
+        ).first() is not None
+        
+        workflow = Workflow(
+            name=wf_config["name"],
+            description=wf_config["description"],
+            type=wf_config["type"],
+            workflow_json=workflow_json,
+            is_system=True,
+            is_active=not has_active,  # 如果该类型没有激活的工作流，则设为激活
+            file_path=file_path
+        )
+        db.add(workflow)
+        print(f"[Workflow] Added: {wf_config['name']}")
     
     db.commit()
+    
+    # 3. 确保每种类型至少有一个默认激活的工作流
+    for wf_type in WORKFLOW_TYPES.keys():
+        has_active = db.query(Workflow).filter(
+            Workflow.type == wf_type,
+            Workflow.is_active == True
+        ).first() is not None
+        
+        if not has_active:
+            # 找到该类型的第一个系统工作流设为默认
+            first_workflow = db.query(Workflow).filter(
+                Workflow.type == wf_type,
+                Workflow.is_system == True
+            ).order_by(Workflow.created_at.asc()).first()
+            
+            if first_workflow:
+                first_workflow.is_active = True
+                db.commit()
 
 
 @router.get("/", response_model=dict)
@@ -308,7 +342,13 @@ async def update_workflow(
         "data": {
             "id": workflow.id,
             "name": workflow.name,
+            "description": workflow.description,
+            "type": workflow.type,
+            "typeName": WORKFLOW_TYPES.get(workflow.type, workflow.type),
+            "isSystem": workflow.is_system,
             "isActive": workflow.is_active,
+            "nodeMapping": json.loads(workflow.node_mapping) if workflow.node_mapping else None,
+            "createdAt": workflow.created_at.isoformat() if workflow.created_at else None,
         }
     }
 

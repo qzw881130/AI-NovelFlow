@@ -13,6 +13,7 @@ import {
   Trash2
 } from 'lucide-react';
 import type { Chapter, Novel } from '../types';
+import { toast } from '../stores/toastStore';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
@@ -68,11 +69,11 @@ export default function ChapterDetail() {
       const data = await res.json();
       if (data.success) {
         setChapter(data.data);
-        alert('保存成功');
+        toast.success('保存成功');
       }
     } catch (error) {
       console.error('保存失败:', error);
-      alert('保存失败');
+      toast.error('保存失败');
     } finally {
       setIsSaving(false);
     }
@@ -88,13 +89,13 @@ export default function ChapterDetail() {
       navigate(`/novels/${id}`);
     } catch (error) {
       console.error('删除失败:', error);
-      alert('删除失败');
+      toast.error('删除失败');
     }
   };
 
   const handleGenerate = async () => {
     if (!content.trim()) {
-      alert('请先编辑章节内容');
+      toast.warning('请先编辑章节内容');
       return;
     }
     
@@ -106,10 +107,11 @@ export default function ChapterDetail() {
       });
       const data = await res.json();
       if (data.success) {
-        alert('生成任务已启动');
+        toast.success('生成任务已启动');
       }
     } catch (error) {
       console.error('启动生成失败:', error);
+      toast.error('启动生成失败');
     }
   };
 

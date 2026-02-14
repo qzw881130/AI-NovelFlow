@@ -15,6 +15,7 @@ import {
 import { Link } from 'react-router-dom';
 import { useNovelStore } from '../stores/novelStore';
 import type { Novel } from '../types';
+import { toast } from '../stores/toastStore';
 
 // API 基础 URL
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
@@ -117,18 +118,18 @@ export default function Novels() {
       if (data.success) {
         const characters = data.data || [];
         if (characters.length > 0) {
-          alert(`✅ 解析成功！\n\n识别到 ${characters.length} 个角色:\n${characters.map((c: any) => `• ${c.name}`).join('\n')}\n\n点击确定查看角色库`);
+          toast.success(`解析成功！识别到 ${characters.length} 个角色`);
           // 跳转到角色库
           window.location.href = `/characters?novel=${novelId}`;
         } else {
-          alert('未识别到角色，请确保章节内容足够丰富');
+          toast.warning('未识别到角色，请确保章节内容足够丰富');
         }
       } else {
-        alert('解析失败: ' + data.message);
+        toast.error('解析失败: ' + data.message);
       }
     } catch (error) {
       console.error('解析角色失败:', error);
-      alert('解析失败，请检查网络连接');
+      toast.error('解析失败，请检查网络连接');
     } finally {
       setParsingNovelId(null);
     }

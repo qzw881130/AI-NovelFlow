@@ -11,6 +11,7 @@ import {
   BookOpen,
   Copy
 } from 'lucide-react';
+import { toast } from '../stores/toastStore';
 
 interface PromptTemplate {
   id: string;
@@ -249,11 +250,11 @@ export default function PromptConfig() {
           fetchChapterSplitTemplates();
         }
       } else {
-        alert(data.message || '保存失败');
+        toast.error(data.message || '保存失败');
       }
     } catch (error) {
       console.error('保存提示词模板失败:', error);
-      alert('保存失败');
+      toast.error('保存失败');
     } finally {
       setSaving(false);
     }
@@ -272,11 +273,11 @@ export default function PromptConfig() {
           fetchChapterSplitTemplates();
         }
       } else {
-        alert(data.message || '复制失败');
+        toast.error(data.message || '复制失败');
       }
     } catch (error) {
       console.error('复制提示词模板失败:', error);
-      alert('复制失败');
+      toast.error('复制失败');
     }
   };
 
@@ -295,11 +296,11 @@ export default function PromptConfig() {
           fetchChapterSplitTemplates();
         }
       } else {
-        alert(data.message || '删除失败');
+        toast.error(data.message || '删除失败');
       }
     } catch (error) {
       console.error('删除提示词模板失败:', error);
-      alert('删除失败');
+      toast.error('删除失败');
     }
   };
 

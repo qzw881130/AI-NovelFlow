@@ -15,6 +15,7 @@ import {
   Wand2
 } from 'lucide-react';
 import type { Novel, Chapter } from '../types';
+import { toast } from '../stores/toastStore';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
@@ -73,7 +74,7 @@ export default function NovelDetail() {
       }
     } catch (error) {
       console.error('创建章节失败:', error);
-      alert('创建失败');
+      toast.error('创建失败');
     }
   };
 
@@ -87,7 +88,7 @@ export default function NovelDetail() {
       setChapters(chapters.filter(c => c.id !== chapterId));
     } catch (error) {
       console.error('删除失败:', error);
-      alert('删除失败');
+      toast.error('删除失败');
     }
   };
 

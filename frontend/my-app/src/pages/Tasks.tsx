@@ -21,6 +21,7 @@ import {
 import ComfyUIStatus from '../components/ComfyUIStatus';
 import JSONEditor from '../components/JSONEditor';
 import type { Task } from '../types';
+import { toast } from '../stores/toastStore';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
@@ -199,7 +200,7 @@ export default function Tasks() {
 
   const handleViewWorkflow = async (task: Task) => {
     if (!task.hasWorkflowJson && !task.hasPromptText) {
-      alert('该任务没有保存工作流信息');
+      toast.info('该任务没有保存工作流信息');
       return;
     }
     
@@ -212,12 +213,12 @@ export default function Tasks() {
       if (data.success) {
         setWorkflowData(data.data);
       } else {
-        alert(data.message || '获取工作流失败');
+        toast.error(data.message || '获取工作流失败');
         setViewingWorkflow(null);
       }
     } catch (error) {
       console.error('获取工作流失败:', error);
-      alert('获取工作流失败');
+      toast.error('获取工作流失败');
       setViewingWorkflow(null);
     } finally {
       setLoadingWorkflow(false);
@@ -229,7 +230,7 @@ export default function Tasks() {
       const res = await fetch(`${API_BASE}/tasks/${taskId}/retry`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        alert('任务已重新启动');
+        toast.success('任务已重新启动');
         fetchTasks();
       }
     } catch (error) {

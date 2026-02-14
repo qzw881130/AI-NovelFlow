@@ -2,6 +2,7 @@ import httpx
 import json
 import uuid
 import asyncio
+import random
 from typing import Dict, Any, Optional
 from app.core.config import get_settings
 
@@ -217,6 +218,64 @@ class ComfyUIService:
             return {
                 "success": False,
                 "message": f"生成失败: {str(e)}"
+            }
+    
+    async def _upload_image(self, image_path: str) -> Dict[str, Any]:
+        """
+        上传图片到 ComfyUI
+        
+        Args:
+            image_path: 本地图片路径
+            
+        Returns:
+            {
+                "success": bool,
+                "filename": str,  # ComfyUI 中的文件名
+                "message": str
+            }
+        """
+        try:
+            import os
+            from pathlib import Path
+            
+            if not os.path.exists(image_path):
+                return {
+                    "success": False,
+                    "message": f"图片文件不存在: {image_path}"
+                }
+            
+            # 读取图片文件
+            filename = os.path.basename(image_path)
+            
+            async with httpx.AsyncClient() as client:
+                with open(image_path, 'rb') as f:
+                    files = {'image': (filename, f, 'image/png')}
+                    data = {'type': 'input', 'overwrite': 'true'}
+                    
+                    response = await client.post(
+                        f"{self.base_url}/upload/image",
+                        files=files,
+                        data=data,
+                        timeout=30.0
+                    )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    return {
+                        "success": True,
+                        "filename": result.get('name', filename),
+                        "message": "上传成功"
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"上传失败: {response.text}"
+                    }
+                    
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"上传图片失败: {str(e)}"
             }
     
     async def _queue_prompt(self, workflow: Dict[str, Any]) -> Dict[str, Any]:
@@ -766,6 +825,139 @@ class ComfyUIService:
                     print(f"[Workflow] Set random noise_seed for {class_type} node {node_id}")
         
         return api_workflow
+    
+    async def generate_shot_image_with_workflow(
+        self,
+        prompt: str,
+        workflow_json: str,
+        node_mapping: Dict[str, str],
+        aspect_ratio: str = "16:9",
+        character_reference_path: Optional[str] = None,
+        seed: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        使用指定工作流生成分镜图片
+        
+        Args:
+            prompt: 分镜描述提示词
+            workflow_json: 工作流 JSON 字符串
+            node_mapping: 节点映射配置 {"prompt_node_id": "110", "save_image_node_id": "9", "width_node_id": "123", "height_node_id": "125"}
+            aspect_ratio: 画面比例 (16:9, 9:16, 4:3, 3:4, 1:1)
+            character_reference_path: 角色参考图本地路径（合并后的角色图）
+            seed: 随机种子
+            
+        Returns:
+            {
+                "success": bool,
+                "image_url": str,  # ComfyUI 返回的临时URL
+                "message": str
+            }
+        """
+        try:
+            # 解析工作流
+            workflow = json.loads(workflow_json)
+            
+            # 获取宽高
+            width, height = self._get_aspect_ratio_dimensions(aspect_ratio)
+            
+            # 根据节点映射修改工作流
+            prompt_node_id = node_mapping.get("prompt_node_id")
+            save_image_node_id = node_mapping.get("save_image_node_id")
+            width_node_id = node_mapping.get("width_node_id")
+            height_node_id = node_mapping.get("height_node_id")
+            
+            # 1. 设置提示词
+            if prompt_node_id and prompt_node_id in workflow:
+                node = workflow[prompt_node_id]
+                if node.get("class_type") == "CLIPTextEncode":
+                    # CLIPTextEncode 节点直接设置 text
+                    workflow[prompt_node_id]["inputs"]["text"] = prompt
+                    print(f"[ComfyUI] Set prompt to CLIPTextEncode node {prompt_node_id}")
+                elif node.get("class_type") == "CR Text":
+                    # CR Text 节点
+                    workflow[prompt_node_id]["inputs"]["text"] = prompt
+                    print(f"[ComfyUI] Set prompt to CR Text node {prompt_node_id}")
+            
+            # 2. 设置宽高
+            if width_node_id and width_node_id in workflow:
+                workflow[width_node_id]["inputs"]["value"] = width
+                print(f"[ComfyUI] Set width {width} to node {width_node_id}")
+            
+            if height_node_id and height_node_id in workflow:
+                workflow[height_node_id]["inputs"]["value"] = height
+                print(f"[ComfyUI] Set height {height} to node {height_node_id}")
+            
+            # 3. 上传并设置角色参考图（如果提供）
+            if character_reference_path:
+                # 先上传图片到 ComfyUI
+                print(f"[ComfyUI] Uploading character reference image: {character_reference_path}")
+                upload_result = await self._upload_image(character_reference_path)
+                
+                if upload_result.get("success"):
+                    uploaded_filename = upload_result.get("filename")
+                    print(f"[ComfyUI] Image uploaded successfully: {uploaded_filename}")
+                    
+                    # 查找 LoadImage 节点并设置上传后的文件名
+                    for node_id, node in workflow.items():
+                        if node.get("class_type") == "LoadImage":
+                            workflow[node_id]["inputs"]["image"] = uploaded_filename
+                            print(f"[ComfyUI] Set character reference to LoadImage node {node_id}: {uploaded_filename}")
+                            break
+                else:
+                    print(f"[ComfyUI] Failed to upload image: {upload_result.get('message')}")
+            
+            # 4. 设置随机种子
+            if seed is None:
+                seed = random.randint(1, 2**32)
+            for node_id, node in workflow.items():
+                if node.get("class_type") in ["RandomNoise", "KSampler"]:
+                    if "seed" in node.get("inputs", {}):
+                        workflow[node_id]["inputs"]["seed"] = seed
+                    if "noise_seed" in node.get("inputs", {}):
+                        workflow[node_id]["inputs"]["noise_seed"] = seed
+            
+            # 5. 设置保存路径前缀
+            if save_image_node_id and save_image_node_id in workflow:
+                # SaveImage 节点的 filename_prefix
+                save_node = workflow[save_image_node_id]
+                if save_node.get("class_type") == "SaveImage":
+                    current_prefix = save_node["inputs"].get("filename_prefix", "")
+                    print(f"[ComfyUI] SaveImage node {save_image_node_id} current prefix: {current_prefix}")
+            
+            # 提交任务
+            print(f"[ComfyUI] Submitting shot generation task with seed {seed}")
+            queue_result = await self._queue_prompt(workflow)
+            
+            if not queue_result.get("success"):
+                return {
+                    "success": False,
+                    "message": queue_result.get("error", "提交任务失败")
+                }
+            
+            prompt_id = queue_result.get("prompt_id")
+            
+            # 等待结果
+            result = await self._wait_for_result(
+                prompt_id, 
+                workflow, 
+                save_image_node_id=save_image_node_id,
+                timeout=180
+            )
+            
+            return {
+                "success": result.get("success"),
+                "image_url": result.get("image_url"),
+                "message": result.get("message", "")
+            }
+            
+        except Exception as e:
+            print(f"[ComfyUI] Generate shot image failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "message": f"生成失败: {str(e)}"
+            }
     
     def _build_qwen_edit_workflow(
         self,

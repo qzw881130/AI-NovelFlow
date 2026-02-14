@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Character, Novel } from '../types';
+import { toast } from '../stores/toastStore';
 
 // API 基础 URL
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
@@ -26,12 +27,16 @@ export default function Characters() {
   const [novels, setNovels] = useState<Novel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedNovel, setSelectedNovel] = useState<string>(searchParams.get('novel') || 'all');
+  // 支持 novel 或 novel_id 参数
+  const novelIdFromUrl = searchParams.get('novel') || searchParams.get('novel_id') || 'all';
+  const highlightId = searchParams.get('highlight');
+  const [selectedNovel, setSelectedNovel] = useState<string>(novelIdFromUrl);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [generatingAppearanceId, setGeneratingAppearanceId] = useState<string | null>(null);
   const [characterPrompts, setCharacterPrompts] = useState<Record<string, { prompt: string; templateName: string }>>({});
+  const [highlightedId, setHighlightedId] = useState<string | null>(highlightId);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -45,6 +50,18 @@ export default function Characters() {
     fetchCharacters();
     fetchNovels();
   }, [selectedNovel]);
+
+  // 处理高亮角色 - 滚动到对应位置并添加高亮效果
+  useEffect(() => {
+    if (highlightedId && characters.length > 0) {
+      const element = document.getElementById(`character-${highlightedId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // 3秒后移除高亮效果
+        setTimeout(() => setHighlightedId(null), 3000);
+      }
+    }
+  }, [highlightedId, characters]);
 
   const fetchCharacters = async () => {
     setIsLoading(true);
@@ -151,7 +168,7 @@ export default function Characters() {
 
   const generateAppearance = async (character: Character) => {
     if (!character.description) {
-      alert('请先在编辑中添加角色描述，才能智能生成外貌');
+      toast.warning('请先在编辑中添加角色描述，才能智能生成外貌');
       return;
     }
     
@@ -167,13 +184,13 @@ export default function Characters() {
         setCharacters(prev => prev.map(c => 
           c.id === character.id ? { ...c, appearance: data.data.appearance } : c
         ));
-        alert('外貌描述生成成功！');
+        toast.success('外貌描述生成成功！');
       } else {
-        alert('生成失败: ' + data.message);
+        toast.error('生成失败: ' + data.message);
       }
     } catch (error) {
       console.error('生成外貌描述失败:', error);
-      alert('生成失败');
+      toast.error('生成失败');
     } finally {
       setGeneratingAppearanceId(null);
     }
@@ -182,7 +199,7 @@ export default function Characters() {
   const generatePortrait = async (character: Character) => {
     // 检查是否已经在生成中
     if (character.generatingStatus === 'running') {
-      alert('该角色正在生成形象中，请稍后再试');
+      toast.info('该角色正在生成形象中，请稍后再试');
       return;
     }
     
@@ -199,16 +216,16 @@ export default function Characters() {
         setCharacters(prev => prev.map(c => 
           c.id === character.id ? { ...c, generatingStatus: 'running' } : c
         ));
-        alert('人设图生成任务已创建，请前往任务队列查看进度');
+        toast.success('人设图生成任务已创建，请前往任务队列查看进度');
         // 跳转到任务队列
         window.location.href = '/tasks';
       } else {
-        alert(data.message || '创建任务失败');
+        toast.error(data.message || '创建任务失败');
         setGeneratingId(null);
       }
     } catch (error) {
       console.error('生成人设图失败:', error);
-      alert('创建任务失败');
+      toast.error('创建任务失败');
       setGeneratingId(null);
     }
   };
@@ -221,6 +238,34 @@ export default function Characters() {
   const getNovelName = (novelId: string) => {
     const novel = novels.find(n => n.id === novelId);
     return novel?.title || '未知小说';
+  };
+
+  // 根据小说ID获取画面比例
+  const getNovelAspectRatio = (novelId: string): string => {
+    const novel = novels.find(n => n.id === novelId);
+    return novel?.aspectRatio || '16:9';
+  };
+
+  // 根据画面比例计算图片容器样式
+  const getAspectRatioClass = (aspectRatio: string): string => {
+    switch (aspectRatio) {
+      case '16:9':
+        return 'aspect-video'; // 16:9
+      case '9:16':
+        return 'aspect-[9/16]';
+      case '4:3':
+        return 'aspect-[4/3]';
+      case '3:4':
+        return 'aspect-[3/4]';
+      case '1:1':
+        return 'aspect-square';
+      case '21:9':
+        return 'aspect-[21/9]';
+      case '2.35:1':
+        return 'aspect-[2.35/1]';
+      default:
+        return 'aspect-video';
+    }
   };
 
   return (
@@ -288,13 +333,22 @@ export default function Characters() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredCharacters.map((character) => (
+          {filteredCharacters.map((character) => {
+            const aspectRatio = getNovelAspectRatio(character.novelId);
+            const aspectClass = getAspectRatioClass(aspectRatio);
+            
+            return (
             <div
               key={character.id}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+              id={`character-${character.id}`}
+              className={`bg-white rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-all ${
+                highlightedId === character.id 
+                  ? 'ring-4 ring-blue-500 ring-opacity-50 border-blue-500 animate-pulse' 
+                  : 'border-gray-200'
+              }`}
             >
-              {/* Character Image */}
-              <div className="aspect-square bg-gray-100 relative">
+              {/* Character Image - 根据小说画面比例显示 */}
+              <div className={`${aspectClass} bg-gray-100 relative w-full`}>
                 {character.imageUrl ? (
                   <img
                     src={character.imageUrl}
@@ -340,9 +394,14 @@ export default function Characters() {
 
               {/* Character Info */}
               <div className="p-4">
-                <h3 className="text-lg font-semibold text-gray-900 truncate">
-                  {character.name}
-                </h3>
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900 truncate">
+                    {character.name}
+                  </h3>
+                  <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded">
+                    {aspectRatio}
+                  </span>
+                </div>
                 <p className="text-xs text-primary-600 mt-1">
                   {getNovelName(character.novelId)}
                 </p>
@@ -434,7 +493,8 @@ export default function Characters() {
                 )}
               </div>
             </div>
-          ))}
+          );
+          })}
         </div>
       )}
 

@@ -10,24 +10,31 @@ import Characters from './pages/Characters';
 import Tasks from './pages/Tasks';
 import TestCases from './pages/TestCases';
 import PromptConfig from './pages/PromptConfig';
+import { ToastContainer } from './components/Toast';
+import { useToastStore } from './stores/toastStore';
 
 function App() {
+  const { toasts, removeToast } = useToastStore();
+
   return (
-    <Routes>
-      <Route path="/" element={<Layout />}>
-        <Route index element={<Navigate to="/welcome" replace />} />
-        <Route path="welcome" element={<Welcome />} />
-        <Route path="settings" element={<Settings />} />
-        <Route path="novels" element={<Novels />} />
-        <Route path="novels/:id" element={<NovelDetail />} />
-        <Route path="novels/:id/chapters/:cid" element={<ChapterDetail />} />
-        <Route path="novels/:id/chapters/:cid/generate" element={<ChapterGenerate />} />
-        <Route path="characters" element={<Characters />} />
-        <Route path="tasks" element={<Tasks />} />
-        <Route path="test-cases" element={<TestCases />} />
-        <Route path="prompt-config" element={<PromptConfig />} />
-      </Route>
-    </Routes>
+    <>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Navigate to="/welcome" replace />} />
+          <Route path="welcome" element={<Welcome />} />
+          <Route path="settings" element={<Settings />} />
+          <Route path="novels" element={<Novels />} />
+          <Route path="novels/:id" element={<NovelDetail />} />
+          <Route path="novels/:id/chapters/:cid" element={<ChapterDetail />} />
+          <Route path="novels/:id/chapters/:cid/generate" element={<ChapterGenerate />} />
+          <Route path="characters" element={<Characters />} />
+          <Route path="tasks" element={<Tasks />} />
+          <Route path="test-cases" element={<TestCases />} />
+          <Route path="prompt-config" element={<PromptConfig />} />
+        </Route>
+      </Routes>
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
+    </>
   );
 }
 

@@ -16,6 +16,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import type { TestCase } from '../types';
+import { toast } from '../stores/toastStore';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
@@ -71,14 +72,14 @@ export default function TestCases() {
       });
       const data = await res.json();
       if (data.success) {
-        alert(`测试用例 "${testCase.name}" 已启动！\n\n请前往任务队列查看进度。`);
+        toast.success(`测试用例 "${testCase.name}" 已启动！请前往任务队列查看进度。`);
         window.location.href = '/tasks';
       } else {
-        alert('启动失败: ' + data.message);
+        toast.error('启动失败: ' + data.message);
       }
     } catch (error) {
       console.error('运行测试用例失败:', error);
-      alert('运行失败');
+      toast.error('运行失败');
     } finally {
       setRunningId(null);
     }
@@ -86,7 +87,7 @@ export default function TestCases() {
 
   const handleDelete = async (testCase: TestCase) => {
     if (testCase.isPreset) {
-      alert('预设测试用例不能删除');
+      toast.warning('预设测试用例不能删除');
       return;
     }
     if (!confirm('确定要删除这个测试用例吗？')) return;

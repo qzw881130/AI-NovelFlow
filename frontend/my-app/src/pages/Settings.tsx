@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useConfigStore } from '../stores/configStore';
 import JSONEditor from '../components/JSONEditor';
+import { toast } from '../stores/toastStore';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
@@ -35,6 +36,8 @@ interface Workflow {
   nodeMapping?: {
     prompt_node_id?: string;
     save_image_node_id?: string;
+    width_node_id?: string;
+    height_node_id?: string;
   };
 }
 
@@ -85,8 +88,17 @@ export default function Settings() {
   
   // 节点映射配置
   const [mappingWorkflow, setMappingWorkflow] = useState<Workflow | null>(null);
-  const [mappingForm, setMappingForm] = useState({ promptNodeId: '', saveImageNodeId: '' });
-  const [availableNodes, setAvailableNodes] = useState<{clipTextEncode: string[], saveImage: string[]}>({ clipTextEncode: [], saveImage: [] });
+  const [mappingForm, setMappingForm] = useState({ 
+    promptNodeId: '', 
+    saveImageNodeId: '',
+    widthNodeId: '',
+    heightNodeId: ''
+  });
+  const [availableNodes, setAvailableNodes] = useState<{
+    clipTextEncode: string[], 
+    saveImage: string[],
+    easyInt: string[]
+  }>({ clipTextEncode: [], saveImage: [], easyInt: [] });
   const [workflowData, setWorkflowData] = useState<Record<string, any>>({});
   const [savingMapping, setSavingMapping] = useState(false);
 
@@ -134,7 +146,7 @@ export default function Settings() {
 
   const handleDelete = async (workflow: Workflow) => {
     if (workflow.isSystem) {
-      alert('系统预设工作流不能删除');
+      toast.warning('系统预设工作流不能删除');
       return;
     }
     if (!confirm('确定要删除这个工作流吗？')) return;
@@ -150,7 +162,7 @@ export default function Settings() {
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadForm.file) {
-      alert('请选择工作流文件');
+      toast.warning('请选择工作流文件');
       return;
     }
     
@@ -183,11 +195,11 @@ export default function Settings() {
             errorMsg = JSON.stringify(data.detail);
           }
         }
-        alert(errorMsg);
+        toast.error(errorMsg);
       }
     } catch (error) {
       console.error('上传失败:', error);
-      alert('上传失败: ' + (error instanceof Error ? error.message : '网络错误'));
+      toast.error('上传失败: ' + (error instanceof Error ? error.message : '网络错误'));
     } finally {
       setUploading(false);
     }
@@ -210,7 +222,7 @@ export default function Settings() {
       }
     } catch (error) {
       console.error('加载工作流详情失败:', error);
-      alert('加载工作流详情失败');
+      toast.error('加载工作流详情失败');
       setEditingWorkflow(null);
     } finally {
       setLoadingEdit(false);
@@ -224,13 +236,11 @@ export default function Settings() {
       const data = await res.json();
       if (data.success) {
         const mapping = data.data.nodeMapping || {};
-        setMappingForm({
-          promptNodeId: mapping.prompt_node_id || '',
-          saveImageNodeId: mapping.save_image_node_id || ''
-        });
         
-        // 解析工作流 JSON，提取可用节点
+        // 解析工作流 JSON，提取可用节点和描述
         const workflowJson = data.data.workflowJson;
+        const nodeDescriptions: Record<string, string> = {};
+        
         if (workflowJson) {
           try {
             const workflowObj = typeof workflowJson === 'string' ? JSON.parse(workflowJson) : workflowJson;
@@ -238,22 +248,37 @@ export default function Settings() {
             
             const clipTextEncode: string[] = [];
             const saveImage: string[] = [];
+            const easyInt: string[] = [];
             
             for (const [nodeId, node] of Object.entries(workflowObj)) {
               if (typeof node === 'object' && node !== null) {
                 const classType = (node as any).class_type || '';
-                if (classType === 'CLIPTextEncode') {
-                  clipTextEncode.push(nodeId);
+                const metaTitle = (node as any)._meta?.title || '';
+                
+                if (classType === 'CLIPTextEncode' || classType === 'CR Text') {
+                  clipTextEncode.push(`${nodeId} (${classType})`);
+                  nodeDescriptions[nodeId] = classType;
                 } else if (classType === 'SaveImage') {
                   saveImage.push(nodeId);
+                } else if (classType === 'easy int') {
+                  easyInt.push(`${nodeId} (${metaTitle})`);
+                  nodeDescriptions[nodeId] = metaTitle;
                 }
               }
             }
             
-            setAvailableNodes({ clipTextEncode, saveImage });
+            setAvailableNodes({ clipTextEncode, saveImage, easyInt });
+            
+            // 设置表单值
+            setMappingForm({
+              promptNodeId: mapping.prompt_node_id || '',
+              saveImageNodeId: mapping.save_image_node_id || '',
+              widthNodeId: mapping.width_node_id || '',
+              heightNodeId: mapping.height_node_id || ''
+            });
           } catch (e) {
             console.error('解析工作流 JSON 失败:', e);
-            setAvailableNodes({ clipTextEncode: [], saveImage: [] });
+            setAvailableNodes({ clipTextEncode: [], saveImage: [], easyInt: [] });
             setWorkflowData({});
           }
         }
@@ -275,7 +300,9 @@ export default function Settings() {
         body: JSON.stringify({
           nodeMapping: {
             prompt_node_id: mappingForm.promptNodeId || null,
-            save_image_node_id: mappingForm.saveImageNodeId || null
+            save_image_node_id: mappingForm.saveImageNodeId || null,
+            width_node_id: mappingForm.widthNodeId || null,
+            height_node_id: mappingForm.heightNodeId || null
           }
         })
       });
@@ -283,12 +310,13 @@ export default function Settings() {
       if (res.ok) {
         setMappingWorkflow(null);
         fetchWorkflows();
+        toast.success('保存映射配置成功');
       } else {
-        alert('保存映射配置失败');
+        toast.error('保存映射配置失败');
       }
     } catch (error) {
       console.error('保存映射配置失败:', error);
-      alert('保存失败');
+      toast.error('保存失败');
     } finally {
       setSavingMapping(false);
     }
@@ -312,7 +340,7 @@ export default function Settings() {
       }
     } catch (error) {
       console.error('下载失败:', error);
-      alert('下载失败');
+      toast.error('下载失败');
     }
   };
 
@@ -334,7 +362,7 @@ export default function Settings() {
           JSON.parse(editForm.workflowJson);
           payload.workflowJson = editForm.workflowJson;
         } catch {
-          alert('JSON 格式错误，请检查工作流内容');
+          toast.error('JSON 格式错误，请检查工作流内容');
           setSavingEdit(false);
           return;
         }
@@ -350,12 +378,13 @@ export default function Settings() {
       if (res.ok) {
         setEditingWorkflow(null);
         fetchWorkflows();
+        toast.success('保存成功');
       } else {
-        alert(data.detail || '保存失败');
+        toast.error(data.detail || '保存失败');
       }
     } catch (error) {
       console.error('保存失败:', error);
-      alert('保存失败');
+      toast.error('保存失败');
     } finally {
       setSavingEdit(false);
     }
@@ -899,6 +928,64 @@ export default function Settings() {
                   </div>
                 )}
               </div>
+
+              {/* 宽度节点 - 仅分镜生图类型显示 */}
+              {mappingWorkflow?.type === 'shot' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    宽度节点 (Width)
+                  </label>
+                  <select
+                    value={mappingForm.widthNodeId}
+                    onChange={(e) => setMappingForm({ ...mappingForm, widthNodeId: e.target.value })}
+                    className="input-field"
+                  >
+                    <option value="">自动查找 (Auto)</option>
+                    {availableNodes.easyInt
+                      .filter(node => node.includes('Width'))
+                      .map((nodeInfo) => {
+                        const nodeId = nodeInfo.split(' ')[0];
+                        return (
+                          <option key={nodeInfo} value={nodeId}>
+                            Node#{nodeInfo}
+                          </option>
+                        );
+                      })}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    选择用于设置生成图片宽度的 easy int 节点 (Width)
+                  </p>
+                </div>
+              )}
+
+              {/* 高度节点 - 仅分镜生图类型显示 */}
+              {mappingWorkflow?.type === 'shot' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    高度节点 (Height)
+                  </label>
+                  <select
+                    value={mappingForm.heightNodeId}
+                    onChange={(e) => setMappingForm({ ...mappingForm, heightNodeId: e.target.value })}
+                    className="input-field"
+                  >
+                    <option value="">自动查找 (Auto)</option>
+                    {availableNodes.easyInt
+                      .filter(node => node.includes('Height'))
+                      .map((nodeInfo) => {
+                        const nodeId = nodeInfo.split(' ')[0];
+                        return (
+                          <option key={nodeInfo} value={nodeId}>
+                            Node#{nodeInfo}
+                          </option>
+                        );
+                      })}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    选择用于设置生成图片高度的 easy int 节点 (Height)
+                  </p>
+                </div>
+              )}
               
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <button
