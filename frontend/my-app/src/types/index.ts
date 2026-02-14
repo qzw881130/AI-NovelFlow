@@ -15,6 +15,7 @@ export interface Novel {
   chapterCount: number;
   status: 'pending' | 'processing' | 'completed';
   promptTemplateId?: string;
+  chapterSplitPromptTemplateId?: string;  // 章节拆分提示词模板ID
   aspectRatio?: string;  // 画面比例: 16:9, 9:16, 4:3, 3:4, 1:1
   createdAt: string;
   updatedAt: string;

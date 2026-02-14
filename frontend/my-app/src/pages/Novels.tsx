@@ -24,6 +24,7 @@ interface PromptTemplate {
   name: string;
   description: string;
   isSystem: boolean;
+  type: string;
 }
 
 export default function Novels() {
@@ -35,6 +36,7 @@ export default function Novels() {
     author: '', 
     description: '', 
     promptTemplateId: '',
+    chapterSplitPromptTemplateId: '',
     aspectRatio: '16:9'
   });
   
@@ -54,6 +56,7 @@ export default function Novels() {
   
   // 提示词模板
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
+  const [chapterSplitTemplates, setChapterSplitTemplates] = useState<PromptTemplate[]>([]);
 
   useEffect(() => {
     fetchNovels();
@@ -62,10 +65,17 @@ export default function Novels() {
 
   const fetchPromptTemplates = async () => {
     try {
-      const res = await fetch(`${API_BASE}/prompt-templates/`);
-      const data = await res.json();
-      if (data.success) {
-        setPromptTemplates(data.data);
+      // 获取人设提示词模板
+      const res1 = await fetch(`${API_BASE}/prompt-templates/?type=character`);
+      const data1 = await res1.json();
+      if (data1.success) {
+        setPromptTemplates(data1.data);
+      }
+      // 获取章节拆分提示词模板
+      const res2 = await fetch(`${API_BASE}/prompt-templates/?type=chapter_split`);
+      const data2 = await res2.json();
+      if (data2.success) {
+        setChapterSplitTemplates(data2.data);
       }
     } catch (error) {
       console.error('加载提示词模板失败:', error);
@@ -82,7 +92,7 @@ export default function Novels() {
     e.preventDefault();
     await createNovel(newNovel);
     setShowCreateModal(false);
-    setNewNovel({ title: '', author: '', description: '', promptTemplateId: '', aspectRatio: '16:9' });
+    setNewNovel({ title: '', author: '', description: '', promptTemplateId: '', chapterSplitPromptTemplateId: '', aspectRatio: '16:9' });
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -354,6 +364,26 @@ export default function Novels() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
+                  拆分分镜提示词
+                </label>
+                <select
+                  value={newNovel.chapterSplitPromptTemplateId}
+                  onChange={(e) => setNewNovel({ ...newNovel, chapterSplitPromptTemplateId: e.target.value })}
+                  className="input-field mt-1"
+                >
+                  <option value="">使用系统默认</option>
+                  {chapterSplitTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} {template.isSystem ? '【系统默认】' : '【用户自定义】'}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  选择用于章节拆分为分镜的提示词风格
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
                   画面比例
                 </label>
                 <select
@@ -459,6 +489,26 @@ export default function Novels() {
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
                   选择用于生成角色人设图的提示词风格
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  拆分分镜提示词
+                </label>
+                <select
+                  value={editingNovel.chapterSplitPromptTemplateId || ''}
+                  onChange={(e) => setEditingNovel({ ...editingNovel, chapterSplitPromptTemplateId: e.target.value })}
+                  className="input-field mt-1"
+                >
+                  <option value="">使用系统默认</option>
+                  {chapterSplitTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name} {template.isSystem ? '【系统默认】' : '【用户自定义】'}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  选择用于章节拆分为分镜的提示词风格
                 </p>
               </div>
               <div>

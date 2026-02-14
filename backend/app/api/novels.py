@@ -31,6 +31,7 @@ async def list_novels(db: Session = Depends(get_db)):
                 "status": n.status,
                 "chapterCount": n.chapter_count,
                 "promptTemplateId": n.prompt_template_id,
+                "chapterSplitPromptTemplateId": n.chapter_split_prompt_template_id,
                 "aspectRatio": n.aspect_ratio if n.aspect_ratio and n.aspect_ratio.strip() else "16:9",
                 "createdAt": n.created_at.isoformat() if n.created_at else None,
                 "updatedAt": n.updated_at.isoformat() if n.updated_at else None,
@@ -57,6 +58,7 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
         author=novel.author,
         description=novel.description,
         prompt_template_id=prompt_template_id,
+        chapter_split_prompt_template_id=novel.chapter_split_prompt_template_id,
         aspect_ratio=novel.aspect_ratio or "16:9",
     )
     db.add(db_novel)
@@ -73,6 +75,7 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
             "status": db_novel.status,
             "chapterCount": db_novel.chapter_count,
             "promptTemplateId": db_novel.prompt_template_id,
+            "chapterSplitPromptTemplateId": db_novel.chapter_split_prompt_template_id,
             "aspectRatio": db_novel.aspect_ratio or "16:9",
             "createdAt": db_novel.created_at.isoformat() if db_novel.created_at else None,
         }
@@ -96,6 +99,7 @@ async def get_novel(novel_id: str, db: Session = Depends(get_db)):
             "status": novel.status,
             "chapterCount": novel.chapter_count,
             "promptTemplateId": novel.prompt_template_id,
+            "chapterSplitPromptTemplateId": novel.chapter_split_prompt_template_id,
             "aspectRatio": novel.aspect_ratio or "16:9",
             "createdAt": novel.created_at.isoformat() if novel.created_at else None,
         }
@@ -118,6 +122,8 @@ async def update_novel(novel_id: str, data: dict, db: Session = Depends(get_db))
         novel.description = data["description"]
     if "promptTemplateId" in data:
         novel.prompt_template_id = data["promptTemplateId"]
+    if "chapterSplitPromptTemplateId" in data:
+        novel.chapter_split_prompt_template_id = data["chapterSplitPromptTemplateId"]
     if "aspectRatio" in data:
         novel.aspect_ratio = data["aspectRatio"]
     
@@ -135,6 +141,7 @@ async def update_novel(novel_id: str, data: dict, db: Session = Depends(get_db))
             "status": novel.status,
             "chapterCount": novel.chapter_count,
             "promptTemplateId": novel.prompt_template_id,
+            "chapterSplitPromptTemplateId": novel.chapter_split_prompt_template_id,
             "aspectRatio": novel.aspect_ratio or "16:9",
             "createdAt": novel.created_at.isoformat() if novel.created_at else None,
             "updatedAt": novel.updated_at.isoformat() if novel.updated_at else None,

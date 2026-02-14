@@ -22,6 +22,7 @@ class Novel(Base):
     chapter_count = Column(Integer, default=0)
     is_preset = Column(Boolean, default=False)  # 是否预设测试用例小说
     prompt_template_id = Column(String, nullable=True)  # 关联的人设提示词模板ID
+    chapter_split_prompt_template_id = Column(String, nullable=True)  # 关联的章节拆分提示词模板ID
     aspect_ratio = Column(String, default="16:9")  # 画面比例: 16:9, 9:16, 4:3, 3:4, 1:1, 21:9, 2.35:1
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
