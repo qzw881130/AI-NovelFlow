@@ -1,0 +1,333 @@
+{
+  "1": {
+    "inputs": {
+      "frame_rate": 25,
+      "loop_count": 0,
+      "filename_prefix": "LTX2",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "8",
+        0
+      ],
+      "audio": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "2": {
+    "inputs": {
+      "ckpt_name": "ltx-2-19b-distilled-fp8.safetensors"
+    },
+    "class_type": "LTXVAudioVAELoader",
+    "_meta": {
+      "title": "LTXV Audio VAE Loader"
+    }
+  },
+  "3": {
+    "inputs": {
+      "ckpt_name": "ltx-2-19b-distilled-fp8.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "4": {
+    "inputs": {
+      "text": "Subtitles, text,字幕，文字，多眼，多肢",
+      "clip": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "负面提示词"
+    }
+  },
+  "6": {
+    "inputs": {
+      "sigmas": "1., 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0"
+    },
+    "class_type": "ManualSigmas",
+    "_meta": {
+      "title": "ManualSigmas"
+    }
+  },
+  "7": {
+    "inputs": {
+      "anything": [
+        "13",
+        1
+      ]
+    },
+    "class_type": "easy cleanGpuUsed",
+    "_meta": {
+      "title": "清理显存"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "3",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "samples": [
+        "13",
+        2
+      ],
+      "audio_vae": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "LTXVAudioVAEDecode",
+    "_meta": {
+      "title": "LTXV Audio VAE Decode"
+    }
+  },
+  "10": {
+    "inputs": {
+      "text_encoder": "gemma_3_12B_it_fp8_e4m3fn.safetensors",
+      "ckpt_name": "ltx-2-19b-distilled-fp8.safetensors",
+      "device": "default"
+    },
+    "class_type": "LTXAVTextEncoderLoader",
+    "_meta": {
+      "title": "LTXV Audio Text Encoder Loader"
+    }
+  },
+  "11": {
+    "inputs": {
+      "text": [
+        "37",
+        0
+      ],
+      "clip": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "12": {
+    "inputs": {
+      "image": "{REFERENCE_IMAGE}"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "13": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 1119440872252192,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": 10000,
+      "return_noise": "disable",
+      "model": [
+        "3",
+        0
+      ],
+      "positive": [
+        "11",
+        0
+      ],
+      "negative": [
+        "4",
+        0
+      ],
+      "latent_image": [
+        "34",
+        0
+      ],
+      "sigmas": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "PainterSamplerLTXV",
+    "_meta": {
+      "title": "PainterSamplerLTXV"
+    }
+  },
+  "15": {
+    "inputs": {
+      "prompt": "{PROMPT}"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "⚙️ CR Prompt Text[扩展 0]"
+    }
+  },
+  "19": {
+    "inputs": {
+      "aspect_ratio": "original",
+      "proportional_width": 1,
+      "proportional_height": 1,
+      "fit": "crop",
+      "method": "lanczos",
+      "round_to_multiple": "32",
+      "scale_to_side": "longest",
+      "scale_to_length": [
+        "36",
+        0
+      ],
+      "background_color": "#000000",
+      "image": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: ImageScaleByAspectRatio V2",
+    "_meta": {
+      "title": "LayerUtility: ImageScaleByAspectRatio V2"
+    }
+  },
+  "28": {
+    "inputs": {
+      "text": [
+        "30",
+        0
+      ],
+      "model": "Qwen3-VL-8B-Instruct",
+      "quantization": "none",
+      "keep_model_loaded": false,
+      "temperature": 0.7,
+      "max_new_tokens": 4096,
+      "min_pixels": 125440,
+      "max_pixels": 334768,
+      "seed": 819,
+      "attention": "eager",
+      "image": [
+        "19",
+        0
+      ]
+    },
+    "class_type": "Qwen3_VQA",
+    "_meta": {
+      "title": "Qwen3 VQA"
+    }
+  },
+  "29": {
+    "inputs": {
+      "text": "Role\n你是一位专精于 LTX Video (Lightricks Video Model) 的 AI 视频导演。你深入理解 LTX Video 基于 DiT 架构的特性，知晓它是如何通过 T5 文本编码器处理自然语言的。你的任务是将用户简单的想法以及上传的参考图，转化为符合 LTX Video 最佳实践的、电影级的详细提示词（Prompt）。\n\nSkills\n自然语言扩写：你摒弃传统的“标签堆砌（Tag salad）”写法，擅长将关键词扩展为流畅、描述性强的英语长句。\n时空连续性构建：你特别注重描述视频中的“变化”和“动作轨迹”，确保生成的视频不是动态 PPT，而是有真实物理交互的短片。\n电影镜头语言：熟练运用 Slow zoom in, Handheld camera shake, Rack focus, Drone shot 等术语来定义视觉风格。\n环境氛围营造：通过描述光线（如 Volumetric lighting）、天气和材质质感来增强真实感。\nWorkflow\n意图识别：分析用户提供的原始想法（主体是什么？动作是什么？风格是什么？）。\n结构化扩充 (The LTX Formula)：\nSubject (主体)：详细描述外观、纹理、颜色。\nAction (动作)：使用动词描述即时发生的动作（e.g., \"The girl turns her head slowly\" 而不是 \"A turned head\"）。\nEnvironment (环境)：描述背景、氛围、光照。\nCamera (运镜)：指定观察视角和镜头运动。\n负面词过滤：确保不使用 Negative Prompts（因为 LTX Video 不需要/不支持），也不堆砌 4k, best quality 等无意义词汇。\n最终输出：用英文写一段连贯的 100–200 词的单段文字。\n\nConstraints\n禁止标签化：不要输出 tag1, tag2, tag3 这种格式，必须是完整的英文句子。\n专注可见性：只描述视觉上能看到的东西，不要描述心理活动或抽象概念。\n首句点题：提示词的第一句话必须清晰定义主体和核心动作，因为 T5 编码器对头部信息最敏感。\n\n关键对白规则（仅中文）：\n如果用户明确提供了用中文引号“……”括起来的简体中文台词，你必须逐字照抄这些台词，不要把它们翻译成英文。\n如果用户没有提供任何台词，你绝对不能编造任何对白或旁白。此时输出中必须为“零引用对白”，并且不要使用任何引号。\n只包含画面里能清楚看到角色在说出的台词（嘴部清晰开合），并确保说台词的角色出现在镜头画面中。\n\n\n\nOutput Format\n请按照以下格式输出：(不要出现无关的废话)\n\n\n"
+    },
+    "class_type": "Text Multiline",
+    "_meta": {
+      "title": "Text Multiline"
+    }
+  },
+  "30": {
+    "inputs": {
+      "string_a": [
+        "29",
+        0
+      ],
+      "string_b": [
+        "15",
+        0
+      ]
+    },
+    "class_type": "ConcatStringSingle",
+    "_meta": {
+      "title": "Concat String (Single) 📅🅕🅝"
+    }
+  },
+  "34": {
+    "inputs": {
+      "width": [
+        "19",
+        3
+      ],
+      "height": [
+        "19",
+        4
+      ],
+      "length": [
+        "35",
+        0
+      ],
+      "frame_rate": 25,
+      "batch_size": 1,
+      "video_vae": [
+        "3",
+        2
+      ],
+      "audio_vae": [
+        "2",
+        0
+      ],
+      "start_image": [
+        "19",
+        0
+      ]
+    },
+    "class_type": "PainterLTX2V",
+    "_meta": {
+      "title": "Painter LTX2V"
+    }
+  },
+  "35": {
+    "inputs": {
+      "value": 241
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "总帧数(8的倍数+1)"
+    }
+  },
+  "36": {
+    "inputs": {
+      "value": 960
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "最长边"
+    }
+  },
+  "37": {
+    "inputs": {
+      "text": "A young male student in a navy-blue school uniform with a crest on the chest sits at a sidewalk table, mid-bite of noodles with chopsticks, his eyes widening slightly as if startled by something unseen—his backpack rests beside a stack of thick textbooks, and a pen lies atop an open notebook; the camera glides horizontally from a high-angle overhead shot to a side profile, subtly shaking to mimic handheld motion, while the ambient sound of shallow breathing and rapid pen strokes against paper intensifies the weight of endless problem sets; behind him, a quiet street lined with green trees and a small shop with red signage glows under soft daylight, casting volumetric shadows that drift gently across the pavement, emphasizing the solitude and pressure of studying outdoors without any visible text or writing on the pages.",
+      "anything": [
+        "28",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "Show Any"
+    }
+  }
+}

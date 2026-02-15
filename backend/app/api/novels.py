@@ -271,6 +271,13 @@ async def get_chapter(novel_id: str, chapter_id: str, db: Session = Depends(get_
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
     
+    import json
+    
+    # 解析 JSON 字段
+    character_images = json.loads(chapter.character_images) if chapter.character_images else []
+    shot_images = json.loads(chapter.shot_images) if chapter.shot_images else []
+    shot_videos = json.loads(chapter.shot_videos) if chapter.shot_videos else []
+    
     return {
         "success": True,
         "data": {
@@ -281,6 +288,10 @@ async def get_chapter(novel_id: str, chapter_id: str, db: Session = Depends(get_
             "status": chapter.status,
             "progress": chapter.progress,
             "parsedData": chapter.parsed_data,
+            "characterImages": character_images,
+            "shotImages": shot_images,
+            "shotVideos": shot_videos,
+            "finalVideo": chapter.final_video,
             "createdAt": chapter.created_at.isoformat() if chapter.created_at else None,
         }
     }
@@ -631,15 +642,8 @@ async def generate_shot_task(
                         print(f"[ShotTask {task_id}] Found character image: {char_name} -> {full_path}")
             
             if character_images:
-                # 创建合并图片目录
-                story_dir = file_storage._get_story_dir(novel_id)
-                merged_dir = story_dir / "merged_characters"
-                merged_dir.mkdir(parents=True, exist_ok=True)
-                
-                # 生成合并图片文件名
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                merged_filename = f"shot_{shot_index:03d}_{timestamp}_characters.png"
-                merged_path = merged_dir / merged_filename
+                # 创建合并图片目录 (chapter_{chapter_id}/merged_characters/)
+                merged_path = file_storage.get_merged_characters_path(novel_id, chapter_id, shot_index)
                 
                 # 合并图片
                 try:
@@ -757,7 +761,8 @@ async def generate_shot_task(
                 url=image_url,
                 novel_id=novel_id,
                 character_name=f"shot_{shot_index:03d}",
-                image_type="shot"
+                image_type="shot",
+                chapter_id=chapter_id
             )
             
             if local_path:
@@ -819,6 +824,328 @@ async def generate_shot_task(
             
     except Exception as e:
         print(f"[ShotTask {task_id}] Error: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        try:
+            task.status = "failed"
+            task.error_message = str(e)
+            task.current_step = "任务异常"
+            db.commit()
+        except:
+            pass
+    finally:
+        db.close()
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/shots/{shot_index}/generate-video", response_model=dict)
+async def generate_shot_video(
+    novel_id: str,
+    chapter_id: str,
+    shot_index: int,  # 1-based index
+    db: Session = Depends(get_db)
+):
+    """
+    为指定分镜生成视频（基于已生成的分镜图片）
+    """
+    from app.models.workflow import Workflow
+    
+    # 获取章节
+    chapter = db.query(Chapter).filter(
+        Chapter.id == chapter_id,
+        Chapter.novel_id == novel_id
+    ).first()
+    
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    
+    # 获取小说
+    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    
+    # 解析章节数据
+    if not chapter.parsed_data:
+        raise HTTPException(status_code=400, detail="章节未拆分，请先进行AI拆分")
+    
+    parsed_data = json.loads(chapter.parsed_data) if isinstance(chapter.parsed_data, str) else chapter.parsed_data
+    shots = parsed_data.get("shots", [])
+    
+    if shot_index < 1 or shot_index > len(shots):
+        raise HTTPException(status_code=400, detail="分镜索引超出范围")
+    
+    shot = shots[shot_index - 1]
+    shot_duration = shot.get("duration", 4)  # 获取分镜时长，默认4秒
+    
+    # 检查是否有已生成的分镜图片
+    shot_images = json.loads(chapter.shot_images) if chapter.shot_images else []
+    shot_image_url = None
+    
+    # 从 shot_images 数组中获取对应索引的图片
+    if isinstance(shot_images, list) and len(shot_images) >= shot_index:
+        shot_image_url = shot_images[shot_index - 1]
+    
+    # 也检查 parsed_data 中的 image_url
+    if not shot_image_url:
+        shot_image_url = shot.get("image_url")
+    
+    if not shot_image_url:
+        raise HTTPException(status_code=400, detail="该分镜尚未生成图片，请先生成分镜图片")
+    
+    # 检查是否已有进行中的视频生成任务
+    existing_task = db.query(Task).filter(
+        Task.novel_id == novel_id,
+        Task.chapter_id == chapter_id,
+        Task.type == "shot_video",
+        Task.name.like(f"%镜{shot_index}%"),
+        Task.status.in_(["pending", "running"])
+    ).first()
+    
+    if existing_task:
+        return {
+            "success": True,
+            "message": "已有进行中的视频生成任务",
+            "data": {
+                "taskId": existing_task.id,
+                "status": existing_task.status
+            }
+        }
+    
+    # 检查是否有失败的任务，如果有则删除旧任务以便重新生成
+    failed_task = db.query(Task).filter(
+        Task.novel_id == novel_id,
+        Task.chapter_id == chapter_id,
+        Task.type == "shot_video",
+        Task.name.like(f"%镜{shot_index}%"),
+        Task.status == "failed"
+    ).first()
+    
+    if failed_task:
+        print(f"[GenerateVideo] Deleting failed task {failed_task.id} for shot {shot_index} to allow regeneration")
+        db.delete(failed_task)
+        db.commit()
+    
+    # 获取激活的视频生成工作流
+    workflow = db.query(Workflow).filter(
+        Workflow.type == "video",
+        Workflow.is_active == True
+    ).first()
+    
+    if not workflow:
+        raise HTTPException(status_code=400, detail="未配置视频生成工作流，请在系统设置中配置")
+    
+    # 创建任务记录
+    task = Task(
+        type="shot_video",
+        name=f"生成视频: 镜{shot_index}",
+        description=f"为章节 '{chapter.title}' 的分镜 {shot_index} 生成视频 (时长: {shot_duration}s)",
+        novel_id=novel_id,
+        chapter_id=chapter_id,
+        status="pending",
+        workflow_id=workflow.id,
+        workflow_name=workflow.name
+    )
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    
+    print(f"[GenerateVideo] Created task {task.id} for shot {shot_index}")
+    
+    # 启动后台任务
+    asyncio.create_task(
+        generate_shot_video_task(
+            task.id,
+            novel_id,
+            chapter_id,
+            shot_index,
+            workflow.id,
+            shot_image_url
+        )
+    )
+    
+    return {
+        "success": True,
+        "message": "视频生成任务已创建",
+        "data": {
+            "taskId": task.id,
+            "status": "pending"
+        }
+    }
+
+
+async def generate_shot_video_task(
+    task_id: str,
+    novel_id: str,
+    chapter_id: str,
+    shot_index: int,
+    workflow_id: str,
+    shot_image_url: str
+):
+    """
+    后台任务：生成分镜视频
+    """
+    import os
+    from app.models.workflow import Workflow
+    from app.services.file_storage import file_storage
+    from app.core.database import SessionLocal
+    
+    db = SessionLocal()
+    try:
+        # 获取任务
+        task = db.query(Task).filter(Task.id == task_id).first()
+        if not task:
+            return
+        
+        # 更新任务状态为运行中
+        task.status = "running"
+        task.started_at = datetime.utcnow()
+        task.current_step = "准备生成视频..."
+        db.commit()
+        
+        # 获取章节和小说
+        chapter = db.query(Chapter).filter(
+            Chapter.id == chapter_id,
+            Chapter.novel_id == novel_id
+        ).first()
+        
+        if not chapter:
+            task.status = "failed"
+            task.error_message = "章节不存在"
+            db.commit()
+            return
+        
+        novel = db.query(Novel).filter(Novel.id == novel_id).first()
+        if not novel:
+            task.status = "failed"
+            task.error_message = "小说不存在"
+            db.commit()
+            return
+        
+        # 获取工作流
+        workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+        if not workflow:
+            task.status = "failed"
+            task.error_message = "工作流不存在"
+            db.commit()
+            return
+        
+        # 获取节点映射
+        node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
+        print(f"[VideoTask {task_id}] Node mapping: {node_mapping}")
+        
+        # 解析章节数据获取分镜描述
+        parsed_data = json.loads(chapter.parsed_data) if isinstance(chapter.parsed_data, str) else chapter.parsed_data
+        shots = parsed_data.get("shots", [])
+        shot = shots[shot_index - 1]
+        shot_description = shot.get("description", "")
+        
+        # 保存提示词到任务
+        task.prompt_text = shot_description
+        db.commit()
+        
+        # 获取分镜时长并计算总帧数
+        duration = shot.get("duration", 4)  # 默认4秒
+        fps = 25  # LTX 默认帧率
+        raw_frame_count = int(fps * duration)
+        # 计算最接近的 8 的倍数 + 1
+        frame_count = ((raw_frame_count // 8) * 8) + 1
+        print(f"[VideoTask {task_id}] Duration: {duration}s, FPS: {fps}, Raw frames: {raw_frame_count}, Adjusted frames: {frame_count}")
+        
+        # 获取分镜图片的本地路径
+        character_reference_path = None
+        if shot_image_url:
+            # 从 URL 提取本地路径
+            char_path = shot_image_url.replace("/api/files/", "")
+            full_path = os.path.join(os.path.dirname(__file__), "..", "..", "user_story", char_path)
+            full_path = os.path.abspath(full_path)
+            if os.path.exists(full_path):
+                character_reference_path = full_path
+                print(f"[VideoTask {task_id}] Found shot image: {full_path}")
+            else:
+                print(f"[VideoTask {task_id}] Shot image not found at: {full_path}")
+        
+        # 调用 ComfyUI 生成视频
+        task.current_step = "正在调用 ComfyUI 生成视频..."
+        task.progress = 30
+        db.commit()
+        
+        result = await comfyui_service.generate_shot_video_with_workflow(
+            prompt=shot_description,
+            workflow_json=workflow.workflow_json,
+            node_mapping=node_mapping,
+            aspect_ratio=novel.aspect_ratio or "16:9",
+            character_reference_path=character_reference_path,
+            frame_count=frame_count
+        )
+        
+        print(f"[VideoTask {task_id}] Generation result: {result}")
+        
+        # 保存实际提交给ComfyUI的工作流（包含所有替换后的参数）
+        if result.get("submitted_workflow"):
+            task.workflow_json = json.dumps(result["submitted_workflow"], ensure_ascii=False, indent=2)
+            db.commit()
+            print(f"[VideoTask {task_id}] Saved submitted workflow to task")
+        
+        if not result.get("success"):
+            task.status = "failed"
+            task.error_message = result.get("message", "生成失败")
+            task.current_step = "生成失败"
+            db.commit()
+            return
+        
+        # 下载生成的视频
+        task.current_step = "正在下载生成的视频..."
+        task.progress = 80
+        db.commit()
+        
+        video_url = result.get("video_url")
+        if video_url:
+            local_path = await file_storage.download_video(
+                url=video_url,
+                novel_id=novel_id,
+                chapter_id=chapter_id,
+                shot_number=shot_index
+            )
+            
+            if local_path:
+                # 构建本地可访问的URL
+                relative_path = local_path.replace(str(file_storage.base_dir), "")
+                local_url = f"/api/files/{relative_path.lstrip('/')}"
+                
+                # 更新章节的视频列表
+                shot_videos = json.loads(chapter.shot_videos) if chapter.shot_videos else []
+                if not isinstance(shot_videos, list):
+                    shot_videos = []
+                
+                # 确保数组足够长
+                while len(shot_videos) < shot_index:
+                    shot_videos.append(None)
+                
+                shot_videos[shot_index - 1] = local_url
+                chapter.shot_videos = json.dumps(shot_videos)
+                
+                # 更新任务状态
+                task.status = "completed"
+                task.progress = 100
+                task.result_url = local_url
+                task.current_step = "生成完成"
+                task.completed_at = datetime.utcnow()
+                db.commit()
+                
+                print(f"[VideoTask {task_id}] Video saved: {local_url}")
+            else:
+                task.status = "failed"
+                task.error_message = "下载视频失败"
+                task.current_step = "下载失败"
+                db.commit()
+        else:
+            task.status = "failed"
+            task.error_message = "未获取到视频URL"
+            task.current_step = "生成失败"
+            db.commit()
+            
+    except Exception as e:
+        print(f"[VideoTask {task_id}] Error: {e}")
         import traceback
         traceback.print_exc()
         

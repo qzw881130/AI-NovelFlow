@@ -21,6 +21,8 @@ async def list_tasks(
     db: Session = Depends(get_db)
 ):
     """获取任务列表"""
+    from app.models.novel import Novel, Chapter
+    
     query = db.query(Task).order_by(Task.created_at.desc())
     
     if status:
@@ -29,6 +31,13 @@ async def list_tasks(
         query = query.filter(Task.type == type)
     
     tasks = query.limit(limit).all()
+    
+    # 获取所有需要的小说和章节信息
+    novel_ids = {t.novel_id for t in tasks if t.novel_id}
+    chapter_ids = {t.chapter_id for t in tasks if t.chapter_id}
+    
+    novels = {n.id: n for n in db.query(Novel).filter(Novel.id.in_(novel_ids)).all()} if novel_ids else {}
+    chapters = {c.id: c for c in db.query(Chapter).filter(Chapter.id.in_(chapter_ids)).all()} if chapter_ids else {}
     
     return {
         "success": True,
@@ -48,7 +57,9 @@ async def list_tasks(
                 "hasWorkflowJson": t.workflow_json is not None,
                 "hasPromptText": t.prompt_text is not None,
                 "novelId": t.novel_id,
+                "novelName": novels.get(t.novel_id).title if t.novel_id and t.novel_id in novels else None,
                 "chapterId": t.chapter_id,
+                "chapterTitle": chapters.get(t.chapter_id).title if t.chapter_id and t.chapter_id in chapters else None,
                 "characterId": t.character_id,
                 "createdAt": t.created_at.isoformat() if t.created_at else None,
                 "startedAt": t.started_at.isoformat() if t.started_at else None,

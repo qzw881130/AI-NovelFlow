@@ -1,0 +1,258 @@
+{
+  "1": {
+    "inputs": {
+      "frame_rate": 25,
+      "loop_count": 0,
+      "filename_prefix": "LTX2",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "8",
+        0
+      ],
+      "audio": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine"
+    }
+  },
+  "2": {
+    "inputs": {
+      "ckpt_name": "ltx-2-19b-distilled-fp8.safetensors"
+    },
+    "class_type": "LTXVAudioVAELoader",
+    "_meta": {
+      "title": "LTXV Audio VAE Loader"
+    }
+  },
+  "3": {
+    "inputs": {
+      "ckpt_name": "ltx-2-19b-distilled-fp8.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "4": {
+    "inputs": {
+      "text": "Subtitles, text,字幕，文字，多眼，多肢",
+      "clip": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "负面提示词"
+    }
+  },
+  "6": {
+    "inputs": {
+      "sigmas": "1., 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0"
+    },
+    "class_type": "ManualSigmas",
+    "_meta": {
+      "title": "ManualSigmas"
+    }
+  },
+  "7": {
+    "inputs": {
+      "anything": [
+        "13",
+        1
+      ]
+    },
+    "class_type": "easy cleanGpuUsed",
+    "_meta": {
+      "title": "清理显存"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "3",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "samples": [
+        "13",
+        2
+      ],
+      "audio_vae": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "LTXVAudioVAEDecode",
+    "_meta": {
+      "title": "LTXV Audio VAE Decode"
+    }
+  },
+  "10": {
+    "inputs": {
+      "text_encoder": "gemma_3_12B_it_fp8_e4m3fn.safetensors",
+      "ckpt_name": "ltx-2-19b-distilled-fp8.safetensors",
+      "device": "default"
+    },
+    "class_type": "LTXAVTextEncoderLoader",
+    "_meta": {
+      "title": "LTXV Audio Text Encoder Loader"
+    }
+  },
+  "11": {
+    "inputs": {
+      "text": "{PROMPT}",
+      "clip": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "12": {
+    "inputs": {
+      "image": "{REFERENCE_IMAGE}"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "13": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 780133759870564,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": 10000,
+      "return_noise": "disable",
+      "model": [
+        "3",
+        0
+      ],
+      "positive": [
+        "11",
+        0
+      ],
+      "negative": [
+        "4",
+        0
+      ],
+      "latent_image": [
+        "34",
+        0
+      ],
+      "sigmas": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "PainterSamplerLTXV",
+    "_meta": {
+      "title": "PainterSamplerLTXV"
+    }
+  },
+  "19": {
+    "inputs": {
+      "aspect_ratio": "original",
+      "proportional_width": 1,
+      "proportional_height": 1,
+      "fit": "crop",
+      "method": "lanczos",
+      "round_to_multiple": "32",
+      "scale_to_side": "longest",
+      "scale_to_length": [
+        "36",
+        0
+      ],
+      "background_color": "#000000",
+      "image": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: ImageScaleByAspectRatio V2",
+    "_meta": {
+      "title": "LayerUtility: ImageScaleByAspectRatio V2"
+    }
+  },
+  "34": {
+    "inputs": {
+      "width": [
+        "19",
+        3
+      ],
+      "height": [
+        "19",
+        4
+      ],
+      "length": [
+        "35",
+        0
+      ],
+      "frame_rate": 25,
+      "batch_size": 1,
+      "video_vae": [
+        "3",
+        2
+      ],
+      "audio_vae": [
+        "2",
+        0
+      ],
+      "start_image": [
+        "19",
+        0
+      ]
+    },
+    "class_type": "PainterLTX2V",
+    "_meta": {
+      "title": "Painter LTX2V"
+    }
+  },
+  "35": {
+    "inputs": {
+      "value": 241
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "总帧数(8的倍数+1)"
+    }
+  },
+  "36": {
+    "inputs": {
+      "value": 960
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "最长边"
+    }
+  }
+}

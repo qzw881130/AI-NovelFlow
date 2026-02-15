@@ -95,6 +95,42 @@ function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps) {
   );
 }
 
+// 视频预览弹层组件
+interface VideoPreviewModalProps {
+  videoUrl: string;
+  onClose: () => void;
+}
+
+function VideoPreviewModal({ videoUrl, onClose }: VideoPreviewModalProps) {
+  return (
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center w-full">
+        <video 
+          src={videoUrl}
+          controls
+          autoPlay
+          className="max-w-full max-h-[80vh] rounded-lg"
+          onClick={(e) => e.stopPropagation()}
+        />
+        
+        <button
+          onClick={onClose}
+          className="absolute -top-10 right-0 p-2 text-white hover:text-gray-300 transition-colors"
+        >
+          <X className="h-6 w-6" />
+        </button>
+        
+        <div className="mt-4 text-white text-sm opacity-60">
+          点击视频外部关闭预览
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Tasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -106,6 +142,7 @@ export default function Tasks() {
   const [loadingWorkflow, setLoadingWorkflow] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [imageInfo, setImageInfo] = useState<Record<string, {width: number, height: number, size?: string}>>({});
+  const [previewVideo, setPreviewVideo] = useState<string | null>(null);  // 视频预览弹窗
 
   // 获取图片信息（尺寸和大小）
   const fetchImageInfo = async (url: string, taskId: string) => {
@@ -404,6 +441,15 @@ export default function Tasks() {
                       <p className="text-sm mt-1 opacity-80">{task.description}</p>
                     )}
                     
+                    {/* Novel Name */}
+                    {task.novelName && (
+                      <p className="text-xs mt-2">
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
+                          📖 {task.novelName}
+                        </span>
+                      </p>
+                    )}
+                    
                     {/* Progress */}
                     {task.status === 'running' && (
                       <div className="mt-2">
@@ -486,6 +532,14 @@ export default function Tasks() {
                               </div>
                             )}
                           </div>
+                        ) : task.type === 'shot_video' || task.type === 'chapter_video' ? (
+                          <button
+                            onClick={() => task.resultUrl && setPreviewVideo(task.resultUrl)}
+                            className="text-sm underline inline-flex items-center gap-1 text-green-600 hover:text-green-700"
+                          >
+                            <Play className="h-3 w-3" />
+                            查看结果
+                          </button>
                         ) : (
                           <a 
                             href={task.resultUrl}
@@ -553,6 +607,14 @@ export default function Tasks() {
         <ImagePreviewModal 
           imageUrl={previewImage} 
           onClose={() => setPreviewImage(null)} 
+        />
+      )}
+
+      {/* Video Preview Modal */}
+      {previewVideo && (
+        <VideoPreviewModal 
+          videoUrl={previewVideo} 
+          onClose={() => setPreviewVideo(null)} 
         />
       )}
 

@@ -85,6 +85,7 @@ export interface Task {
   hasWorkflowJson?: boolean;
   hasPromptText?: boolean;
   novelId?: string;
+  novelName?: string;
   chapterId?: string;
   characterId?: string;
   createdAt: string;

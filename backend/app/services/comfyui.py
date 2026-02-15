@@ -414,6 +414,32 @@ class ComfyUIService:
                                                 best_image = img_info
                                                 best_node_id = node_id
                                 
+                                # 优先检查视频输出（VHS_VideoCombine 输出）
+                                video_found = False
+                                for node_id, node_output in outputs.items():
+                                    if "gifs" in node_output:
+                                        videos = node_output["gifs"]
+                                        if videos:
+                                            video_info = videos[0]
+                                            filename = video_info.get("filename")
+                                            subfolder = video_info.get("subfolder", "")
+                                            video_type = video_info.get("type", "output")
+                                            
+                                            params = f"filename={filename}"
+                                            if subfolder:
+                                                params += f"&subfolder={subfolder}"
+                                            params += f"&type={video_type}"
+                                            
+                                            video_url = f"{self.base_url}/view?{params}"
+                                            print(f"[ComfyUI] Found video from node {node_id}: {video_url}")
+                                            
+                                            return {
+                                                "success": True,
+                                                "video_url": video_url,
+                                                "message": "生成成功"
+                                            }
+                                
+                                # 检查图片输出
                                 if best_image:
                                     filename = best_image.get("filename")
                                     subfolder = best_image.get("subfolder", "")
@@ -433,28 +459,6 @@ class ComfyUIService:
                                         "image_url": image_url,
                                         "message": "生成成功"
                                     }
-                                    
-                                    # 检查视频输出
-                                    if "gifs" in node_output or "videos" in node_output:
-                                        videos = node_output.get("gifs") or node_output.get("videos")
-                                        if videos:
-                                            video_info = videos[0]
-                                            filename = video_info.get("filename")
-                                            subfolder = video_info.get("subfolder", "")
-                                            video_type = video_info.get("type", "output")
-                                            
-                                            params = f"filename={filename}"
-                                            if subfolder:
-                                                params += f"&subfolder={subfolder}"
-                                            params += f"&type={video_type}"
-                                            
-                                            video_url = f"{self.base_url}/view?{params}"
-                                            
-                                            return {
-                                                "success": True,
-                                                "video_url": video_url,
-                                                "message": "生成成功"
-                                            }
                             
                             # 检查是否有错误
                             status = prompt_history.get("status", {})
@@ -996,3 +1000,175 @@ class ComfyUIService:
             "num_frames": num_frames
         }
         return workflow
+    
+    async def generate_shot_video_with_workflow(
+        self,
+        prompt: str,
+        workflow_json: str,
+        node_mapping: Dict[str, str],
+        aspect_ratio: str = "16:9",
+        character_reference_path: Optional[str] = None,
+        seed: Optional[int] = None,
+        frame_count: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        使用指定工作流生成分镜视频 (LTX2)
+        
+        Args:
+            prompt: 视频描述提示词
+            workflow_json: 工作流 JSON 字符串
+            node_mapping: 节点映射配置 {
+                "prompt_node_id": "15",           # CR Prompt Text 或 CLIPTextEncode
+                "video_save_node_id": "1",        # VHS_VideoCombine
+                "reference_image_node_id": "12",  # LoadImage
+                "max_side_node_id": "36",         # 最长边设置
+                "frame_count_node_id": "35"       # 总帧数设置
+            }
+            aspect_ratio: 画面比例 (16:9, 9:16, 4:3, 3:4, 1:1)
+            character_reference_path: 角色参考图本地路径（分镜图）
+            seed: 随机种子
+            frame_count: 总帧数（8的倍数+1）
+            
+        Returns:
+            {
+                "success": bool,
+                "video_url": str,  # ComfyUI 返回的视频URL
+                "message": str,
+                "submitted_workflow": dict  # 实际提交给ComfyUI的工作流
+            }
+        """
+        try:
+            # 解析工作流
+            workflow = json.loads(workflow_json)
+            
+            # 获取节点映射
+            prompt_node_id = node_mapping.get("prompt_node_id")
+            video_save_node_id = node_mapping.get("video_save_node_id", "1")
+            reference_image_node_id = node_mapping.get("reference_image_node_id", "12")
+            max_side_node_id = node_mapping.get("max_side_node_id", "36")
+            frame_count_node_id = node_mapping.get("frame_count_node_id", "35")
+            
+            print(f"[ComfyUI] Video node mapping: prompt={prompt_node_id}, save={video_save_node_id}, image={reference_image_node_id}")
+            
+            # 1. 设置提示词
+            if prompt_node_id and prompt_node_id in workflow:
+                node = workflow[prompt_node_id]
+                class_type = node.get("class_type", "")
+                if class_type == "CLIPTextEncode":
+                    workflow[prompt_node_id]["inputs"]["text"] = prompt
+                    print(f"[ComfyUI] Set prompt to CLIPTextEncode node {prompt_node_id}")
+                elif class_type == "CR Prompt Text":
+                    workflow[prompt_node_id]["inputs"]["prompt"] = prompt
+                    print(f"[ComfyUI] Set prompt to CR Prompt Text node {prompt_node_id}")
+                else:
+                    # 尝试查找 text 或 prompt 字段
+                    inputs = node.get("inputs", {})
+                    if "text" in inputs:
+                        inputs["text"] = prompt
+                    elif "prompt" in inputs:
+                        inputs["prompt"] = prompt
+                    print(f"[ComfyUI] Set prompt to node {prompt_node_id} (type: {class_type})")
+            
+            # 2. 上传并设置参考图片（分镜图）
+            if character_reference_path:
+                print(f"[ComfyUI] Uploading shot reference image: {character_reference_path}")
+                upload_result = await self._upload_image(character_reference_path)
+                
+                if upload_result.get("success"):
+                    uploaded_filename = upload_result.get("filename")
+                    print(f"[ComfyUI] Image uploaded: {uploaded_filename}")
+                    
+                    # 设置到指定的 LoadImage 节点
+                    if reference_image_node_id and reference_image_node_id in workflow:
+                        workflow[reference_image_node_id]["inputs"]["image"] = uploaded_filename
+                        print(f"[ComfyUI] Set reference image to node {reference_image_node_id}: {uploaded_filename}")
+                    else:
+                        print(f"[ComfyUI] Warning: reference_image_node_id {reference_image_node_id} not found in workflow")
+                        # 查找所有 LoadImage 节点并设置第一个
+                        for node_id, node in workflow.items():
+                            if node.get("class_type") == "LoadImage":
+                                workflow[node_id]["inputs"]["image"] = uploaded_filename
+                                print(f"[ComfyUI] Auto-set reference image to LoadImage node {node_id}: {uploaded_filename}")
+                                break
+                else:
+                    print(f"[ComfyUI] Failed to upload image: {upload_result.get('message')}")
+                    return {
+                        "success": False,
+                        "message": f"图片上传失败: {upload_result.get('message')}"
+                    }
+            
+            # 3. 根据画面比例设置最长边
+            if max_side_node_id and max_side_node_id in workflow:
+                # 根据比例计算最长边
+                max_side = 960  # 默认
+                if aspect_ratio in ["16:9", "21:9", "2.35:1"]:
+                    max_side = 1280  # 横屏使用更大的尺寸
+                elif aspect_ratio in ["9:16"]:
+                    max_side = 960   # 竖屏
+                elif aspect_ratio == "1:1":
+                    max_side = 1024  # 方形
+                
+                workflow[max_side_node_id]["inputs"]["value"] = max_side
+                print(f"[ComfyUI] Set max side {max_side} to node {max_side_node_id}")
+            
+            # 3.5 设置总帧数（如果提供了）
+            frame_count_node_id = node_mapping.get("frame_count_node_id", "35")
+            if frame_count and frame_count_node_id and frame_count_node_id in workflow:
+                workflow[frame_count_node_id]["inputs"]["value"] = frame_count
+                print(f"[ComfyUI] Set frame count {frame_count} to node {frame_count_node_id}")
+            
+            # 4. 设置随机种子
+            if seed is None:
+                seed = random.randint(1, 2**32)
+            for node_id, node in workflow.items():
+                if node.get("class_type") in ["RandomNoise", "KSampler", "PainterSamplerLTXV"]:
+                    if "seed" in node.get("inputs", {}):
+                        workflow[node_id]["inputs"]["seed"] = seed
+                    if "noise_seed" in node.get("inputs", {}):
+                        workflow[node_id]["inputs"]["noise_seed"] = seed
+            print(f"[ComfyUI] Set seed: {seed}")
+            
+            # 5. 设置视频保存前缀
+            if video_save_node_id and video_save_node_id in workflow:
+                save_node = workflow[video_save_node_id]
+                if save_node.get("class_type") == "VHS_VideoCombine":
+                    current_prefix = save_node["inputs"].get("filename_prefix", "LTX2")
+                    print(f"[ComfyUI] Video save node {video_save_node_id} prefix: {current_prefix}")
+            
+            # 提交任务
+            print(f"[ComfyUI] Submitting video generation task")
+            queue_result = await self._queue_prompt(workflow)
+            
+            if not queue_result.get("success"):
+                return {
+                    "success": False,
+                    "message": queue_result.get("error", "提交任务失败")
+                }
+            
+            prompt_id = queue_result.get("prompt_id")
+            
+            # 等待结果（视频生成时间较长，使用 300 秒超时）
+            result = await self._wait_for_result(
+                prompt_id, 
+                workflow, 
+                save_image_node_id=video_save_node_id,
+                timeout=300
+            )
+            
+            # 视频输出可能通过 video_url 或 image_url 返回
+            video_url = result.get("video_url") or result.get("image_url")
+            return {
+                "success": result.get("success"),
+                "video_url": video_url,
+                "message": result.get("message", ""),
+                "submitted_workflow": workflow  # 返回实际提交的工作流
+            }
+            
+        except Exception as e:
+            print(f"[ComfyUI] Generate shot video failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return {
+                "success": False,
+                "message": f"生成失败: {str(e)}"
+            }

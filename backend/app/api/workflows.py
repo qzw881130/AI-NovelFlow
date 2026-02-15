@@ -29,7 +29,11 @@ DEFAULT_WORKFLOWS = {
 # 额外的系统工作流文件列表
 EXTRA_SYSTEM_WORKFLOWS = [
     {"filename": "character_single.json", "type": "character", "name": "Z-image-turbo 单图生成", "description": "Z-image-turbo【非三视图】"},
-    {"filename": "shot_flux2_klein.json", "type": "shot", "name": "Flux2-Klein-9B 分镜生图", "description": "Flux2-Klein-9B 图像编辑工作流，支持角色参考图"}
+    {"filename": "shot_flux2_klein.json", "type": "shot", "name": "Flux2-Klein-9B 分镜生图", "description": "Flux2-Klein-9B 图像编辑工作流，支持角色参考图"},
+    {"filename": "video_ltx2_direct.json", "type": "video", "name": "LTX2 视频生成-直接版", "description": "LTX-2 图生视频，直接使用用户提示词",
+     "node_mapping": {"prompt_node_id": "11", "video_save_node_id": "1", "reference_image_node_id": "12", "max_side_node_id": "36", "frame_count_node_id": "35"}},
+    {"filename": "video_ltx2_expanded.json", "type": "video", "name": "LTX2 视频生成-扩写版", "description": "LTX-2 图生视频，使用 Qwen3 自动扩写提示词",
+     "node_mapping": {"prompt_node_id": "15", "video_save_node_id": "1", "reference_image_node_id": "12", "max_side_node_id": "36", "frame_count_node_id": "35"}}
 ]
 
 
@@ -76,8 +80,12 @@ def load_default_workflows(db: Session):
             db.add(workflow)
     
     # 2. 加载额外的系统工作流
+    # 跟踪每种类型已经处理过的工作流，确保同类型只有第一个是默认激活的
+    processed_types = {}  # type -> count
+    
     for wf_config in EXTRA_SYSTEM_WORKFLOWS:
         file_path = os.path.join(workflows_dir, wf_config["filename"])
+        wf_type = wf_config["type"]
         
         if not os.path.exists(file_path):
             continue
@@ -98,37 +106,69 @@ def load_default_workflows(db: Session):
                 existing.name = wf_config["name"]
                 existing.description = wf_config["description"]
                 print(f"[Workflow] Updated: {wf_config['name']}")
+            # 更新节点映射（如果配置中有且未设置）
+            if "node_mapping" in wf_config:
+                current_mapping = None
+                if existing.node_mapping:
+                    try:
+                        current_mapping = json.loads(existing.node_mapping)
+                    except:
+                        pass
+                if not current_mapping:
+                    existing.node_mapping = json.dumps(wf_config["node_mapping"], ensure_ascii=False)
+                    print(f"[Workflow] Updated node mapping: {wf_config['name']}")
             continue
         
-        # 检查该类型是否已有激活的工作流
-        has_active = db.query(Workflow).filter(
-            Workflow.type == wf_config["type"],
-            Workflow.is_active == True
-        ).first() is not None
-        
-        workflow = Workflow(
-            name=wf_config["name"],
-            description=wf_config["description"],
-            type=wf_config["type"],
-            workflow_json=workflow_json,
-            is_system=True,
-            is_active=not has_active,  # 如果该类型没有激活的工作流，则设为激活
-            file_path=file_path
-        )
-        db.add(workflow)
-        print(f"[Workflow] Added: {wf_config['name']}")
-    
-    db.commit()
-    
-    # 3. 确保每种类型至少有一个默认激活的工作流
-    for wf_type in WORKFLOW_TYPES.keys():
-        has_active = db.query(Workflow).filter(
+        # 检查该类型是否已有激活的工作流（数据库中）
+        has_active_in_db = db.query(Workflow).filter(
             Workflow.type == wf_type,
             Workflow.is_active == True
         ).first() is not None
         
-        if not has_active:
-            # 找到该类型的第一个系统工作流设为默认
+        # 检查该类型在本次加载中是否已设置了默认工作流
+        processed_count = processed_types.get(wf_type, 0)
+        is_first_in_list = processed_count == 0
+        
+        # 只有当数据库中没有激活的，且是列表中第一个时，才设为激活
+        should_be_active = (not has_active_in_db) and is_first_in_list
+        
+        processed_types[wf_type] = processed_count + 1
+        
+        workflow = Workflow(
+            name=wf_config["name"],
+            description=wf_config["description"],
+            type=wf_type,
+            workflow_json=workflow_json,
+            is_system=True,
+            is_active=should_be_active,
+            file_path=file_path
+        )
+        # 设置默认节点映射（如果配置中有）
+        if "node_mapping" in wf_config:
+            workflow.node_mapping = json.dumps(wf_config["node_mapping"], ensure_ascii=False)
+            print(f"[Workflow] Added: {wf_config['name']} with node mapping (active={should_be_active})")
+        else:
+            print(f"[Workflow] Added: {wf_config['name']} (active={should_be_active})")
+        db.add(workflow)
+    
+    db.commit()
+    
+    # 3. 确保每种类型只有一个默认激活的工作流
+    for wf_type in WORKFLOW_TYPES.keys():
+        # 获取该类型所有激活的工作流，按创建时间排序
+        active_workflows = db.query(Workflow).filter(
+            Workflow.type == wf_type,
+            Workflow.is_active == True
+        ).order_by(Workflow.created_at.asc()).all()
+        
+        if len(active_workflows) > 1:
+            # 有多个激活的，只保留第一个，其余取消激活
+            for wf in active_workflows[1:]:
+                wf.is_active = False
+                print(f"[Workflow] Deactivated duplicate default: {wf.name}")
+            db.commit()
+        elif not active_workflows:
+            # 没有激活的，找到该类型的第一个系统工作流设为默认
             first_workflow = db.query(Workflow).filter(
                 Workflow.type == wf_type,
                 Workflow.is_system == True
@@ -136,6 +176,7 @@ def load_default_workflows(db: Session):
             
             if first_workflow:
                 first_workflow.is_active = True
+                print(f"[Workflow] Set default for {wf_type}: {first_workflow.name}")
                 db.commit()
 
 

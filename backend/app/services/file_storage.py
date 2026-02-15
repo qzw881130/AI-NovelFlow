@@ -43,7 +43,7 @@ class FileStorageService:
         return name.strip()
     
     async def download_image(self, url: str, novel_id: str, character_name: str, 
-                            image_type: str = "character") -> Optional[str]:
+                            image_type: str = "character", chapter_id: str = None) -> Optional[str]:
         """
         下载图片并保存到指定目录
         
@@ -52,6 +52,7 @@ class FileStorageService:
             novel_id: 小说ID
             character_name: 角色名或文件描述
             image_type: 图片类型 (character, shot, video_frame)
+            chapter_id: 章节ID (用于 shot 类型)
             
         Returns:
             本地文件路径，失败返回 None
@@ -63,7 +64,9 @@ class FileStorageService:
             if image_type == "character":
                 save_dir = story_dir / "characters"
             elif image_type == "shot":
-                save_dir = story_dir / "shots"
+                # 分镜图片保存到 chapter_{chapter_id}/shots/
+                chapter_short = chapter_id[:8] if chapter_id else "unknown"
+                save_dir = story_dir / f"chapter_{chapter_short}" / "shots"
             else:
                 save_dir = story_dir / "images"
             
@@ -155,6 +158,17 @@ class FileStorageService:
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return save_dir / f"shot_{shot_number:03d}_{timestamp}.png"
+    
+    def get_merged_characters_path(self, novel_id: str, chapter_id: str,
+                                   shot_number: int) -> Path:
+        """获取合并角色图保存路径"""
+        story_dir = self._get_story_dir(novel_id)
+        chapter_short = chapter_id[:8] if chapter_id else "unknown"
+        save_dir = story_dir / f"chapter_{chapter_short}" / "merged_characters"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return save_dir / f"shot_{shot_number:03d}_{timestamp}_characters.png"
 
 
 # 全局实例

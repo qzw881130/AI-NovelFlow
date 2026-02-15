@@ -19,7 +19,8 @@ import {
   Sparkles,
   Save,
   Grid3x3,
-  Clock
+  Clock,
+  Film
 } from 'lucide-react';
 import type { Chapter, Novel } from '../types';
 import { toast } from '../stores/toastStore';
@@ -79,6 +80,11 @@ export default function ChapterGenerate() {
   const [pendingShots, setPendingShots] = useState<Set<number>>(new Set());  // 已提交到队列的任务
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);  // 批量生成中
   const [shotImages, setShotImages] = useState<Record<number, string>>({});
+
+  // 分镜视频生成相关
+  const [generatingVideos, setGeneratingVideos] = useState<Set<number>>(new Set());
+  const [pendingVideos, setPendingVideos] = useState<Set<number>>(new Set());
+  const [shotVideos, setShotVideos] = useState<Record<number, string>>({});  // 分镜视频URL映射
 
   // 生成分镜图片
   const handleGenerateShotImage = async (shotIndex: number) => {
@@ -187,6 +193,45 @@ export default function ChapterGenerate() {
     }
   };
 
+  // 生成分镜视频
+  const handleGenerateShotVideo = async (shotIndex: number) => {
+    console.log('[ChapterGenerate] Generating video for shot', shotIndex);
+    setGeneratingVideos(prev => new Set(prev).add(shotIndex));
+    
+    try {
+      const res = await fetch(
+        `${API_BASE}/novels/${id}/chapters/${cid}/shots/${shotIndex}/generate-video`,
+        { method: 'POST' }
+      );
+      const data = await res.json();
+      
+      console.log('[ChapterGenerate] Video generation response:', data);
+      
+      if (data.success) {
+        setPendingVideos(prev => {
+          const next = new Set(prev);
+          next.add(shotIndex);
+          console.log('[ChapterGenerate] Added to pending videos:', shotIndex, 'pending:', [...next]);
+          return next;
+        });
+        toast.success(data.message || '视频生成任务已创建');
+      } else if (data.message?.includes('已有进行中的')) {
+        toast.info(data.message);
+      } else {
+        toast.error(data.message || '创建视频生成任务失败');
+      }
+    } catch (error) {
+      console.error('创建视频生成任务失败:', error);
+      toast.error('创建视频生成任务失败，请检查网络连接');
+    } finally {
+      setGeneratingVideos(prev => {
+        const next = new Set(prev);
+        next.delete(shotIndex);
+        return next;
+      });
+    }
+  };
+
   // 获取真实章节数据和角色列表
   useEffect(() => {
     if (cid && id) {
@@ -206,7 +251,7 @@ export default function ChapterGenerate() {
     
     // 递归轮询，确保上一个请求完成后再等待 3 秒
     const poll = async () => {
-      if (pendingShots.size === 0) {
+      if (pendingShots.size === 0 && pendingVideos.size === 0) {
         // 没有 pending 任务，继续等待
         timeoutId = setTimeout(poll, 3000);
         return;
@@ -234,54 +279,96 @@ export default function ChapterGenerate() {
     return () => {
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [cid, id, pendingShots.size]);
+  }, [cid, id, pendingShots.size, pendingVideos.size]);
 
   // 检查分镜任务状态并更新
   const checkShotTaskStatus = async () => {
-    if (pendingShots.size === 0) return;
+    if (pendingShots.size === 0 && pendingVideos.size === 0) return;
     
     try {
-      const res = await fetch(`${API_BASE}/tasks?type=shot_image&limit=50`);
-      const data = await res.json();
-      if (!data.success) return;
+      // 同时检查图片和视频任务
+      const [imageRes, videoRes] = await Promise.all([
+        fetch(`${API_BASE}/tasks?type=shot_image&limit=50`),
+        fetch(`${API_BASE}/tasks?type=shot_video&limit=50`)
+      ]);
+      const [imageData, videoData] = await Promise.all([
+        imageRes.json(),
+        videoRes.json()
+      ]);
       
-      // 过滤出当前章节的任务
-      const chapterTasks = data.data.filter((task: any) => 
-        task.chapterId === cid
-      );
-      
-      let hasCompleted = false;
-      const stillPending = new Set<number>();
-      
-      chapterTasks.forEach((task: any) => {
-        // 从任务名称提取分镜索引
-        const match = task.name.match(/镜(\d+)/);
-        if (!match) return;
-        const shotNum = parseInt(match[1]);
+      // 处理图片任务
+      if (imageData.success && pendingShots.size > 0) {
+        const chapterImageTasks = imageData.data.filter((task: any) => 
+          task.chapterId === cid
+        );
         
-        if (task.status === 'completed') {
-          // 任务完成，更新图片
-          if (task.resultUrl) {
-            setShotImages(prev => ({ ...prev, [shotNum]: task.resultUrl }));
+        let hasCompleted = false;
+        const stillPending = new Set<number>();
+        
+        chapterImageTasks.forEach((task: any) => {
+          const match = task.name.match(/镜(\d+)/);
+          if (!match) return;
+          const shotNum = parseInt(match[1]);
+          
+          if (task.status === 'completed') {
+            if (task.resultUrl) {
+              setShotImages(prev => ({ ...prev, [shotNum]: task.resultUrl }));
+              hasCompleted = true;
+            }
+          } else if (task.status === 'pending' || task.status === 'running') {
+            stillPending.add(shotNum);
+          } else if (task.status === 'failed') {
             hasCompleted = true;
           }
-        } else if (task.status === 'pending' || task.status === 'running') {
-          // 仍在执行中
-          stillPending.add(shotNum);
-        } else if (task.status === 'failed') {
-          // 任务失败，从 pending 中移除
-          hasCompleted = true;
+        });
+        
+        if (hasCompleted || stillPending.size !== pendingShots.size) {
+          setPendingShots(stillPending);
         }
-      });
-      
-      // 更新 pending 状态
-      if (hasCompleted || stillPending.size !== pendingShots.size) {
-        setPendingShots(stillPending);
       }
       
-      // 如果有任务完成，刷新章节数据以更新 parsedData
-      if (hasCompleted) {
-        fetchChapter();
+      // 处理视频任务
+      if (videoData.success && pendingVideos.size > 0) {
+        const chapterVideoTasks = videoData.data.filter((task: any) => 
+          task.chapterId === cid
+        );
+        
+        console.log('[ChapterGenerate] Checking video tasks:', chapterVideoTasks.length, 'pending:', pendingVideos.size);
+        
+        let hasCompletedVideo = false;
+        const stillPendingVideos = new Set<number>();
+        
+        chapterVideoTasks.forEach((task: any) => {
+          const match = task.name.match(/镜(\d+)/);
+          if (!match) return;
+          const shotNum = parseInt(match[1]);
+          
+          console.log('[ChapterGenerate] Video task:', task.name, 'status:', task.status, 'shotNum:', shotNum);
+          
+          if (task.status === 'completed') {
+            if (task.resultUrl) {
+              console.log('[ChapterGenerate] Video completed, setting URL for shot', shotNum);
+              setShotVideos(prev => ({ ...prev, [shotNum]: task.resultUrl }));
+              hasCompletedVideo = true;
+            }
+          } else if (task.status === 'pending' || task.status === 'running') {
+            stillPendingVideos.add(shotNum);
+          } else if (task.status === 'failed') {
+            hasCompletedVideo = true;
+          }
+        });
+        
+        console.log('[ChapterGenerate] Video check result - hasCompleted:', hasCompletedVideo, 'stillPending:', [...stillPendingVideos]);
+        
+        if (hasCompletedVideo || stillPendingVideos.size !== pendingVideos.size) {
+          setPendingVideos(stillPendingVideos);
+        }
+        
+        // 如果有视频任务完成，刷新章节数据
+        if (hasCompletedVideo) {
+          console.log('[ChapterGenerate] Fetching chapter data after video completion');
+          fetchChapter();
+        }
       }
     } catch (error) {
       console.error('检查任务状态失败:', error);
@@ -316,6 +403,39 @@ export default function ChapterGenerate() {
       }
     } catch (error) {
       console.error('获取分镜任务状态失败:', error);
+    }
+  };
+
+  // 获取视频生成任务状态
+  const fetchVideoTasks = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/tasks?type=shot_video&limit=50`);
+      const data = await res.json();
+      if (data.success) {
+        // 过滤出当前章节的 pending/running 任务
+        const activeTasks = data.data.filter((task: any) => 
+          task.chapterId === cid && 
+          (task.status === 'pending' || task.status === 'running')
+        );
+        
+        // 从任务名称提取分镜索引 (格式: "生成视频: 镜X")
+        const pendingVideoIndices = new Set<number>();
+        activeTasks.forEach((task: any) => {
+          const match = task.name.match(/镜(\d+)/);
+          if (match) {
+            pendingVideoIndices.add(parseInt(match[1]));
+          }
+        });
+        
+        console.log('[ChapterGenerate] fetchVideoTasks found active:', [...pendingVideoIndices]);
+        
+        if (pendingVideoIndices.size > 0) {
+          console.log('[ChapterGenerate] Restored pending videos from tasks:', [...pendingVideoIndices]);
+          setPendingVideos(pendingVideoIndices);
+        }
+      }
+    } catch (error) {
+      console.error('获取视频任务状态失败:', error);
     }
   };
 
@@ -372,6 +492,19 @@ export default function ChapterGenerate() {
             console.error('解析数据格式错误:', e);
           }
         }
+        // 加载分镜视频
+        if (data.data.shotVideos && data.data.shotVideos.length > 0) {
+          const newShotVideos: Record<number, string> = {};
+          data.data.shotVideos.forEach((url: string, index: number) => {
+            if (url) {
+              newShotVideos[index + 1] = url;
+            }
+          });
+          console.log('[ChapterGenerate] Loaded shot videos from chapter:', newShotVideos);
+          setShotVideos(newShotVideos);
+        } else {
+          console.log('[ChapterGenerate] No shot videos in chapter data');
+        }
       }
     } catch (error) {
       console.error('获取章节数据失败:', error);
@@ -379,6 +512,7 @@ export default function ChapterGenerate() {
       setLoading(false);
       // 章节数据加载完成后，获取任务状态以恢复 pending 状态
       fetchShotTasks();
+      fetchVideoTasks();
     }
   };
 
@@ -1023,6 +1157,31 @@ export default function ChapterGenerate() {
                       <><RefreshCw className="h-3 w-3 mr-1" />重新生成</>
                     )}
                   </button>
+                  {/* 生成分镜视频按钮 - 只有当前分镜有图片时才可点击 */}
+                  <button 
+                    onClick={() => handleGenerateShotVideo(currentShot)}
+                    disabled={
+                      !(shotImages[currentShot] || parsedData.shots[currentShot - 1]?.image_url) ||
+                      generatingVideos.has(currentShot) || 
+                      pendingVideos.has(currentShot)
+                    }
+                    className="btn-secondary text-sm py-1.5 text-purple-600 hover:text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+                    title={
+                      !(shotImages[currentShot] || parsedData.shots[currentShot - 1]?.image_url)
+                        ? '请先生成分镜图片'
+                        : pendingVideos.has(currentShot)
+                        ? '视频生成中...'
+                        : '基于当前分镜图片生成视频'
+                    }
+                  >
+                    {generatingVideos.has(currentShot) ? (
+                      <><Loader2 className="h-3 w-3 mr-1 animate-spin" />提交中...</>
+                    ) : pendingVideos.has(currentShot) ? (
+                      <><Clock className="h-3 w-3 mr-1" />生成中...</>
+                    ) : (
+                      <><Film className="h-3 w-3 mr-1" />生成分镜视频</>
+                    )}
+                  </button>
                   <button 
                     onClick={handleGenerateAllShots}
                     disabled={isGeneratingAll || pendingShots.size > 0}
@@ -1035,34 +1194,17 @@ export default function ChapterGenerate() {
                     )}
                   </button>
                   <button 
-                    onClick={handleMergeCharacterImages}
-                    disabled={isMerging}
-                    className="btn-secondary text-sm py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={() => setShowMergedImageModal(true)}
+                    disabled={!mergedImage}
+                    className="btn-secondary text-sm py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    title={mergedImage ? '查看合并角色图' : '请先生成合并角色图'}
                   >
-                    {isMerging ? (
-                      <><Loader2 className="h-3 w-3 mr-1 animate-spin" />合并中...</>
-                    ) : (
-                      <><Grid3x3 className="h-3 w-3 mr-1" />合并角色图</>
-                    )}
+                    <Grid3x3 className="h-3 w-3 mr-1" />
+                    查看合并角色图
                   </button>
                 </div>
                 
-                {/* 合并后的角色图 */}
-                {mergedImage && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">合并角色图</h4>
-                    <div 
-                      onClick={() => setShowMergedImageModal(true)}
-                      className="w-48 h-32 rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 cursor-pointer overflow-hidden bg-gray-50 flex items-center justify-center transition-colors"
-                    >
-                      <img 
-                        src={mergedImage} 
-                        alt="合并角色图" 
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                  </div>
-                )}
+
               </>
             ) : (
               <p className="text-gray-500 text-sm py-4">暂无分镜图片，请先进行AI拆分</p>
@@ -1072,26 +1214,51 @@ export default function ChapterGenerate() {
           {/* 分镜视频 */}
           <div className="card">
             <h3 className="font-semibold text-gray-900 mb-4">分镜视频</h3>
-            <div className="aspect-video bg-gray-900 rounded-lg flex items-center justify-center mb-4">
-              <div className="text-center">
-                <Play className="h-16 w-16 text-white/50 mx-auto mb-2" />
-                <p className="text-white/50 text-sm">预览播放器</p>
-              </div>
+            <div className="aspect-video bg-gray-900 rounded-lg flex items-center justify-center mb-4 overflow-hidden">
+              {shotVideos[currentVideo] ? (
+                <video
+                  key={currentVideo}
+                  src={shotVideos[currentVideo]}
+                  controls
+                  className="w-full h-full"
+                  poster={shotImages[currentVideo]}
+                />
+              ) : (
+                <div className="text-center">
+                  <Play className="h-16 w-16 text-white/50 mx-auto mb-2" />
+                  <p className="text-white/50 text-sm">
+                    {generatingVideos.has(currentVideo) ? '生成中...' : pendingVideos.has(currentVideo) ? '排队中...' : '暂无视频'}
+                  </p>
+                </div>
+              )}
             </div>
             <div className="flex gap-2 flex-wrap">
-              {parsedData?.shots?.map((shot: any, index: number) => (
-                <button
-                  key={shot.id}
-                  onClick={() => setCurrentVideo(index + 1)}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                    currentVideo === index + 1 
-                      ? 'bg-purple-100 text-purple-600' 
-                      : 'bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  镜{shot.id}
-                </button>
-              )) || <p className="text-gray-500 text-sm">暂无视频</p>}
+              {parsedData?.shots?.map((shot: any, index: number) => {
+                const shotNum = index + 1;
+                const hasVideo = !!shotVideos[shotNum];
+                const isPending = pendingVideos.has(shotNum);
+                const isGenerating = generatingVideos.has(shotNum);
+                
+                return (
+                  <button
+                    key={shot.id}
+                    onClick={() => setCurrentVideo(shotNum)}
+                    className={`px-3 py-1.5 text-sm rounded-md transition-colors flex items-center gap-1 ${
+                      currentVideo === shotNum 
+                        ? 'bg-purple-100 text-purple-600' 
+                        : hasVideo
+                          ? 'bg-green-100 text-green-600'
+                          : isPending || isGenerating
+                            ? 'bg-yellow-100 text-yellow-600'
+                            : 'bg-gray-100 text-gray-700'
+                    }`}
+                  >
+                    镜{shot.id}
+                    {hasVideo && <span className="w-2 h-2 bg-green-500 rounded-full"></span>}
+                    {(isPending || isGenerating) && <Loader2 className="h-3 w-3 animate-spin" />}
+                  </button>
+                );
+              }) || <p className="text-gray-500 text-sm">暂无视频</p>}
             </div>
           </div>
         </div>
