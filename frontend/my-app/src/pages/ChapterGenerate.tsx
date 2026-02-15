@@ -31,7 +31,7 @@ const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}
 // 步骤定义
 const STEPS = [
   { key: 'parse', label: '解析文本', icon: FileJson },
-  { key: 'character', label: '生成人设', icon: Users },
+  { key: 'character', label: '生成合并角色图', icon: Users },
   { key: 'shots', label: '生成分镜图', icon: ImageIcon },
   { key: 'videos', label: '生成视频', icon: Video },
   { key: 'compose', label: '合成视频', icon: CheckCircle }
@@ -193,6 +193,87 @@ export default function ChapterGenerate() {
     }
   };
 
+  // 批量生成所有分镜视频
+  const handleGenerateAllVideos = async () => {
+    if (!parsedData?.shots || parsedData.shots.length === 0) {
+      toast.warning('没有可分镜的视频');
+      return;
+    }
+    
+    // 找出所有已有分镜图片的分镜
+    const shotsWithImages: number[] = [];
+    parsedData.shots.forEach((_: any, index: number) => {
+      const shotNum = index + 1;
+      const hasImage = shotImages[shotNum] || parsedData.shots[index]?.image_url;
+      const isPending = pendingVideos.has(shotNum);
+      const isGenerating = generatingVideos.has(shotNum);
+      if (hasImage && !isPending && !isGenerating) {
+        shotsWithImages.push(shotNum);
+      }
+    });
+    
+    if (shotsWithImages.length === 0) {
+      toast.warning('没有可生成视频的分镜（请确保分镜图片已生成）');
+      return;
+    }
+    
+    toast.info(`开始批量生成 ${shotsWithImages.length} 个分镜视频...`);
+    
+    let successCount = 0;
+    let skipCount = 0;
+    let failCount = 0;
+    
+    // 串行提交所有视频生成任务
+    for (let i = 0; i < shotsWithImages.length; i++) {
+      const shotIndex = shotsWithImages[i];
+      
+      try {
+        setGeneratingVideos(prev => new Set(prev).add(shotIndex));
+        
+        const res = await fetch(
+          `${API_BASE}/novels/${id}/chapters/${cid}/shots/${shotIndex}/generate-video`,
+          { method: 'POST' }
+        );
+        const data = await res.json();
+        
+        if (data.success) {
+          setPendingVideos(prev => new Set(prev).add(shotIndex));
+          successCount++;
+        } else if (data.message?.includes('已有进行中的')) {
+          skipCount++;
+        } else {
+          failCount++;
+          console.error(`分镜 ${shotIndex} 视频生成失败:`, data.message);
+        }
+      } catch (error) {
+        failCount++;
+        console.error(`分镜 ${shotIndex} 视频生成请求失败:`, error);
+      } finally {
+        setGeneratingVideos(prev => {
+          const next = new Set(prev);
+          next.delete(shotIndex);
+          return next;
+        });
+      }
+      
+      // 小延迟避免请求过快
+      if (i < shotsWithImages.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+    
+    // 显示汇总结果
+    if (successCount > 0) {
+      toast.success(`成功提交 ${successCount} 个视频生成任务`);
+    }
+    if (skipCount > 0) {
+      toast.info(`${skipCount} 个分镜已在队列中`);
+    }
+    if (failCount > 0) {
+      toast.error(`${failCount} 个分镜提交失败`);
+    }
+  };
+
   // 生成分镜视频
   const handleGenerateShotVideo = async (shotIndex: number) => {
     console.log('[ChapterGenerate] Generating video for shot', shotIndex);
@@ -241,6 +322,18 @@ export default function ChapterGenerate() {
       fetchChapter();
     }
   }, [cid, id]);
+
+  // 切换分镜时更新合并角色图
+  useEffect(() => {
+    if (parsedData?.shots && parsedData.shots.length >= currentShot) {
+      const shot = parsedData.shots[currentShot - 1];
+      if (shot?.merged_character_image) {
+        setMergedImage(shot.merged_character_image);
+      } else {
+        setMergedImage(null);
+      }
+    }
+  }, [currentShot, parsedData]);
 
   // 轮询任务状态
   useEffect(() => {
@@ -324,6 +417,11 @@ export default function ChapterGenerate() {
         
         if (hasCompleted || stillPending.size !== pendingShots.size) {
           setPendingShots(stillPending);
+        }
+        
+        // 如果有图片任务完成，刷新章节数据以获取合并角色图
+        if (hasCompleted) {
+          fetchChapter();
         }
       }
       
@@ -472,6 +570,7 @@ export default function ChapterGenerate() {
             // 检查已生成的分镜，更新图片并移除 pending
             if (parsed.shots && parsed.shots.length > 0) {
               const newShotImages: Record<number, string> = {};
+              const newMergedImages: Record<number, string> = {};
               setPendingShots(prev => {
                 const next = new Set(prev);
                 parsed.shots.forEach((shot: any, index: number) => {
@@ -480,12 +579,20 @@ export default function ChapterGenerate() {
                     newShotImages[shotNum] = shot.image_url;
                     next.delete(shotNum);
                   }
+                  // 加载合并角色图
+                  if (shot.merged_character_image) {
+                    newMergedImages[shotNum] = shot.merged_character_image;
+                  }
                 });
                 return next;
               });
               // 更新 shotImages
               if (Object.keys(newShotImages).length > 0) {
                 setShotImages(prev => ({ ...prev, ...newShotImages }));
+              }
+              // 更新当前分镜的合并角色图
+              if (newMergedImages[currentShot]) {
+                setMergedImage(newMergedImages[currentShot]);
               }
             }
           } catch (e) {
@@ -1116,7 +1223,10 @@ export default function ChapterGenerate() {
                       className="aspect-video rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
                       onClick={() => {
                         const url = shotImages[currentShot] || parsedData.shots[currentShot - 1]?.image_url;
-                        if (url) window.open(url, '_blank');
+                        if (url) {
+                          setPreviewImageUrl(url);
+                          setShowImagePreview(true);
+                        }
                       }}
                     >
                       <img 
@@ -1129,21 +1239,6 @@ export default function ChapterGenerate() {
                 )}
 
                 <div className="flex gap-3 mt-4 flex-wrap">
-                  {(shotImages[currentShot] || parsedData.shots[currentShot - 1]?.image_url) && (
-                    <button 
-                      className="btn-secondary text-sm py-1.5"
-                      onClick={() => {
-                        const url = shotImages[currentShot] || parsedData.shots[currentShot - 1]?.image_url;
-                        if (url) {
-                          setPreviewImageUrl(url);
-                          setShowImagePreview(true);
-                        }
-                      }}
-                    >
-                      <Fullscreen className="h-3 w-3 mr-1" />
-                      全屏查看
-                    </button>
-                  )}
                   <button 
                     onClick={() => handleGenerateShotImage(currentShot)}
                     disabled={generatingShots.has(currentShot) || pendingShots.has(currentShot)}
@@ -1190,8 +1285,17 @@ export default function ChapterGenerate() {
                     {isGeneratingAll ? (
                       <><Loader2 className="h-3 w-3 mr-1 animate-spin" />批量提交中...</>
                     ) : (
-                      <><RefreshCw className="h-3 w-3 mr-1" />重新生成全部</>
+                      <><RefreshCw className="h-3 w-3 mr-1" />生成全部分镜图</>
                     )}
+                  </button>
+                  <button 
+                    onClick={handleGenerateAllVideos}
+                    disabled={generatingVideos.size > 0 || pendingVideos.size > 0}
+                    className="btn-secondary text-sm py-1.5 text-purple-600 hover:text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+                    title="为所有已有分镜图片的分镜生成视频"
+                  >
+                    <Film className="h-3 w-3 mr-1" />
+                    生成全部分镜视频
                   </button>
                   <button 
                     onClick={() => setShowMergedImageModal(true)}
@@ -1232,31 +1336,51 @@ export default function ChapterGenerate() {
                 </div>
               )}
             </div>
-            <div className="flex gap-2 flex-wrap">
+            <div className="flex gap-3 overflow-x-auto pb-2">
               {parsedData?.shots?.map((shot: any, index: number) => {
                 const shotNum = index + 1;
+                const imageUrl = shotImages[shotNum] || shot.image_url;
                 const hasVideo = !!shotVideos[shotNum];
                 const isPending = pendingVideos.has(shotNum);
                 const isGenerating = generatingVideos.has(shotNum);
+                const duration = shot.duration || 4; // 默认4秒
                 
                 return (
-                  <button
+                  <div
                     key={shot.id}
                     onClick={() => setCurrentVideo(shotNum)}
-                    className={`px-3 py-1.5 text-sm rounded-md transition-colors flex items-center gap-1 ${
-                      currentVideo === shotNum 
-                        ? 'bg-purple-100 text-purple-600' 
-                        : hasVideo
-                          ? 'bg-green-100 text-green-600'
-                          : isPending || isGenerating
-                            ? 'bg-yellow-100 text-yellow-600'
-                            : 'bg-gray-100 text-gray-700'
+                    className={`relative flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden cursor-pointer transition-transform hover:scale-105 ${
+                      currentVideo === shotNum ? 'ring-2 ring-offset-2 ring-purple-500' : ''
                     }`}
                   >
-                    镜{shot.id}
-                    {hasVideo && <span className="w-2 h-2 bg-green-500 rounded-full"></span>}
-                    {(isPending || isGenerating) && <Loader2 className="h-3 w-3 animate-spin" />}
-                  </button>
+                    {imageUrl ? (
+                      <img 
+                        src={imageUrl} 
+                        alt={`镜${shot.id}`}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+                        <ImageIcon className="h-6 w-6 text-white/70" />
+                      </div>
+                    )}
+                    
+                    {/* 状态角标 */}
+                    {hasVideo && (
+                      <div className="absolute top-1 right-1 w-2 h-2 bg-green-500 rounded-full" />
+                    )}
+                    {(isPending || isGenerating) && (
+                      <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                        <Loader2 className="h-4 w-4 text-white animate-spin" />
+                      </div>
+                    )}
+                    
+                    {/* 底部信息栏 */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-1.5 py-0.5 flex items-center justify-between">
+                      <span className="text-[10px] text-white font-medium">镜{shot.id}</span>
+                      <span className="text-[10px] text-white/80">{duration}s</span>
+                    </div>
+                  </div>
                 );
               }) || <p className="text-gray-500 text-sm">暂无视频</p>}
             </div>

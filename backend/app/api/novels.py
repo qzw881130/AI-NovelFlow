@@ -643,7 +643,26 @@ async def generate_shot_task(
             
             if character_images:
                 # 创建合并图片目录 (chapter_{chapter_id}/merged_characters/)
-                merged_path = file_storage.get_merged_characters_path(novel_id, chapter_id, shot_index)
+                # 先删除旧的合并角色图（避免使用旧文件）
+                # 包括旧的时间戳格式和可能的不同角色组合的 hash 格式
+                story_dir = file_storage._get_story_dir(novel_id)
+                chapter_short = chapter_id[:8] if chapter_id else "unknown"
+                merged_dir = story_dir / f"chapter_{chapter_short}" / "merged_characters"
+                if merged_dir.exists():
+                    import glob
+                    import re
+                    # 删除该分镜的所有旧合并角色图（包括时间戳格式和 hash 格式）
+                    old_files = glob.glob(str(merged_dir / f"shot_{shot_index:03d}_*_characters.png"))
+                    for old_file in old_files:
+                        try:
+                            os.remove(old_file)
+                            print(f"[ShotTask {task_id}] Removed old merged character image: {old_file}")
+                        except Exception as e:
+                            print(f"[ShotTask {task_id}] Failed to remove old file {old_file}: {e}")
+                
+                # 获取角色名列表（用于生成固定文件名）
+                character_names = [name for name, _ in character_images]
+                merged_path = file_storage.get_merged_characters_path(novel_id, chapter_id, shot_index, character_names)
                 
                 # 合并图片
                 try:
@@ -667,51 +686,111 @@ async def generate_shot_task(
                         img = Image.open(img_path)
                         images.append((char_name, img))
                     
-                    # 设置单元格大小
-                    cell_width = 256
-                    cell_height = 256
-                    name_height = 30
-                    padding = 10
+                    # 设置布局参数
+                    max_img_width = 256
+                    max_img_height = 256
+                    name_height = 18  # 文字高度
+                    padding = 10      # 外边距
+                    img_spacing = 5   # 图片之间的间距
+                    text_offset = 0   # 文字与图片的间距（紧贴）
                     
-                    # 创建画布
-                    canvas_width = cols * (cell_width + padding) + padding
-                    canvas_height = rows * (cell_height + name_height + padding) + padding
+                    # 预先处理所有图片：缩放并记录实际尺寸
+                    processed_images = []
+                    for char_name, img in images:
+                        img_copy = img.copy()
+                        img_copy.thumbnail((max_img_width, max_img_height), Image.LANCZOS)
+                        processed_images.append((char_name, img_copy))
+                    
+                    # 计算画布尺寸
+                    canvas_width = cols * max_img_width + (cols - 1) * img_spacing + 2 * padding
+                    # 计算每行的实际高度（取该行最高图片 + 文字高度）
+                    row_heights = []
+                    for row in range(rows):
+                        max_h = 0
+                        for idx in range(row * cols, min((row + 1) * cols, len(processed_images))):
+                            _, img = processed_images[idx]
+                            max_h = max(max_h, img.height)
+                        row_heights.append(max_h + name_height + text_offset)
+                    
+                    canvas_height = sum(row_heights) + 2 * padding
                     canvas = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
-                    
-                    # 绘制每个角色
                     draw = ImageDraw.Draw(canvas)
                     
-                    # 尝试加载字体，失败则使用默认
-                    try:
-                        font = ImageFont.truetype("/System/Library/Fonts/PingFang.ttc", 16)
-                    except:
-                        font = ImageFont.load_default()
+                    # 尝试加载中文字体（多平台支持）
+                    font = None
+                    font_paths = [
+                        # macOS
+                        "/System/Library/Fonts/PingFang.ttc",
+                        "/System/Library/Fonts/STHeiti Light.ttc",
+                        "/Library/Fonts/Arial Unicode.ttf",
+                        # Windows
+                        "C:/Windows/Fonts/simhei.ttf",
+                        "C:/Windows/Fonts/simsun.ttc",
+                        "C:/Windows/Fonts/msyh.ttc",
+                        "C:/Windows/Fonts/msyhbd.ttc",
+                        # Linux
+                        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+                        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                    ]
                     
-                    for idx, (char_name, img) in enumerate(images):
+                    for font_path in font_paths:
+                        try:
+                            font = ImageFont.truetype(font_path, 16)
+                            print(f"[ShotTask {task_id}] Loaded font: {font_path}")
+                            break
+                        except:
+                            continue
+                    
+                    if font is None:
+                        font = ImageFont.load_default()
+                        print(f"[ShotTask {task_id}] Warning: No Chinese font found, using default")
+                    
+                    # 绘制每个角色
+                    current_y = padding
+                    for idx, (char_name, img) in enumerate(processed_images):
                         col = idx % cols
                         row = idx // cols
-                        x = padding + col * (cell_width + padding)
-                        y = padding + row * (cell_height + name_height + padding)
                         
-                        # 缩放图片保持比例
-                        img.thumbnail((cell_width, cell_height), Image.LANCZOS)
+                        # 计算x坐标
+                        x = padding + col * (max_img_width + img_spacing)
                         
-                        # 居中放置
-                        img_x = x + (cell_width - img.width) // 2
-                        img_y = y + (cell_height - img.height) // 2
+                        # 计算y坐标（基于当前行的起始位置）
+                        y = current_y
+                        
+                        # 居中放置图片
+                        img_x = x + (max_img_width - img.width) // 2
+                        img_y = y + (row_heights[row] - name_height - text_offset - img.height) // 2
                         canvas.paste(img, (img_x, img_y))
                         
-                        # 绘制角色名称
+                        # 绘制角色名称（紧贴图片底部）
                         text_bbox = draw.textbbox((0, 0), char_name, font=font)
                         text_width = text_bbox[2] - text_bbox[0]
-                        text_x = x + (cell_width - text_width) // 2
-                        text_y = y + cell_height + 5
+                        text_x = x + (max_img_width - text_width) // 2
+                        text_y = img_y + img.height + text_offset
                         draw.text((text_x, text_y), char_name, fill=(51, 51, 51), font=font)
+                        
+                        # 更新下一行的起始y坐标
+                        if col == cols - 1 or idx == len(processed_images) - 1:
+                            current_y += row_heights[row]
                     
                     # 保存合并图片
                     canvas.save(merged_path, "PNG")
                     character_reference_path = str(merged_path)
-                    print(f"[ShotTask {task_id}] Merged character image saved: {merged_path}")
+                    
+                    # 构建合并角色图的 URL 并保存到 parsed_data
+                    merged_relative_path = str(merged_path).replace(str(file_storage.base_dir), "")
+                    merged_url = f"/api/files/{merged_relative_path.lstrip('/')}"
+                    
+                    # 更新 parsed_data 中的合并角色图 URL
+                    latest_parsed_data = json.loads(chapter.parsed_data) if chapter.parsed_data else {"shots": []}
+                    if "shots" not in latest_parsed_data:
+                        latest_parsed_data["shots"] = []
+                    while len(latest_parsed_data["shots"]) < shot_index:
+                        latest_parsed_data["shots"].append({})
+                    latest_parsed_data["shots"][shot_index - 1]["merged_character_image"] = merged_url
+                    chapter.parsed_data = json.dumps(latest_parsed_data, ensure_ascii=False)
+                    
+                    print(f"[ShotTask {task_id}] Merged character image saved: {merged_path}, URL: {merged_url}")
                     task.current_step = f"已合并 {len(character_images)} 个角色图片"
                     db.commit()
                     

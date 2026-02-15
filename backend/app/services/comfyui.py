@@ -209,7 +209,7 @@ class ComfyUIService:
             
             prompt_id = queue_result.get("prompt_id")
             
-            result = await self._wait_for_result(prompt_id, workflow, timeout=300)  # 视频生成时间较长
+            result = await self._wait_for_result(prompt_id, workflow, timeout=7200)  # 视频生成时间较长，2小时超时
             
             return {
                 "success": result.get("success"),
@@ -1147,12 +1147,12 @@ class ComfyUIService:
             
             prompt_id = queue_result.get("prompt_id")
             
-            # 等待结果（视频生成时间较长，使用 300 秒超时）
+            # 等待结果（视频生成时间较长，使用 2 小时超时）
             result = await self._wait_for_result(
                 prompt_id, 
                 workflow, 
                 save_image_node_id=video_save_node_id,
-                timeout=300
+                timeout=7200
             )
             
             # 视频输出可能通过 video_url 或 image_url 返回

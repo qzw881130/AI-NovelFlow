@@ -27,6 +27,7 @@ async def get_real_gpu_stats():
                         "temperature": data.get("temperature"),
                         "vram_used": data.get("vram_used", 0),
                         "vram_total": data.get("vram_total", 32),
+                        "gpu_name": data.get("gpu_name", "NVIDIA GPU"),  # 显卡型号
                         "ram_used": data.get("ram_used"),      # 内存使用 (GB)
                         "ram_total": data.get("ram_total"),    # 内存总量 (GB)
                         "ram_percent": data.get("ram_percent"), # 内存使用率 (%)
@@ -90,7 +91,7 @@ async def check_comfyui():
                 "status": "ok",
                 "message": "ComfyUI 连接正常",
                 "data": {
-                    "device_name": "NVIDIA GPU",
+                    "device_name": real_gpu_stats.get("gpu_name", "NVIDIA GPU"),  # 使用真实的显卡型号
                     "gpu_usage": real_gpu_stats["gpu_usage"],
                     "vram_used": real_gpu_stats["vram_used"],
                     "vram_total": real_gpu_stats["vram_total"],

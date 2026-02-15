@@ -160,15 +160,31 @@ class FileStorageService:
         return save_dir / f"shot_{shot_number:03d}_{timestamp}.png"
     
     def get_merged_characters_path(self, novel_id: str, chapter_id: str,
-                                   shot_number: int) -> Path:
-        """获取合并角色图保存路径"""
+                                   shot_number: int, character_names: list = None) -> Path:
+        """获取合并角色图保存路径
+        
+        Args:
+            character_names: 角色名列表，用于生成固定文件名。相同角色组合总是生成相同文件名。
+        """
+        import hashlib
+        
         story_dir = self._get_story_dir(novel_id)
         chapter_short = chapter_id[:8] if chapter_id else "unknown"
         save_dir = story_dir / f"chapter_{chapter_short}" / "merged_characters"
         save_dir.mkdir(parents=True, exist_ok=True)
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return save_dir / f"shot_{shot_number:03d}_{timestamp}_characters.png"
+        # 如果有角色名，使用角色名排序后的 hash 生成固定文件名
+        if character_names and len(character_names) > 0:
+            sorted_names = sorted(character_names)
+            names_str = "_".join(sorted_names)
+            name_hash = hashlib.md5(names_str.encode('utf-8')).hexdigest()[:8]
+            filename = f"shot_{shot_number:03d}_{name_hash}_characters.png"
+        else:
+            # 没有角色名时使用时间戳（兼容旧逻辑）
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"shot_{shot_number:03d}_{timestamp}_characters.png"
+        
+        return save_dir / filename
 
 
 # 全局实例

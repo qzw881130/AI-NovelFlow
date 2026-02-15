@@ -12,6 +12,7 @@ interface SystemStats {
   queueSize: number;
   temperature?: number;
   gpuSource?: 'real' | 'estimated';
+  gpuName?: string;  // 显卡型号
   // RAM 信息
   ramUsed?: number;
   ramTotal?: number;
@@ -71,6 +72,7 @@ export default function ComfyUIStatus() {
             queueSize: queueSize,
             temperature: systemStats.temperature,
             gpuSource: systemStats.gpu_source || 'estimated',
+            gpuName: systemStats.device_name,  // 显卡型号
             // RAM 信息
             ramUsed: systemStats.ram_used,
             ramTotal: systemStats.ram_total,
@@ -127,6 +129,18 @@ export default function ComfyUIStatus() {
             </span>
           </div>
         </div>
+
+        {/* 显卡型号 */}
+        {stats.gpuName && (
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-gray-700 font-medium">显卡型号</span>
+            </div>
+            <span className="text-gray-900 font-semibold text-sm break-all" title={stats.gpuName}>
+              {stats.gpuName}
+            </span>
+          </div>
+        )}
 
         {/* GPU 使用率 */}
         <div>

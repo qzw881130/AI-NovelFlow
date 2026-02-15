@@ -189,12 +189,13 @@ export default function Tasks() {
     // 自动刷新
     const interval = setInterval(fetchTasks, 3000);
     return () => clearInterval(interval);
-  }, [filter]);
+  }, []);  // 移除 filter 依赖，始终获取全部任务
 
+  // 获取所有任务（用于统计和列表显示）
   const fetchTasks = async () => {
     try {
-      const url = filter !== 'all' ? `${API_BASE}/tasks?status=${filter}` : `${API_BASE}/tasks`;
-      const res = await fetch(url);
+      // 始终获取所有任务，确保统计数字正确
+      const res = await fetch(`${API_BASE}/tasks?limit=1000`);
       const data = await res.json();
       if (data.success) {
         setTasks(data.data || []);
@@ -347,6 +348,11 @@ export default function Tasks() {
     failed: tasks.filter(t => t.status === 'failed').length,
   };
 
+  // 前端筛选任务列表
+  const filteredTasks = filter === 'all' 
+    ? tasks 
+    : tasks.filter(t => t.status === filter);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -402,7 +408,7 @@ export default function Tasks() {
           <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
           </div>
-        ) : tasks.length === 0 ? (
+        ) : filteredTasks.length === 0 ? (
           <div className="text-center py-12">
             <ListTodo className="mx-auto h-12 w-12 text-gray-300" />
             <h3 className="mt-4 text-lg font-medium text-gray-900">暂无任务</h3>
@@ -412,7 +418,7 @@ export default function Tasks() {
           </div>
         ) : (
           <div className="space-y-3">
-            {tasks.map((task) => (
+            {filteredTasks.map((task) => (
               <div
                 key={task.id}
                 className={`p-4 rounded-lg border ${getStatusColor(task.status)} transition-all hover:shadow-md`}
