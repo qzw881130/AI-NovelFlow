@@ -358,26 +358,13 @@ async def generate_portrait_task(
         prompt = build_character_prompt(name, appearance, description, template.template if template else None)
         task.current_step = f"使用模板: {template.name if template else '默认'}, 提示词: {prompt[:80]}..."
         
-        # 保存提示词和构建的工作流JSON到任务记录
+        # 保存提示词
         task.prompt_text = prompt
+        db.commit()
+        
+        # 获取工作流JSON字符串（不保存到task，等ComfyUI返回实际提交版本）
         workflow_json_str = workflow.workflow_json if workflow else None
         print(f"[Task] Workflow JSON available: {workflow_json_str is not None}, length: {len(workflow_json_str) if workflow_json_str else 0}")
-        if workflow_json_str:
-            try:
-                import json
-                workflow_obj = json.loads(workflow_json_str)
-                # 替换工作流中的占位符
-                for node_id, node in workflow_obj.items():
-                    if isinstance(node, dict) and "inputs" in node:
-                        inputs = node.get("inputs", {})
-                        if "text" in inputs and isinstance(inputs["text"], str):
-                            if "{CHARACTER_PROMPT}" in inputs["text"]:
-                                inputs["text"] = prompt
-                task.workflow_json = json.dumps(workflow_obj, ensure_ascii=False, indent=2)
-            except Exception as e:
-                print(f"[Task] Failed to process workflow JSON: {e}")
-                task.workflow_json = workflow_json_str
-        db.commit()
         
         # 调用 ComfyUI 生成图片（使用指定的工作流）
         print(f"[Task] Generating image with workflow: {workflow.name if workflow else 'default'}")

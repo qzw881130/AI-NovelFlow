@@ -600,10 +600,12 @@ async def generate_shot_task(
         node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
         print(f"[ShotTask {task_id}] Node mapping: {node_mapping}")
         
-        # 记录工作流配置
-        task.workflow_json = workflow.workflow_json
+        # 先保存提示词
         task.prompt_text = shot_description
         db.commit()
+        
+        # 注意：实际提交的工作流会在调用ComfyUI后保存
+        # 这里不保存原始模板，避免运行时看到错误数据
         
         # 合并角色图片
         character_reference_path = None
