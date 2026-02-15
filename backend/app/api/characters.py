@@ -301,6 +301,13 @@ async def generate_character_portrait_task(
         # 调用 ComfyUI 生成图片
         result = await comfyui_service.generate_character_image(prompt)
         
+        # 保存实际提交给ComfyUI的工作流
+        if result.get("submitted_workflow"):
+            generation_tasks[task_id]["submitted_workflow"] = json.dumps(
+                result["submitted_workflow"], ensure_ascii=False, indent=2
+            )
+            print(f"[CharacterTask {task_id}] Saved submitted workflow")
+        
         if result.get("success"):
             generation_tasks[task_id]["status"] = "completed"
             generation_tasks[task_id]["image_url"] = result.get("image_url")

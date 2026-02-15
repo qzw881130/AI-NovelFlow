@@ -405,6 +405,12 @@ async def generate_portrait_task(
         
         print(f"[Task] Generation result: {result}")
         
+        # 保存实际提交给ComfyUI的工作流（替换参数后的）
+        if result.get("submitted_workflow"):
+            task.workflow_json = json.dumps(result["submitted_workflow"], ensure_ascii=False, indent=2)
+            db.commit()
+            print(f"[Task] Saved submitted workflow to task")
+        
         if result.get("success"):
             image_url = result.get("image_url")
             

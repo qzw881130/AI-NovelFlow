@@ -98,12 +98,14 @@ class ComfyUIService:
                 return {
                     "success": True,
                     "image_url": result.get("image_url"),
-                    "message": "生成成功"
+                    "message": "生成成功",
+                    "submitted_workflow": workflow  # 返回实际提交给ComfyUI的工作流
                 }
             else:
                 return {
                     "success": False,
-                    "message": result.get("message", "生成失败")
+                    "message": result.get("message", "生成失败"),
+                    "submitted_workflow": workflow  # 即使失败也返回工作流用于调试
                 }
                 
         except Exception as e:
