@@ -255,43 +255,16 @@ async def get_task_workflow(task_id: str, db: Session = Depends(get_db)):
                 }
             }
     
-    # 如果没有保存，尝试从 workflow 表重新构建
-    if task.workflow_id:
-        workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
-    else:
-        # 获取默认的 character 工作流
-        workflow = db.query(Workflow).filter(
-            Workflow.type == "character",
-            Workflow.is_active == True
-        ).first()
-    
-    if workflow and workflow.workflow_json:
-        try:
-            import json
-            workflow_obj = json.loads(workflow.workflow_json)
-            # 如果有角色信息，尝试重建提示词
-            prompt = task.prompt_text or "未保存提示词"
-            if task.character_id:
-                character = db.query(Character).filter(Character.id == task.character_id).first()
-                if character:
-                    # 替换占位符
-                    for node_id, node in workflow_obj.items():
-                        if isinstance(node, dict) and "inputs" in node:
-                            inputs = node.get("inputs", {})
-                            if "text" in inputs and isinstance(inputs["text"], str):
-                                if "{CHARACTER_PROMPT}" in inputs["text"]:
-                                    inputs["text"] = prompt
-            
-            return {
-                "success": True,
-                "data": {
-                    "workflow": workflow_obj,
-                    "prompt": prompt,
-                    "note": "此工作流是从工作流配置重新构建的，可能不是实际提交给ComfyUI的版本"
-                }
-            }
-        except Exception as e:
-            pass
+    # 没有保存实际提交的工作流，返回空
+    # （避免显示模板造成误导）
+    return {
+        "success": True,
+        "data": {
+            "workflow": None,
+            "prompt": task.prompt_text or "未保存提示词",
+            "note": "工作流尚未提交到ComfyUI或执行未完成，请稍后查看"
+        }
+    }
     
     return {
         "success": False,
