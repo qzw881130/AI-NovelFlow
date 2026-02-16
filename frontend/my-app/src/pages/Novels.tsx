@@ -224,7 +224,7 @@ export default function Novels() {
               key={novel.id}
               className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
             >
-              <div className="aspect-[3/4] bg-gray-100 relative">
+              <div className="aspect-video bg-gray-100 relative">
                 {novel.cover ? (
                   <img
                     src={novel.cover}
@@ -236,11 +236,6 @@ export default function Novels() {
                     <BookOpen className="h-16 w-16 text-gray-300" />
                   </div>
                 )}
-                <div className="absolute top-2 right-2">
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(novel.status)}`}>
-                    {getStatusText(novel.status)}
-                  </span>
-                </div>
               </div>
               <div className="p-4">
                 <h3 className="text-lg font-semibold text-gray-900 truncate">
