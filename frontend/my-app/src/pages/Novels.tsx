@@ -259,6 +259,24 @@ export default function Novels() {
                 <p className="text-sm text-gray-600 mt-2 line-clamp-2">
                   {novel.description || '暂无描述'}
                 </p>
+                {/* 小说配置信息 */}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {/* 人设提示词 */}
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded">
+                    <span className="font-medium">人设:</span>
+                    {promptTemplates.find(t => t.id === novel.promptTemplateId)?.name || '默认'}
+                  </span>
+                  {/* AI拆分分镜提示词 */}
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-600 text-xs rounded">
+                    <span className="font-medium">拆分:</span>
+                    {chapterSplitTemplates.find(t => t.id === novel.chapterSplitPromptTemplateId)?.name || '默认'}
+                  </span>
+                  {/* 画面比例 */}
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-600 text-xs rounded">
+                    <span className="font-medium">比例:</span>
+                    {novel.aspectRatio || '16:9'}
+                  </span>
+                </div>
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
                   <span className="text-sm text-gray-500">
                     {novel.chapterCount} 章节
@@ -361,7 +379,7 @@ export default function Novels() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  拆分分镜提示词
+                  AI拆分分镜提示词
                 </label>
                 <select
                   value={newNovel.chapterSplitPromptTemplateId}
@@ -491,7 +509,7 @@ export default function Novels() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  拆分分镜提示词
+                  AI拆分分镜提示词
                 </label>
                 <select
                   value={editingNovel.chapterSplitPromptTemplateId || ''}

@@ -1312,42 +1312,59 @@ class ComfyUIService:
                 "message": f"生成失败: {str(e)}"
             }
     
-    async def clear_queue(self) -> Dict[str, Any]:
+    async def clear_queue(self, max_retries: int = 3) -> Dict[str, Any]:
         """
         清空 ComfyUI 队列中的所有等待任务
         
+        Args:
+            max_retries: 最大重试次数，默认3次
+            
         Returns:
             {
                 "success": bool,
-                "message": str
+                "message": str,
+                "attempts": int
             }
         """
-        try:
-            async with httpx.AsyncClient() as client:
-                print(f"[ComfyUI] Clearing queue")
-                response = await client.post(
-                    f"{self.base_url}/queue",
-                    json={"clear": True},
-                    timeout=10.0
-                )
-                print(f"[ComfyUI] Clear queue response: {response.status_code}")
-                
-                if response.status_code == 200:
-                    return {
-                        "success": True,
-                        "message": "队列已清空"
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "message": f"清空队列失败: {response.status_code}"
-                    }
-        except Exception as e:
-            print(f"[ComfyUI] Clear queue failed: {e}")
-            return {
-                "success": False,
-                "message": f"清空队列请求失败: {str(e)}"
-            }
+        last_error = None
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                async with httpx.AsyncClient() as client:
+                    print(f"[ComfyUI] Clearing queue (attempt {attempt}/{max_retries})")
+                    response = await client.post(
+                        f"{self.base_url}/queue",
+                        json={"clear": True},
+                        timeout=10.0
+                    )
+                    print(f"[ComfyUI] Clear queue response: {response.status_code} (attempt {attempt})")
+                    
+                    if response.status_code == 200:
+                        return {
+                            "success": True,
+                            "message": "队列已清空" if attempt == 1 else f"队列已清空 (第{attempt}次尝试成功)",
+                            "attempts": attempt
+                        }
+                    else:
+                        last_error = f"HTTP {response.status_code}"
+                        print(f"[ComfyUI] Clear queue attempt {attempt} failed: {last_error}")
+                        
+            except Exception as e:
+                last_error = str(e)
+                print(f"[ComfyUI] Clear queue attempt {attempt} error: {e}")
+            
+            # 如果不是最后一次尝试，等待后重试
+            if attempt < max_retries:
+                wait_time = 0.5 * attempt  # 递增延迟：0.5s, 1s, 1.5s
+                print(f"[ComfyUI] Waiting {wait_time}s before retry...")
+                await asyncio.sleep(wait_time)
+        
+        # 所有尝试都失败
+        return {
+            "success": False,
+            "message": f"清空队列请求失败 (已尝试{max_retries}次): {last_error}",
+            "attempts": max_retries
+        }
     
     async def delete_from_queue(self, prompt_id: str) -> Dict[str, Any]:
         """
@@ -1389,41 +1406,58 @@ class ComfyUIService:
                 "message": f"删除请求失败: {str(e)}"
             }
     
-    async def interrupt_execution(self) -> Dict[str, Any]:
+    async def interrupt_execution(self, max_retries: int = 3) -> Dict[str, Any]:
         """
         中断 ComfyUI 当前正在执行的任务
         
+        Args:
+            max_retries: 最大重试次数，默认3次
+            
         Returns:
             {
                 "success": bool,
-                "message": str
+                "message": str,
+                "attempts": int
             }
         """
-        try:
-            async with httpx.AsyncClient() as client:
-                print(f"[ComfyUI] Interrupting current execution")
-                response = await client.post(
-                    f"{self.base_url}/interrupt",
-                    timeout=10.0
-                )
-                print(f"[ComfyUI] Interrupt response: {response.status_code}")
-                
-                if response.status_code == 200:
-                    return {
-                        "success": True,
-                        "message": "已发送中断请求"
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "message": f"中断失败: {response.status_code}"
-                    }
-        except Exception as e:
-            print(f"[ComfyUI] Interrupt failed: {e}")
-            return {
-                "success": False,
-                "message": f"中断请求失败: {str(e)}"
-            }
+        last_error = None
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                async with httpx.AsyncClient() as client:
+                    print(f"[ComfyUI] Interrupting current execution (attempt {attempt}/{max_retries})")
+                    response = await client.post(
+                        f"{self.base_url}/interrupt",
+                        timeout=10.0
+                    )
+                    print(f"[ComfyUI] Interrupt response: {response.status_code} (attempt {attempt})")
+                    
+                    if response.status_code == 200:
+                        return {
+                            "success": True,
+                            "message": f"已发送中断请求 (第{attempt}次尝试成功)" if attempt > 1 else "已发送中断请求",
+                            "attempts": attempt
+                        }
+                    else:
+                        last_error = f"HTTP {response.status_code}"
+                        print(f"[ComfyUI] Interrupt attempt {attempt} failed: {last_error}")
+                        
+            except Exception as e:
+                last_error = str(e)
+                print(f"[ComfyUI] Interrupt attempt {attempt} error: {e}")
+            
+            # 如果不是最后一次尝试，等待后重试
+            if attempt < max_retries:
+                wait_time = 0.5 * attempt  # 递增延迟：0.5s, 1s, 1.5s
+                print(f"[ComfyUI] Waiting {wait_time}s before retry...")
+                await asyncio.sleep(wait_time)
+        
+        # 所有尝试都失败
+        return {
+            "success": False,
+            "message": f"中断请求失败 (已尝试{max_retries}次): {last_error}",
+            "attempts": max_retries
+        }
     
     async def cancel_prompt(self, prompt_id: str) -> Dict[str, Any]:
         """

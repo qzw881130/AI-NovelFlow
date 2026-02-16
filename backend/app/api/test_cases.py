@@ -608,9 +608,12 @@ async def _create_redridinghood_test_case(db: Session, default_template):
 
 
 from fastapi import BackgroundTasks
-from app.services.deepseek import DeepSeekService
+from app.services.llm_service import LLMService
 
-deepseek_service = DeepSeekService()
+
+def get_llm_service() -> LLMService:
+    """获取 LLMService 实例（每次调用创建新实例以获取最新配置）"""
+    return LLMService()
 
 
 async def parse_characters_task(novel_id: str):
@@ -627,7 +630,7 @@ async def parse_characters_task(novel_id: str):
         full_text = "\n\n".join([c.content for c in chapters if c.content])[:10000]
         
         # 调用 DeepSeek 解析文本
-        result = await deepseek_service.parse_novel_text(full_text)
+        result = await get_llm_service().parse_novel_text(full_text)
         
         if "error" in result:
             print(f"[测试任务] 解析失败: {result['error']}")

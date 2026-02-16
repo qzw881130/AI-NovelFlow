@@ -12,6 +12,7 @@ import TestCases from './pages/TestCases';
 import PromptConfig from './pages/PromptConfig';
 import { ToastContainer } from './components/Toast';
 import { useToastStore } from './stores/toastStore';
+import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   const { toasts, removeToast } = useToastStore();
@@ -22,7 +23,7 @@ function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/welcome" replace />} />
           <Route path="welcome" element={<Welcome />} />
-          <Route path="settings" element={<Settings />} />
+          <Route path="settings" element={<ErrorBoundary><Settings /></ErrorBoundary>} />
           <Route path="novels" element={<Novels />} />
           <Route path="novels/:id" element={<NovelDetail />} />
           <Route path="novels/:id/chapters/:cid" element={<ChapterDetail />} />

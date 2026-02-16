@@ -9,12 +9,16 @@ from app.core.config import get_settings
 from app.models.novel import Character, Novel
 from app.models.prompt_template import PromptTemplate
 from app.services.comfyui import ComfyUIService
-from app.services.deepseek import DeepSeekService
+from app.services.llm_service import LLMService
 
 router = APIRouter()
 settings = get_settings()
 comfyui_service = ComfyUIService()
-deepseek_service = DeepSeekService()
+
+
+def get_llm_service() -> LLMService:
+    """获取 LLMService 实例（每次调用创建新实例以获取最新配置）"""
+    return LLMService()
 
 # 存储生成任务状态（生产环境应使用 Redis）
 generation_tasks = {}
@@ -344,7 +348,7 @@ async def generate_appearance(
     
     try:
         # 调用 DeepSeek 生成外貌描述
-        appearance = await deepseek_service.generate_character_appearance(
+        appearance = await get_llm_service().generate_character_appearance(
             character_name=character.name,
             description=character.description,
             style="anime"

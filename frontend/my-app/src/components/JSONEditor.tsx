@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Check, AlertCircle, RotateCcw, AlignLeft, Maximize2, Minimize2, Search, ChevronUp, ChevronDown, X } from 'lucide-react';
 
 interface JSONEditorProps {
@@ -13,7 +13,33 @@ export default function JSONEditor({ value, onChange, readOnly = false, height =
   const [isValid, setIsValid] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const lineNumbersRef = useRef<HTMLDivElement>(null);
+  
+  // 搜索功能状态
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchMatches, setSearchMatches] = useState<number[]>([]);
+  const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
+  const [showSearch, setShowSearch] = useState(false);
+
+  // 验证 JSON
+  const validateJSON = (text: string) => {
+    try {
+      JSON.parse(text);
+      setError(null);
+      setIsValid(true);
+      return true;
+    } catch (e: any) {
+      setError(e.message);
+      setIsValid(false);
+      return false;
+    }
+  };
+
+  // 处理输入变化
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const newValue = e.target.value;
+    onChange(newValue);
+    validateJSON(newValue);
+  };
 
   // 格式化 JSON
   const formatJSON = () => {
@@ -43,28 +69,7 @@ export default function JSONEditor({ value, onChange, readOnly = false, height =
     }
   };
 
-  // 验证 JSON
-  const validateJSON = (text: string) => {
-    try {
-      JSON.parse(text);
-      setError(null);
-      setIsValid(true);
-      return true;
-    } catch (e: any) {
-      setError(e.message);
-      setIsValid(false);
-      return false;
-    }
-  };
-
-  // 处理输入变化
-  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const newValue = e.target.value;
-    onChange(newValue);
-    validateJSON(newValue);
-  };
-
-  // 处理键盘事件（Tab 键缩进）
+  // 处理键盘事件
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (readOnly) return;
     
@@ -79,29 +84,6 @@ export default function JSONEditor({ value, onChange, readOnly = false, height =
       setTimeout(() => {
         target.selectionStart = target.selectionEnd = start + 2;
       }, 0);
-    }
-  };
-
-  // 高亮层 ref
-  const highlightRef = useRef<HTMLPreElement>(null);
-
-  // 搜索功能状态
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchMatches, setSearchMatches] = useState<number[]>([]);
-  const [currentMatchIndex, setCurrentMatchIndex] = useState(-1);
-  const [showSearch, setShowSearch] = useState(false);
-  const textareaRefForSearch = useRef<HTMLTextAreaElement>(null);
-
-  // 同步所有元素滚动位置
-  const syncAllScroll = (scrollTop: number, scrollLeft: number) => {
-    // 同步高亮层
-    if (highlightRef.current) {
-      highlightRef.current.scrollTop = scrollTop;
-      highlightRef.current.scrollLeft = scrollLeft;
-    }
-    // 同步行号
-    if (lineNumbersRef.current) {
-      lineNumbersRef.current.scrollTop = scrollTop;
     }
   };
 
@@ -131,14 +113,16 @@ export default function JSONEditor({ value, onChange, readOnly = false, height =
     const textarea = textareaRef.current;
     if (!textarea) return;
 
+    textarea.focus();
+    textarea.setSelectionRange(position, position + searchQuery.length);
+    
     // 计算行号并滚动到对应位置
     const textBeforeMatch = value.substring(0, position);
     const lineNumber = textBeforeMatch.split('\n').length;
-    const lineHeight = 24; // leading-6 = 24px
+    const lineHeight = 24;
     const scrollTop = (lineNumber - 1) * lineHeight - textarea.clientHeight / 2;
     
     textarea.scrollTop = Math.max(0, scrollTop);
-    syncAllScroll(textarea.scrollTop, textarea.scrollLeft);
   };
 
   // 导航到上一个/下一个匹配
@@ -171,7 +155,6 @@ export default function JSONEditor({ value, onChange, readOnly = false, height =
   // 全局键盘快捷键
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + F 打开搜索
       if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
         e.preventDefault();
         setShowSearch(true);
@@ -181,94 +164,43 @@ export default function JSONEditor({ value, onChange, readOnly = false, height =
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // 处理 textarea 滚动
-  const handleScroll = () => {
-    if (!textareaRef.current) return;
-    const { scrollTop, scrollLeft } = textareaRef.current;
-    syncAllScroll(scrollTop, scrollLeft);
-  };
-
-  // 计算行号
-  const lineNumbers = value.split('\n').map((_, i) => i + 1);
-
-  // 语法高亮渲染（带搜索高亮）
-  const renderHighlightedCode = () => {
-    if (!value) return null;
+  // 高亮匹配文本
+  const highlightMatch = () => {
+    if (!searchQuery || searchMatches.length === 0) return null;
     
-    try {
-      if (!searchQuery || searchMatches.length === 0) {
-        // 无搜索时只显示语法高亮
-        const tokens = tokenizeJSON(value);
-        return tokens.map((token, i) => (
-          <span key={i} className={getTokenClass(token.type)}>
-            {token.value}
-          </span>
-        ));
-      }
-
-      // 有搜索时，显示搜索高亮
-      const result: JSX.Element[] = [];
-      let lastIndex = 0;
-      
-      // 按位置排序匹配项
-      const sortedMatches = [...searchMatches].sort((a, b) => a - b);
-      
-      sortedMatches.forEach((matchPos, idx) => {
-        // 匹配前的文本（带语法高亮）
-        if (matchPos > lastIndex) {
-          const beforeText = value.substring(lastIndex, matchPos);
-          const tokens = tokenizeJSON(beforeText);
-          tokens.forEach((token, ti) => (
-            result.push(
-              <span key={`${idx}-before-${ti}`} className={getTokenClass(token.type)}>
-                {token.value}
-              </span>
-            )
-          ));
-        }
-        
-        // 匹配的文本（高亮显示）
-        const matchText = value.substring(matchPos, matchPos + searchQuery.length);
-        const isCurrent = idx === currentMatchIndex;
-        result.push(
-          <mark
-            key={`match-${idx}`}
-            className={`rounded px-0.5 ${isCurrent ? 'bg-yellow-400 text-black font-bold' : 'bg-yellow-700/50 text-yellow-200'}`}
-          >
-            {matchText}
-          </mark>
+    const parts: JSX.Element[] = [];
+    let lastIndex = 0;
+    
+    searchMatches.forEach((matchPos, idx) => {
+      if (matchPos > lastIndex) {
+        parts.push(
+          <span key={`before-${idx}`}>{value.substring(lastIndex, matchPos)}</span>
         );
-        
-        lastIndex = matchPos + searchQuery.length;
-      });
-      
-      // 最后一段文本
-      if (lastIndex < value.length) {
-        const afterText = value.substring(lastIndex);
-        const tokens = tokenizeJSON(afterText);
-        tokens.forEach((token, ti) => (
-          result.push(
-            <span key={`after-${ti}`} className={getTokenClass(token.type)}>
-              {token.value}
-            </span>
-          )
-        ));
       }
       
-      return result;
-    } catch {
-      return <span className="text-red-400">{value}</span>;
+      const matchText = value.substring(matchPos, matchPos + searchQuery.length);
+      const isCurrent = idx === currentMatchIndex;
+      parts.push(
+        <mark
+          key={`match-${idx}`}
+          className={`rounded px-0.5 ${isCurrent ? 'bg-yellow-400 text-black font-bold' : 'bg-yellow-700/50 text-yellow-200'}`}
+        >
+          {matchText}
+        </mark>
+      );
+      
+      lastIndex = matchPos + searchQuery.length;
+    });
+    
+    if (lastIndex < value.length) {
+      parts.push(<span key="after">{value.substring(lastIndex)}</span>);
     }
+    
+    return parts;
   };
 
   return (
     <div className={`border rounded-lg overflow-hidden bg-gray-900 ${isExpanded ? 'fixed inset-4 z-50' : ''}`}>
-      {/* 隐藏滚动条样式 */}
-      <style>{`
-        .json-editor-hide-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
       {/* 工具栏 */}
       <div className="flex items-center justify-between px-3 py-2 bg-gray-800 border-b border-gray-700">
         <div className="flex items-center gap-2">
@@ -292,7 +224,7 @@ export default function JSONEditor({ value, onChange, readOnly = false, height =
                 type="button"
                 onClick={formatJSON}
                 className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
-                title="格式化 (Prettify)"
+                title="格式化"
               >
                 <AlignLeft className="h-4 w-4" />
               </button>
@@ -300,21 +232,19 @@ export default function JSONEditor({ value, onChange, readOnly = false, height =
                 type="button"
                 onClick={minifyJSON}
                 className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
-                title="压缩 (Minify)"
+                title="压缩"
               >
                 <RotateCcw className="h-4 w-4" />
               </button>
+              <button
+                type="button"
+                onClick={() => setShowSearch(!showSearch)}
+                className={`p-1.5 rounded transition-colors ${showSearch ? 'text-white bg-gray-700' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
+                title="搜索 (Ctrl+F)"
+              >
+                <Search className="h-4 w-4" />
+              </button>
             </>
-          )}
-          {!readOnly && (
-            <button
-              type="button"
-              onClick={() => setShowSearch(!showSearch)}
-              className={`p-1.5 rounded transition-colors ${showSearch ? 'text-white bg-gray-700' : 'text-gray-400 hover:text-white hover:bg-gray-700'}`}
-              title="搜索 (Ctrl+F)"
-            >
-              <Search className="h-4 w-4" />
-            </button>
           )}
           <button
             type="button"
@@ -350,7 +280,6 @@ export default function JSONEditor({ value, onChange, readOnly = false, height =
             onClick={goToPrevMatch}
             disabled={searchMatches.length === 0}
             className="p-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded disabled:opacity-30"
-            title="上一个 (Shift+Enter)"
           >
             <ChevronUp className="h-4 w-4" />
           </button>
@@ -359,7 +288,6 @@ export default function JSONEditor({ value, onChange, readOnly = false, height =
             onClick={goToNextMatch}
             disabled={searchMatches.length === 0}
             className="p-1 text-gray-400 hover:text-white hover:bg-gray-700 rounded disabled:opacity-30"
-            title="下一个 (Enter)"
           >
             <ChevronDown className="h-4 w-4" />
           </button>
@@ -374,50 +302,22 @@ export default function JSONEditor({ value, onChange, readOnly = false, height =
       )}
 
       {/* 编辑器区域 */}
-      <div className="relative flex" style={{ height: isExpanded ? `calc(100vh - ${showSearch ? '160px' : '120px'})` : height }}>
-        {/* 行号 */}
-        <div
-          ref={lineNumbersRef}
-          className="flex-shrink-0 w-12 py-3 bg-gray-800 text-right text-gray-500 font-mono text-sm select-none overflow-hidden scroll-smooth"
-        >
-          {lineNumbers.map((num) => (
-            <div key={num} className="px-2 leading-6">
-              {num}
-            </div>
-          ))}
-        </div>
-
-        {/* 编辑区域 */}
-        <div className="flex-1 relative">
-          {/* 背景高亮层 - pointerEvents-none 让鼠标事件穿透到 textarea */}
-          <pre
-            ref={highlightRef}
-            className="absolute inset-0 m-0 p-3 font-mono text-sm leading-6 whitespace-pre-wrap break-all text-gray-300 overflow-auto json-editor-hide-scrollbar"
-            aria-hidden="true"
-            style={{ 
-              pointerEvents: 'none',
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none'
-            }}
-          >
-            {renderHighlightedCode()}
-          </pre>
-
-          {/* 输入层 */}
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={handleChange}
-            onKeyDown={handleKeyDown}
-            onScroll={handleScroll}
-            readOnly={readOnly}
-            className="absolute inset-0 w-full h-full p-3 font-mono text-sm leading-6 bg-transparent text-transparent caret-white resize-none outline-none overflow-auto"
-            spellCheck={false}
-            autoComplete="off"
-            autoCapitalize="off"
-            style={{ tabSize: 2 }}
-          />
-        </div>
+      <div 
+        className="relative"
+        style={{ height: isExpanded ? `calc(100vh - ${showSearch ? '160px' : '120px'})` : height }}
+      >
+        <textarea
+          ref={textareaRef}
+          value={value}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          readOnly={readOnly}
+          className="w-full h-full p-3 font-mono text-sm leading-6 bg-gray-900 text-gray-100 resize-none outline-none overflow-auto whitespace-pre-wrap break-all"
+          spellCheck={false}
+          autoComplete="off"
+          autoCapitalize="off"
+          style={{ tabSize: 2 }}
+        />
       </div>
 
       {/* 错误提示 */}
@@ -427,7 +327,7 @@ export default function JSONEditor({ value, onChange, readOnly = false, height =
         </div>
       )}
 
-      {/* 全屏遮罩关闭按钮 */}
+      {/* 全屏关闭按钮 */}
       {isExpanded && (
         <div className="absolute top-4 right-4 z-10">
           <button
@@ -441,98 +341,4 @@ export default function JSONEditor({ value, onChange, readOnly = false, height =
       )}
     </div>
   );
-}
-
-// 简单的 JSON 分词器
-function tokenizeJSON(json: string): Array<{ type: string; value: string }> {
-  const tokens: Array<{ type: string; value: string }> = [];
-  let i = 0;
-
-  while (i < json.length) {
-    const char = json[i];
-
-    // 字符串
-    if (char === '"') {
-      let value = char;
-      i++;
-      while (i < json.length && json[i] !== '"') {
-        if (json[i] === '\\') {
-          value += json[i];
-          i++;
-        }
-        value += json[i];
-        i++;
-      }
-      if (i < json.length) {
-        value += json[i];
-        i++;
-      }
-      tokens.push({ type: 'string', value });
-      continue;
-    }
-
-    // 数字
-    if (/[-\d]/.test(char)) {
-      let value = '';
-      while (i < json.length && /[-\d.eE+]/.test(json[i])) {
-        value += json[i];
-        i++;
-      }
-      tokens.push({ type: 'number', value });
-      continue;
-    }
-
-    // 关键字
-    if (/[a-z]/.test(char)) {
-      let value = '';
-      while (i < json.length && /[a-z]/.test(json[i])) {
-        value += json[i];
-        i++;
-      }
-      tokens.push({ type: 'keyword', value });
-      continue;
-    }
-
-    // 标点符号
-    if (/[{}[\]:,]/.test(char)) {
-      tokens.push({ type: 'punctuation', value: char });
-      i++;
-      continue;
-    }
-
-    // 空白字符
-    if (/\s/.test(char)) {
-      let value = '';
-      while (i < json.length && /\s/.test(json[i])) {
-        value += json[i];
-        i++;
-      }
-      tokens.push({ type: 'whitespace', value });
-      continue;
-    }
-
-    // 其他字符
-    tokens.push({ type: 'text', value: char });
-    i++;
-  }
-
-  return tokens;
-}
-
-// 获取 token 样式类
-function getTokenClass(type: string): string {
-  switch (type) {
-    case 'string':
-      return 'text-green-400';
-    case 'number':
-      return 'text-amber-400';
-    case 'keyword':
-      return 'text-purple-400';
-    case 'punctuation':
-      return 'text-gray-400';
-    case 'whitespace':
-      return '';
-    default:
-      return 'text-gray-300';
-  }
 }

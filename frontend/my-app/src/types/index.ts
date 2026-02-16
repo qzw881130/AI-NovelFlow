@@ -1,9 +1,59 @@
+// 支持的 LLM 厂商
+export type LLMProvider = 'deepseek' | 'openai' | 'gemini' | 'anthropic' | 'azure' | 'custom';
+
+// LLM 模型配置
+export interface LLMModelConfig {
+  provider: LLMProvider;
+  model: string;
+  apiKey: string;
+  apiUrl: string;
+}
+
+// 代理配置
+export interface ProxyConfig {
+  enabled: boolean;
+  httpProxy: string;
+  httpsProxy: string;
+}
+
 export interface SystemConfig {
-  deepseekApiKey: string;
-  deepseekApiUrl: string;
+  // LLM 配置（多厂商支持）
+  llmProvider: LLMProvider;
+  llmModel: string;
+  llmApiKey: string;
+  llmApiUrl: string;
+  
+  // 代理配置
+  proxy: ProxyConfig;
+  
+  // 兼容旧配置（保留，但不再使用）
+  deepseekApiKey?: string;
+  deepseekApiUrl?: string;
+  
+  // ComfyUI 配置
   comfyUIHost: string;
-  outputResolution: string;
-  outputFrameRate: number;
+  
+  // 输出配置（已废弃，保留兼容）
+  outputResolution?: string;
+  outputFrameRate?: number;
+}
+
+// LLM 厂商预设配置
+export interface LLMProviderPreset {
+  id: LLMProvider;
+  name: string;
+  defaultApiUrl: string;
+  models: LLMModel[];
+  apiKeyPlaceholder: string;
+  apiKeyHelp?: string;
+}
+
+// LLM 模型
+export interface LLMModel {
+  id: string;
+  name: string;
+  description?: string;
+  maxTokens?: number;
 }
 
 export interface Novel {

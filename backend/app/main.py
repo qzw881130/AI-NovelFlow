@@ -9,6 +9,7 @@ from app.models.novel import Novel, Chapter, Character
 from app.models.task import Task
 from app.models.test_case import TestCase
 from app.models.prompt_template import PromptTemplate
+from app.models.system_config import SystemConfig  # 导入系统配置模型
 
 
 @asynccontextmanager
@@ -16,12 +17,15 @@ async def lifespan(app: FastAPI):
     # Startup
     Base.metadata.create_all(bind=engine)
     
-    # 初始化预设数据
+    # 初始化预设数据和系统配置
     from app.api.test_cases import init_preset_test_cases
     from app.api.prompt_templates import init_system_prompt_templates
+    from app.api.config import init_system_config  # 导入配置初始化函数
     from app.core.database import SessionLocal
     db = SessionLocal()
     try:
+        # 从数据库加载系统配置
+        init_system_config(db)
         init_system_prompt_templates(db)
         await init_preset_test_cases(db)
     finally:

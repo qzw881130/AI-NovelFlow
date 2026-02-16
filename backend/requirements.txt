@@ -13,3 +13,4 @@ redis==5.0.1
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 pillow==12.1.1
+cryptography==42.0.0

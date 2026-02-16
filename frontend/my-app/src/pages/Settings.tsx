@@ -10,18 +10,23 @@ import {
   Server, 
   User, 
   Image as ImageIcon, 
-  Film, 
+  Film,
   CheckCircle,
   Star,
   Trash2,
   X,
   Plus,
   Check,
-  Download
+  Download,
+  Bot,
+  Globe,
+  Network,
+  HelpCircle
 } from 'lucide-react';
-import { useConfigStore } from '../stores/configStore';
+import { useConfigStore, LLM_PROVIDER_PRESETS, getDefaultApiUrl, getDefaultModels, getApiKeyPlaceholder, getApiKeyHelp } from '../stores/configStore';
 import JSONEditor from '../components/JSONEditor';
 import { toast } from '../stores/toastStore';
+import type { LLMProvider, ProxyConfig } from '../types';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
@@ -64,16 +69,22 @@ const typeNames = {
 
 export default function Settings() {
   const config = useConfigStore();
-  const [formData, setFormData] = useState({
-    deepseekApiKey: config.deepseekApiKey,
-    deepseekApiUrl: config.deepseekApiUrl,
-    comfyUIHost: config.comfyUIHost,
-    outputResolution: config.outputResolution,
-    outputFrameRate: config.outputFrameRate,
+  
+  // 安全获取 config 值的辅助函数
+  const getSafeConfig = () => ({
+    llmProvider: config.llmProvider || 'deepseek',
+    llmModel: config.llmModel || 'deepseek-chat',
+    llmApiKey: config.llmApiKey || '',
+    llmApiUrl: config.llmApiUrl || 'https://api.deepseek.com',
+    proxy: config.proxy || { enabled: false, httpProxy: '', httpsProxy: '' },
+    comfyUIHost: config.comfyUIHost || 'http://localhost:8188',
   });
+  
+  const [formData, setFormData] = useState(getSafeConfig());
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
+  const [activeTab, setActiveTab] = useState<'llm' | 'proxy' | 'comfyui'>('llm');
   
   // 工作流管理
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
@@ -128,6 +139,15 @@ export default function Settings() {
     fetchWorkflows();
   }, []);
 
+  // 当 config 加载后，同步到 formData（只执行一次）
+  useEffect(() => {
+    // 延迟执行，确保 config 已从 localStorage 加载
+    const timer = setTimeout(() => {
+      setFormData(getSafeConfig());
+    }, 100);
+    return () => clearTimeout(timer);
+  }, []);  // 只在组件挂载时执行一次
+
   const fetchWorkflows = async () => {
     try {
       const res = await fetch(`${API_BASE}/workflows/`);
@@ -145,7 +165,35 @@ export default function Settings() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    
+    // 先更新前端本地存储
     config.setConfig(formData);
+    
+    // 再发送到后端 API
+    try {
+      const res = await fetch(`${API_BASE}/config/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          llm: {
+            provider: formData.llmProvider,
+            model: formData.llmModel,
+            apiKey: formData.llmApiKey,
+            apiUrl: formData.llmApiUrl,
+          },
+          proxy: formData.proxy,
+          comfyUIHost: formData.comfyUIHost,
+        }),
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        console.error('保存配置到后端失败:', errorData);
+      }
+    } catch (error) {
+      console.error('发送配置到后端失败:', error);
+    }
+    
     await new Promise(resolve => setTimeout(resolve, 500));
     setSaving(false);
     setSaved(true);
@@ -493,11 +541,30 @@ export default function Settings() {
     return workflows.filter(w => w.type === type);
   };
 
-  const resolutions = [
-    { value: '1920x1080', label: '1920x1080 (1080p)' },
-    { value: '1280x720', label: '1280x720 (720p)' },
-    { value: '3840x2160', label: '3840x2160 (4K)' },
-  ];
+  // 获取当前厂商预设
+  const currentPreset = LLM_PROVIDER_PRESETS.find(p => p.id === formData.llmProvider);
+  
+  // 获取当前厂商的模型列表
+  const availableModels = currentPreset?.models || [];
+  
+  // 处理厂商切换
+  const handleProviderChange = (provider: LLMProvider) => {
+    const preset = LLM_PROVIDER_PRESETS.find(p => p.id === provider);
+    setFormData({
+      ...formData,
+      llmProvider: provider,
+      llmModel: preset?.models[0]?.id || '',
+      llmApiUrl: preset?.defaultApiUrl || '',
+    });
+  };
+  
+  // 处理代理配置更新
+  const handleProxyChange = (updates: Partial<ProxyConfig>) => {
+    setFormData({
+      ...formData,
+      proxy: { ...(formData.proxy || { enabled: false, httpProxy: '', httpsProxy: '' }), ...updates },
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -509,83 +576,264 @@ export default function Settings() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* AI 配置 */}
+        {/* AI 服务配置 - 标签页 */}
         <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">AI 服务配置</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                DeepSeek API 地址
-              </label>
-              <input
-                type="url"
-                value={formData.deepseekApiUrl}
-                onChange={(e) => setFormData({ ...formData, deepseekApiUrl: e.target.value })}
-                className="input-field mt-1"
-                placeholder="https://api.deepseek.com"
-              />
+          <div className="flex items-center gap-3 mb-6">
+            <div className="p-2 bg-blue-100 rounded-lg">
+              <Bot className="h-5 w-5 text-blue-600" />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                DeepSeek API Key
-              </label>
-              <div className="relative mt-1">
-                <input
-                  type={showApiKey ? 'text' : 'password'}
-                  value={formData.deepseekApiKey}
-                  onChange={(e) => setFormData({ ...formData, deepseekApiKey: e.target.value })}
-                  className="input-field pr-10"
-                  placeholder="sk-..."
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-500"
-                >
-                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+              <h2 className="text-lg font-semibold text-gray-900">AI 服务配置</h2>
+              <p className="text-sm text-gray-500">配置 LLM 提供商和代理设置</p>
+            </div>
+          </div>
+          
+          {/* 标签页导航 */}
+          <div className="flex border-b border-gray-200 mb-6">
+            <button
+              type="button"
+              onClick={() => setActiveTab('llm')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'llm'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Bot className="h-4 w-4" />
+                LLM 配置
               </div>
-              <p className="mt-1 text-xs text-gray-500">
-                您的 API Key 仅存储在本地浏览器中
-              </p>
-            </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('proxy')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'proxy'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Network className="h-4 w-4" />
+                代理配置
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('comfyui')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'comfyui'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Server className="h-4 w-4" />
+                ComfyUI
+              </div>
+            </button>
           </div>
-        </div>
 
-        {/* 输出配置 */}
-        <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">输出配置</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                输出分辨率
-              </label>
-              <select
-                value={formData.outputResolution}
-                onChange={(e) => setFormData({ ...formData, outputResolution: e.target.value })}
-                className="input-field mt-1"
-              >
-                {resolutions.map((res) => (
-                  <option key={res.value} value={res.value}>{res.label}</option>
-                ))}
-              </select>
-            </div>
+          {/* LLM 配置面板 */}
+          {activeTab === 'llm' && (
+            <div className="space-y-6">
+              {/* 厂商选择 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  选择 LLM 厂商
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  {LLM_PROVIDER_PRESETS.map((preset) => (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => handleProviderChange(preset.id)}
+                      className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                        formData.llmProvider === preset.id
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                        formData.llmProvider === preset.id
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-gray-200 text-gray-600'
+                      }`}>
+                        {preset.name.charAt(0)}
+                      </div>
+                      <div className="text-left">
+                        <div className="text-sm font-medium">{preset.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {preset.models.length} 个模型
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700">
-                帧率 (FPS)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="60"
-                value={formData.outputFrameRate}
-                onChange={(e) => setFormData({ ...formData, outputFrameRate: parseInt(e.target.value) })}
-                className="input-field mt-1"
-              />
+              {/* 模型选择 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  选择模型
+                </label>
+                <select
+                  value={formData.llmModel}
+                  onChange={(e) => setFormData({ ...formData, llmModel: e.target.value })}
+                  className="input-field"
+                >
+                  {availableModels.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name} {model.description ? `- ${model.description}` : ''}
+                      {model.maxTokens ? ` (${(model.maxTokens / 1000).toFixed(0)}k tokens)` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* API 地址 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  API 地址
+                </label>
+                <input
+                  type="url"
+                  value={formData.llmApiUrl}
+                  onChange={(e) => setFormData({ ...formData, llmApiUrl: e.target.value })}
+                  className="input-field"
+                  placeholder={getDefaultApiUrl(formData.llmProvider)}
+                />
+                {formData.llmProvider === 'azure' && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    Azure 需要填写完整的 Deployment URL
+                  </p>
+                )}
+              </div>
+
+              {/* API Key */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                  API Key
+                  {getApiKeyHelp(formData.llmProvider) && (
+                    <span className="text-xs text-gray-400 font-normal">
+                      ({getApiKeyHelp(formData.llmProvider)})
+                    </span>
+                  )}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showApiKey ? 'text' : 'password'}
+                    value={formData.llmApiKey}
+                    onChange={(e) => setFormData({ ...formData, llmApiKey: e.target.value })}
+                    className="input-field pr-10"
+                    placeholder={getApiKeyPlaceholder(formData.llmProvider)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-500"
+                  >
+                    {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  API Key 将加密存储到服务器数据库中，重启后仍然有效
+                </p>
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* 代理配置面板 */}
+          {activeTab === 'proxy' && (
+            <div className="space-y-6">
+              <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
+                <Network className="h-5 w-5 text-blue-600" />
+                <div>
+                  <h3 className="text-sm font-medium text-blue-900">代理设置</h3>
+                  <p className="text-xs text-blue-700">
+                    配置代理以访问需要翻墙的 API 服务（如 OpenAI、Anthropic 等）
+                  </p>
+                </div>
+              </div>
+
+              {/* 启用代理开关 */}
+              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">启用代理</label>
+                  <p className="text-xs text-gray-500">开启后所有 LLM 请求将通过代理发送</p>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.proxy?.enabled || false}
+                    onChange={(e) => handleProxyChange({ enabled: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                </label>
+              </div>
+
+              {/* HTTP 代理 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  HTTP 代理地址
+                </label>
+                <input
+                  type="text"
+                  value={formData.proxy?.httpProxy || ''}
+                  onChange={(e) => handleProxyChange({ httpProxy: e.target.value })}
+                  className="input-field"
+                  placeholder="http://127.0.0.1:7890"
+                  disabled={!formData.proxy?.enabled}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  例如: http://127.0.0.1:7890 或 socks5://127.0.0.1:1080
+                </p>
+              </div>
+
+              {/* HTTPS 代理 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  HTTPS 代理地址
+                </label>
+                <input
+                  type="text"
+                  value={formData.proxy?.httpsProxy || ''}
+                  onChange={(e) => handleProxyChange({ httpsProxy: e.target.value })}
+                  className="input-field"
+                  placeholder="http://127.0.0.1:7890"
+                  disabled={!formData.proxy?.enabled}
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  通常与 HTTP 代理相同，留空则使用 HTTP 代理
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ComfyUI 配置面板 */}
+          {activeTab === 'comfyui' && (
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  ComfyUI 服务器地址
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formData.comfyUIHost}
+                    onChange={(e) => setFormData({ ...formData, comfyUIHost: e.target.value })}
+                    className="input-field flex-1"
+                    placeholder="http://localhost:8188"
+                  />
+                  <span className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium bg-green-100 text-green-700">
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    已连接
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ComfyUI 工作流配置 */}
@@ -599,26 +847,6 @@ export default function Settings() {
                 <h2 className="text-lg font-semibold text-gray-900">ComfyUI 工作流</h2>
                 <p className="text-sm text-gray-500">管理 AI 生成工作流，支持系统预设和自定义上传</p>
               </div>
-            </div>
-          </div>
-
-          {/* 服务器地址 */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              ComfyUI 服务器地址
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={formData.comfyUIHost}
-                onChange={(e) => setFormData({ ...formData, comfyUIHost: e.target.value })}
-                className="input-field flex-1"
-                placeholder="http://localhost:8188"
-              />
-              <span className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium bg-green-100 text-green-700">
-                <CheckCircle className="h-4 w-4 mr-1" />
-                已连接
-              </span>
             </div>
           </div>
 

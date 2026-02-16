@@ -10,7 +10,10 @@ import {
   Film,
   CheckCircle,
   AlertCircle,
-  Trash2
+  Trash2,
+  X,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import type { Chapter, Novel } from '../types';
 import { toast } from '../stores/toastStore';
@@ -26,6 +29,14 @@ export default function ChapterDetail() {
   const [isSaving, setIsSaving] = useState(false);
   const [content, setContent] = useState('');
   const [title, setTitle] = useState('');
+  
+  // 图片预览状态
+  const [previewImage, setPreviewImage] = useState<{
+    isOpen: boolean;
+    url: string | null;
+    index: number;
+    images: string[];
+  }>({ isOpen: false, url: null, index: 0, images: [] });
 
   useEffect(() => {
     if (id && cid) {
@@ -101,6 +112,55 @@ export default function ChapterDetail() {
     
     navigate(`/novels/${id}/chapters/${cid}/generate`);
   };
+  
+  // 打开图片预览
+  const openImagePreview = (url: string, index: number, images: string[]) => {
+    setPreviewImage({ isOpen: true, url, index, images });
+  };
+  
+  // 关闭图片预览
+  const closeImagePreview = () => {
+    setPreviewImage({ isOpen: false, url: null, index: 0, images: [] });
+  };
+  
+  // 切换图片
+  const navigatePreview = (direction: 'prev' | 'next') => {
+    if (!previewImage.images.length) return;
+    
+    let newIndex: number;
+    if (direction === 'prev') {
+      newIndex = previewImage.index === 0 ? previewImage.images.length - 1 : previewImage.index - 1;
+    } else {
+      newIndex = previewImage.index === previewImage.images.length - 1 ? 0 : previewImage.index + 1;
+    }
+    
+    setPreviewImage({
+      ...previewImage,
+      url: previewImage.images[newIndex],
+      index: newIndex
+    });
+  };
+  
+  // 监听键盘事件
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!previewImage.isOpen) return;
+      
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        navigatePreview('prev');
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        navigatePreview('next');
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeImagePreview();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [previewImage.isOpen, previewImage.index, previewImage.images]);
 
   const getStatusInfo = (status: Chapter['status']) => {
     switch (status) {
@@ -264,7 +324,13 @@ export default function ChapterDetail() {
               <h4 className="text-sm font-medium text-gray-700 mb-2">人设图</h4>
               <div className="grid grid-cols-4 gap-4">
                 {chapter.characterImages.map((img, idx) => (
-                  <img key={idx} src={img} alt={`人设${idx + 1}`} className="rounded-lg" />
+                  <img 
+                    key={idx} 
+                    src={img} 
+                    alt={`人设${idx + 1}`} 
+                    className="rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => openImagePreview(img, idx, chapter.characterImages || [])}
+                  />
                 ))}
               </div>
             </div>
@@ -276,7 +342,13 @@ export default function ChapterDetail() {
               <h4 className="text-sm font-medium text-gray-700 mb-2">分镜图</h4>
               <div className="grid grid-cols-4 gap-4">
                 {chapter.shotImages.map((img, idx) => (
-                  <img key={idx} src={img} alt={`分镜${idx + 1}`} className="rounded-lg" />
+                  <img 
+                    key={idx} 
+                    src={img} 
+                    alt={`分镜${idx + 1}`} 
+                    className="rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                    onClick={() => openImagePreview(img, idx, chapter.shotImages || [])}
+                  />
                 ))}
               </div>
             </div>
@@ -293,6 +365,63 @@ export default function ChapterDetail() {
               </div>
             </div>
           )}
+        </div>
+      )}
+      
+      {/* 图片预览弹窗 */}
+      {previewImage.isOpen && previewImage.url && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
+          onClick={closeImagePreview}
+        >
+          <div className="relative max-w-5xl max-h-[90vh] w-full flex items-center">
+            {/* 左箭头 */}
+            <button
+              onClick={(e) => { e.stopPropagation(); navigatePreview('prev'); }}
+              className="absolute -left-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all"
+              title="上一个 (←)"
+            >
+              <ChevronLeft className="h-10 w-10" />
+            </button>
+            
+            <div className="flex-1">
+              {/* 关闭按钮 */}
+              <button
+                onClick={closeImagePreview}
+                className="absolute -top-12 right-0 p-2 text-white hover:text-gray-300 transition-colors"
+              >
+                <X className="h-8 w-8" />
+              </button>
+              
+              {/* 图片 */}
+              <img
+                src={previewImage.url}
+                alt="预览"
+                className="w-full h-full object-contain max-h-[80vh] rounded-lg"
+                onClick={(e) => e.stopPropagation()}
+              />
+              
+              {/* 底部提示 */}
+              <div className="mt-4 text-center text-gray-400 text-sm">
+                <span className="inline-flex items-center gap-2">
+                  <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">←</kbd>
+                  <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">→</kbd>
+                  <span>键盘左右键切换</span>
+                  <span className="mx-2">|</span>
+                  <span>{previewImage.index + 1} / {previewImage.images.length}</span>
+                </span>
+              </div>
+            </div>
+            
+            {/* 右箭头 */}
+            <button
+              onClick={(e) => { e.stopPropagation(); navigatePreview('next'); }}
+              className="absolute -right-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all"
+              title="下一个 (→)"
+            >
+              <ChevronRight className="h-10 w-10" />
+            </button>
+          </div>
         </div>
       )}
     </div>

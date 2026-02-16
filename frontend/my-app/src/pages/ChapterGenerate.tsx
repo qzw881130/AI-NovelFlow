@@ -27,7 +27,8 @@ import {
   Plus,
   Trash2,
   AlertCircle,
-  FileText
+  FileText,
+  AlertTriangle
 } from 'lucide-react';
 import type { Chapter, Novel } from '../types';
 import { toast } from '../stores/toastStore';
@@ -160,6 +161,8 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string>('');
   const [activeSection, setActiveSection] = useState<'characters' | 'scenes' | 'shots'>('shots');
+  // 存储角色输入的临时值（key: shotIndex, value: 输入字符串）
+  const [characterInputs, setCharacterInputs] = useState<Record<number, string>>({});
 
   // 解析JSON
   useEffect(() => {
@@ -168,6 +171,8 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
         const parsed = JSON.parse(value);
         setData(parsed);
         setError('');
+        // 外部数据变化时清除本地输入状态
+        setCharacterInputs({});
       } else {
         setData(null);
       }
@@ -411,8 +416,22 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
                   </div>
                   <input
                     type="text"
-                    value={shot.characters?.join(', ')}
-                    onChange={(e) => updateShot(idx, 'characters', e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean))}
+                    value={characterInputs[idx] !== undefined ? characterInputs[idx] : shot.characters?.join(', ')}
+                    onChange={(e) => {
+                      // 只更新本地输入状态，不立即分割
+                      setCharacterInputs(prev => ({ ...prev, [idx]: e.target.value }));
+                    }}
+                    onBlur={(e) => {
+                      // 失去焦点时才分割并更新数据
+                      const chars = e.target.value.split(',').map((s: string) => s.trim()).filter(Boolean);
+                      updateShot(idx, 'characters', chars);
+                      // 清除本地临时状态
+                      setCharacterInputs(prev => {
+                        const newState = { ...prev };
+                        delete newState[idx];
+                        return newState;
+                      });
+                    }}
                     placeholder="角色（用逗号分隔）"
                     className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
@@ -719,6 +738,9 @@ export default function ChapterGenerate() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSplitting, setIsSplitting] = useState(false);
   const [isSavingJson, setIsSavingJson] = useState(false);
+  // AI拆分确认对话框
+  // AI拆分确认对话框 - 显示要清除的资源列表
+  const [splitConfirmDialog, setSplitConfirmDialog] = useState<{ isOpen: boolean; hasResources: boolean }>({ isOpen: false, hasResources: false });
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [loading, setLoading] = useState(true);
   const [showFullTextModal, setShowFullTextModal] = useState(false);
@@ -741,6 +763,7 @@ export default function ChapterGenerate() {
   const [showMergedImageModal, setShowMergedImageModal] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [previewImageIndex, setPreviewImageIndex] = useState<number>(0);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // 分镜图片生成相关
@@ -779,6 +802,21 @@ export default function ChapterGenerate() {
       if (data.success) {
         // 任务已创建，添加到 pending 状态
         setPendingShots(prev => new Set(prev).add(shotIndex));
+        // 清除该分镜的图片缓存，避免显示旧图
+        setShotImages(prev => {
+          const next = { ...prev };
+          delete next[shotIndex];
+          return next;
+        });
+        // 同时清除 parsedData 中的 image_url，确保显示"未生成分镜图"占位符
+        setParsedData(prev => {
+          if (!prev) return prev;
+          const newShots = [...prev.shots];
+          if (newShots[shotIndex - 1]) {
+            newShots[shotIndex - 1] = { ...newShots[shotIndex - 1], image_url: undefined };
+          }
+          return { ...prev, shots: newShots };
+        });
         toast.success(data.message || '分镜图生成任务已创建');
       } else if (data.message?.includes('已有进行中的生成任务')) {
         toast.info(data.message);
@@ -1016,9 +1054,26 @@ export default function ChapterGenerate() {
     }
   }, [currentShot, parsedData]);
 
-  // 键盘左右方向键切换分镜
+  // 键盘左右方向键切换分镜或图片预览
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // 图片预览打开时，优先处理图片切换
+      if (showImagePreview && previewImageUrl) {
+        if (e.key === 'ArrowLeft') {
+          e.preventDefault();
+          navigateImagePreview('prev');
+          return;
+        } else if (e.key === 'ArrowRight') {
+          e.preventDefault();
+          navigateImagePreview('next');
+          return;
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          setShowImagePreview(false);
+          return;
+        }
+      }
+      
       // 只有在有分镜数据且没有在输入框中输入时才响应
       if (!parsedData?.shots || parsedData.shots.length === 0) return;
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -1034,7 +1089,29 @@ export default function ChapterGenerate() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [parsedData?.shots?.length]);
+  }, [parsedData?.shots?.length, showImagePreview, previewImageUrl, previewImageIndex]);
+  
+  // 图片预览导航
+  const navigateImagePreview = (direction: 'prev' | 'next') => {
+    const allImages = parsedData?.shots?.map((_, idx) => {
+      const shotNum = idx + 1;
+      return shotImages[shotNum] || parsedData.shots[idx]?.image_url;
+    }).filter(Boolean) || [];
+    
+    if (allImages.length <= 1) return;
+    
+    let newIndex: number;
+    if (direction === 'prev') {
+      newIndex = previewImageIndex === 0 ? allImages.length - 1 : previewImageIndex - 1;
+    } else {
+      newIndex = previewImageIndex === allImages.length - 1 ? 0 : previewImageIndex + 1;
+    }
+    
+    setPreviewImageIndex(newIndex);
+    setPreviewImageUrl(allImages[newIndex]);
+    // 同步更新当前分镜
+    setCurrentShot(newIndex + 1);
+  };
 
   // 轮询任务状态
   useEffect(() => {
@@ -1110,6 +1187,9 @@ export default function ChapterGenerate() {
             if (task.resultUrl) {
               setShotImages(prev => ({ ...prev, [shotNum]: task.resultUrl }));
               hasCompleted = true;
+            } else {
+              // 任务完成但没有 resultUrl，强制刷新章节数据
+              hasCompleted = true;
             }
           } else if (task.status === 'pending' || task.status === 'running') {
             stillPending.add(shotNum);
@@ -1122,7 +1202,7 @@ export default function ChapterGenerate() {
           setPendingShots(stillPending);
         }
         
-        // 如果有图片任务完成，刷新章节数据以获取合并角色图
+        // 如果有图片任务完成，刷新章节数据以获取最新图片
         if (hasCompleted) {
           fetchChapter();
         }
@@ -1499,6 +1579,18 @@ export default function ChapterGenerate() {
             console.error('解析数据格式错误:', e);
           }
         }
+        // 加载分镜图片（优先从 shotImages 数组加载，这是最新的）
+        if (data.data.shotImages && data.data.shotImages.length > 0) {
+          const newShotImages: Record<number, string> = {};
+          data.data.shotImages.forEach((url: string, index: number) => {
+            if (url) {
+              newShotImages[index + 1] = url;
+            }
+          });
+          console.log('[ChapterGenerate] Loaded shot images from chapter:', newShotImages);
+          setShotImages(prev => ({ ...prev, ...newShotImages }));
+        }
+        
         // 加载分镜视频
         if (data.data.shotVideos && data.data.shotVideos.length > 0) {
           const newShotVideos: Record<number, string> = {};
@@ -1692,8 +1784,44 @@ export default function ChapterGenerate() {
     setTimeout(() => setIsGenerating(false), 3000);
   };
 
-  const handleSplitChapter = async () => {
+  // 处理AI拆分分镜头按钮点击
+  const handleSplitChapterClick = () => {
     if (!id || !cid) return;
+    
+    // 检查是否已有资源
+    const hasResources = !!parsedData || 
+      Object.keys(shotImages).length > 0 || 
+      Object.keys(shotVideos).length > 0 ||
+      Object.keys(transitionVideos).length > 0 ||
+      !!mergedImage;
+    
+    if (hasResources) {
+      // 显示确认对话框
+      setSplitConfirmDialog({ isOpen: true, hasResources: true });
+    } else {
+      // 直接执行拆分
+      doSplitChapter();
+    }
+  };
+  
+  // 确认后执行拆分
+  const doSplitChapter = async () => {
+    if (!id || !cid) return;
+    
+    setSplitConfirmDialog({ isOpen: false, hasResources: false });
+    
+    // 先清除后端资源
+    try {
+      const clearRes = await fetch(`${API_BASE}/novels/${id}/chapters/${cid}/clear-resources`, {
+        method: 'POST'
+      });
+      const clearData = await clearRes.json();
+      if (!clearData.success) {
+        console.error('清除资源失败:', clearData.message);
+      }
+    } catch (error) {
+      console.error('清除资源请求失败:', error);
+    }
     
     setIsSplitting(true);
     try {
@@ -1703,11 +1831,18 @@ export default function ChapterGenerate() {
       const data = await res.json();
       
       if (data.success) {
+        // 清除本地状态
+        setShotImages({});
+        setShotVideos({});
+        setTransitionVideos({});
+        setMergedImage(null);
         setParsedData(data.data);
         setEditableJson(JSON.stringify(data.data, null, 2));
         // 自动切换到 JSON 标签页查看结果
         setActiveTab('json');
         toast.success('拆分成功');
+        // 刷新章节数据
+        fetchChapter();
       } else {
         toast.error(data.message || '拆分失败');
       }
@@ -1958,7 +2093,7 @@ export default function ChapterGenerate() {
             {/* AI拆分分镜头按钮 */}
             <div className="mt-4 pt-4 border-t border-gray-100">
               <button 
-                onClick={handleSplitChapter}
+                onClick={handleSplitChapterClick}
                 disabled={isSplitting}
                 className="w-full py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -2050,20 +2185,48 @@ export default function ChapterGenerate() {
           <div className="card">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-semibold text-gray-900">分镜图片 ({parsedData?.shots?.length || 0}张)</h3>
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => setCurrentShot(Math.max(1, currentShot - 1))}
-                  className="p-1 rounded hover:bg-gray-100"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <span className="text-sm text-gray-500">{currentShot}/{parsedData?.shots?.length || 0}</span>
-                <button 
-                  onClick={() => setCurrentShot(Math.min(parsedData?.shots?.length || 1, currentShot + 1))}
-                  className="p-1 rounded hover:bg-gray-100"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
+              <div className="flex items-center gap-3">
+                {/* 批量生成按钮 */}
+                {parsedData?.shots?.length > 0 && (
+                  <>
+                    <button 
+                      onClick={handleGenerateAllShots}
+                      disabled={isGeneratingAll || pendingShots.size > 0}
+                      className="btn-secondary text-sm py-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 disabled:opacity-50"
+                    >
+                      {isGeneratingAll ? (
+                        <><Loader2 className="h-3 w-3 mr-1 animate-spin" />批量提交中...</>
+                      ) : (
+                        <><RefreshCw className="h-3 w-3 mr-1" />生成全部分镜图</>
+                      )}
+                    </button>
+                    <button 
+                      onClick={handleGenerateAllVideos}
+                      disabled={generatingVideos.size > 0 || pendingVideos.size > 0}
+                      className="btn-secondary text-sm py-1.5 text-purple-600 hover:text-purple-700 hover:bg-purple-50 disabled:opacity-50"
+                      title="为所有已有分镜图片的分镜生成视频"
+                    >
+                      <Film className="h-3 w-3 mr-1" />
+                      生成全部分镜视频
+                    </button>
+                  </>
+                )}
+                {/* 页码导航 */}
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setCurrentShot(Math.max(1, currentShot - 1))}
+                    className="p-1 rounded hover:bg-gray-100"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <span className="text-sm text-gray-500">{currentShot}/{parsedData?.shots?.length || 0}</span>
+                  <button 
+                    onClick={() => setCurrentShot(Math.min(parsedData?.shots?.length || 1, currentShot + 1))}
+                    className="p-1 rounded hover:bg-gray-100"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
             {parsedData?.shots?.length > 0 ? (
@@ -2123,7 +2286,7 @@ export default function ChapterGenerate() {
                           </div>
                         )}
                         
-                        <span className="absolute bottom-1 left-2 text-xs text-white/90 bg-black/30 px-1.5 py-0.5 rounded">
+                        <span className="absolute bottom-1 left-2 text-xs text-white font-bold bg-blue-600/90 px-1.5 py-0.5 rounded shadow-lg">
                           镜{shot.id}
                         </span>
                       </div>
@@ -2131,7 +2294,7 @@ export default function ChapterGenerate() {
                   })}
                 </div>
                 {/* 当前选中的分镜大图 */}
-                {(shotImages[currentShot] || parsedData.shots[currentShot - 1]?.image_url) && (
+                {(shotImages[currentShot] || parsedData.shots[currentShot - 1]?.image_url) ? (
                   <div className="mt-4 mb-4">
                     <div 
                       className="aspect-video rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
@@ -2139,6 +2302,7 @@ export default function ChapterGenerate() {
                         const url = shotImages[currentShot] || parsedData.shots[currentShot - 1]?.image_url;
                         if (url) {
                           setPreviewImageUrl(url);
+                          setPreviewImageIndex(currentShot - 1);
                           setShowImagePreview(true);
                         }
                       }}
@@ -2148,6 +2312,14 @@ export default function ChapterGenerate() {
                         alt={`镜${currentShot}`}
                         className="w-full h-full object-contain"
                       />
+                    </div>
+                  </div>
+                ) : (
+                  /* 未生成分镜图占位 */
+                  <div className="mt-4 mb-4">
+                    <div className="aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-purple-100 to-pink-100 flex flex-col items-center justify-center border-2 border-dashed border-purple-200">
+                      <ImageIcon className="h-16 w-16 text-purple-300 mb-2" />
+                      <span className="text-purple-400 text-sm">未生成分镜图</span>
                     </div>
                   </div>
                 )}
@@ -2163,7 +2335,7 @@ export default function ChapterGenerate() {
                     ) : pendingShots.has(currentShot) ? (
                       <><Clock className="h-3 w-3 mr-1" />队列中</>
                     ) : (
-                      <><RefreshCw className="h-3 w-3 mr-1" />重新生成</>
+                      <><RefreshCw className="h-3 w-3 mr-1" />重新生成分镜图</>
                     )}
                   </button>
                   {/* 生成分镜视频按钮 - 只有当前分镜有图片时才可点击 */}
@@ -2192,26 +2364,6 @@ export default function ChapterGenerate() {
                     )}
                   </button>
                   <button 
-                    onClick={handleGenerateAllShots}
-                    disabled={isGeneratingAll || pendingShots.size > 0}
-                    className="btn-secondary text-sm py-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 disabled:opacity-50"
-                  >
-                    {isGeneratingAll ? (
-                      <><Loader2 className="h-3 w-3 mr-1 animate-spin" />批量提交中...</>
-                    ) : (
-                      <><RefreshCw className="h-3 w-3 mr-1" />生成全部分镜图</>
-                    )}
-                  </button>
-                  <button 
-                    onClick={handleGenerateAllVideos}
-                    disabled={generatingVideos.size > 0 || pendingVideos.size > 0}
-                    className="btn-secondary text-sm py-1.5 text-purple-600 hover:text-purple-700 hover:bg-purple-50 disabled:opacity-50"
-                    title="为所有已有分镜图片的分镜生成视频"
-                  >
-                    <Film className="h-3 w-3 mr-1" />
-                    生成全部分镜视频
-                  </button>
-                  <button 
                     onClick={() => setShowMergedImageModal(true)}
                     disabled={!mergedImage}
                     className="btn-secondary text-sm py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-50"
@@ -2221,8 +2373,6 @@ export default function ChapterGenerate() {
                     查看合并角色图
                   </button>
                 </div>
-                
-
               </>
             ) : (
               <p className="text-gray-500 text-sm py-4">暂无分镜图片，请先进行AI拆分</p>
@@ -2395,7 +2545,7 @@ export default function ChapterGenerate() {
                         }
                         setCurrentVideo(shotNum);
                       }}
-                      className={`relative flex-shrink-0 w-24 h-16 rounded-lg overflow-hidden cursor-pointer transition-transform hover:scale-105 ${
+                      className={`relative flex-shrink-0 w-32 h-24 rounded-lg overflow-hidden cursor-pointer transition-transform hover:scale-105 ${
                         currentVideo === shotNum && !currentTransition ? 'ring-2 ring-offset-2 ring-purple-500' : ''
                       }`}
                     >
@@ -2422,9 +2572,9 @@ export default function ChapterGenerate() {
                       )}
                       
                       {/* 底部信息栏 */}
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-1.5 py-0.5 flex items-center justify-between">
-                        <span className="text-[10px] text-white font-medium">镜{shot.id}</span>
-                        <span className="text-[10px] text-white/80">{duration}s</span>
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-1 flex items-center justify-between">
+                        <span className="text-xs text-white font-bold bg-blue-600/90 px-1.5 py-0.5 rounded">镜{shot.id}</span>
+                        <span className="text-[10px] text-white/90 font-medium">{duration}s</span>
                       </div>
                     </div>
                     
@@ -2555,30 +2705,127 @@ export default function ChapterGenerate() {
           className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
           onClick={() => setShowImagePreview(false)}
         >
-          <div className="relative max-w-5xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+          <div className="relative max-w-5xl max-h-[90vh] w-full flex items-center" onClick={e => e.stopPropagation()}>
+            {/* 左箭头 */}
             <button
-              onClick={() => setShowImagePreview(false)}
-              className="absolute -top-10 right-0 p-2 text-white hover:text-gray-300 z-10"
+              onClick={(e) => { e.stopPropagation(); navigateImagePreview('prev'); }}
+              className="absolute -left-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all z-10"
+              title="上一个 (←)"
             >
-              <X className="h-6 w-6" />
+              <ChevronLeft className="h-10 w-10" />
             </button>
-            <img 
-              src={previewImageUrl} 
-              alt="分镜预览" 
-              className="max-w-full max-h-[85vh] object-contain rounded-lg"
-            />
-            <div className="mt-4 flex justify-center gap-3">
+            
+            <div className="flex-1 flex flex-col">
+              {/* 关闭按钮 */}
               <button
-                onClick={() => {
-                  const link = document.createElement('a');
-                  link.download = `分镜_${currentShot}.png`;
-                  link.href = previewImageUrl;
-                  link.click();
-                }}
-                className="btn-primary text-sm"
+                onClick={() => setShowImagePreview(false)}
+                className="absolute -top-10 right-0 p-2 text-white hover:text-gray-300 z-10"
               >
-                <Download className="h-4 w-4 mr-2" />
-                下载图片
+                <X className="h-6 w-6" />
+              </button>
+              
+              <img 
+                src={previewImageUrl} 
+                alt="分镜预览" 
+                className="max-w-full max-h-[75vh] object-contain rounded-lg mx-auto"
+              />
+              
+              {/* 底部操作区 */}
+              <div className="mt-4 flex flex-col items-center gap-2">
+                {/* 下载按钮 */}
+                <button
+                  onClick={() => {
+                    const link = document.createElement('a');
+                    link.download = `分镜_${currentShot}.png`;
+                    link.href = previewImageUrl;
+                    link.click();
+                  }}
+                  className="btn-primary text-sm"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  下载图片
+                </button>
+                
+                {/* 键盘提示 */}
+                <div className="text-gray-400 text-sm">
+                  <span className="inline-flex items-center gap-2">
+                    <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">←</kbd>
+                    <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">→</kbd>
+                    <span>键盘左右键切换</span>
+                    <span className="mx-2">|</span>
+                    <span>{previewImageIndex + 1} / {parsedData?.shots?.filter((_, idx) => shotImages[idx + 1] || parsedData.shots[idx]?.image_url).length || 0}</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+            
+            {/* 右箭头 */}
+            <button
+              onClick={(e) => { e.stopPropagation(); navigateImagePreview('next'); }}
+              className="absolute -right-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all z-10"
+              title="下一个 (→)"
+            >
+              <ChevronRight className="h-10 w-10" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* AI拆分确认对话框 */}
+      {splitConfirmDialog.isOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-xl shadow-2xl border border-gray-700 w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-amber-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-white">
+                确认重新拆分分镜头？
+              </h3>
+            </div>
+            
+            <p className="text-gray-300 mb-4 leading-relaxed">
+              该章节已有生成的内容，重新拆分将清除以下数据：
+            </p>
+            
+            <div className="bg-gray-900/50 rounded-lg p-4 mb-6 border border-gray-700">
+              <ul className="space-y-2 text-sm text-gray-400">
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                  分镜头 JSON 数据
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                  已生成的分镜头图片
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                  已生成的分镜头视频
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                  已生成的转场视频
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                  合并角色图
+                </li>
+              </ul>
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setSplitConfirmDialog({ isOpen: false, hasResources: false })}
+                className="px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={doSplitChapter}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors flex items-center gap-2"
+              >
+                <AlertTriangle className="w-4 h-4" />
+                确认重新拆分
               </button>
             </div>
           </div>

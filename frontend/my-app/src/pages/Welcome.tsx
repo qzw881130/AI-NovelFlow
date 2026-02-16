@@ -14,13 +14,18 @@ import {
   Video,
   Film
 } from 'lucide-react';
-import { useConfigStore } from '../stores/configStore';
+import { useConfigStore, LLM_PROVIDER_PRESETS } from '../stores/configStore';
 import { Link } from 'react-router-dom';
 
 export default function Welcome() {
-  const { checkConnection, deepseekApiKey, comfyUIHost } = useConfigStore();
-  const [status, setStatus] = useState<{ deepseek: boolean; comfyui: boolean } | null>(null);
+  const { checkConnection, llmProvider, llmModel, llmApiKey, comfyUIHost } = useConfigStore();
+  const [status, setStatus] = useState<{ llm: boolean; comfyui: boolean } | null>(null);
   const [checking, setChecking] = useState(false);
+  
+  // 获取当前厂商的显示名称
+  const currentProvider = LLM_PROVIDER_PRESETS.find(p => p.id === llmProvider);
+  const providerName = currentProvider?.name || llmProvider;
+  const modelName = llmModel;
 
   const handleCheck = async () => {
     setChecking(true);
@@ -33,7 +38,7 @@ export default function Welcome() {
     handleCheck();
   }, []);
 
-  const isConfigured = deepseekApiKey && comfyUIHost;
+  const isConfigured = llmApiKey && comfyUIHost;
 
   return (
     <div className="space-y-8">
@@ -109,20 +114,20 @@ export default function Welcome() {
         </div>
 
         <div className="space-y-4">
-          {/* DeepSeek API */}
+          {/* AI 服务配置 */}
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
             <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${status?.deepseek ? 'bg-green-100' : 'bg-red-100'}`}>
-                {status?.deepseek ? (
+              <div className={`p-2 rounded-lg ${status?.llm ? 'bg-green-100' : 'bg-red-100'}`}>
+                {status?.llm ? (
                   <CheckCircle className="h-5 w-5 text-green-600" />
                 ) : (
                   <XCircle className="h-5 w-5 text-red-600" />
                 )}
               </div>
               <div>
-                <p className="font-medium text-gray-900">DeepSeek API</p>
+                <p className="font-medium text-gray-900">{providerName} ({modelName})</p>
                 <p className="text-sm text-gray-500">
-                  {status?.deepseek ? '连接正常' : deepseekApiKey ? '连接失败' : '未配置 API Key'}
+                  {status?.llm ? '连接正常' : llmApiKey ? '连接失败' : '未配置 API Key'}
                 </p>
               </div>
             </div>

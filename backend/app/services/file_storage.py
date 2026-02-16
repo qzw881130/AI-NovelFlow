@@ -486,5 +486,34 @@ class FileStorageService:
             return {"success": False, "message": f"合并失败: {str(e)}"}
 
 
+    def delete_chapter_directory(self, novel_id: str, chapter_id: str) -> bool:
+        """
+        删除章节的整个目录（包括所有图片、视频、转场等）
+        
+        Args:
+            novel_id: 小说ID
+            chapter_id: 章节ID
+            
+        Returns:
+            是否成功删除
+        """
+        try:
+            story_dir = self._get_story_dir(novel_id)
+            chapter_short = chapter_id[:8] if chapter_id else "unknown"
+            chapter_dir = story_dir / f"chapter_{chapter_short}"
+            
+            if chapter_dir.exists():
+                shutil.rmtree(chapter_dir)
+                print(f"[FileStorage] Deleted chapter directory: {chapter_dir}")
+                return True
+            else:
+                print(f"[FileStorage] Chapter directory not found: {chapter_dir}")
+                return True  # 目录不存在也算成功（已经不存在了）
+                
+        except Exception as e:
+            print(f"[FileStorage] Failed to delete chapter directory: {e}")
+            return False
+
+
 # 全局实例
 file_storage = FileStorageService()

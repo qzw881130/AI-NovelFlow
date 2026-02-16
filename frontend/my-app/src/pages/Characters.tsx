@@ -10,7 +10,9 @@ import {
   Sparkles,
   RefreshCw,
   X,
-  Images
+  Image,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Character, Novel } from '../types';
@@ -50,7 +52,8 @@ export default function Characters() {
     isOpen: boolean;
     url: string | null;
     name: string;
-  }>({ isOpen: false, url: null, name: '' });
+    characterId: string | null;
+  }>({ isOpen: false, url: null, name: '', characterId: null });
   
   // 批量生成所有角色形象
   const [generatingAll, setGeneratingAll] = useState(false);
@@ -79,6 +82,28 @@ export default function Characters() {
       }
     }
   }, [highlightedId, characters]);
+
+  // 监听键盘事件 - 图片预览左右切换（在 filteredCharacters 定义后初始化）
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!previewImage.isOpen) return;
+      
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        navigatePreview('prev');
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        navigatePreview('next');
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeImagePreview();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewImage.isOpen, previewImage.characterId]);
 
   const fetchCharacters = async () => {
     setIsLoading(true);
@@ -261,12 +286,14 @@ export default function Characters() {
       }
       
       try {
-        // 刷新角色列表
-        await fetchCharacters();
-        
-        // 检查当前角色状态
-        const character = characters.find(c => c.id === characterId);
-        if (character) {
+        // 直接查询单个角色状态，避免 state 闭包问题
+        const res = await fetch(`${API_BASE}/characters/${characterId}`);
+        const data = await res.json();
+        if (data.success && data.data) {
+          const character = data.data;
+          // 更新本地角色列表中的该角色
+          setCharacters(prev => prev.map(c => c.id === characterId ? { ...c, ...character } : c));
+          
           if (character.generatingStatus === 'completed') {
             clearInterval(interval);
             setGeneratingId(null);
@@ -290,17 +317,30 @@ export default function Characters() {
       return;
     }
     
-    // 过滤出没有图片且不在生成中的角色
+    // 过滤出不在生成中的角色
     const charactersToGenerate = filteredCharacters.filter(
-      c => !c.imageUrl && c.generatingStatus !== 'running'
+      c => c.generatingStatus !== 'running'
     );
     
     if (charactersToGenerate.length === 0) {
-      toast.info('所有角色已有形象或正在生成中');
+      toast.info('所有角色正在生成中，请稍后再试');
       return;
     }
     
-    if (!window.confirm(`将为 ${charactersToGenerate.length} 个角色生成形象，是否继续？`)) return;
+    // 统计已有形象的角色数量
+    const hasImageCount = charactersToGenerate.filter(c => c.imageUrl).length;
+    const noImageCount = charactersToGenerate.length - hasImageCount;
+    
+    let confirmMessage = '';
+    if (hasImageCount > 0 && noImageCount > 0) {
+      confirmMessage = `将为 ${noImageCount} 个新角色生成形象，并重新生成 ${hasImageCount} 个已有形象的角色，是否继续？`;
+    } else if (hasImageCount > 0) {
+      confirmMessage = `将重新生成 ${hasImageCount} 个角色的形象，是否继续？`;
+    } else {
+      confirmMessage = `将为 ${noImageCount} 个角色生成形象，是否继续？`;
+    }
+    
+    if (!window.confirm(confirmMessage)) return;
     
     setGeneratingAll(true);
     let successCount = 0;
@@ -344,16 +384,25 @@ export default function Characters() {
   const pollAllCharactersStatus = () => {
     const interval = setInterval(async () => {
       try {
-        await fetchCharacters();
-        
-        // 检查是否还有生成中的角色
-        const generatingChars = characters.filter(
-          c => c.generatingStatus === 'running'
-        );
-        
-        if (generatingChars.length === 0) {
-          clearInterval(interval);
-          toast.success('所有角色形象生成完成！');
+        // 直接获取最新角色列表，避免 state 闭包问题
+        const url = selectedNovel !== 'all' 
+          ? `${API_BASE}/characters?novel_id=${selectedNovel}` 
+          : `${API_BASE}/characters`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.success) {
+          const chars = data.data || [];
+          setCharacters(chars);
+          
+          // 检查是否还有生成中的角色
+          const generatingChars = chars.filter(
+            (c: Character) => c.generatingStatus === 'running'
+          );
+          
+          if (generatingChars.length === 0) {
+            clearInterval(interval);
+            toast.success('所有角色形象生成完成！');
+          }
         }
       } catch (error) {
         console.error('轮询状态失败:', error);
@@ -362,19 +411,45 @@ export default function Characters() {
   };
 
   // 打开图片预览
-  const openImagePreview = (url: string, name: string) => {
-    setPreviewImage({ isOpen: true, url, name });
+  const openImagePreview = (url: string, name: string, characterId: string) => {
+    setPreviewImage({ isOpen: true, url, name, characterId });
   };
 
   // 关闭图片预览
   const closeImagePreview = () => {
-    setPreviewImage({ isOpen: false, url: null, name: '' });
+    setPreviewImage({ isOpen: false, url: null, name: '', characterId: null });
   };
 
   const filteredCharacters = characters.filter(c => 
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  // 切换到上一个/下一个角色图片
+  const navigatePreview = (direction: 'prev' | 'next') => {
+    if (!previewImage.characterId) return;
+    
+    // 获取所有有图片的角色（使用当前筛选后的角色）
+    const charactersWithImages = filteredCharacters.filter(c => c.imageUrl);
+    const currentIndex = charactersWithImages.findIndex(c => c.id === previewImage.characterId);
+    
+    if (currentIndex === -1) return;
+    
+    let newIndex: number;
+    if (direction === 'prev') {
+      newIndex = currentIndex === 0 ? charactersWithImages.length - 1 : currentIndex - 1;
+    } else {
+      newIndex = currentIndex === charactersWithImages.length - 1 ? 0 : currentIndex + 1;
+    }
+    
+    const newCharacter = charactersWithImages[newIndex];
+    setPreviewImage({
+      isOpen: true,
+      url: newCharacter.imageUrl!,
+      name: newCharacter.name,
+      characterId: newCharacter.id
+    });
+  };
 
   const openParseConfirm = (novelId: string) => {
     setConfirmDialog({ isOpen: true, novelId });
@@ -468,7 +543,7 @@ export default function Characters() {
               {generatingAll ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
-                <Images className="mr-2 h-4 w-4" />
+                <Image className="mr-2 h-4 w-4" />
               )}
               AI生成所有角色形象
             </button>
@@ -566,7 +641,7 @@ export default function Characters() {
                     src={character.imageUrl}
                     alt={character.name}
                     className="w-full h-full object-cover cursor-pointer"
-                    onClick={() => openImagePreview(character.imageUrl!, character.name)}
+                    onClick={() => openImagePreview(character.imageUrl!, character.name, character.id)}
                   />
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center">
@@ -886,27 +961,60 @@ export default function Characters() {
           className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
           onClick={closeImagePreview}
         >
-          <div className="relative max-w-4xl max-h-[90vh] w-full">
-            {/* 关闭按钮 */}
+          <div className="relative max-w-4xl max-h-[90vh] w-full flex items-center">
+            {/* 左箭头 */}
             <button
-              onClick={closeImagePreview}
-              className="absolute -top-12 right-0 p-2 text-white hover:text-gray-300 transition-colors"
+              onClick={(e) => { e.stopPropagation(); navigatePreview('prev'); }}
+              className="absolute -left-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all"
+              title="上一个 (←)"
             >
-              <X className="h-8 w-8" />
+              <ChevronLeft className="h-10 w-10" />
             </button>
             
-            {/* 角色名称 */}
-            <h3 className="text-white text-lg font-semibold mb-4 text-center">
-              {previewImage.name}
-            </h3>
+            <div className="flex-1">
+              {/* 关闭按钮 */}
+              <button
+                onClick={closeImagePreview}
+                className="absolute -top-12 right-0 p-2 text-white hover:text-gray-300 transition-colors"
+              >
+                <X className="h-8 w-8" />
+              </button>
+              
+              {/* 角色名称 */}
+              <h3 className="text-white text-lg font-semibold mb-4 text-center">
+                {previewImage.name}
+              </h3>
+              
+              {/* 图片 */}
+              <img
+                src={previewImage.url}
+                alt={previewImage.name}
+                className="w-full h-full object-contain max-h-[80vh] rounded-lg cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
+              />
+              
+              {/* 底部提示 */}
+              <div className="mt-4 text-center text-gray-400 text-sm">
+                <span className="inline-flex items-center gap-2">
+                  <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">←</kbd>
+                  <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">→</kbd>
+                  <span>键盘左右键切换</span>
+                  <span className="mx-2">|</span>
+                  <span>
+                    {filteredCharacters.filter(c => c.imageUrl).findIndex(c => c.id === previewImage.characterId) + 1} / {filteredCharacters.filter(c => c.imageUrl).length}
+                  </span>
+                </span>
+              </div>
+            </div>
             
-            {/* 图片 */}
-            <img
-              src={previewImage.url}
-              alt={previewImage.name}
-              className="w-full h-full object-contain max-h-[80vh] rounded-lg"
-              onClick={(e) => e.stopPropagation()}
-            />
+            {/* 右箭头 */}
+            <button
+              onClick={(e) => { e.stopPropagation(); navigatePreview('next'); }}
+              className="absolute -right-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all"
+              title="下一个 (→)"
+            >
+              <ChevronRight className="h-10 w-10" />
+            </button>
           </div>
         </div>
       )}

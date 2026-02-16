@@ -12,12 +12,18 @@ from app.models.novel import Novel, Chapter, Character
 from app.models.prompt_template import PromptTemplate
 from app.models.task import Task
 from app.schemas.novel import NovelCreate, NovelResponse, ChapterCreate, ChapterResponse
-from app.services.deepseek import DeepSeekService
+from app.services.llm_service import LLMService
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 
-deepseek_service = DeepSeekService()
+# 注意：不要在模块级别创建 LLMService 实例
+# 因为配置可能在运行时更新，每次使用时应创建新实例
 comfyui_service = ComfyUIService()
+
+
+def get_llm_service() -> LLMService:
+    """获取 LLMService 实例（每次调用创建新实例以获取最新配置）"""
+    return LLMService()
 
 router = APIRouter()
 
@@ -187,7 +193,7 @@ async def parse_novel(novel_id: str, background_tasks: BackgroundTasks, db: Sess
     # 异步解析
     async def do_parse():
         try:
-            result = await deepseek_service.parse_novel_text(full_text)
+            result = await get_llm_service().parse_novel_text(full_text)
             
             # 保存解析结果到各个章节
             for chapter in chapters:
@@ -227,7 +233,7 @@ async def parse_characters(
     
     try:
         # 调用 DeepSeek 解析文本提取角色
-        result = await deepseek_service.parse_novel_text(full_text)
+        result = await get_llm_service().parse_novel_text(full_text)
         
         if "error" in result:
             return {"success": False, "message": f"解析失败: {result['error']}"}
@@ -494,7 +500,7 @@ async def split_chapter(
         raise HTTPException(status_code=400, detail="未找到章节拆分提示词模板")
     
     # 调用 DeepSeek API 进行拆分
-    result = await deepseek_service.split_chapter_with_prompt(
+    result = await get_llm_service().split_chapter_with_prompt(
         chapter_title=chapter.title,
         chapter_content=chapter.content or "",
         prompt_template=prompt_template.template,
@@ -583,6 +589,22 @@ async def generate_shot_image(
     
     if not workflow:
         raise HTTPException(status_code=400, detail="未配置分镜生图工作流")
+    
+    # 清除旧的图片数据，避免前端显示旧图
+    shot_images = json.loads(chapter.shot_images) if chapter.shot_images else []
+    if isinstance(shot_images, list) and len(shot_images) >= shot_index:
+        shot_images[shot_index - 1] = None
+        chapter.shot_images = json.dumps(shot_images, ensure_ascii=False)
+    
+    # 同时清除 parsed_data 中的旧图片 URL
+    if "shots" in parsed_data and len(parsed_data["shots"]) >= shot_index:
+        if "image_url" in parsed_data["shots"][shot_index - 1]:
+            del parsed_data["shots"][shot_index - 1]["image_url"]
+        if "image_path" in parsed_data["shots"][shot_index - 1]:
+            del parsed_data["shots"][shot_index - 1]["image_path"]
+        chapter.parsed_data = json.dumps(parsed_data, ensure_ascii=False)
+    
+    db.commit()
     
     # 创建任务记录
     task = Task(
@@ -969,6 +991,16 @@ async def generate_shot_task(
                 
                 # 保存回数据库
                 chapter.parsed_data = json.dumps(latest_parsed_data, ensure_ascii=False)
+                
+                # 同时更新 shot_images 数组（前端优先从这个数组读取）
+                shot_images = json.loads(chapter.shot_images) if chapter.shot_images else []
+                if not isinstance(shot_images, list):
+                    shot_images = []
+                while len(shot_images) < shot_index:
+                    shot_images.append(None)
+                shot_images[shot_index - 1] = local_url
+                chapter.shot_images = json.dumps(shot_images, ensure_ascii=False)
+                
                 db.commit()
                 
                 print(f"[ShotTask {task_id}] Completed, image saved: {local_path}")
@@ -990,6 +1022,16 @@ async def generate_shot_task(
                     latest_parsed_data["shots"].append({})
                 latest_parsed_data["shots"][shot_index - 1]["image_url"] = image_url
                 chapter.parsed_data = json.dumps(latest_parsed_data, ensure_ascii=False)
+                
+                # 同时更新 shot_images 数组
+                shot_images = json.loads(chapter.shot_images) if chapter.shot_images else []
+                if not isinstance(shot_images, list):
+                    shot_images = []
+                while len(shot_images) < shot_index:
+                    shot_images.append(None)
+                shot_images[shot_index - 1] = image_url
+                chapter.shot_images = json.dumps(shot_images, ensure_ascii=False)
+                
                 db.commit()
         else:
             task.status = "failed"
@@ -1099,6 +1141,16 @@ async def generate_shot_video(
         print(f"[GenerateVideo] Deleting failed task {failed_task.id} for shot {shot_index} to allow regeneration")
         db.delete(failed_task)
         db.commit()
+    
+    # 【关键】清除该分镜的旧视频记录（避免前端显示旧视频）
+    shot_videos = json.loads(chapter.shot_videos) if chapter.shot_videos else []
+    if isinstance(shot_videos, list) and len(shot_videos) >= shot_index:
+        old_video_url = shot_videos[shot_index - 1]
+        if old_video_url:
+            print(f"[GenerateVideo] Clearing old video record for shot {shot_index}: {old_video_url}")
+            shot_videos[shot_index - 1] = None
+            chapter.shot_videos = json.dumps(shot_videos)
+            db.commit()
     
     # 获取激活的视频生成工作流
     workflow = db.query(Workflow).filter(
@@ -1917,3 +1969,54 @@ async def merge_chapter_videos(
             "success": False,
             "message": result.get("message", "合并失败")
         }
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/clear-resources", response_model=dict)
+async def clear_chapter_resources(
+    novel_id: str,
+    chapter_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    清除章节的所有生成资源（用于重新拆分分镜头前）
+    
+    清除的内容：
+    - parsed_data (分镜头 JSON 数据)
+    - shot_images (分镜头图片数组)
+    - shot_videos (分镜头视频数组)
+    - transition_videos (转场视频字典)
+    - merged_image (合并角色图)
+    - 物理文件（整个章节目录）
+    """
+    # 验证小说和章节存在
+    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    
+    chapter = db.query(Chapter).filter(
+        Chapter.id == chapter_id,
+        Chapter.novel_id == novel_id
+    ).first()
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    
+    # 【第一步】删除物理文件（整个章节目录）
+    print(f"[ClearResources] Deleting physical files for chapter {chapter_id}")
+    file_deleted = file_storage.delete_chapter_directory(novel_id, chapter_id)
+    
+    # 【第二步】清除数据库记录
+    chapter.parsed_data = None
+    chapter.shot_images = None
+    chapter.shot_videos = None
+    chapter.transition_videos = None
+    chapter.merged_image = None
+    
+    db.commit()
+    
+    print(f"[ClearResources] Chapter resources cleared. Files deleted: {file_deleted}")
+    
+    return {
+        "success": True,
+        "message": "章节资源已清除" + ("（包含物理文件）" if file_deleted else "（物理文件清除失败）"),
+        "files_deleted": file_deleted
+    }

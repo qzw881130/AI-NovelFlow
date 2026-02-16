@@ -130,47 +130,48 @@ SYSTEM_CHAPTER_SPLIT_TEMPLATES = [
 
 核心要求：
 
-1. 严格按照电影分镜逻辑进行拆分
-2. 每个分镜必须具备：
-   - 明确的画面动作
-   - 清晰的场景位置
-   - 出现角色
-   - 可视化描述（用于AI生成图像）
-   - 镜头类型（特写、中景、全景等）
-3. 每个分镜的剧情字数必须控制在 {每个分镜对应拆分故事字数} 左右（允许±20%浮动）
-4. 所有画面视觉描述必须符合：{图像风格}
-5. 不允许长段叙事，一个镜头只表达一个清晰动作或画面
-6. 输出必须是纯JSON，不允许任何解释文字，不允许Markdown
-7. 必须提取：
-   - chapter 章节标题
-   - characters 本章出现角色（去重）
-   - scenes 本章出现的场景（去重）
-   - shots 分镜数组
+1. 严格按照影视镜头语言拆分
+2. 每个分镜必须是"可直接用于AI生图/生视频"的结构化画面描述
+3. 每个镜头 description 必须包含：
+   - Scene（场景环境 + 光线 + 摄影机）
+   - Characters（逐个角色锁定形象 + 服装关键词 + 当前动作）
+   - Action（一句话总结镜头主行为）
+4. description 总长度控制在 80-140 字之间（必须包含完整结构）
+5. 所有视觉描述必须符合：{图像风格}
+6. 不允许普通叙事句
+7. 不允许心理描写
+8. 不允许解释性文字
+9. 输出必须是纯 JSON
+10. 不允许 Markdown
+
+强制镜头结构模板（description 必须严格使用）：
+
+Scene: {中文场景环境句子}, {光线描述}, {镜头类型与机位描述}, {图像风格}。
+Characters:
+- {角色名1}: 保持参考人设的面部、发型、体型比例与服装轮廓不变; {宋代服饰关键词}; {当前镜头动作}.
+- {角色名2}: 保持参考人设的面部、发型、体型比例与服装轮廓不变; {宋代服饰关键词}; {当前镜头动作}.
+Action: {一句话概括主要角色正在发生的动作行为}。
 
 分镜规则：
 
 - id：从1递增
-- description：必须是画面级描述，带动作感，便于AI生图，包含镜头类型建议
 - characters：当前镜头出现角色
 - scene：当前镜头所在场景
-- duration：根据动作复杂度自动估算时长（3-10秒）
-
-镜头类型：
-- 特写(CU)：用于表现情绪、细节
-- 中景(MS)：用于对话、动作
-- 全景(WS)：用于场景展示
-- 远景(EWS)：用于环境交代
+- duration：3-10秒，根据动作复杂度自动判断
 
 时长规则：
-- 静态画面/特写：3-5秒
-- 对话画面中景：5-8秒
-- 动作全景：6-10秒
-- 环境远景：4-6秒
+
+- 静态画面：3-5秒
+- 对话画面：5-8秒
+- 动作冲突：6-10秒
 
 禁止：
-- 不得出现心理描写无法可视化内容
-- 不得输出无效空镜头
-- 不得改变原剧情走向
+- 不得输出 image_path、image_url 等字段
+- 不得添加额外键
+- 不得改变剧情
+- 不得合并多个剧情行为到一个镜头
+- 不得省略 Scene / Characters / Action 任意一部分
+
 
 输出格式必须严格如下：
 
@@ -189,7 +190,7 @@ SYSTEM_CHAPTER_SPLIT_TEMPLATES = [
     "shots": [
         {{
             "id": 1,
-            "description": "[中景] 萧炎站在萧家门口，仰望牌匾，表情复杂",
+            "description": "萧炎站在萧家门口，仰望牌匾",
             "characters": [
                 "萧炎"
             ],
@@ -198,7 +199,7 @@ SYSTEM_CHAPTER_SPLIT_TEMPLATES = [
         }},
         {{
             "id": 2,
-            "description": "[特写] 萧战从大厅走出，面带忧色，眉头紧锁",
+            "description": "萧战从大厅走出，面带忧色",
             "characters": [
                 "萧战"
             ],
@@ -217,21 +218,9 @@ SYSTEM_PROMPT_TEMPLATES = SYSTEM_CHARACTER_TEMPLATES + SYSTEM_CHAPTER_SPLIT_TEMP
 
 def init_system_prompt_templates(db: Session):
     """初始化系统预设提示词模板"""
-    # 检查是否已有系统模板
-    existing = db.query(PromptTemplate).filter(PromptTemplate.is_system == True).first()
-    if existing:
-        # 检查是否已有章节拆分类型模板
-        chapter_split = db.query(PromptTemplate).filter(
-            PromptTemplate.is_system == True,
-            PromptTemplate.type == "chapter_split"
-        ).first()
-        if chapter_split:
-            return
-        print("[初始化] 补充章节拆分提示词模板...")
-    else:
-        print("[初始化] 创建系统预设提示词模板...")
+    print("[初始化] 更新系统预设提示词模板...")
     
-    # 创建系统预设模板
+    # 创建或更新系统预设模板
     for tmpl_data in SYSTEM_PROMPT_TEMPLATES:
         # 检查是否已存在同名同类型的系统模板
         existing = db.query(PromptTemplate).filter(
@@ -240,7 +229,12 @@ def init_system_prompt_templates(db: Session):
             PromptTemplate.is_system == True
         ).first()
         
-        if not existing:
+        if existing:
+            # 更新现有模板内容
+            existing.description = tmpl_data["description"]
+            existing.template = tmpl_data["template"]
+        else:
+            # 创建新模板
             template = PromptTemplate(
                 name=tmpl_data["name"],
                 description=tmpl_data["description"],
@@ -252,7 +246,7 @@ def init_system_prompt_templates(db: Session):
             db.add(template)
     
     db.commit()
-    print("[初始化] 系统预设提示词模板创建完成")
+    print("[初始化] 系统预设提示词模板更新完成")
 
 
 class PromptTemplateCreate(BaseModel):

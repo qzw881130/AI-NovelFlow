@@ -3,6 +3,7 @@ import httpx
 
 from app.core.config import get_settings
 from app.services.comfyui_monitor import get_monitor, init_monitor
+from app.services.llm_service import LLMService
 
 router = APIRouter()
 settings = get_settings()
@@ -38,25 +39,70 @@ async def get_real_gpu_stats():
     return None
 
 
-@router.get("/deepseek")
-async def check_deepseek():
-    """检查 DeepSeek API 连接状态"""
-    if not settings.DEEPSEEK_API_KEY:
-        raise HTTPException(status_code=503, detail="DeepSeek API Key 未配置")
+@router.get("/llm")
+async def check_llm():
+    """检查 LLM API 连接状态（支持多厂商）"""
+    from app.core.config import get_settings
+    settings = get_settings()
+    
+    llm_service = LLMService()
+    
+    # 调试信息
+    debug_info = {
+        "provider": llm_service.provider,
+        "model": llm_service.model,
+        "api_url": llm_service.api_url,
+        "api_key_configured": bool(llm_service.api_key),
+        "proxy_enabled": llm_service.proxy_enabled,
+    }
+    
+    if not llm_service.api_key:
+        raise HTTPException(
+            status_code=503, 
+            detail={
+                "message": "LLM API Key 未配置",
+                "debug": debug_info
+            }
+        )
     
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{settings.DEEPSEEK_API_URL}/models",
-                headers={"Authorization": f"Bearer {settings.DEEPSEEK_API_KEY}"},
-                timeout=5.0
+        result = await llm_service.chat_completion(
+            system_prompt="You are a helpful assistant.",
+            user_content="Hi",
+            max_tokens=10
+        )
+        
+        if result["success"]:
+            return {
+                "status": "ok",
+                "message": f"{llm_service.provider.upper()} API 连接正常",
+                "provider": llm_service.provider,
+                "model": llm_service.model
+            }
+        else:
+            raise HTTPException(
+                status_code=503, 
+                detail={
+                    "message": "LLM API 连接失败",
+                    "error": result.get("error", "未知错误"),
+                    "debug": debug_info
+                }
             )
-            if response.status_code == 200:
-                return {"status": "ok", "message": "DeepSeek API 连接正常"}
-            else:
-                raise HTTPException(status_code=503, detail="DeepSeek API 连接失败")
     except Exception as e:
-        raise HTTPException(status_code=503, detail=f"DeepSeek API 连接失败: {str(e)}")
+        raise HTTPException(
+            status_code=503, 
+            detail={
+                "message": f"LLM API 连接失败: {str(e)}",
+                "debug": debug_info
+            }
+        )
+
+
+# 兼容旧接口
+@router.get("/deepseek")
+async def check_deepseek():
+    """检查 DeepSeek API 连接状态（兼容旧接口）"""
+    return await check_llm()
 
 
 @router.get("/comfyui")
