@@ -209,34 +209,23 @@ async def cancel_all_tasks(db: Session = Depends(get_db)):
             "cancelled_count": 0
         }
     
-    # 分离 queued 和 running 任务
-    queued_tasks = [t for t in active_tasks if t.status == "pending" and t.comfyui_prompt_id]
-    running_tasks = [t for t in active_tasks if t.status == "running" and t.comfyui_prompt_id]
+    # 收集所有有 comfyui_prompt_id 的任务
+    tasks_with_prompt_id = [t for t in active_tasks if t.comfyui_prompt_id]
+    prompt_ids = [t.comfyui_prompt_id for t in tasks_with_prompt_id]
     
-    print(f"[CancelAll] Found {len(queued_tasks)} queued tasks and {len(running_tasks)} running tasks")
+    print(f"[CancelAll] Found {len(active_tasks)} active tasks, {len(prompt_ids)} have ComfyUI prompt_id")
+    print(f"[CancelAll] Prompt IDs to cancel: {prompt_ids}")
     
-    # 1. 首先尝试从 ComfyUI 队列中删除 queued 任务
-    deleted_from_queue = 0
-    for task in queued_tasks:
+    # 调用 ComfyUI 取消匹配的任务
+    cancel_result = {"deleted_from_queue": [], "interrupted": False, "not_found": []}
+    if prompt_ids:
         try:
-            result = await comfyui_service.delete_from_queue(task.comfyui_prompt_id)
-            print(f"[CancelAll] Deleted from queue {task.comfyui_prompt_id}: {result}")
-            if result.get("success"):
-                deleted_from_queue += 1
+            cancel_result = await comfyui_service.cancel_all_matching_tasks(prompt_ids)
+            print(f"[CancelAll] Cancel result: {cancel_result}")
         except Exception as e:
-            print(f"[CancelAll] Failed to delete from queue {task.comfyui_prompt_id}: {e}")
+            print(f"[CancelAll] Cancel API error: {e}")
     
-    # 2. 如果有 running 任务，调用一次 interrupt（会中断所有正在执行的任务）
-    interrupted = False
-    if running_tasks:
-        try:
-            result = await comfyui_service.interrupt_execution()
-            print(f"[CancelAll] Interrupt execution: {result}")
-            interrupted = result.get("success", False)
-        except Exception as e:
-            print(f"[CancelAll] Failed to interrupt execution: {e}")
-    
-    # 3. 更新所有任务状态为 failed
+    # 更新所有任务状态为 failed
     cancelled_count = 0
     failed_count = 0
     for task in active_tasks:
@@ -251,21 +240,25 @@ async def cancel_all_tasks(db: Session = Depends(get_db)):
     
     db.commit()
     
+    # 构建返回消息
     message_parts = []
     if cancelled_count > 0:
         message_parts.append(f"已终止 {cancelled_count} 个任务")
-    if deleted_from_queue > 0:
-        message_parts.append(f"从队列删除 {deleted_from_queue} 个")
-    if interrupted:
+    if len(cancel_result.get("deleted_from_queue", [])) > 0:
+        message_parts.append(f"从队列删除 {len(cancel_result['deleted_from_queue'])} 个")
+    if cancel_result.get("interrupted"):
         message_parts.append("已中断运行中任务")
+    if len(cancel_result.get("not_found", [])) > 0:
+        message_parts.append(f"{len(cancel_result['not_found'])} 个未在 ComfyUI 中找到")
     if failed_count > 0:
-        message_parts.append(f"{failed_count} 个失败")
+        message_parts.append(f"{failed_count} 个更新失败")
     
     return {
         "success": True,
         "message": "；".join(message_parts) if message_parts else "操作完成",
         "cancelled_count": cancelled_count,
-        "failed_count": failed_count
+        "failed_count": failed_count,
+        "details": cancel_result
     }
 
 

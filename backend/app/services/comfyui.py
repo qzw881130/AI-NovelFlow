@@ -1405,3 +1405,98 @@ class ComfyUIService:
         
         # 如果删除队列失败，尝试中断当前执行
         return await self.interrupt_execution()
+    
+    async def get_queue_info(self) -> Dict[str, Any]:
+        """
+        获取 ComfyUI 队列信息
+        
+        Returns:
+            {
+                "queue_running": [...],  # 正在执行的任务
+                "queue_pending": [...]   # 等待执行的任务
+            }
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/queue",
+                    timeout=10.0
+                )
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    print(f"[ComfyUI] Get queue failed: {response.status_code}")
+                    return {"queue_running": [], "queue_pending": []}
+        except Exception as e:
+            print(f"[ComfyUI] Get queue error: {e}")
+            return {"queue_running": [], "queue_pending": []}
+    
+    async def cancel_all_matching_tasks(self, prompt_ids: List[str]) -> Dict[str, Any]:
+        """
+        取消所有匹配的任务（从队列中删除 + 中断正在执行的）
+        
+        Args:
+            prompt_ids: 要取消的 ComfyUI 任务 ID 列表
+            
+        Returns:
+            {
+                "deleted_from_queue": [...],
+                "interrupted": bool,
+                "not_found": [...]
+            }
+        """
+        result = {
+            "deleted_from_queue": [],
+            "interrupted": False,
+            "not_found": []
+        }
+        
+        if not prompt_ids:
+            return result
+        
+        # 1. 获取 ComfyUI 当前队列信息
+        queue_info = await self.get_queue_info()
+        queue_running = queue_info.get("queue_running", [])
+        queue_pending = queue_info.get("queue_pending", [])
+        
+        print(f"[ComfyUI] Queue running: {len(queue_running)}, pending: {len(queue_pending)}")
+        
+        # 提取队列中的 prompt_id
+        running_ids = set()
+        for item in queue_running:
+            # queue_running 是一个数组，每个元素是 [prompt_id, ...]
+            if isinstance(item, list) and len(item) > 0:
+                running_ids.add(str(item[0]))
+        
+        pending_ids = set()
+        for item in queue_pending:
+            # queue_pending 结构相同
+            if isinstance(item, list) and len(item) > 0:
+                pending_ids.add(str(item[0]))
+        
+        print(f"[ComfyUI] Running IDs: {running_ids}")
+        print(f"[ComfyUI] Pending IDs: {pending_ids}")
+        
+        # 2. 从队列中删除等待中的任务
+        for pid in prompt_ids:
+            if pid in pending_ids:
+                delete_result = await self.delete_from_queue(pid)
+                if delete_result["success"]:
+                    result["deleted_from_queue"].append(pid)
+                    print(f"[ComfyUI] Deleted {pid} from queue")
+        
+        # 3. 检查是否有正在执行的任务需要中断
+        has_running_match = any(pid in running_ids for pid in prompt_ids)
+        
+        if has_running_match:
+            print(f"[ComfyUI] Found running task match, sending interrupt")
+            interrupt_result = await self.interrupt_execution()
+            result["interrupted"] = interrupt_result["success"]
+        
+        # 4. 找出未找到的任务
+        all_queue_ids = running_ids | pending_ids
+        for pid in prompt_ids:
+            if pid not in all_queue_ids and pid not in result["deleted_from_queue"]:
+                result["not_found"].append(pid)
+        
+        return result
