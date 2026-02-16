@@ -54,6 +54,10 @@ export default function Novels() {
   const [importing, setImporting] = useState(false);
   const [parsingNovelId, setParsingNovelId] = useState<string | null>(null);
   const [editingNovel, setEditingNovel] = useState<Novel | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    novelId: string | null;
+  }>({ isOpen: false, novelId: null });
   
   // 提示词模板
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
@@ -105,12 +109,22 @@ export default function Novels() {
     setImporting(false);
   };
 
-  const parseCharacters = async (novelId: string) => {
-    if (!confirm('将使用 AI 分析小说内容并自动提取角色信息，是否继续？\n\n提示：解析可能需要 10-30 秒，请耐心等待。')) return;
+  const openParseConfirm = (novelId: string) => {
+    setConfirmDialog({ isOpen: true, novelId });
+  };
+
+  const closeParseConfirm = () => {
+    setConfirmDialog({ isOpen: false, novelId: null });
+  };
+
+  const confirmParseCharacters = async () => {
+    const novelId = confirmDialog.novelId;
+    if (!novelId) return;
     
+    closeParseConfirm();
     setParsingNovelId(novelId);
+    
     try {
-      // 使用同步模式，立即获取结果
       const res = await fetch(`${API_BASE}/novels/${novelId}/parse-characters/?sync=true`, {
         method: 'POST',
       });
@@ -119,7 +133,6 @@ export default function Novels() {
         const characters = data.data || [];
         if (characters.length > 0) {
           toast.success(`解析成功！识别到 ${characters.length} 个角色`);
-          // 跳转到角色库
           window.location.href = `/characters?novel=${novelId}`;
         } else {
           toast.warning('未识别到角色，请确保章节内容足够丰富');
@@ -252,7 +265,7 @@ export default function Novels() {
                   </span>
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => parseCharacters(novel.id)}
+                      onClick={() => openParseConfirm(novel.id)}
                       disabled={parsingNovelId === novel.id}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors disabled:opacity-50 text-sm"
                       title="AI解析角色"
@@ -528,6 +541,40 @@ export default function Novels() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* AI解析角色确认对话框 */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-purple-100 rounded-full">
+                <Sparkles className="h-6 w-6 text-purple-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">AI解析角色</h3>
+            </div>
+            <p className="text-gray-600 mb-2">
+              将使用 AI 分析小说内容并自动提取角色信息，是否继续？
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              提示：解析可能需要 10-30 秒，请耐心等待。
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={closeParseConfirm}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                取消
+              </button>
+              <button
+                onClick={confirmParseCharacters}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+              >
+                确认
+              </button>
+            </div>
           </div>
         </div>
       )}
