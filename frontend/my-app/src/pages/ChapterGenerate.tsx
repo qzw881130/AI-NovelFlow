@@ -569,16 +569,16 @@ function MergeVideosCard({
   );
 }
 
-// 步骤定义
+// 步骤定义 - 每个步骤有独特的颜色主题
 const STEPS = [
-  { key: 'content', label: '原文内容', icon: FileText },
-  { key: 'ai-parse', label: 'AI拆分分镜头', icon: Sparkles },
-  { key: 'json', label: 'JSON结构', icon: FileJson },
-  { key: 'character', label: '生成合并角色图', icon: Users },
-  { key: 'shots', label: '生成分镜图片', icon: ImageIcon },
-  { key: 'videos', label: '生成分镜视频', icon: Video },
-  { key: 'transitions', label: '生成分镜转场视频', icon: Film },
-  { key: 'compose', label: '合并视频', icon: CheckCircle }
+  { key: 'content', label: '原文内容', icon: FileText, color: 'from-blue-500 to-cyan-500' },
+  { key: 'ai-parse', label: 'AI拆分分镜头', icon: Sparkles, color: 'from-purple-500 to-pink-500' },
+  { key: 'json', label: 'JSON结构', icon: FileJson, color: 'from-emerald-500 to-teal-500' },
+  { key: 'character', label: '生成合并角色图', icon: Users, color: 'from-orange-500 to-amber-500' },
+  { key: 'shots', label: '生成分镜图片', icon: ImageIcon, color: 'from-rose-500 to-pink-500' },
+  { key: 'videos', label: '生成分镜视频', icon: Video, color: 'from-indigo-500 to-violet-500' },
+  { key: 'transitions', label: '生成分镜转场视频', icon: Film, color: 'from-cyan-500 to-blue-500' },
+  { key: 'compose', label: '合并视频', icon: CheckCircle, color: 'from-green-500 to-emerald-500' }
 ];
 
 interface Character {
@@ -1759,14 +1759,14 @@ export default function ChapterGenerate() {
 
   const renderStepIndicator = () => (
     <div className="card mb-6">
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-between">
         {STEPS.map((step, index) => {
           const StepIcon = step.icon;
           
           return (
-            <div key={step.key} className="flex items-center">
+            <div key={step.key} className="flex items-center flex-1">
               <div className="flex flex-col items-center">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center mb-2 bg-gradient-to-br from-purple-500 to-blue-600 text-white shadow-md">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 bg-gradient-to-br ${step.color} text-white shadow-md`}>
                   <StepIcon className="h-5 w-5" />
                 </div>
                 <span className="text-xs font-medium text-gray-700 text-center whitespace-nowrap">
@@ -1774,8 +1774,8 @@ export default function ChapterGenerate() {
                 </span>
               </div>
               {index < STEPS.length - 1 && (
-                <div className="flex items-center mx-2 mb-6">
-                  <ChevronRight className="h-5 w-5 text-gray-400" />
+                <div className="flex items-center flex-1 justify-center mb-6">
+                  <ChevronRight className="h-5 w-5 text-gray-300" />
                 </div>
               )}
             </div>
