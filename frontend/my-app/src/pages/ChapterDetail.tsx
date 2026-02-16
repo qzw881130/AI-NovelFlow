@@ -93,26 +93,13 @@ export default function ChapterDetail() {
     }
   };
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     if (!content.trim()) {
       toast.warning('请先编辑章节内容');
       return;
     }
     
-    if (!confirm('开始生成视频？这将解析文本、生成人设图、分镜图和视频。')) return;
-    
-    try {
-      const res = await fetch(`${API_BASE}/tasks/${cid}/generate/`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast.success('生成任务已启动');
-      }
-    } catch (error) {
-      console.error('启动生成失败:', error);
-      toast.error('启动生成失败');
-    }
+    navigate(`/novels/${id}/chapters/${cid}/generate`);
   };
 
   const getStatusInfo = (status: Chapter['status']) => {
