@@ -471,6 +471,26 @@ export default function ChapterGenerate() {
     }
   }, [currentShot, parsedData]);
 
+  // 键盘左右方向键切换分镜
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 只有在有分镜数据且没有在输入框中输入时才响应
+      if (!parsedData?.shots || parsedData.shots.length === 0) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      if (e.key === 'ArrowLeft') {
+        // 左方向键 - 切换到上一个分镜
+        setCurrentShot(prev => Math.max(1, prev - 1));
+      } else if (e.key === 'ArrowRight') {
+        // 右方向键 - 切换到下一个分镜
+        setCurrentShot(prev => Math.min(parsedData.shots.length, prev + 1));
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [parsedData?.shots?.length]);
+
   // 轮询任务状态
   useEffect(() => {
     if (!cid || !id) return;
