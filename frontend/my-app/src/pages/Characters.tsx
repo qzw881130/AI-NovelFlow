@@ -221,9 +221,10 @@ export default function Characters() {
         setCharacters(prev => prev.map(c => 
           c.id === character.id ? { ...c, generatingStatus: 'running' } : c
         ));
-        toast.success('人设图生成任务已创建，请前往任务队列查看进度');
-        // 跳转到任务队列
-        window.location.href = '/tasks';
+        toast.success('人设图生成中，请稍候...');
+        
+        // 开始轮询检查生成状态
+        pollCharacterStatus(character.id);
       } else {
         toast.error(data.message || '创建任务失败');
         setGeneratingId(null);
@@ -233,6 +234,41 @@ export default function Characters() {
       toast.error('创建任务失败');
       setGeneratingId(null);
     }
+  };
+
+  // 轮询检查角色生成状态
+  const pollCharacterStatus = async (characterId: string, maxAttempts = 60) => {
+    let attempts = 0;
+    const interval = setInterval(async () => {
+      attempts++;
+      if (attempts > maxAttempts) {
+        clearInterval(interval);
+        setGeneratingId(null);
+        toast.warning('生成时间较长，请稍后刷新查看结果');
+        return;
+      }
+      
+      try {
+        // 刷新角色列表
+        await fetchCharacters();
+        
+        // 检查当前角色状态
+        const character = characters.find(c => c.id === characterId);
+        if (character) {
+          if (character.generatingStatus === 'completed') {
+            clearInterval(interval);
+            setGeneratingId(null);
+            toast.success('人设图生成成功！');
+          } else if (character.generatingStatus === 'failed') {
+            clearInterval(interval);
+            setGeneratingId(null);
+            toast.error('人设图生成失败');
+          }
+        }
+      } catch (error) {
+        console.error('轮询状态失败:', error);
+      }
+    }, 3000); // 每3秒检查一次
   };
 
   const filteredCharacters = characters.filter(c => 
