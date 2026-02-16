@@ -207,9 +207,9 @@ export default function Novels() {
           {filteredNovels.map((novel) => (
             <div
               key={novel.id}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
+              className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group"
             >
-              <div className="aspect-video bg-gray-100 relative group">
+              <div className="aspect-video bg-gray-100 relative">
                 {novel.cover ? (
                   <img
                     src={novel.cover}
