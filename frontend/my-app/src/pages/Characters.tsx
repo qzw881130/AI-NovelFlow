@@ -37,6 +37,7 @@ export default function Characters() {
   const [generatingAppearanceId, setGeneratingAppearanceId] = useState<string | null>(null);
   const [characterPrompts, setCharacterPrompts] = useState<Record<string, { prompt: string; templateName: string }>>({});
   const [highlightedId, setHighlightedId] = useState<string | null>(highlightId);
+  const [parsingNovelId, setParsingNovelId] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     name: '',
@@ -235,6 +236,35 @@ export default function Characters() {
     c.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const parseCharacters = async (novelId: string) => {
+    if (!confirm('将使用 AI 分析小说内容并自动提取角色信息，是否继续？\n\n提示：解析可能需要 10-30 秒，请耐心等待。')) return;
+    
+    setParsingNovelId(novelId);
+    try {
+      const res = await fetch(`${API_BASE}/novels/${novelId}/parse-characters/?sync=true`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.success) {
+        const chars = data.data || [];
+        if (chars.length > 0) {
+          toast.success(`解析成功！识别到 ${chars.length} 个角色`);
+          // 刷新角色列表
+          fetchCharacters();
+        } else {
+          toast.warning('未识别到角色，请确保章节内容足够丰富');
+        }
+      } else {
+        toast.error('解析失败: ' + data.message);
+      }
+    } catch (error) {
+      console.error('解析角色失败:', error);
+      toast.error('解析失败，请检查网络连接');
+    } finally {
+      setParsingNovelId(null);
+    }
+  };
+
   const getNovelName = (novelId: string) => {
     const novel = novels.find(n => n.id === novelId);
     return novel?.title || '未知小说';
@@ -328,8 +358,24 @@ export default function Characters() {
           <User className="mx-auto h-12 w-12 text-gray-300" />
           <h3 className="mt-4 text-lg font-medium text-gray-900">暂无角色</h3>
           <p className="mt-1 text-sm text-gray-500">
-            点击"新建角色"创建你的第一个角色
+            点击"新建角色"创建你的第一个角色或者"AI解析角色"
           </p>
+          {selectedNovel !== 'all' && (
+            <div className="mt-4">
+              <button
+                onClick={() => parseCharacters(selectedNovel)}
+                disabled={parsingNovelId === selectedNovel}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors disabled:opacity-50"
+              >
+                {parsingNovelId === selectedNovel ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                <span>AI解析角色</span>
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
