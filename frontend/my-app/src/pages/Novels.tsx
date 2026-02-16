@@ -167,21 +167,6 @@ export default function Novels() {
           </p>
         </div>
         <div className="flex gap-3">
-          <label className="btn-secondary cursor-pointer">
-            <input
-              type="file"
-              accept=".txt"
-              className="hidden"
-              onChange={handleImport}
-              disabled={importing}
-            />
-            {importing ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Upload className="mr-2 h-4 w-4" />
-            )}
-            导入 TXT
-          </label>
           <button
             onClick={() => setShowCreateModal(true)}
             className="btn-primary"
@@ -214,7 +199,7 @@ export default function Novels() {
           <BookOpen className="mx-auto h-12 w-12 text-gray-300" />
           <h3 className="mt-4 text-lg font-medium text-gray-900">暂无小说</h3>
           <p className="mt-1 text-sm text-gray-500">
-            开始创建您的小说项目或导入 TXT 文件
+            开始创建您的小说项目
           </p>
         </div>
       ) : (
