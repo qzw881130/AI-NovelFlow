@@ -3,6 +3,7 @@ import asyncio
 import httpx
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 
@@ -13,6 +14,7 @@ from app.models.task import Task
 from app.schemas.novel import NovelCreate, NovelResponse, ChapterCreate, ChapterResponse
 from app.services.deepseek import DeepSeekService
 from app.services.comfyui import ComfyUIService
+from app.services.file_storage import file_storage
 
 deepseek_service = DeepSeekService()
 comfyui_service = ComfyUIService()
@@ -1678,3 +1680,47 @@ async def generate_transition_video_task(
             pass
     finally:
         db.close()
+
+
+@router.get("/{novel_id}/chapters/{chapter_id}/download-materials", response_model=dict)
+async def download_chapter_materials(
+    novel_id: str,
+    chapter_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    下载章节素材 ZIP 包
+    
+    打包内容包括：
+    - merged_characters/ 合并角色图
+    - shots/ 分镜图片
+    - transition-videos/ 转场视频
+    - videos/ 分镜视频
+    """
+    # 验证小说和章节存在
+    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    
+    chapter = db.query(Chapter).filter(
+        Chapter.id == chapter_id,
+        Chapter.novel_id == novel_id
+    ).first()
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    
+    # 生成 ZIP 文件
+    zip_path = file_storage.zip_chapter_materials(novel_id, chapter_id)
+    
+    if not zip_path:
+        raise HTTPException(status_code=404, detail="章节素材不存在或打包失败")
+    
+    # 返回文件
+    chapter_short = chapter_id[:8] if chapter_id else "unknown"
+    filename = f"{novel.title}_chapter_{chapter_short}_materials.zip"
+    
+    return FileResponse(
+        zip_path,
+        media_type="application/zip",
+        filename=filename
+    )

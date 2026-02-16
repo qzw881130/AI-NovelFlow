@@ -323,5 +323,51 @@ class FileStorageService:
             return {"success": False, "message": f"帧提取失败: {str(e)}"}
 
 
+    def zip_chapter_materials(self, novel_id: str, chapter_id: str) -> Optional[str]:
+        """
+        打包章节素材为 ZIP 文件
+        
+        Args:
+            novel_id: 小说ID
+            chapter_id: 章节ID
+            
+        Returns:
+            ZIP 文件路径，失败返回 None
+        """
+        try:
+            import zipfile
+            
+            story_dir = self._get_story_dir(novel_id)
+            chapter_short = chapter_id[:8] if chapter_id else "unknown"
+            chapter_dir = story_dir / f"chapter_{chapter_short}"
+            
+            if not chapter_dir.exists():
+                print(f"[FileStorage] Chapter directory not found: {chapter_dir}")
+                return None
+            
+            # 创建临时 ZIP 文件
+            zip_filename = f"chapter_{chapter_short}_materials.zip"
+            zip_path = story_dir / zip_filename
+            
+            # 打包目录
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # 遍历章节目录下的所有文件
+                for item in chapter_dir.rglob('*'):
+                    if item.is_file():
+                        # 计算相对路径（相对于 story_dir）
+                        arcname = item.relative_to(story_dir)
+                        zipf.write(item, arcname)
+                        print(f"[FileStorage] Added to zip: {arcname}")
+            
+            print(f"[FileStorage] ZIP created: {zip_path}")
+            return str(zip_path)
+            
+        except Exception as e:
+            import traceback
+            print(f"[FileStorage] Failed to zip chapter materials: {e}")
+            traceback.print_exc()
+            return None
+
+
 # 全局实例
 file_storage = FileStorageService()

@@ -29,6 +29,121 @@ import ComfyUIStatus from '../components/ComfyUIStatus';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
+// 章节素材下载组件
+function DownloadMaterialsCard({ 
+  novelId, 
+  chapterId, 
+  chapterTitle 
+}: { 
+  novelId: string; 
+  chapterId: string; 
+  chapterTitle: string;
+}) {
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownload = async () => {
+    if (!novelId || !chapterId) {
+      toast('章节信息不完整', 'error');
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const response = await fetch(
+        `${API_BASE}/novels/${novelId}/chapters/${chapterId}/download-materials/`
+      );
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          toast('章节素材不存在', 'error');
+        } else {
+          toast('下载失败', 'error');
+        }
+        return;
+      }
+
+      // 获取文件名
+      const contentDisposition = response.headers.get('content-disposition');
+      let filename = `${chapterTitle}_materials.zip`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?(.+?)"?$/);
+        if (match) {
+          filename = match[1];
+        }
+      }
+
+      // 下载文件
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast('素材包下载成功', 'success');
+    } catch (error) {
+      console.error('Download error:', error);
+      toast('下载失败', 'error');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50">
+        <div className="flex items-center gap-2">
+          <Package className="h-5 w-5 text-blue-600" />
+          <h3 className="font-semibold text-gray-900">章节素材</h3>
+        </div>
+      </div>
+      <div className="p-4">
+        <p className="text-sm text-gray-500 mb-4">
+          打包下载当前章节的所有素材，包括：
+        </p>
+        <ul className="text-sm text-gray-600 space-y-1 mb-4">
+          <li className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
+            合并角色图
+          </li>
+          <li className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
+            分镜图片
+          </li>
+          <li className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
+            分镜视频
+          </li>
+          <li className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
+            转场视频
+          </li>
+        </ul>
+        <button
+          onClick={handleDownload}
+          disabled={isDownloading}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isDownloading ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              打包中...
+            </>
+          ) : (
+            <>
+              <Download className="h-4 w-4" />
+              下载素材包
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // 步骤定义
 const STEPS = [
   { key: 'parse', label: '解析文本', icon: FileJson },
@@ -1907,8 +2022,15 @@ export default function ChapterGenerate() {
         {/* 右侧边栏 */}
         <div className="col-span-4 space-y-6">
           {/* 系统状态 - 吸顶效果 */}
-          <div className="sticky top-6">
+          <div className="sticky top-6 space-y-4">
             <ComfyUIStatus />
+            
+            {/* 章节素材下载 */}
+            <DownloadMaterialsCard 
+              novelId={id} 
+              chapterId={cid}
+              chapterTitle={chapter?.title || '未命名章节'}
+            />
           </div>
         </div>
       </div>
