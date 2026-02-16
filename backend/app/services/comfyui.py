@@ -3,7 +3,7 @@ import json
 import uuid
 import asyncio
 import random
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from app.core.config import get_settings
 
 settings = get_settings()
