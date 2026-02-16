@@ -195,7 +195,9 @@ async def cancel_all_tasks(db: Session = Depends(get_db)):
     """
     终止所有正在进行或待处理的任务
     
-    对于已经提交到 ComfyUI 的任务，会发送中断请求
+    执行顺序：
+    1. 先清空 ComfyUI 队列（清除所有等待中的任务）
+    2. 再中断当前正在执行的任务
     """
     # 获取所有 pending 或 running 的任务
     active_tasks = db.query(Task).filter(
@@ -209,32 +211,29 @@ async def cancel_all_tasks(db: Session = Depends(get_db)):
             "cancelled_count": 0
         }
     
-    # 收集所有有 comfyui_prompt_id 的任务
-    tasks_with_prompt_id = [t for t in active_tasks if t.comfyui_prompt_id]
-    prompt_ids = [t.comfyui_prompt_id for t in tasks_with_prompt_id]
-    
-    # 检查是否有 running 状态的任务（即使没有 prompt_id）
+    # 检查是否有 running 状态的任务
     has_running_task = any(t.status == "running" for t in active_tasks)
     
-    print(f"[CancelAll] Found {len(active_tasks)} active tasks, {len(prompt_ids)} have ComfyUI prompt_id")
-    print(f"[CancelAll] Has running task: {has_running_task}")
-    print(f"[CancelAll] Prompt IDs to cancel: {prompt_ids}")
+    print(f"[CancelAll] Found {len(active_tasks)} active tasks, has_running: {has_running_task}")
     
-    # 调用 ComfyUI 取消匹配的任务
-    cancel_result = {"deleted_from_queue": [], "interrupted": False, "not_found": []}
+    cancel_result = {
+        "queue_cleared": False,
+        "interrupted": False
+    }
     
-    # 1. 尝试取消有 prompt_id 的任务
-    if prompt_ids:
+    # 1. 【第一步】清空 ComfyUI 队列（先清除等待中的任务）
+    try:
+        print(f"[CancelAll] Step 1: Clearing ComfyUI queue")
+        clear_result = await comfyui_service.clear_queue()
+        cancel_result["queue_cleared"] = clear_result.get("success", False)
+        print(f"[CancelAll] Clear queue result: {clear_result}")
+    except Exception as e:
+        print(f"[CancelAll] Clear queue error: {e}")
+    
+    # 2. 【第二步】中断当前正在执行的任务
+    if has_running_task:
         try:
-            cancel_result = await comfyui_service.cancel_all_matching_tasks(prompt_ids)
-            print(f"[CancelAll] Cancel result: {cancel_result}")
-        except Exception as e:
-            print(f"[CancelAll] Cancel API error: {e}")
-    
-    # 2. 如果有 running 状态的任务但没有触发 interrupt，直接发送 interrupt
-    if has_running_task and not cancel_result.get("interrupted"):
-        try:
-            print(f"[CancelAll] Sending interrupt to ComfyUI")
+            print(f"[CancelAll] Step 2: Interrupting running task")
             interrupt_result = await comfyui_service.interrupt_execution()
             cancel_result["interrupted"] = interrupt_result.get("success", False)
             print(f"[CancelAll] Interrupt result: {interrupt_result}")
@@ -260,12 +259,10 @@ async def cancel_all_tasks(db: Session = Depends(get_db)):
     message_parts = []
     if cancelled_count > 0:
         message_parts.append(f"已终止 {cancelled_count} 个任务")
-    if len(cancel_result.get("deleted_from_queue", [])) > 0:
-        message_parts.append(f"从队列删除 {len(cancel_result['deleted_from_queue'])} 个")
+    if cancel_result.get("queue_cleared"):
+        message_parts.append("已清空队列")
     if cancel_result.get("interrupted"):
         message_parts.append("已中断运行中任务")
-    if len(cancel_result.get("not_found", [])) > 0:
-        message_parts.append(f"{len(cancel_result['not_found'])} 个未在 ComfyUI 中找到")
     if failed_count > 0:
         message_parts.append(f"{failed_count} 个更新失败")
     

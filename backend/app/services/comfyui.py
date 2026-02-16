@@ -1312,6 +1312,43 @@ class ComfyUIService:
                 "message": f"生成失败: {str(e)}"
             }
     
+    async def clear_queue(self) -> Dict[str, Any]:
+        """
+        清空 ComfyUI 队列中的所有等待任务
+        
+        Returns:
+            {
+                "success": bool,
+                "message": str
+            }
+        """
+        try:
+            async with httpx.AsyncClient() as client:
+                print(f"[ComfyUI] Clearing queue")
+                response = await client.post(
+                    f"{self.base_url}/queue",
+                    json={"clear": True},
+                    timeout=10.0
+                )
+                print(f"[ComfyUI] Clear queue response: {response.status_code}")
+                
+                if response.status_code == 200:
+                    return {
+                        "success": True,
+                        "message": "队列已清空"
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "message": f"清空队列失败: {response.status_code}"
+                    }
+        except Exception as e:
+            print(f"[ComfyUI] Clear queue failed: {e}")
+            return {
+                "success": False,
+                "message": f"清空队列请求失败: {str(e)}"
+            }
+    
     async def delete_from_queue(self, prompt_id: str) -> Dict[str, Any]:
         """
         从 ComfyUI 队列中删除等待执行的任务
