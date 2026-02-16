@@ -391,16 +391,19 @@ export default function Tasks() {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* 终止所有任务按钮 - 只在有进行中的任务时显示 */}
-          {(stats.pending > 0 || stats.running > 0) && (
-            <button
-              onClick={handleCancelAll}
-              className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors flex items-center font-medium"
-            >
-              <Square className="h-4 w-4 mr-2 fill-current" />
-              终止所有任务
-            </button>
-          )}
+          {/* 终止所有任务按钮 */}
+          <button
+            onClick={handleCancelAll}
+            disabled={stats.pending === 0 && stats.running === 0}
+            className={`px-4 py-2 rounded-lg transition-colors flex items-center font-medium ${
+              stats.pending === 0 && stats.running === 0
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-red-50 text-red-600 hover:bg-red-100'
+            }`}
+          >
+            <Square className="h-4 w-4 mr-2 fill-current" />
+            终止所有任务
+          </button>
           <button
             onClick={handleRefresh}
             disabled={refreshing}

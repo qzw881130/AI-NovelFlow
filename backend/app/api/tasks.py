@@ -190,7 +190,7 @@ async def delete_task(task_id: str, db: Session = Depends(get_db)):
     return {"success": True, "message": "任务已删除"}
 
 
-@router.post("/cancel-all", response_model=dict)
+@router.post("/cancel-all/", response_model=dict)
 async def cancel_all_tasks(db: Session = Depends(get_db)):
     """
     终止所有正在进行或待处理的任务
