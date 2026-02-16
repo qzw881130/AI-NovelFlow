@@ -26,7 +26,8 @@ import {
   Code,
   Plus,
   Trash2,
-  AlertCircle
+  AlertCircle,
+  FileText
 } from 'lucide-react';
 import type { Chapter, Novel } from '../types';
 import { toast } from '../stores/toastStore';
@@ -570,11 +571,14 @@ function MergeVideosCard({
 
 // 步骤定义
 const STEPS = [
-  { key: 'parse', label: '解析文本', icon: FileJson },
+  { key: 'content', label: '原文内容', icon: FileText },
+  { key: 'ai-parse', label: 'AI拆分分镜头', icon: Sparkles },
+  { key: 'json', label: 'JSON结构', icon: FileJson },
   { key: 'character', label: '生成合并角色图', icon: Users },
-  { key: 'shots', label: '生成分镜图', icon: ImageIcon },
-  { key: 'videos', label: '生成视频', icon: Video },
-  { key: 'compose', label: '合成视频', icon: CheckCircle }
+  { key: 'shots', label: '生成分镜图片', icon: ImageIcon },
+  { key: 'videos', label: '生成分镜视频', icon: Video },
+  { key: 'transitions', label: '生成分镜转场视频', icon: Film },
+  { key: 'compose', label: '合并视频', icon: CheckCircle }
 ];
 
 interface Character {
@@ -1781,7 +1785,7 @@ export default function ChapterGenerate() {
                 </span>
               </div>
               {index < STEPS.length - 1 && (
-                <div className={`w-16 h-0.5 mx-2 ${index < currentStepIndex ? 'bg-green-500' : 'bg-gray-200'}`} />
+                <div className={`w-8 h-0.5 mx-1 ${index < currentStepIndex ? 'bg-green-500' : 'bg-gray-200'}`} />
               )}
             </div>
           );
