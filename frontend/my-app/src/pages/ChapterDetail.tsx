@@ -267,7 +267,7 @@ export default function ChapterDetail() {
       </div>
 
       {/* Generated Assets */}
-      {(chapter.characterImages?.length || chapter.shotImages?.length || chapter.shotVideos?.length) && (
+      {Boolean(chapter.characterImages?.length || chapter.shotImages?.length || chapter.shotVideos?.length) && (
         <div className="card">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">生成资源</h3>
           
