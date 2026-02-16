@@ -173,7 +173,7 @@ export default function Characters() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除这个角色吗？')) return;
+    if (!window.confirm('确定要删除这个角色吗？')) return;
     
     try {
       await fetch(`${API_BASE}/characters/${id}/`, { method: 'DELETE' });
@@ -300,7 +300,7 @@ export default function Characters() {
       return;
     }
     
-    if (!confirm(`将为 ${charactersToGenerate.length} 个角色生成形象，是否继续？`)) return;
+    if (!window.confirm(`将为 ${charactersToGenerate.length} 个角色生成形象，是否继续？`)) return;
     
     setGeneratingAll(true);
     let successCount = 0;
