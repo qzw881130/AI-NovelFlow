@@ -492,15 +492,20 @@ export default function Characters() {
                 <button
                   onClick={() => generatePortrait(character)}
                   disabled={generatingId === character.id || character.generatingStatus === 'running'}
-                  className="absolute bottom-2 right-2 flex items-center gap-1 px-3 py-1.5 bg-purple-600/90 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-50 opacity-0 group-hover:opacity-100 text-xs"
-                  title={character.imageUrl ? '重新生成' : '生成形象'}
+                  className="absolute bottom-2 right-2 flex items-center gap-1 px-3 py-1.5 bg-purple-600/90 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-70 opacity-0 group-hover:opacity-100 text-xs"
+                  title={character.generatingStatus === 'running' ? '生成中...' : (character.imageUrl ? '重新生成' : '生成形象')}
                 >
                   {character.generatingStatus === 'running' || generatingId === character.id ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span>生成中...</span>
+                    </>
                   ) : (
-                    <Wand2 className="h-3 w-3" />
+                    <>
+                      <Wand2 className="h-3 w-3" />
+                      <span>AI生成形象</span>
+                    </>
                   )}
-                  <span>AI生成形象</span>
                 </button>
                 
                 {/* Loading Overlay - when local state shows generating */}
