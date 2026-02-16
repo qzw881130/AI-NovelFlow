@@ -372,7 +372,7 @@ class FileStorageService:
     async def merge_videos(self, video_paths: List[str], output_path: str, 
                           transition_videos: List[str] = None) -> Dict[str, Any]:
         """
-        合并多个视频文件
+        合并多个视频文件（使用 ffmpeg）
         
         Args:
             video_paths: 视频文件路径列表（分镜视频）
@@ -387,83 +387,97 @@ class FileStorageService:
             }
         """
         try:
-            import cv2
+            import subprocess
             import asyncio
+            import tempfile
+            import os
             
             if not video_paths or len(video_paths) == 0:
                 return {"success": False, "message": "没有视频文件"}
             
-            def _merge():
-                # 构建视频列表（插入转场视频）
-                final_video_list = []
-                for i, video_path in enumerate(video_paths):
+            # 构建视频列表（插入转场视频）
+            final_video_list = []
+            for i, video_path in enumerate(video_paths):
+                if Path(video_path).exists():
                     final_video_list.append(video_path)
-                    # 在每个视频后插入转场（除了最后一个）
-                    if transition_videos and i < len(transition_videos) and i < len(video_paths) - 1:
-                        trans_path = transition_videos[i]
-                        if Path(trans_path).exists():
-                            final_video_list.append(trans_path)
-                
-                if len(final_video_list) == 0:
-                    return {"success": False, "message": "没有有效的视频文件"}
-                
-                # 获取第一个视频的信息
-                first_cap = cv2.VideoCapture(final_video_list[0])
-                if not first_cap.isOpened():
-                    return {"success": False, "message": "无法打开第一个视频"}
-                
-                fps = first_cap.get(cv2.CAP_PROP_FPS)
-                width = int(first_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                height = int(first_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                first_cap.release()
-                
-                # 创建视频写入器
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-                
-                if not out.isOpened():
-                    return {"success": False, "message": "无法创建输出视频"}
-                
-                total_frames = 0
-                
-                # 逐个写入视频
+                # 在每个视频后插入转场（除了最后一个）
+                if transition_videos and i < len(transition_videos) and i < len(video_paths) - 1:
+                    trans_path = transition_videos[i]
+                    if trans_path and Path(trans_path).exists():
+                        final_video_list.append(trans_path)
+            
+            if len(final_video_list) == 0:
+                return {"success": False, "message": "没有有效的视频文件"}
+            
+            print(f"[FileStorage] Merging {len(final_video_list)} videos: {final_video_list}")
+            
+            # 创建临时文件列表
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+                concat_file = f.name
                 for video_path in final_video_list:
-                    cap = cv2.VideoCapture(video_path)
-                    if not cap.isOpened():
-                        continue
-                    
-                    # 如果需要调整分辨率
-                    v_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-                    v_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-                    
-                    while True:
-                        ret, frame = cap.read()
-                        if not ret:
-                            break
-                        
-                        # 调整分辨率以匹配输出
-                        if v_width != width or v_height != height:
-                            frame = cv2.resize(frame, (width, height))
-                        
-                        out.write(frame)
-                        total_frames += 1
-                    
-                    cap.release()
+                    # 使用 file 协议，需要处理路径中的特殊字符
+                    escaped_path = video_path.replace("'", "'\\''")
+                    f.write(f"file '{escaped_path}'\n")
+            
+            try:
+                # 使用 ffmpeg 合并视频
+                # -f concat: 使用 concat 协议
+                # -safe 0: 允许不安全的文件路径
+                # -c copy: 直接复制流，不重新编码（速度快，质量无损）
+                cmd = [
+                    'ffmpeg',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', concat_file,
+                    '-c', 'copy',
+                    '-y',  # 覆盖输出文件
+                    output_path
+                ]
                 
-                out.release()
+                print(f"[FileStorage] Running ffmpeg: {' '.join(cmd)}")
                 
+                # 在线程池中执行
+                loop = asyncio.get_event_loop()
+                
+                def _run_ffmpeg():
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True
+                    )
+                    return result
+                
+                result = await loop.run_in_executor(None, _run_ffmpeg)
+                
+                # 清理临时文件
+                os.unlink(concat_file)
+                
+                if result.returncode != 0:
+                    print(f"[FileStorage] FFmpeg error: {result.stderr}")
+                    return {
+                        "success": False,
+                        "message": f"视频合并失败: {result.stderr[:200]}"
+                    }
+                
+                # 检查输出文件是否存在
+                if not Path(output_path).exists():
+                    return {
+                        "success": False,
+                        "message": "输出文件未生成"
+                    }
+                
+                print(f"[FileStorage] Video merged successfully: {output_path}")
                 return {
                     "success": True,
                     "output_path": output_path,
                     "message": f"合并完成，共 {len(final_video_list)} 个视频片段"
                 }
-            
-            # 在线程池中执行
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, _merge)
-            
-            print(f"[FileStorage] Video merge result: {result}")
-            return result
+                
+            except Exception as e:
+                # 清理临时文件
+                if os.path.exists(concat_file):
+                    os.unlink(concat_file)
+                raise e
             
         except Exception as e:
             import traceback
