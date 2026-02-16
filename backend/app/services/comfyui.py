@@ -92,7 +92,7 @@ class ComfyUIService:
             
             # 等待任务完成，传入工作流和 save_image_node_id 配置以识别正确的输出节点
             save_image_node_id = node_mapping.get("save_image_node_id") if node_mapping else None
-            result = await self._wait_for_result(prompt_id, workflow, save_image_node_id)
+            result = await self._wait_for_result(prompt_id, workflow, save_image_node_id, timeout=7200)  # 2小时超时
             
             if result.get("success"):
                 return {
@@ -154,7 +154,7 @@ class ComfyUIService:
             
             prompt_id = queue_result.get("prompt_id")
             
-            result = await self._wait_for_result(prompt_id, workflow)
+            result = await self._wait_for_result(prompt_id, workflow, timeout=7200)  # 2小时超时
             
             return {
                 "success": result.get("success"),
@@ -948,7 +948,7 @@ class ComfyUIService:
                 prompt_id, 
                 workflow, 
                 save_image_node_id=save_image_node_id,
-                timeout=180
+                timeout=7200  # 2小时超时
             )
             
             return {

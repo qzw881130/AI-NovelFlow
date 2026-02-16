@@ -366,7 +366,6 @@ export default function Novels() {
                   onChange={(e) => setNewNovel({ ...newNovel, promptTemplateId: e.target.value })}
                   className="input-field mt-1"
                 >
-                  <option value="">使用系统默认</option>
                   {promptTemplates.map((template) => (
                     <option key={template.id} value={template.id}>
                       {template.name} {template.isSystem ? '(系统)' : '(自定义)'}
@@ -386,7 +385,6 @@ export default function Novels() {
                   onChange={(e) => setNewNovel({ ...newNovel, chapterSplitPromptTemplateId: e.target.value })}
                   className="input-field mt-1"
                 >
-                  <option value="">使用系统默认</option>
                   {chapterSplitTemplates.map((template) => (
                     <option key={template.id} value={template.id}>
                       {template.name} {template.isSystem ? '【系统默认】' : '【用户自定义】'}
@@ -496,7 +494,6 @@ export default function Novels() {
                   onChange={(e) => setEditingNovel({ ...editingNovel, promptTemplateId: e.target.value })}
                   className="input-field mt-1"
                 >
-                  <option value="">使用系统默认</option>
                   {promptTemplates.map((template) => (
                     <option key={template.id} value={template.id}>
                       {template.name} {template.isSystem ? '(系统)' : '(自定义)'}
@@ -516,7 +513,6 @@ export default function Novels() {
                   onChange={(e) => setEditingNovel({ ...editingNovel, chapterSplitPromptTemplateId: e.target.value })}
                   className="input-field mt-1"
                 >
-                  <option value="">使用系统默认</option>
                   {chapterSplitTemplates.map((template) => (
                     <option key={template.id} value={template.id}>
                       {template.name} {template.isSystem ? '【系统默认】' : '【用户自定义】'}

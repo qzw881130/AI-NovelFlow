@@ -560,14 +560,14 @@ export default function Characters() {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
+        <div className="relative flex-[3]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
             placeholder="搜索角色..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="input-field pl-10"
+            className="input-field pl-10 w-full"
           />
         </div>
         <select
@@ -580,7 +580,7 @@ export default function Characters() {
               setSearchParams({});
             }
           }}
-          className="input-field sm:w-48"
+          className="input-field flex-1"
         >
           <option value="all">所有小说</option>
           {novels.map(novel => (

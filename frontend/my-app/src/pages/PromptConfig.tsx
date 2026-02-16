@@ -26,6 +26,18 @@ interface PromptTemplate {
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
+// 默认AI解析角色系统提示词
+const DEFAULT_PARSE_CHARACTERS_PROMPT = `你是一个专业的小说解析助手。请分析提供的小说文本，提取以下信息并以JSON格式返回：
+
+1. characters: 角色列表，每个角色包含 name（姓名）、description（描述）、appearance（外貌特征）
+2. scenes: 场景列表，每个场景包含 title（标题）、description（描述）
+3. shots: 分镜列表，每个分镜包含 scene_id（所属场景）、description（画面描述）、camera_angle（镜头角度）
+
+注意：
+- 角色外貌特征要详细，用于AI绘图
+- 分镜描述要具体，包含画面构图、角色动作、环境细节
+- 返回必须是合法的JSON格式`;
+
 // 默认人设提示词模板
 const DEFAULT_CHARACTER_TEMPLATE = "character portrait, anime style, high quality, detailed, {appearance}, {description}, single character, centered, clean background, professional artwork, 8k";
 
@@ -117,6 +129,10 @@ Action: {一句话概括主要角色正在发生的动作行为}。
 }`;
 
 export default function PromptConfig() {
+  // AI解析角色系统提示词
+  const [parsePrompt, setParsePrompt] = useState(DEFAULT_PARSE_CHARACTERS_PROMPT);
+  const [savingParsePrompt, setSavingParsePrompt] = useState(false);
+  
   // 人设提示词状态
   const [characterTemplates, setCharacterTemplates] = useState<PromptTemplate[]>([]);
   const [loadingCharacter, setLoadingCharacter] = useState(true);
@@ -403,12 +419,75 @@ export default function PromptConfig() {
     );
   };
 
+  const handleSaveParsePrompt = async () => {
+    setSavingParsePrompt(true);
+    // TODO: 后端需要支持保存这个系统提示词
+    // 目前先保存到 localStorage
+    localStorage.setItem('novelflow_parse_characters_prompt', parsePrompt);
+    toast.success('系统提示词已保存');
+    setSavingParsePrompt(false);
+  };
+
+  const handleResetParsePrompt = () => {
+    setParsePrompt(DEFAULT_PARSE_CHARACTERS_PROMPT);
+    toast.success('已恢复默认提示词');
+  };
+
+  // 从 localStorage 加载保存的提示词
+  useEffect(() => {
+    const saved = localStorage.getItem('novelflow_parse_characters_prompt');
+    if (saved) {
+      setParsePrompt(saved);
+    }
+  }, []);
+
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">提示词配置</h1>
         <p className="mt-1 text-sm text-gray-500">
           管理 AI 角色生成和章节拆分提示词模板
+        </p>
+      </div>
+
+      {/* AI解析角色系统提示词 */}
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h2 className="text-lg font-semibold text-gray-900">AI解析角色系统提示词</h2>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleResetParsePrompt}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
+            >
+              <X className="h-4 w-4" />
+              恢复默认
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveParsePrompt}
+              disabled={savingParsePrompt}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-md transition-colors disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {savingParsePrompt ? '保存中...' : '保存'}
+            </button>
+          </div>
+        </div>
+        <textarea
+          rows={12}
+          value={parsePrompt}
+          onChange={(e) => setParsePrompt(e.target.value)}
+          className="input-field font-mono text-sm w-full"
+          placeholder="输入 AI 解析角色时的系统提示词..."
+        />
+        <p className="text-xs text-gray-500 mt-2">
+          提示：此提示词用于 AI 解析小说文本提取角色、场景和分镜信息。修改后将影响所有新的小说解析任务。
         </p>
       </div>
 
