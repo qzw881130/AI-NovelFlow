@@ -34,7 +34,7 @@ export default function TestCases() {
   const fetchTestCases = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/test-cases`);
+      const res = await fetch(`${API_BASE}/test-cases/`);
       const data = await res.json();
       if (data.success) {
         setTestCases(data.data || []);
@@ -53,7 +53,7 @@ export default function TestCases() {
     }
     
     try {
-      const res = await fetch(`${API_BASE}/test-cases/${id}`);
+      const res = await fetch(`${API_BASE}/test-cases/${id}/`);
       const data = await res.json();
       if (data.success) {
         setDetails({ ...details, [id]: data.data });
@@ -67,7 +67,7 @@ export default function TestCases() {
   const runTestCase = async (testCase: TestCase) => {
     setRunningId(testCase.id);
     try {
-      const res = await fetch(`${API_BASE}/test-cases/${testCase.id}/run`, {
+      const res = await fetch(`${API_BASE}/test-cases/${testCase.id}/run/`, {
         method: 'POST',
       });
       const data = await res.json();
@@ -93,7 +93,7 @@ export default function TestCases() {
     if (!confirm('确定要删除这个测试用例吗？')) return;
     
     try {
-      await fetch(`${API_BASE}/test-cases/${testCase.id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/test-cases/${testCase.id}/`, { method: 'DELETE' });
       setTestCases(testCases.filter(t => t.id !== testCase.id));
     } catch (error) {
       console.error('删除失败:', error);

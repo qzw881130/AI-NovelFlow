@@ -111,7 +111,7 @@ export default function Novels() {
     setParsingNovelId(novelId);
     try {
       // 使用同步模式，立即获取结果
-      const res = await fetch(`${API_BASE}/novels/${novelId}/parse-characters?sync=true`, {
+      const res = await fetch(`${API_BASE}/novels/${novelId}/parse-characters/?sync=true`, {
         method: 'POST',
       });
       const data = await res.json();

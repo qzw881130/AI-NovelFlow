@@ -226,7 +226,7 @@ export default function ChapterGenerate() {
     
     try {
       const res = await fetch(
-        `${API_BASE}/novels/${id}/chapters/${cid}/shots/${shotIndex}/generate`,
+        `${API_BASE}/novels/${id}/chapters/${cid}/shots/${shotIndex}/generate/`,
         { method: 'POST' }
       );
       const data = await res.json();
@@ -282,7 +282,7 @@ export default function ChapterGenerate() {
         setGeneratingShots(prev => new Set(prev).add(shotIndex));
         
         const res = await fetch(
-          `${API_BASE}/novels/${id}/chapters/${cid}/shots/${shotIndex}/generate`,
+          `${API_BASE}/novels/${id}/chapters/${cid}/shots/${shotIndex}/generate/`,
           { method: 'POST' }
         );
         const data = await res.json();
@@ -365,7 +365,7 @@ export default function ChapterGenerate() {
         setGeneratingVideos(prev => new Set(prev).add(shotIndex));
         
         const res = await fetch(
-          `${API_BASE}/novels/${id}/chapters/${cid}/shots/${shotIndex}/generate-video`,
+          `${API_BASE}/novels/${id}/chapters/${cid}/shots/${shotIndex}/generate-video/`,
           { method: 'POST' }
         );
         const data = await res.json();
@@ -415,7 +415,7 @@ export default function ChapterGenerate() {
     
     try {
       const res = await fetch(
-        `${API_BASE}/novels/${id}/chapters/${cid}/shots/${shotIndex}/generate-video`,
+        `${API_BASE}/novels/${id}/chapters/${cid}/shots/${shotIndex}/generate-video/`,
         { method: 'POST' }
       );
       const data = await res.json();
@@ -537,9 +537,9 @@ export default function ChapterGenerate() {
     try {
       // 同时检查图片、视频和转场视频任务
       const [imageRes, videoRes, transitionRes] = await Promise.all([
-        fetch(`${API_BASE}/tasks?type=shot_image&limit=50`),
-        fetch(`${API_BASE}/tasks?type=shot_video&limit=50`),
-        fetch(`${API_BASE}/tasks?type=transition_video&limit=50`)
+        fetch(`${API_BASE}/tasks/?type=shot_image&limit=50`),
+        fetch(`${API_BASE}/tasks/?type=shot_video&limit=50`),
+        fetch(`${API_BASE}/tasks/?type=transition_video&limit=50`)
       ]);
       const [imageData, videoData, transitionData] = await Promise.all([
         imageRes.json(),
@@ -678,7 +678,7 @@ export default function ChapterGenerate() {
   // 获取分镜生成任务状态
   const fetchShotTasks = async () => {
     try {
-      const res = await fetch(`${API_BASE}/tasks?type=shot_image&limit=50`);
+      const res = await fetch(`${API_BASE}/tasks/?type=shot_image&limit=50`);
       const data = await res.json();
       if (data.success) {
         // 过滤出当前章节的 pending/running 任务
@@ -709,7 +709,7 @@ export default function ChapterGenerate() {
   // 获取视频生成任务状态
   const fetchVideoTasks = async () => {
     try {
-      const res = await fetch(`${API_BASE}/tasks?type=shot_video&limit=50`);
+      const res = await fetch(`${API_BASE}/tasks/?type=shot_video&limit=50`);
       const data = await res.json();
       if (data.success) {
         // 过滤出当前章节的 pending/running 任务
@@ -742,7 +742,7 @@ export default function ChapterGenerate() {
   // 获取转场视频生成任务状态
   const fetchTransitionTasks = async () => {
     try {
-      const res = await fetch(`${API_BASE}/tasks?type=transition_video&limit=50`);
+      const res = await fetch(`${API_BASE}/tasks/?type=transition_video&limit=50`);
       const data = await res.json();
       if (data.success) {
         // 过滤出当前章节的 pending/running 任务
@@ -774,7 +774,7 @@ export default function ChapterGenerate() {
   // 获取转场工作流列表
   const fetchTransitionWorkflows = async () => {
     try {
-      const res = await fetch(`${API_BASE}/workflows?type=transition`);
+      const res = await fetch(`${API_BASE}/workflows/?type=transition`);
       const data = await res.json();
       if (data.success) {
         setTransitionWorkflows(data.data || []);
@@ -815,7 +815,7 @@ export default function ChapterGenerate() {
       }
       
       const res = await fetch(
-        `${API_BASE}/novels/${id}/chapters/${cid}/transitions`,
+        `${API_BASE}/novels/${id}/chapters/${cid}/transitions/`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -866,7 +866,7 @@ export default function ChapterGenerate() {
       console.log(`[GenerateAllTransitions] Using config: duration=${transitionDuration}s, frames=${frameCount}, workflow=${selectedTransitionWorkflow || 'default'}`);
       
       const res = await fetch(
-        `${API_BASE}/novels/${id}/chapters/${cid}/transitions/batch`,
+        `${API_BASE}/novels/${id}/chapters/${cid}/transitions/batch/`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -895,7 +895,7 @@ export default function ChapterGenerate() {
   // 获取小说数据
   const fetchNovel = async () => {
     try {
-      const res = await fetch(`${API_BASE}/novels/${id}`);
+      const res = await fetch(`${API_BASE}/novels/${id}/`);
       const data = await res.json();
       if (data.success) {
         setNovel(data.data);
@@ -909,7 +909,7 @@ export default function ChapterGenerate() {
     setLoading(true);
     try {
       // 使用正确的 API 路径：/api/novels/{novel_id}/chapters/{chapter_id}
-      const res = await fetch(`${API_BASE}/novels/${id}/chapters/${cid}`);
+      const res = await fetch(`${API_BASE}/novels/${id}/chapters/${cid}/`);
       const data = await res.json();
       if (data.success) {
         setChapter(data.data);
@@ -988,7 +988,7 @@ export default function ChapterGenerate() {
   // 获取角色列表
   const fetchCharacters = async () => {
     try {
-      const res = await fetch(`${API_BASE}/characters?novel_id=${id}`);
+      const res = await fetch(`${API_BASE}/characters/?novel_id=${id}`);
       const data = await res.json();
       if (data.success) {
         setCharacters(data.data);
@@ -1152,7 +1152,7 @@ export default function ChapterGenerate() {
     
     setIsSplitting(true);
     try {
-      const res = await fetch(`${API_BASE}/novels/${id}/chapters/${cid}/split`, {
+      const res = await fetch(`${API_BASE}/novels/${id}/chapters/${cid}/split/`, {
         method: 'POST'
       });
       const data = await res.json();
@@ -1189,7 +1189,7 @@ export default function ChapterGenerate() {
     
     setIsSavingJson(true);
     try {
-      const res = await fetch(`${API_BASE}/novels/${id}/chapters/${cid}`, {
+      const res = await fetch(`${API_BASE}/novels/${id}/chapters/${cid}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -37,14 +37,14 @@ export default function ChapterDetail() {
     setIsLoading(true);
     try {
       // 获取小说信息
-      const novelRes = await fetch(`${API_BASE}/novels/${id}`);
+      const novelRes = await fetch(`${API_BASE}/novels/${id}/`);
       const novelData = await novelRes.json();
       if (novelData.success) {
         setNovel(novelData.data);
       }
 
       // 获取章节信息
-      const chapterRes = await fetch(`${API_BASE}/novels/${id}/chapters/${cid}`);
+      const chapterRes = await fetch(`${API_BASE}/novels/${id}/chapters/${cid}/`);
       const chapterData = await chapterRes.json();
       if (chapterData.success) {
         setChapter(chapterData.data);
@@ -61,7 +61,7 @@ export default function ChapterDetail() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const res = await fetch(`${API_BASE}/novels/${id}/chapters/${cid}`, {
+      const res = await fetch(`${API_BASE}/novels/${id}/chapters/${cid}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title, content }),
@@ -83,7 +83,7 @@ export default function ChapterDetail() {
     if (!confirm('确定要删除这个章节吗？')) return;
     
     try {
-      await fetch(`${API_BASE}/novels/${id}/chapters/${cid}`, {
+      await fetch(`${API_BASE}/novels/${id}/chapters/${cid}/`, {
         method: 'DELETE',
       });
       navigate(`/novels/${id}`);
@@ -102,7 +102,7 @@ export default function ChapterDetail() {
     if (!confirm('开始生成视频？这将解析文本、生成人设图、分镜图和视频。')) return;
     
     try {
-      const res = await fetch(`${API_BASE}/tasks/${cid}/generate`, {
+      const res = await fetch(`${API_BASE}/tasks/${cid}/generate/`, {
         method: 'POST',
       });
       const data = await res.json();

@@ -33,11 +33,11 @@ export const useConfigStore = create<ConfigState>()(
         set({ isLoading: true, error: null });
         try {
           // 检查 DeepSeek API
-          const deepseekRes = await fetch(`${API_BASE}/health/deepseek`);
+          const deepseekRes = await fetch(`${API_BASE}/health/deepseek/`);
           const deepseek = deepseekRes.ok;
           
           // 检查 ComfyUI
-          const comfyRes = await fetch(`${API_BASE}/health/comfyui`);
+          const comfyRes = await fetch(`${API_BASE}/health/comfyui/`);
           const comfyui = comfyRes.ok;
           
           set({ isLoading: false });

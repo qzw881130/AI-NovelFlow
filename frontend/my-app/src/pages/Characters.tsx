@@ -88,7 +88,7 @@ export default function Characters() {
 
   const fetchCharacterPrompt = async (characterId: string) => {
     try {
-      const res = await fetch(`${API_BASE}/characters/${characterId}/prompt`);
+      const res = await fetch(`${API_BASE}/characters/${characterId}/prompt/`);
       const data = await res.json();
       if (data.success) {
         setCharacterPrompts(prev => ({
@@ -106,7 +106,7 @@ export default function Characters() {
 
   const fetchNovels = async () => {
     try {
-      const res = await fetch(`${API_BASE}/novels`);
+      const res = await fetch(`${API_BASE}/novels/`);
       const data = await res.json();
       if (data.success) {
         setNovels(data.data || []);
@@ -119,7 +119,7 @@ export default function Characters() {
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/characters`, {
+      const res = await fetch(`${API_BASE}/characters/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -140,7 +140,7 @@ export default function Characters() {
     if (!editingCharacter) return;
     
     try {
-      const res = await fetch(`${API_BASE}/characters/${editingCharacter.id}`, {
+      const res = await fetch(`${API_BASE}/characters/${editingCharacter.id}/`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingCharacter),
@@ -159,7 +159,7 @@ export default function Characters() {
     if (!confirm('确定要删除这个角色吗？')) return;
     
     try {
-      await fetch(`${API_BASE}/characters/${id}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/characters/${id}/`, { method: 'DELETE' });
       setCharacters(characters.filter(c => c.id !== id));
     } catch (error) {
       console.error('删除角色失败:', error);
@@ -174,7 +174,7 @@ export default function Characters() {
     
     setGeneratingAppearanceId(character.id);
     try {
-      const res = await fetch(`${API_BASE}/characters/${character.id}/generate-appearance`, {
+      const res = await fetch(`${API_BASE}/characters/${character.id}/generate-appearance/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -206,7 +206,7 @@ export default function Characters() {
     setGeneratingId(character.id);
     try {
       // 调用任务API创建设定图生成任务
-      const res = await fetch(`${API_BASE}/tasks/character/${character.id}/generate-portrait`, {
+      const res = await fetch(`${API_BASE}/tasks/character/${character.id}/generate-portrait/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });

@@ -196,7 +196,7 @@ export default function Tasks() {
   const fetchTasks = async () => {
     try {
       // 始终获取所有任务，确保统计数字正确
-      const res = await fetch(`${API_BASE}/tasks?limit=1000`);
+      const res = await fetch(`${API_BASE}/tasks/?limit=1000`);
       const data = await res.json();
       if (data.success) {
         setTasks(data.data || []);
@@ -218,7 +218,7 @@ export default function Tasks() {
     if (!confirm('确定要删除这个任务吗？')) return;
     
     try {
-      await fetch(`${API_BASE}/tasks/${taskId}`, { method: 'DELETE' });
+      await fetch(`${API_BASE}/tasks/${taskId}/`, { method: 'DELETE' });
       setTasks(tasks.filter(t => t.id !== taskId));
     } catch (error) {
       console.error('删除失败:', error);
@@ -235,7 +235,7 @@ export default function Tasks() {
     if (!confirm(`确定要终止所有 ${activeCount} 个进行中的任务吗？\n\n此操作不可恢复！`)) return;
     
     try {
-      const res = await fetch(`${API_BASE}/tasks/cancel-all`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/tasks/cancel-all/`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         toast(data.message, 'success');
@@ -271,7 +271,7 @@ export default function Tasks() {
     setLoadingWorkflow(true);
     
     try {
-      const res = await fetch(`${API_BASE}/tasks/${task.id}/workflow`);
+      const res = await fetch(`${API_BASE}/tasks/${task.id}/workflow/`);
       const data = await res.json();
       if (data.success) {
         setWorkflowData(data.data);
@@ -290,7 +290,7 @@ export default function Tasks() {
 
   const handleRetry = async (taskId: string) => {
     try {
-      const res = await fetch(`${API_BASE}/tasks/${taskId}/retry`, { method: 'POST' });
+      const res = await fetch(`${API_BASE}/tasks/${taskId}/retry/`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         toast.success('任务已重新启动');

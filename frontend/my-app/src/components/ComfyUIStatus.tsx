@@ -38,7 +38,7 @@ export default function ComfyUIStatus() {
   const fetchStatus = async () => {
     try {
       // 获取 ComfyUI 状态
-      const res = await fetch(`${API_BASE}/health/comfyui`);
+      const res = await fetch(`${API_BASE}/health/comfyui/`);
       
       if (res.ok) {
         const data = await res.json();
@@ -49,7 +49,7 @@ export default function ComfyUIStatus() {
           // 获取队列信息
           let queueSize = 0;
           try {
-            const queueRes = await fetch(`${API_BASE}/health/comfyui-queue`);
+            const queueRes = await fetch(`${API_BASE}/health/comfyui-queue/`);
             if (queueRes.ok) {
               const queueData = await queueRes.json();
               queueSize = queueData.queue_size || 0;

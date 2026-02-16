@@ -225,7 +225,7 @@ export default function PromptConfig() {
       }
 
       const url = editingPrompt 
-        ? `${API_BASE}/prompt-templates/${editingPrompt.id}`
+        ? `${API_BASE}/prompt-templates/${editingPrompt.id}/`
         : `${API_BASE}/prompt-templates/`;
       
       const method = editingPrompt ? 'PUT' : 'POST';
@@ -262,7 +262,7 @@ export default function PromptConfig() {
 
   const handleCopy = async (template: PromptTemplate) => {
     try {
-      const res = await fetch(`${API_BASE}/prompt-templates/${template.id}/copy`, {
+      const res = await fetch(`${API_BASE}/prompt-templates/${template.id}/copy/`, {
         method: 'POST'
       });
       const data = await res.json();
@@ -285,7 +285,7 @@ export default function PromptConfig() {
     if (!confirm(`确定要删除提示词模板 "${template.name}" 吗？`)) return;
     
     try {
-      const res = await fetch(`${API_BASE}/prompt-templates/${template.id}`, {
+      const res = await fetch(`${API_BASE}/prompt-templates/${template.id}/`, {
         method: 'DELETE'
       });
       const data = await res.json();

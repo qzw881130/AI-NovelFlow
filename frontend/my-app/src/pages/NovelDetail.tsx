@@ -37,14 +37,14 @@ export default function NovelDetail() {
     setIsLoading(true);
     try {
       // 获取小说
-      const novelRes = await fetch(`${API_BASE}/novels/${id}`);
+      const novelRes = await fetch(`${API_BASE}/novels/${id}/`);
       const novelData = await novelRes.json();
       if (novelData.success) {
         setNovel(novelData.data);
       }
 
       // 获取章节
-      const chaptersRes = await fetch(`${API_BASE}/novels/${id}/chapters`);
+      const chaptersRes = await fetch(`${API_BASE}/novels/${id}/chapters/`);
       const chaptersData = await chaptersRes.json();
       if (chaptersData.success) {
         setChapters(chaptersData.data);
@@ -61,7 +61,7 @@ export default function NovelDetail() {
   const handleCreateChapter = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_BASE}/novels/${id}/chapters`, {
+      const res = await fetch(`${API_BASE}/novels/${id}/chapters/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newChapter),
@@ -82,7 +82,7 @@ export default function NovelDetail() {
     if (!confirm('确定要删除这个章节吗？')) return;
     
     try {
-      await fetch(`${API_BASE}/novels/${id}/chapters/${chapterId}`, {
+      await fetch(`${API_BASE}/novels/${id}/chapters/${chapterId}/`, {
         method: 'DELETE',
       });
       setChapters(chapters.filter(c => c.id !== chapterId));
