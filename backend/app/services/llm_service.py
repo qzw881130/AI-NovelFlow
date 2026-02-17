@@ -327,7 +327,8 @@ class LLMService:
     
     async def parse_novel_text(self, text: str, novel_id: str = None) -> Dict[str, Any]:
         """解析小说文本，提取角色、场景、分镜信息"""
-        system_prompt = """你是一个专业的小说解析助手。请分析提供的小说文本，提取以下信息并以JSON格式返回：
+        # 使用数据库中保存的提示词，如果没有则使用默认提示词
+        default_prompt = """你是一个专业的小说解析助手。请分析提供的小说文本，提取以下信息并以JSON格式返回：
 
 1. characters: 角色列表，每个角色包含 name（姓名）、description（描述）、appearance（外貌特征）
 2. scenes: 场景列表，每个场景包含 title（标题）、description（描述）
@@ -338,6 +339,11 @@ class LLMService:
 - 分镜描述要具体，包含画面构图、角色动作、环境细节
 - 返回必须是合法的JSON格式
 """
+        
+        # 获取当前配置
+        from app.core.config import get_settings
+        settings = get_settings()
+        system_prompt = settings.PARSE_CHARACTERS_PROMPT or default_prompt
         
         result = await self.chat_completion(
             system_prompt=system_prompt,

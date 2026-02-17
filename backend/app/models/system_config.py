@@ -29,5 +29,8 @@ class SystemConfig(Base):
     output_resolution = Column(String, default="1920x1080")
     output_frame_rate = Column(Integer, default=24)
     
+    # AI解析角色系统提示词
+    parse_characters_prompt = Column(Text, nullable=True)
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

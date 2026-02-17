@@ -34,6 +34,7 @@ class SystemConfigUpdate(BaseModel):
     comfyUIHost: Optional[str] = None
     outputResolution: Optional[str] = None
     outputFrameRate: Optional[int] = None
+    parseCharactersPrompt: Optional[str] = None
 
 
 def get_or_create_config(db: Session) -> SystemConfigModel:
@@ -68,6 +69,8 @@ async def get_config(db: Session = Depends(get_db)):
             # 输出配置
             "outputResolution": config.output_resolution,
             "outputFrameRate": config.output_frame_rate,
+            # AI解析角色系统提示词
+            "parseCharactersPrompt": config.parse_characters_prompt,
         }
     }
 
@@ -93,6 +96,7 @@ async def get_full_config(db: Session = Depends(get_db)):
             "comfyui_host": config.comfyui_host,
             "output_resolution": config.output_resolution,
             "output_frame_rate": config.output_frame_rate,
+            "parse_characters_prompt": config.parse_characters_prompt,
         }
     }
 
@@ -139,6 +143,10 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
         if config.outputFrameRate:
             db_config.output_frame_rate = config.outputFrameRate
             updates["output_frame_rate"] = config.outputFrameRate
+        
+        if config.parseCharactersPrompt is not None:
+            db_config.parse_characters_prompt = config.parseCharactersPrompt
+            updates["parse_characters_prompt"] = config.parseCharactersPrompt
         
         # 提交数据库事务
         db.commit()
@@ -261,6 +269,7 @@ def init_system_config(db: Session) -> None:
         "comfyui_host": config.comfyui_host,
         "output_resolution": config.output_resolution,
         "output_frame_rate": config.output_frame_rate,
+        "parse_characters_prompt": config.parse_characters_prompt,
     }
     
     reload_settings_from_db(db_config)

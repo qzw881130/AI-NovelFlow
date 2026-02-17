@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     # Output
     OUTPUT_DIR: str = "./output"
     
+    # AI解析角色系统提示词
+    PARSE_CHARACTERS_PROMPT: Optional[str] = None
+    
     class Config:
         env_file = ".env"
         validate_assignment = True  # 允许运行时修改属性
@@ -88,6 +91,9 @@ def reload_settings_from_db(db_config: dict) -> None:
     
     if db_config.get("comfyui_host"):
         _settings_instance.COMFYUI_HOST = db_config["comfyui_host"]
+    
+    if db_config.get("parse_characters_prompt"):
+        _settings_instance.PARSE_CHARACTERS_PROMPT = db_config["parse_characters_prompt"]
 
 
 def update_settings(updates: dict) -> None:

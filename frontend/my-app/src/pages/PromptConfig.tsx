@@ -160,6 +160,33 @@ export default function PromptConfig() {
     fetchChapterSplitTemplates();
   }, []);
 
+  // 从后端加载保存的提示词
+  useEffect(() => {
+    const fetchParsePrompt = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/config/`);
+        const data = await res.json();
+        if (data.success && data.data.parseCharactersPrompt) {
+          setParsePrompt(data.data.parseCharactersPrompt);
+        } else {
+          // 如果后端没有，尝试从 localStorage 加载
+          const saved = localStorage.getItem('novelfow_parse_characters_prompt');
+          if (saved) {
+            setParsePrompt(saved);
+          }
+        }
+      } catch (error) {
+        console.error('加载提示词失败:', error);
+        // 从 localStorage 加载作为备用
+        const saved = localStorage.getItem('novelfow_parse_characters_prompt');
+        if (saved) {
+          setParsePrompt(saved);
+        }
+      }
+    };
+    fetchParsePrompt();
+  }, []);
+
   const fetchCharacterTemplates = async () => {
     setLoadingCharacter(true);
     try {
@@ -197,10 +224,10 @@ export default function PromptConfig() {
       // 从模板内容中提取字数设置（如果是章节拆分类型）
       let wordCount = 50;
       if (type === 'chapter_split') {
-        const match = template.template.match(/必须控制在\s*{?每个分镜对应拆分故事字数}?\s*左右/);
+        const match = template.template.match(/必须控制\s*{?每个分镜对应拆分故事字数}?\s*左右/);
         if (match) {
           // 尝试从模板中提取已设置的字数
-          const numMatch = template.template.match(/必须控制在\s*(\d+)\s*字/);
+          const numMatch = template.template.match(/必须控制\s*(\d+)\s*字/);
           if (numMatch) {
             wordCount = parseInt(numMatch[1]);
           }
@@ -239,8 +266,8 @@ export default function PromptConfig() {
       if (modalType === 'chapter_split') {
         // 替换或插入字数设置
         templateContent = templateContent.replace(
-          /每个分镜的剧情字数必须控制在\s*{?每个分镜对应拆分故事字数}?\s*左右/,
-          `每个分镜的剧情字数必须控制在 ${form.wordCount} 字左右`
+          /每个分镜的剧情字数必须控制\s*{?每个分镜对应拆分故事字数}?\s*左右/,
+          `每个分镜的剧情字数必须控制 ${form.wordCount} 字左右`
         );
         // 同时更新占位符的默认值
         templateContent = templateContent.replace(
@@ -265,9 +292,11 @@ export default function PromptConfig() {
           type: modalType
         })
       });
-
+      
       const data = await res.json();
+      
       if (data.success) {
+        toast.success(editingPrompt ? '更新成功' : '创建成功');
         setShowModal(false);
         if (modalType === 'character') {
           fetchCharacterTemplates();
@@ -287,11 +316,13 @@ export default function PromptConfig() {
 
   const handleCopy = async (template: PromptTemplate) => {
     try {
-      const res = await fetch(`${API_BASE}/prompt-templates/${template.id}/copy/`, {
+      const res = await fetch(`${API_BASE}/prompt-templates/${template.id}/duplicate/`, {
         method: 'POST'
       });
       const data = await res.json();
+      
       if (data.success) {
+        toast.success('已复制为用户模板');
         if (template.type === 'character') {
           fetchCharacterTemplates();
         } else {
@@ -326,6 +357,51 @@ export default function PromptConfig() {
     } catch (error) {
       console.error('删除提示词模板失败:', error);
       toast.error('删除失败');
+    }
+  };
+
+  const handleSaveParsePrompt = async () => {
+    setSavingParsePrompt(true);
+    try {
+      // 保存到后端数据库
+      const res = await fetch(`${API_BASE}/config/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parseCharactersPrompt: parsePrompt
+        })
+      });
+      
+      if (res.ok) {
+        // 同时保存到 localStorage 作为备份
+        localStorage.setItem('novelfow_parse_characters_prompt', parsePrompt);
+        toast.success('系统提示词已保存');
+      } else {
+        toast.error('保存失败');
+      }
+    } catch (error) {
+      console.error('保存提示词失败:', error);
+      toast.error('保存失败');
+    } finally {
+      setSavingParsePrompt(false);
+    }
+  };
+
+  const handleResetParsePrompt = async () => {
+    setParsePrompt(DEFAULT_PARSE_CHARACTERS_PROMPT);
+    // 同时重置后端的提示词
+    try {
+      await fetch(`${API_BASE}/config/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          parseCharactersPrompt: DEFAULT_PARSE_CHARACTERS_PROMPT
+        })
+      });
+      localStorage.setItem('novelfow_parse_characters_prompt', DEFAULT_PARSE_CHARACTERS_PROMPT);
+      toast.success('已恢复默认提示词');
+    } catch (error) {
+      toast.success('已恢复默认提示词（本地）');
     }
   };
 
@@ -418,28 +494,6 @@ export default function PromptConfig() {
       </div>
     );
   };
-
-  const handleSaveParsePrompt = async () => {
-    setSavingParsePrompt(true);
-    // TODO: 后端需要支持保存这个系统提示词
-    // 目前先保存到 localStorage
-    localStorage.setItem('novelflow_parse_characters_prompt', parsePrompt);
-    toast.success('系统提示词已保存');
-    setSavingParsePrompt(false);
-  };
-
-  const handleResetParsePrompt = () => {
-    setParsePrompt(DEFAULT_PARSE_CHARACTERS_PROMPT);
-    toast.success('已恢复默认提示词');
-  };
-
-  // 从 localStorage 加载保存的提示词
-  useEffect(() => {
-    const saved = localStorage.getItem('novelflow_parse_characters_prompt');
-    if (saved) {
-      setParsePrompt(saved);
-    }
-  }, []);
 
   return (
     <div className="space-y-8">
@@ -626,13 +680,13 @@ export default function PromptConfig() {
                 </p>
               </div>
               
-              <div className="flex justify-end gap-3 mt-6">
+              <div className="flex justify-end gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
                   className="btn-secondary"
                 >
-                  {editingPrompt?.isSystem ? '关闭' : '取消'}
+                  取消
                 </button>
                 {!editingPrompt?.isSystem && (
                   <button
@@ -641,9 +695,12 @@ export default function PromptConfig() {
                     className="btn-primary"
                   >
                     {saving ? (
-                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />保存中...</>
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        保存中...
+                      </>
                     ) : (
-                      <><Save className="mr-2 h-4 w-4" />保存</>
+                      '保存'
                     )}
                   </button>
                 )}
@@ -653,16 +710,14 @@ export default function PromptConfig() {
         </div>
       )}
 
-      {/* 查看模态框（只读，用于显示完整内容） */}
+      {/* 查看模态框 */}
       {showViewModal && viewingPrompt && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
+              <div>
                 <h3 className="text-lg font-semibold text-gray-900">{viewingPrompt.name}</h3>
-                {viewingPrompt.isSystem && (
-                  <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full">系统默认</span>
-                )}
+                <p className="text-sm text-gray-500">{viewingPrompt.description}</p>
               </div>
               <button
                 type="button"
@@ -673,69 +728,33 @@ export default function PromptConfig() {
               </button>
             </div>
             
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-500">描述</label>
-                <p className="text-sm text-gray-700 mt-1">{viewingPrompt.description}</p>
-              </div>
-
-              {/* 字数设置显示（仅章节拆分类型） */}
-              {viewingPrompt.type === 'chapter_split' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-500">每个分镜对应拆分故事字数</label>
-                  <p className="text-sm text-gray-700 mt-1">
-                    {(() => {
-                      const match = viewingPrompt.template.match(/必须控制在\s*(\d+)\s*字左右/);
-                      return match ? match[1] : '50';
-                    })()} 字
-                  </p>
-                </div>
-              )}
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-500">提示词内容</label>
-                <div className="mt-1 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <pre className="text-sm text-gray-700 font-mono whitespace-pre-wrap">
-                    {viewingPrompt.template}
-                  </pre>
-                </div>
-              </div>
-              
-              <div className="flex justify-end gap-3 pt-4">
-                {viewingPrompt.isSystem && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowViewModal(false);
-                      handleCopy(viewingPrompt);
-                    }}
-                    className="btn-primary"
-                  >
-                    <Copy className="mr-2 h-4 w-4" />
-                    复制为用户模板
-                  </button>
-                )}
-                {!viewingPrompt.isSystem && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowViewModal(false);
-                      handleOpenModal(viewingPrompt.type as 'character' | 'chapter_split', viewingPrompt);
-                    }}
-                    className="btn-primary"
-                  >
-                    <Edit2 className="mr-2 h-4 w-4" />
-                    编辑
-                  </button>
-                )}
+            <div className="bg-gray-50 rounded-lg p-4 overflow-x-auto">
+              <pre className="text-sm text-gray-700 whitespace-pre-wrap font-mono">
+                {viewingPrompt.template}
+              </pre>
+            </div>
+            
+            <div className="flex justify-end gap-3 mt-4">
+              <button
+                type="button"
+                onClick={() => setShowViewModal(false)}
+                className="btn-secondary"
+              >
+                关闭
+              </button>
+              {viewingPrompt.isSystem && (
                 <button
                   type="button"
-                  onClick={() => setShowViewModal(false)}
-                  className="btn-secondary"
+                  onClick={() => {
+                    setShowViewModal(false);
+                    handleCopy(viewingPrompt);
+                  }}
+                  className="btn-primary"
                 >
-                  关闭
+                  <Copy className="mr-2 h-4 w-4" />
+                  复制为用户模板
                 </button>
-              </div>
+              )}
             </div>
           </div>
         </div>
