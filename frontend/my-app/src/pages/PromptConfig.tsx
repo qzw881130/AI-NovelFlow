@@ -316,7 +316,7 @@ export default function PromptConfig() {
 
   const handleCopy = async (template: PromptTemplate) => {
     try {
-      const res = await fetch(`${API_BASE}/prompt-templates/${template.id}/duplicate/`, {
+      const res = await fetch(`${API_BASE}/prompt-templates/${template.id}/copy`, {
         method: 'POST'
       });
       const data = await res.json();
