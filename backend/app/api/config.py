@@ -232,6 +232,22 @@ async def get_llm_presets():
                 "apiKeyHelp": "在 Azure Portal 获取 API Key 和 Endpoint",
             },
             {
+                "id": "aliyun-bailian",
+                "name": "阿里云百炼",
+                "defaultApiUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "models": [
+                    {"id": "qwen-max", "name": "通义千问 Max", "description": "通义千问超大规模语言模型，支持复杂任务", "maxTokens": 32000},
+                    {"id": "qwen-plus", "name": "通义千问 Plus", "description": "通义千问大规模语言模型，均衡性能与速度", "maxTokens": 32000},
+                    {"id": "qwen-turbo", "name": "通义千问 Turbo", "description": "通义千问轻量模型，快速响应", "maxTokens": 32000},
+                    {"id": "qwen-coder-plus", "name": "通义千问 Coder Plus", "description": "代码专用模型", "maxTokens": 32000},
+                    {"id": "qwen-2.5-72b-instruct", "name": "Qwen2.5-72B-Instruct", "description": "72B 参数指令模型", "maxTokens": 128000},
+                    {"id": "deepseek-v3", "name": "DeepSeek-V3", "description": "DeepSeek V3 模型（通过百炼）", "maxTokens": 64000},
+                    {"id": "deepseek-r1", "name": "DeepSeek-R1", "description": "DeepSeek R1 推理模型（通过百炼）", "maxTokens": 64000},
+                ],
+                "apiKeyPlaceholder": "sk-...",
+                "apiKeyHelp": "在阿里云百炼控制台获取 API Key",
+            },
+            {
                 "id": "custom",
                 "name": "自定义 API",
                 "defaultApiUrl": "https://api.example.com/v1",

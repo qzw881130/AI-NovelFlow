@@ -3,12 +3,34 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 from app.core.database import get_db
 from app.models.llm_log import LLMLog
 
 router = APIRouter()
+
+# 上海时区 (东八区)
+SHANGHAI_TZ = timezone(timedelta(hours=8))
+UTC_TZ = timezone.utc
+
+def to_shanghai_time(dt: datetime) -> str:
+    """将时间转换为上海时间字符串
+    
+    处理各种时区情况：
+    - SQLite 的 func.now() 返回的是本地时间（无时区）
+    - 如果时间是 naive（无时区），直接添加上海时区（假设就是本地时间）
+    - 如果时间是 aware（有时区），直接转为上海时间
+    """
+    if not dt:
+        return None
+    
+    if dt.tzinfo is None:
+        # Naive 时间，直接添加上海时区（假设存储的就是本地时间）
+        dt = dt.replace(tzinfo=SHANGHAI_TZ)
+        return dt.isoformat()
+    
+    return dt.astimezone(SHANGHAI_TZ).isoformat()
 
 
 @router.get("/")
@@ -49,7 +71,7 @@ async def get_llm_logs(
             "items": [
                 {
                     "id": log.id,
-                    "created_at": log.created_at.isoformat() if log.created_at else None,
+                    "created_at": to_shanghai_time(log.created_at),
                     "provider": log.provider,
                     "model": log.model,
                     "system_prompt": log.system_prompt,
@@ -108,7 +130,7 @@ async def get_llm_log_detail(log_id: str, db: Session = Depends(get_db)):
         "success": True,
         "data": {
             "id": log.id,
-            "created_at": log.created_at.isoformat() if log.created_at else None,
+            "created_at": to_shanghai_time(log.created_at),
             "provider": log.provider,
             "model": log.model,
             "system_prompt": log.system_prompt,

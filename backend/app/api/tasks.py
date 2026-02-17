@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional, Dict, Any, List
 from datetime import datetime
@@ -13,6 +13,32 @@ from app.services.comfyui import ComfyUIService
 
 router = APIRouter()
 comfyui_service = ComfyUIService()
+
+
+def extract_style_from_template(template: str) -> str:
+    """从角色提示词模板中提取 style
+    
+    兼容逻辑：
+    1. 尝试解析为 JSON，获取 style 字段
+    2. 否则清理模板中的 {appearance} 和 {description} 占位符
+    """
+    if not template:
+        return "anime style, high quality, detailed"
+    
+    # 尝试解析 JSON
+    try:
+        template_data = json.loads(template)
+        if isinstance(template_data, dict) and "style" in template_data:
+            return template_data["style"]
+    except:
+        pass
+    
+    # 清理占位符
+    style = template.replace("{appearance}", "").replace("{description}", "").strip(", ")
+    if style:
+        return style
+    
+    return "anime style, high quality, detailed"
 
 
 def validate_workflow_node_mapping(workflow: Workflow, task_type: str) -> tuple[bool, str]:
@@ -166,7 +192,6 @@ async def get_task(task_id: str, db: Session = Depends(get_db)):
 @router.post("/character/{character_id}/generate-portrait")
 async def generate_character_portrait(
     character_id: str,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """生成角色人设图任务"""
@@ -229,14 +254,16 @@ async def generate_character_portrait(
     character.portrait_task_id = task.id
     db.commit()
     
-    # 后台执行生成
-    background_tasks.add_task(
-        generate_portrait_task,
-        task.id,
-        character_id,
-        character.name,
-        character.appearance,
-        character.description
+    # 后台执行生成 - 使用 asyncio.create_task 实现真正并发
+    import asyncio
+    asyncio.create_task(
+        generate_portrait_task(
+            task.id,
+            character_id,
+            character.name,
+            character.appearance,
+            character.description
+        )
     )
     
     return {
@@ -350,7 +377,6 @@ async def cancel_all_tasks(db: Session = Depends(get_db)):
 @router.post("/{task_id}/retry")
 async def retry_task(
     task_id: str,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """重试失败的任务"""
@@ -370,17 +396,19 @@ async def retry_task(
     task.completed_at = None
     db.commit()
     
-    # 根据任务类型重新执行
+    # 根据任务类型重新执行 - 使用 asyncio.create_task 实现真正并发
     if task.type == "character_portrait" and task.character_id:
         character = db.query(Character).filter(Character.id == task.character_id).first()
         if character:
-            background_tasks.add_task(
-                generate_portrait_task,
-                task.id,
-                character.id,
-                character.name,
-                character.appearance,
-                character.description
+            import asyncio
+            asyncio.create_task(
+                generate_portrait_task(
+                    task.id,
+                    character.id,
+                    character.name,
+                    character.appearance,
+                    character.description
+                )
             )
     
     return {
@@ -496,7 +524,18 @@ async def generate_portrait_task(
         
         # 构建提示词
         prompt = build_character_prompt(name, appearance, description, template.template if template else None)
-        task.current_step = f"使用模板: {template.name if template else '默认'}, 提示词: {prompt[:80]}..."
+        
+        # 获取 style（从模板的 style 字段或模板内容中提取）
+        style = "anime style, high quality, detailed"
+        if template:
+            # 优先使用模板的 style 字段
+            if hasattr(template, 'style') and template.style:
+                style = template.style
+            else:
+                # 从模板内容中提取 style（兼容旧模板）
+                style = extract_style_from_template(template.template)
+        
+        task.current_step = f"使用模板: {template.name if template else '默认'}, 提示词: {prompt[:80]}..., style: {style[:50]}..."
         
         # 保存提示词
         task.prompt_text = prompt
@@ -525,7 +564,8 @@ async def generate_portrait_task(
             novel_id=task.novel_id,
             character_name=name,
             aspect_ratio=novel.aspect_ratio if novel else None,
-            node_mapping=node_mapping
+            node_mapping=node_mapping,
+            style=style
         )
         
         # 保存构建后的完整工作流到任务，让用户可以立即查看

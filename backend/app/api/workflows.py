@@ -68,12 +68,17 @@ def load_default_workflows(db: Session):
             Workflow.is_system == True
         ).first()
         
-        if existing:
-            continue
-        
         if os.path.exists(file_path):
             with open(file_path, 'r', encoding='utf-8') as f:
                 workflow_json = f.read()
+            
+            # 如果已存在，检查内容是否有变化，有则更新
+            if existing:
+                if existing.workflow_json != workflow_json:
+                    existing.workflow_json = workflow_json
+                    db.commit()
+                    print(f"[Workflow] Updated default workflow: {wf_type}")
+                continue
             
             workflow = Workflow(
                 name=f"系统默认-{WORKFLOW_TYPES.get(wf_type, wf_type)}",

@@ -1,7 +1,15 @@
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from typing import List, Optional
+from pydantic import BaseModel
+
+from app.core.database import get_db
 from app.models.prompt_template import PromptTemplate
 
-# 系统预设的角色人设提示词模板
+router = APIRouter(tags=["prompt_templates"])
+
+
+# 系统预设的人设提示词模板（角色生成）
 SYSTEM_CHARACTER_TEMPLATES = [
     {
         "name": "标准动漫风格",
@@ -518,10 +526,249 @@ def init_system_prompt_templates(db: Session):
                 name=tmpl_data["name"],
                 description=tmpl_data["description"],
                 template=tmpl_data["template"],
+                type=tmpl_data.get("type", "character"),
                 is_system=True,
-                type=tmpl_data.get("type", "character")
+                is_active=True
             )
             db.add(template)
     
     db.commit()
-    print(f"[初始化] 已更新 {len(SYSTEM_PROMPT_TEMPLATES)} 个系统预设提示词模板")
+    print("[初始化] 系统预设提示词模板更新完成")
+
+
+class PromptTemplateCreate(BaseModel):
+    name: str
+    description: str = ""
+    template: str
+    type: str = "character"  # character 或 chapter_split
+
+
+class PromptTemplateUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    template: Optional[str] = None
+    type: Optional[str] = None
+
+
+class PromptTemplateResponse(BaseModel):
+    id: str
+    name: str
+    description: str
+    template: str
+    type: str
+    isSystem: bool
+    isActive: bool
+    createdAt: str
+    
+    class Config:
+        from_attributes = True
+
+
+@router.get("/", response_model=dict)
+def list_prompt_templates(
+    type: Optional[str] = Query(None, description="筛选类型: character 或 chapter_split"),
+    db: Session = Depends(get_db)
+):
+    """获取所有提示词模板"""
+    query = db.query(PromptTemplate)
+    
+    if type:
+        query = query.filter(PromptTemplate.type == type)
+    
+    templates = query.order_by(
+        PromptTemplate.is_system.desc(),
+        PromptTemplate.created_at.desc()
+    ).all()
+    
+    return {
+        "success": True,
+        "data": [
+            {
+                "id": t.id,
+                "name": t.name,
+                "description": t.description,
+                "template": t.template,
+                "type": t.type or "character",
+                "isSystem": t.is_system,
+                "isActive": t.is_active,
+                "createdAt": t.created_at.isoformat() if t.created_at else None,
+            }
+            for t in templates
+        ]
+    }
+
+
+@router.get("/{template_id}", response_model=dict)
+def get_prompt_template(template_id: str, db: Session = Depends(get_db)):
+    """获取单个提示词模板"""
+    template = db.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="提示词模板不存在")
+    
+    return {
+        "success": True,
+        "data": {
+            "id": template.id,
+            "name": template.name,
+            "description": template.description,
+            "template": template.template,
+            "type": template.type or "character",
+            "isSystem": template.is_system,
+            "isActive": template.is_active,
+            "createdAt": template.created_at.isoformat() if template.created_at else None,
+        }
+    }
+
+
+@router.post("/", response_model=dict)
+def create_prompt_template(data: PromptTemplateCreate, db: Session = Depends(get_db)):
+    """创建用户自定义提示词模板"""
+    template = PromptTemplate(
+        name=data.name,
+        description=data.description,
+        template=data.template,
+        type=data.type,
+        is_system=False,  # 用户创建的默认为非系统
+        is_active=True
+    )
+    db.add(template)
+    db.commit()
+    db.refresh(template)
+    
+    return {
+        "success": True,
+        "message": "提示词模板创建成功",
+        "data": {
+            "id": template.id,
+            "name": template.name,
+            "description": template.description,
+            "template": template.template,
+            "type": template.type or "character",
+            "isSystem": template.is_system,
+            "isActive": template.is_active,
+            "createdAt": template.created_at.isoformat() if template.created_at else None,
+        }
+    }
+
+
+@router.post("/{template_id}/copy", response_model=dict)
+def copy_prompt_template(template_id: str, db: Session = Depends(get_db)):
+    """复制系统提示词模板为用户自定义模板"""
+    source = db.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+    if not source:
+        raise HTTPException(status_code=404, detail="源提示词模板不存在")
+    
+    # 创建副本
+    new_template = PromptTemplate(
+        name=f"{source.name} (副本)",
+        description=source.description,
+        template=source.template,
+        type=source.type or "character",
+        is_system=False,  # 复制出来的为用户类型
+        is_active=True
+    )
+    db.add(new_template)
+    db.commit()
+    db.refresh(new_template)
+    
+    return {
+        "success": True,
+        "message": "提示词模板复制成功",
+        "data": {
+            "id": new_template.id,
+            "name": new_template.name,
+            "description": new_template.description,
+            "template": new_template.template,
+            "type": new_template.type or "character",
+            "isSystem": new_template.is_system,
+            "isActive": new_template.is_active,
+            "createdAt": new_template.created_at.isoformat() if new_template.created_at else None,
+        }
+    }
+
+
+@router.put("/{template_id}", response_model=dict)
+def update_prompt_template(
+    template_id: str, 
+    data: PromptTemplateUpdate, 
+    db: Session = Depends(get_db)
+):
+    """更新提示词模板（仅用户自定义可编辑）"""
+    template = db.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="提示词模板不存在")
+    
+    if template.is_system:
+        raise HTTPException(status_code=403, detail="系统预设提示词不可编辑")
+    
+    if data.name is not None:
+        template.name = data.name
+    if data.description is not None:
+        template.description = data.description
+    if data.template is not None:
+        template.template = data.template
+    if data.type is not None:
+        template.type = data.type
+    
+    db.commit()
+    db.refresh(template)
+    
+    return {
+        "success": True,
+        "message": "提示词模板更新成功",
+        "data": {
+            "id": template.id,
+            "name": template.name,
+            "description": template.description,
+            "template": template.template,
+            "type": template.type or "character",
+            "isSystem": template.is_system,
+            "isActive": template.is_active,
+            "createdAt": template.created_at.isoformat() if template.created_at else None,
+        }
+    }
+
+
+@router.delete("/{template_id}", response_model=dict)
+def delete_prompt_template(template_id: str, db: Session = Depends(get_db)):
+    """删除提示词模板（仅用户自定义可删除）"""
+    template = db.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+    if not template:
+        raise HTTPException(status_code=404, detail="提示词模板不存在")
+    
+    if template.is_system:
+        raise HTTPException(status_code=403, detail="系统预设提示词不可删除")
+    
+    db.delete(template)
+    db.commit()
+    
+    return {"success": True, "message": "提示词模板删除成功"}
+
+
+@router.get("/system/default", response_model=dict)
+def get_default_system_template(
+    type: Optional[str] = Query("character", description="模板类型: character 或 chapter_split"),
+    db: Session = Depends(get_db)
+):
+    """获取默认的系统提示词模板"""
+    template = db.query(PromptTemplate).filter(
+        PromptTemplate.is_system == True,
+        PromptTemplate.type == type
+    ).order_by(PromptTemplate.created_at.asc()).first()
+    
+    if not template:
+        raise HTTPException(status_code=404, detail="未找到系统提示词模板")
+    
+    return {
+        "success": True,
+        "data": {
+            "id": template.id,
+            "name": template.name,
+            "description": template.description,
+            "template": template.template,
+            "type": template.type or "character",
+            "isSystem": template.is_system,
+            "isActive": template.is_active,
+            "createdAt": template.created_at.isoformat() if template.created_at else None,
+        }
+    }

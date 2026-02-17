@@ -35,14 +35,12 @@ export default class ErrorBoundary extends Component<Props, State> {
             </pre>
             <button
               onClick={() => {
-                // 清除 localStorage 并刷新
-                localStorage.removeItem('novelflow-config');
-                localStorage.removeItem('novelflow-config-v2');
+                // 刷新页面
                 window.location.reload();
               }}
               className="mt-4 w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700"
             >
-              清除缓存并刷新
+              刷新页面
             </button>
           </div>
         </div>

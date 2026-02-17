@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import Layout from './components/Layout';
 import Welcome from './pages/Welcome';
 import Settings from './pages/Settings';
@@ -13,10 +14,22 @@ import PromptConfig from './pages/PromptConfig';
 import LLMLogs from './pages/LLMLogs';
 import { ToastContainer } from './components/Toast';
 import { useToastStore } from './stores/toastStore';
+import { useConfigStore } from './stores/configStore';
 import ErrorBoundary from './components/ErrorBoundary';
 
 function App() {
   const { toasts, removeToast } = useToastStore();
+  const { loadConfig } = useConfigStore();
+
+  // 应用启动时从后端加载配置，并清理旧的 localStorage
+  useEffect(() => {
+    // 清理旧的 localStorage 数据（配置现在存储在后端）
+    localStorage.removeItem('novelflow-config');
+    localStorage.removeItem('novelflow-config-v2');
+    localStorage.removeItem('novelfow_parse_characters_prompt');
+    
+    loadConfig();
+  }, [loadConfig]);
 
   return (
     <>

@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import type { SystemConfig, LLMProvider, LLMProviderPreset, LLMModel, ProxyConfig } from '../types';
 
 // API 基础 URL
@@ -22,6 +21,31 @@ const defaultConfig: SystemConfig = {
   comfyUIHost: 'http://192.168.50.1:8288',
   outputResolution: '1920x1080',
   outputFrameRate: 24,
+};
+
+// 从后端加载配置
+const fetchConfigFromBackend = async () => {
+  try {
+    const res = await fetch(`${API_BASE}/config/`);
+    const data = await res.json();
+    if (data.success && data.data) {
+      return {
+        llmProvider: data.data.llmProvider || defaultConfig.llmProvider,
+        llmModel: data.data.llmModel || defaultConfig.llmModel,
+        llmApiKey: '', // API Key 不从前端获取
+        llmApiUrl: data.data.llmApiUrl || defaultConfig.llmApiUrl,
+        proxy: data.data.proxyEnabled !== undefined ? {
+          enabled: data.data.proxyEnabled,
+          httpProxy: data.data.httpProxy || '',
+          httpsProxy: data.data.httpsProxy || '',
+        } : defaultConfig.proxy,
+        comfyUIHost: data.data.comfyUIHost || defaultConfig.comfyUIHost,
+      };
+    }
+  } catch (error) {
+    console.error('Failed to load config from backend:', error);
+  }
+  return null;
 };
 
 // LLM 厂商预设配置
@@ -91,6 +115,22 @@ export const LLM_PROVIDER_PRESETS: LLMProviderPreset[] = [
     apiKeyHelp: '在 Azure Portal 获取 API Key 和 Endpoint',
   },
   {
+    id: 'aliyun-bailian',
+    name: '阿里云百炼',
+    defaultApiUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    models: [
+      { id: 'qwen-max', name: '通义千问 Max', description: '通义千问超大规模语言模型，支持复杂任务', maxTokens: 32000 },
+      { id: 'qwen-plus', name: '通义千问 Plus', description: '通义千问大规模语言模型，均衡性能与速度', maxTokens: 32000 },
+      { id: 'qwen-turbo', name: '通义千问 Turbo', description: '通义千问轻量模型，快速响应', maxTokens: 32000 },
+      { id: 'qwen-coder-plus', name: '通义千问 Coder Plus', description: '代码专用模型', maxTokens: 32000 },
+      { id: 'qwen-2.5-72b-instruct', name: 'Qwen2.5-72B-Instruct', description: '72B 参数指令模型', maxTokens: 128000 },
+      { id: 'deepseek-v3', name: 'DeepSeek-V3', description: 'DeepSeek V3 模型（通过百炼）', maxTokens: 64000 },
+      { id: 'deepseek-r1', name: 'DeepSeek-R1', description: 'DeepSeek R1 推理模型（通过百炼）', maxTokens: 64000 },
+    ],
+    apiKeyPlaceholder: 'sk-...',
+    apiKeyHelp: '在阿里云百炼控制台获取 API Key',
+  },
+  {
     id: 'custom',
     name: '自定义 API',
     defaultApiUrl: 'https://api.example.com/v1',
@@ -105,89 +145,83 @@ export const LLM_PROVIDER_PRESETS: LLMProviderPreset[] = [
 interface ConfigState extends SystemConfig {
   isLoading: boolean;
   error: string | null;
+  isLoaded: boolean;
   setConfig: (config: Partial<SystemConfig>) => void;
   setLLMConfig: (provider: LLMProvider, model: string, apiKey: string, apiUrl: string) => void;
   setProxyConfig: (proxy: ProxyConfig) => void;
   getProviderPreset: () => LLMProviderPreset | undefined;
   getCurrentModel: () => LLMModel | undefined;
   checkConnection: () => Promise<{ llm: boolean; comfyui: boolean }>;
+  loadConfig: () => Promise<void>;
 }
 
-export const useConfigStore = create<ConfigState>()(
-  persist(
-    (set, get) => ({
-      ...defaultConfig,
-      isLoading: false,
-      error: null,
-      
-      setConfig: (config) => set((state) => {
-        // 特殊处理嵌套的 proxy 配置
-        if (config.proxy) {
-          return {
-            ...state,
-            ...config,
-            proxy: { ...state.proxy, ...config.proxy },
-          };
-        }
-        return { ...state, ...config };
-      }),
-      
-      setLLMConfig: (provider, model, apiKey, apiUrl) => set((state) => ({
+export const useConfigStore = create<ConfigState>((set, get) => ({
+  ...defaultConfig,
+  isLoading: false,
+  error: null,
+  isLoaded: false,
+  
+  setConfig: (config) => set((state) => {
+    // 特殊处理嵌套的 proxy 配置
+    if (config.proxy) {
+      return {
         ...state,
-        llmProvider: provider,
-        llmModel: model,
-        llmApiKey: apiKey,
-        llmApiUrl: apiUrl,
-      })),
-      
-      setProxyConfig: (proxy) => set((state) => ({ ...state, proxy })),
-      
-      getProviderPreset: () => {
-        const { llmProvider } = get();
-        return LLM_PROVIDER_PRESETS.find(p => p.id === llmProvider);
-      },
-      
-      getCurrentModel: () => {
-        const { llmModel } = get();
-        const preset = get().getProviderPreset();
-        return preset?.models.find(m => m.id === llmModel);
-      },
-      
-      checkConnection: async () => {
-        set({ isLoading: true, error: null });
-        try {
-          // 检查 LLM API
-          const llmRes = await fetch(`${API_BASE}/health/llm/`);
-          const llm = llmRes.ok;
-          
-          // 检查 ComfyUI
-          const comfyRes = await fetch(`${API_BASE}/health/comfyui/`);
-          const comfyui = comfyRes.ok;
-          
-          set({ isLoading: false });
-          return { llm, comfyui };
-        } catch (error) {
-          set({ isLoading: false, error: '连接检查失败' });
-          return { llm: false, comfyui: false };
-        }
-      },
-    }),
-    {
-      name: 'novelflow-config',
-      // 简单的序列化/反序列化
-      partialize: (state) => ({
-        llmProvider: state.llmProvider,
-        llmModel: state.llmModel,
-        llmApiKey: state.llmApiKey,
-        llmApiUrl: state.llmApiUrl,
-        proxy: state.proxy,
-        comfyUIHost: state.comfyUIHost,
-        outputResolution: state.outputResolution,
-        outputFrameRate: state.outputFrameRate,
-      }),
+        ...config,
+        proxy: { ...state.proxy, ...config.proxy },
+      };
     }
-  )
-);
+    return { ...state, ...config };
+  }),
+  
+  setLLMConfig: (provider, model, apiKey, apiUrl) => set((state) => ({
+    ...state,
+    llmProvider: provider,
+    llmModel: model,
+    llmApiKey: apiKey,
+    llmApiUrl: apiUrl,
+  })),
+  
+  setProxyConfig: (proxy) => set((state) => ({ ...state, proxy })),
+  
+  getProviderPreset: () => {
+    const { llmProvider } = get();
+    return LLM_PROVIDER_PRESETS.find(p => p.id === llmProvider);
+  },
+  
+  getCurrentModel: () => {
+    const { llmModel } = get();
+    const preset = get().getProviderPreset();
+    return preset?.models.find(m => m.id === llmModel);
+  },
+  
+  checkConnection: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      // 检查 LLM API
+      const llmRes = await fetch(`${API_BASE}/health/llm/`);
+      const llm = llmRes.ok;
+      
+      // 检查 ComfyUI
+      const comfyRes = await fetch(`${API_BASE}/health/comfyui/`);
+      const comfyui = comfyRes.ok;
+      
+      set({ isLoading: false });
+      return { llm, comfyui };
+    } catch (error) {
+      set({ isLoading: false, error: '连接检查失败' });
+      return { llm: false, comfyui: false };
+    }
+  },
+  
+  loadConfig: async () => {
+    const backendConfig = await fetchConfigFromBackend();
+    if (backendConfig) {
+      set({ ...backendConfig, isLoaded: true });
+    } else {
+      set({ isLoaded: true });
+    }
+  },
+}));
 
 // 导出辅助函数
 export const getDefaultApiUrl = (provider: LLMProvider): string => {

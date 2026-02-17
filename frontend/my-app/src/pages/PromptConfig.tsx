@@ -27,14 +27,68 @@ interface PromptTemplate {
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
 // 默认AI解析角色系统提示词
-const DEFAULT_PARSE_CHARACTERS_PROMPT = `你是一个专业的小说解析助手。请分析提供的小说文本，提取以下信息并以JSON格式返回：
+const DEFAULT_PARSE_CHARACTERS_PROMPT = `你是一个专业的小说解析助手。请分析我提供的小说文本，提取以下信息并以 JSON 格式返回：
 
-1. characters: 角色列表，每个角色包含 name（姓名）、description（描述）、appearance（外貌特征）
-- 角色命名(name（姓名）、description（描述）、appearance（外貌特征）)必须全程保持唯一且一致：所有角色名称必须在首次解析时确定为唯一标准名称，并在后续所有步骤中严格复用该名称；若同类型角色存在多个且无真实姓名，必须按照首次出场顺序使用阿拉伯数字编号命名（如"骗子1""骗子2"），禁止使用"甲/乙""A/B""其中一人""另一人"等变体；一旦名称确定，不得在后续输出中更改、简化或替换，所有角色引用必须完全一致。
+1) characters：角色列表。每个角色必须包含：
+- name（姓名）
+- description（描述）
+- appearance（外貌特征：必须是一段完整自然语言描述的"单段文字"，禁止使用结构化字段/键值对/列表/分段标题）
 
-注意：
-- 角色外貌特征要详细，用于AI绘图
-- 返回必须是合法的JSON格式`;
+【角色命名唯一性与一致性（必须严格执行）】
+- 所有角色 name 必须在首次解析时确定为唯一标准名称，并在后续所有步骤中严格复用该名称。
+- 若同类型角色存在多个且无真实姓名，必须按首次出场顺序使用阿拉伯数字编号命名（如"骗子1""骗子2""士兵1""士兵2"）。
+- 禁止使用"甲/乙""A/B""其中一人""另一人""某官员"等非唯一或会变化的称呼。
+- 一旦 name 确定，后续输出不得更改、简化或替换；所有角色引用必须完全一致。
+
+【群体称谓抽取规则（必须执行）】
+当正文出现以下群体称谓：众人/群臣/士兵/百姓/侍从/随从/围观者/人群（含同义词，如"大家""围观的人""侍卫""兵丁""宫人""下人""臣子们"等），必须将其作为可出镜角色类型提取进 characters。
+规则：
+1) 不允许直接输出未编号的群体名称（禁止：众人、群臣、士兵、百姓、侍从、随从、围观者、人群）。
+2) 必须按首次出场顺序拆分并编号命名为具体角色（默认 2 个；若文本明确人数更多，可输出到 3–5 个，最多不超过 5 个）：
+   - 群臣1、群臣2…
+   - 士兵1、士兵2…
+   - 百姓1、百姓2…
+   - 侍从1、侍从2…
+   - 随从1、随从2…
+   - 围观者1、围观者2…
+3) 若同一段落同时出现多个群体称谓，必须分别建立编号角色（例如既有群臣又有侍从，则输出 群臣1/2 + 侍从1/2）。
+4) 每个群体编号角色也必须给出 description 与 appearance；可以共享基础外观模板，但必须用细节区分（年龄/体型/服饰配色/站位/表情/动作/配饰等），确保可用于 AI 绘图。
+5) 这些编号角色一旦生成，后续输出必须始终复用同名，不得改名、合并或替换。
+
+【appearance（外貌特征）写作硬性约束 | 必须遵守】
+- appearance 必须是"一段话"（单段自然语言），禁止输出 JSON 子对象、字段分组、项目符号列表、编号小节、冒号键值对。
+- 每个角色的 appearance 必须描述"只包含 1 个主体"的外貌，身份必须稳定一致，禁止漂移或换脸。
+- appearance 必须明确为"全身照/全身构图"（full-body shot）：从头到脚完整可见，站姿或自然姿态，四肢完整，不裁切，不缺手缺脚；同时写清鞋子/脚部外观或动物爪部细节；服装需覆盖上装/下装/鞋袜（或动物全身毛色/四肢/尾巴）。
+- appearance 这段话必须覆盖并明确以下要点（必须全部写进同一段文字里）：
+  A) 物种与身份：物种（人类/动物物种+品种）、性别/气质、年龄段（含大约年龄）、体型与身高/大小、2–6 个独特身份标记（必须可视化且可复现，如痣的位置、疤痕、条纹/色块分布、异色瞳、独特配饰的固定位置等）。
+  B) 头部与脸型：脸型/头型、面部比例（如中庭偏长/下颌偏宽等）、额头/颧骨/下颌线/下巴特征；动物需补充口鼻长度、头骨宽窄、耳根位置。
+  C) 眼睛：眼型、大小、虹膜颜色、眼角走向、眼皮类型；动物补充瞳孔形态；强调"眼型与眼睛颜色不得改变"。
+  D) 鼻子/口鼻部：鼻梁/鼻尖/鼻翼宽度/鼻孔大小与角度；动物补充鼻镜颜色、胡须垫是否明显。
+  E) 嘴/喙/下颌：嘴唇厚薄、嘴角走向、是否露齿；动物补充喙/尖牙可见度等。
+  F) 皮肤/毛发/羽毛/鳞片：表面类型、基础颜色（皮肤含冷暖底调）、质感细节、花纹/色块"精确位置映射"（必须可复现）。
+  G) 头发/鬃毛/冠羽/耳朵：发质、长度、发色、分发与发际线；动物补充耳形与耳毛簇、鬃毛/冠羽长度等。
+  H) 胡须/面部毛：胡子/胡茬/胡须长度与颜色（如适用）。
+  I) 与身份绑定的配饰：如眼镜/项圈/吊牌/头饰等，必须写清"类型 + 固定位置"，如指定则必须保留。
+  J) 比例与解剖规则：明确"保持面部比例、头身比、耳朵大小、口鼻长度、花纹位置与所有独特标记一致；禁止改物种/品种；禁止改变年龄段与性别气质呈现"。
+
+【负面约束（必须体现在输出约束中）】
+- 禁止改变：眼睛颜色、眼型、脸型、口鼻长度、毛皮/皮肤花纹的精确位置、独特标记、发型轮廓。
+- 禁止：额外主体、换脸、身份漂移、左右不对称 bug、畸形解剖、随机疤痕/纹身、无故新增配饰或标记。
+- 禁止裁切：不许半身照、特写、缺腿缺脚、脚部出画、手部残缺或被遮挡导致不可见。
+
+【输出格式要求（必须严格执行）】
+- 只返回合法 JSON，不得输出任何解释性文字。
+- JSON 顶层结构必须为：
+{
+  "characters": [
+    {
+      "name": "...",
+      "description": "...",
+      "appearance": "..."
+    }
+  ]
+}
+- appearance 必须是纯字符串的一段话（一个 string），不得是对象、数组、或多段分行结构。`;
 
 // 默认人设提示词模板
 const DEFAULT_CHARACTER_TEMPLATE = "character portrait, anime style, high quality, detailed, {appearance}, {description}, single character, centered, clean background, professional artwork, 8k";
@@ -166,20 +220,9 @@ export default function PromptConfig() {
         const data = await res.json();
         if (data.success && data.data.parseCharactersPrompt) {
           setParsePrompt(data.data.parseCharactersPrompt);
-        } else {
-          // 如果后端没有，尝试从 localStorage 加载
-          const saved = localStorage.getItem('novelfow_parse_characters_prompt');
-          if (saved) {
-            setParsePrompt(saved);
-          }
         }
       } catch (error) {
         console.error('加载提示词失败:', error);
-        // 从 localStorage 加载作为备用
-        const saved = localStorage.getItem('novelfow_parse_characters_prompt');
-        if (saved) {
-          setParsePrompt(saved);
-        }
       }
     };
     fetchParsePrompt();
@@ -371,8 +414,6 @@ export default function PromptConfig() {
       });
       
       if (res.ok) {
-        // 同时保存到 localStorage 作为备份
-        localStorage.setItem('novelfow_parse_characters_prompt', parsePrompt);
         toast.success('系统提示词已保存');
       } else {
         toast.error('保存失败');
@@ -396,10 +437,9 @@ export default function PromptConfig() {
           parseCharactersPrompt: DEFAULT_PARSE_CHARACTERS_PROMPT
         })
       });
-      localStorage.setItem('novelfow_parse_characters_prompt', DEFAULT_PARSE_CHARACTERS_PROMPT);
       toast.success('已恢复默认提示词');
     } catch (error) {
-      toast.success('已恢复默认提示词（本地）');
+      toast.success('已恢复默认提示词（仅前端）');
     }
   };
 

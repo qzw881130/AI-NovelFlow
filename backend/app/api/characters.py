@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import json
@@ -181,7 +181,6 @@ async def delete_characters_by_novel(novel_id: str = Query(..., description="小
 @router.post("/{character_id}/generate-portrait")
 async def generate_portrait(
     character_id: str,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """生成角色人设图"""
@@ -198,14 +197,16 @@ async def generate_portrait(
         "message": None
     }
     
-    # 后台任务生成图片
-    background_tasks.add_task(
-        generate_character_portrait_task,
-        task_id,
-        character_id,
-        character.name,
-        character.appearance,
-        character.description
+    # 后台任务生成图片 - 使用 asyncio.create_task 实现真正并发
+    import asyncio
+    asyncio.create_task(
+        generate_character_portrait_task(
+            task_id,
+            character_id,
+            character.name,
+            character.appearance,
+            character.description
+        )
     )
     
     return {
@@ -317,8 +318,46 @@ async def generate_character_portrait_task(
         # 构建提示词
         prompt = build_character_prompt(name, appearance, description)
         
-        # 调用 ComfyUI 生成图片
-        result = await comfyui_service.generate_character_image(prompt)
+        # 获取角色信息以获取 novel_id 和 style
+        from app.core.database import SessionLocal
+        from app.models.novel import Novel, Character
+        from app.models.prompt_template import PromptTemplate
+        import json
+        
+        db = SessionLocal()
+        style = "anime style, high quality, detailed"
+        novel_id = None
+        try:
+            character = db.query(Character).filter(Character.id == character_id).first()
+            if character and character.novel_id:
+                novel_id = character.novel_id
+                novel = db.query(Novel).filter(Novel.id == novel_id).first()
+                if novel and novel.prompt_template_id:
+                    template = db.query(PromptTemplate).filter(
+                        PromptTemplate.id == novel.prompt_template_id
+                    ).first()
+                    if template:
+                        # 从模板提取 style
+                        if hasattr(template, 'style') and template.style:
+                            style = template.style
+                        else:
+                            # 从模板内容提取
+                            try:
+                                template_data = json.loads(template.template)
+                                if isinstance(template_data, dict) and "style" in template_data:
+                                    style = template_data["style"]
+                            except:
+                                style = template.template.replace("{appearance}", "").replace("{description}", "").strip(", ")
+        finally:
+            db.close()
+        
+        # 调用 ComfyUI 生成图片，传递 style
+        result = await comfyui_service.generate_character_image(
+            prompt,
+            novel_id=novel_id,
+            character_name=name,
+            style=style
+        )
         
         # 保存实际提交给ComfyUI的工作流
         if result.get("submitted_workflow"):

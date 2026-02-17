@@ -39,7 +39,7 @@ class ComfyUIService:
             "shot_video": "ltx-2"
         }
     
-    def build_character_workflow(self, prompt: str, workflow_json: str = None, novel_id: str = None, character_name: str = None, aspect_ratio: str = None, node_mapping: Dict[str, str] = None, **kwargs) -> Dict[str, Any]:
+    def build_character_workflow(self, prompt: str, workflow_json: str = None, novel_id: str = None, character_name: str = None, aspect_ratio: str = None, node_mapping: Dict[str, str] = None, style: str = "anime style, high quality, detailed", **kwargs) -> Dict[str, Any]:
         """
         构建角色人设图工作流（注入参数后的完整工作流）
         
@@ -50,6 +50,7 @@ class ComfyUIService:
             character_name: 角色名称，用于设置保存路径
             aspect_ratio: 画面比例
             node_mapping: 节点映射配置
+            style: 风格描述，用于替换 ##STYLE## 占位符
             
         Returns:
             构建好的工作流字典
@@ -58,7 +59,7 @@ class ComfyUIService:
         if workflow_json:
             workflow = json.loads(workflow_json)
             # 在工作流中查找并替换 prompt
-            workflow = self._inject_prompt_to_workflow(workflow, prompt, novel_id, character_name, aspect_ratio, node_mapping)
+            workflow = self._inject_prompt_to_workflow(workflow, prompt, novel_id, character_name, aspect_ratio, node_mapping, style)
         else:
             # 构建 z-image 工作流提示
             width, height = self._get_aspect_ratio_dimensions(aspect_ratio)
@@ -720,7 +721,7 @@ class ComfyUIService:
         }
         return dimensions.get(aspect_ratio, (1088, 1920))  # 默认竖屏
     
-    def _inject_prompt_to_workflow(self, workflow: Dict[str, Any], prompt: str, novel_id: str = None, character_name: str = None, aspect_ratio: str = None, node_mapping: Dict[str, str] = None) -> Dict[str, Any]:
+    def _inject_prompt_to_workflow(self, workflow: Dict[str, Any], prompt: str, novel_id: str = None, character_name: str = None, aspect_ratio: str = None, node_mapping: Dict[str, str] = None, style: str = "anime style, high quality, detailed") -> Dict[str, Any]:
         """
         将提示词注入到工作流中
         
@@ -735,6 +736,7 @@ class ComfyUIService:
             character_name: 角色名称
             aspect_ratio: 画面比例
             node_mapping: 节点映射配置 {"prompt_node_id": "133", "save_image_node_id": "9"}
+            style: 风格描述，用于替换 ##STYLE## 占位符
         """
         # 检测工作流格式
         if "nodes" in workflow:
@@ -857,6 +859,33 @@ class ComfyUIService:
                 if "noise_seed" in inputs:
                     inputs["noise_seed"] = random.randint(1, 2**32)
                     print(f"[Workflow] Set random noise_seed for {class_type} node {node_id}")
+        
+        # 搜索并处理三视图提示词节点 (CR Text) - 添加 ##STYLE## 占位符
+        # 通过搜索包含特定文本的节点来定位，而不是硬编码节点ID
+        for node_id, node in api_workflow.items():
+            if not isinstance(node, dict):
+                continue
+            
+            class_type = node.get("class_type", "")
+            inputs = node.get("inputs", {})
+            
+            # 查找 CR Text 节点，且包含三视图相关文本
+            if class_type == "CR Text" and "text" in inputs:
+                current_text = inputs.get("text", "")
+                # 如果是默认的三视图文本（不含##STYLE##），替换为带 ##STYLE## 的版本
+                if "三视图" in current_text and "##STYLE##" not in current_text:
+                    inputs["text"] = current_text + ", ##STYLE##"
+                    print(f"[Workflow] Updated CR Text node {node_id} to include ##STYLE## placeholder")
+        
+        # 替换所有 ##STYLE## 占位符为传入的 style
+        for node_id, node in api_workflow.items():
+            if not isinstance(node, dict):
+                continue
+            inputs = node.get("inputs", {})
+            for key, value in inputs.items():
+                if isinstance(value, str) and "##STYLE##" in value:
+                    inputs[key] = value.replace("##STYLE##", style)
+                    print(f"[Workflow] Replaced ##STYLE## with '{style}' in node {node_id}.{key}")
         
         return api_workflow
     

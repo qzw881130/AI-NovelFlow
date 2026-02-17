@@ -2,7 +2,7 @@ import json
 import asyncio
 import httpx
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
@@ -177,7 +177,7 @@ async def delete_novel(novel_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{novel_id}/parse", response_model=dict)
-async def parse_novel(novel_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+async def parse_novel(novel_id: str, db: Session = Depends(get_db)):
     """解析小说内容，提取角色和场景"""
     novel = db.query(Novel).filter(Novel.id == novel_id).first()
     if not novel:
@@ -207,7 +207,9 @@ async def parse_novel(novel_id: str, background_tasks: BackgroundTasks, db: Sess
             novel.status = "failed"
             db.commit()
     
-    background_tasks.add_task(do_parse)
+    # 使用 asyncio.create_task 实现真正并发
+    import asyncio
+    asyncio.create_task(do_parse())
     
     return {"success": True, "message": "解析任务已启动"}
 
@@ -551,7 +553,6 @@ async def generate_shot_image(
     novel_id: str,
     chapter_id: str,
     shot_index: int,  # 1-based index
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """

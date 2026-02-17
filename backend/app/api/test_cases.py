@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -202,7 +202,6 @@ async def delete_test_case(test_case_id: str, db: Session = Depends(get_db)):
 @router.post("/{test_case_id}/run")
 async def run_test_case(
     test_case_id: str,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
     """运行测试用例"""
@@ -210,12 +209,12 @@ async def run_test_case(
     if not tc:
         raise HTTPException(status_code=404, detail="测试用例不存在")
     
-    # 根据测试类型启动不同的任务
+    # 根据测试类型启动不同的任务 - 使用 asyncio.create_task 实现真正并发
     if tc.type in ["full", "character"]:
         # 启动角色解析任务
-        background_tasks.add_task(
-            parse_characters_task,
-            tc.novel_id
+        import asyncio
+        asyncio.create_task(
+            parse_characters_task(tc.novel_id)
         )
     
     return {
@@ -867,7 +866,6 @@ async def _create_emperor_test_case(db: Session, default_template):
     print(f"[初始化] 已创建预设测试用例: {test_case.name}")
 
 
-from fastapi import BackgroundTasks
 from app.services.llm_service import LLMService
 
 

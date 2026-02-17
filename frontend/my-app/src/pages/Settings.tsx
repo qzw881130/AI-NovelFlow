@@ -191,14 +191,14 @@ export default function Settings() {
     fetchWorkflows();
   }, []);
 
-  // 当 config 加载后，同步到 formData（只执行一次）
+  // 组件挂载时从后端加载配置
   useEffect(() => {
-    // 延迟执行，确保 config 已从 localStorage 加载
-    const timer = setTimeout(() => {
+    const loadConfig = async () => {
+      await config.loadConfig();
       setFormData(getSafeConfig());
-    }, 100);
-    return () => clearTimeout(timer);
-  }, []);  // 只在组件挂载时执行一次
+    };
+    loadConfig();
+  }, []);
 
   const fetchWorkflows = async () => {
     try {
