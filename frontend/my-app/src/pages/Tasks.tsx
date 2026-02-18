@@ -346,7 +346,8 @@ export default function Tasks() {
     if (charMatch) {
       return t('tasks.taskNames.characterPortrait', { name: charMatch[1] });
     }
-    const shotMatch = task.name.match(/生成分镜(图片|视频):\s*(.+)/);
+    // 匹配"生成分镜图:"或"生成分镜视频:"格式
+    const shotMatch = task.name.match(/生成分镜(图|视频|图片):\s*(.+)/);
     if (shotMatch) {
       const type = shotMatch[1] === '视频' ? 'shotVideo' : 'shotImage';
       return t(`tasks.taskNames.${type}`, { name: shotMatch[2] });
@@ -367,13 +368,25 @@ export default function Tasks() {
     if (charMatch) {
       return t('tasks.taskDescriptions.characterPortrait', { name: charMatch[1] });
     }
-    const shotImgMatch = task.description.match(/为分镜\s*['"](.+)['"]\s*生成图片/);
+    // 匹配"为章节 'xxx' 的分镜 x 生成图片"格式
+    const shotImgMatch = task.description.match(/为章节\s*['"](.+)['"]\s*的分镜\s*(\d+)\s*生成图片/);
     if (shotImgMatch) {
-      return t('tasks.taskDescriptions.shotImage', { name: shotImgMatch[1] });
+      return t('tasks.taskDescriptions.shotImage', { name: `Shot ${shotImgMatch[2]}` });
     }
-    const shotVidMatch = task.description.match(/为分镜\s*['"](.+)['"]\s*生成视频/);
+    // 匹配"为分镜 'xxx' 生成图片"格式
+    const shotImgMatch2 = task.description.match(/为分镜\s*['"](.+)['"]\s*生成图片/);
+    if (shotImgMatch2) {
+      return t('tasks.taskDescriptions.shotImage', { name: shotImgMatch2[1] });
+    }
+    // 匹配"为章节 'xxx' 的分镜 x 生成视频"格式
+    const shotVidMatch = task.description.match(/为章节\s*['"](.+)['"]\s*的分镜\s*(\d+)\s*生成视频/);
     if (shotVidMatch) {
-      return t('tasks.taskDescriptions.shotVideo', { name: shotVidMatch[1] });
+      return t('tasks.taskDescriptions.shotVideo', { name: `Shot ${shotVidMatch[2]}` });
+    }
+    // 匹配"为分镜 'xxx' 生成视频"格式
+    const shotVidMatch2 = task.description.match(/为分镜\s*['"](.+)['"]\s*生成视频/);
+    if (shotVidMatch2) {
+      return t('tasks.taskDescriptions.shotVideo', { name: shotVidMatch2[1] });
     }
     const transMatch = task.description.match(/生成从分镜\s*(\d+)\s*到\s*(\d+)\s*的转场视频/);
     if (transMatch) {
