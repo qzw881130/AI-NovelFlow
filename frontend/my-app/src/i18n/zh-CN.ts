@@ -362,6 +362,7 @@ export default {
     selectProvider: '选择厂商',
     apiKey: 'API Key',
     enterApiKey: '输入 API Key',
+    apiKeyHelp: '在 {provider} 控制台获取 API Key',
     apiUrl: 'API URL',
     model: '模型',
     selectModel: '选择模型',

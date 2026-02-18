@@ -362,6 +362,7 @@ export default {
     selectProvider: 'Select Provider',
     apiKey: 'API Key',
     enterApiKey: 'Enter API Key',
+    apiKeyHelp: 'Get API Key from {provider} console',
     apiUrl: 'API URL',
     model: 'Model',
     selectModel: 'Select Model',
