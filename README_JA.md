@@ -47,7 +47,7 @@ NovelFlowは、小説を自動的に動画に変換するAIプラットフォー
 
 ## 動画紹介
 
-📺 [Bilibili: AI-NovelFlow 小説動画変換プラットフォーム紹介](https://www.bilibili.com/video/BV1VdZbBDEXF)
+📺 <a href="https://www.bilibili.com/video/BV1VdZbBDEXF" target="_blank">Bilibili: AI-NovelFlow 小説動画変換プラットフォーム紹介</a>
 
 ## 技術スタック
 

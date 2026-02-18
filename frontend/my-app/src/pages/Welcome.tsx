@@ -65,10 +65,10 @@ export default function Welcome() {
         <div className="flex items-center justify-between overflow-x-auto pb-2">
           {[
             { icon: Book, title: t('welcome.features.novelManagement.title'), color: 'from-sky-500 to-blue-500' },
-            { icon: Sparkles, title: 'AI', color: 'from-violet-500 to-purple-500' },
+            { icon: Sparkles, title: t('novels.aiParseCharacters'), color: 'from-violet-500 to-purple-500' },
             { icon: Users, title: t('welcome.features.characterLibrary.title'), color: 'from-fuchsia-500 to-pink-500' },
             { icon: FileText, title: t('chapterDetail.rawContent'), color: 'from-blue-500 to-cyan-500' },
-            { icon: Sparkles, title: 'AI', color: 'from-purple-500 to-pink-500' },
+            { icon: Sparkles, title: t('llmLogs.splitShots'), color: 'from-purple-500 to-pink-500' },
             { icon: FileJson, title: 'JSON', color: 'from-emerald-500 to-teal-500' },
             { icon: Users, title: t('characters.title'), color: 'from-orange-500 to-amber-500' },
             { icon: ImageIcon, title: t('welcome.features.storyboard.title'), color: 'from-rose-500 to-pink-500' },

@@ -44,7 +44,7 @@ NovelFlow 是一个将小说自动转换为视频的 AI 平台。
 
 ## 视频介绍
 
-📺 [Bilibili: AI-NovelFlow 小说转视频平台介绍](https://www.bilibili.com/video/BV1VdZbBDEXF)
+📺 <a href="https://www.bilibili.com/video/BV1VdZbBDEXF" target="_blank">Bilibili: AI-NovelFlow 小说转视频平台介绍</a>
 
 ## 技术栈
 
