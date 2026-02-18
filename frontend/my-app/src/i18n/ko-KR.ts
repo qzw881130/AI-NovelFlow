@@ -433,6 +433,14 @@ export default {
 
   tasks: {
     ...enUS.tasks,
+    title: '작업 큐',
+    subtitle: '생성 작업 보기 및 관리',
+    allTasks: '전체 작업',
+    pending: '대기 중',
+    running: '실행 중',
+    completed: '완료됨',
+    failed: '실패',
+    completedAt: '완료 시간',
     noTasksCreated: '작업이 생성되지 않았습니다',
     noTasksInStatus: '이 상태의 작업이 없습니다',
     terminateAll: '전체 종료',

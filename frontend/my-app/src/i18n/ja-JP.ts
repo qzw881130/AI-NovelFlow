@@ -433,6 +433,14 @@ export default {
 
   tasks: {
     ...enUS.tasks,
+    title: 'タスクキュー',
+    subtitle: '生成タスクの表示と管理',
+    allTasks: '全タスク',
+    pending: '保留中',
+    running: '実行中',
+    completed: '完了',
+    failed: '失敗',
+    completedAt: '完了日時',
     noTasksCreated: 'タスクが作成されていません',
     noTasksInStatus: 'この状態のタスクはありません',
     terminateAll: '全て停止',
