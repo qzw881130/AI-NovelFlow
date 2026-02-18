@@ -45,6 +45,10 @@ NovelFlowは、小説を自動的に動画に変換するAIプラットフォー
 - キャラクター一貫性（複数シーンでキャラクター外見を保持）
 - 自動ショット生成と動画合成
 
+## 動画紹介
+
+📺 [Bilibili: AI-NovelFlow 小説動画変換プラットフォーム紹介](https://www.bilibili.com/video/BV1VdZbBDEXF)
+
 ## 技術スタック
 
 - **フロントエンド**: React + TypeScript + Tailwind CSS + Vite

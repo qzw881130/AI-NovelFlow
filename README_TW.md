@@ -42,6 +42,10 @@ NovelFlow 是一個將小說自動轉換為視訊的 AI 平台。
 - 角色一致性保持（角色形象在多場景中保持一致）
 - 自動分鏡生成和視訊合成
 
+## 影片介紹
+
+📺 [Bilibili: AI-NovelFlow 小說轉視訊平台介紹](https://www.bilibili.com/video/BV1VdZbBDEXF)
+
 ## 技術棧
 
 - **前端**: React + TypeScript + Tailwind CSS + Vite
