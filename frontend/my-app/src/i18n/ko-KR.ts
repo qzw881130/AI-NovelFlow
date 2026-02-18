@@ -503,4 +503,43 @@ export default {
     deleteShot: '샷 삭제',
     addShot: '샷 추가',
   },
+
+  chapterGenerate: {
+    // 단계
+    stepContent: '원문 내용',
+    stepAiParse: 'AI 샷 분할',
+    stepJson: 'JSON 구조',
+    stepCharacter: '통합 캐릭터 생성',
+    stepShots: '샷 이미지 생성',
+    stepVideos: '샷 비디오 생성',
+    stepTransitions: '전환 비디오 생성',
+    stepCompose: '비디오 합성',
+    // 자료 다운로드
+    chapterMaterials: '장 자료',
+    downloadMaterialsDesc: '이 장의 모든 자료를 다운로드：',
+    mergedCharacterImage: '통합 캐릭터 이미지',
+    shotImages: '샷 이미지',
+    shotVideos: '샷 비디오',
+    transitionVideos: '전환 비디오',
+    packing: '패키징 중...',
+    downloadMaterials: '자료 다운로드',
+    // JSON 편집기
+    jsonText: 'JSON 텍스트',
+    tableEdit: '테이블 편집',
+    saveChanges: '변경사항 저장',
+    jsonPlaceholder: 'AI 샷 분할을 클릭하여 데이터를 생성하거나 직접 JSON을 입력...',
+    noShotImages: '샷 이미지가 없습니다. 먼저 AI 샷 분할을 사용하세요',
+    noShotVideos: '샷 비디오가 없습니다',
+    // 비디오 합성
+    mergeVideo: '비디오 합성',
+    mergeShotsOnly: '샷 비디오만 합성',
+    mergeShotsAndTransitions: '샷＋전환 합성',
+    // 캐릭터 이미지
+    characterImages: '캐릭터 이미지',
+    aiGenerateCharacter: 'AI 캐릭터 생성',
+    // 콘텐츠 영역
+    originalContent: '원문 내용',
+    expandFullText: '전체 텍스트 펼치기',
+    aiSplitShots: 'AI 샷 분할',
+  },
 };

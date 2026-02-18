@@ -503,4 +503,43 @@ export default {
     deleteShot: 'ショットを削除',
     addShot: 'ショットを追加',
   },
+
+  chapterGenerate: {
+    // 步骤
+    stepContent: '原文内容',
+    stepAiParse: 'AIショット分割',
+    stepJson: 'JSON構造',
+    stepCharacter: '統合キャラクター生成',
+    stepShots: 'ショット画像生成',
+    stepVideos: 'ショット動画生成',
+    stepTransitions: 'トランジション動画生成',
+    stepCompose: '動画統合',
+    // 素材ダウンロード
+    chapterMaterials: '章素材',
+    downloadMaterialsDesc: 'この章の全素材をダウンロード：',
+    mergedCharacterImage: '統合キャラクター画像',
+    shotImages: 'ショット画像',
+    shotVideos: 'ショット動画',
+    transitionVideos: 'トランジション動画',
+    packing: 'パッケージング中...',
+    downloadMaterials: '素材をダウンロード',
+    // JSONエディタ
+    jsonText: 'JSONテキスト',
+    tableEdit: 'テーブル編集',
+    saveChanges: '変更を保存',
+    jsonPlaceholder: 'AIショット分割をクリックしてデータを生成するか、直接JSONを入力...',
+    noShotImages: 'ショット画像がありません。先にAIショット分割を使用してください',
+    noShotVideos: 'ショット動画がありません',
+    // 動画統合
+    mergeVideo: '動画を統合',
+    mergeShotsOnly: 'ショット動画のみ統合',
+    mergeShotsAndTransitions: 'ショット＋トランジション統合',
+    // キャラクター画像
+    characterImages: 'キャラクター画像',
+    aiGenerateCharacter: 'AIキャラクター生成',
+    // コンテンツエリア
+    originalContent: '原文内容',
+    expandFullText: '全文を展開',
+    aiSplitShots: 'AIショット分割',
+  },
 };
