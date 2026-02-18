@@ -5,8 +5,8 @@ export default {
   ...zhCN,
   common: {
     ...zhCN.common,
-    save: '儲存',
-    saving: '儲存中...',
+    save: '保存',
+    saving: '保存中...',
     cancel: '取消',
     confirm: '確認',
     delete: '刪除',
@@ -178,7 +178,7 @@ export default {
     generateAllPortraits: 'AI產生所有角色形象',
     deleteAll: '刪除當前小說所有角色',
     createCharacter: '建立角色',
-    saveChanges: '儲存修改',
+    saveChanges: '保存修改',
     searchCharacters: '搜尋角色...',
     novelLabel: '所屬小說',
     selectNovel: '請選擇小說',
@@ -314,9 +314,9 @@ export default {
     outputSettings: '輸出組態',
     resolution: '解析度',
     frameRate: '影格率',
-    saveConfig: '儲存組態',
-    configSaved: '組態已儲存',
-    configSaveFailed: '組態儲存失敗',
+    saveConfig: '保存組態',
+    configSaved: '組態已保存',
+    configSaveFailed: '組態保存失敗',
     // Provider names
     providers: {
       deepseek: 'DeepSeek',
