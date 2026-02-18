@@ -9,6 +9,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { toast } from '../stores/toastStore';
+import { useTranslation } from '../stores/i18nStore';
 
 interface LLMLog {
   id: string;
@@ -36,6 +37,7 @@ interface Pagination {
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
 export default function LLMLogs() {
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<LLMLog[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, page_size: 20, total: 0, total_pages: 0 });
   const [loading, setLoading] = useState(true);
@@ -124,28 +126,28 @@ export default function LLMLogs() {
 
   const getTaskTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
-      'parse_characters': '解析角色',
-      'split_chapter': '拆分章节',
-      'generate_character_appearance': '生成外貌',
-      'expand_video_prompt': '扩写视频提示词'
+      'parse_characters': t('llmLogs.parseCharacters'),
+      'split_chapter': t('llmLogs.splitShots'),
+      'generate_character_appearance': t('llmLogs.generateAppearance'),
+      'expand_video_prompt': t('llmLogs.expandVideoPrompt')
     };
     return labels[type] || type || '-';
   };
 
   const getStatusBadge = (status: string) => {
     if (status === 'success') {
-      return <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">成功</span>;
+      return <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">{t('common.success')}</span>;
     }
-    return <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full">失败</span>;
+    return <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full">{t('common.failed')}</span>;
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">JSON解析日志</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('llmLogs.title')}</h1>
         <p className="mt-1 text-sm text-gray-500">
-          查看AI解析小说文本时调用LLM API的详细日志
+          {t('llmLogs.subtitle')}
         </p>
       </div>
 
@@ -153,58 +155,58 @@ export default function LLMLogs() {
       <div className="card">
         <div className="flex items-center gap-2 mb-4">
           <Filter className="h-4 w-4 text-gray-500" />
-          <span className="text-sm font-medium text-gray-700">筛选条件</span>
+          <span className="text-sm font-medium text-gray-700">{t('llmLogs.filterConditions')}</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">LLM厂商</label>
+            <label className="block text-xs text-gray-500 mb-1">{t('llmLogs.llmProvider')}</label>
             <select
               value={filters.provider}
               onChange={(e) => handleFilterChange('provider', e.target.value)}
               className="input-field text-sm w-full"
             >
-              <option value="">全部</option>
+              <option value="">{t('llmLogs.all')}</option>
               {filterOptions.providers.map(p => (
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">模型</label>
+            <label className="block text-xs text-gray-500 mb-1">{t('llmLogs.model')}</label>
             <select
               value={filters.model}
               onChange={(e) => handleFilterChange('model', e.target.value)}
               className="input-field text-sm w-full"
             >
-              <option value="">全部</option>
+              <option value="">{t('llmLogs.all')}</option>
               {filterOptions.models.map(m => (
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">任务类型</label>
+            <label className="block text-xs text-gray-500 mb-1">{t('llmLogs.taskType')}</label>
             <select
               value={filters.task_type}
               onChange={(e) => handleFilterChange('task_type', e.target.value)}
               className="input-field text-sm w-full"
             >
-              <option value="">全部</option>
+              <option value="">{t('llmLogs.all')}</option>
               {filterOptions.task_types.map(t => (
                 <option key={t} value={t}>{getTaskTypeLabel(t)}</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block text-xs text-gray-500 mb-1">状态</label>
+            <label className="block text-xs text-gray-500 mb-1">{t('common.status')}</label>
             <select
               value={filters.status}
               onChange={(e) => handleFilterChange('status', e.target.value)}
               className="input-field text-sm w-full"
             >
-              <option value="">全部</option>
-              <option value="success">成功</option>
-              <option value="error">失败</option>
+              <option value="">{t('llmLogs.all')}</option>
+              <option value="success">{t('common.success')}</option>
+              <option value="error">{t('common.failed')}</option>
             </select>
           </div>
         </div>
@@ -213,20 +215,20 @@ export default function LLMLogs() {
             onClick={applyFilters}
             className="btn-primary text-sm"
           >
-            应用筛选
+            {t('llmLogs.applyFilter')}
           </button>
           <button
             onClick={resetFilters}
             className="btn-secondary text-sm"
           >
-            重置
+            {t('llmLogs.reset')}
           </button>
           <button
             onClick={fetchLogs}
             className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
           >
             <RefreshCw className="h-4 w-4" />
-            刷新
+            {t('llmLogs.refresh')}
           </button>
         </div>
       </div>
@@ -240,20 +242,20 @@ export default function LLMLogs() {
         ) : logs.length === 0 ? (
           <div className="text-center py-12 text-gray-500">
             <ScrollText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-            <p>暂无日志记录</p>
+            <p>{t('llmLogs.noLogs')}</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">时间</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">LLM类型</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">模型</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">任务类型</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">状态</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">提示词预览</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.timestamp')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.llmProvider')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.model')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.taskType')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('common.status')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.promptPreview')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -285,7 +287,7 @@ export default function LLMLogs() {
                         className="text-primary-600 hover:text-primary-700 inline-flex items-center gap-1"
                       >
                         <Eye className="h-4 w-4" />
-                        查看详情
+                        {t('llmLogs.viewDetails')}
                       </button>
                     </td>
                   </tr>
@@ -299,7 +301,7 @@ export default function LLMLogs() {
         {pagination.total_pages > 0 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
             <div className="text-sm text-gray-500">
-              共 {pagination.total} 条记录，第 {pagination.page}/{pagination.total_pages} 页
+              {t('llmLogs.pagination', { total: pagination.total, page: pagination.page, totalPages: pagination.total_pages })}
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -327,7 +329,7 @@ export default function LLMLogs() {
           <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">日志详情</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{t('llmLogs.logDetails')}</h3>
                 <p className="text-sm text-gray-500">{formatDate(selectedLog.created_at)}</p>
               </div>
               <button
@@ -342,18 +344,18 @@ export default function LLMLogs() {
             </div>
             <div className="flex-1 overflow-y-auto p-6 space-y-4">
               <div className="flex items-center gap-4 text-sm">
-                <span className="text-gray-500">厂商:</span>
+                <span className="text-gray-500">{t('llmLogs.provider')}:</span>
                 <span className="font-medium">{selectedLog.provider}</span>
-                <span className="text-gray-500">模型:</span>
+                <span className="text-gray-500">{t('llmLogs.model')}:</span>
                 <span className="font-medium">{selectedLog.model}</span>
-                <span className="text-gray-500">任务:</span>
+                <span className="text-gray-500">{t('llmLogs.task')}:</span>
                 <span className="font-medium">{getTaskTypeLabel(selectedLog.task_type)}</span>
                 <span>{getStatusBadge(selectedLog.status)}</span>
               </div>
               
               {selectedLog.error_message && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <h4 className="text-sm font-medium text-red-700 mb-2">错误信息</h4>
+                  <h4 className="text-sm font-medium text-red-700 mb-2">{t('llmLogs.errorMessage')}</h4>
                   <pre className="text-sm text-red-600 whitespace-pre-wrap">{selectedLog.error_message}</pre>
                 </div>
               )}
@@ -389,7 +391,7 @@ export default function LLMLogs() {
                         : 'text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    LLM 响应
+                    {t('llmLogs.llmResponse')}
                   </button>
                 )}
               </div>

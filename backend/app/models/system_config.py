@@ -32,5 +32,9 @@ class SystemConfig(Base):
     # AI解析角色系统提示词
     parse_characters_prompt = Column(Text, nullable=True)
     
+    # 界面配置
+    language = Column(String, default="zh-CN")  # 语言设置
+    timezone = Column(String, default="Asia/Shanghai")  # 时区设置
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

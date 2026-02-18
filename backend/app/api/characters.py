@@ -296,6 +296,8 @@ async def get_character_prompt(character_id: str, db: Session = Depends(get_db))
         "data": {
             "prompt": prompt,
             "templateName": template.name if template else "默认模板",
+            "templateId": template.id if template else None,
+            "isSystem": template.is_system if template else False,
             "template": template.template if template else None,
             "appearance": character.appearance,
             "description": character.description

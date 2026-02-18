@@ -15,9 +15,11 @@ import {
   Film
 } from 'lucide-react';
 import { useConfigStore, LLM_PROVIDER_PRESETS } from '../stores/configStore';
+import { useTranslation } from '../stores/i18nStore';
 import { Link } from 'react-router-dom';
 
 export default function Welcome() {
+  const { t } = useTranslation();
   const { checkConnection, llmProvider, llmModel, llmApiKey, comfyUIHost } = useConfigStore();
   const [status, setStatus] = useState<{ llm: boolean; comfyui: boolean } | null>(null);
   const [checking, setChecking] = useState(false);
@@ -50,29 +52,29 @@ export default function Welcome() {
           </div>
         </div>
         <h1 className="text-4xl font-bold text-gray-900 mb-4">
-          欢迎使用 NovelFlow
+          {t('welcome.title')}
         </h1>
         <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-          AI 驱动的小说转视频平台。将您的小说自动转换为精彩的视觉作品。
+          {t('welcome.subtitle')}
         </p>
       </div>
 
       {/* Workflow Overview */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-6">工作流程</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-6">{t('welcome.features.workflow.title')}</h2>
         <div className="flex items-center justify-between overflow-x-auto pb-2">
           {[
-            { icon: Book, title: '小说', color: 'from-sky-500 to-blue-500' },
-            { icon: Sparkles, title: 'AI解析角色', color: 'from-violet-500 to-purple-500' },
-            { icon: Users, title: '生成角色图', color: 'from-fuchsia-500 to-pink-500' },
-            { icon: FileText, title: '原文内容', color: 'from-blue-500 to-cyan-500' },
-            { icon: Sparkles, title: 'AI拆分分镜头', color: 'from-purple-500 to-pink-500' },
-            { icon: FileJson, title: 'JSON结构', color: 'from-emerald-500 to-teal-500' },
-            { icon: Users, title: '生成合并角色图', color: 'from-orange-500 to-amber-500' },
-            { icon: ImageIcon, title: '生成分镜图片', color: 'from-rose-500 to-pink-500' },
-            { icon: Video, title: '生成分镜视频', color: 'from-indigo-500 to-violet-500' },
-            { icon: Film, title: '生成分镜转场视频', color: 'from-cyan-500 to-blue-500' },
-            { icon: CheckCircle, title: '合并视频', color: 'from-green-500 to-emerald-500' },
+            { icon: Book, title: t('welcome.features.novelManagement.title'), color: 'from-sky-500 to-blue-500' },
+            { icon: Sparkles, title: 'AI', color: 'from-violet-500 to-purple-500' },
+            { icon: Users, title: t('welcome.features.characterLibrary.title'), color: 'from-fuchsia-500 to-pink-500' },
+            { icon: FileText, title: t('novelDetail.rawContent'), color: 'from-blue-500 to-cyan-500' },
+            { icon: Sparkles, title: 'AI', color: 'from-purple-500 to-pink-500' },
+            { icon: FileJson, title: 'JSON', color: 'from-emerald-500 to-teal-500' },
+            { icon: Users, title: t('characters.title'), color: 'from-orange-500 to-amber-500' },
+            { icon: ImageIcon, title: t('welcome.features.storyboard.title'), color: 'from-rose-500 to-pink-500' },
+            { icon: Video, title: t('chapterDetail.generateVideo'), color: 'from-indigo-500 to-violet-500' },
+            { icon: Film, title: 'Video', color: 'from-cyan-500 to-blue-500' },
+            { icon: CheckCircle, title: t('common.success'), color: 'from-green-500 to-emerald-500' },
           ].map((step, index) => (
             <div key={step.title} className="flex items-center flex-shrink-0">
               <div className="flex flex-col items-center">
@@ -96,7 +98,7 @@ export default function Welcome() {
       {/* System Status */}
       <div className="card">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">系统状态</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t('welcome.systemStatus')}</h2>
           <button
             onClick={handleCheck}
             disabled={checking}
@@ -105,10 +107,10 @@ export default function Welcome() {
             {checking ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                检查中...
+                {t('common.loading')}
               </>
             ) : (
-              '重新检查'
+              t('common.refresh')
             )}
           </button>
         </div>
@@ -127,12 +129,12 @@ export default function Welcome() {
               <div>
                 <p className="font-medium text-gray-900">{providerName} ({modelName})</p>
                 <p className="text-sm text-gray-500">
-                  {status?.llm ? '连接正常' : llmApiKey ? '连接失败' : '未配置 API Key'}
+                  {status?.llm ? t('systemSettings.connectionSuccess') : llmApiKey ? t('systemSettings.connectionFailed') : t('systemSettings.enterApiKey')}
                 </p>
               </div>
             </div>
             <Link to="/settings" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
-              配置
+              {t('common.settings')}
             </Link>
           </div>
 
@@ -149,12 +151,12 @@ export default function Welcome() {
               <div>
                 <p className="font-medium text-gray-900">ComfyUI</p>
                 <p className="text-sm text-gray-500">
-                  {status?.comfyui ? '连接正常' : comfyUIHost ? '连接失败' : '未配置地址'}
+                  {status?.comfyui ? t('systemSettings.connectionSuccess') : comfyUIHost ? t('systemSettings.connectionFailed') : t('systemSettings.comfyUIHost')}
                 </p>
               </div>
             </div>
             <Link to="/settings" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
-              配置
+              {t('common.settings')}
             </Link>
           </div>
         </div>
@@ -162,7 +164,7 @@ export default function Welcome() {
         {!isConfigured && (
           <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
             <p className="text-sm text-yellow-800">
-              <strong>提示：</strong> 请先完成系统配置，才能开始使用 NovelFlow。
+              <strong>{t('common.info')}:</strong> {t('welcome.pleaseConfigure')}
             </p>
           </div>
         )}
@@ -175,11 +177,11 @@ export default function Welcome() {
           className={`btn-primary ${!isConfigured ? 'opacity-50 cursor-not-allowed' : ''}`}
           onClick={(e) => !isConfigured && e.preventDefault()}
         >
-          开始创作
+          {t('welcome.getStarted')}
           <ArrowRight className="ml-2 h-4 w-4" />
         </Link>
         <Link to="/settings" className="btn-secondary">
-          系统配置
+          {t('nav.systemSettings')}
         </Link>
       </div>
     </div>

@@ -24,16 +24,101 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { useConfigStore, LLM_PROVIDER_PRESETS, getDefaultApiUrl, getDefaultModels, getApiKeyPlaceholder, getApiKeyHelp } from '../stores/configStore';
+import { useTranslation } from '../stores/i18nStore';
 import JSONEditor from '../components/JSONEditor';
 import { toast } from '../stores/toastStore';
-import type { LLMProvider, ProxyConfig } from '../types';
+import type { LLMProvider, ProxyConfig, LLMModel } from '../types';
+
+// 获取 Provider 显示名称（使用翻译键）
+const getProviderDisplayName = (providerId: string, t: any): string => {
+  const providerKeyMap: Record<string, string> = {
+    'deepseek': 'systemSettings.providers.deepseek',
+    'openai': 'systemSettings.providers.openai',
+    'gemini': 'systemSettings.providers.gemini',
+    'anthropic': 'systemSettings.providers.anthropic',
+    'azure': 'systemSettings.providers.azure',
+    'aliyun-bailian': 'systemSettings.providers.aliyunBailian',
+    'custom': 'systemSettings.providers.custom',
+  };
+  const key = providerKeyMap[providerId];
+  if (key) {
+    return t(key, { defaultValue: providerId });
+  }
+  return providerId;
+};
+
+// 获取模型名称（使用翻译键）
+const getModelName = (modelId: string, t: any): string => {
+  const nameKeyMap: Record<string, string> = {
+    // Alibaba
+    'qwen-max': 'systemSettings.modelNames.qwenMax',
+    'qwen-plus': 'systemSettings.modelNames.qwenPlus',
+    'qwen-turbo': 'systemSettings.modelNames.qwenTurbo',
+    'qwen-coder-plus': 'systemSettings.modelNames.qwenCoderPlus',
+    'qwen-2.5-72b-instruct': 'systemSettings.modelNames.qwen25',
+    // Custom
+    'custom-model': 'systemSettings.modelNames.customModel',
+  };
+  const key = nameKeyMap[modelId];
+  if (key) {
+    return t(key, { defaultValue: '' });
+  }
+  return '';
+};
+
+// 获取模型描述（使用翻译键）
+const getModelDescription = (modelId: string, t: any): string => {
+  const descKeyMap: Record<string, string> = {
+    // DeepSeek
+    'deepseek-chat': 'systemSettings.modelDescriptions.deepseekDesc',
+    'deepseek-coder': 'systemSettings.modelDescriptions.deepseekCoderDesc',
+    'deepseek-reasoner': 'systemSettings.modelDescriptions.deepseekReasonerDesc',
+    // OpenAI
+    'gpt-4o': 'systemSettings.modelDescriptions.gpt4oDesc',
+    'gpt-4o-mini': 'systemSettings.modelDescriptions.gpt4oMiniDesc',
+    'gpt-4-turbo': 'systemSettings.modelDescriptions.gpt4TurboDesc',
+    'gpt-3.5-turbo': 'systemSettings.modelDescriptions.gpt35TurboDesc',
+    // Gemini
+    'gemini-2.5-flash-preview-05-20': 'systemSettings.modelDescriptions.gemini25FlashPreviewDesc',
+    'gemini-2.5-pro-preview-05-20': 'systemSettings.modelDescriptions.gemini25ProPreviewDesc',
+    'gemini-2.0-flash': 'systemSettings.modelDescriptions.gemini20FlashDesc',
+    'gemini-2.0-flash-lite': 'systemSettings.modelDescriptions.gemini20FlashLiteDesc',
+    'gemini-2.0-pro-exp-02-05': 'systemSettings.modelDescriptions.gemini20ProExpDesc',
+    // Claude
+    'claude-3-5-sonnet-20241022': 'systemSettings.modelDescriptions.claude35SonnetDesc',
+    'claude-3-opus-20240229': 'systemSettings.modelDescriptions.claude3OpusDesc',
+    'claude-3-sonnet-20240229': 'systemSettings.modelDescriptions.claude3SonnetDesc',
+    'claude-3-haiku-20240307': 'systemSettings.modelDescriptions.claude3HaikuDesc',
+    // Azure
+    'azure-gpt-4o': 'systemSettings.modelDescriptions.azureGpt4oDesc',
+    'azure-gpt-4': 'systemSettings.modelDescriptions.azureGpt4Desc',
+    'azure-gpt-35-turbo': 'systemSettings.modelDescriptions.azureGpt35TurboDesc',
+    // Alibaba
+    'qwen-max': 'systemSettings.modelDescriptions.qwenMaxDesc',
+    'qwen-plus': 'systemSettings.modelDescriptions.qwenPlusDesc',
+    'qwen-turbo': 'systemSettings.modelDescriptions.qwenTurboDesc',
+    'qwen-coder-plus': 'systemSettings.modelDescriptions.qwenCoderPlusDesc',
+    'qwen-2.5-72b-instruct': 'systemSettings.modelDescriptions.qwen25Desc',
+    'deepseek-v3': 'systemSettings.modelDescriptions.deepseekV3AliDesc',
+    'deepseek-r1': 'systemSettings.modelDescriptions.deepseekR1AliDesc',
+    // Custom
+    'custom-model': 'systemSettings.modelDescriptions.customModelDesc',
+  };
+  const key = descKeyMap[modelId];
+  if (key) {
+    return t(key, { defaultValue: '' });
+  }
+  return '';
+};
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
 interface Workflow {
   id: string;
   name: string;
+  nameKey?: string;
   description?: string;
+  descriptionKey?: string;
   type: 'character' | 'shot' | 'video' | 'transition';
   typeName: string;
   isSystem: boolean;
@@ -60,11 +145,28 @@ const typeColors = {
   transition: 'bg-purple-100 text-purple-600'
 };
 
-const typeNames = {
-  character: '人设生成',
-  shot: '分镜生图',
-  video: '分镜生视频',
-  transition: '分镜生转场视频'
+// 获取工作流类型名称
+const getTypeNames = (t: any) => ({
+  character: t('systemSettings.workflow.character'),
+  shot: t('systemSettings.workflow.shot'),
+  video: t('systemSettings.workflow.video'),
+  transition: t('systemSettings.workflow.transition')
+});
+
+// 获取工作流显示名称（系统预设的使用翻译键）
+const getWorkflowDisplayName = (workflow: Workflow, t: any): string => {
+  if (workflow.isSystem && workflow.nameKey) {
+    return t(workflow.nameKey, { defaultValue: workflow.name });
+  }
+  return workflow.name;
+};
+
+// 获取工作流显示描述（系统预设的使用翻译键）
+const getWorkflowDisplayDescription = (workflow: Workflow, t: any): string => {
+  if (workflow.isSystem && workflow.descriptionKey) {
+    return t(workflow.descriptionKey, { defaultValue: workflow.description || '' });
+  }
+  return workflow.description || '';
 };
 
 // 检查工作流映射配置是否完整
@@ -120,6 +222,7 @@ const checkWorkflowMappingComplete = (workflow: Workflow): boolean => {
 };
 
 export default function Settings() {
+  const { t } = useTranslation();
   const config = useConfigStore();
   
   // 安全获取 config 值的辅助函数
@@ -267,10 +370,10 @@ export default function Settings() {
 
   const handleDelete = async (workflow: Workflow) => {
     if (workflow.isSystem) {
-      toast.warning('系统预设工作流不能删除');
+      toast.warning(t('promptConfig.systemDefault') + ' ' + t('common.delete') + t('common.failed'));
       return;
     }
-    if (!confirm('确定要删除这个工作流吗？')) return;
+    if (!confirm(t('promptConfig.confirmDelete', { name: t('systemSettings.workflow.title') }))) return;
     
     try {
       await fetch(`${API_BASE}/workflows/${workflow.id}/`, { method: 'DELETE' });
@@ -283,7 +386,7 @@ export default function Settings() {
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!uploadForm.file) {
-      toast.warning('请选择工作流文件');
+      toast.warning(t('systemSettings.workflow.selectFile'));
       return;
     }
     
@@ -306,7 +409,7 @@ export default function Settings() {
         fetchWorkflows();
       } else {
         // 处理 FastAPI 验证错误格式
-        let errorMsg = '上传失败';
+        let errorMsg = t('systemSettings.workflow.upload') + t('common.failed');
         if (data.detail) {
           if (typeof data.detail === 'string') {
             errorMsg = data.detail;
@@ -320,7 +423,7 @@ export default function Settings() {
       }
     } catch (error) {
       console.error('上传失败:', error);
-      toast.error('上传失败: ' + (error instanceof Error ? error.message : '网络错误'));
+      toast.error(t('systemSettings.workflow.upload') + t('common.failed') + ': ' + (error instanceof Error ? error.message : t('http.networkError')));
     } finally {
       setUploading(false);
     }
@@ -346,18 +449,26 @@ export default function Settings() {
             formattedJson = wf.workflowJson; // 使用原始字符串
           }
         }
+        // 如果是系统预设工作流且有翻译键，使用翻译后的值
+        const displayName = wf.isSystem && wf.nameKey 
+          ? t(wf.nameKey, { defaultValue: wf.name })
+          : wf.name;
+        const displayDescription = wf.isSystem && wf.descriptionKey
+          ? t(wf.descriptionKey, { defaultValue: wf.description || '' })
+          : wf.description || '';
+        
         setEditForm({
-          name: wf.name,
-          description: wf.description || '',
+          name: displayName,
+          description: displayDescription,
           workflowJson: formattedJson
         });
       } else {
-        toast.error(data.message || '加载工作流详情失败');
+        toast.error(data.message || t('systemSettings.workflow.loadingFailed'));
         setEditingWorkflow(null);
       }
     } catch (error) {
       console.error('加载工作流详情失败:', error);
-      toast.error('加载工作流详情失败');
+      toast.error(t('systemSettings.workflow.loadingFailed'));
       setEditingWorkflow(null);
     } finally {
       setLoadingEdit(false);
@@ -511,13 +622,13 @@ export default function Settings() {
       if (res.ok) {
         setMappingWorkflow(null);
         fetchWorkflows();
-        toast.success('保存映射配置成功');
+        toast.success(t('systemSettings.configSaved'));
       } else {
-        toast.error('保存映射配置失败');
+        toast.error(t('systemSettings.configSaveFailed'));
       }
     } catch (error) {
       console.error('保存映射配置失败:', error);
-      toast.error('保存失败');
+      toast.error(t('systemSettings.configSaveFailed'));
     } finally {
       setSavingMapping(false);
     }
@@ -541,7 +652,7 @@ export default function Settings() {
       }
     } catch (error) {
       console.error('下载失败:', error);
-      toast.error('下载失败');
+      toast.error(t('common.download') + t('common.failed'));
     }
   };
 
@@ -563,7 +674,7 @@ export default function Settings() {
           JSON.parse(editForm.workflowJson);
           payload.workflowJson = editForm.workflowJson;
         } catch {
-          toast.error('JSON 格式错误，请检查工作流内容');
+          toast.error('JSON ' + t('common.error') + ', ' + t('systemSettings.workflow.jsonEditableTip'));
           setSavingEdit(false);
           return;
         }
@@ -579,13 +690,13 @@ export default function Settings() {
       if (res.ok) {
         setEditingWorkflow(null);
         fetchWorkflows();
-        toast.success('保存成功');
+        toast.success(t('systemSettings.configSaved'));
       } else {
-        toast.error(data.detail || '保存失败');
+        toast.error(data.detail || t('systemSettings.configSaveFailed'));
       }
     } catch (error) {
       console.error('保存失败:', error);
-      toast.error('保存失败');
+      toast.error(t('systemSettings.configSaveFailed'));
     } finally {
       setSavingEdit(false);
     }
@@ -623,9 +734,9 @@ export default function Settings() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">系统配置</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('systemSettings.title')}</h1>
         <p className="mt-1 text-sm text-gray-500">
-          配置 AI 服务和输出参数
+          {t('systemSettings.subtitle')}
         </p>
       </div>
 
@@ -637,8 +748,8 @@ export default function Settings() {
               <Bot className="h-5 w-5 text-blue-600" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900">AI 服务配置</h2>
-              <p className="text-sm text-gray-500">配置 LLM 提供商和代理设置</p>
+              <h2 className="text-lg font-semibold text-gray-900">{t('systemSettings.llmConfig')}</h2>
+              <p className="text-sm text-gray-500">{t('systemSettings.subtitle')}</p>
             </div>
           </div>
           
@@ -655,7 +766,7 @@ export default function Settings() {
             >
               <div className="flex items-center gap-2">
                 <Bot className="h-4 w-4" />
-                LLM 配置
+                {t('systemSettings.llmConfig')}
               </div>
             </button>
             <button
@@ -669,7 +780,7 @@ export default function Settings() {
             >
               <div className="flex items-center gap-2">
                 <Network className="h-4 w-4" />
-                代理配置
+                {t('systemSettings.proxySettings')}
               </div>
             </button>
             <button
@@ -683,7 +794,7 @@ export default function Settings() {
             >
               <div className="flex items-center gap-2">
                 <Server className="h-4 w-4" />
-                ComfyUI
+                {t('systemSettings.comfyUISettings')}
               </div>
             </button>
           </div>
@@ -694,7 +805,7 @@ export default function Settings() {
               {/* 厂商选择 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-3">
-                  选择 LLM 厂商
+                  {t('systemSettings.selectProvider')}
                 </label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   {LLM_PROVIDER_PRESETS.map((preset) => (
@@ -713,12 +824,12 @@ export default function Settings() {
                           ? 'bg-blue-500 text-white'
                           : 'bg-gray-200 text-gray-600'
                       }`}>
-                        {preset.name.charAt(0)}
+                        {getProviderDisplayName(preset.id, t).charAt(0)}
                       </div>
                       <div className="text-left">
-                        <div className="text-sm font-medium">{preset.name}</div>
+                        <div className="text-sm font-medium">{getProviderDisplayName(preset.id, t)}</div>
                         <div className="text-xs text-gray-500">
-                          {preset.models.length} 个模型
+                          {preset.models.length} {t('systemSettings.selectModel')}
                         </div>
                       </div>
                     </button>
@@ -729,26 +840,30 @@ export default function Settings() {
               {/* 模型选择 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  选择模型
+                  {t('systemSettings.selectModel')}
                 </label>
                 <select
                   value={formData.llmModel}
                   onChange={(e) => setFormData({ ...formData, llmModel: e.target.value })}
                   className="input-field"
                 >
-                  {availableModels.map((model) => (
-                    <option key={model.id} value={model.id}>
-                      {model.name} {model.description ? `- ${model.description}` : ''}
-                      {model.maxTokens ? ` (${(model.maxTokens / 1000).toFixed(0)}k tokens)` : ''}
-                    </option>
-                  ))}
+                  {availableModels.map((model) => {
+                    const name = getModelName(model.id, t) || model.name;
+                    const desc = getModelDescription(model.id, t);
+                    return (
+                      <option key={model.id} value={model.id}>
+                        {name} {desc ? `- ${desc}` : ''}
+                        {model.maxTokens ? ` (${(model.maxTokens / 1000).toFixed(0)}k tokens)` : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
               {/* API 地址 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  API 地址
+                  {t('systemSettings.apiUrl')}
                 </label>
                 <input
                   type="url"
@@ -759,7 +874,7 @@ export default function Settings() {
                 />
                 {formData.llmProvider === 'azure' && (
                   <p className="mt-1 text-xs text-amber-600">
-                    Azure 需要填写完整的 Deployment URL
+                    {t('systemSettings.apiUrl')}
                   </p>
                 )}
               </div>
@@ -767,7 +882,7 @@ export default function Settings() {
               {/* API Key */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
-                  API Key
+                  {t('systemSettings.apiKey')}
                   {getApiKeyHelp(formData.llmProvider) && (
                     <span className="text-xs text-gray-400 font-normal">
                       ({getApiKeyHelp(formData.llmProvider)})
@@ -780,7 +895,7 @@ export default function Settings() {
                     value={formData.llmApiKey}
                     onChange={(e) => setFormData({ ...formData, llmApiKey: e.target.value })}
                     className="input-field pr-10"
-                    placeholder={getApiKeyPlaceholder(formData.llmProvider)}
+                    placeholder={t('systemSettings.enterApiKey')}
                   />
                   <button
                     type="button"
@@ -791,7 +906,7 @@ export default function Settings() {
                   </button>
                 </div>
                 <p className="mt-1 text-xs text-gray-500">
-                  API Key 将加密存储到服务器数据库中，重启后仍然有效
+                  {t('systemSettings.enterApiKey')}
                 </p>
               </div>
             </div>
@@ -803,9 +918,9 @@ export default function Settings() {
               <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
                 <Network className="h-5 w-5 text-blue-600" />
                 <div>
-                  <h3 className="text-sm font-medium text-blue-900">代理设置</h3>
+                  <h3 className="text-sm font-medium text-blue-900">{t('systemSettings.proxySettings')}</h3>
                   <p className="text-xs text-blue-700">
-                    配置代理以访问需要翻墙的 API 服务（如 OpenAI、Anthropic 等）
+                    {t('systemSettings.subtitle')}
                   </p>
                 </div>
               </div>
@@ -813,8 +928,8 @@ export default function Settings() {
               {/* 启用代理开关 */}
               <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
                 <div>
-                  <label className="text-sm font-medium text-gray-700">启用代理</label>
-                  <p className="text-xs text-gray-500">开启后所有 LLM 请求将通过代理发送</p>
+                  <label className="text-sm font-medium text-gray-700">{t('systemSettings.enableProxy')}</label>
+                  <p className="text-xs text-gray-500">{t('systemSettings.proxySettings')}</p>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -830,7 +945,7 @@ export default function Settings() {
               {/* HTTP 代理 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  HTTP 代理地址
+                  {t('systemSettings.httpProxy')}
                 </label>
                 <input
                   type="text"
@@ -841,14 +956,14 @@ export default function Settings() {
                   disabled={!formData.proxy?.enabled}
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  例如: http://127.0.0.1:7890 或 socks5://127.0.0.1:1080
+                  {t('systemSettings.httpProxy')}
                 </p>
               </div>
 
               {/* HTTPS 代理 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  HTTPS 代理地址
+                  {t('systemSettings.httpsProxy')}
                 </label>
                 <input
                   type="text"
@@ -859,7 +974,7 @@ export default function Settings() {
                   disabled={!formData.proxy?.enabled}
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  通常与 HTTP 代理相同，留空则使用 HTTP 代理
+                  {t('systemSettings.httpsProxy')}
                 </p>
               </div>
             </div>
@@ -870,7 +985,7 @@ export default function Settings() {
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ComfyUI 服务器地址
+                  {t('systemSettings.comfyUIHost')}
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -882,7 +997,7 @@ export default function Settings() {
                   />
                   <span className="inline-flex items-center px-3 py-2 rounded-lg text-sm font-medium bg-green-100 text-green-700">
                     <CheckCircle className="h-4 w-4 mr-1" />
-                    已连接
+                    {t('systemSettings.connectionSuccess')}
                   </span>
                 </div>
               </div>
@@ -898,8 +1013,8 @@ export default function Settings() {
                 <Server className="h-5 w-5 text-purple-600" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">ComfyUI 工作流</h2>
-                <p className="text-sm text-gray-500">管理 AI 生成工作流，支持系统预设和自定义上传</p>
+                <h2 className="text-lg font-semibold text-gray-900">{t('systemSettings.workflow.title')}</h2>
+                <p className="text-sm text-gray-500">{t('systemSettings.workflow.subtitle')}</p>
               </div>
             </div>
           </div>
@@ -917,10 +1032,10 @@ export default function Settings() {
                     <div className={`p-1.5 rounded ${typeColors[type]}`}>
                       <Icon className="h-4 w-4" />
                     </div>
-                    <h3 className="font-medium text-gray-900">{typeNames[type]}</h3>
+                    <h3 className="font-medium text-gray-900">{getTypeNames(t)[type]}</h3>
                     {activeWorkflow && (
                       <span className="text-xs text-gray-500">
-                        当前: {activeWorkflow.name} {activeWorkflow.isSystem ? '(系统)' : '(自定义)'}
+                        {t('systemSettings.workflow.current')}: {getWorkflowDisplayName(activeWorkflow, t)} {activeWorkflow.isSystem ? `(${t('systemSettings.workflow.system')})` : `(${t('systemSettings.workflow.custom')})`}
                       </span>
                     )}
                   </div>
@@ -933,7 +1048,7 @@ export default function Settings() {
                     className="inline-flex items-center gap-1 text-sm text-primary-600 hover:text-primary-700"
                   >
                     <Plus className="h-4 w-4" />
-                    上传工作流
+                    {t('systemSettings.workflow.uploadWorkflow')}
                   </button>
                 </div>
                 
@@ -942,7 +1057,7 @@ export default function Settings() {
                     <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
                   </div>
                 ) : typeWorkflows.length === 0 ? (
-                  <p className="text-sm text-gray-500 py-2">暂无工作流</p>
+                  <p className="text-sm text-gray-500 py-2">{t('systemSettings.workflow.noWorkflows')}</p>
                 ) : (
                   <div className="space-y-2">
                     {typeWorkflows.map((workflow) => (
@@ -964,23 +1079,23 @@ export default function Settings() {
                                 ? 'border-primary-500 bg-primary-500' 
                                 : 'border-gray-300 hover:border-primary-400'
                             }`}
-                            title={workflow.isActive ? '当前默认' : '设为默认'}
+                            title={workflow.isActive ? t('systemSettings.workflow.currentDefault') : t('systemSettings.workflow.setAsDefault')}
                           >
                             {workflow.isActive && <div className="w-2 h-2 bg-white rounded-full" />}
                           </button>
                           
                           <div>
                             <div className="flex items-center gap-2">
-                              <p className="font-medium text-sm text-gray-900">{workflow.name}</p>
+                              <p className="font-medium text-sm text-gray-900">{getWorkflowDisplayName(workflow, t)}</p>
                               {workflow.isActive && (
                                 <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary-100 text-primary-700 font-medium">
-                                  默认
+                                  {t('systemSettings.workflow.default')}
                                 </span>
                               )}
                             </div>
                             <p className="text-xs text-gray-500">
-                              {workflow.isSystem ? '系统预设' : '自定义'} 
-                              {workflow.description && ` · ${workflow.description}`}
+                              {workflow.isSystem ? t('systemSettings.workflow.systemPreset') : t('systemSettings.workflow.custom')} 
+                              {workflow.description && ` · ${getWorkflowDisplayDescription(workflow, t)}`}
                             </p>
                           </div>
                         </div>
@@ -994,7 +1109,7 @@ export default function Settings() {
                                 ? 'text-gray-400 hover:text-purple-600 hover:bg-purple-100'
                                 : 'text-amber-500 hover:text-amber-600 hover:bg-amber-100'
                             }`}
-                            title={checkWorkflowMappingComplete(workflow) ? '映射配置' : '映射配置不完整，请点击配置'}
+                            title={checkWorkflowMappingComplete(workflow) ? t('systemSettings.workflow.mappingConfig') : t('systemSettings.workflow.mappingConfigIncomplete')}
                           >
                             <Server className="h-4 w-4" />
                             {!checkWorkflowMappingComplete(workflow) && (
@@ -1008,7 +1123,7 @@ export default function Settings() {
                             type="button"
                             onClick={() => handleDownload(workflow)}
                             className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-100 rounded transition-colors"
-                            title="下载工作流"
+                            title={t('systemSettings.workflow.downloadWorkflow')}
                           >
                             <Download className="h-4 w-4" />
                           </button>
@@ -1016,7 +1131,7 @@ export default function Settings() {
                             type="button"
                             onClick={() => handleOpenEdit(workflow)}
                             className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                            title={workflow.isSystem ? '查看' : '编辑'}
+                            title={workflow.isSystem ? t('systemSettings.workflow.view') : t('systemSettings.workflow.edit')}
                           >
                             <Edit2 className="h-4 w-4" />
                           </button>
@@ -1025,7 +1140,7 @@ export default function Settings() {
                               type="button"
                               onClick={() => handleDelete(workflow)}
                               className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded transition-colors"
-                              title="删除"
+                              title={t('common.delete')}
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -1044,11 +1159,11 @@ export default function Settings() {
         <div className="flex justify-end">
           <button type="submit" disabled={saving} className="btn-primary">
             {saving ? (
-              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />保存中...</>
+              <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t('systemSettings.saveConfig')}</>
             ) : saved ? (
-              <><Save className="mr-2 h-4 w-4" />已保存</>
+              <><Save className="mr-2 h-4 w-4" />{t('systemSettings.configSaved')}</>
             ) : (
-              <><Save className="mr-2 h-4 w-4" />保存配置</>
+              <><Save className="mr-2 h-4 w-4" />{t('systemSettings.saveConfig')}</>
             )}
           </button>
         </div>
@@ -1060,7 +1175,7 @@ export default function Settings() {
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
-                上传{typeNames[uploadType]}工作流
+                {t('systemSettings.workflow.uploadTitle', { type: getTypeNames(t)[uploadType] })}
               </h3>
               <button
                 type="button"
@@ -1073,40 +1188,40 @@ export default function Settings() {
             
             <form onSubmit={handleUpload} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">工作流名称</label>
+                <label className="block text-sm font-medium text-gray-700">{t('systemSettings.workflow.workflowName')}</label>
                 <input
                   type="text"
                   required
                   value={uploadForm.name}
                   onChange={(e) => setUploadForm({ ...uploadForm, name: e.target.value })}
                   className="input-field mt-1"
-                  placeholder="例如：我的自定义人设工作流"
+                  placeholder={t('systemSettings.workflow.workflowNamePlaceholder')}
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700">描述（可选）</label>
+                <label className="block text-sm font-medium text-gray-700">{t('systemSettings.workflow.descriptionOptional')}</label>
                 <textarea
                   rows={2}
                   value={uploadForm.description}
                   onChange={(e) => setUploadForm({ ...uploadForm, description: e.target.value })}
                   className="input-field mt-1"
-                  placeholder="工作流描述..."
+                  placeholder={t('systemSettings.workflow.descriptionPlaceholder')}
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700">工作流JSON文件</label>
+                <label className="block text-sm font-medium text-gray-700">{t('systemSettings.workflow.workflowJsonFile')}</label>
                 <div className="mt-1">
                   <label className="flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-primary-500 cursor-pointer">
                     <div className="space-y-1 text-center">
                       <Upload className="mx-auto h-8 w-8 text-gray-400" />
                       <div className="flex text-sm text-gray-600">
                         <span className="relative cursor-pointer bg-white rounded-md font-medium text-primary-600 hover:text-primary-500">
-                          {uploadForm.file ? uploadForm.file.name : '选择文件'}
+                          {uploadForm.file ? uploadForm.file.name : t('systemSettings.workflow.selectFile')}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-500">ComfyUI 导出的 JSON 工作流文件</p>
+                      <p className="text-xs text-gray-500">{t('systemSettings.workflow.comfyUIJsonTip')}</p>
                     </div>
                     <input
                       type="file"
@@ -1124,7 +1239,7 @@ export default function Settings() {
                   onClick={() => setShowUploadModal(false)}
                   className="btn-secondary"
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -1132,9 +1247,9 @@ export default function Settings() {
                   className="btn-primary"
                 >
                   {uploading ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />上传中...</>
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t('systemSettings.workflow.uploading')}</>
                   ) : (
-                    <><Upload className="mr-2 h-4 w-4" />上传</>
+                    <><Upload className="mr-2 h-4 w-4" />{t('systemSettings.workflow.upload')}</>
                   )}
                 </button>
               </div>
@@ -1149,9 +1264,9 @@ export default function Settings() {
           <div className="bg-white rounded-lg p-6 w-full max-w-5xl max-h-[95vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
-                {editingWorkflow.isSystem ? '查看工作流' : '编辑工作流'}
+                {editingWorkflow.isSystem ? t('systemSettings.workflow.viewWorkflow') : t('systemSettings.workflow.editWorkflow')}
                 {editingWorkflow.isSystem && (
-                  <span className="ml-2 text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">系统预设（只读）</span>
+                  <span className="ml-2 text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{t('systemSettings.workflow.systemPresetReadonly')}</span>
                 )}
               </h3>
               <button
@@ -1170,35 +1285,35 @@ export default function Settings() {
             ) : (
               <form onSubmit={handleSaveEdit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">工作流名称</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('systemSettings.workflow.workflowName')}</label>
                   <input
                     type="text"
                     required
                     value={editForm.name}
                     onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                     className="input-field mt-1"
-                    placeholder="工作流名称"
+                    placeholder={t('systemSettings.workflow.workflowName')}
                     readOnly={editingWorkflow.isSystem}
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">描述</label>
+                  <label className="block text-sm font-medium text-gray-700">{t('systemSettings.workflow.description')}</label>
                   <textarea
                     rows={2}
                     value={editForm.description}
                     onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                     className="input-field mt-1"
-                    placeholder="工作流描述..."
+                    placeholder={t('systemSettings.workflow.descriptionPlaceholder')}
                     readOnly={editingWorkflow.isSystem}
                   />
                 </div>
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    工作流 JSON
+                    {t('systemSettings.workflow.workflowJson')}
                     {!editingWorkflow.isSystem && (
-                      <span className="text-xs text-gray-500 ml-2">可编辑，请确保 JSON 格式正确</span>
+                      <span className="text-xs text-gray-500 ml-2">{t('systemSettings.workflow.jsonEditableTip')}</span>
                     )}
                   </label>
                   <JSONEditor
@@ -1215,7 +1330,7 @@ export default function Settings() {
                     onClick={() => setEditingWorkflow(null)}
                     className="btn-secondary"
                   >
-                    {editingWorkflow.isSystem ? '关闭' : '取消'}
+                    {editingWorkflow.isSystem ? t('systemSettings.workflow.close') : t('common.cancel')}
                   </button>
                   {!editingWorkflow.isSystem && (
                     <button
@@ -1224,9 +1339,9 @@ export default function Settings() {
                       className="btn-primary"
                     >
                       {savingEdit ? (
-                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />保存中...</>
+                        <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t('systemSettings.workflow.saving')}</>
                       ) : (
-                        <><Save className="mr-2 h-4 w-4" />保存</>
+                        <><Save className="mr-2 h-4 w-4" />{t('common.save')}</>
                       )}
                     </button>
                   )}
@@ -1243,8 +1358,8 @@ export default function Settings() {
           <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
-                映射配置
-                <span className="ml-2 text-sm font-normal text-gray-500">{mappingWorkflow.name}</span>
+                {t('systemSettings.workflow.mappingConfig')}
+                <span className="ml-2 text-sm font-normal text-gray-500">{getWorkflowDisplayName(mappingWorkflow, t)}</span>
               </h3>
               <button
                 type="button"
@@ -1260,14 +1375,14 @@ export default function Settings() {
               {(mappingWorkflow?.type === 'character' || mappingWorkflow?.type === 'shot') && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    提示词输入节点
+                    {t('systemSettings.workflow.promptInputNode')}
                   </label>
                   <select
                     value={mappingForm.promptNodeId}
                     onChange={(e) => setMappingForm({ ...mappingForm, promptNodeId: e.target.value })}
                     className="input-field"
                   >
-                    <option value="">自动查找 (Auto)</option>
+                    <option value="">{t('systemSettings.workflow.autoFind')}</option>
                     {availableNodes.clipTextEncode.map((nodeInfo) => {
                       const nodeId = nodeInfo.split(' ')[0];
                       return (
@@ -1278,7 +1393,7 @@ export default function Settings() {
                     })}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    选择用于注入角色提示词的 CLIPTextEncode 节点，留空则自动查找
+                    {t('systemSettings.workflow.promptInputNodeTip')}
                   </p>
                   
                   {/* Node JSON Preview */}
@@ -1297,14 +1412,14 @@ export default function Settings() {
               {(mappingWorkflow?.type === 'character' || mappingWorkflow?.type === 'shot') && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    图片保存节点
+                    {t('systemSettings.workflow.imageSaveNode')}
                   </label>
                   <select
                     value={mappingForm.saveImageNodeId}
                     onChange={(e) => setMappingForm({ ...mappingForm, saveImageNodeId: e.target.value })}
                     className="input-field"
                   >
-                    <option value="">自动查找 (Auto)</option>
+                    <option value="">{t('systemSettings.workflow.autoFind')}</option>
                     {availableNodes.saveImage.map((nodeId) => (
                       <option key={nodeId} value={nodeId}>
                         Node#{nodeId}-SaveImage
@@ -1312,7 +1427,7 @@ export default function Settings() {
                     ))}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    选择用于保存生成图片的 SaveImage 节点，留空则自动查找
+                    {t('systemSettings.workflow.imageSaveNodeTip')}
                   </p>
                   
                   {/* Node JSON Preview */}
@@ -1331,14 +1446,14 @@ export default function Settings() {
               {mappingWorkflow?.type === 'shot' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    宽度节点 (Width)
+                    {t('systemSettings.workflow.widthNode')}
                   </label>
                   <select
                     value={mappingForm.widthNodeId}
                     onChange={(e) => setMappingForm({ ...mappingForm, widthNodeId: e.target.value })}
                     className="input-field"
                   >
-                    <option value="">自动查找 (Auto)</option>
+                    <option value="">{t('systemSettings.workflow.autoFind')}</option>
                     {availableNodes.easyInt
                       .filter(node => node.includes('Width'))
                       .map((nodeInfo) => {
@@ -1351,7 +1466,7 @@ export default function Settings() {
                       })}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    选择用于设置生成图片宽度的 easy int 节点 (Width)
+                    {t('systemSettings.workflow.widthNodeTip')}
                   </p>
                   
                   {/* Node JSON Preview */}
@@ -1370,14 +1485,14 @@ export default function Settings() {
               {mappingWorkflow?.type === 'shot' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    高度节点 (Height)
+                    {t('systemSettings.workflow.heightNode')}
                   </label>
                   <select
                     value={mappingForm.heightNodeId}
                     onChange={(e) => setMappingForm({ ...mappingForm, heightNodeId: e.target.value })}
                     className="input-field"
                   >
-                    <option value="">自动查找 (Auto)</option>
+                    <option value="">{t('systemSettings.workflow.autoFind')}</option>
                     {availableNodes.easyInt
                       .filter(node => node.includes('Height'))
                       .map((nodeInfo) => {
@@ -1390,7 +1505,7 @@ export default function Settings() {
                       })}
                   </select>
                   <p className="text-xs text-gray-500 mt-1">
-                    选择用于设置生成图片高度的 easy int 节点 (Height)
+                    {t('systemSettings.workflow.heightNodeTip')}
                   </p>
                   
                   {/* Node JSON Preview */}
@@ -1411,14 +1526,14 @@ export default function Settings() {
                   {/* 提示词输入节点 - 视频工作流显示 CR Prompt Text */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      提示词输入节点 (CR Prompt Text)
+                      {t('systemSettings.workflow.promptInputNode')} (CR Prompt Text)
                     </label>
                     <select
                       value={mappingForm.promptNodeId}
                       onChange={(e) => setMappingForm({ ...mappingForm, promptNodeId: e.target.value })}
                       className="input-field"
                     >
-                      <option value="">自动查找 (Auto)</option>
+                      <option value="">{t('systemSettings.workflow.autoFind')}</option>
                       {availableNodes.crPromptText.map((nodeInfo) => {
                         const nodeId = nodeInfo.split(' ')[0];
                         return (
@@ -1438,7 +1553,7 @@ export default function Settings() {
                       })}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      选择用于输入视频提示词的 CR Prompt Text 或 CLIPTextEncode 节点
+                      {t('systemSettings.workflow.promptInputNodeVideoTip')}
                     </p>
                     
                     {/* Node JSON Preview */}
@@ -1455,14 +1570,14 @@ export default function Settings() {
                   {/* 视频保存节点 */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      视频保存节点 (VHS_VideoCombine)
+                      {t('systemSettings.workflow.videoSaveNode')}
                     </label>
                     <select
                       value={mappingForm.videoSaveNodeId}
                       onChange={(e) => setMappingForm({ ...mappingForm, videoSaveNodeId: e.target.value })}
                       className="input-field"
                     >
-                      <option value="">自动查找 (Auto)</option>
+                      <option value="">{t('systemSettings.workflow.autoFind')}</option>
                       {availableNodes.vhsVideoCombine.map((nodeInfo) => {
                         const nodeId = nodeInfo.split(' ')[0];
                         return (
@@ -1473,7 +1588,7 @@ export default function Settings() {
                       })}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      选择用于保存生成视频的 VHS_VideoCombine 节点
+                      {t('systemSettings.workflow.videoSaveNodeTip')}
                     </p>
                     
                     {/* Node JSON Preview */}
@@ -1490,14 +1605,14 @@ export default function Settings() {
                   {/* 最长边节点 */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      最长边节点 (easy int - 最长边)
+                      {t('systemSettings.workflow.maxSideNode')}
                     </label>
                     <select
                       value={mappingForm.maxSideNodeId}
                       onChange={(e) => setMappingForm({ ...mappingForm, maxSideNodeId: e.target.value })}
                       className="input-field"
                     >
-                      <option value="">自动查找 (Auto)</option>
+                      <option value="">{t('systemSettings.workflow.autoFind')}</option>
                       {availableNodes.easyInt
                         .filter(node => node.includes('最长边'))
                         .map((nodeInfo) => {
@@ -1510,7 +1625,7 @@ export default function Settings() {
                         })}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      选择用于设置视频最长边的 easy int 节点
+                      {t('systemSettings.workflow.maxSideNodeTip')}
                     </p>
                     
                     {/* Node JSON Preview */}
@@ -1527,14 +1642,14 @@ export default function Settings() {
                   {/* 参考图片节点 */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      参考图片节点 (LoadImage)
+                      {t('systemSettings.workflow.referenceImageNode')}
                     </label>
                     <select
                       value={mappingForm.referenceImageNodeId}
                       onChange={(e) => setMappingForm({ ...mappingForm, referenceImageNodeId: e.target.value })}
                       className="input-field"
                     >
-                      <option value="">自动查找 (Auto)</option>
+                      <option value="">{t('systemSettings.workflow.autoFind')}</option>
                       {availableNodes.loadImage.map((nodeInfo) => {
                         const nodeId = nodeInfo.split(' ')[0];
                         return (
@@ -1545,7 +1660,7 @@ export default function Settings() {
                       })}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      选择用于加载参考图片（分镜图）的 LoadImage 节点
+                      {t('systemSettings.workflow.referenceImageNodeTip')}
                     </p>
                     
                     {/* Node JSON Preview */}
@@ -1562,14 +1677,14 @@ export default function Settings() {
                   {/* 总帧数节点 */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      总帧数节点 (easy int - 总帧数)
+                      {t('systemSettings.workflow.frameCountNode')}
                     </label>
                     <select
                       value={mappingForm.frameCountNodeId}
                       onChange={(e) => setMappingForm({ ...mappingForm, frameCountNodeId: e.target.value })}
                       className="input-field"
                     >
-                      <option value="">自动查找 (Auto)</option>
+                      <option value="">{t('systemSettings.workflow.autoFind')}</option>
                       {availableNodes.easyInt
                         .filter(node => node.includes('总帧数') || node.includes('frame') || node.includes('Frame'))
                         .map((nodeInfo) => {
@@ -1582,7 +1697,7 @@ export default function Settings() {
                         })}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      选择用于设置视频总帧数的 easy int 节点（值应为 8 的倍数 + 1）
+                      {t('systemSettings.workflow.frameCountNodeTip')}
                     </p>
                     
                     {/* Node JSON Preview */}
@@ -1603,14 +1718,14 @@ export default function Settings() {
                 <>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      首帧图节点 (LoadImage - First IMG)
+                      {t('systemSettings.workflow.firstImageNode')}
                     </label>
                     <select
                       value={mappingForm.firstImageNodeId}
                       onChange={(e) => setMappingForm({ ...mappingForm, firstImageNodeId: e.target.value })}
                       className="input-field"
                     >
-                      <option value="">自动查找 (Auto)</option>
+                      <option value="">{t('systemSettings.workflow.autoFind')}</option>
                       {availableNodes.loadImage
                         .filter(node => node.includes('First') || node.includes('first') || node.includes('首帧'))
                         .map((nodeInfo) => {
@@ -1623,7 +1738,7 @@ export default function Settings() {
                         })}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      选择用于输入首帧图片的 LoadImage 节点
+                      {t('systemSettings.workflow.firstImageNodeTip')}
                     </p>
                     
                     {/* Node JSON Preview */}
@@ -1639,14 +1754,14 @@ export default function Settings() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      尾帧图节点 (LoadImage - End IMG)
+                      {t('systemSettings.workflow.lastImageNode')}
                     </label>
                     <select
                       value={mappingForm.lastImageNodeId}
                       onChange={(e) => setMappingForm({ ...mappingForm, lastImageNodeId: e.target.value })}
                       className="input-field"
                     >
-                      <option value="">自动查找 (Auto)</option>
+                      <option value="">{t('systemSettings.workflow.autoFind')}</option>
                       {availableNodes.loadImage
                         .filter(node => node.includes('End') || node.includes('end') || node.includes('尾帧'))
                         .map((nodeInfo) => {
@@ -1659,7 +1774,7 @@ export default function Settings() {
                         })}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      选择用于输入尾帧图片的 LoadImage 节点
+                      {t('systemSettings.workflow.lastImageNodeTip')}
                     </p>
                     
                     {/* Node JSON Preview */}
@@ -1675,14 +1790,14 @@ export default function Settings() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      视频保存节点 (VHS_VideoCombine)
+                      {t('systemSettings.workflow.videoSaveNode')}
                     </label>
                     <select
                       value={mappingForm.videoSaveNodeId}
                       onChange={(e) => setMappingForm({ ...mappingForm, videoSaveNodeId: e.target.value })}
                       className="input-field"
                     >
-                      <option value="">自动查找 (Auto)</option>
+                      <option value="">{t('systemSettings.workflow.autoFind')}</option>
                       {availableNodes.vhsVideoCombine.map((nodeInfo) => {
                         const nodeId = nodeInfo.split(' ')[0];
                         return (
@@ -1693,7 +1808,7 @@ export default function Settings() {
                       })}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      选择用于保存生成视频的 VHS_VideoCombine 节点
+                      {t('systemSettings.workflow.videoSaveNodeTip')}
                     </p>
                     
                     {/* Node JSON Preview */}
@@ -1709,14 +1824,14 @@ export default function Settings() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      总帧数节点 (JWInteger)
+                      {t('systemSettings.workflow.frameCountNode')}
                     </label>
                     <select
                       value={mappingForm.frameCountNodeId}
                       onChange={(e) => setMappingForm({ ...mappingForm, frameCountNodeId: e.target.value })}
                       className="input-field"
                     >
-                      <option value="">自动查找 (Auto)</option>
+                      <option value="">{t('systemSettings.workflow.autoFind')}</option>
                       {availableNodes.easyInt
                         .filter(node => node.includes('总帧数') || node.includes('frame') || node.includes('Frame'))
                         .map((nodeInfo) => {
@@ -1729,7 +1844,7 @@ export default function Settings() {
                         })}
                     </select>
                     <p className="text-xs text-gray-500 mt-1">
-                      选择用于设置视频总帧数的节点（值应为 8 的倍数 + 1）
+                      {t('systemSettings.workflow.frameCountNodeTip')}
                     </p>
                     
                     {/* Node JSON Preview */}
@@ -1751,7 +1866,7 @@ export default function Settings() {
                   onClick={() => setMappingWorkflow(null)}
                   className="btn-secondary"
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -1759,9 +1874,9 @@ export default function Settings() {
                   className="btn-primary"
                 >
                   {savingMapping ? (
-                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />保存中...</>
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" />{t('systemSettings.workflow.saving')}</>
                   ) : (
-                    <><Save className="mr-2 h-4 w-4" />保存</>
+                    <><Save className="mr-2 h-4 w-4" />{t('common.save')}</>
                   )}
                 </button>
               </div>

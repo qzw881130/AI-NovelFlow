@@ -17,10 +17,12 @@ import {
 } from 'lucide-react';
 import type { Chapter, Novel } from '../types';
 import { toast } from '../stores/toastStore';
+import { useTranslation } from '../stores/i18nStore';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
 export default function ChapterDetail() {
+  const { t } = useTranslation();
   const { id, cid } = useParams<{ id: string; cid: string }>();
   const navigate = useNavigate();
   const [chapter, setChapter] = useState<Chapter | null>(null);
@@ -80,18 +82,18 @@ export default function ChapterDetail() {
       const data = await res.json();
       if (data.success) {
         setChapter(data.data);
-        toast.success('保存成功');
+        toast.success(t('common.saveSuccess'));
       }
     } catch (error) {
       console.error('保存失败:', error);
-      toast.error('保存失败');
+      toast.error(t('common.saveFailed'));
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm('确定要删除这个章节吗？')) return;
+    if (!confirm(t('chapterDetail.confirmDelete'))) return;
     
     try {
       await fetch(`${API_BASE}/novels/${id}/chapters/${cid}/`, {
@@ -100,13 +102,13 @@ export default function ChapterDetail() {
       navigate(`/novels/${id}`);
     } catch (error) {
       console.error('删除失败:', error);
-      toast.error('删除失败');
+      toast.error(t('chapterDetail.deleteFailed'));
     }
   };
 
   const handleGenerate = () => {
     if (!content.trim()) {
-      toast.warning('请先编辑章节内容');
+      toast.warning(t('chapterDetail.pleaseEditContent'));
       return;
     }
     
@@ -165,21 +167,21 @@ export default function ChapterDetail() {
   const getStatusInfo = (status: Chapter['status']) => {
     switch (status) {
       case 'completed':
-        return { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50', text: '已完成' };
+        return { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50', text: t('status.completed') };
       case 'failed':
-        return { icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50', text: '失败' };
+        return { icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50', text: t('status.failed') };
       case 'parsing':
-        return { icon: Loader2, color: 'text-blue-600', bg: 'bg-blue-50', text: '解析中' };
+        return { icon: Loader2, color: 'text-blue-600', bg: 'bg-blue-50', text: t('status.parsing') };
       case 'generating_characters':
-        return { icon: Loader2, color: 'text-purple-600', bg: 'bg-purple-50', text: '生成人设' };
+        return { icon: Loader2, color: 'text-purple-600', bg: 'bg-purple-50', text: t('status.generatingCharacters') };
       case 'generating_shots':
-        return { icon: ImageIcon, color: 'text-orange-600', bg: 'bg-orange-50', text: '生成分镜' };
+        return { icon: ImageIcon, color: 'text-orange-600', bg: 'bg-orange-50', text: t('status.generatingShots') };
       case 'generating_videos':
-        return { icon: Film, color: 'text-pink-600', bg: 'bg-pink-50', text: '生成视频' };
+        return { icon: Film, color: 'text-pink-600', bg: 'bg-pink-50', text: t('status.generatingVideos') };
       case 'compositing':
-        return { icon: Film, color: 'text-indigo-600', bg: 'bg-indigo-50', text: '合成中' };
+        return { icon: Film, color: 'text-indigo-600', bg: 'bg-indigo-50', text: t('status.compositing') };
       default:
-        return { icon: FileText, color: 'text-gray-600', bg: 'bg-gray-50', text: '待处理' };
+        return { icon: FileText, color: 'text-gray-600', bg: 'bg-gray-50', text: t('status.pending') };
     }
   };
 
@@ -194,9 +196,9 @@ export default function ChapterDetail() {
   if (!chapter || !novel) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">章节不存在</p>
+        <p className="text-gray-500">{t('chapterDetail.chapterNotExist')}</p>
         <Link to={`/novels/${id}`} className="text-primary-600 hover:underline mt-2 inline-block">
-          返回小说详情
+          {t('chapterDetail.backToNovel')}
         </Link>
       </div>
     );
@@ -218,7 +220,7 @@ export default function ChapterDetail() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              第{chapter.number}章：{chapter.title}
+              {t('chapterDetail.chapterTitle', { number: chapter.number, title: chapter.title })}
             </h1>
             <p className="text-sm text-gray-500">{novel.title}</p>
           </div>
@@ -229,7 +231,7 @@ export default function ChapterDetail() {
             className="btn-secondary text-red-600 hover:text-red-700 border-red-200 hover:border-red-300"
           >
             <Trash2 className="h-4 w-4 mr-2" />
-            删除
+            {t('common.delete')}
           </button>
           <button
             onClick={handleSave}
@@ -241,7 +243,7 @@ export default function ChapterDetail() {
             ) : (
               <Save className="h-4 w-4 mr-2" />
             )}
-            保存
+            {t('common.save')}
           </button>
           <button
             onClick={handleGenerate}
@@ -249,7 +251,7 @@ export default function ChapterDetail() {
             disabled={chapter.status !== 'pending' && chapter.status !== 'failed'}
           >
             <Play className="h-4 w-4 mr-2" />
-            生成视频
+            {t('chapterDetail.generateVideo')}
           </button>
         </div>
       </div>
@@ -262,7 +264,7 @@ export default function ChapterDetail() {
             <div>
               <p className={`font-medium ${statusInfo.color}`}>{statusInfo.text}</p>
               {chapter.progress > 0 && (
-                <p className="text-sm text-gray-500">进度: {chapter.progress}%</p>
+                <p className="text-sm text-gray-500">{t('chapterDetail.progress', { progress: chapter.progress })}</p>
               )}
             </div>
           </div>
@@ -274,7 +276,7 @@ export default function ChapterDetail() {
               className="btn-primary"
             >
               <Film className="h-4 w-4 mr-2" />
-              查看视频
+              {t('chapterDetail.viewVideo')}
             </a>
           )}
         </div>
@@ -285,29 +287,29 @@ export default function ChapterDetail() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              章节标题
+              {t('chapterDetail.chapterTitleLabel')}
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="input-field"
-              placeholder="章节标题"
+              placeholder={t('chapterDetail.chapterTitlePlaceholder')}
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              章节内容
+              {t('chapterDetail.chapterContentLabel')}
             </label>
             <textarea
               value={content}
               onChange={(e) => setContent(e.target.value)}
               rows={20}
               className="input-field font-mono text-sm"
-              placeholder="在此输入章节内容..."
+              placeholder={t('chapterDetail.chapterContentPlaceholder')}
             />
             <p className="text-xs text-gray-500 mt-2">
-              字数: {content.length} | 建议字数: 1000-5000字
+              {t('chapterDetail.wordCount', { count: content.length })}
             </p>
           </div>
         </div>
@@ -316,18 +318,18 @@ export default function ChapterDetail() {
       {/* Generated Assets */}
       {Boolean(chapter.characterImages?.length || chapter.shotImages?.length || chapter.shotVideos?.length) && (
         <div className="card">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">生成资源</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('chapterDetail.generatedResources')}</h3>
           
           {/* Character Images */}
           {chapter.characterImages && chapter.characterImages.length > 0 && (
             <div className="mb-6">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">人设图</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">{t('chapterDetail.characterImages')}</h4>
               <div className="grid grid-cols-4 gap-4">
                 {chapter.characterImages.map((img, idx) => (
                   <img 
                     key={idx} 
                     src={img} 
-                    alt={`人设${idx + 1}`} 
+                    alt={t('chapterDetail.characterImageAlt', { index: idx + 1 })} 
                     className="rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
                     onClick={() => openImagePreview(img, idx, chapter.characterImages || [])}
                   />
@@ -339,13 +341,13 @@ export default function ChapterDetail() {
           {/* Shot Images */}
           {chapter.shotImages && chapter.shotImages.length > 0 && (
             <div className="mb-6">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">分镜图</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">{t('chapterDetail.shotImages')}</h4>
               <div className="grid grid-cols-4 gap-4">
                 {chapter.shotImages.map((img, idx) => (
                   <img 
                     key={idx} 
                     src={img} 
-                    alt={`分镜${idx + 1}`} 
+                    alt={t('chapterDetail.shotImageAlt', { index: idx + 1 })} 
                     className="rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
                     onClick={() => openImagePreview(img, idx, chapter.shotImages || [])}
                   />
@@ -357,7 +359,7 @@ export default function ChapterDetail() {
           {/* Shot Videos */}
           {chapter.shotVideos && chapter.shotVideos.length > 0 && (
             <div>
-              <h4 className="text-sm font-medium text-gray-700 mb-2">分镜视频</h4>
+              <h4 className="text-sm font-medium text-gray-700 mb-2">{t('chapterDetail.shotVideos')}</h4>
               <div className="grid grid-cols-2 gap-4">
                 {chapter.shotVideos.map((video, idx) => (
                   <video key={idx} src={video} controls className="rounded-lg" />
@@ -379,7 +381,7 @@ export default function ChapterDetail() {
             <button
               onClick={(e) => { e.stopPropagation(); navigatePreview('prev'); }}
               className="absolute -left-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all"
-              title="上一个 (←)"
+              title={t('chapterDetail.prevImage')}
             >
               <ChevronLeft className="h-10 w-10" />
             </button>
@@ -396,7 +398,7 @@ export default function ChapterDetail() {
               {/* 图片 */}
               <img
                 src={previewImage.url}
-                alt="预览"
+                alt={t('chapterDetail.imagePreview')}
                 className="w-full h-full object-contain max-h-[80vh] rounded-lg"
                 onClick={(e) => e.stopPropagation()}
               />
@@ -406,7 +408,7 @@ export default function ChapterDetail() {
                 <span className="inline-flex items-center gap-2">
                   <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">←</kbd>
                   <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">→</kbd>
-                  <span>键盘左右键切换</span>
+                  <span>{t('chapterDetail.keyboardNavigation')}</span>
                   <span className="mx-2">|</span>
                   <span>{previewImage.index + 1} / {previewImage.images.length}</span>
                 </span>
@@ -417,7 +419,7 @@ export default function ChapterDetail() {
             <button
               onClick={(e) => { e.stopPropagation(); navigatePreview('next'); }}
               className="absolute -right-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all"
-              title="下一个 (→)"
+              title={t('chapterDetail.nextImage')}
             >
               <ChevronRight className="h-10 w-10" />
             </button>

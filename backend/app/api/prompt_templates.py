@@ -503,6 +503,16 @@ video_description 动作约束规则
 SYSTEM_PROMPT_TEMPLATES = SYSTEM_CHARACTER_TEMPLATES + SYSTEM_CHAPTER_SPLIT_TEMPLATES
 
 
+def get_template_name_key(name: str) -> str:
+    """获取模板名称的翻译键"""
+    return f"promptConfig.templateNames.{name}"
+
+
+def get_template_description_key(name: str) -> str:
+    """获取模板描述的翻译键"""
+    return f"promptConfig.templateDescriptions.{name}"
+
+
 def init_system_prompt_templates(db: Session):
     """初始化系统预设提示词模板"""
     print("[初始化] 更新系统预设提示词模板...")
@@ -586,7 +596,9 @@ def list_prompt_templates(
             {
                 "id": t.id,
                 "name": t.name,
+                "nameKey": get_template_name_key(t.name) if t.is_system else None,
                 "description": t.description,
+                "descriptionKey": get_template_description_key(t.name) if t.is_system else None,
                 "template": t.template,
                 "type": t.type or "character",
                 "isSystem": t.is_system,
@@ -610,7 +622,9 @@ def get_prompt_template(template_id: str, db: Session = Depends(get_db)):
         "data": {
             "id": template.id,
             "name": template.name,
+            "nameKey": get_template_name_key(template.name) if template.is_system else None,
             "description": template.description,
+            "descriptionKey": get_template_description_key(template.name) if template.is_system else None,
             "template": template.template,
             "type": template.type or "character",
             "isSystem": template.is_system,
@@ -641,7 +655,9 @@ def create_prompt_template(data: PromptTemplateCreate, db: Session = Depends(get
         "data": {
             "id": template.id,
             "name": template.name,
+            "nameKey": get_template_name_key(template.name) if template.is_system else None,
             "description": template.description,
+            "descriptionKey": get_template_description_key(template.name) if template.is_system else None,
             "template": template.template,
             "type": template.type or "character",
             "isSystem": template.is_system,
@@ -677,7 +693,9 @@ def copy_prompt_template(template_id: str, db: Session = Depends(get_db)):
         "data": {
             "id": new_template.id,
             "name": new_template.name,
+            "nameKey": get_template_name_key(new_template.name) if new_template.is_system else None,
             "description": new_template.description,
+            "descriptionKey": get_template_description_key(new_template.name) if new_template.is_system else None,
             "template": new_template.template,
             "type": new_template.type or "character",
             "isSystem": new_template.is_system,
@@ -719,7 +737,9 @@ def update_prompt_template(
         "data": {
             "id": template.id,
             "name": template.name,
+            "nameKey": get_template_name_key(template.name) if template.is_system else None,
             "description": template.description,
+            "descriptionKey": get_template_description_key(template.name) if template.is_system else None,
             "template": template.template,
             "type": template.type or "character",
             "isSystem": template.is_system,
@@ -764,7 +784,9 @@ def get_default_system_template(
         "data": {
             "id": template.id,
             "name": template.name,
+            "nameKey": get_template_name_key(template.name) if template.is_system else None,
             "description": template.description,
+            "descriptionKey": get_template_description_key(template.name) if template.is_system else None,
             "template": template.template,
             "type": template.type or "character",
             "isSystem": template.is_system,

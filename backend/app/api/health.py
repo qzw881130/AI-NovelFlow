@@ -287,3 +287,92 @@ async def test_comfyui_connection():
 async def health_check():
     """基础健康检查"""
     return {"status": "ok", "service": "NovelFlow API"}
+
+
+@router.get("/system/gpu-stats")
+async def get_system_gpu_stats():
+    """获取系统 GPU 状态（供前端系统状态面板使用）"""
+    from app.core.config import get_settings
+    settings = get_settings()
+    
+    try:
+        # 优先尝试获取真实 GPU 数据
+        real_gpu_stats = await get_real_gpu_stats()
+        
+        # 获取 ComfyUI 队列信息
+        queue_size = 0
+        try:
+            async with httpx.AsyncClient() as client:
+                queue_response = await client.get(
+                    f"{settings.COMFYUI_HOST}/queue",
+                    timeout=3.0
+                )
+                if queue_response.status_code == 200:
+                    queue_data = queue_response.json()
+                    queue_size = len(queue_data.get("queue_running", [])) + len(queue_data.get("queue_pending", []))
+        except Exception:
+            pass
+        
+        if real_gpu_stats:
+            return {
+                "success": True,
+                "data": {
+                    "status": "online",
+                    "gpuUsage": real_gpu_stats.get("gpu_usage", 0),
+                    "vramUsed": real_gpu_stats.get("vram_used", 0),
+                    "vramTotal": real_gpu_stats.get("vram_total", 32),
+                    "vramPercent": (real_gpu_stats.get("vram_used", 0) / real_gpu_stats.get("vram_total", 32)) * 100 if real_gpu_stats.get("vram_total", 32) > 0 else 0,
+                    "queueSize": queue_size,
+                    "temperature": real_gpu_stats.get("temperature"),
+                    "gpuSource": "real",
+                    "gpuName": real_gpu_stats.get("gpu_name"),
+                    "ramUsed": real_gpu_stats.get("ram_used"),
+                    "ramTotal": real_gpu_stats.get("ram_total"),
+                    "ramPercent": real_gpu_stats.get("ram_percent")
+                }
+            }
+        
+        # 回退到监控器数据
+        monitor = get_monitor()
+        if monitor:
+            stats = monitor.get_stats()
+            if stats["status"] == "online":
+                return {
+                    "success": True,
+                    "data": {
+                        "status": "online",
+                        "gpuUsage": stats.get("gpu_usage", 0),
+                        "vramUsed": stats.get("vram_used", 0),
+                        "vramTotal": stats.get("vram_total", 16),
+                        "vramPercent": (stats.get("vram_used", 0) / stats.get("vram_total", 16)) * 100 if stats.get("vram_total", 16) > 0 else 0,
+                        "queueSize": queue_size,
+                        "temperature": stats.get("temperature"),
+                        "gpuSource": "estimated"
+                    }
+                }
+        
+        # 无法获取数据
+        return {
+            "success": True,
+            "data": {
+                "status": "offline",
+                "gpuUsage": 0,
+                "vramUsed": 0,
+                "vramTotal": 16,
+                "vramPercent": 0,
+                "queueSize": queue_size
+            }
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e),
+            "data": {
+                "status": "offline",
+                "gpuUsage": 0,
+                "vramUsed": 0,
+                "vramTotal": 16,
+                "vramPercent": 0,
+                "queueSize": 0
+            }
+        }

@@ -117,12 +117,14 @@ async def list_tasks(
     
     tasks = query.limit(limit).all()
     
-    # 获取所有需要的小说和章节信息
+    # 获取所有需要的小说、章节和工作流信息
     novel_ids = {t.novel_id for t in tasks if t.novel_id}
     chapter_ids = {t.chapter_id for t in tasks if t.chapter_id}
+    workflow_ids = {t.workflow_id for t in tasks if t.workflow_id}
     
     novels = {n.id: n for n in db.query(Novel).filter(Novel.id.in_(novel_ids)).all()} if novel_ids else {}
     chapters = {c.id: c for c in db.query(Chapter).filter(Chapter.id.in_(chapter_ids)).all()} if chapter_ids else {}
+    workflows = {w.id: w for w in db.query(Workflow).filter(Workflow.id.in_(workflow_ids)).all()} if workflow_ids else {}
     
     return {
         "success": True,
@@ -139,6 +141,7 @@ async def list_tasks(
                 "errorMessage": t.error_message,
                 "workflowId": t.workflow_id,
                 "workflowName": t.workflow_name,
+                "workflowIsSystem": workflows.get(t.workflow_id).is_system if t.workflow_id and t.workflow_id in workflows else False,
                 "hasWorkflowJson": t.workflow_json is not None,
                 "hasPromptText": t.prompt_text is not None,
                 "novelId": t.novel_id,

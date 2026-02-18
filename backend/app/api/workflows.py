@@ -208,13 +208,38 @@ async def list_workflows(
     
     workflows = query.all()
     
+    # 系统工作流名称到翻译键的映射
+    WORKFLOW_NAME_KEYS = {
+        "系统默认-人设生成": "tasks.workflowNames.系统默认-人设生成",
+        "Z-image-turbo 单图生成": "tasks.workflowNames.Z-image-turbo 单图生成",
+        "Flux2-Klein-9B 分镜生图": "tasks.workflowNames.Flux2-Klein-9B 分镜生图",
+        "LTX2 视频生成-直接版": "tasks.workflowNames.LTX2 视频生成-直接版",
+        "LTX2 视频生成-扩写版": "tasks.workflowNames.LTX2 视频生成-扩写版",
+        "LTX2 镜头转场视频": "tasks.workflowNames.LTX2 镜头转场视频",
+        "LTX2 光线转场视频": "tasks.workflowNames.LTX2 光线转场视频",
+        "LTX2 遮挡转场视频": "tasks.workflowNames.LTX2 遮挡转场视频",
+    }
+    # 系统工作流描述到翻译键的映射
+    WORKFLOW_DESC_KEYS = {
+        "系统预设的人设生成工作流（Flux2 Klein 9B 三视图）": "tasks.workflowDescriptions.系统预设的人设生成工作流（Flux2 Klein 9B 三视图）",
+        "Z-image-turbo【非三视图】": "tasks.workflowDescriptions.Z-image-turbo【非三视图】",
+        "Flux2-Klein-9B 图像编辑工作流，支持角色参考图": "tasks.workflowDescriptions.Flux2-Klein-9B 图像编辑工作流，支持角色参考图",
+        "LTX-2 图生视频，直接使用用户提示词": "tasks.workflowDescriptions.LTX-2 图生视频，直接使用用户提示词",
+        "LTX-2 图生视频，使用 Qwen3 自动扩写提示词": "tasks.workflowDescriptions.LTX-2 图生视频，使用 Qwen3 自动扩写提示词",
+        "适合：首尾帧是同一场景不同景别/角度": "tasks.workflowDescriptions.适合：首尾帧是同一场景不同景别/角度",
+        "适合：首尾帧颜色差很多，但场景/人物不变": "tasks.workflowDescriptions.适合：首尾帧颜色差很多，但场景/人物不变",
+        "适合：两张图差异大，想自然衔接": "tasks.workflowDescriptions.适合：两张图差异大，想自然衔接",
+    }
+    
     return {
         "success": True,
         "data": [
             {
                 "id": w.id,
                 "name": w.name,
+                "nameKey": WORKFLOW_NAME_KEYS.get(w.name) if w.is_system else None,
                 "description": w.description,
+                "descriptionKey": WORKFLOW_DESC_KEYS.get(w.description) if w.is_system and w.description else None,
                 "type": w.type,
                 "typeName": WORKFLOW_TYPES.get(w.type, w.type),
                 "isSystem": w.is_system,
@@ -234,12 +259,37 @@ async def get_workflow(workflow_id: str, db: Session = Depends(get_db)):
     if not workflow:
         raise HTTPException(status_code=404, detail="工作流不存在")
     
+    # 系统工作流名称到翻译键的映射
+    WORKFLOW_NAME_KEYS = {
+        "系统默认-人设生成": "tasks.workflowNames.系统默认-人设生成",
+        "Z-image-turbo 单图生成": "tasks.workflowNames.Z-image-turbo 单图生成",
+        "Flux2-Klein-9B 分镜生图": "tasks.workflowNames.Flux2-Klein-9B 分镜生图",
+        "LTX2 视频生成-直接版": "tasks.workflowNames.LTX2 视频生成-直接版",
+        "LTX2 视频生成-扩写版": "tasks.workflowNames.LTX2 视频生成-扩写版",
+        "LTX2 镜头转场视频": "tasks.workflowNames.LTX2 镜头转场视频",
+        "LTX2 光线转场视频": "tasks.workflowNames.LTX2 光线转场视频",
+        "LTX2 遮挡转场视频": "tasks.workflowNames.LTX2 遮挡转场视频",
+    }
+    # 系统工作流描述到翻译键的映射
+    WORKFLOW_DESC_KEYS = {
+        "系统预设的人设生成工作流（Flux2 Klein 9B 三视图）": "tasks.workflowDescriptions.系统预设的人设生成工作流（Flux2 Klein 9B 三视图）",
+        "Z-image-turbo【非三视图】": "tasks.workflowDescriptions.Z-image-turbo【非三视图】",
+        "Flux2-Klein-9B 图像编辑工作流，支持角色参考图": "tasks.workflowDescriptions.Flux2-Klein-9B 图像编辑工作流，支持角色参考图",
+        "LTX-2 图生视频，直接使用用户提示词": "tasks.workflowDescriptions.LTX-2 图生视频，直接使用用户提示词",
+        "LTX-2 图生视频，使用 Qwen3 自动扩写提示词": "tasks.workflowDescriptions.LTX-2 图生视频，使用 Qwen3 自动扩写提示词",
+        "适合：首尾帧是同一场景不同景别/角度": "tasks.workflowDescriptions.适合：首尾帧是同一场景不同景别/角度",
+        "适合：首尾帧颜色差很多，但场景/人物不变": "tasks.workflowDescriptions.适合：首尾帧颜色差很多，但场景/人物不变",
+        "适合：两张图差异大，想自然衔接": "tasks.workflowDescriptions.适合：两张图差异大，想自然衔接",
+    }
+    
     return {
         "success": True,
         "data": {
             "id": workflow.id,
             "name": workflow.name,
+            "nameKey": WORKFLOW_NAME_KEYS.get(workflow.name) if workflow.is_system else None,
             "description": workflow.description,
+            "descriptionKey": WORKFLOW_DESC_KEYS.get(workflow.description) if workflow.is_system and workflow.description else None,
             "type": workflow.type,
             "typeName": WORKFLOW_TYPES.get(workflow.type, workflow.type),
             "workflowJson": workflow.workflow_json,

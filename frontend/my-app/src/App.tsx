@@ -11,6 +11,7 @@ import Characters from './pages/Characters';
 import Tasks from './pages/Tasks';
 import TestCases from './pages/TestCases';
 import PromptConfig from './pages/PromptConfig';
+import UIConfig from './pages/UIConfig';
 import LLMLogs from './pages/LLMLogs';
 import { ToastContainer } from './components/Toast';
 import { useToastStore } from './stores/toastStore';
@@ -46,6 +47,7 @@ function App() {
           <Route path="tasks" element={<Tasks />} />
           <Route path="test-cases" element={<TestCases />} />
           <Route path="prompt-config" element={<PromptConfig />} />
+          <Route path="ui-config" element={<UIConfig />} />
           <Route path="llm-logs" element={<LLMLogs />} />
         </Route>
       </Routes>

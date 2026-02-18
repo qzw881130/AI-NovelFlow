@@ -8,23 +8,27 @@ import {
   Sparkles,
   FlaskConical,
   FileText,
-  ScrollText
+  ScrollText,
+  Globe
 } from 'lucide-react';
 import clsx from 'clsx';
-
-const navigation = [
-  { name: '欢迎', href: '/welcome', icon: Home },
-  { name: '小说管理', href: '/novels', icon: BookOpen },
-  { name: '角色库', href: '/characters', icon: Users },
-  { name: '任务队列', href: '/tasks', icon: ListTodo },
-  { name: '测试用例', href: '/test-cases', icon: FlaskConical },
-  { name: '系统配置', href: '/settings', icon: Settings },
-  { name: '提示词配置', href: '/prompt-config', icon: FileText, highlight: true },
-  { name: 'JSON解析日志', href: '/llm-logs', icon: ScrollText },
-];
+import { useTranslation } from '../stores/i18nStore';
 
 export default function Sidebar() {
   const location = useLocation();
+  const { t } = useTranslation();
+
+  const navigation = [
+    { name: t('nav.welcome'), href: '/welcome', icon: Home },
+    { name: t('nav.novels'), href: '/novels', icon: BookOpen },
+    { name: t('nav.characters'), href: '/characters', icon: Users },
+    { name: t('nav.tasks'), href: '/tasks', icon: ListTodo },
+    { name: t('nav.testCases'), href: '/test-cases', icon: FlaskConical },
+    { name: t('nav.systemSettings'), href: '/settings', icon: Settings },
+    { name: t('nav.promptConfig'), href: '/prompt-config', icon: FileText, highlight: true },
+    { name: t('nav.uiConfig'), href: '/ui-config', icon: Globe },
+    { name: t('nav.llmLogs'), href: '/llm-logs', icon: ScrollText },
+  ];
 
   return (
     <div className="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-64 lg:flex-col">

@@ -23,6 +23,7 @@ import ComfyUIStatus from '../components/ComfyUIStatus';
 import JSONEditor from '../components/JSONEditor';
 import type { Task } from '../types';
 import { toast } from '../stores/toastStore';
+import { useTranslation } from '../stores/i18nStore';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
@@ -33,6 +34,7 @@ interface ImagePreviewModalProps {
 }
 
 function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps) {
+  const { t } = useTranslation();
   const [info, setInfo] = useState<{width: number, height: number, size?: string} | null>(null);
 
   useEffect(() => {
@@ -68,7 +70,7 @@ function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps) {
       <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">
         <img 
           src={imageUrl} 
-          alt="预览" 
+          alt={t('tasks.preview')} 
           className="max-w-full max-h-[80vh] object-contain rounded-lg"
           onClick={(e) => e.stopPropagation()}
         />
@@ -76,8 +78,8 @@ function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps) {
         {/* 图片信息 */}
         {info && (
           <div className="mt-3 text-white text-sm opacity-80 flex items-center gap-4">
-            <span>尺寸: {info.width} × {info.height} px</span>
-            {info.size && <span>大小: {info.size}</span>}
+            <span>{t('tasks.dimensions')}: {info.width} × {info.height} px</span>
+            {info.size && <span>{t('tasks.size')}: {info.size}</span>}
           </div>
         )}
         
@@ -89,7 +91,7 @@ function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps) {
         </button>
         
         <div className="mt-4 text-white text-sm opacity-60">
-          点击图片外部关闭预览
+          {t('tasks.clickOutsideToClose')}
         </div>
       </div>
     </div>
@@ -103,6 +105,7 @@ interface VideoPreviewModalProps {
 }
 
 function VideoPreviewModal({ videoUrl, onClose }: VideoPreviewModalProps) {
+  const { t } = useTranslation();
   return (
     <div 
       className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
@@ -125,7 +128,7 @@ function VideoPreviewModal({ videoUrl, onClose }: VideoPreviewModalProps) {
         </button>
         
         <div className="mt-4 text-white text-sm opacity-60">
-          点击视频外部关闭预览
+          {t('tasks.clickOutsideToCloseVideo')}
         </div>
       </div>
     </div>
@@ -133,6 +136,7 @@ function VideoPreviewModal({ videoUrl, onClose }: VideoPreviewModalProps) {
 }
 
 export default function Tasks() {
+  const { t } = useTranslation();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'running' | 'completed' | 'failed'>('all');
@@ -215,7 +219,7 @@ export default function Tasks() {
   };
 
   const handleDelete = async (taskId: string) => {
-    if (!confirm('确定要删除这个任务吗？')) return;
+    if (!confirm(t('tasks.confirmDelete'))) return;
     
     try {
       await fetch(`${API_BASE}/tasks/${taskId}/`, { method: 'DELETE' });
@@ -228,24 +232,24 @@ export default function Tasks() {
   const handleCancelAll = async () => {
     const activeCount = tasks.filter(t => t.status === 'pending' || t.status === 'running').length;
     if (activeCount === 0) {
-      toast.info('没有需要终止的任务');
+      toast.info(t('tasks.noTasksToTerminate'));
       return;
     }
     
-    if (!confirm(`确定要终止所有 ${activeCount} 个进行中的任务吗？\n\n此操作不可恢复！`)) return;
+    if (!confirm(t('tasks.confirmTerminateAll', { count: activeCount }))) return;
     
     try {
       const res = await fetch(`${API_BASE}/tasks/cancel-all/`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        toast.success(data.message);
+        toast.success(t('tasks.terminateSuccess', { message: data.message }));
         fetchTasks();
       } else {
-        toast.error(data.message || '终止任务失败');
+        toast.error(data.message || t('tasks.terminateFailed'));
       }
     } catch (error) {
       console.error('终止任务失败:', error);
-      toast.error('终止任务失败');
+      toast.error(t('tasks.terminateFailed'));
     }
   };
 
@@ -263,7 +267,7 @@ export default function Tasks() {
 
   const handleViewWorkflow = async (task: Task) => {
     if (!task.hasWorkflowJson && !task.hasPromptText) {
-      toast.info('该任务没有保存工作流信息');
+      toast.info(t('tasks.noWorkflowInfo'));
       return;
     }
     
@@ -276,12 +280,12 @@ export default function Tasks() {
       if (data.success) {
         setWorkflowData(data.data);
       } else {
-        toast.error(data.message || '获取工作流失败');
+        toast.error(data.message || t('tasks.failedToGetWorkflow'));
         setViewingWorkflow(null);
       }
     } catch (error) {
       console.error('获取工作流失败:', error);
-      toast.error('获取工作流失败');
+      toast.error(t('tasks.failedToGetWorkflow'));
       setViewingWorkflow(null);
     } finally {
       setLoadingWorkflow(false);
@@ -293,7 +297,7 @@ export default function Tasks() {
       const res = await fetch(`${API_BASE}/tasks/${taskId}/retry/`, { method: 'POST' });
       const data = await res.json();
       if (data.success) {
-        toast.success('任务已重新启动');
+        toast.success(t('tasks.taskRestarted'));
         fetchTasks();
       }
     } catch (error) {
@@ -318,13 +322,65 @@ export default function Tasks() {
 
   const getTaskTypeName = (type: Task['type']) => {
     const names: Record<string, string> = {
-      'character_portrait': '人设图生成',
-      'shot_image': '分镜图生成',
-      'shot_video': '视频生成',
-      'chapter_video': '章节视频合成',
-      'transition_video': '转场视频生成',
+      'character_portrait': t('tasks.types.characterPortrait'),
+      'shot_image': t('tasks.types.shotImage'),
+      'shot_video': t('tasks.types.shotVideo'),
+      'chapter_video': t('tasks.types.chapterVideo'),
+      'transition_video': t('tasks.types.transitionVideo'),
     };
     return names[type] || type;
+  };
+
+  const getWorkflowDisplayName = (task: Task): string => {
+    if (!task.workflowName) return '';
+    if (task.workflowIsSystem) {
+      return t(`tasks.workflowNames.${task.workflowName}`, { defaultValue: task.workflowName });
+    }
+    return task.workflowName;
+  };
+
+  // 解析任务名称，提取变量并翻译
+  const getTaskDisplayName = (task: Task): string => {
+    // 尝试从中文格式中提取名称
+    const charMatch = task.name.match(/生成角色形象:\s*(.+)/);
+    if (charMatch) {
+      return t('tasks.taskNames.characterPortrait', { name: charMatch[1] });
+    }
+    const shotMatch = task.name.match(/生成分镜(图片|视频):\s*(.+)/);
+    if (shotMatch) {
+      const type = shotMatch[1] === '视频' ? 'shotVideo' : 'shotImage';
+      return t(`tasks.taskNames.${type}`, { name: shotMatch[2] });
+    }
+    const transMatch = task.name.match(/生成转场视频:\s*分镜\s*(\d+)\s*→\s*分镜\s*(\d+)/);
+    if (transMatch) {
+      return t('tasks.taskNames.transitionVideo', { from: transMatch[1], to: transMatch[2] });
+    }
+    // 默认返回原名
+    return task.name;
+  };
+
+  // 解析任务描述，提取变量并翻译
+  const getTaskDisplayDescription = (task: Task): string => {
+    if (!task.description) return '';
+    // 尝试从中文格式中提取名称
+    const charMatch = task.description.match(/为角色\s*['"](.+)['"]\s*生成人设图/);
+    if (charMatch) {
+      return t('tasks.taskDescriptions.characterPortrait', { name: charMatch[1] });
+    }
+    const shotImgMatch = task.description.match(/为分镜\s*['"](.+)['"]\s*生成图片/);
+    if (shotImgMatch) {
+      return t('tasks.taskDescriptions.shotImage', { name: shotImgMatch[1] });
+    }
+    const shotVidMatch = task.description.match(/为分镜\s*['"](.+)['"]\s*生成视频/);
+    if (shotVidMatch) {
+      return t('tasks.taskDescriptions.shotVideo', { name: shotVidMatch[1] });
+    }
+    const transMatch = task.description.match(/生成从分镜\s*(\d+)\s*到\s*(\d+)\s*的转场视频/);
+    if (transMatch) {
+      return t('tasks.taskDescriptions.transitionVideo', { from: transMatch[1], to: transMatch[2] });
+    }
+    // 默认返回原描述
+    return task.description;
   };
 
   const getStatusIcon = (status: Task['status']) => {
@@ -344,10 +400,10 @@ export default function Tasks() {
 
   const getStatusText = (status: Task['status']) => {
     const texts: Record<string, string> = {
-      'pending': '等待中',
-      'running': '运行中',
-      'completed': '已完成',
-      'failed': '失败',
+      'pending': t('tasks.pending'),
+      'running': t('tasks.running'),
+      'completed': t('tasks.completed'),
+      'failed': t('tasks.failed'),
     };
     return texts[status] || status;
   };
@@ -385,9 +441,9 @@ export default function Tasks() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">任务队列</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('tasks.title')}</h1>
           <p className="mt-1 text-sm text-gray-500">
-            查看和管理所有生成任务
+            {t('tasks.subtitle')}
           </p>
         </div>
         <div className="flex gap-2">
@@ -402,7 +458,7 @@ export default function Tasks() {
             }`}
           >
             <Square className="h-4 w-4 mr-2 fill-current" />
-            终止所有任务
+            {t('tasks.terminateAll')}
           </button>
           <button
             onClick={handleRefresh}
@@ -410,7 +466,7 @@ export default function Tasks() {
             className="btn-secondary"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            刷新
+            {t('common.refresh')}
           </button>
         </div>
       </div>
@@ -421,11 +477,11 @@ export default function Tasks() {
       {/* Stats */}
       <div className="grid grid-cols-5 gap-4">
         {[
-          { key: 'all', label: '全部', color: 'bg-gray-100' },
-          { key: 'pending', label: '等待中', color: 'bg-yellow-100 text-yellow-800' },
-          { key: 'running', label: '运行中', color: 'bg-blue-100 text-blue-800' },
-          { key: 'completed', label: '已完成', color: 'bg-green-100 text-green-800' },
-          { key: 'failed', label: '失败', color: 'bg-red-100 text-red-800' },
+          { key: 'all', label: t('tasks.allTasks'), color: 'bg-gray-100' },
+          { key: 'pending', label: t('tasks.pending'), color: 'bg-yellow-100 text-yellow-800' },
+          { key: 'running', label: t('tasks.running'), color: 'bg-blue-100 text-blue-800' },
+          { key: 'completed', label: t('tasks.completed'), color: 'bg-green-100 text-green-800' },
+          { key: 'failed', label: t('tasks.failed'), color: 'bg-red-100 text-red-800' },
         ].map((stat) => (
           <button
             key={stat.key}
@@ -444,7 +500,7 @@ export default function Tasks() {
 
       {/* Task List */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">任务列表</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('tasks.taskList')}</h2>
         
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -453,9 +509,9 @@ export default function Tasks() {
         ) : filteredTasks.length === 0 ? (
           <div className="text-center py-12">
             <ListTodo className="mx-auto h-12 w-12 text-gray-300" />
-            <h3 className="mt-4 text-lg font-medium text-gray-900">暂无任务</h3>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">{t('tasks.noTasks')}</h3>
             <p className="mt-1 text-sm text-gray-500">
-              {filter === 'all' ? '还没有创建任何任务' : '该状态下没有任务'}
+              {filter === 'all' ? t('tasks.noTasksCreated') : t('tasks.noTasksInStatus')}
             </p>
           </div>
         ) : (
@@ -474,19 +530,19 @@ export default function Tasks() {
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-medium text-gray-900">{task.name}</h3>
+                      <h3 className="font-medium text-gray-900">{getTaskDisplayName(task)}</h3>
                       <span className="text-xs px-2 py-0.5 bg-white rounded-full">
                         {getTaskTypeName(task.type)}
                       </span>
                       {task.workflowName && (
-                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full" title="使用的工作流">
-                          📋 {task.workflowName}
+                        <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full" title={t('tasks.workflowUsed')}>
+                          📋 {getWorkflowDisplayName(task)}
                         </span>
                       )}
                     </div>
                     
                     {task.description && (
-                      <p className="text-sm mt-1 opacity-80">{task.description}</p>
+                      <p className="text-sm mt-1 opacity-80">{getTaskDisplayDescription(task)}</p>
                     )}
                     
                     {/* Novel Name */}
@@ -524,7 +580,7 @@ export default function Tasks() {
                           <Terminal className="h-4 w-4 flex-shrink-0 mt-0.5" />
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
-                              <span className="font-medium">错误: {task.errorMessage.slice(0, 100)}{task.errorMessage.length > 100 ? '...' : ''}</span>
+                              <span className="font-medium">{t('tasks.error')}: {task.errorMessage.slice(0, 100)}{task.errorMessage.length > 100 ? '...' : ''}</span>
                               {task.errorMessage.length > 100 && (
                                 <span className="text-red-500 ml-2 flex-shrink-0">
                                   {expandedErrors.has(task.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -540,7 +596,7 @@ export default function Tasks() {
                         </div>
                         {task.errorMessage.includes('ComfyUI') && (
                           <p className="text-xs text-red-600 mt-1 ml-6">
-                            提示: 请检查 ComfyUI 中是否已安装所需的模型和节点
+                            {t('tasks.comfyuiHint')}
                           </p>
                         )}
                       </div>
@@ -554,7 +610,7 @@ export default function Tasks() {
                             <div className="relative group inline-block">
                               <img 
                                 src={task.resultUrl} 
-                                alt="生成结果" 
+                                alt={t('tasks.generatedResult')} 
                                 className="h-32 w-auto object-contain rounded-lg border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow bg-gray-50"
                                 onClick={() => task.resultUrl && setPreviewImage(task.resultUrl)}
                                 onLoad={() => task.resultUrl && fetchImageInfo(task.resultUrl, task.id)}
@@ -565,7 +621,7 @@ export default function Tasks() {
                               />
                               <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer"
                                    onClick={() => task.resultUrl && setPreviewImage(task.resultUrl)}>
-                                <span className="text-white text-xs font-medium">查看原图</span>
+                                <span className="text-white text-xs font-medium">{t('tasks.viewOriginal')}</span>
                               </div>
                             </div>
                             {/* 图片信息 */}
@@ -586,7 +642,7 @@ export default function Tasks() {
                             className="text-sm underline inline-flex items-center gap-1 text-green-600 hover:text-green-700"
                           >
                             <Play className="h-3 w-3" />
-                            查看结果
+                            {t('tasks.viewResult')}
                           </button>
                         ) : (
                           <a 
@@ -595,7 +651,7 @@ export default function Tasks() {
                             rel="noopener noreferrer"
                             className="text-sm underline inline-flex items-center gap-1"
                           >
-                            查看结果
+                            {t('tasks.viewResult')}
                           </a>
                         )}
                       </div>
@@ -603,8 +659,8 @@ export default function Tasks() {
                     
                     {/* Meta */}
                     <div className="mt-2 text-xs opacity-60">
-                      创建: {new Date(new Date(task.createdAt).getTime() + 8 * 60 * 60 * 1000).toLocaleString('zh-CN')}
-                      {task.completedAt && ` · 完成: ${new Date(new Date(task.completedAt).getTime() + 8 * 60 * 60 * 1000).toLocaleString('zh-CN')}`}
+                      {t('common.createdAt')}: {new Date(new Date(task.createdAt).getTime() + 8 * 60 * 60 * 1000).toLocaleString('zh-CN')}
+                      {task.completedAt && ` · ${t('tasks.completedAt')}: ${new Date(new Date(task.completedAt).getTime() + 8 * 60 * 60 * 1000).toLocaleString('zh-CN')}`}
                     </div>
                   </div>
                   
@@ -619,7 +675,7 @@ export default function Tasks() {
                       <button
                         onClick={() => handleRetry(task.id)}
                         className="p-2 text-gray-400 hover:text-primary-600 transition-colors"
-                        title="重试"
+                        title={t('tasks.retry')}
                       >
                         <Play className="h-4 w-4" />
                       </button>
@@ -629,7 +685,7 @@ export default function Tasks() {
                       <button
                         onClick={() => handleViewWorkflow(task)}
                         className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
-                        title="查看提交的工作流"
+                        title={t('tasks.viewWorkflow')}
                       >
                         <Code className="h-4 w-4" />
                       </button>
@@ -638,7 +694,7 @@ export default function Tasks() {
                     <button
                       onClick={() => handleDelete(task.id)}
                       className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                      title="删除"
+                      title={t('common.delete')}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
@@ -672,7 +728,7 @@ export default function Tasks() {
           <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
-                任务工作流详情
+                {t('tasks.workflowDetails')}
                 <span className="ml-2 text-sm font-normal text-gray-500">
                   {viewingWorkflow.name}
                 </span>
@@ -696,7 +752,7 @@ export default function Tasks() {
               <div className="space-y-4">
                 {/* Prompt Section */}
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">生成提示词</h4>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">{t('tasks.generationPrompt')}</h4>
                   <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
                     <p className="text-sm text-gray-600 font-mono whitespace-pre-wrap break-all">
                       {workflowData.prompt}
@@ -707,7 +763,7 @@ export default function Tasks() {
                 {/* Workflow JSON Section */}
                 {workflowData.workflow && (
                   <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">提交给ComfyUI的工作流JSON</h4>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">{t('tasks.workflowJSON')}</h4>
                     <div className="border border-gray-200 rounded-lg overflow-hidden">
                       <JSONEditor
                         value={typeof workflowData.workflow === 'string' 
@@ -729,13 +785,13 @@ export default function Tasks() {
                     }}
                     className="btn-secondary"
                   >
-                    关闭
+                    {t('common.close')}
                   </button>
                 </div>
               </div>
             ) : (
               <div className="text-center py-8 text-gray-500">
-                无法加载工作流数据
+                {t('tasks.failedToLoadWorkflow')}
               </div>
             )}
           </div>

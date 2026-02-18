@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useNovelStore } from '../stores/novelStore';
+import { useTranslation } from '../stores/i18nStore';
 import type { Novel } from '../types';
 import { toast } from '../stores/toastStore';
 
@@ -29,6 +30,7 @@ interface PromptTemplate {
 }
 
 export default function Novels() {
+  const { t } = useTranslation();
   const { novels, isLoading, fetchNovels, createNovel, deleteNovel, importNovel, updateNovel } = useNovelStore();
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -43,13 +45,13 @@ export default function Novels() {
   
   // 画面比例选项
   const aspectRatioOptions = [
-    { value: '16:9', label: '16:9 (宽屏)', description: '适合横版视频' },
-    { value: '9:16', label: '9:16 (竖屏)', description: '适合短视频' },
-    { value: '4:3', label: '4:3 (标准)', description: '传统比例' },
-    { value: '3:4', label: '3:4 (竖版)', description: '适合竖版内容' },
-    { value: '1:1', label: '1:1 (正方形)', description: '适合社交媒体' },
-    { value: '21:9', label: '21:9 (超宽屏)', description: '电影宽银幕' },
-    { value: '2.35:1', label: '2.35:1 (电影)', description: '经典电影比例' },
+    { value: '16:9', label: `16:9 (${t('novels.aspectRatio.widescreen')})`, description: t('novels.aspectRatio.widescreenDesc') },
+    { value: '9:16', label: `9:16 (${t('novels.aspectRatio.vertical')})`, description: t('novels.aspectRatio.verticalDesc') },
+    { value: '4:3', label: `4:3 (${t('novels.aspectRatio.standard')})`, description: t('novels.aspectRatio.standardDesc') },
+    { value: '3:4', label: `3:4 (${t('novels.aspectRatio.portrait')})`, description: t('novels.aspectRatio.portraitDesc') },
+    { value: '1:1', label: `1:1 (${t('novels.aspectRatio.square')})`, description: t('novels.aspectRatio.squareDesc') },
+    { value: '21:9', label: `21:9 (${t('novels.aspectRatio.ultrawide')})`, description: t('novels.aspectRatio.ultrawideDesc') },
+    { value: '2.35:1', label: `2.35:1 (${t('novels.aspectRatio.cinema')})`, description: t('novels.aspectRatio.cinemaDesc') },
   ];
   const [importing, setImporting] = useState(false);
   const [parsingNovelId, setParsingNovelId] = useState<string | null>(null);
@@ -85,6 +87,15 @@ export default function Novels() {
     } catch (error) {
       console.error('加载提示词模板失败:', error);
     }
+  };
+
+  // 获取翻译后的模板名称（系统预设模板会翻译，自定义模板保持原样）
+  const getTemplateDisplayName = (template: PromptTemplate | undefined): string => {
+    if (!template) return t('novels.default');
+    if (template.isSystem) {
+      return t(`promptConfig.templateNames.${template.name}`, { defaultValue: template.name });
+    }
+    return template.name;
   };
 
   const filteredNovels = novels.filter(
@@ -132,17 +143,17 @@ export default function Novels() {
       if (data.success) {
         const characters = data.data || [];
         if (characters.length > 0) {
-          toast.success(`解析成功！识别到 ${characters.length} 个角色`);
+          toast.success(`${t('novels.parseSuccess')} ${characters.length} ${t('novels.characters')}`);
           window.location.href = `/characters?novel=${novelId}`;
         } else {
-          toast.warning('未识别到角色，请确保章节内容足够丰富');
+          toast.warning(t('novels.noCharactersFound'));
         }
       } else {
-        toast.error('解析失败: ' + data.message);
+        toast.error(t('novels.parseError') + ': ' + data.message);
       }
     } catch (error) {
       console.error('解析角色失败:', error);
-      toast.error('解析失败，请检查网络连接');
+      toast.error(t('novels.parseNetworkError'));
     } finally {
       setParsingNovelId(null);
     }
@@ -162,11 +173,11 @@ export default function Novels() {
   const getStatusText = (status: Novel['status']) => {
     switch (status) {
       case 'completed':
-        return '已完成';
+        return t('novels.statusCompleted');
       case 'processing':
-        return '处理中';
+        return t('novels.statusProcessing');
       default:
-        return '待处理';
+        return t('novels.statusPending');
     }
   };
 
@@ -174,9 +185,9 @@ export default function Novels() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">小说管理</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('novels.title')}</h1>
           <p className="mt-1 text-sm text-gray-500">
-            管理您的小说项目和章节
+            {t('novels.subtitle')}
           </p>
         </div>
         <div className="flex gap-3">
@@ -185,7 +196,7 @@ export default function Novels() {
             className="btn-primary"
           >
             <Plus className="mr-2 h-4 w-4" />
-            新建小说
+            {t('novels.createNovel')}
           </button>
         </div>
       </div>
@@ -195,7 +206,7 @@ export default function Novels() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
         <input
           type="text"
-          placeholder="搜索小说..."
+          placeholder={t('novels.searchPlaceholder')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="input-field pl-10"
@@ -210,9 +221,9 @@ export default function Novels() {
       ) : filteredNovels.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
           <BookOpen className="mx-auto h-12 w-12 text-gray-300" />
-          <h3 className="mt-4 text-lg font-medium text-gray-900">暂无小说</h3>
+          <h3 className="mt-4 text-lg font-medium text-gray-900">{t('novels.noNovelsTitle')}</h3>
           <p className="mt-1 text-sm text-gray-500">
-            开始创建您的小说项目
+            {t('novels.noNovelsSubtitle')}
           </p>
         </div>
       ) : (
@@ -234,11 +245,16 @@ export default function Novels() {
                     <BookOpen className="h-16 w-16 text-gray-300" />
                   </div>
                 )}
+                {/* 章节数目 - 左上角 */}
+                <div className="absolute top-2 left-2 px-2 py-1 bg-black/60 text-white text-xs rounded-lg flex items-center gap-1">
+                  <BookOpen className="h-3 w-3" />
+                  <span>{novel.chapterCount} {t('novels.chapters')}</span>
+                </div>
                 {/* 删除按钮 - 右上角 */}
                 <button
                   onClick={() => deleteNovel(novel.id)}
                   className="absolute top-2 right-2 p-2 bg-white/90 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                  title="删除"
+                  title={t('common.delete')}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -246,7 +262,7 @@ export default function Novels() {
                 <button
                   onClick={() => setEditingNovel(novel)}
                   className="absolute bottom-2 right-2 p-2 bg-white/90 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100"
-                  title="编辑"
+                  title={t('common.edit')}
                 >
                   <Edit2 className="h-4 w-4" />
                 </button>
@@ -257,57 +273,54 @@ export default function Novels() {
                 </h3>
                 <p className="text-sm text-gray-500 mt-1">{novel.author}</p>
                 <p className="text-sm text-gray-600 mt-2 line-clamp-2">
-                  {novel.description || '暂无描述'}
+                  {novel.description || t('novels.noDescription')}
                 </p>
                 {/* 小说配置信息 */}
-                <div className="mt-3 flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap gap-1.5">
                   {/* 人设提示词 */}
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded">
-                    <span className="font-medium">人设:</span>
-                    {promptTemplates.find(t => t.id === novel.promptTemplateId)?.name || '默认'}
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded whitespace-nowrap">
+                    <span className="font-medium">{t('novels.characterPrompt')}</span>
+                    <span className="truncate max-w-[80px]">{getTemplateDisplayName(promptTemplates.find(t => t.id === novel.promptTemplateId))}</span>
                   </span>
                   {/* AI拆分分镜提示词 */}
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-600 text-xs rounded">
-                    <span className="font-medium">拆分:</span>
-                    {chapterSplitTemplates.find(t => t.id === novel.chapterSplitPromptTemplateId)?.name || '默认'}
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-600 text-xs rounded whitespace-nowrap">
+                    <span className="font-medium">{t('novels.splitPrompt')}</span>
+                    <span className="truncate max-w-[80px]">{getTemplateDisplayName(chapterSplitTemplates.find(t => t.id === novel.chapterSplitPromptTemplateId))}</span>
                   </span>
                   {/* 画面比例 */}
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-600 text-xs rounded">
-                    <span className="font-medium">比例:</span>
+                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-600 text-xs rounded whitespace-nowrap">
+                    <span className="font-medium">{t('novels.aspectRatioShort')}</span>
                     {novel.aspectRatio || '16:9'}
                   </span>
                 </div>
-                <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
-                  <span className="text-sm text-gray-500">
-                    {novel.chapterCount} 章节
-                  </span>
-                  <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-end mt-4 pt-4 border-t border-gray-100 gap-3">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <button
                       onClick={() => openParseConfirm(novel.id)}
                       disabled={parsingNovelId === novel.id}
                       className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors disabled:opacity-50 text-sm"
-                      title="AI解析角色"
+                      title={t('novels.aiParseCharacters')}
                     >
                       {parsingNovelId === novel.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
                       ) : (
-                        <Sparkles className="h-4 w-4" />
+                        <Sparkles className="h-4 w-4 flex-shrink-0" />
                       )}
-                      <span>AI解析角色</span>
+                      <span>{t('novels.aiParseCharacters')}</span>
                     </button>
                     <Link
                       to={`/characters?novel=${novel.id}`}
-                      className="flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-gray-100 transition-colors"
-                      title="查看角色"
+                      className="flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-gray-100 transition-colors flex-shrink-0"
+                      title={t('novels.viewCharacters')}
                     >
                       <Users className="h-4 w-4" />
                     </Link>
                     <Link
                       to={`/novels/${novel.id}`}
-                      className="btn-primary text-sm py-2 px-3"
+                      className="btn-primary text-sm py-2 px-3 flex-shrink-0"
                     >
-                      <Play className="h-3 w-3 mr-1" />
-                      管理章节
+                      <Play className="h-3 w-3 mr-1 flex-shrink-0" />
+                      {t('novels.manageChapters')}
                     </Link>
                   </div>
                 </div>
@@ -321,11 +334,11 @@ export default function Novels() {
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">新建小说</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('novels.createNovelTitle')}</h2>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  标题
+                  {t('novels.titleLabel')}
                 </label>
                 <input
                   type="text"
@@ -337,7 +350,7 @@ export default function Novels() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  作者
+                  {t('novels.authorLabel')}
                 </label>
                 <input
                   type="text"
@@ -348,7 +361,7 @@ export default function Novels() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  描述
+                  {t('novels.descriptionLabel')}
                 </label>
                 <textarea
                   rows={3}
@@ -359,7 +372,7 @@ export default function Novels() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  人设提示词
+                  {t('novels.characterPromptLabel')}
                 </label>
                 <select
                   value={newNovel.promptTemplateId}
@@ -368,17 +381,17 @@ export default function Novels() {
                 >
                   {promptTemplates.map((template) => (
                     <option key={template.id} value={template.id}>
-                      {template.name} {template.isSystem ? '(系统)' : '(自定义)'}
+                      {getTemplateDisplayName(template)} {template.isSystem ? t('novels.systemTemplate') : t('novels.customTemplate')}
                     </option>
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  选择用于生成角色人设图的提示词风格
+                  {t('novels.characterPromptHint')}
                 </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  AI拆分分镜提示词
+                  {t('novels.splitPromptLabel')}
                 </label>
                 <select
                   value={newNovel.chapterSplitPromptTemplateId}
@@ -387,17 +400,17 @@ export default function Novels() {
                 >
                   {chapterSplitTemplates.map((template) => (
                     <option key={template.id} value={template.id}>
-                      {template.name} {template.isSystem ? '【系统默认】' : '【用户自定义】'}
+                      {getTemplateDisplayName(template)} {template.isSystem ? t('novels.systemTemplate') : t('novels.customTemplate')}
                     </option>
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  选择用于章节拆分为分镜的提示词风格
+                  {t('novels.splitPromptHint')}
                 </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  画面比例
+                  {t('novels.aspectRatioLabel')}
                 </label>
                 <select
                   value={newNovel.aspectRatio}
@@ -420,10 +433,10 @@ export default function Novels() {
                   onClick={() => setShowCreateModal(false)}
                   className="btn-secondary"
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
                 <button type="submit" className="btn-primary">
-                  创建
+                  {t('common.create')}
                 </button>
               </div>
             </form>
@@ -435,7 +448,7 @@ export default function Novels() {
       {editingNovel && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">编辑小说</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('novels.editNovel')}</h2>
             <form 
               onSubmit={(e) => {
                 e.preventDefault();
@@ -453,7 +466,7 @@ export default function Novels() {
             >
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  标题
+                  {t('novels.titleLabel')}
                 </label>
                 <input
                   type="text"
@@ -465,7 +478,7 @@ export default function Novels() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  作者
+                  {t('novels.authorLabel')}
                 </label>
                 <input
                   type="text"
@@ -476,7 +489,7 @@ export default function Novels() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  描述
+                  {t('novels.descriptionLabel')}
                 </label>
                 <textarea
                   rows={3}
@@ -487,7 +500,7 @@ export default function Novels() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  人设提示词
+                  {t('novels.characterPromptLabel')}
                 </label>
                 <select
                   value={editingNovel.promptTemplateId || ''}
@@ -496,17 +509,17 @@ export default function Novels() {
                 >
                   {promptTemplates.map((template) => (
                     <option key={template.id} value={template.id}>
-                      {template.name} {template.isSystem ? '(系统)' : '(自定义)'}
+                      {getTemplateDisplayName(template)} {template.isSystem ? t('novels.systemTemplate') : t('novels.customTemplate')}
                     </option>
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  选择用于生成角色人设图的提示词风格
+                  {t('novels.characterPromptHint')}
                 </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  AI拆分分镜提示词
+                  {t('novels.splitPromptLabel')}
                 </label>
                 <select
                   value={editingNovel.chapterSplitPromptTemplateId || ''}
@@ -515,17 +528,17 @@ export default function Novels() {
                 >
                   {chapterSplitTemplates.map((template) => (
                     <option key={template.id} value={template.id}>
-                      {template.name} {template.isSystem ? '【系统默认】' : '【用户自定义】'}
+                      {getTemplateDisplayName(template)} {template.isSystem ? t('novels.systemTemplate') : t('novels.customTemplate')}
                     </option>
                   ))}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">
-                  选择用于章节拆分为分镜的提示词风格
+                  {t('novels.splitPromptHint')}
                 </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  画面比例
+                  {t('novels.aspectRatioLabel')}
                 </label>
                 <select
                   value={editingNovel.aspectRatio || '16:9'}
@@ -548,10 +561,10 @@ export default function Novels() {
                   onClick={() => setEditingNovel(null)}
                   className="btn-secondary"
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
                 <button type="submit" className="btn-primary">
-                  保存
+                  {t('common.save')}
                 </button>
               </div>
             </form>
@@ -567,26 +580,26 @@ export default function Novels() {
               <div className="p-2 bg-purple-100 rounded-full">
                 <Sparkles className="h-6 w-6 text-purple-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">AI解析角色</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{t('novels.aiParseCharactersTitle')}</h3>
             </div>
             <p className="text-gray-600 mb-2">
-              将使用 AI 分析小说内容并自动提取角色信息，是否继续？
+              {t('novels.parseConfirmMessage')}
             </p>
             <p className="text-sm text-gray-500 mb-6">
-              提示：解析可能需要 10-30 秒，请耐心等待。
+              {t('novels.parseConfirmHint')}
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={closeParseConfirm}
                 className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 onClick={confirmParseCharacters}
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
               >
-                确认
+                {t('common.confirm')}
               </button>
             </div>
           </div>

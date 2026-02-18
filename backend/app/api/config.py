@@ -35,6 +35,8 @@ class SystemConfigUpdate(BaseModel):
     outputResolution: Optional[str] = None
     outputFrameRate: Optional[int] = None
     parseCharactersPrompt: Optional[str] = None
+    language: Optional[str] = None
+    timezone: Optional[str] = None
 
 
 def get_or_create_config(db: Session) -> SystemConfigModel:
@@ -71,6 +73,9 @@ async def get_config(db: Session = Depends(get_db)):
             "outputFrameRate": config.output_frame_rate,
             # AI解析角色系统提示词
             "parseCharactersPrompt": config.parse_characters_prompt,
+            # 界面配置
+            "language": config.language or "zh-CN",
+            "timezone": config.timezone or "Asia/Shanghai",
         }
     }
 
@@ -97,6 +102,8 @@ async def get_full_config(db: Session = Depends(get_db)):
             "output_resolution": config.output_resolution,
             "output_frame_rate": config.output_frame_rate,
             "parse_characters_prompt": config.parse_characters_prompt,
+            "language": config.language or "zh-CN",
+            "timezone": config.timezone or "Asia/Shanghai",
         }
     }
 
@@ -147,6 +154,14 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
         if config.parseCharactersPrompt is not None:
             db_config.parse_characters_prompt = config.parseCharactersPrompt
             updates["parse_characters_prompt"] = config.parseCharactersPrompt
+        
+        if config.language is not None:
+            db_config.language = config.language
+            updates["language"] = config.language
+        
+        if config.timezone is not None:
+            db_config.timezone = config.timezone
+            updates["timezone"] = config.timezone
         
         # 提交数据库事务
         db.commit()

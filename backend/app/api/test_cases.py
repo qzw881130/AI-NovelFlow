@@ -25,6 +25,23 @@ async def list_test_cases(
     
     test_cases = query.all()
     
+    # 预设测试用例名称到翻译键的映射
+    PRESET_NAME_KEYS = {
+        "皇帝的新装 - 完整流程测试": "testCases.presets.emperor.name",
+        "小红帽 - 完整流程测试": "testCases.presets.redRidingHood.name",
+        "小马过河 - 完整流程测试": "testCases.presets.xiaoMa.name",
+    }
+    PRESET_DESC_KEYS = {
+        "经典安徒生童话，包含5个主要角色，5个章节，用于测试AI解析、角色生成、分镜生成和视频合成流程": "testCases.presets.emperor.description",
+        "经典格林童话，包含5个主要角色，5个章节，用于测试AI解析、角色生成、分镜生成和视频合成流程": "testCases.presets.redRidingHood.description",
+        "经典童话故事，包含4个主要角色，8个章节，用于测试完整的AI解析、角色生成、分镜生成和视频合成流程": "testCases.presets.xiaoMa.description",
+    }
+    PRESET_NOTES_KEYS = {
+        "主要角色：皇帝、骗子甲、骗子乙、老大臣、小孩": "testCases.presets.emperor.notes",
+        "主要角色：小红帽、外婆、大灰狼、猎人、妈妈": "testCases.presets.redRidingHood.notes",
+        "主要角色：小马、马妈妈、老牛、小松鼠": "testCases.presets.xiaoMa.notes",
+    }
+    
     # 获取关联的小说信息
     result = []
     for tc in test_cases:
@@ -34,10 +51,17 @@ async def list_test_cases(
         chapter_count = db.query(Chapter).filter(Chapter.novel_id == tc.novel_id).count()
         character_count = db.query(Character).filter(Character.novel_id == tc.novel_id).count()
         
+        # 如果是预设测试用例，添加翻译键
+        name_key = PRESET_NAME_KEYS.get(tc.name) if tc.is_preset else None
+        desc_key = PRESET_DESC_KEYS.get(tc.description) if tc.is_preset else None
+        notes_key = PRESET_NOTES_KEYS.get(tc.notes) if tc.is_preset else None
+        
         result.append({
             "id": tc.id,
             "name": tc.name,
+            "nameKey": name_key,
             "description": tc.description,
+            "descriptionKey": desc_key,
             "type": tc.type,
             "isActive": tc.is_active,
             "isPreset": tc.is_preset,
@@ -48,6 +72,7 @@ async def list_test_cases(
             "expectedCharacterCount": tc.expected_character_count,
             "expectedShotCount": tc.expected_shot_count,
             "notes": tc.notes,
+            "notesKey": notes_key,
             "createdAt": tc.created_at.isoformat() if tc.created_at else None,
         })
     

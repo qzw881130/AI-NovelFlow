@@ -12,11 +12,14 @@ import {
   Copy
 } from 'lucide-react';
 import { toast } from '../stores/toastStore';
+import { useTranslation } from '../stores/i18nStore';
 
 interface PromptTemplate {
   id: string;
   name: string;
+  nameKey?: string;
   description: string;
+  descriptionKey?: string;
   template: string;
   type: string;
   isSystem: boolean;
@@ -25,6 +28,22 @@ interface PromptTemplate {
 }
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
+
+// 获取模板显示名称（系统预设的使用翻译键）
+const getTemplateDisplayName = (template: PromptTemplate, t: any): string => {
+  if (template.isSystem && template.nameKey) {
+    return t(template.nameKey, { defaultValue: template.name });
+  }
+  return template.name;
+};
+
+// 获取模板显示描述（系统预设的使用翻译键）
+const getTemplateDisplayDescription = (template: PromptTemplate, t: any): string => {
+  if (template.isSystem && template.descriptionKey) {
+    return t(template.descriptionKey, { defaultValue: template.description });
+  }
+  return template.description;
+};
 
 // 默认AI解析角色系统提示词
 const DEFAULT_PARSE_CHARACTERS_PROMPT = `你是一个专业的小说解析助手。请分析我提供的小说文本，提取以下信息并以 JSON 格式返回：
@@ -181,6 +200,8 @@ Action: {一句话概括主要角色正在发生的动作行为}。
 }`;
 
 export default function PromptConfig() {
+  const { t } = useTranslation();
+  
   // AI解析角色系统提示词
   const [parsePrompt, setParsePrompt] = useState(DEFAULT_PARSE_CHARACTERS_PROMPT);
   const [savingParsePrompt, setSavingParsePrompt] = useState(false);
@@ -218,11 +239,13 @@ export default function PromptConfig() {
       try {
         const res = await fetch(`${API_BASE}/config/`);
         const data = await res.json();
-        if (data.success && data.data.parseCharactersPrompt) {
-          setParsePrompt(data.data.parseCharactersPrompt);
+        if (data.success && data.data) {
+          if (data.data.parseCharactersPrompt) {
+            setParsePrompt(data.data.parseCharactersPrompt);
+          }
         }
       } catch (error) {
-        console.error('加载提示词失败:', error);
+        console.error('加载配置失败:', error);
       }
     };
     fetchParsePrompt();
@@ -337,7 +360,7 @@ export default function PromptConfig() {
       const data = await res.json();
       
       if (data.success) {
-        toast.success(editingPrompt ? '更新成功' : '创建成功');
+        toast.success(editingPrompt ? t('common.success') : t('common.success'));
         setShowModal(false);
         if (modalType === 'character') {
           fetchCharacterTemplates();
@@ -345,11 +368,11 @@ export default function PromptConfig() {
           fetchChapterSplitTemplates();
         }
       } else {
-        toast.error(data.message || '保存失败');
+        toast.error(data.message || t('common.saveFailed'));
       }
     } catch (error) {
       console.error('保存提示词模板失败:', error);
-      toast.error('保存失败');
+      toast.error(t('common.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -363,23 +386,23 @@ export default function PromptConfig() {
       const data = await res.json();
       
       if (data.success) {
-        toast.success('已复制为用户模板');
+        toast.success(t('promptConfig.copySuccess'));
         if (template.type === 'character') {
           fetchCharacterTemplates();
         } else {
           fetchChapterSplitTemplates();
         }
       } else {
-        toast.error(data.message || '复制失败');
+        toast.error(data.message || t('common.copyFailed'));
       }
     } catch (error) {
       console.error('复制提示词模板失败:', error);
-      toast.error('复制失败');
+      toast.error(t('common.copyFailed'));
     }
   };
 
   const handleDelete = async (template: PromptTemplate) => {
-    if (!confirm(`确定要删除提示词模板 "${template.name}" 吗？`)) return;
+    if (!confirm(`${t('promptConfig.confirmDelete')} "${template.name}" ?`)) return;
     
     try {
       const res = await fetch(`${API_BASE}/prompt-templates/${template.id}/`, {
@@ -393,11 +416,11 @@ export default function PromptConfig() {
           fetchChapterSplitTemplates();
         }
       } else {
-        toast.error(data.message || '删除失败');
+        toast.error(data.message || t('common.deleteFailed'));
       }
     } catch (error) {
       console.error('删除提示词模板失败:', error);
-      toast.error('删除失败');
+      toast.error(t('common.deleteFailed'));
     }
   };
 
@@ -414,9 +437,9 @@ export default function PromptConfig() {
       });
       
       if (res.ok) {
-        toast.success('系统提示词已保存');
+        toast.success(t('promptConfig.systemPromptSaved'));
       } else {
-        toast.error('保存失败');
+        toast.error(t('common.saveFailed'));
       }
     } catch (error) {
       console.error('保存提示词失败:', error);
@@ -437,9 +460,9 @@ export default function PromptConfig() {
           parseCharactersPrompt: DEFAULT_PARSE_CHARACTERS_PROMPT
         })
       });
-      toast.success('已恢复默认提示词');
+      toast.success(t('promptConfig.resetSuccess'));
     } catch (error) {
-      toast.success('已恢复默认提示词（仅前端）');
+      toast.success(t('promptConfig.resetSuccessFrontend'));
     }
   };
 
@@ -454,7 +477,7 @@ export default function PromptConfig() {
     }
 
     if (templates.length === 0) {
-      return <p className="text-sm text-gray-500 py-4">暂无提示词模板</p>;
+      return <p className="text-sm text-gray-500 py-4">{t('promptConfig.noTemplates')}</p>;
     }
 
     return (
@@ -466,14 +489,14 @@ export default function PromptConfig() {
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <h4 className="font-medium text-gray-900">{template.name}</h4>
+                <h4 className="font-medium text-gray-900">{getTemplateDisplayName(template, t)}</h4>
                 {template.isSystem ? (
-                  <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full">系统默认</span>
+                  <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full">{t('promptConfig.systemDefault')}</span>
                 ) : (
-                  <span className="text-xs px-2 py-0.5 bg-green-100 text-green-600 rounded-full">用户自定义</span>
+                  <span className="text-xs px-2 py-0.5 bg-green-100 text-green-600 rounded-full">{t('promptConfig.userCustom')}</span>
                 )}
               </div>
-              <p className="text-sm text-gray-500 truncate">{template.description}</p>
+              <p className="text-sm text-gray-500 truncate">{getTemplateDisplayDescription(template, t)}</p>
               <p className="text-xs text-gray-400 mt-1 truncate font-mono">
                 {template.template.substring(0, type === 'chapter_split' ? 120 : 80)}...
               </p>
@@ -485,7 +508,7 @@ export default function PromptConfig() {
                     type="button"
                     onClick={() => handleOpenViewModal(template)}
                     className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                    title="查看"
+                    title={t('common.view')}
                   >
                     <Eye className="h-4 w-4" />
                   </button>
@@ -493,7 +516,7 @@ export default function PromptConfig() {
                     type="button"
                     onClick={() => handleCopy(template)}
                     className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-100 rounded transition-colors"
-                    title="复制为用户模板"
+                    title={t('promptConfig.copyAsUser')}
                   >
                     <Copy className="h-4 w-4" />
                   </button>
@@ -504,7 +527,7 @@ export default function PromptConfig() {
                     type="button"
                     onClick={() => handleOpenViewModal(template)}
                     className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                    title="查看"
+                    title={t('common.view')}
                   >
                     <Eye className="h-4 w-4" />
                   </button>
@@ -512,7 +535,7 @@ export default function PromptConfig() {
                     type="button"
                     onClick={() => handleOpenModal(type, template)}
                     className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                    title="编辑"
+                    title={t('common.edit')}
                   >
                     <Edit2 className="h-4 w-4" />
                   </button>
@@ -520,7 +543,7 @@ export default function PromptConfig() {
                     type="button"
                     onClick={() => handleDelete(template)}
                     className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-100 rounded transition-colors"
-                    title="删除"
+                    title={t('common.delete')}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -536,9 +559,9 @@ export default function PromptConfig() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">提示词配置</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t('promptConfig.title')}</h1>
         <p className="mt-1 text-sm text-gray-500">
-          管理 AI 角色生成和章节拆分提示词模板
+          {t('promptConfig.subtitle')}
         </p>
       </div>
 
@@ -549,7 +572,7 @@ export default function PromptConfig() {
             <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <h2 className="text-lg font-semibold text-gray-900">AI解析角色系统提示词</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t('promptConfig.parseCharactersPrompt')}</h2>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -558,7 +581,7 @@ export default function PromptConfig() {
               className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
             >
               <X className="h-4 w-4" />
-              恢复默认
+              {t('promptConfig.resetToDefault')}
             </button>
             <button
               type="button"
@@ -567,7 +590,7 @@ export default function PromptConfig() {
               className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-md transition-colors disabled:opacity-50"
             >
               <Save className="h-4 w-4" />
-              {savingParsePrompt ? '保存中...' : '保存'}
+              {savingParsePrompt ? t('common.saving') : t('common.save')}
             </button>
           </div>
         </div>
@@ -579,7 +602,7 @@ export default function PromptConfig() {
           placeholder="输入 AI 解析角色时的系统提示词..."
         />
         <p className="text-xs text-gray-500 mt-2">
-          提示：此提示词用于 AI 解析小说文本提取角色、场景和分镜信息。修改后将影响所有新的小说解析任务。
+          {t('promptConfig.promptTip')}
         </p>
       </div>
 
@@ -588,7 +611,7 @@ export default function PromptConfig() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-purple-600" />
-            <h2 className="text-lg font-semibold text-gray-900">AI角色提示词管理</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t('promptConfig.characterPrompts')}</h2>
           </div>
           <button
             type="button"
@@ -596,7 +619,7 @@ export default function PromptConfig() {
             className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-md transition-colors"
           >
             <Plus className="h-4 w-4" />
-            新建提示词
+            {t('promptConfig.newPrompt')}
           </button>
         </div>
         {renderTemplateList(characterTemplates, loadingCharacter, 'character')}
@@ -607,7 +630,7 @@ export default function PromptConfig() {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <BookOpen className="h-5 w-5 text-orange-600" />
-            <h2 className="text-lg font-semibold text-gray-900">AI拆分分镜提示词管理</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{t('promptConfig.chapterSplitPrompts')}</h2>
           </div>
           <button
             type="button"
@@ -615,7 +638,7 @@ export default function PromptConfig() {
             className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-md transition-colors"
           >
             <Plus className="h-4 w-4" />
-            新建提示词
+            {t('promptConfig.newPrompt')}
           </button>
         </div>
         {renderTemplateList(chapterSplitTemplates, loadingChapterSplit, 'chapter_split')}
@@ -627,9 +650,9 @@ export default function PromptConfig() {
           <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">
-                {editingPrompt ? (editingPrompt.isSystem ? '查看提示词模板' : '编辑提示词模板') : '新建提示词模板'}
+                {editingPrompt ? (editingPrompt.isSystem ? t('promptConfig.viewPrompt') : t('promptConfig.editPrompt')) : t('promptConfig.createPrompt')}
                 {editingPrompt?.isSystem && (
-                  <span className="ml-2 text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">系统预设（只读）</span>
+                  <span className="ml-2 text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{t('promptConfig.systemPresetReadonly')}</span>
                 )}
               </h3>
               <button
@@ -643,26 +666,26 @@ export default function PromptConfig() {
             
             <form onSubmit={handleSave} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">名称</label>
+                <label className="block text-sm font-medium text-gray-700">{t('common.name')}</label>
                 <input
                   type="text"
                   required
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="input-field mt-1"
-                  placeholder="例如：标准动漫风格"
+                  placeholder={t('promptConfig.namePlaceholder')}
                   readOnly={editingPrompt?.isSystem}
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700">描述</label>
+                <label className="block text-sm font-medium text-gray-700">{t('common.description')}</label>
                 <textarea
                   rows={2}
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="input-field mt-1"
-                  placeholder="描述这个提示词模板的用途..."
+                  placeholder={t('promptConfig.descPlaceholder')}
                   readOnly={editingPrompt?.isSystem}
                 />
               </div>
@@ -671,7 +694,7 @@ export default function PromptConfig() {
               {modalType === 'chapter_split' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700">
-                    每个分镜对应拆分故事字数
+                    {t('promptConfig.wordCountPerShot')}
                   </label>
                   <div className="flex items-center gap-2 mt-1">
                     <input
@@ -683,21 +706,21 @@ export default function PromptConfig() {
                       className="input-field w-24"
                       readOnly={editingPrompt?.isSystem}
                     />
-                    <span className="text-sm text-gray-500">字</span>
+                    <span className="text-sm text-gray-500">{t('promptConfig.wordUnit')}</span>
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
-                    每个分镜的剧情字数控制在此数值左右（允许±20%浮动）
+                    {t('promptConfig.wordCountTip')}
                   </p>
                 </div>
               )}
               
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  提示词模板
+                  {t('promptConfig.promptTemplate')}
                   <span className="text-xs text-gray-500 ml-2">
                     {modalType === 'character' 
-                      ? '使用 {appearance} 和 {description} 作为占位符'
-                      : '使用 {每个分镜对应拆分故事字数} 和 {图像风格} 作为占位符'
+                      ? t('promptConfig.placeholderTip')
+                      : t('promptConfig.placeholderTipChapter')
                     }
                   </span>
                 </label>
@@ -707,13 +730,13 @@ export default function PromptConfig() {
                   value={form.template}
                   onChange={(e) => setForm({ ...form, template: e.target.value })}
                   className="input-field font-mono text-sm"
-                  placeholder={modalType === 'character' ? "character portrait..." : "你是一名资深影视导演..."}
+                  placeholder={modalType === 'character' ? t('promptConfig.templatePlaceholderCharacter') : t('promptConfig.templatePlaceholderChapter')}
                   readOnly={editingPrompt?.isSystem}
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   {modalType === 'character' 
-                    ? '提示：{appearance} 会被替换为角色外貌，{description} 会被替换为角色描述'
-                    : '提示：{每个分镜对应拆分故事字数} 会被替换为上面设置的字数'
+                    ? t('promptConfig.tipCharacter')
+                    : t('promptConfig.tipChapter')
                   }
                 </p>
               </div>
@@ -724,7 +747,7 @@ export default function PromptConfig() {
                   onClick={() => setShowModal(false)}
                   className="btn-secondary"
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
                 {!editingPrompt?.isSystem && (
                   <button
@@ -735,10 +758,10 @@ export default function PromptConfig() {
                     {saving ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        保存中...
+                        {t('common.saving')}
                       </>
                     ) : (
-                      '保存'
+                      t('common.save')
                     )}
                   </button>
                 )}
@@ -754,8 +777,8 @@ export default function PromptConfig() {
           <div className="bg-white rounded-lg p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">{viewingPrompt.name}</h3>
-                <p className="text-sm text-gray-500">{viewingPrompt.description}</p>
+                <h3 className="text-lg font-semibold text-gray-900">{getTemplateDisplayName(viewingPrompt, t)}</h3>
+                <p className="text-sm text-gray-500">{getTemplateDisplayDescription(viewingPrompt, t)}</p>
               </div>
               <button
                 type="button"
@@ -778,7 +801,7 @@ export default function PromptConfig() {
                 onClick={() => setShowViewModal(false)}
                 className="btn-secondary"
               >
-                关闭
+                {t('common.close')}
               </button>
               {viewingPrompt.isSystem && (
                 <button
@@ -790,7 +813,7 @@ export default function PromptConfig() {
                   className="btn-primary"
                 >
                   <Copy className="mr-2 h-4 w-4" />
-                  复制为用户模板
+                  {t('promptConfig.copyAsUser')}
                 </button>
               )}
             </div>

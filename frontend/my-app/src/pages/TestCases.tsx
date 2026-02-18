@@ -17,10 +17,12 @@ import {
 } from 'lucide-react';
 import type { TestCase } from '../types';
 import { toast } from '../stores/toastStore';
+import { useTranslation } from '../stores/i18nStore';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
 export default function TestCases() {
+  const { t } = useTranslation();
   const [testCases, setTestCases] = useState<TestCase[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export default function TestCases() {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success(`测试用例 "${testCase.name}" 已启动！请前往任务队列查看进度。`);
+        toast.success(t('testCases.testStarted', { name: getTestCaseName(testCase) }));
         window.location.href = '/tasks';
       } else {
         toast.error('启动失败: ' + data.message);
@@ -87,10 +89,10 @@ export default function TestCases() {
 
   const handleDelete = async (testCase: TestCase) => {
     if (testCase.isPreset) {
-      toast.warning('预设测试用例不能删除');
+      toast.warning(t('testCases.cannotDeletePreset'));
       return;
     }
-    if (!confirm('确定要删除这个测试用例吗？')) return;
+    if (!confirm(t('testCases.confirmDelete'))) return;
     
     try {
       await fetch(`${API_BASE}/test-cases/${testCase.id}/`, { method: 'DELETE' });
@@ -101,13 +103,31 @@ export default function TestCases() {
   };
 
   const getTypeName = (type: string) => {
-    const names: Record<string, string> = {
-      'full': '完整流程',
-      'character': '仅角色',
-      'shot': '仅分镜',
-      'video': '仅视频',
-    };
-    return names[type] || type;
+    return t(`testCases.types.${type}`, { defaultValue: type });
+  };
+
+  // 获取测试用例显示名称（预设的使用翻译键）
+  const getTestCaseName = (testCase: TestCase): string => {
+    if (testCase.isPreset && testCase.nameKey) {
+      return t(testCase.nameKey, { defaultValue: testCase.name });
+    }
+    return testCase.name;
+  };
+
+  // 获取测试用例显示描述（预设的使用翻译键）
+  const getTestCaseDescription = (testCase: TestCase): string => {
+    if (testCase.isPreset && testCase.descriptionKey) {
+      return t(testCase.descriptionKey, { defaultValue: testCase.description || '' });
+    }
+    return testCase.description || '';
+  };
+
+  // 获取测试用例备注（预设的使用翻译键）
+  const getTestCaseNotes = (testCase: TestCase): string => {
+    if (testCase.isPreset && testCase.notesKey) {
+      return t(testCase.notesKey, { defaultValue: testCase.notes || '' });
+    }
+    return testCase.notes || '';
   };
 
   const getTypeColor = (type: string) => {
@@ -125,9 +145,9 @@ export default function TestCases() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">测试用例</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('testCases.title')}</h1>
           <p className="mt-1 text-sm text-gray-500">
-            管理测试用例，一键运行AI生成流程测试
+            {t('testCases.subtitle')}
           </p>
         </div>
       </div>
@@ -141,21 +161,21 @@ export default function TestCases() {
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold text-gray-900">{preset.name}</h2>
+                <h2 className="text-lg font-semibold text-gray-900">{getTestCaseName(preset)}</h2>
                 <span className="px-2 py-0.5 bg-primary-100 text-primary-700 text-xs rounded-full">
-                  内置测试
+                  {t('testCases.presetTest')}
                 </span>
               </div>
-              <p className="text-sm text-gray-600 mt-1">{preset.description}</p>
+              <p className="text-sm text-gray-600 mt-1">{getTestCaseDescription(preset)}</p>
               
               <div className="flex items-center gap-6 mt-3 text-sm">
                 <span className="flex items-center gap-1 text-gray-600">
                   <BookOpen className="h-4 w-4" />
-                  {preset.chapterCount} 章节
+                  {t('testCases.chapterCount', { count: preset.chapterCount })}
                 </span>
                 <span className="flex items-center gap-1 text-gray-600">
                   <Users className="h-4 w-4" />
-                  {preset.characterCount} 角色
+                  {t('testCases.characterCount', { count: preset.characterCount })}
                 </span>
                 <span className={`px-2 py-0.5 rounded text-xs ${getTypeColor(preset.type)}`}>
                   {getTypeName(preset.type)}
@@ -164,7 +184,7 @@ export default function TestCases() {
 
               {preset.notes && (
                 <div className="mt-3 p-2 bg-white/50 rounded text-sm text-gray-600">
-                  <strong>备注：</strong>{preset.notes}
+                  <strong>{t('testCases.notes')}</strong>{getTestCaseNotes(preset)}
                 </div>
               )}
 
@@ -177,12 +197,12 @@ export default function TestCases() {
                   {runningId === preset.id ? (
                     <>
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      运行中...
+                      {t('testCases.running')}
                     </>
                   ) : (
                     <>
                       <Play className="h-4 w-4 mr-2" />
-                      运行测试
+                      {t('testCases.runTest')}
                     </>
                   )}
                 </button>
@@ -194,7 +214,7 @@ export default function TestCases() {
 
       {/* All Test Cases */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">所有测试用例</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('testCases.allTestCases')}</h2>
         
         {isLoading ? (
           <div className="flex justify-center py-12">
@@ -203,7 +223,7 @@ export default function TestCases() {
         ) : testCases.length === 0 ? (
           <div className="text-center py-12">
             <FlaskConical className="mx-auto h-12 w-12 text-gray-300" />
-            <h3 className="mt-4 text-lg font-medium text-gray-900">暂无测试用例</h3>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">{t('testCases.noTestCases')}</h3>
           </div>
         ) : (
           <div className="space-y-3">
@@ -231,7 +251,7 @@ export default function TestCases() {
                     )}
                     
                     <div>
-                      <h3 className="font-medium text-gray-900">{testCase.name}</h3>
+                      <h3 className="font-medium text-gray-900">{getTestCaseName(testCase)}</h3>
                       <p className="text-xs text-gray-500">{testCase.novelTitle}</p>
                     </div>
                     
@@ -241,7 +261,7 @@ export default function TestCases() {
                     
                     {testCase.isPreset && (
                       <span className="px-2 py-0.5 bg-primary-100 text-primary-700 text-xs rounded-full">
-                        预设
+                        {t('testCases.preset')}
                       </span>
                     )}
                   </div>
@@ -266,7 +286,7 @@ export default function TestCases() {
                         }}
                         disabled={runningId === testCase.id}
                         className="p-2 text-gray-400 hover:text-primary-600 transition-colors"
-                        title="运行测试"
+                        title={t('testCases.runTest')}
                       >
                         {runningId === testCase.id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
@@ -282,7 +302,7 @@ export default function TestCases() {
                             handleDelete(testCase);
                           }}
                           className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                          title="删除"
+                          title={t('common.delete')}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -297,10 +317,10 @@ export default function TestCases() {
                     <div className="grid grid-cols-3 gap-4">
                       {/* Novel Info */}
                       <div className="col-span-2">
-                        <h4 className="font-medium text-gray-900 mb-2">小说信息</h4>
+                        <h4 className="font-medium text-gray-900 mb-2">{t('testCases.novelInfo')}</h4>
                         <div className="bg-white rounded p-3">
-                          <p><strong>标题：</strong>{details[testCase.id].novel.title}</p>
-                          <p><strong>作者：</strong>{details[testCase.id].novel.author || '未知'}</p>
+                          <p><strong>{t('testCases.novelTitle')}</strong>{details[testCase.id].novel.title}</p>
+                          <p><strong>{t('testCases.novelAuthor')}</strong>{details[testCase.id].novel.author || t('testCases.unknown')}</p>
                           <p className="text-sm text-gray-600 mt-1">
                             {details[testCase.id].novel.description}
                           </p>
@@ -308,14 +328,14 @@ export default function TestCases() {
                         
                         {/* Chapters */}
                         <h4 className="font-medium text-gray-900 mt-4 mb-2">
-                          章节列表 ({details[testCase.id].chapters.length})
+                          {t('testCases.chapterList')} ({details[testCase.id].chapters.length})
                         </h4>
                         <div className="bg-white rounded p-3 max-h-40 overflow-y-auto">
                           {details[testCase.id].chapters.map((ch: any) => (
                             <div key={ch.id} className="py-1 border-b border-gray-100 last:border-0">
-                              <span className="text-sm text-gray-500">第{ch.number}章</span>
+                              <span className="text-sm text-gray-500">{t('testCases.chapterNumber', { number: ch.number })}</span>
                               <span className="ml-2">{ch.title}</span>
-                              <span className="text-xs text-gray-400 ml-2">({ch.contentLength} 字)</span>
+                              <span className="text-xs text-gray-400 ml-2">({ch.contentLength} {t('testCases.words')})</span>
                             </div>
                           ))}
                         </div>
@@ -324,7 +344,7 @@ export default function TestCases() {
                       {/* Characters */}
                       <div>
                         <h4 className="font-medium text-gray-900 mb-2">
-                          角色列表 ({details[testCase.id].characters.length})
+                          {t('testCases.characterList')} ({details[testCase.id].characters.length})
                         </h4>
                         <div className="bg-white rounded p-3">
                           {details[testCase.id].characters.map((char: any) => (
@@ -336,13 +356,13 @@ export default function TestCases() {
                             </div>
                           ))}
                           {details[testCase.id].characters.length === 0 && (
-                            <p className="text-sm text-gray-400">暂无角色，请先运行测试</p>
+                            <p className="text-sm text-gray-400">{t('testCases.noCharacters')}</p>
                           )}
                         </div>
                         
                         {testCase.expectedCharacterCount && (
                           <div className="mt-3 p-2 bg-blue-50 rounded text-sm">
-                            <strong>预期角色数：</strong>{testCase.expectedCharacterCount}
+                            <strong>{t('testCases.expectedCharacterCount')}</strong>{testCase.expectedCharacterCount}
                           </div>
                         )}
                       </div>
@@ -359,13 +379,13 @@ export default function TestCases() {
       <div className="card bg-yellow-50 border-yellow-200">
         <h3 className="font-semibold text-gray-900 flex items-center gap-2">
           <AlertCircle className="h-5 w-5 text-yellow-600" />
-          使用说明
+          {t('testCases.usageGuide')}
         </h3>
         <ul className="mt-2 text-sm text-gray-600 space-y-1 list-disc list-inside">
-          <li><strong>内置测试</strong>：《小马过河》是系统内置的经典测试用例，包含8个章节和4个主要角色</li>
-          <li><strong>运行测试</strong>：点击"运行测试"按钮，系统会自动解析角色、生成形象、制作分镜和视频</li>
-          <li><strong>查看进度</strong>：运行后请前往"任务队列"查看实时进度</li>
-          <li><strong>查看结果</strong>：完成后可在"角色库"和"小说管理"中查看生成的内容</li>
+          <li dangerouslySetInnerHTML={{ __html: t('testCases.guide.presetTest') }} />
+          <li dangerouslySetInnerHTML={{ __html: t('testCases.guide.runTest') }} />
+          <li dangerouslySetInnerHTML={{ __html: t('testCases.guide.checkProgress') }} />
+          <li dangerouslySetInnerHTML={{ __html: t('testCases.guide.viewResults') }} />
         </ul>
       </div>
     </div>

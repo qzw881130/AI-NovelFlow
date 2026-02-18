@@ -133,6 +133,7 @@ export interface Task {
   errorMessage?: string;
   workflowId?: string;
   workflowName?: string;
+  workflowIsSystem?: boolean;
   hasWorkflowJson?: boolean;
   hasPromptText?: boolean;
   novelId?: string;
@@ -153,7 +154,9 @@ export interface ApiResponse<T> {
 export interface TestCase {
   id: string;
   name: string;
+  nameKey?: string;
   description?: string;
+  descriptionKey?: string;
   type: 'full' | 'character' | 'shot' | 'video';
   isActive: boolean;
   isPreset: boolean;
@@ -164,5 +167,6 @@ export interface TestCase {
   expectedCharacterCount?: number;
   expectedShotCount?: number;
   notes?: string;
+  notesKey?: string;
   createdAt: string;
 }

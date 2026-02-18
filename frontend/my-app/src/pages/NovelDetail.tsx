@@ -16,11 +16,13 @@ import {
 } from 'lucide-react';
 import type { Novel, Chapter } from '../types';
 import { toast } from '../stores/toastStore';
+import { useTranslation } from '../stores/i18nStore';
 
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
 export default function NovelDetail() {
   const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation();
   const [novel, setNovel] = useState<Novel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,12 +76,12 @@ export default function NovelDetail() {
       }
     } catch (error) {
       console.error('创建章节失败:', error);
-      toast.error('创建失败');
+      toast.error(t('common.createFailed'));
     }
   };
 
   const handleDeleteChapter = async (chapterId: string) => {
-    if (!confirm('确定要删除这个章节吗？')) return;
+    if (!confirm(t('chapterDetail.confirmDelete'))) return;
     
     try {
       await fetch(`${API_BASE}/novels/${id}/chapters/${chapterId}/`, {
@@ -88,7 +90,7 @@ export default function NovelDetail() {
       setChapters(chapters.filter(c => c.id !== chapterId));
     } catch (error) {
       console.error('删除失败:', error);
-      toast.error('删除失败');
+      toast.error(t('common.deleteFailed'));
     }
   };
 
@@ -106,17 +108,7 @@ export default function NovelDetail() {
   };
 
   const getStatusText = (status: Chapter['status']) => {
-    const statusMap: Record<string, string> = {
-      'pending': '待处理',
-      'parsing': '解析中',
-      'generating_characters': '生成人设',
-      'generating_shots': '生成分镜',
-      'generating_videos': '生成视频',
-      'compositing': '合成中',
-      'completed': '已完成',
-      'failed': '失败',
-    };
-    return statusMap[status] || status;
+    return t(`chapterStatus.${status}`, { defaultValue: status });
   };
 
   if (isLoading) {
@@ -130,9 +122,9 @@ export default function NovelDetail() {
   if (!novel) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">小说不存在</p>
+        <p className="text-gray-500">{t('novelDetail.novelNotFound')}</p>
         <Link to="/novels" className="text-primary-600 hover:underline mt-2 inline-block">
-          返回小说列表
+          {t('novelDetail.backToNovels')}
         </Link>
       </div>
     );
@@ -151,7 +143,7 @@ export default function NovelDetail() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{novel.title}</h1>
-            <p className="text-sm text-gray-500">{novel.author} · {chapters.length} 章节</p>
+            <p className="text-sm text-gray-500">{novel.author} · {chapters.length} {t('novelDetail.chapters')}</p>
           </div>
         </div>
         <button
@@ -159,7 +151,7 @@ export default function NovelDetail() {
           className="btn-primary"
         >
           <Plus className="h-4 w-4 mr-2" />
-          新建章节
+          {t('novelDetail.addChapter')}
         </button>
       </div>
 
@@ -172,13 +164,13 @@ export default function NovelDetail() {
 
       {/* Chapters List */}
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">章节列表</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('novelDetail.chapterCount', { count: chapters.length })}</h2>
         
         {chapters.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="mx-auto h-12 w-12 text-gray-300" />
-            <h3 className="mt-4 text-lg font-medium text-gray-900">暂无章节</h3>
-            <p className="mt-1 text-sm text-gray-500">点击"新建章节"开始创作</p>
+            <h3 className="mt-4 text-lg font-medium text-gray-900">{t('novelDetail.noChapters')}</h3>
+            <p className="mt-1 text-sm text-gray-500">{t('novelDetail.clickAddChapter')}</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -204,7 +196,7 @@ export default function NovelDetail() {
                   <button
                     onClick={() => handleDeleteChapter(chapter.id)}
                     className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                    title="删除"
+                    title={t('common.actions')}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -213,14 +205,14 @@ export default function NovelDetail() {
                     className="btn-primary text-sm py-1.5 px-3"
                   >
                     <Edit3 className="h-3 w-3 mr-1" />
-                    编辑
+                    {t('common.edit')}
                   </Link>
                   <Link
                     to={`/novels/${id}/chapters/${chapter.id}/generate`}
                     className="btn-secondary text-sm py-1.5 px-3 bg-purple-50 text-purple-600 hover:bg-purple-100 border-purple-200"
                   >
                     <Wand2 className="h-3 w-3 mr-1" />
-                    生成
+                    {t('common.generate')}
                   </Link>
                 </div>
               </div>
@@ -233,11 +225,11 @@ export default function NovelDetail() {
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">新建章节</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('novelDetail.addChapter')}</h2>
             <form onSubmit={handleCreateChapter} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  章节序号
+                  {t('novelDetail.chapterNumber')}
                 </label>
                 <input
                   type="number"
@@ -249,7 +241,7 @@ export default function NovelDetail() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  章节标题
+                  {t('novelDetail.chapterName')}
                 </label>
                 <input
                   type="text"
@@ -257,19 +249,19 @@ export default function NovelDetail() {
                   value={newChapter.title}
                   onChange={(e) => setNewChapter({ ...newChapter, title: e.target.value })}
                   className="input-field mt-1"
-                  placeholder="如：第一章 初入江湖"
+                  placeholder={t('novelDetail.chapterNamePlaceholder')}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  章节内容
+                  {t('novelDetail.chapterContent')}
                 </label>
                 <textarea
                   rows={6}
                   value={newChapter.content}
                   onChange={(e) => setNewChapter({ ...newChapter, content: e.target.value })}
                   className="input-field mt-1"
-                  placeholder="在此输入章节内容..."
+                  placeholder={t('novelDetail.chapterContentPlaceholder')}
                 />
               </div>
               <div className="flex justify-end gap-3 mt-6">
@@ -278,10 +270,10 @@ export default function NovelDetail() {
                   onClick={() => setShowCreateModal(false)}
                   className="btn-secondary"
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
                 <button type="submit" className="btn-primary">
-                  创建
+                  {t('common.create')}
                 </button>
               </div>
             </form>

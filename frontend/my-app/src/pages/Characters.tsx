@@ -18,6 +18,7 @@ import {
 import { Link, useSearchParams } from 'react-router-dom';
 import type { Character, Novel } from '../types';
 import { toast } from '../stores/toastStore';
+import { useTranslation } from '../stores/i18nStore';
 
 // API 基础 URL
 const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
@@ -27,6 +28,7 @@ interface CharacterWithNovel extends Character {
 }
 
 export default function Characters() {
+  const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [characters, setCharacters] = useState<CharacterWithNovel[]>([]);
   const [novels, setNovels] = useState<Novel[]>([]);
@@ -40,7 +42,7 @@ export default function Characters() {
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [generatingAppearanceId, setGeneratingAppearanceId] = useState<string | null>(null);
-  const [characterPrompts, setCharacterPrompts] = useState<Record<string, { prompt: string; templateName: string }>>({});
+  const [characterPrompts, setCharacterPrompts] = useState<Record<string, { prompt: string; templateName: string; templateId?: string; isSystem?: boolean }>>({});
   const [highlightedId, setHighlightedId] = useState<string | null>(highlightId);
   const [parsingNovelId, setParsingNovelId] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -148,7 +150,9 @@ export default function Characters() {
           ...prev,
           [characterId]: {
             prompt: data.data.prompt,
-            templateName: data.data.templateName
+            templateName: data.data.templateName,
+            templateId: data.data.templateId,
+            isSystem: data.data.isSystem
           }
         }));
       }
@@ -217,7 +221,7 @@ export default function Characters() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm('确定要删除这个角色吗？')) return;
+    if (!window.confirm(t('characters.confirmDelete', { name: '' }).replace('""', ''))) return;
     
     try {
       await fetch(`${API_BASE}/characters/${id}/`, { method: 'DELETE' });
@@ -230,7 +234,7 @@ export default function Characters() {
   // 删除当前小说的所有角色
   const handleDeleteAllCharacters = async () => {
     if (!selectedNovel) {
-      toast.error('请先选择小说');
+      toast.error(t('characters.selectNovel'));
       return;
     }
     
@@ -241,21 +245,21 @@ export default function Characters() {
       const data = await res.json();
       
       if (data.success) {
-        toast.success(data.message || '删除成功');
+        toast.success(data.message || t('common.delete') + t('common.success'));
         setCharacters([]); // 清空本地角色列表
         setDeleteAllConfirmDialog({ isOpen: false });
       } else {
-        toast.error(data.message || '删除失败');
+        toast.error(data.message || t('common.delete') + t('common.error'));
       }
     } catch (error) {
       console.error('批量删除角色失败:', error);
-      toast.error('删除失败');
+      toast.error(t('common.delete') + t('common.error'));
     }
   };
 
   const generateAppearance = async (character: Character) => {
     if (!character.description) {
-      toast.warning('请先在编辑中添加角色描述，才能智能生成外貌');
+      toast.warning(t('characters.appearanceTip'));
       return;
     }
     
@@ -271,13 +275,13 @@ export default function Characters() {
         setCharacters(prev => prev.map(c => 
           c.id === character.id ? { ...c, appearance: data.data.appearance } : c
         ));
-        toast.success('外貌描述生成成功！');
+        toast.success(t('characters.generateAppearance') + t('common.success'));
       } else {
-        toast.error('生成失败: ' + data.message);
+        toast.error(t('common.error') + ': ' + data.message);
       }
     } catch (error) {
       console.error('生成外貌描述失败:', error);
-      toast.error('生成失败');
+      toast.error(t('common.error'));
     } finally {
       setGeneratingAppearanceId(null);
     }
@@ -286,7 +290,7 @@ export default function Characters() {
   const generatePortrait = async (character: Character) => {
     // 检查是否已经在生成中
     if (character.generatingStatus === 'running') {
-      toast.info('该角色正在生成形象中，请稍后再试');
+      toast.info(t('characters.generatingStatus'));
       return;
     }
     
@@ -303,17 +307,17 @@ export default function Characters() {
         setCharacters(prev => prev.map(c => 
           c.id === character.id ? { ...c, generatingStatus: 'running' } : c
         ));
-        toast.success('人设图生成中，请稍候...');
+        toast.success(t('characters.generatingStatus'));
         
         // 开始轮询检查生成状态
         pollCharacterStatus(character.id);
       } else {
-        toast.error(data.message || '创建任务失败');
+        toast.error(data.message || t('common.error'));
         setGeneratingId(null);
       }
     } catch (error) {
       console.error('生成人设图失败:', error);
-      toast.error('创建任务失败');
+      toast.error(t('common.error'));
       setGeneratingId(null);
     }
   };
@@ -326,7 +330,7 @@ export default function Characters() {
       if (attempts > maxAttempts) {
         clearInterval(interval);
         setGeneratingId(null);
-        toast.warning('生成时间较长，请稍后刷新查看结果');
+        toast.warning(t('characters.parseTip'));
         return;
       }
       
@@ -342,11 +346,11 @@ export default function Characters() {
           if (character.generatingStatus === 'completed') {
             clearInterval(interval);
             setGeneratingId(null);
-            toast.success('人设图生成成功！');
+            toast.success(t('characters.generatePortrait') + t('common.success'));
           } else if (character.generatingStatus === 'failed') {
             clearInterval(interval);
             setGeneratingId(null);
-            toast.error('人设图生成失败');
+            toast.error(t('characters.generatePortrait') + t('common.error'));
           }
         }
       } catch (error) {
@@ -358,7 +362,7 @@ export default function Characters() {
   // 批量生成所有角色形象
   const generateAllPortraits = async () => {
     if (filteredCharacters.length === 0) {
-      toast.warning('当前没有角色需要生成');
+      toast.warning(t('characters.noCharacters'));
       return;
     }
     
@@ -368,7 +372,7 @@ export default function Characters() {
     );
     
     if (charactersToGenerate.length === 0) {
-      toast.info('所有角色正在生成中，请稍后再试');
+      toast.info(t('characters.generatingStatus'));
       return;
     }
     
@@ -378,11 +382,11 @@ export default function Characters() {
     
     let confirmMessage = '';
     if (hasImageCount > 0 && noImageCount > 0) {
-      confirmMessage = `将为 ${noImageCount} 个新角色生成形象，并重新生成 ${hasImageCount} 个已有形象的角色，是否继续？`;
+      confirmMessage = t('characters.confirmGenerateMixed', { newCount: noImageCount, regenCount: hasImageCount });
     } else if (hasImageCount > 0) {
-      confirmMessage = `将重新生成 ${hasImageCount} 个角色的形象，是否继续？`;
+      confirmMessage = t('characters.confirmRegenerateCount', { count: hasImageCount });
     } else {
-      confirmMessage = `将为 ${noImageCount} 个角色生成形象，是否继续？`;
+      confirmMessage = t('characters.confirmGenerateCount', { count: noImageCount });
     }
     
     if (!window.confirm(confirmMessage)) return;
@@ -416,12 +420,12 @@ export default function Characters() {
     setGeneratingAll(false);
     
     if (successCount > 0) {
-      toast.success(`已成功创建 ${successCount} 个生成任务`);
+      toast.success(`${t('common.success')} ${successCount}`);
       // 开始轮询所有角色状态
       pollAllCharactersStatus();
     }
     if (failCount > 0) {
-      toast.error(`${failCount} 个角色创建任务失败`);
+      toast.error(`${t('common.error')} ${failCount}`);
     }
   };
 
@@ -447,7 +451,7 @@ export default function Characters() {
           
           if (generatingChars.length === 0) {
             clearInterval(interval);
-            toast.success('所有角色形象生成完成！');
+            toast.success(t('characters.generateAllPortraits') + t('common.success'));
           }
         }
       } catch (error) {
@@ -520,17 +524,17 @@ export default function Characters() {
       if (data.success) {
         const chars = data.data || [];
         if (chars.length > 0) {
-          toast.success(`解析成功！识别到 ${chars.length} 个角色`);
+          toast.success(`${t('common.success')} ${chars.length}`);
           fetchCharacters();
         } else {
-          toast.warning('未识别到角色，请确保章节内容足够丰富');
+          toast.warning(t('characters.noCharacters'));
         }
       } else {
-        toast.error('解析失败: ' + data.message);
+        toast.error(t('common.error') + ': ' + data.message);
       }
     } catch (error) {
       console.error('解析角色失败:', error);
-      toast.error('解析失败，请检查网络连接');
+      toast.error(t('common.error'));
     } finally {
       setParsingNovelId(null);
     }
@@ -538,7 +542,7 @@ export default function Characters() {
 
   const getNovelName = (novelId: string) => {
     const novel = novels.find(n => n.id === novelId);
-    return novel?.title || '未知小说';
+    return novel?.title || t('characters.selectNovel');
   };
 
   // 根据小说ID获取画面比例
@@ -574,9 +578,9 @@ export default function Characters() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">角色库</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('characters.title')}</h1>
           <p className="mt-1 text-sm text-gray-500">
-            管理小说角色的详细信息和形象设定
+            {t('characters.subtitle')}
           </p>
         </div>
         <div className="flex gap-3">
@@ -591,7 +595,7 @@ export default function Characters() {
               ) : (
                 <Image className="mr-2 h-4 w-4" />
               )}
-              AI生成所有角色形象
+              {t('characters.generateAllPortraits')}
             </button>
           )}
           {selectedNovel && characters.length > 0 && (
@@ -600,7 +604,7 @@ export default function Characters() {
               className="btn-secondary text-red-600 border-red-200 hover:bg-red-50"
             >
               <Trash2 className="mr-2 h-4 w-4" />
-              删除当前小说所有角色
+              {t('characters.deleteAll')}
             </button>
           )}
           <button
@@ -608,7 +612,7 @@ export default function Characters() {
             className="btn-primary"
           >
             <Plus className="mr-2 h-4 w-4" />
-            新建角色
+            {t('common.create')}
           </button>
         </div>
       </div>
@@ -619,7 +623,7 @@ export default function Characters() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
-            placeholder="搜索角色..."
+            placeholder={t('characters.searchCharacters')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="input-field pl-10 w-full"
@@ -647,9 +651,9 @@ export default function Characters() {
       ) : filteredCharacters.length === 0 ? (
         <div className="card text-center py-12">
           <User className="mx-auto h-12 w-12 text-gray-300" />
-          <h3 className="mt-4 text-lg font-medium text-gray-900">暂无角色</h3>
+          <h3 className="mt-4 text-lg font-medium text-gray-900">{t('characters.noCharacters')}</h3>
           <p className="mt-1 text-sm text-gray-500">
-            点击"新建角色"创建你的第一个角色或者"AI解析角色"
+            {t('common.create')} {t('characters.subtitle')}
           </p>
           {selectedNovel && (
             <div className="mt-4">
@@ -663,7 +667,7 @@ export default function Characters() {
                 ) : (
                   <Sparkles className="h-4 w-4" />
                 )}
-                <span>AI解析角色</span>
+                <span>{t('characters.parseTitle')}</span>
               </button>
             </div>
           )}
@@ -703,12 +707,12 @@ export default function Characters() {
                 {character.generatingStatus === 'running' && (
                   <div className="absolute top-2 left-2 px-2 py-1 bg-blue-500 text-white text-xs rounded-full flex items-center gap-1">
                     <Loader2 className="h-3 w-3 animate-spin" />
-                    生成中
+                    {t('characters.generating')}
                   </div>
                 )}
                 {character.generatingStatus === 'failed' && (
                   <div className="absolute top-2 left-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full">
-                    生成失败
+                    {t('characters.generateFailed')}
                   </div>
                 )}
                 
@@ -716,7 +720,7 @@ export default function Characters() {
                 <button
                   onClick={() => handleDelete(character.id)}
                   className="absolute top-2 right-2 p-2 bg-white/90 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-                  title="删除"
+                  title={t('common.delete')}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -725,7 +729,7 @@ export default function Characters() {
                 <button
                   onClick={() => setEditingCharacter(character)}
                   className="absolute bottom-2 left-2 p-2 bg-white/90 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors opacity-0 group-hover:opacity-100"
-                  title="编辑"
+                  title={t('common.edit')}
                 >
                   <Edit2 className="h-4 w-4" />
                 </button>
@@ -735,17 +739,17 @@ export default function Characters() {
                   onClick={() => generatePortrait(character)}
                   disabled={generatingId === character.id || character.generatingStatus === 'running'}
                   className="absolute bottom-2 right-2 flex items-center gap-1 px-3 py-1.5 bg-purple-600/90 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-70 opacity-0 group-hover:opacity-100 text-xs"
-                  title={character.generatingStatus === 'running' ? '生成中...' : (character.imageUrl ? '重新生成' : '生成形象')}
+                  title={character.generatingStatus === 'running' ? t('characters.generatingStatus') : (character.imageUrl ? t('characters.regenerate') : t('characters.generatePortrait'))}
                 >
                   {character.generatingStatus === 'running' || generatingId === character.id ? (
                     <>
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      <span>生成中...</span>
+                      <span>{t('characters.generatingStatus')}</span>
                     </>
                   ) : (
                     <>
                       <Wand2 className="h-3 w-3" />
-                      <span>AI生成形象</span>
+                      <span>AI{t('characters.generatePortrait')}</span>
                     </>
                   )}
                 </button>
@@ -755,7 +759,7 @@ export default function Characters() {
                   <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
                     <div className="text-center">
                       <Loader2 className="h-8 w-8 animate-spin text-white mx-auto" />
-                      <p className="text-white text-sm mt-2">生成中...</p>
+                      <p className="text-white text-sm mt-2">{t('characters.generating')}</p>
                     </div>
                   </div>
                 )}
@@ -775,7 +779,7 @@ export default function Characters() {
                 {/* 角色描述 - 可滚动显示完整内容 */}
                 {character.description && (
                   <div className="mt-3">
-                    <p className="text-xs text-gray-400 mb-1">描述</p>
+                    <p className="text-xs text-gray-400 mb-1">{t('characters.descriptionLabel')}</p>
                     <div className="text-sm text-gray-600 max-h-20 overflow-y-auto pr-1 scrollbar-thin">
                       {character.description}
                     </div>
@@ -785,7 +789,7 @@ export default function Characters() {
                 {/* 外貌特征 - 可滚动显示完整内容 */}
                 {character.appearance ? (
                   <div className="mt-3">
-                    <p className="text-xs text-gray-400 mb-1">外貌特征</p>
+                    <p className="text-xs text-gray-400 mb-1">{t('characters.appearance')}</p>
                     <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 max-h-24 overflow-y-auto scrollbar-thin">
                       {character.appearance}
                     </div>
@@ -800,12 +804,12 @@ export default function Characters() {
                       {generatingAppearanceId === character.id ? (
                         <>
                           <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                          生成中...
+                          {t('characters.generatingStatus')}
                         </>
                       ) : (
                         <>
                           <Sparkles className="h-3 w-3 mr-1" />
-                          AI生成外貌描述
+                          {t('characters.generateAppearance')}
                         </>
                       )}
                     </button>
@@ -816,8 +820,13 @@ export default function Characters() {
                 {characterPrompts[character.id] && (
                   <div className="mt-3 pt-3 border-t border-gray-100">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs text-gray-400">生成提示词</p>
-                      <span className="text-xs text-gray-400">{characterPrompts[character.id].templateName}</span>
+                      <p className="text-xs text-gray-400">{t('characters.promptLabel')}</p>
+                      <span className="text-xs text-gray-400">
+                        {characterPrompts[character.id].isSystem 
+                          ? t(`promptConfig.templateNames.${characterPrompts[character.id].templateName}`, { defaultValue: characterPrompts[character.id].templateName })
+                          : characterPrompts[character.id].templateName
+                        }
+                      </span>
                     </div>
                     <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 max-h-20 overflow-y-auto scrollbar-thin font-mono">
                       {characterPrompts[character.id].prompt}
@@ -835,11 +844,11 @@ export default function Characters() {
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">新建角色</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('characters.createCharacter')}</h2>
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  所属小说
+                  {t('characters.novelLabel')}
                 </label>
                 <select
                   required
@@ -847,7 +856,7 @@ export default function Characters() {
                   onChange={(e) => setFormData({ ...formData, novelId: e.target.value })}
                   className="input-field mt-1"
                 >
-                  <option value="">请选择小说</option>
+                  <option value="">{t('characters.selectNovel')}</option>
                   {novels.map(novel => (
                     <option key={novel.id} value={novel.id}>{novel.title}</option>
                   ))}
@@ -855,7 +864,7 @@ export default function Characters() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  角色名称 *
+                  {t('characters.characterName')} *
                 </label>
                 <input
                   type="text"
@@ -863,34 +872,34 @@ export default function Characters() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="input-field mt-1"
-                  placeholder="如：萧炎"
+                  placeholder={t('characters.namePlaceholder')}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  角色描述
+                  {t('characters.description')}
                 </label>
                 <textarea
                   rows={3}
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   className="input-field mt-1"
-                  placeholder="角色的背景故事、性格特点等"
+                  placeholder={t('characters.descriptionPlaceholder')}
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  外貌特征
+                  {t('characters.appearance')}
                 </label>
                 <textarea
                   rows={3}
                   value={formData.appearance}
                   onChange={(e) => setFormData({ ...formData, appearance: e.target.value })}
                   className="input-field mt-1"
-                  placeholder="用于生成人设图的描述，如：黑发，红衣，手持长剑..."
+                  placeholder={t('characters.appearancePlaceholder')}
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  详细的外貌描述有助于生成更准确的角色形象
+                  {t('characters.appearanceTip')}
                 </p>
               </div>
               <div className="flex justify-end gap-3 mt-6">
@@ -899,10 +908,10 @@ export default function Characters() {
                   onClick={() => setShowCreateModal(false)}
                   className="btn-secondary"
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
                 <button type="submit" className="btn-primary">
-                  创建角色
+                  {t('common.create')}
                 </button>
               </div>
             </form>
@@ -914,11 +923,11 @@ export default function Characters() {
       {editingCharacter && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">编辑角色</h2>
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('common.edit')}</h2>
             <form onSubmit={handleUpdate} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  角色名称 *
+                  {t('characters.characterName')} *
                 </label>
                 <input
                   type="text"
@@ -930,7 +939,7 @@ export default function Characters() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  角色描述
+                  {t('characters.description')}
                 </label>
                 <textarea
                   rows={3}
@@ -941,14 +950,14 @@ export default function Characters() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700">
-                  外貌特征
+                  {t('characters.appearance')}
                 </label>
                 <textarea
                   rows={3}
                   value={editingCharacter.appearance}
                   onChange={(e) => setEditingCharacter({ ...editingCharacter, appearance: e.target.value })}
                   className="input-field mt-1"
-                  placeholder="用于生成人设图的描述..."
+                  placeholder={t('characters.appearancePlaceholder')}
                 />
               </div>
               <div className="flex justify-end gap-3 mt-6">
@@ -957,10 +966,10 @@ export default function Characters() {
                   onClick={() => setEditingCharacter(null)}
                   className="btn-secondary"
                 >
-                  取消
+                  {t('common.cancel')}
                 </button>
                 <button type="submit" className="btn-primary">
-                  保存修改
+                  {t('characters.saveChanges')}
                 </button>
               </div>
             </form>
@@ -976,26 +985,26 @@ export default function Characters() {
               <div className="p-2 bg-purple-100 rounded-full">
                 <Sparkles className="h-6 w-6 text-purple-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">AI解析角色</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{t('characters.parseTitle')}</h3>
             </div>
             <p className="text-gray-600 mb-2">
-              将使用 AI 分析小说内容并自动提取角色信息，是否继续？
+              {t('characters.parseDescription')}
             </p>
             <p className="text-sm text-gray-500 mb-6">
-              提示：解析可能需要 10-30 秒，请耐心等待。
+              {t('characters.parseTip')}
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={closeParseConfirm}
                 className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 onClick={confirmParseCharacters}
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
               >
-                确认
+                {t('characters.confirm')}
               </button>
             </div>
           </div>
@@ -1010,26 +1019,26 @@ export default function Characters() {
               <div className="p-2 bg-red-100 rounded-full">
                 <AlertTriangle className="h-6 w-6 text-red-600" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">删除所有角色</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{t('characters.deleteAllTitle')}</h3>
             </div>
             <p className="text-gray-600 mb-2">
-              确定要删除当前小说《{novels.find(n => n.id === selectedNovel)?.title}》的所有角色吗？
+              {t('characters.confirmDelete', { name: novels.find(n => n.id === selectedNovel)?.title || '' })}
             </p>
             <p className="text-sm text-red-500 mb-6">
-              警告：此操作不可恢复，将删除该小说下的所有角色数据！
+              {t('characters.deleteAllWarning')}
             </p>
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setDeleteAllConfirmDialog({ isOpen: false })}
                 className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 onClick={handleDeleteAllCharacters}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
               >
-                确认删除
+                {t('characters.confirmDeleteBtn')}
               </button>
             </div>
           </div>
@@ -1047,7 +1056,7 @@ export default function Characters() {
             <button
               onClick={(e) => { e.stopPropagation(); navigatePreview('prev'); }}
               className="absolute -left-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all"
-              title="上一个 (←)"
+              title={t('characters.previous')}
             >
               <ChevronLeft className="h-10 w-10" />
             </button>
@@ -1079,7 +1088,7 @@ export default function Characters() {
                 <span className="inline-flex items-center gap-2">
                   <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">←</kbd>
                   <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">→</kbd>
-                  <span>键盘左右键切换</span>
+                  <span>{t('characters.keyboardNavigate')}</span>
                   <span className="mx-2">|</span>
                   <span>
                     {filteredCharacters.filter(c => c.imageUrl).findIndex(c => c.id === previewImage.characterId) + 1} / {filteredCharacters.filter(c => c.imageUrl).length}
@@ -1092,7 +1101,7 @@ export default function Characters() {
             <button
               onClick={(e) => { e.stopPropagation(); navigatePreview('next'); }}
               className="absolute -right-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all"
-              title="下一个 (→)"
+              title={t('characters.next')}
             >
               <ChevronRight className="h-10 w-10" />
             </button>

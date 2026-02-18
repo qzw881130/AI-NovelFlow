@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from '../stores/i18nStore';
 import { 
   ArrowLeft, 
   Loader2,
@@ -46,11 +47,12 @@ function DownloadMaterialsCard({
   chapterId: string; 
   chapterTitle: string;
 }) {
+  const { t } = useTranslation();
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownload = async () => {
     if (!novelId || !chapterId) {
-      toast.error('章节信息不完整');
+      toast.error(t('chapterGenerate.chapterInfoIncomplete'));
       return;
     }
 
@@ -62,9 +64,9 @@ function DownloadMaterialsCard({
 
       if (!response.ok) {
         if (response.status === 404) {
-          toast.error('章节素材不存在');
+          toast.error(t('chapterGenerate.materialsNotExist'));
         } else {
-          toast.error('下载失败');
+          toast.error(t('chapterGenerate.downloadFailed'));
         }
         return;
       }
@@ -90,10 +92,10 @@ function DownloadMaterialsCard({
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
 
-      toast.success('素材包下载成功');
+      toast.success(t('chapterGenerate.materialsDownloadSuccess'));
     } catch (error) {
       console.error('Download error:', error);
-      toast.error('下载失败');
+      toast.error(t('chapterGenerate.downloadFailed'));
     } finally {
       setIsDownloading(false);
     }
@@ -104,29 +106,29 @@ function DownloadMaterialsCard({
       <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-purple-50">
         <div className="flex items-center gap-2">
           <Package className="h-5 w-5 text-blue-600" />
-          <h3 className="font-semibold text-gray-900">章节素材</h3>
+          <h3 className="font-semibold text-gray-900">{t('chapterGenerate.chapterMaterials')}</h3>
         </div>
       </div>
       <div className="p-4">
         <p className="text-sm text-gray-500 mb-4">
-          打包下载当前章节的所有素材，包括：
+          {t('chapterGenerate.downloadMaterialsDesc')}
         </p>
         <ul className="text-sm text-gray-600 space-y-1 mb-4">
           <li className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-            合并角色图
+            {t('chapterGenerate.mergedCharacterImage')}
           </li>
           <li className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-green-400" />
-            分镜图片
+            {t('chapterGenerate.shotImages')}
           </li>
           <li className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-            分镜视频
+            {t('chapterGenerate.shotVideos')}
           </li>
           <li className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-orange-400" />
-            转场视频
+            {t('chapterGenerate.transitionVideos')}
           </li>
         </ul>
         <button
@@ -137,12 +139,12 @@ function DownloadMaterialsCard({
           {isDownloading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />
-              打包中...
+              {t('chapterGenerate.packing')}
             </>
           ) : (
             <>
               <Download className="h-4 w-4" />
-              下载素材包
+              {t('chapterGenerate.downloadMaterials')}
             </>
           )}
         </button>
@@ -158,6 +160,7 @@ interface JsonTableEditorProps {
 }
 
 function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
+  const { t } = useTranslation();
   const [data, setData] = useState<any>(null);
   const [error, setError] = useState<string>('');
   const [activeSection, setActiveSection] = useState<'characters' | 'scenes' | 'shots'>('shots');
@@ -179,7 +182,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
         setData(null);
       }
     } catch (e) {
-      setError('JSON格式错误，请检查文本模式');
+      setError(t('chapterGenerate.jsonFormatError'));
     }
   }, [value]);
 
@@ -200,7 +203,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
   // 添加角色
   const addCharacter = () => {
     if (!data) return;
-    const newCharacters = [...(data.characters || []), '新角色'];
+    const newCharacters = [...(data.characters || []), t('chapterGenerate.newCharacter')];
     updateJson({ ...data, characters: newCharacters });
   };
 
@@ -222,7 +225,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
   // 添加场景
   const addScene = () => {
     if (!data) return;
-    const newScenes = [...(data.scenes || []), '新场景'];
+    const newScenes = [...(data.scenes || []), t('chapterGenerate.newScene')];
     updateJson({ ...data, scenes: newScenes });
   };
 
@@ -246,7 +249,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
     if (!data) return;
     const newShot = {
       id: (data.shots?.length || 0) + 1,
-      description: '新分镜描述',
+      description: t('chapterGenerate.newShotDesc'),
       video_description: '',
       characters: [],
       scene: '',
@@ -270,7 +273,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
         <div className="text-center">
           <AlertCircle className="h-8 w-8 text-red-400 mx-auto mb-2" />
           <p className="text-red-600 text-sm">{error}</p>
-          <p className="text-gray-500 text-xs mt-1">请切换到JSON文本模式检查</p>
+          <p className="text-gray-500 text-xs mt-1">{t('chapterGenerate.checkJsonMode')}</p>
         </div>
       </div>
     );
@@ -279,7 +282,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
   if (!data) {
     return (
       <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg border border-gray-200">
-        <p className="text-gray-400 text-sm">暂无数据，请先进行AI拆分</p>
+        <p className="text-gray-400 text-sm">{t('chapterGenerate.noDataYet')}</p>
       </div>
     );
   }
@@ -296,7 +299,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
               : 'text-gray-600 hover:bg-gray-50'
           }`}
         >
-          分镜 ({data.shots?.length || 0})
+          {t('chapterGenerate.shots')} ({data.shots?.length || 0})
         </button>
         <button
           onClick={() => setActiveSection('characters')}
@@ -306,7 +309,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
               : 'text-gray-600 hover:bg-gray-50'
           }`}
         >
-          角色 ({data.characters?.length || 0})
+          {t('chapterGenerate.characters')} ({data.characters?.length || 0})
         </button>
         <button
           onClick={() => setActiveSection('scenes')}
@@ -316,7 +319,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
               : 'text-gray-600 hover:bg-gray-50'
           }`}
         >
-          场景 ({data.scenes?.length || 0})
+          {t('chapterGenerate.scenes')} ({data.scenes?.length || 0})
         </button>
       </div>
 
@@ -346,7 +349,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
               className="w-full py-2 border border-dashed border-gray-300 rounded-md text-gray-500 hover:border-blue-400 hover:text-blue-600 text-sm flex items-center justify-center gap-1"
             >
               <Plus className="h-4 w-4" />
-              添加角色
+              {t('chapterGenerate.addCharacter')}
             </button>
           </div>
         )}
@@ -375,7 +378,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
               className="w-full py-2 border border-dashed border-gray-300 rounded-md text-gray-500 hover:border-blue-400 hover:text-blue-600 text-sm flex items-center justify-center gap-1"
             >
               <Plus className="h-4 w-4" />
-              添加场景
+              {t('chapterGenerate.addScene')}
             </button>
           </div>
         )}
@@ -395,13 +398,13 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
-                    镜{shot.id}
+                    {t('chapterGenerate.shot')}{shot.id}
                   </button>
                 ))}
                 <button
                   onClick={addShot}
                   className="px-2 py-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-t-md transition-colors"
-                  title="添加分镜"
+                  title={t('chapterGenerate.addShot')}
                 >
                   <Plus className="h-4 w-4" />
                 </button>
@@ -417,14 +420,14 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
                   return (
                     <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="font-medium text-sm text-gray-700">镜{shot.id} / 共{data.shots.length}镜</span>
+                        <span className="font-medium text-sm text-gray-700">{t('chapterGenerate.shotId', { id: shot.id, total: data.shots.length })}</span>
                         <div className="flex gap-2">
                           {activeShotIndex > 0 && (
                             <button
                               onClick={() => setActiveShotIndex(activeShotIndex - 1)}
                               className="px-2 py-1 text-xs text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
                             >
-                              ← 上一镜
+                              ← {t('chapterGenerate.prevShot')}
                             </button>
                           )}
                           {activeShotIndex < data.shots.length - 1 && (
@@ -432,7 +435,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
                               onClick={() => setActiveShotIndex(activeShotIndex + 1)}
                               className="px-2 py-1 text-xs text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
                             >
-                              下一镜 →
+                              {t('chapterGenerate.nextShot')} →
                             </button>
                           )}
                           <button
@@ -443,7 +446,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
                               }
                             }}
                             className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
-                            title="删除此分镜"
+                            title={t('chapterGenerate.deleteShot')}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -451,21 +454,21 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
                       </div>
                       <div className="space-y-3">
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">分镜描述（生图用）</label>
+                          <label className="block text-xs text-gray-500 mb-1">{t('chapterGenerate.shotDescForImage')}</label>
                           <textarea
                             value={shot.description}
                             onChange={(e) => updateShot(idx, 'description', e.target.value)}
-                            placeholder="分镜描述 - 用于生成分镜图片"
+                            placeholder={t('chapterGenerate.shotDescPlaceholder')}
                             className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
                             rows={8}
                           />
                         </div>
                         <div>
-                          <label className="block text-xs text-gray-500 mb-1">视频描述（生视频用）</label>
+                          <label className="block text-xs text-gray-500 mb-1">{t('chapterGenerate.videoDescForVideo')}</label>
                           <textarea
                             value={shot.video_description || ''}
                             onChange={(e) => updateShot(idx, 'video_description', e.target.value)}
-                            placeholder="视频描述 - 用于生成分镜视频，如果为空则使用分镜描述"
+                            placeholder={t('chapterGenerate.videoDescPlaceholder')}
                             className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
                             rows={8}
                           />
@@ -475,14 +478,14 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
                             type="text"
                             value={shot.scene}
                             onChange={(e) => updateShot(idx, 'scene', e.target.value)}
-                            placeholder="场景"
+                            placeholder={t('chapterGenerate.scene')}
                             className="flex-1 px-3 py-2 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                           />
                           <input
                             type="number"
                             value={shot.duration}
                             onChange={(e) => updateShot(idx, 'duration', parseInt(e.target.value) || 4)}
-                            placeholder="时长(秒)"
+                            placeholder={t('chapterGenerate.durationSec')}
                             className="w-24 px-3 py-2 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                           />
                         </div>
@@ -501,7 +504,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
                               return newState;
                             });
                           }}
-                          placeholder="角色（用逗号分隔）"
+                          placeholder={t('chapterGenerate.charactersPlaceholder')}
                           className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         />
                       </div>
@@ -511,7 +514,7 @@ function JsonTableEditor({ value, onChange }: JsonTableEditorProps) {
               </div>
             ) : (
               <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-                暂无分镜数据
+                {t('chapterGenerate.noShotData')}
               </div>
             )}
           </div>
@@ -537,6 +540,7 @@ function MergeVideosCard({
   chapter: Chapter | null;
   aspectRatio?: string;
 }) {
+  const { t } = useTranslation();
   const [isMerging, setIsMerging] = useState(false);
   const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
   const [includeTransitions, setIncludeTransitions] = useState(true);
@@ -547,7 +551,7 @@ function MergeVideosCard({
 
   const handleMerge = async () => {
     if (!novelId || !chapterId || videoList.length === 0) {
-      toast.error('没有可合并的视频');
+      toast.error(t('chapterGenerate.noVideosToMerge'));
       return;
     }
 
@@ -566,13 +570,13 @@ function MergeVideosCard({
       
       if (data.success) {
         setMergedVideoUrl(data.video_url);
-        toast.success('视频合并成功');
+        toast.success(t('chapterGenerate.mergeSuccess'));
       } else {
-        toast.error(data.message || '合并失败');
+        toast.error(data.message || t('chapterGenerate.mergeFailed'));
       }
     } catch (error) {
       console.error('Merge error:', error);
-      toast.error('合并失败');
+      toast.error(t('chapterGenerate.mergeFailed'));
     } finally {
       setIsMerging(false);
     }
@@ -583,17 +587,17 @@ function MergeVideosCard({
       <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-purple-50 to-pink-50">
         <div className="flex items-center gap-2">
           <Film className="h-5 w-5 text-purple-600" />
-          <h3 className="font-semibold text-gray-900">合并视频</h3>
+          <h3 className="font-semibold text-gray-900">{t('chapterGenerate.mergeVideo')}</h3>
         </div>
       </div>
       <div className="p-4">
         {!hasVideos ? (
-          <p className="text-sm text-gray-500">暂无分镜视频</p>
+          <p className="text-sm text-gray-500">{t('chapterGenerate.noShotVideos')}</p>
         ) : (
           <>
             <p className="text-sm text-gray-500 mb-3">
-              已生成 {videoList.length} 个分镜视频
-              {hasTransitions && `，${Object.keys(transitionVideos).length} 个转场视频`}
+              {t('chapterGenerate.generatedVideoCount', { count: videoList.length })}
+              {hasTransitions && t('chapterGenerate.generatedTransitionCount', { count: Object.keys(transitionVideos).length })}
             </p>
             
             {/* 选项 */}
@@ -605,7 +609,7 @@ function MergeVideosCard({
                   onChange={() => setIncludeTransitions(false)}
                   className="w-4 h-4 text-purple-600"
                 />
-                <span className="text-sm text-gray-700">仅合并分镜视频</span>
+                <span className="text-sm text-gray-700">{t('chapterGenerate.mergeShotsOnly')}</span>
               </label>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -616,7 +620,7 @@ function MergeVideosCard({
                   className="w-4 h-4 text-purple-600 disabled:opacity-50"
                 />
                 <span className={`text-sm ${hasTransitions ? 'text-gray-700' : 'text-gray-400'}`}>
-                  合并分镜+转场视频
+                  {t('chapterGenerate.mergeShotsAndTransitions')}
                 </span>
               </label>
             </div>
@@ -630,12 +634,12 @@ function MergeVideosCard({
               {isMerging ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  合并中...
+                  {t('chapterGenerate.merging')}
                 </>
               ) : (
                 <>
                   <Film className="h-4 w-4" />
-                  {includeTransitions ? '合并分镜+转场' : '仅合并分镜'}
+                  {includeTransitions ? t('chapterGenerate.mergeShotsAndTransitions') : t('chapterGenerate.mergeShotsOnly')}
                 </>
               )}
             </button>
@@ -643,7 +647,7 @@ function MergeVideosCard({
             {/* 合并后的视频播放器 */}
             {mergedVideoUrl && (
               <div className="mt-4 pt-4 border-t border-gray-100">
-                <p className="text-sm font-medium text-gray-700 mb-2">合并结果</p>
+                <p className="text-sm font-medium text-gray-700 mb-2">{t('chapterGenerate.mergeResult')}</p>
                 <video
                   src={mergedVideoUrl}
                   controls
@@ -659,16 +663,16 @@ function MergeVideosCard({
   );
 }
 
-// 步骤定义 - 每个步骤有独特的颜色主题
-const STEPS = [
-  { key: 'content', label: '原文内容', icon: FileText, color: 'from-blue-500 to-cyan-500' },
-  { key: 'ai-parse', label: 'AI拆分分镜头', icon: Sparkles, color: 'from-purple-500 to-pink-500' },
-  { key: 'json', label: 'JSON结构', icon: FileJson, color: 'from-emerald-500 to-teal-500' },
-  { key: 'character', label: '生成合并角色图', icon: Users, color: 'from-orange-500 to-amber-500' },
-  { key: 'shots', label: '生成分镜图片', icon: ImageIcon, color: 'from-rose-500 to-pink-500' },
-  { key: 'videos', label: '生成分镜视频', icon: Video, color: 'from-indigo-500 to-violet-500' },
-  { key: 'transitions', label: '生成分镜转场视频', icon: Film, color: 'from-cyan-500 to-blue-500' },
-  { key: 'compose', label: '合并视频', icon: CheckCircle, color: 'from-green-500 to-emerald-500' }
+// 步骤定义 - 每个步骤有独特的颜色主题（label使用翻译函数在组件内部处理）
+const STEPS_CONFIG = [
+  { key: 'content', icon: FileText, color: 'from-blue-500 to-cyan-500' },
+  { key: 'ai-parse', icon: Sparkles, color: 'from-purple-500 to-pink-500' },
+  { key: 'json', icon: FileJson, color: 'from-emerald-500 to-teal-500' },
+  { key: 'character', icon: Users, color: 'from-orange-500 to-amber-500' },
+  { key: 'shots', icon: ImageIcon, color: 'from-rose-500 to-pink-500' },
+  { key: 'videos', icon: Video, color: 'from-indigo-500 to-violet-500' },
+  { key: 'transitions', icon: Film, color: 'from-cyan-500 to-blue-500' },
+  { key: 'compose', icon: CheckCircle, color: 'from-green-500 to-emerald-500' }
 ];
 
 interface Character {
@@ -678,7 +682,7 @@ interface Character {
   novelId: string;
 }
 
-// 转场视频项组件
+// 转场视频项组件接口
 interface TransitionVideoItemProps {
   fromIndex: number;
   toIndex: number;
@@ -694,113 +698,8 @@ interface TransitionVideoItemProps {
   isActive: boolean;
 }
 
-function TransitionVideoItem({
-  fromIndex,
-  toIndex,
-  fromVideo,
-  toVideo,
-  fromImage,
-  toImage,
-  transitionVideo,
-  isGenerating,
-  onGenerate,
-  onRegenerate,
-  onClick,
-  isActive
-}: TransitionVideoItemProps) {
-  const hasVideos = !!fromVideo && !!toVideo;
-  const hasTransition = !!transitionVideo;
-  
-  return (
-    <div 
-      className={`relative flex-shrink-0 flex flex-col items-center gap-1 ${isActive ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
-    >
-      {/* 转场缩略图 */}
-      <div
-        onClick={hasTransition ? onClick : undefined}
-        className={`relative w-16 h-16 rounded-lg overflow-hidden cursor-pointer transition-all ${
-          isActive ? 'ring-2 ring-offset-2 ring-orange-500' : ''
-        } ${!hasTransition ? 'grayscale' : ''}`}
-      >
-        {/* 两张图片拼接 */}
-        <div className="flex h-full">
-          <div className="w-1/2 relative">
-            {fromImage ? (
-              <img src={fromImage} alt={`镜${fromIndex}`} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-gray-200" />
-            )}
-            <div className="absolute bottom-0 left-0 bg-black/60 text-white text-[8px] px-1">
-              {fromIndex}
-            </div>
-          </div>
-          <div className="w-1/2 relative">
-            {toImage ? (
-              <img src={toImage} alt={`镜${toIndex}`} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full bg-gray-200" />
-            )}
-            <div className="absolute bottom-0 right-0 bg-black/60 text-white text-[8px] px-1">
-              {toIndex}
-            </div>
-          </div>
-        </div>
-        
-        {/* 箭头覆盖层 */}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className={`rounded-full p-1 ${hasTransition ? 'bg-orange-500' : 'bg-gray-400'}`}>
-            <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          </div>
-        </div>
-        
-        {/* 生成中状态 */}
-        {isGenerating && (
-          <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-            <Loader2 className="h-5 w-5 text-white animate-spin" />
-          </div>
-        )}
-      </div>
-      
-      {/* 状态标签 */}
-      <div className="flex flex-col items-center gap-0.5">
-        {hasTransition ? (
-          <div className="flex flex-col items-center gap-0.5">
-            <span className="text-[9px] text-green-600 font-medium">已生成</span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onRegenerate?.();
-              }}
-              disabled={isGenerating}
-              className="text-[9px] bg-orange-500 text-white px-2 py-0.5 rounded hover:bg-orange-600 disabled:opacity-50 transition-colors"
-              title="重新生成转场视频"
-            >
-              重新生成
-            </button>
-          </div>
-        ) : isGenerating ? (
-          <span className="text-[9px] text-orange-600">生成中...</span>
-        ) : (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onGenerate();
-            }}
-            disabled={!hasVideos || isGenerating}
-            className="text-[9px] bg-orange-500 text-white px-2 py-0.5 rounded hover:bg-orange-600 disabled:opacity-50 disabled:bg-gray-300 transition-colors"
-            title={!hasVideos ? '请先生成视频' : '生成转场视频'}
-          >
-            生成
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export default function ChapterGenerate() {
+  const { t } = useTranslation();
   const { id, cid } = useParams<{ id: string; cid: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'json' | 'characters' | 'scenes' | 'script'>('json');
@@ -890,15 +789,15 @@ export default function ChapterGenerate() {
           }
           return { ...prev, shots: newShots };
         });
-        toast.success(data.message || '分镜图生成任务已创建');
+        toast.success(data.message || t('chapterGenerate.shotImageTaskCreated'));
       } else if (data.message?.includes('已有进行中的生成任务')) {
         toast.info(data.message);
       } else {
-        toast.error(data.message || '生成失败');
+        toast.error(data.message || t('chapterGenerate.generateFailed'));
       }
     } catch (error) {
       console.error('生成分镜图片失败:', error);
-      toast.error('生成失败，请检查网络连接');
+      toast.error(t('chapterGenerate.generateFailedCheckNetwork'));
     } finally {
       setGeneratingShots(prev => {
         const next = new Set(prev);
@@ -911,7 +810,7 @@ export default function ChapterGenerate() {
   // 批量生成所有分镜图片
   const handleGenerateAllShots = async () => {
     if (!parsedData?.shots || parsedData.shots.length === 0) {
-      toast.warning('没有可分镜生成的图片');
+      toast.warning(t('chapterGenerate.noShotsToGenerate'));
       return;
     }
     
@@ -919,12 +818,12 @@ export default function ChapterGenerate() {
     
     // 检查是否已有进行中的任务
     if (pendingShots.size > 0) {
-      toast.info(`已有 ${pendingShots.size} 个分镜在队列中，请等待完成后再试`);
+      toast.info(t('chapterGenerate.pendingShotsInQueue', { count: pendingShots.size }));
       return;
     }
     
     setIsGeneratingAll(true);
-    toast.info(`开始批量生成 ${totalShots} 个分镜图片...`);
+    toast.info(t('chapterGenerate.startBatchGenerateShots', { count: totalShots }));
     
     let successCount = 0;
     let skipCount = 0;
@@ -973,20 +872,20 @@ export default function ChapterGenerate() {
     
     // 显示汇总结果
     if (successCount > 0) {
-      toast.success(`成功提交 ${successCount} 个分镜生成任务`);
+      toast.success(t('chapterGenerate.shotTasksSubmitted', { count: successCount }));
     }
     if (skipCount > 0) {
-      toast.info(`${skipCount} 个分镜已在队列中`);
+      toast.info(t('chapterGenerate.shotsAlreadyInQueue', { count: skipCount }));
     }
     if (failCount > 0) {
-      toast.error(`${failCount} 个分镜提交失败`);
+      toast.error(t('chapterGenerate.shotsSubmitFailed', { count: failCount }));
     }
   };
 
   // 批量生成所有分镜视频
   const handleGenerateAllVideos = async () => {
     if (!parsedData?.shots || parsedData.shots.length === 0) {
-      toast.warning('没有可分镜的视频');
+      toast.warning(t('chapterGenerate.noShotsToGenerateVideo'));
       return;
     }
     
@@ -1003,11 +902,11 @@ export default function ChapterGenerate() {
     });
     
     if (shotsWithImages.length === 0) {
-      toast.warning('没有可生成视频的分镜（请确保分镜图片已生成）');
+      toast.warning(t('chapterGenerate.noShotsWithImages'));
       return;
     }
     
-    toast.info(`开始批量生成 ${shotsWithImages.length} 个分镜视频...`);
+    toast.info(t('chapterGenerate.startBatchGenerateVideos', { count: shotsWithImages.length }));
     
     let successCount = 0;
     let skipCount = 0;
@@ -1054,13 +953,13 @@ export default function ChapterGenerate() {
     
     // 显示汇总结果
     if (successCount > 0) {
-      toast.success(`成功提交 ${successCount} 个视频生成任务`);
+      toast.success(t('chapterGenerate.videoTasksSubmitted', { count: successCount }));
     }
     if (skipCount > 0) {
-      toast.info(`${skipCount} 个分镜已在队列中`);
+      toast.info(t('chapterGenerate.videosAlreadyInQueue', { count: skipCount }));
     }
     if (failCount > 0) {
-      toast.error(`${failCount} 个分镜提交失败`);
+      toast.error(t('chapterGenerate.videosSubmitFailed', { count: failCount }));
     }
   };
 
@@ -1085,15 +984,15 @@ export default function ChapterGenerate() {
           console.log('[ChapterGenerate] Added to pending videos:', shotIndex, 'pending:', [...next]);
           return next;
         });
-        toast.success(data.message || '视频生成任务已创建');
+        toast.success(data.message || t('chapterGenerate.videoTaskCreated'));
       } else if (data.message?.includes('已有进行中的')) {
         toast.info(data.message);
       } else {
-        toast.error(data.message || '创建视频生成任务失败');
+        toast.error(data.message || t('chapterGenerate.createVideoTaskFailed'));
       }
     } catch (error) {
       console.error('创建视频生成任务失败:', error);
-      toast.error('创建视频生成任务失败，请检查网络连接');
+      toast.error(t('chapterGenerate.createVideoTaskFailedCheckNetwork'));
     } finally {
       setGeneratingVideos(prev => {
         const next = new Set(prev);
@@ -1523,9 +1422,9 @@ export default function ChapterGenerate() {
       const data = await res.json();
       
       if (data.success) {
-        toast.success(`转场视频 镜${fromIndex}→镜${toIndex} 已开始生成`);
+        toast.success(t('chapterGenerate.transitionVideoStarted', { from: fromIndex, to: toIndex }));
       } else {
-        toast.error(data.message || '生成失败');
+        toast.error(data.message || t('chapterGenerate.generateFailed'));
         setGeneratingTransitions(prev => {
           const next = new Set(prev);
           next.delete(transitionKey);
@@ -1534,7 +1433,7 @@ export default function ChapterGenerate() {
       }
     } catch (error) {
       console.error('生成转场视频失败:', error);
-      toast.error('生成失败');
+      toast.error(t('chapterGenerate.generateFailed'));
       setGeneratingTransitions(prev => {
         const next = new Set(prev);
         next.delete(transitionKey);
@@ -1546,7 +1445,7 @@ export default function ChapterGenerate() {
   // 一键生成所有转场视频
   const handleGenerateAllTransitions = async () => {
     if (!parsedData?.shots || parsedData.shots.length < 2) {
-      toast.warning('分镜数量不足，无法生成转场');
+      toast.warning(t('chapterGenerate.notEnoughShots'));
       return;
     }
     
@@ -1574,7 +1473,7 @@ export default function ChapterGenerate() {
       const data = await res.json();
       
       if (data.success) {
-        toast.success(`已创建 ${data.task_count} 个转场视频生成任务`);
+        toast.success(t('chapterGenerate.transitionTasksCreated', { count: data.task_count }));
         // 添加所有转场到生成中状态
         const allTransitions = new Set<string>();
         for (let i = 1; i < parsedData.shots.length; i++) {
@@ -1582,11 +1481,11 @@ export default function ChapterGenerate() {
         }
         setGeneratingTransitions(allTransitions);
       } else {
-        toast.error(data.message || '生成失败');
+        toast.error(data.message || t('chapterGenerate.generateFailed'));
       }
     } catch (error) {
       console.error('批量生成转场视频失败:', error);
-      toast.error('生成失败');
+      toast.error(t('chapterGenerate.generateFailed'));
     }
   };
 
@@ -1685,7 +1584,7 @@ export default function ChapterGenerate() {
         }
       }
     } catch (error) {
-      console.error('获取章节数据失败:', error);
+      console.error(t('chapterGenerate.fetchChapterFailed'), error);
     } finally {
       setLoading(false);
       // 章节数据加载完成后，获取任务状态以恢复 pending 状态
@@ -1720,7 +1619,7 @@ export default function ChapterGenerate() {
     const shotCharacters = currentShotData?.characters || [];
     
     if (shotCharacters.length === 0) {
-      toast.warning('当前分镜没有角色');
+      toast.warning(t('chapterGenerate.noCharactersInShot'));
       return;
     }
 
@@ -1730,7 +1629,7 @@ export default function ChapterGenerate() {
       const imageUrls = shotCharacters.map((name: string) => getCharacterImage(name)).filter(Boolean) as string[];
       
       if (imageUrls.length === 0) {
-        toast.warning('角色图片未生成');
+        toast.warning(t('chapterGenerate.characterImagesNotGenerated'));
         return;
       }
 
@@ -1806,7 +1705,7 @@ export default function ChapterGenerate() {
       setMergedImage(mergedUrl);
     } catch (error) {
       console.error('合并角色图失败:', error);
-      toast.error('合并失败，请重试');
+      toast.error(t('chapterGenerate.mergeFailedRetry'));
     } finally {
       setIsMerging(false);
     }
@@ -1848,6 +1747,21 @@ export default function ChapterGenerate() {
     }
   };
 
+  // 步骤标签翻译
+  const getStepLabel = (key: string) => {
+    const labels: Record<string, string> = {
+      'content': t('chapterGenerate.stepContent'),
+      'ai-parse': t('chapterGenerate.stepAiParse'),
+      'json': t('chapterGenerate.stepJson'),
+      'character': t('chapterGenerate.stepCharacter'),
+      'shots': t('chapterGenerate.stepShots'),
+      'videos': t('chapterGenerate.stepVideos'),
+      'transitions': t('chapterGenerate.stepTransitions'),
+      'compose': t('chapterGenerate.stepCompose'),
+    };
+    return labels[key] || key;
+  };
+
   // 获取当前步骤索引
   const currentStepIndex = 3; // 模拟当前在"生成视频"步骤
 
@@ -1876,7 +1790,115 @@ export default function ChapterGenerate() {
       doSplitChapter();
     }
   };
-  
+
+  // 转场视频项组件
+  function TransitionVideoItem({
+    fromIndex,
+    toIndex,
+    fromVideo,
+    toVideo,
+    fromImage,
+    toImage,
+    transitionVideo,
+    isGenerating,
+    onGenerate,
+    onRegenerate,
+    onClick,
+    isActive
+  }: TransitionVideoItemProps) {
+    const { t } = useTranslation();
+    const hasVideos = !!fromVideo && !!toVideo;
+    const hasTransition = !!transitionVideo;
+    
+    return (
+      <div 
+        className={`relative flex-shrink-0 flex flex-col items-center gap-1 ${isActive ? 'opacity-100' : 'opacity-80 hover:opacity-100'}`}
+      >
+        {/* 转场缩略图 */}
+        <div
+          onClick={hasTransition ? onClick : undefined}
+          className={`relative w-16 h-16 rounded-lg overflow-hidden cursor-pointer transition-all ${
+            isActive ? 'ring-2 ring-offset-2 ring-orange-500' : ''
+          } ${!hasTransition ? 'grayscale' : ''}`}
+        >
+          {/* 两张图片拼接 */}
+          <div className="flex h-full">
+            <div className="w-1/2 relative">
+              {fromImage ? (
+                <img src={fromImage} alt={`镜${fromIndex}`} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gray-200" />
+              )}
+              <div className="absolute bottom-0 left-0 bg-black/60 text-white text-[8px] px-1">
+                {fromIndex}
+              </div>
+            </div>
+            <div className="w-1/2 relative">
+              {toImage ? (
+                <img src={toImage} alt={`镜${toIndex}`} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gray-200" />
+              )}
+              <div className="absolute bottom-0 right-0 bg-black/60 text-white text-[8px] px-1">
+                {toIndex}
+              </div>
+            </div>
+          </div>
+          
+          {/* 箭头覆盖层 */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className={`rounded-full p-1 ${hasTransition ? 'bg-orange-500' : 'bg-gray-400'}`}>
+              <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </div>
+          </div>
+          
+          {/* 生成中状态 */}
+          {isGenerating && (
+            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+              <Loader2 className="h-5 w-5 text-white animate-spin" />
+            </div>
+          )}
+        </div>
+        
+        {/* 状态标签 */}
+        <div className="flex flex-col items-center gap-0.5">
+          {hasTransition ? (
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-[9px] text-green-600 font-medium">{t('chapterGenerate.generated')}</span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRegenerate?.();
+                }}
+                disabled={isGenerating}
+                className="text-[9px] bg-orange-500 text-white px-2 py-0.5 rounded hover:bg-orange-600 disabled:opacity-50 transition-colors"
+                title={t('chapterGenerate.regenerateTransition')}
+              >
+                {t('chapterGenerate.regenerate')}
+              </button>
+            </div>
+          ) : isGenerating ? (
+            <span className="text-[9px] text-orange-600">{t('chapterGenerate.generating')}</span>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onGenerate();
+              }}
+              disabled={!hasVideos || isGenerating}
+              className="text-[9px] bg-orange-500 text-white px-2 py-0.5 rounded hover:bg-orange-600 disabled:opacity-50 disabled:bg-gray-300 transition-colors"
+              title={!hasVideos ? t('chapterGenerate.generateVideoFirst') : t('chapterGenerate.generateTransitionVideo')}
+            >
+              {t('chapterGenerate.generate')}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // 确认后执行拆分
   const doSplitChapter = async () => {
     if (!id || !cid) return;
@@ -1915,15 +1937,15 @@ export default function ChapterGenerate() {
         setEditorKey(prev => prev + 1);
         // 自动切换到 JSON 标签页查看结果
         setActiveTab('json');
-        toast.success('拆分成功');
+        toast.success(t('chapterGenerate.splitSuccess'));
         // 刷新章节数据
         fetchChapter();
       } else {
-        toast.error(data.message || '拆分失败');
+        toast.error(data.message || t('chapterGenerate.splitFailed'));
       }
     } catch (error) {
       console.error('拆分章节失败:', error);
-      toast.error('拆分失败，请检查网络连接');
+      toast.error(t('chapterGenerate.splitFailedCheckNetwork'));
     } finally {
       setIsSplitting(false);
     }
@@ -1938,7 +1960,7 @@ export default function ChapterGenerate() {
     try {
       parsedJson = JSON.parse(editableJson);
     } catch (e) {
-      toast.error('JSON格式错误，请检查后再保存');
+      toast.error(t('chapterGenerate.jsonFormatErrorCheck'));
       return;
     }
     
@@ -1955,13 +1977,13 @@ export default function ChapterGenerate() {
       
       if (data.success) {
         setParsedData(parsedJson);
-        toast.success('保存成功');
+        toast.success(t('chapterGenerate.saveSuccess'));
       } else {
-        toast.error(data.message || '保存失败');
+        toast.error(data.message || t('chapterGenerate.saveFailed'));
       }
     } catch (error) {
       console.error('保存JSON失败:', error);
-      toast.error('保存失败，请检查网络连接');
+      toast.error(t('chapterGenerate.saveFailedCheckNetwork'));
     } finally {
       setIsSavingJson(false);
     }
@@ -1970,7 +1992,7 @@ export default function ChapterGenerate() {
   const renderStepIndicator = () => (
     <div className="card mb-6">
       <div className="flex items-center justify-between">
-        {STEPS.map((step, index) => {
+        {STEPS_CONFIG.map((step, index) => {
           const StepIcon = step.icon;
           
           return (
@@ -1980,10 +2002,10 @@ export default function ChapterGenerate() {
                   <StepIcon className="h-5 w-5" />
                 </div>
                 <span className="text-xs font-medium text-gray-700 text-center whitespace-nowrap">
-                  {step.label}
+                  {getStepLabel(step.key)}
                 </span>
               </div>
-              {index < STEPS.length - 1 && (
+              {index < STEPS_CONFIG.length - 1 && (
                 <div className="flex items-center flex-1 justify-center mb-6">
                   <ChevronRight className="h-5 w-5 text-gray-300" />
                 </div>
@@ -1998,9 +2020,9 @@ export default function ChapterGenerate() {
   const renderTabs = () => (
     <div className="flex gap-4 mb-4 border-b border-gray-200">
       {[
-        { key: 'characters', label: '角色列表' },
-        { key: 'scenes', label: '场景列表' },
-        { key: 'script', label: '分镜脚本' }
+        { key: 'characters', label: t('chapterGenerate.characterList') },
+        { key: 'scenes', label: t('chapterGenerate.sceneList') },
+        { key: 'script', label: t('chapterGenerate.shotScript') }
       ].map(tab => (
         <button
           key={tab.key}
@@ -2032,7 +2054,7 @@ export default function ChapterGenerate() {
             }`}
           >
             <Code className="h-4 w-4" />
-            JSON文本
+            {t('chapterGenerate.jsonText')}
           </button>
           <button
             onClick={() => setJsonEditMode('table')}
@@ -2043,7 +2065,7 @@ export default function ChapterGenerate() {
             }`}
           >
             <Grid3x3 className="h-4 w-4" />
-            表格编辑
+            {t('chapterGenerate.tableEdit')}
           </button>
         </div>
         <button
@@ -2052,9 +2074,9 @@ export default function ChapterGenerate() {
           className="btn-primary text-sm py-2 px-4 disabled:opacity-50"
         >
           {isSavingJson ? (
-            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />保存中...</>
+            <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{t('common.saving')}</>
           ) : (
-            <><Save className="h-4 w-4 mr-2" />保存修改</>
+            <><Save className="h-4 w-4 mr-2" />{t('chapterGenerate.saveChanges')}</>
           )}
         </button>
       </div>
@@ -2065,7 +2087,7 @@ export default function ChapterGenerate() {
           className="w-full h-64 bg-gray-900 text-gray-100 p-4 rounded-lg font-mono text-sm resize-none focus:ring-2 focus:ring-blue-500 focus:outline-none"
           value={editableJson}
           onChange={(e) => setEditableJson(e.target.value)}
-          placeholder="点击 AI拆分分镜头 按钮生成数据，或直接输入JSON..."
+          placeholder={t('chapterGenerate.jsonPlaceholder')}
           spellCheck={false}
         />
       ) : (
@@ -2089,7 +2111,7 @@ export default function ChapterGenerate() {
                 <Users className="h-5 w-5 text-blue-500" />
                 <span className="font-medium">{name}</span>
               </div>
-            )) || <p className="text-gray-500 text-sm py-4">暂无角色数据，请先进行AI拆分</p>}
+            )) || <p className="text-gray-500 text-sm py-4">{t('chapterGenerate.noCharacterData')}</p>}
           </div>
         );
       case 'scenes':
@@ -2100,7 +2122,7 @@ export default function ChapterGenerate() {
                 <MapPin className="h-5 w-5 text-green-500" />
                 <span className="font-medium">{name}</span>
               </div>
-            )) || <p className="text-gray-500 text-sm py-4">暂无场景数据，请先进行AI拆分</p>}
+            )) || <p className="text-gray-500 text-sm py-4">{t('chapterGenerate.noSceneData')}</p>}
           </div>
         );
       case 'script':
@@ -2119,7 +2141,7 @@ export default function ChapterGenerate() {
                   ))}
                 </div>
               </div>
-            )) || <p className="text-gray-500 text-sm py-4">暂无分镜数据，请先进行AI拆分</p>}
+            )) || <p className="text-gray-500 text-sm py-4">{t('chapterGenerate.noShotDataYet')}</p>}
           </div>
         );
       default:
@@ -2140,7 +2162,7 @@ export default function ChapterGenerate() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              {loading ? '加载中...' : chapter?.title || '未命名章节'}
+              {loading ? t('chapterGenerate.loading') : chapter?.title || t('chapterGenerate.unnamedChapter')}
             </h1>
           </div>
         </div>
@@ -2155,16 +2177,16 @@ export default function ChapterGenerate() {
           {/* 原文内容 */}
           <div className="card">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold text-gray-900">原文内容</h3>
+              <h3 className="font-semibold text-gray-900">{t('chapterGenerate.originalContent')}</h3>
               <button 
                 onClick={() => setShowFullTextModal(true)}
                 className="text-sm text-blue-600 hover:underline"
               >
-                展开全文
+                {t('chapterGenerate.expandFullText')}
               </button>
             </div>
             <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">
-              {loading ? '加载中...' : chapter?.content || '暂无内容'}
+              {loading ? t('chapterGenerate.loading') : chapter?.content || t('chapterGenerate.noContent')}
             </p>
             {/* AI拆分分镜头按钮 */}
             <div className="mt-4 pt-4 border-t border-gray-100">
@@ -2178,7 +2200,7 @@ export default function ChapterGenerate() {
                 ) : (
                   <Sparkles className="h-5 w-5" />
                 )}
-                {isSplitting ? 'AI拆分中...' : 'AI拆分分镜头'}
+                {isSplitting ? t('chapterGenerate.aiSplitting') : t('chapterGenerate.aiSplitShots')}
               </button>
             </div>
           </div>
@@ -2192,7 +2214,7 @@ export default function ChapterGenerate() {
           <div className="card">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-semibold text-gray-900">
-                人设图片 
+                {t('chapterGenerate.characterImages')}
                 <span className="text-xs font-normal text-gray-500 ml-2">
                   ({novel?.aspectRatio || '16:9'})
                 </span>
@@ -2202,7 +2224,7 @@ export default function ChapterGenerate() {
                 className="text-sm text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1"
               >
                 <Sparkles className="h-4 w-4" />
-                AI生成角色形象
+                {t('chapterGenerate.aiGenerateCharacter')}
               </Link>
             </div>
             <div className="flex gap-4 flex-wrap">
@@ -2254,19 +2276,19 @@ export default function ChapterGenerate() {
                         onClick={() => handleRegenerateCharacter(name)}
                         className="text-xs text-blue-600 hover:underline mt-1"
                       >
-                        重新生成
+                        {t('chapterGenerate.regenerate')}
                       </button>
                     </div>
                   );
                 });
-              })() || <p className="text-gray-500 text-sm py-4">暂无角色图片</p>}
+              })() || <p className="text-gray-500 text-sm py-4">{t('chapterGenerate.noCharacterImages')}</p>}
             </div>
           </div>
 
           {/* 分镜图片 */}
           <div className="card">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-semibold text-gray-900">分镜图片 ({parsedData?.shots?.length || 0}张)</h3>
+              <h3 className="font-semibold text-gray-900">{t('chapterGenerate.shotImages')} ({parsedData?.shots?.length || 0}{t('chapterGenerate.unit')})</h3>
               <div className="flex items-center gap-3">
                 {/* 批量生成按钮 */}
                 {parsedData?.shots?.length > 0 && (
@@ -2277,19 +2299,19 @@ export default function ChapterGenerate() {
                       className="btn-secondary text-sm py-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 disabled:opacity-50"
                     >
                       {isGeneratingAll ? (
-                        <><Loader2 className="h-3 w-3 mr-1 animate-spin" />批量提交中...</>
+                        <><Loader2 className="h-3 w-3 mr-1 animate-spin" />{t('chapterGenerate.batchSubmitting')}</>
                       ) : (
-                        <><RefreshCw className="h-3 w-3 mr-1" />生成全部分镜图</>
+                        <><RefreshCw className="h-3 w-3 mr-1" />{t('chapterGenerate.generateAllShots')}</>
                       )}
                     </button>
                     <button 
                       onClick={handleGenerateAllVideos}
                       disabled={generatingVideos.size > 0 || pendingVideos.size > 0}
                       className="btn-secondary text-sm py-1.5 text-purple-600 hover:text-purple-700 hover:bg-purple-50 disabled:opacity-50"
-                      title="为所有已有分镜图片的分镜生成视频"
+                      title={t('chapterGenerate.generateVideoForShotsWithImages')}
                     >
                       <Film className="h-3 w-3 mr-1" />
-                      生成全部分镜视频
+                      {t('chapterGenerate.generateAllShotVideos')}
                     </button>
                   </>
                 )}
@@ -2345,7 +2367,7 @@ export default function ChapterGenerate() {
                         {isSubmitting && (
                           <div className="absolute inset-0 bg-black/60 flex flex-col items-center justify-center">
                             <Loader2 className="h-5 w-5 text-white animate-spin mb-1" />
-                            <span className="text-[10px] text-white font-medium">提交中</span>
+                            <span className="text-[10px] text-white font-medium">{t('chapterGenerate.submitting')}</span>
                           </div>
                         )}
                         
@@ -2357,7 +2379,7 @@ export default function ChapterGenerate() {
                               <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-pulse delay-75" />
                               <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-pulse delay-150" />
                             </div>
-                            <span className="text-[10px] text-white font-medium">队列中</span>
+                            <span className="text-[10px] text-white font-medium">{t('chapterGenerate.inQueue')}</span>
                           </div>
                         )}
                         
@@ -2369,7 +2391,7 @@ export default function ChapterGenerate() {
                         )}
                         
                         <span className="absolute bottom-1 left-2 text-xs text-white font-bold bg-blue-600/90 px-1.5 py-0.5 rounded shadow-lg">
-                          镜{shot.id}
+                          {t('chapterGenerate.shot')}{shot.id}
                         </span>
                       </div>
                     );
@@ -2391,7 +2413,7 @@ export default function ChapterGenerate() {
                     >
                       <img 
                         src={shotImages[currentShot] || parsedData.shots[currentShot - 1]?.image_url}
-                        alt={`镜${currentShot}`}
+                        alt={`${t('chapterGenerate.shot')}${currentShot}`}
                         className="w-full h-full object-contain"
                       />
                     </div>
@@ -2401,7 +2423,7 @@ export default function ChapterGenerate() {
                   <div className="mt-4 mb-4">
                     <div className="aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-purple-100 to-pink-100 flex flex-col items-center justify-center border-2 border-dashed border-purple-200">
                       <ImageIcon className="h-16 w-16 text-purple-300 mb-2" />
-                      <span className="text-purple-400 text-sm">未生成分镜图</span>
+                      <span className="text-purple-400 text-sm">{t('chapterGenerate.shotImageNotGenerated')}</span>
                     </div>
                   </div>
                 )}
@@ -2413,11 +2435,11 @@ export default function ChapterGenerate() {
                     className="btn-secondary text-sm py-1.5 disabled:opacity-50"
                   >
                     {generatingShots.has(currentShot) ? (
-                      <><Loader2 className="h-3 w-3 mr-1 animate-spin" />提交中...</>
+                      <><Loader2 className="h-3 w-3 mr-1 animate-spin" />{t('chapterGenerate.submitting')}</>
                     ) : pendingShots.has(currentShot) ? (
-                      <><Clock className="h-3 w-3 mr-1" />队列中</>
+                      <><Clock className="h-3 w-3 mr-1" />{t('chapterGenerate.inQueue')}</>
                     ) : (
-                      <><RefreshCw className="h-3 w-3 mr-1" />重新生成分镜图</>
+                      <><RefreshCw className="h-3 w-3 mr-1" />{t('chapterGenerate.regenerateShotImage')}</>
                     )}
                   </button>
                   {/* 生成分镜视频按钮 - 只有当前分镜有图片时才可点击 */}
@@ -2431,33 +2453,33 @@ export default function ChapterGenerate() {
                     className="btn-secondary text-sm py-1.5 text-purple-600 hover:text-purple-700 hover:bg-purple-50 disabled:opacity-50"
                     title={
                       !(shotImages[currentShot] || parsedData.shots[currentShot - 1]?.image_url)
-                        ? '请先生成分镜图片'
+                        ? t('chapterGenerate.generateShotImageFirst')
                         : pendingVideos.has(currentShot)
-                        ? '视频生成中...'
-                        : '基于当前分镜图片生成视频'
+                        ? t('chapterGenerate.videoGenerating')
+                        : t('chapterGenerate.generateVideoBasedOnImage')
                     }
                   >
                     {generatingVideos.has(currentShot) ? (
-                      <><Loader2 className="h-3 w-3 mr-1 animate-spin" />提交中...</>
+                      <><Loader2 className="h-3 w-3 mr-1 animate-spin" />{t('chapterGenerate.submitting')}</>
                     ) : pendingVideos.has(currentShot) ? (
-                      <><Clock className="h-3 w-3 mr-1" />生成中...</>
+                      <><Clock className="h-3 w-3 mr-1" />{t('chapterGenerate.generating')}</>
                     ) : (
-                      <><Film className="h-3 w-3 mr-1" />生成分镜视频</>
+                      <><Film className="h-3 w-3 mr-1" />{t('chapterGenerate.generateShotVideo')}</>
                     )}
                   </button>
                   <button 
                     onClick={() => setShowMergedImageModal(true)}
                     disabled={!mergedImage}
                     className="btn-secondary text-sm py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 disabled:opacity-50"
-                    title={mergedImage ? '查看合并角色图' : '请先生成合并角色图'}
+                    title={mergedImage ? t('chapterGenerate.viewMergedImage') : t('chapterGenerate.generateMergedImageFirst')}
                   >
                     <Grid3x3 className="h-3 w-3 mr-1" />
-                    查看合并角色图
+                    {t('chapterGenerate.viewMergedImage')}
                   </button>
                 </div>
               </>
             ) : (
-              <p className="text-gray-500 text-sm py-4">暂无分镜图片，请先进行AI拆分</p>
+              <p className="text-gray-500 text-sm py-4">{t('chapterGenerate.noShotImages')}</p>
             )}
           </div>
 
@@ -2467,15 +2489,15 @@ export default function ChapterGenerate() {
               <div className="flex items-center gap-3">
                 <h3 className="font-semibold text-gray-900">
                   {currentTransition && transitionVideos[currentTransition] 
-                    ? `转场 ${currentTransition} 预览` 
-                    : '分镜视频'}
+                    ? t('chapterGenerate.transitionPreview', { transition: currentTransition })
+                    : t('chapterGenerate.shotVideosTitle')}
                 </h3>
                 {currentTransition && transitionVideos[currentTransition] && (
                   <button
                     onClick={() => setCurrentTransition('')}
                     className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 transition-colors"
                   >
-                    返回分镜视频
+                    {t('chapterGenerate.backToShotVideos')}
                   </button>
                 )}
               </div>
@@ -2484,12 +2506,12 @@ export default function ChapterGenerate() {
                   onClick={handleGenerateAllTransitions}
                   disabled={generatingTransitions.size > 0}
                   className="btn-secondary text-sm py-1.5 text-orange-600 hover:text-orange-700 hover:bg-orange-50 disabled:opacity-50"
-                  title="为所有相邻分镜生成转场视频"
+                  title={t('chapterGenerate.generateTransitionsForAll')}
                 >
                   {generatingTransitions.size > 0 ? (
-                    <><Loader2 className="h-3 w-3 mr-1 animate-spin" />生成中...</>
+                    <><Loader2 className="h-3 w-3 mr-1 animate-spin" />{t('chapterGenerate.generating')}</>
                   ) : (
-                    <><RefreshCw className="h-3 w-3 mr-1" />一键生成全部转场</>
+                    <><RefreshCw className="h-3 w-3 mr-1" />{t('chapterGenerate.generateAllTransitions')}</>
                   )}
                 </button>
               )}
@@ -2518,7 +2540,7 @@ export default function ChapterGenerate() {
                 <div className="text-center">
                   <Play className="h-16 w-16 text-white/50 mx-auto mb-2" />
                   <p className="text-white/50 text-sm">
-                    {generatingVideos.has(currentVideo) ? '生成中...' : pendingVideos.has(currentVideo) ? '排队中...' : '暂无视频'}
+                    {generatingVideos.has(currentVideo) ? t('chapterGenerate.generating') : pendingVideos.has(currentVideo) ? t('chapterGenerate.inQueue') : t('chapterGenerate.noVideo')}
                   </p>
                 </div>
               )}
@@ -2530,16 +2552,16 @@ export default function ChapterGenerate() {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <Settings className="h-4 w-4 text-gray-500" />
-                    <span className="text-sm font-medium text-gray-700">转场配置</span>
+                    <span className="text-sm font-medium text-gray-700">{t('chapterGenerate.transitionConfig')}</span>
                     {showTransitionConfig && (
-                      <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded">已启用自定义</span>
+                      <span className="text-xs px-2 py-0.5 bg-orange-100 text-orange-700 rounded">{t('chapterGenerate.customEnabled')}</span>
                     )}
                   </div>
                   <button
                     onClick={() => setShowTransitionConfig(!showTransitionConfig)}
                     className="text-xs text-blue-600 hover:text-blue-800"
                   >
-                    {showTransitionConfig ? '收起配置' : '展开配置'}
+                    {showTransitionConfig ? t('chapterGenerate.collapseConfig') : t('chapterGenerate.expandConfig')}
                   </button>
                 </div>
                 
@@ -2547,23 +2569,26 @@ export default function ChapterGenerate() {
                   <div className="space-y-3 pt-2 border-t border-gray-200">
                     {/* 工作流选择 */}
                     <div className="flex items-center gap-3">
-                      <label className="text-sm text-gray-600 whitespace-nowrap">工作流:</label>
+                      <label className="text-sm text-gray-600 whitespace-nowrap">{t('chapterGenerate.workflow')}:</label>
                       <select
                         value={selectedTransitionWorkflow}
                         onChange={(e) => setSelectedTransitionWorkflow(e.target.value)}
                         className="flex-1 text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                       >
-                        {transitionWorkflows.map((wf) => (
-                          <option key={wf.id} value={wf.id}>
-                            {wf.name} {wf.isActive ? '(默认)' : ''}
-                          </option>
-                        ))}
+                        {transitionWorkflows.map((wf) => {
+                          const displayName = wf.nameKey ? t(wf.nameKey, { defaultValue: wf.name }) : wf.name;
+                          return (
+                            <option key={wf.id} value={wf.id}>
+                              {displayName} {wf.isActive ? `(${t('chapterGenerate.default')})` : ''}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                     
                     {/* 时长设置 */}
                     <div className="flex items-center gap-3">
-                      <label className="text-sm text-gray-600 whitespace-nowrap">时长:</label>
+                      <label className="text-sm text-gray-600 whitespace-nowrap">{t('chapterGenerate.duration')}:</label>
                       <div className="flex items-center gap-2 flex-1">
                         <input
                           type="range"
@@ -2574,14 +2599,14 @@ export default function ChapterGenerate() {
                           onChange={(e) => setTransitionDuration(parseFloat(e.target.value))}
                           className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                         />
-                        <span className="text-sm text-gray-700 w-16 text-right">{transitionDuration}秒</span>
+                        <span className="text-sm text-gray-700 w-16 text-right">{transitionDuration}{t('chapterGenerate.second')}</span>
                       </div>
                     </div>
                     
                     {/* 提示信息和还原按钮 */}
                     <div className="flex items-center justify-between pt-2 border-t border-gray-200">
                       <p className="text-xs text-gray-500">
-                        配置后点击"生成"或"一键生成全部转场"将使用自定义设置
+                        {t('chapterGenerate.configTip')}
                       </p>
                       <button
                         onClick={() => {
@@ -2594,11 +2619,11 @@ export default function ChapterGenerate() {
                           }
                           // 还原时长为2秒
                           setTransitionDuration(2);
-                          toast.info('已还原为默认设置');
+                          toast.info(t('chapterGenerate.resetToDefault'));
                         }}
                         className="text-xs px-3 py-1.5 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition-colors"
                       >
-                        还原
+                        {t('chapterGenerate.reset')}
                       </button>
                     </div>
                   </div>
@@ -2634,7 +2659,7 @@ export default function ChapterGenerate() {
                       {imageUrl ? (
                         <img 
                           src={imageUrl} 
-                          alt={`镜${shot.id}`}
+                          alt={`${t('chapterGenerate.shot')}${shot.id}`}
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -2655,8 +2680,8 @@ export default function ChapterGenerate() {
                       
                       {/* 底部信息栏 */}
                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent px-2 py-1 flex items-center justify-between">
-                        <span className="text-xs text-white font-bold bg-blue-600/90 px-1.5 py-0.5 rounded">镜{shot.id}</span>
-                        <span className="text-[10px] text-white/90 font-medium">{duration}s</span>
+                        <span className="text-xs text-white font-bold bg-blue-600/90 px-1.5 py-0.5 rounded">{t('chapterGenerate.shot')}{shot.id}</span>
+                        <span className="text-[10px] text-white/90 font-medium">{duration}{t('chapterGenerate.second')}</span>
                       </div>
                     </div>
                     
@@ -2683,7 +2708,7 @@ export default function ChapterGenerate() {
                     )}
                   </div>
                 );
-              }) || <p className="text-gray-500 text-sm">暂无视频</p>}
+              }) || <p className="text-gray-500 text-sm">{t('chapterGenerate.noVideos')}</p>}
             </div>
           </div>
         </div>
@@ -2708,7 +2733,7 @@ export default function ChapterGenerate() {
             <DownloadMaterialsCard 
               novelId={id || ''} 
               chapterId={cid || ''}
-              chapterTitle={chapter?.title || '未命名章节'}
+              chapterTitle={chapter?.title || t('chapterGenerate.unnamedChapter')}
             />
           </div>
         </div>
@@ -2719,7 +2744,7 @@ export default function ChapterGenerate() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between p-6 border-b">
-              <h3 className="text-lg font-semibold text-gray-900">原文内容</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{t('chapterGenerate.originalContent')}</h3>
               <button
                 onClick={() => setShowFullTextModal(false)}
                 className="p-1 text-gray-400 hover:text-gray-600"
@@ -2729,11 +2754,11 @@ export default function ChapterGenerate() {
             </div>
             <div className="p-6 overflow-y-auto flex-1">
               <h2 className="text-xl font-bold text-gray-900 mb-4">
-                {chapter?.title || '未命名章节'}
+                {chapter?.title || t('chapterGenerate.unnamedChapter')}
               </h2>
               <div className="prose prose-gray max-w-none">
                 <p className="text-gray-700 leading-loose whitespace-pre-wrap text-base">
-                  {chapter?.content || '暂无内容'}
+                  {chapter?.content || t('chapterGenerate.noContent')}
                 </p>
               </div>
             </div>
@@ -2742,7 +2767,7 @@ export default function ChapterGenerate() {
                 onClick={() => setShowFullTextModal(false)}
                 className="btn-secondary"
               >
-                关闭
+                {t('common.close')}
               </button>
             </div>
           </div>
@@ -2761,21 +2786,21 @@ export default function ChapterGenerate() {
             </button>
             <img 
               src={mergedImage} 
-              alt="合并角色图" 
+              alt={t('chapterGenerate.mergedCharacterImage')} 
               className="max-w-full max-h-[80vh] object-contain rounded-lg"
             />
             <div className="mt-4 text-center">
               <button
                 onClick={() => {
                   const link = document.createElement('a');
-                  link.download = `角色图_镜${currentShot}.png`;
+                  link.download = `${t('chapterGenerate.characterImage')}_${t('chapterGenerate.shot')}${currentShot}.png`;
                   link.href = mergedImage;
                   link.click();
                 }}
                 className="btn-primary text-sm"
               >
                 <Download className="h-4 w-4 mr-2" />
-                下载图片
+                {t('chapterGenerate.downloadImage')}
               </button>
             </div>
           </div>
@@ -2793,7 +2818,7 @@ export default function ChapterGenerate() {
             <button
               onClick={(e) => { e.stopPropagation(); navigateImagePreview('prev'); }}
               className="absolute -left-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all z-10"
-              title="上一个 (←)"
+              title={`${t('chapterGenerate.previous')} (←)`}
             >
               <ChevronLeft className="h-10 w-10" />
             </button>
@@ -2809,7 +2834,7 @@ export default function ChapterGenerate() {
               
               <img 
                 src={previewImageUrl} 
-                alt="分镜预览" 
+                alt={t('chapterGenerate.shotPreview')} 
                 className="max-w-full max-h-[75vh] object-contain rounded-lg mx-auto"
               />
               
@@ -2819,14 +2844,14 @@ export default function ChapterGenerate() {
                 <button
                   onClick={() => {
                     const link = document.createElement('a');
-                    link.download = `分镜_${currentShot}.png`;
+                    link.download = `${t('chapterGenerate.shot')}_${currentShot}.png`;
                     link.href = previewImageUrl;
                     link.click();
                   }}
                   className="btn-primary text-sm"
                 >
                   <Download className="h-4 w-4 mr-2" />
-                  下载图片
+                  {t('chapterGenerate.downloadImage')}
                 </button>
                 
                 {/* 键盘提示 */}
@@ -2834,7 +2859,7 @@ export default function ChapterGenerate() {
                   <span className="inline-flex items-center gap-2">
                     <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">←</kbd>
                     <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">→</kbd>
-                    <span>键盘左右键切换</span>
+                    <span>{t('chapterGenerate.keyboardNavigate')}</span>
                     <span className="mx-2">|</span>
                     <span>{previewImageIndex + 1} / {parsedData?.shots?.filter((_shot: any, idx: number) => shotImages[idx + 1] || parsedData.shots[idx]?.image_url).length || 0}</span>
                   </span>
@@ -2846,7 +2871,7 @@ export default function ChapterGenerate() {
             <button
               onClick={(e) => { e.stopPropagation(); navigateImagePreview('next'); }}
               className="absolute -right-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all z-10"
-              title="下一个 (→)"
+              title={`${t('chapterGenerate.next')} (→)`}
             >
               <ChevronRight className="h-10 w-10" />
             </button>
@@ -2863,35 +2888,35 @@ export default function ChapterGenerate() {
                 <AlertTriangle className="w-5 h-5 text-amber-500" />
               </div>
               <h3 className="text-lg font-semibold text-white">
-                确认重新拆分分镜头？
+                {t('chapterGenerate.confirmResplit')}
               </h3>
             </div>
             
             <p className="text-gray-300 mb-4 leading-relaxed">
-              该章节已有生成的内容，重新拆分将清除以下数据：
+              {t('chapterGenerate.resplitWarning')}
             </p>
             
             <div className="bg-gray-900/50 rounded-lg p-4 mb-6 border border-gray-700">
               <ul className="space-y-2 text-sm text-gray-400">
                 <li className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                  分镜头 JSON 数据
+                  {t('chapterGenerate.shotJsonData')}
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                  已生成的分镜头图片
+                  {t('chapterGenerate.generatedShotImages')}
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                  已生成的分镜头视频
+                  {t('chapterGenerate.generatedShotVideos')}
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                  已生成的转场视频
+                  {t('chapterGenerate.generatedTransitionVideos')}
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                  合并角色图
+                  {t('chapterGenerate.mergedCharacterImage')}
                 </li>
               </ul>
             </div>
@@ -2901,14 +2926,14 @@ export default function ChapterGenerate() {
                 onClick={() => setSplitConfirmDialog({ isOpen: false, hasResources: false })}
                 className="px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-colors"
               >
-                取消
+                {t('common.cancel')}
               </button>
               <button
                 onClick={doSplitChapter}
                 className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition-colors flex items-center gap-2"
               >
                 <AlertTriangle className="w-4 h-4" />
-                确认重新拆分
+                {t('chapterGenerate.confirmResplitBtn')}
               </button>
             </div>
           </div>
