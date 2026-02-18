@@ -22,6 +22,7 @@ export default {
     search: '検索',
     filter: 'フィルター',
     reset: 'リセット',
+    refresh: '更新',
     actions: '操作',
     status: '状態',
     name: '名前',
@@ -65,6 +66,7 @@ export default {
     quickActions: 'クイックアクション',
     recentNovels: '最近の小説',
     systemStatus: 'システム状態',
+    pleaseConfigure: 'NovelFlowを使用する前にシステム設定を完了してください。',
     features: {
       novelManagement: {
         title: '📚 小説管理',
