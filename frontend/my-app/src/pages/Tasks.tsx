@@ -672,8 +672,8 @@ export default function Tasks() {
                     
                     {/* Meta */}
                     <div className="mt-2 text-xs opacity-60">
-                      {t('common.createdAt')}: {new Date(task.createdAt).toLocaleString(i18n.language, { timeZone: i18n.timezone })}
-                      {task.completedAt && ` · ${t('tasks.completedAt')}: ${new Date(task.completedAt).toLocaleString(i18n.language, { timeZone: i18n.timezone })}`}
+                      {t('common.createdAt')}: {new Date(task.createdAt).toLocaleString(i18n.language, { timeZone: i18n.timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}
+                      {task.completedAt && ` · ${t('tasks.completedAt')}: ${new Date(task.completedAt).toLocaleString(i18n.language, { timeZone: i18n.timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}`}
                     </div>
                   </div>
                   

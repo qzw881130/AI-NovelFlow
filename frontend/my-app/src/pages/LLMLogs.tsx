@@ -115,7 +115,17 @@ export default function LLMLogs() {
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-';
     const date = new Date(dateStr);
-    return date.toLocaleString(i18n.language, { timeZone: i18n.timezone });
+    // 使用用户的时区和语言格式化时间
+    return date.toLocaleString(i18n.language, { 
+      timeZone: i18n.timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false // 使用 24 小时制
+    });
   };
 
   const truncateText = (text: string, maxLength: number = 100) => {
