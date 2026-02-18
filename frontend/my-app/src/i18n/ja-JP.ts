@@ -514,6 +514,7 @@ export default {
     stepVideos: 'ショット動画生成',
     stepTransitions: 'トランジション動画生成',
     stepCompose: '動画統合',
+    unit: '',
     // 素材ダウンロード
     chapterMaterials: '章素材',
     downloadMaterialsDesc: 'この章の全素材をダウンロード：',
@@ -541,5 +542,9 @@ export default {
     originalContent: '原文内容',
     expandFullText: '全文を展開',
     aiSplitShots: 'AIショット分割',
+    // ショット動画
+    shotVideosTitle: 'ショット動画',
+    noVideo: '動画なし',
+    noVideos: '動画がありません',
   },
 };

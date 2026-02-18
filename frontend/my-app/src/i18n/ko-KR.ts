@@ -514,6 +514,7 @@ export default {
     stepVideos: '샷 비디오 생성',
     stepTransitions: '전환 비디오 생성',
     stepCompose: '비디오 합성',
+    unit: '',
     // 자료 다운로드
     chapterMaterials: '장 자료',
     downloadMaterialsDesc: '이 장의 모든 자료를 다운로드：',
@@ -541,5 +542,9 @@ export default {
     originalContent: '원문 내용',
     expandFullText: '전체 텍스트 펼치기',
     aiSplitShots: 'AI 샷 분할',
+    // 샷 비디오
+    shotVideosTitle: '샷 비디오',
+    noVideo: '비디오 없음',
+    noVideos: '비디오가 없습니다',
   },
 };
