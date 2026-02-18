@@ -136,7 +136,7 @@ function VideoPreviewModal({ videoUrl, onClose }: VideoPreviewModalProps) {
 }
 
 export default function Tasks() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'running' | 'completed' | 'failed'>('all');
@@ -672,8 +672,8 @@ export default function Tasks() {
                     
                     {/* Meta */}
                     <div className="mt-2 text-xs opacity-60">
-                      {t('common.createdAt')}: {new Date(new Date(task.createdAt).getTime() + 8 * 60 * 60 * 1000).toLocaleString('zh-CN')}
-                      {task.completedAt && ` · ${t('tasks.completedAt')}: ${new Date(new Date(task.completedAt).getTime() + 8 * 60 * 60 * 1000).toLocaleString('zh-CN')}`}
+                      {t('common.createdAt')}: {new Date(task.createdAt).toLocaleString(i18n.language, { timeZone: i18n.timezone })}
+                      {task.completedAt && ` · ${t('tasks.completedAt')}: ${new Date(task.completedAt).toLocaleString(i18n.language, { timeZone: i18n.timezone })}`}
                     </div>
                   </div>
                   

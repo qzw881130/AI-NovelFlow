@@ -15,7 +15,7 @@ export default function UIConfig() {
   
   // 界面配置
   const [language, setLanguage] = useState<Language>(i18n.language as Language);
-  const [timezone, setTimezone] = useState('Asia/Shanghai');
+  const [timezone, setTimezone] = useState(i18n.timezone);
   const [savingUIConfig, setSavingUIConfig] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -34,6 +34,7 @@ export default function UIConfig() {
           }
           if (data.data.timezone) {
             setTimezone(data.data.timezone);
+            i18n.changeTimezone(data.data.timezone);
           }
         }
       } catch (error) {
@@ -146,7 +147,11 @@ export default function UIConfig() {
             </label>
             <select
               value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
+              onChange={(e) => {
+                const newTimezone = e.target.value;
+                setTimezone(newTimezone);
+                i18n.changeTimezone(newTimezone);
+              }}
               className="input-field w-full"
             >
               {timezoneOptions.map((option) => (

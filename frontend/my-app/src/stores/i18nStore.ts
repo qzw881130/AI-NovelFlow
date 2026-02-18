@@ -4,6 +4,7 @@ import { translations, type Language, type Translations } from '../i18n';
 export type { Language };
 
 const STORAGE_KEY = 'novelflow-language';
+const TIMEZONE_KEY = 'novelflow-timezone';
 
 // 从 localStorage 获取保存的语言
 const getStoredLanguage = (): Language => {
@@ -27,12 +28,36 @@ const storeLanguage = (language: Language) => {
   }
 };
 
+// 从 localStorage 获取保存的时区
+const getStoredTimezone = (): string => {
+  try {
+    const stored = localStorage.getItem(TIMEZONE_KEY);
+    if (stored) {
+      return stored;
+    }
+  } catch {
+    // localStorage 不可用
+  }
+  return 'Asia/Shanghai';
+};
+
+// 保存时区到 localStorage
+const storeTimezone = (timezone: string) => {
+  try {
+    localStorage.setItem(TIMEZONE_KEY, timezone);
+  } catch {
+    // localStorage 不可用
+  }
+};
+
 // 翻译函数类型
 type TFunction = (key: string, params?: Record<string, string | number> & { defaultValue?: string }) => string;
 
 interface I18nState {
   language: Language;
+  timezone: string;
   setLanguage: (language: Language) => void;
+  setTimezone: (timezone: string) => void;
   t: TFunction;
 }
 
@@ -78,6 +103,7 @@ const createT = (translations: Translations) => {
 
 export const useI18nStore = create<I18nState>((set, get) => ({
   language: getStoredLanguage(),
+  timezone: getStoredTimezone(),
   t: createT(translations[getStoredLanguage()]) as TFunction,
   
   setLanguage: (language) => {
@@ -87,12 +113,25 @@ export const useI18nStore = create<I18nState>((set, get) => ({
       t: createT(translations[language]) as TFunction,
     });
   },
+  
+  setTimezone: (timezone) => {
+    storeTimezone(timezone);
+    set({ timezone });
+  },
 }));
 
 // 兼容 react-i18next 的 useTranslation hook
 export const useTranslation = () => {
-  const { t, language, setLanguage } = useI18nStore();
-  return { t, i18n: { language, changeLanguage: setLanguage } };
+  const { t, language, timezone, setLanguage, setTimezone } = useI18nStore();
+  return { 
+    t, 
+    i18n: { 
+      language, 
+      timezone,
+      changeLanguage: setLanguage,
+      changeTimezone: setTimezone,
+    } 
+  };
 };
 
 // 语言选项
