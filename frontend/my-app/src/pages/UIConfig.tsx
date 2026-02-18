@@ -19,7 +19,7 @@ export default function UIConfig() {
   const [savingUIConfig, setSavingUIConfig] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // 从后端加载界面配置
+  // 从后端加载界面配置（只在组件挂载时执行一次）
   useEffect(() => {
     const fetchConfig = async () => {
       try {
@@ -43,7 +43,9 @@ export default function UIConfig() {
       }
     };
     fetchConfig();
-  }, [i18n]);
+    // 注意：i18n 不从依赖数组中移除，只在组件挂载时执行一次
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // 处理语言变更
   const handleLanguageChange = (newLanguage: Language) => {
