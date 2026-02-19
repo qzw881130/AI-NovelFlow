@@ -25,6 +25,7 @@ interface LLMLog {
   novel_id: string;
   chapter_id: string;
   character_id: string;
+  used_proxy: boolean;
 }
 
 interface Pagination {
@@ -176,7 +177,7 @@ export default function LLMLogs() {
     if (status === 'success') {
       return <span className="px-2 py-1 text-xs bg-green-100 text-green-700 rounded-full">{t('common.success')}</span>;
     }
-    return <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full">{t('common.failed')}</span>;
+    return <span className="px-2 py-1 text-xs bg-red-100 text-red-700 rounded-full">{t('status.failed')}</span>;
   };
 
   return (
@@ -292,6 +293,7 @@ export default function LLMLogs() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.model')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.taskType')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('common.status')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">代理</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.promptPreview')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('common.actions')}</th>
                 </tr>
@@ -314,9 +316,12 @@ export default function LLMLogs() {
                     <td className="px-4 py-3 whitespace-nowrap">
                       {getStatusBadge(log.status)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-gray-600 max-w-md">
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                      {log.used_proxy ? '是' : '否'}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-600 max-w-[150px]">
                       <div className="truncate" title={log.user_prompt}>
-                        {truncateText(log.user_prompt, 80)}
+                        {truncateText(log.user_prompt, 50)}
                       </div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm">
@@ -389,6 +394,8 @@ export default function LLMLogs() {
                 <span className="text-gray-500">{t('llmLogs.task')}:</span>
                 <span className="font-medium">{getTaskTypeLabel(selectedLog.task_type)}</span>
                 <span>{getStatusBadge(selectedLog.status)}</span>
+                <span className="text-gray-500">代理:</span>
+                <span className="font-medium">{selectedLog.used_proxy ? '是' : '否'}</span>
               </div>
               
               {selectedLog.error_message && (

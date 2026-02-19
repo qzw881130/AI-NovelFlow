@@ -81,7 +81,8 @@ async def get_llm_logs(
                     "task_type": log.task_type,
                     "novel_id": log.novel_id,
                     "chapter_id": log.chapter_id,
-                    "character_id": log.character_id
+                    "character_id": log.character_id,
+                    "used_proxy": log.used_proxy
                 }
                 for log in logs
             ],
@@ -140,6 +141,7 @@ async def get_llm_log_detail(log_id: str, db: Session = Depends(get_db)):
             "task_type": log.task_type,
             "novel_id": log.novel_id,
             "chapter_id": log.chapter_id,
-            "character_id": log.character_id
+            "character_id": log.character_id,
+            "used_proxy": log.used_proxy
         }
     }

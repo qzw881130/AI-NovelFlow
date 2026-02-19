@@ -210,6 +210,7 @@ export default {
       anthropic: 'Anthropic Claude',
       azure: 'Azure OpenAI',
       aliyunBailian: 'Alibaba Cloud 百錬',
+      ollama: 'Ollama',
       custom: 'カスタム API',
     },
     // Model names (for those that need translation)

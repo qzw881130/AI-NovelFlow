@@ -56,7 +56,8 @@ async def check_llm():
         "proxy_enabled": llm_service.proxy_enabled,
     }
     
-    if not llm_service.api_key:
+    # Ollama 和自定义 API 通常不需要 API Key
+    if not llm_service.api_key and llm_service.provider not in ("ollama", "custom"):
         raise HTTPException(
             status_code=503, 
             detail={
@@ -89,6 +90,9 @@ async def check_llm():
                 }
             )
     except Exception as e:
+        import traceback
+        print(f"[Health Check] LLM 连接失败: {e}")
+        print(traceback.format_exc())
         raise HTTPException(
             status_code=503, 
             detail={

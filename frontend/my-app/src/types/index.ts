@@ -1,5 +1,5 @@
 // 支持的 LLM 厂商
-export type LLMProvider = 'deepseek' | 'openai' | 'gemini' | 'anthropic' | 'azure' | 'aliyun-bailian' | 'custom';
+export type LLMProvider = 'deepseek' | 'openai' | 'gemini' | 'anthropic' | 'azure' | 'aliyun-bailian' | 'ollama' | 'custom';
 
 // LLM 模型配置
 export interface LLMModelConfig {

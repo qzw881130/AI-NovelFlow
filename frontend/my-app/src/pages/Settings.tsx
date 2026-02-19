@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Save, 
   Loader2, 
@@ -38,6 +38,7 @@ const getProviderDisplayName = (providerId: string, t: any): string => {
     'anthropic': 'systemSettings.providers.anthropic',
     'azure': 'systemSettings.providers.azure',
     'aliyun-bailian': 'systemSettings.providers.aliyunBailian',
+    'ollama': 'systemSettings.providers.ollama',
     'custom': 'systemSettings.providers.custom',
   };
   const key = providerKeyMap[providerId];
@@ -288,6 +289,15 @@ export default function Settings() {
   });
   const [workflowData, setWorkflowData] = useState<Record<string, any>>({});
   const [savingMapping, setSavingMapping] = useState(false);
+  
+  // 跟踪用户是否手动修改过表单
+  const isUserModifiedRef = useRef(false);
+  
+  // 自定义 API 模型列表
+  const [customModels, setCustomModels] = useState<LLMModel[]>([]);
+  const [loadingCustomModels, setLoadingCustomModels] = useState(false);
+  const [customModelsError, setCustomModelsError] = useState<string | null>(null);
+
 
   // 加载工作流
   useEffect(() => {
@@ -297,8 +307,30 @@ export default function Settings() {
   // 组件挂载时从后端加载配置
   useEffect(() => {
     const loadConfig = async () => {
-      await config.loadConfig();
-      setFormData(getSafeConfig());
+      const backendConfig = await config.loadConfig();
+      // 只有当用户未手动修改时才更新表单，避免覆盖用户输入
+      if (!isUserModifiedRef.current && backendConfig) {
+        // 直接使用后端返回的配置，而不是通过 config store
+        setFormData({
+          llmProvider: backendConfig.llmProvider || 'deepseek',
+          llmModel: backendConfig.llmModel || 'deepseek-chat',
+          llmApiKey: backendConfig.llmApiKey || '',
+          llmApiUrl: backendConfig.llmApiUrl || 'https://api.deepseek.com',
+          proxy: backendConfig.proxy || { enabled: false, httpProxy: '', httpsProxy: '' },
+          comfyUIHost: backendConfig.comfyUIHost || 'http://localhost:8188',
+        });
+        
+        // 如果是自定义 API 或 Ollama，尝试恢复模型列表
+        if ((backendConfig.llmProvider === 'custom' || backendConfig.llmProvider === 'ollama') && backendConfig.llmModel) {
+          // 将已保存的模型添加到 customModels 中
+          setCustomModels([{
+            id: backendConfig.llmModel,
+            name: backendConfig.llmModel,
+            description: '已保存的模型',
+          }]);
+
+        }
+      }
     };
     loadConfig();
   }, []);
@@ -325,6 +357,7 @@ export default function Settings() {
     config.setConfig(formData);
     
     // 再发送到后端 API
+    let success = false;
     try {
       const res = await fetch(`${API_BASE}/config/`, {
         method: 'POST',
@@ -341,18 +374,26 @@ export default function Settings() {
         }),
       });
       
-      if (!res.ok) {
+      if (res.ok) {
+        success = true;
+        // 保存成功后重置用户修改标记
+        isUserModifiedRef.current = false;
+      } else {
         const errorData = await res.json();
         console.error('保存配置到后端失败:', errorData);
+        toast.error(t('systemSettings.configSaveFailed'));
       }
     } catch (error) {
       console.error('发送配置到后端失败:', error);
+      toast.error(t('systemSettings.configSaveFailed'));
     }
     
     await new Promise(resolve => setTimeout(resolve, 500));
     setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    if (success) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    }
   };
 
   const handleSetDefault = async (workflow: Workflow) => {
@@ -709,11 +750,86 @@ export default function Settings() {
   // 获取当前厂商预设
   const currentPreset = LLM_PROVIDER_PRESETS.find(p => p.id === formData.llmProvider);
   
-  // 获取当前厂商的模型列表
-  const availableModels = currentPreset?.models || [];
+  // 获取当前厂商的模型列表（自定义 API 和 Ollama 使用动态获取的列表）
+  const availableModels = (formData.llmProvider === 'custom' || formData.llmProvider === 'ollama') && customModels.length > 0
+    ? customModels
+    : currentPreset?.models || [];
+  
+  // 自动获取自定义 API 的模型列表（支持 Ollama 等）
+  const fetchCustomModels = async () => {
+    if (!formData.llmApiUrl) {
+      setCustomModelsError('请先填写 API URL');
+      return;
+    }
+    
+    setLoadingCustomModels(true);
+    setCustomModelsError(null);
+    
+    try {
+      // 尝试 Ollama API 格式
+      const ollamaUrl = formData.llmApiUrl.replace(/\/v1$/, '').replace(/\/$/, '') + '/api/tags';
+      const res = await fetch(ollamaUrl, { 
+        method: 'GET',
+        headers: formData.llmApiKey ? { 'Authorization': `Bearer ${formData.llmApiKey}` } : {}
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        if (data.models && Array.isArray(data.models)) {
+          const models: LLMModel[] = data.models.map((m: any) => ({
+            id: m.name || m.model,
+            name: m.name || m.model,
+            description: `${m.details?.family || ''} ${m.details?.parameter_size || ''}`.trim() || '本地模型',
+          }));
+          setCustomModels(models);
+          
+          // 如果当前选中的模型不在列表中，自动选择第一个
+          if (models.length > 0 && !models.find(m => m.id === formData.llmModel)) {
+            setFormData(prev => ({ ...prev, llmModel: models[0].id }));
+          }
+          
+          toast.success(`成功获取 ${models.length} 个模型`);
+          return;
+        }
+      }
+      
+      // 尝试 OpenAI 兼容格式 /v1/models
+      const openaiUrl = formData.llmApiUrl.replace(/\/$/, '') + '/models';
+      const openaiRes = await fetch(openaiUrl, {
+        headers: formData.llmApiKey ? { 'Authorization': `Bearer ${formData.llmApiKey}` } : {}
+      });
+      
+      if (openaiRes.ok) {
+        const data = await openaiRes.json();
+        if (data.data && Array.isArray(data.data)) {
+          const models: LLMModel[] = data.data.map((m: any) => ({
+            id: m.id,
+            name: m.id,
+            description: m.object || 'API 模型',
+          }));
+          setCustomModels(models);
+          
+          if (models.length > 0 && !models.find(m => m.id === formData.llmModel)) {
+            setFormData(prev => ({ ...prev, llmModel: models[0].id }));
+          }
+          
+          toast.success(`成功获取 ${models.length} 个模型`);
+          return;
+        }
+      }
+      
+      setCustomModelsError('无法自动获取模型列表，请检查 API URL 是否正确');
+    } catch (error) {
+      console.error('获取模型列表失败:', error);
+      setCustomModelsError('获取模型列表失败：' + (error instanceof Error ? error.message : '网络错误'));
+    } finally {
+      setLoadingCustomModels(false);
+    }
+  };
   
   // 处理厂商切换
   const handleProviderChange = (provider: LLMProvider) => {
+    isUserModifiedRef.current = true;
     const preset = LLM_PROVIDER_PRESETS.find(p => p.id === provider);
     setFormData({
       ...formData,
@@ -721,10 +837,16 @@ export default function Settings() {
       llmModel: preset?.models[0]?.id || '',
       llmApiUrl: preset?.defaultApiUrl || '',
     });
+    // 清空自定义模型列表和手动输入状态
+    if (provider !== 'custom' && provider !== 'ollama') {
+      setCustomModels([]);
+    }
+
   };
   
   // 处理代理配置更新
   const handleProxyChange = (updates: Partial<ProxyConfig>) => {
+    isUserModifiedRef.current = true;
     setFormData({
       ...formData,
       proxy: { ...(formData.proxy || { enabled: false, httpProxy: '', httpsProxy: '' }), ...updates },
@@ -837,29 +959,6 @@ export default function Settings() {
                 </div>
               </div>
 
-              {/* 模型选择 */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {t('systemSettings.selectModel')}
-                </label>
-                <select
-                  value={formData.llmModel}
-                  onChange={(e) => setFormData({ ...formData, llmModel: e.target.value })}
-                  className="input-field"
-                >
-                  {availableModels.map((model) => {
-                    const name = getModelName(model.id, t) || model.name;
-                    const desc = getModelDescription(model.id, t);
-                    return (
-                      <option key={model.id} value={model.id}>
-                        {name} {desc ? `- ${desc}` : ''}
-                        {model.maxTokens ? ` (${(model.maxTokens / 1000).toFixed(0)}k tokens)` : ''}
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
-
               {/* API 地址 */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -868,7 +967,7 @@ export default function Settings() {
                 <input
                   type="url"
                   value={formData.llmApiUrl}
-                  onChange={(e) => setFormData({ ...formData, llmApiUrl: e.target.value })}
+                  onChange={(e) => { isUserModifiedRef.current = true; setFormData({ ...formData, llmApiUrl: e.target.value }); }}
                   className="input-field"
                   placeholder={getDefaultApiUrl(formData.llmProvider)}
                 />
@@ -893,7 +992,7 @@ export default function Settings() {
                   <input
                     type={showApiKey ? 'text' : 'password'}
                     value={formData.llmApiKey}
-                    onChange={(e) => setFormData({ ...formData, llmApiKey: e.target.value })}
+                    onChange={(e) => { isUserModifiedRef.current = true; setFormData({ ...formData, llmApiKey: e.target.value }); }}
                     className="input-field pr-10"
                     placeholder={t('systemSettings.enterApiKey')}
                   />
@@ -908,6 +1007,58 @@ export default function Settings() {
                 <p className="mt-1 text-xs text-gray-500">
                   {t('systemSettings.enterApiKey')}
                 </p>
+              </div>
+
+              {/* 模型选择 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('systemSettings.selectModel')}
+                  {/* 只有 Ollama 显示自动获取按钮 */}
+                  {formData.llmProvider === 'ollama' && (
+                    <button
+                      type="button"
+                      onClick={fetchCustomModels}
+                      disabled={loadingCustomModels}
+                      className="ml-2 text-xs text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                    >
+                      {loadingCustomModels ? '获取中...' : '自动获取'}
+                    </button>
+                  )}
+                </label>
+                
+                {/* 自定义 API 固定使用手动输入模型 */}
+                {formData.llmProvider === 'custom' ? (
+                  <input
+                    type="text"
+                    value={formData.llmModel}
+                    onChange={(e) => {
+                      isUserModifiedRef.current = true;
+                      setFormData({ ...formData, llmModel: e.target.value });
+                    }}
+                    placeholder="输入模型名称，例如：glm-5:cloud"
+                    className="input-field"
+                  />
+                ) : (
+                  <select
+                    value={formData.llmModel}
+                    onChange={(e) => { isUserModifiedRef.current = true; setFormData({ ...formData, llmModel: e.target.value }); }}
+                    className="input-field"
+                  >
+                    {availableModels.map((model) => {
+                      const name = getModelName(model.id, t) || model.name;
+                      const desc = getModelDescription(model.id, t);
+                      return (
+                        <option key={model.id} value={model.id}>
+                          {name} {desc ? `- ${desc}` : ''}
+                          {model.maxTokens ? ` (${(model.maxTokens / 1000).toFixed(0)}k tokens)` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                )}
+                {customModelsError && (
+                  <p className="mt-1 text-xs text-red-600">{customModelsError}</p>
+                )}
               </div>
             </div>
           )}
@@ -991,7 +1142,7 @@ export default function Settings() {
                   <input
                     type="text"
                     value={formData.comfyUIHost}
-                    onChange={(e) => setFormData({ ...formData, comfyUIHost: e.target.value })}
+                    onChange={(e) => { isUserModifiedRef.current = true; setFormData({ ...formData, comfyUIHost: e.target.value }); }}
                     className="input-field flex-1"
                     placeholder="http://localhost:8188"
                   />

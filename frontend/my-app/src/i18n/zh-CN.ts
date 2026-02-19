@@ -364,7 +364,7 @@ export default {
     llmProvider: 'LLM 厂商',
     selectProvider: '选择厂商',
     apiKey: 'API Key',
-    enterApiKey: '输入 API Key',
+    enterApiKey: '输入 API Key（已保存的 Key 不会显示）',
     apiKeyHelp: '在 {provider} 控制台获取 API Key',
     apiUrl: 'API URL',
     model: '模型',
@@ -392,6 +392,7 @@ export default {
       anthropic: 'Anthropic Claude',
       azure: 'Azure OpenAI',
       aliyunBailian: '阿里云百炼',
+      ollama: 'Ollama',
       custom: '自定义 API',
     },
     // Model names (for those that need translation)

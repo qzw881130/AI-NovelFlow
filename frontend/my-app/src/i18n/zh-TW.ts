@@ -328,6 +328,7 @@ export default {
       anthropic: 'Anthropic Claude',
       azure: 'Azure OpenAI',
       aliyunBailian: '阿里雲百煉',
+      ollama: 'Ollama',
       custom: '自訂 API',
     },
     // Model names (for those that need translation)

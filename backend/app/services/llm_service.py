@@ -20,7 +20,8 @@ def save_llm_log(
     task_type: str = None,
     novel_id: str = None,
     chapter_id: str = None,
-    character_id: str = None
+    character_id: str = None,
+    used_proxy: bool = False
 ):
     """保存LLM调用日志到数据库（异步执行，不阻塞主流程）"""
     try:
@@ -40,7 +41,8 @@ def save_llm_log(
                 task_type=task_type,
                 novel_id=novel_id,
                 chapter_id=chapter_id,
-                character_id=character_id
+                character_id=character_id,
+                used_proxy=used_proxy
             )
             db.add(log)
             db.commit()
@@ -68,8 +70,8 @@ class LLMService:
         self.http_proxy = current_settings.HTTP_PROXY
         self.https_proxy = current_settings.HTTPS_PROXY
         
-        # 如果没有配置新的 LLM，尝试兼容旧配置
-        if not self.api_key:
+        # 如果没有配置新的 LLM，且不是 Ollama（Ollama 可以没有 API Key），尝试兼容旧配置
+        if not self.api_key and self.provider != "ollama":
             self.api_key = current_settings.DEEPSEEK_API_KEY
             self.api_url = current_settings.DEEPSEEK_API_URL
             self.provider = "deepseek"
@@ -77,6 +79,10 @@ class LLMService:
     def _get_proxy_config(self) -> Optional[str]:
         """获取代理配置 - 返回单个代理URL (httpx 0.20+ 使用 proxy 参数)"""
         if not self.proxy_enabled:
+            return None
+        
+        # Ollama 通常是本地/内网服务，不需要走代理
+        if self.provider == "ollama":
             return None
         
         # httpx 0.20+ 使用 proxy 参数，可以是单个URL字符串
@@ -94,6 +100,10 @@ class LLMService:
             headers["anthropic-version"] = "2023-06-01"
         elif self.provider == "azure":
             headers["api-key"] = self.api_key
+        elif self.provider == "ollama":
+            # Ollama 通常不需要 API Key，但如果配置了也可以使用
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
         else:
             headers["Authorization"] = f"Bearer {self.api_key}"
         
@@ -152,6 +162,22 @@ class LLMService:
                 body["response_format"] = {"type": "json_object"}
             return body
         
+        elif self.provider == "ollama":
+            # Ollama 格式（OpenAI 兼容，但部分参数限制不同）
+            body = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                "temperature": temperature,
+                # Ollama 对 max_tokens 支持不稳定，72B 大模型可能不支持太大的值
+                # 不设置 max_tokens，让模型自己决定输出长度
+            }
+            # Ollama 的 response_format 支持不完整，通过 system_prompt 要求 JSON 更可靠
+            # 不设置 response_format 参数
+            return body
+        
         else:
             # OpenAI / DeepSeek / Custom 格式
             body = {
@@ -170,17 +196,39 @@ class LLMService:
     def _parse_response(self, response_data: Dict[str, Any]) -> str:
         """解析不同厂商的响应格式"""
         
-        if self.provider == "gemini":
-            # Gemini 格式
-            return response_data["candidates"][0]["content"]["parts"][0]["text"]
-        
-        elif self.provider == "anthropic":
-            # Anthropic 格式
-            return response_data["content"][0]["text"]
-        
-        else:
-            # OpenAI / DeepSeek / Azure / Custom 格式
-            return response_data["choices"][0]["message"]["content"]
+        try:
+            if self.provider == "gemini":
+                # Gemini 格式
+                return response_data["candidates"][0]["content"]["parts"][0]["text"]
+            
+            elif self.provider == "anthropic":
+                # Anthropic 格式
+                return response_data["content"][0]["text"]
+            
+            else:
+                # OpenAI / DeepSeek / Azure / Custom / Ollama 格式
+                # Ollama 返回的格式与 OpenAI 兼容
+                if "choices" not in response_data:
+                    print(f"[_parse_response] 警告: 响应中没有 'choices' 字段: {response_data}")
+                    return str(response_data)
+                if not response_data["choices"]:
+                    print(f"[_parse_response] 警告: 'choices' 为空数组: {response_data}")
+                    return str(response_data)
+                
+                if "message" not in response_data["choices"][0]:
+                    print(f"[_parse_response] 警告: 没有 'message' 字段: {response_data['choices'][0]}")
+                    return str(response_data)
+                
+                message = response_data["choices"][0]["message"]
+                content = message.get("content", "")
+                # Ollama 某些模型（如 qwen3）可能返回空的 content，但包含 reasoning
+                if not content and "reasoning" in message:
+                    content = message["reasoning"]
+                return content
+        except (KeyError, IndexError, TypeError) as e:
+            print(f"[_parse_response] 解析失败: {e}")
+            print(f"[_parse_response] 响应数据: {response_data}")
+            raise
     
     def _get_endpoint(self) -> str:
         """获取 API 端点 URL"""
@@ -219,7 +267,8 @@ class LLMService:
                 "error": str (optional)
             }
         """
-        if not self.api_key:
+        # Ollama 通常不需要 API Key
+        if not self.api_key and self.provider != "ollama":
             return {"success": False, "error": "API Key 未配置", "content": ""}
         
         endpoint = self._get_endpoint()
@@ -228,61 +277,91 @@ class LLMService:
             system_prompt, user_content, temperature, max_tokens, response_format
         )
         proxies = self._get_proxy_config()
+        used_proxy = proxies is not None
         
         try:
-            async with httpx.AsyncClient(proxy=proxies) as client:
+            # Ollama 和自定义 API（通常是本地/内网服务）需要禁用环境变量代理
+            import os
+            if self.provider in ("ollama", "custom"):
+                # 临时清除环境变量代理设置
+                old_http_proxy = os.environ.pop('HTTP_PROXY', None)
+                old_https_proxy = os.environ.pop('HTTPS_PROXY', None)
+                old_http_proxy_lower = os.environ.pop('http_proxy', None)
+                old_https_proxy_lower = os.environ.pop('https_proxy', None)
+                
+                transport = httpx.AsyncHTTPTransport(proxy=None)
+                client = httpx.AsyncClient(transport=transport, timeout=300.0)
+            else:
+                client = httpx.AsyncClient(proxy=proxies, timeout=300.0)
+                old_http_proxy = old_https_proxy = old_http_proxy_lower = old_https_proxy_lower = None
+            
+            async with client:
                 response = await client.post(
                     endpoint,
                     headers=headers,
                     json=body,
-                    timeout=120.0
+                    timeout=300.0  # 增加到5分钟，给大模型足够加载时间
+                )
+            
+            # Ollama/自定义 API 请求完成后恢复环境变量
+            if self.provider in ("ollama", "custom"):
+                if old_http_proxy:
+                    os.environ['HTTP_PROXY'] = old_http_proxy
+                if old_https_proxy:
+                    os.environ['HTTPS_PROXY'] = old_https_proxy
+                if old_http_proxy_lower:
+                    os.environ['http_proxy'] = old_http_proxy_lower
+                if old_https_proxy_lower:
+                    os.environ['https_proxy'] = old_https_proxy_lower
+            
+            # 处理响应（所有 provider 共用）
+            if response.status_code == 200:
+                data = response.json()
+                content = self._parse_response(data)
+                
+                # 记录成功日志
+                save_llm_log(
+                    provider=self.provider,
+                    model=self.model,
+                    system_prompt=system_prompt,
+                    user_prompt=user_content,
+                    response=content,
+                    status="success",
+                    task_type=task_type,
+                    novel_id=novel_id,
+                    chapter_id=chapter_id,
+                    character_id=character_id,
+                    used_proxy=used_proxy
                 )
                 
-                if response.status_code == 200:
-                    data = response.json()
-                    content = self._parse_response(data)
-                    
-                    # 记录成功日志
-                    save_llm_log(
-                        provider=self.provider,
-                        model=self.model,
-                        system_prompt=system_prompt,
-                        user_prompt=user_content,
-                        response=content,
-                        status="success",
-                        task_type=task_type,
-                        novel_id=novel_id,
-                        chapter_id=chapter_id,
-                        character_id=character_id
-                    )
-                    
-                    return {
-                        "success": True,
-                        "content": content,
-                        "raw_response": data
-                    }
-                else:
-                    error_msg = f"API 错误 ({response.status_code}): {response.text}"
-                    
-                    # 记录失败日志
-                    save_llm_log(
-                        provider=self.provider,
-                        model=self.model,
-                        system_prompt=system_prompt,
-                        user_prompt=user_content,
-                        status="error",
-                        error_message=error_msg,
-                        task_type=task_type,
-                        novel_id=novel_id,
-                        chapter_id=chapter_id,
-                        character_id=character_id
-                    )
-                    
-                    return {
-                        "success": False,
-                        "error": error_msg,
-                        "content": ""
-                    }
+                return {
+                    "success": True,
+                    "content": content,
+                    "raw_response": data
+                }
+            else:
+                error_msg = f"API 错误 ({response.status_code}): {response.text}"
+                
+                # 记录失败日志
+                save_llm_log(
+                    provider=self.provider,
+                    model=self.model,
+                    system_prompt=system_prompt,
+                    user_prompt=user_content,
+                    status="error",
+                    error_message=error_msg,
+                    task_type=task_type,
+                    novel_id=novel_id,
+                    chapter_id=chapter_id,
+                    character_id=character_id,
+                    used_proxy=used_proxy
+                )
+                
+                return {
+                    "success": False,
+                    "error": error_msg,
+                    "content": ""
+                }
                     
         except Exception as e:
             error_msg = f"请求异常: {str(e)}"
@@ -298,7 +377,8 @@ class LLMService:
                 task_type=task_type,
                 novel_id=novel_id,
                 chapter_id=chapter_id,
-                character_id=character_id
+                character_id=character_id,
+                used_proxy=used_proxy
             )
             
             return {
@@ -309,7 +389,8 @@ class LLMService:
     
     async def check_health(self) -> bool:
         """检查 LLM API 状态"""
-        if not self.api_key:
+        # Ollama 通常不需要 API Key
+        if not self.api_key and self.provider != "ollama":
             return False
         
         try:
@@ -408,9 +489,34 @@ class LLMService:
         
         if result["success"]:
             try:
-                return json.loads(result["content"])
-            except json.JSONDecodeError:
-                return {"error": "JSON 解析失败", "characters": [], "scenes": [], "shots": []}
+                content = result["content"]
+                # 处理 Ollama 模型可能返回的 <think>...</think> 标签
+                if "<think>" in content and "</think>" in content:
+                    # 提取 think 标签外的内容
+                    content = content.split("</think>")[-1].strip()
+                
+                # 尝试从 Markdown 代码块中提取 JSON
+                if "```json" in content:
+                    content = content.split("```json")[-1].split("```")[0].strip()
+                elif "```" in content:
+                    content = content.split("```")[-1].split("```")[0].strip()
+                
+                # 尝试找到 JSON 对象的开始和结束
+                content = content.strip()
+                if content.startswith("{") and content.endswith("}"):
+                    return json.loads(content)
+                
+                # 尝试提取第一个 JSON 对象
+                import re
+                json_match = re.search(r'\{[\s\S]*\}', content)
+                if json_match:
+                    return json.loads(json_match.group())
+                
+                return json.loads(content)
+            except json.JSONDecodeError as e:
+                print(f"[parse_novel_text] JSON 解析失败: {e}")
+                print(f"[parse_novel_text] 原始内容: {result['content'][:500]}")
+                return {"error": f"JSON 解析失败: {e}", "characters": [], "scenes": [], "shots": []}
         else:
             return {
                 "error": result.get("error", "未知错误"),
@@ -465,7 +571,26 @@ class LLMService:
         
         if result["success"]:
             try:
-                data = json.loads(result["content"])
+                content = result["content"]
+                # 处理 Ollama 模型可能返回的 <think>...</think> 标签
+                if "<think>" in content and "</think>" in content:
+                    content = content.split("</think>")[-1].strip()
+                
+                # 尝试从 Markdown 代码块中提取 JSON
+                if "```json" in content:
+                    content = content.split("```json")[-1].split("```")[0].strip()
+                elif "```" in content:
+                    content = content.split("```")[-1].split("```")[0].strip()
+                
+                # 尝试找到 JSON 对象
+                content = content.strip()
+                if not (content.startswith("{") and content.endswith("}")):
+                    import re
+                    json_match = re.search(r'\{[\s\S]*\}', content)
+                    if json_match:
+                        content = json_match.group()
+                
+                data = json.loads(content)
                 # 确保返回格式正确
                 return {
                     "chapter": data.get("chapter", chapter_title),
@@ -473,9 +598,11 @@ class LLMService:
                     "scenes": data.get("scenes", []),
                     "shots": data.get("shots", [])
                 }
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                print(f"[split_chapter] JSON 解析失败: {e}")
+                print(f"[split_chapter] 原始内容: {result['content'][:500]}")
                 return {
-                    "error": "JSON 解析失败",
+                    "error": f"JSON 解析失败: {e}",
                     "chapter": chapter_title,
                     "characters": [],
                     "scenes": [],

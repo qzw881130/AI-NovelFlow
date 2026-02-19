@@ -131,9 +131,19 @@ export const LLM_PROVIDER_PRESETS: LLMProviderPreset[] = [
     apiKeyHelp: '在阿里云百炼控制台获取 API Key',
   },
   {
+    id: 'ollama',
+    name: 'Ollama',
+    defaultApiUrl: 'http://192.168.50.1:11434/v1',
+    models: [
+      { id: 'ollama-default', name: '自动获取模型', description: '点击"自动获取"按钮获取模型列表' },
+    ],
+    apiKeyPlaceholder: '可选',
+    apiKeyHelp: 'Ollama 通常不需要 API Key',
+  },
+  {
     id: 'custom',
     name: '自定义 API',
-    defaultApiUrl: 'https://api.example.com/v1',
+    defaultApiUrl: 'http://192.168.50.1:11434/v1',
     models: [
       { id: 'custom-model', name: '自定义模型', description: '兼容 OpenAI 格式的自定义 API' },
     ],
@@ -152,7 +162,7 @@ interface ConfigState extends SystemConfig {
   getProviderPreset: () => LLMProviderPreset | undefined;
   getCurrentModel: () => LLMModel | undefined;
   checkConnection: () => Promise<{ llm: boolean; comfyui: boolean }>;
-  loadConfig: () => Promise<void>;
+  loadConfig: () => Promise<SystemConfig | null>;
 }
 
 export const useConfigStore = create<ConfigState>((set, get) => ({
@@ -217,8 +227,10 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     const backendConfig = await fetchConfigFromBackend();
     if (backendConfig) {
       set({ ...backendConfig, isLoaded: true });
+      return backendConfig;
     } else {
       set({ isLoaded: true });
+      return null;
     }
   },
 }));

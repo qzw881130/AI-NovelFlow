@@ -1,5 +1,5 @@
 """LLM调用日志模型"""
-from sqlalchemy import Column, String, Text, DateTime, Integer, JSON
+from sqlalchemy import Column, String, Text, DateTime, Integer, JSON, Boolean
 from sqlalchemy.sql import func
 from app.core.database import Base
 import uuid
@@ -35,3 +35,6 @@ class LLMLog(Base):
     novel_id = Column(String, nullable=True)
     chapter_id = Column(String, nullable=True)
     character_id = Column(String, nullable=True)
+    
+    # 代理使用情况
+    used_proxy = Column(Boolean, default=False)
