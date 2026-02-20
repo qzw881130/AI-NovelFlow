@@ -814,6 +814,7 @@ export default {
     // 자료 다운로드
     chapterMaterials: '장 자료',
     downloadMaterialsDesc: '이 장의 모든 자료를 다운로드:',
+    characterImages: '캐릭터 이미지',
     mergedCharacterImage: '통합 캐릭터 이미지',
     shotImages: '샷 이미지',
     shotVideos: '샷 비디오',

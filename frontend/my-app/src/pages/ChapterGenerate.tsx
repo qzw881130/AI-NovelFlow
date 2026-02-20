@@ -115,6 +115,10 @@ function DownloadMaterialsCard({
         </p>
         <ul className="text-sm text-gray-600 space-y-1 mb-4">
           <li className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+            {t('chapterGenerate.characterImages')}
+          </li>
+          <li className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-blue-400" />
             {t('chapterGenerate.mergedCharacterImage')}
           </li>

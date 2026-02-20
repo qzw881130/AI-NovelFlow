@@ -351,13 +351,22 @@ class FileStorageService:
             
             # 打包目录
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                # 遍历章节目录下的所有文件
+                # 1. 遍历章节目录下的所有文件
                 for item in chapter_dir.rglob('*'):
                     if item.is_file():
                         # 计算相对路径（相对于 story_dir）
                         arcname = item.relative_to(story_dir)
                         zipf.write(item, arcname)
                         print(f"[FileStorage] Added to zip: {arcname}")
+                
+                # 2. 添加小说角色图目录
+                characters_dir = story_dir / "characters"
+                if characters_dir.exists():
+                    for item in characters_dir.rglob('*'):
+                        if item.is_file():
+                            arcname = item.relative_to(story_dir)
+                            zipf.write(item, arcname)
+                            print(f"[FileStorage] Added character to zip: {arcname}")
             
             print(f"[FileStorage] ZIP created: {zip_path}")
             return str(zip_path)
@@ -512,6 +521,32 @@ class FileStorageService:
                 
         except Exception as e:
             print(f"[FileStorage] Failed to delete chapter directory: {e}")
+            return False
+
+    def delete_characters_dir(self, novel_id: str) -> bool:
+        """
+        删除小说的角色图片目录
+        
+        Args:
+            novel_id: 小说ID
+            
+        Returns:
+            是否成功删除
+        """
+        try:
+            story_dir = self._get_story_dir(novel_id)
+            characters_dir = story_dir / "characters"
+            
+            if characters_dir.exists():
+                shutil.rmtree(characters_dir)
+                print(f"[FileStorage] Deleted characters directory: {characters_dir}")
+                return True
+            else:
+                print(f"[FileStorage] Characters directory not found: {characters_dir}")
+                return True  # 目录不存在也算成功（已经不存在了）
+                
+        except Exception as e:
+            print(f"[FileStorage] Failed to delete characters directory: {e}")
             return False
 
 

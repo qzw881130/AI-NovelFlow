@@ -796,6 +796,7 @@ export default {
     // 下载素材
     chapterMaterials: '章节素材',
     downloadMaterialsDesc: '打包下载当前章节的所有素材，包括：',
+    characterImages: '角色图',
     mergedCharacterImage: '合并角色图',
     shotImages: '分镜图片',
     shotVideos: '分镜视频',

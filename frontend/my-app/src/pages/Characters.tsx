@@ -392,6 +392,18 @@ export default function Characters() {
     if (!window.confirm(confirmMessage)) return;
     
     setGeneratingAll(true);
+    
+    // 先清空角色图片目录
+    try {
+      const clearRes = await fetch(`${API_BASE}/characters/clear-characters-dir?novel_id=${selectedNovel}`, {
+        method: 'POST',
+      });
+      if (!clearRes.ok) {
+        console.warn('清空角色图片目录失败');
+      }
+    } catch (error) {
+      console.error('清空角色图片目录出错:', error);
+    }
     let successCount = 0;
     let failCount = 0;
     

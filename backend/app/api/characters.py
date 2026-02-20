@@ -175,7 +175,29 @@ async def delete_characters_by_novel(novel_id: str = Query(..., description="小
     result = db.query(Character).filter(Character.novel_id == novel_id).delete()
     db.commit()
     
+    # 删除角色图片目录
+    from app.services.file_storage import file_storage
+    file_storage.delete_characters_dir(novel_id)
+    
     return {"success": True, "message": f"已删除 {result} 个角色", "deleted_count": result}
+
+
+@router.post("/clear-characters-dir")
+async def clear_characters_dir(novel_id: str = Query(..., description="小说ID"), db: Session = Depends(get_db)):
+    """清空小说的角色图片目录（用于批量重新生成前）"""
+    # 检查小说是否存在
+    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    
+    # 清空角色图片目录
+    from app.services.file_storage import file_storage
+    success = file_storage.delete_characters_dir(novel_id)
+    
+    if success:
+        return {"success": True, "message": "角色图片目录已清空"}
+    else:
+        raise HTTPException(status_code=500, detail="清空角色图片目录失败")
 
 
 @router.post("/{character_id}/generate-portrait")
