@@ -49,6 +49,8 @@ NovelFlow는 소설을 자동으로 동영상으로 변환하는 AI 플랫폼입
 
 📺 <a href="https://www.bilibili.com/video/BV1VdZbBDEXF" target="_blank">Bilibili: AI-NovelFlow 소설 동영상 변환 플랫폼 소개</a>
 
+📺 <a href="https://www.youtube.com/watch?v=IlMbeDme2F8" target="_blank">YouTube: AI-NovelFlow 소설 동영상 변환 플랫폼 소개</a>
+
 ## 기술 스택
 
 - **프론트엔드**: React + TypeScript + Tailwind CSS + Vite
