@@ -285,7 +285,7 @@ video_description 动作约束规则
 1. 严格按照影视镜头语言拆分
 2. 每个分镜必须包含：
    - description（用于生图的静态构图描述）
-   - video_description（用于图生视频的动态时间描述，且必须包含台词或明确标注无台词）
+   - video_description（用于图生视频的动态时间描述，且必须包含台词或明确标注 NONE）
 3. description 必须包含：
    - Scene（场景环境 + 光线 + 摄影机）
    - Characters（逐个角色锁定形象 + 服装关键词 + 当前动作）
@@ -293,9 +293,9 @@ video_description 动作约束规则
 4. video_description 必须包含：
    - Character Constraints（人物一致性锁定）
    - Motion Timeline（时间展开式动作）
-   - Dialogue（spoken, no on-screen text：逐字保留原文台词；无台词必须写 NONE）
+   - Dialogue（spoken, no on-screen text：逐字保留原文台词）
 5. description 长度控制在 100–160 字
-6. video_description 长度控制在 90–180 字（包含 Dialogue 段或 NONE）
+6. video_description 长度控制在 90–220 字（包含 Dialogue 段）
 7. 所有视觉描述必须符合：##STYLE## style, high quality, detailed
 8. 不允许普通叙事句
 9. 不允许心理描写
@@ -304,12 +304,40 @@ video_description 动作约束规则
 12. 不允许 Markdown
 
 ━━━━━━━━━━━━━━━━━━
+【关键改进：台词零丢失硬约束（必须执行）】
+━━━━━━━━━━━━━━━━━━
+
+你必须确保“原文中的所有直接引语（引号内台词）100%被保留，不得遗漏”。
+
+执行步骤（强制）：
+
+A) 先从原文中提取一个 quotes 数组（仅内部校验用，不得输出该字段），内容为：
+- 原文所有直接引语（中文引号“ ”或英文引号""内的句子）
+- 必须逐字复制，包含原标点与原文字，不得改写
+- 不得遗漏任何一条引语
+
+B) 再将 quotes 数组中的每一条台词，逐条分配到某一个镜头的 video_description.Dialogue 中：
+- 每条台词必须出现且只出现一次（不重复、不丢失）
+- 若某条台词过长或同段出现多句，必须拆成多个镜头承载（宁可多镜头，不允许丢台词）
+- 任何没有台词的镜头必须写：Dialogue (spoken, no on-screen text): NONE
+
+C) 完整性校验（必须执行，失败即输出错误重写）：
+- 输出完成后，你必须自检：逐条核对 quotes 中每条台词是否都已出现在某个镜头的 Dialogue 中
+- 若发现任何台词未被分配（遗漏），必须增加镜头并补齐
+- 严禁输出空台词：禁止出现 speaker: "" 或 " " 或仅空白；无台词只能用 NONE
+
+D) 台词归属规则：
+- Dialogue 的 speaker 必须来自 allowed_characters
+- 原文未明确说话人时，必须根据上下文指派最合理的白名单角色（例如“有的人提议”→ 群臣1/群臣2/围观者1/围观者2 之一）
+- 禁止用“众人/有人/某人/人群”等泛称作为 speaker；必须映射到白名单具体编号角色
+
+━━━━━━━━━━━━━━━━━━
 description 强制结构模板
 ━━━━━━━━━━━━━━━━━━
 
-description 必须输出为单个字符串，并且必须包含如下换行结构（使用 \\n）：
+description 必须输出为单个字符串，并且必须包含如下换行结构（使用 \n）：
 
-"Scene: ...\\nCharacters:\\n- 角色A: ...\\n- 角色B: ...\\nAction: ..."
+"Scene: ...\nCharacters:\n- 角色A: ...\n- 角色B: ...\nAction: ..."
 
 模板：
 Scene: {中文场景环境句子}, {光线描述}, {镜头类型与机位描述}, ##STYLE## style, high quality, detailed。
@@ -321,16 +349,16 @@ Action: {一句话概括主要角色正在发生的动作行为}。
 说明：
 - 必须完整包含 Scene / Characters / Action 三部分
 - 不得缺失任何部分
-- description 中严禁出现任何台词文字或引号内容
+- description 中严禁出现任何台词文字或引号内容（台词只能在 video_description 的 Dialogue 段出现）
 - description 的每一部分必须分行，不得写在同一行
 
 ━━━━━━━━━━━━━━━━━━
 video_description 强制结构（LTX-2 优化版，含台词）
 ━━━━━━━━━━━━━━━━━━
 
-video_description 必须严格输出为单个字符串，并且必须包含如下换行结构（使用 \\n）：
+video_description 必须严格输出为单个字符串，并且必须包含如下换行结构（使用 \n）：
 
-"Character Constraints:\\n- 角色A: ...\\n- 角色B: ...\\nMotion: ...\\nDialogue (spoken, no on-screen text): ..."
+"Character Constraints:\n- 角色A: ...\n- 角色B: ...\nMotion:\n...\nDialogue (spoken, no on-screen text):\n- 角色A: "...""
 
 模板：
 Character Constraints:
@@ -340,24 +368,18 @@ Motion:
 {时间展开式动作描述，必须包含：起始状态 → 动作过程 → 镜头运动 → 结束状态}
 Dialogue (spoken, no on-screen text):
 - {说话角色名}: "{必须逐字复制原文台词}"
-（若该镜头无原文直接引语，则必须改为：Dialogue (spoken, no on-screen text): NONE，且不得输出任何 "- 角色名: ..." 行）
+
+无台词时必须写：
+Dialogue (spoken, no on-screen text): NONE
 
 ━━━━━━━━━━━━━━━━━━
 【字符串换行与排版硬约束（必须执行）】
 ━━━━━━━━━━━━━━━━━━
 
-1) description 与 video_description 必须使用换行符 "\\n" 进行分段排版（JSON 字符串中必须显式包含 \\n）。
-2) 必须严格按以下行结构输出（每一行之间用 \\n 分隔）：
-
-description 行结构必须为：
-"Scene: ...\\nCharacters:\\n- 角色A: ...\\n- 角色B: ...\\nAction: ..."
-
-video_description 行结构必须为：
-"Character Constraints:\\n- 角色A: ...\\n- 角色B: ...\\nMotion: ...\\nDialogue (spoken, no on-screen text): ..."
-
-3) 禁止把 Character Constraints / Motion / Dialogue 写在同一行；必须逐段换行。
-4) 列表项必须每个角色独占一行，并以 "- " 开头（例如 "\\n- 曹操: ..."）。
-5) 若 Dialogue 为 NONE，也必须独占一行：
+1) description 与 video_description 必须使用换行符 "\n" 进行分段排版（JSON 字符串中必须显式包含 \n）。
+2) 禁止把 Character Constraints / Motion / Dialogue 写在同一行；必须逐段换行。
+3) 列表项必须每个角色独占一行，并以 "- " 开头。
+4) 若 Dialogue 为 NONE，也必须独占一行：
 "Dialogue (spoken, no on-screen text): NONE"
 
 ━━━━━━━━━━━━━━━━━━
@@ -373,50 +395,28 @@ video_description 动作约束规则
 7. 禁止新增角色
 8. 禁止新增剧情
 9. 禁止加入画面文字（任何字幕/标题/屏幕文字叠加均禁止）
-10. 禁止改变人物形象
-11. 禁止改变服装
-12. 禁止改变人物体型比例
-13. Motion 中禁止出现心理词（如：若有所思/感到/心想/沉思）；必须改为可见表情或动作（如：眉头微皱/目光停留/嘴角上扬）。
-
-━━━━━━━━━━━━━━━━━━
-【video_description 台词强制规则（逐字保留原文，禁止空台词）】
-━━━━━━━━━━━━━━━━━━
-
-1) Dialogue 段只允许收录原文中明确出现的直接引语（例如：他说："……"），必须逐字复制（含原标点与引号内文字），不得改写、润色、缩写、扩写，禁止新增台词。
-2) Dialogue 段每个镜头最多 2 句；超过 2 句必须拆镜头分别承载。
-3) Dialogue 段只表示"口播/对白 (spoken)"，严禁描述为画面文字：不得出现"字幕/文字叠加/屏幕出现文字/标题条"等表述。
-4) 台词只能出现在 video_description 的 Dialogue 段：
-   - description 中严禁出现任何台词文字或引号内容
-   - video_description 的 Character Constraints 与 Motion 中也严禁出现台词文字或引号内容
-5) Dialogue 的 speaker 必须来自 allowed_characters；若原文未点名说话人，必须依据上下文判定最可能说话角色且仍需在白名单内。
-6) 禁止使用"某人/众人/人群"等泛称作为 speaker；必须映射为白名单内具体编号角色（如 群臣1、侍从1、围观者1）。
-7) 严禁输出空台词：禁止出现 speaker 对应的 line 为空字符串、空引号或仅空白（如 ""、" "、"\\n"）。
-8) 仅当原文存在"明确的直接引语"时，才允许输出 Dialogue 行；若该镜头没有任何原文直接引语，则必须写为：
-   Dialogue (spoken, no on-screen text): NONE
-   （注意：此时不得输出任何 "- 角色名: ..." 的行）
-9) 若原文有对白但该镜头不承载对白（对白已拆到前后镜头），则同样必须使用 Dialogue: NONE，禁止随意搬运、重复或伪造台词。
-10) 若连续镜头属于对话段落，必须将"有台词镜头"与"无台词反应镜头"分开：
-    - 有台词镜头：Dialogue 输出原文台词
-    - 反应/动作镜头：Dialogue: NONE
-    禁止在反应镜头中补台词或输出空台词。
+10. 禁止改变人物形象/服装/体型比例
+11. Motion 中禁止出现心理词（如：若有所思/感到/心想/沉思）；必须改为可见表情或动作（如：眉头微皱/目光停留/嘴角上扬）。
 
 ━━━━━━━━━━━━━━━━━━
 分镜规则
 ━━━━━━━━━━━━━━━━━━
 
 - id：从1递增
-- characters：当前镜头出现角色
+- characters：当前镜头出现角色（必须与 description 和 video_description 中出现的角色一致）
 - scene：当前镜头所在场景
 - duration：3-10秒，根据动作复杂度自动判断
 
-角色命名必须全程保持唯一且一致：
+━━━━━━━━━━━━━━━━━━
+角色命名必须全程保持唯一且一致
+━━━━━━━━━━━━━━━━━━
 
 - 所有角色名称必须在首次解析时确定为唯一标准名称
 - 后续所有镜头必须严格复用该名称
 - 若同类型角色存在多个且无真实姓名：
-  - 必须使用阿拉伯数字编号（如"骗子1""骗子2""群臣1""围观者1"）
+  - 必须使用阿拉伯数字编号（如“骗子1”“骗子2”“群臣1”“围观者1”）
   - 编号按首次出场顺序递增
-  - 禁止使用"甲/乙""A/B""其中一人""另一人"等变体
+  - 禁止使用“甲/乙”“A/B”“其中一人”“另一人”等变体
 - 一旦名称确定，不得更改、简化或替换
 
 ━━━━━━━━━━━━━━━━━━
@@ -433,27 +433,9 @@ video_description 动作约束规则
    - video_description 的 Character Constraints 段落中的角色名
    - video_description 的 Dialogue 段落中的 speaker
 
-2) 当正文出现"众人/群臣/士兵/百姓/侍从/随从/围观者/人群"等泛称时：
+2) 当正文出现“众人/群臣/士兵/百姓/侍从/随从/围观者/人群”等泛称时：
    - 必须改写为 allowed_characters 中对应的具体角色名（例如：群臣1、群臣2、围观者1、围观者2）。
-   - 若 allowed_characters 中没有任何可对应的具体角色名，则该镜头不得使用该泛称；必须改为"远处模糊背景人群/背景剪影"等环境元素，并且不得把背景人群写入 shots[].characters，也不得作为 Dialogue 的 speaker。
-
-3) 严禁新增角色：如果原文出现 allowed_characters 之外的角色，必须：
-   - 要么不在镜头中出现该角色（改为背景剪影且不入 characters 列表），
-   - 要么将镜头改写为只表现 allowed_characters 的动作与反应（不改变剧情走向）。
-
-4) 输出顶级字段 "characters" 必须是 allowed_characters 的子集（去重），不得包含白名单外角色。
-
-5) 一致性校验（必须执行）：
-   - 每个镜头中 shots[].characters 必须与 description 的 Characters 列表、video_description 的 Character Constraints 列表一致（同一组角色，顺序可不同）。
-   - 禁止出现 shots[].characters 为空但 description/video_description 列出角色的情况。
-
-━━━━━━━━━━━━━━━━━━
-时长规则
-━━━━━━━━━━━━━━━━━━
-
-- 静态画面：3-5秒
-- 对话画面：5-8秒
-- 动作冲突或物理变化：6-10秒
+   - 若 allowed_characters 中没有任何可对应的具体角色名，则该镜头不得把泛称写入 shots[].characters；只能作为“背景剪影/远处人群”环境元素描述（且不得作为 speaker）。
 
 ━━━━━━━━━━━━━━━━━━
 禁止
@@ -470,31 +452,21 @@ video_description 动作约束规则
 输出格式必须严格如下
 ━━━━━━━━━━━━━━━━━━
 
-{{
-  "chapter": "第3章 客人",
-  "characters": [
-    "萧炎",
-    "萧战",
-    "葛叶"
-  ],
-  "scenes": [
-    "萧家门口",
-    "萧家大厅",
-    "练武场"
-  ],
+{
+  "chapter": "…",
+  "characters": ["…"],
+  "scenes": ["…"],
   "shots": [
-    {{
+    {
       "id": 1,
-      "description": "Scene: ...\\nCharacters:\\n- ...\\nAction: ...",
-      "video_description": "Character Constraints:\\n- ...\\nMotion: ...\\nDialogue (spoken, no on-screen text): ...",
-      "characters": [
-        "萧炎"
-      ],
-      "scene": "萧家门口",
+      "description": "Scene: ...\nCharacters:\n- ...\nAction: ...",
+      "video_description": "Character Constraints:\n- ...\nMotion:\n...\nDialogue (spoken, no on-screen text):\n- ...: \"...\"",
+      "characters": ["..."],
+      "scene": "...",
       "duration": 5
-    }}
+    }
   ]
-}}""",
+}""",
         "type": "chapter_split"
     }
 ]

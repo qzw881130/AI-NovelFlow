@@ -698,30 +698,6 @@ export default function PromptConfig() {
                 />
               </div>
 
-              {/* 章节拆分特有：字数设置 */}
-              {modalType === 'chapter_split' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    {t('promptConfig.wordCountPerShot')}
-                  </label>
-                  <div className="flex items-center gap-2 mt-1">
-                    <input
-                      type="number"
-                      min={10}
-                      max={500}
-                      value={form.wordCount}
-                      onChange={(e) => setForm({ ...form, wordCount: parseInt(e.target.value) || 50 })}
-                      className="input-field w-24"
-                      readOnly={editingPrompt?.isSystem}
-                    />
-                    <span className="text-sm text-gray-500">{t('promptConfig.wordUnit')}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {t('promptConfig.wordCountTip')}
-                  </p>
-                </div>
-              )}
-              
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {t('promptConfig.promptTemplate')}
@@ -749,12 +725,17 @@ export default function PromptConfig() {
                   placeholder={modalType === 'character' ? t('promptConfig.templatePlaceholderCharacter') : t('promptConfig.templatePlaceholderChapter')}
                   readOnly={editingPrompt?.isSystem}
                 />
-                <p className="text-xs text-gray-500 mt-1">
-                  {modalType === 'character' 
-                    ? t('promptConfig.tipCharacter')
-                    : t('promptConfig.tipChapter')
-                  }
-                </p>
+                <div className="flex justify-between items-center mt-1">
+                  <p className="text-xs text-gray-500">
+                    {modalType === 'character' 
+                      ? t('promptConfig.tipCharacter')
+                      : t('promptConfig.tipChapter')
+                    }
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {t('promptConfig.charCount')}: {form.template.length}
+                  </p>
+                </div>
               </div>
               
               <div className="flex justify-end gap-3 pt-4">
