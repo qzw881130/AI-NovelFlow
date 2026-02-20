@@ -304,7 +304,7 @@ export default function LLMLogs() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.model')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.taskType')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('common.status')}</th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">代理</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.proxy')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.promptPreview')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('common.actions')}</th>
                 </tr>
@@ -328,7 +328,7 @@ export default function LLMLogs() {
                       {getStatusBadge(log.status)}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                      {log.used_proxy ? '是' : '否'}
+                      {log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 max-w-[150px]">
                       <div className="truncate" title={log.user_prompt}>
@@ -405,8 +405,8 @@ export default function LLMLogs() {
                 <span className="text-gray-500">{t('llmLogs.task')}:</span>
                 <span className="font-medium">{getTaskTypeLabel(selectedLog.task_type)}</span>
                 <span>{getStatusBadge(selectedLog.status)}</span>
-                <span className="text-gray-500">代理:</span>
-                <span className="font-medium">{selectedLog.used_proxy ? '是' : '否'}</span>
+                <span className="text-gray-500">{t('llmLogs.proxy')}:</span>
+                <span className="font-medium">{selectedLog.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}</span>
               </div>
               
               {selectedLog.error_message && (

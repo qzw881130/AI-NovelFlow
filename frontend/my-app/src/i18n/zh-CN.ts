@@ -657,6 +657,9 @@ export default {
     task: '任务',
     errorMessage: '错误信息',
     llmResponse: 'LLM 响应',
+    proxy: '代理',
+    yes: '是',
+    no: '否',
   },
 
   // 测试用例

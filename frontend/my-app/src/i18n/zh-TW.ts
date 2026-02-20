@@ -490,6 +490,9 @@ export default {
     task: '任務',
     errorMessage: '錯誤訊息',
     llmResponse: 'LLM 回應',
+    proxy: '代理',
+    yes: '是',
+    no: '否',
   },
 
   testCases: {

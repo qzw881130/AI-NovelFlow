@@ -657,6 +657,9 @@ export default {
     task: 'Task',
     errorMessage: 'Error Message',
     llmResponse: 'LLM Response',
+    proxy: 'Proxy',
+    yes: 'Yes',
+    no: 'No',
   },
 
   // Test Cases
