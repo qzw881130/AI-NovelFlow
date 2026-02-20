@@ -9,8 +9,8 @@ from app.models.prompt_template import PromptTemplate
 
 router = APIRouter(tags=["prompt_templates"])
 
-# 模板文件目录
-TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'prompt_templates')
+# 模板文件目录 (位于 backend/prompt_templates/)
+TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'prompt_templates')
 
 def load_template(filename: str) -> str:
     """从文件加载模板内容"""
