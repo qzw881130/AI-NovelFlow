@@ -404,6 +404,7 @@ export default {
     wordUnit: '文字',
     tipCharacter: 'ヒント：{appearance}はキャラクターの外見に、{description}はキャラクターの説明に置き換えられます',
     tipChapter: 'ヒント：{wordCount}は上記で設定した文字数に置き換えられます',
+    jsonStructureWarning: '⚠️ 警告：返されるJSONデータ構造を変更しないでください。解析に失敗します！',
     templatePlaceholderCharacter: 'キャラクターの肖像...',
     templatePlaceholderChapter: 'あなたはプロの映画監督です...',
     systemPromptSaved: 'システムプロンプトを保存しました',

@@ -565,6 +565,7 @@ export default {
     wordUnit: '字',
     tipCharacter: '提示：{appearance} 会被替换为角色外貌，{description} 会被替换为角色描述',
     tipChapter: '提示：{wordCount} 会被替换为上面设置的字数',
+    jsonStructureWarning: '⚠️ 警告：请勿修改返回的 JSON 数据结构，否则会导致解析失败！',
     templatePlaceholderCharacter: 'character portrait...',
     templatePlaceholderChapter: '你是一名资深影视导演...',
     systemPromptSaved: '系统提示词已保存',

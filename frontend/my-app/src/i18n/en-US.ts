@@ -565,6 +565,7 @@ export default {
     wordUnit: 'words',
     tipCharacter: 'Tip: {appearance} will be replaced with character appearance, {description} with character description',
     tipChapter: 'Tip: {wordCount} will be replaced with the word count set above',
+    jsonStructureWarning: '⚠️ Warning: Do NOT modify the returned JSON data structure, or parsing will fail!',
     templatePlaceholderCharacter: 'character portrait...',
     templatePlaceholderChapter: 'You are a professional film director...',
     systemPromptSaved: 'System prompt saved',

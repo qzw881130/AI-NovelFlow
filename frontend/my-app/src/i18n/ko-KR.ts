@@ -404,6 +404,7 @@ export default {
     wordUnit: '단어',
     tipCharacter: '팁: {appearance}는 캐릭터 외형으로, {description}는 캐릭터 설명으로 대첸됩니다',
     tipChapter: '팁: {wordCount}는 위에서 설정한 단어 수로 대첸됩니다',
+    jsonStructureWarning: '⚠️ 경고: 반환된 JSON 데이터 구조를 수정하지 마세요. 파싱에 실패합니다!',
     templatePlaceholderCharacter: '캐릭터 초상화...',
     templatePlaceholderChapter: '당신은 프로페셔널한 영화 감독입니다...',
     systemPromptSaved: '시스템 프롬프트가 저장되었습니다',
