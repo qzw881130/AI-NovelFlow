@@ -364,7 +364,14 @@ class LLMService:
                 }
                     
         except Exception as e:
-            error_msg = f"请求异常: {str(e)}"
+            import traceback
+            error_type = type(e).__name__
+            error_detail = str(e) if str(e) else "(无详细错误信息)"
+            error_msg = f"请求异常: [{error_type}] {error_detail}"
+            
+            # 记录详细错误信息到控制台
+            print(f"[LLMService] {error_msg}")
+            traceback.print_exc()
             
             # 记录异常日志
             save_llm_log(

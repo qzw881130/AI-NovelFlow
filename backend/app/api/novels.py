@@ -502,6 +502,32 @@ async def split_chapter(
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
+    # 检查 LLM 配置
+    llm_service = get_llm_service()
+    if not llm_service.api_key and llm_service.provider != "ollama":
+        return {
+            "success": False,
+            "data": {
+                "error": "LLM API Key 未配置，请在系统设置中配置 API Key",
+                "chapter": chapter.title,
+                "characters": [],
+                "scenes": [],
+                "shots": []
+            }
+        }
+    
+    if not llm_service.api_url:
+        return {
+            "success": False,
+            "data": {
+                "error": "LLM API URL 未配置，请在系统设置中配置 API URL",
+                "chapter": chapter.title,
+                "characters": [],
+                "scenes": [],
+                "shots": []
+            }
+        }
+    
     # 获取拆分提示词模板
     prompt_template = None
     if novel.chapter_split_prompt_template_id:

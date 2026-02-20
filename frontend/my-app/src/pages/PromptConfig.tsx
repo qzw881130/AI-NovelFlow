@@ -776,6 +776,9 @@ export default function PromptConfig() {
               <div>
                 <h3 className="text-lg font-semibold text-gray-900">{getTemplateDisplayName(viewingPrompt, t)}</h3>
                 <p className="text-sm text-gray-500">{getTemplateDisplayDescription(viewingPrompt, t)}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {t('promptConfig.charCount')}: {viewingPrompt.template.length}
+                </p>
               </div>
               <button
                 type="button"
