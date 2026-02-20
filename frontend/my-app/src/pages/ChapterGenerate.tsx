@@ -768,6 +768,21 @@ export default function ChapterGenerate() {
   const handleGenerateShotImage = async (shotIndex: number) => {
     setGeneratingShots(prev => new Set(prev).add(shotIndex));
     
+    // 立即清除本地状态中的旧图，避免显示旧图
+    setShotImages(prev => {
+      const next = { ...prev };
+      delete next[shotIndex];
+      return next;
+    });
+    // 同时清除 parsedData 中的旧图
+    if (parsedData?.shots?.[shotIndex - 1]) {
+      const newParsedData = { ...parsedData };
+      newParsedData.shots = [...parsedData.shots];
+      newParsedData.shots[shotIndex - 1] = { ...newParsedData.shots[shotIndex - 1] };
+      delete newParsedData.shots[shotIndex - 1].image_url;
+      setParsedData(newParsedData);
+    }
+    
     try {
       const res = await fetch(
         `${API_BASE}/novels/${id}/chapters/${cid}/shots/${shotIndex}/generate/`,
@@ -789,7 +804,10 @@ export default function ChapterGenerate() {
           if (!prev) return prev;
           const newShots = [...prev.shots];
           if (newShots[shotIndex - 1]) {
-            newShots[shotIndex - 1] = { ...newShots[shotIndex - 1], image_url: undefined };
+            const newShot = { ...newShots[shotIndex - 1] };
+            delete newShot.image_url;
+            delete newShot.image_path;
+            newShots[shotIndex - 1] = newShot;
           }
           return { ...prev, shots: newShots };
         });
@@ -827,6 +845,20 @@ export default function ChapterGenerate() {
     }
     
     setIsGeneratingAll(true);
+    
+    // 立即清除所有本地状态中的旧图，避免显示旧图
+    setShotImages({});
+    // 同时清除 parsedData 中的所有旧图
+    if (parsedData?.shots) {
+      const newParsedData = { ...parsedData };
+      newParsedData.shots = parsedData.shots.map((shot: any) => {
+        const newShot = { ...shot };
+        delete newShot.image_url;
+        return newShot;
+      });
+      setParsedData(newParsedData);
+    }
+    
     toast.info(t('chapterGenerate.startBatchGenerateShots', { count: totalShots }));
     
     let successCount = 0;
@@ -2342,9 +2374,10 @@ export default function ChapterGenerate() {
                 <div className="flex gap-3 overflow-x-auto pb-2">
                   {parsedData.shots.map((shot: any, index: number) => {
                     const shotNum = index + 1;
-                    const imageUrl = shotImages[shotNum] || shot.image_url;
                     const isSubmitting = generatingShots.has(shotNum);
                     const isPending = pendingShots.has(shotNum);
+                    // 生成/队列中时，不显示旧图片，避免404
+                    const imageUrl = (!isSubmitting && !isPending) ? (shotImages[shotNum] || shot.image_url) : null;
                     const hasImage = !!imageUrl;
                     
                     return (
@@ -2402,7 +2435,17 @@ export default function ChapterGenerate() {
                   })}
                 </div>
                 {/* 当前选中的分镜大图 */}
-                {(shotImages[currentShot] || parsedData.shots[currentShot - 1]?.image_url) ? (
+                {generatingShots.has(currentShot) || pendingShots.has(currentShot) ? (
+                  /* 生成中状态 - 优先检查，避免显示已删除的旧图 */
+                  <div className="mt-4 mb-4">
+                    <div className="aspect-video rounded-lg overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-50 flex flex-col items-center justify-center border-2 border-dashed border-blue-200">
+                      <Loader2 className="h-12 w-12 text-blue-400 mb-3 animate-spin" />
+                      <span className="text-blue-500 text-sm font-medium">
+                        {generatingShots.has(currentShot) ? t('chapterGenerate.submitting') : t('chapterGenerate.inQueue')}
+                      </span>
+                    </div>
+                  </div>
+                ) : (shotImages[currentShot] || parsedData.shots[currentShot - 1]?.image_url) ? (
                   <div className="mt-4 mb-4">
                     <div 
                       className="aspect-video rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
@@ -2639,7 +2682,9 @@ export default function ChapterGenerate() {
             <div className="flex gap-2 overflow-x-auto pb-2 items-center">
               {parsedData?.shots?.map((shot: any, index: number) => {
                 const shotNum = index + 1;
-                const imageUrl = shotImages[shotNum] || shot.image_url;
+                // 图片生成中时，不显示旧图片，避免404
+                const isImagePending = pendingShots.has(shotNum) || generatingShots.has(shotNum);
+                const imageUrl = !isImagePending ? (shotImages[shotNum] || shot.image_url) : null;
                 const hasVideo = !!shotVideos[shotNum];
                 const isPending = pendingVideos.has(shotNum);
                 const isGenerating = generatingVideos.has(shotNum);
@@ -2696,8 +2741,9 @@ export default function ChapterGenerate() {
                         toIndex={shotNum + 1}
                         fromVideo={shotVideos[shotNum]}
                         toVideo={shotVideos[shotNum + 1]}
-                        fromImage={shotImages[shotNum] || shot.image_url}
-                        toImage={shotImages[shotNum + 1] || parsedData.shots[shotNum]?.image_url}
+                        // 图片生成中时，不传旧图片URL，避免404
+                        fromImage={(!pendingShots.has(shotNum) && !generatingShots.has(shotNum)) ? (shotImages[shotNum] || shot.image_url) : undefined}
+                        toImage={(!pendingShots.has(shotNum + 1) && !generatingShots.has(shotNum + 1)) ? (shotImages[shotNum + 1] || parsedData.shots[shotNum]?.image_url) : undefined}
                         transitionVideo={transitionVideos[`${shotNum}-${shotNum + 1}`]}
                         isGenerating={generatingTransitions.has(`${shotNum}-${shotNum + 1}`)}
                         onGenerate={() => handleGenerateTransition(shotNum, shotNum + 1, true)}

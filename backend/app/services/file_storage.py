@@ -159,6 +159,46 @@ class FileStorageService:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return save_dir / f"shot_{shot_number:03d}_{timestamp}.png"
     
+    def delete_shot_image(self, novel_id: str, chapter_id: str, shot_number: int) -> bool:
+        """
+        删除指定分镜的旧图片文件
+        
+        Args:
+            novel_id: 小说ID
+            chapter_id: 章节ID
+            shot_number: 分镜序号
+            
+        Returns:
+            是否成功删除（文件不存在也算成功）
+        """
+        try:
+            story_dir = self._get_story_dir(novel_id)
+            chapter_short = chapter_id[:8] if chapter_id else "unknown"
+            shots_dir = story_dir / f"chapter_{chapter_short}" / "shots"
+            
+            if not shots_dir.exists():
+                return True
+            
+            # 查找该分镜的所有旧图片文件
+            import glob
+            pattern = f"shot_{shot_number:03d}_*.png"
+            old_files = list(shots_dir.glob(pattern))
+            
+            deleted_count = 0
+            for old_file in old_files:
+                try:
+                    old_file.unlink()
+                    deleted_count += 1
+                    print(f"[FileStorage] Deleted old shot image: {old_file}")
+                except Exception as e:
+                    print(f"[FileStorage] Failed to delete {old_file}: {e}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"[FileStorage] Failed to delete shot image: {e}")
+            return False
+    
     def get_merged_characters_path(self, novel_id: str, chapter_id: str,
                                    shot_number: int, character_names: list = None) -> Path:
         """获取合并角色图保存路径

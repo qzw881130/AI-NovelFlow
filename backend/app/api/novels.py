@@ -642,13 +642,17 @@ async def generate_shot_image(
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_msg)
     
-    # 清除旧的图片数据，避免前端显示旧图
+    # 清除旧的图片数据和文件，避免前端显示旧图
+    # 1. 删除旧的分镜图文件
+    file_storage.delete_shot_image(novel_id, chapter_id, shot_index)
+    
+    # 2. 清除 shot_images 数组中的记录
     shot_images = json.loads(chapter.shot_images) if chapter.shot_images else []
     if isinstance(shot_images, list) and len(shot_images) >= shot_index:
         shot_images[shot_index - 1] = None
         chapter.shot_images = json.dumps(shot_images, ensure_ascii=False)
     
-    # 同时清除 parsed_data 中的旧图片 URL
+    # 3. 同时清除 parsed_data 中的旧图片 URL
     if "shots" in parsed_data and len(parsed_data["shots"]) >= shot_index:
         if "image_url" in parsed_data["shots"][shot_index - 1]:
             del parsed_data["shots"][shot_index - 1]["image_url"]
@@ -871,30 +875,30 @@ async def generate_shot_task(
                         cols = 3
                         rows = (count + 2) // 3
                     
-                    # 加载所有图片
+                    # 加载所有图片（不进行缩放，保持原图尺寸）
                     images = []
                     for char_name, img_path in character_images:
                         img = Image.open(img_path)
                         images.append((char_name, img))
                     
                     # 设置布局参数
-                    # 使用更大的尺寸保留角色图细节（原图通常是 1088x704 或更大）
-                    max_img_width = 512
-                    max_img_height = 512
                     name_height = 24  # 文字高度
                     padding = 15      # 外边距
                     img_spacing = 10  # 图片之间的间距
                     text_offset = 5   # 文字与图片的间距
                     
-                    # 预先处理所有图片：缩放并记录实际尺寸
-                    processed_images = []
-                    for char_name, img in images:
-                        img_copy = img.copy()
-                        img_copy.thumbnail((max_img_width, max_img_height), Image.LANCZOS)
-                        processed_images.append((char_name, img_copy))
+                    # 使用原图，不进行缩放
+                    processed_images = [(char_name, img.copy()) for char_name, img in images]
                     
-                    # 计算画布尺寸
-                    canvas_width = cols * max_img_width + (cols - 1) * img_spacing + 2 * padding
+                    # 计算每列的最大宽度（用于对齐）
+                    col_widths = []
+                    for col in range(cols):
+                        max_w = 0
+                        for idx in range(col, len(processed_images), cols):
+                            _, img = processed_images[idx]
+                            max_w = max(max_w, img.width)
+                        col_widths.append(max_w)
+                    
                     # 计算每行的实际高度（取该行最高图片 + 文字高度）
                     row_heights = []
                     for row in range(rows):
@@ -904,6 +908,8 @@ async def generate_shot_task(
                             max_h = max(max_h, img.height)
                         row_heights.append(max_h + name_height + text_offset)
                     
+                    # 计算画布尺寸
+                    canvas_width = sum(col_widths) + (cols - 1) * img_spacing + 2 * padding
                     canvas_height = sum(row_heights) + 2 * padding
                     canvas = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
                     draw = ImageDraw.Draw(canvas)
@@ -943,21 +949,21 @@ async def generate_shot_task(
                         col = idx % cols
                         row = idx // cols
                         
-                        # 计算x坐标
-                        x = padding + col * (max_img_width + img_spacing)
+                        # 计算x坐标（基于列宽累加）
+                        x = padding + sum(col_widths[:col]) + col * img_spacing
                         
                         # 计算y坐标（基于当前行的起始位置）
                         y = current_y
                         
-                        # 居中放置图片
-                        img_x = x + (max_img_width - img.width) // 2
+                        # 在当前列宽度内居中放置图片
+                        img_x = x + (col_widths[col] - img.width) // 2
                         img_y = y + (row_heights[row] - name_height - text_offset - img.height) // 2
                         canvas.paste(img, (img_x, img_y))
                         
-                        # 绘制角色名称（紧贴图片底部）
+                        # 绘制角色名称（在当前列宽度内居中）
                         text_bbox = draw.textbbox((0, 0), char_name, font=font)
                         text_width = text_bbox[2] - text_bbox[0]
-                        text_x = x + (max_img_width - text_width) // 2
+                        text_x = x + (col_widths[col] - text_width) // 2
                         text_y = img_y + img.height + text_offset
                         draw.text((text_x, text_y), char_name, fill=(51, 51, 51), font=font)
                         
