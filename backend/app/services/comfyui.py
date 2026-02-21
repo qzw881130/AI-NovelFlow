@@ -1027,12 +1027,18 @@ class ComfyUIService:
                     uploaded_filename = upload_result.get("filename")
                     print(f"[ComfyUI] Image uploaded successfully: {uploaded_filename}")
                     
-                    # 查找 LoadImage 节点并设置上传后的文件名
-                    for node_id, node in workflow.items():
-                        if node.get("class_type") == "LoadImage":
-                            workflow[node_id]["inputs"]["image"] = uploaded_filename
-                            print(f"[ComfyUI] Set character reference to LoadImage node {node_id}: {uploaded_filename}")
-                            break
+                    # 优先使用 node_mapping 中配置的 reference_image_node_id
+                    reference_image_node_id = node_mapping.get("reference_image_node_id")
+                    if reference_image_node_id and reference_image_node_id in workflow:
+                        workflow[reference_image_node_id]["inputs"]["image"] = uploaded_filename
+                        print(f"[ComfyUI] Set character reference to configured LoadImage node {reference_image_node_id}: {uploaded_filename}")
+                    else:
+                        # 如果没有配置或配置的节点不存在，查找第一个 LoadImage 节点
+                        for node_id, node in workflow.items():
+                            if node.get("class_type") == "LoadImage":
+                                workflow[node_id]["inputs"]["image"] = uploaded_filename
+                                print(f"[ComfyUI] Set character reference to first LoadImage node {node_id}: {uploaded_filename}")
+                                break
                 else:
                     print(f"[ComfyUI] Failed to upload image: {upload_result.get('message')}")
             

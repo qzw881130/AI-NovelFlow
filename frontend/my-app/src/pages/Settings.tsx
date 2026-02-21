@@ -185,6 +185,8 @@ const checkWorkflowMappingComplete = (workflow: Workflow): boolean => {
         mapping.save_image_node_id !== 'auto'
       );
     case 'shot':
+      // 分镜生图类型需要特殊字段
+      const shotMapping = mapping as any;
       return !!(
         mapping.prompt_node_id &&
         mapping.prompt_node_id !== 'auto' &&
@@ -193,7 +195,9 @@ const checkWorkflowMappingComplete = (workflow: Workflow): boolean => {
         mapping.width_node_id &&
         mapping.width_node_id !== 'auto' &&
         mapping.height_node_id &&
-        mapping.height_node_id !== 'auto'
+        mapping.height_node_id !== 'auto' &&
+        shotMapping.reference_image_node_id &&
+        shotMapping.reference_image_node_id !== 'auto'
       );
     case 'video':
       // 视频类型需要特殊字段
@@ -595,12 +599,27 @@ export default function Settings() {
                 firstImageNodeId: mapping.first_image_node_id || '',
                 lastImageNodeId: mapping.last_image_node_id || ''
               });
-            } else {
+            } else if (workflow.type === 'shot') {
+              // 分镜生图类型 - 包含参考图片节点
               setMappingForm({
                 promptNodeId: mapping.prompt_node_id || '',
                 saveImageNodeId: mapping.save_image_node_id || '',
                 widthNodeId: mapping.width_node_id || '',
                 heightNodeId: mapping.height_node_id || '',
+                videoSaveNodeId: '',
+                maxSideNodeId: '',
+                referenceImageNodeId: mapping.reference_image_node_id || '',
+                frameCountNodeId: '',
+                firstImageNodeId: '',
+                lastImageNodeId: ''
+              });
+            } else {
+              // 人设生图类型
+              setMappingForm({
+                promptNodeId: mapping.prompt_node_id || '',
+                saveImageNodeId: mapping.save_image_node_id || '',
+                widthNodeId: '',
+                heightNodeId: '',
                 videoSaveNodeId: '',
                 maxSideNodeId: '',
                 referenceImageNodeId: '',
@@ -645,12 +664,20 @@ export default function Settings() {
           frame_count_node_id: mappingForm.frameCountNodeId || null,
           video_save_node_id: mappingForm.videoSaveNodeId || null
         };
-      } else {
+      } else if (mappingWorkflow.type === 'shot') {
+        // 分镜生图类型 - 包含参考图片节点
         nodeMapping = {
           prompt_node_id: mappingForm.promptNodeId || null,
           save_image_node_id: mappingForm.saveImageNodeId || null,
           width_node_id: mappingForm.widthNodeId || null,
-          height_node_id: mappingForm.heightNodeId || null
+          height_node_id: mappingForm.heightNodeId || null,
+          reference_image_node_id: mappingForm.referenceImageNodeId || null
+        };
+      } else {
+        // 人设生图类型
+        nodeMapping = {
+          prompt_node_id: mappingForm.promptNodeId || null,
+          save_image_node_id: mappingForm.saveImageNodeId || null
         };
       }
       
@@ -1671,6 +1698,43 @@ export default function Settings() {
                 </div>
               )}
 
+              {/* 参考图片节点 - 分镜生图和视频类型显示 */}
+              {(mappingWorkflow?.type === 'shot' || mappingWorkflow?.type === 'video') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {t('systemSettings.workflow.referenceImageNode')}
+                  </label>
+                  <select
+                    value={mappingForm.referenceImageNodeId}
+                    onChange={(e) => setMappingForm({ ...mappingForm, referenceImageNodeId: e.target.value })}
+                    className="input-field"
+                  >
+                    <option value="">{t('systemSettings.workflow.autoFind')}</option>
+                    {availableNodes.loadImage.map((nodeInfo) => {
+                      const nodeId = nodeInfo.split(' ')[0];
+                      return (
+                        <option key={nodeInfo} value={nodeId}>
+                          Node#{nodeInfo}
+                        </option>
+                      );
+                    })}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {t('systemSettings.workflow.referenceImageNodeTip')}
+                  </p>
+                  
+                  {/* Node JSON Preview */}
+                  {mappingForm.referenceImageNodeId && workflowData[mappingForm.referenceImageNodeId] && (
+                    <div className="mt-2 p-3 bg-gray-50 rounded border border-gray-200">
+                      <p className="text-xs text-gray-400 mb-1">Node #{mappingForm.referenceImageNodeId} JSON Preview:</p>
+                      <pre className="text-xs text-gray-600 overflow-x-auto">
+{JSON.stringify({ [mappingForm.referenceImageNodeId]: workflowData[mappingForm.referenceImageNodeId] }, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 视频工作流特有配置 */}
               {mappingWorkflow?.type === 'video' && (
                 <>
@@ -1785,41 +1849,6 @@ export default function Settings() {
                         <p className="text-xs text-gray-400 mb-1">Node #{mappingForm.maxSideNodeId} JSON Preview:</p>
                         <pre className="text-xs text-gray-600 overflow-x-auto">
 {JSON.stringify({ [mappingForm.maxSideNodeId]: workflowData[mappingForm.maxSideNodeId] }, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* 参考图片节点 */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      {t('systemSettings.workflow.referenceImageNode')}
-                    </label>
-                    <select
-                      value={mappingForm.referenceImageNodeId}
-                      onChange={(e) => setMappingForm({ ...mappingForm, referenceImageNodeId: e.target.value })}
-                      className="input-field"
-                    >
-                      <option value="">{t('systemSettings.workflow.autoFind')}</option>
-                      {availableNodes.loadImage.map((nodeInfo) => {
-                        const nodeId = nodeInfo.split(' ')[0];
-                        return (
-                          <option key={nodeInfo} value={nodeId}>
-                            Node#{nodeInfo}
-                          </option>
-                        );
-                      })}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {t('systemSettings.workflow.referenceImageNodeTip')}
-                    </p>
-                    
-                    {/* Node JSON Preview */}
-                    {mappingForm.referenceImageNodeId && workflowData[mappingForm.referenceImageNodeId] && (
-                      <div className="mt-2 p-3 bg-gray-50 rounded border border-gray-200">
-                        <p className="text-xs text-gray-400 mb-1">Node #{mappingForm.referenceImageNodeId} JSON Preview:</p>
-                        <pre className="text-xs text-gray-600 overflow-x-auto">
-{JSON.stringify({ [mappingForm.referenceImageNodeId]: workflowData[mappingForm.referenceImageNodeId] }, null, 2)}
                         </pre>
                       </div>
                     )}
