@@ -53,10 +53,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS
+# CORS - 动态允许所有来源，支持任意 IP/端口访问
+# 使用动态 origin 检查，支持从任何来源访问
+allow_origin_regex = r"https?://.*"
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_origin_regex=allow_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
