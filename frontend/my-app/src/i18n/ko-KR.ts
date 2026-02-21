@@ -291,7 +291,6 @@ export default {
       uploading: '업로드 중...',
       upload: '업로드',
       // Edit Modal
-      viewWorkflow: '워크플로우 보기',
       editWorkflow: '워크플로우 편집',
       systemPresetReadonly: '시스템 프리셋 (읽기 전용)',
       workflowJson: '워크플로우 JSON',
@@ -541,6 +540,7 @@ export default {
       chapterVideo: '챕터 비디오',
       transitionVideo: '전환 비디오',
     },
+    viewWorkflow: '워크플로우 보기',
     systemDefault: '시스템 기본',
     custom: '사용자 정의',
     workflowNames: {

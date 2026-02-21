@@ -286,6 +286,7 @@ export default {
     retry: '重试',
     delete: '删除',
     viewLogs: '查看日志',
+    viewWorkflow: '查看工作流',
     noTasks: '暂无任务',
     noTasksCreated: '还没有创建任何任务',
     noTasksInStatus: '该状态下没有任务',
@@ -494,7 +495,6 @@ export default {
       uploading: '上传中...',
       upload: '上传',
       // 编辑弹窗
-      viewWorkflow: '查看工作流',
       editWorkflow: '编辑工作流',
       systemPresetReadonly: '系统预设（只读）',
       workflowJson: '工作流 JSON',

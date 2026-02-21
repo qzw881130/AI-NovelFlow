@@ -286,6 +286,7 @@ export default {
     retry: 'Retry',
     delete: 'Delete',
     viewLogs: 'View Logs',
+    viewWorkflow: 'View Workflow',
     noTasks: 'No tasks yet',
     noTasksCreated: 'No tasks created yet',
     noTasksInStatus: 'No tasks in this status',
@@ -494,7 +495,6 @@ export default {
       uploading: 'Uploading...',
       upload: 'Upload',
       // Edit Modal
-      viewWorkflow: 'View Workflow',
       editWorkflow: 'Edit Workflow',
       systemPresetReadonly: 'System Preset (Read-only)',
       workflowJson: 'Workflow JSON',

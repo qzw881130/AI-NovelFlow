@@ -291,7 +291,6 @@ export default {
       uploading: 'アップロード中...',
       upload: 'アップロード',
       // Edit Modal
-      viewWorkflow: 'ワークフローを表示',
       editWorkflow: 'ワークフローを編集',
       systemPresetReadonly: 'システムプリセット（読み取り専用）',
       workflowJson: 'ワークフローJSON',
@@ -541,6 +540,7 @@ export default {
       chapterVideo: 'チャプター動画',
       transitionVideo: 'トランジション動画',
     },
+    viewWorkflow: 'ワークフローを表示',
     systemDefault: 'システム既定',
     custom: 'カスタム',
     workflowNames: {
