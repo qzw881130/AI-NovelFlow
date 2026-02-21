@@ -1059,6 +1059,12 @@ async def generate_shot_task(
         
         print(f"[ShotTask {task_id}] Generation result: {result}")
         
+        # 保存实际提交给ComfyUI的工作流（包含替换后的LoadImage节点）
+        if result.get("submitted_workflow"):
+            task.workflow_json = json.dumps(result["submitted_workflow"], ensure_ascii=False, indent=2)
+            db.commit()
+            print(f"[ShotTask {task_id}] Saved final submitted workflow with LoadImage replacement")
+        
         # 保存 ComfyUI prompt_id 用于取消任务
         if result.get("prompt_id"):
             task.comfyui_prompt_id = result["prompt_id"]
