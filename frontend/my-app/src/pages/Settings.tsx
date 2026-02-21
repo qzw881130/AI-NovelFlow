@@ -219,7 +219,9 @@ const checkWorkflowMappingComplete = (workflow: Workflow): boolean => {
         transitionMapping.last_image_node_id &&
         transitionMapping.last_image_node_id !== 'auto' &&
         transitionMapping.video_save_node_id &&
-        transitionMapping.video_save_node_id !== 'auto'
+        transitionMapping.video_save_node_id !== 'auto' &&
+        transitionMapping.frame_count_node_id &&
+        transitionMapping.frame_count_node_id !== 'auto'
       );
     default:
       return false;
@@ -595,7 +597,7 @@ export default function Settings() {
                 videoSaveNodeId: mapping.video_save_node_id || '',
                 maxSideNodeId: '',
                 referenceImageNodeId: '',
-                frameCountNodeId: '',
+                frameCountNodeId: mapping.frame_count_node_id || '',
                 firstImageNodeId: mapping.first_image_node_id || '',
                 lastImageNodeId: mapping.last_image_node_id || ''
               });
