@@ -1,0 +1,227 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "Flux2-Klein",
+      "images": [
+        "126",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "76": {
+    "inputs": {
+      "image": "ComfyUI_temp_unbkt_00001_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "107": {
+    "inputs": {
+      "upscale_method": "bicubic",
+      "megapixels": 1,
+      "resolution_steps": 1,
+      "image": [
+        "76",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "ImageScaleToTotalPixels"
+    }
+  },
+  "126": {
+    "inputs": {
+      "text": [
+        "144",
+        0
+      ],
+      "model": "gemini-3-pro-image-preview",
+      "temperature": 1,
+      "top_p": 0.95,
+      "apikey": [
+        "145",
+        0
+      ],
+      "seed": 135410656,
+      "max_tokens": 32768,
+      "image1": [
+        "107",
+        0
+      ]
+    },
+    "class_type": "Comfly_nano_banana",
+    "_meta": {
+      "title": "Zhenzhen_nano_banana"
+    }
+  },
+  "129": {
+    "inputs": {
+      "text": "The total number of human figures must remain identical to the input image.\n\nKeep all characters visually identical to the input reference image.\n\n\nCharacters (match the provided reference character sheets exactly; preserve each character’s outfit color palette and materials; do not recolor or swap outfits):\n- mother：一位中年妇女，约30-40岁，穿着简单的乡村服装，如围裙和长裙，颜色可能为棕色或绿色。她有一头深色头发，可能束成发髻，面容关切、严肃。在场景中，她站在家门口或屋内，手持篮子递给小红帽。 \n- xiaohongmao：一个天真善良、受人喜爱的小女孩，因常戴红色小帽子而得名。她听从母亲的话去给生病的外婆送点心，但在森林中轻信了大灰狼的谎言，导致危险发生。故事结尾她吸取教训，承诺不再乱跑和与陌生人说话。 \n\nmother看着xiaohongmao，mother表情严肃，xiaohongmao点头答应"
+    },
+    "class_type": "CR Text",
+    "_meta": {
+      "title": "🔤 CR Text"
+    }
+  },
+  "135": {
+    "inputs": {
+      "value": 1088
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Width"
+    }
+  },
+  "136": {
+    "inputs": {
+      "value": 704
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Height"
+    }
+  },
+  "137": {
+    "inputs": {
+      "value": [
+        "136",
+        0
+      ],
+      "format_string": "{:04d}"
+    },
+    "class_type": "JWIntegerToString",
+    "_meta": {
+      "title": "Integer to String"
+    }
+  },
+  "138": {
+    "inputs": {
+      "value": [
+        "135",
+        0
+      ],
+      "format_string": "{:04d}"
+    },
+    "class_type": "JWIntegerToString",
+    "_meta": {
+      "title": "Integer to String"
+    }
+  },
+  "139": {
+    "inputs": {
+      "value": "size: "
+    },
+    "class_type": "easy string",
+    "_meta": {
+      "title": "String"
+    }
+  },
+  "140": {
+    "inputs": {
+      "delimiter": "x",
+      "clean_whitespace": "true",
+      "text_a": [
+        "138",
+        0
+      ],
+      "text_b": [
+        "137",
+        0
+      ]
+    },
+    "class_type": "Text Concatenate",
+    "_meta": {
+      "title": "Text Concatenate"
+    }
+  },
+  "142": {
+    "inputs": {
+      "delimiter": "",
+      "clean_whitespace": "true",
+      "text_a": [
+        "139",
+        0
+      ],
+      "text_b": [
+        "140",
+        0
+      ]
+    },
+    "class_type": "Text Concatenate",
+    "_meta": {
+      "title": "Text Concatenate"
+    }
+  },
+  "143": {
+    "inputs": {
+      "string_a": [
+        "129",
+        0
+      ],
+      "string_b": [
+        "142",
+        0
+      ],
+      "delimiter": ""
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "Concatenate"
+    }
+  },
+  "144": {
+    "inputs": {
+      "text": "The total number of human figures must remain identical to the input image.\n\nKeep all characters visually identical to the input reference image.\n\n\nCharacters (match the provided reference character sheets exactly; preserve each character’s outfit color palette and materials; do not recolor or swap outfits):\n- mother：一位中年妇女，约30-40岁，穿着简单的乡村服装，如围裙和长裙，颜色可能为棕色或绿色。她有一头深色头发，可能束成发髻，面容关切、严肃。在场景中，她站在家门口或屋内，手持篮子递给小红帽。 \n- xiaohongmao：一个天真善良、受人喜爱的小女孩，因常戴红色小帽子而得名。她听从母亲的话去给生病的外婆送点心，但在森林中轻信了大灰狼的谎言，导致危险发生。故事结尾她吸取教训，承诺不再乱跑和与陌生人说话。 \n\nmother看着xiaohongmao，mother表情严肃，xiaohongmao点头答应size:1088x0704",
+      "anything": [
+        "143",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "Show Any"
+    }
+  },
+  "145": {
+    "inputs": {
+      "api_base": "zhenzhen",
+      "apikey": "sk-IgmimRlJY6yvka5S5nRM89gPYfYvUVu9En1FaGpFFAAHGJUy",
+      "custom_ip": ""
+    },
+    "class_type": "Comfly_api_set",
+    "_meta": {
+      "title": "Zhenzhen API Settings"
+    }
+  },
+  "146": {
+    "inputs": {
+      "anything": [
+        "126",
+        1
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "Show Any"
+    }
+  },
+  "147": {
+    "inputs": {
+      "anything": [
+        "142",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "Show Any"
+    }
+  }
+}

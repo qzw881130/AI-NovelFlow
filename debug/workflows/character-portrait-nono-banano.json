@@ -1,0 +1,554 @@
+{
+  "id": "2b675ce8-d093-4d4b-97d3-ad75cbf3be63",
+  "revision": 0,
+  "last_node_id": 29,
+  "last_link_id": 29,
+  "nodes": [
+    {
+      "id": 23,
+      "type": "PrimitiveString",
+      "pos": [
+        804.1212683782786,
+        321.38687517445294
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            23
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.12.3",
+        "Node name for S&R": "PrimitiveString",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "尺寸:1088x1920"
+      ]
+    },
+    {
+      "id": 26,
+      "type": "CR Text",
+      "pos": [
+        713.6470920205414,
+        -38.44766839915714
+      ],
+      "size": [
+        418.6966141949506,
+        271.75507114496236
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "*",
+          "links": [
+            26
+          ]
+        },
+        {
+          "name": "show_help",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_Comfyroll_CustomNodes",
+        "ver": "d78b780ae43fcf8c6b7c6505e6ffb4584281ceca",
+        "Node name for S&R": "CR Text",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "character portrait, 3D Pixar-style animated film, stylized 3D character, soft global illumination, subsurface scattering, highly detailed fur texture, cinematic lighting, soft rim light, 体型高大强壮，皮毛粗糙呈灰色或褐色，牛角弯曲，眼睛大而温和，四肢粗壮，小腿肚明显，吃草时姿态悠闲，整体给人一种沉稳可靠的感觉。, 一头悠闲的老牛，经验丰富，对小马友善，但基于自身高大的体型给出建议。, single character, centered, symmetrical composition, clean studio background, professional character design sheet, sharp focus, ultra high resolution, 8k, anthropomorphic animal character, fully animal anatomy, no humans, no human skin, no human ears\n\n"
+      ]
+    },
+    {
+      "id": 24,
+      "type": "StringConcatenate",
+      "pos": [
+        1206.8591264513288,
+        -24.266342167237497
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "string_a",
+          "type": "STRING",
+          "widget": {
+            "name": "string_a"
+          },
+          "link": 26
+        },
+        {
+          "name": "string_b",
+          "type": "STRING",
+          "widget": {
+            "name": "string_b"
+          },
+          "link": 23
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            24,
+            29
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.12.3",
+        "Node name for S&R": "StringConcatenate",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 27,
+      "type": "Comfly_api_set",
+      "pos": [
+        1226.5736183537356,
+        261.28101696309227
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "apikey",
+          "type": "STRING",
+          "links": [
+            27
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "zhenzhen",
+        "ver": "7d503ff49cca6ee673c77f97d70ed2109db79867",
+        "Node name for S&R": "Comfly_api_set",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "zhenzhen",
+        "sk-IgmimRlJY6yvka5S5nRM89gPYfYvUVu9En1FaGpFFAAHGJUy",
+        ""
+      ]
+    },
+    {
+      "id": 11,
+      "type": "Comfly_nano_banana",
+      "pos": [
+        1681.0616227803823,
+        -35.36166342323133
+      ],
+      "size": [
+        400,
+        316
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "image2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "image3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "image4",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 24
+        },
+        {
+          "name": "apikey",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "apikey"
+          },
+          "link": 27
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            14
+          ]
+        },
+        {
+          "name": "response",
+          "type": "STRING",
+          "links": [
+            28
+          ]
+        },
+        {
+          "name": "image_url",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "zhenzhen",
+        "ver": "7d503ff49cca6ee673c77f97d70ed2109db79867",
+        "Node name for S&R": "Comfly_nano_banana",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "text": true
+          },
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "",
+        "gemini-3-pro-image-preview",
+        1,
+        0.95,
+        "aaaa",
+        717414513,
+        "randomize",
+        32768
+      ]
+    },
+    {
+      "id": 8,
+      "type": "SaveImage",
+      "pos": [
+        2187.7291281368916,
+        -73.17578728638621
+      ],
+      "size": [
+        480.7369741584023,
+        387.06283615688153
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 14
+        },
+        {
+          "label": "filename_prefix",
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "image_urls",
+          "name": "image_urls",
+          "type": "STRING"
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.8.2",
+        "Node name for S&R": "SaveImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.4.1"
+        },
+        "hasSecondTab": false,
+        "widget_ue_connectable": {
+          "filename_prefix": true
+        },
+        "secondTabText": "Send Back",
+        "enableTabs": false,
+        "secondTabOffset": 80,
+        "tabWidth": 65,
+        "secondTabWidth": 65,
+        "tabXOffset": 10
+      },
+      "widgets_values": [
+        "jpm/Han_Daoguo"
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 28,
+      "type": "easy showAnything",
+      "pos": [
+        2143.965069426956,
+        396.8227517564114
+      ],
+      "size": [
+        140,
+        26
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 28
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 29,
+      "type": "easy showAnything",
+      "pos": [
+        1745.5730256884337,
+        399.31978020296697
+      ],
+      "size": [
+        210,
+        88
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 29
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "character portrait, 3D Pixar-style animated film, stylized 3D character, soft global illumination, subsurface scattering, highly detailed fur texture, cinematic lighting, soft rim light, 体型高大强壮，皮毛粗糙呈灰色或褐色，牛角弯曲，眼睛大而温和，四肢粗壮，小腿肚明显，吃草时姿态悠闲，整体给人一种沉稳可靠的感觉。, 一头悠闲的老牛，经验丰富，对小马友善，但基于自身高大的体型给出建议。, single character, centered, symmetrical composition, clean studio background, professional character design sheet, sharp focus, ultra high resolution, 8k, anthropomorphic animal character, fully animal anatomy, no humans, no human skin, no human ears\n\n尺寸:1088x1920"
+      ]
+    }
+  ],
+  "links": [
+    [
+      14,
+      11,
+      0,
+      8,
+      0,
+      "IMAGE"
+    ],
+    [
+      23,
+      23,
+      0,
+      24,
+      1,
+      "STRING"
+    ],
+    [
+      24,
+      24,
+      0,
+      11,
+      4,
+      "STRING"
+    ],
+    [
+      26,
+      26,
+      0,
+      24,
+      0,
+      "STRING"
+    ],
+    [
+      27,
+      27,
+      0,
+      11,
+      5,
+      "STRING"
+    ],
+    [
+      28,
+      11,
+      1,
+      28,
+      0,
+      "STRING"
+    ],
+    [
+      29,
+      24,
+      0,
+      29,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "文生图",
+      "bounding": [
+        312.5539678916834,
+        -130.8126000979029,
+        3012.7088082131395,
+        922.5729149817682
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "https://github.com/T8mars/Comfyui-zhenzhen?tab=readme-ov-file",
+      "bounding": [
+        610.1143771570163,
+        -619.3274511017084,
+        1774.0678605882354,
+        246.10821690599562
+      ],
+      "color": "#3f789e",
+      "font_size": 44,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "白图问题: https://www.bilibili.com/video/BV1H3UuB2EJ3/?vd_source=1437f0213c8d258d18e9909377d3da04",
+      "bounding": [
+        629.7965549898172,
+        -539.9184479975007,
+        1230.493757387645,
+        80
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "workflowRendererVersion": "LG",
+    "ue_links": [],
+    "ds": {
+      "scale": 0.7754512154185901,
+      "offset": [
+        -149.1177662142645,
+        788.4661297281729
+      ]
+    },
+    "links_added_by_ue": [],
+    "frontendVersion": "1.37.11",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

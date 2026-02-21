@@ -1,0 +1,1124 @@
+{
+  "id": "9c5cb087-dad7-4706-a827-d5d369bd0aab",
+  "revision": 0,
+  "last_node_id": 147,
+  "last_link_id": 240,
+  "nodes": [
+    {
+      "id": 76,
+      "type": "LoadImage",
+      "pos": [
+        -586.0540089362462,
+        -240.27499239765933
+      ],
+      "size": [
+        430.3860168457031,
+        678.895263671875
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "image",
+          "name": "image",
+          "type": "COMBO",
+          "widget": {
+            "name": "image"
+          }
+        },
+        {
+          "label": "upload",
+          "name": "upload",
+          "type": "IMAGEUPLOAD",
+          "widget": {
+            "name": "upload"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "label": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            196
+          ]
+        },
+        {
+          "label": "MASK",
+          "name": "MASK",
+          "type": "MASK"
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.8.2",
+        "Node name for S&R": "LoadImage",
+        "hasSecondTab": false,
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.4.1"
+        },
+        "widget_ue_connectable": {
+          "image": true,
+          "upload": true
+        },
+        "secondTabText": "Send Back",
+        "enableTabs": false,
+        "secondTabOffset": 80,
+        "tabWidth": 65,
+        "secondTabWidth": 65,
+        "tabXOffset": 10,
+        "image": "clipspace/clipspace-painted-masked-1770651812027.png [input]"
+      },
+      "widgets_values": [
+        "ComfyUI_temp_unbkt_00001_.png",
+        "image"
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 9,
+      "type": "SaveImage",
+      "pos": [
+        1608.451184378107,
+        -61.12389502216707
+      ],
+      "size": [
+        480.7369741584023,
+        387.06283615688153
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 218
+        },
+        {
+          "label": "filename_prefix",
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "label": "image_urls",
+          "name": "image_urls",
+          "type": "STRING"
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.8.2",
+        "Node name for S&R": "SaveImage",
+        "hasSecondTab": false,
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.4.1"
+        },
+        "widget_ue_connectable": {
+          "filename_prefix": true
+        },
+        "secondTabText": "Send Back",
+        "enableTabs": false,
+        "secondTabOffset": 80,
+        "tabWidth": 65,
+        "secondTabWidth": 65,
+        "tabXOffset": 10
+      },
+      "widgets_values": [
+        "Flux2-Klein"
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 129,
+      "type": "CR Text",
+      "pos": [
+        -7.34163682793417,
+        173.20939583851813
+      ],
+      "size": [
+        554.6076845785044,
+        361.1352921335874
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "*",
+          "links": [
+            233
+          ]
+        },
+        {
+          "name": "show_help",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI_Comfyroll_CustomNodes",
+        "ver": "d78b780ae43fcf8c6b7c6505e6ffb4584281ceca",
+        "Node name for S&R": "CR Text",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "The total number of human figures must remain identical to the input image.\n\nKeep all characters visually identical to the input reference image.\n\n\nCharacters (match the provided reference character sheets exactly; preserve each character’s outfit color palette and materials; do not recolor or swap outfits):\n- mother：一位中年妇女，约30-40岁，穿着简单的乡村服装，如围裙和长裙，颜色可能为棕色或绿色。她有一头深色头发，可能束成发髻，面容关切、严肃。在场景中，她站在家门口或屋内，手持篮子递给小红帽。 \n- xiaohongmao：一个天真善良、受人喜爱的小女孩，因常戴红色小帽子而得名。她听从母亲的话去给生病的外婆送点心，但在森林中轻信了大灰狼的谎言，导致危险发生。故事结尾她吸取教训，承诺不再乱跑和与陌生人说话。 \n\nmother看着xiaohongmao，mother表情严肃，xiaohongmao点头答应"
+      ]
+    },
+    {
+      "id": 107,
+      "type": "ImageScaleToTotalPixels",
+      "pos": [
+        -6.636963597238122,
+        -92.70931992650083
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "image",
+          "name": "image",
+          "type": "IMAGE",
+          "link": 196
+        },
+        {
+          "label": "upscale_method",
+          "name": "upscale_method",
+          "type": "COMBO",
+          "widget": {
+            "name": "upscale_method"
+          }
+        },
+        {
+          "label": "megapixels",
+          "name": "megapixels",
+          "type": "FLOAT",
+          "widget": {
+            "name": "megapixels"
+          }
+        },
+        {
+          "label": "resolution_steps",
+          "name": "resolution_steps",
+          "type": "INT",
+          "widget": {
+            "name": "resolution_steps"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "label": "IMAGE",
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            237
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.8.2",
+        "Node name for S&R": "ImageScaleToTotalPixels",
+        "hasSecondTab": false,
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.4.1"
+        },
+        "widget_ue_connectable": {
+          "megapixels": true,
+          "resolution_steps": true,
+          "upscale_method": true
+        },
+        "secondTabText": "Send Back",
+        "enableTabs": false,
+        "secondTabOffset": 80,
+        "tabWidth": 65,
+        "secondTabWidth": 65,
+        "tabXOffset": 10
+      },
+      "widgets_values": [
+        "bicubic",
+        1,
+        1
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 143,
+      "type": "StringConcatenate",
+      "pos": [
+        646.2671926050713,
+        459.6880631785538
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "string_a",
+          "type": "STRING",
+          "widget": {
+            "name": "string_a"
+          },
+          "link": 233
+        },
+        {
+          "name": "string_b",
+          "type": "STRING",
+          "widget": {
+            "name": "string_b"
+          },
+          "link": 234
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            235
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.12.3",
+        "Node name for S&R": "StringConcatenate",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 138,
+      "type": "JWIntegerToString",
+      "pos": [
+        -479.2349297722461,
+        593.1528361680446
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "value",
+          "type": "INT",
+          "widget": {
+            "name": "value"
+          },
+          "link": 227
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            228
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-various",
+        "ver": "5bd85aaf7616878471469c4ec7e11bbd0cef3bf2",
+        "Node name for S&R": "JWIntegerToString",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        0,
+        "{:04d}"
+      ]
+    },
+    {
+      "id": 135,
+      "type": "easy int",
+      "pos": [
+        -820.4385134011115,
+        604.3533702715976
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "int",
+          "type": "INT",
+          "links": [
+            227
+          ]
+        }
+      ],
+      "title": "Width",
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy int",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        1088
+      ]
+    },
+    {
+      "id": 139,
+      "type": "easy string",
+      "pos": [
+        -117.07411422782857,
+        614.3023801951251
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "string",
+          "type": "STRING",
+          "links": [
+            231
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy string",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "size: "
+      ]
+    },
+    {
+      "id": 140,
+      "type": "Text Concatenate",
+      "pos": [
+        -118.78451406130446,
+        761.1607052923829
+      ],
+      "size": [
+        270,
+        142
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text_a",
+          "shape": 7,
+          "type": "STRING",
+          "link": 228
+        },
+        {
+          "name": "text_b",
+          "shape": 7,
+          "type": "STRING",
+          "link": 229
+        },
+        {
+          "name": "text_c",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "text_d",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            232
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "was-ns",
+        "ver": "3.0.1",
+        "Node name for S&R": "Text Concatenate",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "x",
+        "true"
+      ]
+    },
+    {
+      "id": 145,
+      "type": "Comfly_api_set",
+      "pos": [
+        392.4075244056976,
+        -235.76201620787518
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "apikey",
+          "type": "STRING",
+          "links": [
+            238
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "zhenzhen",
+        "ver": "7d503ff49cca6ee673c77f97d70ed2109db79867",
+        "Node name for S&R": "Comfly_api_set",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "zhenzhen",
+        "sk-IgmimRlJY6yvka5S5nRM89gPYfYvUVu9En1FaGpFFAAHGJUy",
+        ""
+      ]
+    },
+    {
+      "id": 126,
+      "type": "Comfly_nano_banana",
+      "pos": [
+        988.9751426631647,
+        -41.5448386874623
+      ],
+      "size": [
+        400,
+        316
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 237
+        },
+        {
+          "name": "image2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "image3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "image4",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 236
+        },
+        {
+          "name": "apikey",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "apikey"
+          },
+          "link": 238
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            218
+          ]
+        },
+        {
+          "name": "response",
+          "type": "STRING",
+          "links": [
+            239
+          ]
+        },
+        {
+          "name": "image_url",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "zhenzhen",
+        "ver": "7d503ff49cca6ee673c77f97d70ed2109db79867",
+        "Node name for S&R": "Comfly_nano_banana",
+        "ue_properties": {
+          "widget_ue_connectable": {
+            "text": true
+          },
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "",
+        "gemini-3-pro-image-preview",
+        1,
+        0.95,
+        "aaaa",
+        135410656,
+        "randomize",
+        32768
+      ]
+    },
+    {
+      "id": 144,
+      "type": "easy showAnything",
+      "pos": [
+        629.8298436269808,
+        90.43510806815368
+      ],
+      "size": [
+        297.33866208047334,
+        268.4656589244797
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 235
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": [
+            236
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "The total number of human figures must remain identical to the input image.\n\nKeep all characters visually identical to the input reference image.\n\n\nCharacters (match the provided reference character sheets exactly; preserve each character’s outfit color palette and materials; do not recolor or swap outfits):\n- mother：一位中年妇女，约30-40岁，穿着简单的乡村服装，如围裙和长裙，颜色可能为棕色或绿色。她有一头深色头发，可能束成发髻，面容关切、严肃。在场景中，她站在家门口或屋内，手持篮子递给小红帽。 \n- xiaohongmao：一个天真善良、受人喜爱的小女孩，因常戴红色小帽子而得名。她听从母亲的话去给生病的外婆送点心，但在森林中轻信了大灰狼的谎言，导致危险发生。故事结尾她吸取教训，承诺不再乱跑和与陌生人说话。 \n\nmother看着xiaohongmao，mother表情严肃，xiaohongmao点头答应size:1088x0704"
+      ]
+    },
+    {
+      "id": 146,
+      "type": "easy showAnything",
+      "pos": [
+        1537.2660440209904,
+        537.6853063057866
+      ],
+      "size": [
+        140,
+        26
+      ],
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 239
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 136,
+      "type": "easy int",
+      "pos": [
+        -824.1165356678216,
+        744.1912511977375
+      ],
+      "size": [
+        270,
+        108
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "int",
+          "type": "INT",
+          "links": [
+            226
+          ]
+        }
+      ],
+      "title": "Height",
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy int",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        704
+      ]
+    },
+    {
+      "id": 137,
+      "type": "JWIntegerToString",
+      "pos": [
+        -467.0519839639081,
+        767.4989531474066
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "value",
+          "type": "INT",
+          "widget": {
+            "name": "value"
+          },
+          "link": 226
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            229
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-various",
+        "ver": "5bd85aaf7616878471469c4ec7e11bbd0cef3bf2",
+        "Node name for S&R": "JWIntegerToString",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        0,
+        "{:04d}"
+      ]
+    },
+    {
+      "id": 142,
+      "type": "Text Concatenate",
+      "pos": [
+        221.49184769096567,
+        675.7460907954077
+      ],
+      "size": [
+        270,
+        142
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text_a",
+          "shape": 7,
+          "type": "STRING",
+          "link": 231
+        },
+        {
+          "name": "text_b",
+          "shape": 7,
+          "type": "STRING",
+          "link": 232
+        },
+        {
+          "name": "text_c",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "text_d",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            234,
+            240
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "was-ns",
+        "ver": "3.0.1",
+        "Node name for S&R": "Text Concatenate",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "",
+        "true"
+      ]
+    },
+    {
+      "id": 147,
+      "type": "easy showAnything",
+      "pos": [
+        624.6966639870054,
+        779.5293191142648
+      ],
+      "size": [
+        140,
+        26
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 240
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": []
+    }
+  ],
+  "links": [
+    [
+      196,
+      76,
+      0,
+      107,
+      0,
+      "IMAGE"
+    ],
+    [
+      218,
+      126,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      226,
+      136,
+      0,
+      137,
+      0,
+      "INT"
+    ],
+    [
+      227,
+      135,
+      0,
+      138,
+      0,
+      "INT"
+    ],
+    [
+      228,
+      138,
+      0,
+      140,
+      0,
+      "STRING"
+    ],
+    [
+      229,
+      137,
+      0,
+      140,
+      1,
+      "STRING"
+    ],
+    [
+      231,
+      139,
+      0,
+      142,
+      0,
+      "STRING"
+    ],
+    [
+      232,
+      140,
+      0,
+      142,
+      1,
+      "STRING"
+    ],
+    [
+      233,
+      129,
+      0,
+      143,
+      0,
+      "STRING"
+    ],
+    [
+      234,
+      142,
+      0,
+      143,
+      1,
+      "STRING"
+    ],
+    [
+      235,
+      143,
+      0,
+      144,
+      0,
+      "STRING"
+    ],
+    [
+      236,
+      144,
+      0,
+      126,
+      4,
+      "STRING"
+    ],
+    [
+      237,
+      107,
+      0,
+      126,
+      0,
+      "IMAGE"
+    ],
+    [
+      238,
+      145,
+      0,
+      126,
+      5,
+      "STRING"
+    ],
+    [
+      239,
+      126,
+      1,
+      146,
+      0,
+      "STRING"
+    ],
+    [
+      240,
+      142,
+      0,
+      147,
+      0,
+      "STRING"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "https://github.com/T8mars/Comfyui-zhenzhen?tab=readme-ov-file",
+      "bounding": [
+        -485.8378860885498,
+        -748.8099016402471,
+        1774.0678605882354,
+        246.10821690599562
+      ],
+      "color": "#3f789e",
+      "font_size": 44,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "白图问题: https://www.bilibili.com/video/BV1H3UuB2EJ3/?vd_source=1437f0213c8d258d18e9909377d3da04",
+      "bounding": [
+        -466.1557082557489,
+        -669.4008985360393,
+        1230.493757387645,
+        80
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "VHS_KeepIntermediate": true,
+    "links_added_by_ue": [],
+    "VHS_MetadataImage": true,
+    "ue_links": [],
+    "0246.VERSION": [
+      0,
+      0,
+      4
+    ],
+    "workflowRendererVersion": "LG",
+    "VHS_latentpreviewrate": 0,
+    "frontendVersion": "1.37.11",
+    "VHS_latentpreview": false,
+    "ds": {
+      "scale": 0.6373599281806951,
+      "offset": [
+        1314.5371251631755,
+        1159.2983786877512
+      ]
+    }
+  },
+  "version": 0.4
+}
