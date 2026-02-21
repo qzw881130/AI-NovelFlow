@@ -585,6 +585,7 @@ export default {
     chapterContentPlaceholder: '請輸入章節內容',
     generatedResources: '已產生資源',
     characterImages: '角色圖片',
+    characterImagesLabel: '角色圖片',
     characterImageAlt: '角色圖片 {index}',
     shotImages: '分鏡圖片',
     shotImageAlt: '分鏡圖片 {index}',

@@ -818,6 +818,7 @@ export default {
     // 素材ダウンロード
     chapterMaterials: '章素材',
     downloadMaterialsDesc: 'この章の全素材をダウンロード：',
+    characterImages: 'キャラクター画像',
     characterImagesLabel: 'キャラクター画像',
     mergedCharacterImage: '統合キャラクター画像',
     shotImages: 'ショット画像',

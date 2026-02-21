@@ -241,36 +241,7 @@ npm run dev
 
 ---
 
-### 3. 生产环境部署
-
-#### 后端生产部署
-
-```bash
-cd backend
-source venv/bin/activate  # Windows: venv\Scripts\activate
-
-# 使用 gunicorn 部署（Linux/macOS）
-gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:8000
-
-# 或使用 uvicorn 直接部署
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 4
-```
-
-#### 前端生产构建
-
-```bash
-cd frontend/my-app
-
-# 构建生产版本
-npm run build
-
-# 使用 serve 部署（需要先安装：npm install -g serve）
-serve -s dist -l 5173
-```
-
----
-
-### 4. Docker 部署（可选）
+### 3. Docker 部署（可选）
 
 ```bash
 # 构建镜像
@@ -282,7 +253,7 @@ docker run -p 8000:8000 -p 5173:5173 ai-novelflow
 
 ---
 
-### 5. 更新升级
+### 4. 更新升级
 
 #### 后端更新
 

@@ -821,6 +821,7 @@ export default {
     // Download Materials
     chapterMaterials: 'Chapter Materials',
     downloadMaterialsDesc: 'Download all materials for this chapter:',
+    characterImages: 'Character Images',
     characterImagesLabel: 'Character Images',
     mergedCharacterImage: 'Merged Character Image',
     shotImages: 'Shot Images',
