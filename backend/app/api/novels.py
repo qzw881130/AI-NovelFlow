@@ -1,6 +1,7 @@
 import json
 import asyncio
 import httpx
+import os
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
@@ -847,21 +848,32 @@ async def generate_shot_task(
             
             # 获取角色图片路径
             character_images = []
+            print(f"[ShotTask {task_id}] Looking for {len(shot_characters)} characters: {shot_characters}")
             for char_name in shot_characters:
                 character = db.query(Character).filter(
                     Character.novel_id == novel_id,
                     Character.name == char_name
                 ).first()
+                print(f"[ShotTask {task_id}] Character '{char_name}': found={character is not None}, has_image={character.image_url if character else None}")
                 if character and character.image_url:
                     # 从 URL 提取本地路径
                     char_path = character.image_url.replace("/api/files/", "")
+                    # 处理已存储的错误格式（可能是反斜杠开头）
+                    char_path = char_path.lstrip("\\/")
+                    # 统一转换为正斜杠后分割
+                    char_path = char_path.replace("\\", "/")
+                    # 转换为系统路径格式
+                    char_path_parts = char_path.split("/")
                     # 转换为绝对路径
-                    full_path = os.path.join(os.path.dirname(__file__), "..", "..", "user_story", char_path)
+                    full_path = os.path.join(os.path.dirname(__file__), "..", "..", "user_story", *char_path_parts)
                     full_path = os.path.abspath(full_path)
-                    if os.path.exists(full_path):
+                    exists = os.path.exists(full_path)
+                    print(f"[ShotTask {task_id}] Character '{char_name}': path={full_path}, exists={exists}")
+                    if exists:
                         character_images.append((char_name, full_path))
                         print(f"[ShotTask {task_id}] Found character image: {char_name} -> {full_path}")
             
+            print(f"[ShotTask {task_id}] Total character images found: {len(character_images)}")
             if character_images:
                 # 创建合并图片目录 (chapter_{chapter_id}/merged_characters/)
                 # 先删除旧的合并角色图（避免使用旧文件）
@@ -1002,7 +1014,8 @@ async def generate_shot_task(
                     character_reference_path = str(merged_path)
                     
                     # 构建合并角色图的 URL 并保存到 parsed_data
-                    merged_relative_path = str(merged_path).replace(str(file_storage.base_dir), "")
+                    # 在 Windows 上，将反斜杠替换为正斜杠以构建 URL
+                    merged_relative_path = str(merged_path).replace(str(file_storage.base_dir), "").replace("\\", "/")
                     merged_url = f"/api/files/{merged_relative_path.lstrip('/')}"
                     
                     # 更新 parsed_data 中的合并角色图 URL
@@ -1129,7 +1142,7 @@ async def generate_shot_task(
             
             if local_path:
                 # 构建本地可访问的URL
-                relative_path = local_path.replace(str(file_storage.base_dir), "")
+                relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
                 local_url = f"/api/files/{relative_path.lstrip('/')}"
                 
                 # 更新任务状态
@@ -1454,7 +1467,13 @@ async def generate_shot_video_task(
         if shot_image_url:
             # 从 URL 提取本地路径
             char_path = shot_image_url.replace("/api/files/", "")
-            full_path = os.path.join(os.path.dirname(__file__), "..", "..", "user_story", char_path)
+            # 处理已存储的错误格式（可能是反斜杠开头）
+            char_path = char_path.lstrip("\\/")
+            # 统一转换为正斜杠后分割
+            char_path = char_path.replace("\\", "/")
+            # 转换为系统路径格式
+            char_path_parts = char_path.split("/")
+            full_path = os.path.join(os.path.dirname(__file__), "..", "..", "user_story", *char_path_parts)
             full_path = os.path.abspath(full_path)
             if os.path.exists(full_path):
                 character_reference_path = full_path
@@ -1512,7 +1531,7 @@ async def generate_shot_video_task(
             
             if local_path:
                 # 构建本地可访问的URL
-                relative_path = local_path.replace(str(file_storage.base_dir), "")
+                relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
                 local_url = f"/api/files/{relative_path.lstrip('/')}"
                 
                 # 更新章节的视频列表
@@ -1860,11 +1879,23 @@ async def generate_transition_video_task(
         
         if first_video_url.startswith("/api/files/"):
             relative_path = first_video_url.replace("/api/files/", "")
-            first_video_path = os.path.join(str(file_storage.base_dir), relative_path)
+            # 处理已存储的错误格式（可能是反斜杠开头）
+            relative_path = relative_path.lstrip("\\/")
+            # 统一转换为正斜杠后分割
+            relative_path = relative_path.replace("\\", "/")
+            # 转换为系统路径格式
+            path_parts = relative_path.split("/")
+            first_video_path = os.path.join(str(file_storage.base_dir), *path_parts)
         
         if second_video_url.startswith("/api/files/"):
             relative_path = second_video_url.replace("/api/files/", "")
-            second_video_path = os.path.join(str(file_storage.base_dir), relative_path)
+            # 处理已存储的错误格式（可能是反斜杠开头）
+            relative_path = relative_path.lstrip("\\/")
+            # 统一转换为正斜杠后分割
+            relative_path = relative_path.replace("\\", "/")
+            # 转换为系统路径格式
+            path_parts = relative_path.split("/")
+            second_video_path = os.path.join(str(file_storage.base_dir), *path_parts)
         
         if not first_video_path or not second_video_path:
             raise Exception("无法解析视频路径")
@@ -1957,7 +1988,7 @@ async def generate_transition_video_task(
                     f.write(response.content)
             
             # 构建本地访问 URL
-            relative_path = str(transition_path).replace(str(file_storage.base_dir), "")
+            relative_path = str(transition_path).replace(str(file_storage.base_dir), "").replace("\\", "/")
             local_url = f"/api/files/{relative_path.lstrip('/')}"
             
             # 更新章节的转场视频记录
@@ -2091,9 +2122,15 @@ async def merge_chapter_videos(
     for video_url in shot_videos:
         if video_url.startswith("/api/files/"):
             relative_path = video_url.replace("/api/files/", "")
-            full_path = file_storage.base_dir / relative_path
-            if full_path.exists():
-                video_paths.append(str(full_path))
+            # 处理已存储的错误格式（可能是反斜杠开头）
+            relative_path = relative_path.lstrip("\\/")
+            # 统一转换为正斜杠后分割
+            relative_path = relative_path.replace("\\", "/")
+            # 转换为系统路径格式
+            path_parts = relative_path.split("/")
+            full_path = os.path.join(str(file_storage.base_dir), *path_parts)
+            if os.path.exists(full_path):
+                video_paths.append(full_path)
     
     if len(video_paths) == 0:
         return {
@@ -2109,9 +2146,15 @@ async def merge_chapter_videos(
             trans_url = transition_videos.get(key)
             if trans_url and trans_url.startswith("/api/files/"):
                 relative_path = trans_url.replace("/api/files/", "")
-                full_path = file_storage.base_dir / relative_path
-                if full_path.exists():
-                    trans_paths.append(str(full_path))
+                # 处理已存储的错误格式（可能是反斜杠开头）
+                relative_path = relative_path.lstrip("\\/")
+                # 统一转换为正斜杠后分割
+                relative_path = relative_path.replace("\\", "/")
+                # 转换为系统路径格式
+                path_parts = relative_path.split("/")
+                full_path = os.path.join(str(file_storage.base_dir), *path_parts)
+                if os.path.exists(full_path):
+                    trans_paths.append(full_path)
                 else:
                     trans_paths.append(None)
             else:
@@ -2132,7 +2175,7 @@ async def merge_chapter_videos(
     
     if result.get("success"):
         # 构建访问 URL
-        relative_path = output_path.replace(str(file_storage.base_dir), "")
+        relative_path = output_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
         video_url = f"/api/files/{relative_path.lstrip('/')}"
         
         return {

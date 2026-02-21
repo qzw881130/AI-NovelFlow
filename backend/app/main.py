@@ -61,9 +61,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_origin_regex=allow_origin_regex,
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition", "X-Request-ID"],
+    max_age=86400,  # 预检请求缓存 24 小时
 )
 
 # Routers

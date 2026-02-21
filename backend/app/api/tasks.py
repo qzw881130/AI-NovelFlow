@@ -606,7 +606,7 @@ async def generate_portrait_task(
                 
                 if local_path:
                     # 构建本地可访问的URL (通过静态文件服务)
-                    relative_path = local_path.replace(str(file_storage.base_dir), "")
+                    relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
                     local_url = f"/api/files/{relative_path.lstrip('/')}"
                     task.result_url = local_url
                     task.current_step = "生成完成，图片已保存"

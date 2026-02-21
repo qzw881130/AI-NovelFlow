@@ -1,14 +1,28 @@
 """
 文件服务 API - 提供用户故事资源的访问
 """
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse, Response
 from pathlib import Path
 import mimetypes
 
 from app.services.file_storage import file_storage
 
 router = APIRouter()
+
+
+@router.options("/{path:path}")
+async def options_file(request: Request, path: str):
+    """处理 CORS 预检请求"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "86400",
+        }
+    )
 
 
 @router.get("/{path:path}")
