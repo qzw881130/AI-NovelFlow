@@ -238,6 +238,8 @@ export default function Settings() {
     llmModel: config.llmModel || 'deepseek-chat',
     llmApiKey: config.llmApiKey || '',
     llmApiUrl: config.llmApiUrl || 'https://api.deepseek.com',
+    llmMaxTokens: config.llmMaxTokens,
+    llmTemperature: config.llmTemperature,
     proxy: config.proxy || { enabled: false, httpProxy: '', httpsProxy: '' },
     comfyUIHost: config.comfyUIHost || 'http://localhost:8188',
   });
@@ -322,6 +324,8 @@ export default function Settings() {
           llmModel: backendConfig.llmModel || 'deepseek-chat',
           llmApiKey: backendConfig.llmApiKey || '',
           llmApiUrl: backendConfig.llmApiUrl || 'https://api.deepseek.com',
+          llmMaxTokens: backendConfig.llmMaxTokens,
+          llmTemperature: backendConfig.llmTemperature,
           proxy: backendConfig.proxy || { enabled: false, httpProxy: '', httpsProxy: '' },
           comfyUIHost: backendConfig.comfyUIHost || 'http://localhost:8188',
         });
@@ -374,6 +378,8 @@ export default function Settings() {
             model: formData.llmModel,
             apiKey: formData.llmApiKey,
             apiUrl: formData.llmApiUrl,
+            maxTokens: formData.llmMaxTokens,
+            temperature: formData.llmTemperature,
           },
           proxy: formData.proxy,
           comfyUIHost: formData.comfyUIHost,
@@ -1088,6 +1094,52 @@ export default function Settings() {
                 {customModelsError && (
                   <p className="mt-1 text-xs text-red-600">{customModelsError}</p>
                 )}
+              </div>
+
+              {/* 最大Token数配置 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('systemSettings.maxTokens')}
+                </label>
+                <input
+                  type="number"
+                  value={formData.llmMaxTokens || ''}
+                  onChange={(e) => {
+                    isUserModifiedRef.current = true;
+                    const value = e.target.value ? parseInt(e.target.value) : undefined;
+                    setFormData({ ...formData, llmMaxTokens: value });
+                  }}
+                  className="input-field"
+                  placeholder="4000"
+                  min="1"
+                  max="128000"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  {t('systemSettings.maxTokensDesc')}
+                </p>
+              </div>
+
+              {/* Temperature配置 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  {t('systemSettings.temperature')}
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={formData.llmTemperature || ''}
+                  onChange={(e) => {
+                    isUserModifiedRef.current = true;
+                    setFormData({ ...formData, llmTemperature: e.target.value });
+                  }}
+                  className="input-field"
+                  placeholder="0.7"
+                  min="0"
+                  max="2"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  {t('systemSettings.temperatureDesc')}
+                </p>
               </div>
             </div>
           )}

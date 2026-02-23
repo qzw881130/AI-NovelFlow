@@ -64,6 +64,8 @@ class LLMService:
         self.model = current_settings.LLM_MODEL
         self.api_url = current_settings.LLM_API_URL
         self.api_key = current_settings.LLM_API_KEY
+        self.max_tokens = getattr(current_settings, 'LLM_MAX_TOKENS', None)  # 从配置中获取max_tokens
+        self.temperature = getattr(current_settings, 'LLM_TEMPERATURE', None)  # 从配置中获取temperature
         
         # 代理配置
         self.proxy_enabled = current_settings.PROXY_ENABLED
@@ -75,6 +77,17 @@ class LLMService:
             self.api_key = current_settings.DEEPSEEK_API_KEY
             self.api_url = current_settings.DEEPSEEK_API_URL
             self.provider = "deepseek"
+        
+        # 初始化API Key轮询机制
+        self.api_keys = []
+        if self.api_key:
+            # 支持多API Key，逗号分隔
+            self.api_keys = [key.strip() for key in self.api_key.split(',') if key.strip()]
+        else:
+            self.api_keys = []
+        
+        # 当前使用的API Key索引
+        self.current_key_index = 0
     
     def _get_proxy_config(self) -> Optional[str]:
         """获取代理配置 - 返回单个代理URL (httpx 0.20+ 使用 proxy 参数)"""
@@ -95,19 +108,35 @@ class LLMService:
             "Content-Type": "application/json"
         }
         
+        # 获取当前使用的API Key
+        current_api_key = self._get_current_api_key()
+        
         if self.provider == "anthropic":
-            headers["x-api-key"] = self.api_key
+            headers["x-api-key"] = current_api_key
             headers["anthropic-version"] = "2023-06-01"
         elif self.provider == "azure":
-            headers["api-key"] = self.api_key
+            headers["api-key"] = current_api_key
         elif self.provider == "ollama":
             # Ollama 通常不需要 API Key，但如果配置了也可以使用
-            if self.api_key:
-                headers["Authorization"] = f"Bearer {self.api_key}"
+            if current_api_key:
+                headers["Authorization"] = f"Bearer {current_api_key}"
         else:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+            headers["Authorization"] = f"Bearer {current_api_key}"
         
         return headers
+    
+    def _get_current_api_key(self) -> str:
+        """获取当前使用的API Key，支持轮询"""
+        if not self.api_keys:
+            return self.api_key or ""
+        
+        # 获取当前API Key
+        current_key = self.api_keys[self.current_key_index]
+        
+        # 更新索引，准备下次轮询
+        self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
+        
+        return current_key
     
     def _build_request_body(
         self,
@@ -236,7 +265,8 @@ class LLMService:
         
         if self.provider == "gemini":
             # Gemini 使用不同的 URL 格式
-            return f"{base}/models/{self.model}:generateContent?key={self.api_key}"
+            current_api_key = self._get_current_api_key()
+            return f"{base}/models/{self.model}:generateContent?key={current_api_key}"
         elif self.provider == "anthropic":
             return f"{base}/messages"
         elif self.provider == "azure":
@@ -268,17 +298,21 @@ class LLMService:
             }
         """
         # Ollama 通常不需要 API Key
-        if not self.api_key and self.provider != "ollama":
+        if not self.api_keys and self.provider != "ollama":
             return {"success": False, "error": "API Key 未配置", "content": ""}
+        
+        # 使用配置的参数，如果提供了则覆盖默认值
+        final_temperature = float(self.temperature) if self.temperature else temperature
+        final_max_tokens = self.max_tokens if self.max_tokens is not None else max_tokens
         
         endpoint = self._get_endpoint()
         headers = self._get_headers()
         body = self._build_request_body(
-            system_prompt, user_content, temperature, max_tokens, response_format
+            system_prompt, user_content, final_temperature, final_max_tokens, response_format
         )
         proxies = self._get_proxy_config()
         used_proxy = proxies is not None
-        
+        print(f"[chat_completion] 调用 API: {endpoint}，请求体: {body}，请求头: {headers}，代理: {proxies}")
         try:
             # Ollama 和自定义 API（通常是本地/内网服务）需要禁用环境变量代理
             import os

@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "deepseek-chat"
     LLM_API_URL: str = "https://api.deepseek.com"
     LLM_API_KEY: str = ""
+    LLM_MAX_TOKENS: Optional[int] = None  # 最大token数
+    LLM_TEMPERATURE: Optional[str] = None  # 温度参数
     
     # Proxy Configuration (代理配置)
     PROXY_ENABLED: bool = False
@@ -81,6 +83,10 @@ def reload_settings_from_db(db_config: dict) -> None:
     if db_config.get("llm_api_key"):
         _settings_instance.LLM_API_KEY = db_config["llm_api_key"]
         _settings_instance.DEEPSEEK_API_KEY = db_config["llm_api_key"]
+    if "llm_max_tokens" in db_config:
+        _settings_instance.LLM_MAX_TOKENS = db_config["llm_max_tokens"]
+    if "llm_temperature" in db_config:
+        _settings_instance.LLM_TEMPERATURE = db_config["llm_temperature"]
     
     if db_config.get("proxy_enabled") is not None:
         _settings_instance.PROXY_ENABLED = db_config["proxy_enabled"]

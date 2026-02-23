@@ -182,7 +182,7 @@ export default {
     llmProvider: 'LLM 공급자',
     selectProvider: '공급자 선택',
     apiKey: 'API 키',
-    enterApiKey: 'API 키 입력',
+    enterApiKey: 'API 키 입력 (여러 키를 쉼표로 구분하여 입력 가능, 시스템은 RPM 제한을 피하기 위해 순환 호출을 수행합니다)',
     apiKeyHelp: '{provider} 콘솔에서 API 키 가져오기',
     apiUrl: 'API URL',
     model: '모델',

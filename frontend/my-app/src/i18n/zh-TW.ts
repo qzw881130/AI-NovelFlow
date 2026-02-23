@@ -301,7 +301,7 @@ export default {
     llmProvider: 'LLM 廠商',
     selectProvider: '選擇廠商',
     apiKey: 'API 金鑰',
-    enterApiKey: '輸入 API 金鑰',
+    enterApiKey: '輸入 API 金鑰（支援多個Key，用逗號分隔，系統會輪詢調用以避免RPM限制）',
     apiKeyHelp: '在 {provider} 控制台獲取 API 金鑰',
     apiUrl: 'API 網址',
     model: '模型',
