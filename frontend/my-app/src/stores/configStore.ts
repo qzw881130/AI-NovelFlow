@@ -161,7 +161,7 @@ interface ConfigState extends SystemConfig {
   error: string | null;
   isLoaded: boolean;
   setConfig: (config: Partial<SystemConfig>) => void;
-  setLLMConfig: (provider: LLMProvider, model: string, apiKey: string, apiUrl: string) => void;
+  setLLMConfig: (provider: LLMProvider, model: string, apiKey: string, apiUrl: string, maxTokens?: number, temperature?: string) => void;
   setProxyConfig: (proxy: ProxyConfig) => void;
   getProviderPreset: () => LLMProviderPreset | undefined;
   getCurrentModel: () => LLMModel | undefined;

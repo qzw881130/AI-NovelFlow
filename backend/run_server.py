@@ -5,11 +5,10 @@ NovelFlow 直接启动脚本
 通过 Python 代码直接启动 FastAPI 应用，不使用命令行调用，方便开发和调试
 """
 
-import os
 import sys
-import asyncio
-import uvicorn
 from pathlib import Path
+
+import uvicorn
 
 # 添加项目根目录到 Python 路径
 project_root = Path(__file__).parent
