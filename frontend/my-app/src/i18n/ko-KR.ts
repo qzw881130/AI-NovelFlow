@@ -148,6 +148,15 @@ export default {
     chapters_one: '장',
     chapters_other: '장',
     noDescription: '설명 없음',
+    // AI 분석 확인 다이얼로그
+    parseConfirmMessage: 'AI가 소설 내용을 분석하고 자동으로 캐릭터 정보를 추출합니다. 계속하시겠습니까?',
+    parseConfirmHint: '힌트: 분석에는 10-30초가 걸릴 수 있습니다. 잠시 기다려 주세요.',
+    chapterRange: '장 범위 (선택사항)',
+    startChapter: '시작 장',
+    endChapter: '종료 장',
+    parseEntireNovel: '비워두면 소설 전체를 분석',
+    incrementalUpdate: '증분 업데이트 모드',
+    incrementalUpdateDesc: '활성화하면 빈 필드만 업데이트하고 기존 정보 유지',
     // Create/Edit Novel Modal
     createNovelTitle: '소설 생성',
     editNovelTitle: '소설 편집',
@@ -782,6 +791,14 @@ export default {
     editShot: '샷 편집',
     deleteShot: '샷 삭제',
     addShot: '샷 추가',
+    parseCharacters: '캐릭터 분석',
+    parseInProgress: '분석 중...',
+    parseComplete: '캐릭터 분석 완료',
+    parseResult: '{created}개 캐릭터 추가, {updated}개 업데이트',
+    viewCharacters: '캐릭터 보기',
+    chapterEmptyError: '장 내용이 비어 있어 캐릭터를 분석할 수 없습니다',
+    parseFailed: '분석 실패',
+    noNewCharacters: '새 캐릭터를 찾을 수 없습니다',
   },
 
   chapterGenerate: {

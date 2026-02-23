@@ -122,6 +122,15 @@ export default {
     updateSuccess: '小說更新成功',
     deleteSuccess: '小說刪除成功',
     parseSuccess: '解析成功',
+    // AI解析確認對話框
+    parseConfirmMessage: '將使用 AI 分析小說內容並自動提取角色資訊，是否繼續？',
+    parseConfirmHint: '提示：解析可能需要 10-30 秒，請耐心等待。',
+    chapterRange: '章節範圍（可選）',
+    startChapter: '起始章節',
+    endChapter: '結束章節',
+    parseEntireNovel: '留空表示解析整部小說',
+    incrementalUpdate: '增量更新模式',
+    incrementalUpdateDesc: '開啟後只更新空欄位，保留既有資訊',
   },
 
   novelDetail: {
@@ -603,6 +612,14 @@ export default {
     editShot: '編輯分鏡',
     deleteShot: '刪除分鏡',
     addShot: '新增分鏡',
+    parseCharacters: '解析角色',
+    parseInProgress: '解析中...',
+    parseComplete: '角色解析完成',
+    parseResult: '新增 {created} 個角色，更新 {updated} 個角色',
+    viewCharacters: '檢視角色',
+    chapterEmptyError: '章節內容為空，無法解析角色',
+    parseFailed: '解析失敗',
+    noNewCharacters: '未發現新角色',
   },
 
   http: {

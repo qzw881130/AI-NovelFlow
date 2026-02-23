@@ -148,6 +148,15 @@ export default {
     chapters_one: '章',
     chapters_other: '章',
     noDescription: '説明なし',
+    // AI解析確認ダイアログ
+    parseConfirmMessage: 'AIが小説の内容を分析し、自動的にキャラクター情報を抽出します。続けますか？',
+    parseConfirmHint: 'ヒント：解析には10-30秒かかる場合があります。しばらくお待ちください。',
+    chapterRange: '章範囲（任意）',
+    startChapter: '開始章',
+    endChapter: '終了章',
+    parseEntireNovel: '空白のままにしておくと小説全体を解析',
+    incrementalUpdate: '増分更新モード',
+    incrementalUpdateDesc: '有効にすると空フィールドのみを更新し、既存情報を保持',
     // Create/Edit Novel Modal
     createNovelTitle: '小説を作成',
     editNovelTitle: '小説を編集',
@@ -782,6 +791,14 @@ export default {
     editShot: 'ショットを編集',
     deleteShot: 'ショットを削除',
     addShot: 'ショットを追加',
+    parseCharacters: 'キャラクター解析',
+    parseInProgress: '解析中...',
+    parseComplete: 'キャラクター解析完了',
+    parseResult: '{created} 個のキャラクターを追加、{updated} 個を更新',
+    viewCharacters: 'キャラクターを見る',
+    chapterEmptyError: '章の内容が空で、キャラクターを解析できません',
+    parseFailed: '解析失敗',
+    noNewCharacters: '新しいキャラクターが見つかりません',
   },
 
   chapterGenerate: {

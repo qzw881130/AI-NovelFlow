@@ -127,7 +127,7 @@ export default function ChapterDetail() {
   // 单章节角色解析
   const handleParseCharacters = async () => {
     if (!content.trim()) {
-      toast.warning('章节内容为空，无法解析角色');
+      toast.warning(t('chapterDetail.chapterEmptyError'));
       return;
     }
     
@@ -152,24 +152,20 @@ export default function ChapterDetail() {
         
         let message = '';
         if (stats.created > 0) {
-          message += `新增 ${stats.created} 个角色`;
-        }
-        if (stats.updated > 0) {
-          if (message) message += '，';
-          message += `更新 ${stats.updated} 个角色`;
+          message += t('chapterDetail.parseResult', { created: stats.created, updated: stats.updated });
         }
         
         if (message) {
           toast.success(message);
         } else {
-          toast.info('未发现新角色');
+          toast.info(t('chapterDetail.noNewCharacters'));
         }
       } else {
-        toast.error('解析失败: ' + data.message);
+        toast.error(t('chapterDetail.parseFailed') + ': ' + data.message);
       }
     } catch (error) {
-      console.error('章节角色解析失败:', error);
-      toast.error('解析失败');
+      console.error(t('chapterDetail.parseFailed') + ':', error);
+      toast.error(t('chapterDetail.parseFailed'));
     } finally {
       setParsingChapter(false);
     }
@@ -315,7 +311,7 @@ export default function ChapterDetail() {
             ) : (
               <Sparkles className="h-4 w-4 mr-2" />
             )}
-            解析角色
+            {t('chapterDetail.parseCharacters')}
           </button>
           <button
             onClick={handleGenerate}
@@ -362,16 +358,16 @@ export default function ChapterDetail() {
               <Sparkles className="h-5 w-5 text-purple-600" />
             </div>
             <div>
-              <p className="font-medium text-purple-800">角色解析完成</p>
+              <p className="font-medium text-purple-800">{t('chapterDetail.parseComplete')}</p>
               <p className="text-sm text-purple-600">
-                新增 {parseResult.created} 个角色，更新 {parseResult.updated} 个角色
+                {t('chapterDetail.parseResult', { created: parseResult.created, updated: parseResult.updated })}
               </p>
             </div>
             <button
               onClick={() => navigate(`/characters?novel=${id}&highlight=new`)}
               className="ml-auto btn-primary bg-purple-600 hover:bg-purple-700 text-sm"
             >
-              查看角色
+              {t('chapterDetail.viewCharacters')}
             </button>
           </div>
         </div>

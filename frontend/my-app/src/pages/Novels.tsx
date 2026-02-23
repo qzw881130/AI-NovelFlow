@@ -169,17 +169,13 @@ export default function Novels() {
         
         let message = '';
         if (stats.created > 0) {
-          message += `新增 ${stats.created} 个角色`;
-        }
-        if (stats.updated > 0) {
-          if (message) message += '，';
-          message += `更新 ${stats.updated} 个角色`;
+          message += t('novels.parseResult', { created: stats.created, updated: stats.updated });
         }
         
         if (message) {
           toast.success(message);
         } else {
-          toast.warning(t('novels.noCharactersFound'));
+          toast.warning(t('novels.noNewCharacters'));
         }
         
         // 重置章节范围
@@ -194,7 +190,7 @@ export default function Novels() {
         toast.error(t('novels.parseError') + ': ' + data.message);
       }
     } catch (error) {
-      console.error('解析角色失败:', error);
+      console.error(t('novels.parseFailed') + ':', error);
       toast.error(t('novels.parseNetworkError'));
     } finally {
       setParsingNovelId(null);
@@ -633,14 +629,14 @@ export default function Novels() {
             <div className="mb-4 space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  章节范围（可选）
+                  {t('novels.chapterRange')}
                 </label>
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <input
                       type="number"
                       min="1"
-                      placeholder="起始章节"
+                      placeholder={t('novels.startChapter')}
                       value={chapterRange.startChapter || ''}
                       onChange={(e) => setChapterRange({
                         ...chapterRange,
@@ -654,7 +650,7 @@ export default function Novels() {
                     <input
                       type="number"
                       min="1"
-                      placeholder="结束章节"
+                      placeholder={t('novels.endChapter')}
                       value={chapterRange.endChapter || ''}
                       onChange={(e) => setChapterRange({
                         ...chapterRange,
@@ -665,7 +661,7 @@ export default function Novels() {
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">
-                  留空表示解析整部小说
+                  {t('novels.parseEntireNovel')}
                 </p>
               </div>
               
@@ -681,11 +677,11 @@ export default function Novels() {
                     className="rounded text-purple-600 focus:ring-purple-500"
                   />
                   <span className="text-sm text-gray-700">
-                    增量更新模式
+                    {t('novels.incrementalUpdate')}
                   </span>
                 </label>
                 <p className="text-xs text-gray-500 mt-1">
-                  开启后只更新空字段，保留已有信息
+                  {t('novels.incrementalUpdateDesc')}
                 </p>
               </div>
             </div>
@@ -708,7 +704,7 @@ export default function Novels() {
                 {parsingNovelId === confirmDialog.novelId ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    解析中...
+                    {t('novels.parseInProgress')}
                   </>
                 ) : (
                   <>
