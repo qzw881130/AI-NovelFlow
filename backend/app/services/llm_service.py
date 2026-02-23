@@ -413,8 +413,8 @@ class LLMService:
     
     # ============== 业务方法 ==============
     
-    async def parse_novel_text(self, text: str, novel_id: str = None) -> Dict[str, Any]:
-        """解析小说文本，提取角色、场景、分镜信息"""
+    async def parse_novel_text(self, text: str, novel_id: str = None, source_range: str = None) -> Dict[str, Any]:
+        """解析小说文本，提取角色、场景、分镜信息（支持章节范围）"""
         # 使用数据库中保存的提示词，如果没有则使用默认提示词
         default_prompt = """你是一个专业的小说解析助手。请分析我提供的小说文本，提取以下信息并以 JSON 格式返回：
 
@@ -422,6 +422,9 @@ class LLMService:
 - name（姓名）
 - description（描述）
 - appearance（外貌特征：必须是一段完整自然语言描述的"单段文字"，禁止使用结构化字段/键值对/列表/分段标题）
+
+【章节范围解析说明】
+本次解析的文本来自：{章节范围说明}。请注意提取的角色应该是在此范围内新出现或重点描写的角色。
 
 【角色命名唯一性与一致性（必须严格执行）】
 - 所有角色 name 必须在首次解析时确定为唯一标准名称，并在后续所有步骤中严格复用该名称。
@@ -483,6 +486,12 @@ class LLMService:
         from app.core.config import get_settings
         settings = get_settings()
         system_prompt = settings.PARSE_CHARACTERS_PROMPT or default_prompt
+        
+        # 替换章节范围占位符
+        if source_range:
+            system_prompt = system_prompt.replace("{章节范围说明}", source_range)
+        else:
+            system_prompt = system_prompt.replace("{章节范围说明}", "整部小说")
         
         result = await self.chat_completion(
             system_prompt=system_prompt,

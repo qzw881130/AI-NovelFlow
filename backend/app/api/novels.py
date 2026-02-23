@@ -236,25 +236,44 @@ async def parse_novel(novel_id: str, db: Session = Depends(get_db)):
 async def parse_characters(
     novel_id: str, 
     sync: bool = False,
+    start_chapter: int = None,
+    end_chapter: int = None,
+    is_incremental: bool = False,
     db: Session = Depends(get_db)
 ):
-    """解析小说内容，自动提取角色信息"""
+    """解析小说内容，自动提取角色信息（支持章节范围和增量更新）"""
     novel = db.query(Novel).filter(Novel.id == novel_id).first()
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
-    # 获取所有章节内容
-    chapters = db.query(Chapter).filter(Chapter.novel_id == novel_id).all()
+    # 构建查询条件
+    chapter_query = db.query(Chapter).filter(Chapter.novel_id == novel_id)
+    
+    # 如果指定了章节范围，添加过滤条件
+    if start_chapter is not None:
+        chapter_query = chapter_query.filter(Chapter.number >= start_chapter)
+    if end_chapter is not None:
+        chapter_query = chapter_query.filter(Chapter.number <= end_chapter)
+    
+    chapters = chapter_query.order_by(Chapter.number).all()
+    
     if not chapters:
-        return {"success": False, "message": "小说没有章节内容"}
+        return {"success": False, "message": "指定章节范围内没有内容"}
+    
+    # 构造章节范围描述
+    source_range = None
+    if start_chapter is not None or end_chapter is not None:
+        start_desc = f"第{start_chapter}章" if start_chapter is not None else "第1章"
+        end_desc = f"第{end_chapter}章" if end_chapter is not None else f"第{chapters[-1].number}章"
+        source_range = f"{start_desc}至{end_desc}"
     
     full_text = "\n\n".join([c.content for c in chapters if c.content])
     if not full_text.strip():
         return {"success": False, "message": "章节内容为空"}
     
     try:
-        # 调用 DeepSeek 解析文本提取角色
-        result = await get_llm_service().parse_novel_text(full_text)
+        # 调用 LLM 解析文本提取角色
+        result = await get_llm_service().parse_novel_text(full_text, novel_id=novel_id, source_range=source_range)
         
         if "error" in result:
             return {"success": False, "message": f"解析失败: {result['error']}"}
@@ -265,6 +284,8 @@ async def parse_characters(
         
         # 创建角色记录
         created_characters = []
+        updated_characters = []
+        
         for char_data in characters_data:
             name = char_data.get("name", "").strip()
             if not name:
@@ -277,10 +298,27 @@ async def parse_characters(
             ).first()
             
             if existing:
-                # 更新现有角色
-                existing.description = char_data.get("description", existing.description)
-                existing.appearance = char_data.get("appearance", existing.appearance)
-                created_characters.append(existing)
+                # 增量更新模式：保留原有信息，只更新新解析的信息
+                if is_incremental:
+                    # 只更新空字段或补充更多信息
+                    if not existing.description and char_data.get("description"):
+                        existing.description = char_data.get("description")
+                    if not existing.appearance and char_data.get("appearance"):
+                        existing.appearance = char_data.get("appearance")
+                    # 更新章节范围信息
+                    if source_range:
+                        if existing.source_range:
+                            existing.source_range += f", {source_range}"
+                        else:
+                            existing.source_range = source_range
+                else:
+                    # 全量更新模式：直接覆盖
+                    existing.description = char_data.get("description", existing.description)
+                    existing.appearance = char_data.get("appearance", existing.appearance)
+                    existing.source_range = source_range
+                
+                existing.last_parsed_at = datetime.utcnow()
+                updated_characters.append(existing)
             else:
                 # 创建新角色
                 character = Character(
@@ -288,6 +326,11 @@ async def parse_characters(
                     name=name,
                     description=char_data.get("description", ""),
                     appearance=char_data.get("appearance", ""),
+                    start_chapter=start_chapter,
+                    end_chapter=end_chapter,
+                    is_incremental=is_incremental,
+                    source_range=source_range,
+                    last_parsed_at=datetime.utcnow()
                 )
                 db.add(character)
                 created_characters.append(character)
@@ -295,8 +338,15 @@ async def parse_characters(
         db.commit()
         
         # 刷新对象以获取 ID
-        for char in created_characters:
+        for char in created_characters + updated_characters:
             db.refresh(char)
+        
+        # 构造响应消息
+        message_parts = []
+        if created_characters:
+            message_parts.append(f"新增 {len(created_characters)} 个角色")
+        if updated_characters:
+            message_parts.append(f"更新 {len(updated_characters)} 个角色")
         
         return {
             "success": True,
@@ -306,10 +356,153 @@ async def parse_characters(
                     "name": c.name,
                     "description": c.description,
                     "appearance": c.appearance,
+                    "startChapter": c.start_chapter,
+                    "endChapter": c.end_chapter,
+                    "isIncremental": c.is_incremental,
+                    "sourceRange": c.source_range,
+                    "lastParsedAt": c.last_parsed_at.isoformat() if c.last_parsed_at else None
                 }
-                for c in created_characters
+                for c in created_characters + updated_characters
             ],
-            "message": f"成功识别并创建 {len(created_characters)} 个角色"
+            "message": "，".join(message_parts) if message_parts else "未识别到角色",
+            "statistics": {
+                "created": len(created_characters),
+                "updated": len(updated_characters),
+                "total": len(created_characters) + len(updated_characters)
+            }
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "message": f"解析异常: {str(e)}"}
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/parse-characters/", response_model=dict)
+async def parse_chapter_characters(
+    novel_id: str,
+    chapter_id: str,
+    is_incremental: bool = True,  # 默认为增量更新
+    db: Session = Depends(get_db)
+):
+    """解析单章节内容，提取角色信息（支持增量更新）"""
+    # 验证小说和章节
+    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    
+    chapter = db.query(Chapter).filter(
+        Chapter.id == chapter_id,
+        Chapter.novel_id == novel_id
+    ).first()
+    
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    
+    if not chapter.content:
+        return {"success": False, "message": "章节内容为空"}
+    
+    try:
+        # 调用 LLM 解析文本提取角色
+        source_range = f"第{chapter.number}章"
+        result = await get_llm_service().parse_novel_text(chapter.content, novel_id=novel_id, source_range=source_range)
+        
+        if "error" in result:
+            return {"success": False, "message": f"解析失败: {result['error']}"}
+        
+        characters_data = result.get("characters", [])
+        if not characters_data:
+            return {"success": True, "data": [], "message": "未识别到角色"}
+        
+        # 创建角色记录
+        created_characters = []
+        updated_characters = []
+        
+        for char_data in characters_data:
+            name = char_data.get("name", "").strip()
+            if not name:
+                continue
+            
+            # 检查是否已存在
+            existing = db.query(Character).filter(
+                Character.novel_id == novel_id,
+                Character.name == name
+            ).first()
+            
+            source_range = f"第{chapter.number}章"
+            
+            if existing:
+                # 增量更新模式：保留原有信息，只更新新解析的信息
+                if is_incremental:
+                    # 只更新空字段或补充更多信息
+                    if not existing.description and char_data.get("description"):
+                        existing.description = char_data.get("description")
+                    if not existing.appearance and char_data.get("appearance"):
+                        existing.appearance = char_data.get("appearance")
+                    # 更新章节范围信息
+                    if existing.source_range:
+                        existing.source_range += f", {source_range}"
+                    else:
+                        existing.source_range = source_range
+                else:
+                    # 全量更新模式：直接覆盖
+                    existing.description = char_data.get("description", existing.description)
+                    existing.appearance = char_data.get("appearance", existing.appearance)
+                    existing.source_range = source_range
+                
+                existing.last_parsed_at = datetime.utcnow()
+                updated_characters.append(existing)
+            else:
+                # 创建新角色
+                character = Character(
+                    novel_id=novel_id,
+                    name=name,
+                    description=char_data.get("description", ""),
+                    appearance=char_data.get("appearance", ""),
+                    start_chapter=chapter.number,
+                    end_chapter=chapter.number,
+                    is_incremental=is_incremental,
+                    source_range=source_range,
+                    last_parsed_at=datetime.utcnow()
+                )
+                db.add(character)
+                created_characters.append(character)
+        
+        db.commit()
+        
+        # 刷新对象以获取 ID
+        for char in created_characters + updated_characters:
+            db.refresh(char)
+        
+        # 构造响应消息
+        message_parts = []
+        if created_characters:
+            message_parts.append(f"新增 {len(created_characters)} 个角色")
+        if updated_characters:
+            message_parts.append(f"更新 {len(updated_characters)} 个角色")
+        
+        return {
+            "success": True,
+            "data": [
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "description": c.description,
+                    "appearance": c.appearance,
+                    "startChapter": c.start_chapter,
+                    "endChapter": c.end_chapter,
+                    "isIncremental": c.is_incremental,
+                    "sourceRange": c.source_range,
+                    "lastParsedAt": c.last_parsed_at.isoformat() if c.last_parsed_at else None
+                }
+                for c in created_characters + updated_characters
+            ],
+            "message": "，".join(message_parts) if message_parts else "未识别到角色",
+            "statistics": {
+                "created": len(created_characters),
+                "updated": len(updated_characters),
+                "total": len(created_characters) + len(updated_characters)
+            }
         }
         
     except Exception as e:

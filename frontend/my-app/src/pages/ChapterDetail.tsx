@@ -13,7 +13,8 @@ import {
   Trash2,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Sparkles
 } from 'lucide-react';
 import type { Chapter, Novel } from '../types';
 import { toast } from '../stores/toastStore';
@@ -39,6 +40,14 @@ export default function ChapterDetail() {
     index: number;
     images: string[];
   }>({ isOpen: false, url: null, index: 0, images: [] });
+  
+  // 单章节解析状态
+  const [parsingChapter, setParsingChapter] = useState(false);
+  const [parseResult, setParseResult] = useState<{
+    created: number;
+    updated: number;
+    total: number;
+  } | null>(null);
 
   useEffect(() => {
     if (id && cid) {
@@ -113,6 +122,57 @@ export default function ChapterDetail() {
     }
     
     navigate(`/novels/${id}/chapters/${cid}/generate`);
+  };
+  
+  // 单章节角色解析
+  const handleParseCharacters = async () => {
+    if (!content.trim()) {
+      toast.warning('章节内容为空，无法解析角色');
+      return;
+    }
+    
+    setParsingChapter(true);
+    setParseResult(null);
+    
+    try {
+      const res = await fetch(`${API_BASE}/novels/${id}/chapters/${cid}/parse-characters/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_incremental: true })
+      });
+      
+      const data = await res.json();
+      if (data.success) {
+        const stats = data.statistics || {};
+        setParseResult({
+          created: stats.created || 0,
+          updated: stats.updated || 0,
+          total: stats.total || 0
+        });
+        
+        let message = '';
+        if (stats.created > 0) {
+          message += `新增 ${stats.created} 个角色`;
+        }
+        if (stats.updated > 0) {
+          if (message) message += '，';
+          message += `更新 ${stats.updated} 个角色`;
+        }
+        
+        if (message) {
+          toast.success(message);
+        } else {
+          toast.info('未发现新角色');
+        }
+      } else {
+        toast.error('解析失败: ' + data.message);
+      }
+    } catch (error) {
+      console.error('章节角色解析失败:', error);
+      toast.error('解析失败');
+    } finally {
+      setParsingChapter(false);
+    }
   };
   
   // 打开图片预览
@@ -246,6 +306,18 @@ export default function ChapterDetail() {
             {t('common.save')}
           </button>
           <button
+            onClick={handleParseCharacters}
+
+            className="btn-secondary text-purple-600 border-purple-200 hover:bg-purple-50 disabled:opacity-50"
+          >
+            {parsingChapter ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4 mr-2" />
+            )}
+            解析角色
+          </button>
+          <button
             onClick={handleGenerate}
             className="btn-primary bg-green-600 hover:bg-green-700"
             disabled={chapter.status !== 'pending' && chapter.status !== 'failed'}
@@ -281,6 +353,29 @@ export default function ChapterDetail() {
           )}
         </div>
       </div>
+
+      {/* 解析结果展示 */}
+      {parseResult && (
+        <div className="card bg-purple-50 border-purple-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-purple-100 rounded-full">
+              <Sparkles className="h-5 w-5 text-purple-600" />
+            </div>
+            <div>
+              <p className="font-medium text-purple-800">角色解析完成</p>
+              <p className="text-sm text-purple-600">
+                新增 {parseResult.created} 个角色，更新 {parseResult.updated} 个角色
+              </p>
+            </div>
+            <button
+              onClick={() => navigate(`/characters?novel=${id}&highlight=new`)}
+              className="ml-auto btn-primary bg-purple-600 hover:bg-purple-700 text-sm"
+            >
+              查看角色
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Content Editor */}
       <div className="card">

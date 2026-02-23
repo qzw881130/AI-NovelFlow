@@ -45,6 +45,11 @@ async def list_characters(novel_id: str = None, db: Session = Depends(get_db)):
             "generatingStatus": c.generating_status,
             "portraitTaskId": c.portrait_task_id,
             "novelName": novel.title if novel else None,
+            "startChapter": c.start_chapter,
+            "endChapter": c.end_chapter,
+            "isIncremental": c.is_incremental,
+            "sourceRange": c.source_range,
+            "lastParsedAt": c.last_parsed_at.isoformat() if c.last_parsed_at else None,
             "createdAt": c.created_at.isoformat() if c.created_at else None,
             "updatedAt": c.updated_at.isoformat() if c.updated_at else None,
         })
@@ -73,6 +78,11 @@ async def get_character(character_id: str, db: Session = Depends(get_db)):
             "generatingStatus": character.generating_status,
             "portraitTaskId": character.portrait_task_id,
             "novelName": novel.title if novel else None,
+            "startChapter": character.start_chapter,
+            "endChapter": character.end_chapter,
+            "isIncremental": character.is_incremental,
+            "sourceRange": character.source_range,
+            "lastParsedAt": character.last_parsed_at.isoformat() if character.last_parsed_at else None,
             "createdAt": character.created_at.isoformat() if character.created_at else None,
             "updatedAt": character.updated_at.isoformat() if character.updated_at else None,
         }

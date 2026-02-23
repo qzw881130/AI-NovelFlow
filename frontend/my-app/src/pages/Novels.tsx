@@ -61,6 +61,17 @@ export default function Novels() {
     novelId: string | null;
   }>({ isOpen: false, novelId: null });
   
+  // 章节范围解析状态
+  const [chapterRange, setChapterRange] = useState<{
+    startChapter: number | null;
+    endChapter: number | null;
+    isIncremental: boolean;
+  }>({
+    startChapter: null,
+    endChapter: null,
+    isIncremental: true
+  });
+  
   // 提示词模板
   const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
   const [chapterSplitTemplates, setChapterSplitTemplates] = useState<PromptTemplate[]>([]);
@@ -136,18 +147,49 @@ export default function Novels() {
     setParsingNovelId(novelId);
     
     try {
-      const res = await fetch(`${API_BASE}/novels/${novelId}/parse-characters/?sync=true`, {
+      // 构建查询参数
+      const params = new URLSearchParams();
+      params.append('sync', 'true');
+      
+      if (chapterRange.startChapter !== null) {
+        params.append('start_chapter', chapterRange.startChapter.toString());
+      }
+      if (chapterRange.endChapter !== null) {
+        params.append('end_chapter', chapterRange.endChapter.toString());
+      }
+      params.append('is_incremental', chapterRange.isIncremental.toString());
+      
+      const res = await fetch(`${API_BASE}/novels/${novelId}/parse-characters/?${params.toString()}`, {
         method: 'POST',
       });
       const data = await res.json();
       if (data.success) {
-        const characters = data.data || [];
-        if (characters.length > 0) {
-          toast.success(`${t('novels.parseSuccess')} ${characters.length} ${t('novels.characters')}`);
-          window.location.href = `/characters?novel=${novelId}`;
+        const chars = data.data || [];
+        const stats = data.statistics || {};
+        
+        let message = '';
+        if (stats.created > 0) {
+          message += `新增 ${stats.created} 个角色`;
+        }
+        if (stats.updated > 0) {
+          if (message) message += '，';
+          message += `更新 ${stats.updated} 个角色`;
+        }
+        
+        if (message) {
+          toast.success(message);
         } else {
           toast.warning(t('novels.noCharactersFound'));
         }
+        
+        // 重置章节范围
+        setChapterRange({
+          startChapter: null,
+          endChapter: null,
+          isIncremental: true
+        });
+        
+        window.location.href = `/characters?novel=${novelId}`;
       } else {
         toast.error(t('novels.parseError') + ': ' + data.message);
       }
@@ -582,12 +624,76 @@ export default function Novels() {
               </div>
               <h3 className="text-lg font-semibold text-gray-900">{t('novels.aiParseCharactersTitle')}</h3>
             </div>
-            <p className="text-gray-600 mb-2">
+            
+            <p className="text-gray-600 mb-4">
               {t('novels.parseConfirmMessage')}
             </p>
+            
+            {/* 章节范围选择 */}
+            <div className="mb-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  章节范围（可选）
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="起始章节"
+                      value={chapterRange.startChapter || ''}
+                      onChange={(e) => setChapterRange({
+                        ...chapterRange,
+                        startChapter: e.target.value ? parseInt(e.target.value) : null
+                      })}
+                      className="input-field w-full text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center text-gray-400">-</div>
+                  <div className="flex-1">
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="结束章节"
+                      value={chapterRange.endChapter || ''}
+                      onChange={(e) => setChapterRange({
+                        ...chapterRange,
+                        endChapter: e.target.value ? parseInt(e.target.value) : null
+                      })}
+                      className="input-field w-full text-sm"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  留空表示解析整部小说
+                </p>
+              </div>
+              
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={chapterRange.isIncremental}
+                    onChange={(e) => setChapterRange({
+                      ...chapterRange,
+                      isIncremental: e.target.checked
+                    })}
+                    className="rounded text-purple-600 focus:ring-purple-500"
+                  />
+                  <span className="text-sm text-gray-700">
+                    增量更新模式
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 mt-1">
+                  开启后只更新空字段，保留已有信息
+                </p>
+              </div>
+            </div>
+            
             <p className="text-sm text-gray-500 mb-6">
               {t('novels.parseConfirmHint')}
             </p>
+            
             <div className="flex justify-end gap-3">
               <button
                 onClick={closeParseConfirm}
@@ -597,9 +703,19 @@ export default function Novels() {
               </button>
               <button
                 onClick={confirmParseCharacters}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center gap-2"
               >
-                {t('common.confirm')}
+                {parsingNovelId === confirmDialog.novelId ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    解析中...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-4 w-4" />
+                    {t('common.confirm')}
+                  </>
+                )}
               </button>
             </div>
           </div>
