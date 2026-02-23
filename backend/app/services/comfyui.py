@@ -4,8 +4,6 @@ import uuid
 import asyncio
 import random
 from typing import Dict, Any, Optional, List
-# 移除了: from app.core.config import get_settings
-# 移除了: settings = get_settings()
 
 
 class ComfyUIService:
