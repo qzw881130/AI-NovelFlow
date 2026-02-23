@@ -172,3 +172,22 @@ export interface TestCase {
   notesKey?: string;
   createdAt: string;
 }
+
+// LLM 日志接口
+export interface LLMLog {
+  id: string;
+  created_at: string;
+  provider: string;
+  model: string;
+  system_prompt: string;
+  user_prompt: string;
+  response: string;
+  status: string;
+  error_message: string;
+  task_type: string;
+  novel_id: string;
+  chapter_id: string;
+  character_id: string;
+  used_proxy: boolean;
+  duration: number;  // 请求耗时，单位秒
+}

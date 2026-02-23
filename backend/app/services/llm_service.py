@@ -21,7 +21,8 @@ def save_llm_log(
     novel_id: str = None,
     chapter_id: str = None,
     character_id: str = None,
-    used_proxy: bool = False
+    used_proxy: bool = False,
+    duration: float = None
 ):
     """保存LLM调用日志到数据库（异步执行，不阻塞主流程）"""
     try:
@@ -42,7 +43,8 @@ def save_llm_log(
                 novel_id=novel_id,
                 chapter_id=chapter_id,
                 character_id=character_id,
-                used_proxy=used_proxy
+                used_proxy=used_proxy,
+                duration=duration
             )
             db.add(log)
             db.commit()
@@ -297,6 +299,11 @@ class LLMService:
                 "error": str (optional)
             }
         """
+        import time  # 添加时间模块导入
+        
+        # 记录请求开始时间
+        start_time = time.time()
+        
         # Ollama 通常不需要 API Key
         if not self.api_keys and self.provider != "ollama":
             return {"success": False, "error": "API Key 未配置", "content": ""}
@@ -348,6 +355,10 @@ class LLMService:
                 if old_https_proxy_lower:
                     os.environ['https_proxy'] = old_https_proxy_lower
             
+            # 记录请求结束时间并计算耗时
+            end_time = time.time()
+            duration = end_time - start_time
+            
             # 处理响应（所有 provider 共用）
             if response.status_code == 200:
                 data = response.json()
@@ -365,7 +376,8 @@ class LLMService:
                     novel_id=novel_id,
                     chapter_id=chapter_id,
                     character_id=character_id,
-                    used_proxy=used_proxy
+                    used_proxy=used_proxy,
+                    duration=duration
                 )
                 
                 return {
@@ -388,7 +400,8 @@ class LLMService:
                     novel_id=novel_id,
                     chapter_id=chapter_id,
                     character_id=character_id,
-                    used_proxy=used_proxy
+                    used_proxy=used_proxy,
+                    duration=duration
                 )
                 
                 return {
@@ -407,7 +420,10 @@ class LLMService:
             print(f"[LLMService] {error_msg}")
             traceback.print_exc()
             
-            # 记录异常日志
+            # 记录异常日志（即使异常也记录耗时）
+            end_time = time.time()
+            duration = end_time - start_time
+            
             save_llm_log(
                 provider=self.provider,
                 model=self.model,
@@ -419,7 +435,8 @@ class LLMService:
                 novel_id=novel_id,
                 chapter_id=chapter_id,
                 character_id=character_id,
-                used_proxy=used_proxy
+                used_proxy=used_proxy,
+                duration=duration
             )
             
             return {

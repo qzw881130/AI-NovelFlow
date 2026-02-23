@@ -662,6 +662,7 @@ export default {
     errorMessage: 'Error Message',
     llmResponse: 'LLM Response',
     proxy: 'Proxy',
+    duration: 'Duration',  // 新增耗时字段
     yes: 'Yes',
     no: 'No',
   },

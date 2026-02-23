@@ -82,7 +82,8 @@ async def get_llm_logs(
                     "novel_id": log.novel_id,
                     "chapter_id": log.chapter_id,
                     "character_id": log.character_id,
-                    "used_proxy": log.used_proxy
+                    "used_proxy": log.used_proxy,
+                    "duration": log.duration  # 添加耗时字段
                 }
                 for log in logs
             ],
@@ -142,6 +143,7 @@ async def get_llm_log_detail(log_id: str, db: Session = Depends(get_db)):
             "novel_id": log.novel_id,
             "chapter_id": log.chapter_id,
             "character_id": log.character_id,
-            "used_proxy": log.used_proxy
+            "used_proxy": log.used_proxy,
+            "duration": log.duration  # 添加耗时字段
         }
     }

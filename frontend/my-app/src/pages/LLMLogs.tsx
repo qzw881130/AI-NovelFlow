@@ -26,6 +26,7 @@ interface LLMLog {
   chapter_id: string;
   character_id: string;
   used_proxy: boolean;
+  duration: number;  // 请求耗时，单位秒
 }
 
 interface Pagination {
@@ -305,6 +306,7 @@ export default function LLMLogs() {
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.taskType')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('common.status')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.proxy')}</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.duration')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('llmLogs.promptPreview')}</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('common.actions')}</th>
                 </tr>
@@ -329,6 +331,9 @@ export default function LLMLogs() {
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
                       {log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                      {log.duration ? `${log.duration.toFixed(2)}s` : '-'}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-600 max-w-[150px]">
                       <div className="truncate" title={log.user_prompt}>
@@ -407,6 +412,10 @@ export default function LLMLogs() {
                 <span>{getStatusBadge(selectedLog.status)}</span>
                 <span className="text-gray-500">{t('llmLogs.proxy')}:</span>
                 <span className="font-medium">{selectedLog.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}</span>
+                <span className="text-gray-500">{t('llmLogs.duration')}:</span>
+                <span className="font-medium">
+                  {selectedLog.duration ? `${selectedLog.duration.toFixed(2)}s` : '-'}
+                </span>
               </div>
               
               {selectedLog.error_message && (
