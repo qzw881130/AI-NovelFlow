@@ -128,6 +128,50 @@ def migrate():
         
         conn.commit()
     
+    # 为已有数据设置默认值
+    print("\n📝 初始化历史数据...")
+    with engine.connect() as conn:
+        # 为 llm_max_tokens 为 NULL 的记录设置默认值 4000
+        try:
+            result = conn.execute(text(
+                "UPDATE system_configs SET llm_max_tokens = 4000 WHERE llm_max_tokens IS NULL"
+            ))
+            print(f"✓ Set default llm_max_tokens=4000 for {result.rowcount} records")
+        except Exception as e:
+            print(f"✗ Error setting default llm_max_tokens: {e}")
+        
+        # 为 llm_temperature 为 NULL 的记录设置默认值 0.7
+        try:
+            result = conn.execute(text(
+                "UPDATE system_configs SET llm_temperature = '0.7' WHERE llm_temperature IS NULL"
+            ))
+            print(f"✓ Set default llm_temperature=0.7 for {result.rowcount} records")
+        except Exception as e:
+            print(f"✗ Error setting default llm_temperature: {e}")
+        
+        # 为其他可能为空的字段设置默认值
+        try:
+            conn.execute(text(
+                "UPDATE system_configs SET output_resolution = '1920x1080' WHERE output_resolution IS NULL"
+            ))
+            conn.execute(text(
+                "UPDATE system_configs SET output_frame_rate = 24 WHERE output_frame_rate IS NULL"
+            ))
+            conn.execute(text(
+                "UPDATE system_configs SET language = 'zh-CN' WHERE language IS NULL"
+            ))
+            conn.execute(text(
+                "UPDATE system_configs SET timezone = 'Asia/Shanghai' WHERE timezone IS NULL"
+            ))
+            conn.execute(text(
+                "UPDATE system_configs SET comfyui_host = 'http://localhost:8188' WHERE comfyui_host IS NULL"
+            ))
+            print("✓ Set other default values for NULL fields")
+        except Exception as e:
+            print(f"✗ Error setting other default values: {e}")
+        
+        conn.commit()
+    
     print("\n✅ Migration completed!")
 
 if __name__ == "__main__":
