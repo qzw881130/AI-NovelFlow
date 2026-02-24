@@ -9,48 +9,19 @@ from app.models.novel import Scene, Novel, Chapter
 from app.models.prompt_template import PromptTemplate
 from app.services.comfyui import ComfyUIService
 from app.services.llm_service import LLMService
+from app.services.prompt_builder import (
+    build_scene_prompt,
+    extract_style_from_character_template
+)
+from app.repositories import NovelRepository, SceneRepository, ChapterRepository
 
 router = APIRouter()
 settings = get_settings()
 comfyui_service = ComfyUIService()
 
 
-def extract_style_from_character_template(template: str) -> str:
-    """从角色提示词模板中提取 style
-    
-    兼容逻辑：
-    1. 尝试解析为 JSON，获取 style 字段
-    2. 否则清理模板中的 {appearance} 和 {description} 占位符
-    """
-    if not template:
-        return "anime style, high quality, detailed"
-
-    # 尝试解析 JSON
-    try:
-        template_data = json.loads(template)
-        if isinstance(template_data, dict) and "style" in template_data:
-            return template_data["style"]
-    except:
-        pass
-
-    # 清理占位符和角色相关内容
-    style = (template.replace("{appearance}", "").replace("{description}", "")
-             .replace("character portrait", "")
-             .replace("single character", "")
-             .replace("centered", "")
-             .replace("colorful", "")
-             .replace("clean background", "")
-             .strip(", ").strip(","))
-    
-    # 清理多余的逗号和空格
-    style = " ".join(style.split())  # 合并多余空格
-    style = style.replace(", ,", ",").replace(",,", ",")  # 清理连续逗号
-    style = style.strip(", ")  # 再次清理首尾
-    
-    if style:
-        return style
-
-    return "anime style, high quality, detailed"
+# 提示词构建函数已移至 app/services/prompt_builder.py
+# extract_style_from_character_template, build_scene_prompt 已导入
 
 
 def get_llm_service() -> LLMService:
@@ -58,17 +29,32 @@ def get_llm_service() -> LLMService:
     return LLMService()
 
 
+def get_novel_repo(db: Session = Depends(get_db)) -> NovelRepository:
+    """获取 NovelRepository 实例"""
+    return NovelRepository(db)
+
+
+def get_scene_repo(db: Session = Depends(get_db)) -> SceneRepository:
+    """获取 SceneRepository 实例"""
+    return SceneRepository(db)
+
+
+def get_chapter_repo(db: Session = Depends(get_db)) -> ChapterRepository:
+    """获取 ChapterRepository 实例"""
+    return ChapterRepository(db)
+
+
 @router.get("/", response_model=dict)
-async def list_scenes(novel_id: str = None, db: Session = Depends(get_db)):
+async def list_scenes(novel_id: str = None, db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo), scene_repo: SceneRepository = Depends(get_scene_repo)):
     """获取场景列表"""
-    query = db.query(Scene)
     if novel_id:
-        query = query.filter(Scene.novel_id == novel_id)
-    scenes = query.order_by(Scene.created_at.desc()).all()
+        scenes = scene_repo.list_by_novel(novel_id)
+    else:
+        scenes = db.query(Scene).order_by(Scene.created_at.desc()).all()
 
     result = []
     for s in scenes:
-        novel = db.query(Novel).filter(Novel.id == s.novel_id).first()
+        novel = novel_repo.get_by_id(s.novel_id)
         result.append({
             "id": s.id,
             "novelId": s.novel_id,
@@ -92,13 +78,13 @@ async def list_scenes(novel_id: str = None, db: Session = Depends(get_db)):
 
 
 @router.get("/{scene_id}", response_model=dict)
-async def get_scene(scene_id: str, db: Session = Depends(get_db)):
+async def get_scene(scene_id: str, novel_repo: NovelRepository = Depends(get_novel_repo), scene_repo: SceneRepository = Depends(get_scene_repo)):
     """获取场景详情"""
-    scene = db.query(Scene).filter(Scene.id == scene_id).first()
+    scene = scene_repo.get_by_id(scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="场景不存在")
 
-    novel = db.query(Novel).filter(Novel.id == scene.novel_id).first()
+    novel = novel_repo.get_by_id(scene.novel_id)
 
     return {
         "success": True,
@@ -126,11 +112,12 @@ async def get_scene(scene_id: str, db: Session = Depends(get_db)):
 @router.post("/", response_model=dict)
 async def create_scene(
         data: dict,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        novel_repo: NovelRepository = Depends(get_novel_repo)
 ):
     """创建场景"""
     # 验证小说存在
-    novel = db.query(Novel).filter(Novel.id == data.get('novelId')).first()
+    novel = novel_repo.get_by_id(data.get('novelId'))
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
 
@@ -163,10 +150,12 @@ async def create_scene(
 async def update_scene(
         scene_id: str,
         data: dict,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        novel_repo: NovelRepository = Depends(get_novel_repo),
+        scene_repo: SceneRepository = Depends(get_scene_repo)
 ):
     """更新场景"""
-    scene = db.query(Scene).filter(Scene.id == scene_id).first()
+    scene = scene_repo.get_by_id(scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="场景不存在")
 
@@ -180,7 +169,7 @@ async def update_scene(
     db.commit()
     db.refresh(scene)
 
-    novel = db.query(Novel).filter(Novel.id == scene.novel_id).first()
+    novel = novel_repo.get_by_id(scene.novel_id)
 
     return {
         "success": True,
@@ -198,9 +187,9 @@ async def update_scene(
 
 
 @router.delete("/{scene_id}")
-async def delete_scene(scene_id: str, db: Session = Depends(get_db)):
+async def delete_scene(scene_id: str, db: Session = Depends(get_db), scene_repo: SceneRepository = Depends(get_scene_repo)):
     """删除场景"""
-    scene = db.query(Scene).filter(Scene.id == scene_id).first()
+    scene = scene_repo.get_by_id(scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="场景不存在")
 
@@ -211,10 +200,10 @@ async def delete_scene(scene_id: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/")
-async def delete_scenes_by_novel(novel_id: str = Query(..., description="小说ID"), db: Session = Depends(get_db)):
+async def delete_scenes_by_novel(novel_id: str = Query(..., description="小说ID"), db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo)):
     """删除指定小说的所有场景"""
     # 检查小说是否存在
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
 
@@ -230,10 +219,10 @@ async def delete_scenes_by_novel(novel_id: str = Query(..., description="小说I
 
 
 @router.post("/clear-scenes-dir")
-async def clear_scenes_dir(novel_id: str = Query(..., description="小说ID"), db: Session = Depends(get_db)):
+async def clear_scenes_dir(novel_id: str = Query(..., description="小说ID"), novel_repo: NovelRepository = Depends(get_novel_repo)):
     """清空小说的场景图片目录（用于批量重新生成前）"""
     # 检查小说是否存在
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
 
@@ -248,14 +237,14 @@ async def clear_scenes_dir(novel_id: str = Query(..., description="小说ID"), d
 
 
 @router.get("/{scene_id}/prompt", response_model=dict)
-async def get_scene_prompt(scene_id: str, db: Session = Depends(get_db)):
+async def get_scene_prompt(scene_id: str, db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo), scene_repo: SceneRepository = Depends(get_scene_repo)):
     """获取场景生成时使用的拼接后提示词"""
-    scene = db.query(Scene).filter(Scene.id == scene_id).first()
+    scene = scene_repo.get_by_id(scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="场景不存在")
 
     # 获取场景所属小说
-    novel = db.query(Novel).filter(Novel.id == scene.novel_id).first()
+    novel = novel_repo.get_by_id(scene.novel_id)
 
     # 获取场景提示词模板（类型为 'scene'）
     template = None
@@ -317,10 +306,11 @@ async def get_scene_prompt(scene_id: str, db: Session = Depends(get_db)):
 @router.post("/{scene_id}/generate-setting", response_model=dict)
 async def generate_scene_setting(
         scene_id: str,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        scene_repo: SceneRepository = Depends(get_scene_repo)
 ):
     """使用 AI 智能生成场景设定（环境设置）"""
-    scene = db.query(Scene).filter(Scene.id == scene_id).first()
+    scene = scene_repo.get_by_id(scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="场景不存在")
 
@@ -357,46 +347,17 @@ async def generate_scene_setting(
         }
 
 
-def build_scene_prompt(name: str, setting: str, description: str, template: str = None) -> str:
-    """构建场景图提示词
-    
-    Args:
-        name: 场景名称
-        setting: 环境设置/布景描述（用于生成场景图）
-        description: 场景描述（不使用，保留参数兼容性）
-        template: 提示词模板
-    
-    Note:
-        场景图生成只使用 setting 字段，不使用 description 字段
-        因为分镜生成时会参考角色图+场景图，场景设定应该是纯环境描述
-    """
-    if template:
-        # 使用模板构建提示词，只使用 setting，忽略 description
-        prompt = template.replace("{setting}", setting or "").replace("{description}", "").replace("{name}", name or "")
-        # 清理多余的逗号和空格
-        prompt = " ".join(prompt.split())
-        prompt = prompt.replace(" ,", ",").replace(",,", ",").strip(", ")
-        return prompt
-
-    # 默认提示词 - 只使用 setting 字段
-    base_prompt = "environment design, background art, landscape, "
-
-    if name:
-        base_prompt += f"{name}, "
-
-    if setting:
-        base_prompt += setting + ", "
-
-    # 不再使用 description 字段
-    base_prompt += "high quality, detailed, no characters, professional artwork"
-
-    return base_prompt
+# build_scene_prompt 函数已移至 app/services/prompt_builder.py
+# 已从 prompt_builder 导入 build_scene_prompt
 
 
 @router.post("/parse-scenes")
 async def parse_scenes(
         data: dict,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        novel_repo: NovelRepository = Depends(get_novel_repo),
+        scene_repo: SceneRepository = Depends(get_scene_repo),
+        chapter_repo: ChapterRepository = Depends(get_chapter_repo)
 ):
     """
     解析场景（支持选定章节范围和单章节增量生成）
@@ -416,7 +377,7 @@ async def parse_scenes(
         raise HTTPException(status_code=400, detail="缺少 novel_id")
 
     # 获取小说
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
 
@@ -427,9 +388,7 @@ async def parse_scenes(
             Chapter.id.in_(chapter_ids)
         ).order_by(Chapter.number).all()
     else:
-        chapters = db.query(Chapter).filter(
-            Chapter.novel_id == novel_id
-        ).order_by(Chapter.number).all()
+        chapters = chapter_repo.list_by_novel(novel_id)
 
     if not chapters:
         raise HTTPException(status_code=400, detail="没有找到章节")
@@ -468,8 +427,7 @@ async def parse_scenes(
         scenes_data = result.get("scenes", [])
 
         # 获取现有场景
-        existing_scenes = db.query(Scene).filter(Scene.novel_id == novel_id).all()
-        existing_scene_names = {s.name: s for s in existing_scenes}
+        existing_scene_names = scene_repo.get_dict_by_novel(novel_id)
 
         created_scenes = []
         updated_scenes = []

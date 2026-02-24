@@ -48,6 +48,7 @@ export default {
     details: 'Details',
     overview: 'Overview',
     other: 'Other',
+    failed: 'Failed',
     saveFailed: 'Save failed',
     copyFailed: 'Copy failed',
     deleteFailed: 'Delete failed',
@@ -77,7 +78,7 @@ export default {
     systemSettings: 'System Settings',
     promptConfig: 'Prompt Config',
     uiConfig: 'UI Config',
-    llmLogs: 'JSON Logs',
+    llmLogs: 'LLM Logs',
   },
 
   // Welcome page
@@ -111,6 +112,22 @@ export default {
     recentNovels: 'Recent Novels',
     systemStatus: 'System Status',
     pleaseConfigure: 'Please complete system configuration before using NovelFlow.',
+
+    // Workflow nodes
+    workflow: {
+      importNovel: 'Import Novel',
+      parseCharacters: 'AI Parse Characters',
+      parseScenes: 'AI Parse Scenes',
+      generateCharacters: 'Generate Character Images',
+      generateScenes: 'Generate Scene Images',
+      editChapter: 'Edit Chapter',
+      splitShots: 'AI Split Shots',
+      jsonStructure: 'JSON Structure',
+      generateShotImages: 'Generate Shot Images',
+      generateShotVideos: 'Generate Shot Videos',
+      generateTransitions: 'Generate Transitions',
+      mergeVideo: 'Merge Video',
+    },
   },
 
   // Novel Management
@@ -398,10 +415,14 @@ export default {
       'LTX2 遮挡转场视频': 'LTX2 Occlusion Transition',
     },
     workflowDescriptions: {
+      '系统预设的人设生成工作流': 'System preset character generation workflow',
       '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）': 'System preset character generation workflow (Flux2 Klein 9B three-view)',
       '系统预设的场景生成工作流': 'System preset scene generation workflow',
+      'Z-image-turbo 场景生成工作流': 'Z-image-turbo scene generation workflow',
       'Z-image-turbo【非三视图】': 'Z-image-turbo [Non three-view]',
       'Flux2-Klein-9B 图像编辑工作流，支持角色参考图': 'Flux2-Klein-9B image editing workflow, supports character reference images',
+      'Flux2-Klein-9B 图像编辑工作流，仅支持角色参考图': 'Flux2-Klein-9B image editing workflow, supports character reference image only',
+      'Flux2-Klein-9B 双图参考工作流，支持角色参考图+场景参考图，保持场景一致性': 'Flux2-Klein-9B dual reference workflow, supports character + scene reference images, maintains scene consistency',
       'LTX-2 图生视频，直接使用用户提示词': 'LTX-2 image-to-video, directly uses user prompt',
       'LTX-2 图生视频，使用 Qwen3 自动扩写提示词': 'LTX-2 image-to-video, uses Qwen3 auto-expanded prompt',
       '适合：首尾帧是同一场景不同景别/角度': 'Suitable: Same scene with different shots/angles',
@@ -481,6 +502,7 @@ export default {
     httpsProxy: 'HTTPS Proxy',
     comfyUISettings: 'ComfyUI Settings',
     comfyUIHost: 'ComfyUI Host',
+    comfyUIHostHint: 'ComfyUI service address and port',
     outputSettings: 'Output Settings',
     resolution: 'Resolution',
     frameRate: 'Frame Rate',
@@ -555,6 +577,10 @@ export default {
       shot: 'Shot Image Generation',
       video: 'Shot Video Generation',
       transition: 'Transition Video Generation',
+      // Upload Modal
+      type: 'Workflow Type',
+      name: 'Workflow Name',
+      file: 'Workflow File',
       uploadWorkflow: 'Upload Workflow',
       noWorkflows: 'No workflows',
       current: 'Current',
@@ -563,6 +589,7 @@ export default {
       default: 'Default',
       systemPreset: 'System Preset',
       setAsDefault: 'Set as Default',
+      setDefault: 'Set as Default',
       currentDefault: 'Current Default',
       // Modal
       uploadTitle: 'Upload {type} Workflow',
@@ -612,6 +639,10 @@ export default {
       firstImageNodeTip: 'Select LoadImage node for first frame image input',
       lastImageNode: 'Last Frame Node (LoadImage - End IMG)',
       lastImageNodeTip: 'Select LoadImage node for last frame image input',
+      // Node mapping modal
+      selectNodeToView: 'Select a node to view JSON data',
+      nodeNotFound: 'Node data not found',
+      nodeMapping: 'Node Mapping Configuration',
     },
   },
 
@@ -703,8 +734,8 @@ export default {
 
   // LLM Logs
   llmLogs: {
-    title: 'JSON Parse Logs',
-    subtitle: 'View AI parsing log records',
+    title: 'LLM Logs',
+    subtitle: 'View LLM call log records',
     clearLogs: 'Clear Logs',
     filterConditions: 'Filter Conditions',
     filterByNovel: 'Filter by Novel',

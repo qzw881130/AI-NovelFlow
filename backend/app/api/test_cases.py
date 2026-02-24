@@ -5,25 +5,25 @@ from typing import List, Optional
 from app.core.database import get_db
 from app.models.test_case import TestCase
 from app.models.novel import Novel, Chapter, Character
+from app.repositories import TestCaseRepository
 
 router = APIRouter()
+
+
+def get_testcase_repo(db: Session = Depends(get_db)) -> TestCaseRepository:
+    """获取 TestCaseRepository 实例"""
+    return TestCaseRepository(db)
 
 
 @router.get("/", response_model=dict)
 async def list_test_cases(
     type: Optional[str] = None,
     is_preset: Optional[bool] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    testcase_repo: TestCaseRepository = Depends(get_testcase_repo)
 ):
     """获取测试用例列表"""
-    query = db.query(TestCase).order_by(TestCase.created_at.desc())
-    
-    if type:
-        query = query.filter(TestCase.type == type)
-    if is_preset is not None:
-        query = query.filter(TestCase.is_preset == is_preset)
-    
-    test_cases = query.all()
+    test_cases = testcase_repo.list_by_filters(test_type=type, is_preset=is_preset)
     
     # 预设测试用例名称到翻译键的映射
     PRESET_NAME_KEYS = {
@@ -83,9 +83,13 @@ async def list_test_cases(
 
 
 @router.get("/{test_case_id}", response_model=dict)
-async def get_test_case(test_case_id: str, db: Session = Depends(get_db)):
+async def get_test_case(
+    test_case_id: str, 
+    db: Session = Depends(get_db),
+    testcase_repo: TestCaseRepository = Depends(get_testcase_repo)
+):
     """获取测试用例详情"""
-    tc = db.query(TestCase).filter(TestCase.id == test_case_id).first()
+    tc = testcase_repo.get_by_id(test_case_id)
     if not tc:
         raise HTTPException(status_code=404, detail="测试用例不存在")
     
@@ -139,13 +143,17 @@ async def get_test_case(test_case_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=dict)
-async def create_test_case(data: dict, db: Session = Depends(get_db)):
+async def create_test_case(
+    data: dict, 
+    db: Session = Depends(get_db),
+    testcase_repo: TestCaseRepository = Depends(get_testcase_repo)
+):
     """创建测试用例"""
     # 验证小说存在
     novel = db.query(Novel).filter(Novel.id == data.get('novelId')).first()
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
-    
+
     test_case = TestCase(
         name=data.get('name'),
         description=data.get('description'),
@@ -156,9 +164,7 @@ async def create_test_case(data: dict, db: Session = Depends(get_db)):
         notes=data.get('notes'),
         is_preset=False,  # 用户创建的不是预设
     )
-    db.add(test_case)
-    db.commit()
-    db.refresh(test_case)
+    test_case = testcase_repo.create(test_case)
     
     return {
         "success": True,
@@ -172,9 +178,14 @@ async def create_test_case(data: dict, db: Session = Depends(get_db)):
 
 
 @router.put("/{test_case_id}", response_model=dict)
-async def update_test_case(test_case_id: str, data: dict, db: Session = Depends(get_db)):
+async def update_test_case(
+    test_case_id: str, 
+    data: dict, 
+    db: Session = Depends(get_db),
+    testcase_repo: TestCaseRepository = Depends(get_testcase_repo)
+):
     """更新测试用例"""
-    tc = db.query(TestCase).filter(TestCase.id == test_case_id).first()
+    tc = testcase_repo.get_by_id(test_case_id)
     if not tc:
         raise HTTPException(status_code=404, detail="测试用例不存在")
     
@@ -208,9 +219,13 @@ async def update_test_case(test_case_id: str, data: dict, db: Session = Depends(
 
 
 @router.delete("/{test_case_id}")
-async def delete_test_case(test_case_id: str, db: Session = Depends(get_db)):
+async def delete_test_case(
+    test_case_id: str, 
+    db: Session = Depends(get_db),
+    testcase_repo: TestCaseRepository = Depends(get_testcase_repo)
+):
     """删除测试用例"""
-    tc = db.query(TestCase).filter(TestCase.id == test_case_id).first()
+    tc = testcase_repo.get_by_id(test_case_id)
     if not tc:
         raise HTTPException(status_code=404, detail="测试用例不存在")
     
@@ -218,8 +233,7 @@ async def delete_test_case(test_case_id: str, db: Session = Depends(get_db)):
     if tc.is_preset:
         raise HTTPException(status_code=403, detail="预设测试用例不能删除")
     
-    db.delete(tc)
-    db.commit()
+    testcase_repo.delete(tc)
     
     return {"success": True, "message": "删除成功"}
 
@@ -227,10 +241,11 @@ async def delete_test_case(test_case_id: str, db: Session = Depends(get_db)):
 @router.post("/{test_case_id}/run")
 async def run_test_case(
     test_case_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    testcase_repo: TestCaseRepository = Depends(get_testcase_repo)
 ):
     """运行测试用例"""
-    tc = db.query(TestCase).filter(TestCase.id == test_case_id).first()
+    tc = testcase_repo.get_by_id(test_case_id)
     if not tc:
         raise HTTPException(status_code=404, detail="测试用例不存在")
     
@@ -256,14 +271,16 @@ async def run_test_case(
 async def init_preset_test_cases(db: Session):
     """初始化预设测试用例"""
     from app.models.prompt_template import PromptTemplate
+    from app.repositories import PromptTemplateRepository, TestCaseRepository
+    
+    template_repo = PromptTemplateRepository(db)
+    testcase_repo = TestCaseRepository(db)
     
     # 获取默认提示词模板
-    default_template = db.query(PromptTemplate).filter(
-        PromptTemplate.is_system == True
-    ).order_by(PromptTemplate.created_at.asc()).first()
+    default_template = template_repo.get_first_system_template()
     
     # 检查是否已存在预设测试用例
-    existing_names = [tc.name for tc in db.query(TestCase).filter(TestCase.is_preset == True).all()]
+    existing_names = testcase_repo.get_preset_names()
     
     # 1. 创建小马过河测试用例
     if "小马过河 - 完整流程测试" not in existing_names:

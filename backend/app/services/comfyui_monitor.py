@@ -24,8 +24,8 @@ class ComfyUIMonitor:
     """ComfyUI 状态监控器"""
     
     def __init__(self, comfyui_host: str):
-        self.base_url = comfyui_host
-        self.ws_url = comfyui_host.replace("http://", "ws://").replace("https://", "wss://") + "/ws"
+        # 保留初始值作为备用，但实际使用动态属性
+        self._initial_base_url = comfyui_host
         self.stats = {
             "status": "offline",
             "gpu_usage": 0,
@@ -39,6 +39,17 @@ class ComfyUIMonitor:
         self._running = False
         self._task = None
         self._use_websocket = USE_WEBSOCKET
+    
+    @property
+    def base_url(self) -> str:
+        """动态获取当前的 ComfyUI 主机地址"""
+        from app.core.config import get_settings
+        return get_settings().COMFYUI_HOST
+    
+    @property
+    def ws_url(self) -> str:
+        """动态获取当前的 WebSocket 地址"""
+        return self.base_url.replace("http://", "ws://").replace("https://", "wss://") + "/ws"
     
     async def start(self):
         """启动监控"""

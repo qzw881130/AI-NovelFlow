@@ -48,6 +48,7 @@ export default {
     details: '详情',
     overview: '概览',
     other: '其他',
+    failed: '失败',
     saveFailed: '保存失败',
     copyFailed: '复制失败',
     deleteFailed: '删除失败',
@@ -77,7 +78,7 @@ export default {
     systemSettings: '系统配置',
     promptConfig: '提示词配置',
     uiConfig: '界面配置',
-    llmLogs: 'JSON解析日志',
+    llmLogs: '大模型日志',
   },
 
   // 欢迎页
@@ -111,6 +112,22 @@ export default {
     recentNovels: '最近的小说',
     systemStatus: '系统状态',
     pleaseConfigure: '请先完成系统配置，才能开始使用 NovelFlow。',
+
+    // 工作流节点
+    workflow: {
+      importNovel: '导入小说',
+      parseCharacters: 'AI解析角色',
+      parseScenes: 'AI解析场景',
+      generateCharacters: '生成角色图',
+      generateScenes: '生成场景图',
+      editChapter: '编辑章节',
+      splitShots: 'AI拆分分镜',
+      jsonStructure: 'JSON结构',
+      generateShotImages: '生成分镜图',
+      generateShotVideos: '生成分镜视频',
+      generateTransitions: '生成转场视频',
+      mergeVideo: '合并视频',
+    },
   },
 
   // 小说管理
@@ -398,10 +415,14 @@ export default {
       'LTX2 遮挡转场视频': 'LTX2 遮挡转场视频',
     },
     workflowDescriptions: {
+      '系统预设的人设生成工作流': '系统预设的人设生成工作流',
       '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）': '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）',
       '系统预设的场景生成工作流': '系统预设的场景生成工作流',
+      'Z-image-turbo 场景生成工作流': 'Z-image-turbo 场景生成工作流',
       'Z-image-turbo【非三视图】': 'Z-image-turbo【非三视图】',
       'Flux2-Klein-9B 图像编辑工作流，支持角色参考图': 'Flux2-Klein-9B 图像编辑工作流，支持角色参考图',
+      'Flux2-Klein-9B 图像编辑工作流，仅支持角色参考图': 'Flux2-Klein-9B 图像编辑工作流，仅支持角色参考图',
+      'Flux2-Klein-9B 双图参考工作流，支持角色参考图+场景参考图，保持场景一致性': 'Flux2-Klein-9B 双图参考工作流，支持角色参考图+场景参考图，保持场景一致性',
       'LTX-2 图生视频，直接使用用户提示词': 'LTX-2 图生视频，直接使用用户提示词',
       'LTX-2 图生视频，使用 Qwen3 自动扩写提示词': 'LTX-2 图生视频，使用 Qwen3 自动扩写提示词',
       '适合：首尾帧是同一场景不同景别/角度': '适合：首尾帧是同一场景不同景别/角度',
@@ -481,6 +502,7 @@ export default {
     httpsProxy: 'HTTPS 代理',
     comfyUISettings: 'ComfyUI 配置',
     comfyUIHost: 'ComfyUI 地址',
+    comfyUIHostHint: 'ComfyUI 服务的地址和端口',
     outputSettings: '输出配置',
     resolution: '分辨率',
     frameRate: '帧率',
@@ -555,6 +577,10 @@ export default {
       shot: '分镜生图',
       video: '分镜生视频',
       transition: '分镜生转场视频',
+      // 上传弹窗
+      type: '工作流类型',
+      name: '工作流名称',
+      file: '工作流文件',
       uploadWorkflow: '上传工作流',
       noWorkflows: '暂无工作流',
       current: '当前',
@@ -563,6 +589,7 @@ export default {
       default: '默认',
       systemPreset: '系统预设',
       setAsDefault: '设为默认',
+      setDefault: '设为默认',
       currentDefault: '当前默认',
       // 弹窗
       uploadTitle: '上传{type}工作流',
@@ -612,6 +639,10 @@ export default {
       firstImageNodeTip: '选择用于输入首帧图片的 LoadImage 节点',
       lastImageNode: '尾帧图节点 (LoadImage - End IMG)',
       lastImageNodeTip: '选择用于输入尾帧图片的 LoadImage 节点',
+      // 节点映射弹窗
+      selectNodeToView: '选择节点查看 JSON 数据',
+      nodeNotFound: '未找到该节点数据',
+      nodeMapping: '节点映射配置',
     },
   },
 
@@ -701,10 +732,10 @@ export default {
     },
   },
 
-  // JSON 解析日志
+  // 大模型日志
   llmLogs: {
-    title: 'JSON解析日志',
-    subtitle: '查看 AI 解析的日志记录',
+    title: '大模型日志',
+    subtitle: '查看大模型调用的日志记录',
     clearLogs: '清空日志',
     filterConditions: '筛选条件',
     filterByNovel: '按小说筛选',

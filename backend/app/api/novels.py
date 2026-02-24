@@ -17,6 +17,7 @@ from app.services.llm_service import LLMService
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.api.tasks import validate_workflow_node_mapping
+from app.repositories import NovelRepository, ChapterRepository, CharacterRepository, SceneRepository
 
 # 注意：不要在模块级别创建 LLMService 实例
 # 因为配置可能在运行时更新，每次使用时应创建新实例
@@ -27,46 +28,34 @@ def get_llm_service() -> LLMService:
     """获取 LLMService 实例（每次调用创建新实例以获取最新配置）"""
     return LLMService()
 
+
+def get_novel_repo(db: Session = Depends(get_db)) -> NovelRepository:
+    """获取 NovelRepository 实例"""
+    return NovelRepository(db)
+
+
+def get_chapter_repo(db: Session = Depends(get_db)) -> ChapterRepository:
+    """获取 ChapterRepository 实例"""
+    return ChapterRepository(db)
+
+
+def get_character_repo(db: Session = Depends(get_db)) -> CharacterRepository:
+    """获取 CharacterRepository 实例"""
+    return CharacterRepository(db)
+
+
+def get_scene_repo(db: Session = Depends(get_db)) -> SceneRepository:
+    """获取 SceneRepository 实例"""
+    return SceneRepository(db)
+
+
 router = APIRouter()
 
 
 @router.get("/", response_model=dict)
-async def list_novels(db: Session = Depends(get_db)):
+async def list_novels(novel_repo: NovelRepository = Depends(get_novel_repo)):
     """获取小说列表"""
-    novels = db.query(Novel).order_by(Novel.created_at.desc()).all()
-    result = []
-    
-    for n in novels:
-        cover = n.cover
-        # 如果没有自定义封面，尝试从第一章节的第一个分镜获取
-        if not cover:
-            first_chapter = db.query(Chapter).filter(
-                Chapter.novel_id == n.id
-            ).order_by(Chapter.number.asc()).first()
-            
-            if first_chapter and first_chapter.shot_images:
-                try:
-                    shot_images = json.loads(first_chapter.shot_images)
-                    if isinstance(shot_images, list) and len(shot_images) > 0:
-                        cover = shot_images[0]
-                except json.JSONDecodeError:
-                    pass
-        
-        result.append({
-            "id": n.id,
-            "title": n.title,
-            "author": n.author,
-            "description": n.description,
-            "cover": cover,
-            "status": n.status,
-            "chapterCount": n.chapter_count,
-            "promptTemplateId": n.prompt_template_id,
-            "chapterSplitPromptTemplateId": n.chapter_split_prompt_template_id,
-            "aspectRatio": n.aspect_ratio if n.aspect_ratio and n.aspect_ratio.strip() else "16:9",
-            "createdAt": n.created_at.isoformat() if n.created_at else None,
-            "updatedAt": n.updated_at.isoformat() if n.updated_at else None,
-        })
-    
+    result = novel_repo.list_with_cover()
     return {
         "success": True,
         "data": result
@@ -115,9 +104,9 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/{novel_id}", response_model=dict)
-async def get_novel(novel_id: str, db: Session = Depends(get_db)):
+async def get_novel(novel_id: str, novel_repo: NovelRepository = Depends(get_novel_repo)):
     """获取小说详情"""
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     return {
@@ -139,9 +128,9 @@ async def get_novel(novel_id: str, db: Session = Depends(get_db)):
 
 
 @router.put("/{novel_id}", response_model=dict)
-async def update_novel(novel_id: str, data: dict, db: Session = Depends(get_db)):
+async def update_novel(novel_id: str, data: dict, db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo)):
     """更新小说信息"""
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
@@ -182,9 +171,9 @@ async def update_novel(novel_id: str, data: dict, db: Session = Depends(get_db))
 
 
 @router.delete("/{novel_id}")
-async def delete_novel(novel_id: str, db: Session = Depends(get_db)):
+async def delete_novel(novel_id: str, db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo)):
     """删除小说"""
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
@@ -195,14 +184,14 @@ async def delete_novel(novel_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{novel_id}/parse", response_model=dict)
-async def parse_novel(novel_id: str, db: Session = Depends(get_db)):
+async def parse_novel(novel_id: str, db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo), chapter_repo: ChapterRepository = Depends(get_chapter_repo)):
     """解析小说内容，提取角色和场景"""
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
     # 获取所有章节内容
-    chapters = db.query(Chapter).filter(Chapter.novel_id == novel_id).all()
+    chapters = chapter_repo.list_by_novel(novel_id)
     full_text = "\n\n".join([c.content for c in chapters if c.content])
     
     # 更新状态为解析中
@@ -239,23 +228,18 @@ async def parse_characters(
     start_chapter: int = None,
     end_chapter: int = None,
     is_incremental: bool = False,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    character_repo: CharacterRepository = Depends(get_character_repo)
 ):
     """解析小说内容，自动提取角色信息（支持章节范围和增量更新）"""
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
-    # 构建查询条件
-    chapter_query = db.query(Chapter).filter(Chapter.novel_id == novel_id)
-    
-    # 如果指定了章节范围，添加过滤条件
-    if start_chapter is not None:
-        chapter_query = chapter_query.filter(Chapter.number >= start_chapter)
-    if end_chapter is not None:
-        chapter_query = chapter_query.filter(Chapter.number <= end_chapter)
-    
-    chapters = chapter_query.order_by(Chapter.number).all()
+    # 获取指定章节范围的章节
+    chapters = chapter_repo.get_by_range(novel_id, start_chapter, end_chapter)
     
     if not chapters:
         return {"success": False, "message": "指定章节范围内没有内容"}
@@ -292,10 +276,7 @@ async def parse_characters(
                 continue
             
             # 检查是否已存在
-            existing = db.query(Character).filter(
-                Character.novel_id == novel_id,
-                Character.name == name
-            ).first()
+            existing = character_repo.get_by_name(novel_id, name)
             
             if existing:
                 # 增量更新模式：保留原有信息，只更新新解析的信息
@@ -383,18 +364,18 @@ async def parse_chapter_characters(
     novel_id: str,
     chapter_id: str,
     is_incremental: bool = True,  # 默认为增量更新
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    character_repo: CharacterRepository = Depends(get_character_repo)
 ):
     """解析单章节内容，提取角色信息（支持增量更新）"""
     # 验证小说和章节
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
-    chapter = db.query(Chapter).filter(
-        Chapter.id == chapter_id,
-        Chapter.novel_id == novel_id
-    ).first()
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
@@ -424,10 +405,7 @@ async def parse_chapter_characters(
                 continue
             
             # 检查是否已存在
-            existing = db.query(Character).filter(
-                Character.novel_id == novel_id,
-                Character.name == name
-            ).first()
+            existing = character_repo.get_by_name(novel_id, name)
             
             source_range = f"第{chapter.number}章"
             
@@ -516,20 +494,20 @@ async def parse_chapter_scenes(
     novel_id: str,
     chapter_id: str,
     is_incremental: bool = True,  # 默认为增量更新
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    scene_repo: SceneRepository = Depends(get_scene_repo)
 ):
     """解析单章节内容，提取场景信息（支持增量更新）"""
     from app.models.novel import Scene
     
     # 验证小说和章节
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
-    chapter = db.query(Chapter).filter(
-        Chapter.id == chapter_id,
-        Chapter.novel_id == novel_id
-    ).first()
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
@@ -562,8 +540,7 @@ async def parse_chapter_scenes(
         scenes_data = result.get("scenes", [])
         
         # 获取现有场景
-        existing_scenes = db.query(Scene).filter(Scene.novel_id == novel_id).all()
-        existing_scene_names = {s.name: s for s in existing_scenes}
+        existing_scene_names = scene_repo.get_dict_by_novel(novel_id)
         
         created_scenes = []
         updated_scenes = []
@@ -658,13 +635,13 @@ async def parse_chapter_scenes(
 
 
 @router.get("/{novel_id}/chapters", response_model=dict)
-async def list_chapters(novel_id: str, db: Session = Depends(get_db)):
+async def list_chapters(novel_id: str, novel_repo: NovelRepository = Depends(get_novel_repo), chapter_repo: ChapterRepository = Depends(get_chapter_repo)):
     """获取章节列表"""
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
-    chapters = db.query(Chapter).filter(Chapter.novel_id == novel_id).order_by(Chapter.number).all()
+    chapters = chapter_repo.list_by_novel(novel_id)
     return {
         "success": True,
         "data": [
@@ -682,9 +659,9 @@ async def list_chapters(novel_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{novel_id}/chapters", response_model=dict)
-async def create_chapter(novel_id: str, data: dict, db: Session = Depends(get_db)):
+async def create_chapter(novel_id: str, data: dict, db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo), chapter_repo: ChapterRepository = Depends(get_chapter_repo)):
     """创建章节"""
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
@@ -697,7 +674,7 @@ async def create_chapter(novel_id: str, data: dict, db: Session = Depends(get_db
     db.add(chapter)
     
     # 更新章节数
-    novel.chapter_count = db.query(Chapter).filter(Chapter.novel_id == novel_id).count() + 1
+    novel.chapter_count = len(chapter_repo.list_by_novel(novel_id)) + 1
     
     db.commit()
     db.refresh(chapter)
@@ -716,12 +693,9 @@ async def create_chapter(novel_id: str, data: dict, db: Session = Depends(get_db
 
 
 @router.get("/{novel_id}/chapters/{chapter_id}", response_model=dict)
-async def get_chapter(novel_id: str, chapter_id: str, db: Session = Depends(get_db)):
+async def get_chapter(novel_id: str, chapter_id: str, chapter_repo: ChapterRepository = Depends(get_chapter_repo)):
     """获取章节详情"""
-    chapter = db.query(Chapter).filter(
-        Chapter.id == chapter_id,
-        Chapter.novel_id == novel_id
-    ).first()
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
@@ -759,13 +733,11 @@ async def update_chapter(
     novel_id: str, 
     chapter_id: str, 
     data: dict, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo)
 ):
     """更新章节"""
-    chapter = db.query(Chapter).filter(
-        Chapter.id == chapter_id,
-        Chapter.novel_id == novel_id
-    ).first()
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
@@ -797,12 +769,9 @@ async def update_chapter(
 
 
 @router.delete("/{novel_id}/chapters/{chapter_id}")
-async def delete_chapter(novel_id: str, chapter_id: str, db: Session = Depends(get_db)):
+async def delete_chapter(novel_id: str, chapter_id: str, db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo), chapter_repo: ChapterRepository = Depends(get_chapter_repo)):
     """删除章节"""
-    chapter = db.query(Chapter).filter(
-        Chapter.id == chapter_id,
-        Chapter.novel_id == novel_id
-    ).first()
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
@@ -810,9 +779,9 @@ async def delete_chapter(novel_id: str, chapter_id: str, db: Session = Depends(g
     db.delete(chapter)
     
     # 更新小说章节数
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if novel:
-        novel.chapter_count = db.query(Chapter).filter(Chapter.novel_id == novel_id).count() - 1
+        novel.chapter_count = len(chapter_repo.list_by_novel(novel_id)) - 1
     
     db.commit()
     
@@ -823,22 +792,23 @@ async def delete_chapter(novel_id: str, chapter_id: str, db: Session = Depends(g
 async def split_chapter(
     novel_id: str, 
     chapter_id: str, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    character_repo: CharacterRepository = Depends(get_character_repo),
+    scene_repo: SceneRepository = Depends(get_scene_repo)
 ):
     """
     使用小说配置的拆分提示词将章节拆分为分镜
     """
     # 获取章节
-    chapter = db.query(Chapter).filter(
-        Chapter.id == chapter_id,
-        Chapter.novel_id == novel_id
-    ).first()
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
     
     # 获取小说
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
@@ -886,13 +856,11 @@ async def split_chapter(
         raise HTTPException(status_code=400, detail="未找到章节拆分提示词模板")
     
     # 获取当前小说的所有角色列表
-    characters = db.query(Character).filter(Character.novel_id == novel_id).all()
-    character_names = [char.name for char in characters]
+    character_names = character_repo.get_names_by_novel(novel_id)
     
     # 获取当前小说的所有场景列表
     from app.models.novel import Scene
-    scenes = db.query(Scene).filter(Scene.novel_id == novel_id).all()
-    scene_names = [scene.name for scene in scenes]
+    scene_names = scene_repo.get_names_by_novel(novel_id)
     
     # 获取小说配置的角色提示词模板 style，用于替换 {图像风格} 和 ##STYLE## 占位符
     style = "anime style, high quality, detailed"  # 默认风格
@@ -1421,7 +1389,7 @@ async def generate_shot_task(
         task.current_step = "构建工作流..."
         db.commit()
         
-        submitted_workflow = comfyui_service.build_shot_workflow(
+        submitted_workflow = comfyui_service.builder.build_shot_workflow(
             prompt=shot_description,
             workflow_json=workflow.workflow_json,
             node_mapping=node_mapping,
@@ -1439,7 +1407,7 @@ async def generate_shot_task(
             # 上传角色参考图（如果存在）
             character_uploaded_filename = None
             if character_reference_path:
-                upload_result = await comfyui_service._upload_image(character_reference_path)
+                upload_result = await comfyui_service.client.upload_image(character_reference_path)
                 if upload_result.get("success"):
                     character_uploaded_filename = upload_result.get("filename")
                     print(f"[ShotTask {task_id}] Character image uploaded successfully: {character_uploaded_filename}")
@@ -1449,7 +1417,7 @@ async def generate_shot_task(
             # 上传场景参考图（如果存在）
             scene_uploaded_filename = None
             if scene_reference_path:
-                upload_result = await comfyui_service._upload_image(scene_reference_path)
+                upload_result = await comfyui_service.client.upload_image(scene_reference_path)
                 if upload_result.get("success"):
                     scene_uploaded_filename = upload_result.get("filename")
                     print(f"[ShotTask {task_id}] Scene image uploaded successfully: {scene_uploaded_filename}")

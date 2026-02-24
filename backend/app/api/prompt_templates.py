@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.models.prompt_template import PromptTemplate
+from app.repositories import PromptTemplateRepository
 
 router = APIRouter(tags=["prompt_templates"])
 
@@ -86,7 +87,6 @@ SYSTEM_SCENE_IMAGE_TEMPLATES = [
         "name": "标准场景图",
         "description": "适用于大多数场景的标准图生成",
         "template": load_template("scene.txt"),
-        "style": "anime style, high quality, detailed, professional artwork",
         "type": "scene"
     }
 ]
@@ -109,14 +109,16 @@ def init_system_prompt_templates(db: Session):
     """初始化系统预设提示词模板"""
     print("[初始化] 更新系统预设提示词模板...")
     
+    template_repo = PromptTemplateRepository(db)
+    
     # 创建或更新系统预设模板
     for tmpl_data in SYSTEM_PROMPT_TEMPLATES:
         # 检查是否已存在同名同类型的系统模板
-        existing = db.query(PromptTemplate).filter(
-            PromptTemplate.name == tmpl_data["name"],
-            PromptTemplate.type == tmpl_data.get("type", "character"),
-            PromptTemplate.is_system == True
-        ).first()
+        existing = template_repo.get_by_name_and_type(
+            tmpl_data["name"], 
+            tmpl_data.get("type", "character"),
+            is_system=True
+        )
         
         if existing:
             # 更新现有模板内容
@@ -173,21 +175,21 @@ class PromptTemplateResponse(BaseModel):
         from_attributes = True
 
 
+def get_template_repo(db: Session = Depends(get_db)) -> PromptTemplateRepository:
+    """获取 PromptTemplateRepository 实例"""
+    return PromptTemplateRepository(db)
+
+
 @router.get("/", response_model=dict)
 def list_prompt_templates(
     type: Optional[str] = Query(None, description="筛选类型: character 或 chapter_split"),
-    db: Session = Depends(get_db)
+    template_repo: PromptTemplateRepository = Depends(get_template_repo)
 ):
     """获取所有提示词模板"""
-    query = db.query(PromptTemplate)
-    
     if type:
-        query = query.filter(PromptTemplate.type == type)
-    
-    templates = query.order_by(
-        PromptTemplate.is_system.desc(),
-        PromptTemplate.created_at.desc()
-    ).all()
+        templates = template_repo.list_by_type(type)
+    else:
+        templates = template_repo.list_all()
     
     return {
         "success": True,
@@ -211,9 +213,12 @@ def list_prompt_templates(
 
 
 @router.get("/{template_id}", response_model=dict)
-def get_prompt_template(template_id: str, db: Session = Depends(get_db)):
+def get_prompt_template(
+    template_id: str, 
+    template_repo: PromptTemplateRepository = Depends(get_template_repo)
+):
     """获取单个提示词模板"""
-    template = db.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+    template = template_repo.get_by_id(template_id)
     if not template:
         raise HTTPException(status_code=404, detail="提示词模板不存在")
     
@@ -236,7 +241,10 @@ def get_prompt_template(template_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=dict)
-def create_prompt_template(data: PromptTemplateCreate, db: Session = Depends(get_db)):
+def create_prompt_template(
+    data: PromptTemplateCreate, 
+    db: Session = Depends(get_db)
+):
     """创建用户自定义提示词模板"""
     template = PromptTemplate(
         name=data.name,
@@ -271,9 +279,13 @@ def create_prompt_template(data: PromptTemplateCreate, db: Session = Depends(get
 
 
 @router.post("/{template_id}/copy", response_model=dict)
-def copy_prompt_template(template_id: str, db: Session = Depends(get_db)):
+def copy_prompt_template(
+    template_id: str, 
+    db: Session = Depends(get_db),
+    template_repo: PromptTemplateRepository = Depends(get_template_repo)
+):
     """复制系统提示词模板为用户自定义模板"""
-    source = db.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+    source = template_repo.get_by_id(template_id)
     if not source:
         raise HTTPException(status_code=404, detail="源提示词模板不存在")
     
@@ -314,10 +326,11 @@ def copy_prompt_template(template_id: str, db: Session = Depends(get_db)):
 def update_prompt_template(
     template_id: str, 
     data: PromptTemplateUpdate, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    template_repo: PromptTemplateRepository = Depends(get_template_repo)
 ):
     """更新提示词模板（仅用户自定义可编辑）"""
-    template = db.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+    template = template_repo.get_by_id(template_id)
     if not template:
         raise HTTPException(status_code=404, detail="提示词模板不存在")
     
@@ -358,17 +371,20 @@ def update_prompt_template(
 
 
 @router.delete("/{template_id}", response_model=dict)
-def delete_prompt_template(template_id: str, db: Session = Depends(get_db)):
+def delete_prompt_template(
+    template_id: str, 
+    db: Session = Depends(get_db),
+    template_repo: PromptTemplateRepository = Depends(get_template_repo)
+):
     """删除提示词模板（仅用户自定义可删除）"""
-    template = db.query(PromptTemplate).filter(PromptTemplate.id == template_id).first()
+    template = template_repo.get_by_id(template_id)
     if not template:
         raise HTTPException(status_code=404, detail="提示词模板不存在")
     
     if template.is_system:
         raise HTTPException(status_code=403, detail="系统预设提示词不可删除")
     
-    db.delete(template)
-    db.commit()
+    template_repo.delete(template)
     
     return {"success": True, "message": "提示词模板删除成功"}
 
@@ -376,13 +392,10 @@ def delete_prompt_template(template_id: str, db: Session = Depends(get_db)):
 @router.get("/system/default", response_model=dict)
 def get_default_system_template(
     type: Optional[str] = Query("character", description="模板类型: character 或 chapter_split"),
-    db: Session = Depends(get_db)
+    template_repo: PromptTemplateRepository = Depends(get_template_repo)
 ):
     """获取默认的系统提示词模板"""
-    template = db.query(PromptTemplate).filter(
-        PromptTemplate.is_system == True,
-        PromptTemplate.type == type
-    ).order_by(PromptTemplate.created_at.asc()).first()
+    template = template_repo.get_default_system_template(type)
     
     if not template:
         raise HTTPException(status_code=404, detail="未找到系统提示词模板")

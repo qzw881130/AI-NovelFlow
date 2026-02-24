@@ -44,6 +44,7 @@ export default {
     details: '詳細',
     overview: '概要',
     other: 'その他',
+    failed: '失敗',
   },
 
   nav: {
@@ -56,7 +57,7 @@ export default {
     systemSettings: 'システム設定',
     promptConfig: 'プロンプト設定',
     uiConfig: 'UI設定',
-    llmLogs: 'JSONログ',
+    llmLogs: 'LLMログ',
   },
 
   welcome: {
@@ -68,6 +69,23 @@ export default {
     recentNovels: '最近の小説',
     systemStatus: 'システム状態',
     pleaseConfigure: 'NovelFlowを使用する前にシステム設定を完了してください。',
+
+    // ワークフローノード
+    workflow: {
+      importNovel: '小説インポート',
+      parseCharacters: 'AIキャラ解析',
+      parseScenes: 'AIシーン解析',
+      generateCharacters: 'キャラ画像生成',
+      generateScenes: 'シーン画像生成',
+      editChapter: '章編集',
+      splitShots: 'AIショット分割',
+      jsonStructure: 'JSON構造',
+      generateShotImages: 'ショット画像生成',
+      generateShotVideos: 'ショット動画生成',
+      generateTransitions: 'トランジション生成',
+      mergeVideo: '動画統合',
+    },
+
     features: {
       novelManagement: {
         title: '📚 小説管理',
@@ -216,6 +234,7 @@ export default {
     httpsProxy: 'HTTPSプロキシ',
     comfyUISettings: 'ComfyUI設定',
     comfyUIHost: 'ComfyUIホスト',
+    comfyUIHostHint: 'ComfyUIサービスのアドレスとポート',
     outputSettings: '出力設定',
     resolution: '解像度',
     frameRate: 'フレームレート',
@@ -290,6 +309,10 @@ export default {
       shot: 'ショット画像生成',
       video: 'ショット動画生成',
       transition: 'トランジション動画生成',
+      // Upload Modal
+      type: 'ワークフロータイプ',
+      name: 'ワークフロー名',
+      file: 'ワークフローファイル',
       uploadWorkflow: 'ワークフローをアップロード',
       noWorkflows: 'ワークフローがありません',
       current: '現在',
@@ -298,6 +321,7 @@ export default {
       default: 'デフォルト',
       systemPreset: 'システムプリセット',
       setAsDefault: 'デフォルトに設定',
+      setDefault: 'デフォルトに設定',
       currentDefault: '現在のデフォルト',
       // Modal
       uploadTitle: '{type}ワークフローをアップロード',
@@ -347,6 +371,10 @@ export default {
       firstImageNodeTip: '先頭フレーム画像入力用のLoadImageノードを選択',
       lastImageNode: '最終フレームノード（LoadImage - End IMG）',
       lastImageNodeTip: '最終フレーム画像入力用のLoadImageノードを選択',
+      // ノードマッピングモーダル
+      selectNodeToView: 'ノードを選択してJSONデータを表示',
+      nodeNotFound: 'ノードデータが見つかりません',
+      nodeMapping: 'ノードマッピング設定',
     },
   },
 
@@ -613,10 +641,14 @@ export default {
       'Flux2-Klein-9B 分镜生图双图参考': 'Flux2-Klein-9B ショット画像生成（デュアル参照）',
     },
     workflowDescriptions: {
+      '系统预设的人设生成工作流': 'システム既定のキャラ生成ワークフロー',
       '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）': 'システム既定のキャラ生成ワークフロー（Flux2 Klein 9B 三面図）',
       '系统预设的场景生成工作流': 'システム既定のシーン生成ワークフロー',
+      'Z-image-turbo 场景生成工作流': 'Z-image-turbo シーン生成ワークフロー',
       'Z-image-turbo【非三视图】': 'Z-image-turbo【三面図なし】',
       'Flux2-Klein-9B 图像编辑工作流，支持角色参考图': 'Flux2-Klein-9B 画像編集ワークフロー、キャラ参照画像対応',
+      'Flux2-Klein-9B 图像编辑工作流，仅支持角色参考图': 'Flux2-Klein-9B 画像編集ワークフロー、キャラ参照画像のみ対応',
+      'Flux2-Klein-9B 双图参考工作流，支持角色参考图+场景参考图，保持场景一致性': 'Flux2-Klein-9B デュアル参照ワークフロー、キャラ+シーン参照画像対応、シーン一貫性維持',
       'LTX-2 图生视频，直接使用用户提示词': 'LTX-2 画像から動画、ユーザープロンプト直接使用',
       'LTX-2 图生视频，使用 Qwen3 自动扩写提示词': 'LTX-2 画像から動画、Qwen3 自動拡張プロンプト使用',
       '适合：首尾帧是同一场景不同景别/角度': '適合：首尾フレームは同じシーンの異なるショット/角度',
@@ -647,8 +679,8 @@ export default {
 
   llmLogs: {
     ...enUS.llmLogs,
-    title: 'JSON解析ログ',
-    subtitle: 'AI解析ログの記録を表示',
+    title: 'LLMログ',
+    subtitle: 'LLM呼び出しログの記録を表示',
     clearLogs: 'ログをクリア',
     filterConditions: 'フィルタ条件',
     filterByNovel: '小説でフィルタ',

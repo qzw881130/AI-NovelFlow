@@ -53,6 +53,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+
 # CORS - 动态允许所有来源，支持任意 IP/端口访问
 # 使用动态 origin 检查，支持从任何来源访问
 allow_origin_regex = r"https?://.*"

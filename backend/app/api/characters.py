@@ -1,14 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
-import json
 
-from app.core.database import get_db
 from app.core.config import get_settings
+from app.core.database import get_db
 from app.models.novel import Character, Novel
 from app.models.prompt_template import PromptTemplate
 from app.services.comfyui import ComfyUIService
 from app.services.llm_service import LLMService
+from app.services.prompt_builder import (
+    build_character_prompt
+)
+from app.repositories import NovelRepository, CharacterRepository
 
 router = APIRouter()
 settings = get_settings()
@@ -20,17 +22,27 @@ def get_llm_service() -> LLMService:
     return LLMService()
 
 
+def get_novel_repo(db: Session = Depends(get_db)) -> NovelRepository:
+    """获取 NovelRepository 实例"""
+    return NovelRepository(db)
+
+
+def get_character_repo(db: Session = Depends(get_db)) -> CharacterRepository:
+    """获取 CharacterRepository 实例"""
+    return CharacterRepository(db)
+
+
 @router.get("/", response_model=dict)
-async def list_characters(novel_id: str = None, db: Session = Depends(get_db)):
+async def list_characters(novel_id: str = None, db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo), character_repo: CharacterRepository = Depends(get_character_repo)):
     """获取角色列表"""
-    query = db.query(Character)
     if novel_id:
-        query = query.filter(Character.novel_id == novel_id)
-    characters = query.order_by(Character.created_at.desc()).all()
+        characters = character_repo.list_by_novel(novel_id)
+    else:
+        characters = db.query(Character).order_by(Character.created_at.desc()).all()
     
     result = []
     for c in characters:
-        novel = db.query(Novel).filter(Novel.id == c.novel_id).first()
+        novel = novel_repo.get_by_id(c.novel_id)
         result.append({
             "id": c.id,
             "novelId": c.novel_id,
@@ -54,13 +66,13 @@ async def list_characters(novel_id: str = None, db: Session = Depends(get_db)):
 
 
 @router.get("/{character_id}", response_model=dict)
-async def get_character(character_id: str, db: Session = Depends(get_db)):
+async def get_character(character_id: str, novel_repo: NovelRepository = Depends(get_novel_repo), character_repo: CharacterRepository = Depends(get_character_repo)):
     """获取角色详情"""
-    character = db.query(Character).filter(Character.id == character_id).first()
+    character = character_repo.get_by_id(character_id)
     if not character:
         raise HTTPException(status_code=404, detail="角色不存在")
     
-    novel = db.query(Novel).filter(Novel.id == character.novel_id).first()
+    novel = novel_repo.get_by_id(character.novel_id)
     
     return {
         "success": True,
@@ -88,11 +100,12 @@ async def get_character(character_id: str, db: Session = Depends(get_db)):
 @router.post("/", response_model=dict)
 async def create_character(
     data: dict,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo)
 ):
     """创建角色"""
     # 验证小说存在
-    novel = db.query(Novel).filter(Novel.id == data.get('novelId')).first()
+    novel = novel_repo.get_by_id(data.get('novelId'))
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
@@ -125,10 +138,12 @@ async def create_character(
 async def update_character(
     character_id: str,
     data: dict,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    character_repo: CharacterRepository = Depends(get_character_repo)
 ):
     """更新角色"""
-    character = db.query(Character).filter(Character.id == character_id).first()
+    character = character_repo.get_by_id(character_id)
     if not character:
         raise HTTPException(status_code=404, detail="角色不存在")
     
@@ -139,7 +154,7 @@ async def update_character(
     db.commit()
     db.refresh(character)
     
-    novel = db.query(Novel).filter(Novel.id == character.novel_id).first()
+    novel = novel_repo.get_by_id(character.novel_id)
     
     return {
         "success": True,
@@ -157,9 +172,9 @@ async def update_character(
 
 
 @router.delete("/{character_id}")
-async def delete_character(character_id: str, db: Session = Depends(get_db)):
+async def delete_character(character_id: str, db: Session = Depends(get_db), character_repo: CharacterRepository = Depends(get_character_repo)):
     """删除角色"""
-    character = db.query(Character).filter(Character.id == character_id).first()
+    character = character_repo.get_by_id(character_id)
     if not character:
         raise HTTPException(status_code=404, detail="角色不存在")
     
@@ -170,10 +185,10 @@ async def delete_character(character_id: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/")
-async def delete_characters_by_novel(novel_id: str = Query(..., description="小说ID"), db: Session = Depends(get_db)):
+async def delete_characters_by_novel(novel_id: str = Query(..., description="小说ID"), db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo)):
     """删除指定小说的所有角色"""
     # 检查小说是否存在
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
@@ -189,10 +204,10 @@ async def delete_characters_by_novel(novel_id: str = Query(..., description="小
 
 
 @router.post("/clear-characters-dir")
-async def clear_characters_dir(novel_id: str = Query(..., description="小说ID"), db: Session = Depends(get_db)):
+async def clear_characters_dir(novel_id: str = Query(..., description="小说ID"), novel_repo: NovelRepository = Depends(get_novel_repo)):
     """清空小说的角色图片目录（用于批量重新生成前）"""
     # 检查小说是否存在
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
@@ -208,14 +223,14 @@ async def clear_characters_dir(novel_id: str = Query(..., description="小说ID"
 
 
 @router.get("/{character_id}/prompt", response_model=dict)
-async def get_character_prompt(character_id: str, db: Session = Depends(get_db)):
+async def get_character_prompt(character_id: str, db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo), character_repo: CharacterRepository = Depends(get_character_repo)):
     """获取角色生成时使用的拼接后提示词"""
-    character = db.query(Character).filter(Character.id == character_id).first()
+    character = character_repo.get_by_id(character_id)
     if not character:
         raise HTTPException(status_code=404, detail="角色不存在")
     
     # 获取角色所属小说
-    novel = db.query(Novel).filter(Novel.id == character.novel_id).first()
+    novel = novel_repo.get_by_id(character.novel_id)
     
     # 获取提示词模板
     template = None
@@ -255,10 +270,11 @@ async def get_character_prompt(character_id: str, db: Session = Depends(get_db))
 @router.post("/{character_id}/generate-appearance", response_model=dict)
 async def generate_appearance(
     character_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    character_repo: CharacterRepository = Depends(get_character_repo)
 ):
     """使用 DeepSeek AI 智能生成角色外貌描述"""
-    character = db.query(Character).filter(Character.id == character_id).first()
+    character = character_repo.get_by_id(character_id)
     if not character:
         raise HTTPException(status_code=404, detail="角色不存在")
     
@@ -288,107 +304,3 @@ async def generate_appearance(
             "message": f"生成失败: {str(e)}"
         }
 
-
-def build_character_prompt(name: str, appearance: str, description: str, template: str = None) -> str:
-    """构建角色人设图提示词
-    
-    Args:
-        name: 角色名称
-        appearance: 外貌描述
-        description: 角色描述（已废弃，不再使用）
-        template: 提示词模板，包含 {appearance} 和 {description} 占位符
-    """
-    # 根据角色名称检测动物类型，添加英文强调词
-    # animal_keyword = detect_animal_type(name, appearance)
-    animal_keyword = None
-    
-    if template:
-        # 使用模板构建提示词，只使用 appearance，不使用 description
-        prompt = template.replace("{appearance}", appearance or "").replace("{description}", "")
-        # 在开头添加动物类型强调
-        if animal_keyword:
-            prompt = f"{animal_keyword} character, " + prompt
-        # 清理多余的逗号和空格
-        prompt = " ".join(prompt.split())
-        prompt = prompt.replace(" ,", ",").replace(",,", ",").strip(", ")
-        return prompt
-    
-    # 默认提示词
-    base_prompt = "character portrait, high quality, detailed, "
-    
-    if animal_keyword:
-        base_prompt = f"{animal_keyword} character, " + base_prompt
-    
-    if appearance:
-        base_prompt += appearance + ", "
-    
-    if description:
-        base_prompt += description + ", "
-    
-    base_prompt += "single character, centered, clean background, professional artwork"
-    
-    return base_prompt
-
-
-def detect_animal_type(name: str, appearance: str) -> str:
-    """检测角色动物类型，返回英文关键词"""
-    name_lower = (name or "").lower()
-    appearance_lower = (appearance or "").lower()
-    
-    # 动物关键词映射
-    animal_map = {
-        "horse": ["马", "horse", "pony", "stallion", "mare"],
-        "cow": ["牛", "cow", "bull", "ox", "cattle", "buffalo", "bison"],
-        "squirrel": ["松鼠", "squirrel", "chipmunk"],
-        "fox": ["狐狸", "fox"],
-        "dog": ["狗", "dog", "puppy", "canine"],
-        "cat": ["猫", "cat", "kitten", "feline"],
-        "rabbit": ["兔", "rabbit", "bunny", "hare"],
-        "bear": ["熊", "bear"],
-        "wolf": ["狼", "wolf"],
-        "tiger": ["虎", "tiger"],
-        "lion": ["狮", "lion"],
-        "elephant": ["象", "elephant"],
-        "pig": ["猪", "pig", "boar", "hog"],
-        "sheep": ["羊", "sheep", "lamb", "goat"],
-        "chicken": ["鸡", "chicken", "hen", "rooster"],
-        "duck": ["鸭", "duck"],
-        "mouse": ["鼠", "mouse", "rat"],
-        "deer": ["鹿", "deer"],
-        "monkey": ["猴", "monkey", "ape"],
-    }
-    
-    combined_text = name_lower + " " + appearance_lower
-    
-    for animal_type, keywords in animal_map.items():
-        for keyword in keywords:
-            if keyword in combined_text:
-                return animal_type
-    
-    return None
-
-
-def extract_style_from_template(template: str) -> str:
-    """从角色提示词模板中提取 style
-
-    兼容逻辑：
-    1. 尝试解析为 JSON，获取 style 字段
-    2. 否则清理模板中的 {appearance} 和 {description} 占位符
-    """
-    if not template:
-        return "anime style, high quality, detailed"
-
-    # 尝试解析 JSON
-    try:
-        template_data = json.loads(template)
-        if isinstance(template_data, dict) and "style" in template_data:
-            return template_data["style"]
-    except:
-        pass
-
-    # 清理占位符
-    style = template.replace("{appearance}", "").replace("{description}", "").strip(", ")
-    if style:
-        return style
-
-    return "anime style, high quality, detailed"

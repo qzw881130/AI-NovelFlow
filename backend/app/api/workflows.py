@@ -8,9 +8,15 @@ from typing import Optional
 from app.core.database import get_db
 from app.core.config import get_settings
 from app.models.workflow import Workflow
+from app.repositories import WorkflowRepository
 
 router = APIRouter()
 settings = get_settings()
+
+
+def get_workflow_repo(db: Session = Depends(get_db)) -> WorkflowRepository:
+    """获取 WorkflowRepository 实例"""
+    return WorkflowRepository(db)
 
 # 工作流类型定义
 WORKFLOW_TYPES = {
@@ -64,6 +70,7 @@ def get_user_workflows_dir():
 
 def load_default_workflows(db: Session):
     """加载默认工作流到数据库"""
+    workflow_repo = WorkflowRepository(db)
     workflows_dir = get_workflows_dir()
     
     # 1. 加载默认工作流
@@ -71,10 +78,7 @@ def load_default_workflows(db: Session):
         file_path = os.path.join(workflows_dir, filename)
         
         # 检查是否已存在同名系统工作流
-        existing = db.query(Workflow).filter(
-            Workflow.file_path == file_path,
-            Workflow.is_system == True
-        ).first()
+        existing = workflow_repo.get_by_file_path(file_path, is_system=True)
         
         if os.path.exists(file_path):
             with open(file_path, 'r', encoding='utf-8') as f:
@@ -117,10 +121,7 @@ def load_default_workflows(db: Session):
             workflow_json = f.read()
         
         # 检查是否已存在
-        existing = db.query(Workflow).filter(
-            Workflow.file_path == file_path,
-            Workflow.is_system == True
-        ).first()
+        existing = workflow_repo.get_by_file_path(file_path, is_system=True)
         
         if existing:
             # 检查内容是否有变化，有则更新
@@ -143,10 +144,7 @@ def load_default_workflows(db: Session):
             continue
         
         # 检查该类型是否已有激活的工作流（数据库中）
-        has_active_in_db = db.query(Workflow).filter(
-            Workflow.type == wf_type,
-            Workflow.is_active == True
-        ).first() is not None
+        has_active_in_db = workflow_repo.get_active_by_type(wf_type) is not None
         
         # 检查该类型在本次加载中是否已设置了默认工作流
         processed_count = processed_types.get(wf_type, 0)
@@ -179,10 +177,7 @@ def load_default_workflows(db: Session):
     # 3. 确保每种类型只有一个默认激活的工作流
     for wf_type in WORKFLOW_TYPES.keys():
         # 获取该类型所有激活的工作流，按创建时间排序
-        active_workflows = db.query(Workflow).filter(
-            Workflow.type == wf_type,
-            Workflow.is_active == True
-        ).order_by(Workflow.created_at.asc()).all()
+        active_workflows = workflow_repo.list_active_by_type(wf_type)
         
         if len(active_workflows) > 1:
             # 有多个激活的，只保留第一个，其余取消激活
@@ -192,10 +187,7 @@ def load_default_workflows(db: Session):
             db.commit()
         elif not active_workflows:
             # 没有激活的，找到该类型的第一个系统工作流设为默认
-            first_workflow = db.query(Workflow).filter(
-                Workflow.type == wf_type,
-                Workflow.is_system == True
-            ).order_by(Workflow.created_at.asc()).first()
+            first_workflow = workflow_repo.get_first_system_by_type(wf_type)
             
             if first_workflow:
                 first_workflow.is_active = True
@@ -206,25 +198,26 @@ def load_default_workflows(db: Session):
 @router.get("/", response_model=dict)
 async def list_workflows(
     type: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo)
 ):
     """获取工作流列表"""
     # 确保默认工作流已加载
     load_default_workflows(db)
     
-    query = db.query(Workflow).order_by(Workflow.is_system.desc(), Workflow.created_at.desc())
-    
     if type:
-        query = query.filter(Workflow.type == type)
-    
-    workflows = query.all()
+        workflows = workflow_repo.list_by_type(type)
+    else:
+        workflows = workflow_repo.list_all()
     
     # 系统工作流名称到翻译键的映射
     WORKFLOW_NAME_KEYS = {
         "系统默认-人设生成": "tasks.workflowNames.系统默认-人设生成",
         "系统默认-场景生成": "tasks.workflowNames.系统默认-场景生成",
         "Z-image-turbo 单图生成": "tasks.workflowNames.Z-image-turbo 单图生成",
+        "Z-image-turbo 场景生成": "tasks.workflowNames.Z-image-turbo 场景生成",
         "Flux2-Klein-9B 分镜生图": "tasks.workflowNames.Flux2-Klein-9B 分镜生图",
+        "Flux2-Klein-9B 分镜生图双图参考": "tasks.workflowNames.Flux2-Klein-9B 分镜生图双图参考",
         "LTX2 视频生成-直接版": "tasks.workflowNames.LTX2 视频生成-直接版",
         "LTX2 视频生成-扩写版": "tasks.workflowNames.LTX2 视频生成-扩写版",
         "LTX2 镜头转场视频": "tasks.workflowNames.LTX2 镜头转场视频",
@@ -233,10 +226,14 @@ async def list_workflows(
     }
     # 系统工作流描述到翻译键的映射
     WORKFLOW_DESC_KEYS = {
+        "系统预设的人设生成工作流": "tasks.workflowDescriptions.系统预设的人设生成工作流",
         "系统预设的人设生成工作流（Flux2 Klein 9B 三视图）": "tasks.workflowDescriptions.系统预设的人设生成工作流（Flux2 Klein 9B 三视图）",
         "系统预设的场景生成工作流": "tasks.workflowDescriptions.系统预设的场景生成工作流",
+        "Z-image-turbo 场景生成工作流": "tasks.workflowDescriptions.Z-image-turbo 场景生成工作流",
         "Z-image-turbo【非三视图】": "tasks.workflowDescriptions.Z-image-turbo【非三视图】",
         "Flux2-Klein-9B 图像编辑工作流，支持角色参考图": "tasks.workflowDescriptions.Flux2-Klein-9B 图像编辑工作流，支持角色参考图",
+        "Flux2-Klein-9B 图像编辑工作流，仅支持角色参考图": "tasks.workflowDescriptions.Flux2-Klein-9B 图像编辑工作流，仅支持角色参考图",
+        "Flux2-Klein-9B 双图参考工作流，支持角色参考图+场景参考图，保持场景一致性": "tasks.workflowDescriptions.Flux2-Klein-9B 双图参考工作流，支持角色参考图+场景参考图，保持场景一致性",
         "LTX-2 图生视频，直接使用用户提示词": "tasks.workflowDescriptions.LTX-2 图生视频，直接使用用户提示词",
         "LTX-2 图生视频，使用 Qwen3 自动扩写提示词": "tasks.workflowDescriptions.LTX-2 图生视频，使用 Qwen3 自动扩写提示词",
         "适合：首尾帧是同一场景不同景别/角度": "tasks.workflowDescriptions.适合：首尾帧是同一场景不同景别/角度",
@@ -266,9 +263,12 @@ async def list_workflows(
 
 
 @router.get("/{workflow_id}/", response_model=dict)
-async def get_workflow(workflow_id: str, db: Session = Depends(get_db)):
+async def get_workflow(
+    workflow_id: str, 
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo)
+):
     """获取工作流详情"""
-    workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+    workflow = workflow_repo.get_by_id(workflow_id)
     if not workflow:
         raise HTTPException(status_code=404, detail="工作流不存在")
     
@@ -277,7 +277,9 @@ async def get_workflow(workflow_id: str, db: Session = Depends(get_db)):
         "系统默认-人设生成": "tasks.workflowNames.系统默认-人设生成",
         "系统默认-场景生成": "tasks.workflowNames.系统默认-场景生成",
         "Z-image-turbo 单图生成": "tasks.workflowNames.Z-image-turbo 单图生成",
+        "Z-image-turbo 场景生成": "tasks.workflowNames.Z-image-turbo 场景生成",
         "Flux2-Klein-9B 分镜生图": "tasks.workflowNames.Flux2-Klein-9B 分镜生图",
+        "Flux2-Klein-9B 分镜生图双图参考": "tasks.workflowNames.Flux2-Klein-9B 分镜生图双图参考",
         "LTX2 视频生成-直接版": "tasks.workflowNames.LTX2 视频生成-直接版",
         "LTX2 视频生成-扩写版": "tasks.workflowNames.LTX2 视频生成-扩写版",
         "LTX2 镜头转场视频": "tasks.workflowNames.LTX2 镜头转场视频",
@@ -286,10 +288,14 @@ async def get_workflow(workflow_id: str, db: Session = Depends(get_db)):
     }
     # 系统工作流描述到翻译键的映射
     WORKFLOW_DESC_KEYS = {
+        "系统预设的人设生成工作流": "tasks.workflowDescriptions.系统预设的人设生成工作流",
         "系统预设的人设生成工作流（Flux2 Klein 9B 三视图）": "tasks.workflowDescriptions.系统预设的人设生成工作流（Flux2 Klein 9B 三视图）",
         "系统预设的场景生成工作流": "tasks.workflowDescriptions.系统预设的场景生成工作流",
+        "Z-image-turbo 场景生成工作流": "tasks.workflowDescriptions.Z-image-turbo 场景生成工作流",
         "Z-image-turbo【非三视图】": "tasks.workflowDescriptions.Z-image-turbo【非三视图】",
         "Flux2-Klein-9B 图像编辑工作流，支持角色参考图": "tasks.workflowDescriptions.Flux2-Klein-9B 图像编辑工作流，支持角色参考图",
+        "Flux2-Klein-9B 图像编辑工作流，仅支持角色参考图": "tasks.workflowDescriptions.Flux2-Klein-9B 图像编辑工作流，仅支持角色参考图",
+        "Flux2-Klein-9B 双图参考工作流，支持角色参考图+场景参考图，保持场景一致性": "tasks.workflowDescriptions.Flux2-Klein-9B 双图参考工作流，支持角色参考图+场景参考图，保持场景一致性",
         "LTX-2 图生视频，直接使用用户提示词": "tasks.workflowDescriptions.LTX-2 图生视频，直接使用用户提示词",
         "LTX-2 图生视频，使用 Qwen3 自动扩写提示词": "tasks.workflowDescriptions.LTX-2 图生视频，使用 Qwen3 自动扩写提示词",
         "适合：首尾帧是同一场景不同景别/角度": "tasks.workflowDescriptions.适合：首尾帧是同一场景不同景别/角度",
@@ -389,10 +395,11 @@ async def upload_workflow(
 async def update_workflow(
     workflow_id: str,
     data: dict,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo)
 ):
     """更新工作流信息"""
-    workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+    workflow = workflow_repo.get_by_id(workflow_id)
     if not workflow:
         raise HTTPException(status_code=404, detail="工作流不存在")
     
@@ -472,9 +479,12 @@ async def update_workflow(
 
 
 @router.delete("/{workflow_id}/")
-async def delete_workflow(workflow_id: str, db: Session = Depends(get_db)):
+async def delete_workflow(
+    workflow_id: str, 
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo)
+):
     """删除工作流"""
-    workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+    workflow = workflow_repo.get_by_id(workflow_id)
     if not workflow:
         raise HTTPException(status_code=404, detail="工作流不存在")
     
@@ -482,8 +492,7 @@ async def delete_workflow(workflow_id: str, db: Session = Depends(get_db)):
     if workflow.is_system:
         raise HTTPException(status_code=403, detail="系统预设工作流不能删除")
     
-    db.delete(workflow)
-    db.commit()
+    workflow_repo.delete(workflow)
     
     return {"success": True, "message": "删除成功"}
 
@@ -491,17 +500,16 @@ async def delete_workflow(workflow_id: str, db: Session = Depends(get_db)):
 @router.post("/{workflow_id}/set-default/")
 async def set_default_workflow(
     workflow_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo)
 ):
     """设置默认工作流（将该类型的工作流设为激活状态，其他同类型的设为非激活）"""
-    workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+    workflow = workflow_repo.get_by_id(workflow_id)
     if not workflow:
         raise HTTPException(status_code=404, detail="工作流不存在")
     
     # 将该类型的所有工作流设为非激活
-    db.query(Workflow).filter(
-        Workflow.type == workflow.type
-    ).update({"is_active": False})
+    workflow_repo.deactivate_all_by_type(workflow.type)
     
     # 将当前工作流设为激活
     workflow.is_active = True
@@ -514,22 +522,20 @@ async def set_default_workflow(
 
 
 @router.get("/active/{workflow_type}", response_model=dict)
-async def get_active_workflow(workflow_type: str, db: Session = Depends(get_db)):
+async def get_active_workflow(
+    workflow_type: str, 
+    db: Session = Depends(get_db),
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo)
+):
     """获取当前激活的工作流"""
     # 确保默认工作流已加载
     load_default_workflows(db)
     
-    workflow = db.query(Workflow).filter(
-        Workflow.type == workflow_type,
-        Workflow.is_active == True
-    ).first()
+    workflow = workflow_repo.get_active_by_type(workflow_type)
     
     if not workflow:
         # 如果没有激活的，返回该类型的第一个系统工作流
-        workflow = db.query(Workflow).filter(
-            Workflow.type == workflow_type,
-            Workflow.is_system == True
-        ).first()
+        workflow = workflow_repo.get_first_system_by_type(workflow_type)
     
     if not workflow:
         raise HTTPException(status_code=404, detail=f"没有找到{WORKFLOW_TYPES.get(workflow_type, workflow_type)}工作流")

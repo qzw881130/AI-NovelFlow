@@ -44,6 +44,7 @@ export default {
     details: '상세',
     overview: '개요',
     other: '기타',
+    failed: '실패',
   },
 
   nav: {
@@ -56,7 +57,7 @@ export default {
     systemSettings: '시스템 설정',
     promptConfig: '프롬프트 설정',
     uiConfig: 'UI 설정',
-    llmLogs: 'JSON 로그',
+    llmLogs: 'LLM 로그',
   },
 
   welcome: {
@@ -68,6 +69,23 @@ export default {
     recentNovels: '최근 소설',
     systemStatus: '시스템 상태',
     pleaseConfigure: 'NovelFlow를 사용하기 전에 시스템 설정을 완료해 주세요.',
+
+    // 워크플로우 노드
+    workflow: {
+      importNovel: '소설 가져오기',
+      parseCharacters: 'AI 캐릭터 분석',
+      parseScenes: 'AI 장면 분석',
+      generateCharacters: '캐릭터 이미지 생성',
+      generateScenes: '장면 이미지 생성',
+      editChapter: '장 편집',
+      splitShots: 'AI 샷 분할',
+      jsonStructure: 'JSON 구조',
+      generateShotImages: '샷 이미지 생성',
+      generateShotVideos: '샷 비디오 생성',
+      generateTransitions: '전환 생성',
+      mergeVideo: '비디오 병합',
+    },
+
     features: {
       novelManagement: {
         title: '📚 소설 관리',
@@ -212,6 +230,7 @@ export default {
     httpsProxy: 'HTTPS 프록시',
     comfyUISettings: 'ComfyUI 설정',
     comfyUIHost: 'ComfyUI 호스트',
+    comfyUIHostHint: 'ComfyUI 서비스 주소 및 포트',
     outputSettings: '출력 설정',
     resolution: '해상도',
     frameRate: '프레임 레이트',
@@ -286,6 +305,10 @@ export default {
       shot: '샷 이미지 생성',
       video: '샷 비디오 생성',
       transition: '전환 비디오 생성',
+      // Upload Modal
+      type: '워크플로우 타입',
+      name: '워크플로우 이름',
+      file: '워크플로우 파일',
       uploadWorkflow: '워크플로우 업로드',
       noWorkflows: '워크플로우가 없습니다',
       current: '현재',
@@ -294,6 +317,7 @@ export default {
       default: '기본값',
       systemPreset: '시스템 프리셋',
       setAsDefault: '기본으로 설정',
+      setDefault: '기본으로 설정',
       currentDefault: '현재 기본값',
       // Modal
       uploadTitle: '{type} 워크플로우 업로드',
@@ -343,6 +367,10 @@ export default {
       firstImageNodeTip: '첫 번째 프레임 이미지 입력용 LoadImage 노드 선택',
       lastImageNode: '마지막 프레임 노드 (LoadImage - End IMG)',
       lastImageNodeTip: '마지막 프레임 이미지 입력용 LoadImage 노드 선택',
+      // 노드 매핑 모달
+      selectNodeToView: 'JSON 데이터를 보려면 노드 선택',
+      nodeNotFound: '노드 데이터를 찾을 수 없음',
+      nodeMapping: '노드 매핑 설정',
     },
   },
 
@@ -609,10 +637,14 @@ export default {
       'LTX2 遮挡转场视频': 'LTX2 가리기 전환',
     },
     workflowDescriptions: {
+      '系统预设的人设生成工作流': '시스템 기본 캐릭터 생성 워크플로우',
       '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）': '시스템 기본 캐릭터 생성 워크플로우（Flux2 Klein 9B 3면图）',
       '系统预设的场景生成工作流': '시스템 기본 장면 생성 워크플로우',
+      'Z-image-turbo 场景生成工作流': 'Z-image-turbo 장면 생성 워크플로우',
       'Z-image-turbo【非三视图】': 'Z-image-turbo【3면图 아님】',
       'Flux2-Klein-9B 图像编辑工作流，支持角色参考图': 'Flux2-Klein-9B 이미지 편집 워크플로우, 캐릭터 참조 이미지 지원',
+      'Flux2-Klein-9B 图像编辑工作流，仅支持角色参考图': 'Flux2-Klein-9B 이미지 편집 워크플로우, 캐릭터 참조 이미지만 지원',
+      'Flux2-Klein-9B 双图参考工作流，支持角色参考图+场景参考图，保持场景一致性': 'Flux2-Klein-9B 이중 참조 워크플로우, 캐릭터+장면 참조 이미지 지원, 장면 일관성 유지',
       'LTX-2 图生视频，直接使用用户提示词': 'LTX-2 이미지에서 비디오, 사용자 프롬프트 직접 사용',
       'LTX-2 图生视频，使用 Qwen3 自动扩写提示词': 'LTX-2 이미지에서 비디오, Qwen3 자동 확장 프롬프트 사용',
       '适合：首尾帧是同一场景不同景别/角度': '적합: 시작/끝 프레임은 같은 장면의 다른 샷/각도',
@@ -643,8 +675,8 @@ export default {
 
   llmLogs: {
     ...enUS.llmLogs,
-    title: 'JSON 파싱 로그',
-    subtitle: 'AI 파싱 로그 기록 보기',
+    title: 'LLM 로그',
+    subtitle: 'LLM 호출 로그 기록 보기',
     clearLogs: '로그 지우기',
     filterConditions: '필터 조건',
     filterByNovel: '소설로 필터',

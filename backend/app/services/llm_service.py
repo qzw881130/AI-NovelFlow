@@ -5,6 +5,7 @@ import httpx
 import json
 from typing import Dict, Any, List, Optional
 from app.core.config import get_settings
+from app.utils.json_parser import safe_parse_llm_json
 
 settings = get_settings()
 
@@ -556,31 +557,10 @@ class LLMService:
         
         if result["success"]:
             try:
-                content = result["content"]
-                # 处理 Ollama 模型可能返回的 <think>...</think> 标签
-                if "<think>" in content and "</think>" in content:
-                    # 提取 think 标签外的内容
-                    content = content.split("</think>")[-1].strip()
-                
-                # 尝试从 Markdown 代码块中提取 JSON
-                if "```json" in content:
-                    content = content.split("```json")[-1].split("```")[0].strip()
-                elif "```" in content:
-                    content = content.split("```")[-1].split("```")[0].strip()
-                
-                # 尝试找到 JSON 对象的开始和结束
-                content = content.strip()
-                if content.startswith("{") and content.endswith("}"):
-                    return json.loads(content)
-                
-                # 尝试提取第一个 JSON 对象
-                import re
-                json_match = re.search(r'\{[\s\S]*\}', content)
-                if json_match:
-                    return json.loads(json_match.group())
-                
-                return json.loads(content)
-            except json.JSONDecodeError as e:
+                # 使用统一的 JSON 解析工具
+                parsed = safe_parse_llm_json(result["content"], {})
+                return parsed
+            except Exception as e:
                 print(f"[parse_novel_text] JSON 解析失败: {e}")
                 print(f"[parse_novel_text] 原始内容: {result['content'][:500]}")
                 return {"error": f"JSON 解析失败: {e}", "characters": [], "scenes": [], "shots": []}
@@ -922,6 +902,3 @@ Traditional Chinese courtyard, ancient wooden architecture with curved roofs, re
                 "scenes": []
             }
 
-
-# 兼容旧导入
-DeepSeekService = LLMService
