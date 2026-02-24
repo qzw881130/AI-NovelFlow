@@ -70,8 +70,29 @@ SYSTEM_CHAPTER_SPLIT_TEMPLATES = [
     }
 ]
 
+# 系统预设的场景解析提示词模板
+SYSTEM_SCENE_TEMPLATES = [
+    {
+        "name": "标准场景解析",
+        "description": "适用于大多数小说的场景解析",
+        "template": load_template("scene_parse.txt"),
+        "type": "scene_parse"
+    }
+]
+
+# 系统预设的场景图生成提示词模板
+SYSTEM_SCENE_IMAGE_TEMPLATES = [
+    {
+        "name": "标准场景图",
+        "description": "适用于大多数场景的标准图生成",
+        "template": load_template("scene.txt"),
+        "style": "anime style, high quality, detailed, professional artwork",
+        "type": "scene"
+    }
+]
+
 # 合并所有系统模板
-SYSTEM_PROMPT_TEMPLATES = SYSTEM_CHARACTER_TEMPLATES + SYSTEM_CHAPTER_SPLIT_TEMPLATES
+SYSTEM_PROMPT_TEMPLATES = SYSTEM_CHARACTER_TEMPLATES + SYSTEM_CHAPTER_SPLIT_TEMPLATES + SYSTEM_SCENE_TEMPLATES + SYSTEM_SCENE_IMAGE_TEMPLATES
 
 
 def get_template_name_key(name: str) -> str:
@@ -101,12 +122,16 @@ def init_system_prompt_templates(db: Session):
             # 更新现有模板内容
             existing.description = tmpl_data["description"]
             existing.template = tmpl_data["template"]
+            # 更新 style 字段（如果模板数据中有定义）
+            if "style" in tmpl_data:
+                existing.style = tmpl_data["style"]
         else:
             # 创建新模板
             template = PromptTemplate(
                 name=tmpl_data["name"],
                 description=tmpl_data["description"],
                 template=tmpl_data["template"],
+                style=tmpl_data.get("style", ""),  # 保存 style 字段
                 type=tmpl_data.get("type", "character"),
                 is_system=True,
                 is_active=True
@@ -121,6 +146,7 @@ class PromptTemplateCreate(BaseModel):
     name: str
     description: str = ""
     template: str
+    style: str = ""  # 风格提示词
     type: str = "character"  # character 或 chapter_split
 
 
@@ -128,6 +154,7 @@ class PromptTemplateUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     template: Optional[str] = None
+    style: Optional[str] = None
     type: Optional[str] = None
 
 
@@ -136,6 +163,7 @@ class PromptTemplateResponse(BaseModel):
     name: str
     description: str
     template: str
+    style: str
     type: str
     isSystem: bool
     isActive: bool
@@ -171,6 +199,7 @@ def list_prompt_templates(
                 "description": t.description,
                 "descriptionKey": get_template_description_key(t.name) if t.is_system else None,
                 "template": t.template,
+                "style": t.style or "",
                 "type": t.type or "character",
                 "isSystem": t.is_system,
                 "isActive": t.is_active,
@@ -197,6 +226,7 @@ def get_prompt_template(template_id: str, db: Session = Depends(get_db)):
             "description": template.description,
             "descriptionKey": get_template_description_key(template.name) if template.is_system else None,
             "template": template.template,
+            "style": template.style or "",
             "type": template.type or "character",
             "isSystem": template.is_system,
             "isActive": template.is_active,
@@ -212,6 +242,7 @@ def create_prompt_template(data: PromptTemplateCreate, db: Session = Depends(get
         name=data.name,
         description=data.description,
         template=data.template,
+        style=data.style,
         type=data.type,
         is_system=False,  # 用户创建的默认为非系统
         is_active=True
@@ -230,6 +261,7 @@ def create_prompt_template(data: PromptTemplateCreate, db: Session = Depends(get
             "description": template.description,
             "descriptionKey": get_template_description_key(template.name) if template.is_system else None,
             "template": template.template,
+            "style": template.style or "",
             "type": template.type or "character",
             "isSystem": template.is_system,
             "isActive": template.is_active,
@@ -250,6 +282,7 @@ def copy_prompt_template(template_id: str, db: Session = Depends(get_db)):
         name=f"{source.name} (副本)",
         description=source.description,
         template=source.template,
+        style=source.style or "",  # 复制 style 字段
         type=source.type or "character",
         is_system=False,  # 复制出来的为用户类型
         is_active=True
@@ -268,6 +301,7 @@ def copy_prompt_template(template_id: str, db: Session = Depends(get_db)):
             "description": new_template.description,
             "descriptionKey": get_template_description_key(new_template.name) if new_template.is_system else None,
             "template": new_template.template,
+            "style": new_template.style or "",
             "type": new_template.type or "character",
             "isSystem": new_template.is_system,
             "isActive": new_template.is_active,
@@ -296,6 +330,8 @@ def update_prompt_template(
         template.description = data.description
     if data.template is not None:
         template.template = data.template
+    if data.style is not None:
+        template.style = data.style
     if data.type is not None:
         template.type = data.type
     
@@ -312,6 +348,7 @@ def update_prompt_template(
             "description": template.description,
             "descriptionKey": get_template_description_key(template.name) if template.is_system else None,
             "template": template.template,
+            "style": template.style or "",
             "type": template.type or "character",
             "isSystem": template.is_system,
             "isActive": template.is_active,
@@ -359,6 +396,7 @@ def get_default_system_template(
             "description": template.description,
             "descriptionKey": get_template_description_key(template.name) if template.is_system else None,
             "template": template.template,
+            "style": template.style or "",
             "type": template.type or "character",
             "isSystem": template.is_system,
             "isActive": template.is_active,

@@ -20,6 +20,7 @@ class Task(Base):
     novel_id = Column(String, nullable=True)
     chapter_id = Column(String, nullable=True)
     character_id = Column(String, nullable=True)
+    scene_id = Column(String, nullable=True)  # 场景ID
     
     # 任务详情
     name = Column(String, nullable=False)  # 任务名称

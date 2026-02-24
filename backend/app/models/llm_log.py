@@ -1,5 +1,5 @@
 """LLM调用日志模型"""
-from sqlalchemy import Column, String, Text, DateTime, Integer, JSON, Boolean
+from sqlalchemy import Column, String, Text, DateTime, Integer, JSON, Boolean, Float
 from sqlalchemy.sql import func
 from app.core.database import Base
 import uuid
@@ -38,3 +38,6 @@ class LLMLog(Base):
     
     # 代理使用情况
     used_proxy = Column(Boolean, default=False)
+    
+    # 请求耗时（秒）
+    duration = Column(Float, nullable=True)  # 请求耗时，单位秒

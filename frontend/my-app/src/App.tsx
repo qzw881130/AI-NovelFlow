@@ -8,6 +8,7 @@ import NovelDetail from './pages/NovelDetail';
 import ChapterDetail from './pages/ChapterDetail';
 import ChapterGenerate from './pages/ChapterGenerate';
 import Characters from './pages/Characters';
+import Scenes from './pages/Scenes';
 import Tasks from './pages/Tasks';
 import TestCases from './pages/TestCases';
 import PromptConfig from './pages/PromptConfig';
@@ -44,6 +45,7 @@ function App() {
           <Route path="novels/:id/chapters/:cid" element={<ChapterDetail />} />
           <Route path="novels/:id/chapters/:cid/generate" element={<ChapterGenerate />} />
           <Route path="characters" element={<Characters />} />
+          <Route path="scenes" element={<Scenes />} />
           <Route path="tasks" element={<Tasks />} />
           <Route path="test-cases" element={<TestCases />} />
           <Route path="prompt-config" element={<PromptConfig />} />

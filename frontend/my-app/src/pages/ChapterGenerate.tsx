@@ -686,6 +686,18 @@ interface Character {
   novelId: string;
 }
 
+// 场景数据类型
+interface Scene {
+  id: string;
+  novelId: string;
+  name: string;
+  description: string;
+  setting: string;
+  imageUrl?: string;
+  generatingStatus?: string;
+  sceneTaskId?: string;
+}
+
 // 转场视频项组件接口
 interface TransitionVideoItemProps {
   fromIndex: number;
@@ -727,6 +739,8 @@ export default function ChapterGenerate() {
   const [jsonEditMode, setJsonEditMode] = useState<'text' | 'table'>('text');
   // 角色列表（从角色库获取）
   const [characters, setCharacters] = useState<Character[]>([]);
+  // 场景列表（从场景库获取）
+  const [scenes, setScenes] = useState<Scene[]>([]);
   // 编辑器刷新key，用于强制重新挂载表格编辑器（重置内部状态）
   const [editorKey, setEditorKey] = useState<number>(0);
 
@@ -1043,6 +1057,7 @@ export default function ChapterGenerate() {
     if (cid && id) {
       fetchNovel();
       fetchCharacters();
+      fetchScenes();
       // fetchChapter 会在内部调用 fetchShotTasks
       fetchChapter();
       // 加载转场工作流列表
@@ -1643,10 +1658,29 @@ export default function ChapterGenerate() {
     }
   };
 
+  // 获取场景列表
+  const fetchScenes = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/scenes/?novel_id=${id}`);
+      const data = await res.json();
+      if (data.success) {
+        setScenes(data.data);
+      }
+    } catch (error) {
+      console.error('获取场景列表失败:', error);
+    }
+  };
+
   // 根据角色名获取角色图片
   const getCharacterImage = (name: string): string | null => {
     const character = characters.find(c => c.name === name);
     return character?.imageUrl || null;
+  };
+
+  // 根据场景名获取场景图片
+  const getSceneImage = (name: string): string | null => {
+    const scene = scenes.find(s => s.name === name);
+    return scene?.imageUrl || null;
   };
 
   // 合并角色图
@@ -1780,6 +1814,17 @@ export default function ChapterGenerate() {
       navigate(`/characters?novel_id=${id}&highlight=${character.id}`);
     } else {
       navigate(`/characters?novel_id=${id}`);
+    }
+  };
+
+  // 跳转到场景库页面
+  const handleRegenerateScene = (sceneName: string) => {
+    // 查找场景ID
+    const scene = scenes.find(s => s.name === sceneName);
+    if (scene) {
+      navigate(`/scenes?novel_id=${id}&highlight=${scene.id}`);
+    } else {
+      navigate(`/scenes?novel_id=${id}`);
     }
   };
 
@@ -2318,6 +2363,81 @@ export default function ChapterGenerate() {
                   );
                 });
               })() || <p className="text-gray-500 text-sm py-4">{t('chapterGenerate.noCharacterImages')}</p>}
+            </div>
+          </div>
+
+          {/* 场景图片 */}
+          <div className="card">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-semibold text-gray-900">
+                {t('chapterGenerate.sceneImages')}
+                <span className="text-xs font-normal text-gray-500 ml-2">
+                  ({novel?.aspectRatio || '16:9'})
+                </span>
+              </h3>
+              <Link 
+                to={`/scenes?novel_id=${id}`}
+                className="text-sm text-green-600 hover:text-green-700 hover:underline flex items-center gap-1"
+              >
+                <Sparkles className="h-4 w-4" />
+                {t('chapterGenerate.aiGenerateScene')}
+              </Link>
+            </div>
+            <div className="flex gap-4 flex-wrap">
+              {(() => {
+                // 获取当前选中的分镜
+                const currentShotData = parsedData?.shots?.[currentShot - 1];
+                const currentShotScene = currentShotData?.scene || '';
+                
+                // 将场景按是否在当前分镜中排序（在前的排前面）
+                const sortedScenes = [...(parsedData?.scenes || [])].sort((a: string, b: string) => {
+                  const aInShot = a === currentShotScene;
+                  const bInShot = b === currentShotScene;
+                  if (aInShot && !bInShot) return -1;
+                  if (!aInShot && bInShot) return 1;
+                  return 0;
+                });
+                
+                return sortedScenes.map((name: string, idx: number) => {
+                  const imageUrl = getSceneImage(name);
+                  const aspectStyle = getAspectRatioStyle();
+                  const isInCurrentShot = name === currentShotScene;
+                  
+                  return (
+                    <div key={idx} className={`text-center relative ${isInCurrentShot ? 'order-first' : ''}`}>
+                      <div 
+                        className={`rounded-xl bg-gradient-to-br from-green-400 to-teal-500 flex items-center justify-center mb-2 overflow-hidden relative ${
+                          isInCurrentShot ? 'ring-2 ring-green-500 ring-offset-2' : ''
+                        }`}
+                        style={aspectStyle}
+                      >
+                        {imageUrl ? (
+                          <img 
+                            src={imageUrl} 
+                            alt={name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <MapPin className="h-10 w-10 text-white" />
+                        )}
+                        {/* 勾选标识 */}
+                        {isInCurrentShot && (
+                          <div className="absolute top-1 right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center shadow-sm">
+                            <CheckCircle className="h-3.5 w-3.5 text-white" />
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-sm font-medium">{name}</p>
+                      <button 
+                        onClick={() => handleRegenerateScene(name)}
+                        className="text-xs text-green-600 hover:underline mt-1"
+                      >
+                        {t('chapterGenerate.regenerate')}
+                      </button>
+                    </div>
+                  );
+                });
+              })() || <p className="text-gray-500 text-sm py-4">{t('chapterGenerate.noSceneImages')}</p>}
             </div>
           </div>
 

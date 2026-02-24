@@ -22,6 +22,8 @@ export interface SystemConfig {
   llmModel: string;
   llmApiKey: string;
   llmApiUrl: string;
+  llmMaxTokens?: number;  // 最大token数
+  llmTemperature?: string;  // 温度参数
   
   // 代理配置
   proxy: ProxyConfig;
@@ -107,9 +109,21 @@ export interface Character {
 
 export interface Scene {
   id: string;
-  title: string;
+  novelId: string;
+  name: string;
   description: string;
-  shots: string[];
+  setting: string;
+  imageUrl?: string;
+  generatingStatus?: string;
+  sceneTaskId?: string;
+  novelName?: string;
+  startChapter?: number;
+  endChapter?: number;
+  isIncremental?: boolean;
+  sourceRange?: string;
+  lastParsedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Shot {
@@ -169,4 +183,23 @@ export interface TestCase {
   notes?: string;
   notesKey?: string;
   createdAt: string;
+}
+
+// LLM 日志接口
+export interface LLMLog {
+  id: string;
+  created_at: string;
+  provider: string;
+  model: string;
+  system_prompt: string;
+  user_prompt: string;
+  response: string;
+  status: string;
+  error_message: string;
+  task_type: string;
+  novel_id: string;
+  chapter_id: string;
+  character_id: string;
+  used_proxy: boolean;
+  duration: number;  // 请求耗时，单位秒
 }

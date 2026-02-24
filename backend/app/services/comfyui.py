@@ -4,18 +4,22 @@ import uuid
 import asyncio
 import random
 from typing import Dict, Any, Optional, List
-from app.core.config import get_settings
 
-settings = get_settings()
 
 
 class ComfyUIService:
     """ComfyUI 服务封装"""
     
     def __init__(self):
-        self.base_url = settings.COMFYUI_HOST
         self.client_id = str(uuid.uuid4())
-    
+
+    @property
+    def base_url(self):
+        """动态获取当前的ComfyUI主机地址"""
+        from app.core.config import get_settings
+        return get_settings().COMFYUI_HOST
+
+
     async def check_health(self) -> bool:
         """检查 ComfyUI 服务状态"""
         try:
@@ -73,6 +77,40 @@ class ComfyUIService:
             )
         return workflow
 
+    def build_scene_workflow(self, prompt: str, workflow_json: str = None, novel_id: str = None, scene_name: str = None, aspect_ratio: str = None, node_mapping: Dict[str, str] = None, style: str = "anime style, high quality, detailed", **kwargs) -> Dict[str, Any]:
+        """
+        构建场景图工作流（注入参数后的完整工作流）
+        
+        Args:
+            prompt: 提示词
+            workflow_json: 工作流 JSON 字符串（可选，不提供则使用默认工作流）
+            novel_id: 小说ID，用于设置保存路径
+            scene_name: 场景名称，用于设置保存路径
+            aspect_ratio: 画面比例
+            node_mapping: 节点映射配置
+            style: 风格描述，用于替换 ##STYLE## 占位符
+            
+        Returns:
+            构建好的工作流字典
+        """
+        # 使用提供的工作流或构建默认工作流
+        if workflow_json:
+            workflow = json.loads(workflow_json)
+            # 在工作流中查找并替换 prompt
+            workflow = self._inject_prompt_to_workflow(workflow, prompt, novel_id, scene_name, aspect_ratio, node_mapping, style)
+        else:
+            # 构建 z-image 工作流提示
+            width, height = self._get_aspect_ratio_dimensions(aspect_ratio)
+            workflow = self._build_z_image_workflow(
+                prompt=prompt,
+                width=width,
+                height=height,
+                seed=kwargs.get('seed'),
+                novel_id=novel_id,
+                character_name=scene_name
+            )
+        return workflow
+
     async def generate_character_image(self, prompt: str, workflow_json: str = None, novel_id: str = None, character_name: str = None, aspect_ratio: str = None, node_mapping: Dict[str, str] = None, **kwargs) -> Dict[str, Any]:
         """
         使用指定工作流生成角色人设图
@@ -102,6 +140,75 @@ class ComfyUIService:
                 workflow_json=workflow_json,
                 novel_id=novel_id,
                 character_name=character_name,
+                aspect_ratio=aspect_ratio,
+                node_mapping=node_mapping,
+                **{k: v for k, v in kwargs.items() if k != 'workflow'}
+            )
+            
+            # 提交任务到 ComfyUI
+            queue_result = await self._queue_prompt(workflow)
+            
+            if not queue_result.get("success"):
+                return {
+                    "success": False,
+                    "message": queue_result.get("error", "提交任务失败")
+                }
+            
+            prompt_id = queue_result.get("prompt_id")
+            
+            # 等待任务完成，传入工作流和 save_image_node_id 配置以识别正确的输出节点
+            save_image_node_id = node_mapping.get("save_image_node_id") if node_mapping else None
+            result = await self._wait_for_result(prompt_id, workflow, save_image_node_id, timeout=7200)  # 2小时超时
+            
+            if result.get("success"):
+                return {
+                    "success": True,
+                    "image_url": result.get("image_url"),
+                    "message": "生成成功",
+                    "submitted_workflow": workflow  # 返回实际提交给ComfyUI的工作流
+                }
+            else:
+                return {
+                    "success": False,
+                    "message": result.get("message", "生成失败"),
+                    "submitted_workflow": workflow  # 即使失败也返回工作流用于调试
+                }
+                
+        except Exception as e:
+            return {
+                "success": False,
+                "message": f"生成失败: {str(e)}"
+            }
+    
+    async def generate_scene_image(self, prompt: str, workflow_json: str = None, novel_id: str = None, scene_name: str = None, aspect_ratio: str = None, node_mapping: Dict[str, str] = None, **kwargs) -> Dict[str, Any]:
+        """
+        使用指定工作流生成场景图
+        
+        Args:
+            prompt: 提示词
+            workflow_json: 工作流 JSON 字符串（可选，不提供则使用默认工作流）
+            novel_id: 小说ID，用于设置保存路径
+            scene_name: 场景名称，用于设置保存路径
+            aspect_ratio: 画面比例 (16:9, 9:16, 4:3, 3:4, 1:1, 21:9, 2.35:1)
+            node_mapping: 节点映射配置 {"prompt_node_id": "133", "save_image_node_id": "9"}
+            width: 图片宽度 (默认 512)
+            height: 图片高度 (默认 768)
+            seed: 随机种子
+            
+        Returns:
+            {
+                "success": bool,
+                "image_url": str,  # 生成的图片URL
+                "message": str
+            }
+        """
+        try:
+            # 构建工作流（使用预构建的或重新构建）
+            workflow = kwargs.get('workflow') or self.build_scene_workflow(
+                prompt=prompt,
+                workflow_json=workflow_json,
+                novel_id=novel_id,
+                scene_name=scene_name,
                 aspect_ratio=aspect_ratio,
                 node_mapping=node_mapping,
                 **{k: v for k, v in kwargs.items() if k != 'workflow'}
@@ -979,6 +1086,7 @@ class ComfyUIService:
         node_mapping: Dict[str, str],
         aspect_ratio: str = "16:9",
         character_reference_path: Optional[str] = None,
+        scene_reference_path: Optional[str] = None,
         seed: Optional[int] = None,
         workflow: Dict[str, Any] = None,
         style: str = "anime style, high quality, detailed"
@@ -992,6 +1100,7 @@ class ComfyUIService:
             node_mapping: 节点映射配置 {"prompt_node_id": "110", "save_image_node_id": "9", "width_node_id": "123", "height_node_id": "125"}
             aspect_ratio: 画面比例 (16:9, 9:16, 4:3, 3:4, 1:1)
             character_reference_path: 角色参考图本地路径（合并后的角色图）
+            scene_reference_path: 场景参考图本地路径
             seed: 随机种子
             workflow: 预构建的工作流（可选，如果提供则直接使用）
             style: 风格描述，用于替换 ##STYLE## 占位符
@@ -1018,29 +1127,48 @@ class ComfyUIService:
             # 获取节点映射中的 save_image_node_id
             save_image_node_id = node_mapping.get("save_image_node_id")
             
-            # 上传并设置角色参考图（如果提供）
+            # 上传并设置参考图（如果提供）
+            uploaded_filenames = []
+            
+            # 上传角色参考图（如果提供）
             if character_reference_path:
                 print(f"[ComfyUI] Uploading character reference image: {character_reference_path}")
                 upload_result = await self._upload_image(character_reference_path)
                 
                 if upload_result.get("success"):
-                    uploaded_filename = upload_result.get("filename")
-                    print(f"[ComfyUI] Image uploaded successfully: {uploaded_filename}")
-                    
-                    # 优先使用 node_mapping 中配置的 reference_image_node_id
-                    reference_image_node_id = node_mapping.get("reference_image_node_id")
-                    if reference_image_node_id and reference_image_node_id in workflow:
-                        workflow[reference_image_node_id]["inputs"]["image"] = uploaded_filename
-                        print(f"[ComfyUI] Set character reference to configured LoadImage node {reference_image_node_id}: {uploaded_filename}")
-                    else:
-                        # 如果没有配置或配置的节点不存在，查找第一个 LoadImage 节点
-                        for node_id, node in workflow.items():
-                            if node.get("class_type") == "LoadImage":
-                                workflow[node_id]["inputs"]["image"] = uploaded_filename
-                                print(f"[ComfyUI] Set character reference to first LoadImage node {node_id}: {uploaded_filename}")
-                                break
+                    uploaded_filenames.append(upload_result.get("filename"))
+                    print(f"[ComfyUI] Character image uploaded successfully: {uploaded_filenames[-1]}")
                 else:
-                    print(f"[ComfyUI] Failed to upload image: {upload_result.get('message')}")
+                    print(f"[ComfyUI] Failed to upload character image: {upload_result.get('message')}")
+            
+            # 上传场景参考图（如果提供）
+            if scene_reference_path:
+                print(f"[ComfyUI] Uploading scene reference image: {scene_reference_path}")
+                upload_result = await self._upload_image(scene_reference_path)
+                
+                if upload_result.get("success"):
+                    uploaded_filenames.append(upload_result.get("filename"))
+                    print(f"[ComfyUI] Scene image uploaded successfully: {uploaded_filenames[-1]}")
+                else:
+                    print(f"[ComfyUI] Failed to upload scene image: {upload_result.get('message')}")
+            
+            # 设置 LoadImage 节点
+            if uploaded_filenames:
+                # 查找所有 LoadImage 节点
+                loadimage_nodes = []
+                for node_id, node in workflow.items():
+                    if node.get("class_type") == "LoadImage":
+                        loadimage_nodes.append(node_id)
+                
+                print(f"[ComfyUI] Found {len(loadimage_nodes)} LoadImage nodes: {loadimage_nodes}")
+                
+                # 按顺序分配图片到 LoadImage 节点
+                for i, filename in enumerate(uploaded_filenames):
+                    if i < len(loadimage_nodes):
+                        node_id = loadimage_nodes[i]
+                        workflow[node_id]["inputs"]["image"] = filename
+                        image_type = "character" if i == 0 and character_reference_path else "scene"
+                        print(f"[ComfyUI] Set {image_type} reference to LoadImage node {node_id}: {filename}")
             
             # 提交任务
             print(f"[ComfyUI] Submitting shot generation task with seed {seed}")

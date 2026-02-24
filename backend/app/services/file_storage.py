@@ -63,6 +63,8 @@ class FileStorageService:
             # 创建子目录
             if image_type == "character":
                 save_dir = story_dir / "characters"
+            elif image_type == "scene":
+                save_dir = story_dir / "scenes"
             elif image_type == "shot":
                 # 分镜图片保存到 chapter_{chapter_id}/shots/
                 chapter_short = chapter_id[:8] if chapter_id else "unknown"
@@ -146,6 +148,16 @@ class FileStorageService:
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         safe_name = self._sanitize_filename(character_name)
+        return save_dir / f"{safe_name}_{timestamp}.png"
+    
+    def get_scene_image_path(self, novel_id: str, scene_name: str) -> Path:
+        """获取场景图片保存路径（用于生成前）"""
+        story_dir = self._get_story_dir(novel_id)
+        save_dir = story_dir / "scenes"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_name = self._sanitize_filename(scene_name)
         return save_dir / f"{safe_name}_{timestamp}.png"
     
     def get_shot_image_path(self, novel_id: str, chapter_id: str, 
@@ -587,6 +599,32 @@ class FileStorageService:
                 
         except Exception as e:
             print(f"[FileStorage] Failed to delete characters directory: {e}")
+            return False
+    
+    def delete_scenes_dir(self, novel_id: str) -> bool:
+        """
+        删除小说的场景图片目录
+        
+        Args:
+            novel_id: 小说ID
+            
+        Returns:
+            是否成功删除
+        """
+        try:
+            story_dir = self._get_story_dir(novel_id)
+            scenes_dir = story_dir / "scenes"
+            
+            if scenes_dir.exists():
+                shutil.rmtree(scenes_dir)
+                print(f"[FileStorage] Deleted scenes directory: {scenes_dir}")
+                return True
+            else:
+                print(f"[FileStorage] Scenes directory not found: {scenes_dir}")
+                return True  # 目录不存在也算成功（已经不存在了）
+                
+        except Exception as e:
+            print(f"[FileStorage] Failed to delete scenes directory: {e}")
             return False
 
 

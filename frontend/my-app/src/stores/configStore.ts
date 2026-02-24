@@ -17,6 +17,8 @@ const defaultConfig: SystemConfig = {
   llmModel: 'deepseek-chat',
   llmApiKey: '',
   llmApiUrl: 'https://api.deepseek.com',
+  llmMaxTokens: undefined,
+  llmTemperature: undefined,
   proxy: defaultProxy,
   comfyUIHost: 'http://192.168.50.1:8288',
   outputResolution: '1920x1080',
@@ -34,6 +36,8 @@ const fetchConfigFromBackend = async () => {
         llmModel: data.data.llmModel || defaultConfig.llmModel,
         llmApiKey: '', // API Key 不从前端获取
         llmApiUrl: data.data.llmApiUrl || defaultConfig.llmApiUrl,
+        llmMaxTokens: data.data.llmMaxTokens,
+        llmTemperature: data.data.llmTemperature,
         proxy: data.data.proxyEnabled !== undefined ? {
           enabled: data.data.proxyEnabled,
           httpProxy: data.data.httpProxy || '',
@@ -157,7 +161,7 @@ interface ConfigState extends SystemConfig {
   error: string | null;
   isLoaded: boolean;
   setConfig: (config: Partial<SystemConfig>) => void;
-  setLLMConfig: (provider: LLMProvider, model: string, apiKey: string, apiUrl: string) => void;
+  setLLMConfig: (provider: LLMProvider, model: string, apiKey: string, apiUrl: string, maxTokens?: number, temperature?: string) => void;
   setProxyConfig: (proxy: ProxyConfig) => void;
   getProviderPreset: () => LLMProviderPreset | undefined;
   getCurrentModel: () => LLMModel | undefined;
@@ -183,12 +187,14 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
     return { ...state, ...config };
   }),
   
-  setLLMConfig: (provider, model, apiKey, apiUrl) => set((state) => ({
+  setLLMConfig: (provider, model, apiKey, apiUrl, maxTokens?, temperature?) => set((state) => ({
     ...state,
     llmProvider: provider,
     llmModel: model,
     llmApiKey: apiKey,
     llmApiUrl: apiUrl,
+    llmMaxTokens: maxTokens,
+    llmTemperature: temperature,
   })),
   
   setProxyConfig: (proxy) => set((state) => ({ ...state, proxy })),

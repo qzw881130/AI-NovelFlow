@@ -18,6 +18,8 @@ class LLMConfig(BaseModel):
     model: str
     apiKey: str
     apiUrl: str
+    maxTokens: Optional[int] = None  # 最大token数
+    temperature: Optional[str] = None  # 温度参数（字符串类型，支持范围0.0-2.0）
 
 
 class ProxyConfig(BaseModel):
@@ -62,6 +64,8 @@ async def get_config(db: Session = Depends(get_db)):
             "llmProvider": config.llm_provider,
             "llmModel": config.llm_model,
             "llmApiUrl": config.llm_api_url,
+            "llmMaxTokens": config.llm_max_tokens,
+            "llmTemperature": config.llm_temperature,
             # 代理配置
             "proxyEnabled": config.proxy_enabled,
             "httpProxy": config.http_proxy,
@@ -95,6 +99,8 @@ async def get_full_config(db: Session = Depends(get_db)):
             "llm_model": config.llm_model,
             "llm_api_url": config.llm_api_url,
             "llm_api_key": api_key,
+            "llm_max_tokens": config.llm_max_tokens,
+            "llm_temperature": config.llm_temperature,
             "proxy_enabled": config.proxy_enabled,
             "http_proxy": config.http_proxy,
             "https_proxy": config.https_proxy,
@@ -119,10 +125,14 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
             db_config.llm_provider = config.llm.provider
             db_config.llm_model = config.llm.model
             db_config.llm_api_url = config.llm.apiUrl
+            db_config.llm_max_tokens = config.llm.maxTokens
+            db_config.llm_temperature = config.llm.temperature
             
             updates["llm_provider"] = config.llm.provider
             updates["llm_model"] = config.llm.model
             updates["llm_api_url"] = config.llm.apiUrl
+            updates["llm_max_tokens"] = config.llm.maxTokens
+            updates["llm_temperature"] = config.llm.temperature
             
             if config.llm.apiKey:
                 # 加密存储 API Key
@@ -304,6 +314,8 @@ def init_system_config(db: Session) -> None:
         "llm_model": config.llm_model,
         "llm_api_url": config.llm_api_url,
         "llm_api_key": api_key,
+        "llm_max_tokens": config.llm_max_tokens,
+        "llm_temperature": config.llm_temperature,
         "proxy_enabled": config.proxy_enabled,
         "http_proxy": config.http_proxy,
         "https_proxy": config.https_proxy,

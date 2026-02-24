@@ -17,6 +17,7 @@ class PromptTemplate(Base):
     name = Column(String, nullable=False)  # 提示词名称
     description = Column(Text, default="")  # 描述
     template = Column(Text, nullable=False)  # 提示词模板内容
+    style = Column(Text, default="")  # 风格提示词（用于生成图片时添加风格描述）
     type = Column(String, default="character")  # 类型: character(人设), chapter_split(章节拆分)
     is_system = Column(Boolean, default=False)  # 是否系统预设（不可编辑）
     is_active = Column(Boolean, default=True)  # 是否启用

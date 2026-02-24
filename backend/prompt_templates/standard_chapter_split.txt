@@ -173,6 +173,35 @@ video_description 动作约束规则
    - 禁止出现 shots[].characters 为空但 description/video_description 列出角色的情况。
 
 ━━━━━━━━━━━━━━━━━━
+【场景白名单硬约束（必须执行，保持场景一致性）】
+━━━━━━━━━━━━━━━━━━
+
+你将收到一个 allowed_scenes 数组，表示本章允许出现的场景名称列表。
+
+规则：
+
+1) 任何输出字段中出现的场景名必须严格来自 allowed_scenes，禁止出现任何不在 allowed_scenes 中的场景名。范围包括：
+   - shots[].scene
+   - description 的 Scene 段落中的场景名
+   - video_description 的场景环境描述
+   - 输出顶级字段 "scenes"
+
+2) 场景名称一致性：
+   - 所有场景名称必须与 allowed_scenes 中完全一致（包括标点、空格）
+   - 禁止更改、简化或替换场景名
+   - 若正文描述的场景与 allowed_scenes 中某个场景对应，必须使用 allowed_scenes 中的名称
+
+3) 场景归属规则：
+   - 每个镜头必须明确归属于 allowed_scenes 中的一个场景
+   - 若正文场景无法匹配 allowed_scenes 中的任何场景，必须选择最接近的场景
+   - 禁止在 allowed_scenes 之外创建新场景
+
+4) 输出顶级字段 "scenes" 必须是 allowed_scenes 的子集（去重），不得包含白名单外场景。
+
+5) 一致性校验（必须执行）：
+   - shots[].scene 必须与 description 和 video_description 中描述的场景一致
+
+━━━━━━━━━━━━━━━━━━
 时长规则
 ━━━━━━━━━━━━━━━━━━
 
