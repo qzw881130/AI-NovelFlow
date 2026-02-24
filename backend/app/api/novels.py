@@ -236,25 +236,44 @@ async def parse_novel(novel_id: str, db: Session = Depends(get_db)):
 async def parse_characters(
     novel_id: str, 
     sync: bool = False,
+    start_chapter: int = None,
+    end_chapter: int = None,
+    is_incremental: bool = False,
     db: Session = Depends(get_db)
 ):
-    """解析小说内容，自动提取角色信息"""
+    """解析小说内容，自动提取角色信息（支持章节范围和增量更新）"""
     novel = db.query(Novel).filter(Novel.id == novel_id).first()
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
-    # 获取所有章节内容
-    chapters = db.query(Chapter).filter(Chapter.novel_id == novel_id).all()
+    # 构建查询条件
+    chapter_query = db.query(Chapter).filter(Chapter.novel_id == novel_id)
+    
+    # 如果指定了章节范围，添加过滤条件
+    if start_chapter is not None:
+        chapter_query = chapter_query.filter(Chapter.number >= start_chapter)
+    if end_chapter is not None:
+        chapter_query = chapter_query.filter(Chapter.number <= end_chapter)
+    
+    chapters = chapter_query.order_by(Chapter.number).all()
+    
     if not chapters:
-        return {"success": False, "message": "小说没有章节内容"}
+        return {"success": False, "message": "指定章节范围内没有内容"}
+    
+    # 构造章节范围描述
+    source_range = None
+    if start_chapter is not None or end_chapter is not None:
+        start_desc = f"第{start_chapter}章" if start_chapter is not None else "第1章"
+        end_desc = f"第{end_chapter}章" if end_chapter is not None else f"第{chapters[-1].number}章"
+        source_range = f"{start_desc}至{end_desc}"
     
     full_text = "\n\n".join([c.content for c in chapters if c.content])
     if not full_text.strip():
         return {"success": False, "message": "章节内容为空"}
     
     try:
-        # 调用 DeepSeek 解析文本提取角色
-        result = await get_llm_service().parse_novel_text(full_text)
+        # 调用 LLM 解析文本提取角色
+        result = await get_llm_service().parse_novel_text(full_text, novel_id=novel_id, source_range=source_range)
         
         if "error" in result:
             return {"success": False, "message": f"解析失败: {result['error']}"}
@@ -265,6 +284,8 @@ async def parse_characters(
         
         # 创建角色记录
         created_characters = []
+        updated_characters = []
+        
         for char_data in characters_data:
             name = char_data.get("name", "").strip()
             if not name:
@@ -277,10 +298,27 @@ async def parse_characters(
             ).first()
             
             if existing:
-                # 更新现有角色
-                existing.description = char_data.get("description", existing.description)
-                existing.appearance = char_data.get("appearance", existing.appearance)
-                created_characters.append(existing)
+                # 增量更新模式：保留原有信息，只更新新解析的信息
+                if is_incremental:
+                    # 只更新空字段或补充更多信息
+                    if not existing.description and char_data.get("description"):
+                        existing.description = char_data.get("description")
+                    if not existing.appearance and char_data.get("appearance"):
+                        existing.appearance = char_data.get("appearance")
+                    # 更新章节范围信息
+                    if source_range:
+                        if existing.source_range:
+                            existing.source_range += f", {source_range}"
+                        else:
+                            existing.source_range = source_range
+                else:
+                    # 全量更新模式：直接覆盖
+                    existing.description = char_data.get("description", existing.description)
+                    existing.appearance = char_data.get("appearance", existing.appearance)
+                    existing.source_range = source_range
+                
+                existing.last_parsed_at = datetime.utcnow()
+                updated_characters.append(existing)
             else:
                 # 创建新角色
                 character = Character(
@@ -288,6 +326,11 @@ async def parse_characters(
                     name=name,
                     description=char_data.get("description", ""),
                     appearance=char_data.get("appearance", ""),
+                    start_chapter=start_chapter,
+                    end_chapter=end_chapter,
+                    is_incremental=is_incremental,
+                    source_range=source_range,
+                    last_parsed_at=datetime.utcnow()
                 )
                 db.add(character)
                 created_characters.append(character)
@@ -295,8 +338,15 @@ async def parse_characters(
         db.commit()
         
         # 刷新对象以获取 ID
-        for char in created_characters:
+        for char in created_characters + updated_characters:
             db.refresh(char)
+        
+        # 构造响应消息
+        message_parts = []
+        if created_characters:
+            message_parts.append(f"新增 {len(created_characters)} 个角色")
+        if updated_characters:
+            message_parts.append(f"更新 {len(updated_characters)} 个角色")
         
         return {
             "success": True,
@@ -306,10 +356,299 @@ async def parse_characters(
                     "name": c.name,
                     "description": c.description,
                     "appearance": c.appearance,
+                    "startChapter": c.start_chapter,
+                    "endChapter": c.end_chapter,
+                    "isIncremental": c.is_incremental,
+                    "sourceRange": c.source_range,
+                    "lastParsedAt": c.last_parsed_at.isoformat() if c.last_parsed_at else None
                 }
-                for c in created_characters
+                for c in created_characters + updated_characters
             ],
-            "message": f"成功识别并创建 {len(created_characters)} 个角色"
+            "message": "，".join(message_parts) if message_parts else "未识别到角色",
+            "statistics": {
+                "created": len(created_characters),
+                "updated": len(updated_characters),
+                "total": len(created_characters) + len(updated_characters)
+            }
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "message": f"解析异常: {str(e)}"}
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/parse-characters/", response_model=dict)
+async def parse_chapter_characters(
+    novel_id: str,
+    chapter_id: str,
+    is_incremental: bool = True,  # 默认为增量更新
+    db: Session = Depends(get_db)
+):
+    """解析单章节内容，提取角色信息（支持增量更新）"""
+    # 验证小说和章节
+    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    
+    chapter = db.query(Chapter).filter(
+        Chapter.id == chapter_id,
+        Chapter.novel_id == novel_id
+    ).first()
+    
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    
+    if not chapter.content:
+        return {"success": False, "message": "章节内容为空"}
+    
+    try:
+        # 调用 LLM 解析文本提取角色
+        source_range = f"第{chapter.number}章"
+        result = await get_llm_service().parse_novel_text(chapter.content, novel_id=novel_id, source_range=source_range)
+        
+        if "error" in result:
+            return {"success": False, "message": f"解析失败: {result['error']}"}
+        
+        characters_data = result.get("characters", [])
+        if not characters_data:
+            return {"success": True, "data": [], "message": "未识别到角色"}
+        
+        # 创建角色记录
+        created_characters = []
+        updated_characters = []
+        
+        for char_data in characters_data:
+            name = char_data.get("name", "").strip()
+            if not name:
+                continue
+            
+            # 检查是否已存在
+            existing = db.query(Character).filter(
+                Character.novel_id == novel_id,
+                Character.name == name
+            ).first()
+            
+            source_range = f"第{chapter.number}章"
+            
+            if existing:
+                # 增量更新模式：保留原有信息，只更新新解析的信息
+                if is_incremental:
+                    # 只更新空字段或补充更多信息
+                    if not existing.description and char_data.get("description"):
+                        existing.description = char_data.get("description")
+                    if not existing.appearance and char_data.get("appearance"):
+                        existing.appearance = char_data.get("appearance")
+                    # 更新章节范围信息
+                    if existing.source_range:
+                        existing.source_range += f", {source_range}"
+                    else:
+                        existing.source_range = source_range
+                else:
+                    # 全量更新模式：直接覆盖
+                    existing.description = char_data.get("description", existing.description)
+                    existing.appearance = char_data.get("appearance", existing.appearance)
+                    existing.source_range = source_range
+                
+                existing.last_parsed_at = datetime.utcnow()
+                updated_characters.append(existing)
+            else:
+                # 创建新角色
+                character = Character(
+                    novel_id=novel_id,
+                    name=name,
+                    description=char_data.get("description", ""),
+                    appearance=char_data.get("appearance", ""),
+                    start_chapter=chapter.number,
+                    end_chapter=chapter.number,
+                    is_incremental=is_incremental,
+                    source_range=source_range,
+                    last_parsed_at=datetime.utcnow()
+                )
+                db.add(character)
+                created_characters.append(character)
+        
+        db.commit()
+        
+        # 刷新对象以获取 ID
+        for char in created_characters + updated_characters:
+            db.refresh(char)
+        
+        # 构造响应消息
+        message_parts = []
+        if created_characters:
+            message_parts.append(f"新增 {len(created_characters)} 个角色")
+        if updated_characters:
+            message_parts.append(f"更新 {len(updated_characters)} 个角色")
+        
+        return {
+            "success": True,
+            "data": [
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "description": c.description,
+                    "appearance": c.appearance,
+                    "startChapter": c.start_chapter,
+                    "endChapter": c.end_chapter,
+                    "isIncremental": c.is_incremental,
+                    "sourceRange": c.source_range,
+                    "lastParsedAt": c.last_parsed_at.isoformat() if c.last_parsed_at else None
+                }
+                for c in created_characters + updated_characters
+            ],
+            "message": "，".join(message_parts) if message_parts else "未识别到角色",
+            "statistics": {
+                "created": len(created_characters),
+                "updated": len(updated_characters),
+                "total": len(created_characters) + len(updated_characters)
+            }
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"success": False, "message": f"解析异常: {str(e)}"}
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/parse-scenes/", response_model=dict)
+async def parse_chapter_scenes(
+    novel_id: str,
+    chapter_id: str,
+    is_incremental: bool = True,  # 默认为增量更新
+    db: Session = Depends(get_db)
+):
+    """解析单章节内容，提取场景信息（支持增量更新）"""
+    from app.models.novel import Scene
+    
+    # 验证小说和章节
+    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    
+    chapter = db.query(Chapter).filter(
+        Chapter.id == chapter_id,
+        Chapter.novel_id == novel_id
+    ).first()
+    
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    
+    if not chapter.content:
+        return {"success": False, "message": "章节内容为空"}
+    
+    # 获取场景解析提示词模板
+    template = db.query(PromptTemplate).filter(
+        PromptTemplate.type == 'scene_parse',
+        PromptTemplate.is_system == True
+    ).order_by(PromptTemplate.created_at.asc()).first()
+    
+    prompt_template = template.template if template else None
+    
+    try:
+        source_range = f"第{chapter.number}章"
+        
+        # 调用 LLM 解析场景
+        result = await get_llm_service().parse_scenes(
+            novel_id=novel_id,
+            chapter_content=chapter.content[:20000],  # 限制长度
+            chapter_title=source_range,
+            prompt_template=prompt_template
+        )
+        
+        if result.get("error"):
+            return {"success": False, "message": result["error"]}
+        
+        scenes_data = result.get("scenes", [])
+        
+        # 获取现有场景
+        existing_scenes = db.query(Scene).filter(Scene.novel_id == novel_id).all()
+        existing_scene_names = {s.name: s for s in existing_scenes}
+        
+        created_scenes = []
+        updated_scenes = []
+        
+        for scene_data in scenes_data:
+            name = scene_data.get("name", "")
+            if not name:
+                continue
+            
+            if name in existing_scene_names:
+                # 更新现有场景
+                existing = existing_scene_names[name]
+                
+                # 增量更新模式：保留原有信息，只更新新解析的信息
+                if is_incremental:
+                    if not existing.description and scene_data.get("description"):
+                        existing.description = scene_data.get("description")
+                    if not existing.setting and scene_data.get("setting"):
+                        existing.setting = scene_data.get("setting")
+                    # 更新章节范围信息
+                    if existing.source_range:
+                        if source_range not in existing.source_range:
+                            existing.source_range += f", {source_range}"
+                    else:
+                        existing.source_range = source_range
+                else:
+                    # 全量更新模式
+                    existing.description = scene_data.get("description", existing.description)
+                    existing.setting = scene_data.get("setting", existing.setting)
+                    existing.source_range = source_range
+                
+                existing.is_incremental = is_incremental
+                existing.last_parsed_at = datetime.utcnow()
+                updated_scenes.append(existing)
+            else:
+                # 创建新场景
+                scene = Scene(
+                    novel_id=novel_id,
+                    name=name,
+                    description=scene_data.get("description", ""),
+                    setting=scene_data.get("setting", ""),
+                    start_chapter=chapter.number,
+                    end_chapter=chapter.number,
+                    is_incremental=is_incremental,
+                    source_range=source_range,
+                    last_parsed_at=datetime.utcnow()
+                )
+                db.add(scene)
+                created_scenes.append(scene)
+        
+        db.commit()
+        
+        # 刷新对象
+        for s in created_scenes + updated_scenes:
+            db.refresh(s)
+        
+        # 构造响应消息
+        message_parts = []
+        if created_scenes:
+            message_parts.append(f"新增 {len(created_scenes)} 个场景")
+        if updated_scenes:
+            message_parts.append(f"更新 {len(updated_scenes)} 个场景")
+        
+        return {
+            "success": True,
+            "data": [
+                {
+                    "id": s.id,
+                    "name": s.name,
+                    "description": s.description,
+                    "setting": s.setting,
+                    "startChapter": s.start_chapter,
+                    "endChapter": s.end_chapter,
+                    "isIncremental": s.is_incremental,
+                    "sourceRange": s.source_range,
+                    "lastParsedAt": s.last_parsed_at.isoformat() if s.last_parsed_at else None
+                }
+                for s in created_scenes + updated_scenes
+            ],
+            "message": "，".join(message_parts) if message_parts else "未识别到场景",
+            "statistics": {
+                "created": len(created_scenes),
+                "updated": len(updated_scenes),
+                "total": len(created_scenes) + len(updated_scenes)
+            }
         }
         
     except Exception as e:
@@ -550,6 +889,11 @@ async def split_chapter(
     characters = db.query(Character).filter(Character.novel_id == novel_id).all()
     character_names = [char.name for char in characters]
     
+    # 获取当前小说的所有场景列表
+    from app.models.novel import Scene
+    scenes = db.query(Scene).filter(Scene.novel_id == novel_id).all()
+    scene_names = [scene.name for scene in scenes]
+    
     # 获取小说配置的角色提示词模板 style，用于替换 {图像风格} 和 ##STYLE## 占位符
     style = "anime style, high quality, detailed"  # 默认风格
     if novel.prompt_template_id:
@@ -572,13 +916,14 @@ async def split_chapter(
                 style = style.strip(", ")
             print(f"[SplitChapter] Using style from character prompt template: {style}")
     
-    # 调用 DeepSeek API 进行拆分，传递 style 参数
+    # 调用 DeepSeek API 进行拆分，传递 style 参数和场景白名单
     result = await get_llm_service().split_chapter_with_prompt(
         chapter_title=chapter.title,
         chapter_content=chapter.content or "",
         prompt_template=prompt_template.template,
         word_count=50,
         character_names=character_names,
+        scene_names=scene_names,
         style=style
     )
     
@@ -790,6 +1135,7 @@ async def generate_shot_task(
         
         shot = shots[shot_index - 1]
         shot_characters = shot.get("characters", [])
+        shot_scene = shot.get("scene", "")  # 获取场景信息
         
         print(f"[ShotTask {task_id}] Novel: {novel_id}, Chapter: {chapter_id}, Shot: {shot_index}")
         print(f"[ShotTask {task_id}] Description: {shot_description}")
@@ -1038,6 +1384,39 @@ async def generate_shot_task(
                     task.current_step = "角色图片合并失败，继续生成..."
                     db.commit()
         
+        # 处理场景图
+        scene_reference_path = None
+        if shot_scene:
+            task.current_step = f"查找场景图: {shot_scene}"
+            db.commit()
+            
+            # 在场景库中查找匹配的场景
+            from app.models.novel import Scene
+            scene = db.query(Scene).filter(
+                Scene.novel_id == novel_id,
+                Scene.name == shot_scene
+            ).first()
+            
+            print(f"[ShotTask {task_id}] Scene '{shot_scene}': found={scene is not None}, has_image={scene.image_url if scene else None}")
+            
+            if scene and scene.image_url:
+                # 从 URL 提取本地路径
+                scene_path = scene.image_url.replace("/api/files/", "")
+                # 处理已存储的错误格式（可能是反斜杠开头）
+                scene_path = scene_path.lstrip("\\/")
+                # 统一转换为正斜杠后分割
+                scene_path = scene_path.replace("\\", "/")
+                # 转换为系统路径格式
+                scene_path_parts = scene_path.split("/")
+                # 转换为绝对路径
+                full_scene_path = os.path.join(os.path.dirname(__file__), "..", "..", "user_story", *scene_path_parts)
+                full_scene_path = os.path.abspath(full_scene_path)
+                exists = os.path.exists(full_scene_path)
+                print(f"[ShotTask {task_id}] Scene '{shot_scene}': path={full_scene_path}, exists={exists}")
+                if exists:
+                    scene_reference_path = full_scene_path
+                    print(f"[ShotTask {task_id}] Found scene image: {shot_scene} -> {full_scene_path}")
+        
         # 构建实际提交给ComfyUI的完整工作流（提前构建并保存，让用户可以查看）
         task.current_step = "构建工作流..."
         db.commit()
@@ -1050,38 +1429,57 @@ async def generate_shot_task(
             style=style
         )
         
-        # 如果有角色参考图，先上传图片并更新工作流中的LoadImage节点
+        # 如果有角色参考图或场景参考图，先上传图片并更新工作流中的LoadImage节点
         # 这样用户在任务运行期间就能看到实际提交的工作流内容
-        if character_reference_path:
-            task.current_step = "上传角色参考图..."
+        if character_reference_path or scene_reference_path:
+            task.current_step = "上传参考图..."
             db.commit()
-            print(f"[ShotTask {task_id}] Uploading character reference image before submission")
+            print(f"[ShotTask {task_id}] Uploading reference images before submission")
             
-            upload_result = await comfyui_service._upload_image(character_reference_path)
-            if upload_result.get("success"):
-                uploaded_filename = upload_result.get("filename")
-                print(f"[ShotTask {task_id}] Image uploaded successfully: {uploaded_filename}")
-                
-                # 更新工作流中的LoadImage节点
-                reference_image_node_id = node_mapping.get("reference_image_node_id")
-                if reference_image_node_id and reference_image_node_id in submitted_workflow:
-                    submitted_workflow[reference_image_node_id]["inputs"]["image"] = uploaded_filename
-                    print(f"[ShotTask {task_id}] Set LoadImage node {reference_image_node_id} to {uploaded_filename}")
+            # 上传角色参考图（如果存在）
+            character_uploaded_filename = None
+            if character_reference_path:
+                upload_result = await comfyui_service._upload_image(character_reference_path)
+                if upload_result.get("success"):
+                    character_uploaded_filename = upload_result.get("filename")
+                    print(f"[ShotTask {task_id}] Character image uploaded successfully: {character_uploaded_filename}")
                 else:
-                    # 查找第一个LoadImage节点
-                    for node_id, node in submitted_workflow.items():
-                        if node.get("class_type") == "LoadImage":
-                            submitted_workflow[node_id]["inputs"]["image"] = uploaded_filename
-                            print(f"[ShotTask {task_id}] Set first LoadImage node {node_id} to {uploaded_filename}")
-                            break
+                    print(f"[ShotTask {task_id}] Failed to upload character image: {upload_result.get('message')}")
+            
+            # 上传场景参考图（如果存在）
+            scene_uploaded_filename = None
+            if scene_reference_path:
+                upload_result = await comfyui_service._upload_image(scene_reference_path)
+                if upload_result.get("success"):
+                    scene_uploaded_filename = upload_result.get("filename")
+                    print(f"[ShotTask {task_id}] Scene image uploaded successfully: {scene_uploaded_filename}")
+                else:
+                    print(f"[ShotTask {task_id}] Failed to upload scene image: {upload_result.get('message')}")
+            
+            # 更新工作流中的LoadImage节点
+            if character_uploaded_filename or scene_uploaded_filename:
+                # 查找所有LoadImage节点
+                loadimage_nodes = []
+                for node_id, node in submitted_workflow.items():
+                    if node.get("class_type") == "LoadImage":
+                        loadimage_nodes.append(node_id)
+                
+                print(f"[ShotTask {task_id}] Found {len(loadimage_nodes)} LoadImage nodes: {loadimage_nodes}")
+                
+                # 按顺序分配图片：第一个节点给角色图，第二个节点给场景图
+                if len(loadimage_nodes) >= 1 and character_uploaded_filename:
+                    submitted_workflow[loadimage_nodes[0]]["inputs"]["image"] = character_uploaded_filename
+                    print(f"[ShotTask {task_id}] Set LoadImage node {loadimage_nodes[0]} to character image: {character_uploaded_filename}")
+                
+                if len(loadimage_nodes) >= 2 and scene_uploaded_filename:
+                    submitted_workflow[loadimage_nodes[1]]["inputs"]["image"] = scene_uploaded_filename
+                    print(f"[ShotTask {task_id}] Set LoadImage node {loadimage_nodes[1]} to scene image: {scene_uploaded_filename}")
                 
                 # 保存更新后的工作流（包含替换后的LoadImage节点）到任务
                 # 这样即使用户在任务运行期间查看，也能看到实际提交的内容
                 task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
                 db.commit()
                 print(f"[ShotTask {task_id}] Saved workflow with LoadImage replacement to task")
-            else:
-                print(f"[ShotTask {task_id}] Failed to upload image: {upload_result.get('message')}")
         else:
             # 没有角色参考图，直接保存构建后的工作流
             task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
@@ -1093,7 +1491,7 @@ async def generate_shot_task(
         task.progress = 30
         db.commit()
         
-        # 注意：我们已经上传了图片并更新了工作流，所以不再传递 character_reference_path
+        # 注意：我们已经上传了图片并更新了工作流，所以不再传递 character_reference_path 或 scene_reference_path
         # 传入的 workflow 已经包含替换后的 LoadImage 节点
         result = await comfyui_service.generate_shot_image_with_workflow(
             prompt=shot_description,
@@ -1101,7 +1499,8 @@ async def generate_shot_task(
             node_mapping=node_mapping,
             aspect_ratio=novel.aspect_ratio or "16:9",
             character_reference_path=None,  # 已经手动处理过了
-            workflow=submitted_workflow,  # 传递已更新（包含LoadImage替换）的工作流
+            scene_reference_path=None,      # 已经手动处理过了
+            workflow=submitted_workflow,    # 传递已更新（包含LoadImage替换）的工作流
             style=style
         )
         

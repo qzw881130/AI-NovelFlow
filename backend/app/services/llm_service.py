@@ -464,8 +464,8 @@ class LLMService:
     
     # ============== 业务方法 ==============
     
-    async def parse_novel_text(self, text: str, novel_id: str = None) -> Dict[str, Any]:
-        """解析小说文本，提取角色、场景、分镜信息"""
+    async def parse_novel_text(self, text: str, novel_id: str = None, source_range: str = None) -> Dict[str, Any]:
+        """解析小说文本，提取角色、场景、分镜信息（支持章节范围）"""
         # 使用数据库中保存的提示词，如果没有则使用默认提示词
         default_prompt = """你是一个专业的小说解析助手。请分析我提供的小说文本，提取以下信息并以 JSON 格式返回：
 
@@ -473,6 +473,9 @@ class LLMService:
 - name（姓名）
 - description（描述）
 - appearance（外貌特征：必须是一段完整自然语言描述的"单段文字"，禁止使用结构化字段/键值对/列表/分段标题）
+
+【章节范围解析说明】
+本次解析的文本来自：{章节范围说明}。请注意提取的角色应该是在此范围内新出现或重点描写的角色。
 
 【角色命名唯一性与一致性（必须严格执行）】
 - 所有角色 name 必须在首次解析时确定为唯一标准名称，并在后续所有步骤中严格复用该名称。
@@ -535,11 +538,17 @@ class LLMService:
         settings = get_settings()
         system_prompt = settings.PARSE_CHARACTERS_PROMPT or default_prompt
         
+        # 替换章节范围占位符
+        if source_range:
+            system_prompt = system_prompt.replace("{章节范围说明}", source_range)
+        else:
+            system_prompt = system_prompt.replace("{章节范围说明}", "整部小说")
+        
         result = await self.chat_completion(
             system_prompt=system_prompt,
-            user_content=f"请解析以下小说文本：\n\n{text[:8000]}",
+            user_content=f"请解析以下小说文本：\n\n{text[:15000]}",
             temperature=0.7,
-            max_tokens=4000,
+            max_tokens=15000,
             response_format="json_object",
             task_type="parse_characters",
             novel_id=novel_id
@@ -592,6 +601,7 @@ class LLMService:
         novel_id: str = None,
         chapter_id: str = None,
         character_names: list = None,
+        scene_names: list = None,
         style: str = "anime style, high quality, detailed"
     ) -> Dict[str, Any]:
         """使用自定义提示词将章节拆分为分镜数据结构"""
@@ -607,9 +617,19 @@ class LLMService:
         # 构建 allowed_characters 行
         allowed_characters_line = ""
         if character_names:
-            allowed_characters_line = f"allowed_characters: {', '.join(character_names)}\n\n"
+            allowed_characters_line = f"allowed_characters: {', '.join(character_names)}\n"
         
-        user_content = f"""{allowed_characters_line}章节标题：{chapter_title}
+        # 构建 allowed_scenes 行
+        allowed_scenes_line = ""
+        if scene_names:
+            allowed_scenes_line = f"allowed_scenes: {', '.join(scene_names)}\n"
+        
+        # 合并白名单行
+        whitelist_lines = ""
+        if allowed_characters_line or allowed_scenes_line:
+            whitelist_lines = allowed_characters_line + allowed_scenes_line + "\n"
+        
+        user_content = f"""{whitelist_lines}章节标题：{chapter_title}
 
 章节内容：
 {chapter_content[:15000]}
@@ -620,7 +640,7 @@ class LLMService:
             system_prompt=system_prompt,
             user_content=user_content,
             temperature=0.7,
-            max_tokens=8000,
+            max_tokens=15000,
             response_format="json_object",
             task_type="split_chapter",
             novel_id=novel_id,
@@ -740,6 +760,167 @@ Young female character, long flowing silver hair with blue highlights, sharp blu
             return result["content"].strip()
         else:
             return prompt
+    
+    async def generate_scene_setting(
+        self,
+        scene_name: str,
+        description: str,
+        style: str = "anime",
+        novel_id: str = None
+    ) -> str:
+        """生成场景设定（环境设置）
+        
+        Args:
+            scene_name: 场景名称
+            description: 场景描述
+            style: 画风风格
+            novel_id: 小说ID
+            
+        Returns:
+            场景设定字符串（用于AI绘图的环境描述）
+        """
+        system_prompt = f"""你是一个专业的场景设定助手。请根据提供的场景信息，生成一段详细的环境设定描述，用于AI绘图生成场景图。
+
+【重要约束：场景不包含人物】
+- 场景是纯粹的环境、地点、空间描述，不包含任何人物、角色、演员等元素
+- 设定描述中禁止出现人物、人物动作、表情、姿态等
+- 专注于环境本身：建筑、自然景观、室内布置、光线、天气、氛围等
+
+要求：
+1. 描述要具体、详细，包含：
+   - 时间（白天/黄昏/夜晚）
+   - 天气（晴天/雨天/雪天）
+   - 光线（阳光/月光/灯光）
+   - 建筑风格或自然景观特征
+   - 主要物体和布局
+   - 色调和氛围
+   - 透视角度
+2. 使用英文（AI绘图模型对英文理解更好）
+3. 添加画风提示词，如：{style} style, high quality, detailed, environment design, background art
+4. 避免模糊词汇，使用具体的颜色和样式描述
+5. 必须添加 "no characters, empty scene" 确保不生成人物
+
+示例输出格式：
+Traditional Chinese courtyard, ancient wooden architecture with curved roofs, red pillars and golden decorations, stone pathway, blooming cherry blossom trees, soft morning sunlight filtering through leaves, peaceful atmosphere, spring season, wide angle view, anime style, high quality, detailed, environment design, no characters, empty scene"""
+        
+        result = await self.chat_completion(
+            system_prompt=system_prompt,
+            user_content=f"场景名称：{scene_name}\n场景描述：{description}\n\n请生成详细的环境设定描述：",
+            temperature=0.8,
+            max_tokens=1000,
+            task_type="generate_scene_setting",
+            novel_id=novel_id
+        )
+        
+        if result["success"]:
+            return result["content"].strip()
+        else:
+            return f"{scene_name}, environment design, background art, high quality, detailed, no characters, empty scene"
+
+
+    async def parse_scenes(
+        self,
+        novel_id: str,
+        chapter_content: str,
+        chapter_title: str = "",
+        prompt_template: str = None
+    ) -> Dict[str, Any]:
+        """解析场景信息
+        
+        Args:
+            novel_id: 小说ID
+            chapter_content: 章节内容
+            chapter_title: 章节标题
+            prompt_template: 场景解析提示词模板
+            
+        Returns:
+            {"scenes": [{"name": "", "description": "", "setting": ""}]}
+        """
+        default_prompt = """你是一个专业的小说场景解析助手。请分析我提供的小说文本，提取所有场景信息并以 JSON 格式返回。
+
+场景是指故事发生的地点、环境或空间。同一地点在不同时间的多个事件属于同一个场景。
+
+【场景命名唯一性与一致性（必须严格执行）】
+- 所有场景 name 必须在首次解析时确定为唯一标准名称，并在后续所有步骤中严格复用该名称。
+- 场景名称应简洁明确，如"萧家门口"、"萧家大厅"、"练武场"等。
+- 一旦 name 确定，后续输出不得更改、简化或替换；所有场景引用必须完全一致。
+
+【每个场景必须包含】
+- name（场景名称）：简洁的唯一标识符
+- description（场景描述）：描述场景的整体感觉、氛围、主要元素
+- setting（环境设置）：用于AI绘图的详细环境描述，包括：
+  - 时间（白天/黄昏/夜晚）
+  - 天气（晴天/雨天/雪天）
+  - 光线（阳光/月光/灯光）
+  - 主要物体和布局
+  - 色调和氛围
+
+【输出格式要求】
+只返回合法 JSON，不得输出任何解释性文字。
+
+{
+  "scenes": [
+    {
+      "name": "场景名称",
+      "description": "场景的整体描述",
+      "setting": "详细的绘图用环境描述"
+    }
+  ]
+}"""
+        
+        system_prompt = prompt_template or default_prompt
+        
+        user_content = f"""章节标题：{chapter_title}
+
+章节内容：
+{chapter_content[:15000]}
+
+请解析以上文本中的场景信息。"""
+        
+        result = await self.chat_completion(
+            system_prompt=system_prompt,
+            user_content=user_content,
+            temperature=0.7,
+            max_tokens=15000,
+            response_format="json_object",
+            task_type="parse_scenes",
+            novel_id=novel_id
+        )
+        
+        if result["success"]:
+            try:
+                content = result["content"]
+                # 处理 Ollama 模型可能返回的  heures...</think> 标签
+                if " heures" in content and " hours" in content:
+                    content = content.split(" hours")[-1].strip()
+                
+                # 尝试从 Markdown 代码块中提取 JSON
+                if " hours```json" in content:
+                    content = content.split(" hours```json")[-1].split(" hours```")[0].strip()
+                elif " hours```" in content:
+                    content = content.split(" hours```")[-1].split(" hours```")[0].strip()
+                
+                # 尝试找到 JSON 对象
+                content = content.strip()
+                if not (content.startswith("{") and content.endswith("}")):
+                    import re
+                    json_match = re.search(r'\{[\s\S]*\}', content)
+                    if json_match:
+                        content = json_match.group()
+                
+                data = json.loads(content)
+                return {
+                    "scenes": data.get("scenes", [])
+                }
+            except json.JSONDecodeError as e:
+                print(f"[parse_scenes] JSON 解析失败: {e}")
+                print(f"[parse_scenes] 原始内容: {result['content'][:500]}")
+                return {"scenes": []}
+        else:
+            return {
+                "error": result.get("error", "未知错误"),
+                "scenes": []
+            }
 
 
 # 兼容旧导入

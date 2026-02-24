@@ -21,7 +21,8 @@ import {
   Bot,
   Globe,
   Network,
-  HelpCircle
+  HelpCircle,
+  Mountain
 } from 'lucide-react';
 import { useConfigStore, LLM_PROVIDER_PRESETS, getDefaultApiUrl, getDefaultModels, getApiKeyPlaceholder, getApiKeyHelp } from '../stores/configStore';
 import { useTranslation } from '../stores/i18nStore';
@@ -120,7 +121,7 @@ interface Workflow {
   nameKey?: string;
   description?: string;
   descriptionKey?: string;
-  type: 'character' | 'shot' | 'video' | 'transition';
+  type: 'character' | 'scene' | 'shot' | 'video' | 'transition';
   typeName: string;
   isSystem: boolean;
   isActive: boolean;
@@ -134,6 +135,7 @@ interface Workflow {
 
 const typeIcons = {
   character: User,
+  scene: Mountain,
   shot: ImageIcon,
   video: Film,
   transition: Film
@@ -141,6 +143,7 @@ const typeIcons = {
 
 const typeColors = {
   character: 'bg-blue-100 text-blue-600',
+  scene: 'bg-green-100 text-green-600',
   shot: 'bg-amber-100 text-amber-600',
   video: 'bg-pink-100 text-pink-600',
   transition: 'bg-purple-100 text-purple-600'
@@ -149,6 +152,7 @@ const typeColors = {
 // 获取工作流类型名称
 const getTypeNames = (t: any) => ({
   character: t('systemSettings.workflow.character'),
+  scene: t('systemSettings.workflow.scene'),
   shot: t('systemSettings.workflow.shot'),
   video: t('systemSettings.workflow.video'),
   transition: t('systemSettings.workflow.transition')
@@ -178,6 +182,8 @@ const checkWorkflowMappingComplete = (workflow: Workflow): boolean => {
   
   switch (workflow.type) {
     case 'character':
+    case 'scene':
+      // 人设和场景类型需要相同的字段
       return !!(
         mapping.prompt_node_id &&
         mapping.prompt_node_id !== 'auto' &&
@@ -187,7 +193,8 @@ const checkWorkflowMappingComplete = (workflow: Workflow): boolean => {
     case 'shot':
       // 分镜生图类型需要特殊字段
       const shotMapping = mapping as any;
-      return !!(
+      // 检查必填的基础字段
+      const hasBasicFields = !!(
         mapping.prompt_node_id &&
         mapping.prompt_node_id !== 'auto' &&
         mapping.save_image_node_id &&
@@ -195,10 +202,19 @@ const checkWorkflowMappingComplete = (workflow: Workflow): boolean => {
         mapping.width_node_id &&
         mapping.width_node_id !== 'auto' &&
         mapping.height_node_id &&
-        mapping.height_node_id !== 'auto' &&
-        shotMapping.reference_image_node_id &&
-        shotMapping.reference_image_node_id !== 'auto'
+        mapping.height_node_id !== 'auto'
       );
+      // 检查参考图节点：支持单图参考或双图参考
+      // 单图参考：reference_image_node_id
+      // 双图参考：character_reference_image_node_id 和 scene_reference_image_node_id
+      const hasSingleReference = shotMapping.reference_image_node_id && shotMapping.reference_image_node_id !== 'auto';
+      const hasDualReference = (
+        shotMapping.character_reference_image_node_id &&
+        shotMapping.character_reference_image_node_id !== 'auto' &&
+        shotMapping.scene_reference_image_node_id &&
+        shotMapping.scene_reference_image_node_id !== 'auto'
+      );
+      return hasBasicFields && (hasSingleReference || hasDualReference);
     case 'video':
       // 视频类型需要特殊字段
       const videoMapping = mapping as any;
@@ -254,7 +270,7 @@ export default function Settings() {
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loadingWorkflows, setLoadingWorkflows] = useState(true);
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadType, setUploadType] = useState<'character' | 'shot' | 'video' | 'transition'>('character');
+  const [uploadType, setUploadType] = useState<'character' | 'scene' | 'shot' | 'video' | 'transition'>('character');
   const [uploadForm, setUploadForm] = useState({ name: '', description: '', file: null as File | null });
   const [uploading, setUploading] = useState(false);
   
@@ -278,7 +294,10 @@ export default function Settings() {
     frameCountNodeId: '',  // 总帧数节点
     // 转场视频专用
     firstImageNodeId: '',  // 首帧图节点
-    lastImageNodeId: ''   // 尾帧图节点
+    lastImageNodeId: '',   // 尾帧图节点
+    // 双图参考工作流专用（分镜生图）
+    characterReferenceImageNodeId: '',  // 角色参考图节点
+    sceneReferenceImageNodeId: ''       // 场景参考图节点
   });
   const [availableNodes, setAvailableNodes] = useState<{
     clipTextEncode: string[], 
@@ -592,7 +611,9 @@ export default function Settings() {
                 referenceImageNodeId: mapping.reference_image_node_id || '',
                 frameCountNodeId: mapping.frame_count_node_id || '',
                 firstImageNodeId: '',
-                lastImageNodeId: ''
+                lastImageNodeId: '',
+                characterReferenceImageNodeId: '',
+                sceneReferenceImageNodeId: ''
               });
             } else if (workflow.type === 'transition') {
               setMappingForm({
@@ -605,10 +626,12 @@ export default function Settings() {
                 referenceImageNodeId: '',
                 frameCountNodeId: mapping.frame_count_node_id || '',
                 firstImageNodeId: mapping.first_image_node_id || '',
-                lastImageNodeId: mapping.last_image_node_id || ''
+                lastImageNodeId: mapping.last_image_node_id || '',
+                characterReferenceImageNodeId: '',
+                sceneReferenceImageNodeId: ''
               });
             } else if (workflow.type === 'shot') {
-              // 分镜生图类型 - 包含参考图片节点
+              // 分镜生图类型 - 包含参考图片节点和双图参考支持
               setMappingForm({
                 promptNodeId: mapping.prompt_node_id || '',
                 saveImageNodeId: mapping.save_image_node_id || '',
@@ -619,10 +642,13 @@ export default function Settings() {
                 referenceImageNodeId: mapping.reference_image_node_id || '',
                 frameCountNodeId: '',
                 firstImageNodeId: '',
-                lastImageNodeId: ''
+                lastImageNodeId: '',
+                // 双图参考工作流专用
+                characterReferenceImageNodeId: mapping.character_reference_image_node_id || '',
+                sceneReferenceImageNodeId: mapping.scene_reference_image_node_id || ''
               });
             } else {
-              // 人设生图类型
+              // 人设生图类型和场景生图类型
               setMappingForm({
                 promptNodeId: mapping.prompt_node_id || '',
                 saveImageNodeId: mapping.save_image_node_id || '',
@@ -633,7 +659,9 @@ export default function Settings() {
                 referenceImageNodeId: '',
                 frameCountNodeId: '',
                 firstImageNodeId: '',
-                lastImageNodeId: ''
+                lastImageNodeId: '',
+                characterReferenceImageNodeId: '',
+                sceneReferenceImageNodeId: ''
               });
             }
           } catch (e) {
@@ -673,16 +701,19 @@ export default function Settings() {
           video_save_node_id: mappingForm.videoSaveNodeId || null
         };
       } else if (mappingWorkflow.type === 'shot') {
-        // 分镜生图类型 - 包含参考图片节点
+        // 分镜生图类型 - 包含参考图片节点和双图参考支持
         nodeMapping = {
           prompt_node_id: mappingForm.promptNodeId || null,
           save_image_node_id: mappingForm.saveImageNodeId || null,
           width_node_id: mappingForm.widthNodeId || null,
           height_node_id: mappingForm.heightNodeId || null,
-          reference_image_node_id: mappingForm.referenceImageNodeId || null
+          reference_image_node_id: mappingForm.referenceImageNodeId || null,
+          // 双图参考工作流专用
+          character_reference_image_node_id: mappingForm.characterReferenceImageNodeId || null,
+          scene_reference_image_node_id: mappingForm.sceneReferenceImageNodeId || null
         };
       } else {
-        // 人设生图类型
+        // 人设生图类型和场景生图类型
         nodeMapping = {
           prompt_node_id: mappingForm.promptNodeId || null,
           save_image_node_id: mappingForm.saveImageNodeId || null
@@ -778,7 +809,7 @@ export default function Settings() {
     }
   };
 
-  const getWorkflowsByType = (type: 'character' | 'shot' | 'video' | 'transition') => {
+  const getWorkflowsByType = (type: 'character' | 'scene' | 'shot' | 'video' | 'transition') => {
     return workflows.filter(w => w.type === type);
   };
 
@@ -1252,7 +1283,7 @@ export default function Settings() {
           </div>
 
           {/* 工作流类型标签页 */}
-          {(['character', 'shot', 'video', 'transition'] as const).map((type) => {
+          {(['character', 'scene', 'shot', 'video', 'transition'] as const).map((type) => {
             const Icon = typeIcons[type];
             const typeWorkflows = getWorkflowsByType(type);
             const activeWorkflow = typeWorkflows.find(w => w.isActive);
@@ -1603,8 +1634,8 @@ export default function Settings() {
             </div>
             
             <form onSubmit={handleSaveMapping} className="space-y-6">
-              {/* 提示词输入节点 - 人设和分镜生图工作流显示 */}
-              {(mappingWorkflow?.type === 'character' || mappingWorkflow?.type === 'shot') && (
+              {/* 提示词输入节点 - 人设、场景和分镜生图工作流显示 */}
+              {(mappingWorkflow?.type === 'character' || mappingWorkflow?.type === 'scene' || mappingWorkflow?.type === 'shot') && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     {t('systemSettings.workflow.promptInputNode')}
@@ -1640,8 +1671,8 @@ export default function Settings() {
                 </div>
               )}
               
-              {/* 图片保存节点 - 人设和分镜生图工作流显示 */}
-              {(mappingWorkflow?.type === 'character' || mappingWorkflow?.type === 'shot') && (
+              {/* 图片保存节点 - 人设、场景和分镜生图工作流显示 */}
+              {(mappingWorkflow?.type === 'character' || mappingWorkflow?.type === 'scene' || mappingWorkflow?.type === 'shot') && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     {t('systemSettings.workflow.imageSaveNode')}
@@ -1752,8 +1783,8 @@ export default function Settings() {
                 </div>
               )}
 
-              {/* 参考图片节点 - 分镜生图和视频类型显示 */}
-              {(mappingWorkflow?.type === 'shot' || mappingWorkflow?.type === 'video') && (
+              {/* 参考图片节点 - 仅视频类型显示 */}
+              {mappingWorkflow?.type === 'video' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     {t('systemSettings.workflow.referenceImageNode')}
@@ -1787,6 +1818,81 @@ export default function Settings() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* 双图参考节点 - 仅分镜生图类型显示 */}
+              {mappingWorkflow?.type === 'shot' && (
+                <>
+                  {/* 角色参考图节点 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      角色参考图节点
+                    </label>
+                    <select
+                      value={mappingForm.characterReferenceImageNodeId}
+                      onChange={(e) => setMappingForm({ ...mappingForm, characterReferenceImageNodeId: e.target.value })}
+                      className="input-field"
+                    >
+                      <option value="">{t('systemSettings.workflow.autoFind')}</option>
+                      {availableNodes.loadImage.map((nodeInfo) => {
+                        const nodeId = nodeInfo.split(' ')[0];
+                        return (
+                          <option key={nodeInfo} value={nodeId}>
+                            Node#{nodeInfo}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      用于加载角色参考图片的节点，保持人物一致性
+                    </p>
+                    
+                    {/* Node JSON Preview */}
+                    {mappingForm.characterReferenceImageNodeId && workflowData[mappingForm.characterReferenceImageNodeId] && (
+                      <div className="mt-2 p-3 bg-gray-50 rounded border border-gray-200">
+                        <p className="text-xs text-gray-400 mb-1">Node #{mappingForm.characterReferenceImageNodeId} JSON Preview:</p>
+                        <pre className="text-xs text-gray-600 overflow-x-auto">
+{JSON.stringify({ [mappingForm.characterReferenceImageNodeId]: workflowData[mappingForm.characterReferenceImageNodeId] }, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 场景参考图节点 */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      场景参考图节点
+                    </label>
+                    <select
+                      value={mappingForm.sceneReferenceImageNodeId}
+                      onChange={(e) => setMappingForm({ ...mappingForm, sceneReferenceImageNodeId: e.target.value })}
+                      className="input-field"
+                    >
+                      <option value="">{t('systemSettings.workflow.autoFind')}</option>
+                      {availableNodes.loadImage.map((nodeInfo) => {
+                        const nodeId = nodeInfo.split(' ')[0];
+                        return (
+                          <option key={nodeInfo} value={nodeId}>
+                            Node#{nodeInfo}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      用于加载场景参考图片的节点，保持场景一致性
+                    </p>
+                    
+                    {/* Node JSON Preview */}
+                    {mappingForm.sceneReferenceImageNodeId && workflowData[mappingForm.sceneReferenceImageNodeId] && (
+                      <div className="mt-2 p-3 bg-gray-50 rounded border border-gray-200">
+                        <p className="text-xs text-gray-400 mb-1">Node #{mappingForm.sceneReferenceImageNodeId} JSON Preview:</p>
+                        <pre className="text-xs text-gray-600 overflow-x-auto">
+{JSON.stringify({ [mappingForm.sceneReferenceImageNodeId]: workflowData[mappingForm.sceneReferenceImageNodeId] }, null, 2)}
+                        </pre>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
 
               {/* 视频工作流特有配置 */}

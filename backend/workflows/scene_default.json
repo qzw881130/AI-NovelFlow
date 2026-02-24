@@ -1,0 +1,140 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "jpm/Han_Daoguo",
+      "images": [
+        "125",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "121": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "122": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "124": {
+    "inputs": {
+      "conditioning": [
+        "133",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "125": {
+    "inputs": {
+      "samples": [
+        "129",
+        0
+      ],
+      "vae": [
+        "122",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "126": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "128",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "128": {
+    "inputs": {
+      "unet_name": "z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "129": {
+    "inputs": {
+      "seed": 821901532388997,
+      "steps": 9,
+      "cfg": 1,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "126",
+        0
+      ],
+      "positive": [
+        "133",
+        0
+      ],
+      "negative": [
+        "124",
+        0
+      ],
+      "latent_image": [
+        "132",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "132": {
+    "inputs": {
+      "width": 1920,
+      "height": 1088,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "133": {
+    "inputs": {
+      "text": "character portrait, 3D Pixar-style animated film, stylized 3D character, soft global illumination, subsurface scattering, highly detailed fur texture, cinematic lighting, soft rim light, 体型高大强壮，皮毛粗糙呈灰色或褐色，牛角弯曲，眼睛大而温和，四肢粗壮，小腿肚明显，吃草时姿态悠闲，整体给人一种沉稳可靠的感觉。, 一头悠闲的老牛，经验丰富，对小马友善，但基于自身高大的体型给出建议。, single character, centered, symmetrical composition, clean studio background, professional character design sheet, sharp focus, ultra high resolution, 8k, anthropomorphic animal character, fully animal anatomy, no humans, no human skin, no human ears",
+      "clip": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  }
+}

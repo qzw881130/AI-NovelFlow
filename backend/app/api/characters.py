@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import json
-import uuid
 
 from app.core.database import get_db
 from app.core.config import get_settings
@@ -19,9 +18,6 @@ comfyui_service = ComfyUIService()
 def get_llm_service() -> LLMService:
     """获取 LLMService 实例（每次调用创建新实例以获取最新配置）"""
     return LLMService()
-
-# 存储生成任务状态（生产环境应使用 Redis）
-generation_tasks = {}
 
 
 @router.get("/", response_model=dict)
@@ -45,6 +41,11 @@ async def list_characters(novel_id: str = None, db: Session = Depends(get_db)):
             "generatingStatus": c.generating_status,
             "portraitTaskId": c.portrait_task_id,
             "novelName": novel.title if novel else None,
+            "startChapter": c.start_chapter,
+            "endChapter": c.end_chapter,
+            "isIncremental": c.is_incremental,
+            "sourceRange": c.source_range,
+            "lastParsedAt": c.last_parsed_at.isoformat() if c.last_parsed_at else None,
             "createdAt": c.created_at.isoformat() if c.created_at else None,
             "updatedAt": c.updated_at.isoformat() if c.updated_at else None,
         })
@@ -73,6 +74,11 @@ async def get_character(character_id: str, db: Session = Depends(get_db)):
             "generatingStatus": character.generating_status,
             "portraitTaskId": character.portrait_task_id,
             "novelName": novel.title if novel else None,
+            "startChapter": character.start_chapter,
+            "endChapter": character.end_chapter,
+            "isIncremental": character.is_incremental,
+            "sourceRange": character.source_range,
+            "lastParsedAt": character.last_parsed_at.isoformat() if character.last_parsed_at else None,
             "createdAt": character.created_at.isoformat() if character.created_at else None,
             "updatedAt": character.updated_at.isoformat() if character.updated_at else None,
         }
@@ -200,87 +206,6 @@ async def clear_characters_dir(novel_id: str = Query(..., description="小说ID"
         raise HTTPException(status_code=500, detail="清空角色图片目录失败")
 
 
-@router.post("/{character_id}/generate-portrait")
-async def generate_portrait(
-    character_id: str,
-    db: Session = Depends(get_db)
-):
-    """生成角色人设图"""
-    character = db.query(Character).filter(Character.id == character_id).first()
-    if not character:
-        raise HTTPException(status_code=404, detail="角色不存在")
-    
-    # 生成任务ID
-    task_id = str(uuid.uuid4())
-    generation_tasks[task_id] = {
-        "character_id": character_id,
-        "status": "pending",
-        "image_url": None,
-        "message": None
-    }
-    
-    # 后台任务生成图片 - 使用 asyncio.create_task 实现真正并发
-    import asyncio
-    asyncio.create_task(
-        generate_character_portrait_task(
-            task_id,
-            character_id,
-            character.name,
-            character.appearance,
-            character.description
-        )
-    )
-    
-    return {
-        "success": True,
-        "data": {
-            "taskId": task_id,
-            "status": "pending",
-            "message": "人设图生成任务已创建"
-        }
-    }
-
-
-@router.get("/{character_id}/portrait-status")
-async def get_portrait_status(character_id: str, task_id: str = None, db: Session = Depends(get_db)):
-    """获取人设图生成状态"""
-    character = db.query(Character).filter(Character.id == character_id).first()
-    if not character:
-        raise HTTPException(status_code=404, detail="角色不存在")
-    
-    # 如果已有图片，直接返回完成状态
-    if character.image_url:
-        return {
-            "success": True,
-            "data": {
-                "status": "completed",
-                "imageUrl": character.image_url,
-                "message": "人设图已生成"
-            }
-        }
-    
-    # 查找进行中的任务
-    if task_id and task_id in generation_tasks:
-        task = generation_tasks[task_id]
-        if task["character_id"] == character_id:
-            return {
-                "success": True,
-                "data": {
-                    "status": task["status"],
-                    "imageUrl": task["image_url"],
-                    "message": task["message"]
-                }
-            }
-    
-    return {
-        "success": True,
-        "data": {
-            "status": "pending",
-            "imageUrl": None,
-            "message": "等待生成"
-        }
-    }
-
 
 @router.get("/{character_id}/prompt", response_model=dict)
 async def get_character_prompt(character_id: str, db: Session = Depends(get_db)):
@@ -325,93 +250,6 @@ async def get_character_prompt(character_id: str, db: Session = Depends(get_db))
             "description": character.description
         }
     }
-
-
-async def generate_character_portrait_task(
-    task_id: str,
-    character_id: str,
-    name: str,
-    appearance: str,
-    description: str
-):
-    """后台任务：生成角色人设图"""
-    try:
-        generation_tasks[task_id]["status"] = "running"
-        generation_tasks[task_id]["message"] = "正在调用 ComfyUI 生成图片..."
-        
-        # 构建提示词
-        prompt = build_character_prompt(name, appearance, description)
-        
-        # 获取角色信息以获取 novel_id 和 style
-        from app.core.database import SessionLocal
-        from app.models.novel import Novel, Character
-        from app.models.prompt_template import PromptTemplate
-        import json
-        
-        db = SessionLocal()
-        style = "anime style, high quality, detailed"
-        novel_id = None
-        try:
-            character = db.query(Character).filter(Character.id == character_id).first()
-            if character and character.novel_id:
-                novel_id = character.novel_id
-                novel = db.query(Novel).filter(Novel.id == novel_id).first()
-                if novel and novel.prompt_template_id:
-                    template = db.query(PromptTemplate).filter(
-                        PromptTemplate.id == novel.prompt_template_id
-                    ).first()
-                    if template:
-                        # 从模板提取 style
-                        if hasattr(template, 'style') and template.style:
-                            style = template.style
-                        else:
-                            # 从模板内容提取
-                            try:
-                                template_data = json.loads(template.template)
-                                if isinstance(template_data, dict) and "style" in template_data:
-                                    style = template_data["style"]
-                            except:
-                                style = template.template.replace("{appearance}", "").replace("{description}", "").strip(", ")
-        finally:
-            db.close()
-        
-        # 调用 ComfyUI 生成图片，传递 style
-        result = await comfyui_service.generate_character_image(
-            prompt,
-            novel_id=novel_id,
-            character_name=name,
-            style=style
-        )
-        
-        # 保存实际提交给ComfyUI的工作流
-        if result.get("submitted_workflow"):
-            generation_tasks[task_id]["submitted_workflow"] = json.dumps(
-                result["submitted_workflow"], ensure_ascii=False, indent=2
-            )
-            print(f"[CharacterTask {task_id}] Saved submitted workflow")
-        
-        if result.get("success"):
-            generation_tasks[task_id]["status"] = "completed"
-            generation_tasks[task_id]["image_url"] = result.get("image_url")
-            generation_tasks[task_id]["message"] = "生成成功"
-            
-            # 更新数据库
-            from app.core.database import SessionLocal
-            db = SessionLocal()
-            try:
-                character = db.query(Character).filter(Character.id == character_id).first()
-                if character:
-                    character.image_url = result.get("image_url")
-                    db.commit()
-            finally:
-                db.close()
-        else:
-            generation_tasks[task_id]["status"] = "failed"
-            generation_tasks[task_id]["message"] = result.get("message", "生成失败")
-            
-    except Exception as e:
-        generation_tasks[task_id]["status"] = "failed"
-        generation_tasks[task_id]["message"] = str(e)
 
 
 @router.post("/{character_id}/generate-appearance", response_model=dict)
@@ -461,7 +299,8 @@ def build_character_prompt(name: str, appearance: str, description: str, templat
         template: 提示词模板，包含 {appearance} 和 {description} 占位符
     """
     # 根据角色名称检测动物类型，添加英文强调词
-    animal_keyword = detect_animal_type(name, appearance)
+    # animal_keyword = detect_animal_type(name, appearance)
+    animal_keyword = None
     
     if template:
         # 使用模板构建提示词，只使用 appearance，不使用 description
@@ -527,3 +366,29 @@ def detect_animal_type(name: str, appearance: str) -> str:
                 return animal_type
     
     return None
+
+
+def extract_style_from_template(template: str) -> str:
+    """从角色提示词模板中提取 style
+
+    兼容逻辑：
+    1. 尝试解析为 JSON，获取 style 字段
+    2. 否则清理模板中的 {appearance} 和 {description} 占位符
+    """
+    if not template:
+        return "anime style, high quality, detailed"
+
+    # 尝试解析 JSON
+    try:
+        template_data = json.loads(template)
+        if isinstance(template_data, dict) and "style" in template_data:
+            return template_data["style"]
+    except:
+        pass
+
+    # 清理占位符
+    style = template.replace("{appearance}", "").replace("{description}", "").strip(", ")
+    if style:
+        return style
+
+    return "anime style, high quality, detailed"

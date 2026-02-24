@@ -26,7 +26,7 @@ def main():
     print("🔧 开发模式: 开启")
     print("按 Ctrl+C 停止服务")
     print()
-    
+
     try:
         # 直接运行 uvicorn
         uvicorn.run(

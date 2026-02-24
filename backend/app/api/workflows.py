@@ -15,6 +15,7 @@ settings = get_settings()
 # 工作流类型定义
 WORKFLOW_TYPES = {
     "character": "人设生成",
+    "scene": "场景生成", 
     "shot": "分镜生图", 
     "video": "分镜生视频",
     "transition": "分镜生转场视频"
@@ -23,14 +24,19 @@ WORKFLOW_TYPES = {
 # 默认工作流文件名映射 (每个类型的默认工作流)
 DEFAULT_WORKFLOWS = {
     "character": "character_default.json",
+    "scene": "scene_default.json",
     "shot": "shot_default.json",
     "video": "video_default.json"
 }
 
 # 额外的系统工作流文件列表
+# 注意：列表顺序决定默认激活优先级，每种类型的第一个工作流会成为默认激活
 EXTRA_SYSTEM_WORKFLOWS = [
     {"filename": "character_single.json", "type": "character", "name": "Z-image-turbo 单图生成", "description": "Z-image-turbo【非三视图】"},
-    {"filename": "shot_flux2_klein.json", "type": "shot", "name": "Flux2-Klein-9B 分镜生图", "description": "Flux2-Klein-9B 图像编辑工作流，支持角色参考图"},
+    # 双图参考工作流（角色图+场景图）作为分镜生图的默认工作流
+    {"filename": "shot_flux2_klein_dual_reference.json", "type": "shot", "name": "Flux2-Klein-9B 分镜生图双图参考", "description": "Flux2-Klein-9B 双图参考工作流，支持角色参考图+场景参考图，保持场景一致性",
+     "node_mapping": {"prompt_node_id": "110", "save_image_node_id": "9", "width_node_id": "123", "height_node_id": "125", "character_reference_image_node_id": "76", "scene_reference_image_node_id": "128"}},
+    {"filename": "shot_flux2_klein.json", "type": "shot", "name": "Flux2-Klein-9B 分镜生图", "description": "Flux2-Klein-9B 图像编辑工作流，仅支持角色参考图"},
     {"filename": "video_ltx2_direct.json", "type": "video", "name": "LTX2 视频生成-直接版", "description": "LTX-2 图生视频，直接使用用户提示词",
      "node_mapping": {"prompt_node_id": "11", "video_save_node_id": "1", "reference_image_node_id": "12", "max_side_node_id": "36", "frame_count_node_id": "35"}},
     {"filename": "video_ltx2_expanded.json", "type": "video", "name": "LTX2 视频生成-扩写版", "description": "LTX-2 图生视频，使用 Qwen3 自动扩写提示词",
@@ -40,7 +46,9 @@ EXTRA_SYSTEM_WORKFLOWS = [
     {"filename": "transition_ltx2_lighting.json", "type": "transition", "name": "LTX2 光线转场视频", "description": "适合：首尾帧颜色差很多，但场景/人物不变",
      "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "video_save_node_id": "105"}},
     {"filename": "transition_ltx2_first_last_frame.json", "type": "transition", "name": "LTX2 遮挡转场视频", "description": "适合：两张图差异大，想自然衔接",
-     "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "video_save_node_id": "105"}}
+     "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "video_save_node_id": "105"}},
+    {"filename": "scene_default.json", "type": "scene", "name": "Z-image-turbo 场景生成", "description": "Z-image-turbo 场景生成工作流",
+     "node_mapping": {"prompt_node_id": "133", "save_image_node_id": "9"}}
 ]
 
 
@@ -80,9 +88,12 @@ def load_default_workflows(db: Session):
                     print(f"[Workflow] Updated default workflow: {wf_type}")
                 continue
             
+            # 根据类型设置描述
+            description = f"系统预设的{WORKFLOW_TYPES.get(wf_type, wf_type)}工作流"
+            
             workflow = Workflow(
                 name=f"系统默认-{WORKFLOW_TYPES.get(wf_type, wf_type)}",
-                description=f"系统预设的{WORKFLOW_TYPES.get(wf_type, wf_type)}工作流（Flux2 Klein 9B 三视图）",
+                description=description,
                 type=wf_type,
                 workflow_json=workflow_json,
                 is_system=True,
@@ -211,6 +222,7 @@ async def list_workflows(
     # 系统工作流名称到翻译键的映射
     WORKFLOW_NAME_KEYS = {
         "系统默认-人设生成": "tasks.workflowNames.系统默认-人设生成",
+        "系统默认-场景生成": "tasks.workflowNames.系统默认-场景生成",
         "Z-image-turbo 单图生成": "tasks.workflowNames.Z-image-turbo 单图生成",
         "Flux2-Klein-9B 分镜生图": "tasks.workflowNames.Flux2-Klein-9B 分镜生图",
         "LTX2 视频生成-直接版": "tasks.workflowNames.LTX2 视频生成-直接版",
@@ -222,6 +234,7 @@ async def list_workflows(
     # 系统工作流描述到翻译键的映射
     WORKFLOW_DESC_KEYS = {
         "系统预设的人设生成工作流（Flux2 Klein 9B 三视图）": "tasks.workflowDescriptions.系统预设的人设生成工作流（Flux2 Klein 9B 三视图）",
+        "系统预设的场景生成工作流": "tasks.workflowDescriptions.系统预设的场景生成工作流",
         "Z-image-turbo【非三视图】": "tasks.workflowDescriptions.Z-image-turbo【非三视图】",
         "Flux2-Klein-9B 图像编辑工作流，支持角色参考图": "tasks.workflowDescriptions.Flux2-Klein-9B 图像编辑工作流，支持角色参考图",
         "LTX-2 图生视频，直接使用用户提示词": "tasks.workflowDescriptions.LTX-2 图生视频，直接使用用户提示词",
@@ -262,6 +275,7 @@ async def get_workflow(workflow_id: str, db: Session = Depends(get_db)):
     # 系统工作流名称到翻译键的映射
     WORKFLOW_NAME_KEYS = {
         "系统默认-人设生成": "tasks.workflowNames.系统默认-人设生成",
+        "系统默认-场景生成": "tasks.workflowNames.系统默认-场景生成",
         "Z-image-turbo 单图生成": "tasks.workflowNames.Z-image-turbo 单图生成",
         "Flux2-Klein-9B 分镜生图": "tasks.workflowNames.Flux2-Klein-9B 分镜生图",
         "LTX2 视频生成-直接版": "tasks.workflowNames.LTX2 视频生成-直接版",
@@ -273,6 +287,7 @@ async def get_workflow(workflow_id: str, db: Session = Depends(get_db)):
     # 系统工作流描述到翻译键的映射
     WORKFLOW_DESC_KEYS = {
         "系统预设的人设生成工作流（Flux2 Klein 9B 三视图）": "tasks.workflowDescriptions.系统预设的人设生成工作流（Flux2 Klein 9B 三视图）",
+        "系统预设的场景生成工作流": "tasks.workflowDescriptions.系统预设的场景生成工作流",
         "Z-image-turbo【非三视图】": "tasks.workflowDescriptions.Z-image-turbo【非三视图】",
         "Flux2-Klein-9B 图像编辑工作流，支持角色参考图": "tasks.workflowDescriptions.Flux2-Klein-9B 图像编辑工作流，支持角色参考图",
         "LTX-2 图生视频，直接使用用户提示词": "tasks.workflowDescriptions.LTX-2 图生视频，直接使用用户提示词",

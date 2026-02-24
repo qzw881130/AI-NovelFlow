@@ -109,9 +109,21 @@ export interface Character {
 
 export interface Scene {
   id: string;
-  title: string;
+  novelId: string;
+  name: string;
   description: string;
-  shots: string[];
+  setting: string;
+  imageUrl?: string;
+  generatingStatus?: string;
+  sceneTaskId?: string;
+  novelName?: string;
+  startChapter?: number;
+  endChapter?: number;
+  isIncremental?: boolean;
+  sourceRange?: string;
+  lastParsedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Shot {

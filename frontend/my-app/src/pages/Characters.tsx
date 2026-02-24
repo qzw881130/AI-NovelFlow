@@ -45,10 +45,6 @@ export default function Characters() {
   const [characterPrompts, setCharacterPrompts] = useState<Record<string, { prompt: string; templateName: string; templateId?: string; isSystem?: boolean }>>({});
   const [highlightedId, setHighlightedId] = useState<string | null>(highlightId);
   const [parsingNovelId, setParsingNovelId] = useState<string | null>(null);
-  const [confirmDialog, setConfirmDialog] = useState<{
-    isOpen: boolean;
-    novelId: string | null;
-  }>({ isOpen: false, novelId: null });
   
   // 删除所有角色确认对话框状态
   const [deleteAllConfirmDialog, setDeleteAllConfirmDialog] = useState<{
@@ -513,44 +509,7 @@ export default function Characters() {
     });
   };
 
-  const openParseConfirm = (novelId: string) => {
-    setConfirmDialog({ isOpen: true, novelId });
-  };
 
-  const closeParseConfirm = () => {
-    setConfirmDialog({ isOpen: false, novelId: null });
-  };
-
-  const confirmParseCharacters = async () => {
-    const novelId = confirmDialog.novelId;
-    if (!novelId) return;
-    
-    closeParseConfirm();
-    setParsingNovelId(novelId);
-    
-    try {
-      const res = await fetch(`${API_BASE}/novels/${novelId}/parse-characters/?sync=true`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-      if (data.success) {
-        const chars = data.data || [];
-        if (chars.length > 0) {
-          toast.success(`${t('common.success')} ${chars.length}`);
-          fetchCharacters();
-        } else {
-          toast.warning(t('characters.noCharacters'));
-        }
-      } else {
-        toast.error(t('common.error') + ': ' + data.message);
-      }
-    } catch (error) {
-      console.error('解析角色失败:', error);
-      toast.error(t('common.error'));
-    } finally {
-      setParsingNovelId(null);
-    }
-  };
 
   const getNovelName = (novelId: string) => {
     const novel = novels.find(n => n.id === novelId);
@@ -667,22 +626,7 @@ export default function Characters() {
           <p className="mt-1 text-sm text-gray-500">
             {t('common.create')} {t('characters.subtitle')}
           </p>
-          {selectedNovel && (
-            <div className="mt-4">
-              <button
-                onClick={() => openParseConfirm(selectedNovel)}
-                disabled={parsingNovelId === selectedNovel}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors disabled:opacity-50"
-              >
-                {parsingNovelId === selectedNovel ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                <span>{t('characters.parseTitle')}</span>
-              </button>
-            </div>
-          )}
+
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -989,39 +933,6 @@ export default function Characters() {
         </div>
       )}
 
-      {/* AI解析角色确认对话框 */}
-      {confirmDialog.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 bg-purple-100 rounded-full">
-                <Sparkles className="h-6 w-6 text-purple-600" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900">{t('characters.parseTitle')}</h3>
-            </div>
-            <p className="text-gray-600 mb-2">
-              {t('characters.parseDescription')}
-            </p>
-            <p className="text-sm text-gray-500 mb-6">
-              {t('characters.parseTip')}
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={closeParseConfirm}
-                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={confirmParseCharacters}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
-              >
-                {t('characters.confirm')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 删除所有角色确认对话框 */}
       {deleteAllConfirmDialog.isOpen && (

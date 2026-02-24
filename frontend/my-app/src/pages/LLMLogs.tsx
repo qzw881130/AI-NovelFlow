@@ -178,6 +178,7 @@ export default function LLMLogs() {
   const getTaskTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       'parse_characters': t('llmLogs.parseCharacters'),
+      'parse_scenes': t('llmLogs.parseScenes'),
       'split_chapter': t('llmLogs.splitShots'),
       'generate_character_appearance': t('llmLogs.generateAppearance'),
       'expand_video_prompt': t('llmLogs.expandVideoPrompt')
