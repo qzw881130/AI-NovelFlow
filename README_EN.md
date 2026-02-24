@@ -51,6 +51,8 @@ NovelFlow is an AI platform that automatically converts novels into videos.
 
 📺 <a href="https://www.youtube.com/watch?v=IlMbeDme2F8" target="_blank">YouTube: AI-NovelFlow Novel to Video Platform Introduction</a>
 
+📺 <a href="https://www.youtube.com/watch?v=DybveicQ9eQ" target="_blank">YouTube: How to Install on Windows</a>
+
 ## Community
 
 | Telegram Group | QQ Group |

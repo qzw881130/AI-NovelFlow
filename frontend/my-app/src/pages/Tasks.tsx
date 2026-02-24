@@ -669,7 +669,7 @@ export default function Tasks() {
                     {/* Result */}
                     {task.status === 'completed' && task.resultUrl && (
                       <div className="mt-2">
-                        {task.type === 'character_portrait' || task.type === 'shot_image' ? (
+                        {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'scene_image' ? (
                           <div>
                             <div className="relative group inline-block">
                               <img 

@@ -51,6 +51,8 @@ NovelFlowは、小説を自動的に動画に変換するAIプラットフォー
 
 📺 <a href="https://www.youtube.com/watch?v=IlMbeDme2F8" target="_blank">YouTube: AI-NovelFlow 小説動画変換プラットフォーム紹介</a>
 
+📺 <a href="https://www.youtube.com/watch?v=DybveicQ9eQ" target="_blank">YouTube: Windowsでオープンソースプロジェクトをインストールする方法</a>
+
 ## コミュニティ
 
 | Telegramグループ | QQグループ |

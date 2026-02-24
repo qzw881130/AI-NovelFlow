@@ -48,6 +48,8 @@ NovelFlow 是一個將小說自動轉換為視訊的 AI 平台。
 
 📺 <a href="https://www.youtube.com/watch?v=IlMbeDme2F8" target="_blank">YouTube: AI-NovelFlow 小說轉視訊平台介紹</a>
 
+📺 <a href="https://www.youtube.com/watch?v=DybveicQ9eQ" target="_blank">YouTube: Windows下如何安裝我們的開源項目</a>
+
 ## 社群交流
 
 | Telegram 交流群組 | QQ 群 |

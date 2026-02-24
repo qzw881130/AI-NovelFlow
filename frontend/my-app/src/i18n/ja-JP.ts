@@ -587,6 +587,7 @@ export default {
     taskList: 'タスクリスト',
     types: {
       characterPortrait: 'キャラクター生成',
+      sceneImage: 'シーン画像',
       shotImage: 'ショット画像',
       shotVideo: 'ショット動画',
       chapterVideo: 'チャプター動画',
@@ -608,6 +609,8 @@ export default {
       'LTX2 镜头转场视频': 'LTX2 カメラトランジション',
       'LTX2 光线转场视频': 'LTX2 ライティングトランジション',
       'LTX2 遮挡转场视频': 'LTX2 オクルージョントランジション',
+      'Z-image-turbo 场景生成': 'Z-image-turbo シーン生成',
+      'Flux2-Klein-9B 分镜生图双图参考': 'Flux2-Klein-9B ショット画像生成（デュアル参照）',
     },
     workflowDescriptions: {
       '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）': 'システム既定のキャラ生成ワークフロー（Flux2 Klein 9B 三面図）',
@@ -623,6 +626,7 @@ export default {
     workflowUsed: '使用ワークフロー',
     taskNames: {
       characterPortrait: 'キャラクター生成: {name}',
+      sceneImage: 'シーン画像生成: {name}',
       shotImage: 'ショット画像生成: {name}',
       shotVideo: 'ショット動画生成: {name}',
       transitionVideo: 'トランジション生成: {from} → {to}',
@@ -630,6 +634,7 @@ export default {
     },
     taskDescriptions: {
       characterPortrait: "キャラクター '{name}' の画像を生成",
+      sceneImage: "シーン '{name}' の画像を生成",
       shotImage: "ショット '{name}' の画像を生成",
       shotVideo: "ショット '{name}' の動画を生成",
       transitionVideo: "ショット {from} から {to} へのトランジションを生成",
@@ -1048,6 +1053,10 @@ export default {
     // Image Preview
     shotPreview: 'ショットプレビュー',
     downloadImage: '画像をダウンロード',
+    viewResult: '結果を表示',
+    viewOriginal: '原画を表示',
+    generatedResult: '生成結果',
+    clickToPreview: 'クリックして拡大',
     previous: '前へ',
     next: '次へ',
     keyboardNavigate: '左右の矢印キーで移動',

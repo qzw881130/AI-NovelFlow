@@ -2406,16 +2406,22 @@ export default function ChapterGenerate() {
                   return (
                     <div key={idx} className={`text-center relative ${isInCurrentShot ? 'order-first' : ''}`}>
                       <div 
-                        className={`rounded-xl bg-gradient-to-br from-green-400 to-teal-500 flex items-center justify-center mb-2 overflow-hidden relative ${
+                        className={`rounded-xl bg-gradient-to-br from-green-400 to-teal-500 flex items-center justify-center mb-2 overflow-hidden relative cursor-pointer ${
                           isInCurrentShot ? 'ring-2 ring-green-500 ring-offset-2' : ''
                         }`}
                         style={aspectStyle}
+                        onClick={() => {
+                          if (imageUrl) {
+                            setPreviewImageUrl(imageUrl);
+                            setShowImagePreview(true);
+                          }
+                        }}
                       >
                         {imageUrl ? (
                           <img 
                             src={imageUrl} 
                             alt={name}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover hover:scale-105 transition-transform"
                           />
                         ) : (
                           <MapPin className="h-10 w-10 text-white" />

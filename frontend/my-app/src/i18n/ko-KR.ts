@@ -583,6 +583,7 @@ export default {
     taskList: '작업 목록',
     types: {
       characterPortrait: '캐릭터 생성',
+      sceneImage: '장면 이미지',
       shotImage: '샷 이미지',
       shotVideo: '샷 비디오',
       chapterVideo: '챕터 비디오',
@@ -598,7 +599,9 @@ export default {
       '系统默认-分镜生视频': '시스템 기본-샷 비디오',
       '系统默认-转场视频': '시스템 기본-전환 비디오',
       'Z-image-turbo 单图生成': 'Z-image-turbo 단일 생성',
+      'Z-image-turbo 场景生成': 'Z-image-turbo 장면 생성',
       'Flux2-Klein-9B 分镜生图': 'Flux2-Klein-9B 샷 이미지',
+      'Flux2-Klein-9B 分镜生图双图参考': 'Flux2-Klein-9B 샷 이미지 생성（이중 참조）',
       'LTX2 视频生成-直接版': 'LTX2 비디오 생성-직접',
       'LTX2 视频生成-扩写版': 'LTX2 비디오 생성-확장版',
       'LTX2 镜头转场视频': 'LTX2 카메라 전환',
@@ -619,6 +622,7 @@ export default {
     workflowUsed: '사용된 워크플로우',
     taskNames: {
       characterPortrait: '캐릭터 생성: {name}',
+      sceneImage: '장면 이미지 생성: {name}',
       shotImage: '샷 이미지 생성: {name}',
       shotVideo: '샷 비디오 생성: {name}',
       transitionVideo: '전환 비디오 생성: {from} → {to}',
@@ -626,6 +630,7 @@ export default {
     },
     taskDescriptions: {
       characterPortrait: "캐릭터 '{name}' 이미지 생성",
+      sceneImage: "장면 '{name}' 이미지 생성",
       shotImage: "샷 '{name}' 이미지 생성",
       shotVideo: "샷 '{name}' 비디오 생성",
       transitionVideo: "샷 {from}에서 {to}로 전환 비디오 생성",
@@ -1043,6 +1048,10 @@ export default {
     
     // Image Preview
     shotPreview: '샷 미리보기',
+    viewResult: '결과 보기',
+    viewOriginal: '원본 보기',
+    generatedResult: '생성 결과',
+    clickToPreview: '클릭하여 확대',
     downloadImage: '이미지 다운로드',
     previous: '이전',
     next: '다음',
