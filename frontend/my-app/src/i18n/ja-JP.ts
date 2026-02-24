@@ -587,6 +587,7 @@ export default {
     taskList: 'タスクリスト',
     types: {
       characterPortrait: 'キャラクター生成',
+      sceneImage: 'シーン画像',
       shotImage: 'ショット画像',
       shotVideo: 'ショット動画',
       chapterVideo: 'チャプター動画',
@@ -623,6 +624,7 @@ export default {
     workflowUsed: '使用ワークフロー',
     taskNames: {
       characterPortrait: 'キャラクター生成: {name}',
+      sceneImage: 'シーン画像生成: {name}',
       shotImage: 'ショット画像生成: {name}',
       shotVideo: 'ショット動画生成: {name}',
       transitionVideo: 'トランジション生成: {from} → {to}',
@@ -630,6 +632,7 @@ export default {
     },
     taskDescriptions: {
       characterPortrait: "キャラクター '{name}' の画像を生成",
+      sceneImage: "シーン '{name}' の画像を生成",
       shotImage: "ショット '{name}' の画像を生成",
       shotVideo: "ショット '{name}' の動画を生成",
       transitionVideo: "ショット {from} から {to} へのトランジションを生成",
@@ -1048,6 +1051,10 @@ export default {
     // Image Preview
     shotPreview: 'ショットプレビュー',
     downloadImage: '画像をダウンロード',
+    viewResult: '結果を表示',
+    viewOriginal: '原画を表示',
+    generatedResult: '生成結果',
+    clickToPreview: 'クリックして拡大',
     previous: '前へ',
     next: '次へ',
     keyboardNavigate: '左右の矢印キーで移動',

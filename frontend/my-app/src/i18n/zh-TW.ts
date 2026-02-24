@@ -290,6 +290,7 @@ export default {
     taskList: '任務列表',
     types: {
       characterPortrait: '人設生成',
+      sceneImage: '場景圖片',
       shotImage: '分鏡圖片',
       shotVideo: '分鏡影片',
       chapterVideo: '章節影片',
@@ -325,6 +326,7 @@ export default {
     workflowUsed: '使用的工作流程',
     taskNames: {
       characterPortrait: '生成角色形象: {name}',
+      sceneImage: '生成場景圖: {name}',
       shotImage: '生成分鏡圖片: {name}',
       shotVideo: '生成分鏡影片: {name}',
       transitionVideo: '生成轉場影片: {from} → {to}',
@@ -332,6 +334,7 @@ export default {
     },
     taskDescriptions: {
       characterPortrait: "為角色 '{name}' 生成人設圖",
+      sceneImage: "為場景 '{name}' 生成圖片",
       shotImage: "為分鏡 '{name}' 生成圖片",
       shotVideo: "為分鏡 '{name}' 生成影片",
       transitionVideo: "生成從分鏡 {from} 到 {to} 的轉場影片",
@@ -644,6 +647,10 @@ export default {
     nextImage: '下一張',
     imagePreview: '圖片預覽',
     keyboardNavigation: '使用鍵盤 ← → 切換',
+    viewResult: '查看結果',
+    viewOriginal: '查看原圖',
+    generatedResult: '生成結果',
+    clickToPreview: '點擊查看大圖',
     shotId: '分鏡ID',
     scene: '場景',
     characters: '角色',
