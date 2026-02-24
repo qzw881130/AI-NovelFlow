@@ -20,9 +20,39 @@ else
     exit 1
 fi
 
+# 获取本机所有 IP 地址
+echo ""
+echo "📡 本机可访问地址列表:"
+echo "────────────────────────────────────────"
+
+# 获取所有 IP 地址（排除 127.0.0.1）
+IP_LIST=()
+if command -v ifconfig &> /dev/null; then
+    # macOS / BSD
+    while IFS= read -r line; do
+        if [[ -n "$line" ]]; then
+            IP_LIST+=("$line")
+        fi
+    done < <(ifconfig | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}')
+elif command -v ip &> /dev/null; then
+    # Linux
+    while IFS= read -r line; do
+        if [[ -n "$line" ]]; then
+            IP_LIST+=("$line")
+        fi
+    done < <(ip addr show | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}' | cut -d'/' -f1)
+fi
+
+# 显示所有可访问地址
+echo "  🌐 http://localhost:8000"
+for ip in "${IP_LIST[@]}"; do
+    echo "  🌐 http://${ip}:8000"
+done
+echo "────────────────────────────────────────"
+echo ""
+
 # 启动服务
 echo "启动 NovelFlow 后端服务..."
-echo "服务将在 http://localhost:8000 运行"
 echo "按 Ctrl+C 停止服务"
 echo ""
 
