@@ -56,6 +56,14 @@ NovelFlow 是一个将小说自动转换为视频的 AI 平台。
 
 📺 <a href="https://www.youtube.com/watch?v=whskvmdN6Qo" target="_blank">如何在我们开源项目里接入商用API</a>
 
+## 社区交流
+
+💬 <a href="https://t.me/AI_NovelFlow" target="_blank">Telegram 交流群 @AI_NovelFlow</a>
+
+🐧 **QQ 群**: 1083469624
+
+<img src="docs/qq_group.png" width="200" alt="QQ群二维码">
+
 ## 技术栈
 
 - **前端**: React + TypeScript + Tailwind CSS + Vite
