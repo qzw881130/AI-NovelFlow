@@ -971,6 +971,11 @@ export default {
     mergedCharacterImageTitle: 'Merged Character Image',
     characterImage: 'Character',
     
+    // Scene Images
+    sceneImages: 'Scene Images',
+    aiGenerateScene: 'AI Generate Scene',
+    noSceneImages: 'No scene images',
+    
     // Shot Images
     noShotsToGenerate: 'No shots to generate images',
     pendingShotsInQueue: '{count} shots already in queue, please wait',

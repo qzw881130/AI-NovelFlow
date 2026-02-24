@@ -952,6 +952,11 @@ export default {
     mergedCharacterImageTitle: '統合キャラクター画像',
     characterImage: 'キャラクター',
     
+    // シーン画像
+    sceneImages: 'シーン画像',
+    aiGenerateScene: 'AIシーン生成',
+    noSceneImages: 'シーン画像がありません',
+    
     // ショット画像
     noShotsToGenerate: '画像を生成するショットがありません',
     pendingShotsInQueue: '{count}個のショットが既にキューにあります。お待ちください',

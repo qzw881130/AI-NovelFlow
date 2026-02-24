@@ -971,6 +971,11 @@ export default {
     mergedCharacterImageTitle: '合并角色图',
     characterImage: '角色图',
     
+    // 场景图
+    sceneImages: '场景图片',
+    aiGenerateScene: 'AI生成场景图',
+    noSceneImages: '暂无场景图片',
+    
     // 分镜图
     noShotsToGenerate: '没有可分镜生成的图片',
     pendingShotsInQueue: '已有 {count} 个分镜在队列中，请等待完成后再试',
