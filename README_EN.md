@@ -82,6 +82,7 @@ NovelFlow is an AI platform that automatically converts novels into videos.
 
 - **Novel Management**: Support creating, editing, deleting novels, automatic chapter parsing
 - **Character Library**: AI auto-parse characters, support character image generation and consistency
+- **Scene Library**: AI auto-parse scenes, support scene reference image generation and environment settings
 - **Shot Generation**: AI auto-split chapters into shots, support batch image and video generation
 - **Transition Videos**: Support camera transitions, lighting transitions, occlusion transitions
 - **Video Composition**: Support merging shot videos into complete chapter videos, auto-insert transitions
@@ -100,9 +101,15 @@ AI-NovelFlow/
 │   │   ├── api/         # API Routes
 │   │   ├── core/        # Core Configuration
 │   │   ├── models/      # Database Models
+│   │   ├── repositories/ # Data Repository Layer
 │   │   ├── schemas/     # Pydantic Models
-│   │   └── services/    # Business Logic (LLM, ComfyUI)
+│   │   ├── services/    # Business Logic (LLM, ComfyUI)
+│   │   └── utils/       # Utility Functions
+│   ├── migrations/      # Database Migration Scripts
+│   ├── prompt_templates/ # Prompt Template Files
+│   ├── workflows/       # ComfyUI Workflow Configs
 │   ├── user_story/      # Generated images/videos storage
+│   ├── user_workflows/  # User Custom Workflows
 │   └── main.py
 ├── frontend/            # React Frontend
 │   └── my-app/
@@ -164,6 +171,7 @@ Set API Key and proxy (if needed) in the [System Settings] page.
 - **ComfyUI Address**: Default http://localhost:8188
 - **Workflow Configuration**: Support uploading custom workflows, need node mapping
   - Character Generation: Prompt node + Image save node
+  - Scene Generation: Prompt node + Image save node + Width/Height node
   - Shot Image: Prompt node + Image save node + Width/Height node
   - Shot Video: Prompt node + Video save node + Reference image node
   - Transition Video: First frame node + Last frame node + Video save node

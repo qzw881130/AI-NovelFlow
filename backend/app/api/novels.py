@@ -1426,22 +1426,29 @@ async def generate_shot_task(
             
             # 更新工作流中的LoadImage节点
             if character_uploaded_filename or scene_uploaded_filename:
-                # 查找所有LoadImage节点
-                loadimage_nodes = []
-                for node_id, node in submitted_workflow.items():
-                    if node.get("class_type") == "LoadImage":
-                        loadimage_nodes.append(node_id)
+                # 根据 node_mapping 配置分配图片到指定节点
+                character_node_id = node_mapping.get("character_reference_image_node_id")
+                scene_node_id = node_mapping.get("scene_reference_image_node_id")
                 
-                print(f"[ShotTask {task_id}] Found {len(loadimage_nodes)} LoadImage nodes: {loadimage_nodes}")
+                print(f"[ShotTask {task_id}] Node mapping - character_node: {character_node_id}, scene_node: {scene_node_id}")
                 
-                # 按顺序分配图片：第一个节点给角色图，第二个节点给场景图
-                if len(loadimage_nodes) >= 1 and character_uploaded_filename:
-                    submitted_workflow[loadimage_nodes[0]]["inputs"]["image"] = character_uploaded_filename
-                    print(f"[ShotTask {task_id}] Set LoadImage node {loadimage_nodes[0]} to character image: {character_uploaded_filename}")
+                # 设置角色参考图到指定的 LoadImage 节点
+                if character_uploaded_filename and character_node_id:
+                    node_id_str = str(character_node_id)
+                    if node_id_str in submitted_workflow:
+                        submitted_workflow[node_id_str]["inputs"]["image"] = character_uploaded_filename
+                        print(f"[ShotTask {task_id}] Set LoadImage node {node_id_str} to character image: {character_uploaded_filename}")
+                    else:
+                        print(f"[ShotTask {task_id}] Warning: character_reference_image_node_id '{node_id_str}' not found in workflow")
                 
-                if len(loadimage_nodes) >= 2 and scene_uploaded_filename:
-                    submitted_workflow[loadimage_nodes[1]]["inputs"]["image"] = scene_uploaded_filename
-                    print(f"[ShotTask {task_id}] Set LoadImage node {loadimage_nodes[1]} to scene image: {scene_uploaded_filename}")
+                # 设置场景参考图到指定的 LoadImage 节点
+                if scene_uploaded_filename and scene_node_id:
+                    node_id_str = str(scene_node_id)
+                    if node_id_str in submitted_workflow:
+                        submitted_workflow[node_id_str]["inputs"]["image"] = scene_uploaded_filename
+                        print(f"[ShotTask {task_id}] Set LoadImage node {node_id_str} to scene image: {scene_uploaded_filename}")
+                    else:
+                        print(f"[ShotTask {task_id}] Warning: scene_reference_image_node_id '{node_id_str}' not found in workflow")
                 
                 # 保存更新后的工作流（包含替换后的LoadImage节点）到任务
                 # 这样即使用户在任务运行期间查看，也能看到实际提交的内容

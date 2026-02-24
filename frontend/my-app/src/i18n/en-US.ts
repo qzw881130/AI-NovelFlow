@@ -52,6 +52,7 @@ export default {
     saveFailed: 'Save failed',
     copyFailed: 'Copy failed',
     deleteFailed: 'Delete failed',
+    optional: 'Optional',
   },
 
   // Status

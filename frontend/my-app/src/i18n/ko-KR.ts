@@ -45,6 +45,7 @@ export default {
     overview: '개요',
     other: '기타',
     failed: '실패',
+    optional: '선택사항',
   },
 
   nav: {

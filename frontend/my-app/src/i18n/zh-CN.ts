@@ -52,6 +52,7 @@ export default {
     saveFailed: '保存失败',
     copyFailed: '复制失败',
     deleteFailed: '删除失败',
+    optional: '可选',
   },
 
   // 状态

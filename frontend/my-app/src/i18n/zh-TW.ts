@@ -44,6 +44,7 @@ export default {
     overview: '概覽',
     other: '其他',
     failed: '失敗',
+    optional: '可選',
   },
 
   status: {

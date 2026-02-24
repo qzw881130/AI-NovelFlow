@@ -45,6 +45,7 @@ export default {
     overview: '概要',
     other: 'その他',
     failed: '失敗',
+    optional: '任意',
   },
 
   nav: {
