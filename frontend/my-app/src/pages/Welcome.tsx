@@ -14,7 +14,7 @@ import {
   Video,
   Film
 } from 'lucide-react';
-import { useConfigStore, LLM_PROVIDER_PRESETS } from '../stores/configStore';
+import { useConfigStore } from '../stores/configStore';
 import { useTranslation } from '../stores/i18nStore';
 import { Link } from 'react-router-dom';
 
@@ -25,8 +25,7 @@ export default function Welcome() {
   const [checking, setChecking] = useState(false);
   
   // 获取当前厂商的显示名称
-  const currentProvider = LLM_PROVIDER_PRESETS.find(p => p.id === llmProvider);
-  const providerName = currentProvider?.name || llmProvider;
+  const providerName = t(`systemSettings.providers.${llmProvider}`);
   const modelName = llmModel;
 
   const handleCheck = async () => {
@@ -64,16 +63,18 @@ export default function Welcome() {
         <h2 className="text-lg font-semibold text-gray-900 mb-6">{t('welcome.features.workflow.title')}</h2>
         <div className="flex items-center justify-between overflow-x-auto pb-2">
           {[
-            { icon: Book, title: t('welcome.features.novelManagement.title'), color: 'from-sky-500 to-blue-500' },
-            { icon: Sparkles, title: t('novels.aiParseCharacters'), color: 'from-violet-500 to-purple-500' },
-            { icon: Users, title: t('welcome.features.characterLibrary.title'), color: 'from-fuchsia-500 to-pink-500' },
-            { icon: FileText, title: t('chapterDetail.rawContent'), color: 'from-blue-500 to-cyan-500' },
-            { icon: Sparkles, title: t('llmLogs.splitShots'), color: 'from-purple-500 to-pink-500' },
-            { icon: FileJson, title: 'JSON', color: 'from-emerald-500 to-teal-500' },
-            { icon: Users, title: t('characters.title'), color: 'from-orange-500 to-amber-500' },
-            { icon: ImageIcon, title: t('welcome.features.storyboard.title'), color: 'from-rose-500 to-pink-500' },
-            { icon: Video, title: t('chapterDetail.generateVideo'), color: 'from-indigo-500 to-violet-500' },
-            { icon: Film, title: 'Video', color: 'from-cyan-500 to-blue-500' },
+            { icon: Book, title: t('welcome.workflow.importNovel'), color: 'from-sky-500 to-blue-500' },
+            { icon: Sparkles, title: t('welcome.workflow.parseCharacters'), color: 'from-violet-500 to-purple-500' },
+            { icon: Sparkles, title: t('welcome.workflow.parseScenes'), color: 'from-fuchsia-500 to-pink-500' },
+            { icon: Users, title: t('welcome.workflow.generateCharacters'), color: 'from-orange-500 to-amber-500' },
+            { icon: ImageIcon, title: t('welcome.workflow.generateScenes'), color: 'from-teal-500 to-cyan-500' },
+            { icon: FileText, title: t('welcome.workflow.editChapter'), color: 'from-blue-500 to-cyan-500' },
+            { icon: Sparkles, title: t('welcome.workflow.splitShots'), color: 'from-purple-500 to-pink-500' },
+            { icon: FileJson, title: t('welcome.workflow.jsonStructure'), color: 'from-emerald-500 to-teal-500' },
+            { icon: ImageIcon, title: t('welcome.workflow.generateShotImages'), color: 'from-rose-500 to-pink-500' },
+            { icon: Video, title: t('welcome.workflow.generateShotVideos'), color: 'from-indigo-500 to-violet-500' },
+            { icon: Film, title: t('welcome.workflow.generateTransitions'), color: 'from-amber-500 to-orange-500' },
+            { icon: Film, title: t('welcome.workflow.mergeVideo'), color: 'from-cyan-500 to-blue-500' },
             { icon: CheckCircle, title: t('common.success'), color: 'from-green-500 to-emerald-500' },
           ].map((step, index) => (
             <div key={step.title} className="flex items-center flex-shrink-0">
@@ -85,7 +86,7 @@ export default function Welcome() {
                   {step.title}
                 </span>
               </div>
-              {index < 10 && (
+              {index < 12 && (
                 <div className="flex items-center flex-1 justify-center mx-1 mb-6">
                   <ChevronRight className="h-5 w-5 text-gray-300" />
                 </div>

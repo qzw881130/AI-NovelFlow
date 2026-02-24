@@ -16,9 +16,15 @@ from app.services.prompt_builder import (
     extract_style_from_template,
     extract_style_from_character_template
 )
+from app.repositories import TaskRepository
 
 router = APIRouter()
 comfyui_service = ComfyUIService()
+
+
+def get_task_repo(db: Session = Depends(get_db)) -> TaskRepository:
+    """获取 TaskRepository 实例"""
+    return TaskRepository(db)
 
 
 def validate_workflow_node_mapping(workflow: Workflow, task_type: str) -> tuple[bool, str]:
@@ -84,19 +90,13 @@ async def list_tasks(
         status: Optional[str] = None,
         type: Optional[str] = None,
         limit: int = 50,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        task_repo: TaskRepository = Depends(get_task_repo)
 ):
     """获取任务列表"""
     from app.models.novel import Novel, Chapter
 
-    query = db.query(Task).order_by(Task.created_at.desc())
-
-    if status:
-        query = query.filter(Task.status == status)
-    if type:
-        query = query.filter(Task.type == type)
-
-    tasks = query.limit(limit).all()
+    tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
 
     # 获取所有需要的小说、章节和工作流信息
     novel_ids = {t.novel_id for t in tasks if t.novel_id}
@@ -143,9 +143,9 @@ async def list_tasks(
 
 
 @router.get("/{task_id}", response_model=dict)
-async def get_task(task_id: str, db: Session = Depends(get_db)):
+async def get_task(task_id: str, task_repo: TaskRepository = Depends(get_task_repo)):
     """获取任务详情"""
-    task = db.query(Task).filter(Task.id == task_id).first()
+    task = task_repo.get_by_id(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
 
@@ -180,7 +180,8 @@ async def get_task(task_id: str, db: Session = Depends(get_db)):
 @router.post("/character/{character_id}/generate-portrait")
 async def generate_character_portrait(
         character_id: str,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        task_repo: TaskRepository = Depends(get_task_repo)
 ):
     """生成角色人设图任务"""
     character = db.query(Character).filter(Character.id == character_id).first()
@@ -188,11 +189,7 @@ async def generate_character_portrait(
         raise HTTPException(status_code=404, detail="角色不存在")
 
     # 检查是否已有进行中的任务
-    existing_task = db.query(Task).filter(
-        Task.character_id == character_id,
-        Task.type == "character_portrait",
-        Task.status.in_(["pending", "running"])
-    ).first()
+    existing_task = task_repo.get_active_by_character(character_id)
 
     if existing_task:
         return {
@@ -267,7 +264,8 @@ async def generate_character_portrait(
 @router.post("/scene/{scene_id}/generate-image")
 async def generate_scene_image(
         scene_id: str,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        task_repo: TaskRepository = Depends(get_task_repo)
 ):
     """生成场景图任务"""
     scene = db.query(Scene).filter(Scene.id == scene_id).first()
@@ -275,11 +273,7 @@ async def generate_scene_image(
         raise HTTPException(status_code=404, detail="场景不存在")
 
     # 检查是否已有进行中的任务
-    existing_task = db.query(Task).filter(
-        Task.scene_id == scene_id,
-        Task.type == "scene_image",
-        Task.status.in_(["pending", "running"])
-    ).first()
+    existing_task = task_repo.get_active_by_scene(scene_id)
 
     if existing_task:
         return {
@@ -352,20 +346,22 @@ async def generate_scene_image(
 
 
 @router.delete("/{task_id}")
-async def delete_task(task_id: str, db: Session = Depends(get_db)):
+async def delete_task(task_id: str, task_repo: TaskRepository = Depends(get_task_repo)):
     """删除任务"""
-    task = db.query(Task).filter(Task.id == task_id).first()
+    task = task_repo.get_by_id(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
 
-    db.delete(task)
-    db.commit()
+    task_repo.delete(task)
 
     return {"success": True, "message": "任务已删除"}
 
 
 @router.post("/cancel-all/", response_model=dict)
-async def cancel_all_tasks(db: Session = Depends(get_db)):
+async def cancel_all_tasks(
+    db: Session = Depends(get_db),
+    task_repo: TaskRepository = Depends(get_task_repo)
+):
     """
     终止所有正在进行或待处理的任务
     
@@ -374,9 +370,7 @@ async def cancel_all_tasks(db: Session = Depends(get_db)):
     2. 再中断当前正在执行的任务
     """
     # 获取所有 pending 或 running 的任务
-    active_tasks = db.query(Task).filter(
-        Task.status.in_(["pending", "running"])
-    ).all()
+    active_tasks = task_repo.list_active_tasks()
 
     if not active_tasks:
         return {
@@ -452,10 +446,11 @@ async def cancel_all_tasks(db: Session = Depends(get_db)):
 @router.post("/{task_id}/retry")
 async def retry_task(
         task_id: str,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        task_repo: TaskRepository = Depends(get_task_repo)
 ):
     """重试失败的任务"""
-    task = db.query(Task).filter(Task.id == task_id).first()
+    task = task_repo.get_by_id(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
 
@@ -510,11 +505,14 @@ async def retry_task(
 
 
 @router.get("/{task_id}/workflow", response_model=dict)
-async def get_task_workflow(task_id: str, db: Session = Depends(get_db)):
+async def get_task_workflow(
+    task_id: str, 
+    task_repo: TaskRepository = Depends(get_task_repo)
+):
     """获取任务提交给ComfyUI的工作流JSON"""
     from app.models.workflow import Workflow
 
-    task = db.query(Task).filter(Task.id == task_id).first()
+    task = task_repo.get_by_id(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
 
@@ -566,19 +564,19 @@ async def generate_portrait_task(
     from app.core.database import SessionLocal
     from app.models.workflow import Workflow
     from app.services.file_storage import file_storage
+    from app.repositories import TaskRepository, WorkflowRepository
 
     db = SessionLocal()
+    task_repo = TaskRepository(db)
+    workflow_repo = WorkflowRepository(db)
     try:
         # 获取任务
-        task = db.query(Task).filter(Task.id == task_id).first()
+        task = task_repo.get_by_id(task_id)
         if not task:
             return
 
         # 获取当前激活的 character 工作流
-        workflow = db.query(Workflow).filter(
-            Workflow.type == "character",
-            Workflow.is_active == True
-        ).first()
+        workflow = workflow_repo.get_active_by_type("character")
 
         # 记录工作流信息
         if workflow:
@@ -753,19 +751,19 @@ async def generate_scene_image_task(
     """后台任务：生成场景图"""
     from app.core.database import SessionLocal
     from app.services.file_storage import file_storage
+    from app.repositories import TaskRepository, WorkflowRepository
 
     db = SessionLocal()
+    task_repo = TaskRepository(db)
+    workflow_repo = WorkflowRepository(db)
     try:
         # 获取任务
-        task = db.query(Task).filter(Task.id == task_id).first()
+        task = task_repo.get_by_id(task_id)
         if not task:
             return
 
         # 获取当前激活的 scene 工作流
-        workflow = db.query(Workflow).filter(
-            Workflow.type == "scene",
-            Workflow.is_active == True
-        ).first()
+        workflow = workflow_repo.get_active_by_type("scene")
 
         # 记录工作流信息
         if workflow:

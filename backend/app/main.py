@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager
 
 from app.api import novels, characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes
 from app.core.database import engine, Base
-from app.core.exceptions import register_exception_handlers
 # 导入所有模型以确保创建表
 from app.models.novel import Novel, Chapter, Character, Scene
 from app.models.task import Task
@@ -54,8 +53,6 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# 注册统一异常处理器
-register_exception_handlers(app)
 
 # CORS - 动态允许所有来源，支持任意 IP/端口访问
 # 使用动态 origin 检查，支持从任何来源访问

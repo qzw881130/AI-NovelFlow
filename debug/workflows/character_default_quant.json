@@ -1,7 +1,7 @@
 {
   "9": {
     "inputs": {
-      "filename_prefix": "Flux2-Klein",
+      "filename_prefix": "character_",
       "images": [
         "101",
         0
@@ -10,15 +10,6 @@
     "class_type": "SaveImage",
     "_meta": {
       "title": "Save Image"
-    }
-  },
-  "76": {
-    "inputs": {
-      "image": "downloaded-image.png"
-    },
-    "class_type": "LoadImage",
-    "_meta": {
-      "title": "Load Image"
     }
   },
   "99": {
@@ -76,7 +67,7 @@
   },
   "102": {
     "inputs": {
-      "noise_seed": 193343078755369
+      "noise_seed": 681475821191177
     },
     "class_type": "RandomNoise",
     "_meta": {
@@ -85,7 +76,7 @@
   },
   "103": {
     "inputs": {
-      "unet_name": "flux-2-klein-9b.safetensors",
+      "unet_name": "flux-2-klein-4b.safetensors",
       "weight_dtype": "default"
     },
     "class_type": "UNETLoader",
@@ -95,7 +86,7 @@
   },
   "104": {
     "inputs": {
-      "clip_name": "qwen_3_8b.safetensors",
+      "clip_name": "qwen_3_4b_fp4_flux2.safetensors",
       "type": "flux2",
       "device": "default"
     },
@@ -116,11 +107,11 @@
   "106": {
     "inputs": {
       "width": [
-        "123",
-        0
+        "112",
+        1
       ],
       "height": [
-        "125",
+        "112",
         0
       ],
       "batch_size": 1
@@ -136,7 +127,7 @@
       "megapixels": 1,
       "resolution_steps": 1,
       "image": [
-        "76",
+        "125",
         0
       ]
     },
@@ -153,7 +144,7 @@
         0
       ],
       "positive": [
-        "129",
+        "116",
         0
       ],
       "negative": [
@@ -170,11 +161,11 @@
     "inputs": {
       "steps": 8,
       "width": [
-        "123",
-        0
+        "112",
+        1
       ],
       "height": [
-        "125",
+        "112",
         0
       ]
     },
@@ -185,7 +176,10 @@
   },
   "110": {
     "inputs": {
-      "text": "四人站在街上",
+      "text": [
+        "117",
+        0
+      ],
       "clip": [
         "104",
         0
@@ -206,6 +200,18 @@
     "class_type": "ConditioningZeroOut",
     "_meta": {
       "title": "ConditioningZeroOut"
+    }
+  },
+  "112": {
+    "inputs": {
+      "image": [
+        "107",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
     }
   },
   "114": {
@@ -256,78 +262,138 @@
       "title": "ReferenceLatent"
     }
   },
-  "123": {
+  "117": {
     "inputs": {
-      "value": 1920
+      "text": "生成这张角色三视图，包括正面，侧面，背面, ##STYLE##"
     },
-    "class_type": "easy int",
+    "class_type": "CR Text",
     "_meta": {
-      "title": "Width"
+      "title": "🔤 CR Text"
+    }
+  },
+  "121": {
+    "inputs": {
+      "clip_name": "qwen3-4b-fp4.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "122": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "124": {
+    "inputs": {
+      "conditioning": [
+        "133",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
     }
   },
   "125": {
     "inputs": {
-      "value": 1088
+      "samples": [
+        "129",
+        0
+      ],
+      "vae": [
+        "122",
+        0
+      ]
     },
-    "class_type": "easy int",
+    "class_type": "VAEDecode",
     "_meta": {
-      "title": "Height"
+      "title": "VAE Decode"
     }
   },
   "126": {
     "inputs": {
-      "pixels": [
-        "127",
-        0
-      ],
-      "vae": [
-        "105",
-        0
-      ]
-    },
-    "class_type": "VAEEncode",
-    "_meta": {
-      "title": "VAE Encode"
-    }
-  },
-  "127": {
-    "inputs": {
-      "upscale_method": "bicubic",
-      "megapixels": 1,
-      "resolution_steps": 1,
-      "image": [
+      "shift": 3,
+      "model": [
         "128",
         0
       ]
     },
-    "class_type": "ImageScaleToTotalPixels",
+    "class_type": "ModelSamplingAuraFlow",
     "_meta": {
-      "title": "ImageScaleToTotalPixels"
+      "title": "ModelSamplingAuraFlow"
     }
   },
   "128": {
     "inputs": {
-      "image": "downloaded-image (1).png"
+      "unet_name": "z_image_turbo_nvfp4.safetensors",
+      "weight_dtype": "default"
     },
-    "class_type": "LoadImage",
+    "class_type": "UNETLoader",
     "_meta": {
-      "title": "Load Image"
+      "title": "Load Diffusion Model"
     }
   },
   "129": {
     "inputs": {
-      "conditioning": [
-        "116",
+      "seed": 640616542143825,
+      "steps": 9,
+      "cfg": 1,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "126",
         0
       ],
-      "latent": [
-        "126",
+      "positive": [
+        "133",
+        0
+      ],
+      "negative": [
+        "124",
+        0
+      ],
+      "latent_image": [
+        "132",
         0
       ]
     },
-    "class_type": "ReferenceLatent",
+    "class_type": "KSampler",
     "_meta": {
-      "title": "ReferenceLatent"
+      "title": "KSampler"
+    }
+  },
+  "132": {
+    "inputs": {
+      "width": 1088,
+      "height": 1920,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "133": {
+    "inputs": {
+      "text": "{CHARACTER_PROMPT}",
+      "clip": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
     }
   }
 }

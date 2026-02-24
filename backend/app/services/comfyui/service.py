@@ -13,7 +13,7 @@ class ComfyUIService:
     """ComfyUI 服务封装"""
     
     def __init__(self, base_url: str = None):
-        self.client = ComfyUIClient(base_url)
+        self.client = ComfyUIClient()
         self.builder = WorkflowBuilder()
     
     @property

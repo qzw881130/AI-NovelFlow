@@ -11,11 +11,12 @@ NovelFlow is an AI platform that automatically converts novels into videos.
 **Core Workflow:**
 
 ```
-┌─────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐
-│  Novel  │ → │ AI Parse  │ → │ Generate  │ → │ Original  │
-│         │    │ Characters│    │Character  │    │  Content  │
-└─────────┘    └───────────┘    └───────────┘    └───────────┘
-                                                         ↓
+┌─────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐    ┌───────────┐
+│  Novel  │ → │ AI Parse  │ → │ AI Parse  │ → │ Generate  │ → │ Generate  │
+│         │    │ Characters│    │  Scenes   │    │Character  │    │  Scene    │
+│         │    │           │    │           │    │  Images   │    │  Images   │
+└─────────┘    └───────────┘    └───────────┘    └───────────┘    └───────────┘
+                                                            ↓
 ┌───────────┐    ┌───────────────┐    ┌───────────────┐    ┌───────────────┐
 │   Merge   │ ← │ Gen Transition│ ← │  Gen Shot     │ ← │   Gen Shot    │
 │   Video   │    │    Video      │    │    Video      │    │     Image     │
@@ -25,24 +26,32 @@ NovelFlow is an AI platform that automatically converts novels into videos.
                               │ Merge Char    │ ← │  JSON     │ ← ┘
                               │    Image      │    │ Structure │
                               └───────────────┘    └───────────┘
+                                                              ↑
+                                              ┌───────────┐    │
+                                              │   Edit    │ ← ┘
+                                              │  Chapter  │
+                                              │AI Split   │
+                                              └───────────┘
 ```
 
 **Detailed Steps:**
-1. **Novel** - Create new or import novel text
+1. **Import Novel** - Create new or import novel text (TXT, EPUB supported)
 2. **AI Parse Characters** - Automatically extract character info (name, description, appearance)
-3. **Generate Character Image** - Generate AI character portraits for each character
-4. **Original Content** - Edit novel chapter content
-5. **AI Split Shots** - Split chapters into shots (scene, camera, action)
-6. **JSON Structure** - Generate shot data (characters, scenes, shot descriptions)
-7. **Generate Merged Character Image** - Merge multiple characters into reference image (for shot generation)
-8. **Generate Shot Images** - Generate scene images based on shot descriptions
-9. **Generate Shot Videos** - Convert shot images into video clips
-10. **Generate Transition Videos** - Generate transition videos between shots (optional)
-11. **Merge Videos** - Combine all clips into a complete video
+3. **AI Parse Scenes** - Automatically extract scene info (scene name, environment description)
+4. **Generate Character Images** - Generate AI character portraits for each character
+5. **Generate Scene Images** - Generate reference images for each scene (optional)
+6. **Edit Chapter / AI Split Shots** - Edit chapter content, AI automatically splits into shots; supports incremental parsing of characters and scenes during editing
+7. **JSON Structure** - Generate shot data (characters, scenes, shot descriptions)
+8. **Generate Merged Character Image** - Merge multiple characters into reference image (for shot generation)
+9. **Generate Shot Images** - Generate scene images based on shot descriptions
+10. **Generate Shot Videos** - Convert shot images into video clips
+11. **Generate Transition Videos** - Generate transition videos between shots (optional)
+12. **Merge Videos** - Combine all clips into a complete video
 
 **Key Features:**
 - Support for chapter-style novel parsing
 - Character consistency (maintain character appearance across multiple scenes)
+- Scene consistency (maintain scene environment across multiple shots)
 - Automatic shot generation and video composition
 
 ## Video Introduction
@@ -265,24 +274,31 @@ Configure in [System Settings] → [Language & Timezone] page.
 - Click [Create Novel] to create a novel
 - Or select preset test cases for quick experience
 
-### 2. AI Parse
-- Click [AI Split Chapter] on the chapter page
-- System automatically parses characters, scenes and shots
+### 2. AI Parse Characters and Scenes
+- Click [AI Parse Characters] on novel detail page to extract character info
+- Click [AI Parse Scenes] to extract scene info
+- Support chapter range selection and incremental update
 
-### 3. Generate Character Portraits
-- Enter [Character Library] page
-- Click [AI Generate All Character Images]
+### 3. Generate Character and Scene Images
+- Enter [Character Library] page, click [AI Generate All Character Images]
+- Enter [Scene Library] page, click [Generate All Scene Images] (optional)
 
-### 4. Generate Shot Images
-- Enter [Chapter Generation] page
-- Click [Generate All Shots]
+### 4. Edit Chapter and AI Split Shots
+- Enter [Chapter Generation] page, click [AI Split Shots] to automatically split into shots
+- Enter [Chapter Edit] page to edit chapter content, supports incremental parsing of characters and scenes during editing
 
-### 5. Generate Shot Videos
+### 5. Generate Shot Images
+- Click [Generate All Shot Images]
+
+### 6. Generate Shot Videos
 - After shot images are generated
 - Click [Generate All Shot Videos]
 
-### 6. Generate Transition Videos (Optional)
+### 7. Generate Transition Videos (Optional)
 - Generate transition videos between shots
+
+### 8. Merge Video
+- Click [Merge Video] to combine all clips into complete video
 
 ## License
 

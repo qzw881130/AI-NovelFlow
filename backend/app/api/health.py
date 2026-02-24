@@ -111,116 +111,122 @@ async def check_deepseek():
 
 @router.get("/comfyui")
 async def check_comfyui():
-    """检查 ComfyUI 连接状态并获取系统信息 - 优先使用真实 GPU 数据"""
+    """检查 ComfyUI 连接状态并获取系统信息 - 必须先验证 ComfyUI 连接"""
     import traceback
-    
+
+    # ========== 第一步：必须验证 ComfyUI 连接 ==========
+    comfyui_connected = False
+    system_info = {"gpu_usage": 0, "vram_used": 0, "vram_total": 16, "device_name": "Unknown GPU"}
+    queue_running = 0
+    queue_pending = 0
+
     try:
-        # 1. 优先尝试获取真实 GPU 数据（从 Windows GPU 监控服务）
-        real_gpu_stats = await get_real_gpu_stats()
-        
-        # 获取队列信息（从 ComfyUI）
-        queue_running = 0
-        queue_pending = 0
-        try:
-            async with httpx.AsyncClient() as client:
-                queue_response = await client.get(
-                    f"{settings.COMFYUI_HOST}/queue",
-                    timeout=3.0
-                )
-                if queue_response.status_code == 200:
-                    queue_data = queue_response.json()
-                    queue_running = len(queue_data.get("queue_running", []))
-                    queue_pending = len(queue_data.get("queue_pending", []))
-        except Exception as e:
-            print(f"[ComfyUI] 获取队列失败: {e}")
-        
-        if real_gpu_stats:
-            # 使用真实的 GPU 数据
-            print(f"[ComfyUI] 使用真实 GPU 数据: {real_gpu_stats['gpu_usage']}%, VRAM={real_gpu_stats['vram_used']}/{real_gpu_stats['vram_total']}GB")
-            return {
-                "status": "ok",
-                "message": "ComfyUI 连接正常",
-                "data": {
-                    "device_name": real_gpu_stats.get("gpu_name", "NVIDIA GPU"),  # 使用真实的显卡型号
-                    "gpu_usage": real_gpu_stats["gpu_usage"],
-                    "vram_used": real_gpu_stats["vram_used"],
-                    "vram_total": real_gpu_stats["vram_total"],
-                    "queue_running": queue_running,
-                    "queue_pending": queue_pending,
-                    "temperature": real_gpu_stats.get("temperature"),
-                    "gpu_source": "real",  # 标记为真实数据
-                    # 内存信息
-                    "ram_used": real_gpu_stats.get("ram_used"),
-                    "ram_total": real_gpu_stats.get("ram_total"),
-                    "ram_percent": real_gpu_stats.get("ram_percent")
-                }
-            }
-        
-        # 2. 回退到监控器数据（估算值）
-        monitor = get_monitor()
-        if monitor:
-            stats = monitor.get_stats()
-            if stats["status"] == "online":
-                print(f"[ComfyUI] 使用估算数据: GPU={stats['gpu_usage']}%, VRAM={stats['vram_used']}/{stats['vram_total']}GB")
-                return {
-                    "status": "ok",
-                    "message": "ComfyUI 连接正常",
-                    "data": {
-                        "device_name": "NVIDIA GPU",
-                        "gpu_usage": stats["gpu_usage"],
-                        "vram_used": stats["vram_used"],
-                        "vram_total": stats["vram_total"],
-                        "queue_running": queue_running,
-                        "queue_pending": queue_pending,
-                        "temperature": stats.get("temperature"),
-                        "gpu_source": "estimated"  # 标记为估算数据
-                    }
-                }
-        
-        # 监控器不可用，回退到直接 HTTP 请求
-        print(f"[ComfyUI] 监控器未启动，直接请求: {settings.COMFYUI_HOST}/system_stats")
-        
+        # 尝试连接 ComfyUI 获取系统状态
+        print(f"[ComfyUI] 检查连接: {settings.COMFYUI_HOST}/system_stats")
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 f"{settings.COMFYUI_HOST}/system_stats",
-                timeout=10.0
+                timeout=5.0
             )
-            
-            print(f"[ComfyUI] 响应状态: {response.status_code}")
-            
+
             if response.status_code == 200:
+                comfyui_connected = True
                 data = response.json()
-                
-                system_info = {"gpu_usage": 0, "vram_used": 0, "vram_total": 16}
-                
+
                 # 提取显存信息
                 devices = data.get("devices", [])
                 if devices:
                     device = devices[0]
                     system_info["device_name"] = device.get("name", "Unknown GPU")
-                    
+
                     vram_total = device.get("vram_total", 0)
                     torch_vram_total = device.get("torch_vram_total", 0)
-                    
+
                     if vram_total > 0:
                         system_info["vram_total"] = round(vram_total / (1024**3), 1)
                         system_info["vram_used"] = round(torch_vram_total / (1024**3), 1) if torch_vram_total > 0 else 0
-                
-                return {
-                    "status": "ok", 
-                    "message": "ComfyUI 连接正常", 
-                    "data": system_info,
-                }
+
+                # 获取队列信息
+                try:
+                    queue_response = await client.get(
+                        f"{settings.COMFYUI_HOST}/queue",
+                        timeout=3.0
+                    )
+                    if queue_response.status_code == 200:
+                        queue_data = queue_response.json()
+                        queue_running = len(queue_data.get("queue_running", []))
+                        queue_pending = len(queue_data.get("queue_pending", []))
+                except Exception as e:
+                    print(f"[ComfyUI] 获取队列失败: {e}")
             else:
                 raise HTTPException(status_code=503, detail=f"ComfyUI 返回错误: {response.status_code}")
-                
+
     except httpx.ConnectError as e:
         print(f"[ComfyUI] 连接错误: {e}")
         raise HTTPException(status_code=503, detail=f"无法连接到 ComfyUI ({settings.COMFYUI_HOST})，请确认服务是否启动")
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[ComfyUI] 异常: {e}")
         print(traceback.format_exc())
         raise HTTPException(status_code=503, detail=f"ComfyUI 连接失败: {str(e)}")
+
+    # ========== 第二步：ComfyUI 连接成功后，尝试获取真实 GPU 数据 ==========
+    real_gpu_stats = await get_real_gpu_stats()
+
+    if real_gpu_stats:
+        # 使用真实的 GPU 数据覆盖估算值
+        print(f"[ComfyUI] 使用真实 GPU 数据: {real_gpu_stats['gpu_usage']}%, VRAM={real_gpu_stats['vram_used']}/{real_gpu_stats['vram_total']}GB")
+        return {
+            "status": "ok",
+            "message": "ComfyUI 连接正常",
+            "data": {
+                "device_name": real_gpu_stats.get("gpu_name", system_info["device_name"]),
+                "gpu_usage": real_gpu_stats["gpu_usage"],
+                "vram_used": real_gpu_stats["vram_used"],
+                "vram_total": real_gpu_stats["vram_total"],
+                "queue_running": queue_running,
+                "queue_pending": queue_pending,
+                "temperature": real_gpu_stats.get("temperature"),
+                "gpu_source": "real",
+                "ram_used": real_gpu_stats.get("ram_used"),
+                "ram_total": real_gpu_stats.get("ram_total"),
+                "ram_percent": real_gpu_stats.get("ram_percent")
+            }
+        }
+
+    # ========== 第三步：回退到监控器数据（估算值） ==========
+    monitor = get_monitor()
+    if monitor:
+        stats = monitor.get_stats()
+        if stats["status"] == "online":
+            print(f"[ComfyUI] 使用估算数据: GPU={stats['gpu_usage']}%, VRAM={stats['vram_used']}/{stats['vram_total']}GB")
+            return {
+                "status": "ok",
+                "message": "ComfyUI 连接正常",
+                "data": {
+                    "device_name": system_info.get("device_name", "NVIDIA GPU"),
+                    "gpu_usage": stats["gpu_usage"],
+                    "vram_used": stats["vram_used"],
+                    "vram_total": stats["vram_total"],
+                    "queue_running": queue_running,
+                    "queue_pending": queue_pending,
+                    "temperature": stats.get("temperature"),
+                    "gpu_source": "estimated"
+                }
+            }
+
+    # 使用 ComfyUI 返回的系统信息
+    return {
+        "status": "ok",
+        "message": "ComfyUI 连接正常",
+        "data": {
+            **system_info,
+            "queue_running": queue_running,
+            "queue_pending": queue_pending,
+            "gpu_source": "comfyui"
+        }
+    }
 
 
 @router.get("/comfyui-queue")

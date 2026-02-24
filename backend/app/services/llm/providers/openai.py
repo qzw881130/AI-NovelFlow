@@ -38,16 +38,18 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         response_format: Optional[str]
     ) -> Dict[str, Any]:
         """构建请求体"""
-        return {
+        body = {
             "model": self.config.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}
             ],
             "temperature": temperature,
-            "max_tokens": max_tokens,
-            **({"type": "json_object"} if response_format == "json_object" else {})
+            "max_tokens": max_tokens
         }
+        if response_format == "json_object":
+            body["response_format"] = {"type": "json_object"}
+        return body
     
     def _parse_response(self, response_data: Dict[str, Any]) -> str:
         """解析响应"""

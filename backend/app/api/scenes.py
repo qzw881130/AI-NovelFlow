@@ -13,6 +13,7 @@ from app.services.prompt_builder import (
     build_scene_prompt,
     extract_style_from_character_template
 )
+from app.repositories import NovelRepository, SceneRepository, ChapterRepository
 
 router = APIRouter()
 settings = get_settings()
@@ -28,17 +29,32 @@ def get_llm_service() -> LLMService:
     return LLMService()
 
 
+def get_novel_repo(db: Session = Depends(get_db)) -> NovelRepository:
+    """获取 NovelRepository 实例"""
+    return NovelRepository(db)
+
+
+def get_scene_repo(db: Session = Depends(get_db)) -> SceneRepository:
+    """获取 SceneRepository 实例"""
+    return SceneRepository(db)
+
+
+def get_chapter_repo(db: Session = Depends(get_db)) -> ChapterRepository:
+    """获取 ChapterRepository 实例"""
+    return ChapterRepository(db)
+
+
 @router.get("/", response_model=dict)
-async def list_scenes(novel_id: str = None, db: Session = Depends(get_db)):
+async def list_scenes(novel_id: str = None, db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo), scene_repo: SceneRepository = Depends(get_scene_repo)):
     """获取场景列表"""
-    query = db.query(Scene)
     if novel_id:
-        query = query.filter(Scene.novel_id == novel_id)
-    scenes = query.order_by(Scene.created_at.desc()).all()
+        scenes = scene_repo.list_by_novel(novel_id)
+    else:
+        scenes = db.query(Scene).order_by(Scene.created_at.desc()).all()
 
     result = []
     for s in scenes:
-        novel = db.query(Novel).filter(Novel.id == s.novel_id).first()
+        novel = novel_repo.get_by_id(s.novel_id)
         result.append({
             "id": s.id,
             "novelId": s.novel_id,
@@ -62,13 +78,13 @@ async def list_scenes(novel_id: str = None, db: Session = Depends(get_db)):
 
 
 @router.get("/{scene_id}", response_model=dict)
-async def get_scene(scene_id: str, db: Session = Depends(get_db)):
+async def get_scene(scene_id: str, novel_repo: NovelRepository = Depends(get_novel_repo), scene_repo: SceneRepository = Depends(get_scene_repo)):
     """获取场景详情"""
-    scene = db.query(Scene).filter(Scene.id == scene_id).first()
+    scene = scene_repo.get_by_id(scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="场景不存在")
 
-    novel = db.query(Novel).filter(Novel.id == scene.novel_id).first()
+    novel = novel_repo.get_by_id(scene.novel_id)
 
     return {
         "success": True,
@@ -96,11 +112,12 @@ async def get_scene(scene_id: str, db: Session = Depends(get_db)):
 @router.post("/", response_model=dict)
 async def create_scene(
         data: dict,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        novel_repo: NovelRepository = Depends(get_novel_repo)
 ):
     """创建场景"""
     # 验证小说存在
-    novel = db.query(Novel).filter(Novel.id == data.get('novelId')).first()
+    novel = novel_repo.get_by_id(data.get('novelId'))
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
 
@@ -133,10 +150,12 @@ async def create_scene(
 async def update_scene(
         scene_id: str,
         data: dict,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        novel_repo: NovelRepository = Depends(get_novel_repo),
+        scene_repo: SceneRepository = Depends(get_scene_repo)
 ):
     """更新场景"""
-    scene = db.query(Scene).filter(Scene.id == scene_id).first()
+    scene = scene_repo.get_by_id(scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="场景不存在")
 
@@ -150,7 +169,7 @@ async def update_scene(
     db.commit()
     db.refresh(scene)
 
-    novel = db.query(Novel).filter(Novel.id == scene.novel_id).first()
+    novel = novel_repo.get_by_id(scene.novel_id)
 
     return {
         "success": True,
@@ -168,9 +187,9 @@ async def update_scene(
 
 
 @router.delete("/{scene_id}")
-async def delete_scene(scene_id: str, db: Session = Depends(get_db)):
+async def delete_scene(scene_id: str, db: Session = Depends(get_db), scene_repo: SceneRepository = Depends(get_scene_repo)):
     """删除场景"""
-    scene = db.query(Scene).filter(Scene.id == scene_id).first()
+    scene = scene_repo.get_by_id(scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="场景不存在")
 
@@ -181,10 +200,10 @@ async def delete_scene(scene_id: str, db: Session = Depends(get_db)):
 
 
 @router.delete("/")
-async def delete_scenes_by_novel(novel_id: str = Query(..., description="小说ID"), db: Session = Depends(get_db)):
+async def delete_scenes_by_novel(novel_id: str = Query(..., description="小说ID"), db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo)):
     """删除指定小说的所有场景"""
     # 检查小说是否存在
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
 
@@ -200,10 +219,10 @@ async def delete_scenes_by_novel(novel_id: str = Query(..., description="小说I
 
 
 @router.post("/clear-scenes-dir")
-async def clear_scenes_dir(novel_id: str = Query(..., description="小说ID"), db: Session = Depends(get_db)):
+async def clear_scenes_dir(novel_id: str = Query(..., description="小说ID"), novel_repo: NovelRepository = Depends(get_novel_repo)):
     """清空小说的场景图片目录（用于批量重新生成前）"""
     # 检查小说是否存在
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
 
@@ -218,14 +237,14 @@ async def clear_scenes_dir(novel_id: str = Query(..., description="小说ID"), d
 
 
 @router.get("/{scene_id}/prompt", response_model=dict)
-async def get_scene_prompt(scene_id: str, db: Session = Depends(get_db)):
+async def get_scene_prompt(scene_id: str, db: Session = Depends(get_db), novel_repo: NovelRepository = Depends(get_novel_repo), scene_repo: SceneRepository = Depends(get_scene_repo)):
     """获取场景生成时使用的拼接后提示词"""
-    scene = db.query(Scene).filter(Scene.id == scene_id).first()
+    scene = scene_repo.get_by_id(scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="场景不存在")
 
     # 获取场景所属小说
-    novel = db.query(Novel).filter(Novel.id == scene.novel_id).first()
+    novel = novel_repo.get_by_id(scene.novel_id)
 
     # 获取场景提示词模板（类型为 'scene'）
     template = None
@@ -287,10 +306,11 @@ async def get_scene_prompt(scene_id: str, db: Session = Depends(get_db)):
 @router.post("/{scene_id}/generate-setting", response_model=dict)
 async def generate_scene_setting(
         scene_id: str,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        scene_repo: SceneRepository = Depends(get_scene_repo)
 ):
     """使用 AI 智能生成场景设定（环境设置）"""
-    scene = db.query(Scene).filter(Scene.id == scene_id).first()
+    scene = scene_repo.get_by_id(scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="场景不存在")
 
@@ -334,7 +354,10 @@ async def generate_scene_setting(
 @router.post("/parse-scenes")
 async def parse_scenes(
         data: dict,
-        db: Session = Depends(get_db)
+        db: Session = Depends(get_db),
+        novel_repo: NovelRepository = Depends(get_novel_repo),
+        scene_repo: SceneRepository = Depends(get_scene_repo),
+        chapter_repo: ChapterRepository = Depends(get_chapter_repo)
 ):
     """
     解析场景（支持选定章节范围和单章节增量生成）
@@ -354,7 +377,7 @@ async def parse_scenes(
         raise HTTPException(status_code=400, detail="缺少 novel_id")
 
     # 获取小说
-    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
 
@@ -365,9 +388,7 @@ async def parse_scenes(
             Chapter.id.in_(chapter_ids)
         ).order_by(Chapter.number).all()
     else:
-        chapters = db.query(Chapter).filter(
-            Chapter.novel_id == novel_id
-        ).order_by(Chapter.number).all()
+        chapters = chapter_repo.list_by_novel(novel_id)
 
     if not chapters:
         raise HTTPException(status_code=400, detail="没有找到章节")
@@ -406,8 +427,7 @@ async def parse_scenes(
         scenes_data = result.get("scenes", [])
 
         # 获取现有场景
-        existing_scenes = db.query(Scene).filter(Scene.novel_id == novel_id).all()
-        existing_scene_names = {s.name: s for s in existing_scenes}
+        existing_scene_names = scene_repo.get_dict_by_novel(novel_id)
 
         created_scenes = []
         updated_scenes = []

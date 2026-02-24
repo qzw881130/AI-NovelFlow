@@ -118,113 +118,114 @@ export default function Settings() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* AI 服务配置 - 标签页 */}
-        <div className="card">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <Bot className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">{t('systemSettings.llmConfig')}</h2>
-              <p className="text-sm text-gray-500">{t('systemSettings.subtitle')}</p>
-            </div>
+      {/* AI 服务配置 - 标签页 */}
+      <div className="card">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2 bg-blue-100 rounded-lg">
+            <Bot className="h-5 w-5 text-blue-600" />
           </div>
-          
-          {/* 标签页导航 */}
-          <div className="flex border-b border-gray-200 mb-6">
-            <button
-              type="button"
-              onClick={() => setActiveTab('llm')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'llm'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Bot className="h-4 w-4" />
-                {t('systemSettings.llmConfig')}
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('proxy')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'proxy'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Network className="h-4 w-4" />
-                {t('systemSettings.proxySettings')}
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('comfyui')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'comfyui'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Server className="h-4 w-4" />
-                {t('systemSettings.comfyUISettings')}
-              </div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('workflows')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === 'workflows'
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <Server className="h-4 w-4" />
-                {t('systemSettings.workflow.title')}
-              </div>
-            </button>
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">{t('systemSettings.llmConfig')}</h2>
+            <p className="text-sm text-gray-500">{t('systemSettings.subtitle')}</p>
           </div>
+        </div>
+        
+        {/* 标签页导航 */}
+        <div className="flex border-b border-gray-200 mb-6">
+          <button
+            type="button"
+            onClick={() => setActiveTab('llm')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'llm'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Bot className="h-4 w-4" />
+              {t('systemSettings.llmConfig')}
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('proxy')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'proxy'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Network className="h-4 w-4" />
+              {t('systemSettings.proxySettings')}
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('comfyui')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'comfyui'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Server className="h-4 w-4" />
+              {t('systemSettings.comfyUISettings')}
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('workflows')}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'workflows'
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <Server className="h-4 w-4" />
+              {t('systemSettings.workflow.title')}
+            </div>
+          </button>
+        </div>
 
-          {/* LLM 配置面板 */}
-          {activeTab === 'llm' && (
-            <LLMConfig 
-              formData={formData}
-              onFormDataChange={setFormData}
-              onUserModified={handleUserModified}
-            />
-          )}
+        {/* 工作流管理面板 - 独立于表单之外，避免嵌套表单问题 */}
+        {activeTab === 'workflows' && (
+          <WorkflowManager />
+        )}
 
-          {/* 代理配置面板 */}
-          {activeTab === 'proxy' && (
-            <ProxyConfigPanel 
-              formData={formData}
-              onFormDataChange={setFormData}
-              onUserModified={handleUserModified}
-            />
-          )}
+        {/* LLM/Proxy/ComfyUI 配置需要表单提交 */}
+        {activeTab !== 'workflows' && (
+          <form onSubmit={handleSubmit} className="space-y-6">
+            {/* LLM 配置面板 */}
+            {activeTab === 'llm' && (
+              <LLMConfig 
+                formData={formData}
+                onFormDataChange={setFormData}
+                onUserModified={handleUserModified}
+              />
+            )}
 
-          {/* ComfyUI 配置面板 */}
-          {activeTab === 'comfyui' && (
-            <ComfyUIConfig 
-              formData={formData}
-              onFormDataChange={setFormData}
-              onUserModified={handleUserModified}
-            />
-          )}
+            {/* 代理配置面板 */}
+            {activeTab === 'proxy' && (
+              <ProxyConfigPanel 
+                formData={formData}
+                onFormDataChange={setFormData}
+                onUserModified={handleUserModified}
+              />
+            )}
 
-          {/* 工作流管理面板 */}
-          {activeTab === 'workflows' && (
-            <WorkflowManager />
-          )}
+            {/* ComfyUI 配置面板 */}
+            {activeTab === 'comfyui' && (
+              <ComfyUIConfig 
+                formData={formData}
+                onFormDataChange={setFormData}
+                onUserModified={handleUserModified}
+              />
+            )}
 
-          {/* 保存按钮 - 仅在 LLM/Proxy/ComfyUI 标签页显示 */}
-          {activeTab !== 'workflows' && (
+            {/* 保存按钮 */}
             <div className="flex justify-end pt-6 border-t border-gray-200 mt-6">
               <button
                 type="submit"
@@ -249,9 +250,9 @@ export default function Settings() {
                 )}
               </button>
             </div>
-          )}
-        </div>
-      </form>
+          </form>
+        )}
+      </div>
     </div>
   );
 }

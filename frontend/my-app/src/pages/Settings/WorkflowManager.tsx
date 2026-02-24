@@ -82,6 +82,8 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
     vhsVideoCombine: [],
     loadImage: []
   });
+  const [workflowJsonData, setWorkflowJsonData] = useState<Record<string, any>>({});
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('');
   const [savingMapping, setSavingMapping] = useState(false);
 
   useEffect(() => {
@@ -132,6 +134,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // 防止触发外部表单提交
     if (!uploadForm.file) {
       toast.warning(t('systemSettings.workflow.selectFile'));
       return;
@@ -218,6 +221,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // 防止触发外部表单提交
     if (!editingWorkflow) return;
     
     setSavingEdit(true);
@@ -274,6 +278,9 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
           try {
             const workflowObj = typeof workflowJson === 'string' ? JSON.parse(workflowJson) : workflowJson;
             
+            // 存储工作流JSON数据用于显示
+            setWorkflowJsonData(workflowObj);
+            
             const clipTextEncode: string[] = [];
             const saveImage: string[] = [];
             const easyInt: string[] = [];
@@ -287,9 +294,9 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                 const metaTitle = (node as any)._meta?.title || '';
                 
                 if (classType === 'CLIPTextEncode' || classType === 'CR Text') {
-                  clipTextEncode.push(`${nodeId} (${classType})`);
+                  clipTextEncode.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'SaveImage') {
-                  saveImage.push(nodeId);
+                  saveImage.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'easy int' || classType === 'JWInteger') {
                   easyInt.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'CR Prompt Text') {
@@ -377,6 +384,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
 
   const handleSaveMapping = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // 防止触发外部表单提交
     if (!mappingWorkflow) return;
     
     setSavingMapping(true);
@@ -426,7 +434,10 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
         fetchWorkflows();
         toast.success(t('systemSettings.configSaved'));
       } else {
-        toast.error(t('systemSettings.configSaveFailed'));
+        const errorData = await res.json().catch(() => ({}));
+        const errorMsg = errorData?.detail || t('systemSettings.configSaveFailed');
+        console.error('保存映射配置失败:', errorData);
+        toast.error(errorMsg);
       }
     } catch (error) {
       console.error('保存映射配置失败:', error);
@@ -499,35 +510,43 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
             <div className="grid gap-3">
               {typeWorkflows.map(workflow => {
                 const isMappingComplete = checkWorkflowMappingComplete(workflow);
+                const TypeIcon = typeIcons[type];
+                const typeColor = typeColors[type];
                 
                 return (
                   <div 
                     key={workflow.id} 
-                    className={`p-4 border rounded-lg ${workflow.isActive ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
+                    className={`p-4 border rounded-lg ${workflow.isActive ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}
                   >
                     <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{getWorkflowDisplayName(workflow, t)}</span>
-                          {workflow.isSystem && (
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
-                              {t('promptConfig.systemDefault')}
-                            </span>
-                          )}
-                          {workflow.isActive && (
-                            <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                          )}
-                          {!isMappingComplete && (
-                            <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded">
-                              {t('systemSettings.workflow.mappingIncomplete')}
-                            </span>
+                      <div className="flex-1 flex items-start gap-3">
+                        {/* 类型图标 */}
+                        <div className={`p-2 rounded-lg ${typeColor}`}>
+                          <TypeIcon className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{getWorkflowDisplayName(workflow, t)}</span>
+                            {workflow.isSystem && (
+                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
+                                {t('promptConfig.systemDefault')}
+                              </span>
+                            )}
+                            {workflow.isActive && (
+                              <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                            )}
+                            {!isMappingComplete && (
+                              <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded">
+                                {t('systemSettings.workflow.mappingConfigIncomplete')}
+                              </span>
+                            )}
+                          </div>
+                          {workflow.description && (
+                            <p className="text-sm text-gray-500 mt-1">
+                              {getWorkflowDisplayDescription(workflow, t)}
+                            </p>
                           )}
                         </div>
-                        {workflow.description && (
-                          <p className="text-sm text-gray-500 mt-1">
-                            {getWorkflowDisplayDescription(workflow, t)}
-                          </p>
-                        )}
                       </div>
                       
                       <div className="flex items-center gap-2">
@@ -634,13 +653,29 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   {t('systemSettings.workflow.file')}
                 </label>
-                <input
-                  type="file"
-                  accept=".json"
-                  onChange={(e) => setUploadForm({ ...uploadForm, file: e.target.files?.[0] || null })}
-                  className="input-field"
-                  required
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={uploadForm.file?.name || ''}
+                    className="input-field flex-1 bg-gray-50"
+                    placeholder={t('systemSettings.workflow.selectFile')}
+                    readOnly
+                  />
+                  <label className="btn-secondary cursor-pointer flex items-center gap-2 whitespace-nowrap">
+                    <Upload className="h-4 w-4" />
+                    {t('systemSettings.workflow.selectFile')}
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={(e) => setUploadForm({ ...uploadForm, file: e.target.files?.[0] || null })}
+                      className="hidden"
+                      required
+                    />
+                  </label>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  {t('systemSettings.workflow.comfyUIJsonTip')}
+                </p>
               </div>
               <div className="flex justify-end gap-3">
                 <button
@@ -733,170 +768,462 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
       {/* 节点映射弹窗 */}
       {mappingWorkflow && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
             <h3 className="text-lg font-medium mb-4">
               {t('systemSettings.workflow.nodeMapping')} - {getWorkflowDisplayName(mappingWorkflow, t)}
             </h3>
-            <form onSubmit={handleSaveMapping} className="space-y-4">
-              {/* 根据工作流类型显示不同的映射字段 */}
-              {(mappingWorkflow.type === 'character' || mappingWorkflow.type === 'scene') && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Prompt Node ID
-                    </label>
-                    <select
-                      value={mappingForm.promptNodeId}
-                      onChange={(e) => setMappingForm({ ...mappingForm, promptNodeId: e.target.value })}
-                      className="input-field"
-                    >
-                      <option value="">-- {t('common.select')} --</option>
-                      {[...availableNodes.clipTextEncode, ...availableNodes.crPromptText].map(node => (
-                        <option key={node} value={node.split(' ')[0]}>{node}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Save Image Node ID
-                    </label>
-                    <select
-                      value={mappingForm.saveImageNodeId}
-                      onChange={(e) => setMappingForm({ ...mappingForm, saveImageNodeId: e.target.value })}
-                      className="input-field"
-                    >
-                      <option value="">-- {t('common.select')} --</option>
-                      {availableNodes.saveImage.map(node => (
-                        <option key={node} value={node}>{node}</option>
-                      ))}
-                    </select>
-                  </div>
-                </>
-              )}
-
-              {mappingWorkflow.type === 'shot' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Prompt Node ID
-                    </label>
-                    <select
-                      value={mappingForm.promptNodeId}
-                      onChange={(e) => setMappingForm({ ...mappingForm, promptNodeId: e.target.value })}
-                      className="input-field"
-                    >
-                      <option value="">-- {t('common.select')} --</option>
-                      {[...availableNodes.clipTextEncode, ...availableNodes.crPromptText].map(node => (
-                        <option key={node} value={node.split(' ')[0]}>{node}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Save Image Node ID
-                    </label>
-                    <select
-                      value={mappingForm.saveImageNodeId}
-                      onChange={(e) => setMappingForm({ ...mappingForm, saveImageNodeId: e.target.value })}
-                      className="input-field"
-                    >
-                      <option value="">-- {t('common.select')} --</option>
-                      {availableNodes.saveImage.map(node => (
-                        <option key={node} value={node}>{node}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Width Node</label>
-                      <select
-                        value={mappingForm.widthNodeId}
-                        onChange={(e) => setMappingForm({ ...mappingForm, widthNodeId: e.target.value })}
-                        className="input-field"
-                      >
-                        <option value="">-- {t('common.select')} --</option>
-                        {availableNodes.easyInt.map(node => (
-                          <option key={node} value={node.split(' ')[0]}>{node}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Height Node</label>
-                      <select
-                        value={mappingForm.heightNodeId}
-                        onChange={(e) => setMappingForm({ ...mappingForm, heightNodeId: e.target.value })}
-                        className="input-field"
-                      >
-                        <option value="">-- {t('common.select')} --</option>
-                        {availableNodes.easyInt.map(node => (
-                          <option key={node} value={node.split(' ')[0]}>{node}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Reference Image Node ID ({t('common.optional')})
-                    </label>
-                    <select
-                      value={mappingForm.referenceImageNodeId}
-                      onChange={(e) => setMappingForm({ ...mappingForm, referenceImageNodeId: e.target.value })}
-                      className="input-field"
-                    >
-                      <option value="">-- {t('common.select')} --</option>
-                      {availableNodes.loadImage.map(node => (
-                        <option key={node} value={node.split(' ')[0]}>{node}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Character Reference</label>
-                      <select
-                        value={mappingForm.characterReferenceImageNodeId}
-                        onChange={(e) => setMappingForm({ ...mappingForm, characterReferenceImageNodeId: e.target.value })}
-                        className="input-field"
-                      >
-                        <option value="">-- {t('common.select')} --</option>
-                        {availableNodes.loadImage.map(node => (
-                          <option key={node} value={node.split(' ')[0]}>{node}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Scene Reference</label>
-                      <select
-                        value={mappingForm.sceneReferenceImageNodeId}
-                        onChange={(e) => setMappingForm({ ...mappingForm, sceneReferenceImageNodeId: e.target.value })}
-                        className="input-field"
-                      >
-                        <option value="">-- {t('common.select')} --</option>
-                        {availableNodes.loadImage.map(node => (
-                          <option key={node} value={node.split(' ')[0]}>{node}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setMappingWorkflow(null)}
-                  className="btn-secondary"
-                >
-                  {t('common.cancel')}
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingMapping}
-                  className="btn-primary"
-                >
-                  {savingMapping ? t('common.loading') : t('common.save')}
-                </button>
+            <div className="flex gap-4 flex-1 min-h-0">
+              {/* 左侧: 选中节点的 JSON 数据显示 */}
+              <div className="w-1/2 border rounded-lg overflow-hidden flex flex-col">
+                <div className="bg-gray-50 px-3 py-2 border-b text-sm font-medium text-gray-700">
+                  {selectedNodeId ? `Node: ${selectedNodeId}` : t('systemSettings.workflow.selectNodeToView')}
+                </div>
+                <div className="flex-1 overflow-auto p-2 bg-gray-900">
+                  <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
+                    {selectedNodeId && workflowJsonData[selectedNodeId]
+                      ? JSON.stringify({ [selectedNodeId]: workflowJsonData[selectedNodeId] }, null, 2)
+                      : selectedNodeId 
+                        ? t('systemSettings.workflow.nodeNotFound')
+                        : t('systemSettings.workflow.selectNodeToView')}
+                  </pre>
+                </div>
               </div>
-            </form>
+              
+              {/* 右侧: 映射表单 */}
+              <div className="w-1/2 overflow-y-auto">
+                <form onSubmit={handleSaveMapping} className="space-y-4">
+                  {/* 根据工作流类型显示不同的映射字段 */}
+                  {(mappingWorkflow.type === 'character' || mappingWorkflow.type === 'scene') && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Prompt Node ID
+                        </label>
+                        <select
+                          value={mappingForm.promptNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, promptNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {[...availableNodes.clipTextEncode, ...availableNodes.crPromptText].map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Save Image Node ID
+                        </label>
+                        <select
+                          value={mappingForm.saveImageNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, saveImageNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {availableNodes.saveImage.map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  {mappingWorkflow.type === 'shot' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Prompt Node ID
+                        </label>
+                        <select
+                          value={mappingForm.promptNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, promptNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {[...availableNodes.clipTextEncode, ...availableNodes.crPromptText].map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Save Image Node ID
+                        </label>
+                        <select
+                          value={mappingForm.saveImageNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, saveImageNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {availableNodes.saveImage.map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Width Node</label>
+                          <select
+                            value={mappingForm.widthNodeId}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setMappingForm({ ...mappingForm, widthNodeId: value });
+                              if (value) setSelectedNodeId(value);
+                            }}
+                            onFocus={(e) => {
+                              if (e.target.value) setSelectedNodeId(e.target.value);
+                            }}
+                            className="input-field"
+                          >
+                            <option value="">-- {t('common.select')} --</option>
+                            {availableNodes.easyInt.map(node => (
+                              <option key={node} value={node.split(' ')[0]}>{node}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Height Node</label>
+                          <select
+                            value={mappingForm.heightNodeId}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setMappingForm({ ...mappingForm, heightNodeId: value });
+                              if (value) setSelectedNodeId(value);
+                            }}
+                            onFocus={(e) => {
+                              if (e.target.value) setSelectedNodeId(e.target.value);
+                            }}
+                            className="input-field"
+                          >
+                            <option value="">-- {t('common.select')} --</option>
+                            {availableNodes.easyInt.map(node => (
+                              <option key={node} value={node.split(' ')[0]}>{node}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Reference Image Node ID ({t('common.optional')})
+                        </label>
+                        <select
+                          value={mappingForm.referenceImageNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, referenceImageNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {availableNodes.loadImage.map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Character Reference</label>
+                          <select
+                            value={mappingForm.characterReferenceImageNodeId}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setMappingForm({ ...mappingForm, characterReferenceImageNodeId: value });
+                              if (value) setSelectedNodeId(value);
+                            }}
+                            onFocus={(e) => {
+                              if (e.target.value) setSelectedNodeId(e.target.value);
+                            }}
+                            className="input-field"
+                          >
+                            <option value="">-- {t('common.select')} --</option>
+                            {availableNodes.loadImage.map(node => (
+                              <option key={node} value={node.split(' ')[0]}>{node}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Scene Reference</label>
+                          <select
+                            value={mappingForm.sceneReferenceImageNodeId}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setMappingForm({ ...mappingForm, sceneReferenceImageNodeId: value });
+                              if (value) setSelectedNodeId(value);
+                            }}
+                            onFocus={(e) => {
+                              if (e.target.value) setSelectedNodeId(e.target.value);
+                            }}
+                            className="input-field"
+                          >
+                            <option value="">-- {t('common.select')} --</option>
+                            {availableNodes.loadImage.map(node => (
+                              <option key={node} value={node.split(' ')[0]}>{node}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  {mappingWorkflow.type === 'video' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Prompt Node ID
+                        </label>
+                        <select
+                          value={mappingForm.promptNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, promptNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {[...availableNodes.clipTextEncode, ...availableNodes.crPromptText].map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {t('systemSettings.workflow.videoSaveNode')}
+                        </label>
+                        <select
+                          value={mappingForm.videoSaveNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, videoSaveNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {availableNodes.vhsVideoCombine.map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {t('systemSettings.workflow.maxSideNode')}
+                        </label>
+                        <select
+                          value={mappingForm.maxSideNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, maxSideNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {availableNodes.easyInt.map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {t('systemSettings.workflow.referenceImageNode')}
+                        </label>
+                        <select
+                          value={mappingForm.referenceImageNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, referenceImageNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {availableNodes.loadImage.map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {t('systemSettings.workflow.frameCountNode')}
+                        </label>
+                        <select
+                          value={mappingForm.frameCountNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, frameCountNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {availableNodes.easyInt.map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  {mappingWorkflow.type === 'transition' && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {t('systemSettings.workflow.firstImageNode')}
+                        </label>
+                        <select
+                          value={mappingForm.firstImageNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, firstImageNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {availableNodes.loadImage.map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {t('systemSettings.workflow.lastImageNode')}
+                        </label>
+                        <select
+                          value={mappingForm.lastImageNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, lastImageNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {availableNodes.loadImage.map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {t('systemSettings.workflow.videoSaveNode')}
+                        </label>
+                        <select
+                          value={mappingForm.videoSaveNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, videoSaveNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {availableNodes.vhsVideoCombine.map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {t('systemSettings.workflow.frameCountNode')}
+                        </label>
+                        <select
+                          value={mappingForm.frameCountNodeId}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMappingForm({ ...mappingForm, frameCountNodeId: value });
+                            if (value) setSelectedNodeId(value);
+                          }}
+                          onFocus={(e) => {
+                            if (e.target.value) setSelectedNodeId(e.target.value);
+                          }}
+                          className="input-field"
+                        >
+                          <option value="">-- {t('common.select')} --</option>
+                          {availableNodes.easyInt.map(node => (
+                            <option key={node} value={node.split(' ')[0]}>{node}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  <div className="flex justify-end gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => setMappingWorkflow(null)}
+                      className="btn-secondary"
+                    >
+                      {t('common.cancel')}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={savingMapping}
+                      className="btn-primary"
+                    >
+                      {savingMapping ? t('common.loading') : t('common.save')}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
       )}

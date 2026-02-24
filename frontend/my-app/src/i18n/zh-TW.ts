@@ -43,6 +43,7 @@ export default {
     details: '詳情',
     overview: '概覽',
     other: '其他',
+    failed: '失敗',
   },
 
   status: {
@@ -67,7 +68,7 @@ export default {
     systemSettings: '系統組態',
     promptConfig: '提示詞組態',
     uiConfig: '介面組態',
-    llmLogs: 'JSON解析日誌',
+    llmLogs: '大模型日誌',
   },
 
   welcome: {
@@ -78,6 +79,24 @@ export default {
     quickActions: '快速操作',
     recentNovels: '最近的小說',
     systemStatus: '系統狀態',
+    pleaseConfigure: '請先完成系統配置，才能開始使用 NovelFlow。',
+
+    // 工作流節點
+    workflow: {
+      importNovel: '匯入小說',
+      parseCharacters: 'AI解析角色',
+      parseScenes: 'AI解析場景',
+      generateCharacters: '生成角色圖',
+      generateScenes: '生成場景圖',
+      editChapter: '編輯章節',
+      splitShots: 'AI拆分分鏡',
+      jsonStructure: 'JSON結構',
+      generateShotImages: '生成分鏡圖',
+      generateShotVideos: '生成分鏡影片',
+      generateTransitions: '生成轉場影片',
+      mergeVideo: '合併影片',
+    },
+
     features: {
       novelManagement: {
         title: '📚 小說管理',
@@ -315,10 +334,14 @@ export default {
       'Flux2-Klein-9B 分镜生图双图参考': 'Flux2-Klein-9B 分鏡生圖雙圖參考',
     },
     workflowDescriptions: {
+      '系统预设的人设生成工作流': '系統預設的人設生成工作流',
       '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）': '系統預設的人設生成工作流（Flux2 Klein 9B 三視圖）',
       '系统预设的场景生成工作流': '系統預設的場景生成工作流',
+      'Z-image-turbo 场景生成工作流': 'Z-image-turbo 場景生成工作流',
       'Z-image-turbo【非三视图】': 'Z-image-turbo【非三視圖】',
       'Flux2-Klein-9B 图像编辑工作流，支持角色参考图': 'Flux2-Klein-9B 圖像編輯工作流，支援角色參考圖',
+      'Flux2-Klein-9B 图像编辑工作流，仅支持角色参考图': 'Flux2-Klein-9B 圖像編輯工作流，僅支援角色參考圖',
+      'Flux2-Klein-9B 双图参考工作流，支持角色参考图+场景参考图，保持场景一致性': 'Flux2-Klein-9B 雙圖參考工作流，支援角色參考圖+場景參考圖，保持場景一致性',
       'LTX-2 图生视频，直接使用用户提示词': 'LTX-2 圖生影片，直接使用使用者提示詞',
       'LTX-2 图生视频，使用 Qwen3 自动扩写提示词': 'LTX-2 圖生影片，使用 Qwen3 自動擴寫提示詞',
       '适合：首尾帧是同一场景不同景别/角度': '適合：首尾幀是同一場景不同景別/角度',
@@ -369,6 +392,7 @@ export default {
     httpsProxy: 'HTTPS 代理',
     comfyUISettings: 'ComfyUI 組態',
     comfyUIHost: 'ComfyUI 位址',
+    comfyUIHostHint: 'ComfyUI 服務的位址和連接埠',
     outputSettings: '輸出組態',
     resolution: '解析度',
     frameRate: '影格率',
@@ -509,8 +533,8 @@ export default {
 
   llmLogs: {
     ...zhCN.llmLogs,
-    title: 'JSON解析日誌',
-    subtitle: '檢視 AI 解析的日誌記錄',
+    title: '大模型日誌',
+    subtitle: '檢視大模型呼叫的日誌記錄',
     clearLogs: '清空日誌',
     filterConditions: '篩選條件',
     filterByNovel: '依小說篩選',

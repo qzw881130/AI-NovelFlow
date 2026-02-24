@@ -12,21 +12,14 @@ from typing import Dict, Any, Optional, List
 class ComfyUIClient:
     """ComfyUI HTTP 客户端"""
     
-    def __init__(self, base_url: str = None):
-        self._base_url = base_url
+    def __init__(self):
         self.client_id = str(uuid.uuid4())
     
     @property
     def base_url(self) -> str:
         """动态获取当前的 ComfyUI 主机地址"""
-        if self._base_url:
-            return self._base_url
         from app.core.config import get_settings
         return get_settings().COMFYUI_HOST
-    
-    @base_url.setter
-    def base_url(self, value: str):
-        self._base_url = value
     
     # ==================== 健康检查 ====================
     

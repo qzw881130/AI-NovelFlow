@@ -7,12 +7,18 @@ from datetime import datetime, timezone, timedelta
 
 from app.core.database import get_db
 from app.models.llm_log import LLMLog
+from app.repositories import LLMLogRepository
 
 router = APIRouter()
 
 # 上海时区 (东八区)
 SHANGHAI_TZ = timezone(timedelta(hours=8))
 UTC_TZ = timezone.utc
+
+
+def get_llmlog_repo(db: Session = Depends(get_db)) -> LLMLogRepository:
+    """获取 LLMLogRepository 实例"""
+    return LLMLogRepository(db)
 
 def to_shanghai_time(dt: datetime) -> str:
     """将时间转换为上海时间字符串
@@ -41,28 +47,18 @@ async def get_llm_logs(
     task_type: Optional[str] = Query(None, description="任务类型筛选"),
     status: Optional[str] = Query(None, description="状态筛选: success/error"),
     novel_id: Optional[str] = Query(None, description="小说ID筛选"),
-    db: Session = Depends(get_db)
+    llmlog_repo: LLMLogRepository = Depends(get_llmlog_repo)
 ):
     """获取LLM调用日志列表"""
-    query = db.query(LLMLog)
-    
-    # 应用筛选条件
-    if provider:
-        query = query.filter(LLMLog.provider == provider)
-    if model:
-        query = query.filter(LLMLog.model == model)
-    if task_type:
-        query = query.filter(LLMLog.task_type == task_type)
-    if status:
-        query = query.filter(LLMLog.status == status)
-    if novel_id:
-        query = query.filter(LLMLog.novel_id == novel_id)
-    
-    # 获取总数
-    total = query.count()
-    
-    # 分页
-    logs = query.order_by(desc(LLMLog.created_at)).offset((page - 1) * page_size).limit(page_size).all()
+    logs, total = llmlog_repo.list_paginated(
+        page=page,
+        page_size=page_size,
+        provider=provider,
+        model=model,
+        task_type=task_type,
+        status=status,
+        novel_id=novel_id
+    )
     
     return {
         "success": True,
@@ -98,16 +94,11 @@ async def get_llm_logs(
 
 
 @router.get("/filters")
-async def get_log_filters(db: Session = Depends(get_db)):
+async def get_log_filters(llmlog_repo: LLMLogRepository = Depends(get_llmlog_repo)):
     """获取日志筛选选项"""
-    # 获取所有不重复的provider
-    providers = [r[0] for r in db.query(LLMLog.provider).distinct().all() if r[0]]
-    
-    # 获取所有不重复的model
-    models = [r[0] for r in db.query(LLMLog.model).distinct().all() if r[0]]
-    
-    # 获取所有不重复的task_type
-    task_types = [r[0] for r in db.query(LLMLog.task_type).distinct().all() if r[0]]
+    providers = llmlog_repo.get_distinct_providers()
+    models = llmlog_repo.get_distinct_models()
+    task_types = llmlog_repo.get_distinct_task_types()
     
     return {
         "success": True,
@@ -120,9 +111,12 @@ async def get_log_filters(db: Session = Depends(get_db)):
 
 
 @router.get("/{log_id}")
-async def get_llm_log_detail(log_id: str, db: Session = Depends(get_db)):
+async def get_llm_log_detail(
+    log_id: str, 
+    llmlog_repo: LLMLogRepository = Depends(get_llmlog_repo)
+):
     """获取单个日志详情"""
-    log = db.query(LLMLog).filter(LLMLog.id == log_id).first()
+    log = llmlog_repo.get_by_id(log_id)
     
     if not log:
         return {"success": False, "message": "日志不存在"}
