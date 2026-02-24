@@ -13,9 +13,6 @@ export const APP_VERSION = '1.0.0';
  * 本地存储键名
  */
 export const STORAGE_KEYS = {
-  CONFIG: 'novelflow-config',
-  CONFIG_V2: 'novelflow-config-v2',
-  PARSE_CHARACTERS_PROMPT: 'novelfow_parse_characters_prompt',
   I18N_LANGUAGE: 'novelflow-i18n-language',
 } as const;
 

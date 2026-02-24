@@ -902,6 +902,3 @@ Traditional Chinese courtyard, ancient wooden architecture with curved roofs, re
                 "scenes": []
             }
 
-
-# 兼容旧导入
-DeepSeekService = LLMService

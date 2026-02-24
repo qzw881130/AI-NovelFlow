@@ -39,16 +39,21 @@ export default function Settings() {
         const res = await fetch(`${API_BASE}/config/`);
         if (res.ok) {
           const data = await res.json();
+          console.log('[Settings/index] API response:', data);
           if (data.success && data.data) {
             const config = data.data;
             setFormData({
-              llmProvider: config.llm?.provider || 'deepseek',
-              llmModel: config.llm?.model || 'deepseek-chat',
-              llmApiKey: config.llm?.apiKey || '',
-              llmApiUrl: config.llm?.apiUrl || 'https://api.deepseek.com',
-              llmMaxTokens: config.llm?.maxTokens,
-              llmTemperature: config.llm?.temperature,
-              proxy: config.proxy || { enabled: false, httpProxy: '', httpsProxy: '' },
+              llmProvider: config.llmProvider || 'deepseek',
+              llmModel: config.llmModel || 'deepseek-chat',
+              llmApiKey: '', // API Key 不从前端获取
+              llmApiUrl: config.llmApiUrl || 'https://api.deepseek.com',
+              llmMaxTokens: config.llmMaxTokens,
+              llmTemperature: config.llmTemperature,
+              proxy: config.proxyEnabled !== undefined ? {
+                enabled: config.proxyEnabled,
+                httpProxy: config.httpProxy || '',
+                httpsProxy: config.httpsProxy || '',
+              } : { enabled: false, httpProxy: '', httpsProxy: '' },
               comfyUIHost: config.comfyUIHost || 'http://localhost:8188',
             });
           }

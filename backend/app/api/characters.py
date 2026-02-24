@@ -1,18 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
-import json
 
-from app.core.database import get_db
 from app.core.config import get_settings
+from app.core.database import get_db
 from app.models.novel import Character, Novel
 from app.models.prompt_template import PromptTemplate
 from app.services.comfyui import ComfyUIService
 from app.services.llm_service import LLMService
 from app.services.prompt_builder import (
-    build_character_prompt,
-    extract_style_from_template,
-    detect_animal_type
+    build_character_prompt
 )
 
 router = APIRouter()

@@ -646,7 +646,7 @@ async def generate_portrait_task(
         print(f"[Task] Building workflow with: {workflow.name if workflow else 'default'}")
         print(f"[Task] Novel ID: {task.novel_id}, Character: {name}")
 
-        submitted_workflow = comfyui_service.build_character_workflow(
+        submitted_workflow = comfyui_service.builder.build_character_workflow(
             prompt=prompt,
             workflow_json=workflow_json_str,
             novel_id=task.novel_id,
@@ -843,7 +843,7 @@ async def generate_scene_image_task(
         print(f"[Task] Building scene workflow with: {workflow.name if workflow else 'default'}")
         print(f"[Task] Novel ID: {task.novel_id}, Scene: {name}")
 
-        submitted_workflow = comfyui_service.build_scene_workflow(
+        submitted_workflow = comfyui_service.builder.build_scene_workflow(
             prompt=prompt,
             workflow_json=workflow_json_str,
             novel_id=task.novel_id,

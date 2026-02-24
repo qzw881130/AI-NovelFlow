@@ -21,8 +21,9 @@ const fetchConfigFromBackend = async () => {
   try {
     const res = await fetch(`${API_BASE}/config/`);
     const data = await res.json();
+    console.log('[ConfigStore] API response:', data);
     if (data.success && data.data) {
-      return {
+      const config = {
         llmProvider: data.data.llmProvider || DEFAULT_CONFIG.llmProvider,
         llmModel: data.data.llmModel || DEFAULT_CONFIG.llmModel,
         llmApiKey: '', // API Key 不从前端获取
@@ -36,6 +37,8 @@ const fetchConfigFromBackend = async () => {
         } : DEFAULT_CONFIG.proxy,
         comfyUIHost: data.data.comfyUIHost || DEFAULT_CONFIG.comfyUIHost,
       };
+      console.log('[ConfigStore] Parsed config:', config);
+      return config;
     }
   } catch (error) {
     console.error('Failed to load config from backend:', error);
@@ -117,6 +120,20 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
   },
   
   loadConfig: async () => {
+    // 如果已经加载过，直接返回当前配置（避免重复请求）
+    if (get().isLoaded) {
+      return {
+        llmProvider: get().llmProvider,
+        llmModel: get().llmModel,
+        llmApiKey: get().llmApiKey,
+        llmApiUrl: get().llmApiUrl,
+        llmMaxTokens: get().llmMaxTokens,
+        llmTemperature: get().llmTemperature,
+        proxy: get().proxy,
+        comfyUIHost: get().comfyUIHost,
+      };
+    }
+    
     const backendConfig = await fetchConfigFromBackend();
     if (backendConfig) {
       set({ ...backendConfig, isLoaded: true });

@@ -1421,7 +1421,7 @@ async def generate_shot_task(
         task.current_step = "构建工作流..."
         db.commit()
         
-        submitted_workflow = comfyui_service.build_shot_workflow(
+        submitted_workflow = comfyui_service.builder.build_shot_workflow(
             prompt=shot_description,
             workflow_json=workflow.workflow_json,
             node_mapping=node_mapping,
