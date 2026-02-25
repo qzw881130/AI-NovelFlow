@@ -808,14 +808,20 @@ async def generate_scene_image_task(
         style = "anime style, high quality, detailed, environment"
         if template and template.style:
             style = template.style
+            print(f"[SceneTask] Using scene template style: {style}")
         elif character_template and character_template.style:
             style = character_template.style
+            print(f"[SceneTask] Using character template style: {style}")
         elif character_template:
             # 兼容旧模板：从角色模板内容中提取 style
             style = extract_style_from_character_template(character_template.template)
+            print(f"[SceneTask] Extracted style from character template: {style}")
+        
+        print(f"[SceneTask] Final style: {style}")
 
         # 构建提示词（只使用 setting 字段，传入 style）
         prompt = build_scene_prompt(name, setting, "", template.template if template else None, style)
+        print(f"[SceneTask] Generated prompt: {prompt[:100]}...")
 
         task.current_step = f"使用模板: {template.name if template else '默认'}, 提示词: {prompt[:80]}..."
 
