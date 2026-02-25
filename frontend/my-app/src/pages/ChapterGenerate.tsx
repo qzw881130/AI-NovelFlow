@@ -2358,10 +2358,10 @@ export default function ChapterGenerate() {
                   <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-amber-700">
-                      存在不一致场景名，建议重新使用AI拆分分镜头
+                      {t('chapterGenerate.sceneValidation.warning')}
                     </p>
                     <p className="text-xs text-amber-600 mt-1">
-                      检测到 {invalidSceneShots.length} 个分镜使用了不在场景库中的场景
+                      {t('chapterGenerate.sceneValidation.detected', { count: invalidSceneShots.length })}
                     </p>
                   </div>
                 </div>

@@ -1096,6 +1096,15 @@ export default {
     splitFailed: 'Split failed',
     splitFailedCheckNetwork: 'Split failed, please check network',
     
+    // Scene Validation
+    sceneValidation: {
+      warning: 'Inconsistent scene names detected, recommend re-splitting with AI',
+      detected: 'Detected {count} shot(s) using scenes not in the scene library',
+      invalidScenesTitle: 'Detected {count} shot(s) using scenes not in the scene library:',
+      invalidScenesDetail: 'Shot {shotId}: "{sceneName}"',
+      fixSuggestion: 'Please modify the shot scene or add the scene to the library first',
+    },
+    
     // JSON Editor
     jsonText: 'JSON Text',
     tableEdit: 'Table Edit',

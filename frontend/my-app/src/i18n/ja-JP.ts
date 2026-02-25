@@ -1073,6 +1073,15 @@ export default {
     splitFailed: '分割失敗',
     splitFailedCheckNetwork: '分割失敗。ネットワークを確認してください',
     
+    // シーン検証
+    sceneValidation: {
+      warning: 'シーン名に不一致があります。AIで再分割することをお勧めします',
+      detected: '{count}個のショットがシーンライブラリにないシーンを使用しています',
+      invalidScenesTitle: '{count}個のショットがシーンライブラリにないシーンを使用しています：',
+      invalidScenesDetail: 'ショット{shotId}: 「{sceneName}」',
+      fixSuggestion: 'ショットのシーンを修正するか、先にシーンライブラリにシーンを追加してください',
+    },
+    
     // JSON Editor Save
     jsonFormatErrorCheck: 'JSON形式エラー、保存前に確認してください',
     saveSuccess: '保存成功',

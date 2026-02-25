@@ -1069,6 +1069,15 @@ export default {
     splitFailed: '분할 실패',
     splitFailedCheckNetwork: '분할 실패. 네트워크를 확인하세요',
     
+    // 장면 검증
+    sceneValidation: {
+      warning: '일치하지 않는 장면 이름이 있습니다. AI로 다시 분할하는 것을 권장합니다',
+      detected: '{count}개의 샷이 장면 라이브러리에 없는 장면을 사용하고 있습니다',
+      invalidScenesTitle: '{count}개의 샷이 장면 라이브러리에 없는 장면을 사용하고 있습니다:',
+      invalidScenesDetail: '샷{shotId}: 「{sceneName}」',
+      fixSuggestion: '샷의 장면을 수정하거나 먼저 장면 라이브러리에 장면을 추가하세요',
+    },
+    
     // JSON Editor Save
     jsonFormatErrorCheck: 'JSON 형식 오류, 저장 전에 확인하세요',
     saveSuccess: '저장 성공',

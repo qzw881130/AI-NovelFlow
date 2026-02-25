@@ -1096,6 +1096,15 @@ export default {
     splitFailed: '拆分失败',
     splitFailedCheckNetwork: '拆分失败，请检查网络连接',
     
+    // 场景验证
+    sceneValidation: {
+      warning: '存在不一致场景名，建议重新使用AI拆分分镜头',
+      detected: '检测到 {count} 个分镜使用了不在场景库中的场景',
+      invalidScenesTitle: '检测到 {count} 个分镜使用了不在场景库中的场景：',
+      invalidScenesDetail: 'Shot {shotId}: "{sceneName}"',
+      fixSuggestion: '请修改分镜场景或先到场景库添加对应场景',
+    },
+    
     // JSON编辑
     jsonText: 'JSON文本',
     tableEdit: '表格编辑',
