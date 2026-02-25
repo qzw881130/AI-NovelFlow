@@ -2483,8 +2483,8 @@ export default function ChapterGenerate() {
               </Link>
             </div>
             
-            {/* 双图工作流提示 */}
-            {activeShotWorkflow && activeShotWorkflow.name !== 'Flux2-Klein-9B 分镜生图双图参考' && (
+            {/* 双图工作流提示 - 只有工作流扩展属性不为 dual 时才显示 */}
+            {activeShotWorkflow && activeShotWorkflow.extension?.reference_image_count !== 'dual' && (
               <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
                 <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-700">
