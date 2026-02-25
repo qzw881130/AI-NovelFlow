@@ -783,6 +783,22 @@ export default function ChapterGenerate() {
   const [scenes, setScenes] = useState<Scene[]>([]);
   // 编辑器刷新key，用于强制重新挂载表格编辑器（重置内部状态）
   const [editorKey, setEditorKey] = useState<number>(0);
+  
+  // 验证分镜场景是否在场景库中
+  const getInvalidSceneShots = () => {
+    if (!editableJson.trim() || scenes.length === 0) return [];
+    try {
+      const parsed = JSON.parse(editableJson);
+      if (!parsed.shots || !Array.isArray(parsed.shots)) return [];
+      const sceneNames = scenes.map(s => s.name);
+      return parsed.shots.filter((shot: any) => shot.scene && !sceneNames.includes(shot.scene));
+    } catch (e) {
+      return [];
+    }
+  };
+  
+  const invalidSceneShots = getInvalidSceneShots();
+  const hasInvalidScenesInShots = invalidSceneShots.length > 0;
 
   // 小说数据
   const [novel, setNovel] = useState<Novel | null>(null);
@@ -2335,11 +2351,29 @@ export default function ChapterGenerate() {
               {loading ? t('chapterGenerate.loading') : chapter?.content || t('chapterGenerate.noContent')}
             </p>
             {/* AI拆分分镜头按钮 */}
-            <div className="mt-4 pt-4 border-t border-gray-100">
+            <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+              {/* 场景名不一致提示 */}
+              {hasInvalidScenesInShots && !isSplitting && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-700">
+                      存在不一致场景名，建议重新使用AI拆分分镜头
+                    </p>
+                    <p className="text-xs text-amber-600 mt-1">
+                      检测到 {invalidSceneShots.length} 个分镜使用了不在场景库中的场景
+                    </p>
+                  </div>
+                </div>
+              )}
               <button 
                 onClick={handleSplitChapterClick}
                 disabled={isSplitting}
-                className="w-full py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className={`w-full py-3 px-4 text-white rounded-lg font-medium transition-all shadow-sm hover:shadow-md flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                  hasInvalidScenesInShots && !isSplitting
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600'
+                    : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600'
+                }`}
               >
                 {isSplitting ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
