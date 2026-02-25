@@ -907,6 +907,7 @@ export default {
     second: '초',
     default: '기본값',
     reset: '재설정',
+    dualReferenceWorkflowNotActive: '이중 참조 워크플로우가 선택되지 않았습니다. 장면 이미지를 일시적으로 사용할 수 없습니다.',
     
     // 단계
     stepContent: '원문 내용',

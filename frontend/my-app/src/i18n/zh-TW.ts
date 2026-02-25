@@ -727,4 +727,11 @@ export default {
     thankYou: '感謝您的支持！',
     contactMe: '聯絡方式',
   },
+
+  chapterGenerate: {
+    ...zhCN.chapterGenerate,
+    default: '預設',
+    reset: '還原',
+    dualReferenceWorkflowNotActive: '當前未切到雙圖分鏡生成工作流，場景圖暫不可用',
+  },
 };

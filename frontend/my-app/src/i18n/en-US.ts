@@ -939,6 +939,7 @@ export default {
     second: 's',
     default: 'Default',
     reset: 'Reset',
+    dualReferenceWorkflowNotActive: 'Dual reference workflow not selected. Scene images are temporarily unavailable.',
     
     // Steps
     stepContent: 'Original Content',

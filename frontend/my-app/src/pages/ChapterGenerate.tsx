@@ -777,6 +777,10 @@ export default function ChapterGenerate() {
   const [selectedTransitionWorkflow, setSelectedTransitionWorkflow] = useState<string>("");  // 选中的工作流ID
   const [transitionDuration, setTransitionDuration] = useState<number>(2);  // 转场时长（秒）默认2秒
   const [showTransitionConfig, setShowTransitionConfig] = useState<boolean>(false);  // 是否显示配置面板
+  
+  // Shot 工作流配置
+  const [shotWorkflows, setShotWorkflows] = useState<any[]>([]);  // shot 工作流列表
+  const [activeShotWorkflow, setActiveShotWorkflow] = useState<any>(null);  // 当前激活的 shot 工作流
 
   // 生成分镜图片
   const handleGenerateShotImage = async (shotIndex: number) => {
@@ -1062,6 +1066,8 @@ export default function ChapterGenerate() {
       fetchChapter();
       // 加载转场工作流列表
       fetchTransitionWorkflows();
+      // 加载 shot 工作流列表
+      fetchShotWorkflows();
     }
   }, [cid, id]);
 
@@ -1436,6 +1442,24 @@ export default function ChapterGenerate() {
       }
     } catch (error) {
       console.error('获取转场工作流失败:', error);
+    }
+  };
+
+  // 获取 shot 工作流列表
+  const fetchShotWorkflows = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/workflows/?type=shot`);
+      const data = await res.json();
+      if (data.success) {
+        setShotWorkflows(data.data || []);
+        // 获取当前激活的工作流
+        const activeWorkflow = data.data.find((w: any) => w.isActive);
+        if (activeWorkflow) {
+          setActiveShotWorkflow(activeWorkflow);
+        }
+      }
+    } catch (error) {
+      console.error('获取 shot 工作流失败:', error);
     }
   };
 
@@ -2383,6 +2407,17 @@ export default function ChapterGenerate() {
                 {t('chapterGenerate.aiGenerateScene')}
               </Link>
             </div>
+            
+            {/* 双图工作流提示 */}
+            {activeShotWorkflow && activeShotWorkflow.name !== 'Flux2-Klein-9B 分镜生图双图参考' && (
+              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2">
+                <AlertCircle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-700">
+                  {t('chapterGenerate.dualReferenceWorkflowNotActive')}
+                </p>
+              </div>
+            )}
+            
             <div className="flex gap-4 flex-wrap">
               {(() => {
                 // 获取当前选中的分镜

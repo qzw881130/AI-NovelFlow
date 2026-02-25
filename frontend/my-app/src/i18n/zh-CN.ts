@@ -939,6 +939,7 @@ export default {
     second: '秒',
     default: '默认',
     reset: '还原',
+    dualReferenceWorkflowNotActive: '当前未切到双图分镜生成工作流，场景图暂不可用',
     
     // 步骤
     stepContent: '原文内容',

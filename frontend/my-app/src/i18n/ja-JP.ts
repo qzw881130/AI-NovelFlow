@@ -911,6 +911,7 @@ export default {
     second: '秒',
     default: 'デフォルト',
     reset: 'リセット',
+    dualReferenceWorkflowNotActive: 'デュアル参照ワークフローが選択されていません。シーン画像は一時的に使用できません。',
     
     // 步骤
     stepContent: '原文コンテンツ',
