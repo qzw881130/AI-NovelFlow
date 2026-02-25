@@ -425,6 +425,7 @@ function JsonTableEditor({ value, onChange, availableScenes = [], activeShotWork
               <div className="flex flex-wrap gap-1 border-b border-gray-200 pb-2">
                 {data.shots.map((shot: any, idx: number) => {
                   const isInvalidScene = shot.scene && !availableScenes.includes(shot.scene);
+                  const showInvalid = isInvalidScene && activeShotWorkflow?.extension?.reference_image_count === 'dual';
                   return (
                     <button
                       key={idx}
@@ -433,11 +434,11 @@ function JsonTableEditor({ value, onChange, availableScenes = [], activeShotWork
                         activeShotIndex === idx
                           ? 'text-blue-600 bg-blue-50 border-b-2 border-blue-600'
                           : 'text-gray-600 hover:bg-gray-100'
-                      } ${isInvalidScene ? 'bg-red-100 text-red-600 border-red-400' : ''}`}
-                      title={isInvalidScene ? `场景 "${shot.scene}" 不在场景库中` : ''}
+                      } ${showInvalid ? 'bg-red-100 text-red-600 border-red-400' : ''}`}
+                      title={showInvalid ? `场景 "${shot.scene}" 不在场景库中` : ''}
                     >
                       {t('chapterGenerate.shot')}{shot.id}
-                      {isInvalidScene && ' ⚠️'}
+                      {showInvalid && ' ⚠️'}
                     </button>
                   );
                 })}
@@ -520,11 +521,11 @@ function JsonTableEditor({ value, onChange, availableScenes = [], activeShotWork
                             onChange={(e) => updateShot(idx, 'scene', e.target.value)}
                             placeholder={t('chapterGenerate.scene')}
                             className={`flex-1 px-3 py-2 border rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none ${
-                              shot.scene && !availableScenes.includes(shot.scene)
+                              shot.scene && !availableScenes.includes(shot.scene) && activeShotWorkflow?.extension?.reference_image_count === 'dual'
                                 ? 'border-red-500 bg-red-50 text-red-700 placeholder-red-400'
                                 : 'border-gray-200'
                             }`}
-                            title={shot.scene && !availableScenes.includes(shot.scene) ? `场景 "${shot.scene}" 不在场景库中，请从场景库选择有效场景` : ''}
+                            title={shot.scene && !availableScenes.includes(shot.scene) && activeShotWorkflow?.extension?.reference_image_count === 'dual' ? `场景 "${shot.scene}" 不在场景库中，请从场景库选择有效场景` : ''}
                           />
                           <input
                             type="number"
