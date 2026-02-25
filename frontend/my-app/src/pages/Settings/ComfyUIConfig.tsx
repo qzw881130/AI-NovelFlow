@@ -46,11 +46,11 @@ export default function ComfyUIConfig({ formData, onFormDataChange, onUserModifi
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg">
-        <Server className="h-5 w-5 text-green-600" />
+      <div className="flex items-center gap-3 p-4 bg-blue-50 rounded-lg">
+        <Server className="h-5 w-5 text-blue-600" />
         <div>
-          <h3 className="text-sm font-medium text-green-900">{t('systemSettings.comfyUISettings')}</h3>
-          <p className="text-xs text-green-700">
+          <h3 className="text-sm font-medium text-blue-900">{t('systemSettings.comfyUISettings')}</h3>
+          <p className="text-xs text-blue-700">
             {t('systemSettings.subtitle')}
           </p>
         </div>
