@@ -366,6 +366,8 @@ export default {
       maxSideNodeTip: '動画最大辺設定用のeasy intノードを選択',
       referenceImageNode: '参照画像ノード（LoadImage）',
       referenceImageNodeTip: '参照画像（ショット画像）読み込み用のLoadImageノードを選択',
+      characterReferenceNode: 'キャラクター参照ノード',
+      sceneReferenceNode: 'シーン参照ノード',
       frameCountNode: 'フレーム数ノード',
       frameCountNodeTip: '動画総フレーム数設定用のeasy intノードを選択（値は8の倍数+1）',
       firstImageNode: '先頭フレームノード（LoadImage - First IMG）',

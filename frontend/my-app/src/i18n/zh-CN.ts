@@ -634,6 +634,8 @@ export default {
       maxSideNodeTip: '选择用于设置视频最长边的 easy int 节点',
       referenceImageNode: '参考图片节点 (LoadImage)',
       referenceImageNodeTip: '选择用于加载参考图片（分镜图）的 LoadImage 节点',
+      characterReferenceNode: '角色参考图节点',
+      sceneReferenceNode: '场景参考图节点',
       frameCountNode: '总帧数节点',
       frameCountNodeTip: '选择用于设置视频总帧数的 easy int 节点（值应为 8 的倍数 + 1）',
       firstImageNode: '首帧图节点 (LoadImage - First IMG)',

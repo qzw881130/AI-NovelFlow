@@ -797,7 +797,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                     <>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Prompt Node ID
+                          {t('systemSettings.workflow.promptInputNode')}
                         </label>
                         <select
                           value={mappingForm.promptNodeId}
@@ -819,7 +819,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Save Image Node ID
+                          {t('systemSettings.workflow.imageSaveNode')}
                         </label>
                         <select
                           value={mappingForm.saveImageNodeId}
@@ -846,7 +846,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                     <>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Prompt Node ID
+                          {t('systemSettings.workflow.promptInputNode')}
                         </label>
                         <select
                           value={mappingForm.promptNodeId}
@@ -868,7 +868,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Save Image Node ID
+                          {t('systemSettings.workflow.imageSaveNode')}
                         </label>
                         <select
                           value={mappingForm.saveImageNodeId}
@@ -890,7 +890,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Width Node</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">{t('systemSettings.workflow.widthNode')}</label>
                           <select
                             value={mappingForm.widthNodeId}
                             onChange={(e) => {
@@ -910,7 +910,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Height Node</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">{t('systemSettings.workflow.heightNode')}</label>
                           <select
                             value={mappingForm.heightNodeId}
                             onChange={(e) => {
@@ -932,7 +932,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Reference Image Node ID ({t('common.optional')})
+                          {t('systemSettings.workflow.referenceImageNode')} ({t('common.optional')})
                         </label>
                         <select
                           value={mappingForm.referenceImageNodeId}
@@ -954,7 +954,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Character Reference</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">{t('systemSettings.workflow.characterReferenceNode')}</label>
                           <select
                             value={mappingForm.characterReferenceImageNodeId}
                             onChange={(e) => {
@@ -974,7 +974,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Scene Reference</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">{t('systemSettings.workflow.sceneReferenceNode')}</label>
                           <select
                             value={mappingForm.sceneReferenceImageNodeId}
                             onChange={(e) => {
@@ -1001,7 +1001,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                     <>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Prompt Node ID
+                          {t('systemSettings.workflow.promptInputNode')}
                         </label>
                         <select
                           value={mappingForm.promptNodeId}
