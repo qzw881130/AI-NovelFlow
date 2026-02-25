@@ -598,7 +598,22 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                               <span className="text-xs text-gray-400">
                                 {t(extensionConfigs[workflow.type].labelKey, { defaultValue: extensionConfigs[workflow.type].label })}:
                               </span>
-                              <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded">
+                              <span className={`text-xs px-2 py-0.5 rounded ${(() => {
+                                const config = extensionConfigs[workflow.type];
+                                const propName = config.name;
+                                const value = workflow.extension?.[propName];
+                                // 根据值设置不同颜色
+                                switch (value) {
+                                  case 'single':
+                                    return 'bg-green-50 text-green-600';
+                                  case 'dual':
+                                    return 'bg-blue-50 text-blue-600';
+                                  case 'triple':
+                                    return 'bg-amber-50 text-amber-600';
+                                  default:
+                                    return 'bg-gray-50 text-gray-600';
+                                }
+                              })()}`}>
                                 {(() => {
                                   const config = extensionConfigs[workflow.type];
                                   const propName = config.name;
