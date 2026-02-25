@@ -734,19 +734,17 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
                     rows={2}
                   />
                 </div>
-                {!editingWorkflow.isSystem && (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Workflow JSON
-                    </label>
-                    <JSONEditor
-                      value={editForm.workflowJson}
-                      onChange={(value) => setEditForm({ ...editForm, workflowJson: value })}
-                      readOnly={editingWorkflow.isSystem}
-                      height={"300px"}
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Workflow JSON
+                  </label>
+                  <JSONEditor
+                    value={editForm.workflowJson}
+                    onChange={(value) => setEditForm({ ...editForm, workflowJson: value })}
+                    readOnly={editingWorkflow.isSystem}
+                    height={"300px"}
+                  />
+                </div>
                 <div className="flex justify-end gap-3">
                   <button
                     type="button"
