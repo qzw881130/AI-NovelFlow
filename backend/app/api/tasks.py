@@ -790,10 +790,7 @@ async def generate_scene_image_task(
                 PromptTemplate.is_system == True
             ).order_by(PromptTemplate.created_at.asc()).first()
 
-        # 构建提示词（只使用 setting 字段）
-        prompt = build_scene_prompt(name, setting, "", template.template if template else None)
-
-        # 获取角色提示词模板
+        # 获取角色提示词模板（用于提取 style）
         character_template = None
         if novel and novel.prompt_template_id:
             character_template = db.query(PromptTemplate).filter(
@@ -816,6 +813,9 @@ async def generate_scene_image_task(
         elif character_template:
             # 兼容旧模板：从角色模板内容中提取 style
             style = extract_style_from_character_template(character_template.template)
+
+        # 构建提示词（只使用 setting 字段，传入 style）
+        prompt = build_scene_prompt(name, setting, "", template.template if template else None, style)
 
         task.current_step = f"使用模板: {template.name if template else '默认'}, 提示词: {prompt[:80]}..."
 

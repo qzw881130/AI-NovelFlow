@@ -276,17 +276,14 @@ async def get_scene_prompt(scene_id: str, db: Session = Depends(get_db), novel_r
         # 兼容旧模板：从角色模板内容中提取 style
         style = extract_style_from_character_template(character_template.template if character_template else None)
 
-    # 构建提示词（只使用 setting 字段）
+    # 构建提示词（只使用 setting 字段，传入 style）
     prompt = build_scene_prompt(
         name=scene.name,
         setting=scene.setting,
         description="",  # 不使用 description
-        template=template.template if template else None
+        template=template.template if template else None,
+        style=style  # 传入从角色模板提取的风格
     )
-
-    # 替换 ##STYLE## 占位符
-    if "##STYLE##" in prompt:
-        prompt = prompt.replace("##STYLE##", style)
 
     return {
         "success": True,

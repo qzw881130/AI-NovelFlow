@@ -268,10 +268,11 @@ def build_scene_prompt(
     name: str,
     setting: str,
     description: str = "",
-    template: Optional[str] = None
+    template: Optional[str] = None,
+    style: Optional[str] = None
 ) -> str:
     """构建场景提示词（便捷函数）"""
-    return PromptBuilder.build_scene_prompt(name, setting, description, template)
+    return PromptBuilder.build_scene_prompt(name, setting, description, template, style)
 
 
 def extract_style_from_template(template: str) -> str:
