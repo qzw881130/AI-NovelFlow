@@ -640,7 +640,10 @@ export default function Characters() {
             </button>
           )}
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => {
+              setFormData({ name: '', description: '', appearance: '', novelId: selectedNovel });
+              setShowCreateModal(true);
+            }}
             className="btn-primary"
           >
             <Plus className="mr-2 h-4 w-4" />

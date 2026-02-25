@@ -131,3 +131,35 @@ class NovelRepository:
         """删除小说"""
         self.db.delete(novel)
         self.db.commit()
+    
+    def update_chapter_count(self, novel_id: str, count: int) -> None:
+        """更新小说章节数"""
+        novel = self.get_by_id(novel_id)
+        if novel:
+            novel.chapter_count = count
+            self.db.commit()
+    
+    def to_response(self, novel: Novel) -> Dict[str, Any]:
+        """
+        将小说对象转换为响应字典
+        
+        Args:
+            novel: 小说对象
+            
+        Returns:
+            响应字典
+        """
+        return {
+            "id": novel.id,
+            "title": novel.title,
+            "author": novel.author,
+            "description": novel.description,
+            "cover": novel.cover,
+            "status": novel.status,
+            "chapterCount": novel.chapter_count,
+            "promptTemplateId": novel.prompt_template_id,
+            "chapterSplitPromptTemplateId": novel.chapter_split_prompt_template_id,
+            "aspectRatio": novel.aspect_ratio or "16:9",
+            "createdAt": novel.created_at.isoformat() if novel.created_at else None,
+            "updatedAt": novel.updated_at.isoformat() if novel.updated_at else None,
+        }

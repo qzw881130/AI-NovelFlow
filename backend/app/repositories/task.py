@@ -122,3 +122,47 @@ class TaskRepository:
             count += 1
         self.db.commit()
         return count
+    
+    def get_by_novel(self, novel_id: str) -> List[Task]:
+        """获取小说的所有任务"""
+        return self.db.query(Task).filter(
+            Task.novel_id == novel_id
+        ).order_by(Task.created_at.desc()).all()
+    
+    def get_by_chapter(self, chapter_id: str) -> List[Task]:
+        """获取章节的所有任务"""
+        return self.db.query(Task).filter(
+            Task.chapter_id == chapter_id
+        ).order_by(Task.created_at.desc()).all()
+    
+    def get_by_character(self, character_id: str) -> List[Task]:
+        """获取角色的所有任务"""
+        return self.db.query(Task).filter(
+            Task.character_id == character_id
+        ).order_by(Task.created_at.desc()).all()
+    
+    def get_by_scene(self, scene_id: str) -> List[Task]:
+        """获取场景的所有任务"""
+        return self.db.query(Task).filter(
+            Task.scene_id == scene_id
+        ).order_by(Task.created_at.desc()).all()
+    
+    def list_with_relations(
+        self, 
+        status: Optional[str] = None, 
+        task_type: Optional[str] = None, 
+        limit: int = 50
+    ) -> tuple:
+        """
+        获取任务列表及其关联数据
+        
+        Returns:
+            (tasks, novel_ids, chapter_ids, workflow_ids) 用于批量查询关联数据
+        """
+        tasks = self.list_by_filters(status=status, task_type=task_type, limit=limit)
+        
+        novel_ids = {t.novel_id for t in tasks if t.novel_id}
+        chapter_ids = {t.chapter_id for t in tasks if t.chapter_id}
+        workflow_ids = {t.workflow_id for t in tasks if t.workflow_id}
+        
+        return tasks, novel_ids, chapter_ids, workflow_ids
