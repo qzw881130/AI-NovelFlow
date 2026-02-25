@@ -365,6 +365,8 @@ export default {
       maxSideNodeTip: '비디오 최대 측면 설정용 easy int 노드 선택',
       referenceImageNode: '참조 이미지 노드 (LoadImage)',
       referenceImageNodeTip: '참조 이미지(샷 이미지) 로드용 LoadImage 노드 선택',
+      characterReferenceNode: '캐릭터 참조 노드',
+      sceneReferenceNode: '장면 참조 노드',
       frameCountNode: '프레임 수 노드',
       frameCountNodeTip: '비디오 총 프레임 수 설정용 easy int 노드 선택 (값은 8의 배수+1)',
       firstImageNode: '첫 번째 프레임 노드 (LoadImage - First IMG)',

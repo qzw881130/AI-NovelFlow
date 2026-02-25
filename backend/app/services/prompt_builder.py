@@ -16,29 +16,6 @@ class PromptBuilder:
     DEFAULT_CHARACTER_STYLE = "anime style, high quality, detailed"
     DEFAULT_SCENE_STYLE = "anime style, high quality, detailed, environment"
     
-    # 动物关键词映射
-    ANIMAL_KEYWORDS = {
-        "horse": ["马", "horse", "pony", "stallion", "mare"],
-        "cow": ["牛", "cow", "bull", "ox", "cattle", "buffalo", "bison"],
-        "squirrel": ["松鼠", "squirrel", "chipmunk"],
-        "fox": ["狐狸", "fox"],
-        "dog": ["狗", "dog", "puppy", "canine"],
-        "cat": ["猫", "cat", "kitten", "feline"],
-        "rabbit": ["兔", "rabbit", "bunny", "hare"],
-        "bear": ["熊", "bear"],
-        "wolf": ["狼", "wolf"],
-        "tiger": ["虎", "tiger"],
-        "lion": ["狮", "lion"],
-        "elephant": ["象", "elephant"],
-        "pig": ["猪", "pig", "boar", "hog"],
-        "sheep": ["羊", "sheep", "lamb", "goat"],
-        "chicken": ["鸡", "chicken", "hen", "rooster"],
-        "duck": ["鸭", "duck"],
-        "mouse": ["鼠", "mouse", "rat"],
-        "deer": ["鹿", "deer"],
-        "monkey": ["猴", "monkey", "ape"],
-    }
-    
     @classmethod
     def build_character_prompt(
         cls,
@@ -61,9 +38,6 @@ class PromptBuilder:
         Returns:
             构建完成的提示词
         """
-        # 检测动物类型
-        animal_keyword = cls.detect_animal_type(name, appearance)
-        
         if template:
             # 使用模板构建提示词，只使用 appearance，不使用 description
             prompt = template.replace("{appearance}", appearance or "").replace("{description}", "")
@@ -71,17 +45,11 @@ class PromptBuilder:
             if "##STYLE##" in prompt:
                 final_style = style or cls.DEFAULT_CHARACTER_STYLE
                 prompt = prompt.replace("##STYLE##", final_style)
-            # 在开头添加动物类型强调
-            if animal_keyword:
-                prompt = f"{animal_keyword} character, " + prompt
             # 清理多余的逗号和空格
             return cls._clean_prompt(prompt)
         
         # 默认提示词
         base_prompt = "character portrait, high quality, detailed, "
-        
-        if animal_keyword:
-            base_prompt = f"{animal_keyword} character, " + base_prompt
         
         if appearance:
             base_prompt += appearance + ", "
@@ -143,29 +111,6 @@ class PromptBuilder:
         base_prompt += "high quality, detailed, no characters, professional artwork"
 
         return base_prompt
-    
-    @classmethod
-    def detect_animal_type(cls, name: str, appearance: str) -> Optional[str]:
-        """
-        检测角色动物类型，返回英文关键词
-        
-        Args:
-            name: 角色名称
-            appearance: 外貌描述
-            
-        Returns:
-            动物类型关键词，未识别返回 None
-        """
-        name_lower = (name or "").lower()
-        appearance_lower = (appearance or "").lower()
-        combined_text = name_lower + " " + appearance_lower
-        
-        for animal_type, keywords in cls.ANIMAL_KEYWORDS.items():
-            for keyword in keywords:
-                if keyword in combined_text:
-                    return animal_type
-        
-        return None
     
     @classmethod
     def extract_style_from_template(cls, template: str) -> str:
@@ -283,8 +228,3 @@ def extract_style_from_template(template: str) -> str:
 def extract_style_from_character_template(template: str) -> str:
     """从角色模板提取风格用于场景（便捷函数）"""
     return PromptBuilder.extract_style_from_character_template(template)
-
-
-def detect_animal_type(name: str, appearance: str) -> Optional[str]:
-    """检测动物类型（便捷函数）"""
-    return PromptBuilder.detect_animal_type(name, appearance)

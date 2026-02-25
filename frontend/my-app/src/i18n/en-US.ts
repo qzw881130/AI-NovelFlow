@@ -637,6 +637,8 @@ export default {
       maxSideNodeTip: 'Select easy int node for setting video max side',
       referenceImageNode: 'Reference Image Node (LoadImage)',
       referenceImageNodeTip: 'Select LoadImage node for loading reference images (shot images)',
+      characterReferenceNode: 'Character Reference Node',
+      sceneReferenceNode: 'Scene Reference Node',
       frameCountNode: 'Frame Count Node',
       frameCountNodeTip: 'Select easy int node for setting video total frames (value should be multiple of 8 + 1)',
       firstImageNode: 'First Frame Node (LoadImage - First IMG)',
