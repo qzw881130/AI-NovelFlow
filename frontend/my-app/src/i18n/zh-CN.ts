@@ -591,6 +591,8 @@ export default {
       systemPreset: '系统预设',
       setAsDefault: '设为默认',
       setDefault: '设为默认',
+      setDefaultSuccess: '已设为默认：{name}',
+      setDefaultFailed: '设置默认工作流失败',
       currentDefault: '当前默认',
       // 弹窗
       uploadTitle: '上传{type}工作流',

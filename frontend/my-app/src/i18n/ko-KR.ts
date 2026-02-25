@@ -320,6 +320,8 @@ export default {
       setAsDefault: '기본으로 설정',
       setDefault: '기본으로 설정',
       currentDefault: '현재 기본값',
+      setDefaultSuccess: '기본값으로 설정됨：{name}',
+      setDefaultFailed: '기본 워크플로우 설정 실패',
       // Modal
       uploadTitle: '{type} 워크플로우 업로드',
       workflowName: '워크플로우 이름',

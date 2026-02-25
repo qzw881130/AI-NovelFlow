@@ -591,6 +591,8 @@ export default {
       systemPreset: 'System Preset',
       setAsDefault: 'Set as Default',
       setDefault: 'Set as Default',
+      setDefaultSuccess: 'Set as default: {name}',
+      setDefaultFailed: 'Failed to set default workflow',
       currentDefault: 'Current Default',
       // Modal
       uploadTitle: 'Upload {type} Workflow',

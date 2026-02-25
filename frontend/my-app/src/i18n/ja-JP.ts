@@ -324,6 +324,8 @@ export default {
       setAsDefault: 'デフォルトに設定',
       setDefault: 'デフォルトに設定',
       currentDefault: '現在のデフォルト',
+      setDefaultSuccess: 'デフォルトに設定しました：{name}',
+      setDefaultFailed: 'デフォルトワークフローの設定に失敗しました',
       // Modal
       uploadTitle: '{type}ワークフローをアップロード',
       workflowName: 'ワークフロー名',

@@ -111,9 +111,13 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
       });
       if (res.ok) {
         fetchWorkflows();
+        toast.success(t('systemSettings.workflow.setDefaultSuccess', { name: getWorkflowDisplayName(workflow, t) }));
+      } else {
+        toast.error(t('systemSettings.workflow.setDefaultFailed'));
       }
     } catch (error) {
       console.error('设置默认工作流失败:', error);
+      toast.error(t('systemSettings.workflow.setDefaultFailed'));
     }
   };
 

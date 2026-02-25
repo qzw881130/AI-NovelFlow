@@ -374,6 +374,11 @@ export default {
   systemSettings: {
     ...zhCN.systemSettings,
     title: '系統組態',
+    workflow: {
+      ...zhCN.systemSettings.workflow,
+      setDefaultSuccess: '已設為預設：{name}',
+      setDefaultFailed: '設置預設工作流失敗',
+    },
     subtitle: '組態 LLM、代理和 ComfyUI 設定',
     llmConfig: 'LLM 組態',
     llmProvider: 'LLM 廠商',
