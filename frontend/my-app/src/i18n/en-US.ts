@@ -1009,6 +1009,7 @@ export default {
     videoDescPlaceholder: 'Video description - used for generating shot videos, falls back to shot description if empty',
     scene: 'Scene',
     durationSec: 'Duration (sec)',
+    durationLabel: 'Duration',
     charactersPlaceholder: 'Characters (comma separated)',
     charactersLabel: 'Characters',
     noShotData: 'No shot data',

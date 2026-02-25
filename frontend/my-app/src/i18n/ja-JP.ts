@@ -971,6 +971,7 @@ export default {
     videoDescPlaceholder: '動画説明 - ショット動画生成に使用。空の場合はショット説明を使用',
     scene: 'シーン',
     durationSec: '長さ（秒）',
+    durationLabel: '長さ',
     charactersPlaceholder: 'キャラクター（カンマ区切り）',
     noShotData: 'ショットデータがありません',
     shotId: 'ショット {id} / 合計 {total}',

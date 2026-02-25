@@ -967,6 +967,7 @@ export default {
     videoDescPlaceholder: '비디오 설명 - 샷 비디오 생성에 사용. 비어 있으면 샷 설명 사용',
     scene: '장면',
     durationSec: '길이 (초)',
+    durationLabel: '길이',
     charactersPlaceholder: '캐릭터 (쉼표로 구분)',
     noShotData: '샷 데이터가 없습니다',
     shotId: '샷 {id} / 총 {total}',

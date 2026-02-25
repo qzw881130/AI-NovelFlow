@@ -13,7 +13,7 @@ const Settings = lazy(() => import('./pages/Settings/index'));
 const Novels = lazy(() => import('./pages/Novels'));
 const NovelDetail = lazy(() => import('./pages/NovelDetail'));
 const ChapterDetail = lazy(() => import('./pages/ChapterDetail'));
-const ChapterGenerate = lazy(() => import('./pages/ChapterGenerate'));
+const ChapterGenerate = lazy(() => import('./pages/ChapterGenerate/index'));
 const Characters = lazy(() => import('./pages/Characters'));
 const Scenes = lazy(() => import('./pages/Scenes'));
 const Tasks = lazy(() => import('./pages/Tasks'));

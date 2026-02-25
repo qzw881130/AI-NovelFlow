@@ -1009,6 +1009,7 @@ export default {
     videoDescPlaceholder: '视频描述 - 用于生成分镜视频，如果为空则使用分镜描述',
     scene: '场景',
     durationSec: '时长(秒)',
+    durationLabel: '时长',
     charactersPlaceholder: '角色（用逗号分隔）',
     charactersLabel: '角色',
     noShotData: '暂无分镜数据',
