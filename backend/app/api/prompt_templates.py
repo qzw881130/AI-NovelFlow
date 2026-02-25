@@ -44,7 +44,7 @@ SYSTEM_CHARACTER_TEMPLATES = [
         "name": "Q版卡通",
         "description": "可爱Q版卡通风格",
         "template": load_template("chibi_cartoon.txt"),
-        "style": "chibi character, cute cartoon style, kawaii, colorful",
+        "style": "chibi style, cute cartoon style, kawaii, colorful",
         "type": "character"
     },
     {
