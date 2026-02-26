@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
-import json
 from datetime import datetime
 
 from app.core.database import get_db
 from app.core.config import get_settings
-from app.models.novel import Scene, Novel, Chapter
+from app.models.novel import Scene, Chapter
 from app.models.prompt_template import PromptTemplate
 from app.services.comfyui import ComfyUIService
 from app.services.llm_service import LLMService
@@ -14,7 +13,7 @@ from app.services.prompt_builder import (
     extract_style_from_character_template
 )
 from app.repositories import NovelRepository, SceneRepository, ChapterRepository
-from app.core.utils import format_datetime
+from app.utils.time_utils import format_datetime
 
 router = APIRouter()
 settings = get_settings()

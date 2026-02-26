@@ -1,11 +1,11 @@
 import os
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Optional
 from pydantic import BaseModel
 
 from app.core.database import get_db
-from app.core.utils import format_datetime
+from app.utils.time_utils import format_datetime
 from app.models.prompt_template import PromptTemplate
 from app.repositories import PromptTemplateRepository
 

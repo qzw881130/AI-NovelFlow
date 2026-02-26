@@ -3,21 +3,20 @@ import asyncio
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-from typing import List
 
 from app.core.database import get_db
-from app.models.novel import Novel, Chapter, Character
+from app.models.novel import Novel, Chapter
 from app.models.prompt_template import PromptTemplate
 from app.models.task import Task
 from app.models.workflow import Workflow
-from app.schemas.novel import NovelCreate, NovelResponse, ChapterCreate, ChapterResponse
+from app.schemas.novel import NovelCreate
 from app.services.llm_service import LLMService
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.novel_service import NovelService, generate_shot_task, generate_shot_video_task, generate_transition_video_task
 from app.services.task_service import TaskService
 from app.repositories import NovelRepository, ChapterRepository, CharacterRepository, SceneRepository
-from app.core.utils import format_datetime
+from app.utils.time_utils import format_datetime
 
 # 注意：不要在模块级别创建 LLMService 实例
 # 因为配置可能在运行时更新，每次使用时应创建新实例
@@ -1083,7 +1082,6 @@ async def merge_chapter_videos(
                 trans_paths.append(None)
     
     # 生成输出路径
-    import os
     story_dir = file_storage._get_story_dir(novel_id)
     chapter_short = chapter_id[:8] if chapter_id else "unknown"
     output_filename = f"chapter_{chapter_short}_merged{'_with_trans' if include_transitions else ''}.mp4"

@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.database import get_db
-from app.core.utils import format_datetime
-from app.models.novel import Character, Novel
+from app.utils.time_utils import format_datetime
+from app.models.novel import Character
 from app.models.prompt_template import PromptTemplate
 from app.services.comfyui import ComfyUIService
 from app.services.llm_service import LLMService
@@ -320,8 +320,7 @@ async def upload_character_image(
     支持用户从本地上传角色形象图片，替代AI生成
     """
     from app.services.file_storage import file_storage
-    from datetime import datetime
-    
+
     character = character_repo.get_by_id(character_id)
     if not character:
         raise HTTPException(status_code=404, detail="角色不存在")

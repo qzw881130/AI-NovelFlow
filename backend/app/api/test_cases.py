@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import Optional
 
 from app.core.database import get_db
-from app.core.utils import format_datetime
+from app.utils.time_utils import format_datetime
 from app.models.test_case import TestCase
 from app.models.novel import Novel, Chapter, Character
 from app.repositories import TestCaseRepository
@@ -271,7 +271,6 @@ async def run_test_case(
 # 初始化预设测试用例
 async def init_preset_test_cases(db: Session):
     """初始化预设测试用例"""
-    from app.models.prompt_template import PromptTemplate
     from app.repositories import PromptTemplateRepository, TestCaseRepository
     
     template_repo = PromptTemplateRepository(db)
@@ -920,8 +919,7 @@ def get_llm_service() -> LLMService:
 async def parse_characters_task(novel_id: str):
     """后台任务：解析小说文本提取角色"""
     from app.core.database import SessionLocal
-    import json
-    
+
     db = SessionLocal()
     try:
         print(f"[测试任务] 开始解析小说 {novel_id} 的角色")
