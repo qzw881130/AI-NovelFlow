@@ -4,8 +4,8 @@ import enUS from '../en-US/novels';
 export default {
   novels: {
     ...enUS.novels,
-    characterPromptLabel: '이미지 스타일',
-    characterPromptHint: '이미지 생성용 이미지 스타일 템플릿 선택',
+    characterPromptLabel: '캐릭터 생성 프롬프트',
+    characterPromptHint: '캐릭터 이미지 생성용 프롬프트 템플릿 선택',
     stylePromptLabel: '스타일 프롬프트',
     stylePromptHint: '이미지 생성용 스타일 설명 선택',
     characterParsePromptLabel: '캐릭터 파싱 프롬프트',

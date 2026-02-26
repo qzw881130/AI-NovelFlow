@@ -48,14 +48,17 @@ export function EditModal({ show, onClose, onSave, modalType, editingPrompt, for
                 {modalType === 'character' ? t('promptConfig.placeholderTip') : t('promptConfig.placeholderTipChapter')}
               </span>
             </label>
-            <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-xs text-red-600 font-medium flex items-center gap-1">
-                <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-                {t('promptConfig.jsonStructureWarning')}
-              </p>
-            </div>
+            {/* 仅对返回 JSON 结构的模板类型显示警告 */}
+            {!['style', 'character', 'scene'].includes(modalType) && (
+              <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-xs text-red-600 font-medium flex items-center gap-1">
+                  <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {t('promptConfig.jsonStructureWarning')}
+                </p>
+              </div>
+            )}
             <textarea rows={modalType === 'chapter_split' ? 12 : 6} required value={form.template}
               onChange={(e) => setForm({ ...form, template: e.target.value })} className="input-field font-mono text-sm"
               placeholder={modalType === 'character' ? t('promptConfig.templatePlaceholderCharacter') : t('promptConfig.templatePlaceholderChapter')}

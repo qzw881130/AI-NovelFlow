@@ -10,7 +10,8 @@ export function useWelcomeState() {
 
   const providerName = t(`systemSettings.providers.${llmProvider}`);
   const modelName = llmModel;
-  const isConfigured = llmApiKey && comfyUIHost;
+  // 基于连接状态判断是否已配置（API Key 不暴露给前端，所以不能依赖 llmApiKey）
+  const isConfigured = status?.llm && status?.comfyui;
 
   const handleCheck = async () => {
     setChecking(true);

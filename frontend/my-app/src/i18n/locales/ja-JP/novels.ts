@@ -4,8 +4,8 @@ import enUS from '../en-US/novels';
 export default {
   novels: {
     ...enUS.novels,
-    characterPromptLabel: '画像スタイル',
-    characterPromptHint: '画像生成用の画像スタイルテンプレートを選択',
+    characterPromptLabel: 'キャラクター生成プロンプト',
+    characterPromptHint: 'キャラクター画像生成用のプロンプトテンプレートを選択',
     stylePromptLabel: 'スタイルプロンプト',
     stylePromptHint: '画像生成用のスタイル説明を選択',
     characterParsePromptLabel: 'キャラクター解析プロンプト',

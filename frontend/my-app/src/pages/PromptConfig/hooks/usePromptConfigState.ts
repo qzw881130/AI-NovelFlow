@@ -142,7 +142,7 @@ export function usePromptConfigState() {
   };
 
   const handleDelete = async (template: PromptTemplate) => {
-    if (!confirm(`${t('promptConfig.confirmDelete')} "${template.name}" ?`)) return;
+    if (!confirm(t('promptConfig.confirmDelete', { name: template.name }))) return;
     try {
       const data = await promptTemplateApi.delete(template.id);
       if (data.success) {

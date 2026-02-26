@@ -4,8 +4,8 @@ import zhCN from '../zh-CN/novels';
 export default {
   novels: {
     ...zhCN.novels,
-    characterPromptLabel: '圖像風格',
-    characterPromptHint: '選擇用於生成圖片的圖像風格模板',
+    characterPromptLabel: '角色生成提示詞',
+    characterPromptHint: '選擇用於生成角色圖片的提示詞模板',
     stylePromptLabel: '風格提示詞',
     stylePromptHint: '選擇用於圖片生成的風格描述',
     characterParsePromptLabel: '角色解析提示詞',
