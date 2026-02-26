@@ -308,6 +308,10 @@ Configure in [System Settings] → [Language & Timezone] page.
 ### 8. Merge Video
 - Click [Merge Video] to combine all clips into complete video
 
+## Contributing
+
+Contributions are welcome! Please read the [Contributing Guide](docs/CONTRIBUTE_GUIDE_EN.md) to learn how to participate in development.
+
 ## License
 
 MIT
