@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
-from datetime import datetime
 
 from app.core.database import get_db
 from app.core.config import get_settings
@@ -8,10 +7,12 @@ from app.models.novel import Scene, Chapter
 from app.models.prompt_template import PromptTemplate
 from app.services.comfyui import ComfyUIService
 from app.services.llm_service import LLMService
+from app.services.novel_service import NovelService
 from app.services.prompt_builder import (
     build_scene_prompt,
     extract_style_from_character_template
 )
+from app.services.file_storage import file_storage
 from app.repositories import NovelRepository, SceneRepository, ChapterRepository, PromptTemplateRepository
 from app.schemas.scene import SceneCreate, SceneUpdate, ParseScenesRequest
 from app.utils.time_utils import format_datetime
@@ -62,9 +63,17 @@ async def list_scenes(
     else:
         scenes = scene_repo.list_all()
 
+    # 批量预加载小说信息，避免 N+1 查询
+    novel_ids = {s.novel_id for s in scenes if s.novel_id}
+    novels_map = {}
+    for nid in novel_ids:
+        novel = novel_repo.get_by_id(nid)
+        if novel:
+            novels_map[nid] = novel
+
     result = []
     for s in scenes:
-        novel = novel_repo.get_by_id(s.novel_id)
+        novel = novels_map.get(s.novel_id)
         result.append({
             "id": s.id,
             "novelId": s.novel_id,
@@ -217,7 +226,6 @@ async def delete_scenes_by_novel(
     result = scene_repo.delete_by_novel(novel_id)
 
     # 删除场景图片目录
-    from app.services.file_storage import file_storage
     file_storage.delete_scenes_dir(novel_id)
 
     return {"success": True, "message": f"已删除 {result} 个场景", "deleted_count": result}
@@ -232,7 +240,6 @@ async def clear_scenes_dir(novel_id: str = Query(..., description="小说ID"), n
         raise HTTPException(status_code=404, detail="小说不存在")
 
     # 清空场景图片目录
-    from app.services.file_storage import file_storage
     success = file_storage.delete_scenes_dir(novel_id)
 
     if success:
@@ -361,6 +368,8 @@ async def parse_scenes(
 ):
     """
     解析场景（支持选定章节范围和单章节增量生成）
+    
+    API层只负责：参数校验、调用Service、格式化响应
     """
     novel_id = data.novel_id
     chapter_ids = data.chapter_ids
@@ -383,115 +392,15 @@ async def parse_scenes(
     if not chapters:
         raise HTTPException(status_code=400, detail="没有找到章节")
 
-    # 构建章节范围说明
-    if len(chapters) == 1:
-        source_range = f"第{chapters[0].number}章"
-    else:
-        source_range = f"第{chapters[0].number}章 ~ 第{chapters[-1].number}章"
-
-    # 合并章节内容
-    combined_content = ""
-    for chapter in chapters:
-        combined_content += f"\n\n【第{chapter.number}章 {chapter.title}】\n{chapter.content or ''}"
-
-    # 获取场景解析提示词模板
-    templates = prompt_template_repo.list_by_type('scene_parse')
-    template = templates[0] if templates else None
-
-    prompt_template = template.template if template else None
-
-    try:
-        # 调用 LLM 解析场景
-        result = await get_llm_service().parse_scenes(
-            novel_id=novel_id,
-            chapter_content=combined_content[:150000],  # 限制长度
-            chapter_title=source_range,
-            prompt_template=prompt_template
-        )
-
-        if result.get("error"):
-            return {"success": False, "message": result["error"]}
-
-        scenes_data = result.get("scenes", [])
-
-        # 获取现有场景
-        existing_scene_names = scene_repo.get_dict_by_novel(novel_id)
-
-        created_scenes = []
-        updated_scenes = []
-
-        for scene_data in scenes_data:
-            name = scene_data.get("name", "")
-            if not name:
-                continue
-
-            if name in existing_scene_names:
-                # 更新现有场景
-                existing = existing_scene_names[name]
-                scene_repo.update(
-                    existing,
-                    description=scene_data.get("description", existing.description),
-                    setting=scene_data.get("setting", existing.setting),
-                    start_chapter=min(existing.start_chapter, chapters[0].number) if existing.start_chapter and mode == "incremental" else chapters[0].number,
-                    end_chapter=max(existing.end_chapter, chapters[-1].number) if existing.end_chapter and mode == "incremental" else chapters[-1].number,
-                    is_incremental=mode == "incremental",
-                    source_range=source_range,
-                    last_parsed_at=datetime.utcnow()
-                )
-                updated_scenes.append(existing)
-            else:
-                # 创建新场景
-                scene = scene_repo.create(
-                    novel_id=novel_id,
-                    name=name,
-                    description=scene_data.get("description", ""),
-                    setting=scene_data.get("setting", ""),
-                    start_chapter=chapters[0].number,
-                    end_chapter=chapters[-1].number,
-                    source_range=source_range,
-                )
-                # 更新增量标记
-                if mode == "incremental":
-                    scene.is_incremental = True
-                    scene.last_parsed_at = datetime.utcnow()
-                    db.commit()
-                created_scenes.append(scene)
-
-        # 构造响应
-        message_parts = []
-        if created_scenes:
-            message_parts.append(f"新增 {len(created_scenes)} 个场景")
-        if updated_scenes:
-            message_parts.append(f"更新 {len(updated_scenes)} 个场景")
-
-        return {
-            "success": True,
-            "data": [
-                {
-                    "id": s.id,
-                    "name": s.name,
-                    "description": s.description,
-                    "setting": s.setting,
-                    "startChapter": s.start_chapter,
-                    "endChapter": s.end_chapter,
-                    "isIncremental": s.is_incremental,
-                    "sourceRange": s.source_range,
-                    "lastParsedAt": format_datetime(s.last_parsed_at)
-                }
-                for s in created_scenes + updated_scenes
-            ],
-            "message": "，".join(message_parts) if message_parts else "未识别到场景",
-            "statistics": {
-                "created": len(created_scenes),
-                "updated": len(updated_scenes),
-                "total": len(created_scenes) + len(updated_scenes)
-            }
-        }
-
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"success": False, "message": f"解析异常: {str(e)}"}
+    # 调用服务层处理业务逻辑
+    novel_service = NovelService(db)
+    return await novel_service.parse_scenes_from_chapters(
+        novel_id=novel_id,
+        chapters=chapters,
+        mode=mode,
+        scene_repo=scene_repo,
+        prompt_template_repo=prompt_template_repo
+    )
 
 
 @router.post("/{scene_id}/upload-image", response_model=dict)
@@ -506,8 +415,6 @@ async def upload_scene_image(
     
     支持用户从本地上传场景图片，替代AI生成
     """
-    from app.services.file_storage import file_storage
-    
     scene = scene_repo.get_by_id(scene_id)
     if not scene:
         raise HTTPException(status_code=404, detail="场景不存在")

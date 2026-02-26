@@ -171,22 +171,46 @@ export default function ChapterGenerate() {
 
   // 从章节数据初始化 shotImages、shotVideos、transitionVideos 状态
   // 使用合并策略而不是覆盖，避免在任务进行中丢失其他分镜的图片
+  // 同时从 chapter.shotImages 和 parsedData.shots[].image_url 读取数据
   // 依赖 chapter 对象，当章节数据更新时重新合并
   useEffect(() => {
     if (chapter) {
-      // 初始化 shotImages（合并策略）
-      if (chapter.shotImages && Array.isArray(chapter.shotImages)) {
-        setShotImages(prev => {
-          const images = { ...prev };
-          chapter.shotImages!.forEach((url: string | null, index: number) => {
+      // 初始化 shotImages（合并策略，同时从两个数据源读取）
+      setShotImages(prev => {
+        const images = { ...prev };
+        
+        // 优先从 chapter.shotImages 数组读取
+        if (chapter.shotImages && Array.isArray(chapter.shotImages)) {
+          chapter.shotImages.forEach((url: string | null, index: number) => {
             if (url) {
-              // 只有当服务器有数据时才更新，保留本地已有的其他分镜图片
               images[index + 1] = url;
             }
           });
-          return images;
-        });
-      }
+        }
+        
+        // 如果 chapter.shotImages 中没有，尝试从 parsedData.shots[].image_url 读取
+        // 这确保两个数据源的一致性
+        if (chapter.parsedData) {
+          try {
+            const parsed = typeof chapter.parsedData === 'string' 
+              ? JSON.parse(chapter.parsedData) 
+              : chapter.parsedData;
+            if (parsed?.shots && Array.isArray(parsed.shots)) {
+              parsed.shots.forEach((shot: any, index: number) => {
+                const shotNum = index + 1;
+                // 只有当 images[shotNum] 还没有值时，才使用 parsedData 中的值
+                if (!images[shotNum] && shot?.image_url) {
+                  images[shotNum] = shot.image_url;
+                }
+              });
+            }
+          } catch (e) {
+            console.error('解析 parsedData 失败:', e);
+          }
+        }
+        
+        return images;
+      });
       
       // 初始化 shotVideos（合并策略）
       if (chapter.shotVideos && Array.isArray(chapter.shotVideos)) {

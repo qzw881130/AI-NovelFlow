@@ -6,6 +6,27 @@ import json
 from typing import Dict, Any, List, Optional
 from app.core.config import get_settings
 from app.utils.json_parser import safe_parse_llm_json
+from app.constants import (
+    DEFAULT_TEMPERATURE,
+    DEFAULT_MAX_TOKENS,
+    DEFAULT_TIMEOUT,
+    DEFAULT_VIDEO_DURATION,
+    LOG_SYSTEM_PROMPT_MAX_LENGTH,
+    LOG_USER_PROMPT_MAX_LENGTH,
+    LOG_RESPONSE_MAX_LENGTH,
+    LOG_ERROR_MESSAGE_MAX_LENGTH,
+    NOVEL_TEXT_MAX_LENGTH,
+    CHAPTER_CONTENT_MAX_LENGTH,
+    DEFAULT_PARSE_CHARACTERS_PROMPT,
+    CHAPTER_RANGE_PLACEHOLDER,
+    DEFAULT_CHAPTER_RANGE_DESCRIPTION,
+    DEFAULT_PARSE_SCENES_PROMPT,
+    DEFAULT_VIDEO_PROMPT_EXPAND_SYSTEM,
+    DEFAULT_CHARACTER_APPEARANCE_FALLBACK,
+    DEFAULT_SCENE_SETTING_FALLBACK,
+    get_character_appearance_prompt,
+    get_scene_setting_prompt,
+)
 
 settings = get_settings()
 
@@ -35,11 +56,11 @@ def save_llm_log(
             log = LLMLog(
                 provider=provider,
                 model=model,
-                system_prompt=system_prompt[:10000] if system_prompt else None,  # 限制长度
-                user_prompt=user_prompt[:20000] if user_prompt else None,  # 限制长度
-                response=response[:20000] if response else None,  # 限制长度
+                system_prompt=system_prompt[:LOG_SYSTEM_PROMPT_MAX_LENGTH] if system_prompt else None,
+                user_prompt=user_prompt[:LOG_USER_PROMPT_MAX_LENGTH] if user_prompt else None,
+                response=response[:LOG_RESPONSE_MAX_LENGTH] if response else None,
                 status=status,
-                error_message=error_message[:5000] if error_message else None,
+                error_message=error_message[:LOG_ERROR_MESSAGE_MAX_LENGTH] if error_message else None,
                 task_type=task_type,
                 novel_id=novel_id,
                 chapter_id=chapter_id,
@@ -145,8 +166,8 @@ class LLMService:
         self,
         system_prompt: str,
         user_content: str,
-        temperature: float = 0.7,
-        max_tokens: int = 4000,
+        temperature: float = DEFAULT_TEMPERATURE,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
         response_format: Optional[str] = None
     ) -> Dict[str, Any]:
         """构建 API 请求体（根据厂商格式）"""
@@ -282,8 +303,8 @@ class LLMService:
         self,
         system_prompt: str,
         user_content: str,
-        temperature: float = 0.7,
-        max_tokens: int = 4000,
+        temperature: float = DEFAULT_TEMPERATURE,
+        max_tokens: int = DEFAULT_MAX_TOKENS,
         response_format: Optional[str] = None,
         task_type: str = None,
         novel_id: str = None,
@@ -332,9 +353,9 @@ class LLMService:
                 old_https_proxy_lower = os.environ.pop('https_proxy', None)
                 
                 transport = httpx.AsyncHTTPTransport(proxy=None)
-                client = httpx.AsyncClient(transport=transport, timeout=300.0)
+                client = httpx.AsyncClient(transport=transport, timeout=DEFAULT_TIMEOUT)
             else:
-                client = httpx.AsyncClient(proxy=proxies, timeout=300.0)
+                client = httpx.AsyncClient(proxy=proxies, timeout=DEFAULT_TIMEOUT)
                 old_http_proxy = old_https_proxy = old_http_proxy_lower = old_https_proxy_lower = None
             
             async with client:
@@ -342,7 +363,7 @@ class LLMService:
                     endpoint,
                     headers=headers,
                     json=body,
-                    timeout=300.0  # 增加到5分钟，给大模型足够加载时间
+                    timeout=DEFAULT_TIMEOUT
                 )
             
             # Ollama/自定义 API 请求完成后恢复环境变量
@@ -467,89 +488,22 @@ class LLMService:
     
     async def parse_novel_text(self, text: str, novel_id: str = None, source_range: str = None) -> Dict[str, Any]:
         """解析小说文本，提取角色、场景、分镜信息（支持章节范围）"""
-        # 使用数据库中保存的提示词，如果没有则使用默认提示词
-        default_prompt = """你是一个专业的小说解析助手。请分析我提供的小说文本，提取以下信息并以 JSON 格式返回：
-
-1) characters：角色列表。每个角色必须包含：
-- name（姓名）
-- description（描述）
-- appearance（外貌特征：必须是一段完整自然语言描述的"单段文字"，禁止使用结构化字段/键值对/列表/分段标题）
-
-【章节范围解析说明】
-本次解析的文本来自：{章节范围说明}。请注意提取的角色应该是在此范围内新出现或重点描写的角色。
-
-【角色命名唯一性与一致性（必须严格执行）】
-- 所有角色 name 必须在首次解析时确定为唯一标准名称，并在后续所有步骤中严格复用该名称。
-- 若同类型角色存在多个且无真实姓名，必须按首次出场顺序使用阿拉伯数字编号命名（如"骗子1""骗子2""士兵1""士兵2"）。
-- 禁止使用"甲/乙""A/B""其中一人""另一人""某官员"等非唯一或会变化的称呼。
-- 一旦 name 确定，后续输出不得更改、简化或替换；所有角色引用必须完全一致。
-
-【群体称谓抽取规则（必须执行）】
-当正文出现以下群体称谓：众人/群臣/士兵/百姓/侍从/随从/围观者/人群（含同义词，如"大家""围观的人""侍卫""兵丁""宫人""下人""臣子们"等），必须将其作为可出镜角色类型提取进 characters。
-规则：
-1) 不允许直接输出未编号的群体名称（禁止：众人、群臣、士兵、百姓、侍从、随从、围观者、人群）。
-2) 必须按首次出场顺序拆分并编号命名为具体角色（默认 2 个；若文本明确人数更多，可输出到 3–5 个，最多不超过 5 个）：
-   - 群臣1、群臣2…
-   - 士兵1、士兵2…
-   - 百姓1、百姓2…
-   - 侍从1、侍从2…
-   - 随从1、随从2…
-   - 围观者1、围观者2…
-3) 若同一段落同时出现多个群体称谓，必须分别建立编号角色（例如既有群臣又有侍从，则输出 群臣1/2 + 侍从1/2）。
-4) 每个群体编号角色也必须给出 description 与 appearance；可以共享基础外观模板，但必须用细节区分（年龄/体型/服饰配色/站位/表情/动作/配饰等），确保可用于 AI 绘图。
-5) 这些编号角色一旦生成，后续输出必须始终复用同名，不得改名、合并或替换。
-
-【appearance（外貌特征）写作硬性约束 | 必须遵守】
-- appearance 必须是"一段话"（单段自然语言），禁止输出 JSON 子对象、字段分组、项目符号列表、编号小节、冒号键值对。
-- 每个角色的 appearance 必须描述"只包含 1 个主体"的外貌，身份必须稳定一致，禁止漂移或换脸。
-- appearance 必须明确为"全身照/全身构图"（full-body shot）：从头到脚完整可见，站姿或自然姿态，四肢完整，不裁切，不缺手缺脚；同时写清鞋子/脚部外观或动物爪部细节；服装需覆盖上装/下装/鞋袜（或动物全身毛色/四肢/尾巴）。
-- appearance 这段话必须覆盖并明确以下要点（必须全部写进同一段文字里）：
-  A) 物种与身份：物种（人类/动物物种+品种）、性别/气质、年龄段（含大约年龄）、体型与身高/大小、2–6 个独特身份标记（必须可视化且可复现，如痣的位置、疤痕、条纹/色块分布、异色瞳、独特配饰的固定位置等）。
-  B) 头部与脸型：脸型/头型、面部比例（如中庭偏长/下颌偏宽等）、额头/颧骨/下颌线/下巴特征；动物需补充口鼻长度、头骨宽窄、耳根位置。
-  C) 眼睛：眼型、大小、虹膜颜色、眼角走向、眼皮类型；动物补充瞳孔形态；强调"眼型与眼睛颜色不得改变"。
-  D) 鼻子/口鼻部：鼻梁/鼻尖/鼻翼宽度/鼻孔大小与角度；动物补充鼻镜颜色、胡须垫是否明显。
-  E) 嘴/喙/下颌：嘴唇厚薄、嘴角走向、是否露齿；动物补充喙/尖牙可见度等。
-  F) 皮肤/毛发/羽毛/鳞片：表面类型、基础颜色（皮肤含冷暖底调）、质感细节、花纹/色块"精确位置映射"（必须可复现）。
-  G) 头发/鬃毛/冠羽/耳朵：发质、长度、发色、分发与发际线；动物补充耳形与耳毛簇、鬃毛/冠羽长度等。
-  H) 胡须/面部毛：胡子/胡茬/胡须长度与颜色（如适用）。
-  I) 与身份绑定的配饰：如眼镜/项圈/吊牌/头饰等，必须写清"类型 + 固定位置"，如指定则必须保留。
-  J) 比例与解剖规则：明确"保持面部比例、头身比、耳朵大小、口鼻长度、花纹位置与所有独特标记一致；禁止改物种/品种；禁止改变年龄段与性别气质呈现"。
-
-【负面约束（必须体现在输出约束中）】
-- 禁止改变：眼睛颜色、眼型、脸型、口鼻长度、毛皮/皮肤花纹的精确位置、独特标记、发型轮廓。
-- 禁止：额外主体、换脸、身份漂移、左右不对称 bug、畸形解剖、随机疤痕/纹身、无故新增配饰或标记。
-- 禁止裁切：不许半身照、特写、缺腿缺脚、脚部出画、手部残缺或被遮挡导致不可见。
-
-【输出格式要求（必须严格执行）】
-- 只返回合法 JSON，不得输出任何解释性文字。
-- JSON 顶层结构必须为：
-{
-  "characters": [
-    {
-      "name": "...",
-      "description": "...",
-      "appearance": "..."
-    }
-  ]
-}
-- appearance 必须是纯字符串的一段话（一个 string），不得是对象、数组、或多段分行结构。"""
-        
         # 获取当前配置
         from app.core.config import get_settings
         settings = get_settings()
-        system_prompt = settings.PARSE_CHARACTERS_PROMPT or default_prompt
+        system_prompt = settings.PARSE_CHARACTERS_PROMPT or DEFAULT_PARSE_CHARACTERS_PROMPT
         
         # 替换章节范围占位符
         if source_range:
-            system_prompt = system_prompt.replace("{章节范围说明}", source_range)
+            system_prompt = system_prompt.replace(CHAPTER_RANGE_PLACEHOLDER, source_range)
         else:
-            system_prompt = system_prompt.replace("{章节范围说明}", "整部小说")
+            system_prompt = system_prompt.replace(CHAPTER_RANGE_PLACEHOLDER, DEFAULT_CHAPTER_RANGE_DESCRIPTION)
         
         result = await self.chat_completion(
             system_prompt=system_prompt,
-            user_content=f"请解析以下小说文本：\n\n{text[:15000]}",
-            temperature=0.7,
-            max_tokens=15000,
+            user_content=f"请解析以下小说文本：\n\n{text[:NOVEL_TEXT_MAX_LENGTH]}",
+            temperature=DEFAULT_TEMPERATURE,
+            max_tokens=NOVEL_TEXT_MAX_LENGTH,
             response_format="json_object",
             task_type="parse_characters",
             novel_id=novel_id
@@ -612,15 +566,15 @@ class LLMService:
         user_content = f"""{whitelist_lines}章节标题：{chapter_title}
 
 章节内容：
-{chapter_content[:15000]}
+{chapter_content[:CHAPTER_CONTENT_MAX_LENGTH]}
 
 请将以上章节内容拆分为分镜数据结构。"""
         
         result = await self.chat_completion(
             system_prompt=system_prompt,
             user_content=user_content,
-            temperature=0.7,
-            max_tokens=15000,
+            temperature=DEFAULT_TEMPERATURE,
+            max_tokens=CHAPTER_CONTENT_MAX_LENGTH,
             response_format="json_object",
             task_type="split_chapter",
             novel_id=novel_id,
@@ -684,16 +638,7 @@ class LLMService:
         character_id: str = None
     ) -> str:
         """生成角色外貌描述"""
-        system_prompt = f"""你是一个专业的角色设定助手。请根据提供的角色信息，生成一段详细的外貌描述，用于AI绘图生成角色形象。
-
-要求：
-1. 描述要具体、详细，包含：发型、发色、眼睛、服装、配饰、表情、姿态
-2. 使用英文（AI绘图模型对英文理解更好）
-3. 添加画风提示词，如：{style} style, high quality, detailed
-4. 避免模糊词汇，使用具体的颜色和样式描述
-
-示例输出格式：
-Young female character, long flowing silver hair with blue highlights, sharp blue eyes, delicate features, wearing traditional Chinese hanfu in white and blue colors, jade hairpin, gentle smile, standing pose, clean background, anime style, high quality, detailed, 8k"""
+        system_prompt = get_character_appearance_prompt(style)
         
         result = await self.chat_completion(
             system_prompt=system_prompt,
@@ -708,31 +653,19 @@ Young female character, long flowing silver hair with blue highlights, sharp blu
         if result["success"]:
             return result["content"].strip()
         else:
-            return f"{character_name}, detailed character, high quality"
+            return DEFAULT_CHARACTER_APPEARANCE_FALLBACK.format(character_name=character_name)
     
-    async def expand_video_prompt(self, prompt: str, duration: int = 4) -> str:
+    async def expand_video_prompt(self, prompt: str, duration: int = DEFAULT_VIDEO_DURATION) -> str:
         """扩写视频生成提示词"""
-        system_prompt = """你是一个专业的视频生成提示词优化专家。请将用户的简短描述扩写为详细的视频生成提示词。
-
-要求：
-1. 添加画面主体、动作、场景的详细描述
-2. 包含镜头运动方式（平移、推拉、旋转等）
-3. 描述光线、氛围、色调
-4. 添加画风和质量提示词
-5. 保持描述简洁但信息丰富，适合视频生成模型
-
-输出格式：
-直接输出扩写后的提示词，不要有多余的解释。"""
-        
         user_content = f"""原始提示词：{prompt}
 视频时长：{duration}秒
 
 请扩写为详细的视频生成提示词："""
         
         result = await self.chat_completion(
-            system_prompt=system_prompt,
+            system_prompt=DEFAULT_VIDEO_PROMPT_EXPAND_SYSTEM,
             user_content=user_content,
-            temperature=0.7,
+            temperature=DEFAULT_TEMPERATURE,
             max_tokens=2000
         )
         
@@ -759,29 +692,7 @@ Young female character, long flowing silver hair with blue highlights, sharp blu
         Returns:
             场景设定字符串（用于AI绘图的环境描述）
         """
-        system_prompt = f"""你是一个专业的场景设定助手。请根据提供的场景信息，生成一段详细的环境设定描述，用于AI绘图生成场景图。
-
-【重要约束：场景不包含人物】
-- 场景是纯粹的环境、地点、空间描述，不包含任何人物、角色、演员等元素
-- 设定描述中禁止出现人物、人物动作、表情、姿态等
-- 专注于环境本身：建筑、自然景观、室内布置、光线、天气、氛围等
-
-要求：
-1. 描述要具体、详细，包含：
-   - 时间（白天/黄昏/夜晚）
-   - 天气（晴天/雨天/雪天）
-   - 光线（阳光/月光/灯光）
-   - 建筑风格或自然景观特征
-   - 主要物体和布局
-   - 色调和氛围
-   - 透视角度
-2. 使用英文（AI绘图模型对英文理解更好）
-3. 添加画风提示词，如：{style} style, high quality, detailed, environment design, background art
-4. 避免模糊词汇，使用具体的颜色和样式描述
-5. 必须添加 "no characters, empty scene" 确保不生成人物
-
-示例输出格式：
-Traditional Chinese courtyard, ancient wooden architecture with curved roofs, red pillars and golden decorations, stone pathway, blooming cherry blossom trees, soft morning sunlight filtering through leaves, peaceful atmosphere, spring season, wide angle view, anime style, high quality, detailed, environment design, no characters, empty scene"""
+        system_prompt = get_scene_setting_prompt(style)
         
         result = await self.chat_completion(
             system_prompt=system_prompt,
@@ -795,7 +706,7 @@ Traditional Chinese courtyard, ancient wooden architecture with curved roofs, re
         if result["success"]:
             return result["content"].strip()
         else:
-            return f"{scene_name}, environment design, background art, high quality, detailed, no characters, empty scene"
+            return DEFAULT_SCENE_SETTING_FALLBACK.format(scene_name=scene_name)
 
 
     async def parse_scenes(
@@ -816,52 +727,20 @@ Traditional Chinese courtyard, ancient wooden architecture with curved roofs, re
         Returns:
             {"scenes": [{"name": "", "description": "", "setting": ""}]}
         """
-        default_prompt = """你是一个专业的小说场景解析助手。请分析我提供的小说文本，提取所有场景信息并以 JSON 格式返回。
-
-场景是指故事发生的地点、环境或空间。同一地点在不同时间的多个事件属于同一个场景。
-
-【场景命名唯一性与一致性（必须严格执行）】
-- 所有场景 name 必须在首次解析时确定为唯一标准名称，并在后续所有步骤中严格复用该名称。
-- 场景名称应简洁明确，如"萧家门口"、"萧家大厅"、"练武场"等。
-- 一旦 name 确定，后续输出不得更改、简化或替换；所有场景引用必须完全一致。
-
-【每个场景必须包含】
-- name（场景名称）：简洁的唯一标识符
-- description（场景描述）：描述场景的整体感觉、氛围、主要元素
-- setting（环境设置）：用于AI绘图的详细环境描述，包括：
-  - 时间（白天/黄昏/夜晚）
-  - 天气（晴天/雨天/雪天）
-  - 光线（阳光/月光/灯光）
-  - 主要物体和布局
-  - 色调和氛围
-
-【输出格式要求】
-只返回合法 JSON，不得输出任何解释性文字。
-
-{
-  "scenes": [
-    {
-      "name": "场景名称",
-      "description": "场景的整体描述",
-      "setting": "详细的绘图用环境描述"
-    }
-  ]
-}"""
-        
-        system_prompt = prompt_template or default_prompt
+        system_prompt = prompt_template or DEFAULT_PARSE_SCENES_PROMPT
         
         user_content = f"""章节标题：{chapter_title}
 
 章节内容：
-{chapter_content[:15000]}
+{chapter_content[:CHAPTER_CONTENT_MAX_LENGTH]}
 
 请解析以上文本中的场景信息。"""
         
         result = await self.chat_completion(
             system_prompt=system_prompt,
             user_content=user_content,
-            temperature=0.7,
-            max_tokens=15000,
+            temperature=DEFAULT_TEMPERATURE,
+            max_tokens=CHAPTER_CONTENT_MAX_LENGTH,
             response_format="json_object",
             task_type="parse_scenes",
             novel_id=novel_id

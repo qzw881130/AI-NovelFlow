@@ -4,10 +4,9 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.utils.time_utils import format_datetime
-from app.models.novel import Character
-from app.models.prompt_template import PromptTemplate
 from app.services.comfyui import ComfyUIService
 from app.services.llm_service import LLMService
+from app.services.file_storage import file_storage
 from app.services.prompt_builder import (
     build_character_prompt
 )
@@ -51,9 +50,17 @@ async def list_characters(
     else:
         characters = character_repo.list_all()
     
+    # 批量预加载小说信息，避免 N+1 查询
+    novel_ids = {c.novel_id for c in characters if c.novel_id}
+    novels_map = {}
+    for nid in novel_ids:
+        novel = novel_repo.get_by_id(nid)
+        if novel:
+            novels_map[nid] = novel
+    
     result = []
     for c in characters:
-        novel = novel_repo.get_by_id(c.novel_id)
+        novel = novels_map.get(c.novel_id)
         result.append({
             "id": c.id,
             "novelId": c.novel_id,
@@ -206,7 +213,6 @@ async def delete_characters_by_novel(
     result = character_repo.delete_by_novel(novel_id)
     
     # 删除角色图片目录
-    from app.services.file_storage import file_storage
     file_storage.delete_characters_dir(novel_id)
     
     return {"success": True, "message": f"已删除 {result} 个角色", "deleted_count": result}
@@ -221,7 +227,6 @@ async def clear_characters_dir(novel_id: str = Query(..., description="小说ID"
         raise HTTPException(status_code=404, detail="小说不存在")
     
     # 清空角色图片目录
-    from app.services.file_storage import file_storage
     success = file_storage.delete_characters_dir(novel_id)
     
     if success:
@@ -325,8 +330,6 @@ async def upload_character_image(
     
     支持用户从本地上传角色形象图片，替代AI生成
     """
-    from app.services.file_storage import file_storage
-
     character = character_repo.get_by_id(character_id)
     if not character:
         raise HTTPException(status_code=404, detail="角色不存在")

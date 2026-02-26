@@ -7,7 +7,6 @@ import json
 import os
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
-from PIL import Image, ImageDraw, ImageFont
 
 from sqlalchemy.orm import Session
 
@@ -18,6 +17,8 @@ from app.utils.time_utils import format_datetime
 from app.services.llm_service import LLMService
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
+from app.utils.path_utils import url_to_local_path
+from app.utils.image_utils import load_chinese_font, merge_character_images
 
 
 class NovelService:
@@ -169,6 +170,140 @@ class NovelService:
             return {"success": False, "message": f"解析异常: {str(e)}"}
     
     # ==================== 场景解析 ====================
+    
+    async def parse_scenes_from_chapters(
+        self,
+        novel_id: str,
+        chapters: List[Chapter],
+        mode: str = "incremental",
+        scene_repo = None,
+        prompt_template_repo = None
+    ) -> Dict[str, Any]:
+        """
+        解析多章节内容，提取场景信息
+        
+        Args:
+            novel_id: 小说ID
+            chapters: 章节列表
+            mode: 解析模式 (incremental/overwrite)
+            scene_repo: 场景仓库
+            prompt_template_repo: 提示词模板仓库
+            
+        Returns:
+            解析结果
+        """
+        if not chapters:
+            return {"success": False, "message": "没有找到章节"}
+        
+        # 构建章节范围说明
+        if len(chapters) == 1:
+            source_range = f"第{chapters[0].number}章"
+        else:
+            source_range = f"第{chapters[0].number}章 ~ 第{chapters[-1].number}章"
+        
+        # 合并章节内容
+        combined_content = ""
+        for chapter in chapters:
+            combined_content += f"\n\n【第{chapter.number}章 {chapter.title}】\n{chapter.content or ''}"
+        
+        # 获取场景解析提示词模板
+        prompt_template = None
+        if prompt_template_repo:
+            templates = prompt_template_repo.list_by_type('scene_parse')
+            prompt_template = templates[0].template if templates else None
+        
+        try:
+            # 调用 LLM 解析场景
+            result = await self.get_llm_service().parse_scenes(
+                novel_id=novel_id,
+                chapter_content=combined_content[:150000],  # 限制长度
+                chapter_title=source_range,
+                prompt_template=prompt_template
+            )
+            
+            if result.get("error"):
+                return {"success": False, "message": result["error"]}
+            
+            scenes_data = result.get("scenes", [])
+            
+            # 获取现有场景
+            existing_scene_names = scene_repo.get_dict_by_novel(novel_id)
+            
+            created_scenes = []
+            updated_scenes = []
+            
+            for scene_data in scenes_data:
+                name = scene_data.get("name", "")
+                if not name:
+                    continue
+                
+                if name in existing_scene_names:
+                    # 更新现有场景
+                    existing = existing_scene_names[name]
+                    scene_repo.update(
+                        existing,
+                        description=scene_data.get("description", existing.description),
+                        setting=scene_data.get("setting", existing.setting),
+                        start_chapter=min(existing.start_chapter, chapters[0].number) if existing.start_chapter and mode == "incremental" else chapters[0].number,
+                        end_chapter=max(existing.end_chapter, chapters[-1].number) if existing.end_chapter and mode == "incremental" else chapters[-1].number,
+                        is_incremental=mode == "incremental",
+                        source_range=source_range,
+                        last_parsed_at=datetime.utcnow()
+                    )
+                    updated_scenes.append(existing)
+                else:
+                    # 创建新场景
+                    scene = scene_repo.create(
+                        novel_id=novel_id,
+                        name=name,
+                        description=scene_data.get("description", ""),
+                        setting=scene_data.get("setting", ""),
+                        start_chapter=chapters[0].number,
+                        end_chapter=chapters[-1].number,
+                        source_range=source_range,
+                    )
+                    # 更新增量标记
+                    if mode == "incremental":
+                        scene.is_incremental = True
+                        scene.last_parsed_at = datetime.utcnow()
+                        self.db.commit()
+                    created_scenes.append(scene)
+            
+            # 构造响应消息
+            message_parts = []
+            if created_scenes:
+                message_parts.append(f"新增 {len(created_scenes)} 个场景")
+            if updated_scenes:
+                message_parts.append(f"更新 {len(updated_scenes)} 个场景")
+            
+            return {
+                "success": True,
+                "data": [
+                    {
+                        "id": s.id,
+                        "name": s.name,
+                        "description": s.description,
+                        "setting": s.setting,
+                        "startChapter": s.start_chapter,
+                        "endChapter": s.end_chapter,
+                        "isIncremental": s.is_incremental,
+                        "sourceRange": s.source_range,
+                        "lastParsedAt": format_datetime(s.last_parsed_at)
+                    }
+                    for s in created_scenes + updated_scenes
+                ],
+                "message": "，".join(message_parts) if message_parts else "未识别到场景",
+                "statistics": {
+                    "created": len(created_scenes),
+                    "updated": len(updated_scenes),
+                    "total": len(created_scenes) + len(updated_scenes)
+                }
+            }
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "message": f"解析异常: {str(e)}"}
     
     async def parse_scenes(
         self,
@@ -427,7 +562,7 @@ class NovelService:
         character_images: List[Tuple[str, str]]
     ) -> Optional[str]:
         """
-        合并多个角色图片为一个参考图
+        合并多个角色图片为一个参考图（委托给工具函数）
         
         Args:
             novel_id: 小说ID
@@ -438,168 +573,12 @@ class NovelService:
         Returns:
             合并后的图片路径，失败返回 None
         """
-        if not character_images:
-            return None
-        
-        try:
-            # 删除旧的合并角色图
-            story_dir = file_storage._get_story_dir(novel_id)
-            chapter_short = chapter_id[:8] if chapter_id else "unknown"
-            merged_dir = story_dir / f"chapter_{chapter_short}" / "merged_characters"
-            if merged_dir.exists():
-                import glob
-                old_files = glob.glob(str(merged_dir / f"shot_{shot_index:03d}_*_characters.png"))
-                for old_file in old_files:
-                    try:
-                        os.remove(old_file)
-                        print(f"[MergeCharacters] Removed old merged character image: {old_file}")
-                    except Exception as e:
-                        print(f"[MergeCharacters] Failed to remove old file {old_file}: {e}")
-            
-            # 获取角色名列表
-            character_names = [name for name, _ in character_images]
-            merged_path = file_storage.get_merged_characters_path(novel_id, chapter_id, shot_index, character_names)
-            
-            # 计算布局
-            count = len(character_images)
-            if count == 1:
-                cols, rows = 1, 1
-            elif count <= 3:
-                cols, rows = 1, count
-            elif count == 4:
-                cols, rows = 2, 2
-            elif count <= 6:
-                cols, rows = 3, 2
-            else:
-                cols = 3
-                rows = (count + 2) // 3
-            
-            # 加载所有图片
-            images = []
-            for char_name, img_path in character_images:
-                img = Image.open(img_path)
-                images.append((char_name, img))
-            
-            # 设置布局参数
-            name_height = 24
-            padding = 15
-            img_spacing = 10
-            text_offset = 5
-            
-            # 使用原图，不进行缩放
-            processed_images = [(char_name, img.copy()) for char_name, img in images]
-            
-            # 计算每列的最大宽度
-            col_widths = []
-            for col in range(cols):
-                max_w = 0
-                for idx in range(col, len(processed_images), cols):
-                    _, img = processed_images[idx]
-                    max_w = max(max_w, img.width)
-                col_widths.append(max_w)
-            
-            # 计算每行的实际高度
-            row_heights = []
-            for row in range(rows):
-                max_h = 0
-                for idx in range(row * cols, min((row + 1) * cols, len(processed_images))):
-                    _, img = processed_images[idx]
-                    max_h = max(max_h, img.height)
-                row_heights.append(max_h + name_height + text_offset)
-            
-            # 计算画布尺寸
-            canvas_width = sum(col_widths) + (cols - 1) * img_spacing + 2 * padding
-            canvas_height = sum(row_heights) + 2 * padding
-            canvas = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
-            draw = ImageDraw.Draw(canvas)
-            
-            # 加载字体
-            font = self._load_chinese_font(16)
-            
-            # 绘制每个角色
-            current_y = padding
-            for idx, (char_name, img) in enumerate(processed_images):
-                col = idx % cols
-                row = idx // cols
-                
-                x = padding + sum(col_widths[:col]) + col * img_spacing
-                y = current_y
-                
-                img_x = x + (col_widths[col] - img.width) // 2
-                img_y = y + (row_heights[row] - name_height - text_offset - img.height) // 2
-                canvas.paste(img, (img_x, img_y))
-                
-                text_bbox = draw.textbbox((0, 0), char_name, font=font)
-                text_width = text_bbox[2] - text_bbox[0]
-                text_x = x + (col_widths[col] - text_width) // 2
-                text_y = img_y + img.height + text_offset
-                draw.text((text_x, text_y), char_name, fill=(51, 51, 51), font=font)
-                
-                if col == cols - 1 or idx == len(processed_images) - 1:
-                    current_y += row_heights[row]
-            
-            # 保存合并图片
-            canvas.save(merged_path, "PNG")
-            print(f"[MergeCharacters] Merged character image saved: {merged_path}")
-            
-            return str(merged_path)
-            
-        except Exception as e:
-            print(f"[MergeCharacters] Failed to merge character images: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
-    
-    def _load_chinese_font(self, size: int) -> ImageFont:
-        """加载中文字体"""
-        font_paths = [
-            # macOS
-            "/System/Library/Fonts/PingFang.ttc",
-            "/System/Library/Fonts/STHeiti Light.ttc",
-            "/Library/Fonts/Arial Unicode.ttf",
-            # Windows
-            "C:/Windows/Fonts/simhei.ttf",
-            "C:/Windows/Fonts/simsun.ttc",
-            "C:/Windows/Fonts/msyh.ttc",
-            "C:/Windows/Fonts/msyhbd.ttc",
-            # Linux
-            "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        ]
-        
-        for font_path in font_paths:
-            try:
-                return ImageFont.truetype(font_path, size)
-            except:
-                continue
-        
-        return ImageFont.load_default()
-    
-    # ==================== 路径转换工具 ====================
-    
-    @staticmethod
-    def url_to_local_path(url: str) -> Optional[str]:
-        """将 URL 转换为本地路径"""
-        if not url or not url.startswith("/api/files/"):
-            return None
-        
-        relative_path = url.replace("/api/files/", "")
-        relative_path = relative_path.lstrip("\\/")
-        relative_path = relative_path.replace("\\", "/")
-        path_parts = relative_path.split("/")
-        
-        full_path = os.path.join(
-            os.path.dirname(__file__), "..", "..", "user_story", *path_parts
+        return merge_character_images(
+            novel_id, chapter_id, shot_index, character_images, file_storage
         )
-        full_path = os.path.abspath(full_path)
-        
-        if os.path.exists(full_path):
-            return full_path
-        return None
 
 
-# 后台任务函数已移至 media_task_service.py
-# 从 media_task_service 导入以保持兼容性
+# 后台任务函数已移至独立模块
 from app.services.media_task_service import (
     generate_shot_task,
     generate_shot_video_task,

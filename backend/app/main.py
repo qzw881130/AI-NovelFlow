@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from app.api import characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes
-from app.api import novel_routes, chapter_routes, shot_routes
+from app.api import novels, chapters, shots
 from app.core.database import engine, Base
 # 导入所有模型以确保创建表
 from app.models.novel import Novel, Chapter, Character, Scene
@@ -74,9 +74,9 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api/health", tags=["health"])
 app.include_router(config.router, prefix="/api/config", tags=["config"])
 # 小说相关路由（拆分为多个模块）
-app.include_router(novel_routes.router, prefix="/api/novels", tags=["novels"])
-app.include_router(chapter_routes.router, prefix="/api/novels", tags=["novels"])
-app.include_router(shot_routes.router, prefix="/api/novels", tags=["novels"])
+app.include_router(novels.router, prefix="/api/novels", tags=["novels"])
+app.include_router(chapters.router, prefix="/api/novels", tags=["novels"])
+app.include_router(shots.router, prefix="/api/novels", tags=["novels"])
 app.include_router(characters.router, prefix="/api/characters", tags=["characters"])
 app.include_router(scenes.router, prefix="/api/scenes", tags=["scenes"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
