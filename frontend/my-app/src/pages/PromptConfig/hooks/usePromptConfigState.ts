@@ -2,20 +2,42 @@ import { useState, useEffect, useCallback } from 'react';
 import { toast } from '../../../stores/toastStore';
 import { useTranslation } from '../../../stores/i18nStore';
 import { promptTemplateApi } from '../../../api/promptTemplates';
-import { configApi } from '../../../api/config';
 import type { PromptTemplate } from '../../../types';
 import type { TemplateType, PromptForm } from '../types';
-import { DEFAULT_PARSE_CHARACTERS_PROMPT, DEFAULT_CHARACTER_TEMPLATE, DEFAULT_CHAPTER_SPLIT_TEMPLATE } from '../constants';
+import { DEFAULT_CHARACTER_TEMPLATE, DEFAULT_CHAPTER_SPLIT_TEMPLATE, DEFAULT_STYLE_TEMPLATE } from '../constants';
+
+// 模板类型配置
+export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descKey: string; defaultTemplate: string }> = {
+  style: { nameKey: 'promptConfig.types.style', descKey: 'promptConfig.types.styleDesc', defaultTemplate: DEFAULT_STYLE_TEMPLATE },
+  character_parse: { nameKey: 'promptConfig.types.characterParse', descKey: 'promptConfig.types.characterParseDesc', defaultTemplate: '' },
+  scene_parse: { nameKey: 'promptConfig.types.sceneParse', descKey: 'promptConfig.types.sceneParseDesc', defaultTemplate: '' },
+  character: { nameKey: 'promptConfig.types.character', descKey: 'promptConfig.types.characterDesc', defaultTemplate: DEFAULT_CHARACTER_TEMPLATE },
+  scene: { nameKey: 'promptConfig.types.scene', descKey: 'promptConfig.types.sceneDesc', defaultTemplate: '' },
+  chapter_split: { nameKey: 'promptConfig.types.chapterSplit', descKey: 'promptConfig.types.chapterSplitDesc', defaultTemplate: DEFAULT_CHAPTER_SPLIT_TEMPLATE },
+};
 
 export function usePromptConfigState() {
   const { t } = useTranslation();
 
-  const [parsePrompt, setParsePrompt] = useState(DEFAULT_PARSE_CHARACTERS_PROMPT);
-  const [savingParsePrompt, setSavingParsePrompt] = useState(false);
-  const [characterTemplates, setCharacterTemplates] = useState<PromptTemplate[]>([]);
-  const [loadingCharacter, setLoadingCharacter] = useState(true);
-  const [chapterSplitTemplates, setChapterSplitTemplates] = useState<PromptTemplate[]>([]);
-  const [loadingChapterSplit, setLoadingChapterSplit] = useState(true);
+  // 各类型模板状态
+  const [templatesByType, setTemplatesByType] = useState<Record<TemplateType, PromptTemplate[]>>({
+    style: [],
+    character_parse: [],
+    scene_parse: [],
+    character: [],
+    scene: [],
+    chapter_split: [],
+  });
+  const [loadingByType, setLoadingByType] = useState<Record<TemplateType, boolean>>({
+    style: true,
+    character_parse: true,
+    scene_parse: true,
+    character: true,
+    scene: true,
+    chapter_split: true,
+  });
+
+  // 弹窗状态
   const [showModal, setShowModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [modalType, setModalType] = useState<TemplateType>('character');
@@ -26,46 +48,23 @@ export function usePromptConfigState() {
   });
   const [saving, setSaving] = useState(false);
 
+  // 加载所有类型的模板
   useEffect(() => {
-    fetchCharacterTemplates();
-    fetchChapterSplitTemplates();
+    const types: TemplateType[] = ['style', 'character_parse', 'scene_parse', 'character', 'scene', 'chapter_split'];
+    types.forEach(type => fetchTemplates(type));
   }, []);
 
-  useEffect(() => {
-    const fetchParsePrompt = async () => {
-      try {
-        const data = await configApi.get();
-        if (data.success && data.data?.parseCharactersPrompt) {
-          setParsePrompt(data.data.parseCharactersPrompt);
-        }
-      } catch (error) {
-        console.error('加载配置失败:', error);
+  const fetchTemplates = async (type: TemplateType) => {
+    setLoadingByType(prev => ({ ...prev, [type]: true }));
+    try {
+      const data = await promptTemplateApi.fetchList(type);
+      if (data.success && data.data) {
+        setTemplatesByType(prev => ({ ...prev, [type]: data.data! }));
       }
-    };
-    fetchParsePrompt();
-  }, []);
-
-  const fetchCharacterTemplates = async () => {
-    setLoadingCharacter(true);
-    try {
-      const data = await promptTemplateApi.fetchList('character');
-      if (data.success && data.data) setCharacterTemplates(data.data);
     } catch (error) {
-      console.error('加载人设提示词模板失败:', error);
+      console.error(`加载${type}提示词模板失败:`, error);
     } finally {
-      setLoadingCharacter(false);
-    }
-  };
-
-  const fetchChapterSplitTemplates = async () => {
-    setLoadingChapterSplit(true);
-    try {
-      const data = await promptTemplateApi.fetchList('chapter_split');
-      if (data.success && data.data) setChapterSplitTemplates(data.data);
-    } catch (error) {
-      console.error('加载章节拆分提示词模板失败:', error);
-    } finally {
-      setLoadingChapterSplit(false);
+      setLoadingByType(prev => ({ ...prev, [type]: false }));
     }
   };
 
@@ -81,9 +80,10 @@ export function usePromptConfigState() {
       setForm({ name: template.name, description: template.description, template: template.template, wordCount });
     } else {
       setEditingPrompt(null);
+      const config = TEMPLATE_TYPE_CONFIG[type];
       setForm({
         name: '', description: '',
-        template: type === 'character' ? DEFAULT_CHARACTER_TEMPLATE : DEFAULT_CHAPTER_SPLIT_TEMPLATE,
+        template: config.defaultTemplate,
         wordCount: 50
       });
     }
@@ -114,7 +114,7 @@ export function usePromptConfigState() {
       if (data.success) {
         toast.success(t('common.success'));
         setShowModal(false);
-        modalType === 'character' ? fetchCharacterTemplates() : fetchChapterSplitTemplates();
+        fetchTemplates(modalType);
       } else {
         toast.error(data.message || t('common.saveFailed'));
       }
@@ -131,7 +131,7 @@ export function usePromptConfigState() {
       const data = await promptTemplateApi.copy(template.id);
       if (data.success) {
         toast.success(t('promptConfig.copySuccess'));
-        template.type === 'character' ? fetchCharacterTemplates() : fetchChapterSplitTemplates();
+        fetchTemplates(template.type as TemplateType);
       } else {
         toast.error(data.message || t('common.copyFailed'));
       }
@@ -146,7 +146,7 @@ export function usePromptConfigState() {
     try {
       const data = await promptTemplateApi.delete(template.id);
       if (data.success) {
-        template.type === 'character' ? fetchCharacterTemplates() : fetchChapterSplitTemplates();
+        fetchTemplates(template.type as TemplateType);
       } else {
         toast.error(data.message || t('common.deleteFailed'));
       }
@@ -156,40 +156,15 @@ export function usePromptConfigState() {
     }
   };
 
-  const handleSaveParsePrompt = async () => {
-    setSavingParsePrompt(true);
-    try {
-      const data = await configApi.update({ parseCharactersPrompt: parsePrompt });
-      if (data.success) toast.success(t('promptConfig.systemPromptSaved'));
-      else toast.error(t('common.saveFailed'));
-    } catch (error) {
-      console.error('保存提示词失败:', error);
-      toast.error('保存失败');
-    } finally {
-      setSavingParsePrompt(false);
-    }
-  };
-
-  const handleResetParsePrompt = async () => {
-    setParsePrompt(DEFAULT_PARSE_CHARACTERS_PROMPT);
-    try {
-      await configApi.update({ parseCharactersPrompt: DEFAULT_PARSE_CHARACTERS_PROMPT });
-      toast.success(t('promptConfig.resetSuccess'));
-    } catch {
-      toast.success(t('promptConfig.resetSuccessFrontend'));
-    }
-  };
-
   return {
     // State
-    parsePrompt, setParsePrompt, savingParsePrompt,
-    characterTemplates, loadingCharacter,
-    chapterSplitTemplates, loadingChapterSplit,
+    templatesByType,
+    loadingByType,
     showModal, setShowModal, showViewModal, setShowViewModal,
     modalType, editingPrompt, viewingPrompt,
     form, setForm, saving,
     // Actions
     openModal, openViewModal, handleSave, handleCopy, handleDelete,
-    handleSaveParsePrompt, handleResetParsePrompt,
+    fetchTemplates,
   };
 }

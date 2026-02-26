@@ -1,4 +1,7 @@
-// 默认AI解析角色系统提示词
+// 默认风格提示词模板
+export const DEFAULT_STYLE_TEMPLATE = "anime style, high quality, detailed, professional artwork";
+
+// 默认AI解析角色系统提示词（已迁移到后端模板管理）
 export const DEFAULT_PARSE_CHARACTERS_PROMPT = `你是一个专业的小说解析助手。请分析我提供的小说文本，提取以下信息并以 JSON 格式返回：
 
 1) characters：角色列表。每个角色必须包含：

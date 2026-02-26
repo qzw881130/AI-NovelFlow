@@ -18,7 +18,7 @@ interface UseChapterDataReturn {
   fetchScenes: (novelId: string | undefined) => Promise<void>;
   setParsedData: React.Dispatch<React.SetStateAction<ParsedData | null>>;
   setEditableJson: React.Dispatch<React.SetStateAction<string>>;
-  getCharacterImage: (name: string) => string | null;
+  getCharacterImage: (name: string) => string | undefined;
   getSceneImage: (name: string) => string | null;
 }
 
@@ -104,9 +104,9 @@ export default function useChapterData(): UseChapterDataReturn {
   }, []);
 
   // 根据角色名获取角色图片
-  const getCharacterImage = useCallback((name: string): string | null => {
+  const getCharacterImage = useCallback((name: string): string | undefined => {
     const character = characters.find(c => c.name === name);
-    return character?.imageUrl || null;
+    return character?.imageUrl ?? undefined;
   }, [characters]);
 
   // 根据场景名获取场景图片

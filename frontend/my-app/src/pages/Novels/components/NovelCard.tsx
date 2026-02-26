@@ -5,8 +5,7 @@ import type { Novel, PromptTemplate } from '../../../types';
 
 interface NovelCardProps {
   novel: Novel;
-  promptTemplates: PromptTemplate[];
-  chapterSplitTemplates: PromptTemplate[];
+  templatesByType: Record<string, PromptTemplate[]>;
   parsingNovelId: string | null;
   parsingScenesNovelId: string | null;
   onDelete: (id: string) => void;
@@ -15,10 +14,15 @@ interface NovelCardProps {
   getTemplateDisplayName: (template: PromptTemplate | undefined) => string;
 }
 
+// 辅助函数：获取模板
+const getTemplate = (templatesByType: Record<string, PromptTemplate[]>, type: string, id: string | undefined): PromptTemplate | undefined => {
+  if (!id) return undefined;
+  return (templatesByType[type] || []).find(t => t.id === id);
+};
+
 export function NovelCard({
   novel,
-  promptTemplates,
-  chapterSplitTemplates,
+  templatesByType,
   parsingNovelId,
   parsingScenesNovelId,
   onDelete,
@@ -27,6 +31,12 @@ export function NovelCard({
   getTemplateDisplayName,
 }: NovelCardProps) {
   const { t } = useTranslation();
+
+  // 获取各类型模板
+  const styleTemplate = getTemplate(templatesByType, 'style', novel.stylePromptTemplateId);
+  const characterTemplate = getTemplate(templatesByType, 'character', novel.promptTemplateId);
+  const sceneTemplate = getTemplate(templatesByType, 'scene', novel.scenePromptTemplateId);
+  const chapterSplitTemplate = getTemplate(templatesByType, 'chapter_split', novel.chapterSplitPromptTemplateId);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group">
@@ -64,13 +74,21 @@ export function NovelCard({
           {novel.description || t('novels.noDescription')}
         </p>
         <div className="mt-3 flex flex-wrap gap-1.5 h-16 content-start">
+          <span className="inline-flex items-center gap-1 px-2 py-1 bg-pink-50 text-pink-600 text-xs rounded whitespace-nowrap">
+            <span className="font-medium">{t('novels.stylePrompt')}</span>
+            <span className="truncate max-w-[80px]">{getTemplateDisplayName(styleTemplate)}</span>
+          </span>
           <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded whitespace-nowrap">
             <span className="font-medium">{t('novels.characterPrompt')}</span>
-            <span className="truncate max-w-[80px]">{getTemplateDisplayName(promptTemplates.find(t => t.id === novel.promptTemplateId))}</span>
+            <span className="truncate max-w-[80px]">{getTemplateDisplayName(characterTemplate)}</span>
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-50 text-orange-600 text-xs rounded whitespace-nowrap">
+            <span className="font-medium">{t('novels.scenePrompt')}</span>
+            <span className="truncate max-w-[80px]">{getTemplateDisplayName(sceneTemplate)}</span>
           </span>
           <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-50 text-purple-600 text-xs rounded whitespace-nowrap">
             <span className="font-medium">{t('novels.splitPrompt')}</span>
-            <span className="truncate max-w-[80px]">{getTemplateDisplayName(chapterSplitTemplates.find(t => t.id === novel.chapterSplitPromptTemplateId))}</span>
+            <span className="truncate max-w-[80px]">{getTemplateDisplayName(chapterSplitTemplate)}</span>
           </span>
           <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-600 text-xs rounded whitespace-nowrap">
             <span className="font-medium">{t('novels.aspectRatioShort')}</span>

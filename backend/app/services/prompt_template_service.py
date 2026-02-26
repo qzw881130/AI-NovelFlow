@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.models.prompt_template import PromptTemplate
 from app.repositories import PromptTemplateRepository
 from app.utils.time_utils import format_datetime
+from app.constants import DEFAULT_PARSE_CHARACTERS_PROMPT, DEFAULT_PARSE_SCENES_PROMPT
 
 
 # 模板文件目录 (位于 backend/prompt_templates/)
@@ -27,34 +28,68 @@ def load_template(filename: str) -> str:
         raise FileNotFoundError(f"Template file not found: {filepath}")
 
 
-# 系统预设的人设提示词模板（角色生成）
-SYSTEM_CHARACTER_TEMPLATES: List[Dict] = [
+# 系统预设的风格提示词模板（独立类型，用于图片生成的风格描述）
+SYSTEM_STYLE_TEMPLATES: List[Dict] = [
     {
-        "name": "标准动漫风格",
-        "description": "适合大多数动漫角色的标准人设生成",
-        "template": load_template("standard_anime.txt"),
-        "style": "anime style, high quality, detailed, professional artwork",
-        "type": "character"
+        "name": "动漫风格",
+        "description": "适用于动漫风格的图片生成",
+        "template": "anime style, high quality, detailed, professional artwork",
+        "type": "style"
     },
     {
         "name": "写实风格",
-        "description": "写实风格的角色人设",
-        "template": load_template("realistic.txt"),
-        "style": "realistic style, photorealistic, highly detailed, professional photography",
-        "type": "character"
+        "description": "适用于写实风格的图片生成",
+        "template": "realistic style, photorealistic, highly detailed, professional photography",
+        "type": "style"
     },
     {
-        "name": "Q版卡通",
-        "description": "可爱Q版卡通风格",
-        "template": load_template("chibi_cartoon.txt"),
-        "style": "chibi style, cute cartoon style, kawaii, colorful",
-        "type": "character"
+        "name": "Q版风格",
+        "description": "适用于Q版卡通风格的图片生成",
+        "template": "chibi style, cute cartoon style, kawaii, colorful",
+        "type": "style"
     },
     {
         "name": "水墨风格",
-        "description": "中国传统水墨画风格",
+        "description": "适用于中国传统水墨画风格的图片生成",
+        "template": "Chinese ink painting style, traditional art, elegant, artistic",
+        "type": "style"
+    }
+]
+
+# 系统预设的角色解析提示词模板（从小说文本解析角色信息）
+SYSTEM_CHARACTER_PARSE_TEMPLATES: List[Dict] = [
+    {
+        "name": "标准角色解析",
+        "description": "适用于大多数小说的角色解析",
+        "template": DEFAULT_PARSE_CHARACTERS_PROMPT,
+        "type": "character_parse"
+    }
+]
+
+# 系统预设的人设提示词模板（角色生成）
+SYSTEM_CHARACTER_TEMPLATES: List[Dict] = [
+    {
+        "name": "标准动漫人设",
+        "description": "适合大多数动漫角色的标准人设生成",
+        "template": load_template("standard_anime.txt"),
+        "type": "character"
+    },
+    {
+        "name": "写实人设",
+        "description": "写实风格的角色人设",
+        "template": load_template("realistic.txt"),
+        "type": "character"
+    },
+    {
+        "name": "Q版人设",
+        "description": "可爱Q版卡通风格的角色人设",
+        "template": load_template("chibi_cartoon.txt"),
+        "type": "character"
+    },
+    {
+        "name": "水墨人设",
+        "description": "中国传统水墨画风格的角色人设",
         "template": load_template("ink_painting.txt"),
-        "style": "Chinese ink painting style, traditional art, elegant, artistic",
         "type": "character"
     }
 ]
@@ -75,12 +110,12 @@ SYSTEM_CHAPTER_SPLIT_TEMPLATES: List[Dict] = [
     }
 ]
 
-# 系统预设的场景解析提示词模板
-SYSTEM_SCENE_TEMPLATES: List[Dict] = [
+# 系统预设的场景解析提示词模板（从小说文本解析场景信息）
+SYSTEM_SCENE_PARSE_TEMPLATES: List[Dict] = [
     {
         "name": "标准场景解析",
         "description": "适用于大多数小说的场景解析",
-        "template": load_template("scene_parse.txt"),
+        "template": DEFAULT_PARSE_SCENES_PROMPT,
         "type": "scene_parse"
     }
 ]
@@ -97,10 +132,12 @@ SYSTEM_SCENE_IMAGE_TEMPLATES: List[Dict] = [
 
 # 合并所有系统模板
 SYSTEM_PROMPT_TEMPLATES = (
+    SYSTEM_STYLE_TEMPLATES +
+    SYSTEM_CHARACTER_PARSE_TEMPLATES +
+    SYSTEM_SCENE_PARSE_TEMPLATES +
     SYSTEM_CHARACTER_TEMPLATES +
-    SYSTEM_CHAPTER_SPLIT_TEMPLATES +
-    SYSTEM_SCENE_TEMPLATES +
-    SYSTEM_SCENE_IMAGE_TEMPLATES
+    SYSTEM_SCENE_IMAGE_TEMPLATES +
+    SYSTEM_CHAPTER_SPLIT_TEMPLATES
 )
 
 
@@ -137,15 +174,12 @@ class PromptTemplateService:
                 # 更新现有模板内容
                 existing.description = tmpl_data["description"]
                 existing.template = tmpl_data["template"]
-                if "style" in tmpl_data:
-                    existing.style = tmpl_data["style"]
             else:
                 # 创建新模板
                 template = PromptTemplate(
                     name=tmpl_data["name"],
                     description=tmpl_data["description"],
                     template=tmpl_data["template"],
-                    style=tmpl_data.get("style", ""),
                     type=tmpl_data.get("type", "character"),
                     is_system=True,
                     is_active=True
@@ -170,7 +204,6 @@ class PromptTemplateService:
         name: str,
         description: str,
         template: str,
-        style: str = "",
         template_type: str = "character"
     ) -> PromptTemplate:
         """创建用户自定义模板"""
@@ -178,7 +211,6 @@ class PromptTemplateService:
             name=name,
             description=description,
             template=template,
-            style=style,
             type=template_type,
             is_system=False,
             is_active=True
@@ -195,7 +227,6 @@ class PromptTemplateService:
             name=f"{source.name} (副本)",
             description=source.description,
             template=source.template,
-            style=source.style or "",
             type=source.type or "character",
             is_system=False,
             is_active=True
@@ -208,7 +239,6 @@ class PromptTemplateService:
         name: Optional[str] = None,
         description: Optional[str] = None,
         template: Optional[str] = None,
-        style: Optional[str] = None,
         template_type: Optional[str] = None
     ) -> PromptTemplate:
         """更新模板（仅用户自定义可编辑）"""
@@ -225,8 +255,6 @@ class PromptTemplateService:
             template_obj.description = description
         if template is not None:
             template_obj.template = template
-        if style is not None:
-            template_obj.style = style
         if template_type is not None:
             template_obj.type = template_type
 
@@ -257,7 +285,6 @@ class PromptTemplateService:
             "description": template.description,
             "descriptionKey": get_template_description_key(template.name) if template.is_system else None,
             "template": template.template,
-            "style": template.style or "",
             "type": template.type or "character",
             "isSystem": template.is_system,
             "isActive": template.is_active,

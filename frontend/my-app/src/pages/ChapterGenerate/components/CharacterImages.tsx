@@ -8,7 +8,7 @@ interface CharacterImagesProps {
   currentShot: number;
   novelAspectRatio: string;
   novelId: string | undefined;
-  getCharacterImage: (name: string) => string | null;
+  getCharacterImage: (name: string) => string | undefined;
   onRegenerateCharacter: (name: string) => void;
   aspectStyle: React.CSSProperties;
 }

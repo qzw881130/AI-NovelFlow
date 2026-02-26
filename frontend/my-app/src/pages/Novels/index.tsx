@@ -23,8 +23,7 @@ export default function Novels() {
     confirmDialog,
     chapterRange,
     setChapterRange,
-    promptTemplates,
-    chapterSplitTemplates,
+    templatesByType,
     filteredNovels,
     createNovel,
     deleteNovel,
@@ -40,7 +39,11 @@ export default function Novels() {
     title: '',
     author: '',
     description: '',
+    stylePromptTemplateId: '',
+    characterParsePromptTemplateId: '',
+    sceneParsePromptTemplateId: '',
     promptTemplateId: '',
+    scenePromptTemplateId: '',
     chapterSplitPromptTemplateId: '',
     aspectRatio: '16:9'
   });
@@ -53,7 +56,11 @@ export default function Novels() {
       title: '',
       author: '',
       description: '',
+      stylePromptTemplateId: '',
+      characterParsePromptTemplateId: '',
+      sceneParsePromptTemplateId: '',
       promptTemplateId: '',
+      scenePromptTemplateId: '',
       chapterSplitPromptTemplateId: '',
       aspectRatio: '16:9'
     });
@@ -66,7 +73,11 @@ export default function Novels() {
       title: editingNovel.title,
       author: editingNovel.author,
       description: editingNovel.description,
+      stylePromptTemplateId: editingNovel.stylePromptTemplateId,
+      characterParsePromptTemplateId: editingNovel.characterParsePromptTemplateId,
+      sceneParsePromptTemplateId: editingNovel.sceneParsePromptTemplateId,
       promptTemplateId: editingNovel.promptTemplateId,
+      scenePromptTemplateId: editingNovel.scenePromptTemplateId,
       chapterSplitPromptTemplateId: editingNovel.chapterSplitPromptTemplateId,
       aspectRatio: editingNovel.aspectRatio,
     });
@@ -117,8 +128,7 @@ export default function Novels() {
             <NovelCard
               key={novel.id}
               novel={novel}
-              promptTemplates={promptTemplates}
-              chapterSplitTemplates={chapterSplitTemplates}
+              templatesByType={templatesByType}
               parsingNovelId={parsingNovelId}
               parsingScenesNovelId={parsingScenesNovelId}
               onDelete={deleteNovel}
@@ -137,8 +147,7 @@ export default function Novels() {
         onSubmit={handleCreate}
         formData={newNovel}
         setFormData={setNewNovel}
-        promptTemplates={promptTemplates}
-        chapterSplitTemplates={chapterSplitTemplates}
+        templatesByType={templatesByType}
         getTemplateDisplayName={getTemplateDisplayName}
       />
 
@@ -148,8 +157,7 @@ export default function Novels() {
         onClose={() => setEditingNovel(null)}
         onSubmit={handleEditSubmit}
         setNovel={setEditingNovel}
-        promptTemplates={promptTemplates}
-        chapterSplitTemplates={chapterSplitTemplates}
+        templatesByType={templatesByType}
         getTemplateDisplayName={getTemplateDisplayName}
       />
 

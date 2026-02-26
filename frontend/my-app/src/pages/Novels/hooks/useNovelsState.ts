@@ -7,6 +7,10 @@ import { sceneApi } from '../../../api/scenes';
 import type { PromptTemplate } from '../../../types';
 import type { ChapterRange, ConfirmDialogState, ParseType } from '../types';
 
+// 模板类型列表
+const TEMPLATE_TYPES = ['style', 'character_parse', 'scene_parse', 'character', 'scene', 'chapter_split'] as const;
+type TemplateType = typeof TEMPLATE_TYPES[number];
+
 export function useNovelsState() {
   const { t } = useTranslation();
   const { novels, isLoading, fetchNovels, createNovel, deleteNovel, importNovel, updateNovel } = useNovelStore();
@@ -27,24 +31,31 @@ export function useNovelsState() {
     endChapter: null,
     isIncremental: true
   });
-  const [promptTemplates, setPromptTemplates] = useState<PromptTemplate[]>([]);
-  const [chapterSplitTemplates, setChapterSplitTemplates] = useState<PromptTemplate[]>([]);
+  
+  // 使用 Record 存储各类型模板
+  const [templatesByType, setTemplatesByType] = useState<Record<string, PromptTemplate[]>>({});
 
   useEffect(() => {
     fetchNovels();
-    fetchPromptTemplates();
+    fetchAllTemplates();
   }, []);
 
-  const fetchPromptTemplates = async () => {
+  const fetchAllTemplates = async () => {
     try {
-      const data1 = await promptTemplateApi.fetchList('character');
-      if (data1.success && data1.data) {
-        setPromptTemplates(data1.data);
-      }
-      const data2 = await promptTemplateApi.fetchList('chapter_split');
-      if (data2.success && data2.data) {
-        setChapterSplitTemplates(data2.data);
-      }
+      const results = await Promise.all(
+        TEMPLATE_TYPES.map(type => promptTemplateApi.fetchList(type as any))
+      );
+      
+      const newTemplatesByType: Record<string, PromptTemplate[]> = {};
+      TEMPLATE_TYPES.forEach((type, index) => {
+        if (results[index].success && results[index].data) {
+          newTemplatesByType[type] = results[index].data!;
+        } else {
+          newTemplatesByType[type] = [];
+        }
+      });
+      
+      setTemplatesByType(newTemplatesByType);
     } catch (error) {
       console.error('加载提示词模板失败:', error);
     }
@@ -172,8 +183,7 @@ export function useNovelsState() {
     confirmDialog,
     chapterRange,
     setChapterRange,
-    promptTemplates,
-    chapterSplitTemplates,
+    templatesByType,
     filteredNovels,
     
     // Actions

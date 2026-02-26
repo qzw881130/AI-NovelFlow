@@ -55,18 +55,29 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
     
     prompt_template_repo = PromptTemplateRepository(db)
     
-    # 如果没有指定提示词模板，使用默认系统模板
+    # 如果没有指定角色生成模板，使用默认系统模板
     prompt_template_id = novel.prompt_template_id
     if not prompt_template_id:
-        default_template = prompt_template_repo.get_first_system_template()
+        default_template = prompt_template_repo.get_default_system_template("character")
         if default_template:
             prompt_template_id = default_template.id
+    
+    # 如果没有指定风格模板，使用默认系统模板
+    style_prompt_template_id = novel.style_prompt_template_id
+    if not style_prompt_template_id:
+        default_style = prompt_template_repo.get_default_system_template("style")
+        if default_style:
+            style_prompt_template_id = default_style.id
     
     db_novel = Novel(
         title=novel.title,
         author=novel.author,
         description=novel.description,
+        style_prompt_template_id=style_prompt_template_id,
+        character_parse_prompt_template_id=novel.character_parse_prompt_template_id,
+        scene_parse_prompt_template_id=novel.scene_parse_prompt_template_id,
         prompt_template_id=prompt_template_id,
+        scene_prompt_template_id=novel.scene_prompt_template_id,
         chapter_split_prompt_template_id=novel.chapter_split_prompt_template_id,
         aspect_ratio=novel.aspect_ratio or "16:9",
     )
@@ -83,7 +94,11 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
             "cover": db_novel.cover,
             "status": db_novel.status,
             "chapterCount": db_novel.chapter_count,
+            "stylePromptTemplateId": db_novel.style_prompt_template_id,
+            "characterParsePromptTemplateId": db_novel.character_parse_prompt_template_id,
+            "sceneParsePromptTemplateId": db_novel.scene_parse_prompt_template_id,
             "promptTemplateId": db_novel.prompt_template_id,
+            "scenePromptTemplateId": db_novel.scene_prompt_template_id,
             "chapterSplitPromptTemplateId": db_novel.chapter_split_prompt_template_id,
             "aspectRatio": db_novel.aspect_ratio or "16:9",
             "createdAt": format_datetime(db_novel.created_at),
@@ -120,7 +135,11 @@ async def update_novel(
         "title": "title",
         "author": "author", 
         "description": "description",
+        "stylePromptTemplateId": "style_prompt_template_id",
+        "characterParsePromptTemplateId": "character_parse_prompt_template_id",
+        "sceneParsePromptTemplateId": "scene_parse_prompt_template_id",
         "promptTemplateId": "prompt_template_id",
+        "scenePromptTemplateId": "scene_prompt_template_id",
         "chapterSplitPromptTemplateId": "chapter_split_prompt_template_id",
         "aspectRatio": "aspect_ratio",
     }

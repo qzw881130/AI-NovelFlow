@@ -66,8 +66,13 @@ export interface Novel {
   cover?: string;
   chapterCount: number;
   status: 'pending' | 'processing' | 'completed';
-  promptTemplateId?: string;
-  chapterSplitPromptTemplateId?: string;  // 章节拆分提示词模板ID
+  // 提示词模板关联（每种类型可选择不同模板）
+  stylePromptTemplateId?: string;  // 风格提示词模板
+  characterParsePromptTemplateId?: string;  // 角色解析提示词模板
+  sceneParsePromptTemplateId?: string;  // 场景解析提示词模板
+  promptTemplateId?: string;  // 角色生成提示词模板
+  scenePromptTemplateId?: string;  // 场景生成提示词模板
+  chapterSplitPromptTemplateId?: string;  // 分镜拆分提示词模板
   aspectRatio?: string;  // 画面比例: 16:9, 9:16, 4:3, 3:4, 1:1
   createdAt: string;
   updatedAt: string;

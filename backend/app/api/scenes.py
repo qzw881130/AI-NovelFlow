@@ -263,29 +263,24 @@ async def get_scene_prompt(
     # 获取场景所属小说
     novel = novel_repo.get_by_id(scene.novel_id)
 
-    # 获取场景提示词模板（类型为 'scene'）
+    # 获取场景生成提示词模板
     template = None
-    if novel:
-        template = prompt_template_repo.list_by_type('scene')
-        if template:
-            template = template[0] if template else None
+    if novel and novel.scene_prompt_template_id:
+        template = prompt_template_repo.get_by_id(novel.scene_prompt_template_id)
+    if not template:
+        templates = prompt_template_repo.list_by_type('scene')
+        if templates:
+            template = templates[0]
 
-    # 获取角色提示词模板（用于提取 style）
-    character_template = None
-    if novel and novel.prompt_template_id:
-        character_template = prompt_template_repo.get_by_id(novel.prompt_template_id)
-
-    # 如果没有指定模板，使用默认系统模板
-    if not character_template:
-        character_template = prompt_template_repo.get_default_system_template("character")
-
-    # 获取 style（从模板的 style 字段）
+    # 获取风格提示词（从小说关联的风格模板）
     style = "anime style, high quality, detailed, environment"
-    if character_template and character_template.style:
-        style = character_template.style
-    elif character_template:
-        # 兼容旧模板：从角色模板内容中提取 style
-        style = extract_style_from_character_template(character_template.template if character_template else None)
+    style_template = None
+    if novel and novel.style_prompt_template_id:
+        style_template = prompt_template_repo.get_by_id(novel.style_prompt_template_id)
+    if not style_template:
+        style_template = prompt_template_repo.get_default_system_template("style")
+    if style_template:
+        style = style_template.template
 
     # 构建提示词（只使用 setting 字段，传入 style）
     prompt = build_scene_prompt(
@@ -293,7 +288,7 @@ async def get_scene_prompt(
         setting=scene.setting,
         description="",  # 不使用 description
         template=template.template if template else None,
-        style=style  # 传入从角色模板提取的风格
+        style=style  # 传入风格模板
     )
 
     return {
@@ -306,7 +301,8 @@ async def get_scene_prompt(
             "template": template.template if template else None,
             "setting": scene.setting,
             "description": scene.description,
-            "style": style
+            "style": style,
+            "styleTemplateName": style_template.name if style_template else "默认风格"
         }
     }
 

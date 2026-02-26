@@ -63,6 +63,18 @@ from app.constants.llm import (
     get_scene_setting_prompt,
 )
 
+from app.constants.prompt_template import (
+    # 提示词模板类型
+    PromptTemplateType,
+    PROMPT_TEMPLATE_TYPES,
+    PROMPT_TEMPLATE_TYPE_CONFIG,
+    # 辅助函数
+    get_template_type_name_key,
+    get_template_type_desc_key,
+    get_template_type_icon,
+    get_template_type_color,
+)
+
 __all__ = [
     # Workflow
     "WORKFLOW_TYPES",
@@ -109,4 +121,12 @@ __all__ = [
     "DEFAULT_SCENE_SETTING_FALLBACK",
     "get_character_appearance_prompt",
     "get_scene_setting_prompt",
+    # Prompt Template
+    "PromptTemplateType",
+    "PROMPT_TEMPLATE_TYPES",
+    "PROMPT_TEMPLATE_TYPE_CONFIG",
+    "get_template_type_name_key",
+    "get_template_type_desc_key",
+    "get_template_type_icon",
+    "get_template_type_color",
 ]

@@ -6,9 +6,9 @@ interface UseTaskPollingParams {
   pendingShots: Set<number>;
   pendingVideos: Set<number>;
   generatingTransitions: Set<string>;
-  checkShotTaskStatus: (chapterId: string, onSuccess?: () => void) => Promise<void>;
-  checkVideoTaskStatus: (chapterId: string, onSuccess?: () => void) => Promise<void>;
-  checkTransitionTaskStatus: (chapterId: string, onSuccess?: () => void) => Promise<void>;
+  checkShotTaskStatus: (chapterId: string | undefined, onRefresh: () => void) => Promise<void>;
+  checkVideoTaskStatus: (chapterId: string | undefined, onRefresh: () => void) => Promise<void>;
+  checkTransitionTaskStatus: (chapterId: string | undefined, onRefresh: () => void) => Promise<void>;
   fetchChapter: (novelId: string, chapterId: string) => void;
 }
 

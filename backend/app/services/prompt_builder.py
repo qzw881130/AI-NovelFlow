@@ -203,10 +203,11 @@ def build_character_prompt(
     name: str,
     appearance: str,
     description: str = "",
-    template: Optional[str] = None
+    template: Optional[str] = None,
+    style: Optional[str] = None
 ) -> str:
     """构建角色提示词（便捷函数）"""
-    return PromptBuilder.build_character_prompt(name, appearance, description, template)
+    return PromptBuilder.build_character_prompt(name, appearance, description, template, style)
 
 
 def build_scene_prompt(

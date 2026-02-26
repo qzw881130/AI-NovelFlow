@@ -72,7 +72,6 @@ def create_prompt_template(
         name=data.name,
         description=data.description,
         template=data.template,
-        style=data.style,
         template_type=data.type
     )
 
@@ -114,7 +113,6 @@ def update_prompt_template(
             name=data.name,
             description=data.description,
             template=data.template,
-            style=data.style,
             template_type=data.type
         )
     except ValueError as e:

@@ -16,7 +16,7 @@ interface UseChapterActionsParams {
   shotVideos: Record<number, string>;
   transitionVideos: Record<string, string>;
   mergedImage: string | null;
-  getCharacterImage: (name: string) => string | null;
+  getCharacterImage: (name: string) => string | undefined;
   setParsedData: (data: ParsedData | null) => void;
   setEditableJson: (json: string) => void;
   setShotImages: (images: Record<number, string> | ((prev: Record<number, string>) => Record<number, string>)) => void;

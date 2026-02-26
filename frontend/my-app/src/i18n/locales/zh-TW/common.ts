@@ -3,7 +3,7 @@ import zhCN from '../zh-CN/common';
 
 export default {
   common: {
-    ...zhCN,
+    ...zhCN.common,
     save: '保存',
     saving: '保存中...',
     cancel: '取消',

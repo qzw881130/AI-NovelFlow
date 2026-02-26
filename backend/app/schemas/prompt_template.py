@@ -12,8 +12,7 @@ class PromptTemplateCreate(BaseModel):
     name: str
     description: str = ""
     template: str
-    style: str = ""  # 风格提示词
-    type: str = "character"  # character 或 chapter_split
+    type: str = "character"  # style, character_parse, scene_parse, character, scene, chapter_split
 
 
 class PromptTemplateUpdate(BaseModel):
@@ -21,7 +20,6 @@ class PromptTemplateUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     template: Optional[str] = None
-    style: Optional[str] = None
     type: Optional[str] = None
 
 
@@ -31,7 +29,6 @@ class PromptTemplateResponse(BaseModel):
     name: str
     description: str
     template: str
-    style: str
     type: str
     isSystem: bool
     isActive: bool

@@ -4,7 +4,12 @@ export interface NovelFormData {
   title: string;
   author: string;
   description: string;
-  promptTemplateId: string;
+  // 提示词模板关联（每种类型可选择不同模板）
+  stylePromptTemplateId: string;
+  characterParsePromptTemplateId: string;
+  sceneParsePromptTemplateId: string;
+  promptTemplateId: string;  // 角色生成模板
+  scenePromptTemplateId: string;
   chapterSplitPromptTemplateId: string;
   aspectRatio: string;
 }

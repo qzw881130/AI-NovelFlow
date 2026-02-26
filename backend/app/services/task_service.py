@@ -481,7 +481,7 @@ class TaskService:
             character = character_repo.get_by_id(character_id)
             novel = db.query(Novel).filter(Novel.id == character.novel_id).first() if character else None
 
-            # 获取提示词模板
+            # 获取角色生成提示词模板
             template = None
             if novel and novel.prompt_template_id:
                 template = template_repo.get_by_id(novel.prompt_template_id)
@@ -493,15 +493,17 @@ class TaskService:
             # 构建提示词
             prompt = build_character_prompt(name, appearance, description, template.template if template else None)
 
-            # 获取 style（从模板的 style 字段）
+            # 获取风格提示词（从小说关联的风格模板）
             style = "anime style, high quality, detailed"
-            if template and template.style:
-                style = template.style
-            elif template:
-                # 兼容旧模板：从模板内容中提取 style
-                style = extract_style_from_template(template.template)
+            style_template = None
+            if novel and novel.style_prompt_template_id:
+                style_template = template_repo.get_by_id(novel.style_prompt_template_id)
+            if not style_template:
+                style_template = template_repo.get_default_system_template("style")
+            if style_template:
+                style = style_template.template
 
-            task.current_step = f"使用模板: {template.name if template else '默认'}, 提示词: {prompt[:80]}..., style: {style[:50]}..."
+            task.current_step = f"使用模板: {template.name if template else '默认'}, 风格: {style_template.name if style_template else '默认'}, 提示词: {prompt[:80]}..."
 
             # 保存提示词
             task.prompt_text = prompt
@@ -671,34 +673,22 @@ class TaskService:
             scene = scene_repo.get_by_id(scene_id)
             novel = db.query(Novel).filter(Novel.id == scene.novel_id).first() if scene else None
 
-            # 获取场景提示词模板（类型为 'scene'）
+            # 获取场景生成提示词模板
             template = None
-            if novel:
+            if novel and novel.scene_prompt_template_id:
+                template = template_repo.get_by_id(novel.scene_prompt_template_id)
+            if not template:
                 template = template_repo.get_default_system_template("scene")
 
-            # 获取角色提示词模板（用于提取 style）
-            character_template = None
-            if novel and novel.prompt_template_id:
-                character_template = template_repo.get_by_id(novel.prompt_template_id)
-
-            # 如果没有指定模板，使用默认系统模板
-            if not character_template:
-                character_template = template_repo.get_default_system_template("character")
-
-            # 获取 style（优先使用小说配置的 Image Style - 角色模板的 style）
+            # 获取风格提示词（从小说关联的风格模板）
             style = "anime style, high quality, detailed, environment"
-            if character_template and character_template.style:
-                # 优先使用小说配置的 Image Style（角色模板的 style）
-                style = character_template.style
-                print(f"[SceneTask] Using character template style (Image Style): {style}")
-            elif character_template:
-                # 兼容旧模板：从角色模板内容中提取 style
-                style = extract_style_from_character_template(character_template.template)
-                print(f"[SceneTask] Extracted style from character template: {style}")
-            elif template and template.style:
-                # 最后使用场景模板的 style 作为后备
-                style = template.style
-                print(f"[SceneTask] Using scene template style: {style}")
+            style_template = None
+            if novel and novel.style_prompt_template_id:
+                style_template = template_repo.get_by_id(novel.style_prompt_template_id)
+            if not style_template:
+                style_template = template_repo.get_default_system_template("style")
+            if style_template:
+                style = style_template.template
             
             print(f"[SceneTask] Final style: {style}")
 

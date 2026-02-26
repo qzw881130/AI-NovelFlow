@@ -21,8 +21,15 @@ class Novel(Base):
     status = Column(String, default="pending", index=True)  # 状态过滤
     chapter_count = Column(Integer, default=0)
     is_preset = Column(Boolean, default=False, index=True)  # 预设过滤
-    prompt_template_id = Column(String, nullable=True, index=True)  # 模板关联
-    chapter_split_prompt_template_id = Column(String, nullable=True)
+    
+    # 提示词模板关联（每种类型可选择不同模板）
+    style_prompt_template_id = Column(String, nullable=True)  # 风格提示词模板
+    character_parse_prompt_template_id = Column(String, nullable=True)  # 角色解析提示词模板
+    scene_parse_prompt_template_id = Column(String, nullable=True)  # 场景解析提示词模板
+    prompt_template_id = Column(String, nullable=True, index=True)  # 角色生成提示词模板（兼容旧字段名）
+    scene_prompt_template_id = Column(String, nullable=True)  # 场景生成提示词模板
+    chapter_split_prompt_template_id = Column(String, nullable=True)  # 分镜拆分提示词模板
+    
     aspect_ratio = Column(String, default="16:9")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
