@@ -51,6 +51,8 @@ dist-ssr/
 # Editor
 .vscode/
 .idea/
+.qoder/
+.tongyiignore
 *.swp
 *.swo
 *~
