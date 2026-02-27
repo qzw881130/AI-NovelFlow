@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     DEEPSEEK_API_KEY: str = ""
     
     # ComfyUI
-    COMFYUI_HOST: str = "http://192.168.50.1:8288"
+    COMFYUI_HOST: str = "http://127.0.0.1:8188"
     
     # Output
     OUTPUT_DIR: str = "./output"

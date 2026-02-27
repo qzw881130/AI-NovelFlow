@@ -9,7 +9,7 @@ router = APIRouter()
 settings = get_settings()
 
 # Windows GPU 监控服务地址（ComfyUI 所在机器）
-GPU_MONITOR_HOST = "http://192.168.50.1:9999"  # 可根据实际情况修改
+GPU_MONITOR_HOST = "http://127.0.0.1:9999"  # 可根据实际情况修改
 
 
 async def get_real_gpu_stats():

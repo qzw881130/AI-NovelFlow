@@ -25,7 +25,7 @@ class SystemConfig(Base):
     https_proxy = Column(String, nullable=True)
     
     # ComfyUI 配置
-    comfyui_host = Column(String, default="http://192.168.50.1:8288")
+    comfyui_host = Column(String, default="http://127.0.0.1:8188")
     
     # 输出配置
     output_resolution = Column(String, default="1920x1080")

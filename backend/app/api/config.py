@@ -275,7 +275,7 @@ async def get_llm_presets():
             {
                 "id": "ollama",
                 "name": "Ollama",
-                "defaultApiUrl": "http://192.168.50.1:11434/v1",
+                "defaultApiUrl": "http://127.0.0.1:11434/v1",
                 "models": [
                     {"id": "ollama-default", "name": "自动获取模型", "description": "点击\"自动获取\"按钮获取模型列表"},
                 ],
@@ -285,7 +285,7 @@ async def get_llm_presets():
             {
                 "id": "custom",
                 "name": "自定义 API",
-                "defaultApiUrl": "http://192.168.50.1/v1",
+                "defaultApiUrl": "http://127.0.0.1/v1",
                 "models": [
                     {"id": "custom-model", "name": "自定义模型", "description": "兼容 OpenAI 格式的自定义 API"},
                 ],
