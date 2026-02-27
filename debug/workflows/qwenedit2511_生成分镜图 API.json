@@ -1,0 +1,330 @@
+{
+  "38": {
+    "inputs": {
+      "samples": [
+        "46",
+        0
+      ],
+      "vae": [
+        "259",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "46": {
+    "inputs": {
+      "seed": 160459544983295,
+      "steps": 4,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "258",
+        0
+      ],
+      "positive": [
+        "264",
+        0
+      ],
+      "negative": [
+        "265",
+        0
+      ],
+      "latent_image": [
+        "252",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "49": {
+    "inputs": {
+      "image": "shot_001_d47ede09_characters.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "角色图"
+    }
+  },
+  "52": {
+    "inputs": {
+      "image": "小红帽家_20260227_203324.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "场景图"
+    }
+  },
+  "102": {
+    "inputs": {
+      "filename_prefix": "qwen2511",
+      "images": [
+        "38",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "246": {
+    "inputs": {
+      "aspect_ratio": "original",
+      "proportional_width": [
+        "267",
+        0
+      ],
+      "proportional_height": [
+        "266",
+        0
+      ],
+      "fit": "crop",
+      "method": "lanczos",
+      "round_to_multiple": "8",
+      "scale_to_side": "width",
+      "scale_to_length": [
+        "267",
+        0
+      ],
+      "background_color": "#000000",
+      "image": [
+        "49",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: ImageScaleByAspectRatio V2",
+    "_meta": {
+      "title": "按宽高比缩放_V2"
+    }
+  },
+  "247": {
+    "inputs": {
+      "aspect_ratio": "custom",
+      "proportional_width": 1,
+      "proportional_height": 1,
+      "fit": "crop",
+      "method": "lanczos",
+      "round_to_multiple": "8",
+      "scale_to_side": "width",
+      "scale_to_length": [
+        "267",
+        0
+      ],
+      "background_color": "#000000",
+      "image": [
+        "52",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: ImageScaleByAspectRatio V2",
+    "_meta": {
+      "title": "按宽高比缩放_V2"
+    }
+  },
+  "250": {
+    "inputs": {
+      "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "CLIP加载器"
+    }
+  },
+  "252": {
+    "inputs": {
+      "width": [
+        "254",
+        1
+      ],
+      "height": [
+        "254",
+        2
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "空Latent"
+    }
+  },
+  "254": {
+    "inputs": {
+      "image": [
+        "246",
+        0
+      ]
+    },
+    "class_type": "GetImageSizeAndCount",
+    "_meta": {
+      "title": "获取图像尺寸数量"
+    }
+  },
+  "255": {
+    "inputs": {
+      "unet_name": "qwen_image_edit_2511_bf16.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNET加载器"
+    }
+  },
+  "256": {
+    "inputs": {
+      "lora_name": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+      "strength_model": 1,
+      "model": [
+        "255",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA加载器(仅模型)"
+    }
+  },
+  "257": {
+    "inputs": {
+      "shift": 3.1,
+      "model": [
+        "256",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "模型采样算法AuraFlow"
+    }
+  },
+  "258": {
+    "inputs": {
+      "strength": 1,
+      "model": [
+        "257",
+        0
+      ]
+    },
+    "class_type": "CFGNorm",
+    "_meta": {
+      "title": "CFG归一化"
+    }
+  },
+  "259": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "VAE加载器"
+    }
+  },
+  "262": {
+    "inputs": {
+      "prompt": [
+        "269",
+        0
+      ],
+      "clip": [
+        "250",
+        0
+      ],
+      "vae": [
+        "259",
+        0
+      ],
+      "image1": [
+        "246",
+        0
+      ],
+      "image2": [
+        "247",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImageEditPlus",
+    "_meta": {
+      "title": "TextEncodeQwenImageEditPlus (Positive)"
+    }
+  },
+  "263": {
+    "inputs": {
+      "prompt": "",
+      "clip": [
+        "250",
+        0
+      ],
+      "vae": [
+        "259",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImageEditPlus",
+    "_meta": {
+      "title": "文本编码（QwenImageEditPlus）"
+    }
+  },
+  "264": {
+    "inputs": {
+      "reference_latents_method": "index_timestep_zero",
+      "conditioning": [
+        "262",
+        0
+      ]
+    },
+    "class_type": "FluxKontextMultiReferenceLatentMethod",
+    "_meta": {
+      "title": "Edit Model Reference Method"
+    }
+  },
+  "265": {
+    "inputs": {
+      "reference_latents_method": "index_timestep_zero",
+      "conditioning": [
+        "263",
+        0
+      ]
+    },
+    "class_type": "FluxKontextMultiReferenceLatentMethod",
+    "_meta": {
+      "title": "Edit Model Reference Method"
+    }
+  },
+  "266": {
+    "inputs": {
+      "value": 1088
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Height"
+    }
+  },
+  "267": {
+    "inputs": {
+      "value": 1920
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Width"
+    }
+  },
+  "269": {
+    "inputs": {
+      "prompt": "Scene: 小红帽家的室内，温暖柔和的阳光从窗户洒入，固定中景镜头，chibi style, cute cartoon style, kawaii, colorful style, high quality, detailed。\nCharacters:\n- 小红帽: 保持参考人设的面部、发型、体型比例与服装轮廓不变; 戴着红色小帽子，穿着可爱连衣裙; 站在母亲面前，表情乖巧。\n- 母亲: 保持参考人设的面部、发型、体型比例与服装轮廓不变; 穿着朴素家居服; 面对小红帽，表情关切。\nAction: 母亲正在对小红帽说话，交代任务。"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "⚙️ CR Prompt Text"
+    }
+  }
+}
