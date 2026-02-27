@@ -24,8 +24,7 @@ from app.services.file_storage import file_storage
 from app.services.prompt_builder import (
     build_character_prompt,
     build_scene_prompt,
-    extract_style_from_template,
-    extract_style_from_character_template
+    get_style
 )
 
 
@@ -490,18 +489,11 @@ class TaskService:
             if not template:
                 template = template_repo.get_default_system_template("character")
 
-            # 构建提示词
-            prompt = build_character_prompt(name, appearance, description, template.template if template else None)
+            # 获取风格提示词
+            style, style_template = get_style(db, novel, "character")
 
-            # 获取风格提示词（从小说关联的风格模板）
-            style = "anime style, high quality, detailed"
-            style_template = None
-            if novel and novel.style_prompt_template_id:
-                style_template = template_repo.get_by_id(novel.style_prompt_template_id)
-            if not style_template:
-                style_template = template_repo.get_default_system_template("style")
-            if style_template:
-                style = style_template.template
+            # 构建提示词
+            prompt = build_character_prompt(name, appearance, description, template.template if template else None, style)
 
             task.current_step = f"使用模板: {template.name if template else '默认'}, 风格: {style_template.name if style_template else '默认'}, 提示词: {prompt[:80]}..."
 
@@ -680,15 +672,8 @@ class TaskService:
             if not template:
                 template = template_repo.get_default_system_template("scene")
 
-            # 获取风格提示词（从小说关联的风格模板）
-            style = "anime style, high quality, detailed, environment"
-            style_template = None
-            if novel and novel.style_prompt_template_id:
-                style_template = template_repo.get_by_id(novel.style_prompt_template_id)
-            if not style_template:
-                style_template = template_repo.get_default_system_template("style")
-            if style_template:
-                style = style_template.template
+            # 获取风格提示词
+            style, style_template = get_style(db, novel, "scene")
             
             print(f"[SceneTask] Final style: {style}")
 

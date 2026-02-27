@@ -8,7 +8,8 @@ from app.services.comfyui import ComfyUIService
 from app.services.llm_service import LLMService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import (
-    build_character_prompt
+    build_character_prompt,
+    get_style
 )
 from app.repositories import NovelRepository, CharacterRepository, PromptTemplateRepository
 from app.schemas.character import CharacterCreate, CharacterUpdate
@@ -238,8 +239,9 @@ async def clear_characters_dir(novel_id: str = Query(..., description="小说ID"
 
 @router.get("/{character_id}/prompt", response_model=dict)
 async def get_character_prompt(
-    character_id: str, 
-    novel_repo: NovelRepository = Depends(get_novel_repo), 
+    character_id: str,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
     character_repo: CharacterRepository = Depends(get_character_repo),
     prompt_template_repo: PromptTemplateRepository = Depends(get_prompt_template_repo)
 ):
@@ -250,22 +252,26 @@ async def get_character_prompt(
     
     # 获取角色所属小说
     novel = novel_repo.get_by_id(character.novel_id)
-    
+
     # 获取提示词模板
     template = None
     if novel and novel.prompt_template_id:
         template = prompt_template_repo.get_by_id(novel.prompt_template_id)
-    
+
     # 如果没有指定模板，使用默认系统模板
     if not template:
         template = prompt_template_repo.get_first_system_template()
-    
+
+    # 获取风格提示词
+    style, style_template = get_style(db, novel, "character")
+
     # 构建提示词
     prompt = build_character_prompt(
         name=character.name,
         appearance=character.appearance,
         description=character.description,
-        template=template.template if template else None
+        template=template.template if template else None,
+        style=style
     )
     
     return {

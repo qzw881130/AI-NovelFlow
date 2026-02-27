@@ -17,6 +17,7 @@ from app.utils.time_utils import format_datetime
 from app.services.llm_service import LLMService
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
+from app.services.prompt_builder import get_style
 from app.utils.path_utils import url_to_local_path
 from app.utils.image_utils import load_chinese_font, merge_character_images
 
@@ -506,15 +507,9 @@ class NovelService:
         if not prompt_template:
             return {"success": False, "message": "未找到章节拆分提示词模板"}
         
-        # 获取小说配置的角色提示词模板 style
-        style = "anime style, high quality, detailed"  # 默认风格
-        if novel.prompt_template_id:
-            character_prompt_template = self.db.query(PromptTemplate).filter(
-                PromptTemplate.id == novel.prompt_template_id
-            ).first()
-            if character_prompt_template and character_prompt_template.template:
-                style = self._extract_style_from_template(character_prompt_template.template)
-                print(f"[SplitChapter] Using style from character prompt template: {style}")
+        # 获取风格提示词
+        style, style_template = get_style(self.db, novel, "character")
+        print(f"[SplitChapter] Using style: {style}")
         
         # 调用 LLM 进行拆分
         result = await llm_service.split_chapter_with_prompt(
@@ -535,22 +530,7 @@ class NovelService:
             "success": True,
             "data": result
         }
-    
-    def _extract_style_from_template(self, template: str) -> str:
-        """从模板中提取 style"""
-        import re
-        try:
-            template_data = json.loads(template)
-            if isinstance(template_data, dict) and "style" in template_data:
-                return template_data["style"]
-            else:
-                style = template.replace("{appearance}", "").replace("{description}", "").strip(", ")
-        except json.JSONDecodeError:
-            style = template.replace("{appearance}", "").replace("{description}", "").strip(", ")
-            style = re.sub(r',\s*,', ',', style)
-            style = re.sub(r'\s+', ' ', style)
-            style = style.strip(", ")
-        return style
+
     
     # ==================== 图片合并 ====================
     

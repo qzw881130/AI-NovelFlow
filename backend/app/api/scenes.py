@@ -10,7 +10,7 @@ from app.services.llm_service import LLMService
 from app.services.novel_service import NovelService
 from app.services.prompt_builder import (
     build_scene_prompt,
-    extract_style_from_character_template
+    get_style
 )
 from app.services.file_storage import file_storage
 from app.repositories import NovelRepository, SceneRepository, ChapterRepository, PromptTemplateRepository
@@ -21,9 +21,6 @@ router = APIRouter()
 settings = get_settings()
 comfyui_service = ComfyUIService()
 
-
-# 提示词构建函数已移至 app/services/prompt_builder.py
-# extract_style_from_character_template, build_scene_prompt 已导入
 
 
 def get_llm_service() -> LLMService:
@@ -250,8 +247,9 @@ async def clear_scenes_dir(novel_id: str = Query(..., description="小说ID"), n
 
 @router.get("/{scene_id}/prompt", response_model=dict)
 async def get_scene_prompt(
-    scene_id: str, 
-    novel_repo: NovelRepository = Depends(get_novel_repo), 
+    scene_id: str,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
     scene_repo: SceneRepository = Depends(get_scene_repo),
     prompt_template_repo: PromptTemplateRepository = Depends(get_prompt_template_repo)
 ):
@@ -272,15 +270,8 @@ async def get_scene_prompt(
         if templates:
             template = templates[0]
 
-    # 获取风格提示词（从小说关联的风格模板）
-    style = "anime style, high quality, detailed, environment"
-    style_template = None
-    if novel and novel.style_prompt_template_id:
-        style_template = prompt_template_repo.get_by_id(novel.style_prompt_template_id)
-    if not style_template:
-        style_template = prompt_template_repo.get_default_system_template("style")
-    if style_template:
-        style = style_template.template
+    # 获取风格提示词
+    style, style_template = get_style(db, novel, "scene")
 
     # 构建提示词（只使用 setting 字段，传入 style）
     prompt = build_scene_prompt(

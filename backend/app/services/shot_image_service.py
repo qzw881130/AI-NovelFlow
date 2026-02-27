@@ -14,6 +14,7 @@ from app.models.workflow import Workflow
 from app.core.database import SessionLocal
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
+from app.services.prompt_builder import get_style
 from app.utils.path_utils import url_to_local_path
 from app.utils.image_utils import merge_character_images
 
@@ -103,8 +104,8 @@ async def generate_shot_image_task(
         task.prompt_text = shot_description
         db.commit()
         
-        # 获取小说配置的角色提示词模板 style
-        style = _get_style_from_novel(db, novel)
+        # 获取风格提示词
+        style, _ = get_style(db, novel, "character")
         print(f"[ShotTask {task_id}] Using style: {style}")
         
         comfyui_service = ComfyUIService()
@@ -192,29 +193,6 @@ async def generate_shot_image_task(
 
 
 # ==================== 辅助函数 ====================
-
-def _get_style_from_novel(db, novel: Novel) -> str:
-    """从小说配置获取风格"""
-    style = "anime style, high quality, detailed"
-    if novel.prompt_template_id:
-        prompt_template = db.query(PromptTemplate).filter(
-            PromptTemplate.id == novel.prompt_template_id
-        ).first()
-        if prompt_template and prompt_template.template:
-            import re
-            try:
-                template_data = json.loads(prompt_template.template)
-                if isinstance(template_data, dict) and "style" in template_data:
-                    style = template_data["style"]
-                else:
-                    style = prompt_template.template.replace("{appearance}", "").replace("{description}", "").strip(", ")
-            except json.JSONDecodeError:
-                style = prompt_template.template.replace("{appearance}", "").replace("{description}", "").strip(", ")
-                style = re.sub(r',\s*,', ',', style)
-                style = re.sub(r'\s+', ' ', style)
-                style = style.strip(", ")
-    return style
-
 
 async def _process_character_references(
     db, task, novel_id: str, chapter_id: str, shot_index: int,
