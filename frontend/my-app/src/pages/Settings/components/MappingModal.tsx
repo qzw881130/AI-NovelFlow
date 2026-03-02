@@ -18,6 +18,14 @@ interface MappingForm {
   characterReferenceImageNodeId: string;
   sceneReferenceImageNodeId: string;
   customReferenceImageNodes: string[];
+  // 音色设计相关节点
+  voicePromptNodeId: string;
+  refTextNodeId: string;
+  saveAudioNodeId: string;
+  // 音频生成相关节点
+  referenceAudioNodeId: string;
+  textNodeId: string;
+  emotionPromptNodeId: string;
 }
 
 interface MappingModalProps {
@@ -29,7 +37,7 @@ interface MappingModalProps {
 export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps) {
   const { t } = useTranslation();
   const [mappingForm, setMappingForm] = useState<MappingForm>({
-    promptNodeId: '', 
+    promptNodeId: '',
     saveImageNodeId: '',
     widthNodeId: '',
     heightNodeId: '',
@@ -41,7 +49,13 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     lastImageNodeId: '',
     characterReferenceImageNodeId: '',
     sceneReferenceImageNodeId: '',
-    customReferenceImageNodes: []
+    customReferenceImageNodes: [],
+    voicePromptNodeId: '',
+    refTextNodeId: '',
+    saveAudioNodeId: '',
+    referenceAudioNodeId: '',
+    textNodeId: '',
+    emotionPromptNodeId: ''
   });
   const [availableNodes, setAvailableNodes] = useState<AvailableNodes>({ 
     clipTextEncode: [], 
@@ -49,7 +63,11 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     easyInt: [],
     crPromptText: [],
     vhsVideoCombine: [],
-    loadImage: []
+    loadImage: [],
+    qwen3TtsVoiceDesign: [],
+    saveAudio: [],
+    loadAudio: [],
+    qwen3TtsVoiceClone: []
   });
   const [workflowJsonData, setWorkflowJsonData] = useState<Record<string, any>>({});
   const [selectedNodeId, setSelectedNodeId] = useState<string>('');
@@ -81,6 +99,10 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
             const crPromptText: string[] = [];
             const vhsVideoCombine: string[] = [];
             const loadImage: string[] = [];
+            const qwen3TtsVoiceDesign: string[] = [];
+            const saveAudio: string[] = [];
+            const loadAudio: string[] = [];
+            const qwen3TtsVoiceClone: string[] = [];
             
             for (const [nodeId, node] of Object.entries(workflowObj)) {
               if (typeof node === 'object' && node !== null) {
@@ -99,11 +121,20 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   vhsVideoCombine.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'LoadImage') {
                   loadImage.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'TDQwen3TTSVoiceDesign') {
+                  qwen3TtsVoiceDesign.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'SaveAudio') {
+                  saveAudio.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'LoadAudio') {
+                  loadAudio.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'TDQwen3TTSVoiceClone') {
+                  qwen3TtsVoiceClone.push(`${nodeId} (${metaTitle || classType})`);
+                  qwen3TtsVoiceClone.push(`${nodeId} (${metaTitle || classType})`);
                 }
               }
             }
             
-            setAvailableNodes({ clipTextEncode, saveImage, easyInt, crPromptText, vhsVideoCombine, loadImage });
+            setAvailableNodes({ clipTextEncode, saveImage, easyInt, crPromptText, vhsVideoCombine, loadImage, qwen3TtsVoiceDesign, saveAudio, loadAudio, qwen3TtsVoiceClone });
             
             // 提取自定义参考图节点
             const customReferenceImageNodes: string[] = [];
@@ -127,7 +158,13 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 lastImageNodeId: '',
                 characterReferenceImageNodeId: '',
                 sceneReferenceImageNodeId: '',
-                customReferenceImageNodes
+                customReferenceImageNodes,
+                voicePromptNodeId: '',
+                refTextNodeId: '',
+                saveAudioNodeId: '',
+                referenceAudioNodeId: '',
+                textNodeId: '',
+                emotionPromptNodeId: ''
               });
             } else if (wf.type === 'transition') {
               setMappingForm({
@@ -143,7 +180,13 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 lastImageNodeId: mapping.last_image_node_id || '',
                 characterReferenceImageNodeId: '',
                 sceneReferenceImageNodeId: '',
-                customReferenceImageNodes
+                customReferenceImageNodes,
+                voicePromptNodeId: '',
+                refTextNodeId: '',
+                saveAudioNodeId: '',
+                referenceAudioNodeId: '',
+                textNodeId: '',
+                emotionPromptNodeId: ''
               });
             } else if (wf.type === 'shot') {
               setMappingForm({
@@ -159,7 +202,57 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 lastImageNodeId: '',
                 characterReferenceImageNodeId: mapping.character_reference_image_node_id || '',
                 sceneReferenceImageNodeId: mapping.scene_reference_image_node_id || '',
-                customReferenceImageNodes
+                customReferenceImageNodes,
+                voicePromptNodeId: '',
+                refTextNodeId: '',
+                saveAudioNodeId: '',
+                referenceAudioNodeId: '',
+                textNodeId: '',
+                emotionPromptNodeId: ''
+              });
+            } else if (wf.type === 'voice_design') {
+              setMappingForm({
+                promptNodeId: '',
+                saveImageNodeId: '',
+                widthNodeId: '',
+                heightNodeId: '',
+                videoSaveNodeId: '',
+                maxSideNodeId: '',
+                referenceImageNodeId: '',
+                frameCountNodeId: '',
+                firstImageNodeId: '',
+                lastImageNodeId: '',
+                characterReferenceImageNodeId: '',
+                sceneReferenceImageNodeId: '',
+                customReferenceImageNodes,
+                voicePromptNodeId: mapping.voice_prompt_node_id || '',
+                refTextNodeId: mapping.ref_text_node_id || '',
+                saveAudioNodeId: mapping.save_audio_node_id || '',
+                referenceAudioNodeId: '',
+                textNodeId: '',
+                emotionPromptNodeId: ''
+              });
+            } else if (wf.type === 'audio') {
+              setMappingForm({
+                promptNodeId: '',
+                saveImageNodeId: '',
+                widthNodeId: '',
+                heightNodeId: '',
+                videoSaveNodeId: '',
+                maxSideNodeId: '',
+                referenceImageNodeId: '',
+                frameCountNodeId: '',
+                firstImageNodeId: '',
+                lastImageNodeId: '',
+                characterReferenceImageNodeId: '',
+                sceneReferenceImageNodeId: '',
+                customReferenceImageNodes,
+                voicePromptNodeId: '',
+                refTextNodeId: '',
+                saveAudioNodeId: mapping.save_audio_node_id || '',
+                referenceAudioNodeId: mapping.reference_audio_node_id || '',
+                textNodeId: mapping.text_node_id || '',
+                emotionPromptNodeId: mapping.emotion_prompt_node_id || ''
               });
             } else {
               setMappingForm({
@@ -175,7 +268,13 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 lastImageNodeId: '',
                 characterReferenceImageNodeId: '',
                 sceneReferenceImageNodeId: '',
-                customReferenceImageNodes
+                customReferenceImageNodes,
+                voicePromptNodeId: '',
+                refTextNodeId: '',
+                saveAudioNodeId: '',
+                referenceAudioNodeId: '',
+                textNodeId: '',
+                emotionPromptNodeId: ''
               });
             }
           } catch (e) {
@@ -220,6 +319,19 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           height_node_id: mappingForm.heightNodeId || null,
           character_reference_image_node_id: mappingForm.characterReferenceImageNodeId || null,
           scene_reference_image_node_id: mappingForm.sceneReferenceImageNodeId || null
+        };
+      } else if (workflow.type === 'voice_design') {
+        nodeMapping = {
+          voice_prompt_node_id: mappingForm.voicePromptNodeId || null,
+          ref_text_node_id: mappingForm.refTextNodeId || null,
+          save_audio_node_id: mappingForm.saveAudioNodeId || null
+        };
+      } else if (workflow.type === 'audio') {
+        nodeMapping = {
+          reference_audio_node_id: mappingForm.referenceAudioNodeId || null,
+          text_node_id: mappingForm.textNodeId || null,
+          emotion_prompt_node_id: mappingForm.emotionPromptNodeId || null,
+          save_audio_node_id: mappingForm.saveAudioNodeId || null
         };
       } else {
         nodeMapping = {
@@ -412,6 +524,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                         {t('common.add')}
                       </button>
                     </div>
+                    <p className="text-xs text-amber-600 mb-2">{t('systemSettings.workflow.referenceImageNodeDisconnectTip')}</p>
                     {mappingForm.customReferenceImageNodes.map((nodeId, index) => (
                       <div key={index} className="flex gap-2 mb-2">
                         <div className="flex-1">
@@ -523,6 +636,79 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     value={mappingForm.frameCountNodeId}
                     options={availableNodes.easyInt}
                     onChange={(v) => handleNodeSelect(v, 'frameCountNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                </>
+              )}
+
+              {workflow.type === 'voice_design' && (
+                <>
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.voicePromptNode')}
+                    nodeTypeHint="TDQwen3TTSVoiceDesign"
+                    value={mappingForm.voicePromptNodeId}
+                    options={availableNodes.qwen3TtsVoiceDesign}
+                    onChange={(v) => handleNodeSelect(v, 'voicePromptNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.refTextNode')}
+                    nodeTypeHint="TDQwen3TTSVoiceDesign"
+                    value={mappingForm.refTextNodeId}
+                    options={availableNodes.qwen3TtsVoiceDesign}
+                    onChange={(v) => handleNodeSelect(v, 'refTextNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.saveAudioNode')}
+                    nodeTypeHint="SaveAudio"
+                    value={mappingForm.saveAudioNodeId}
+                    options={availableNodes.saveAudio}
+                    onChange={(v) => handleNodeSelect(v, 'saveAudioNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                </>
+              )}
+
+              {workflow.type === 'audio' && (
+                <>
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.referenceAudioNode')}
+                    nodeTypeHint="LoadAudio"
+                    value={mappingForm.referenceAudioNodeId}
+                    options={availableNodes.loadAudio}
+                    onChange={(v) => handleNodeSelect(v, 'referenceAudioNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.textNode')}
+                    nodeTypeHint="TDQwen3TTSVoiceClone"
+                    value={mappingForm.textNodeId}
+                    options={availableNodes.qwen3TtsVoiceClone}
+                    onChange={(v) => handleNodeSelect(v, 'textNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.emotionPromptNode')}
+                    nodeTypeHint="TDQwen3TTSVoiceClone"
+                    value={mappingForm.emotionPromptNodeId}
+                    options={availableNodes.qwen3TtsVoiceClone}
+                    onChange={(v) => handleNodeSelect(v, 'emotionPromptNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.saveAudioNode')}
+                    nodeTypeHint="SaveAudio"
+                    value={mappingForm.saveAudioNodeId}
+                    options={availableNodes.saveAudio}
+                    onChange={(v) => handleNodeSelect(v, 'saveAudioNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}
                   />

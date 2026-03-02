@@ -128,7 +128,7 @@ export default function Characters() {
     e.preventDefault();
     try {
       const data = await characterApi.create({
-        novel_id: formData.novelId,
+        novelId: formData.novelId,
         name: formData.name,
         description: formData.description,
         appearance: formData.appearance,

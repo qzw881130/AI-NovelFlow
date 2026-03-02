@@ -8,7 +8,7 @@ export interface Workflow {
   nameKey?: string;
   description?: string;
   descriptionKey?: string;
-  type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop';
+  type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio';
   typeName: string;
   isSystem: boolean;
   isActive: boolean;
@@ -25,6 +25,14 @@ export interface Workflow {
     last_image_node_id?: string;
     character_reference_image_node_id?: string;
     scene_reference_image_node_id?: string;
+    // 音色设计相关节点
+    voice_prompt_node_id?: string;
+    ref_text_node_id?: string;
+    save_audio_node_id?: string;
+    // 音频生成相关节点
+    reference_audio_node_id?: string;
+    text_node_id?: string;
+    emotion_prompt_node_id?: string;
   };
   extension?: {
     [key: string]: any;
@@ -68,6 +76,14 @@ export interface MappingForm {
   lastImageNodeId: string;
   characterReferenceImageNodeId: string;
   sceneReferenceImageNodeId: string;
+  // 音色设计相关节点
+  voicePromptNodeId: string;
+  refTextNodeId: string;
+  saveAudioNodeId: string;
+  // 音频生成相关节点
+  referenceAudioNodeId: string;
+  textNodeId: string;
+  emotionPromptNodeId: string;
 }
 
 export interface AvailableNodes {
@@ -77,4 +93,10 @@ export interface AvailableNodes {
   crPromptText: string[];
   vhsVideoCombine: string[];
   loadImage: string[];
+  // 音色设计相关节点
+  qwen3TtsVoiceDesign: string[];
+  saveAudio: string[];
+  // 音频生成相关节点
+  loadAudio: string[];
+  qwen3TtsVoiceClone: string[];
 }

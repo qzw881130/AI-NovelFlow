@@ -1,7 +1,7 @@
 // 工作流管理组件
 
 import { useState, useEffect } from 'react';
-import { Plus, User, Image as ImageIcon, Film, Mountain, Box } from 'lucide-react';
+import { Plus, User, Image as ImageIcon, Film, Mountain, Box, Mic, Music } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import { getWorkflowDisplayName, getTypeNames } from '../utils';
@@ -20,7 +20,9 @@ const typeIcons = {
   shot: ImageIcon,
   video: Film,
   transition: Film,
-  prop: Box
+  prop: Box,
+  voice_design: Mic,
+  audio: Music
 };
 
 interface WorkflowManagerProps {
@@ -124,7 +126,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
     }
   };
 
-  const getWorkflowsByType = (type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop') => {
+  const getWorkflowsByType = (type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio') => {
     return workflows.filter(w => w.type === type);
   };
 
@@ -147,7 +149,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
       </div>
 
       {/* 按类型分组显示工作流 */}
-      {(['character', 'scene', 'prop', 'shot', 'video', 'transition'] as const).map(type => {
+      {(['character', 'scene', 'prop', 'shot', 'video', 'transition', 'voice_design', 'audio'] as const).map(type => {
         const typeWorkflows = getWorkflowsByType(type);
         if (typeWorkflows.length === 0) return null;
         

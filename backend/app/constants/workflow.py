@@ -18,17 +18,47 @@ WORKFLOW_TYPES = {
     "shot": "分镜生图",
     "video": "分镜生视频",
     "transition": "分镜生转场视频",
-    "prop": "道具生成"
+    "prop": "道具生成",
+    "voice_design": "音色设计",
+    "audio": "音频生成"
 }
 
 
 # 默认工作流文件名映射 (每个类型的默认工作流)
+# 注意：Qwen3-TTS-Voice-Clone.json 文件实际包含音色设计功能（TDQwen3TTSVoiceDesign 节点）
+# 而 Qwen3-TTS-Voice-Design.json 实际包含音色克隆功能，命名与内容相反
 DEFAULT_WORKFLOWS = {
     "character": "character_default.json",
     "scene": "scene_default.json",
     "shot": "shot_default.json",
     "video": "video_default.json",
-    "prop": "prop_default.json"
+    "prop": "prop_default.json",
+    "voice_design": "Qwen3-TTS-Voice-Clone.json",  # 实际是音色设计工作流
+    "audio": "Qwen3-TTS-Voice-Design.json"  # 音频生成工作流（带参考音频的语音克隆）
+}
+
+
+# 默认工作流的节点映射配置
+# 用于指定工作流中各功能节点的ID，便于动态替换参数
+DEFAULT_WORKFLOW_NODE_MAPPINGS = {
+    "voice_design": {
+        # 音色提示词节点 (TDQwen3TTSVoiceDesign 的 instruct 字段)
+        "voice_prompt_node_id": "23",
+        # 参考音频文本节点 (TDQwen3TTSVoiceDesign 的 text 字段)
+        "ref_text_node_id": "23",
+        # 保存音频节点 (SaveAudio)
+        "save_audio_node_id": "52",
+    },
+    "audio": {
+        # 参考音频节点 (LoadAudio)
+        "reference_audio_node_id": "19",
+        # 生成文本节点 (TDQwen3TTSVoiceClone 的 text 字段)
+        "text_node_id": "31",
+        # 情感提示词节点 (TDQwen3TTSVoiceClone 的 ref_text 字段)
+        "emotion_prompt_node_id": "31",
+        # 保存音频节点 (SaveAudio)
+        "save_audio_node_id": "56",
+    },
 }
 
 
@@ -124,6 +154,35 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "description": "Z-image-turbo 道具生成工作流",
         "descriptionKey": f"{DESC_KEY_PREFIX}.Z-image-turbo 道具生成工作流",
         "node_mapping": {"prompt_node_id": "133", "save_image_node_id": "9"},
+    },
+    # 音色设计工作流
+    {
+        "filename": "Qwen3-TTS-Voice-Clone.json",
+        "type": "voice_design",
+        "name": "系统默认-音色设计",
+        "nameKey": f"{NAME_KEY_PREFIX}.系统默认-音色设计",
+        "description": "基于文本提示词设计音色，生成语音",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.基于文本提示词设计音色，生成语音",
+        "node_mapping": {
+            "voice_prompt_node_id": "23",
+            "ref_text_node_id": "23",
+            "save_audio_node_id": "52"
+        },
+    },
+    # 音频生成工作流（带参考音频的语音克隆）
+    {
+        "filename": "Qwen3-TTS-Voice-Design.json",
+        "type": "audio",
+        "name": "系统默认-音频生成",
+        "nameKey": f"{NAME_KEY_PREFIX}.系统默认-音频生成",
+        "description": "基于参考音频生成语音，支持情感提示词控制",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.基于参考音频生成语音，支持情感提示词控制",
+        "node_mapping": {
+            "reference_audio_node_id": "19",
+            "text_node_id": "31",
+            "emotion_prompt_node_id": "31",
+            "save_audio_node_id": "56"
+        },
     },
 ]
 

@@ -14,6 +14,7 @@ from app.repositories import WorkflowRepository
 from app.constants.workflow import (
     WORKFLOW_TYPES,
     DEFAULT_WORKFLOWS,
+    DEFAULT_WORKFLOW_NODE_MAPPINGS,
     EXTRA_SYSTEM_WORKFLOWS,
     get_workflow_i18n_keys,
 )
@@ -74,12 +75,20 @@ class WorkflowService:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     workflow_json = f.read()
 
+                # 获取该类型的默认节点映射
+                node_mapping = DEFAULT_WORKFLOW_NODE_MAPPINGS.get(wf_type)
+
                 # 如果已存在，检查内容是否有变化，有则更新
                 if existing:
                     if existing.workflow_json != workflow_json:
                         existing.workflow_json = workflow_json
                         self.db.commit()
                         print(f"[Workflow] Updated default workflow: {wf_type}")
+
+                    # 更新节点映射（如果配置中有且未设置）
+                    if node_mapping and not existing.node_mapping:
+                        existing.node_mapping = json.dumps(node_mapping, ensure_ascii=False)
+                        print(f"[Workflow] Updated node mapping for default: {wf_type}")
                     continue
 
                 # 根据类型设置描述
@@ -92,7 +101,8 @@ class WorkflowService:
                     workflow_json=workflow_json,
                     is_system=True,
                     is_active=True,
-                    file_path=file_path
+                    file_path=file_path,
+                    node_mapping=json.dumps(node_mapping, ensure_ascii=False) if node_mapping else None
                 )
                 self.db.add(workflow)
 

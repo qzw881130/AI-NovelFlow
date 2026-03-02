@@ -102,6 +102,7 @@ export default {
       video: 'Shot Video Generation',
       transition: 'Transition Video Generation',
       prop: 'Prop Generation',
+      voiceDesign: 'Voice Design',
       // Upload Modal
       type: 'Workflow Type',
       name: 'Workflow Name',
@@ -162,6 +163,7 @@ export default {
       referenceImageNodeTip: 'Select LoadImage node for loading reference images (shot images)',
       characterReferenceNode: 'Character Reference Node',
       sceneReferenceNode: 'Scene Reference Node',
+      referenceImageNodeDisconnectTip: 'Tip: During workflow execution, reference image nodes without uploaded images will be dynamically disconnected',
       frameCountNode: 'Frame Count Node',
       frameCountNodeTip: 'Select easy int node for setting video total frames (value should be multiple of 8 + 1)',
       firstImageNode: 'First Frame Node (LoadImage - First IMG)',
@@ -174,6 +176,15 @@ export default {
       nodeMapping: 'Node Mapping Configuration',
       customReferenceImageNodes: 'Custom Reference Image Nodes',
       nodeTypeHint: 'Required node type',
+      // Voice design nodes
+      voicePromptNode: 'Voice Prompt Node',
+      refTextNode: 'Reference Text Node',
+      saveAudioNode: 'Save Audio Node',
+      // Audio generation nodes
+      audio: 'Audio Generation',
+      referenceAudioNode: 'Reference Audio Node',
+      textNode: 'Text Generation Node',
+      emotionPromptNode: 'Emotion Prompt Node',
     },
   },
 

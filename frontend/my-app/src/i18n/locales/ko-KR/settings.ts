@@ -88,6 +88,7 @@ export default {
       video: '샷 비디오 생성',
       transition: '전환 비디오 생성',
       prop: '소품 생성',
+      voiceDesign: '음성 디자인',
       type: '워크플로우 타입',
       name: '워크플로우 이름',
       file: '워크플로우 파일',
@@ -144,6 +145,7 @@ export default {
       referenceImageNodeTip: '참조 이미지(샷 이미지) 로드용 LoadImage 노드 선택',
       characterReferenceNode: '캐릭터 참조 노드',
       sceneReferenceNode: '장면 참조 노드',
+      referenceImageNodeDisconnectTip: '팁: 워크플로우 실행 시, 이미지가 업로드되지 않은 참조 이미지 노드는 동적으로 연결이 해제됩니다',
       frameCountNode: '프레임 수 노드',
       frameCountNodeTip: '비디오 총 프레임 수 설정용 easy int 노드 선택 (값은 8의 배수+1)',
       firstImageNode: '첫 번째 프레임 노드 (LoadImage - First IMG)',
@@ -155,6 +157,15 @@ export default {
       nodeMapping: '노드 매핑 설정',
       customReferenceImageNodes: '사용자 정의 참조 이미지 노드',
       nodeTypeHint: '필요한 노드 타입',
+      // 음성 디자인 노드
+      voicePromptNode: '음색 프롬프트 노드',
+      refTextNode: '참조 텍스트 노드',
+      saveAudioNode: '오디오 저장 노드',
+      // 오디오 생성 노드
+      audio: '오디오 생성',
+      referenceAudioNode: '참조 오디오 노드',
+      textNode: '텍스트 생성 노드',
+      emotionPromptNode: '감정 프롬프트 노드',
     },
   },
 

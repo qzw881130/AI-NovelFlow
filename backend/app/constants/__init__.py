@@ -4,6 +4,7 @@
 from app.constants.workflow import (
     WORKFLOW_TYPES,
     DEFAULT_WORKFLOWS,
+    DEFAULT_WORKFLOW_NODE_MAPPINGS,
     EXTRA_SYSTEM_WORKFLOWS,
     # 辅助函数
     get_workflow_name_key,
@@ -81,6 +82,7 @@ __all__ = [
     # Workflow
     "WORKFLOW_TYPES",
     "DEFAULT_WORKFLOWS",
+    "DEFAULT_WORKFLOW_NODE_MAPPINGS",
     "EXTRA_SYSTEM_WORKFLOWS",
     "get_workflow_name_key",
     "get_workflow_desc_key",

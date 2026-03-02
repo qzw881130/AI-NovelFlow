@@ -171,7 +171,7 @@ export default function Scenes() {
     e.preventDefault();
     try {
       const data = await sceneApi.create({
-        novel_id: formData.novelId,
+        novelId: formData.novelId,
         name: formData.name,
         description: formData.description,
         setting: formData.setting,

@@ -96,6 +96,7 @@ export default {
       video: 'ショット動画生成',
       transition: 'トランジション動画生成',
       prop: 'プロップ生成',
+      voiceDesign: '音色デザイン',
       type: 'ワークフロータイプ',
       name: 'ワークフロー名',
       file: 'ワークフローファイル',
@@ -152,6 +153,7 @@ export default {
       referenceImageNodeTip: '参照画像（ショット画像）読み込み用のLoadImageノードを選択',
       characterReferenceNode: 'キャラクター参照ノード',
       sceneReferenceNode: 'シーン参照ノード',
+      referenceImageNodeDisconnectTip: 'ヒント：ワークフロー実行時、画像がアップロードされていない参照画像ノードは動的に切断されます',
       frameCountNode: 'フレーム数ノード',
       frameCountNodeTip: '動画総フレーム数設定用のeasy intノードを選択（値は8の倍数+1）',
       firstImageNode: '先頭フレームノード（LoadImage - First IMG）',
@@ -163,6 +165,15 @@ export default {
       nodeMapping: 'ノードマッピング設定',
       customReferenceImageNodes: 'カスタム参照画像ノード',
       nodeTypeHint: '必要なノードタイプ',
+      // 音色デザインノード
+      voicePromptNode: '音色プロンプトノード',
+      refTextNode: '参照テキストノード',
+      saveAudioNode: '音声保存ノード',
+      // 音声生成ノード
+      audio: '音声生成',
+      referenceAudioNode: '参照音声ノード',
+      textNode: 'テキスト生成ノード',
+      emotionPromptNode: '感情プロンプトノード',
     },
   },
 

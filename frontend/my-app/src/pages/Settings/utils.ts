@@ -89,7 +89,9 @@ export const getTypeNames = (t: any) => ({
   shot: t('systemSettings.workflow.shot'),
   video: t('systemSettings.workflow.video'),
   transition: t('systemSettings.workflow.transition'),
-  prop: t('systemSettings.workflow.prop')
+  prop: t('systemSettings.workflow.prop'),
+  voice_design: t('systemSettings.workflow.voiceDesign'),
+  audio: t('systemSettings.workflow.audio')
 });
 
 /**
@@ -117,9 +119,9 @@ export const getWorkflowDisplayDescription = (workflow: any, t: any): string => 
  */
 export const checkWorkflowMappingComplete = (workflow: any): boolean => {
   if (!workflow.nodeMapping) return false;
-  
+
   const mapping = workflow.nodeMapping;
-  
+
   switch (workflow.type) {
     case 'character':
     case 'scene':
@@ -174,6 +176,28 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
         transitionMapping.video_save_node_id !== 'auto' &&
         transitionMapping.frame_count_node_id &&
         transitionMapping.frame_count_node_id !== 'auto'
+      );
+    case 'voice_design':
+      const voiceMapping = mapping as any;
+      return !!(
+        voiceMapping.voice_prompt_node_id &&
+        voiceMapping.voice_prompt_node_id !== 'auto' &&
+        voiceMapping.ref_text_node_id &&
+        voiceMapping.ref_text_node_id !== 'auto' &&
+        voiceMapping.save_audio_node_id &&
+        voiceMapping.save_audio_node_id !== 'auto'
+      );
+    case 'audio':
+      const audioMapping = mapping as any;
+      return !!(
+        audioMapping.reference_audio_node_id &&
+        audioMapping.reference_audio_node_id !== 'auto' &&
+        audioMapping.text_node_id &&
+        audioMapping.text_node_id !== 'auto' &&
+        audioMapping.emotion_prompt_node_id &&
+        audioMapping.emotion_prompt_node_id !== 'auto' &&
+        audioMapping.save_audio_node_id &&
+        audioMapping.save_audio_node_id !== 'auto'
       );
     default:
       return false;

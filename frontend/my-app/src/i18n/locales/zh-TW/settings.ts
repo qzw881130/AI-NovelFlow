@@ -7,8 +7,17 @@ export default {
     title: '系統組態',
     workflow: {
       ...zhCN.systemSettings.workflow,
+      voiceDesign: '音色設計',
       setDefaultSuccess: '已設為預設：{name}',
       setDefaultFailed: '設置預設工作流失敗',
+      voicePromptNode: '音色提示詞節點',
+      refTextNode: '參考音訊文字節點',
+      saveAudioNode: '儲存音訊節點',
+      // 音訊生成節點
+      audio: '音訊生成',
+      referenceAudioNode: '參考音訊節點',
+      textNode: '生成文字節點',
+      emotionPromptNode: '情感提示詞節點',
     },
     subtitle: '組態 LLM、代理和 ComfyUI 設定',
     llmConfig: 'LLM 組態',

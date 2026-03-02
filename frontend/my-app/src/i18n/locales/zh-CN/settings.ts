@@ -102,6 +102,7 @@ export default {
       video: '分镜生视频',
       transition: '分镜生转场视频',
       prop: '道具生成',
+      voiceDesign: '音色设计',
       // 上传弹窗
       type: '工作流类型',
       name: '工作流名称',
@@ -162,6 +163,7 @@ export default {
       referenceImageNodeTip: '选择用于加载参考图片（分镜图）的 LoadImage 节点',
       characterReferenceNode: '角色参考图节点',
       sceneReferenceNode: '场景参考图节点',
+      referenceImageNodeDisconnectTip: '提示：在工作流执行时，未上传图片的参考图节点会动态断开连接',
       frameCountNode: '总帧数节点',
       frameCountNodeTip: '选择用于设置视频总帧数的 easy int 节点（值应为 8 的倍数 + 1）',
       firstImageNode: '首帧图节点 (LoadImage - First IMG)',
@@ -174,6 +176,15 @@ export default {
       nodeMapping: '节点映射配置',
       customReferenceImageNodes: '自定义参考图节点',
       nodeTypeHint: '需要节点类型',
+      // 音色设计节点
+      voicePromptNode: '音色提示词节点',
+      refTextNode: '参考音频文本节点',
+      saveAudioNode: '保存音频节点',
+      // 音频生成节点
+      audio: '音频生成',
+      referenceAudioNode: '参考音频节点',
+      textNode: '生成文本节点',
+      emotionPromptNode: '情感提示词节点',
     },
   },
 

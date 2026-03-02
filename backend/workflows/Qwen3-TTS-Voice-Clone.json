@@ -1,0 +1,59 @@
+{
+  "12": {
+    "inputs": {
+      "purge_cache": true,
+      "purge_models": true,
+      "anything": [
+        "23",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: PurgeVRAM V2",
+    "_meta": {
+      "title": "图层工具：清除VRAM V2"
+    }
+  },
+  "22": {
+    "inputs": {
+      "model_path": "Qwen/Qwen3-TTS-12Hz-1.7B-VoiceDesign",
+      "precision": "bf16",
+      "device": "cuda",
+      "attn_implementation": "sdpa",
+      "auto_download": false,
+      "download_source": "ModelScope"
+    },
+    "class_type": "TDQwen3TTSModelLoader",
+    "_meta": {
+      "title": "TD Qwen3 TTS Model Loader"
+    }
+  },
+  "23": {
+    "inputs": {
+      "text": "大家好，我是vae，这是我即将发表的首张独创专辑自定义里面的一首推荐曲目，词曲编曲都是我自己，希望这首歌能在这个寒冷的冬天带给大家一种温暖的感觉",
+      "instruct": "萝莉音",
+      "language": "Chinese",
+      "model": [
+        "22",
+        0
+      ]
+    },
+    "class_type": "TDQwen3TTSVoiceDesign",
+    "_meta": {
+      "title": "TD Qwen3 TTS Voice Design"
+    }
+  },
+  "52": {
+    "inputs": {
+      "filename_prefix": "audio/ComfyUI",
+      "audioUI": "/api/view?filename=ComfyUI_00005_.flac&type=output&subfolder=audio&rand=0.7613566516684223",
+      "audio": [
+        "23",
+        0
+      ]
+    },
+    "class_type": "SaveAudio",
+    "_meta": {
+      "title": "保存音频"
+    }
+  }
+}

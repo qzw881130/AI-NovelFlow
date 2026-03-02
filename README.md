@@ -378,6 +378,7 @@ npm run dev
 | **ReservedVRAM** | [Windecay/ComfyUI-ReservedVRAM](https://github.com/Windecay/ComfyUI-ReservedVRAM) | `ReservedVRAMSetter` |
 | **Qwen3-VL-Instruct / Qwen3_VQA** | [luvenisSapiens/ComfyUI_Qwen3-VL-Instruct](https://github.com/luvenisSapiens/ComfyUI_Qwen3-VL-Instruct) | `Qwen3_VQA` |
 | **Comfyui-zhenzhen** | [T8mars/Comfyui-zhenzhen](https://github.com/T8mars/Comfyui-zhenzhen) | `Zhenzhen_nano_banana`, `Zhenzhen API Settings` |
+| **TDQwen3TTS** | [AICoderTudou/ComfyUI-TD-Qwen3TTS](https://github.com/AICoderTudou/ComfyUI-TD-Qwen3TTS) | `TDQwen3TTSModelLoader`, `TDQwen3TTSCustomVoice`, `TDQwen3TTSVoiceDesign`, `TDQwen3TTSVoiceClone` |
 
 ### 3. Windows GPU 监控（可选）
 
