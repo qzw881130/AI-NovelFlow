@@ -2,18 +2,6 @@ import enUS from '../en-US/misc';
 
 // HTTP status and other translations - Japanese
 export default {
-  status: {
-    pending: '保留中',
-    processing: '処理中',
-    completed: '完了',
-    failed: '失敗',
-    parsing: '解析中',
-    generatingCharacters: 'キャラクター生成中',
-    generatingShots: 'ショット生成中',
-    generatingVideos: '動画生成中',
-    compositing: '合成中',
-  },
-
   http: {
     ...enUS.http,
     400: 'リクエストパラメータエラー',

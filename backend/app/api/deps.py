@@ -3,6 +3,7 @@ API 依赖注入模块
 
 集中管理所有 Repository 和 Service 的依赖注入函数，避免在各 API 文件中重复定义。
 """
+
 from typing import Generator
 from fastapi import Depends
 from sqlalchemy.orm import Session
@@ -17,12 +18,14 @@ from app.repositories import (
     TaskRepository,
     WorkflowRepository,
     PromptTemplateRepository,
+    ShotRepository,
 )
 from app.services.llm_service import LLMService
 from app.services.comfyui import ComfyUIService
 
 
 # ==================== Repository 依赖 ====================
+
 
 def get_novel_repo(db: Session = Depends(get_db)) -> NovelRepository:
     """获取小说 Repository"""
@@ -64,7 +67,13 @@ def get_prompt_template_repo(db: Session = Depends(get_db)) -> PromptTemplateRep
     return PromptTemplateRepository(db)
 
 
+def get_shot_repo(db: Session = Depends(get_db)) -> ShotRepository:
+    """获取分镜 Repository"""
+    return ShotRepository(db)
+
+
 # ==================== Service 依赖 ====================
+
 
 def get_llm_service() -> LLMService:
     """获取 LLM 服务（每次调用创建新实例以获取最新配置）"""

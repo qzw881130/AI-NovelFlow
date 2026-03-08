@@ -14,6 +14,7 @@ from app.models.task import Task
 from app.models.workflow import Workflow
 from app.repositories import TaskRepository
 from app.repositories.character_repository import CharacterRepository
+from app.repositories.shot_repository import ShotRepository
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 
@@ -56,9 +57,9 @@ class ShotAudioService:
         warnings = []
 
         for dialogue in dialogues:
-            character_name = dialogue.get("character_name")
-            text = dialogue.get("text", "")
-            emotion_prompt = dialogue.get("emotion_prompt", "自然")
+            character_name = dialogue.character_name
+            text = dialogue.text
+            emotion_prompt = dialogue.emotion_prompt or "自然"
 
             if not character_name or not text:
                 warnings.append({
@@ -169,11 +170,21 @@ class ShotAudioService:
         all_warnings = []
 
         for shot_index, shot in enumerate(shots, start=1):
-            dialogues = shot.get("dialogues", [])
-            if not dialogues:
+            # 解析 dialogues JSON 字符串
+            dialogues_data = shot.dialogues
+            if isinstance(dialogues_data, str):
+                try:
+                    dialogues_data = json.loads(shot.dialogues)
+                except Exception:
+                    all_warnings.append({
+                        "shot_index": shot_index,
+                        "reason": f"分镜 {shot_index} 的 dialogues 字段格式无效"
+                    })
+                    continue
+            if not dialogues_data:
                 continue
 
-            for dialogue in dialogues:
+            for dialogue in dialogues_data:
                 character_name = dialogue.get("character_name")
                 text = dialogue.get("text", "")
                 emotion_prompt = dialogue.get("emotion_prompt", "自然")
@@ -527,19 +538,18 @@ class ShotAudioService:
             audio_source: 音频来源（ai_generated 或 uploaded）
         """
         try:
-            chapter = chapter_repo.get_by_id(chapter_id, novel_id)
-            if not chapter:
+            # 使用 ShotRepository 更新 Shot 记录
+            shot_repo = ShotRepository(db)
+            shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+
+            if not shot:
+                print(f"[AudioTask] Shot not found: chapter_id={chapter_id}, index={shot_index}")
                 return
 
-            parsed_data = json.loads(chapter.parsed_data) if isinstance(chapter.parsed_data, str) else chapter.parsed_data
-            shots = parsed_data.get("shots", [])
+            # 解析现有 dialogues
+            dialogues = json.loads(shot.dialogues) if shot.dialogues else []
 
-            if shot_index < 1 or shot_index > len(shots):
-                return
-
-            shot = shots[shot_index - 1]
-            dialogues = shot.get("dialogues", [])
-
+            # 更新对应角色的音频信息
             for dialogue in dialogues:
                 if dialogue.get("character_name") == character_name:
                     dialogue["audio_url"] = audio_url
@@ -547,8 +557,8 @@ class ShotAudioService:
                     dialogue["audio_source"] = audio_source
                     break
 
-            chapter.parsed_data = json.dumps(parsed_data, ensure_ascii=False)
-            db.commit()
+            # 更新 Shot 记录
+            shot_repo.update(shot, dialogues=dialogues)
             print(f"[AudioTask] Updated audio_url for shot {shot_index}, character {character_name}, source: {audio_source}")
 
         except Exception as e:

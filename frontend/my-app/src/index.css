@@ -50,6 +50,7 @@
 /* 自定义滚动条 */
 .scrollbar-thin::-webkit-scrollbar {
   width: 4px;
+  height: 8px;
 }
 
 .scrollbar-thin::-webkit-scrollbar-track {
@@ -64,4 +65,30 @@
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+/* 底部导航条滚动条 - 更明显 */
+.bottom-nav-scroll {
+  overflow-x: scroll !important;
+}
+
+.bottom-nav-scroll::-webkit-scrollbar {
+  height: 14px;
+}
+
+.bottom-nav-scroll::-webkit-scrollbar-track {
+  background: #d1d5db;
+  border-radius: 8px;
+  margin: 0 8px;
+}
+
+.bottom-nav-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #9ca3af, #6b7280);
+  border-radius: 8px;
+  border: 2px solid #d1d5db;
+  min-width: 40px;
+}
+
+.bottom-nav-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #6b7280, #4b5563);
 }

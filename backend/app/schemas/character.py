@@ -6,7 +6,7 @@ from datetime import datetime
 
 class CharacterBase(BaseModel):
     """角色基础字段"""
-    novel_id: str = Field(..., description="关联的小说ID")
+    novel_id: str = Field(..., alias="novelId", description="关联的小说 ID")
     name: str = Field(..., description="角色名称")
     description: Optional[str] = Field("", description="角色描述")
     appearance: Optional[str] = Field("", description="外貌描述")
@@ -15,7 +15,7 @@ class CharacterBase(BaseModel):
 
 class CharacterCreate(CharacterBase):
     """创建角色请求"""
-    pass
+    model_config = {"populate_by_name": True}
 
 
 class CharacterUpdate(BaseModel):

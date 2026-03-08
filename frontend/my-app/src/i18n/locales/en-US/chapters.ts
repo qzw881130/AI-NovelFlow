@@ -59,6 +59,7 @@ export default {
     noNewProps: 'No new props found',
     viewProps: 'View Props',
     characterImageAlt: 'Character Image {index}',
+    shotImage: 'Shot Image',
     shotImages: 'Shot Images',
     shotImageAlt: 'Shot Image {index}',
     shotVideos: 'Shot Videos',
@@ -67,6 +68,7 @@ export default {
     imagePreview: 'Image Preview',
     keyboardNavigation: 'Use ← → to navigate',
     shotId: 'Shot ID',
+    noShotSelected: 'No shot selected',
     scene: 'Scene',
     characters: 'Characters',
     duration: 'Duration',
@@ -99,7 +101,17 @@ export default {
     default: 'Default',
     reset: 'Reset',
     dualReferenceWorkflowNotActive: 'Dual reference workflow not selected. Scene images are temporarily unavailable.',
-    
+
+    // Tab labels
+    tabPrepare: 'Content Preparation',
+    tabResources: 'Resources',
+    tabShots: 'Shot Production',
+    tabCompose: 'Compose & Export',
+    tabShotSplit: 'Shot Split',
+    tabShotImage: 'Shot Image Generation',
+    tabAudioGen: 'Audio Generation',
+    tabVideoGen: 'Video Generation',
+
     // Steps
     stepContent: 'Original Content',
     stepAiParse: 'AI Shot Splitting',
@@ -109,7 +121,7 @@ export default {
     stepVideos: 'Generate Shot Videos',
     stepTransitions: 'Generate Transition Videos',
     stepCompose: 'Merge Videos',
-    
+
     // Download Materials
     chapterMaterials: 'Chapter Materials',
     downloadMaterialsDesc: 'Download all materials for this chapter:',
@@ -127,7 +139,7 @@ export default {
     materialsNotExist: 'Materials do not exist',
     downloadFailed: 'Download failed',
     materialsDownloadSuccess: 'Materials downloaded successfully',
-    
+
     // JSON Editor
     jsonFormatError: 'JSON format error, please check text mode',
     checkJsonMode: 'Please switch to JSON text mode to check',
@@ -153,14 +165,15 @@ export default {
     charactersLabel: 'Characters',
     noShotData: 'No shot data',
     shotId: 'Shot{id} / Total{total}',
-    prevShot: 'Previous Shot',
-    nextShot: 'Next Shot',
-    
+
     // Character and Scene library selection
     selectCharacterFromLibrary: 'Select from character library...',
     selectSceneFromLibrary: 'Select from scene library...',
     selectCharacterFromChapter: 'Select from chapter character list...',
     selectSceneFromChapter: 'Select from chapter scene list...',
+    selectCharacter: 'Select Character',
+    selectScene: 'Select Scene',
+    selectProp: 'Select Prop',
     noCharactersInLibrary: 'No characters in library, please parse or add characters first',
     noScenesInLibrary: 'No scenes in library, please parse or add scenes first',
     allCharactersAdded: 'All characters from library have been added',
@@ -168,9 +181,10 @@ export default {
     removeCharacter: 'Remove Character',
     removeScene: 'Remove Scene',
     orAddCustom: 'Or enter manually',
-    
+
     // Props
     props: 'Props',
+    addProp: 'Add Prop',
     selectPropFromChapter: 'Select from chapter prop list...',
     selectPropFromLibrary: 'Select from prop library...',
     removeProp: 'Remove Prop',
@@ -188,7 +202,6 @@ export default {
     dialogues: 'Dialogues',
     addDialogue: 'Add Dialogue',
     addDialogueDisabledHint: 'Please add characters first',
-    selectCharacter: 'Select Character',
     deleteDialogue: 'Delete Dialogue',
     dialogueTextPlaceholder: 'Enter dialogue text...',
     emotionPrompt: 'Emotion',
@@ -197,6 +210,8 @@ export default {
 
     // Audio Generation
     generateAudio: 'Generate Audio',
+    playingVoice: 'Playing',
+    uploading: 'Uploading',
     generateAllAudio: 'Batch Generate Audio',
     generatingAudio: 'Generating audio...',
     audioTaskCreated: 'Audio generation task created',
@@ -209,6 +224,56 @@ export default {
     audioWarnings: 'Skipped {count} dialogues',
     playAudio: 'Play',
     regenerateAudio: 'Regenerate',
+    previewVoice: 'Preview Voice',
+    addToCurrentShot: 'Add to current shot',
+    audioGenerated: 'Audio generated',
+    removeFromShot: 'Remove from shot',
+    pleaseEnterDialogue: 'Please enter dialogue text',
+    selectCharacterToEdit: 'Please select a character from the left to edit',
+    dialogueText: 'Dialogue Text',
+    emotionPromptExample: 'e.g., gentle, angry, sad...',
+    audio: 'Audio',
+    uploadFromLocal: 'Upload from local',
+    chapterCharacters: 'Chapter Characters',
+    clickToAddToShot: 'Click to add to shot',
+    noCharactersInChapter: 'No characters in this chapter',
+    shotCharacters: 'Shot Characters',
+    shotNumber: 'Shot {number}',
+    noCharactersInCurrentShot: 'No characters in current shot',
+    selectShotsForAudio: 'Select shots for audio generation',
+    selectShotsHint: 'Click shots to select, will batch generate audio for all characters in selected shots',
+    selectedShotsWithDialogue: 'Selected {selected} / {total} shots with dialogue',
+    characterCount: '{count} characters',
+    hasAudio: 'Has audio',
+    noDialogue: 'No dialogue',
+    generateAudioForShots: 'Generate audio for {count} shots',
+    batchShotImageGenerateFailed: 'Batch shot image generation failed',
+    shotDataNotExist: 'Shot data does not exist',
+    // Chapter Resource Management
+    chapterResourceManagement: 'Chapter Resource Management',
+    selectedCharacters: 'Selected Characters ({count})',
+    noCharacters: 'No characters',
+    clickToClose: 'Click to close',
+    searchCharacters: 'Search characters...',
+    noMatchingCharacters: 'No matching characters',
+    selectedScenes: 'Selected Scenes ({count})',
+    noScenes: 'No scenes',
+    searchScenes: 'Search scenes...',
+    noMatchingScenes: 'No matching scenes',
+    selectedProps: 'Selected Props ({count})',
+    noProps: 'No props',
+    searchProps: 'Search props...',
+    noMatchingProps: 'No matching props',
+    // Shot Actions
+    newShotDescription: 'New Shot',
+    insertedShotDescription: 'Inserted Shot',
+    shotsSaved: 'Shots saved successfully, updated {count} shots',
+    shotCount: '{count} Shots',
+    addShotFailed: 'Add shot failed',
+    insertShotFailed: 'Insert shot failed',
+    deleteShotFailed: 'Delete shot failed',
+    exportFailed: 'Export failed',
+    shotNumberLabel: 'Shot {number}',
     // Audio Upload
     uploadAudio: 'Upload Audio',
     uploadReplaceAudio: 'Upload & Replace',
@@ -235,7 +300,21 @@ export default {
     noVideosToMerge: 'No videos to merge',
     mergeSuccess: 'Video merge successful',
     mergeFailed: 'Merge failed',
-    
+    mergingVideo: 'Generating video...',
+    clickToGenerateVideo: 'Click "Generate Current Shot" button to generate video',
+    generateCurrentShot: 'Generate Current Shot',
+    batchGenerate: 'Batch Generate',
+    saveShot: 'Save Shot',
+    exportVideo: 'Export Video',
+    videoPreview: 'Video Preview',
+    generatingVideo: 'Generating video...',
+    generateTransition: 'Generate Transition',
+    videoGenerateFailed: 'Video generation failed',
+    batchVideoGenerateFailed: 'Batch video generation failed',
+    transitionGenerateFailed: 'Transition generation failed',
+    videoMergeFailed: 'Video merge failed',
+    videoExportFailed: 'Video export failed',
+
     // Character Images
     noCharactersInShot: 'No characters in current shot',
     characterImagesNotGenerated: 'Character images not generated',
@@ -247,7 +326,8 @@ export default {
     generateMergedImageFirst: 'Please generate merged character image first',
     mergedCharacterImageTitle: 'Merged Character Image',
     characterImage: 'Character Image',
-    
+    noMergedCharacterImage: 'No merged character image in current shot',
+
     // Scene Images
     aiGenerateScene: 'AI Generate Scene Image',
     noSceneImages: 'No scene images',
@@ -281,7 +361,18 @@ export default {
     uploadFailed: 'Image upload failed',
     selectImage: 'Select Image',
     orUploadLocal: 'Or upload from local',
-    
+    unsupportedImageType: 'Unsupported file type, only PNG, JPG, WEBP are supported',
+    uploadFailedRetry: 'Upload failed, please retry',
+    uploadImageFromLocal: 'Upload image from local',
+    generatingShotImage: 'Generating shot image...',
+    clickToGenerateShotImage: 'Click "Generate Current Shot" button to generate image',
+    orUploadHint: 'Or click "Upload Image" in the top right corner to upload from local',
+    selectShotsToGenerate: 'Select shots to generate',
+    selectShotsRegenerateHint: 'Click shots to select, generated shots can also be regenerated',
+    selectedShots: 'Selected {selected} / {total} shots',
+    pending: 'Pending',
+    generateShots: 'Generate {count} shots',
+
     // Shot Videos
     noShotsToGenerateVideo: 'No shots to generate videos',
     noShotsWithImages: 'No shots with images to generate videos (ensure shot images are generated)',
@@ -301,7 +392,7 @@ export default {
     generateShotVideo: 'Generate Shot Video',
     noVideo: 'No video',
     noVideos: 'No videos',
-    
+
     // Transition Videos
     notEnoughShots: 'Not enough shots to generate transitions',
     transitionVideoStarted: 'Transition video Shot{from}→Shot{to} started generating',
@@ -312,6 +403,11 @@ export default {
     shotVideosTitle: 'Shot Videos',
     backToShotVideos: 'Back to Shot Videos',
     transitionConfig: 'Transition Config',
+    transitionWorkflow: 'Transition Workflow',
+    selectTransitionWorkflow: 'Select transition workflow',
+    transitionBetweenShots: 'Shot{from} → Shot{to}',
+    shotThumbnail: 'Shot Thumbnail',
+    noShotImage: 'No shot image',
     customEnabled: 'Custom enabled',
     collapseConfig: 'Collapse Config',
     expandConfig: 'Expand Config',
@@ -323,7 +419,7 @@ export default {
     regenerateTransition: 'Regenerate transition video',
     generateTransitionVideo: 'Generate Transition Video',
     generateVideoFirst: 'Please generate video first',
-    
+
     // Content Area
     originalContent: 'Original Content',
     expandFullText: 'Expand Full Text',
@@ -332,7 +428,11 @@ export default {
     splitSuccess: 'Split successful',
     splitFailed: 'Split failed',
     splitFailedCheckNetwork: 'Split failed, please check network connection',
-    
+    videoList: 'Video List',
+    selectStage: 'Please select a stage',
+    manageChapterResources: 'Manage characters, scenes, and props used in this chapter',
+    chapterResources: 'Chapter Resources',
+
     // Scene Validation
     sceneValidation: {
       warning: 'Inconsistent scene names detected, recommend re-running AI shot splitting',
@@ -341,7 +441,7 @@ export default {
       invalidScenesDetail: 'Shot {shotId}: "{sceneName}"',
       fixSuggestion: 'Please modify shot scenes or add corresponding scenes to scene library first',
     },
-    
+
     // JSON Editing
     jsonText: 'JSON Text',
     tableEdit: 'Table Edit',
@@ -351,7 +451,7 @@ export default {
     saveSuccess: 'Save successful',
     saveFailed: 'Save failed',
     saveFailedCheckNetwork: 'Save failed, please check network connection',
-    
+
     // Tab Content
     characterList: 'Character List',
     sceneList: 'Scene List',
@@ -359,14 +459,14 @@ export default {
     noCharacterData: 'No character data, please use AI shot splitting first',
     noSceneData: 'No scene data, please use AI shot splitting first',
     noShotDataYet: 'No shot data, please use AI shot splitting first',
-    
+
     // Image Preview
     shotPreview: 'Shot Preview',
     downloadImage: 'Download Image',
     previous: 'Previous',
     next: 'Next',
     keyboardNavigate: 'Use arrow keys to navigate',
-    
+
     // Confirm Dialog
     confirmResplit: 'Confirm re-split shots?',
     resplitWarning: 'This chapter has generated content, re-splitting will clear the following data:',
@@ -375,5 +475,74 @@ export default {
     generatedShotImages: 'Generated Shot Images',
     generatedShotVideos: 'Generated Shot Videos',
     generatedTransitionVideos: 'Generated Transition Videos',
+
+    // Shot Split
+    aiSplit: '✨ AI Split',
+    aiSplitSuccess: 'AI split successful',
+    aiSplitFailed: 'AI split failed: {message}',
+    aiSplitFailedRetry: 'AI split failed, please retry',
+    splitting: 'Splitting...',
+    adding: 'Adding...',
+    saveShots: 'Save Shots',
+    exporting: 'Exporting...',
+    exportShots: '📥 Export Shots',
+    importing: 'Importing...',
+    importShots: '📤 Import Shots',
+    totalShots: 'Total {count} shots',
+    insertShotBefore: 'Insert shot before',
+    clickAiSplitHint: 'Click "AI Split" button to start shot splitting',
+    selectShotToEdit: 'Please select a shot to edit',
+    confirmImportShots: 'Confirm import shot data?',
+    importOverwriteWarning: '⚠️ Importing shot data will overwrite all shot data in this chapter, confirm to continue?',
+    confirmImport: 'Confirm Import',
+    confirmDeleteShot: 'Confirm delete shot?',
+    aboutToDelete: 'About to delete',
+    deleteCannotUndo: '⚠️ Cannot undo after deletion, confirm to continue?',
+    deleting: 'Deleting...',
+    confirmDelete: 'Confirm Delete',
+    appearingCharacters: 'Appearing Characters',
+    shotSaveSuccess: 'Shot saved successfully',
+    shotSaveFailed: 'Shot save failed: {message}',
+    chapterResourceSaved: 'Chapter resources saved successfully',
+    saveFailedRetry: 'Save failed, please retry',
+    newShot: 'New Shot',
+    shotAdded: 'Shot added successfully',
+    shotAddFailed: 'Add shot failed: {message}',
+    shotAddFailedRetry: 'Add shot failed, please retry',
+    insertShot: 'Insert Shot',
+    shotInserted: 'Shot inserted successfully',
+    shotInsertFailed: 'Insert shot failed: {message}',
+    shotInsertFailedRetry: 'Insert shot failed, please retry',
+    shotDeleted: 'Shot deleted successfully',
+    shotDeleteFailed: 'Delete shot failed: {message}',
+    shotDeleteFailedRetry: 'Delete shot failed, please retry',
+    noShotsToExport: 'No shot data to export',
+    shotData_: 'ShotData_',
+    shotDataExported: 'Shot data exported successfully',
+    exportFailedRetry: 'Export failed, please retry',
+    invalidJsonFormat: 'Invalid JSON format: missing shots array',
+    shotDataImported: 'Shot data imported successfully',
+    importFailedJsonError: 'Import failed: JSON format error - {message}',
+    importFailed: 'Import failed: {message}',
+    charactersColon: 'Characters:',
+    dialoguesColon: 'Dialogues:',
+    sceneColon: 'Scene:',
+    propsColon: 'Props:',
+
+    // Bottom Navigation
+    noShots: 'No shots',
+    selectedCount: 'Selected {count}',
+    previousShot: 'Previous Shot',
+    nextShot: 'Next Shot',
+    collapseNavbar: 'Collapse navigation',
+    navbarCollapsed: 'Navigation collapsed',
+    expandNavbar: 'Expand navigation',
+
+    // Resource Panel
+    shotResources: 'Shot Resources',
+    noResourcesInShot: 'No resources configured in current shot',
+    goToCharacterLibrary: 'Go to character library to regenerate',
+    goToSceneLibrary: 'Go to scene library to regenerate',
+    goToPropLibrary: 'Go to prop library to regenerate',
   },
 };

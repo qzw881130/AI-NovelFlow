@@ -1,4 +1,4 @@
-import { CheckCircle, Users } from 'lucide-react';
+import { CheckCircle, Users, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { ParsedData } from '../types';
@@ -12,6 +12,7 @@ interface CharacterImagesProps {
   onRegenerateCharacter: (name: string) => void;
   aspectStyle: React.CSSProperties;
   activeShotWorkflow?: any;
+  onImageClick?: (url: string) => void;
 }
 
 /**
@@ -26,6 +27,7 @@ export function CharacterImages({
   onRegenerateCharacter,
   aspectStyle,
   activeShotWorkflow,
+  onImageClick,
 }: CharacterImagesProps) {
   const { t } = useTranslation();
 
@@ -79,7 +81,20 @@ export function CharacterImages({
                   style={aspectStyle}
                 >
                   {imageUrl ? (
-                    <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                    <>
+                      <img src={imageUrl} alt={name} className="w-full h-full object-cover" />
+                      {/* 查看大图按钮 */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onImageClick?.(imageUrl);
+                        }}
+                        className="absolute top-2 right-2 p-1.5 bg-black/60 hover:bg-black/80 rounded-full text-white hover:text-blue-400 transition-all"
+                        title={t('common.viewLargeImage')}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    </>
                   ) : (
                     <Users className="h-10 w-10 text-white" />
                   )}

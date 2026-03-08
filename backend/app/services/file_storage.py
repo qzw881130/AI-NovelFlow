@@ -221,18 +221,28 @@ class FileStorageService:
         safe_name = self._sanitize_filename(prop_name)
         return save_dir / f"{safe_name}_{timestamp}.png"
     
-    def get_shot_image_path(self, novel_id: str, chapter_id: str, 
-                           shot_number: int) -> Path:
-        """获取分镜图片保存路径"""
+    def get_shot_image_path(self, novel_id: str, chapter_id: str,
+                           shot_number: int, shot_id: str = None) -> Path:
+        """获取分镜图片保存路径
+
+        Args:
+            novel_id: 小说 ID
+            chapter_id: 章节 ID
+            shot_number: 分镜序号（用于兼容旧文件）
+            shot_id: 分镜 ID（用于新文件命名）
+        """
         story_dir = self._get_story_dir(novel_id)
         chapter_short = chapter_id[:8] if chapter_id else "unknown"
         save_dir = story_dir / f"chapter_{chapter_short}" / "shots"
         save_dir.mkdir(parents=True, exist_ok=True)
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # 如果有 shot_id，使用 shot_id 命名文件（前 8 位）
+        if shot_id:
+            return save_dir / f"shot_{shot_id[:8]}_{timestamp}.png"
         return save_dir / f"shot_{shot_number:03d}_{timestamp}.png"
     
-    def delete_shot_image(self, novel_id: str, chapter_id: str, shot_number: int) -> bool:
+    def delete_shot_image(self, novel_id: str, chapter_id: str, shot_number: int, shot_id: str = None) -> bool:
         """
         删除指定分镜的旧图片文件
         
@@ -252,9 +262,12 @@ class FileStorageService:
             if not shots_dir.exists():
                 return True
             
-            # 查找该分镜的所有旧图片文件
-            import glob
-            pattern = f"shot_{shot_number:03d}_*.png"
+            # 删除该分镜的所有图片文件
+            # 如果有 shot_id，优先使用 shot_id 匹配；否则使用 shot_number 匹配
+            if shot_id:
+                pattern = f"shot_{shot_id[:8]}_*.png"
+            else:
+                pattern = f"shot_{shot_number:03d}_*.png"
             old_files = list(shots_dir.glob(pattern))
             
             deleted_count = 0
@@ -271,7 +284,52 @@ class FileStorageService:
         except Exception as e:
             print(f"[FileStorage] Failed to delete shot image: {e}")
             return False
-    
+
+    def rename_shot_image_file(self, novel_id: str, chapter_id: str,
+                               old_shot_number: int, new_shot_number: int) -> bool:
+        """
+        重命名分镜图片文件（用于分镜 index 变化时）
+
+        Args:
+            novel_id: 小说 ID
+            chapter_id: 章节 ID
+            old_shot_number: 原分镜序号
+            new_shot_number: 新分镜序号
+
+        Returns:
+            是否成功重命名
+        """
+        try:
+            story_dir = self._get_story_dir(novel_id)
+            chapter_short = chapter_id[:8] if chapter_id else "unknown"
+            shots_dir = story_dir / f"chapter_{chapter_short}" / "shots"
+
+            if not shots_dir.exists():
+                return True
+
+            # 查找该分镜的所有图片文件
+            pattern = f"shot_{old_shot_number:03d}_*.png"
+            old_files = list(shots_dir.glob(pattern))
+
+            renamed_count = 0
+            for old_file in old_files:
+                try:
+                    # 新文件名：替换 shot_XXX 部分
+                    # 格式：shot_001_20260305_112654.png -> shot_002_20260305_112654.png
+                    new_name = old_file.name.replace(f"shot_{old_shot_number:03d}", f"shot_{new_shot_number:03d}", 1)
+                    new_file = shots_dir / new_name
+                    old_file.rename(new_file)
+                    renamed_count += 1
+                    print(f"[FileStorage] Renamed shot image: {old_file.name} -> {new_file.name}")
+                except Exception as e:
+                    print(f"[FileStorage] Failed to rename {old_file}: {e}")
+
+            return renamed_count > 0
+
+        except Exception as e:
+            print(f"[FileStorage] Failed to rename shot image file: {e}")
+            return False
+
     def get_merged_characters_path(self, novel_id: str, chapter_id: str,
                                    shot_number: int, character_names: list = None) -> Path:
         """获取合并角色图保存路径
@@ -837,6 +895,45 @@ class FileStorageService:
 
         except Exception as e:
             print(f"[FileStorage] Failed to delete shot audio: {e}")
+            return False
+
+    def delete_shot_audio_files(
+        self,
+        novel_id: str,
+        chapter_id: str,
+        shot_index: int
+    ) -> bool:
+        """
+        删除分镜的所有音频文件（用于删除分镜时）
+
+        Args:
+            novel_id: 小说 ID
+            chapter_id: 章节 ID
+            shot_index: 分镜索引（1-based）
+
+        Returns:
+            是否成功删除
+        """
+        try:
+            story_dir = self._get_story_dir(novel_id)
+            save_dir = story_dir / "shot_audio"
+
+            if not save_dir.exists():
+                return True
+
+            # 删除该分镜的所有音频文件
+            deleted_count = 0
+            for ext in [".flac", ".mp3", ".wav"]:
+                pattern = f"shot_{shot_index:03d}_*{ext}"
+                for file_path in save_dir.glob(pattern):
+                    file_path.unlink()
+                    deleted_count += 1
+                    print(f"[FileStorage] Deleted shot audio file: {file_path}")
+
+            return True
+
+        except Exception as e:
+            print(f"[FileStorage] Failed to delete shot audio files: {e}")
             return False
 
     def get_shot_audio_path(

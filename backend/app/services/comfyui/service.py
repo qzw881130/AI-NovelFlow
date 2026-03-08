@@ -191,7 +191,11 @@ class ComfyUIService:
         aspect_ratio: str = "16:9",
         character_reference_path: Optional[str] = None,
         seed: Optional[int] = None,
-        frame_count: Optional[int] = None
+        frame_count: Optional[int] = None,
+        style: Optional[str] = None,
+        character_appearances: Optional[Dict[str, str]] = None,
+        scene_setting: Optional[str] = None,
+        prop_appearances: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """使用指定工作流生成分镜视频 (LTX2)"""
         try:
@@ -201,7 +205,11 @@ class ComfyUIService:
                 node_mapping=node_mapping,
                 aspect_ratio=aspect_ratio,
                 seed=seed,
-                frame_count=frame_count
+                frame_count=frame_count,
+                style=style,
+                character_appearances=character_appearances,
+                scene_setting=scene_setting,
+                prop_appearances=prop_appearances
             )
             
             reference_image_node_id = node_mapping.get("reference_image_node_id", "12")

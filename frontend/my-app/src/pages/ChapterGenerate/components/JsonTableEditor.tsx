@@ -151,7 +151,7 @@ export default function JsonTableEditor({
   const addShot = () => {
     if (!data) return;
     const newShot = {
-      id: (data.shots?.length || 0) + 1,
+      index: (data.shots?.length || 0) + 1,
       description: t('chapterGenerate.newShotDesc'),
       video_description: '',
       characters: [],
@@ -167,7 +167,7 @@ export default function JsonTableEditor({
     if (!data) return;
     const newShots = (data.shots || []).filter((_: any, i: number) => i !== index);
     // 重新编号
-    newShots.forEach((shot: any, i: number) => { shot.id = i + 1; });
+    newShots.forEach((shot: any, i: number) => { shot.index = i + 1; });
     updateJson({ ...data, shots: newShots });
   };
 
@@ -438,17 +438,17 @@ export default function JsonTableEditor({
             {(() => {
               const existingCharacters = data.characters || [];
               const availableToAdd = availableCharacters.filter(c => !existingCharacters.includes(c));
-              
+
               if (availableToAdd.length === 0) {
                 return (
                   <div className="text-center py-3 text-gray-400 text-sm">
-                    {availableCharacters.length === 0 
-                      ? t('chapterGenerate.noCharactersInLibrary') 
+                    {availableCharacters.length === 0
+                      ? t('chapterGenerate.noCharactersInLibrary')
                       : t('chapterGenerate.allCharactersAdded')}
                   </div>
                 );
               }
-              
+
               return (
                 <div className="flex items-center gap-2">
                   <select
@@ -495,17 +495,17 @@ export default function JsonTableEditor({
             {(() => {
               const existingScenes = data.scenes || [];
               const availableToAdd = availableScenes.filter(s => !existingScenes.includes(s));
-              
+
               if (availableToAdd.length === 0) {
                 return (
                   <div className="text-center py-3 text-gray-400 text-sm">
-                    {availableScenes.length === 0 
-                      ? t('chapterGenerate.noScenesInLibrary') 
+                    {availableScenes.length === 0
+                      ? t('chapterGenerate.noScenesInLibrary')
                       : t('chapterGenerate.allScenesAdded')}
                   </div>
                 );
               }
-              
+
               return (
                 <div className="flex items-center gap-2">
                   <select
@@ -626,7 +626,7 @@ export default function JsonTableEditor({
                       } ${showInvalid ? 'bg-red-100 text-red-600 border-red-400' : ''}`}
                       title={showInvalid ? `场景 "${shot.scene}" 不在场景库中` : ''}
                     >
-                      {t('chapterGenerate.shot')}{shot.id}
+                      {t('chapterGenerate.shot')}{shot.index}
                       {showInvalid && ' ⚠️'}
                     </button>
                   );
@@ -650,7 +650,7 @@ export default function JsonTableEditor({
                   return (
                     <div className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                       <div className="flex items-center justify-between mb-3">
-                        <span className="font-medium text-sm text-gray-700">{t('chapterGenerate.shotId', { id: shot.id, total: data.shots.length })}</span>
+                        <span className="font-medium text-sm text-gray-700">{t('chapterGenerate.shotId', { id: shot.index, total: data.shots.length })}</span>
                         <div className="flex gap-2">
                           {activeShotIndex > 0 && (
                             <button

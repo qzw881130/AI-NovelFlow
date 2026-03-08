@@ -97,9 +97,34 @@ export interface Chapter {
 }
 
 export interface ParsedData {
-  characters: Character[];
-  scenes: Scene[];
-  shots: Shot[];
+  characters?: string[];  // 章节角色名称列表
+  scenes?: string[];      // 章节场景名称列表
+  props?: string[];       // 章节道具名称列表
+  shots?: ShotData[];     // 分镜数据列表
+}
+
+export interface ShotData {
+  id?: number | string;
+  description: string;
+  video_description?: string;
+  characters: string[];
+  scene: string;
+  props: string[];
+  duration: number;
+  dialogues?: DialogueData[];
+  image_url?: string;
+  image_path?: string;
+  merged_character_image?: string;
+  video_url?: string;
+}
+
+export interface DialogueData {
+  character_name: string;
+  text: string;
+  emotion_prompt?: string;
+  audio_url?: string;
+  audio_task_id?: string;
+  audio_source?: 'ai_generated' | 'uploaded';
 }
 
 export interface Character {

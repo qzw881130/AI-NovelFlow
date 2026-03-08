@@ -13,6 +13,7 @@ from app.core.database import SessionLocal
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.utils.path_utils import url_to_local_path
+from app.repositories.shot_repository import ShotRepository
 
 
 async def generate_shot_video_task(
@@ -25,7 +26,7 @@ async def generate_shot_video_task(
 ):
     """
     后台任务：生成分镜视频
-    
+
     Args:
         task_id: 任务ID
         novel_id: 小说ID
@@ -39,54 +40,62 @@ async def generate_shot_video_task(
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task:
             return
-        
+
         task.status = "running"
         task.started_at = datetime.utcnow()
         task.current_step = "准备生成视频..."
         db.commit()
-        
+
         chapter = db.query(Chapter).filter(
             Chapter.id == chapter_id,
             Chapter.novel_id == novel_id
         ).first()
-        
+
         if not chapter:
             task.status = "failed"
             task.error_message = "章节不存在"
             db.commit()
             return
-        
+
         novel = db.query(Novel).filter(Novel.id == novel_id).first()
         if not novel:
             task.status = "failed"
             task.error_message = "小说不存在"
             db.commit()
             return
-        
+
         workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
         if not workflow:
             task.status = "failed"
             task.error_message = "工作流不存在"
             db.commit()
             return
-        
+
         node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
         print(f"[VideoTask {task_id}] Node mapping: {node_mapping}")
-        
-        parsed_data = json.loads(chapter.parsed_data) if isinstance(chapter.parsed_data, str) else chapter.parsed_data
-        shots = parsed_data.get("shots", [])
-        shot = shots[shot_index - 1]
-        shot_description = shot.get("video_description") or shot.get("description", "")
-        
+
+        # 使用 ShotRepository 获取分镜数据
+        shot_repo = ShotRepository(db)
+        shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+
+        if not shot:
+            task.status = "failed"
+            task.error_message = "分镜不存在"
+            db.commit()
+            return
+
+        # 从 Shot 模型获取分镜描述
+        shot_description = shot.description or ""
+
         task.prompt_text = shot_description
         db.commit()
-        
-        duration = shot.get("duration", 4)
+
+        duration = shot.duration or 4
         fps = 25
         raw_frame_count = int(fps * duration)
         frame_count = ((raw_frame_count // 8) * 8) + 1
         print(f"[VideoTask {task_id}] Duration: {duration}s, FPS: {fps}, Raw frames: {raw_frame_count}, Adjusted frames: {frame_count}")
-        
+
         character_reference_path = None
         if shot_image_url:
             full_path = url_to_local_path(shot_image_url)
@@ -95,11 +104,66 @@ async def generate_shot_video_task(
                 print(f"[VideoTask {task_id}] Found shot image: {full_path}")
             else:
                 print(f"[VideoTask {task_id}] Shot image not found at: {shot_image_url}")
-        
+
+        # 获取占位符替换所需的资源数据
+        # 从 Shot 模型直接获取角色、场景、道具
+        shot_characters = json.loads(shot.characters) if shot.characters else []
+        shot_scene = shot.scene or ""
+        shot_props = json.loads(shot.props) if shot.props else []
+
+        # 获取角色外貌描述（从 Character 表中获取）
+        character_appearances = {}
+        from app.models.novel import Character
+        for char_name in shot_characters:
+            character = db.query(Character).filter(
+                Character.novel_id == novel_id,
+                Character.name == char_name
+            ).first()
+            if character and character.appearance:
+                character_appearances[char_name] = character.appearance
+
+        # 获取场景环境设定（从 Scene 表中获取）
+        scene_setting = None
+        if shot_scene:
+            from app.models.novel import Scene
+            scene = db.query(Scene).filter(
+                Scene.novel_id == novel_id,
+                Scene.name == shot_scene
+            ).first()
+            if scene and scene.setting:
+                scene_setting = scene.setting
+
+        # 获取道具外观描述（从 Prop 表中获取）
+        prop_appearances = {}
+        if shot_props:
+            from app.models.novel import Prop
+            for prop_name in shot_props:
+                prop = db.query(Prop).filter(
+                    Prop.novel_id == novel_id,
+                    Prop.name == prop_name
+                ).first()
+                if prop and prop.appearance:
+                    prop_appearances[prop_name] = prop.appearance
+
+        # 获取风格设置（从 PromptTemplate 中获取）
+        style = ""
+        if novel.style_prompt_template_id:
+            from app.models.prompt_template import PromptTemplate
+            template = db.query(PromptTemplate).filter(
+                PromptTemplate.id == novel.style_prompt_template_id
+            ).first()
+            if template:
+                style = template.template or ""
+
+        print(f"[VideoTask {task_id}] Style: {style}")
+        print(f"[VideoTask {task_id}] Characters: {character_appearances}")
+        print(f"[VideoTask {task_id}] Scene: {scene_setting}")
+        print(f"[VideoTask {task_id}] Props: {prop_appearances}")
+
         task.current_step = "正在调用 ComfyUI 生成视频..."
         task.progress = 30
         db.commit()
-        
+
         comfyui_service = ComfyUIService()
         result = await comfyui_service.generate_shot_video_with_workflow(
             prompt=shot_description,
@@ -107,35 +171,39 @@ async def generate_shot_video_task(
             node_mapping=node_mapping,
             aspect_ratio=novel.aspect_ratio or "16:9",
             character_reference_path=character_reference_path,
-            frame_count=frame_count
+            frame_count=frame_count,
+            style=style,
+            character_appearances=character_appearances,
+            scene_setting=scene_setting,
+            prop_appearances=prop_appearances
         )
-        
+
         print(f"[VideoTask {task_id}] Generation result: {result}")
-        
+
         if result.get("prompt_id"):
             task.comfyui_prompt_id = result["prompt_id"]
             print(f"[VideoTask {task_id}] Saved ComfyUI prompt_id: {result['prompt_id']}")
-        
+
         if result.get("submitted_workflow"):
             task.workflow_json = json.dumps(result["submitted_workflow"], ensure_ascii=False, indent=2)
             db.commit()
             print(f"[VideoTask {task_id}] Saved submitted workflow to task")
-        
+
         if not result.get("success"):
             task.status = "failed"
             task.error_message = result.get("message", "生成失败")
             task.current_step = "生成失败"
             db.commit()
             return
-        
+
         # 下载并保存视频
-        await _save_generated_video(result, task, chapter, novel_id, chapter_id, shot_index, db, task_id)
-            
+        await _save_generated_video(result, task, novel_id, chapter_id, shot_index, db, task_id, shot_repo)
+
     except Exception as e:
         print(f"[VideoTask {task_id}] Error: {e}")
         import traceback
         traceback.print_exc()
-        
+
         try:
             task.status = "failed"
             task.error_message = str(e)
@@ -148,14 +216,14 @@ async def generate_shot_video_task(
 
 
 async def _save_generated_video(
-    result: dict, task, chapter, novel_id: str, chapter_id: str,
-    shot_index: int, db, task_id: str
+    result: dict, task, novel_id: str, chapter_id: str,
+    shot_index: int, db, task_id: str, shot_repo: ShotRepository
 ):
     """下载并保存生成的视频"""
     task.current_step = "正在下载生成的视频..."
     task.progress = 80
     db.commit()
-    
+
     video_url = result.get("video_url")
     if not video_url:
         task.status = "failed"
@@ -163,36 +231,31 @@ async def _save_generated_video(
         task.current_step = "生成失败"
         db.commit()
         return
-    
+
     local_path = await file_storage.download_video(
         url=video_url,
         novel_id=novel_id,
         chapter_id=chapter_id,
         shot_number=shot_index
     )
-    
+
     if local_path:
         relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
         local_url = f"/api/files/{relative_path.lstrip('/')}"
-        
-        # 更新章节视频数据
-        shot_videos = json.loads(chapter.shot_videos) if chapter.shot_videos else []
-        if not isinstance(shot_videos, list):
-            shot_videos = []
-        
-        while len(shot_videos) < shot_index:
-            shot_videos.append(None)
-        
-        shot_videos[shot_index - 1] = local_url
-        chapter.shot_videos = json.dumps(shot_videos)
-        
+
+        # 更新 Shot 记录中的视频数据
+        shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+        if shot:
+            shot_repo.update(shot, video_url=local_url, video_status="completed")
+            print(f"[VideoTask {task_id}] Shot video updated: {local_url}")
+
         task.status = "completed"
         task.progress = 100
         task.result_url = local_url
         task.current_step = "生成完成"
         task.completed_at = datetime.utcnow()
         db.commit()
-        
+
         print(f"[VideoTask {task_id}] Video saved: {local_url}")
     else:
         task.status = "failed"

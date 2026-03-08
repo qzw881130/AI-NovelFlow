@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
 
 
@@ -61,6 +61,16 @@ class ChapterResponse(ChapterBase):
     final_video: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class ChapterDetailResponse(ChapterResponse):
+    """章节详情响应（包含分镜数据）"""
+
+    transition_videos: Optional[dict] = None
+    shots: Optional[List[Any]] = None  # ShotResponse 列表
 
     class Config:
         from_attributes = True

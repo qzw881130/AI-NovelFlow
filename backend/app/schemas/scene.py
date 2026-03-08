@@ -6,7 +6,7 @@ from datetime import datetime
 
 class SceneBase(BaseModel):
     """场景基础字段"""
-    novel_id: str = Field(..., description="关联的小说ID")
+    novel_id: str = Field(..., alias="novelId", description="关联的小说 ID")
     name: str = Field(..., description="场景名称")
     description: Optional[str] = Field("", description="场景描述")
     setting: Optional[str] = Field("", description="环境设置")
@@ -14,7 +14,7 @@ class SceneBase(BaseModel):
 
 class SceneCreate(SceneBase):
     """创建场景请求"""
-    pass
+    model_config = {"populate_by_name": True}
 
 
 class SceneUpdate(BaseModel):
@@ -44,6 +44,6 @@ class SceneResponse(SceneBase):
 
 class ParseScenesRequest(BaseModel):
     """解析场景请求"""
-    novel_id: str = Field(..., description="小说ID")
-    chapter_ids: list[str] = Field(default=[], description="章节ID列表，不传则解析所有章节")
-    mode: str = Field("incremental", description="解析模式: incremental 或 full")
+    novel_id: str = Field(..., description="小说 ID")
+    chapter_ids: list[str] = Field(default=[], description="章节 ID 列表，不传则解析所有章节")
+    mode: str = Field("incremental", description="解析模式：incremental 或 full")

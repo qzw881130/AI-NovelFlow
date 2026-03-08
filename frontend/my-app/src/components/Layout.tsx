@@ -1,17 +1,36 @@
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import CoffeeButton from './CoffeeButton';
+import { SidebarProvider, useSidebar } from '../contexts/SidebarContext';
 
-export default function Layout() {
+function LayoutContent() {
+  const { sidebarWidth } = useSidebar();
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <>
       <Sidebar />
-      <main className="lg:ml-64 min-h-screen">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <main
+        className="min-h-screen transition-all duration-300"
+        style={{
+          marginLeft: `${sidebarWidth}px`,
+          width: `calc(100% - ${sidebarWidth}px)`
+        }}
+      >
+        <div className="w-full py-6 px-4 sm:px-6 lg:px-8">
           <Outlet />
         </div>
       </main>
       <CoffeeButton />
-    </div>
+    </>
+  );
+}
+
+export default function Layout() {
+  return (
+    <SidebarProvider>
+      <div className="min-h-screen bg-gray-50">
+        <LayoutContent />
+      </div>
+    </SidebarProvider>
   );
 }

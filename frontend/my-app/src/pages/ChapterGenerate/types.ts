@@ -1,42 +1,6 @@
-// 从上级类型文件导入并重新导出
-import type { Chapter as ChapterType, Novel as NovelType } from '../../types';
-export type { ChapterType as Chapter, NovelType as Novel };
-
-// 重新声明类型供本地使用
-type Chapter = ChapterType;
-type Novel = NovelType;
-
-// 角色数据类型
-export interface Character {
-  id: string;
-  name: string;
-  imageUrl: string | null;
-  novelId: string;
-}
-
-// 场景数据类型
-export interface Scene {
-  id: string;
-  novelId: string;
-  name: string;
-  description: string;
-  setting: string;
-  imageUrl?: string;
-  generatingStatus?: string;
-  sceneTaskId?: string;
-}
-
-// 道具数据类型
-export interface Prop {
-  id: string;
-  novelId: string;
-  name: string;
-  description: string;
-  appearance: string;
-  imageUrl?: string;
-  generatingStatus?: string;
-  propTaskId?: string;
-}
+// 从上级类型文件导入并重新导出基础类型
+import type { Chapter, Novel, Character, Scene, Prop, ParsedData, ShotData, DialogueData } from '../../types';
+export type { Chapter, Novel, Character, Scene, Prop, ParsedData, ShotData, DialogueData };
 
 // 转场视频项组件接口
 export interface TransitionVideoItemProps {
@@ -54,7 +18,7 @@ export interface TransitionVideoItemProps {
   isActive: boolean;
 }
 
-// JSON表格编辑器组件接口
+// JSON 表格编辑器组件接口
 export interface JsonTableEditorProps {
   value: string;
   onChange: (value: string) => void;
@@ -90,39 +54,6 @@ export interface MergeVideosCardProps {
   transitionVideos: Record<string, string>;
   chapter: Chapter | null;
   aspectRatio?: string;
-}
-
-// 台词数据类型
-export interface DialogueData {
-  character_name: string;    // 角色名称
-  text: string;              // 台词文本
-  emotion_prompt?: string;   // 情感提示词（可选）
-  audio_url?: string;        // 生成的音频 URL
-  audio_task_id?: string;    // 音频生成任务 ID
-  audio_source?: 'ai_generated' | 'uploaded';  // 音频来源
-}
-
-// 分镜数据类型
-export interface ShotData {
-  id: number;
-  description: string;
-  video_description?: string;
-  characters: string[];
-  scene: string;
-  props: string[];
-  duration: number;
-  image_url?: string;
-  image_path?: string;
-  merged_character_image?: string;
-  dialogues?: DialogueData[]; // 台词列表
-}
-
-// 解析后的章节数据类型
-export interface ParsedData {
-  characters?: string[];
-  scenes?: string[];
-  props?: string[];
-  shots?: ShotData[];
 }
 
 // 章节数据状态
@@ -193,3 +124,6 @@ export interface GenerationState {
   isSplitting: boolean;
   isSavingJson: boolean;
 }
+
+// 工作流类型（从 Store 类型文件重新导出）
+export type { ShotWorkflow, TransitionWorkflow } from './stores/slices/types';

@@ -20,6 +20,7 @@ from app.services.file_storage import file_storage
 from app.services.prompt_builder import get_style
 from app.utils.path_utils import url_to_local_path
 from app.utils.image_utils import load_chinese_font, merge_character_images
+from app.repositories.shot_repository import ShotRepository
 
 
 class NovelService:
@@ -690,14 +691,69 @@ class NovelService:
             prop_names=prop_names,
             style=style
         )
-        
-        # 保存解析结果到章节
-        chapter.parsed_data = json.dumps(result, ensure_ascii=False)
+
+        # 检查是否有错误
+        if result.get("error"):
+            return {
+                "success": False,
+                "message": f"LLM 拆分失败: {result.get('error')}",
+                "data": result
+            }
+
+        shots_data = result.get("shots", [])
+
+        # 使用 ShotRepository 管理分镜数据
+        shot_repo = ShotRepository(self.db)
+
+        # 删除章节的现有分镜记录（重新拆分时）
+        shot_repo.delete_by_chapter(chapter.id)
+
+        # 创建 Shot 记录
+        created_shots = []
+        for idx, shot_data in enumerate(shots_data, 1):
+            shot = shot_repo.create(
+                chapter_id=chapter.id,
+                index=idx,
+                description=shot_data.get("description", ""),
+                video_description=shot_data.get("video_description", ""),
+                characters=shot_data.get("characters", []),
+                scene=shot_data.get("scene", ""),
+                props=shot_data.get("props", []),
+                duration=shot_data.get("duration", 4),
+                dialogues=shot_data.get("dialogues", []),
+            )
+            created_shots.append(shot)
+
+        # 更新 parsed_data，移除 shots 数组（已迁移到 Shot 表）
+        parsed_data_for_storage = {
+            "chapter": result.get("chapter", chapter.title),
+            "characters": result.get("characters", []),
+            "scenes": result.get("scenes", []),
+            "props": result.get("props", []),
+        }
+        # 保留 transition_videos（如果存在）
+        existing_parsed = {}
+        if chapter.parsed_data:
+            try:
+                existing_parsed = json.loads(chapter.parsed_data)
+            except:
+                pass
+        if existing_parsed.get("transition_videos"):
+            parsed_data_for_storage["transition_videos"] = existing_parsed["transition_videos"]
+
+        chapter.parsed_data = json.dumps(parsed_data_for_storage, ensure_ascii=False)
         self.db.commit()
-        
+
+        # 构造返回数据，包含 Shot 记录
         return {
             "success": True,
-            "data": result
+            "data": {
+                "chapter": result.get("chapter", chapter.title),
+                "characters": result.get("characters", []),
+                "scenes": result.get("scenes", []),
+                "props": result.get("props", []),
+                "shots": [shot_repo.to_response(s) for s in created_shots],
+            }
         }
 
     

@@ -244,7 +244,8 @@ class LLMService:
                 "temperature": temperature,
                 "max_tokens": max_tokens
             }
-            if response_format == "json_object":
+            json_not_allow_models = ['Doubao-Seed-2.0-Code']
+            if response_format == "json_object" and self.model not in json_not_allow_models:
                 body["response_format"] = {"type": "json_object"}
             return body
 
@@ -845,6 +846,7 @@ class LLMService:
                 "chapter": data.get("chapter", chapter_title),
                 "characters": data.get("characters", []),
                 "scenes": data.get("scenes", []),
+                "props": data.get("props", []),
                 "shots": data.get("shots", [])
             }
         else:

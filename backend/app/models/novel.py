@@ -62,6 +62,7 @@ class Chapter(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     novel = relationship("Novel", back_populates="chapters")
+    shots = relationship("Shot", back_populates="chapter", cascade="all, delete-orphan")
 
 
 # 复合索引：按小说查询章节时常用

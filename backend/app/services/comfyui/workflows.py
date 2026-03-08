@@ -162,10 +162,34 @@ class WorkflowBuilder:
         node_mapping: Dict[str, str],
         aspect_ratio: str = "16:9",
         seed: Optional[int] = None,
-        frame_count: Optional[int] = None
+        frame_count: Optional[int] = None,
+        style: Optional[str] = None,
+        character_appearances: Optional[Dict[str, str]] = None,
+        scene_setting: Optional[str] = None,
+        prop_appearances: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
-        """构建视频生成工作流"""
+        """
+        构建视频生成工作流
+
+        Args:
+            prompt: 视频描述提示词
+            workflow_json: 工作流 JSON 字符串
+            node_mapping: 节点映射配置
+            aspect_ratio: 画面比例
+            seed: 随机种子
+            frame_count: 总帧数
+            style: 风格提示词
+            character_appearances: 角色外貌描述映射 {角色名：外貌描述}
+            scene_setting: 场景环境设定
+            prop_appearances: 道具外观描述映射 {道具名：外观描述}
+        """
         workflow = json.loads(workflow_json)
+
+        # 替换占位符
+        self._replace_style_placeholder(workflow, style)
+        self._replace_scene_placeholder(workflow, scene_setting)
+        self._replace_characters_placeholder(workflow, character_appearances)
+        self._replace_props_placeholder(workflow, prop_appearances)
 
         # 获取节点映射
         prompt_node_id = node_mapping.get("prompt_node_id")

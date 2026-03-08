@@ -28,12 +28,22 @@ def get_task_service(db: Session = Depends(get_db)) -> TaskService:
 async def list_tasks(
         status: Optional[str] = None,
         type: Optional[str] = None,
+        chapter_id: Optional[str] = None,
         limit: int = 50,
         db: Session = Depends(get_db),
         task_repo: TaskRepository = Depends(get_task_repo)
 ):
     """获取任务列表"""
-    tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
+    if chapter_id:
+        # 按章节筛选
+        tasks = task_repo.get_by_chapter(chapter_id)
+        # 额外筛选类型和状态
+        if type:
+            tasks = [t for t in tasks if t.type == type]
+        if status:
+            tasks = [t for t in tasks if t.status == status]
+    else:
+        tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
 
     # 获取所有需要的小说、章节和工作流信息
     novel_ids = {t.novel_id for t in tasks if t.novel_id}
