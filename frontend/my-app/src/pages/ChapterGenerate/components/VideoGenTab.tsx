@@ -10,9 +10,10 @@
 
 import { useState, useEffect } from 'react';
 import { useChapterGenerateStore } from '../stores';
-import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye } from 'lucide-react';
+import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
+import { toast } from '../../../stores/toastStore';
 
 interface VideoGenTabProps {
   chapter?: any;
@@ -57,6 +58,11 @@ export function VideoGenTab({
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
   const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+
+  // 合并视频相关状态
+  const [isMerging, setIsMerging] = useState(false);
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
 
   const shotsList = parsedData?.shots || [];
   const currentShotData = shotsList[selectedVideo - 1];
@@ -226,6 +232,44 @@ export function VideoGenTab({
     }
   };
 
+  // 处理合并视频
+  const handleMergeVideos = async (includeTransitions: boolean) => {
+    if (!effectiveNovelId || !effectiveChapterId) return;
+
+    const videoList = Object.values(shotVideos).filter(Boolean);
+    if (videoList.length === 0) {
+      toast.error(t('chapterGenerate.noVideosToMerge'));
+      return;
+    }
+
+    setIsMerging(true);
+    try {
+      const response = await fetch(
+        `/api/novels/${effectiveNovelId}/chapters/${effectiveChapterId}/merge-videos/`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ include_transitions: includeTransitions })
+        }
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        setMergedVideoUrl(data.video_url);
+        setShowMergeModal(true);
+        toast.success(t('chapterGenerate.mergeSuccess'));
+      } else {
+        toast.error(data.message || t('chapterGenerate.mergeFailed'));
+      }
+    } catch (error) {
+      console.error('Merge error:', error);
+      toast.error(t('chapterGenerate.mergeFailed'));
+    } finally {
+      setIsMerging(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* 操作栏 */}
@@ -286,6 +330,23 @@ export function VideoGenTab({
               <>
                 <Download className="w-4 h-4" />
                 {t('chapterGenerate.downloadMaterials')}
+              </>
+            )}
+          </button>
+          <button
+            onClick={() => handleMergeVideos(Object.keys(transitionVideos).length > 0)}
+            disabled={isMerging || !effectiveChapterId || Object.keys(shotVideos).length === 0}
+            className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            {isMerging ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {t('chapterGenerate.merging')}
+              </>
+            ) : (
+              <>
+                <Combine className="w-4 h-4" />
+                {t('chapterGenerate.mergeVideo')}
               </>
             )}
           </button>
@@ -650,6 +711,61 @@ export function VideoGenTab({
             >
               <X className="w-5 h-5 text-gray-600" />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 合并视频结果弹窗 */}
+      {showMergeModal && mergedVideoUrl && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            {/* 弹窗头部 */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <Combine className="w-5 h-5 text-pink-600" />
+                <h3 className="text-lg font-semibold text-gray-800">{t('chapterGenerate.mergeResult')}</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowMergeModal(false);
+                  setMergedVideoUrl(null);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                title={t('common.close')}
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* 弹窗内容 - 视频播放器 */}
+            <div className="flex-1 p-4 flex items-center justify-center bg-gray-100">
+              <video
+                src={mergedVideoUrl}
+                controls
+                className="max-w-full max-h-[60vh] rounded-lg shadow-lg"
+              />
+            </div>
+
+            {/* 弹窗底部按钮 */}
+            <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200">
+              <button
+                onClick={() => {
+                  setShowMergeModal(false);
+                  setMergedVideoUrl(null);
+                }}
+                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              >
+                {t('common.close')}
+              </button>
+              <a
+                href={mergedVideoUrl}
+                download
+                className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 transition-colors flex items-center gap-2"
+              >
+                <Download className="w-4 h-4" />
+                {t('common.download')}
+              </a>
+            </div>
           </div>
         </div>
       )}
