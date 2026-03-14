@@ -344,12 +344,7 @@ async def _create_preset_test_case(
     print(f"[初始化] 已创建预设测试用例: {test_case.name}")
 
 
-from app.services.llm_service import LLMService
-
-
-def get_llm_service() -> LLMService:
-    """获取 LLMService 实例（每次调用创建新实例以获取最新配置）"""
-    return LLMService()
+from app.api.deps import get_llm_service
 
 
 async def parse_characters_task(novel_id: str):
