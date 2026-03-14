@@ -75,9 +75,9 @@ class ComfyUIService:
             )
             
             return {
-                "success": result.get("success"),
-                "image_url": result.get("image_url"),
-                "message": result.get("message", "生成成功" if result.get("success") else "生成失败"),
+                "success": result.get("success") if result else False,
+                "image_url": result.get("image_url") if result else None,
+                "message": str(result.get("message", "生成成功" if (result and result.get("success")) else "生成失败")) if result else "生成失败",
                 "submitted_workflow": workflow
             }
             
@@ -170,9 +170,9 @@ class ComfyUIService:
             )
             
             return {
-                "success": result.get("success"),
-                "image_url": result.get("image_url"),
-                "message": result.get("message", ""),
+                "success": result.get("success") if result else False,
+                "image_url": result.get("image_url") if result else None,
+                "message": str(result.get("message")) if result and result.get("message") else "",
                 "submitted_workflow": workflow,
                 "prompt_id": prompt_id
             }
@@ -247,9 +247,9 @@ class ComfyUIService:
             
             video_url = result.get("video_url") or result.get("image_url")
             return {
-                "success": result.get("success"),
+                "success": result.get("success") if result else False,
                 "video_url": video_url,
-                "message": result.get("message", ""),
+                "message": str(result.get("message")) if result and result.get("message") else "",
                 "submitted_workflow": workflow,
                 "prompt_id": prompt_id
             }
@@ -316,9 +316,9 @@ class ComfyUIService:
             
             video_url = result.get("video_url") or result.get("image_url")
             return {
-                "success": result.get("success"),
+                "success": result.get("success") if result else False,
                 "video_url": video_url,
-                "message": result.get("message", ""),
+                "message": str(result.get("message")) if result and result.get("message") else "",
                 "submitted_workflow": workflow,
                 "prompt_id": prompt_id
             }
@@ -410,9 +410,9 @@ class ComfyUIService:
             )
 
             return {
-                "success": result.get("success"),
-                "audio_url": result.get("audio_url"),
-                "message": result.get("message", "生成成功" if result.get("success") else "生成失败"),
+                "success": result.get("success") if result else False,
+                "audio_url": result.get("audio_url") if result else None,
+                "message": str(result.get("message")) if result and result.get("message") else "生成失败",
                 "submitted_workflow": workflow
             }
 

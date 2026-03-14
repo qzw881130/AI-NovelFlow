@@ -260,9 +260,17 @@ class ComfyUIClient:
                             # 检查是否有错误
                             status = prompt_history.get("status", {})
                             if status.get("status_str") == "error":
+                                error_msg = "未知错误"
+                                messages = status.get("messages")
+                                if messages and len(messages) > 0:
+                                    msg_item = messages[0]
+                                    if isinstance(msg_item, (list, tuple)) and len(msg_item) > 1:
+                                        error_msg = str(msg_item[1])
+                                    else:
+                                        error_msg = str(msg_item)
                                 return {
                                     "success": False,
-                                    "message": status.get("messages", [["", "未知错误"]])[0][1]
+                                    "message": error_msg
                                 }
 
                     await asyncio.sleep(poll_interval)
@@ -322,9 +330,17 @@ class ComfyUIClient:
                             # 检查是否有错误
                             status = prompt_history.get("status", {})
                             if status.get("status_str") == "error":
+                                error_msg = "未知错误"
+                                messages = status.get("messages")
+                                if messages and len(messages) > 0:
+                                    msg_item = messages[0]
+                                    if isinstance(msg_item, (list, tuple)) and len(msg_item) > 1:
+                                        error_msg = str(msg_item[1])
+                                    else:
+                                        error_msg = str(msg_item)
                                 return {
                                     "success": False,
-                                    "message": status.get("messages", [["", "未知错误"]])[0][1]
+                                    "message": error_msg
                                 }
 
                     await asyncio.sleep(poll_interval)
