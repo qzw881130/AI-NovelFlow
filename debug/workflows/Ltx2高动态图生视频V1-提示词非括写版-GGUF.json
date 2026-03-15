@@ -1,0 +1,271 @@
+{
+  "1": {
+    "inputs": {
+      "frame_rate": 25,
+      "loop_count": 0,
+      "filename_prefix": "LTX2",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "44",
+        0
+      ],
+      "audio": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "2": {
+    "inputs": {
+      "ckpt_name": "ltx2_audio_checkpoint_vae_bf16.safetensors"
+    },
+    "class_type": "LTXVAudioVAELoader",
+    "_meta": {
+      "title": "LTXV音频VAE加载器"
+    }
+  },
+  "4": {
+    "inputs": {
+      "text": "Subtitles, text,字幕，文字，多眼，多肢",
+      "clip": [
+        "43",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "负面提示词"
+    }
+  },
+  "6": {
+    "inputs": {
+      "sigmas": "1., 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0"
+    },
+    "class_type": "ManualSigmas",
+    "_meta": {
+      "title": "自定义Sigmas"
+    }
+  },
+  "7": {
+    "inputs": {
+      "anything": [
+        "13",
+        1
+      ]
+    },
+    "class_type": "easy cleanGpuUsed",
+    "_meta": {
+      "title": "清理显存"
+    }
+  },
+  "9": {
+    "inputs": {
+      "samples": [
+        "13",
+        2
+      ],
+      "audio_vae": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "LTXVAudioVAEDecode",
+    "_meta": {
+      "title": "LTXV音频VAE解码"
+    }
+  },
+  "11": {
+    "inputs": {
+      "text": "一个中年男人在大街上奔跑",
+      "clip": [
+        "43",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP文本编码"
+    }
+  },
+  "12": {
+    "inputs": {
+      "image": "downloaded-image (1).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "13": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 761082586611096,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": 10000,
+      "return_noise": "disable",
+      "model": [
+        "41",
+        0
+      ],
+      "positive": [
+        "11",
+        0
+      ],
+      "negative": [
+        "4",
+        0
+      ],
+      "latent_image": [
+        "34",
+        0
+      ],
+      "sigmas": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "PainterSamplerLTXV",
+    "_meta": {
+      "title": "PainterSamplerLTXV"
+    }
+  },
+  "19": {
+    "inputs": {
+      "aspect_ratio": "original",
+      "proportional_width": 1,
+      "proportional_height": 1,
+      "fit": "crop",
+      "method": "lanczos",
+      "round_to_multiple": "32",
+      "scale_to_side": "longest",
+      "scale_to_length": [
+        "36",
+        0
+      ],
+      "background_color": "#000000",
+      "image": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: ImageScaleByAspectRatio V2",
+    "_meta": {
+      "title": "图层工具：按宽高比缩放 V2"
+    }
+  },
+  "34": {
+    "inputs": {
+      "width": [
+        "19",
+        3
+      ],
+      "height": [
+        "19",
+        4
+      ],
+      "length": [
+        "35",
+        0
+      ],
+      "frame_rate": 25,
+      "batch_size": 1,
+      "video_vae": [
+        "42",
+        0
+      ],
+      "audio_vae": [
+        "2",
+        0
+      ],
+      "start_image": [
+        "19",
+        0
+      ]
+    },
+    "class_type": "PainterLTX2V",
+    "_meta": {
+      "title": "Painter LTX2V"
+    }
+  },
+  "35": {
+    "inputs": {
+      "value": 241
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "总帧数(8的倍数+1)"
+    }
+  },
+  "36": {
+    "inputs": {
+      "value": 720
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "最长边"
+    }
+  },
+  "41": {
+    "inputs": {
+      "unet_name": "ltx-2-19b-distilled_Q4_K_M.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "Unet Loader (GGUF)"
+    }
+  },
+  "42": {
+    "inputs": {
+      "vae_name": "ltx2_video_vae_fp8_e4m3fn.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "43": {
+    "inputs": {
+      "clip_name1": "gemma3-12b-it-q2_k.gguf",
+      "clip_name2": "ltx-2-19b-embeddings_connector_distill_bf16.safetensors",
+      "type": "ltxv"
+    },
+    "class_type": "DualCLIPLoaderGGUF",
+    "_meta": {
+      "title": "DualCLIPLoader (GGUF)"
+    }
+  },
+  "44": {
+    "inputs": {
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8,
+      "samples": [
+        "7",
+        0
+      ],
+      "vae": [
+        "42",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeTiled",
+    "_meta": {
+      "title": "VAE解码（分块）"
+    }
+  }
+}
