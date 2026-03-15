@@ -63,6 +63,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     easyInt: [],
     crPromptText: [],
     vhsVideoCombine: [],
+    saveVideo: [],
     loadImage: [],
     qwen3TtsVoiceDesign: [],
     saveAudio: [],
@@ -99,6 +100,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
             const easyInt: string[] = [];
             const crPromptText: string[] = [];
             const vhsVideoCombine: string[] = [];
+            const saveVideo: string[] = [];
             const loadImage: string[] = [];
             const qwen3TtsVoiceDesign: string[] = [];
             const saveAudio: string[] = [];
@@ -121,6 +123,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   crPromptText.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'VHS_VideoCombine') {
                   vhsVideoCombine.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'SaveVideo') {
+                  saveVideo.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'LoadImage') {
                   loadImage.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'TDQwen3TTSVoiceDesign') {
@@ -137,7 +141,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               }
             }
 
-            setAvailableNodes({ clipTextEncode, saveImage, easyInt, crPromptText, vhsVideoCombine, loadImage, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
+            setAvailableNodes({ clipTextEncode, saveImage, easyInt, crPromptText, vhsVideoCombine, saveVideo, loadImage, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
             
             // 提取自定义参考图节点
             const customReferenceImageNodes: string[] = [];
@@ -567,9 +571,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.videoSaveNode')}
-                    nodeTypeHint="VHS_VideoCombine"
+                    nodeTypeHint="VHS_VideoCombine, SaveVideo"
                     value={mappingForm.videoSaveNodeId}
-                    options={availableNodes.vhsVideoCombine}
+                    options={[...availableNodes.vhsVideoCombine, ...availableNodes.saveVideo]}
                     onChange={(v) => handleNodeSelect(v, 'videoSaveNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}
@@ -626,9 +630,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.videoSaveNode')}
-                    nodeTypeHint="VHS_VideoCombine"
+                    nodeTypeHint="VHS_VideoCombine, SaveVideo"
                     value={mappingForm.videoSaveNodeId}
-                    options={availableNodes.vhsVideoCombine}
+                    options={[...availableNodes.vhsVideoCombine, ...availableNodes.saveVideo]}
                     onChange={(v) => handleNodeSelect(v, 'videoSaveNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}

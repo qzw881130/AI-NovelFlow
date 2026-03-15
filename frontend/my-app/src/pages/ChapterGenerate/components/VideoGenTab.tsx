@@ -394,26 +394,30 @@ export function VideoGenTab({
 
           {/* 视频预览区 */}
           <div className="flex-1 min-h-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
-            <div className="p-3 border-b border-gray-200 bg-gray-50">
+            <div className="flex-shrink-0 p-3 border-b border-gray-200 bg-gray-50">
               <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.videoPreview')}</h3>
             </div>
 
-            <div className="flex-1 flex items-center justify-center bg-gray-100 p-4">
+            <div className="flex-1 relative bg-gray-100">
               {hasVideo ? (
                 <video
                   src={shotVideos[selectedVideo]}
-                  className="max-w-full max-h-full rounded-lg shadow-lg"
+                  className="absolute inset-0 w-full h-full object-contain"
                   controls
                 />
               ) : isGeneratingCurrent ? (
-                <div className="text-center">
-                  <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
-                  <p className="text-gray-600">{t('chapterGenerate.videoGenerating')}</p>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
+                    <p className="text-gray-600">{t('chapterGenerate.videoGenerating')}</p>
+                  </div>
                 </div>
               ) : (
-                <div className="text-center text-gray-500">
-                  <Film className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>{t('chapterGenerate.clickToGenerateVideo')}</p>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center text-gray-500">
+                    <Film className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                    <p>{t('chapterGenerate.clickToGenerateVideo')}</p>
+                  </div>
                 </div>
               )}
             </div>
@@ -742,7 +746,7 @@ export function VideoGenTab({
               <video
                 src={mergedVideoUrl}
                 controls
-                className="max-w-full max-h-[60vh] rounded-lg shadow-lg"
+                className="max-w-full max-h-[60vh] w-full h-full object-contain rounded-lg shadow-lg"
               />
             </div>
 

@@ -244,7 +244,6 @@ class ComfyUIService:
             result = await self.client.wait_for_result(
                 prompt_id, workflow, video_save_node_id, timeout=7200
             )
-            
             video_url = result.get("video_url") or result.get("image_url")
             return {
                 "success": result.get("success") if result else False,

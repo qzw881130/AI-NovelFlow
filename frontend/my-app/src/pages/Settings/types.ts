@@ -92,6 +92,7 @@ export interface AvailableNodes {
   easyInt: string[];
   crPromptText: string[];
   vhsVideoCombine: string[];
+  saveVideo: string[];
   loadImage: string[];
   // 音色设计相关节点
   qwen3TtsVoiceDesign: string[];

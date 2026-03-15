@@ -7,6 +7,7 @@ from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.novel import Novel, Chapter
+from app.models.shot import Shot
 
 
 class NovelRepository:
@@ -18,42 +19,62 @@ class NovelRepository:
     def list_with_cover(self) -> List[Dict[str, Any]]:
         """
         获取小说列表，预加载关联数据避免 N+1 查询
-        
+
         Returns:
             小说列表，包含封面信息
         """
         novels = self.db.query(Novel).order_by(Novel.created_at.desc()).all()
-        
+
         if not novels:
             return []
-        
+
         novel_ids = [n.id for n in novels]
-        
+
         # 批量查询所有小说的第一章节
         first_chapters = {}
         chapters = self.db.query(Chapter).filter(
             Chapter.novel_id.in_(novel_ids)
         ).order_by(Chapter.novel_id, Chapter.number).all()
-        
+
         for chapter in chapters:
             if chapter.novel_id not in first_chapters:
                 first_chapters[chapter.novel_id] = chapter
-        
+
+        # 批量查询所有第一章的分镜，获取第一个有图片的分镜
+        first_chapter_ids = [c.id for c in first_chapters.values()]
+        first_shots = {}
+        if first_chapter_ids:
+            shots = self.db.query(Shot).filter(
+                Shot.chapter_id.in_(first_chapter_ids),
+                Shot.image_url.isnot(None)
+            ).order_by(Shot.chapter_id, Shot.index).all()
+
+            for shot in shots:
+                if shot.chapter_id not in first_shots:
+                    first_shots[shot.chapter_id] = shot
+
         # 构建结果
         result = []
         for n in novels:
             cover = n.cover
             if not cover:
                 first_chapter = first_chapters.get(n.id)
-                if first_chapter and first_chapter.shot_images:
-                    try:
-                        import json
-                        shot_images = json.loads(first_chapter.shot_images)
-                        if isinstance(shot_images, list) and len(shot_images) > 0:
-                            cover = shot_images[0]
-                    except json.JSONDecodeError:
-                        pass
-            
+                if first_chapter:
+                    # 优先从 Shot 表获取第一个分镜图片
+                    first_shot = first_shots.get(first_chapter.id)
+                    if first_shot and first_shot.image_url:
+                        cover = first_shot.image_url
+                    else:
+                        # 回退：从旧的 shot_images 字段获取（兼容旧数据）
+                        if first_chapter.shot_images:
+                            try:
+                                import json
+                                shot_images = json.loads(first_chapter.shot_images)
+                                if isinstance(shot_images, list) and len(shot_images) > 0:
+                                    cover = shot_images[0]
+                            except json.JSONDecodeError:
+                                pass
+
             result.append({
                 "id": n.id,
                 "title": n.title,
@@ -74,7 +95,7 @@ class NovelRepository:
                 "createdAt": n.created_at.isoformat() if n.created_at else None,
                 "updatedAt": n.updated_at.isoformat() if n.updated_at else None,
             })
-        
+
         return result
     
     def get_by_id(self, novel_id: str) -> Optional[Novel]:

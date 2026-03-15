@@ -569,9 +569,9 @@ export const createGenerationSlice: StateCreator<
             const isFailed = task.status === 'failed';
 
             // 如果任务完成且有结果 URL，更新 shotImages
-            if (isCompleted && task.result_url) {
-              if (newShotImages[shot.index] !== task.result_url) {
-                newShotImages[shot.index] = task.result_url;
+            if (isCompleted && task.resultUrl) {
+              if (newShotImages[shot.index] !== task.resultUrl) {
+                newShotImages[shot.index] = task.resultUrl;
                 shotImagesUpdated = true;
               }
               // 从生成中集合移除
@@ -590,7 +590,7 @@ export const createGenerationSlice: StateCreator<
             return {
               ...shot,
               imageStatus: task.status,
-              imageUrl: task.result_url || shot.imageUrl,
+              imageUrl: task.resultUrl || shot.imageUrl,
               imageTaskId: task.id || shot.imageTaskId,
             };
           }
@@ -622,8 +622,8 @@ export const createGenerationSlice: StateCreator<
         // 构建 shotIndex -> task 的映射
         const taskMap: Record<number, any> = {};
         result.data.forEach((task: any) => {
-          // 从 task.name 中提取镜号，例如 "生成分镜视频：镜 1"
-          const match = task.name?.match(/镜 (\d+)/);
+          // 从 task.name 中提取镜号，例如 "生成分镜视频：镜 1" 或 "生成视频: 镜1"
+          const match = task.name?.match(/镜\s*(\d+)/);
           if (match) {
             const shotIndex = parseInt(match[1], 10);
             taskMap[shotIndex] = task;

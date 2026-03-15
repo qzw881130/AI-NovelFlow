@@ -250,6 +250,9 @@ async def generate_shot_video(
 
     print(f"[GenerateVideo] Created task {task.id} for shot {shot_index}")
 
+    # 更新 Shot 表状态为 generating
+    shot_repo.update_video_status(shot, "generating", task_id=task.id)
+
     # 启动后台任务
     asyncio.create_task(
         generate_shot_video_task(
