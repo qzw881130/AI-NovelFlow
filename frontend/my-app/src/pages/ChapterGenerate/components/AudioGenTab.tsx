@@ -131,6 +131,7 @@ interface ShotCharacterCardProps {
   dialogue?: DialogueData;
   hasAudio: boolean;
   isRemoving: boolean;
+  isNarrator?: boolean;
   onSelect: (charName: string) => void;
   onRemove: (charName: string, e: React.MouseEvent) => void;
   t: (key: string) => string;
@@ -142,6 +143,7 @@ function ShotCharacterCard({
   dialogue,
   hasAudio,
   isRemoving,
+  isNarrator,
   onSelect,
   onRemove,
   t,
@@ -150,14 +152,19 @@ function ShotCharacterCard({
     <div
       onClick={() => onSelect(charName)}
       className={`p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-all ${
-        isSelected ? 'bg-blue-50 border-blue-300' : ''
-      }`}
+        isSelected ? (isNarrator ? 'bg-purple-50 border-purple-300' : 'bg-blue-50 border-blue-300') : ''
+      } ${isNarrator ? 'border-l-4 border-l-purple-400' : ''}`}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <ChevronRight className={`w-4 h-4 flex-shrink-0 ${isSelected ? 'text-blue-500' : 'text-gray-400'}`} />
+          <ChevronRight className={`w-4 h-4 flex-shrink-0 ${isSelected ? (isNarrator ? 'text-purple-500' : 'text-blue-500') : 'text-gray-400'}`} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900 truncate">{charName}</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-gray-900 truncate">{charName}</p>
+              {isNarrator && (
+                <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded">{t('chapterGenerate.narration')}</span>
+              )}
+            </div>
             {dialogue?.text && (
               <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{dialogue.text}</p>
             )}
@@ -167,18 +174,20 @@ function ShotCharacterCard({
           {hasAudio && (
             <div className="w-2 h-2 bg-green-500 rounded-full" title={t('chapterGenerate.hasAudio')}></div>
           )}
-          <button
-            onClick={(e) => onRemove(charName, e)}
-            disabled={isRemoving}
-            className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-            title={t('chapterGenerate.removeFromShot')}
-          >
-            {isRemoving ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <X className="w-3.5 h-3.5" />
-            )}
-          </button>
+          {!isNarrator && (
+            <button
+              onClick={(e) => onRemove(charName, e)}
+              disabled={isRemoving}
+              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+              title={t('chapterGenerate.removeFromShot')}
+            >
+              {isRemoving ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <X className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -243,6 +252,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
     audioSources,
     generatingAudios,
     uploadingAudios,
+    audioWarnings,
     generateShotAudio,
     uploadDialogueAudio,
     deleteDialogueAudio,
@@ -260,6 +270,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
   const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showWarnings, setShowWarnings] = useState(false);
 
   // 右侧栏可拖动调整宽度
   const rightResizable = useResizable({
@@ -277,17 +288,38 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
   const currentShotCharacters = currentShotData?.characters || [];
   const currentShotDialogues = currentShotData?.dialogues || [];
 
-  // 章节角色列表 - 有台词的角色
-  const chapterCharactersWithDialogues = characters.filter(char =>
-    chapterCharacters.includes(char.name)
-  );
+  // 获取当前分镜中的旁白角色（从 dialogues 中提取 type='narration' 的）
+  const narrationCharacters = currentShotDialogues
+    .filter(d => d.type === 'narration')
+    .map(d => d.character_name || t('chapterGenerate.narration'));
 
-  // 分镜角色列表 - 当前分镜有台词的角色
-  const shotCharacters = currentShotCharacters;
+  // 章节角色列表 - 有台词的角色 + 旁白角色
+  const narratorCharacter = characters.find(c => c.isNarrator);
+  const chapterCharactersWithDialogues = [
+    ...characters.filter(char => chapterCharacters.includes(char.name)),
+    ...(narratorCharacter && chapterCharacters.some(name =>
+      shots.some(s => s.dialogues?.some(d => d.type === 'narration' && d.character_name === name))
+    ) ? [narratorCharacter] : []),
+  ];
+
+  // 分镜角色列表 - 当前分镜有台词的角色 + 旁白角色
+  const shotCharacters = [...currentShotCharacters, ...narrationCharacters];
 
   // 获取角色的台词数据
   const getDialogueForCharacter = (charName: string): DialogueData | undefined => {
-    return currentShotDialogues.find(d => d.character_name === charName);
+    // 检查是否是旁白角色
+    const narratorName = t('chapterGenerate.narration');
+    if (charName === narratorName || narrationCharacters.includes(charName)) {
+      // 对于旁白，查找 type='narration' 的台词
+      return currentShotDialogues.find(d => d.type === 'narration');
+    }
+    return currentShotDialogues.find(d => d.character_name === charName && d.type !== 'narration');
+  };
+
+  // 检查是否是旁白角色
+  const isNarratorCharacter = (charName: string): boolean => {
+    const narratorName = t('chapterGenerate.narration');
+    return charName === narratorName || narrationCharacters.includes(charName);
   };
 
   // 检查是否有音频
@@ -374,6 +406,28 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
     }
   };
 
+  // 添加旁白到当前分镜
+  const handleAddNarratorToShot = async () => {
+    if (!currentShotData) return;
+
+    const narratorName = t('chapterGenerate.narration');
+    const newDialogue: DialogueData = {
+      type: 'narration',
+      order: currentShotDialogues.length,
+      character_name: narratorName,
+      text: '',
+      emotion_prompt: '',
+    };
+
+    try {
+      const updatedDialogues = [...currentShotDialogues, newDialogue];
+      await updateShot(currentShotData.id, { dialogues: updatedDialogues });
+      setSelectedShotChar(narratorName);
+    } catch (error) {
+      console.error('添加旁白失败:', error);
+    }
+  };
+
   // 处理分镜角色选择
   const handleShotCharacterSelect = (charName: string) => {
     setSelectedShotChar(charName);
@@ -404,8 +458,11 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
 
   // 更新台词
   const handleDialogueChange = (charName: string, field: keyof DialogueData, value: string) => {
+    const isNarrator = isNarratorCharacter(charName);
     const currentDialogue = getDialogueForCharacter(charName);
     const updated: DialogueData = {
+      ...currentDialogue,
+      type: isNarrator ? 'narration' : 'character',
       character_name: charName,
       text: field === 'text' ? value : currentDialogue?.text || '',
       emotion_prompt: field === 'emotion_prompt' ? value : currentDialogue?.emotion_prompt || '',
@@ -418,9 +475,17 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
     if (!currentShotData || !editingDialogues[charName]) return;
 
     try {
-      const updatedDialogues = currentShotDialogues.map(d =>
-        d.character_name === charName ? editingDialogues[charName]! : d
-      );
+      const isNarrator = isNarratorCharacter(charName);
+      const updatedDialogues = currentShotDialogues.map(d => {
+        // 对于旁白，按 type 匹配；对于普通角色，按 character_name 匹配
+        if (isNarrator && d.type === 'narration') {
+          return editingDialogues[charName]!;
+        }
+        if (!isNarrator && d.character_name === charName && d.type !== 'narration') {
+          return editingDialogues[charName]!;
+        }
+        return d;
+      });
       await updateShot(currentShotData.id, { dialogues: updatedDialogues });
       setEditingDialogues(prev => {
         const next = { ...prev };
@@ -445,9 +510,12 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
       return;
     }
 
+    const isNarrator = isNarratorCharacter(charName);
+
     // 只传递必要的字段给后端
-    const dialogueData = {
-      character_name: dialogue.character_name,
+    const dialogueData: DialogueData = {
+      type: isNarrator ? 'narration' : 'character',
+      character_name: charName,
       text: dialogue.text,
       emotion_prompt: dialogue.emotion_prompt || '',
     };
@@ -460,8 +528,8 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
     });
 
     try {
-      const result = await generateShotAudio(novelId, chapterId, currentShotIndex, [dialogueData]);
-      console.log('生成音频结果:', result);
+      await generateShotAudio(novelId, chapterId, currentShotIndex, [dialogueData]);
+      console.log('音频生成任务已提交');
     } catch (error) {
       console.error('生成音频失败:', error);
       alert('生成失败：' + (error as Error).message);
@@ -557,8 +625,9 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
         console.log(`分镜 ${shotIndex}:`, shot);
 
         if (shot?.dialogues && shot.dialogues.length > 0) {
-          // 过滤出必要的字段
-          const dialoguesData = shot.dialogues.map(d => ({
+          // 过滤出必要的字段，包含 type
+          const dialoguesData: DialogueData[] = shot.dialogues.map(d => ({
+            type: d.type || 'character',
             character_name: d.character_name,
             text: d.text,
             emotion_prompt: d.emotion_prompt || '',
@@ -609,6 +678,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
     const hasGeneratedAudio = selectedShotChar ? !!audioUrls[audioKey] : false;
     const isGen = selectedShotChar ? isGenerating(selectedShotChar) : false;
     const isUpload = selectedShotChar ? isUploading(selectedShotChar) : false;
+    const isNarrator = selectedShotChar ? isNarratorCharacter(selectedShotChar) : false;
 
     if (!selectedShotChar) {
       return (
@@ -622,13 +692,18 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
       <div className="space-y-4">
         {/* 角色信息 */}
         <div className="pb-3 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">{selectedShotChar}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-gray-900">{selectedShotChar}</h3>
+            {isNarrator && (
+              <span className="text-xs px-2 py-1 bg-purple-100 text-purple-600 rounded">{t('chapterGenerate.narration')}</span>
+            )}
+          </div>
         </div>
 
         {/* 台词文本 */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('chapterGenerate.dialogueText')}
+            {isNarrator ? t('chapterGenerate.narration') : t('chapterGenerate.dialogueText')}
           </label>
           <textarea
             value={dialogue?.text || ''}
@@ -814,7 +889,17 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
                     t={t}
                   />
                 ))}
-                {chapterCharactersWithDialogues.length === 0 && (
+                {/* 添加旁白按钮 */}
+                {narrationCharacters.length === 0 && (
+                  <button
+                    onClick={() => handleAddNarratorToShot()}
+                    className="w-full p-3 border-2 border-dashed border-purple-300 rounded-lg text-sm text-purple-600 hover:border-purple-500 hover:bg-purple-50 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {t('chapterGenerate.addNarration')}
+                  </button>
+                )}
+                {chapterCharactersWithDialogues.length === 0 && narrationCharacters.length > 0 && (
                   <div className="p-4 text-center text-gray-500 text-sm">
                     {t('chapterGenerate.noCharactersInChapter')}
                   </div>
@@ -889,6 +974,32 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
           </div>
         </div>
 
+        {/* 警告信息显示 */}
+        {audioWarnings.length > 0 && (
+          <div className="mx-4 mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-2">
+                <span className="text-yellow-600 text-sm font-medium">⚠️ {t('chapterGenerate.audioWarnings', { count: audioWarnings.length })}</span>
+              </div>
+              <button
+                onClick={() => setShowWarnings(!showWarnings)}
+                className="text-xs text-yellow-700 hover:text-yellow-900"
+              >
+                {showWarnings ? t('common.collapse') : t('common.expand')}
+              </button>
+            </div>
+            {showWarnings && (
+              <ul className="mt-2 space-y-1">
+                {audioWarnings.map((warning, idx) => (
+                  <li key={idx} className="text-xs text-yellow-700">
+                    • {warning.character_name}: {warning.reason}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
         {/* 分镜角色列表和编辑区域 */}
         <div className="flex-1 min-w-0 flex overflow-hidden">
           {/* 左侧：分镜角色列表 */}
@@ -906,6 +1017,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
                   dialogue={getDialogueForCharacter(charName)}
                   hasAudio={hasAudio(charName)}
                   isRemoving={addingChars.has(charName)}
+                  isNarrator={isNarratorCharacter(charName)}
                   onSelect={handleShotCharacterSelect}
                   onRemove={handleRemoveFromShot}
                   t={t}

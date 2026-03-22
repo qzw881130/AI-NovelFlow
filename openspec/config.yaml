@@ -1,4 +1,4 @@
-schema: spec-driven
+schema: spec-driven-custom # default:spec-driven custom:spec-driven-custom
 context: |
   语言：中文（简体）
   所有产出物必须用简体中文撰写。

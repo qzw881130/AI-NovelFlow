@@ -81,6 +81,8 @@ export type {
   WorkflowSliceState,
   SidePanelSliceState,
   ShotNavigatorSliceState,
+  KeyframeTask,
+  ReferenceAudioMergeTask,
 } from './slices/types';
 
 // Export individual slice hooks for selective usage
@@ -150,6 +152,14 @@ export function useGenerationSlice(): GenerationSlice {
     audioUrls: state.audioUrls,
     audioSources: state.audioSources,
     uploadingAudios: state.uploadingAudios,
+    // Keyframe Generation State
+    generatingKeyframes: state.generatingKeyframes,
+    keyframeTasks: state.keyframeTasks,
+    keyframeImageUrls: state.keyframeImageUrls,
+    // Reference Audio State
+    mergingReferenceAudios: state.mergingReferenceAudios,
+    uploadingReferenceAudios: state.uploadingReferenceAudios,
+    referenceAudioMergeTasks: state.referenceAudioMergeTasks,
     // Image Generation Actions
     generateShotImage: state.generateShotImage,
     generateAllImages: state.generateAllImages,
@@ -177,11 +187,29 @@ export function useGenerationSlice(): GenerationSlice {
     isAudioUploading: state.isAudioUploading,
     getShotAudioTasks: state.getShotAudioTasks,
     initAudioFromShots: state.initAudioFromShots,
+    // Keyframe Generation Actions
+    generateKeyframeDescriptions: state.generateKeyframeDescriptions,
+    generateKeyframeImage: state.generateKeyframeImage,
+    uploadKeyframeImage: state.uploadKeyframeImage,
+    uploadKeyframeReferenceImage: state.uploadKeyframeReferenceImage,
+    setKeyframeReferenceImage: state.setKeyframeReferenceImage,
+    isKeyframeGenerating: state.isKeyframeGenerating,
+    getKeyframeImageUrl: state.getKeyframeImageUrl,
+    getKeyframeTask: state.getKeyframeTask,
+    // Reference Audio Actions
+    mergeDialogueAudio: state.mergeDialogueAudio,
+    uploadReferenceAudio: state.uploadReferenceAudio,
+    setReferenceAudio: state.setReferenceAudio,
+    getReferenceAudioUrl: state.getReferenceAudioUrl,
+    inferReferenceAudioSourceType: state.inferReferenceAudioSourceType,
+    isReferenceAudioMerging: state.isReferenceAudioMerging,
+    isReferenceAudioUploading: state.isReferenceAudioUploading,
     // Task Polling Actions
     checkShotTaskStatus: state.checkShotTaskStatus,
     checkVideoTaskStatus: state.checkVideoTaskStatus,
     checkTransitionTaskStatus: state.checkTransitionTaskStatus,
     checkAudioTaskStatus: state.checkAudioTaskStatus,
+    checkKeyframeTaskStatus: state.checkKeyframeTaskStatus,
     fetchActiveTasks: state.fetchActiveTasks,
   }));
 }

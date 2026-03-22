@@ -20,6 +20,8 @@ export default {
     propPromptHint: '소품 이미지 생성용 프롬프트 템플릿 선택',
     splitPromptLabel: '샷 분할 프롬프트 템플릿',
     splitPromptHint: '장을 샷으로 분할하는 프롬프트 템플릿 선택',
+    keyframeDescriptionPromptLabel: '키프레임 설명 프롬프트 템플릿',
+    keyframeDescriptionPromptHint: '샷의 키프레임 설명을 생성하는 프롬프트 템플릿 선택',
     promptTemplatesSection: '프롬프트 템플릿 설정',
     defaultTemplate: '기본값 사용',
     stylePrompt: '스타일',

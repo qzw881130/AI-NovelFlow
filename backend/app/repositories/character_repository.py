@@ -125,3 +125,22 @@ class CharacterRepository:
         if reference_audio_url is not None:
             return self.update(character, reference_audio_url=reference_audio_url)
         return character
+
+    def get_narrator(self, novel_id: str) -> Optional[Character]:
+        """获取小说的旁白角色"""
+        return self.db.query(Character).filter(
+            and_(Character.novel_id == novel_id, Character.is_narrator == True)
+        ).first()
+
+    def create_narrator(self, novel_id: str, description: str = "小说旁白角色，用于生成旁白音频") -> Character:
+        """创建旁白角色"""
+        character = Character(
+            novel_id=novel_id,
+            name="旁白",
+            is_narrator=True,
+            description=description,
+        )
+        self.db.add(character)
+        self.db.commit()
+        self.db.refresh(character)
+        return character

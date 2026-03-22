@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Plus, FileText, BookOpen, Palette, Users, MapPin, Image, Package, Box } from 'lucide-react';
+import { Loader2, Plus, FileText, BookOpen, Palette, Users, MapPin, Image, Package, Box, Film } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import type { PromptTemplate } from '../../types';
 import type { TemplateType } from './types';
@@ -18,6 +18,7 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
   scene: <Image className="h-4 w-4" />,
   prop: <Box className="h-4 w-4" />,
   chapter_split: <BookOpen className="h-4 w-4" />,
+  keyframe_description: <Film className="h-4 w-4" />,
 };
 
 // Tab 标签页颜色映射
@@ -30,6 +31,7 @@ const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; borde
   scene: { active: 'text-orange-600 bg-orange-50 border-orange-200', inactive: 'text-gray-500 hover:text-orange-600', border: 'border-orange-200' },
   prop: { active: 'text-amber-600 bg-amber-50 border-amber-200', inactive: 'text-gray-500 hover:text-amber-600', border: 'border-amber-200' },
   chapter_split: { active: 'text-cyan-600 bg-cyan-50 border-cyan-200', inactive: 'text-gray-500 hover:text-cyan-600', border: 'border-cyan-200' },
+  keyframe_description: { active: 'text-indigo-600 bg-indigo-50 border-indigo-200', inactive: 'text-gray-500 hover:text-indigo-600', border: 'border-indigo-200' },
 };
 
 // 获取模板显示名称
@@ -122,7 +124,7 @@ export default function PromptConfig() {
   const [activeTab, setActiveTab] = useState<TemplateType>('character');
 
   // 模板类型顺序
-  const templateTypes: TemplateType[] = ['style', 'character_parse', 'scene_parse', 'prop_parse', 'character', 'scene', 'prop', 'chapter_split'];
+  const templateTypes: TemplateType[] = ['style', 'character_parse', 'scene_parse', 'prop_parse', 'character', 'scene', 'prop', 'chapter_split', 'keyframe_description'];
 
   return (
     <div className="space-y-6">

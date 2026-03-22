@@ -20,7 +20,8 @@ WORKFLOW_TYPES = {
     "transition": "分镜生转场视频",
     "prop": "道具生成",
     "voice_design": "音色设计",
-    "audio": "音频生成"
+    "audio": "音频生成",
+    "keyframe_image": "关键帧生图"
 }
 
 
@@ -34,7 +35,8 @@ DEFAULT_WORKFLOWS = {
     "video": "video_default.json",
     "prop": "prop_default.json",
     "voice_design": "Qwen3-TTS-Voice-Clone.json",  # 实际是音色设计工作流
-    "audio": "Qwen3-TTS-Voice-Design.json"  # 音频生成工作流（带参考音频的语音克隆）
+    "audio": "Qwen3-TTS-Voice-Design.json",  # 音频生成工作流（带参考音频的语音克隆）
+    "keyframe_image": "keyframe_flux2_klein.json"
 }
 
 
@@ -59,6 +61,28 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
         "emotion_prompt_node_id": "33",
         # 保存音频节点 (PreviewAudio，此工作流无 SaveAudio)
         "save_audio_node_id": "30",
+    },
+    "video": {
+        # 提示词节点
+        "prompt_node_id": "11",
+        # 视频保存节点
+        "video_save_node_id": "1",
+        # 参考图片节点 (LoadImage)
+        "reference_image_node_id": "12",
+        # 最大边长节点
+        "max_side_node_id": "36",
+        # 帧数节点
+        "frame_count_node_id": "35",
+        # 参考音频节点 (LoadAudio) - 用于口型同步
+        "reference_audio_node_id": "",
+    },
+    "keyframe_image": {
+        # 提示词节点
+        "prompt_node_id": "110",
+        # 保存图片节点
+        "save_image_node_id": "9",
+        # 参考图片节点 (LoadImage) - 用于关键帧图片生成的参考图
+        "reference_image_node_id": "76",
     },
 }
 
@@ -184,6 +208,16 @@ EXTRA_SYSTEM_WORKFLOWS = [
             "emotion_prompt_node_id": "33",
             "save_audio_node_id": "30"
         },
+    },
+    # 关键帧图片生成工作流（基于分镜图单图参考）
+    {
+        "filename": "keyframe_flux2_klein.json",
+        "type": "keyframe_image",
+        "name": "Flux2-Klein-9B 关键帧生图",
+        "nameKey": f"{NAME_KEY_PREFIX}.Flux2-Klein-9B 关键帧生图",
+        "description": "Flux2-Klein-9B 关键帧生图工作流，支持参考图",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.Flux2-Klein-9B 关键帧生图工作流，支持参考图",
+        "node_mapping": {"prompt_node_id": "110", "save_image_node_id": "9", "reference_image_node_id": "76"},
     },
 ]
 

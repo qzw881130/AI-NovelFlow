@@ -60,6 +60,7 @@ class ShotAudioService:
             character_name = dialogue.character_name
             text = dialogue.text
             emotion_prompt = dialogue.emotion_prompt or "自然"
+            dialogue_type = getattr(dialogue, 'type', 'character') or 'character'
 
             if not character_name or not text:
                 warnings.append({
@@ -68,53 +69,89 @@ class ShotAudioService:
                 })
                 continue
 
-            # 获取角色信息
-            character = character_repo.get_by_name(novel_id, character_name)
-            if not character:
-                warnings.append({
-                    "character_name": character_name,
-                    "reason": f"角色 '{character_name}' 不存在于角色库中"
-                })
-                continue
+            # 根据台词类型获取角色信息
+            if dialogue_type == "narration":
+                # 旁白台词：获取旁白角色
+                character = character_repo.get_narrator(novel_id)
+                if not character:
+                    warnings.append({
+                        "character_name": character_name,
+                        "reason": "该小说尚未创建旁白角色，请先解析角色"
+                    })
+                    continue
+            else:
+                # 角色台词：获取指定角色
+                character = character_repo.get_by_name(novel_id, character_name)
+                if not character:
+                    warnings.append({
+                        "character_name": character_name,
+                        "reason": f"角色 '{character_name}' 不存在于角色库中"
+                    })
+                    continue
 
             # 检查角色是否有参考音频
             if not character.reference_audio_url:
-                warnings.append({
-                    "character_name": character_name,
-                    "reason": f"角色 '{character_name}' 尚未生成音色，请先在角色库中生成"
-                })
+                if dialogue_type == "narration":
+                    warnings.append({
+                        "character_name": character_name,
+                        "reason": "旁白角色尚未生成音色，请先在角色库中为旁白生成音色"
+                    })
+                else:
+                    warnings.append({
+                        "character_name": character_name,
+                        "reason": f"角色 '{character_name}' 尚未生成音色，请先在角色库中生成"
+                    })
                 continue
 
             # 检查是否已有进行中的任务
-            existing_task = task_repo.get_active_character_audio_task(
-                novel_id, chapter_id, shot_index, character_name
-            )
+            if dialogue_type == "narration":
+                existing_task = task_repo.get_active_narrator_audio_task(
+                    novel_id, chapter_id, shot_index
+                )
+            else:
+                existing_task = task_repo.get_active_character_audio_task(
+                    novel_id, chapter_id, shot_index, character_name
+                )
             if existing_task:
                 tasks.append({
                     "character_name": character_name,
                     "task_id": existing_task.id,
                     "status": existing_task.status,
-                    "message": "已有进行中的任务"
+                    "message": "已有进行中的任务",
+                    "type": dialogue_type
                 })
                 continue
 
             # 创建任务
-            task = task_repo.create_character_audio_task(
-                novel_id=novel_id,
-                chapter_id=chapter_id,
-                shot_index=shot_index,
-                character_id=character.id,
-                character_name=character_name,
-                text=text,
-                chapter_title=chapter_title,
-                workflow_id=workflow.id,
-                workflow_name=workflow.name
-            )
+            if dialogue_type == "narration":
+                task = task_repo.create_narrator_audio_task(
+                    novel_id=novel_id,
+                    chapter_id=chapter_id,
+                    shot_index=shot_index,
+                    character_id=character.id,
+                    text=text,
+                    chapter_title=chapter_title,
+                    workflow_id=workflow.id,
+                    workflow_name=workflow.name
+                )
+            else:
+                task = task_repo.create_character_audio_task(
+                    novel_id=novel_id,
+                    chapter_id=chapter_id,
+                    shot_index=shot_index,
+                    character_id=character.id,
+                    character_name=character_name,
+                    text=text,
+                    chapter_title=chapter_title,
+                    workflow_id=workflow.id,
+                    workflow_name=workflow.name
+                )
 
             tasks.append({
                 "character_name": character_name,
                 "task_id": task.id,
-                "status": "pending"
+                "status": "pending",
+                "type": dialogue_type
             })
 
             # 启动后台任务
@@ -128,7 +165,8 @@ class ShotAudioService:
                     text=text,
                     emotion_prompt=emotion_prompt,
                     reference_audio_url=character.reference_audio_url,
-                    workflow_id=workflow.id
+                    workflow_id=workflow.id,
+                    dialogue_type=dialogue_type
                 )
             )
 
@@ -188,6 +226,7 @@ class ShotAudioService:
                 character_name = dialogue.get("character_name")
                 text = dialogue.get("text", "")
                 emotion_prompt = dialogue.get("emotion_prompt", "自然")
+                dialogue_type = dialogue.get("type", "character") or "character"
 
                 if not character_name or not text:
                     all_warnings.append({
@@ -197,57 +236,95 @@ class ShotAudioService:
                     })
                     continue
 
-                # 获取角色信息
-                character = character_repo.get_by_name(novel_id, character_name)
-                if not character:
-                    all_warnings.append({
-                        "shot_index": shot_index,
-                        "character_name": character_name,
-                        "reason": f"角色 '{character_name}' 不存在于角色库中"
-                    })
-                    continue
+                # 根据台词类型获取角色信息
+                if dialogue_type == "narration":
+                    # 旁白台词：获取旁白角色
+                    character = character_repo.get_narrator(novel_id)
+                    if not character:
+                        all_warnings.append({
+                            "shot_index": shot_index,
+                            "character_name": character_name,
+                            "reason": "该小说尚未创建旁白角色，请先解析角色"
+                        })
+                        continue
+                else:
+                    # 角色台词：获取指定角色
+                    character = character_repo.get_by_name(novel_id, character_name)
+                    if not character:
+                        all_warnings.append({
+                            "shot_index": shot_index,
+                            "character_name": character_name,
+                            "reason": f"角色 '{character_name}' 不存在于角色库中"
+                        })
+                        continue
 
                 # 检查角色是否有参考音频
                 if not character.reference_audio_url:
-                    all_warnings.append({
-                        "shot_index": shot_index,
-                        "character_name": character_name,
-                        "reason": f"角色 '{character_name}' 尚未生成音色"
-                    })
+                    if dialogue_type == "narration":
+                        all_warnings.append({
+                            "shot_index": shot_index,
+                            "character_name": character_name,
+                            "reason": "旁白角色尚未生成音色，请先在角色库中为旁白生成音色"
+                        })
+                    else:
+                        all_warnings.append({
+                            "shot_index": shot_index,
+                            "character_name": character_name,
+                            "reason": f"角色 '{character_name}' 尚未生成音色"
+                        })
                     continue
 
                 # 检查是否已有进行中的任务
-                existing_task = task_repo.get_active_character_audio_task(
-                    novel_id, chapter_id, shot_index, character_name
-                )
+                if dialogue_type == "narration":
+                    existing_task = task_repo.get_active_narrator_audio_task(
+                        novel_id, chapter_id, shot_index
+                    )
+                else:
+                    existing_task = task_repo.get_active_character_audio_task(
+                        novel_id, chapter_id, shot_index, character_name
+                    )
                 if existing_task:
                     all_tasks.append({
                         "shot_index": shot_index,
                         "character_name": character_name,
                         "task_id": existing_task.id,
                         "status": existing_task.status,
-                        "message": "已有进行中的任务"
+                        "message": "已有进行中的任务",
+                        "type": dialogue_type
                     })
                     continue
 
                 # 创建任务
-                task = task_repo.create_character_audio_task(
-                    novel_id=novel_id,
-                    chapter_id=chapter_id,
-                    shot_index=shot_index,
-                    character_id=character.id,
-                    character_name=character_name,
-                    text=text,
-                    chapter_title=chapter_title,
-                    workflow_id=workflow.id,
-                    workflow_name=workflow.name
-                )
+                if dialogue_type == "narration":
+                    task = task_repo.create_narrator_audio_task(
+                        novel_id=novel_id,
+                        chapter_id=chapter_id,
+                        shot_index=shot_index,
+                        character_id=character.id,
+                        text=text,
+                        chapter_title=chapter_title,
+                        workflow_id=workflow.id,
+                        workflow_name=workflow.name
+                    )
+                else:
+                    task = task_repo.create_character_audio_task(
+                        novel_id=novel_id,
+                        chapter_id=chapter_id,
+                        shot_index=shot_index,
+                        character_id=character.id,
+                        character_name=character_name,
+                        text=text,
+                        chapter_title=chapter_title,
+                        workflow_id=workflow.id,
+                        workflow_name=workflow.name
+                    )
 
                 all_tasks.append({
                     "shot_index": shot_index,
                     "character_name": character_name,
                     "task_id": task.id,
-                    "status": "pending"
+                    "status": "pending",
+                    "type": dialogue_type
                 })
 
                 # 启动后台任务
@@ -261,7 +338,8 @@ class ShotAudioService:
                         text=text,
                         emotion_prompt=emotion_prompt,
                         reference_audio_url=character.reference_audio_url,
-                        workflow_id=workflow.id
+                        workflow_id=workflow.id,
+                        dialogue_type=dialogue_type
                     )
                 )
 
@@ -286,10 +364,11 @@ class ShotAudioService:
         text: str,
         emotion_prompt: str,
         reference_audio_url: str,
-        workflow_id: str
+        workflow_id: str,
+        dialogue_type: str = "character"
     ):
         """
-        后台任务：生成角色台词音频
+        后台任务：生成角色/旁白台词音频
 
         Args:
             task_id: 任务ID
@@ -301,6 +380,7 @@ class ShotAudioService:
             emotion_prompt: 情感提示词
             reference_audio_url: 参考音频URL
             workflow_id: 工作流ID
+            dialogue_type: 台词类型（character 或 narration）
         """
         from app.core.database import SessionLocal
         from app.repositories import WorkflowRepository, ChapterRepository
@@ -379,7 +459,10 @@ class ShotAudioService:
 
             # 保存构建后的完整工作流到任务
             task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
-            task.prompt_text = f"角色: {character_name}\n台词: {text}\n情感: {emotion_prompt}"
+            if dialogue_type == "narration":
+                task.prompt_text = f"类型: 旁白\n台词: {text}\n情感: {emotion_prompt}"
+            else:
+                task.prompt_text = f"角色: {character_name}\n台词: {text}\n情感: {emotion_prompt}"
             task.current_step = "正在生成音频..."
             db.commit()
 
@@ -439,7 +522,8 @@ class ShotAudioService:
                 # 更新分镜数据中的 audio_url
                 self._update_shot_dialogue_audio_url(
                     db, chapter_repo, chapter_id, novel_id,
-                    shot_index, character_name, task.result_url, task.id
+                    shot_index, character_name, task.result_url, task.id,
+                    dialogue_type=dialogue_type
                 )
             else:
                 task.status = "failed"
@@ -521,7 +605,8 @@ class ShotAudioService:
         character_name: str,
         audio_url: str,
         task_id: str,
-        audio_source: str = "ai_generated"
+        audio_source: str = "ai_generated",
+        dialogue_type: str = "character"
     ):
         """
         更新分镜台词的 audio_url 字段
@@ -536,6 +621,7 @@ class ShotAudioService:
             audio_url: 音频URL
             task_id: 任务ID
             audio_source: 音频来源（ai_generated 或 uploaded）
+            dialogue_type: 台词类型（character 或 narration）
         """
         try:
             # 使用 ShotRepository 更新 Shot 记录
@@ -549,17 +635,26 @@ class ShotAudioService:
             # 解析现有 dialogues
             dialogues = json.loads(shot.dialogues) if shot.dialogues else []
 
-            # 更新对应角色的音频信息
+            # 更新对应台词的音频信息
             for dialogue in dialogues:
-                if dialogue.get("character_name") == character_name:
-                    dialogue["audio_url"] = audio_url
-                    dialogue["audio_task_id"] = task_id
-                    dialogue["audio_source"] = audio_source
-                    break
+                if dialogue_type == "narration":
+                    # 旁白台词：匹配 type="narration"
+                    if dialogue.get("type") == "narration":
+                        dialogue["audio_url"] = audio_url
+                        dialogue["audio_task_id"] = task_id
+                        dialogue["audio_source"] = audio_source
+                        break
+                else:
+                    # 角色台词：匹配角色名称
+                    if dialogue.get("character_name") == character_name:
+                        dialogue["audio_url"] = audio_url
+                        dialogue["audio_task_id"] = task_id
+                        dialogue["audio_source"] = audio_source
+                        break
 
             # 更新 Shot 记录
             shot_repo.update(shot, dialogues=dialogues)
-            print(f"[AudioTask] Updated audio_url for shot {shot_index}, character {character_name}, source: {audio_source}")
+            print(f"[AudioTask] Updated audio_url for shot {shot_index}, type: {dialogue_type}, source: {audio_source}")
 
         except Exception as e:
             print(f"[AudioTask] Failed to update shot dialogue audio_url: {e}")

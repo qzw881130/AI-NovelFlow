@@ -146,7 +146,15 @@ class NovelService:
                 message_parts.append(f"新增 {len(created_characters)} 个角色")
             if updated_characters:
                 message_parts.append(f"更新 {len(updated_characters)} 个角色")
-            
+
+            # 自动创建旁白角色
+            from app.repositories import CharacterRepository
+            character_repo_for_narrator = CharacterRepository(self.db)
+            narrator = character_repo_for_narrator.get_narrator(novel_id)
+            if not narrator:
+                character_repo_for_narrator.create_narrator(novel_id)
+                message_parts.append("自动创建旁白角色")
+
             return {
                 "success": True,
                 "data": [

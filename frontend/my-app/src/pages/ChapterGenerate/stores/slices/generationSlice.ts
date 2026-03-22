@@ -9,6 +9,8 @@ import type {
   AudioTask,
   AudioWarning,
   DialogueData,
+  KeyframeTask,
+  ReferenceAudioMergeTask,
 } from './types';
 import { shotsApi } from '../../../../api/shots';
 import { chapterApi } from '../../../../api/chapters';
@@ -50,7 +52,27 @@ export interface GenerationSlice extends GenerationSliceState {
   checkVideoTaskStatus: (chapterId: string) => Promise<void>;
   checkTransitionTaskStatus: (chapterId: string) => Promise<void>;
   checkAudioTaskStatus: (chapterId: string) => Promise<void>;
+  checkKeyframeTaskStatus: (chapterId: string) => Promise<void>;
   fetchActiveTasks: (chapterId: string) => Promise<void>;
+
+  // ========== 关键帧生成 ==========
+  generateKeyframeDescriptions: (novelId: string, chapterId: string, shotId: string, count?: number) => Promise<void>;
+  generateKeyframeImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, workflowId?: string) => Promise<void>;
+  uploadKeyframeImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, file: File) => Promise<void>;
+  uploadKeyframeReferenceImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, file: File) => Promise<void>;
+  setKeyframeReferenceImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, mode: 'auto_select' | 'custom' | 'none', referenceUrl?: string) => Promise<void>;
+  isKeyframeGenerating: (shotId: string, frameIndex: number) => boolean;
+  getKeyframeImageUrl: (shotId: string, frameIndex: number) => string | undefined;
+  getKeyframeTask: (shotId: string, frameIndex: number) => KeyframeTask | undefined;
+
+  // ========== 参考音频 ==========
+  mergeDialogueAudio: (novelId: string, chapterId: string, shotIndex: number) => Promise<void>;
+  uploadReferenceAudio: (novelId: string, chapterId: string, shotIndex: number, file: File) => Promise<void>;
+  setReferenceAudio: (novelId: string, chapterId: string, shotIndex: number, mode: 'none' | 'merged' | 'uploaded' | 'character', characterName?: string) => Promise<void>;
+  getReferenceAudioUrl: (shotIndex: number) => string | undefined;
+  inferReferenceAudioSourceType: (shotIndex: number) => 'none' | 'merged' | 'uploaded' | 'character';
+  isReferenceAudioMerging: (shotIndex: number) => boolean;
+  isReferenceAudioUploading: (shotIndex: number) => boolean;
 }
 
 export const createGenerationSlice: StateCreator<
@@ -91,6 +113,16 @@ export const createGenerationSlice: StateCreator<
   audioUrls: {},
   audioSources: {},
   uploadingAudios: new Set(),
+
+  // 关键帧生成
+  generatingKeyframes: new Set(),
+  keyframeTasks: [],
+  keyframeImageUrls: {},
+
+  // 参考音频
+  mergingReferenceAudios: new Set(),
+  uploadingReferenceAudios: new Set(),
+  referenceAudioMergeTasks: [],
 
   // ========== 图片生成方法 ==========
 
@@ -716,6 +748,397 @@ export const createGenerationSlice: StateCreator<
       get().checkVideoTaskStatus(chapterId),
       get().checkTransitionTaskStatus(chapterId),
       get().checkAudioTaskStatus(chapterId),
+      get().checkKeyframeTaskStatus(chapterId),
     ]);
+  },
+
+  checkKeyframeTaskStatus: async (chapterId: string) => {
+    try {
+      const response = await fetch(`/api/tasks/?chapter_id=${chapterId}&type=keyframe_image`);
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        // 更新关键帧任务状态和图片URL
+        const { keyframeTasks, generatingKeyframes, keyframeImageUrls, shots } = get();
+        let keyframeTasksUpdated = false;
+        let generatingKeyframesUpdated = false;
+        let keyframeImageUrlsUpdated = false;
+        const newKeyframeTasks = [...keyframeTasks];
+        const newGeneratingKeyframes = new Set(generatingKeyframes);
+        const newKeyframeImageUrls = { ...keyframeImageUrls };
+        const updatedShots = [...shots];
+
+        result.data.forEach((task: any) => {
+          // 从 task.name 中提取 shotId 和 frameIndex
+          // 格式类似 "关键帧图片: shotId-frameIndex"
+          const match = task.name?.match(/关键帧.*?([a-f0-9-]{36})-(\d+)/i);
+          if (match) {
+            const shotId = match[1];
+            const frameIndex = parseInt(match[2], 10);
+            const keyframeKey = `${shotId}-${frameIndex}`;
+
+            // 更新任务状态
+            const taskIndex = newKeyframeTasks.findIndex(t => t.taskId === task.id);
+            if (taskIndex >= 0) {
+              newKeyframeTasks[taskIndex] = { ...newKeyframeTasks[taskIndex], status: task.status };
+              keyframeTasksUpdated = true;
+            }
+
+            // 如果完成，更新图片URL
+            if (task.status === 'completed' && task.resultUrl) {
+              if (newKeyframeImageUrls[keyframeKey] !== task.resultUrl) {
+                newKeyframeImageUrls[keyframeKey] = task.resultUrl;
+                keyframeImageUrlsUpdated = true;
+              }
+
+              // 从生成中集合移除
+              if (newGeneratingKeyframes.has(keyframeKey)) {
+                newGeneratingKeyframes.delete(keyframeKey);
+                generatingKeyframesUpdated = true;
+              }
+
+              // 更新 shot 的 keyframes
+              const shotIndex = updatedShots.findIndex(s => s.id === shotId);
+              if (shotIndex >= 0) {
+                const shot = updatedShots[shotIndex];
+                const updatedKeyframes = (shot.keyframes || []).map((kf: any) =>
+                  kf.frame_index === frameIndex
+                    ? { ...kf, image_url: task.resultUrl, image_task_id: task.id }
+                    : kf
+                );
+                updatedShots[shotIndex] = { ...shot, keyframes: updatedKeyframes };
+              }
+            } else if (task.status === 'failed') {
+              // 失败时从生成中集合移除
+              if (newGeneratingKeyframes.has(keyframeKey)) {
+                newGeneratingKeyframes.delete(keyframeKey);
+                generatingKeyframesUpdated = true;
+              }
+            }
+          }
+        });
+
+        // 只在数据变化时更新状态
+        if (keyframeTasksUpdated || generatingKeyframesUpdated || keyframeImageUrlsUpdated) {
+          set({
+            keyframeTasks: newKeyframeTasks,
+            generatingKeyframes: newGeneratingKeyframes,
+            keyframeImageUrls: newKeyframeImageUrls,
+            shots: updatedShots,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('检查关键帧任务状态失败:', error);
+    }
+  },
+
+  // ========== 关键帧生成方法 ==========
+
+  generateKeyframeDescriptions: async (novelId, chapterId, shotId, count = 3) => {
+    try {
+      const result = await shotsApi.generateKeyframeDescriptions(novelId, chapterId, shotId, count);
+
+      if (result.success && result.data?.keyframes) {
+        // 更新 shot 的 keyframes
+        const updatedShots = get().shots.map(shot => {
+          if (shot.id === shotId) {
+            // 合并新描述到现有 keyframes，或创建新的
+            const existingKeyframes = shot.keyframes || [];
+            const newKeyframes = result.data!.keyframes.map((kf: any, index: number) => ({
+              frame_index: existingKeyframes.length + index,
+              description: kf.description,
+              image_url: undefined,
+              image_task_id: undefined,
+              reference_image_url: undefined,
+            }));
+            return {
+              ...shot,
+              keyframes: [...existingKeyframes, ...newKeyframes],
+            };
+          }
+          return shot;
+        });
+        set({ shots: updatedShots });
+      } else {
+        throw new Error(result.message || '生成关键帧描述失败');
+      }
+    } catch (error) {
+      console.error('生成关键帧描述失败:', error);
+      throw error;
+    }
+  },
+
+  generateKeyframeImage: async (novelId, chapterId, shotId, frameIndex, workflowId) => {
+    const keyframeKey = `${shotId}-${frameIndex}`;
+    set(state => ({
+      generatingKeyframes: new Set([...state.generatingKeyframes, keyframeKey])
+    }));
+
+    try {
+      const result = await shotsApi.generateKeyframeImage(novelId, chapterId, shotId, frameIndex, workflowId);
+
+      if (result.success && result.data?.task_id) {
+        // 添加到 keyframeTasks
+        const newTask: KeyframeTask = {
+          shotId,
+          frameIndex,
+          taskId: result.data.task_id,
+          status: 'pending',
+        };
+        set(state => ({
+          keyframeTasks: [...state.keyframeTasks, newTask]
+        }));
+
+        // 更新 shot 的 keyframes
+        const updatedShots = get().shots.map(shot => {
+          if (shot.id === shotId) {
+            const updatedKeyframes = (shot.keyframes || []).map((kf: any) =>
+              kf.frame_index === frameIndex
+                ? { ...kf, image_task_id: result.data!.task_id }
+                : kf
+            );
+            return { ...shot, keyframes: updatedKeyframes };
+          }
+          return shot;
+        });
+        set({ shots: updatedShots });
+      } else {
+        throw new Error(result.message || '生成关键帧图片失败');
+      }
+    } catch (error) {
+      console.error('生成关键帧图片失败:', error);
+      set(state => {
+        const newSet = new Set(state.generatingKeyframes);
+        newSet.delete(keyframeKey);
+        return { generatingKeyframes: newSet };
+      });
+      throw error;
+    }
+  },
+
+  uploadKeyframeImage: async (novelId, chapterId, shotId, frameIndex, file) => {
+    try {
+      const result = await shotsApi.uploadKeyframeImage(novelId, chapterId, shotId, frameIndex, file);
+
+      if (result.success && result.data?.image_url) {
+        const keyframeKey = `${shotId}-${frameIndex}`;
+
+        // 更新 keyframeImageUrls
+        set(state => ({
+          keyframeImageUrls: {
+            ...state.keyframeImageUrls,
+            [keyframeKey]: result.data!.image_url
+          }
+        }));
+
+        // 更新 shot 的 keyframes
+        const updatedShots = get().shots.map(shot => {
+          if (shot.id === shotId) {
+            const updatedKeyframes = (shot.keyframes || []).map((kf: any) =>
+              kf.frame_index === frameIndex
+                ? { ...kf, image_url: result.data!.image_url }
+                : kf
+            );
+            return { ...shot, keyframes: updatedKeyframes };
+          }
+          return shot;
+        });
+        set({ shots: updatedShots });
+      } else {
+        throw new Error(result.message || '上传关键帧图片失败');
+      }
+    } catch (error) {
+      console.error('上传关键帧图片失败:', error);
+      throw error;
+    }
+  },
+
+  uploadKeyframeReferenceImage: async (novelId, chapterId, shotId, frameIndex, file) => {
+    try {
+      const result = await shotsApi.uploadKeyframeReferenceImage(novelId, chapterId, shotId, frameIndex, file);
+
+      if (result.success && result.data?.reference_url) {
+        // 更新 shot 的 keyframes
+        const updatedShots = get().shots.map(shot => {
+          if (shot.id === shotId) {
+            const updatedKeyframes = (shot.keyframes || []).map((kf: any) =>
+              kf.frame_index === frameIndex
+                ? { ...kf, reference_image_url: result.data!.reference_url }
+                : kf
+            );
+            return { ...shot, keyframes: updatedKeyframes };
+          }
+          return shot;
+        });
+        set({ shots: updatedShots });
+      } else {
+        throw new Error(result.message || '上传参考图失败');
+      }
+    } catch (error) {
+      console.error('上传参考图失败:', error);
+      throw error;
+    }
+  },
+
+  setKeyframeReferenceImage: async (novelId, chapterId, shotId, frameIndex, mode, referenceUrl) => {
+    try {
+      const result = await shotsApi.setKeyframeReferenceImage(novelId, chapterId, shotId, frameIndex, mode, referenceUrl);
+
+      if (result.success) {
+        // 更新 shot 的 keyframes
+        const updatedShots = get().shots.map(shot => {
+          if (shot.id === shotId) {
+            const updatedKeyframes = (shot.keyframes || []).map((kf: any) =>
+              kf.frame_index === frameIndex
+                ? { ...kf, reference_image_url: result.data?.reference_url || null }
+                : kf
+            );
+            return { ...shot, keyframes: updatedKeyframes };
+          }
+          return shot;
+        });
+        set({ shots: updatedShots });
+      } else {
+        throw new Error(result.message || '设置参考图失败');
+      }
+    } catch (error) {
+      console.error('设置参考图失败:', error);
+      throw error;
+    }
+  },
+
+  isKeyframeGenerating: (shotId, frameIndex) => {
+    const keyframeKey = `${shotId}-${frameIndex}`;
+    return get().generatingKeyframes.has(keyframeKey);
+  },
+
+  getKeyframeImageUrl: (shotId, frameIndex) => {
+    const keyframeKey = `${shotId}-${frameIndex}`;
+    return get().keyframeImageUrls[keyframeKey];
+  },
+
+  getKeyframeTask: (shotId, frameIndex) => {
+    return get().keyframeTasks.find(t => t.shotId === shotId && t.frameIndex === frameIndex);
+  },
+
+  // ========== 参考音频方法 ==========
+
+  mergeDialogueAudio: async (novelId, chapterId, shotIndex) => {
+    set(state => ({
+      mergingReferenceAudios: new Set([...state.mergingReferenceAudios, shotIndex])
+    }));
+
+    try {
+      const result = await shotsApi.mergeDialogueAudio(novelId, chapterId, shotIndex);
+
+      if (result.success && result.data?.audio_url) {
+        // 更新 shot 的 referenceAudioUrl
+        const updatedShots = get().shots.map(shot => {
+          if (shot.index === shotIndex) {
+            return { ...shot, referenceAudioUrl: result.data!.audio_url };
+          }
+          return shot;
+        });
+        set({ shots: updatedShots });
+      } else {
+        throw new Error(result.message || '合并音频失败');
+      }
+    } catch (error) {
+      console.error('合并台词音频失败:', error);
+      throw error;
+    } finally {
+      set(state => {
+        const newSet = new Set(state.mergingReferenceAudios);
+        newSet.delete(shotIndex);
+        return { mergingReferenceAudios: newSet };
+      });
+    }
+  },
+
+  uploadReferenceAudio: async (novelId, chapterId, shotIndex, file) => {
+    set(state => ({
+      uploadingReferenceAudios: new Set([...state.uploadingReferenceAudios, shotIndex])
+    }));
+
+    try {
+      const result = await shotsApi.uploadReferenceAudio(novelId, chapterId, shotIndex, file);
+
+      if (result.success && result.data?.audio_url) {
+        // 更新 shot 的 referenceAudioUrl
+        const updatedShots = get().shots.map(shot => {
+          if (shot.index === shotIndex) {
+            return { ...shot, referenceAudioUrl: result.data!.audio_url };
+          }
+          return shot;
+        });
+        set({ shots: updatedShots });
+      } else {
+        throw new Error(result.message || '上传音频失败');
+      }
+    } catch (error) {
+      console.error('上传参考音频失败:', error);
+      throw error;
+    } finally {
+      set(state => {
+        const newSet = new Set(state.uploadingReferenceAudios);
+        newSet.delete(shotIndex);
+        return { uploadingReferenceAudios: newSet };
+      });
+    }
+  },
+
+  setReferenceAudio: async (novelId, chapterId, shotIndex, mode, characterName) => {
+    try {
+      const result = await shotsApi.setReferenceAudio(novelId, chapterId, shotIndex, mode, characterName);
+
+      if (result.success) {
+        // 更新 shot 的 referenceAudioUrl
+        const updatedShots = get().shots.map(shot => {
+          if (shot.index === shotIndex) {
+            return { ...shot, referenceAudioUrl: result.data?.audio_url || undefined };
+          }
+          return shot;
+        });
+        set({ shots: updatedShots });
+      } else {
+        throw new Error(result.message || '设置参考音频失败');
+      }
+    } catch (error) {
+      console.error('设置参考音频失败:', error);
+      throw error;
+    }
+  },
+
+  getReferenceAudioUrl: (shotIndex) => {
+    const shot = get().shots.find(s => s.index === shotIndex);
+    return shot?.referenceAudioUrl;
+  },
+
+  inferReferenceAudioSourceType: (shotIndex) => {
+    const shot = get().shots.find(s => s.index === shotIndex);
+    if (!shot?.referenceAudioUrl) {
+      return 'none';
+    }
+
+    const url = shot.referenceAudioUrl;
+
+    // 根据 URL 模式推断来源类型
+    if (url.includes('merged_audio')) {
+      return 'merged';
+    } else if (url.includes('reference_audio')) {
+      return 'uploaded';
+    } else {
+      // 可能是角色音色，需要进一步检查
+      return 'character';
+    }
+  },
+
+  isReferenceAudioMerging: (shotIndex) => {
+    return get().mergingReferenceAudios.has(shotIndex);
+  },
+
+  isReferenceAudioUploading: (shotIndex) => {
+    return get().uploadingReferenceAudios.has(shotIndex);
   },
 });

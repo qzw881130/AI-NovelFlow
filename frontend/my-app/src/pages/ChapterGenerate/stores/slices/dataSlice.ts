@@ -76,7 +76,20 @@ export const createDataSlice: StateCreator<
       const res = await fetch(`${API_BASE}/novels/${novelId}/chapters/${chapterId}/`);
       const data = await res.json();
       if (data.success) {
-        const chapter = data.data;
+        // 转换 snake_case 到 camelCase
+        const rawChapter = data.data;
+        const chapter = {
+          ...rawChapter,
+          novelId: rawChapter.novel_id || rawChapter.novelId || novelId,
+          parsedData: rawChapter.parsed_data || rawChapter.parsedData,
+          characterImages: rawChapter.character_images || rawChapter.characterImages,
+          shotImages: rawChapter.shot_images || rawChapter.shotImages,
+          shotVideos: rawChapter.shot_videos || rawChapter.shotVideos,
+          transitionVideos: rawChapter.transition_videos || rawChapter.transitionVideos,
+          finalVideo: rawChapter.final_video || rawChapter.finalVideo,
+          createdAt: rawChapter.created_at || rawChapter.createdAt,
+          updatedAt: rawChapter.updated_at || rawChapter.updatedAt,
+        };
         set({ chapter });
 
         // 解析 parsedData
@@ -89,10 +102,29 @@ export const createDataSlice: StateCreator<
             // 获取分镜数据并合并到 parsedData
             const shotsResult = await get().fetchShotsWithReturn(novelId, chapterId);
 
+            // Convert Shot[] to ShotDataFromParsed format for consistency
+            const shotsData = shotsResult.map((shot) => ({
+              id: shot.index,
+              description: shot.description,
+              video_description: shot.videoDescription,
+              characters: shot.characters,
+              scene: shot.scene,
+              props: shot.props,
+              duration: shot.duration,
+              image_url: shot.imageUrl || undefined,
+              image_path: shot.imagePath || undefined,
+              merged_character_image: shot.mergedCharacterImage || undefined,
+              video_url: shot.videoUrl || undefined,
+              dialogues: shot.dialogues,
+              keyframes: shot.keyframes || [],
+              reference_audio_url: shot.referenceAudioUrl || undefined,
+              reference_audio_type: shot.referenceAudioType || 'none',
+            }));
+
             // 将 shots 合并到 parsedData 中（前端代码依赖 parsedData.shots）
             const parsedWithShots = {
               ...parsed,
-              shots: shotsResult
+              shots: shotsData
             };
 
             set({
@@ -121,6 +153,9 @@ export const createDataSlice: StateCreator<
               image_path: shot.imagePath || undefined,
               merged_character_image: shot.mergedCharacterImage || undefined,
               dialogues: shot.dialogues,
+              keyframes: shot.keyframes || [],
+              reference_audio_url: shot.referenceAudioUrl || undefined,
+              reference_audio_type: shot.referenceAudioType || 'none',
             }));
             const parsedWithShots = {
               chapter: chapter.title,

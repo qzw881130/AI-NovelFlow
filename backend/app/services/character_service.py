@@ -567,3 +567,45 @@ class CharacterService:
             return False, f"工作流 '{workflow.name}' 的映射配置不完整，缺少以下必需字段：{', '.join(missing_fields)}。请在【系统配置-ComfyUI工作流】中配置完整后再试。"
 
         return True, ""
+
+    # ==================== 旁白角色管理 ====================
+
+    def ensure_narrator_character(self, novel_id: str, db: Session = None) -> Dict[str, Any]:
+        """
+        确保小说有旁白角色，不存在则创建
+
+        Args:
+            novel_id: 小说ID
+            db: 数据库会话
+
+        Returns:
+            操作结果，包含旁白角色信息
+        """
+        db = db or self.db
+        character_repo = CharacterRepository(db)
+
+        # 查询是否已存在旁白角色
+        narrator = character_repo.get_narrator(novel_id)
+        if narrator:
+            return {
+                "success": True,
+                "message": "旁白角色已存在",
+                "data": {
+                    "id": narrator.id,
+                    "name": narrator.name,
+                    "isNarrator": True
+                }
+            }
+
+        # 创建旁白角色
+        narrator = character_repo.create_narrator(novel_id)
+
+        return {
+            "success": True,
+            "message": "旁白角色创建成功",
+            "data": {
+                "id": narrator.id,
+                "name": narrator.name,
+                "isNarrator": True
+            }
+        }

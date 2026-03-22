@@ -74,5 +74,7 @@ export default {
     uploadAudioFailed: '音频上传失败',
     invalidAudioFormat: '不支持的音频格式，仅支持 MP3、WAV、FLAC、OGG、M4A',
     audioTooLarge: '音频文件过大，最大支持 10MB',
+    // 旁白角色
+    narrator: '旁白',
   },
 };

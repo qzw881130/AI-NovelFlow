@@ -8,6 +8,7 @@ export default {
     workflow: {
       ...zhCN.systemSettings.workflow,
       voiceDesign: '音色設計',
+      keyframeImage: '關鍵幀生圖',
       setDefaultSuccess: '已設為預設：{name}',
       setDefaultFailed: '設置預設工作流失敗',
       voicePromptNode: '音色提示詞節點',
@@ -18,6 +19,13 @@ export default {
       referenceAudioNode: '參考音訊節點',
       textNode: '生成文字節點',
       emotionPromptNode: '情感提示詞節點',
+      // 關鍵幀節點
+      keyframeNodes: '關鍵幀節點',
+      keyframeNodesHint: '用於視訊生成的關鍵幀圖片輸入節點，按順序新增',
+      keyframeNode: '關鍵幀節點',
+      keyframeReferenceNodes: '關鍵幀參考圖節點',
+      keyframeReferenceNodesHint: '用於關鍵幀圖片生成的參考圖輸入節點，按順序新增',
+      keyframeReferenceNode: '關鍵幀參考節點',
     },
     subtitle: '組態 LLM、代理和 ComfyUI 設定',
     llmConfig: 'LLM 組態',
@@ -133,6 +141,8 @@ export default {
       propDesc: '用於生成道具圖片的提示詞模板',
       chapterSplit: '分鏡拆分提示詞',
       chapterSplitDesc: '用於將章節拆分為分鏡的提示詞模板',
+      keyframeDescription: '關鍵幀描述提示詞',
+      keyframeDescriptionDesc: '用於生成分鏡關鍵幀描述的提示詞模板',
     },
 
     placeholderTip: '使用 {appearance} 和 {description} 作為佔位符',

@@ -97,6 +97,7 @@ export default {
       transition: 'トランジション動画生成',
       prop: 'プロップ生成',
       voiceDesign: '音色デザイン',
+      keyframeImage: 'キーフレーム画像生成',
       type: 'ワークフロータイプ',
       name: 'ワークフロー名',
       file: 'ワークフローファイル',
@@ -174,6 +175,13 @@ export default {
       referenceAudioNode: '参照音声ノード',
       textNode: 'テキスト生成ノード',
       emotionPromptNode: '感情プロンプトノード',
+      // キーフレームノード
+      keyframeNodes: 'キーフレームノード',
+      keyframeNodesHint: '動画生成用のキーフレーム画像入力ノード、順番に追加',
+      keyframeNode: 'キーフレームノード',
+      keyframeReferenceNodes: 'キーフレーム参照画像ノード',
+      keyframeReferenceNodesHint: 'キーフレーム画像生成用の参照画像入力ノード、順番に追加',
+      keyframeReferenceNode: 'キーフレーム参照ノード',
     },
   },
 
@@ -216,6 +224,8 @@ export default {
       propDesc: 'プロップ画像生成用のプロンプトテンプレート',
       chapterSplit: 'ショット分割プロンプト',
       chapterSplitDesc: '章をショットに分割するプロンプトテンプレート',
+      keyframeDescription: 'キーフレーム記述プロンプト',
+      keyframeDescriptionDesc: 'ショットのキーフレーム記述を生成するプロンプトテンプレート',
     },
 
     placeholderTip: '{appearance}と{description}をプレースホルダーとして使用',

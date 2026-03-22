@@ -688,6 +688,70 @@ class WorkflowBuilder:
 
         return workflow
 
+    # ==================== 节点映射解析 ====================
+
+    def get_keyframe_node_mappings(self, node_mapping: Dict[str, str]) -> Dict[int, str]:
+        """
+        从节点映射中解析关键帧节点 ID
+
+        支持 keyframe_node_N 命名约定（视频生成工作流）
+
+        Args:
+            node_mapping: 节点映射配置
+
+        Returns:
+            Dict[int, str]: 关键帧索引到节点 ID 的映射
+            例如: {1: "25", 2: "30", 3: "35"}
+        """
+        import re
+        keyframe_nodes = {}
+
+        for key, value in node_mapping.items():
+            match = re.match(r'^keyframe_node_(\d+)$', key)
+            if match:
+                frame_index = int(match.group(1))
+                keyframe_nodes[frame_index] = value
+
+        return keyframe_nodes
+
+    def get_keyframe_reference_node_mappings(self, node_mapping: Dict[str, str]) -> Dict[int, str]:
+        """
+        从节点映射中解析关键帧参考图节点 ID
+
+        支持 keyframe_reference_node_N 命名约定（关键帧图片生成参考图）
+
+        Args:
+            node_mapping: 节点映射配置
+
+        Returns:
+            Dict[int, str]: 关键帧索引到参考图节点 ID 的映射
+            例如: {1: "40", 2: "45", 3: "50"}
+        """
+        import re
+        reference_nodes = {}
+
+        for key, value in node_mapping.items():
+            match = re.match(r'^keyframe_reference_node_(\d+)$', key)
+            if match:
+                frame_index = int(match.group(1))
+                reference_nodes[frame_index] = value
+
+        return reference_nodes
+
+    def get_reference_audio_node_id(self, node_mapping: Dict[str, str]) -> Optional[str]:
+        """
+        从节点映射中获取参考音频节点 ID
+
+        用于视频生成时的口型同步功能
+
+        Args:
+            node_mapping: 节点映射配置
+
+        Returns:
+            Optional[str]: 参考音频节点 ID，如果未配置则返回 None
+        """
+        return node_mapping.get("reference_audio_node_id")
+
     # ==================== 辅助方法 ====================
 
     def get_aspect_ratio_dimensions(self, aspect_ratio: str) -> Tuple[int, int]:

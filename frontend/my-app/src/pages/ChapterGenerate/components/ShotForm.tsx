@@ -6,7 +6,6 @@
  * - 角色选择（多选下拉）
  * - 场景选择（单选下拉）
  * - 道具选择（多选下拉）
- * - 时长设置（数字输入）
  */
 
 import { useState, useMemo, useEffect } from 'react';
@@ -33,6 +32,8 @@ interface ShotFormProps {
   showDialogues?: boolean;
   /** 是否显示视频描述编辑（默认 false） */
   showVideoDescription?: boolean;
+  /** 是否显示时长编辑（默认 false） */
+  showDuration?: boolean;
 }
 
 export function ShotForm({
@@ -45,6 +46,7 @@ export function ShotForm({
   readOnly = false,
   showDialogues = true,
   showVideoDescription = false,
+  showDuration = false,
 }: ShotFormProps) {
   const { t } = useTranslation();
   const store = useChapterGenerateStore();
@@ -179,15 +181,39 @@ export function ShotForm({
   };
 
   // 台词编辑相关函数
-  const addDialogue = () => {
-    setDialogues([...dialogues, { character_name: '', text: '', emotion_prompt: '' }]);
+  const addDialogue = (type: 'character' | 'narration' = 'character') => {
+    const newOrder = dialogues.length;
+    if (type === 'narration') {
+      // 旁白台词：不需要角色名
+      setDialogues([...dialogues, {
+        type: 'narration',
+        order: newOrder,
+        character_name: '旁白',
+        text: '',
+        emotion_prompt: ''
+      }]);
+    } else {
+      // 角色台词：需要选择角色
+      setDialogues([...dialogues, {
+        type: 'character',
+        order: newOrder,
+        character_name: '',
+        text: '',
+        emotion_prompt: ''
+      }]);
+    }
   };
 
   const removeDialogue = (index: number) => {
-    setDialogues(dialogues.filter((_, i) => i !== index));
+    const newDialogues = dialogues.filter((_, i) => i !== index);
+    // 重新排序
+    newDialogues.forEach((d, idx) => {
+      d.order = idx;
+    });
+    setDialogues(newDialogues);
   };
 
-  const updateDialogue = (index: number, field: keyof DialogueData, value: string) => {
+  const updateDialogue = (index: number, field: keyof DialogueData, value: string | number) => {
     const newDialogues = [...dialogues];
     newDialogues[index] = { ...newDialogues[index], [field]: value };
     setDialogues(newDialogues);
@@ -451,21 +477,23 @@ export function ShotForm({
       </div>
 
       {/* 时长设置 */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {t('chapterGenerate.durationLabel')}
-        </label>
-        <input
-          type="number"
-          value={duration}
-          onChange={(e) => setDuration(Number(e.target.value))}
-          disabled={readOnly}
-          min={1}
-          max={60}
-          className="input-field"
-        />
-        <p className="text-xs text-gray-500 mt-1">{t('common.second')}3-10{t('common.second')}，{t('common.max')}60{t('common.second')}</p>
-      </div>
+      {showDuration && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            {t('chapterGenerate.durationLabel')}
+          </label>
+          <input
+            type="number"
+            value={duration}
+            onChange={(e) => setDuration(Math.min(60, Math.max(1, parseInt(e.target.value) || 5)))}
+            disabled={readOnly}
+            min={1}
+            max={60}
+            className="input-field"
+          />
+          <p className="text-xs text-gray-500 mt-1">{t('common.recommended')} 3-10 {t('common.second')}，{t('common.max')} 60 {t('common.second')}</p>
+        </div>
+      )}
 
       {/* 角色台词 */}
       {showDialogues && (
@@ -487,9 +515,13 @@ export function ShotForm({
           {!dialoguesExpanded && dialogues.length > 0 && (
             <div className="space-y-2 mb-2">
               {dialogues.map((d, idx) => (
-                <div key={idx} className="text-xs p-2 bg-gray-50 rounded border border-gray-200">
-                  <span className="font-medium text-blue-600">{d.character_name || t('chapterGenerate.selectCharacter')}</span>
-                  <span className="text-gray-600 ml-2">{d.text}</span>
+                <div key={idx} className="text-xs p-2 bg-gray-50 rounded border border-gray-200 flex items-start gap-2">
+                  {d.type === 'narration' ? (
+                    <span className="font-medium text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded shrink-0">{t('chapterGenerate.narration')}</span>
+                  ) : (
+                    <span className="font-medium text-blue-600">{d.character_name || t('chapterGenerate.selectCharacter')}</span>
+                  )}
+                  <span className="text-gray-600 flex-1">{d.text}</span>
                 </div>
               ))}
             </div>
@@ -502,7 +534,15 @@ export function ShotForm({
               {dialogues.map((dialogue, idx) => (
                 <div key={idx} className="border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-gray-500">{t('chapterGenerate.dialogues')} {idx + 1}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-gray-500">{t('chapterGenerate.dialogues')} {idx + 1}</span>
+                      {/* 类型标识 */}
+                      {dialogue.type === 'narration' ? (
+                        <span className="text-xs font-medium text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">{t('chapterGenerate.narration')}</span>
+                      ) : (
+                        <span className="text-xs font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">{t('chapterGenerate.characterDialogue')}</span>
+                      )}
+                    </div>
                     <button
                       onClick={() => removeDialogue(idx)}
                       className="text-xs text-red-600 hover:text-red-800"
@@ -511,27 +551,31 @@ export function ShotForm({
                     </button>
                   </div>
 
-                  {/* 角色选择 */}
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">{t('chapterGenerate.characters')}</label>
-                    <select
-                      value={dialogue.character_name}
-                      onChange={(e) => updateDialogue(idx, 'character_name', e.target.value)}
-                      disabled={readOnly}
-                      className="input-field text-sm"
-                    >
-                      <option value="">{t('chapterGenerate.selectCharacter')}</option>
-                      {availableCharacters.map((charName) => (
-                        <option key={charName} value={charName}>
-                          {charName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* 角色选择 - 仅角色台词显示 */}
+                  {dialogue.type !== 'narration' && (
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">{t('chapterGenerate.characters')}</label>
+                      <select
+                        value={dialogue.character_name}
+                        onChange={(e) => updateDialogue(idx, 'character_name', e.target.value)}
+                        disabled={readOnly}
+                        className="input-field text-sm"
+                      >
+                        <option value="">{t('chapterGenerate.selectCharacter')}</option>
+                        {availableCharacters.map((charName) => (
+                          <option key={charName} value={charName}>
+                            {charName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   {/* 台词文本 */}
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">{t('chapterGenerate.dialogueTextPlaceholder')}</label>
+                    <label className="block text-xs text-gray-500 mb-1">
+                      {dialogue.type === 'narration' ? t('chapterGenerate.narration') : t('chapterGenerate.dialogueTextPlaceholder')}
+                    </label>
                     <textarea
                       value={dialogue.text}
                       onChange={(e) => updateDialogue(idx, 'text', e.target.value)}
@@ -561,14 +605,24 @@ export function ShotForm({
                 <p className="text-xs text-gray-500 text-center py-4">{t('chapterGenerate.noDialogues')}</p>
               )}
 
-              {/* 添加台词按钮 */}
-              <button
-                onClick={addDialogue}
-                disabled={readOnly}
-                className="w-full px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-blue-500 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                + {t('chapterGenerate.addDialogue')}
-              </button>
+              {/* 添加台词按钮组 */}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => addDialogue('character')}
+                  disabled={readOnly || availableCharacters.length === 0}
+                  className="flex-1 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-blue-500 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  title={availableCharacters.length === 0 ? t('chapterGenerate.addDialogueDisabledHint') : ''}
+                >
+                  + {t('chapterGenerate.addDialogue')}
+                </button>
+                <button
+                  onClick={() => addDialogue('narration')}
+                  disabled={readOnly}
+                  className="flex-1 px-3 py-2 border-2 border-dashed border-purple-300 rounded-lg text-sm text-purple-600 hover:border-purple-500 hover:text-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  + {t('chapterGenerate.addNarration')}
+                </button>
+              </div>
             </div>
           )}
         </div>

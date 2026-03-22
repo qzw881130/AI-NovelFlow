@@ -76,5 +76,7 @@ export default {
     uploadAudioFailed: '오디오 업로드 실패',
     invalidAudioFormat: '지원하지 않는 오디오 형식입니다. MP3, WAV, FLAC, OGG, M4A만 지원됩니다',
     audioTooLarge: '오디오 파일이 너무 큽니다. 최대 크기는 10MB입니다',
+    // 나레이터 캐릭터
+    narrator: '나레이터',
   },
 };

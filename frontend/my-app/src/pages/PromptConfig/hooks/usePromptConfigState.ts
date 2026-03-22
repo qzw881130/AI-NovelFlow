@@ -16,6 +16,7 @@ export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descK
   scene: { nameKey: 'promptConfig.types.scene', descKey: 'promptConfig.types.sceneDesc', defaultTemplate: '' },
   prop: { nameKey: 'promptConfig.types.prop', descKey: 'promptConfig.types.propDesc', defaultTemplate: '' },
   chapter_split: { nameKey: 'promptConfig.types.chapterSplit', descKey: 'promptConfig.types.chapterSplitDesc', defaultTemplate: DEFAULT_CHAPTER_SPLIT_TEMPLATE },
+  keyframe_description: { nameKey: 'promptConfig.types.keyframeDescription', descKey: 'promptConfig.types.keyframeDescriptionDesc', defaultTemplate: '' },
 };
 
 export function usePromptConfigState() {
@@ -31,6 +32,7 @@ export function usePromptConfigState() {
     scene: [],
     prop: [],
     chapter_split: [],
+    keyframe_description: [],
   });
   const [loadingByType, setLoadingByType] = useState<Record<TemplateType, boolean>>({
     style: true,
@@ -41,6 +43,7 @@ export function usePromptConfigState() {
     scene: true,
     prop: true,
     chapter_split: true,
+    keyframe_description: true,
   });
 
   // 弹窗状态
@@ -56,7 +59,7 @@ export function usePromptConfigState() {
 
   // 加载所有类型的模板
   useEffect(() => {
-    const types: TemplateType[] = ['style', 'character_parse', 'scene_parse', 'prop_parse', 'character', 'scene', 'prop', 'chapter_split'];
+    const types: TemplateType[] = ['style', 'character_parse', 'scene_parse', 'prop_parse', 'character', 'scene', 'prop', 'chapter_split', 'keyframe_description'];
     types.forEach(type => fetchTemplates(type));
   }, []);
 

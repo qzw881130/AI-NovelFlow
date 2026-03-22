@@ -1,7 +1,7 @@
 # workflow-node-mapping Specification
 
 ## Purpose
-Defines the requirements for workflow node mapping configuration, particularly for voice design and audio generation workflow types.
+Defines the requirements for workflow node mapping configuration, particularly for voice design, audio generation, and video generation workflow types. Supports dynamic keyframe node mapping.
 
 ## Requirements
 ### Requirement: 工作流节点映射支持文本节点配置
@@ -21,9 +21,29 @@ Defines the requirements for workflow node mapping configuration, particularly f
 - **AND** 节点映射 SHALL 包含 `reference_audio_node_id` 用于参考音频节点
 - **AND** 节点映射 SHALL 包含 `save_audio_node_id` 用于音频保存节点
 
+### Requirement: 视频生成工作流节点映射
+
+视频生成工作流 SHALL 支持关键帧节点和参考音频节点的动态配置。
+
+#### Scenario: 视频生成基础节点映射
+- **WHEN** 配置 video 类型工作流的节点映射
+- **THEN** 节点映射 SHALL 包含 `prompt_node_id` 用于视频描述提示词节点
+- **AND** 节点映射 SHALL 包含 `seed_node_id` 用于随机种子节点
+
+#### Scenario: 视频生成参考音频节点映射
+- **WHEN** 配置 video 类型工作流的参考音频功能
+- **THEN** 节点映射 SHALL 包含 `reference_audio_node_id` 用于参考音频输入节点
+
+#### Scenario: 视频生成关键帧节点映射
+- **WHEN** 配置 video 类型工作流的关键帧功能
+- **THEN** 节点映射 SHALL 支持动态 `keyframe_node_N` 命名约定
+- **AND** `keyframe_node_0` SHALL 对应第一个关键帧
+- **AND** `keyframe_node_1` SHALL 对应第二个关键帧
+- **AND** 依此类推支持任意数量的关键帧
+
 ### Requirement: 默认工作流节点映射配置
 
-`DEFAULT_WORKFLOW_NODE_MAPPINGS` 常量 SHALL 为 voice_design 和 audio 类型工作流提供默认节点映射。
+`DEFAULT_WORKFLOW_NODE_MAPPINGS` 常量 SHALL 为 voice_design、audio 和 video 类型工作流提供默认节点映射。
 
 #### Scenario: 获取默认音色设计节点映射
 - **WHEN** 查询 voice_design 类型的默认节点映射
@@ -32,3 +52,7 @@ Defines the requirements for workflow node mapping configuration, particularly f
 #### Scenario: 获取默认音频生成节点映射
 - **WHEN** 查询 audio 类型的默认节点映射
 - **THEN** 系统 SHALL 返回包含 text_node_id、emotion_prompt_node_id、reference_audio_node_id、save_audio_node_id 的映射配置
+
+#### Scenario: 获取默认视频生成节点映射
+- **WHEN** 查询 video 类型的默认节点映射
+- **THEN** 系统 SHALL 返回包含 prompt_node_id、seed_node_id、reference_audio_node_id 的映射配置

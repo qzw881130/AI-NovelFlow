@@ -681,6 +681,7 @@ export function ShotSplitTab({
               shotIndex={shotIndex}
               shotData={shots[shotIndex - 1]}
               showVideoDescription={true}
+              showDuration={true}
             />
           ) : (
             <div className="flex items-center justify-center h-full text-gray-500">

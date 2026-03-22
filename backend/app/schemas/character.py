@@ -11,6 +11,7 @@ class CharacterBase(BaseModel):
     description: Optional[str] = Field("", description="角色描述")
     appearance: Optional[str] = Field("", description="外貌描述")
     voice_prompt: Optional[str] = Field("", description="音色提示词描述")
+    is_narrator: Optional[bool] = Field(False, description="是否为旁白角色")
 
 
 class CharacterCreate(CharacterBase):
@@ -24,6 +25,7 @@ class CharacterUpdate(BaseModel):
     description: Optional[str] = Field(None, description="角色描述")
     appearance: Optional[str] = Field(None, description="外貌描述")
     voice_prompt: Optional[str] = Field(None, description="音色提示词描述")
+    is_narrator: Optional[bool] = Field(None, description="是否为旁白角色")
 
 
 class CharacterResponse(CharacterBase):
@@ -37,6 +39,7 @@ class CharacterResponse(CharacterBase):
     end_chapter: Optional[int] = None
     is_incremental: bool = False
     source_range: Optional[str] = None
+    is_narrator: bool = False
     last_parsed_at: Optional[datetime] = None
     created_at: datetime
     updated_at: Optional[datetime] = None

@@ -1,7 +1,7 @@
 /**
  * ChapterGenerate Store 类型定义
  */
-import type { Chapter, Novel, Character, DialogueData } from '../../../../types';
+import type { Chapter, Novel, Character, DialogueData, KeyframeData } from '../../../../types';
 import type { Scene, Prop } from '../../types';
 
 // 分镜数据（从 parsed_data 中的 shots 数组）
@@ -18,6 +18,9 @@ export interface ShotDataFromParsed {
   image_path?: string;
   merged_character_image?: string;
   video_url?: string;
+  keyframes?: KeyframeData[];
+  reference_audio_url?: string;
+  reference_audio_type?: string;
 }
 
 // 解析后的章节数据（从后端返回的 parsed_data）
@@ -40,6 +43,7 @@ export interface Shot {
   chapterId: string;
   index: number;
   description: string;
+  videoDescription?: string;
   characters: string[];
   scene: string;
   props: string[];
@@ -53,6 +57,9 @@ export interface Shot {
   videoTaskId: string | null;
   mergedCharacterImage: string | null;
   dialogues: DialogueData[];
+  keyframes?: KeyframeData[];
+  referenceAudioUrl?: string;
+  referenceAudioType?: string;
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -70,6 +77,21 @@ export interface AudioWarning {
   shot_index?: number;
   character_name: string;
   reason: string;
+}
+
+// 关键帧任务
+export interface KeyframeTask {
+  shotId: string;
+  frameIndex: number;
+  taskId: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+}
+
+// 参考音频合并任务
+export interface ReferenceAudioMergeTask {
+  shotIndex: number;
+  taskId: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
 }
 
 // 分镜工作流
@@ -154,6 +176,16 @@ export interface GenerationSliceState {
   audioUrls: Record<string, string>;
   audioSources: Record<string, string>;
   uploadingAudios: Set<string>;
+
+  // 关键帧生成
+  generatingKeyframes: Set<string>;  // 格式: "shotId-frameIndex"
+  keyframeTasks: KeyframeTask[];
+  keyframeImageUrls: Record<string, string>;  // 格式: "shotId-frameIndex": url
+
+  // 参考音频
+  mergingReferenceAudios: Set<number>;  // 正在合并台词音频的分镜索引
+  uploadingReferenceAudios: Set<number>;  // 正在上传参考音频的分镜索引
+  referenceAudioMergeTasks: ReferenceAudioMergeTask[];  // 合并任务列表
 }
 
 /**
@@ -331,11 +363,31 @@ export interface ChapterGenerateStore
   getShotAudioTasks: (shotIndex: number) => AudioTask[];
   initAudioFromShots: (shots: Shot[]) => void;
 
+  // ========== Keyframe Actions ==========
+  generateKeyframeDescriptions: (novelId: string, chapterId: string, shotId: string, count?: number) => Promise<void>;
+  generateKeyframeImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, workflowId?: string) => Promise<void>;
+  uploadKeyframeImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, file: File) => Promise<void>;
+  uploadKeyframeReferenceImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, file: File) => Promise<void>;
+  setKeyframeReferenceImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, mode: 'auto_select' | 'custom' | 'none', referenceUrl?: string) => Promise<void>;
+  isKeyframeGenerating: (shotId: string, frameIndex: number) => boolean;
+  getKeyframeImageUrl: (shotId: string, frameIndex: number) => string | undefined;
+  getKeyframeTask: (shotId: string, frameIndex: number) => KeyframeTask | undefined;
+
+  // ========== Reference Audio Actions ==========
+  mergeDialogueAudio: (novelId: string, chapterId: string, shotIndex: number) => Promise<void>;
+  uploadReferenceAudio: (novelId: string, chapterId: string, shotIndex: number, file: File) => Promise<void>;
+  setReferenceAudio: (novelId: string, chapterId: string, shotIndex: number, mode: 'none' | 'merged' | 'uploaded' | 'character', characterName?: string) => Promise<void>;
+  getReferenceAudioUrl: (shotIndex: number) => string | undefined;
+  inferReferenceAudioSourceType: (shotIndex: number) => 'none' | 'merged' | 'uploaded' | 'character';
+  isReferenceAudioMerging: (shotIndex: number) => boolean;
+  isReferenceAudioUploading: (shotIndex: number) => boolean;
+
   // ========== Task Polling Actions ==========
   checkShotTaskStatus: (chapterId: string) => Promise<void>;
   checkVideoTaskStatus: (chapterId: string) => Promise<void>;
   checkTransitionTaskStatus: (chapterId: string) => Promise<void>;
   checkAudioTaskStatus: (chapterId: string) => Promise<void>;
+  checkKeyframeTaskStatus: (chapterId: string) => Promise<void>;
   fetchActiveTasks: (chapterId: string) => Promise<void>;
 
   // ========== UI Actions ==========

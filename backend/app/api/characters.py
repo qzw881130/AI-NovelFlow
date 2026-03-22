@@ -58,6 +58,7 @@ async def list_characters(
             "startChapter": c.start_chapter,
             "endChapter": c.end_chapter,
             "isIncremental": c.is_incremental,
+            "isNarrator": c.is_narrator or False,
             "sourceRange": c.source_range,
             "lastParsedAt": format_datetime(c.last_parsed_at),
             "createdAt": format_datetime(c.created_at),
@@ -93,6 +94,7 @@ async def get_character(character_id: str, novel_repo: NovelRepository = Depends
             "startChapter": character.start_chapter,
             "endChapter": character.end_chapter,
             "isIncremental": character.is_incremental,
+            "isNarrator": character.is_narrator or False,
             "sourceRange": character.source_range,
             "lastParsedAt": format_datetime(character.last_parsed_at),
             "createdAt": format_datetime(character.created_at),
@@ -179,9 +181,13 @@ async def delete_character(character_id: str, character_repo: CharacterRepositor
     character = character_repo.get_by_id(character_id)
     if not character:
         raise HTTPException(status_code=404, detail="角色不存在")
-    
+
+    # 不允许删除旁白角色
+    if character.is_narrator:
+        raise HTTPException(status_code=400, detail="旁白角色不可删除")
+
     character_repo.delete(character)
-    
+
     return {"success": True, "message": "删除成功"}
 
 

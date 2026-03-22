@@ -89,6 +89,7 @@ export default {
       transition: '전환 비디오 생성',
       prop: '소품 생성',
       voiceDesign: '음성 디자인',
+      keyframeImage: '키프레임 이미지 생성',
       type: '워크플로우 타입',
       name: '워크플로우 이름',
       file: '워크플로우 파일',
@@ -166,6 +167,13 @@ export default {
       referenceAudioNode: '참조 오디오 노드',
       textNode: '텍스트 생성 노드',
       emotionPromptNode: '감정 프롬프트 노드',
+      // 키프레임 노드
+      keyframeNodes: '키프레임 노드',
+      keyframeNodesHint: '비디오 생성용 키프레임 이미지 입력 노드, 순서대로 추가',
+      keyframeNode: '키프레임 노드',
+      keyframeReferenceNodes: '키프레임 참조 이미지 노드',
+      keyframeReferenceNodesHint: '키프레임 이미지 생성용 참조 이미지 입력 노드, 순서대로 추가',
+      keyframeReferenceNode: '키프레임 참조 노드',
     },
   },
 
@@ -208,6 +216,8 @@ export default {
       propDesc: '소품 이미지 생성용 프롬프트 템플릿',
       chapterSplit: '샷 분할 프롬프트',
       chapterSplitDesc: '장을 샷으로 분할하는 프롬프트 템플릿',
+      keyframeDescription: '키프레임 설명 프롬프트',
+      keyframeDescriptionDesc: '샷의 키프레임 설명을 생성하는 프롬프트 템플릿',
     },
 
     placeholderTip: '{appearance}와 {description}를 플레이스홀더로 사용',

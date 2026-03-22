@@ -103,11 +103,24 @@ export const shotsApi = {
   generateVideo: async (
     novelId: string,
     chapterId: string,
-    shotIndex: number
+    shotIndex: number,
+    options?: {
+      use_keyframes?: boolean;
+      use_reference_audio?: boolean;
+      workflow_id?: string;
+    }
   ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string }> => {
     const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/generate-video/`,
-      { method: 'POST' }
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/generate-video`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          use_keyframes: options?.use_keyframes ?? true,
+          use_reference_audio: options?.use_reference_audio ?? true,
+          workflow_id: options?.workflow_id,
+        }),
+      }
     );
     return response.json();
   },
@@ -256,6 +269,191 @@ export const shotsApi = {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}`,
       { method: 'DELETE' }
+    );
+    return response.json();
+  },
+
+  // ==================== 关键帧 API ====================
+
+  /**
+   * 生成关键帧描述
+   */
+  generateKeyframeDescriptions: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    count: number = 3
+  ): Promise<{ success: boolean; data?: { keyframes: any[] }; message?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/keyframes/generate-descriptions`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count }),
+      }
+    );
+    return response.json();
+  },
+
+  /**
+   * 生成关键帧图片
+   */
+  generateKeyframeImage: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    frameIndex: number,
+    workflowId?: string
+  ): Promise<{ success: boolean; data?: { task_id: string }; message?: string }> => {
+    const body: any = {};
+    if (workflowId) body.workflow_id = workflowId;
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/keyframes/${frameIndex}/generate-image`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }
+    );
+    return response.json();
+  },
+
+  /**
+   * 上传关键帧图片
+   */
+  uploadKeyframeImage: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    frameIndex: number,
+    file: File
+  ): Promise<{ success: boolean; data?: { image_url: string }; message?: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/keyframes/${frameIndex}/upload-image`,
+      { method: 'POST', body: formData }
+    );
+    return response.json();
+  },
+
+  /**
+   * 上传关键帧参考图
+   */
+  uploadKeyframeReferenceImage: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    frameIndex: number,
+    file: File
+  ): Promise<{ success: boolean; data?: { reference_image_url?: string; reference_url?: string }; message?: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/keyframes/${frameIndex}/upload-reference-image`,
+      { method: 'POST', body: formData }
+    );
+    return response.json();
+  },
+
+  /**
+   * 设置关键帧参考图
+   */
+  setKeyframeReferenceImage: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    frameIndex: number,
+    mode: 'auto_select' | 'custom' | 'none',
+    referenceUrl?: string
+  ): Promise<{ success: boolean; data?: { reference_image_url?: string | null; reference_url?: string | null }; message?: string }> => {
+    const body: any = { mode };
+    if (mode === 'custom' && referenceUrl) body.reference_url = referenceUrl;
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/keyframes/${frameIndex}/reference-image`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }
+    );
+    return response.json();
+  },
+
+  /**
+   * 更新关键帧数据
+   */
+  updateKeyframes: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    keyframes: any[]
+  ): Promise<{ success: boolean; data?: { keyframes: any[] }; message?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/keyframes`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyframes }),
+      }
+    );
+    return response.json();
+  },
+
+  // ==================== 音频参考 API ====================
+
+  /**
+   * 合并台词音频作为参考音频
+   */
+  mergeDialogueAudio: async (
+    novelId: string,
+    chapterId: string,
+    shotIndex: number
+  ): Promise<{ success: boolean; audio_url?: string; duration?: number; message?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/merge-audio`,
+      { method: 'POST' }
+    );
+    return response.json();
+  },
+
+  /**
+   * 上传参考音频
+   */
+  uploadReferenceAudio: async (
+    novelId: string,
+    chapterId: string,
+    shotIndex: number,
+    file: File
+  ): Promise<{ success: boolean; audio_url?: string; message?: string }> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/upload-reference-audio`,
+      { method: 'POST', body: formData }
+    );
+    return response.json();
+  },
+
+  /**
+   * 设置参考音频来源
+   */
+  setReferenceAudio: async (
+    novelId: string,
+    chapterId: string,
+    shotIndex: number,
+    mode: 'none' | 'merged' | 'uploaded' | 'character',
+    characterName?: string
+  ): Promise<{ success: boolean; audio_url?: string; message?: string }> => {
+    const body: any = { mode };
+    if (mode === 'character' && characterName) body.character_name = characterName;
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/set-reference-audio`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      }
     );
     return response.json();
   },

@@ -20,6 +20,8 @@ export default {
     propPromptHint: 'プロップ画像生成用のプロンプトテンプレートを選択',
     splitPromptLabel: 'ショット分割プロンプトテンプレート',
     splitPromptHint: '章をショットに分割するためのプロンプトテンプレートを選択',
+    keyframeDescriptionPromptLabel: 'キーフレーム記述プロンプトテンプレート',
+    keyframeDescriptionPromptHint: 'ショットのキーフレーム記述を生成するためのプロンプトテンプレートを選択',
     promptTemplatesSection: 'プロンプトテンプレート設定',
     defaultTemplate: 'デフォルトを使用',
     stylePrompt: 'スタイル',

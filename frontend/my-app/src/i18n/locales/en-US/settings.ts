@@ -103,6 +103,7 @@ export default {
       transition: 'Transition Video Generation',
       prop: 'Prop Generation',
       voiceDesign: 'Voice Design',
+      keyframeImage: 'Keyframe Image Generation',
       // Upload Modal
       type: 'Workflow Type',
       name: 'Workflow Name',
@@ -185,6 +186,13 @@ export default {
       referenceAudioNode: 'Reference Audio Node',
       textNode: 'Text Generation Node',
       emotionPromptNode: 'Emotion Prompt Node',
+      // Keyframe nodes
+      keyframeNodes: 'Keyframe Nodes',
+      keyframeNodesHint: 'Keyframe image input nodes for video generation, add in order',
+      keyframeNode: 'Keyframe Node',
+      keyframeReferenceNodes: 'Keyframe Reference Image Nodes',
+      keyframeReferenceNodesHint: 'Reference image input nodes for keyframe image generation, add in order',
+      keyframeReferenceNode: 'Keyframe Reference Node',
     },
   },
 
@@ -227,6 +235,8 @@ export default {
       propDesc: 'Prompt template for generating prop images',
       chapterSplit: 'Shot Split Prompt',
       chapterSplitDesc: 'Prompt template for splitting chapters into shots',
+      keyframeDescription: 'Keyframe Description Prompt',
+      keyframeDescriptionDesc: 'Prompt template for generating shot keyframe descriptions',
     },
 
     placeholderTip: 'Use {appearance} and {description} as placeholders',

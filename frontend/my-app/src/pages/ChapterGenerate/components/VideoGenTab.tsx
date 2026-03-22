@@ -3,17 +3,20 @@
  *
  * 布局参考分镜图生成页面：
  * - 中间：视频生成提示词编辑 + 视频预览
- * - 右侧：转场生成
+ * - 右侧：关键帧设置 + 转场生成
  *
  * 注意：分镜资源列表在左侧可折叠区域显示（由 ChapterGenerateLayout 的左侧栏渲染）
  */
 
 import { useState, useEffect } from 'react';
 import { useChapterGenerateStore } from '../stores';
-import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine } from 'lucide-react';
+import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2 } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
+import KeyframesManager from '../../../components/KeyframesManager';
+import AudioReferenceSelector from '../../../components/AudioReferenceSelector';
+import type { KeyframeData } from '../../../types';
 
 interface VideoGenTabProps {
   chapter?: any;
@@ -59,6 +62,12 @@ export function VideoGenTab({
   const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
   const [previewImage, setPreviewImage] = useState<string | null>(null);
 
+  // 关键帧展开状态
+  const [showKeyframes, setShowKeyframes] = useState(true);
+
+  // 音频参考展开状态
+  const [showAudioRef, setShowAudioRef] = useState(true);
+
   // 合并视频相关状态
   const [isMerging, setIsMerging] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
@@ -67,6 +76,11 @@ export function VideoGenTab({
   const shotsList = parsedData?.shots || [];
   const currentShotData = shotsList[selectedVideo - 1];
   const isGeneratingCurrent = generatingVideos.has(selectedVideo);
+
+  // 获取当前分镜的关键帧数据
+  const currentKeyframes: KeyframeData[] = currentShotData?.keyframes || [];
+  const currentShotId = currentShotData?.id ? String(currentShotData.id) : String(selectedVideo);
+  const currentShotImageUrl = shotImages[selectedVideo] || currentShotData?.image_url;
 
   // 初始化获取转场工作流
   useEffect(() => {
@@ -154,6 +168,42 @@ export function VideoGenTab({
     } finally {
       setIsGeneratingAll(false);
       setShowBatchSelectModal(false);
+    }
+  };
+
+  // 处理关键帧更新
+  const handleKeyframesUpdate = (updatedKeyframes: KeyframeData[]) => {
+    if (!parsedData?.shots) return;
+
+    const shotIndex = selectedVideo - 1;
+    const updatedShots = [...parsedData.shots];
+    if (updatedShots[shotIndex]) {
+      updatedShots[shotIndex] = {
+        ...updatedShots[shotIndex],
+        keyframes: updatedKeyframes,
+      };
+      store.setParsedData({
+        ...parsedData,
+        shots: updatedShots,
+      });
+    }
+  };
+
+  // 处理参考音频更新
+  const handleReferenceAudioUpdate = (audioUrl: string | null) => {
+    if (!parsedData?.shots) return;
+
+    const shotIndex = selectedVideo - 1;
+    const updatedShots = [...parsedData.shots];
+    if (updatedShots[shotIndex]) {
+      updatedShots[shotIndex] = {
+        ...updatedShots[shotIndex],
+        reference_audio_url: audioUrl || undefined,
+      };
+      store.setParsedData({
+        ...parsedData,
+        shots: updatedShots,
+      });
     }
   };
 
@@ -360,6 +410,39 @@ export function VideoGenTab({
       <div className="flex-1 min-h-0 flex gap-4 overflow-hidden">
         {/* 中间：视频提示词编辑 + 视频预览 */}
         <div className="flex-1 min-w-0 flex flex-col gap-4">
+          {/* 时长设置 */}
+          <div className="flex-shrink-0 border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium text-gray-700">{t('chapterGenerate.durationLabel')}</label>
+                <input
+                  type="number"
+                  value={currentShotData?.duration || 5}
+                  onChange={(e) => {
+                    const shotIndex = selectedVideo - 1;
+                    const shotsList = parsedData?.shots || [];
+                    if (shotsList[shotIndex]) {
+                      const updatedShots = [...shotsList];
+                      updatedShots[shotIndex] = {
+                        ...updatedShots[shotIndex],
+                        duration: Math.min(60, Math.max(1, parseInt(e.target.value) || 5)),
+                      };
+                      store.setParsedData({
+                        ...parsedData,
+                        shots: updatedShots,
+                      });
+                    }
+                  }}
+                  min={1}
+                  max={60}
+                  className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-500">{t('common.second')}</span>
+              </div>
+              <span className="text-xs text-gray-400">{t('common.recommended')} 3-10 {t('common.second')}，{t('common.max')} 60 {t('common.second')}</span>
+            </div>
+          </div>
+
           {/* 视频提示词编辑区 */}
           <div className="flex-shrink-0 border border-gray-200 rounded-lg p-4">
             <h3 className="text-sm font-medium text-gray-700 mb-3">{t('chapterGenerate.videoDescForVideo')}</h3>
@@ -424,9 +507,70 @@ export function VideoGenTab({
           </div>
         </div>
 
-        {/* 右侧：转场配置区 */}
-        <div className="w-96 flex-shrink-0 overflow-y-auto border border-gray-200 rounded-lg p-4">
-          <h3 className="text-sm font-medium text-gray-700 mb-3">{t('chapterGenerate.transitionConfig')}</h3>
+        {/* 右侧：关键帧设置 + 转场配置区 */}
+        <div className="w-96 flex-shrink-0 overflow-y-auto border border-gray-200 rounded-lg p-4 space-y-4">
+          {/* 关键帧设置区 */}
+          <div className="border-b border-gray-200 pb-4">
+            <button
+              onClick={() => setShowKeyframes(!showKeyframes)}
+              className="w-full flex items-center justify-between mb-3 text-left"
+            >
+              <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Layers className="w-4 h-4" />
+                {t('chapterGenerate.keyframes')}
+              </h3>
+              {showKeyframes ? (
+                <ChevronUp className="w-4 h-4 text-gray-500" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-gray-500" />
+              )}
+            </button>
+
+            {showKeyframes && effectiveNovelId && effectiveChapterId && (
+              <KeyframesManager
+                novelId={effectiveNovelId}
+                chapterId={effectiveChapterId}
+                shotId={currentShotId}
+                shotImageUrl={currentShotImageUrl}
+                keyframes={currentKeyframes}
+                onKeyframesUpdate={handleKeyframesUpdate}
+              />
+            )}
+          </div>
+
+          {/* 音频参考设置区 */}
+          <div className="border-b border-gray-200 pb-4">
+            <button
+              onClick={() => setShowAudioRef(!showAudioRef)}
+              className="w-full flex items-center justify-between mb-3 text-left"
+            >
+              <h3 className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                <Volume2 className="w-4 h-4" />
+                {t('chapterGenerate.audioReference') || '音频参考'}
+              </h3>
+              {showAudioRef ? (
+                <ChevronUp className="w-4 h-4 text-gray-500" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-gray-500" />
+              )}
+            </button>
+
+            {showAudioRef && effectiveNovelId && effectiveChapterId && (
+              <AudioReferenceSelector
+                novelId={effectiveNovelId}
+                chapterId={effectiveChapterId}
+                shotIndex={selectedVideo}
+                shotCharacters={currentShotData?.characters || []}
+                referenceAudioUrl={currentShotData?.reference_audio_url}
+                referenceAudioType={currentShotData?.reference_audio_type}
+                onReferenceAudioUpdate={handleReferenceAudioUpdate}
+              />
+            )}
+          </div>
+
+          {/* 转场配置区 */}
+          <div>
+            <h3 className="text-sm font-medium text-gray-700 mb-3">{t('chapterGenerate.transitionConfig')}</h3>
 
           {/* 转场工作流选择 */}
           <div className="mb-4 p-3 bg-gray-50 rounded-lg">
@@ -556,6 +700,7 @@ export function VideoGenTab({
                 </div>
               );
             })}
+          </div>
           </div>
         </div>
       </div>

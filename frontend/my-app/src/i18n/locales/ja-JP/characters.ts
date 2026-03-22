@@ -76,5 +76,7 @@ export default {
     uploadAudioFailed: 'オーディオのアップロードに失敗しました',
     invalidAudioFormat: 'サポートされていないオーディオ形式です。MP3、WAV、FLAC、OGG、M4Aのみ対応しています',
     audioTooLarge: 'オーディオファイルが大きすぎます。最大サイズは10MBです',
+    // ナレーターキャラクター
+    narrator: 'ナレーター',
   },
 };
