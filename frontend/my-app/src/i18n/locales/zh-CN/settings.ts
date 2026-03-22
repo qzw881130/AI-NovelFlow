@@ -103,6 +103,7 @@ export default {
       transition: '分镜生转场视频',
       prop: '道具生成',
       voiceDesign: '音色设计',
+      keyframeImage: '关键帧生图',
       // 上传弹窗
       type: '工作流类型',
       name: '工作流名称',
@@ -185,6 +186,13 @@ export default {
       referenceAudioNode: '参考音频节点',
       textNode: '生成文本节点',
       emotionPromptNode: '情感提示词节点',
+      // 关键帧节点
+      keyframeNodes: '关键帧节点',
+      keyframeNodesHint: '用于视频生成的关键帧图片输入节点，按顺序添加',
+      keyframeNode: '关键帧节点',
+      keyframeReferenceNodes: '关键帧参考图节点',
+      keyframeReferenceNodesHint: '用于关键帧图片生成的参考图输入节点，按顺序添加',
+      keyframeReferenceNode: '关键帧参考图节点',
     },
   },
 
@@ -227,6 +235,8 @@ export default {
       propDesc: '用于生成道具图片的提示词模板',
       chapterSplit: '分镜拆分提示词',
       chapterSplitDesc: '用于将章节拆分为分镜的提示词模板',
+      keyframeDescription: '关键帧描述提示词',
+      keyframeDescriptionDesc: '用于生成分镜关键帧描述的提示词模板',
     },
 
     placeholderTip: '使用 {appearance} 和 {description} 作为占位符',

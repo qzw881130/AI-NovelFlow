@@ -55,6 +55,8 @@ export default {
     propPromptHint: 'Select prompt template for generating prop images',
     splitPromptLabel: 'Shot Split Prompt Template',
     splitPromptHint: 'Select prompt template for splitting chapters into shots',
+    keyframeDescriptionPromptLabel: 'Keyframe Description Prompt Template',
+    keyframeDescriptionPromptHint: 'Select prompt template for generating shot keyframe descriptions',
     promptTemplatesSection: 'Prompt Template Configuration',
     defaultTemplate: 'Use Default',
     stylePrompt: 'Style',

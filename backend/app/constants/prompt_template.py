@@ -27,6 +27,8 @@ class PromptTemplateType:
     PROP = "prop"
     # 分镜拆分提示词 - 用于将章节拆分为分镜
     CHAPTER_SPLIT = "chapter_split"
+    # 关键帧描述提示词 - 用于生成分镜关键帧描述
+    KEYFRAME_DESCRIPTION = "keyframe_description"
 
 
 # 所有提示词模板类型列表（按使用顺序排列）
@@ -39,6 +41,7 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.SCENE,
     PromptTemplateType.PROP,
     PromptTemplateType.CHAPTER_SPLIT,
+    PromptTemplateType.KEYFRAME_DESCRIPTION,
 ]
 
 
@@ -91,6 +94,12 @@ PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
         "desc_key": "promptConfig.types.propDesc",
         "icon": "Box",
         "color": "amber",
+    },
+    PromptTemplateType.KEYFRAME_DESCRIPTION: {
+        "name_key": "promptConfig.types.keyframeDescription",
+        "desc_key": "promptConfig.types.keyframeDescriptionDesc",
+        "icon": "Film",
+        "color": "indigo",
     },
 }
 

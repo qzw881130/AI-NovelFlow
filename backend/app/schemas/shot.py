@@ -1,12 +1,16 @@
 """分镜相关的 Pydantic Schema 定义"""
 
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 
 class DialogueData(BaseModel):
     """台词数据"""
 
+    type: Optional[Literal["character", "narration"]] = Field(
+        "character", description="台词类型：character 或 narration"
+    )
+    order: Optional[int] = Field(None, ge=0, description="时序序号（非负整数）")
     character_name: str = Field(..., description="角色名称")
     text: str = Field(..., description="台词文本")
     emotion_prompt: Optional[str] = Field(None, description="情感提示词")
@@ -14,6 +18,18 @@ class DialogueData(BaseModel):
     audio_task_id: Optional[str] = Field(None, description="音频生成任务ID")
     audio_source: Optional[str] = Field(
         None, description="音频来源：ai_generated 或 uploaded"
+    )
+
+
+class KeyframeData(BaseModel):
+    """关键帧数据"""
+
+    frame_index: int = Field(..., ge=0, description="帧序号（从0开始）")
+    description: str = Field(..., description="关键帧描述")
+    image_url: Optional[str] = Field(None, description="图片URL")
+    image_task_id: Optional[str] = Field(None, description="图片生成任务ID")
+    reference_image_url: Optional[str] = Field(
+        None, description="参考图片URL，null表示不使用参考图"
     )
 
 
@@ -61,6 +77,8 @@ class ShotUpdate(BaseModel):
     props: Optional[List[str]] = Field(None, description="道具名称列表")
     duration: Optional[int] = Field(None, ge=1, le=60, description="时长（秒）")
     dialogues: Optional[List[dict]] = Field(None, description="台词数据")
+    keyframes: Optional[List[dict]] = Field(None, description="关键帧数据")
+    reference_audio_url: Optional[str] = Field(None, description="参考音频URL")
     insert_index: Optional[int] = Field(None, ge=1, description="插入位置（仅创建分镜时使用）")
 
 
@@ -85,6 +103,9 @@ class ShotResponse(BaseModel):
     videoTaskId: Optional[str] = None
     mergedCharacterImage: Optional[str] = None
     dialogues: List[dict]
+    keyframes: List[dict] = []
+    referenceAudioUrl: Optional[str] = None
+    referenceAudioType: str = "none"
     createdAt: Optional[str] = None
     updatedAt: Optional[str] = None
 
@@ -104,3 +125,35 @@ class BatchShotsUpdateRequest(BaseModel):
     """批量分镜更新请求"""
 
     shots: List[dict] = Field(..., description="分镜数据列表，每个包含 id 和要更新的字段")
+
+
+class GenerateKeyframeDescriptionsRequest(BaseModel):
+    """生成关键帧描述请求"""
+
+    count: int = Field(3, ge=1, le=10, description="要生成的关键帧数量")
+
+
+class SetReferenceImageRequest(BaseModel):
+    """设置参考图请求"""
+
+    mode: Literal["auto_select", "custom", "none"] = Field(
+        ..., description="模式：auto_select(自动选择)、custom(自定义)、none(不使用)"
+    )
+    reference_url: Optional[str] = Field(None, description="自定义参考图URL（mode为custom时使用）")
+
+
+class SetReferenceAudioRequest(BaseModel):
+    """设置参考音频请求"""
+
+    mode: Literal["none", "merged", "uploaded", "character"] = Field(
+        ..., description="模式：none(无)、merged(合并台词)、uploaded(上传)、character(角色音色)"
+    )
+    character_name: Optional[str] = Field(None, description="角色名称（mode为character时使用）")
+
+
+class GenerateVideoRequest(BaseModel):
+    """生成视频请求"""
+
+    use_keyframes: bool = Field(True, description="是否使用关键帧（如果存在）")
+    use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
+    workflow_id: Optional[str] = Field(None, description="指定工作流ID")

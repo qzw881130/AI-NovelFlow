@@ -150,6 +150,61 @@ SYSTEM_PROP_TEMPLATES: List[Dict] = [
     }
 ]
 
+# 系统预设的关键帧描述提示词模板
+SYSTEM_KEYFRAME_DESCRIPTION_TEMPLATES: List[Dict] = [
+    {
+        "name": "标准关键帧描述",
+        "description": "适用于大多数分镜的关键帧描述生成",
+        "template": """请根据以下分镜描述，生成 {count} 个关键帧描述。
+
+分镜描述：
+{shot_description}
+
+{video_description}
+
+要求：
+1. 每个关键帧描述应该是该分镜中一个重要的画面瞬间
+2. 描述应该详细且具有画面感，包含人物动作、表情、场景细节等
+3. 关键帧应该按照时间顺序排列，展示分镜的动态过程
+4. 每个描述控制在50-100字
+
+请直接返回JSON数组格式，每个元素包含：
+- frame_index: 帧序号（从0开始）
+- description: 关键帧描述
+
+示例格式：
+[
+  {{"frame_index": 0, "description": "第1个关键帧的描述"}},
+  {{"frame_index": 1, "description": "第2个关键帧的描述"}}
+]""",
+        "type": "keyframe_description"
+    },
+    {
+        "name": "电影级关键帧",
+        "description": "电影级关键帧描述，强调画面构图和镜头语言",
+        "template": """作为专业电影分镜师，请根据以下分镜描述，生成 {count} 个电影级关键帧描述。
+
+分镜描述：
+{shot_description}
+
+{video_description}
+
+要求：
+1. 每个关键帧应是一个具有电影感的画面瞬间
+2. 描述需包含：景别（远景/全景/中景/近景/特写）、构图方式、人物调度、光线氛围
+3. 重点关注情感表达和叙事节奏
+4. 关键帧按时间顺序排列，形成完整的视觉叙事
+5. 每个描述控制在80-150字
+
+请直接返回JSON数组格式：
+[
+  {{"frame_index": 0, "description": "【景别】描述内容..."}},
+  {{"frame_index": 1, "description": "【景别】描述内容..."}}
+]""",
+        "type": "keyframe_description"
+    }
+]
+
 # 合并所有系统模板
 SYSTEM_PROMPT_TEMPLATES = (
     SYSTEM_STYLE_TEMPLATES +
@@ -159,7 +214,8 @@ SYSTEM_PROMPT_TEMPLATES = (
     SYSTEM_CHARACTER_TEMPLATES +
     SYSTEM_SCENE_IMAGE_TEMPLATES +
     SYSTEM_PROP_TEMPLATES +
-    SYSTEM_CHAPTER_SPLIT_TEMPLATES
+    SYSTEM_CHAPTER_SPLIT_TEMPLATES +
+    SYSTEM_KEYFRAME_DESCRIPTION_TEMPLATES
 )
 
 

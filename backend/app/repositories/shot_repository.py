@@ -121,7 +121,7 @@ class ShotRepository:
         for key, value in kwargs.items():
             if hasattr(shot, key):
                 # JSON 字段需要序列化
-                if key in ('characters', 'props', 'dialogues') and isinstance(value, (list, dict)):
+                if key in ('characters', 'props', 'dialogues', 'keyframes') and isinstance(value, (list, dict)):
                     value = json.dumps(value, ensure_ascii=False)
                 setattr(shot, key, value)
         self.db.commit()
@@ -326,6 +326,9 @@ class ShotRepository:
             "videoTaskId": shot.video_task_id,
             "mergedCharacterImage": shot.merged_character_image,
             "dialogues": json.loads(shot.dialogues) if shot.dialogues else [],
+            "keyframes": json.loads(shot.keyframes) if shot.keyframes else [],
+            "referenceAudioUrl": shot.reference_audio_url,
+            "referenceAudioType": shot.reference_audio_type or "none",
             "createdAt": shot.created_at.isoformat() if shot.created_at else None,
             "updatedAt": shot.updated_at.isoformat() if shot.updated_at else None,
         }

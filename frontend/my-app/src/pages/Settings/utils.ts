@@ -91,7 +91,8 @@ export const getTypeNames = (t: any) => ({
   transition: t('systemSettings.workflow.transition'),
   prop: t('systemSettings.workflow.prop'),
   voice_design: t('systemSettings.workflow.voiceDesign'),
-  audio: t('systemSettings.workflow.audio')
+  audio: t('systemSettings.workflow.audio'),
+  keyframe_image: t('systemSettings.workflow.keyframeImage')
 });
 
 /**
@@ -198,6 +199,16 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
         audioMapping.emotion_prompt_node_id !== 'auto' &&
         audioMapping.save_audio_node_id &&
         audioMapping.save_audio_node_id !== 'auto'
+      );
+    case 'keyframe_image':
+      const keyframeMapping = mapping as any;
+      return !!(
+        mapping.prompt_node_id &&
+        mapping.prompt_node_id !== 'auto' &&
+        mapping.save_image_node_id &&
+        mapping.save_image_node_id !== 'auto' &&
+        keyframeMapping.reference_image_node_id &&
+        keyframeMapping.reference_image_node_id !== 'auto'
       );
     default:
       return false;

@@ -75,6 +75,7 @@ export interface Novel {
   scenePromptTemplateId?: string;  // 场景生成提示词模板
   propPromptTemplateId?: string;  // 道具生成提示词模板
   chapterSplitPromptTemplateId?: string;  // 分镜拆分提示词模板
+  keyframeDescriptionPromptTemplateId?: string;  // 关键帧描述提示词模板
   aspectRatio?: string;  // 画面比例: 16:9, 9:16, 4:3, 3:4, 1:1
   createdAt: string;
   updatedAt: string;
@@ -116,15 +117,29 @@ export interface ShotData {
   image_path?: string;
   merged_character_image?: string;
   video_url?: string;
+  keyframes?: KeyframeData[];
+  reference_audio_url?: string;
+  reference_audio_type?: 'none' | 'merged' | 'uploaded' | 'character';
 }
 
 export interface DialogueData {
+  type?: 'character' | 'narration';
+  order?: number;
   character_name: string;
   text: string;
   emotion_prompt?: string;
   audio_url?: string;
   audio_task_id?: string;
   audio_source?: 'ai_generated' | 'uploaded';
+}
+
+export interface KeyframeData {
+  frame_index: number;
+  description: string;
+  image_url?: string;
+  image_task_id?: string;
+  reference_image_url?: string | null;
+  reference_mode?: 'auto_select' | 'custom' | 'none';
 }
 
 export interface Character {
@@ -139,6 +154,7 @@ export interface Character {
   portraitTaskId?: string;
   novelId: string;
   novelName?: string;
+  isNarrator?: boolean;
 }
 
 export interface Scene {

@@ -16,6 +16,12 @@ pillow==12.1.1
 opencv-python-headless==4.13.0.92
 cryptography==42.0.0
 
+# 音频处理
+pydub==0.25.1
+# audioop-lts 只在 Python 3.13+ 需要（Python 3.13 移除了 audioop 模块）
+# 如果使用 Python 3.13+，请运行: pip install audioop-lts
+# audioop-lts==0.2.1
+
 # 测试依赖
 pytest==8.0.0
 pytest-asyncio==0.23.3

@@ -74,5 +74,7 @@ export default {
     uploadAudioFailed: 'Audio upload failed',
     invalidAudioFormat: 'Unsupported audio format. Only MP3, WAV, FLAC, OGG, M4A are supported',
     audioTooLarge: 'Audio file too large. Maximum size is 10MB',
+    // Narrator character
+    narrator: 'Narrator',
   },
 };

@@ -345,3 +345,45 @@ class TaskRepository:
             Task.name.like(f"%镜{shot_index}-{character_name}%"),
             Task.status.in_(["pending", "running"])
         ).first()
+
+    def create_narrator_audio_task(
+        self,
+        novel_id: str,
+        chapter_id: str,
+        shot_index: int,
+        character_id: str,
+        text: str,
+        chapter_title: str,
+        workflow_id: str = None,
+        workflow_name: str = None
+    ) -> Task:
+        """创建旁白台词音频生成任务"""
+        task = Task(
+            type="narrator_audio",
+            name=f"生成旁白音频: 镜{shot_index}",
+            description=f"为章节 '{chapter_title}' 的分镜 {shot_index} 生成旁白音频: {text[:50]}{'...' if len(text) > 50 else ''}",
+            novel_id=novel_id,
+            chapter_id=chapter_id,
+            character_id=character_id,
+            status="pending",
+            progress=0,
+            current_step="等待处理",
+            workflow_id=workflow_id,
+            workflow_name=workflow_name
+        )
+        return self.create(task)
+
+    def get_active_narrator_audio_task(
+        self,
+        novel_id: str,
+        chapter_id: str,
+        shot_index: int
+    ) -> Optional[Task]:
+        """获取旁白台词音频进行中的任务"""
+        return self.db.query(Task).filter(
+            Task.novel_id == novel_id,
+            Task.chapter_id == chapter_id,
+            Task.type == "narrator_audio",
+            Task.name.like(f"%镜{shot_index}%"),
+            Task.status.in_(["pending", "running"])
+        ).first()

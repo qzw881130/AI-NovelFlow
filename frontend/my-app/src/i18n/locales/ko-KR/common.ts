@@ -67,6 +67,7 @@ export default {
     max: '최대',
     min: '최소',
     second: '초',
+    recommended: '권장',
     viewLargeImage: '크게 보기',
     playing: '재생 중...',
     pause: '일시정지',

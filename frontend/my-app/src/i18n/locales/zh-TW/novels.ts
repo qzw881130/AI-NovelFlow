@@ -20,6 +20,8 @@ export default {
     propPromptHint: '選擇用於生成道具圖片的提示詞模板',
     splitPromptLabel: '分鏡拆分提示詞模板',
     splitPromptHint: '選擇用於拆分章節為分鏡的提示詞模板',
+    keyframeDescriptionPromptLabel: '關鍵幀描述提示詞模板',
+    keyframeDescriptionPromptHint: '選擇用於生成分鏡關鍵幀描述的提示詞模板',
     promptTemplatesSection: '提示詞模板設定',
     defaultTemplate: '使用預設',
     stylePrompt: '風格',

@@ -44,6 +44,15 @@ class Shot(Base):
     # 结构：[{"character_name": "角色 1", "text": "台词内容", "audio_url": "...", "audio_source": "generated", "audio_task_id": "..."}]
     dialogues = Column(Text, default="[]")
 
+    # 关键帧数据 (JSON array)
+    # 结构：[{"frame_index": 0, "description": "...", "image_url": "...", "image_task_id": "...", "reference_image_url": "...", "reference_mode": "auto_select|custom|none"}]
+    keyframes = Column(Text, default="[]")
+
+    # 参考音频URL（用于视频生成的口型同步）
+    reference_audio_url = Column(String, nullable=True)
+    # 参考音频类型：none, merged, uploaded, character
+    reference_audio_type = Column(String, default="none")
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 

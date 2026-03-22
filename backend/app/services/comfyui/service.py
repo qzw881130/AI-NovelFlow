@@ -195,9 +195,16 @@ class ComfyUIService:
         style: Optional[str] = None,
         character_appearances: Optional[Dict[str, str]] = None,
         scene_setting: Optional[str] = None,
-        prop_appearances: Optional[Dict[str, str]] = None
+        prop_appearances: Optional[Dict[str, str]] = None,
+        reference_audio_path: Optional[str] = None,
+        keyframe_paths: Optional[List[str]] = None
     ) -> Dict[str, Any]:
-        """使用指定工作流生成分镜视频 (LTX2)"""
+        """使用指定工作流生成分镜视频 (LTX2)
+
+        Args:
+            reference_audio_path: 参考音频本地路径，用于口型同步
+            keyframe_paths: 关键帧图片本地路径列表，用于视频生成
+        """
         try:
             workflow = self.builder.build_video_workflow(
                 prompt=prompt,
@@ -211,16 +218,16 @@ class ComfyUIService:
                 scene_setting=scene_setting,
                 prop_appearances=prop_appearances
             )
-            
+
             reference_image_node_id = node_mapping.get("reference_image_node_id", "12")
-            
+
             # 上传参考图片
             if character_reference_path:
                 upload_result = await self.client.upload_image(character_reference_path)
-                
+
                 if upload_result.get("success"):
                     uploaded_filename = upload_result.get("filename")
-                    
+
                     if reference_image_node_id in workflow:
                         workflow[reference_image_node_id]["inputs"]["image"] = uploaded_filename
                     else:
@@ -231,7 +238,60 @@ class ComfyUIService:
                                 break
                 else:
                     return {"success": False, "message": f"图片上传失败: {upload_result.get('message')}"}
-            
+
+            # 上传参考音频并注入工作流
+            if reference_audio_path:
+                audio_upload_result = await self.client.upload_audio(reference_audio_path)
+
+                if audio_upload_result.get("success"):
+                    uploaded_audio_filename = audio_upload_result.get("filename")
+                    print(f"[ComfyUI] Audio uploaded: {uploaded_audio_filename}")
+
+                    # 获取参考音频节点 ID
+                    reference_audio_node_id = node_mapping.get("reference_audio_node_id")
+
+                    if reference_audio_node_id and reference_audio_node_id in workflow:
+                        # 设置到指定节点
+                        workflow[reference_audio_node_id]["inputs"]["audio"] = uploaded_audio_filename
+                        print(f"[ComfyUI] Set audio to node {reference_audio_node_id}")
+                    else:
+                        # 尝试查找 LoadAudio 节点
+                        for node_id, node in workflow.items():
+                            if node.get("class_type") == "LoadAudio":
+                                workflow[node_id]["inputs"]["audio"] = uploaded_audio_filename
+                                print(f"[ComfyUI] Set audio to LoadAudio node {node_id}")
+                                break
+                else:
+                    print(f"[ComfyUI] Audio upload failed: {audio_upload_result.get('message')}")
+                    # 音频上传失败不阻止视频生成，只是没有口型同步
+
+            # 上传关键帧图片并注入工作流
+            if keyframe_paths:
+                for idx, keyframe_path in enumerate(keyframe_paths):
+                    if not keyframe_path:
+                        continue
+
+                    keyframe_index = idx + 1  # 关键帧索引从 1 开始
+                    print(f"[ComfyUI] Uploading keyframe {keyframe_index}: {keyframe_path}")
+
+                    keyframe_upload_result = await self.client.upload_image(keyframe_path)
+
+                    if keyframe_upload_result.get("success"):
+                        uploaded_keyframe_filename = keyframe_upload_result.get("filename")
+                        print(f"[ComfyUI] Keyframe {keyframe_index} uploaded: {uploaded_keyframe_filename}")
+
+                        # 使用动态命名约定获取关键帧节点 ID: keyframe_node_1, keyframe_node_2, ...
+                        keyframe_node_id = node_mapping.get(f"keyframe_node_{keyframe_index}")
+
+                        if keyframe_node_id and keyframe_node_id in workflow:
+                            workflow[keyframe_node_id]["inputs"]["image"] = uploaded_keyframe_filename
+                            print(f"[ComfyUI] Set keyframe {keyframe_index} to node {keyframe_node_id}")
+                        else:
+                            # 如果没有配置关键帧节点，尝试自动查找未使用的 LoadImage 节点
+                            print(f"[ComfyUI] No keyframe_node_{keyframe_index} in mapping, skipping")
+                    else:
+                        print(f"[ComfyUI] Keyframe {keyframe_index} upload failed: {keyframe_upload_result.get('message')}")
+
             # 提交任务
             queue_result = await self.client.queue_prompt(workflow)
             

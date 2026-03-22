@@ -31,6 +31,7 @@ class Novel(Base):
     scene_prompt_template_id = Column(String, nullable=True)  # 场景生成提示词模板
     prop_prompt_template_id = Column(String, nullable=True)  # 道具生成提示词模板
     chapter_split_prompt_template_id = Column(String, nullable=True)  # 分镜拆分提示词模板
+    keyframe_description_prompt_template_id = Column(String, nullable=True)  # 关键帧描述提示词模板
     
     aspect_ratio = Column(String, default="16:9")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -82,6 +83,9 @@ class Character(Base):
     # 音色相关
     voice_prompt = Column(Text, default="")  # 音色提示词描述
     reference_audio_url = Column(String, nullable=True)  # 参考音频URL
+
+    # 旁白角色标识
+    is_narrator = Column(Boolean, default=False, index=True)  # 是否为旁白角色
 
     # 章节范围信息
     start_chapter = Column(Integer, nullable=True)

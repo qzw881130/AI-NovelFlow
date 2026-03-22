@@ -12,6 +12,7 @@ const TEMPLATE_FIELDS = [
   { key: 'scenePromptTemplateId', labelKey: 'novels.scenePromptLabel', hintKey: 'novels.scenePromptHint', templateType: 'scene' },
   { key: 'propPromptTemplateId', labelKey: 'novels.propPromptLabel', hintKey: 'novels.propPromptHint', templateType: 'prop' },
   { key: 'chapterSplitPromptTemplateId', labelKey: 'novels.splitPromptLabel', hintKey: 'novels.splitPromptHint', templateType: 'chapter_split' },
+  { key: 'keyframeDescriptionPromptTemplateId', labelKey: 'novels.keyframeDescriptionPromptLabel', hintKey: 'novels.keyframeDescriptionPromptHint', templateType: 'keyframe_description' },
 ] as const;
 
 interface EditNovelModalProps {

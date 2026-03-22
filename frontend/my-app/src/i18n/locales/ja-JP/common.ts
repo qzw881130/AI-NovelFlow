@@ -67,6 +67,7 @@ export default {
     max: '最大',
     min: '最小',
     second: '秒',
+    recommended: '推奨',
     viewLargeImage: '拡大表示',
     playing: '再生中...',
     pause: '一時停止',

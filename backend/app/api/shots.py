@@ -4,9 +4,11 @@
 
 import json
 import asyncio
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.models.novel import Novel, Chapter
@@ -30,6 +32,8 @@ from app.repositories import (
     ShotRepository,
 )
 from app.services.shot_service import ShotService
+from app.services.shot_keyframe_service import ShotKeyframeService
+from app.services.audio_reference_service import AudioReferenceService
 from app.schemas.shot import (
     TransitionVideoRequest,
     BatchTransitionRequest,
@@ -39,6 +43,10 @@ from app.schemas.shot import (
     ShotAudioRequest,
     PatchChapterResourcesRequest,
     BatchShotsUpdateRequest,
+    SetReferenceAudioRequest,
+    SetReferenceImageRequest,
+    GenerateKeyframeDescriptionsRequest,
+    GenerateVideoRequest,
 )
 from app.api.deps import (
     get_novel_repo,
@@ -160,13 +168,21 @@ async def generate_shot_video(
     novel_id: str,
     chapter_id: str,
     shot_index: int,
+    request: GenerateVideoRequest = GenerateVideoRequest(),
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     task_repo: TaskRepository = Depends(get_task_repo),
     workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
-    """为指定分镜生成视频（基于已生成的分镜图片）"""
+    """为指定分镜生成视频（基于已生成的分镜图片）
+
+    Args:
+        request: 视频生成请求参数
+            - use_keyframes: 是否使用关键帧（如果存在），默认 True
+            - use_reference_audio: 是否使用参考音频（如果存在），默认 True
+            - workflow_id: 指定工作流ID（可选）
+    """
     # 获取章节
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
 
@@ -224,8 +240,13 @@ async def generate_shot_video(
         )
         shot_repo.update_video_status(shot, "pending", video_url=None, task_id=None)
 
-    # 获取激活的视频生成工作流
-    workflow = workflow_repo.get_active_by_type("video")
+    # 获取视频生成工作流（优先使用指定的工作流，否则使用激活的工作流）
+    if request.workflow_id:
+        workflow = workflow_repo.get_by_id(request.workflow_id)
+        if not workflow or workflow.type != "video":
+            raise HTTPException(status_code=400, detail="指定的工作流不存在或类型不正确")
+    else:
+        workflow = workflow_repo.get_active_by_type("video")
 
     if not workflow:
         raise HTTPException(
@@ -249,6 +270,7 @@ async def generate_shot_video(
     )
 
     print(f"[GenerateVideo] Created task {task.id} for shot {shot_index}")
+    print(f"[GenerateVideo] use_keyframes={request.use_keyframes}, use_reference_audio={request.use_reference_audio}")
 
     # 更新 Shot 表状态为 generating
     shot_repo.update_video_status(shot, "generating", task_id=task.id)
@@ -256,7 +278,9 @@ async def generate_shot_video(
     # 启动后台任务
     asyncio.create_task(
         generate_shot_video_task(
-            task.id, novel_id, chapter_id, shot_index, workflow.id, shot_image_url
+            task.id, novel_id, chapter_id, shot_index, workflow.id, shot_image_url,
+            use_keyframes=request.use_keyframes,
+            use_reference_audio=request.use_reference_audio
         )
     )
 
@@ -1461,3 +1485,554 @@ async def delete_shot(
         "data": {"deleted_shot_id": shot_id, "deleted_index": deleted_index},
         "message": "分镜删除成功",
     }
+
+
+# ==================== 关键帧 API ====================
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/keyframes/generate-descriptions",
+    response_model=dict,
+)
+async def generate_keyframe_descriptions(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    request: GenerateKeyframeDescriptionsRequest,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """
+    生成关键帧描述
+
+    使用 LLM 根据分镜描述生成关键帧描述列表。
+
+    Args:
+        novel_id: 小说 ID
+        chapter_id: 章节 ID
+        shot_id: 分镜 ID
+        request: 包含 count（要生成的关键帧数量）
+
+    Returns:
+        生成结果，包含关键帧列表
+    """
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    if shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=400, detail="分镜不属于该章节")
+
+    keyframe_service = ShotKeyframeService()
+    success, keyframes, message = await keyframe_service.generate_keyframe_descriptions(
+        db, shot_id, request.count
+    )
+
+    return {
+        "success": success,
+        "data": {"keyframes": keyframes} if success else None,
+        "message": message,
+    }
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/keyframes/{frame_index}/generate-image",
+    response_model=dict,
+)
+async def generate_keyframe_image(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    frame_index: int,
+    workflow_id: Optional[str] = None,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """
+    生成关键帧图片
+
+    使用 ComfyUI 工作流生成关键帧图片。
+
+    Args:
+        novel_id: 小说 ID
+        chapter_id: 章节 ID
+        shot_id: 分镜 ID
+        frame_index: 关键帧序号（从0开始）
+        workflow_id: 可选的工作流 ID
+
+    Returns:
+        生成任务信息
+    """
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    if shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=400, detail="分镜不属于该章节")
+
+    keyframe_service = ShotKeyframeService()
+    success, task_id, message = await keyframe_service.generate_keyframe_image(
+        db, shot_id, frame_index, workflow_id
+    )
+
+    return {
+        "success": success,
+        "data": {"task_id": task_id} if success else None,
+        "message": message,
+    }
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/keyframes/{frame_index}/upload-image",
+    response_model=dict,
+)
+async def upload_keyframe_image(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    frame_index: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """
+    上传关键帧图片
+
+    Args:
+        novel_id: 小说 ID
+        chapter_id: 章节 ID
+        shot_id: 分镜 ID
+        frame_index: 关键帧序号（从0开始）
+        file: 上传的图片文件
+
+    Returns:
+        上传结果，包含图片 URL
+    """
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    if shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=400, detail="分镜不属于该章节")
+
+    # 验证文件类型
+    ALLOWED_IMAGE_TYPES = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/webp": ".webp",
+    }
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件类型，仅支持 PNG, JPG, WEBP 格式",
+        )
+
+    # 读取文件内容
+    file_content = await file.read()
+
+    keyframe_service = ShotKeyframeService()
+    success, image_url, message = await keyframe_service.upload_keyframe_image(
+        db, shot_id, frame_index, file_content, file.filename or "image.png"
+    )
+
+    return {
+        "success": success,
+        "data": {"image_url": image_url} if success else None,
+        "message": message,
+    }
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/keyframes/{frame_index}/upload-reference-image",
+    response_model=dict,
+)
+async def upload_keyframe_reference_image(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    frame_index: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """
+    上传关键帧参考图
+
+    Args:
+        novel_id: 小说 ID
+        chapter_id: 章节 ID
+        shot_id: 分镜 ID
+        frame_index: 关键帧序号（从0开始）
+        file: 上传的参考图片文件
+
+    Returns:
+        上传结果，包含参考图 URL
+    """
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    if shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=400, detail="分镜不属于该章节")
+
+    # 验证文件类型
+    ALLOWED_IMAGE_TYPES = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/webp": ".webp",
+    }
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"不支持的文件类型，仅支持 PNG, JPG, WEBP 格式",
+        )
+
+    # 读取文件内容
+    file_content = await file.read()
+
+    keyframe_service = ShotKeyframeService()
+    success, reference_url, message = await keyframe_service.upload_reference_image(
+        db, shot_id, frame_index, file_content, file.filename or "reference.png"
+    )
+
+    return {
+        "success": success,
+        "data": {"reference_image_url": reference_url} if success else None,
+        "message": message,
+    }
+
+
+@router.put(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/keyframes/{frame_index}/reference-image",
+    response_model=dict,
+)
+async def set_keyframe_reference_image(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    frame_index: int,
+    request: SetReferenceImageRequest,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """
+    设置关键帧参考图
+
+    Args:
+        novel_id: 小说 ID
+        chapter_id: 章节 ID
+        shot_id: 分镜 ID
+        frame_index: 关键帧序号（从0开始）
+        request: 包含 mode（auto_select/custom/none）和可选的 reference_url
+
+    Returns:
+        设置结果，包含最终的参考图 URL
+    """
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    if shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=400, detail="分镜不属于该章节")
+
+    keyframe_service = ShotKeyframeService()
+    success, reference_url, message = await keyframe_service.set_reference_image(
+        db, shot_id, frame_index, request.mode, request.reference_url
+    )
+
+    return {
+        "success": success,
+        "data": {"reference_image_url": reference_url} if success else None,
+        "message": message,
+    }
+
+
+class UpdateKeyframesRequest(BaseModel):
+    keyframes: list
+
+
+@router.put(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/keyframes",
+    response_model=dict,
+)
+async def update_keyframes(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    request: UpdateKeyframesRequest,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """
+    更新分镜的关键帧数据
+
+    Args:
+        novel_id: 小说 ID
+        chapter_id: 章节 ID
+        shot_id: 分镜 ID
+        request: 包含关键帧列表
+
+    Returns:
+        更新结果
+    """
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    if shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=400, detail="分镜不属于该章节")
+
+    # 更新关键帧数据
+    import json
+    shot_repo.update(shot, keyframes=json.dumps(request.keyframes))
+
+    return {
+        "success": True,
+        "data": {"keyframes": request.keyframes},
+        "message": "关键帧数据更新成功",
+    }
+
+
+# ==================== 音频参考 API ====================
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_index}/merge-audio",
+    response_model=dict,
+)
+async def merge_dialogue_audio(
+    novel_id: str,
+    chapter_id: str,
+    shot_index: int,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """
+    合并分镜的台词音频作为参考音频
+
+    Args:
+        novel_id: 小说 ID
+        chapter_id: 章节 ID
+        shot_index: 分镜索引（1-based）
+
+    Returns:
+        合并结果，包含音频 URL 和时长
+    """
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    # 获取分镜（shot_index 是 1-based）
+    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+    if not shot:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    # 调用音频参考服务合并音频（传递 1-based 索引）
+    audio_ref_service = AudioReferenceService(db)
+    result = await audio_ref_service.merge_dialogue_audio(
+        novel_id, chapter_id, shot_index, shot_id=shot.id
+    )
+
+    return result
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_index}/upload-reference-audio",
+    response_model=dict,
+)
+async def upload_reference_audio(
+    novel_id: str,
+    chapter_id: str,
+    shot_index: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """
+    上传参考音频文件
+
+    Args:
+        novel_id: 小说 ID
+        chapter_id: 章节 ID
+        shot_index: 分镜索引（1-based）
+        file: 音频文件（mp3、wav、flac、ogg、m4a）
+
+    Returns:
+        上传结果，包含音频 URL
+    """
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    # 获取分镜（shot_index 是 1-based）
+    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+    if not shot:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    # 验证文件类型
+    if file.content_type not in ALLOWED_AUDIO_TYPES:
+        # 允许额外的音频格式
+        extra_types = {
+            "audio/ogg": ".ogg",
+            "audio/mp4": ".m4a",
+            "audio/x-m4a": ".m4a",
+        }
+        if file.content_type not in extra_types:
+            raise HTTPException(
+                status_code=400,
+                detail=f"不支持的文件类型: {file.content_type}，仅支持 mp3、wav、flac、ogg、m4a 格式",
+            )
+
+    # 验证文件大小
+    content = await file.read()
+    if len(content) > MAX_AUDIO_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"文件大小超过限制（最大 10MB），当前文件大小: {len(content) / 1024 / 1024:.2f}MB",
+        )
+
+    # 调用音频参考服务上传（传递 1-based 索引和 shot_id）
+    audio_ref_service = AudioReferenceService(db)
+    result = await audio_ref_service.upload_reference_audio(
+        novel_id, chapter_id, shot_index, content, file.filename or "audio.mp3", shot_id=shot.id
+    )
+
+    return result
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_index}/set-reference-audio",
+    response_model=dict,
+)
+async def set_reference_audio(
+    novel_id: str,
+    chapter_id: str,
+    shot_index: int,
+    request: SetReferenceAudioRequest,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """
+    设置参考音频来源
+
+    Args:
+        novel_id: 小说 ID
+        chapter_id: 章节 ID
+        shot_index: 分镜索引（1-based）
+        request: 包含 mode 和可选的 character_name
+
+    Returns:
+        设置结果
+    """
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    # 获取分镜（shot_index 是 1-based）
+    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+    if not shot:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    audio_ref_service = AudioReferenceService(db)
+
+    if request.mode == "none":
+        # 清除参考音频（传递 1-based 索引和 shot_id）
+        result = await audio_ref_service.clear_reference_audio(
+            novel_id, chapter_id, shot_index, shot_id=shot.id
+        )
+    elif request.mode == "character":
+        # 使用角色音色（传递 1-based 索引和 shot_id）
+        if not request.character_name:
+            return {
+                "success": False,
+                "message": "使用角色音色时需要提供 character_name",
+            }
+        result = await audio_ref_service.set_character_voice_reference(
+            novel_id, chapter_id, shot_index, request.character_name, shot_id=shot.id
+        )
+    else:
+        # merged 和 uploaded 模式需要先调用对应的接口
+        return {
+            "success": False,
+            "message": f"模式 '{request.mode}' 需要先调用对应的接口：merged 请调用 /merge-audio，uploaded 请调用 /upload-reference-audio",
+        }
+
+    return result

@@ -64,6 +64,7 @@ export default {
     max: 'Max',
     min: 'Min',
     second: 'sec',
+    recommended: 'Recommended',
     viewLargeImage: 'View full size image',
     playing: 'Playing...',
     pause: 'Pause',

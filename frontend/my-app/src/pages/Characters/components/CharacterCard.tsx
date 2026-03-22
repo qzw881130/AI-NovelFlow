@@ -1,7 +1,7 @@
 /**
  * 角色卡片组件
  */
-import { Loader2, User, Trash2, Edit2, Upload, Wand2, Sparkles, Mic, Play, Square, Music } from 'lucide-react';
+import { Loader2, User, Trash2, Edit2, Upload, Wand2, Sparkles, Mic, Play, Square, Music, BookOpen } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Character } from '../../../types';
@@ -74,6 +74,8 @@ export function CharacterCard({
       className={`bg-white rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-all group ${
         highlightedId === character.id
           ? 'ring-4 ring-blue-500 ring-opacity-50 border-blue-500 animate-pulse'
+          : character.isNarrator
+          ? 'border-purple-300 bg-purple-50/30'
           : 'border-gray-200'
       }`}
     >
@@ -88,31 +90,45 @@ export function CharacterCard({
           />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center">
-            <User className="h-20 w-20 text-gray-300" />
+            {character.isNarrator ? (
+              <BookOpen className="h-20 w-20 text-purple-300" />
+            ) : (
+              <User className="h-20 w-20 text-gray-300" />
+            )}
+          </div>
+        )}
+
+        {/* Narrator Badge */}
+        {character.isNarrator && (
+          <div className="absolute top-2 left-2 px-2 py-1 bg-purple-600 text-white text-xs rounded-full flex items-center gap-1">
+            <BookOpen className="h-3 w-3" />
+            {t('characters.narrator')}
           </div>
         )}
 
         {/* Status Badge */}
-        {character.generatingStatus === 'running' && (
-          <div className="absolute top-2 left-2 px-2 py-1 bg-blue-500 text-white text-xs rounded-full flex items-center gap-1">
+        {character.generatingStatus === 'running' && !character.isNarrator && (
+          <div className={`absolute top-2 left-2 px-2 py-1 bg-blue-500 text-white text-xs rounded-full flex items-center gap-1 ${character.isNarrator ? 'left-24' : ''}`}>
             <Loader2 className="h-3 w-3 animate-spin" />
             {t('characters.generating')}
           </div>
         )}
         {character.generatingStatus === 'failed' && (
-          <div className="absolute top-2 left-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full">
+          <div className={`absolute top-2 left-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full ${character.isNarrator ? 'left-24' : ''}`}>
             {t('characters.generateFailed')}
           </div>
         )}
 
-        {/* Delete Button - 右上角 */}
-        <button
-          onClick={() => onDelete(character.id)}
-          className="absolute top-2 right-2 p-2 bg-white/90 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-          title={t('common.delete')}
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {/* Delete Button - 右上角 (旁白角色不显示删除按钮) */}
+        {!character.isNarrator && (
+          <button
+            onClick={() => onDelete(character.id)}
+            className="absolute top-2 right-2 p-2 bg-white/90 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+            title={t('common.delete')}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
 
         {/* Edit Button - 左下角 */}
         <button

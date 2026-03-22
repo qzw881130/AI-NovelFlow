@@ -22,7 +22,9 @@ async def generate_shot_video_task(
     chapter_id: str,
     shot_index: int,
     workflow_id: str,
-    shot_image_url: str
+    shot_image_url: str,
+    use_keyframes: bool = True,
+    use_reference_audio: bool = True
 ):
     """
     后台任务：生成分镜视频
@@ -34,6 +36,8 @@ async def generate_shot_video_task(
         shot_index: 分镜索引
         workflow_id: 工作流ID
         shot_image_url: 分镜图片URL
+        use_keyframes: 是否使用关键帧（如果存在），默认 True
+        use_reference_audio: 是否使用参考音频（如果存在），默认 True
     """
     db = SessionLocal()
     try:
@@ -160,6 +164,38 @@ async def generate_shot_video_task(
         print(f"[VideoTask {task_id}] Scene: {scene_setting}")
         print(f"[VideoTask {task_id}] Props: {prop_appearances}")
 
+        # 获取参考音频路径
+        reference_audio_path = None
+        if use_reference_audio and shot.reference_audio_url:
+            audio_local_path = url_to_local_path(shot.reference_audio_url)
+            if audio_local_path:
+                reference_audio_path = audio_local_path
+                print(f"[VideoTask {task_id}] Found reference audio: {audio_local_path}")
+            else:
+                print(f"[VideoTask {task_id}] Reference audio not found at: {shot.reference_audio_url}")
+        elif not use_reference_audio:
+            print(f"[VideoTask {task_id}] Skipping reference audio (use_reference_audio=False)")
+
+        # 获取关键帧图片路径
+        keyframe_paths = []
+        if use_keyframes and shot.keyframes:
+            try:
+                keyframes_data = json.loads(shot.keyframes) if isinstance(shot.keyframes, str) else shot.keyframes
+                if isinstance(keyframes_data, list):
+                    for idx, kf in enumerate(keyframes_data):
+                        if isinstance(kf, dict) and kf.get("image_url"):
+                            kf_local_path = url_to_local_path(kf["image_url"])
+                            if kf_local_path:
+                                keyframe_paths.append(kf_local_path)
+                                print(f"[VideoTask {task_id}] Found keyframe {idx + 1}: {kf_local_path}")
+                            else:
+                                print(f"[VideoTask {task_id}] Keyframe {idx + 1} image not found at: {kf['image_url']}")
+                print(f"[VideoTask {task_id}] Total keyframes found: {len(keyframe_paths)}")
+            except Exception as e:
+                print(f"[VideoTask {task_id}] Error parsing keyframes: {e}")
+        elif not use_keyframes:
+            print(f"[VideoTask {task_id}] Skipping keyframes (use_keyframes=False)")
+
         task.current_step = "正在调用 ComfyUI 生成视频..."
         task.progress = 30
         db.commit()
@@ -175,7 +211,9 @@ async def generate_shot_video_task(
             style=style,
             character_appearances=character_appearances,
             scene_setting=scene_setting,
-            prop_appearances=prop_appearances
+            prop_appearances=prop_appearances,
+            reference_audio_path=reference_audio_path,
+            keyframe_paths=keyframe_paths
         )
 
         print(f"[VideoTask {task_id}] Generation result: {result}")

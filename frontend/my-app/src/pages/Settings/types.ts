@@ -8,7 +8,7 @@ export interface Workflow {
   nameKey?: string;
   description?: string;
   descriptionKey?: string;
-  type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio';
+  type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio' | 'keyframe_image';
   typeName: string;
   isSystem: boolean;
   isActive: boolean;
