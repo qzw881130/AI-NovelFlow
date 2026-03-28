@@ -17,7 +17,7 @@ type AudioSourceType = 'none' | 'merged' | 'uploaded' | 'character';
 interface AudioReferenceSelectorProps {
   novelId: string;
   chapterId: string;
-  shotIndex: number;
+  shotId: string;
   shotCharacters: string[];
   referenceAudioUrl?: string;
   referenceAudioType?: AudioSourceType;
@@ -33,7 +33,7 @@ interface Character {
 export default function AudioReferenceSelector({
   novelId,
   chapterId,
-  shotIndex,
+  shotId,
   shotCharacters,
   referenceAudioUrl,
   referenceAudioType,
@@ -111,7 +111,7 @@ export default function AudioReferenceSelector({
 
     if (type === 'none') {
       // Clear reference audio
-      const result = await shotsApi.setReferenceAudio(novelId, chapterId, shotIndex, 'none');
+      const result = await shotsApi.setReferenceAudio(novelId, chapterId, shotId, 'none');
       if (result.success) {
         setSourceType('none');
         setAudioUrl(null);
@@ -134,7 +134,7 @@ export default function AudioReferenceSelector({
   const handleMergeAudio = async () => {
     setIsMerging(true);
     try {
-      const result = await shotsApi.mergeDialogueAudio(novelId, chapterId, shotIndex);
+      const result = await shotsApi.mergeDialogueAudio(novelId, chapterId, shotId);
       if (result.success && result.audio_url) {
         setAudioUrl(result.audio_url);
         onReferenceAudioUpdate(result.audio_url);
@@ -154,7 +154,7 @@ export default function AudioReferenceSelector({
   const handleUploadAudio = async (file: File) => {
     setIsUploading(true);
     try {
-      const result = await shotsApi.uploadReferenceAudio(novelId, chapterId, shotIndex, file);
+      const result = await shotsApi.uploadReferenceAudio(novelId, chapterId, shotId, file);
       if (result.success && result.audio_url) {
         setAudioUrl(result.audio_url);
         onReferenceAudioUpdate(result.audio_url);
@@ -177,7 +177,7 @@ export default function AudioReferenceSelector({
       const result = await shotsApi.setReferenceAudio(
         novelId,
         chapterId,
-        shotIndex,
+        shotId,
         'character',
         characterName
       );

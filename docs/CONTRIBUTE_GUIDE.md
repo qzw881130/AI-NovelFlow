@@ -46,11 +46,6 @@
 - `constants` 目录下存放页面级常量定义
 - `utils` 目录下存放页面级工具类
 
-**命名约定：**
-- 组件文件：PascalCase（如 `NovelCard.tsx`）
-- 工具函数/hook：camelCase（如 `useNovelStore.ts`）
-- 常量：UPPER_SNAKE_CASE（如 `API_BASE`）
-- 类型/接口：PascalCase（如 `interface Novel`）
 
 ### 后端开发规范
 
@@ -77,11 +72,6 @@
 | Model | `models/` | SQLAlchemy ORM 模型定义 |
 | Schema | `schemas/` | Pydantic 模型，请求/响应数据验证 |
 
-**命名约定：**
-- 类名：PascalCase（如 `NovelRepository`）
-- 函数/方法：snake_case（如 `get_novel_by_id`）
-- 常量：UPPER_SNAKE_CASE（如 `MAX_RETRY_COUNT`）
-- 私有方法：`_` 前缀（如 `_parse_response`）
 
 ### 国际化规范
 

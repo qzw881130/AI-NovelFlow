@@ -107,6 +107,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         proxy = self._get_proxy_config()
         used_proxy = proxy is not None
 
+        timeout = 600
         # Ollama 和 custom 不需要代理
         if self.config.provider in ("ollama", "custom"):
             old_http_proxy = os.environ.pop('HTTP_PROXY', None)
@@ -115,20 +116,20 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             old_https_proxy_lower = os.environ.pop('https_proxy', None)
 
             transport = httpx.AsyncHTTPTransport(proxy=None)
-            client = httpx.AsyncClient(transport=transport, timeout=300.0)
+            client = httpx.AsyncClient(transport=transport, timeout=timeout)
         else:
-            client = httpx.AsyncClient(proxy=proxy, timeout=600.0)
+            client = httpx.AsyncClient(proxy=proxy, timeout=timeout)
             old_http_proxy = old_https_proxy = old_http_proxy_lower = old_https_proxy_lower = None
 
         try:
             async with client:
+                print(f"[openai chat_completion] endpoint:{endpoint}, headers:{headers}, timeout:{timeout}")
                 response = await client.post(
                     endpoint,
                     headers=headers,
                     json=body,
-                    timeout=300.0
+                    timeout=timeout
                 )
-
             # 恢复环境变量
             if self.config.provider in ("ollama", "custom"):
                 if old_http_proxy:

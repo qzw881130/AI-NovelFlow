@@ -65,12 +65,12 @@ comfyui_service = ComfyUIService()
 
 
 @router.post(
-    "/{novel_id}/chapters/{chapter_id}/shots/{shot_index}/generate", response_model=dict
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/generate", response_model=dict
 )
 async def generate_shot_image(
     novel_id: str,
     chapter_id: str,
-    shot_index: int,
+    shot_id: str,
     db: Session = Depends(get_db),
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
@@ -91,11 +91,12 @@ async def generate_shot_image(
         raise HTTPException(status_code=404, detail="小说不存在")
 
     # 从 shots 表查询分镜
-    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+    shot = shot_repo.get_by_id(shot_id)
 
-    if not shot:
-        raise HTTPException(status_code=404, detail=f"分镜 {shot_index} 不存在")
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail=f"分镜 {shot_id} 不存在")
 
+    shot_index = shot.index
     shot_description = shot.description
 
     # 检查是否已有进行中的任务
@@ -137,9 +138,10 @@ async def generate_shot_image(
         chapter_title=chapter.title,
         workflow_id=workflow.id,
         workflow_name=workflow.name,
+        shot_id=shot_id,
     )
 
-    print(f"[GenerateShot] Created task {task.id} for shot {shot_index}")
+    print(f"[GenerateShot] Created task {task.id} for shot {shot_id}")
 
     # 启动后台任务
     asyncio.create_task(
@@ -161,13 +163,13 @@ async def generate_shot_image(
 
 
 @router.post(
-    "/{novel_id}/chapters/{chapter_id}/shots/{shot_index}/generate-video",
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/generate-video",
     response_model=dict,
 )
 async def generate_shot_video(
     novel_id: str,
     chapter_id: str,
-    shot_index: int,
+    shot_id: str,
     request: GenerateVideoRequest = GenerateVideoRequest(),
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
@@ -195,11 +197,12 @@ async def generate_shot_video(
         raise HTTPException(status_code=404, detail="小说不存在")
 
     # 从 Shot 表获取分镜数据
-    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+    shot = shot_repo.get_by_id(shot_id)
 
-    if not shot:
-        raise HTTPException(status_code=400, detail=f"分镜 {shot_index} 不存在")
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=400, detail=f"分镜 {shot_id} 不存在")
 
+    shot_index = shot.index
     shot_duration = shot.duration or 4
 
     # 检查是否有已生成的分镜图片
@@ -229,14 +232,14 @@ async def generate_shot_video(
 
     if failed_task:
         print(
-            f"[GenerateVideo] Deleting failed task {failed_task.id} for shot {shot_index} to allow regeneration"
+            f"[GenerateVideo] Deleting failed task {failed_task.id} for shot {shot_id} to allow regeneration"
         )
         task_repo.delete(failed_task)
 
     # 清除该分镜的旧视频记录（直接更新 Shot 表）
     if shot.video_url:
         print(
-            f"[GenerateVideo] Clearing old video record for shot {shot_index}: {shot.video_url}"
+            f"[GenerateVideo] Clearing old video record for shot {shot_id}: {shot.video_url}"
         )
         shot_repo.update_video_status(shot, "pending", video_url=None, task_id=None)
 
@@ -267,9 +270,10 @@ async def generate_shot_video(
         chapter_title=chapter.title,
         workflow_id=workflow.id,
         workflow_name=workflow.name,
+        shot_id=shot_id,
     )
 
-    print(f"[GenerateVideo] Created task {task.id} for shot {shot_index}")
+    print(f"[GenerateVideo] Created task {task.id} for shot {shot_id}")
     print(f"[GenerateVideo] use_keyframes={request.use_keyframes}, use_reference_audio={request.use_reference_audio}")
 
     # 更新 Shot 表状态为 generating
@@ -659,13 +663,13 @@ async def clear_chapter_resources(
 
 
 @router.post(
-    "/{novel_id}/chapters/{chapter_id}/shots/{shot_index}/upload-image",
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/upload-image",
     response_model=dict,
 )
 async def upload_shot_image(
     novel_id: str,
     chapter_id: str,
-    shot_index: int,
+    shot_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
@@ -687,10 +691,12 @@ async def upload_shot_image(
         raise HTTPException(status_code=404, detail="章节不存在")
 
     # 从 shots 表查询分镜
-    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+    shot = shot_repo.get_by_id(shot_id)
 
-    if not shot:
-        raise HTTPException(status_code=404, detail=f"分镜 {shot_index} 不存在")
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail=f"分镜 {shot_id} 不存在")
+
+    shot_index = shot.index
 
     try:
         # 删除旧图片
@@ -734,12 +740,12 @@ async def upload_shot_image(
 
 
 @router.post(
-    "/{novel_id}/chapters/{chapter_id}/shots/{shot_index}/audio", response_model=dict
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/audio", response_model=dict
 )
 async def generate_shot_audio(
     novel_id: str,
     chapter_id: str,
-    shot_index: int,
+    shot_id: str,
     request: ShotAudioRequest,
     db: Session = Depends(get_db),
     novel_repo: NovelRepository = Depends(get_novel_repo),
@@ -776,9 +782,11 @@ async def generate_shot_audio(
         raise HTTPException(status_code=404, detail="小说不存在")
 
     # 从 Shot 表获取分镜数据
-    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
-    if not shot:
-        raise HTTPException(status_code=404, detail=f"分镜 {shot_index} 不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail=f"分镜 {shot_id} 不存在")
+
+    shot_index = shot.index
 
     # 获取台词数据
     dialogues = request.dialogues
@@ -813,6 +821,7 @@ async def generate_shot_audio(
         workflow=workflow,
         character_repo=character_repo,
         task_repo=task_repo,
+        shot_id=shot_id
     )
 
     return result
@@ -902,17 +911,18 @@ MAX_AUDIO_SIZE = 10 * 1024 * 1024  # 10MB
 
 
 @router.post(
-    "/{novel_id}/chapters/{chapter_id}/shots/{shot_index}/dialogues/{character_name}/audio/upload",
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/dialogues/{character_name}/audio/upload",
     response_model=dict,
 )
 async def upload_dialogue_audio(
     novel_id: str,
     chapter_id: str,
-    shot_index: int,
+    shot_id: str,
     character_name: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
     """
     上传分镜台词音频
@@ -920,7 +930,7 @@ async def upload_dialogue_audio(
     Args:
         novel_id: 小说ID
         chapter_id: 章节ID
-        shot_index: 分镜索引（1-based）
+        shot_id: 分镜ID
         character_name: 角色名称（URL编码）
         file: 音频文件（mp3、wav、flac，最大10MB）
 
@@ -956,6 +966,13 @@ async def upload_dialogue_audio(
     if not chapter.parsed_data:
         raise HTTPException(status_code=400, detail="章节未拆分，请先进行AI拆分")
 
+    # 从 Shot 表获取分镜数据
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail=f"分镜 {shot_id} 不存在")
+
+    shot_index = shot.index
+
     parsed_data = (
         json.loads(chapter.parsed_data)
         if isinstance(chapter.parsed_data, str)
@@ -967,8 +984,8 @@ async def upload_dialogue_audio(
         raise HTTPException(status_code=400, detail="分镜索引超出范围")
 
     # 查找指定角色的台词
-    shot = shots[shot_index - 1]
-    dialogues = shot.get("dialogues", [])
+    shot_data = shots[shot_index - 1]
+    dialogues = shot_data.get("dialogues", [])
     target_dialogue = None
     for dialogue in dialogues:
         if dialogue.get("character_name") == character_name:
@@ -978,7 +995,7 @@ async def upload_dialogue_audio(
     if not target_dialogue:
         raise HTTPException(
             status_code=404,
-            detail=f"分镜 {shot_index} 中未找到角色 '{character_name}' 的台词",
+            detail=f"分镜 {shot_id} 中未找到角色 '{character_name}' 的台词",
         )
 
     try:
@@ -1007,6 +1024,7 @@ async def upload_dialogue_audio(
         return {
             "success": True,
             "data": {
+                "shot_id": shot_id,
                 "shot_index": shot_index,
                 "character_name": character_name,
                 "audio_url": audio_url,
@@ -1024,16 +1042,17 @@ async def upload_dialogue_audio(
 
 
 @router.delete(
-    "/{novel_id}/chapters/{chapter_id}/shots/{shot_index}/dialogues/{character_name}/audio",
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/dialogues/{character_name}/audio",
     response_model=dict,
 )
 async def delete_dialogue_audio(
     novel_id: str,
     chapter_id: str,
-    shot_index: int,
+    shot_id: str,
     character_name: str,
     db: Session = Depends(get_db),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
     """
     删除分镜台词音频
@@ -1041,7 +1060,7 @@ async def delete_dialogue_audio(
     Args:
         novel_id: 小说ID
         chapter_id: 章节ID
-        shot_index: 分镜索引（1-based）
+        shot_id: 分镜ID
         character_name: 角色名称（URL编码）
 
     Returns:
@@ -1061,6 +1080,13 @@ async def delete_dialogue_audio(
     if not chapter.parsed_data:
         raise HTTPException(status_code=400, detail="章节未拆分，请先进行AI拆分")
 
+    # 从 Shot 表获取分镜数据
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail=f"分镜 {shot_id} 不存在")
+
+    shot_index = shot.index
+
     parsed_data = (
         json.loads(chapter.parsed_data)
         if isinstance(chapter.parsed_data, str)
@@ -1072,8 +1098,8 @@ async def delete_dialogue_audio(
         raise HTTPException(status_code=400, detail="分镜索引超出范围")
 
     # 查找指定角色的台词
-    shot = shots[shot_index - 1]
-    dialogues = shot.get("dialogues", [])
+    shot_data = shots[shot_index - 1]
+    dialogues = shot_data.get("dialogues", [])
     target_dialogue = None
     for dialogue in dialogues:
         if dialogue.get("character_name") == character_name:
@@ -1083,7 +1109,7 @@ async def delete_dialogue_audio(
     if not target_dialogue:
         raise HTTPException(
             status_code=404,
-            detail=f"分镜 {shot_index} 中未找到角色 '{character_name}' 的台词",
+            detail=f"分镜 {shot_id} 中未找到角色 '{character_name}' 的台词",
         )
 
     try:
@@ -1102,7 +1128,7 @@ async def delete_dialogue_audio(
 
         return {
             "success": True,
-            "data": {"shot_index": shot_index, "character_name": character_name},
+            "data": {"shot_id": shot_id, "shot_index": shot_index, "character_name": character_name},
             "message": "音频删除成功",
         }
 
@@ -1857,13 +1883,13 @@ async def update_keyframes(
 
 
 @router.post(
-    "/{novel_id}/chapters/{chapter_id}/shots/{shot_index}/merge-audio",
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/merge-audio",
     response_model=dict,
 )
 async def merge_dialogue_audio(
     novel_id: str,
     chapter_id: str,
-    shot_index: int,
+    shot_id: str,
     db: Session = Depends(get_db),
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
@@ -1875,7 +1901,7 @@ async def merge_dialogue_audio(
     Args:
         novel_id: 小说 ID
         chapter_id: 章节 ID
-        shot_index: 分镜索引（1-based）
+        shot_id: 分镜 ID
 
     Returns:
         合并结果，包含音频 URL 和时长
@@ -1888,12 +1914,14 @@ async def merge_dialogue_audio(
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
 
-    # 获取分镜（shot_index 是 1-based）
-    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
-    if not shot:
+    # 获取分镜
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
         raise HTTPException(status_code=404, detail="分镜不存在")
 
-    # 调用音频参考服务合并音频（传递 1-based 索引）
+    shot_index = shot.index
+
+    # 调用音频参考服务合并音频
     audio_ref_service = AudioReferenceService(db)
     result = await audio_ref_service.merge_dialogue_audio(
         novel_id, chapter_id, shot_index, shot_id=shot.id
@@ -1903,13 +1931,13 @@ async def merge_dialogue_audio(
 
 
 @router.post(
-    "/{novel_id}/chapters/{chapter_id}/shots/{shot_index}/upload-reference-audio",
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/upload-reference-audio",
     response_model=dict,
 )
 async def upload_reference_audio(
     novel_id: str,
     chapter_id: str,
-    shot_index: int,
+    shot_id: str,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     novel_repo: NovelRepository = Depends(get_novel_repo),
@@ -1922,7 +1950,7 @@ async def upload_reference_audio(
     Args:
         novel_id: 小说 ID
         chapter_id: 章节 ID
-        shot_index: 分镜索引（1-based）
+        shot_id: 分镜 ID
         file: 音频文件（mp3、wav、flac、ogg、m4a）
 
     Returns:
@@ -1936,10 +1964,12 @@ async def upload_reference_audio(
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
 
-    # 获取分镜（shot_index 是 1-based）
-    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
-    if not shot:
+    # 获取分镜
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
         raise HTTPException(status_code=404, detail="分镜不存在")
+
+    shot_index = shot.index
 
     # 验证文件类型
     if file.content_type not in ALLOWED_AUDIO_TYPES:
@@ -1963,7 +1993,7 @@ async def upload_reference_audio(
             detail=f"文件大小超过限制（最大 10MB），当前文件大小: {len(content) / 1024 / 1024:.2f}MB",
         )
 
-    # 调用音频参考服务上传（传递 1-based 索引和 shot_id）
+    # 调用音频参考服务上传
     audio_ref_service = AudioReferenceService(db)
     result = await audio_ref_service.upload_reference_audio(
         novel_id, chapter_id, shot_index, content, file.filename or "audio.mp3", shot_id=shot.id
@@ -1973,13 +2003,13 @@ async def upload_reference_audio(
 
 
 @router.post(
-    "/{novel_id}/chapters/{chapter_id}/shots/{shot_index}/set-reference-audio",
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/set-reference-audio",
     response_model=dict,
 )
 async def set_reference_audio(
     novel_id: str,
     chapter_id: str,
-    shot_index: int,
+    shot_id: str,
     request: SetReferenceAudioRequest,
     db: Session = Depends(get_db),
     novel_repo: NovelRepository = Depends(get_novel_repo),
@@ -1992,7 +2022,7 @@ async def set_reference_audio(
     Args:
         novel_id: 小说 ID
         chapter_id: 章节 ID
-        shot_index: 分镜索引（1-based）
+        shot_id: 分镜 ID
         request: 包含 mode 和可选的 character_name
 
     Returns:
@@ -2006,20 +2036,22 @@ async def set_reference_audio(
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
 
-    # 获取分镜（shot_index 是 1-based）
-    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
-    if not shot:
+    # 获取分镜
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
         raise HTTPException(status_code=404, detail="分镜不存在")
+
+    shot_index = shot.index
 
     audio_ref_service = AudioReferenceService(db)
 
     if request.mode == "none":
-        # 清除参考音频（传递 1-based 索引和 shot_id）
+        # 清除参考音频
         result = await audio_ref_service.clear_reference_audio(
             novel_id, chapter_id, shot_index, shot_id=shot.id
         )
     elif request.mode == "character":
-        # 使用角色音色（传递 1-based 索引和 shot_id）
+        # 使用角色音色
         if not request.character_name:
             return {
                 "success": False,

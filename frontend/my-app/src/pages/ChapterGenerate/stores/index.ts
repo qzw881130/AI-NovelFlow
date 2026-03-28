@@ -130,7 +130,7 @@ export function useGenerationSlice(): GenerationSlice {
     pendingShots: state.pendingShots,
     shotImages: state.shotImages,
     isGeneratingAll: state.isGeneratingAll,
-    uploadingShotIndex: state.uploadingShotIndex,
+    uploadingShotId: state.uploadingShotId,
     // Video Generation State
     generatingVideos: state.generatingVideos,
     pendingVideos: state.pendingVideos,
@@ -243,8 +243,8 @@ export function useUiSlice(): UiSlice {
     isSavingJson: state.isSavingJson,
     // Tab Actions
     setActiveTab: state.setActiveTab,
-    // Navigation Actions - backward compatible, calls setCurrentShotIndex
-    setCurrentShot: (index: number) => state.setCurrentShotIndex(index),
+    // Navigation Actions - backward compatible
+    setCurrentShot: (shotId: string, index: number) => state.setCurrentShot(shotId, index),
     setCurrentVideo: state.setCurrentVideo,
     // JSON Editor Actions
     setJsonEditMode: state.setJsonEditMode,

@@ -107,11 +107,11 @@ interface ImagePreviewModalProps {
   shotImages: Record<number, string>;
 }
 
-export function ImagePreviewModal({ 
-  isOpen, 
-  onClose, 
-  previewImageUrl, 
-  previewImageIndex, 
+export function ImagePreviewModal({
+  isOpen,
+  onClose,
+  previewImageUrl,
+  previewImageIndex,
   currentShot,
   totalImages,
   onNavigate,
@@ -122,37 +122,45 @@ export function ImagePreviewModal({
 
   if (!isOpen || !previewImageUrl) return null;
 
+  // 计算有图片的分镜数量
+  const imagesWithShots = parsedDataShots?.filter((_shot: any, idx: number) => shotImages[idx + 1] || parsedDataShots?.[idx]?.image_url).length || 0;
+
   return (
-    <div 
+    <div
       className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
       onClick={onClose}
     >
       <div className="relative max-w-5xl max-h-[90vh] w-full flex items-center" onClick={e => e.stopPropagation()}>
-        <button
-          onClick={(e) => { e.stopPropagation(); onNavigate('prev'); }}
-          className="absolute -left-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all z-10"
-          title={`${t('chapterGenerate.previous')} (←)`}
-        >
-          <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        
+        {/* 左导航按钮 */}
+        {imagesWithShots > 1 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onNavigate('prev'); }}
+            className="absolute -left-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all z-10"
+          >
+            <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+        )}
+
         <div className="flex-1 flex flex-col">
+          {/* 关闭按钮 */}
           <button
             onClick={onClose}
             className="absolute -top-10 right-0 p-2 text-white hover:text-gray-300 z-10"
           >
             <X className="h-6 w-6" />
           </button>
-          
-          <img 
-            src={previewImageUrl} 
-            alt={t('chapterGenerate.shotPreview')} 
+
+          {/* 图片 */}
+          <img
+            src={previewImageUrl}
+            alt={t('chapterGenerate.shotPreview')}
             className="max-w-full max-h-[75vh] object-contain rounded-lg mx-auto"
           />
-          
-          <div className="mt-4 flex flex-col items-center gap-2">
+
+          {/* 下载按钮 */}
+          <div className="mt-4 flex justify-center">
             <button
               onClick={() => {
                 const link = document.createElement('a');
@@ -167,28 +175,20 @@ export function ImagePreviewModal({
               </svg>
               {t('chapterGenerate.downloadImage')}
             </button>
-            
-            <div className="text-gray-400 text-sm">
-              <span className="inline-flex items-center gap-2">
-                <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">←</kbd>
-                <kbd className="px-2 py-1 bg-gray-700 rounded text-xs">→</kbd>
-                <span>{t('chapterGenerate.keyboardNavigate')}</span>
-                <span className="mx-2">|</span>
-                <span>{previewImageIndex + 1} / {parsedDataShots?.filter((_shot: any, idx: number) => shotImages[idx + 1] || parsedDataShots?.[idx]?.image_url).length || 0}</span>
-              </span>
-            </div>
           </div>
         </div>
-        
-        <button
-          onClick={(e) => { e.stopPropagation(); onNavigate('next'); }}
-          className="absolute -right-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all z-10"
-          title={`${t('chapterGenerate.next')} (→)`}
-        >
-          <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+
+        {/* 右导航按钮 */}
+        {imagesWithShots > 1 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onNavigate('next'); }}
+            className="absolute -right-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all z-10"
+          >
+            <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        )}
       </div>
     </div>
   );

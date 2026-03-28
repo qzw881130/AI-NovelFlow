@@ -75,13 +75,29 @@ class WorkflowService:
                 with open(file_path, 'r', encoding='utf-8') as f:
                     workflow_json = f.read()
 
+                # 从 EXTRA_SYSTEM_WORKFLOWS 查找该文件的配置（获取 name, description, node_mapping）
+                wf_config = self._find_extra_workflow_config(filename)
+
                 # 获取该类型的默认节点映射
                 node_mapping = DEFAULT_WORKFLOW_NODE_MAPPINGS.get(wf_type)
+
+                # 如果 EXTRA_SYSTEM_WORKFLOWS 中有配置，使用配置中的值
+                if wf_config:
+                    name = wf_config.get("name", f"系统默认-{WORKFLOW_TYPES.get(wf_type, wf_type)}")
+                    description = wf_config.get("description", f"系统预设的{WORKFLOW_TYPES.get(wf_type, wf_type)}工作流")
+                    # 配置中的 node_mapping 优先
+                    if "node_mapping" in wf_config:
+                        node_mapping = wf_config["node_mapping"]
+                else:
+                    name = f"系统默认-{WORKFLOW_TYPES.get(wf_type, wf_type)}"
+                    description = f"系统预设的{WORKFLOW_TYPES.get(wf_type, wf_type)}工作流"
 
                 # 如果已存在，检查内容是否有变化，有则更新
                 if existing:
                     if existing.workflow_json != workflow_json:
                         existing.workflow_json = workflow_json
+                        existing.name = name
+                        existing.description = description
                         self.db.commit()
                         print(f"[Workflow] Updated default workflow: {wf_type}")
 
@@ -91,11 +107,8 @@ class WorkflowService:
                         print(f"[Workflow] Updated node mapping for default: {wf_type}")
                     continue
 
-                # 根据类型设置描述
-                description = f"系统预设的{WORKFLOW_TYPES.get(wf_type, wf_type)}工作流"
-
                 workflow = Workflow(
-                    name=f"系统默认-{WORKFLOW_TYPES.get(wf_type, wf_type)}",
+                    name=name,
                     description=description,
                     type=wf_type,
                     workflow_json=workflow_json,
@@ -106,13 +119,29 @@ class WorkflowService:
                 )
                 self.db.add(workflow)
 
+    def _find_extra_workflow_config(self, filename: str) -> Optional[dict]:
+        """从 EXTRA_SYSTEM_WORKFLOWS 查找指定 filename 的配置"""
+        for wf_config in EXTRA_SYSTEM_WORKFLOWS:
+            if wf_config.get("filename") == filename:
+                return wf_config
+        return None
+
     def _load_extra_system_workflows(self, workflows_dir: str) -> None:
         """加载额外的系统工作流"""
+        # 跳过已被 DEFAULT_WORKFLOWS 加载的文件
+        default_filenames = set(DEFAULT_WORKFLOWS.values())
+
         # 跟踪每种类型已经处理过的工作流，确保同类型只有第一个是默认激活的
         processed_types: Dict[str, int] = {}
 
         for wf_config in EXTRA_SYSTEM_WORKFLOWS:
-            file_path = os.path.join(workflows_dir, wf_config["filename"])
+            filename = wf_config["filename"]
+
+            # 如果该文件已在 DEFAULT_WORKFLOWS 中定义，跳过（避免重复加载）
+            if filename in default_filenames:
+                continue
+
+            file_path = os.path.join(workflows_dir, filename)
             wf_type = wf_config["type"]
 
             if not os.path.exists(file_path):

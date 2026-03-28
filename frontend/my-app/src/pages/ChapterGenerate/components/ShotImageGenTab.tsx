@@ -12,82 +12,99 @@ import { useChapterGenerateStore } from '../stores';
 import { Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
 import { shotsApi } from '../../../api/shots';
 import { useTranslation } from '../../../stores/i18nStore';
+import type { Shot } from '../../../api/shots';
 
 interface ShotImageGenTabProps {
   chapter?: any;
-  parsedData?: any;
   currentShot?: number;
-  shotImages?: Record<number, string>;
-  generatingShots?: Set<number>;
+  shotImages?: Record<string, string>;
+  generatingShots?: Set<string>;
   novelId?: string;
   chapterId?: string;
+  shots?: Shot[];
   children?: React.ReactNode;
   onImageClick?: (url: string) => void;
 }
 
 export function ShotImageGenTab({
   chapter,
-  parsedData,
   currentShot,
-  shotImages = {},
-  generatingShots = new Set(),
+  shotImages: propShotImages = {},
+  generatingShots: propGeneratingShots = new Set(),
   novelId,
   chapterId,
+  shots = [],
   children,
   onImageClick,
 }: ShotImageGenTabProps) {
-  const store = useChapterGenerateStore();
   const { t } = useTranslation();
-  const { markTabComplete, generateShotImage, generateAllImages, uploadShotImage, setShowImagePreview, setShowMergedImageModal, setMergedImage } = store;
+
+  // 使用选择器正确订阅 store 状态，确保状态更新时组件重新渲染
+  const generateShotImage = useChapterGenerateStore((state) => state.generateShotImage);
+  const generateAllImages = useChapterGenerateStore((state) => state.generateAllImages);
+  const uploadShotImage = useChapterGenerateStore((state) => state.uploadShotImage);
+  const setShowImagePreview = useChapterGenerateStore((state) => state.setShowImagePreview);
+  const setShowMergedImageModal = useChapterGenerateStore((state) => state.setShowMergedImageModal);
+  const setMergedImage = useChapterGenerateStore((state) => state.setMergedImage);
+  const markTabComplete = useChapterGenerateStore((state) => state.markTabComplete);
+
+  // 订阅 generatingShots 和 shotImages 状态
+  const storeGeneratingShots = useChapterGenerateStore((state) => state.generatingShots);
+  const storeShotImages = useChapterGenerateStore((state) => state.shotImages);
+
+  // 直接使用 store 状态
+  const shotImages = storeShotImages;
+  const generatingShots = storeGeneratingShots;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
-  const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
+  const [selectedShotIds, setSelectedShotIds] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
 
-  const shotsList = parsedData?.shots || [];
+  // 统一使用 shots prop（来自 store.shots）
+  const shotsList = shots;
   const currentShotIndex = currentShot ?? 1;
   const currentShotData = shotsList[currentShotIndex - 1];
-  const hasImage = !!shotImages[currentShotIndex];
-  const isGeneratingCurrent = generatingShots.has(currentShotIndex);
+
+  // 获取当前分镜对象
+  const currentShotObj = shots.find(s => s.index === currentShotIndex);
+  const currentShotId = currentShotObj?.id || shotsList[currentShotIndex - 1]?.id || '';
+
+  const hasImage = !!(currentShotObj?.imageUrl || currentShotData?.imageUrl || shotImages[currentShotId]);
+  // 完全依赖 store 的 generatingShots 状态
+  const isGeneratingCurrent = generatingShots.has(currentShotId);
 
   // 处理单张分镜图生成
   const handleGenerateShot = async () => {
-    if (!novelId || !chapterId) return;
-    setIsGenerating(true);
+    if (!novelId || !chapterId || !currentShotId) return;
     try {
-      await generateShotImage(novelId, chapterId, currentShotIndex);
-      // 标记 Tab 完成（可选，根据实际业务逻辑）
-      // markTabComplete(1);
+      await generateShotImage(novelId, chapterId, currentShotId);
     } catch (error) {
       console.error(t('chapterGenerate.generateFailed') + ':', error);
-    } finally {
-      setIsGenerating(false);
     }
   };
 
   // 打开批量选择弹窗
   const handleOpenBatchSelect = () => {
     // 初始化选择：默认选中所有待生成的分镜（没有图片的）
-    const pendingShots = shotsList
-      .filter((_: any, idx: number) => !shotImages[idx + 1])
-      .map((_: any, idx: number) => idx + 1);
-    setSelectedShots(new Set(pendingShots));
+    const pendingShotIds = shots
+      .filter((shot) => !shot.imageUrl && !shotImages[shot.id])
+      .map((shot) => shot.id);
+    setSelectedShotIds(new Set(pendingShotIds));
     setShowBatchSelectModal(true);
   };
 
   // 切换分镜选择状态
-  const toggleShotSelection = (index: number) => {
-    setSelectedShots(prev => {
+  const toggleShotSelection = (shotId: string) => {
+    setSelectedShotIds(prev => {
       const newSet = new Set(prev);
-      if (newSet.has(index)) {
-        newSet.delete(index);
+      if (newSet.has(shotId)) {
+        newSet.delete(shotId);
       } else {
-        newSet.add(index);
+        newSet.add(shotId);
       }
       return newSet;
     });
@@ -95,10 +112,10 @@ export function ShotImageGenTab({
 
   // 全选/取消全选
   const toggleSelectAll = () => {
-    if (selectedShots.size === shotsList.length) {
-      setSelectedShots(new Set());
+    if (selectedShotIds.size === shots.length) {
+      setSelectedShotIds(new Set());
     } else {
-      setSelectedShots(new Set(shotsList.map((_: any, idx: number) => idx + 1)));
+      setSelectedShotIds(new Set(shots.map(s => s.id)));
     }
   };
 
@@ -108,8 +125,8 @@ export function ShotImageGenTab({
     setIsGeneratingAll(true);
     try {
       // 依次生成选中的分镜
-      for (const index of selectedShots) {
-        await generateShotImage(novelId, chapterId, index);
+      for (const shotId of selectedShotIds) {
+        await generateShotImage(novelId, chapterId, shotId);
       }
     } catch (error) {
       console.error(t('chapterGenerate.batchShotImageGenerateFailed') + ':', error);
@@ -122,7 +139,7 @@ export function ShotImageGenTab({
   // 处理本地图片上传
   const handleUploadImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !novelId || !chapterId) return;
+    if (!file || !novelId || !chapterId || !currentShotId) return;
 
     // 验证文件类型
     const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
@@ -133,7 +150,7 @@ export function ShotImageGenTab({
 
     setIsUploading(true);
     try {
-      await uploadShotImage(novelId, chapterId, currentShotIndex, file);
+      await uploadShotImage(novelId, chapterId, currentShotId, file);
     } catch (error) {
       console.error(t('chapterGenerate.uploadFailed') + ':', error);
       alert(t('chapterGenerate.uploadFailedRetry'));
@@ -195,10 +212,10 @@ export function ShotImageGenTab({
         <div className="flex items-center gap-4">
           <button
             onClick={handleGenerateShot}
-            disabled={isGenerating || isGeneratingCurrent || !chapterId}
+            disabled={isGeneratingCurrent || !chapterId}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
-            {isGenerating || isGeneratingCurrent ? (
+            {isGeneratingCurrent ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
                 {t('chapterGenerate.generating')}
@@ -295,7 +312,7 @@ export function ShotImageGenTab({
             {hasImage ? (
               <>
                 <img
-                  src={shotImages[currentShotIndex]}
+                  src={currentShotObj?.imageUrl || currentShotData?.imageUrl || shotImages[currentShotId]}
                   alt={`${t('chapterGenerate.shot')}${currentShotIndex}`}
                   className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
                 />
@@ -303,7 +320,7 @@ export function ShotImageGenTab({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    const imageUrl = shotImages[currentShotIndex];
+                    const imageUrl = currentShotObj?.imageUrl || currentShotData?.imageUrl || shotImages[currentShotId];
                     if (onImageClick) {
                       onImageClick(imageUrl);
                     } else {
@@ -356,13 +373,13 @@ export function ShotImageGenTab({
             <div className="flex-1 overflow-y-auto p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-gray-600">
-                  {t('chapterGenerate.selectedShots', { selected: selectedShots.size, total: shotsList.length })}
+                  {t('chapterGenerate.selectedShots', { selected: selectedShotIds.size, total: shots.length })}
                 </span>
                 <button
                   onClick={toggleSelectAll}
                   className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
                 >
-                  {selectedShots.size === shotsList.length ? (
+                  {selectedShotIds.size === shots.length ? (
                     <>
                       <Square className="w-4 h-4" />
                       {t('common.deselectAll')}
@@ -377,17 +394,19 @@ export function ShotImageGenTab({
               </div>
 
               <div className="grid grid-cols-4 gap-3">
-                {shotsList.map((shot: any, idx: number) => {
-                  const shotIndex = idx + 1;
-                  const isSelected = selectedShots.has(shotIndex);
-                  const hasShotImage = !!shotImages[shotIndex];
-                  const isGenerating = generatingShots.has(shotIndex);
-                  const isPending = !hasShotImage && !isGenerating;
+                {shots.map((shot: Shot) => {
+                  const shotId = shot.id;
+                  const shotIndex = shot.index;
+                  const isSelected = selectedShotIds.has(shotId);
+                  // 优先使用 shot.imageUrl
+                  const shotImageUrl = shot.imageUrl || shotImages[shotId];
+                  const hasShotImage = !!shotImageUrl;
+                  const isGenerating = generatingShots.has(shotId);
 
                   return (
                     <div
-                      key={shot.id || `shot-${shotIndex}`}
-                      onClick={() => !isGenerating && toggleShotSelection(shotIndex)}
+                      key={shotId}
+                      onClick={() => !isGenerating && toggleShotSelection(shotId)}
                       className={`
                         relative aspect-square rounded-lg border-2 transition-all
                         ${isGenerating
@@ -423,7 +442,7 @@ export function ShotImageGenTab({
                       <div className="w-full h-full flex items-center justify-center">
                         {hasShotImage ? (
                           <img
-                            src={shotImages[shotIndex]}
+                            src={shotImageUrl}
                             alt={`${t('chapterGenerate.shot')}${shotIndex}`}
                             className="w-full h-full object-cover rounded-lg"
                           />
@@ -454,7 +473,7 @@ export function ShotImageGenTab({
               </button>
               <button
                 onClick={handleGenerateAll}
-                disabled={selectedShots.size === 0 || isGeneratingAll}
+                disabled={selectedShotIds.size === 0 || isGeneratingAll}
                 className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
                 {isGeneratingAll ? (
@@ -465,7 +484,7 @@ export function ShotImageGenTab({
                 ) : (
                   <>
                     <Image className="w-4 h-4" />
-                    {t('chapterGenerate.generateShots', { count: selectedShots.size })}
+                    {t('chapterGenerate.generateShots', { count: selectedShotIds.size })}
                   </>
                 )}
               </button>

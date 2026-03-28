@@ -66,7 +66,6 @@ export default {
     second: '秒',
     recommended: '建议',
     viewLargeImage: '查看大图',
-    viewLargeImage: '查看大图',
     playing: '播放中...',
     pause: '暂停',
     play: '播放',

@@ -5,7 +5,7 @@ import { api } from './index';
 import type { PromptTemplate } from '../types';
 
 // 提示词模板类型
-export type TemplateType = 'style' | 'character_parse' | 'scene_parse' | 'prop_parse' | 'character' | 'scene' | 'prop' | 'chapter_split';
+export type TemplateType = 'style' | 'character_parse' | 'scene_parse' | 'prop_parse' | 'character' | 'scene' | 'prop' | 'chapter_split' | 'keyframe_description';
 
 export const promptTemplateApi = {
   /** 获取模板列表 */

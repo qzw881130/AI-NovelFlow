@@ -1,6 +1,6 @@
-import { 
-  CheckCircle, XCircle, Loader2, Clock, AlertCircle, 
-  Terminal, ChevronUp, ChevronDown, Play, Code, Trash2, Film, Image as ImageIcon, User, ListTodo
+import {
+  CheckCircle, XCircle, Loader2, Clock, AlertCircle,
+  Terminal, ChevronUp, ChevronDown, Play, Code, Trash2, Film, Image as ImageIcon, User, ListTodo, Music
 } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Task } from '../../../types';
@@ -54,6 +54,9 @@ export function TaskCard({
       case 'character_portrait': return <User className="h-5 w-5" />;
       case 'prop_image': return <ImageIcon className="h-5 w-5" />;
       case 'shot_image': return <ImageIcon className="h-5 w-5" />;
+      case 'keyframe_image': return <ImageIcon className="h-5 w-5" />;
+      case 'character_audio':
+      case 'narrator_audio': return <Music className="h-5 w-5" />;
       case 'shot_video':
       case 'chapter_video':
       case 'transition_video': return <Film className="h-5 w-5" />;
@@ -122,7 +125,7 @@ export function TaskCard({
           )}
           {task.status === 'completed' && task.resultUrl && (
             <div className="mt-2">
-              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'scene_image' || task.type === 'prop_image' ? (
+              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' ? (
                 <div>
                   <div className="relative group inline-block">
                     <img
@@ -166,6 +169,27 @@ export function TaskCard({
                     <button onClick={() => task.resultUrl && onPreviewVideo(task.resultUrl)} className="text-green-600 hover:text-green-700 underline inline-flex items-center gap-1">
                       <Play className="h-3 w-3" />{t('tasks.viewResult')}
                     </button>
+                  </div>
+                </div>
+              ) : task.type === 'character_audio' || task.type === 'narrator_audio' ? (
+                <div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                      <Music className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <audio
+                        src={task.resultUrl}
+                        controls
+                        className="w-full h-8"
+                        preload="metadata"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    <a href={task.resultUrl} download className="text-purple-600 hover:text-purple-700 underline inline-flex items-center gap-1">
+                      {t('common.download')}
+                    </a>
                   </div>
                 </div>
               ) : (

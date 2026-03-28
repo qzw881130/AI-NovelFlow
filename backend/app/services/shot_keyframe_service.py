@@ -22,6 +22,11 @@ from app.services.comfyui import ComfyUIService
 from app.services.llm_service import LLMService
 from app.services.file_storage import file_storage
 from app.utils.path_utils import url_to_local_path
+from app.utils.workflow_disconnect import (
+    disconnect_reference_chain,
+    disconnect_unuploaded_reference_nodes,
+    clear_unset_keyframe_reference_nodes,
+)
 
 
 class ShotKeyframeService:
@@ -229,14 +234,13 @@ class ShotKeyframeService:
         task = Task(
             id=str(uuid.uuid4()),
             type="keyframe_image",
+            name=f"生成关键帧图片: 分镜{shot.index}-帧{frame_index}",
+            description=f"为分镜 {shot.index} 的第 {frame_index} 帧生成图片",
             status="pending",
             shot_id=shot_id,
             novel_id=novel_id,
             chapter_id=shot.chapter_id,
-            extra_data=json.dumps({
-                "frame_index": frame_index,
-                "workflow_id": workflow_id
-            })
+            workflow_id=workflow_id
         )
         db.add(task)
         db.commit()
@@ -322,24 +326,74 @@ class ShotKeyframeService:
 
             comfyui_service = ComfyUIService()
 
-            # 确定参考图
+            # 获取参考图模式和URL
+            reference_mode = keyframe.get("reference_mode", "auto_select")
             reference_image_url = keyframe.get("reference_image_url")
             reference_path = None
 
-            if reference_image_url:
-                # 获取参考图本地路径
+            # 只有在非 "none" 模式且有参考图URL时才获取本地路径
+            if reference_mode != "none" and reference_image_url:
                 reference_path = url_to_local_path(reference_image_url)
 
             # 获取关键帧描述作为提示词
             prompt = keyframe.get("description", shot.description)
 
-            # 生成图片
-            result = await comfyui_service.generate_shot_image_with_workflow(
+            # 解析工作流 JSON
+            workflow_data = json.loads(workflow.workflow_json) if isinstance(workflow.workflow_json, str) else workflow.workflow_json
+
+            # 构建工作流
+            submitted_workflow = comfyui_service.builder.build_shot_workflow(
                 prompt=prompt,
                 workflow_json=workflow.workflow_json,
                 node_mapping=node_mapping,
                 aspect_ratio=novel.aspect_ratio or "16:9",
-                character_reference_path=reference_path
+                style=""
+            )
+
+            # 处理参考图节点
+            reference_image_node_id = node_mapping.get("reference_image_node_id")
+
+            if reference_path:
+                # 上传参考图
+                upload_result = await comfyui_service.client.upload_image(reference_path)
+                if upload_result.get("success"):
+                    uploaded_filename = upload_result.get("filename")
+                    if reference_image_node_id and str(reference_image_node_id) in submitted_workflow:
+                        submitted_workflow[str(reference_image_node_id)]["inputs"]["image"] = uploaded_filename
+                        print(f"[KeyframeTask {task_id}] Set reference image to node {reference_image_node_id}")
+                else:
+                    print(f"[KeyframeTask {task_id}] Failed to upload reference image: {upload_result.get('message')}")
+                    # 上传失败，清空该节点
+                    reference_path = None
+
+            # 清空未设置参考图的节点（工作流中可能有默认图片，需要清除才能正确断开下游）
+            clear_unset_keyframe_reference_nodes(
+                submitted_workflow,
+                node_mapping,
+                reference_path=reference_path
+            )
+
+            # 检测并断开未上传图片的参考图节点的下游连接
+            disconnect_unuploaded_reference_nodes(submitted_workflow, node_mapping)
+
+            # 提交任务
+            queue_result = await comfyui_service.client.queue_prompt(submitted_workflow)
+
+            if not queue_result.get("success"):
+                raise ValueError(f"提交任务失败: {queue_result.get('error')}")
+
+            prompt_id = queue_result.get("prompt_id")
+            save_image_node_id = node_mapping.get("save_image_node_id")
+
+            # 保存工作流 JSON 和提示词到任务记录
+            task.comfyui_prompt_id = prompt_id
+            task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+            task.prompt_text = prompt
+            db.commit()
+
+            # 等待结果
+            result = await comfyui_service.client.wait_for_result(
+                prompt_id, submitted_workflow, save_image_node_id, timeout=7200
             )
 
             if result.get("success") and result.get("image_url"):
@@ -368,7 +422,7 @@ class ShotKeyframeService:
 
                     # 更新任务状态
                     task.status = "completed"
-                    task.result = json.dumps({"image_url": local_url})
+                    task.result_url = local_url
                     db.commit()
                 else:
                     raise ValueError("下载图片失败")

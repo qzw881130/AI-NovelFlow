@@ -14,8 +14,8 @@ interface ShotImageListProps {
   shots?: any[];
   /** 当前选中的分镜索引 */
   currentShotIndex?: number;
-  /** 分镜图片映射 */
-  shotImages?: Record<number, string>;
+  /** 分镜图片映射（key 为 shotId） */
+  shotImages?: Record<string, string>;
   /** 点击分镜回调 */
   onShotClick?: (shotId: string, index: number) => void;
   /** 图片点击查看大图回调 */
@@ -34,7 +34,8 @@ export function ShotImageList({
   // 获取当前分镜数据
   const currentShot = shots[currentShotIndex - 1];
   const currentShotId = currentShot?.id || String(currentShotIndex);
-  const currentImageUrl = shotImages[currentShotIndex];
+  // 优先从 shot.imageUrl 获取，其次从 shotImages 映射获取
+  const currentImageUrl = currentShot?.imageUrl || shotImages[currentShotId];
 
   // 切换上一个分镜
   const handlePrevious = () => {

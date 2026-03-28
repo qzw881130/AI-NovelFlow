@@ -104,13 +104,13 @@ const createT = (translations: Translations) => {
 export const useI18nStore = create<I18nState>((set, get) => ({
   language: getStoredLanguage(),
   timezone: getStoredTimezone(),
-  t: createT(translations[getStoredLanguage()]) as TFunction,
-  
+  t: createT(translations[getStoredLanguage()] as Translations) as TFunction,
+
   setLanguage: (language) => {
     storeLanguage(language);
     set({
       language,
-      t: createT(translations[language]) as TFunction,
+      t: createT(translations[language] as Translations) as TFunction,
     });
   },
   

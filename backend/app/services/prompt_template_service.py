@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 from app.models.prompt_template import PromptTemplate
 from app.repositories import PromptTemplateRepository
 from app.utils.time_utils import format_datetime
-from app.constants import DEFAULT_PARSE_CHARACTERS_PROMPT, DEFAULT_PARSE_SCENES_PROMPT
 
 
 # 模板文件目录 (位于 backend/prompt_templates/)
@@ -61,7 +60,7 @@ SYSTEM_CHARACTER_PARSE_TEMPLATES: List[Dict] = [
     {
         "name": "标准角色解析",
         "description": "适用于大多数小说的角色解析",
-        "template": DEFAULT_PARSE_CHARACTERS_PROMPT,
+        "template": load_template("character_parse.txt"),
         "type": "character_parse"
     }
 ]
@@ -115,7 +114,7 @@ SYSTEM_SCENE_PARSE_TEMPLATES: List[Dict] = [
     {
         "name": "标准场景解析",
         "description": "适用于大多数小说的场景解析",
-        "template": DEFAULT_PARSE_SCENES_PROMPT,
+        "template": load_template("scene_parse.txt"),
         "type": "scene_parse"
     }
 ]

@@ -26,16 +26,14 @@ WORKFLOW_TYPES = {
 
 
 # 默认工作流文件名映射 (每个类型的默认工作流)
-# 注意：Qwen3-TTS-Voice-Clone.json 文件实际包含音色设计功能（TDQwen3TTSVoiceDesign 节点）
-# 而 Qwen3-TTS-Voice-Design.json 实际包含音色克隆功能，命名与内容相反
 DEFAULT_WORKFLOWS = {
     "character": "character_default.json",
     "scene": "scene_default.json",
     "shot": "shot_default.json",
     "video": "video_default.json",
     "prop": "prop_default.json",
-    "voice_design": "Qwen3-TTS-Voice-Clone.json",  # 实际是音色设计工作流
-    "audio": "Qwen3-TTS-Voice-Design.json",  # 音频生成工作流（带参考音频的语音克隆）
+    "voice_design": "Qwen3-TTS-Voice-Design.json",  # 实际是音色设计工作流
+    "audio": "Qwen3-TTS-Voice-Clone.json",  # 音频生成工作流（带参考音频的语音克隆）
     "keyframe_image": "keyframe_flux2_klein.json"
 }
 
@@ -182,7 +180,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
     },
     # 音色设计工作流（基于文本提示词设计音色）
     {
-        "filename": "Qwen3-TTS-Voice-Clone.json",
+        "filename": "Qwen3-TTS-Voice-Design.json",
         "type": "voice_design",
         "name": "系统默认-音色设计",
         "nameKey": f"{NAME_KEY_PREFIX}.系统默认-音色设计",
@@ -196,7 +194,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
     },
     # 音频生成工作流（带参考音频的语音克隆）
     {
-        "filename": "Qwen3-TTS-Voice-Design.json",
+        "filename": "Qwen3-TTS-Voice-Clone.json",
         "type": "audio",
         "name": "系统默认-音频生成",
         "nameKey": f"{NAME_KEY_PREFIX}.系统默认-音频生成",

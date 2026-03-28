@@ -141,24 +141,26 @@ def merge_character_images(
         # 加载字体
         font = load_chinese_font(16)
         
-        # 绘制每个角色
+        # 绘制每个角色（名称在图片上方）
         current_y = padding
         for idx, (char_name, img) in enumerate(processed_images):
             col = idx % cols
             row = idx // cols
-            
+
             x = padding + sum(col_widths[:col]) + col * img_spacing
             y = current_y
-            
-            img_x = x + (col_widths[col] - img.width) // 2
-            img_y = y + (row_heights[row] - name_height - text_offset - img.height) // 2
-            canvas.paste(img, (img_x, img_y))
-            
+
+            # 先绘制名称
             text_bbox = draw.textbbox((0, 0), char_name, font=font)
             text_width = text_bbox[2] - text_bbox[0]
             text_x = x + (col_widths[col] - text_width) // 2
-            text_y = img_y + img.height + text_offset
+            text_y = y + text_offset
             draw.text((text_x, text_y), char_name, fill=(51, 51, 51), font=font)
+
+            # 再绘制图片（在名称下方）
+            img_x = x + (col_widths[col] - img.width) // 2
+            img_y = text_y + name_height
+            canvas.paste(img, (img_x, img_y))
             
             if col == cols - 1 or idx == len(processed_images) - 1:
                 current_y += row_heights[row]

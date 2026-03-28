@@ -35,7 +35,8 @@ class ShotAudioService:
         chapter_title: str,
         workflow: Workflow,
         character_repo: CharacterRepository,
-        task_repo: TaskRepository
+        task_repo: TaskRepository,
+        shot_id: str = None
     ) -> Dict[str, Any]:
         """
         为单个分镜创建音频生成任务
@@ -132,7 +133,8 @@ class ShotAudioService:
                     text=text,
                     chapter_title=chapter_title,
                     workflow_id=workflow.id,
-                    workflow_name=workflow.name
+                    workflow_name=workflow.name,
+                    shot_id=shot_id
                 )
             else:
                 task = task_repo.create_character_audio_task(
@@ -144,7 +146,8 @@ class ShotAudioService:
                     text=text,
                     chapter_title=chapter_title,
                     workflow_id=workflow.id,
-                    workflow_name=workflow.name
+                    workflow_name=workflow.name,
+                    shot_id=shot_id
                 )
 
             tasks.append({
@@ -304,7 +307,8 @@ class ShotAudioService:
                         text=text,
                         chapter_title=chapter_title,
                         workflow_id=workflow.id,
-                        workflow_name=workflow.name
+                        workflow_name=workflow.name,
+                        shot_id=shot.id
                     )
                 else:
                     task = task_repo.create_character_audio_task(
@@ -316,7 +320,8 @@ class ShotAudioService:
                         text=text,
                         chapter_title=chapter_title,
                         workflow_id=workflow.id,
-                        workflow_name=workflow.name
+                        workflow_name=workflow.name,
+                        shot_id=shot.id
                     )
 
                 all_tasks.append({

@@ -6,20 +6,23 @@
  * - 角色选择（多选下拉）
  * - 场景选择（单选下拉）
  * - 道具选择（多选下拉）
+ *
+ * 数据源统一使用 store.shots（从后端 Shot 表获取）
  */
 
 import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { useChapterGenerateStore } from '../stores';
-import type { ShotData, DialogueData } from '../types';
+import type { DialogueData } from '../types';
+import type { Shot } from '../../../api/shots';
 
 interface ShotFormProps {
   /** 当前分镜索引 */
   shotIndex: number;
-  /** 分镜数据 */
-  shotData?: ShotData;
+  /** 分镜数据（Shot 类型） */
+  shotData?: Shot;
   /** 分镜数据变化回调 */
-  onChange?: (shotData: ShotData) => void;
+  onChange?: (shotData: Partial<Shot>) => void;
   /** 可用角色列表（从章节级资源读取） */
   availableCharacters?: string[];
   /** 可用场景列表（从章节级资源读取） */
@@ -49,27 +52,25 @@ export function ShotForm({
   showDuration = false,
 }: ShotFormProps) {
   const { t } = useTranslation();
-  const store = useChapterGenerateStore();
   const currentShotIndex = useChapterGenerateStore((state) => state.currentShotIndex);
-  const parsedData = useChapterGenerateStore((state) => state.parsedData);
-  const setParsedData = useChapterGenerateStore((state) => state.setParsedData);
+  const storeShots = useChapterGenerateStore((state) => state.shots);
+  const setShots = useChapterGenerateStore((state) => state.setShots);
 
-  // 从 store 获取章节级资源（优先使用章节级资源）
+  // 从 store 获取章节级资源
   const chapterCharacters = useChapterGenerateStore((state) => state.chapterCharacters);
   const chapterScenes = useChapterGenerateStore((state) => state.chapterScenes);
   const chapterProps = useChapterGenerateStore((state) => state.chapterProps);
 
   // 优先使用 props 中的 shotIndex 和 shotData，否则从 store 获取
   const shotIndex = propShotIndex || currentShotIndex;
-  const shots = parsedData?.shots || [];
-  const shotData = propShotData || shots[shotIndex - 1];
+  const shotData = propShotData || storeShots[shotIndex - 1];
 
   // 可用资源：优先使用 props，其次使用章节级资源
   const availableCharacters = propAvailableCharacters || chapterCharacters;
   const availableScenes = propAvailableScenes || chapterScenes;
   const availableProps = propAvailableProps || chapterProps;
 
-  // 本地状态 - 使用 key 来强制在 shotIndex 变化时重置
+  // 本地状态
   const [description, setDescription] = useState(shotData?.description || '');
   const [videoDescription, setVideoDescription] = useState(shotData?.video_description || '');
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>(shotData?.characters || []);
@@ -120,39 +121,38 @@ export function ShotForm({
     );
   }, [availableProps, propSearch]);
 
-  // 同步本地状态到父组件
+  // 同步本地状态到父组件和 store
   const handleChange = () => {
-    const newShotData: ShotData = {
-      id: shotData?.id || shotIndex,
+    const newShotData: Partial<Shot> = {
       description,
       video_description: videoDescription,
       characters: selectedCharacters,
       scene: selectedScene,
       props: selectedProps,
       duration,
-      image_url: shotData?.image_url,
-      image_path: shotData?.image_path,
-      merged_character_image: shotData?.merged_character_image,
       dialogues,
     };
     onChange?.(newShotData);
   };
 
-  // 同步到 store
-  const syncToStore = async () => {
-    if (parsedData?.shots) {
-      const newShots = [...parsedData.shots];
-      newShots[shotIndex - 1] = {
-        ...newShots[shotIndex - 1],
-        description,
-        video_description: videoDescription,
-        characters: selectedCharacters,
-        scene: selectedScene,
-        props: selectedProps,
-        duration,
-        dialogues,
-      };
-      setParsedData({ ...parsedData, shots: newShots });
+  // 同步到 store.shots
+  const syncToStore = () => {
+    if (shotData?.id) {
+      const updatedShots = storeShots.map((shot) =>
+        shot.id === shotData.id
+          ? {
+              ...shot,
+              description,
+              video_description: videoDescription,
+              characters: selectedCharacters,
+              scene: selectedScene,
+              props: selectedProps,
+              duration,
+              dialogues,
+            }
+          : shot
+      );
+      setShots(updatedShots);
     }
   };
 
@@ -184,19 +184,13 @@ export function ShotForm({
   const addDialogue = (type: 'character' | 'narration' = 'character') => {
     const newOrder = dialogues.length;
     if (type === 'narration') {
-      // 旁白台词：不需要角色名
       setDialogues([...dialogues, {
-        type: 'narration',
-        order: newOrder,
         character_name: '旁白',
         text: '',
         emotion_prompt: ''
       }]);
     } else {
-      // 角色台词：需要选择角色
       setDialogues([...dialogues, {
-        type: 'character',
-        order: newOrder,
         character_name: '',
         text: '',
         emotion_prompt: ''
@@ -206,10 +200,6 @@ export function ShotForm({
 
   const removeDialogue = (index: number) => {
     const newDialogues = dialogues.filter((_, i) => i !== index);
-    // 重新排序
-    newDialogues.forEach((d, idx) => {
-      d.order = idx;
-    });
     setDialogues(newDialogues);
   };
 
@@ -275,7 +265,6 @@ export function ShotForm({
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {t('chapterGenerate.appearingCharacters')}
         </label>
-        {/* 已选角色标签 */}
         {selectedCharacters.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">
             {selectedCharacters.map((charName) => (
@@ -294,7 +283,6 @@ export function ShotForm({
             ))}
           </div>
         )}
-        {/* 展开/收起按钮 */}
         <button
           onClick={() => setCharacterExpanded(!characterExpanded)}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 flex items-center justify-between mb-2 input-field"
@@ -304,10 +292,8 @@ export function ShotForm({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        {/* 下拉选项 */}
         {characterExpanded && (
           <div className="border border-gray-300 rounded-lg overflow-hidden">
-            {/* 搜索框 */}
             <input
               type="text"
               value={characterSearch}
@@ -316,7 +302,6 @@ export function ShotForm({
               placeholder={t('chapterGenerate.selectCharacter')}
               autoFocus
             />
-            {/* 选项列表 */}
             <div className="max-h-40 overflow-y-auto p-2 space-y-1">
               {filteredCharacters.map((charName) => (
                 <label
@@ -345,7 +330,6 @@ export function ShotForm({
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {t('chapterGenerate.scene')}
         </label>
-        {/* 已选场景标签 */}
         {selectedScene && (
           <div className="mb-2">
             <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
@@ -359,7 +343,6 @@ export function ShotForm({
             </span>
           </div>
         )}
-        {/* 展开/收起按钮 */}
         <button
           onClick={() => setSceneExpanded(!sceneExpanded)}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 flex items-center justify-between mb-2 input-field"
@@ -369,10 +352,8 @@ export function ShotForm({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        {/* 下拉选项 */}
         {sceneExpanded && (
           <div className="border border-gray-300 rounded-lg overflow-hidden">
-            {/* 搜索框 */}
             <input
               type="text"
               value={sceneSearch}
@@ -381,7 +362,6 @@ export function ShotForm({
               placeholder={t('chapterGenerate.selectScene')}
               autoFocus
             />
-            {/* 选项列表 */}
             <div className="max-h-40 overflow-y-auto p-2 space-y-1">
               {filteredScenes.map((sceneName) => (
                 <label
@@ -411,7 +391,6 @@ export function ShotForm({
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {t('chapterGenerate.props')}
         </label>
-        {/* 已选道具标签 */}
         {selectedProps.length > 0 && (
           <div className="flex flex-wrap gap-1 mb-2">
             {selectedProps.map((propName) => (
@@ -430,7 +409,6 @@ export function ShotForm({
             ))}
           </div>
         )}
-        {/* 展开/收起按钮 */}
         <button
           onClick={() => setPropExpanded(!propExpanded)}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 flex items-center justify-between mb-2 input-field"
@@ -440,10 +418,8 @@ export function ShotForm({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </button>
-        {/* 下拉选项 */}
         {propExpanded && (
           <div className="border border-gray-300 rounded-lg overflow-hidden">
-            {/* 搜索框 */}
             <input
               type="text"
               value={propSearch}
@@ -452,7 +428,6 @@ export function ShotForm({
               placeholder={t('chapterGenerate.selectProp')}
               autoFocus
             />
-            {/* 选项列表 */}
             <div className="max-h-40 overflow-y-auto p-2 space-y-1">
               {filteredProps.map((propName) => (
                 <label
@@ -516,11 +491,7 @@ export function ShotForm({
             <div className="space-y-2 mb-2">
               {dialogues.map((d, idx) => (
                 <div key={idx} className="text-xs p-2 bg-gray-50 rounded border border-gray-200 flex items-start gap-2">
-                  {d.type === 'narration' ? (
-                    <span className="font-medium text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded shrink-0">{t('chapterGenerate.narration')}</span>
-                  ) : (
-                    <span className="font-medium text-blue-600">{d.character_name || t('chapterGenerate.selectCharacter')}</span>
-                  )}
+                  <span className="font-medium text-blue-600">{d.character_name || t('chapterGenerate.selectCharacter')}</span>
                   <span className="text-gray-600 flex-1">{d.text}</span>
                 </div>
               ))}
@@ -530,19 +501,10 @@ export function ShotForm({
           {/* 展开编辑 */}
           {dialoguesExpanded && (
             <div className="space-y-3">
-              {/* 台词列表 */}
               {dialogues.map((dialogue, idx) => (
                 <div key={idx} className="border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gray-500">{t('chapterGenerate.dialogues')} {idx + 1}</span>
-                      {/* 类型标识 */}
-                      {dialogue.type === 'narration' ? (
-                        <span className="text-xs font-medium text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded">{t('chapterGenerate.narration')}</span>
-                      ) : (
-                        <span className="text-xs font-medium text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">{t('chapterGenerate.characterDialogue')}</span>
-                      )}
-                    </div>
+                    <span className="text-xs font-medium text-gray-500">{t('chapterGenerate.dialogues')} {idx + 1}</span>
                     <button
                       onClick={() => removeDialogue(idx)}
                       className="text-xs text-red-600 hover:text-red-800"
@@ -551,31 +513,25 @@ export function ShotForm({
                     </button>
                   </div>
 
-                  {/* 角色选择 - 仅角色台词显示 */}
-                  {dialogue.type !== 'narration' && (
-                    <div>
-                      <label className="block text-xs text-gray-500 mb-1">{t('chapterGenerate.characters')}</label>
-                      <select
-                        value={dialogue.character_name}
-                        onChange={(e) => updateDialogue(idx, 'character_name', e.target.value)}
-                        disabled={readOnly}
-                        className="input-field text-sm"
-                      >
-                        <option value="">{t('chapterGenerate.selectCharacter')}</option>
-                        {availableCharacters.map((charName) => (
-                          <option key={charName} value={charName}>
-                            {charName}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  {/* 台词文本 */}
                   <div>
-                    <label className="block text-xs text-gray-500 mb-1">
-                      {dialogue.type === 'narration' ? t('chapterGenerate.narration') : t('chapterGenerate.dialogueTextPlaceholder')}
-                    </label>
+                    <label className="block text-xs text-gray-500 mb-1">{t('chapterGenerate.characters')}</label>
+                    <select
+                      value={dialogue.character_name}
+                      onChange={(e) => updateDialogue(idx, 'character_name', e.target.value)}
+                      disabled={readOnly}
+                      className="input-field text-sm"
+                    >
+                      <option value="">{t('chapterGenerate.selectCharacter')}</option>
+                      {availableCharacters.map((charName) => (
+                        <option key={charName} value={charName}>
+                          {charName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">{t('chapterGenerate.dialogueTextPlaceholder')}</label>
                     <textarea
                       value={dialogue.text}
                       onChange={(e) => updateDialogue(idx, 'text', e.target.value)}
@@ -586,7 +542,6 @@ export function ShotForm({
                     />
                   </div>
 
-                  {/* 情感提示 */}
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">{t('chapterGenerate.emotionPrompt')}</label>
                     <input
@@ -605,24 +560,13 @@ export function ShotForm({
                 <p className="text-xs text-gray-500 text-center py-4">{t('chapterGenerate.noDialogues')}</p>
               )}
 
-              {/* 添加台词按钮组 */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => addDialogue('character')}
-                  disabled={readOnly || availableCharacters.length === 0}
-                  className="flex-1 px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-blue-500 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  title={availableCharacters.length === 0 ? t('chapterGenerate.addDialogueDisabledHint') : ''}
-                >
-                  + {t('chapterGenerate.addDialogue')}
-                </button>
-                <button
-                  onClick={() => addDialogue('narration')}
-                  disabled={readOnly}
-                  className="flex-1 px-3 py-2 border-2 border-dashed border-purple-300 rounded-lg text-sm text-purple-600 hover:border-purple-500 hover:text-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  + {t('chapterGenerate.addNarration')}
-                </button>
-              </div>
+              <button
+                onClick={() => addDialogue('character')}
+                disabled={readOnly || availableCharacters.length === 0}
+                className="w-full px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-blue-500 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                + {t('chapterGenerate.addDialogue')}
+              </button>
             </div>
           )}
         </div>

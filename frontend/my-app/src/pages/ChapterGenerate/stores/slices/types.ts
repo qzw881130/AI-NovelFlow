@@ -3,10 +3,16 @@
  */
 import type { Chapter, Novel, Character, DialogueData, KeyframeData } from '../../../../types';
 import type { Scene, Prop } from '../../types';
+// 从 API 模块导入 Shot 类型，确保类型统一
+import type { Shot as ApiShot } from '../../../../api/shots';
+
+// 重新导出 Shot 类型
+export type Shot = ApiShot;
 
 // 分镜数据（从 parsed_data 中的 shots 数组）
 export interface ShotDataFromParsed {
-  id?: number | string;
+  id?: string;
+  index?: number;
   description: string;
   video_description?: string;
   characters: string[];
@@ -24,11 +30,12 @@ export interface ShotDataFromParsed {
 }
 
 // 解析后的章节数据（从后端返回的 parsed_data）
+// 注意：shots 数据存储在独立的 Shot 表中，通过 store.shots 访问
 export interface ParsedData {
+  chapter?: string;       // 章节标题
   characters?: string[];  // 角色名称列表
   scenes?: string[];      // 场景名称列表
   props?: string[];       // 道具名称列表
-  shots?: ShotDataFromParsed[];  // 分镜数据列表
 }
 
 // 重新导出基础类型
@@ -37,36 +44,9 @@ export type { Character, Scene, Prop, DialogueData };
 // 分镜状态
 export type ShotStatus = 'pending' | 'generating' | 'completed' | 'failed';
 
-// 分镜数据
-export interface Shot {
-  id: string;
-  chapterId: string;
-  index: number;
-  description: string;
-  videoDescription?: string;
-  characters: string[];
-  scene: string;
-  props: string[];
-  duration: number;
-  imageUrl: string | null;
-  imagePath: string | null;
-  imageStatus: ShotStatus;
-  imageTaskId: string | null;
-  videoUrl: string | null;
-  videoStatus: ShotStatus;
-  videoTaskId: string | null;
-  mergedCharacterImage: string | null;
-  dialogues: DialogueData[];
-  keyframes?: KeyframeData[];
-  referenceAudioUrl?: string;
-  referenceAudioType?: string;
-  createdAt: string | null;
-  updatedAt: string | null;
-}
-
 // 音频任务
 export interface AudioTask {
-  shotIndex: number;
+  shotId: string;
   characterName: string;
   taskId: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
@@ -89,7 +69,7 @@ export interface KeyframeTask {
 
 // 参考音频合并任务
 export interface ReferenceAudioMergeTask {
-  shotIndex: number;
+  shotId: string;
   taskId: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
 }
@@ -146,16 +126,16 @@ export interface DataSliceState {
  */
 export interface GenerationSliceState {
   // 图片生成
-  generatingShots: Set<number>;
-  pendingShots: Set<number>;
-  shotImages: Record<number, string>;
+  generatingShots: Set<string>;
+  pendingShots: Set<string>;
+  shotImages: Record<string, string>;
   isGeneratingAll: boolean;
-  uploadingShotIndex: number | null;
+  uploadingShotId: string | null;
 
   // 视频生成
-  generatingVideos: Set<number>;
-  pendingVideos: Set<number>;
-  shotVideos: Record<number, string>;
+  generatingVideos: Set<string>;
+  pendingVideos: Set<string>;
+  shotVideos: Record<string, string>;
 
   // 转场生成
   transitionVideos: Record<string, string>;
@@ -183,8 +163,8 @@ export interface GenerationSliceState {
   keyframeImageUrls: Record<string, string>;  // 格式: "shotId-frameIndex": url
 
   // 参考音频
-  mergingReferenceAudios: Set<number>;  // 正在合并台词音频的分镜索引
-  uploadingReferenceAudios: Set<number>;  // 正在上传参考音频的分镜索引
+  mergingReferenceAudios: Set<string>;  // 正在合并台词音频的分镜 ID
+  uploadingReferenceAudios: Set<string>;  // 正在上传参考音频的分镜 ID
   referenceAudioMergeTasks: ReferenceAudioMergeTask[];  // 合并任务列表
 }
 
@@ -233,7 +213,6 @@ export interface ChapterActionsState {
   // Chapter Actions 方法
   handleSplitChapter: (novelId: string, chapterId: string) => Promise<void>;
   handleSaveJson: (novelId: string, chapterId: string, json: string) => Promise<void>;
-  handleMergeCharacterImages: () => Promise<void>;
   clearChapterResources: (novelId: string, chapterId: string) => Promise<void>;
   splitChapter: (novelId: string, chapterId: string) => Promise<void>;
   // Navigation actions
@@ -333,15 +312,15 @@ export interface ChapterGenerateStore
   saveChapterResources: (novelId: string, chapterId: string) => Promise<void>;
 
   // ========== Image Generation Actions ==========
-  generateShotImage: (novelId: string, chapterId: string, shotIndex: number) => Promise<void>;
+  generateShotImage: (novelId: string, chapterId: string, shotId: string) => Promise<void>;
   generateAllImages: (novelId: string, chapterId: string) => Promise<void>;
-  uploadShotImage: (novelId: string, chapterId: string, shotIndex: number, file: File) => Promise<void>;
-  setShotImages: (images: Record<number, string> | ((prev: Record<number, string>) => Record<number, string>)) => void;
+  uploadShotImage: (novelId: string, chapterId: string, shotId: string, file: File) => Promise<void>;
+  setShotImages: (images: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 
   // ========== Video Generation Actions ==========
-  generateShotVideo: (novelId: string, chapterId: string, shotIndex: number) => Promise<void>;
+  generateShotVideo: (novelId: string, chapterId: string, shotId: string) => Promise<void>;
   generateAllVideos: (novelId: string, chapterId: string) => Promise<void>;
-  setShotVideos: (videos: Record<number, string> | ((prev: Record<number, string>) => Record<number, string>)) => void;
+  setShotVideos: (videos: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 
   // ========== Transition Actions ==========
   generateTransition: (novelId: string, chapterId: string, fromIndex: number, toIndex: number, useCustomConfig?: boolean) => Promise<void>;
@@ -351,16 +330,16 @@ export interface ChapterGenerateStore
   setTransitionDuration: (duration: number) => void;
 
   // ========== Audio Actions ==========
-  generateShotAudio: (novelId: string, chapterId: string, shotIndex: number, dialogues: DialogueData[]) => Promise<void>;
+  generateShotAudio: (novelId: string, chapterId: string, shotId: string, dialogues: DialogueData[]) => Promise<void>;
   generateAllAudio: (novelId: string, chapterId: string) => Promise<void>;
-  regenerateAudio: (novelId: string, chapterId: string, shotIndex: number, characterName: string, dialogue: DialogueData) => Promise<void>;
-  uploadDialogueAudio: (novelId: string, chapterId: string, shotIndex: number, characterName: string, file: File) => Promise<void>;
-  deleteDialogueAudio: (novelId: string, chapterId: string, shotIndex: number, characterName: string) => Promise<void>;
-  getAudioUrl: (shotIndex: number, characterName: string) => string | undefined;
-  getAudioSource: (shotIndex: number, characterName: string) => string | undefined;
-  isShotAudioGenerating: (shotIndex: number) => boolean;
-  isAudioUploading: (shotIndex: number, characterName: string) => boolean;
-  getShotAudioTasks: (shotIndex: number) => AudioTask[];
+  regenerateAudio: (novelId: string, chapterId: string, shotId: string, characterName: string, dialogue: DialogueData) => Promise<void>;
+  uploadDialogueAudio: (novelId: string, chapterId: string, shotId: string, characterName: string, file: File) => Promise<void>;
+  deleteDialogueAudio: (novelId: string, chapterId: string, shotId: string, characterName: string) => Promise<void>;
+  getAudioUrl: (shotId: string, characterName: string) => string | undefined;
+  getAudioSource: (shotId: string, characterName: string) => string | undefined;
+  isShotAudioGenerating: (shotId: string) => boolean;
+  isAudioUploading: (shotId: string, characterName: string) => boolean;
+  getShotAudioTasks: (shotId: string) => AudioTask[];
   initAudioFromShots: (shots: Shot[]) => void;
 
   // ========== Keyframe Actions ==========
@@ -374,13 +353,13 @@ export interface ChapterGenerateStore
   getKeyframeTask: (shotId: string, frameIndex: number) => KeyframeTask | undefined;
 
   // ========== Reference Audio Actions ==========
-  mergeDialogueAudio: (novelId: string, chapterId: string, shotIndex: number) => Promise<void>;
-  uploadReferenceAudio: (novelId: string, chapterId: string, shotIndex: number, file: File) => Promise<void>;
-  setReferenceAudio: (novelId: string, chapterId: string, shotIndex: number, mode: 'none' | 'merged' | 'uploaded' | 'character', characterName?: string) => Promise<void>;
-  getReferenceAudioUrl: (shotIndex: number) => string | undefined;
-  inferReferenceAudioSourceType: (shotIndex: number) => 'none' | 'merged' | 'uploaded' | 'character';
-  isReferenceAudioMerging: (shotIndex: number) => boolean;
-  isReferenceAudioUploading: (shotIndex: number) => boolean;
+  mergeDialogueAudio: (novelId: string, chapterId: string, shotId: string) => Promise<void>;
+  uploadReferenceAudio: (novelId: string, chapterId: string, shotId: string, file: File) => Promise<void>;
+  setReferenceAudio: (novelId: string, chapterId: string, shotId: string, mode: 'none' | 'merged' | 'uploaded' | 'character', characterName?: string) => Promise<void>;
+  getReferenceAudioUrl: (shotId: string) => string | undefined;
+  inferReferenceAudioSourceType: (shotId: string) => 'none' | 'merged' | 'uploaded' | 'character';
+  isReferenceAudioMerging: (shotId: string) => boolean;
+  isReferenceAudioUploading: (shotId: string) => boolean;
 
   // ========== Task Polling Actions ==========
   checkShotTaskStatus: (chapterId: string) => Promise<void>;
@@ -410,7 +389,6 @@ export interface ChapterGenerateStore
   // ========== Chapter Actions ==========
   handleSplitChapter: (novelId: string, chapterId: string) => Promise<void>;
   handleSaveJson: (novelId: string, chapterId: string, json: string) => Promise<void>;
-  handleMergeCharacterImages: () => Promise<void>;
   clearChapterResources: (novelId: string, chapterId: string) => Promise<void>;
   handleRegenerateCharacter: (name: string) => void;
   handleRegenerateScene: (name: string) => void;

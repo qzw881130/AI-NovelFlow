@@ -238,7 +238,8 @@ class TaskRepository:
         shot_index: int,
         chapter_title: str,
         workflow_id: str,
-        workflow_name: str
+        workflow_name: str,
+        shot_id: str = None
     ) -> Task:
         """创建分镜图片生成任务"""
         task = Task(
@@ -247,12 +248,13 @@ class TaskRepository:
             description=f"为章节 '{chapter_title}' 的分镜 {shot_index} 生成图片",
             novel_id=novel_id,
             chapter_id=chapter_id,
+            shot_id=shot_id,
             status="pending",
             workflow_id=workflow_id,
             workflow_name=workflow_name
         )
         return self.create(task)
-    
+
     def create_shot_video_task(
         self,
         novel_id: str,
@@ -261,7 +263,8 @@ class TaskRepository:
         shot_duration: int,
         chapter_title: str,
         workflow_id: str,
-        workflow_name: str
+        workflow_name: str,
+        shot_id: str = None
     ) -> Task:
         """创建分镜视频生成任务"""
         task = Task(
@@ -270,6 +273,7 @@ class TaskRepository:
             description=f"为章节 '{chapter_title}' 的分镜 {shot_index} 生成视频 (时长: {shot_duration}s)",
             novel_id=novel_id,
             chapter_id=chapter_id,
+            shot_id=shot_id,
             status="pending",
             workflow_id=workflow_id,
             workflow_name=workflow_name
@@ -312,7 +316,8 @@ class TaskRepository:
         text: str,
         chapter_title: str,
         workflow_id: str = None,
-        workflow_name: str = None
+        workflow_name: str = None,
+        shot_id: str = None
     ) -> Task:
         """创建角色台词音频生成任务"""
         task = Task(
@@ -321,6 +326,7 @@ class TaskRepository:
             description=f"为章节 '{chapter_title}' 的分镜 {shot_index} 角色 '{character_name}' 生成台词音频: {text[:50]}{'...' if len(text) > 50 else ''}",
             novel_id=novel_id,
             chapter_id=chapter_id,
+            shot_id=shot_id,
             character_id=character_id,
             status="pending",
             progress=0,
@@ -355,7 +361,8 @@ class TaskRepository:
         text: str,
         chapter_title: str,
         workflow_id: str = None,
-        workflow_name: str = None
+        workflow_name: str = None,
+        shot_id: str = None
     ) -> Task:
         """创建旁白台词音频生成任务"""
         task = Task(
@@ -364,6 +371,7 @@ class TaskRepository:
             description=f"为章节 '{chapter_title}' 的分镜 {shot_index} 生成旁白音频: {text[:50]}{'...' if len(text) > 50 else ''}",
             novel_id=novel_id,
             chapter_id=chapter_id,
+            shot_id=shot_id,
             character_id=character_id,
             status="pending",
             progress=0,

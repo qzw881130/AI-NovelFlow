@@ -22,11 +22,11 @@ export default function ChapterGenerate() {
   const {
     chapter, novel, parsedData, characters, scenes, props, loading,
     shotImages, shotVideos, transitionVideos, generatingShots, pendingShots,
-    generatingVideos, pendingVideos, generatingTransitions,
+    generatingVideos, pendingVideos, generatingTransitions, generatingAudios,
     showFullTextModal, showMergedImageModal, showImagePreview,
     previewImageUrl, previewImageIndex, mergedImage, isMerging,
     splitConfirmDialog, audioTasks, audioWarnings,
-    currentShotIndex,
+    currentShotIndex, shots,
   } = store;
 
   // 数据获取方法
@@ -51,7 +51,7 @@ export default function ChapterGenerate() {
 
   // Chapter Actions 方法
   const {
-    handleSplitChapter, handleSaveJson, handleMergeCharacterImages,
+    handleSplitChapter, handleSaveJson,
     handleRegenerateCharacter, handleRegenerateScene, handleRegenerateProp,
   } = store;
 
@@ -67,21 +67,33 @@ export default function ChapterGenerate() {
     // 如果有生成中的任务，开始轮询
     const hasGeneratingTasks = generatingShots.size > 0 ||
                                generatingVideos.size > 0 ||
-                               generatingTransitions.size > 0;
+                               generatingTransitions.size > 0 ||
+                               generatingAudios.size > 0;
 
     if (!hasGeneratingTasks) return;
 
-    // 每 2 秒轮询一次
+    // 每 2 秒轮询一次，只检查有任务在运行的类型
     const intervalId = setInterval(async () => {
-      await Promise.all([
-        checkShotTaskStatus(cid),
-        checkVideoTaskStatus(cid),
-        checkTransitionTaskStatus(cid),
-      ]);
+      const checks = [];
+      if (generatingShots.size > 0) {
+        checks.push(checkShotTaskStatus(cid));
+      }
+      if (generatingVideos.size > 0) {
+        checks.push(checkVideoTaskStatus(cid));
+      }
+      if (generatingTransitions.size > 0) {
+        checks.push(checkTransitionTaskStatus(cid));
+      }
+      if (generatingAudios.size > 0) {
+        checks.push(checkAudioTaskStatus(cid));
+      }
+      if (checks.length > 0) {
+        await Promise.all(checks);
+      }
     }, 2000);
 
     return () => clearInterval(intervalId);
-  }, [cid, id, generatingShots.size, generatingVideos.size, generatingTransitions.size]);
+  }, [cid, id, generatingShots.size, generatingVideos.size, generatingTransitions.size, generatingAudios.size]);
 
   // 获取真实章节数据和角色列表
   useEffect(() => {
@@ -116,16 +128,16 @@ export default function ChapterGenerate() {
 
   // 切换分镜时更新合并角色图
   useEffect(() => {
-    if (parsedData?.shots && parsedData.shots.length > 0) {
+    if (shots && shots.length > 0) {
       // Merged image logic handled by store
     }
-  }, [parsedData?.shots]);
+  }, [shots]);
 
   // 图片预览导航
   const navigateImagePreview = (direction: 'prev' | 'next') => {
-    const allImages = parsedData?.shots?.map((_shot: any, idx: number) => {
+    const allImages = shots?.map((shot, idx: number) => {
       const shotNum = idx + 1;
-      return shotImages[shotNum] || parsedData?.shots?.[idx]?.image_url;
+      return shotImages[shot.id] || shot.imageUrl;
     }).filter(Boolean) as string[] || [];
 
     if (allImages.length <= 1) return;
@@ -142,9 +154,8 @@ export default function ChapterGenerate() {
 
   // 打开图片预览
   const onImageClick = (url: string) => {
-    const allImages = parsedData?.shots?.map((_shot: any, idx: number) => {
-      const shotNum = idx + 1;
-      return shotImages[shotNum] || parsedData?.shots?.[idx]?.image_url;
+    const allImages = shots?.map((shot, idx: number) => {
+      return shotImages[shot.id] || shot.imageUrl;
     }).filter(Boolean) as string[] || [];
 
     // 同时检查资源和分镜图片
@@ -167,7 +178,9 @@ export default function ChapterGenerate() {
   };
 
   const getShotAudioTasks = (shotIndex: number) => {
-    return audioTasks.filter(task => task.shotIndex === shotIndex);
+    const shot = shots[shotIndex - 1];
+    if (!shot) return [];
+    return audioTasks.filter(task => task.shotId === shot.id);
   };
 
   const handleGenerateAllShots = async (data: any, novelId?: string, chapterId?: string) => {
@@ -254,9 +267,9 @@ export default function ChapterGenerate() {
         previewImageUrl={previewImageUrl}
         previewImageIndex={previewImageIndex}
         currentShot={currentShotIndex}
-        totalImages={parsedData?.shots?.length || 0}
+        totalImages={shots?.length || 0}
         onNavigate={navigateImagePreview}
-        parsedDataShots={parsedData?.shots || []}
+        parsedDataShots={shots || []}
         shotImages={shotImages}
       />
 

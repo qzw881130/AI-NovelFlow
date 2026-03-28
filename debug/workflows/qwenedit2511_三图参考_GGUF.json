@@ -47,7 +47,7 @@
   },
   "49": {
     "inputs": {
-      "image": "downloaded-image (1).png"
+      "image": "1.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -56,7 +56,7 @@
   },
   "52": {
     "inputs": {
-      "image": "z-image-turbo_00001_.png"
+      "image": "2.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -368,7 +368,7 @@
   },
   "271": {
     "inputs": {
-      "image": "二八大杠自行车_20260228_234408.png"
+      "image": "3.png"
     },
     "class_type": "LoadImage",
     "_meta": {

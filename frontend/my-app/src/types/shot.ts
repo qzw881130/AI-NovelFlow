@@ -35,8 +35,21 @@ export interface Shot {
   videoTaskId: string | null;
   mergedCharacterImage: string | null;
   dialogues: DialogueData[];
+  keyframes?: KeyframeData[];
+  referenceAudioUrl?: string | null;
+  referenceAudioType?: string;
   createdAt: string | null;
   updatedAt: string | null;
+}
+
+// 关键帧数据
+export interface KeyframeData {
+  frame_index: number;
+  description: string;
+  image_url?: string;
+  image_task_id?: string;
+  reference_image_url?: string;
+  reference_mode?: string;
 }
 
 // 分镜更新请求
@@ -71,7 +84,7 @@ export interface ShotWorkflow {
 
 // 音频任务
 export interface AudioTask {
-  shotIndex: number;
+  shotId: string;
   characterName: string;
   taskId: string;
   status: 'pending' | 'running' | 'completed' | 'failed';

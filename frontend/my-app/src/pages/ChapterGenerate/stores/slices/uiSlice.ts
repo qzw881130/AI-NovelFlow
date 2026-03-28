@@ -9,7 +9,7 @@ export interface UiSlice extends UiSliceState {
   setActiveTab: (tab: UiSliceState['activeTab']) => void;
 
   // ========== 导航 ==========
-  setCurrentShot: (index: number) => void;
+  setCurrentShot: (shotId: string, index: number) => void;
   setCurrentVideo: (index: number) => void;
 
   // ========== JSON 编辑器 ==========
@@ -85,7 +85,7 @@ export const createUiSlice: StateCreator<
 
   // ========== 导航方法 ==========
 
-  setCurrentShot: (index) => {
+  setCurrentShot: (shotId, index) => {
     set({ currentShot: index });
   },
 
