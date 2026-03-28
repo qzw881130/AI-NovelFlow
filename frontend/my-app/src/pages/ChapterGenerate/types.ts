@@ -18,27 +18,6 @@ export interface TransitionVideoItemProps {
   isActive: boolean;
 }
 
-// JSON 表格编辑器组件接口
-export interface JsonTableEditorProps {
-  value: string;
-  onChange: (value: string) => void;
-  availableScenes?: string[]; // 场景库中的场景名列表
-  availableCharacters?: string[]; // 角色库中的角色名列表
-  availableProps?: string[]; // 道具库中的道具名列表
-  activeShotWorkflow?: any; // 当前激活的分镜工作流
-  // 音频相关
-  audioUrls?: Record<string, string>; // 音频 URL，key: "shotIndex_characterName"
-  audioSources?: Record<string, string>; // 音频来源，key: "shotIndex_characterName"
-  isShotAudioGenerating?: (shotIndex: number) => boolean;
-  getShotAudioTasks?: (shotIndex: number) => Array<{ characterName: string; status: string; taskId: string }>;
-  onRegenerateAudio?: (shotIndex: number, characterName: string, dialogue: DialogueData) => void;
-  onGenerateDialogueAudio?: (shotIndex: number, dialogue: DialogueData) => void; // 单个角色台词生成音频
-  // 音频上传相关
-  onUploadDialogueAudio?: (shotIndex: number, characterName: string, file: File) => void;
-  onDeleteDialogueAudio?: (shotIndex: number, characterName: string) => void;
-  isAudioUploading?: (shotIndex: number, characterName: string) => boolean;
-}
-
 // 下载素材卡片组件接口
 export interface DownloadMaterialsCardProps {
   novelId: string;

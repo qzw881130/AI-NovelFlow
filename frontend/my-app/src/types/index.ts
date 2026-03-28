@@ -206,7 +206,7 @@ export interface Shot {
 
 export interface Task {
   id: string;
-  type: 'character_portrait' | 'character_voice' | 'scene_image' | 'shot_image' | 'shot_video' | 'chapter_video' | 'transition_video' | 'prop_image';
+  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'keyframe_image' | 'shot_video' | 'chapter_video' | 'transition_video' | 'prop_image';
   name: string;
   description?: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
@@ -223,6 +223,7 @@ export interface Task {
   novelName?: string;
   chapterId?: string;
   characterId?: string;
+  shotId?: string;
   createdAt: string;
   startedAt?: string;
   completedAt?: string;

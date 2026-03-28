@@ -10,7 +10,7 @@ import { useTranslation } from '../../stores/i18nStore';
 import { sceneApi } from '../../api/scenes';
 import { promptTemplateApi } from '../../api/promptTemplates';
 import { api } from '../../api';
-import { SceneImagePreviewModal, SceneCard } from './components';
+import { ImagePreviewModal, SceneCard } from './components';
 import { ALLOWED_IMAGE_TYPES, POLL_CONFIG } from './constants';
 import type { ScenePrompt, PreviewImageState, DeleteAllConfirmDialog } from './types';
 
@@ -586,14 +586,15 @@ export default function Scenes() {
       />
 
       {/* Image Preview Modal */}
-      <SceneImagePreviewModal
+      <ImagePreviewModal
         isOpen={previewImage.isOpen}
         url={previewImage.url}
         name={previewImage.name}
-        sceneId={previewImage.sceneId}
-        scenesWithImages={filteredScenes.filter(s => s.imageUrl)}
         onClose={closeImagePreview}
-        onNavigate={navigatePreview}
+        showNavigation={true}
+        totalCount={filteredScenes.filter(s => s.imageUrl).length}
+        onPrev={() => navigatePreview('prev')}
+        onNext={() => navigatePreview('next')}
       />
 
       {/* Create Modal */}

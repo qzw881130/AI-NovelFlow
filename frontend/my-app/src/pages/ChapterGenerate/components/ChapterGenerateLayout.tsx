@@ -36,10 +36,10 @@ interface ChapterGenerateLayoutProps {
   novel?: any;
   /** 分镜数据 */
   parsedData?: any;
-  /** 分镜图片映射 */
-  shotImages?: Record<number, string>;
+  /** 分镜图片映射（key 为 shotId） */
+  shotImages?: Record<string, string>;
   /** 分镜视频映射 */
-  shotVideos?: Record<number, string>;
+  shotVideos?: Record<string, string>;
   /** 转场视频映射 */
   transitionVideos?: Record<string, string>;
   /** 角色列表 */
@@ -49,11 +49,11 @@ interface ChapterGenerateLayoutProps {
   /** 道具列表 */
   props?: any[];
   /** 生成中的分镜 */
-  generatingShots?: Set<number>;
+  generatingShots?: Set<string>;
   /** 待生成的分镜 */
-  pendingShots?: Set<number>;
+  pendingShots?: Set<string>;
   /** 生成中的视频 */
-  generatingVideos?: Set<number>;
+  generatingVideos?: Set<string>;
   /** 生成中的转场 */
   generatingTransitions?: Set<string>;
   /** 加载状态 */
@@ -74,15 +74,15 @@ export function ChapterGenerateLayout({
   chapter: propChapter,
   novel: propNovel,
   parsedData: propParsedData,
-  shotImages = {},
-  shotVideos = {},
+  shotImages: propShotImages = {},
+  shotVideos: propShotVideos = {},
   transitionVideos = {},
   characters = [],
   scenes = [],
   props = [],
-  generatingShots = new Set(),
-  pendingShots = new Set(),
-  generatingVideos = new Set(),
+  generatingShots: propGeneratingShots = new Set(),
+  pendingShots: propPendingShots = new Set(),
+  generatingVideos: propGeneratingVideos = new Set(),
   generatingTransitions = new Set(),
   loading = false,
   getCharacterImage,
@@ -93,27 +93,47 @@ export function ChapterGenerateLayout({
 }: ChapterGenerateLayoutProps) {
   const { t } = useTranslation();
   const { id, cid } = useParams<{ id: string; cid: string }>();
-  const store = useChapterGenerateStore();
   const [bottomNavCollapsed, setBottomNavCollapsed] = useState(false);
 
+  // 使用选择器正确订阅 store 状态
+  const storeParsedData = useChapterGenerateStore((state) => state.parsedData);
+  const storeChapter = useChapterGenerateStore((state) => state.chapter);
+  const storeNovel = useChapterGenerateStore((state) => state.novel);
+  const currentTab = useChapterGenerateStore((state) => state.currentTab);
+  const currentShotIndex = useChapterGenerateStore((state) => state.currentShotIndex);
+  const currentShotId = useChapterGenerateStore((state) => state.currentShotId);
+  const leftPanelCollapsed = useChapterGenerateStore((state) => state.leftPanelCollapsed);
+  const rightPanelCollapsed = useChapterGenerateStore((state) => state.rightPanelCollapsed);
+  const setCurrentTab = useChapterGenerateStore((state) => state.setCurrentTab);
+  const markTabComplete = useChapterGenerateStore((state) => state.markTabComplete);
+  const setCurrentShot = useChapterGenerateStore((state) => state.setCurrentShot);
+  const storeShots = useChapterGenerateStore((state) => state.shots);
+  const storeGeneratingShots = useChapterGenerateStore((state) => state.generatingShots);
+  const storePendingShots = useChapterGenerateStore((state) => state.pendingShots);
+  const storeGeneratingVideos = useChapterGenerateStore((state) => state.generatingVideos);
+  const storeShotImages = useChapterGenerateStore((state) => state.shotImages);
+  const storeShotVideos = useChapterGenerateStore((state) => state.shotVideos);
+
   // 优先从 store 获取最新数据，确保与 ShotSplitTab 等组件同步
-  const parsedData = store.parsedData || propParsedData;
-  const chapter = store.chapter || propChapter;
-  const novel = store.novel || propNovel;
+  const parsedData = storeParsedData || propParsedData;
+  const chapter = storeChapter || propChapter;
+  const novel = storeNovel || propNovel;
 
-  const {
-    currentTab,
-    currentShotIndex,
-    currentShotId,
-    leftPanelCollapsed,
-    rightPanelCollapsed,
-    setCurrentTab,
-    markTabComplete,
-    setCurrentShot,
-  } = store;
+  // 调试日志：打印 store 中的状态
+  console.log('[ChapterGenerateLayout] storeGeneratingShots:', [...storeGeneratingShots]);
+  console.log('[ChapterGenerateLayout] storeShotImages keys:', Object.keys(storeShotImages));
 
-  // 获取分镜列表
-  const shots = parsedData?.shots || [];
+  // 直接使用 store 状态（组件已通过选择器订阅，状态更新时自动重新渲染）
+  const generatingShots = storeGeneratingShots;
+  const pendingShots = storePendingShots;
+  const generatingVideos = storeGeneratingVideos;
+  const shotImages = storeShotImages;
+  const shotVideos = storeShotVideos;
+
+  console.log('[ChapterGenerateLayout] final generatingShots:', [...generatingShots]);
+
+  // 获取分镜列表（统一使用 store.shots）
+  const shots = storeShots;
   const currentShot = shots[currentShotIndex - 1];
 
   // 渲染左侧栏内容（根据当前 Tab 变化）
@@ -167,7 +187,6 @@ export function ChapterGenerateLayout({
         return (
           <ShotSplitTab
             chapter={chapter}
-            parsedData={parsedData}
             novelId={id}
             chapterId={cid}
           />
@@ -176,12 +195,12 @@ export function ChapterGenerateLayout({
         return (
           <ShotImageGenTab
             chapter={chapter}
-            parsedData={parsedData}
             currentShot={currentShotIndex}
             shotImages={shotImages}
             generatingShots={generatingShots}
             novelId={id}
             chapterId={cid}
+            shots={storeShots}
             onImageClick={onImageClick}
           >
             <ShotForm
@@ -196,7 +215,6 @@ export function ChapterGenerateLayout({
         return (
           <VideoGenTab
             chapter={chapter}
-            parsedData={parsedData}
             shotVideos={shotVideos}
             shotImages={shotImages}
             transitionVideos={transitionVideos}

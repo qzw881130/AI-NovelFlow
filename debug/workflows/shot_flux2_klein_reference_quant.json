@@ -153,7 +153,7 @@
         0
       ],
       "positive": [
-        "129",
+        "116",
         0
       ],
       "negative": [
@@ -272,62 +272,6 @@
     "class_type": "easy int",
     "_meta": {
       "title": "Height"
-    }
-  },
-  "126": {
-    "inputs": {
-      "pixels": [
-        "127",
-        0
-      ],
-      "vae": [
-        "105",
-        0
-      ]
-    },
-    "class_type": "VAEEncode",
-    "_meta": {
-      "title": "VAE Encode"
-    }
-  },
-  "127": {
-    "inputs": {
-      "upscale_method": "bicubic",
-      "megapixels": 1,
-      "resolution_steps": 1,
-      "image": [
-        "128",
-        0
-      ]
-    },
-    "class_type": "ImageScaleToTotalPixels",
-    "_meta": {
-      "title": "ImageScaleToTotalPixels"
-    }
-  },
-  "128": {
-    "inputs": {
-      "image": "testxx.png"
-    },
-    "class_type": "LoadImage",
-    "_meta": {
-      "title": "Load Image"
-    }
-  },
-  "129": {
-    "inputs": {
-      "conditioning": [
-        "116",
-        0
-      ],
-      "latent": [
-        "126",
-        0
-      ]
-    },
-    "class_type": "ReferenceLatent",
-    "_meta": {
-      "title": "ReferenceLatent"
     }
   }
 }

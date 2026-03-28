@@ -5,6 +5,7 @@ import { api } from './index';
 
 // 分镜台词数据
 export interface DialogueData {
+  type?: 'character' | 'narration';  // 台词类型：角色台词或旁白
   character_name: string;
   text: string;
   emotion_prompt?: string;
@@ -33,8 +34,21 @@ export interface Shot {
   videoTaskId: string | null;
   mergedCharacterImage: string | null;
   dialogues: DialogueData[];
+  keyframes?: KeyframeData[];
+  referenceAudioUrl?: string | null;
+  referenceAudioType?: string;
   createdAt: string | null;
   updatedAt: string | null;
+}
+
+// 关键帧数据
+export interface KeyframeData {
+  frame_index: number;
+  description: string;
+  image_url?: string;
+  image_task_id?: string;
+  reference_image_url?: string;
+  reference_mode?: string;
 }
 
 // 分镜更新请求
@@ -88,10 +102,10 @@ export const shotsApi = {
   generateImage: async (
     novelId: string,
     chapterId: string,
-    shotIndex: number
+    shotId: string
   ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string }> => {
     const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/generate/`,
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/generate/`,
       { method: 'POST' }
     );
     return response.json();
@@ -103,7 +117,7 @@ export const shotsApi = {
   generateVideo: async (
     novelId: string,
     chapterId: string,
-    shotIndex: number,
+    shotId: string,
     options?: {
       use_keyframes?: boolean;
       use_reference_audio?: boolean;
@@ -111,7 +125,7 @@ export const shotsApi = {
     }
   ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string }> => {
     const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/generate-video`,
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/generate-video`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -131,13 +145,13 @@ export const shotsApi = {
   uploadImage: async (
     novelId: string,
     chapterId: string,
-    shotIndex: number,
+    shotId: string,
     file: File
   ): Promise<{ success: boolean; data?: { imageUrl: string }; message?: string }> => {
     const formData = new FormData();
     formData.append('file', file);
     const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/upload-image`,
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/upload-image`,
       { method: 'POST', body: formData }
     );
     return response.json();
@@ -149,11 +163,11 @@ export const shotsApi = {
   generateAudio: async (
     novelId: string,
     chapterId: string,
-    shotIndex: number,
+    shotId: string,
     dialogues: DialogueData[]
   ): Promise<{ success: boolean; data?: any; message?: string }> => {
     const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/audio`,
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/audio`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -183,14 +197,14 @@ export const shotsApi = {
   uploadDialogueAudio: async (
     novelId: string,
     chapterId: string,
-    shotIndex: number,
+    shotId: string,
     characterName: string,
     file: File
   ): Promise<{ success: boolean; data?: any; message?: string }> => {
     const formData = new FormData();
     formData.append('file', file);
     const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/dialogues/${encodeURIComponent(characterName)}/audio/upload`,
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/dialogues/${encodeURIComponent(characterName)}/audio/upload`,
       { method: 'POST', body: formData }
     );
     return response.json();
@@ -202,11 +216,11 @@ export const shotsApi = {
   deleteDialogueAudio: async (
     novelId: string,
     chapterId: string,
-    shotIndex: number,
+    shotId: string,
     characterName: string
   ): Promise<{ success: boolean; data?: any; message?: string }> => {
     const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/dialogues/${encodeURIComponent(characterName)}/audio`,
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/dialogues/${encodeURIComponent(characterName)}/audio`,
       { method: 'DELETE' }
     );
     return response.json();
@@ -408,10 +422,10 @@ export const shotsApi = {
   mergeDialogueAudio: async (
     novelId: string,
     chapterId: string,
-    shotIndex: number
+    shotId: string
   ): Promise<{ success: boolean; audio_url?: string; duration?: number; message?: string }> => {
     const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/merge-audio`,
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/merge-audio`,
       { method: 'POST' }
     );
     return response.json();
@@ -423,13 +437,13 @@ export const shotsApi = {
   uploadReferenceAudio: async (
     novelId: string,
     chapterId: string,
-    shotIndex: number,
+    shotId: string,
     file: File
   ): Promise<{ success: boolean; audio_url?: string; message?: string }> => {
     const formData = new FormData();
     formData.append('file', file);
     const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/upload-reference-audio`,
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/upload-reference-audio`,
       { method: 'POST', body: formData }
     );
     return response.json();
@@ -441,14 +455,14 @@ export const shotsApi = {
   setReferenceAudio: async (
     novelId: string,
     chapterId: string,
-    shotIndex: number,
+    shotId: string,
     mode: 'none' | 'merged' | 'uploaded' | 'character',
     characterName?: string
   ): Promise<{ success: boolean; audio_url?: string; message?: string }> => {
     const body: any = { mode };
     if (mode === 'character' && characterName) body.character_name = characterName;
     const response = await fetch(
-      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/set-reference-audio`,
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/set-reference-audio`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

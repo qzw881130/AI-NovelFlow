@@ -28,8 +28,6 @@ interface MappingForm {
   emotionPromptNodeId: string;
   // 关键帧节点（视频生成工作流）
   keyframeNodes: string[];
-  // 关键帧参考图节点（分镜图片生成工作流）
-  keyframeReferenceNodes: string[];
 }
 
 interface MappingModalProps {
@@ -60,8 +58,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     referenceAudioNodeId: '',
     textNodeId: '',
     emotionPromptNodeId: '',
-    keyframeNodes: [],
-    keyframeReferenceNodes: []
+    keyframeNodes: []
   });
   const [availableNodes, setAvailableNodes] = useState<AvailableNodes>({
     clipTextEncode: [],
@@ -165,14 +162,6 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               keyframeNodes.push(nodeId);
             }
 
-            // 提取关键帧参考图节点（分镜图片生成工作流）
-            const keyframeReferenceNodes: string[] = [];
-            for (let i = 1; ; i++) {
-              const nodeId = mapping[`keyframe_reference_node_${i}`];
-              if (!nodeId) break;
-              keyframeReferenceNodes.push(nodeId);
-            }
-
             if (wf.type === 'video') {
               setMappingForm({
                 promptNodeId: mapping.prompt_node_id || '',
@@ -194,8 +183,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 referenceAudioNodeId: mapping.reference_audio_node_id || '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
-                keyframeNodes,
-                keyframeReferenceNodes: []
+                keyframeNodes
               });
             } else if (wf.type === 'transition') {
               setMappingForm({
@@ -218,8 +206,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 referenceAudioNodeId: '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
-                keyframeNodes: [],
-                keyframeReferenceNodes: []
+                keyframeNodes: []
               });
             } else if (wf.type === 'shot') {
               setMappingForm({
@@ -242,8 +229,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 referenceAudioNodeId: '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
-                keyframeNodes: [],
-                keyframeReferenceNodes
+                keyframeNodes: []
               });
             } else if (wf.type === 'voice_design') {
               setMappingForm({
@@ -266,8 +252,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 referenceAudioNodeId: '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
-                keyframeNodes: [],
-                keyframeReferenceNodes: []
+                keyframeNodes: []
               });
             } else if (wf.type === 'audio') {
               setMappingForm({
@@ -290,8 +275,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 referenceAudioNodeId: mapping.reference_audio_node_id || '',
                 textNodeId: mapping.text_node_id || '',
                 emotionPromptNodeId: mapping.emotion_prompt_node_id || '',
-                keyframeNodes: [],
-                keyframeReferenceNodes: []
+                keyframeNodes: []
               });
             } else if (wf.type === 'keyframe_image') {
               // 关键帧图片生成工作流
@@ -315,8 +299,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 referenceAudioNodeId: '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
-                keyframeNodes: [],
-                keyframeReferenceNodes: []
+                keyframeNodes: []
               });
             } else {
               setMappingForm({
@@ -339,8 +322,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 referenceAudioNodeId: '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
-                keyframeNodes: [],
-                keyframeReferenceNodes: []
+                keyframeNodes: []
               });
             }
           } catch (e) {
@@ -391,10 +373,6 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           character_reference_image_node_id: mappingForm.characterReferenceImageNodeId || null,
           scene_reference_image_node_id: mappingForm.sceneReferenceImageNodeId || null
         };
-        // 添加关键帧参考图节点
-        mappingForm.keyframeReferenceNodes.forEach((nodeId, index) => {
-          nodeMapping[`keyframe_reference_node_${index + 1}`] = nodeId || null;
-        });
       } else if (workflow.type === 'voice_design') {
         nodeMapping = {
           voice_prompt_node_id: mappingForm.voicePromptNodeId || null,
@@ -504,33 +482,6 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     setMappingForm({
       ...mappingForm,
       keyframeNodes: newNodes
-    });
-    if (value) setSelectedNodeId(value);
-  };
-
-  // 关键帧参考图节点处理函数（分镜图片生成工作流）
-  const handleAddKeyframeReferenceNode = () => {
-    setMappingForm({
-      ...mappingForm,
-      keyframeReferenceNodes: [...mappingForm.keyframeReferenceNodes, '']
-    });
-  };
-
-  const handleRemoveKeyframeReferenceNode = (index: number) => {
-    const newNodes = [...mappingForm.keyframeReferenceNodes];
-    newNodes.splice(index, 1);
-    setMappingForm({
-      ...mappingForm,
-      keyframeReferenceNodes: newNodes
-    });
-  };
-
-  const handleKeyframeReferenceNodeChange = (value: string, index: number) => {
-    const newNodes = [...mappingForm.keyframeReferenceNodes];
-    newNodes[index] = value;
-    setMappingForm({
-      ...mappingForm,
-      keyframeReferenceNodes: newNodes
     });
     if (value) setSelectedNodeId(value);
   };
@@ -677,43 +628,6 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                         <button
                           type="button"
                           onClick={() => handleRemoveCustomReferenceNode(index)}
-                          className="text-sm text-red-600 hover:text-red-800 mt-6"
-                        >
-                          {t('common.remove')}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* 关键帧参考图节点配置 */}
-                  <div className="mt-4">
-                    <div className="flex justify-between items-center mb-2">
-                      <h4 className="text-sm font-medium text-gray-700">{t('systemSettings.workflow.keyframeReferenceNodes')}</h4>
-                      <button
-                        type="button"
-                        onClick={handleAddKeyframeReferenceNode}
-                        className="text-sm text-blue-600 hover:text-blue-800"
-                      >
-                        {t('common.add')}
-                      </button>
-                    </div>
-                    <p className="text-xs text-gray-500 mb-2">{t('systemSettings.workflow.keyframeReferenceNodesHint')}</p>
-                    {mappingForm.keyframeReferenceNodes.map((nodeId, index) => (
-                      <div key={index} className="flex gap-2 mb-2">
-                        <div className="flex-1">
-                          <NodeSelectField
-                            label={`${t('systemSettings.workflow.keyframeReferenceNode')} ${index + 1}`}
-                            nodeTypeHint="LoadImage"
-                            value={nodeId}
-                            options={availableNodes.loadImage}
-                            onChange={(v) => handleKeyframeReferenceNodeChange(v, index)}
-                            onFocus={handleNodeFocus}
-                            t={t}
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveKeyframeReferenceNode(index)}
                           className="text-sm text-red-600 hover:text-red-800 mt-6"
                         >
                           {t('common.remove')}

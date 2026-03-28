@@ -1,0 +1,406 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "Firered_image_edit_1.0/00000",
+      "images": [
+        "126",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "保存图像"
+    }
+  },
+  "116": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "加载VAE"
+    }
+  },
+  "117": {
+    "inputs": {
+      "prompt": "",
+      "clip": [
+        "167",
+        0
+      ],
+      "vae": [
+        "116",
+        0
+      ],
+      "image1": [
+        "147",
+        0
+      ],
+      "image2": [
+        "133",
+        0
+      ],
+      "image3": [
+        "135",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImageEditPlus",
+    "_meta": {
+      "title": "文本编码（QwenImageEditPlus）"
+    }
+  },
+  "118": {
+    "inputs": {
+      "prompt": [
+        "168",
+        0
+      ],
+      "clip": [
+        "167",
+        0
+      ],
+      "vae": [
+        "116",
+        0
+      ],
+      "image1": [
+        "147",
+        0
+      ],
+      "image2": [
+        "133",
+        0
+      ],
+      "image3": [
+        "135",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImageEditPlus",
+    "_meta": {
+      "title": "TextEncodeQwenImageEditPlus (Positive)"
+    }
+  },
+  "120": {
+    "inputs": {
+      "shift": 3.1,
+      "model": [
+        "154",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "采样算法（AuraFlow）"
+    }
+  },
+  "123": {
+    "inputs": {
+      "strength": 1,
+      "model": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "CFGNorm",
+    "_meta": {
+      "title": "CFG归一化"
+    }
+  },
+  "125": {
+    "inputs": {
+      "pixels": [
+        "147",
+        0
+      ],
+      "vae": [
+        "116",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE编码"
+    }
+  },
+  "126": {
+    "inputs": {
+      "samples": [
+        "130",
+        0
+      ],
+      "vae": [
+        "116",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE解码"
+    }
+  },
+  "130": {
+    "inputs": {
+      "seed": 43,
+      "steps": [
+        "157",
+        0
+      ],
+      "cfg": [
+        "164",
+        0
+      ],
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "123",
+        0
+      ],
+      "positive": [
+        "118",
+        0
+      ],
+      "negative": [
+        "117",
+        0
+      ],
+      "latent_image": [
+        "171",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "K采样器"
+    }
+  },
+  "133": {
+    "inputs": {
+      "image": "陆盛_20260225_134639.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "135": {
+    "inputs": {
+      "image": "xxx"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "143": {
+    "inputs": {
+      "image": "大学宿舍_20260226_005443.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "加载图像"
+    }
+  },
+  "147": {
+    "inputs": {
+      "image": [
+        "143",
+        0
+      ]
+    },
+    "class_type": "FluxKontextImageScale",
+    "_meta": {
+      "title": "图像缩放为FluxKontext"
+    }
+  },
+  "151": {
+    "inputs": {
+      "lora_name": "FireRed-Image-Edit-1.0-Lightning-8steps-v1.1.safetensors",
+      "strength_model": 1,
+      "model": [
+        "166",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoRA加载器（仅模型）"
+    }
+  },
+  "153": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "是否使用加速LoRA"
+    }
+  },
+  "154": {
+    "inputs": {
+      "switch": [
+        "153",
+        0
+      ],
+      "on_false": [
+        "166",
+        0
+      ],
+      "on_true": [
+        "151",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "切换"
+    }
+  },
+  "155": {
+    "inputs": {
+      "value": 40
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Steps"
+    }
+  },
+  "156": {
+    "inputs": {
+      "value": 8
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "LoRA-Steps"
+    }
+  },
+  "157": {
+    "inputs": {
+      "switch": [
+        "153",
+        0
+      ],
+      "on_false": [
+        "155",
+        0
+      ],
+      "on_true": [
+        "156",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "切换"
+    }
+  },
+  "162": {
+    "inputs": {
+      "value": 4
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "CFG"
+    }
+  },
+  "163": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "LoRA-CFG"
+    }
+  },
+  "164": {
+    "inputs": {
+      "switch": [
+        "153",
+        0
+      ],
+      "on_false": [
+        "162",
+        0
+      ],
+      "on_true": [
+        "163",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "切换"
+    }
+  },
+  "166": {
+    "inputs": {
+      "unet_name": "FireRed-Image-Edit-1.1-transformer-q4_k_m.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "Unet Loader (GGUF)"
+    }
+  },
+  "167": {
+    "inputs": {
+      "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "加载CLIP"
+    }
+  },
+  "168": {
+    "inputs": {
+      "prompt": "Scene: 深夜凌晨两点的大学宿舍，昏暗光线，透过窗帘缝隙漏进微弱路灯灯光，中景俯视镜头，anime style, high quality, detailed, professional artwork style, high quality, detailed。\nCharacters:\n- 陆盛: 睡在上铺，侧躺闭眼，嘴角微微上扬。\n- 室友1: 坐在下铺电脑前，身体前倾，双手快速敲击键盘，嘴巴大张。\nAction: 室友1在打游戏并大吼大叫，影响上铺的陆盛做着美梦。"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "⚙️ CR Prompt Text"
+    }
+  },
+  "171": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "width": [
+        "172",
+        0
+      ],
+      "height": [
+        "173",
+        0
+      ],
+      "crop": "disabled",
+      "samples": [
+        "125",
+        0
+      ]
+    },
+    "class_type": "LatentUpscale",
+    "_meta": {
+      "title": "缩放Latent"
+    }
+  },
+  "172": {
+    "inputs": {
+      "value": 1920
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "宽度"
+    }
+  },
+  "173": {
+    "inputs": {
+      "value": 1080
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "高度"
+    }
+  }
+}

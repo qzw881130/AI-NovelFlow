@@ -46,11 +46,6 @@ Component-based development, each component responsible for a single function, a
 - `constants` directory for page-level constant definitions
 - `utils` directory for page-level utility classes
 
-**Naming Conventions:**
-- Component files: PascalCase (e.g., `NovelCard.tsx`)
-- Utility functions/hooks: camelCase (e.g., `useNovelStore.ts`)
-- Constants: UPPER_SNAKE_CASE (e.g., `API_BASE`)
-- Types/interfaces: PascalCase (e.g., `interface Novel`)
 
 ### Backend Development Standards
 
@@ -77,11 +72,6 @@ Modular development, each module responsible for a single function, following la
 | Model | `models/` | SQLAlchemy ORM model definitions |
 | Schema | `schemas/` | Pydantic models, request/response data validation |
 
-**Naming Conventions:**
-- Class names: PascalCase (e.g., `NovelRepository`)
-- Functions/methods: snake_case (e.g., `get_novel_by_id`)
-- Constants: UPPER_SNAKE_CASE (e.g., `MAX_RETRY_COUNT`)
-- Private methods: `_` prefix (e.g., `_parse_response`)
 
 ### Internationalization Standards
 
@@ -244,7 +234,7 @@ After verification, use `/opsx:sync` to sync Delta specs to main specs directory
 /opsx:sync
 ```
 
-This step merges specification changes from `changes/<name>/specs/` to the `specs/` directory.
+This step merges specification changes from `changes/</>/specs/` to the `specs/` directory.
 
 #### 7. Archive Change
 

@@ -17,15 +17,15 @@ import { chapterApi } from '../../../../api/chapters';
 
 export interface GenerationSlice extends GenerationSliceState {
   // ========== 图片生成 ==========
-  generateShotImage: (novelId: string, chapterId: string, shotIndex: number) => Promise<void>;
+  generateShotImage: (novelId: string, chapterId: string, shotId: string) => Promise<void>;
   generateAllImages: (novelId: string, chapterId: string) => Promise<void>;
-  uploadShotImage: (novelId: string, chapterId: string, shotIndex: number, file: File) => Promise<void>;
-  setShotImages: (images: Record<number, string> | ((prev: Record<number, string>) => Record<number, string>)) => void;
+  uploadShotImage: (novelId: string, chapterId: string, shotId: string, file: File) => Promise<void>;
+  setShotImages: (images: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 
   // ========== 视频生成 ==========
-  generateShotVideo: (novelId: string, chapterId: string, shotIndex: number) => Promise<void>;
+  generateShotVideo: (novelId: string, chapterId: string, shotId: string) => Promise<void>;
   generateAllVideos: (novelId: string, chapterId: string) => Promise<void>;
-  setShotVideos: (videos: Record<number, string> | ((prev: Record<number, string>) => Record<number, string>)) => void;
+  setShotVideos: (videos: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 
   // ========== 转场生成 ==========
   generateTransition: (novelId: string, chapterId: string, fromIndex: number, toIndex: number, useCustomConfig?: boolean) => Promise<void>;
@@ -35,16 +35,16 @@ export interface GenerationSlice extends GenerationSliceState {
   setTransitionDuration: (duration: number) => void;
 
   // ========== 音频生成 ==========
-  generateShotAudio: (novelId: string, chapterId: string, shotIndex: number, dialogues: DialogueData[]) => Promise<void>;
+  generateShotAudio: (novelId: string, chapterId: string, shotId: string, dialogues: DialogueData[]) => Promise<void>;
   generateAllAudio: (novelId: string, chapterId: string) => Promise<void>;
-  regenerateAudio: (novelId: string, chapterId: string, shotIndex: number, characterName: string, dialogue: DialogueData) => Promise<void>;
-  uploadDialogueAudio: (novelId: string, chapterId: string, shotIndex: number, characterName: string, file: File) => Promise<void>;
-  deleteDialogueAudio: (novelId: string, chapterId: string, shotIndex: number, characterName: string) => Promise<void>;
-  getAudioUrl: (shotIndex: number, characterName: string) => string | undefined;
-  getAudioSource: (shotIndex: number, characterName: string) => string | undefined;
-  isShotAudioGenerating: (shotIndex: number) => boolean;
-  isAudioUploading: (shotIndex: number, characterName: string) => boolean;
-  getShotAudioTasks: (shotIndex: number) => AudioTask[];
+  regenerateAudio: (novelId: string, chapterId: string, shotId: string, characterName: string, dialogue: DialogueData) => Promise<void>;
+  uploadDialogueAudio: (novelId: string, chapterId: string, shotId: string, characterName: string, file: File) => Promise<void>;
+  deleteDialogueAudio: (novelId: string, chapterId: string, shotId: string, characterName: string) => Promise<void>;
+  getAudioUrl: (shotId: string, characterName: string) => string | undefined;
+  getAudioSource: (shotId: string, characterName: string) => string | undefined;
+  isShotAudioGenerating: (shotId: string) => boolean;
+  isAudioUploading: (shotId: string, characterName: string) => boolean;
+  getShotAudioTasks: (shotId: string) => AudioTask[];
   initAudioFromShots: (shots: Shot[]) => void;
 
   // ========== 任务轮询 ==========
@@ -66,13 +66,13 @@ export interface GenerationSlice extends GenerationSliceState {
   getKeyframeTask: (shotId: string, frameIndex: number) => KeyframeTask | undefined;
 
   // ========== 参考音频 ==========
-  mergeDialogueAudio: (novelId: string, chapterId: string, shotIndex: number) => Promise<void>;
-  uploadReferenceAudio: (novelId: string, chapterId: string, shotIndex: number, file: File) => Promise<void>;
-  setReferenceAudio: (novelId: string, chapterId: string, shotIndex: number, mode: 'none' | 'merged' | 'uploaded' | 'character', characterName?: string) => Promise<void>;
-  getReferenceAudioUrl: (shotIndex: number) => string | undefined;
-  inferReferenceAudioSourceType: (shotIndex: number) => 'none' | 'merged' | 'uploaded' | 'character';
-  isReferenceAudioMerging: (shotIndex: number) => boolean;
-  isReferenceAudioUploading: (shotIndex: number) => boolean;
+  mergeDialogueAudio: (novelId: string, chapterId: string, shotId: string) => Promise<void>;
+  uploadReferenceAudio: (novelId: string, chapterId: string, shotId: string, file: File) => Promise<void>;
+  setReferenceAudio: (novelId: string, chapterId: string, shotId: string, mode: 'none' | 'merged' | 'uploaded' | 'character', characterName?: string) => Promise<void>;
+  getReferenceAudioUrl: (shotId: string) => string | undefined;
+  inferReferenceAudioSourceType: (shotId: string) => 'none' | 'merged' | 'uploaded' | 'character';
+  isReferenceAudioMerging: (shotId: string) => boolean;
+  isReferenceAudioUploading: (shotId: string) => boolean;
 }
 
 export const createGenerationSlice: StateCreator<
@@ -83,15 +83,15 @@ export const createGenerationSlice: StateCreator<
 > = (set, get) => ({
   // ========== 初始状态 ==========
   // 图片生成
-  generatingShots: new Set(),
-  pendingShots: new Set(),
+  generatingShots: new Set<string>(),
+  pendingShots: new Set<string>(),
   shotImages: {},
   isGeneratingAll: false,
-  uploadingShotIndex: null,
+  uploadingShotId: null,
 
   // 视频生成
-  generatingVideos: new Set(),
-  pendingVideos: new Set(),
+  generatingVideos: new Set<string>(),
+  pendingVideos: new Set<string>(),
   shotVideos: {},
 
   // 转场生成
@@ -120,28 +120,36 @@ export const createGenerationSlice: StateCreator<
   keyframeImageUrls: {},
 
   // 参考音频
-  mergingReferenceAudios: new Set(),
-  uploadingReferenceAudios: new Set(),
+  mergingReferenceAudios: new Set<string>(),
+  uploadingReferenceAudios: new Set<string>(),
   referenceAudioMergeTasks: [],
 
   // ========== 图片生成方法 ==========
 
-  generateShotImage: async (novelId: string, chapterId: string, shotIndex: number) => {
-    const shot = get().shots.find(s => s.index === shotIndex);
-    if (!shot) return;
+  generateShotImage: async (novelId: string, chapterId: string, shotId: string) => {
+    const shot = get().shots.find(s => s.id === shotId);
+    if (!shot) {
+      console.error('[generateShotImage] Shot not found:', shotId);
+      return;
+    }
 
     // 添加到生成中集合
+    console.log('[generateShotImage] Adding to generatingShots:', shotId);
     set(state => ({
-      generatingShots: new Set([...state.generatingShots, shotIndex])
+      generatingShots: new Set([...state.generatingShots, shotId])
     }));
 
+    // 验证状态已更新
+    console.log('[generateShotImage] generatingShots after update:', [...get().generatingShots]);
+
     try {
-      const result = await shotsApi.generateImage(novelId, chapterId, shotIndex);
+      const result = await shotsApi.generateImage(novelId, chapterId, shotId);
+      console.log('[generateShotImage] API result:', result);
 
       if (result.success) {
         // 更新 shot 的 imageStatus
         const updatedShots = get().shots.map(s =>
-          s.index === shotIndex
+          s.id === shotId
             ? { ...s, imageStatus: 'generating' as const, imageTaskId: result.data?.taskId || null }
             : s
         );
@@ -154,7 +162,7 @@ export const createGenerationSlice: StateCreator<
       // 从生成中集合移除
       set(state => {
         const newSet = new Set(state.generatingShots);
-        newSet.delete(shotIndex);
+        newSet.delete(shotId);
         return { generatingShots: newSet };
       });
     }
@@ -172,33 +180,33 @@ export const createGenerationSlice: StateCreator<
     set(state => ({
       pendingShots: new Set([
         ...state.pendingShots,
-        ...pendingShots.map(s => s.index)
+        ...pendingShots.map(s => s.id)
       ])
     }));
 
     // 顺序执行生成
     for (const shot of pendingShots) {
-      await get().generateShotImage(novelId, chapterId, shot.index);
+      await get().generateShotImage(novelId, chapterId, shot.id);
     }
 
     set({ isGeneratingAll: false });
   },
 
-  uploadShotImage: async (novelId: string, chapterId: string, shotIndex: number, file: File) => {
-    set({ uploadingShotIndex: shotIndex });
+  uploadShotImage: async (novelId: string, chapterId: string, shotId: string, file: File) => {
+    set({ uploadingShotId: shotId });
 
     try {
-      const result = await shotsApi.uploadImage(novelId, chapterId, shotIndex, file);
+      const result = await shotsApi.uploadImage(novelId, chapterId, shotId, file);
 
       if (result.success && result.data) {
         // 更新 shotImages
         set(state => ({
-          shotImages: { ...state.shotImages, [shotIndex]: result.data?.imageUrl || '' }
+          shotImages: { ...state.shotImages, [shotId]: result.data?.imageUrl || '' }
         }));
 
         // 更新 shot 的 imageUrl
         const updatedShots = get().shots.map(s =>
-          s.index === shotIndex
+          s.id === shotId
             ? { ...s, imageUrl: result.data?.imageUrl || '', imageStatus: 'completed' as const }
             : s
         );
@@ -210,7 +218,7 @@ export const createGenerationSlice: StateCreator<
       console.error('上传分镜图片失败:', error);
       throw error;
     } finally {
-      set({ uploadingShotIndex: null });
+      set({ uploadingShotId: null });
     }
   },
 
@@ -224,20 +232,20 @@ export const createGenerationSlice: StateCreator<
 
   // ========== 视频生成方法 ==========
 
-  generateShotVideo: async (novelId: string, chapterId: string, shotIndex: number) => {
-    const shot = get().shots.find(s => s.index === shotIndex);
+  generateShotVideo: async (novelId: string, chapterId: string, shotId: string) => {
+    const shot = get().shots.find(s => s.id === shotId);
     if (!shot) return;
 
     set(state => ({
-      generatingVideos: new Set([...state.generatingVideos, shotIndex])
+      generatingVideos: new Set([...state.generatingVideos, shotId])
     }));
 
     try {
-      const result = await shotsApi.generateVideo(novelId, chapterId, shotIndex);
+      const result = await shotsApi.generateVideo(novelId, chapterId, shotId);
 
       if (result.success) {
         const updatedShots = get().shots.map(s =>
-          s.index === shotIndex
+          s.id === shotId
             ? { ...s, videoStatus: 'generating' as const, videoTaskId: result.data?.taskId || null }
             : s
         );
@@ -249,7 +257,7 @@ export const createGenerationSlice: StateCreator<
       console.error('生成分镜视频失败:', error);
       set(state => {
         const newSet = new Set(state.generatingVideos);
-        newSet.delete(shotIndex);
+        newSet.delete(shotId);
         return { generatingVideos: newSet };
       });
     }
@@ -264,12 +272,12 @@ export const createGenerationSlice: StateCreator<
     set(state => ({
       pendingVideos: new Set([
         ...state.pendingVideos,
-        ...pendingVideos.map(s => s.index)
+        ...pendingVideos.map(s => s.id)
       ])
     }));
 
     for (const shot of pendingVideos) {
-      await get().generateShotVideo(novelId, chapterId, shot.index);
+      await get().generateShotVideo(novelId, chapterId, shot.id);
     }
   },
 
@@ -367,19 +375,23 @@ export const createGenerationSlice: StateCreator<
 
   // ========== 音频生成方法 ==========
 
-  generateShotAudio: async (novelId, chapterId, shotIndex, dialogues) => {
-    const generatingKey = `${shotIndex}`;
+  generateShotAudio: async (novelId, chapterId, shotId, dialogues) => {
+    const shot = get().shots.find(s => s.id === shotId);
+    if (!shot) return;
+
+    // 为每个角色生成 key
+    const generatingKeys = dialogues.map(d => `${shotId}-${d.character_name}`);
     set(state => ({
-      generatingAudios: new Set([...state.generatingAudios, generatingKey])
+      generatingAudios: new Set([...state.generatingAudios, ...generatingKeys])
     }));
 
     try {
-      const result = await chapterApi.generateShotAudio(novelId, chapterId, shotIndex, dialogues);
+      const result = await shotsApi.generateAudio(novelId, chapterId, shotId, dialogues);
 
       if (result.success && result.data) {
         // 更新音频任务
-        const newTasks: AudioTask[] = result.data.tasks.map(t => ({
-          shotIndex,
+        const newTasks: AudioTask[] = result.data.tasks.map((t: any) => ({
+          shotId,
           characterName: t.character_name,
           taskId: t.task_id,
           status: t.status as AudioTask['status'],
@@ -390,33 +402,40 @@ export const createGenerationSlice: StateCreator<
           audioWarnings: [...state.audioWarnings, ...(result.data?.warnings || [])]
         }));
       } else {
+        // 任务提交失败，清除 generating 状态
+        set(state => {
+          const newSet = new Set(state.generatingAudios);
+          generatingKeys.forEach(key => newSet.delete(key));
+          return { generatingAudios: newSet };
+        });
         throw new Error(result.message || '生成失败');
       }
     } catch (error) {
       console.error('生成音频失败:', error);
-    } finally {
+      // 出错时清除 generating 状态
       set(state => {
         const newSet = new Set(state.generatingAudios);
-        newSet.delete(generatingKey);
+        generatingKeys.forEach(key => newSet.delete(key));
         return { generatingAudios: newSet };
       });
     }
+    // 注意：成功提交任务后不清除 generating 状态，等待轮询更新
   },
 
   generateAllAudio: async (novelId, chapterId) => {
     try {
-      const result = await chapterApi.generateAllAudio(novelId, chapterId);
+      const result = await shotsApi.generateAllAudio(novelId, chapterId);
 
       if (result.success && result.data) {
         interface TaskResult {
           character_name: string;
           task_id: string;
           status: string;
-          shot_index?: number;
+          shot_id?: string;
         }
 
         const newTasks: AudioTask[] = (result.data.tasks as TaskResult[]).map(t => ({
-          shotIndex: t.shot_index ?? 0,
+          shotId: t.shot_id ?? '',
           characterName: t.character_name,
           taskId: t.task_id,
           status: t.status as AudioTask['status'],
@@ -432,20 +451,20 @@ export const createGenerationSlice: StateCreator<
     }
   },
 
-  regenerateAudio: async (novelId, chapterId, shotIndex, characterName, dialogue) => {
+  regenerateAudio: async (novelId, chapterId, shotId, characterName, dialogue) => {
     // 删除旧音频并重新生成
-    await get().deleteDialogueAudio(novelId, chapterId, shotIndex, characterName);
-    await get().generateShotAudio(novelId, chapterId, shotIndex, [dialogue]);
+    await get().deleteDialogueAudio(novelId, chapterId, shotId, characterName);
+    await get().generateShotAudio(novelId, chapterId, shotId, [dialogue]);
   },
 
-  uploadDialogueAudio: async (novelId, chapterId, shotIndex, characterName, file) => {
-    const uploadKey = `${shotIndex}-${characterName}`;
+  uploadDialogueAudio: async (novelId, chapterId, shotId, characterName, file) => {
+    const uploadKey = `${shotId}-${characterName}`;
     set(state => ({
       uploadingAudios: new Set([...state.uploadingAudios, uploadKey])
     }));
 
     try {
-      const result = await chapterApi.uploadDialogueAudio(novelId, chapterId, shotIndex, characterName, file);
+      const result = await shotsApi.uploadDialogueAudio(novelId, chapterId, shotId, characterName, file);
 
       if (result.success) {
         // 更新音频 URL
@@ -462,7 +481,7 @@ export const createGenerationSlice: StateCreator<
 
         // 更新 shot 的 dialogues
         const updatedShots = get().shots.map(shot => {
-          if (shot.index === shotIndex) {
+          if (shot.id === shotId) {
             const updatedDialogues = shot.dialogues.map(d =>
               d.character_name === characterName
                 ? { ...d, audio_url: result.data?.audio_url || '', audio_source: (result.data?.audio_source as 'ai_generated' | 'uploaded') || 'uploaded' }
@@ -488,12 +507,12 @@ export const createGenerationSlice: StateCreator<
     }
   },
 
-  deleteDialogueAudio: async (novelId, chapterId, shotIndex, characterName) => {
+  deleteDialogueAudio: async (novelId, chapterId, shotId, characterName) => {
     try {
-      const result = await chapterApi.deleteDialogueAudio(novelId, chapterId, shotIndex, characterName);
+      const result = await shotsApi.deleteDialogueAudio(novelId, chapterId, shotId, characterName);
 
       if (result.success) {
-        const audioKey = `${shotIndex}-${characterName}`;
+        const audioKey = `${shotId}-${characterName}`;
 
         // 移除音频 URL
         set(state => {
@@ -506,7 +525,7 @@ export const createGenerationSlice: StateCreator<
 
         // 更新 shot 的 dialogues
         const updatedShots = get().shots.map(shot => {
-          if (shot.index === shotIndex) {
+          if (shot.id === shotId) {
             const updatedDialogues = shot.dialogues.map(d => {
               if (d.character_name === characterName) {
                 const { audio_url: _, audio_source: __, audio_task_id: ___, ...rest } = d as any;
@@ -525,27 +544,27 @@ export const createGenerationSlice: StateCreator<
     }
   },
 
-  getAudioUrl: (shotIndex, characterName) => {
-    const audioKey = `${shotIndex}-${characterName}`;
+  getAudioUrl: (shotId, characterName) => {
+    const audioKey = `${shotId}-${characterName}`;
     return get().audioUrls[audioKey];
   },
 
-  getAudioSource: (shotIndex, characterName) => {
-    const audioKey = `${shotIndex}-${characterName}`;
+  getAudioSource: (shotId, characterName) => {
+    const audioKey = `${shotId}-${characterName}`;
     return get().audioSources[audioKey];
   },
 
-  isShotAudioGenerating: (shotIndex) => {
-    return get().generatingAudios.has(String(shotIndex));
+  isShotAudioGenerating: (shotId) => {
+    return get().generatingAudios.has(String(shotId));
   },
 
-  isAudioUploading: (shotIndex, characterName) => {
-    const uploadKey = `${shotIndex}-${characterName}`;
+  isAudioUploading: (shotId, characterName) => {
+    const uploadKey = `${shotId}-${characterName}`;
     return get().uploadingAudios.has(uploadKey);
   },
 
-  getShotAudioTasks: (shotIndex) => {
-    return get().audioTasks.filter(t => t.shotIndex === shotIndex);
+  getShotAudioTasks: (shotId) => {
+    return get().audioTasks.filter(t => t.shotId === shotId);
   },
 
   initAudioFromShots: (shots) => {
@@ -555,7 +574,7 @@ export const createGenerationSlice: StateCreator<
     shots.forEach(shot => {
       shot.dialogues.forEach(dialogue => {
         if (dialogue.audio_url) {
-          const key = `${shot.index}-${dialogue.character_name}`;
+          const key = `${shot.id}-${dialogue.character_name}`;
           audioUrls[key] = dialogue.audio_url;
           audioSources[key] = dialogue.audio_source || 'ai_generated';
         }
@@ -568,24 +587,44 @@ export const createGenerationSlice: StateCreator<
   // ========== 任务轮询方法 ==========
 
   checkShotTaskStatus: async (chapterId: string) => {
+    console.log('[checkShotTaskStatus] Start, current generatingShots:', [...get().generatingShots]);
     try {
       // 使用正确的 API 端点，按章节和类型筛选任务
       const response = await fetch(`/api/tasks/?type=shot_image&chapter_id=${chapterId}`);
       const result = await response.json();
 
+      console.log('[checkShotTaskStatus] API result:', result.data?.length, 'tasks');
+
       if (result.success && result.data) {
         const tasks = result.data;
 
-        // 构建 shotIndex -> task 的映射
-        const taskMap: Record<number, any> = {};
+        // 构建 shotId -> tasks[] 的映射（同一个 shotId 可能有多个任务）
+        const tasksByShotId: Record<string, any[]> = {};
         tasks.forEach((task: any) => {
-          // 从 task.name 中提取镜号，例如 "生成分镜图：镜 1"
-          const match = task.name?.match(/镜 (\d+)/);
-          if (match) {
-            const shotIndex = parseInt(match[1], 10);
-            taskMap[shotIndex] = task;
+          console.log('[checkShotTaskStatus] Task:', task.id, 'shotId:', task.shotId, 'status:', task.status);
+          // 优先使用 task.shotId 字段（后端返回驼峰格式）
+          if (task.shotId) {
+            if (!tasksByShotId[task.shotId]) {
+              tasksByShotId[task.shotId] = [];
+            }
+            tasksByShotId[task.shotId].push(task);
+          } else {
+            // 兼容旧逻辑：从 task.name 中提取镜号，然后查找对应的 shot
+            const match = task.name?.match(/镜\s*(\d+)/);
+            if (match) {
+              const shotIndex = parseInt(match[1], 10);
+              const shot = get().shots.find(s => s.index === shotIndex);
+              if (shot) {
+                if (!tasksByShotId[shot.id]) {
+                  tasksByShotId[shot.id] = [];
+                }
+                tasksByShotId[shot.id].push(task);
+              }
+            }
           }
         });
+
+        console.log('[checkShotTaskStatus] tasksByShotId keys:', Object.keys(tasksByShotId));
 
         // 更新 shots 状态和 shotImages 映射
         const { shots, shotImages, generatingShots } = get();
@@ -595,49 +634,61 @@ export const createGenerationSlice: StateCreator<
         const newGeneratingShots = new Set(generatingShots);
 
         const updatedShots = shots.map((shot) => {
-          const task = taskMap[shot.index];
-          if (task) {
-            const isCompleted = task.status === 'completed';
-            const isFailed = task.status === 'failed';
+          const shotTasks = tasksByShotId[shot.id];
+          if (shotTasks && shotTasks.length > 0) {
+            // 找到最新的任务（按创建时间排序，取最新的）
+            const sortedTasks = [...shotTasks].sort((a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+            const latestTask = sortedTasks[0];
 
-            // 如果任务完成且有结果 URL，更新 shotImages
-            if (isCompleted && task.resultUrl) {
-              if (newShotImages[shot.index] !== task.resultUrl) {
-                newShotImages[shot.index] = task.resultUrl;
+            // 检查是否有任何任务正在运行
+            const hasRunningTask = shotTasks.some(t => t.status === 'running' || t.status === 'pending');
+
+            // 如果有任务正在运行，确保在 generatingShots 中
+            if (hasRunningTask && !newGeneratingShots.has(shot.id)) {
+              newGeneratingShots.add(shot.id);
+              generatingShotsUpdated = true;
+            }
+
+            // 如果没有任何务正在运行，从 generatingShots 中移除
+            if (!hasRunningTask && newGeneratingShots.has(shot.id)) {
+              newGeneratingShots.delete(shot.id);
+              generatingShotsUpdated = true;
+            }
+
+            // 使用最新任务的结果 URL（优先使用已完成的任务）
+            const completedTask = sortedTasks.find(t => t.status === 'completed' && t.resultUrl);
+            if (completedTask && completedTask.resultUrl) {
+              if (newShotImages[shot.id] !== completedTask.resultUrl) {
+                newShotImages[shot.id] = completedTask.resultUrl;
                 shotImagesUpdated = true;
-              }
-              // 从生成中集合移除
-              if (newGeneratingShots.has(shot.index)) {
-                newGeneratingShots.delete(shot.index);
-                generatingShotsUpdated = true;
-              }
-            } else if (isFailed) {
-              // 任务失败，从生成中集合移除
-              if (newGeneratingShots.has(shot.index)) {
-                newGeneratingShots.delete(shot.index);
-                generatingShotsUpdated = true;
               }
             }
 
             return {
               ...shot,
-              imageStatus: task.status,
-              imageUrl: task.resultUrl || shot.imageUrl,
-              imageTaskId: task.id || shot.imageTaskId,
+              imageStatus: latestTask.status,
+              imageUrl: completedTask?.resultUrl || shot.imageUrl,
+              imageTaskId: latestTask.id || shot.imageTaskId,
             };
           }
           return shot;
         });
 
         // 只有当数据真正变化时才更新状态
+        console.log('[checkShotTaskStatus] shotImagesUpdated:', shotImagesUpdated, 'generatingShotsUpdated:', generatingShotsUpdated);
+        console.log('[checkShotTaskStatus] newGeneratingShots:', [...newGeneratingShots]);
         if (shotImagesUpdated || generatingShotsUpdated) {
           set({
             shots: updatedShots,
             shotImages: newShotImages,
             generatingShots: newGeneratingShots
           });
+          console.log('[checkShotTaskStatus] State updated with newGeneratingShots');
         } else {
           set({ shots: updatedShots });
+          console.log('[checkShotTaskStatus] Only shots updated');
         }
       }
     } catch (error) {
@@ -651,20 +702,61 @@ export const createGenerationSlice: StateCreator<
       const result = await response.json();
 
       if (result.success && result.data) {
-        // 构建 shotIndex -> task 的映射
-        const taskMap: Record<number, any> = {};
+        // 构建 shotId -> task 的映射（优先使用 shotId 字段）
+        const taskMap: Record<string, any> = {};
         result.data.forEach((task: any) => {
-          // 从 task.name 中提取镜号，例如 "生成分镜视频：镜 1" 或 "生成视频: 镜1"
-          const match = task.name?.match(/镜\s*(\d+)/);
-          if (match) {
-            const shotIndex = parseInt(match[1], 10);
-            taskMap[shotIndex] = task;
+          // 优先使用 task.shotId 字段（后端返回驼峰格式）
+          if (task.shotId) {
+            taskMap[task.shotId] = task;
+          } else {
+            // 兼容旧逻辑：从 task.name 中提取镜号
+            const match = task.name?.match(/镜\s*(\d+)/);
+            if (match) {
+              const shotIndex = parseInt(match[1], 10);
+              const shot = get().shots.find(s => s.index === shotIndex);
+              if (shot) {
+                taskMap[shot.id] = task;
+              }
+            }
           }
         });
 
-        const updatedShots = get().shots.map(shot => {
-          const task = taskMap[shot.index];
+        const { shots, shotVideos, generatingVideos } = get();
+        let shotVideosUpdated = false;
+        let generatingVideosUpdated = false;
+        const newShotVideos = { ...shotVideos };
+        const newGeneratingVideos = new Set(generatingVideos);
+
+        const updatedShots = shots.map(shot => {
+          const task = taskMap[shot.id];
           if (task) {
+            const isCompleted = task.status === 'completed';
+            const isFailed = task.status === 'failed';
+            const isRunning = task.status === 'running' || task.status === 'pending';
+
+            // 如果任务正在运行，确保在 generatingVideos 中
+            if (isRunning && !newGeneratingVideos.has(shot.id)) {
+              newGeneratingVideos.add(shot.id);
+              generatingVideosUpdated = true;
+            }
+
+            if (isCompleted && task.resultUrl) {
+              if (newShotVideos[shot.id] !== task.resultUrl) {
+                newShotVideos[shot.id] = task.resultUrl;
+                shotVideosUpdated = true;
+              }
+              // 从生成中集合移除（使用 shotId）
+              if (newGeneratingVideos.has(shot.id)) {
+                newGeneratingVideos.delete(shot.id);
+                generatingVideosUpdated = true;
+              }
+            } else if (isFailed) {
+              if (newGeneratingVideos.has(shot.id)) {
+                newGeneratingVideos.delete(shot.id);
+                generatingVideosUpdated = true;
+              }
+            }
+
             return {
               ...shot,
               videoStatus: task.status,
@@ -674,7 +766,16 @@ export const createGenerationSlice: StateCreator<
           }
           return shot;
         });
-        set({ shots: updatedShots });
+
+        if (shotVideosUpdated || generatingVideosUpdated) {
+          set({
+            shots: updatedShots,
+            shotVideos: newShotVideos,
+            generatingVideos: newGeneratingVideos
+          });
+        } else {
+          set({ shots: updatedShots });
+        }
       }
     } catch (error) {
       console.error('检查视频任务状态失败:', error);
@@ -708,13 +809,27 @@ export const createGenerationSlice: StateCreator<
 
   checkAudioTaskStatus: async (chapterId: string) => {
     try {
-      const response = await fetch(`/api/tasks/?chapter_id=${chapterId}&type=audio`);
-      const result = await response.json();
+      // 音频任务类型包括 character_audio 和 narrator_audio
+      const [characterAudioRes, narratorAudioRes] = await Promise.all([
+        fetch(`/api/tasks/?chapter_id=${chapterId}&type=character_audio`),
+        fetch(`/api/tasks/?chapter_id=${chapterId}&type=narrator_audio`)
+      ]);
 
-      if (result.success && result.data) {
+      const [characterResult, narratorResult] = await Promise.all([
+        characterAudioRes.json(),
+        narratorAudioRes.json()
+      ]);
+
+      // 合并两种类型的任务数据
+      const allTasks = [
+        ...(characterResult.success && characterResult.data ? characterResult.data : []),
+        ...(narratorResult.success && narratorResult.data ? narratorResult.data : [])
+      ];
+
+      if (allTasks.length > 0) {
         // 更新音频任务状态
         const updatedTasks = get().audioTasks.map(task => {
-          const taskStatus = result.data.find((t: any) => t.id === task.taskId);
+          const taskStatus = allTasks.find((t: any) => t.id === task.taskId);
           if (taskStatus) {
             return { ...task, status: taskStatus.status };
           }
@@ -722,19 +837,50 @@ export const createGenerationSlice: StateCreator<
         });
         set({ audioTasks: updatedTasks });
 
-        // 更新音频 URL - 从任务名称提取信息
+        // 更新音频 URL 和清除完成的 generating 状态
         const newAudioUrls = { ...get().audioUrls };
-        result.data.forEach((task: any) => {
-          if (task.resultUrl) {
-            // 从任务名称提取镜号和角色名，例如 "音频生成：镜 1 - 角色"
-            const match = task.name?.match(/镜 (\d+).*-\s*(.+)/);
-            if (match) {
-              const key = `${match[1]}-${match[2].trim()}`;
+        const completedKeys: string[] = [];
+
+        allTasks.forEach((task: any) => {
+          // 从任务名称提取角色名
+          const nameMatch = task.name?.match(/-\s*(.+)$/);
+          const characterName = nameMatch ? nameMatch[1].trim() : '';
+
+          // 使用 shotId 或从任务名称提取镜号
+          let key = '';
+          if (task.shotId && characterName) {
+            key = `${task.shotId}-${characterName}`;
+          } else if (characterName) {
+            // 从任务名称提取镜号：镜1-角色名
+            const indexMatch = task.name?.match(/镜\s*(\d+)/);
+            if (indexMatch) {
+              key = `${indexMatch[1]}-${characterName}`;
+            }
+          }
+
+          if (key) {
+            // 更新音频 URL
+            if (task.resultUrl) {
               newAudioUrls[key] = task.resultUrl;
+            }
+
+            // 任务完成或失败时清除 generating 状态
+            if (task.status === 'completed' || task.status === 'failed') {
+              completedKeys.push(key);
             }
           }
         });
         set({ audioUrls: newAudioUrls });
+
+        // 清除已完成任务的 generating 状态
+        if (completedKeys.length > 0) {
+          console.log('[checkAudioTaskStatus] Clearing completed keys:', completedKeys);
+          set(state => {
+            const newSet = new Set(state.generatingAudios);
+            completedKeys.forEach(key => newSet.delete(key));
+            return { generatingAudios: newSet };
+          });
+        }
       }
     } catch (error) {
       console.error('检查音频任务状态失败:', error);
@@ -1024,19 +1170,19 @@ export const createGenerationSlice: StateCreator<
 
   // ========== 参考音频方法 ==========
 
-  mergeDialogueAudio: async (novelId, chapterId, shotIndex) => {
+  mergeDialogueAudio: async (novelId, chapterId, shotId) => {
     set(state => ({
-      mergingReferenceAudios: new Set([...state.mergingReferenceAudios, shotIndex])
+      mergingReferenceAudios: new Set([...state.mergingReferenceAudios, shotId])
     }));
 
     try {
-      const result = await shotsApi.mergeDialogueAudio(novelId, chapterId, shotIndex);
+      const result = await shotsApi.mergeDialogueAudio(novelId, chapterId, shotId);
 
-      if (result.success && result.data?.audio_url) {
+      if (result.success && result.audio_url) {
         // 更新 shot 的 referenceAudioUrl
         const updatedShots = get().shots.map(shot => {
-          if (shot.index === shotIndex) {
-            return { ...shot, referenceAudioUrl: result.data!.audio_url };
+          if (shot.id === shotId) {
+            return { ...shot, referenceAudioUrl: result.audio_url };
           }
           return shot;
         });
@@ -1050,25 +1196,25 @@ export const createGenerationSlice: StateCreator<
     } finally {
       set(state => {
         const newSet = new Set(state.mergingReferenceAudios);
-        newSet.delete(shotIndex);
+        newSet.delete(shotId);
         return { mergingReferenceAudios: newSet };
       });
     }
   },
 
-  uploadReferenceAudio: async (novelId, chapterId, shotIndex, file) => {
+  uploadReferenceAudio: async (novelId, chapterId, shotId, file) => {
     set(state => ({
-      uploadingReferenceAudios: new Set([...state.uploadingReferenceAudios, shotIndex])
+      uploadingReferenceAudios: new Set([...state.uploadingReferenceAudios, shotId])
     }));
 
     try {
-      const result = await shotsApi.uploadReferenceAudio(novelId, chapterId, shotIndex, file);
+      const result = await shotsApi.uploadReferenceAudio(novelId, chapterId, shotId, file);
 
-      if (result.success && result.data?.audio_url) {
+      if (result.success && result.audio_url) {
         // 更新 shot 的 referenceAudioUrl
         const updatedShots = get().shots.map(shot => {
-          if (shot.index === shotIndex) {
-            return { ...shot, referenceAudioUrl: result.data!.audio_url };
+          if (shot.id === shotId) {
+            return { ...shot, referenceAudioUrl: result.audio_url };
           }
           return shot;
         });
@@ -1082,21 +1228,21 @@ export const createGenerationSlice: StateCreator<
     } finally {
       set(state => {
         const newSet = new Set(state.uploadingReferenceAudios);
-        newSet.delete(shotIndex);
+        newSet.delete(shotId);
         return { uploadingReferenceAudios: newSet };
       });
     }
   },
 
-  setReferenceAudio: async (novelId, chapterId, shotIndex, mode, characterName) => {
+  setReferenceAudio: async (novelId, chapterId, shotId, mode, characterName) => {
     try {
-      const result = await shotsApi.setReferenceAudio(novelId, chapterId, shotIndex, mode, characterName);
+      const result = await shotsApi.setReferenceAudio(novelId, chapterId, shotId, mode, characterName);
 
       if (result.success) {
         // 更新 shot 的 referenceAudioUrl
         const updatedShots = get().shots.map(shot => {
-          if (shot.index === shotIndex) {
-            return { ...shot, referenceAudioUrl: result.data?.audio_url || undefined };
+          if (shot.id === shotId) {
+            return { ...shot, referenceAudioUrl: result.audio_url || undefined };
           }
           return shot;
         });
@@ -1110,13 +1256,13 @@ export const createGenerationSlice: StateCreator<
     }
   },
 
-  getReferenceAudioUrl: (shotIndex) => {
-    const shot = get().shots.find(s => s.index === shotIndex);
-    return shot?.referenceAudioUrl;
+  getReferenceAudioUrl: (shotId) => {
+    const shot = get().shots.find(s => s.id === shotId);
+    return shot?.referenceAudioUrl ?? undefined;
   },
 
-  inferReferenceAudioSourceType: (shotIndex) => {
-    const shot = get().shots.find(s => s.index === shotIndex);
+  inferReferenceAudioSourceType: (shotId) => {
+    const shot = get().shots.find(s => s.id === shotId);
     if (!shot?.referenceAudioUrl) {
       return 'none';
     }
@@ -1134,11 +1280,11 @@ export const createGenerationSlice: StateCreator<
     }
   },
 
-  isReferenceAudioMerging: (shotIndex) => {
-    return get().mergingReferenceAudios.has(shotIndex);
+  isReferenceAudioMerging: (shotId) => {
+    return get().mergingReferenceAudios.has(shotId);
   },
 
-  isReferenceAudioUploading: (shotIndex) => {
-    return get().uploadingReferenceAudios.has(shotIndex);
+  isReferenceAudioUploading: (shotId) => {
+    return get().uploadingReferenceAudios.has(shotId);
   },
 });

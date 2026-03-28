@@ -1,0 +1,141 @@
+{
+  "57": {
+    "inputs": {
+      "samples": [
+        "60",
+        0
+      ],
+      "vae": [
+        "62",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "58": {
+    "inputs": {
+      "filename_prefix": "story_ed0763ba-7883-42b6-a8bc-e690e8736717/陆盛",
+      "images": [
+        "57",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "60": {
+    "inputs": {
+      "seed": 819092569724925,
+      "steps": 6,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "61",
+        0
+      ],
+      "positive": [
+        "64",
+        0
+      ],
+      "negative": [
+        "63",
+        0
+      ],
+      "latent_image": [
+        "69",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "61": {
+    "inputs": {
+      "unet_name": "flux-2-klein-9b-fp8.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "62": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "63": {
+    "inputs": {
+      "conditioning": [
+        "64",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "64": {
+    "inputs": {
+      "text": "character portrait, anime style, high quality, detailed, 21岁左右的年轻人类男性，气质阳光开朗，身高约178cm，体型偏瘦，左眼角下方1cm处有一颗淡褐色的小痣，左手手腕内侧有一道1cm长的幼时烫伤留下的浅白色疤痕，国字脸，下颌线清晰利落，中庭长度适中，额头饱满平整，颧骨偏低，标准杏眼，眼型大小适中，虹膜为深棕色，眼角微微上挑，是自然双眼皮，鼻梁高挺，鼻翼宽度适中，嘴唇偏薄，嘴角平时自然放平，皮肤为暖黄调，肤质细腻光滑无多余瑕疵，留着利落的黑色短发，发质偏硬，发际线整齐，没有胡须，日常穿着宽松的白色纯棉T恤，浅蓝色直筒牛仔裤，脚穿白色安踏网面运动鞋，保持面部比例、7.5头身比例，所有独特标记位置固定不变，禁止改变物种、年龄段与阳光男性气质呈现。, single character, centered, clean background, professional artwork, 8k",
+      "clip": [
+        "65",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "65": {
+    "inputs": {
+      "clip_name": "qwen_3_8b_fp8mixed.safetensors",
+      "type": "flux2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "69": {
+    "inputs": {
+      "width": 1088,
+      "height": 704,
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Flux 2 Latent"
+    }
+  },
+  "70": {
+    "inputs": {
+      "purge_cache": false,
+      "purge_models": false,
+      "anything": [
+        "57",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: PurgeVRAM",
+    "_meta": {
+      "title": "LayerUtility: Purge VRAM"
+    }
+  }
+}

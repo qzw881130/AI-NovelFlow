@@ -1,12 +1,11 @@
 /**
  * Chapter Actions Slice - 管理章节操作相关业务逻辑
- * 包含：拆分章节、保存JSON、合并角色图、跳转导航等
+ * 包含：拆分章节、保存JSON、跳转导航等
  */
 import type { StateCreator } from 'zustand';
 import type { ChapterGenerateStore, ChapterActionsState, Shot } from './types';
 import { API_BASE } from '../../constants';
 import { chapterApi } from '../../../../api/chapters';
-import { mergeCharacterImages } from '../../utils';
 import { toast } from '../../../../stores/toastStore';
 import { useI18nStore } from '../../../../stores/i18nStore';
 
@@ -141,35 +140,6 @@ export const createChapterActionsSlice: StateCreator<
       toast.error(t('chapterGenerate.saveFailedCheckNetwork'));
     } finally {
       set({ isSavingJson: false });
-    }
-  },
-
-  handleMergeCharacterImages: async () => {
-    const t = useI18nStore.getState().t;
-    const currentShot = get().currentShot;
-    const parsedData = get().parsedData;
-
-    const currentShotData = parsedData?.shots?.[currentShot - 1];
-    const shotCharacters = currentShotData?.characters || [];
-
-    if (shotCharacters.length === 0) {
-      toast.warning(t('chapterGenerate.noCharactersInShot'));
-      return;
-    }
-
-    set({ isMerging: true });
-    try {
-      const result = await mergeCharacterImages(shotCharacters, get().getCharacterImage);
-      if (result) {
-        set({ mergedImage: result });
-      } else {
-        toast.warning(t('chapterGenerate.characterImagesNotGenerated'));
-      }
-    } catch (error) {
-      console.error('合并角色图失败:', error);
-      toast.error(t('chapterGenerate.mergeFailedRetry'));
-    } finally {
-      set({ isMerging: false });
     }
   },
 

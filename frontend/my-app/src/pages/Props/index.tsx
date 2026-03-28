@@ -10,7 +10,7 @@ import { useTranslation } from '../../stores/i18nStore';
 import { propApi } from '../../api/props';
 import { promptTemplateApi } from '../../api/promptTemplates';
 import { api } from '../../api';
-import { PropImagePreviewModal, PropCard } from './components';
+import { ImagePreviewModal, PropCard } from './components';
 import { ALLOWED_IMAGE_TYPES, POLL_CONFIG, ASPECT_RATIO_CLASSES } from './constants';
 import type { PreviewImageState, DeleteAllConfirmDialog, PropPrompt } from './types';
 
@@ -585,14 +585,15 @@ export default function Props() {
       />
 
       {/* Image Preview Modal */}
-      <PropImagePreviewModal
+      <ImagePreviewModal
         isOpen={previewImage.isOpen}
         url={previewImage.url}
         name={previewImage.name}
-        propId={previewImage.propId}
-        propsWithImages={filteredProps.filter(p => p.imageUrl)}
         onClose={closeImagePreview}
-        onNavigate={navigatePreview}
+        showNavigation={true}
+        totalCount={filteredProps.filter(p => p.imageUrl).length}
+        onPrev={() => navigatePreview('prev')}
+        onNext={() => navigatePreview('next')}
       />
 
       {/* Create Modal */}

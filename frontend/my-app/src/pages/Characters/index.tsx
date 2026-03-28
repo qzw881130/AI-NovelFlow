@@ -411,26 +411,28 @@ export default function Characters() {
         const data = await characterApi.generatePortrait(character.id);
         if (data.success) {
           successCount++;
-          setCharacters(prev => prev.map(c => 
+          setCharacters(prev => prev.map(c =>
             c.id === character.id ? { ...c, generatingStatus: 'running' } : c
           ));
         } else {
           failCount++;
+          // 显示具体的错误信息
+          toast.error(`${character.name}: ${data.message || t('common.error')}`);
         }
       } catch (error) {
         console.error(`生成角色 ${character.name} 失败:`, error);
         failCount++;
+        // 捕获异常时也显示错误信息
+        const errorMessage = error instanceof Error ? error.message : t('common.error');
+        toast.error(`${character.name}: ${errorMessage}`);
       }
     }
-    
+
     setGeneratingAll(false);
-    
+
     if (successCount > 0) {
       toast.success(`${t('common.success')} ${successCount}`);
       pollAllCharactersStatus();
-    }
-    if (failCount > 0) {
-      toast.error(`${t('common.error')} ${failCount}`);
     }
   };
 
@@ -528,7 +530,8 @@ export default function Characters() {
         if (data.success && data.data) {
           const { status, referenceAudioUrl } = data.data;
 
-          if (status === 'completed' && referenceAudioUrl) {
+          // 完成：状态为 completed 或 idle（任务完成后状态恢复），且有音频URL
+          if ((status === 'completed' || status === 'idle') && referenceAudioUrl) {
             clearInterval(interval);
             setGeneratingVoiceId(null);
             setCharacters(prev => prev.map(c =>
@@ -689,10 +692,11 @@ export default function Characters() {
         isOpen={previewImage.isOpen}
         url={previewImage.url}
         name={previewImage.name}
-        characterId={previewImage.characterId}
-        charactersWithImages={filteredCharacters.filter(c => c.imageUrl)}
         onClose={closeImagePreview}
-        onNavigate={navigatePreview}
+        showNavigation={true}
+        totalCount={filteredCharacters.filter(c => c.imageUrl).length}
+        onPrev={() => navigatePreview('prev')}
+        onNext={() => navigatePreview('next')}
       />
 
       {/* Create Modal */}

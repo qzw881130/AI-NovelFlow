@@ -285,6 +285,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
 
   // 获取当前分镜数据
   const currentShotData: Shot | undefined = shots.find(s => s.index === currentShotIndex);
+  const currentShotId = currentShotData?.id || '';
   const currentShotCharacters = currentShotData?.characters || [];
   const currentShotDialogues = currentShotData?.dialogues || [];
 
@@ -293,17 +294,17 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
     .filter(d => d.type === 'narration')
     .map(d => d.character_name || t('chapterGenerate.narration'));
 
-  // 章节角色列表 - 有台词的角色 + 旁白角色
+  // 章节角色列表 - 有台词的角色 + 旁白角色（去重）
   const narratorCharacter = characters.find(c => c.isNarrator);
   const chapterCharactersWithDialogues = [
     ...characters.filter(char => chapterCharacters.includes(char.name)),
     ...(narratorCharacter && chapterCharacters.some(name =>
-      shots.some(s => s.dialogues?.some(d => d.type === 'narration' && d.character_name === name))
-    ) ? [narratorCharacter] : []),
+      shots.some(s => s.dialogues?.some(d => d.type === 'narration'))
+    ) && !chapterCharacters.includes(narratorCharacter.name) ? [narratorCharacter] : []),
   ];
 
-  // 分镜角色列表 - 当前分镜有台词的角色 + 旁白角色
-  const shotCharacters = [...currentShotCharacters, ...narrationCharacters];
+  // 分镜角色列表 - 当前分镜有台词的角色 + 旁白角色（去重）
+  const shotCharacters = [...new Set([...currentShotCharacters, ...narrationCharacters])];
 
   // 获取角色的台词数据
   const getDialogueForCharacter = (charName: string): DialogueData | undefined => {
@@ -324,24 +325,25 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
 
   // 检查是否有音频
   const hasAudio = (charName: string): boolean => {
-    const key = `${currentShotIndex}-${charName}`;
+    const key = `${currentShotId}-${charName}`;
     return !!audioUrls[key];
   };
 
   // 获取音频 URL
   const getAudioUrl = (charName: string): string | undefined => {
-    const key = `${currentShotIndex}-${charName}`;
+    const key = `${currentShotId}-${charName}`;
     return audioUrls[key];
   };
 
   // 检查是否正在生成
   const isGenerating = (charName: string): boolean => {
-    return generatingAudios.has(`${currentShotIndex}`);
+    const key = `${currentShotId}-${charName}`;
+    return generatingAudios.has(key);
   };
 
   // 检查是否正在上传
   const isUploading = (charName: string): boolean => {
-    const key = `${currentShotIndex}-${charName}`;
+    const key = `${currentShotId}-${charName}`;
     return uploadingAudios.has(key);
   };
 
@@ -528,7 +530,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
     });
 
     try {
-      await generateShotAudio(novelId, chapterId, currentShotIndex, [dialogueData]);
+      await generateShotAudio(novelId, chapterId, currentShotData.id, [dialogueData]);
       console.log('音频生成任务已提交');
     } catch (error) {
       console.error('生成音频失败:', error);
@@ -552,7 +554,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
     if (!file || !charName || !currentShotData) return;
 
     try {
-      await uploadDialogueAudio(novelId, chapterId, currentShotIndex, charName, file);
+      await uploadDialogueAudio(novelId, chapterId, currentShotData.id, charName, file);
     } catch (error) {
       console.error('上传音频失败:', error);
     }
@@ -565,7 +567,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
     if (!currentShotData) return;
 
     try {
-      await deleteDialogueAudio(novelId, chapterId, currentShotIndex, charName);
+      await deleteDialogueAudio(novelId, chapterId, currentShotData.id, charName);
     } catch (error) {
       console.error('删除音频失败:', error);
     }
@@ -635,7 +637,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
 
           console.log(`生成分镜 ${shotIndex} 的音频，dialogues:`, dialoguesData);
 
-          const result = await generateShotAudio(novelId, chapterId, shotIndex, dialoguesData);
+          const result = await generateShotAudio(novelId, chapterId, shot.id, dialoguesData);
           console.log(`分镜 ${shotIndex} 生成结果:`, result);
         }
       }
@@ -674,7 +676,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
   // 渲染编辑区域
   const renderEditPanel = () => {
     const dialogue = selectedShotChar ? (editingDialogues[selectedShotChar] || getDialogueForCharacter(selectedShotChar)) : null;
-    const audioKey = selectedShotChar ? `${currentShotIndex}-${selectedShotChar}` : '';
+    const audioKey = selectedShotChar ? `${currentShotId}-${selectedShotChar}` : '';
     const hasGeneratedAudio = selectedShotChar ? !!audioUrls[audioKey] : false;
     const isGen = selectedShotChar ? isGenerating(selectedShotChar) : false;
     const isUpload = selectedShotChar ? isUploading(selectedShotChar) : false;
@@ -1136,7 +1138,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
 
                   return (
                     <div
-                      key={shot.id || `shot-${shotIndex}`}
+                      key={shot.id}
                       onClick={() => !isDisabled && toggleShotSelection(shotIndex)}
                       className={`
                         relative aspect-square rounded-lg border-2 transition-all

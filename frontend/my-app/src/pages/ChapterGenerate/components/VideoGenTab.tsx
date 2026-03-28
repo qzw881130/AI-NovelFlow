@@ -8,7 +8,7 @@
  * 注意：分镜资源列表在左侧可折叠区域显示（由 ChapterGenerateLayout 的左侧栏渲染）
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useChapterGenerateStore } from '../stores';
 import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2 } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
@@ -16,15 +16,15 @@ import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
 import KeyframesManager from '../../../components/KeyframesManager';
 import AudioReferenceSelector from '../../../components/AudioReferenceSelector';
+import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import type { KeyframeData } from '../../../types';
 
 interface VideoGenTabProps {
   chapter?: any;
-  parsedData?: any;
-  shotVideos?: Record<number, string>;
-  shotImages?: Record<number, string>;
+  shotVideos?: Record<string, string>;
+  shotImages?: Record<string, string>;
   transitionVideos?: Record<string, string>;
-  generatingVideos?: Set<number>;
+  generatingVideos?: Set<string>;
   generatingTransitions?: Set<string>;
   currentShot?: number;
   novelId?: string;
@@ -34,7 +34,6 @@ interface VideoGenTabProps {
 
 export function VideoGenTab({
   chapter,
-  parsedData,
   shotVideos = {},
   shotImages = {},
   transitionVideos = {},
@@ -43,11 +42,14 @@ export function VideoGenTab({
   currentShot,
   novelId,
   chapterId,
-  shots = [],
+  shots: propShots = [],
 }: VideoGenTabProps) {
   const { t } = useTranslation();
   const store = useChapterGenerateStore();
   const { markTabComplete, setCurrentShot, downloadChapterMaterials, generateShotVideo, setShots, generateTransition, transitionWorkflows, selectedTransitionWorkflow, setSelectedTransitionWorkflow, fetchTransitionWorkflows } = store;
+
+  // 从 store 获取 shots 数据
+  const storeShots = useChapterGenerateStore((state) => state.shots);
 
   // 优先使用 props 传入的 novelId，否则从 chapter 对象获取
   const effectiveNovelId = novelId || chapter?.novelId;
@@ -73,14 +75,18 @@ export function VideoGenTab({
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
 
-  const shotsList = parsedData?.shots || [];
+  // 统一使用 store.shots 作为分镜数据源
+  const shotsList = storeShots.length > 0 ? storeShots : propShots;
   const currentShotData = shotsList[selectedVideo - 1];
-  const isGeneratingCurrent = generatingVideos.has(selectedVideo);
 
   // 获取当前分镜的关键帧数据
   const currentKeyframes: KeyframeData[] = currentShotData?.keyframes || [];
   const currentShotId = currentShotData?.id ? String(currentShotData.id) : String(selectedVideo);
-  const currentShotImageUrl = shotImages[selectedVideo] || currentShotData?.image_url;
+  // 优先从 shot.imageUrl 获取，其次从 shotImages 映射获取
+  const currentShotImageUrl = currentShotData?.imageUrl || shotImages[currentShotId];
+
+  // 检查当前分镜是否正在生成
+  const isGeneratingCurrent = currentShotId ? generatingVideos.has(currentShotId) : false;
 
   // 初始化获取转场工作流
   useEffect(() => {
@@ -110,10 +116,10 @@ export function VideoGenTab({
 
   // 处理单个视频生成
   const handleGenerateVideo = async () => {
-    if (!effectiveNovelId || !effectiveChapterId) return;
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
     setIsGenerating(true);
     try {
-      await generateShotVideo(effectiveNovelId, effectiveChapterId, selectedVideo);
+      await generateShotVideo(effectiveNovelId, effectiveChapterId, currentShotId);
       markTabComplete(3);
     } catch (error) {
       console.error(t('chapterGenerate.videoGenerateFailed') + ':', error);
@@ -161,7 +167,10 @@ export function VideoGenTab({
     try {
       // 依次生成选中的分镜
       for (const index of selectedShots) {
-        await generateShotVideo(effectiveNovelId, effectiveChapterId, index);
+        const shot = shotsList[index - 1];
+        if (shot?.id) {
+          await generateShotVideo(effectiveNovelId, effectiveChapterId, shot.id);
+        }
       }
     } catch (error) {
       console.error(t('chapterGenerate.batchVideoGenerateFailed') + ':', error);
@@ -172,39 +181,30 @@ export function VideoGenTab({
   };
 
   // 处理关键帧更新
-  const handleKeyframesUpdate = (updatedKeyframes: KeyframeData[]) => {
-    if (!parsedData?.shots) return;
-
+  const handleKeyframesUpdate = useCallback((updatedKeyframes: KeyframeData[]) => {
     const shotIndex = selectedVideo - 1;
-    const updatedShots = [...parsedData.shots];
-    if (updatedShots[shotIndex]) {
-      updatedShots[shotIndex] = {
-        ...updatedShots[shotIndex],
-        keyframes: updatedKeyframes,
-      };
-      store.setParsedData({
-        ...parsedData,
-        shots: updatedShots,
-      });
-    }
-  };
+    const shot = shotsList[shotIndex];
+    if (!shot) return;
+
+    console.log('[VideoGenTab] Updating keyframes:', updatedKeyframes);
+    // 更新 store.shots
+    const updatedShots = shotsList.map((s: any, idx: number) =>
+      idx === shotIndex ? { ...s, keyframes: updatedKeyframes } : s
+    );
+    setShots(updatedShots);
+  }, [shotsList, selectedVideo, setShots]);
 
   // 处理参考音频更新
   const handleReferenceAudioUpdate = (audioUrl: string | null) => {
-    if (!parsedData?.shots) return;
-
     const shotIndex = selectedVideo - 1;
-    const updatedShots = [...parsedData.shots];
-    if (updatedShots[shotIndex]) {
-      updatedShots[shotIndex] = {
-        ...updatedShots[shotIndex],
-        reference_audio_url: audioUrl || undefined,
-      };
-      store.setParsedData({
-        ...parsedData,
-        shots: updatedShots,
-      });
-    }
+    const shot = shotsList[shotIndex];
+    if (!shot) return;
+
+    // 更新 store.shots
+    const updatedShots = shotsList.map((s: any, idx: number) =>
+      idx === shotIndex ? { ...s, referenceAudioUrl: audioUrl || null } : s
+    );
+    setShots(updatedShots);
   };
 
   // 处理转场生成
@@ -231,33 +231,14 @@ export function VideoGenTab({
       }
 
       // 调用批量更新接口
-      const result = await shotsApi.batchUpdateShots(effectiveNovelId, effectiveChapterId, [currentShotData]);
+      const result = await shotsApi.batchUpdateShots(effectiveNovelId, effectiveChapterId, [{
+        id: currentShotData.id,
+        video_description: currentShotData.video_description,
+        duration: currentShotData.duration,
+      }]);
 
       if (result.success) {
         console.log(t('chapterGenerate.shotSaveSuccess'));
-
-        // 更新 store.shots 和 parsedData.shots 状态
-        if (result.data?.shots && result.data.shots.length > 0) {
-          const updatedShot = result.data.shots[0];
-          const currentShots = store.shots;
-
-          // 更新 store.shots
-          const newShots = currentShots.map((s: any) =>
-            s.id === updatedShot.id ? { ...s, ...updatedShot } : s
-          );
-          setShots(newShots);
-
-          // 同时更新 parsedData.shots
-          if (parsedData?.shots) {
-            const updatedParsedShots = parsedData.shots.map((s: any, idx: number) => {
-              if (String(s.id) === String(updatedShot.id) || idx === selectedVideo - 1) {
-                return { ...s, video_description: updatedShot.video_description };
-              }
-              return s;
-            });
-            store.setParsedData({ ...parsedData, shots: updatedParsedShots });
-          }
-        }
       } else {
         console.error(t('chapterGenerate.shotSaveFailed') + ':', result.message);
       }
@@ -402,7 +383,7 @@ export function VideoGenTab({
           </button>
         </div>
         <div className="text-sm text-gray-500">
-          {t('chapterGenerate.shotId', { id: selectedVideo || 0, total: shots.length })}
+          {t('chapterGenerate.shotId', { id: selectedVideo || 0, total: shotsList.length })}
         </div>
       </div>
 
@@ -420,17 +401,13 @@ export function VideoGenTab({
                   value={currentShotData?.duration || 5}
                   onChange={(e) => {
                     const shotIndex = selectedVideo - 1;
-                    const shotsList = parsedData?.shots || [];
                     if (shotsList[shotIndex]) {
-                      const updatedShots = [...shotsList];
-                      updatedShots[shotIndex] = {
-                        ...updatedShots[shotIndex],
-                        duration: Math.min(60, Math.max(1, parseInt(e.target.value) || 5)),
-                      };
-                      store.setParsedData({
-                        ...parsedData,
-                        shots: updatedShots,
-                      });
+                      const updatedShots = shotsList.map((s: any, idx: number) =>
+                        idx === shotIndex
+                          ? { ...s, duration: Math.min(60, Math.max(1, parseInt(e.target.value) || 5)) }
+                          : s
+                      );
+                      setShots(updatedShots);
                     }
                   }}
                   min={1}
@@ -449,19 +426,14 @@ export function VideoGenTab({
             <textarea
               value={currentShotData?.video_description || ''}
               onChange={(e) => {
-                // 更新 parsedData 中的分镜数据（仅本地状态）
                 const shotIndex = selectedVideo - 1;
-                const shotsList = parsedData?.shots || [];
                 if (shotsList[shotIndex]) {
-                  const updatedShots = [...shotsList];
-                  updatedShots[shotIndex] = {
-                    ...updatedShots[shotIndex],
-                    video_description: e.target.value,
-                  };
-                  store.setParsedData({
-                    ...parsedData,
-                    shots: updatedShots,
-                  });
+                  const updatedShots = shotsList.map((s: any, idx: number) =>
+                    idx === shotIndex
+                      ? { ...s, video_description: e.target.value }
+                      : s
+                  );
+                  setShots(updatedShots);
                 }
               }}
               placeholder={t('chapterGenerate.videoDescPlaceholder')}
@@ -555,14 +527,14 @@ export function VideoGenTab({
               )}
             </button>
 
-            {showAudioRef && effectiveNovelId && effectiveChapterId && (
+            {showAudioRef && effectiveNovelId && effectiveChapterId && currentShotId && (
               <AudioReferenceSelector
                 novelId={effectiveNovelId}
                 chapterId={effectiveChapterId}
-                shotIndex={selectedVideo}
+                shotId={currentShotId}
                 shotCharacters={currentShotData?.characters || []}
-                referenceAudioUrl={currentShotData?.reference_audio_url}
-                referenceAudioType={currentShotData?.reference_audio_type}
+                referenceAudioUrl={currentShotData?.referenceAudioUrl}
+                referenceAudioType={currentShotData?.referenceAudioType}
                 onReferenceAudioUpdate={handleReferenceAudioUpdate}
               />
             )}
@@ -596,18 +568,19 @@ export function VideoGenTab({
 
           {/* 转场列表 */}
           <div className="space-y-3">
-            {shots.map((shot: any, idx: number) => {
-              if (idx === shots.length - 1) return null;
+            {shotsList.map((shot: any, idx: number) => {
+              if (idx === shotsList.length - 1) return null;
               const from = idx + 1;
               const to = idx + 2;
               const hasTransition = !!transitionVideos[`${from}-${to}`];
               const isGeneratingTransition = generatingTransitions.has(`${from}-${to}`);
 
               // 获取前后分镜的缩略图
-              const fromShot = shots[idx];
-              const toShot = shots[idx + 1];
-              const fromImage = shotImages[from] || fromShot?.imageUrl;
-              const toImage = shotImages[to] || toShot?.imageUrl;
+              const fromShot = shotsList[idx];
+              const toShot = shotsList[idx + 1];
+              // 优先从 shot.imageUrl 获取
+              const fromImage = fromShot?.imageUrl;
+              const toImage = toShot?.imageUrl;
 
               return (
                 <div
@@ -751,9 +724,10 @@ export function VideoGenTab({
               <div className="grid grid-cols-4 gap-3">
                 {shotsList.map((shot: any, idx: number) => {
                   const shotIndex = idx + 1;
+                  const shotId = shot.id;
                   const isSelected = selectedShots.has(shotIndex);
                   const hasVideo = !!shotVideos[shotIndex];
-                  const isGenerating = generatingVideos.has(shotIndex);
+                  const isGenerating = shotId ? generatingVideos.has(shotId) : false;
                   const isPending = !hasVideo && !isGenerating;
 
                   return (
@@ -843,26 +817,12 @@ export function VideoGenTab({
       )}
 
       {/* 图片预览弹窗 */}
-      {previewImage && (
-        <div
-          className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
-          onClick={() => setPreviewImage(null)}
-        >
-          <div className="relative max-w-[90vw] max-h-[90vh]">
-            <img
-              src={previewImage}
-              alt={t('chapterGenerate.shotThumbnail')}
-              className="max-w-full max-h-[90vh] rounded-lg shadow-2xl"
-            />
-            <button
-              onClick={() => setPreviewImage(null)}
-              className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-100 transition-colors"
-            >
-              <X className="w-5 h-5 text-gray-600" />
-            </button>
-          </div>
-        </div>
-      )}
+      <ImagePreviewModal
+        isOpen={!!previewImage}
+        url={previewImage}
+        onClose={() => setPreviewImage(null)}
+        showDownload={true}
+      />
 
       {/* 合并视频结果弹窗 */}
       {showMergeModal && mergedVideoUrl && (

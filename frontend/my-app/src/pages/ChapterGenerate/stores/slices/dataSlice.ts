@@ -7,6 +7,7 @@ import type {
   ChapterGenerateStore,
   Shot,
   ParsedData,
+  ShotDataFromParsed,
 } from './types';
 import type { Character } from '../../types';
 import { API_BASE } from '../../constants';
@@ -92,44 +93,27 @@ export const createDataSlice: StateCreator<
         };
         set({ chapter });
 
-        // 解析 parsedData
+        // 获取分镜数据（存储在独立的 shots 表中）
+        await get().fetchShotsWithReturn(novelId, chapterId);
+
+        // 解析 parsedData（仅包含章节资源：characters, scenes, props）
         if (chapter.parsedData) {
           try {
             const parsed = typeof chapter.parsedData === 'string'
               ? JSON.parse(chapter.parsedData)
               : chapter.parsedData;
 
-            // 获取分镜数据并合并到 parsedData
-            const shotsResult = await get().fetchShotsWithReturn(novelId, chapterId);
-
-            // Convert Shot[] to ShotDataFromParsed format for consistency
-            const shotsData = shotsResult.map((shot) => ({
-              id: shot.index,
-              description: shot.description,
-              video_description: shot.videoDescription,
-              characters: shot.characters,
-              scene: shot.scene,
-              props: shot.props,
-              duration: shot.duration,
-              image_url: shot.imageUrl || undefined,
-              image_path: shot.imagePath || undefined,
-              merged_character_image: shot.mergedCharacterImage || undefined,
-              video_url: shot.videoUrl || undefined,
-              dialogues: shot.dialogues,
-              keyframes: shot.keyframes || [],
-              reference_audio_url: shot.referenceAudioUrl || undefined,
-              reference_audio_type: shot.referenceAudioType || 'none',
-            }));
-
-            // 将 shots 合并到 parsedData 中（前端代码依赖 parsedData.shots）
-            const parsedWithShots = {
-              ...parsed,
-              shots: shotsData
+            // parsedData 不再包含 shots，shots 从独立的 Shot 表获取
+            const parsedData: ParsedData = {
+              chapter: parsed.chapter || chapter.title,
+              characters: parsed.characters || [],
+              scenes: parsed.scenes || [],
+              props: parsed.props || [],
             };
 
             set({
-              parsedData: parsedWithShots,
-              editableJson: JSON.stringify(parsedWithShots, null, 2)
+              parsedData,
+              editableJson: JSON.stringify(parsedData, null, 2)
             });
 
             // 初始化章节级资源
@@ -138,39 +122,20 @@ export const createDataSlice: StateCreator<
             console.error('解析数据格式错误:', e);
           }
         } else {
-          // 如果没有 parsedData，尝试获取 shots 并创建 parsedData
-          const shotsResult = await get().fetchShotsWithReturn(novelId, chapterId);
-          if (shotsResult && shotsResult.length > 0) {
-            // Convert Shot[] to ShotData[] for compatibility
-            const shotsData = shotsResult.map((shot) => ({
-              id: shot.index, // Use index as number ID for ShotData
-              description: shot.description,
-              characters: shot.characters,
-              scene: shot.scene,
-              props: shot.props,
-              duration: shot.duration,
-              image_url: shot.imageUrl || undefined,
-              image_path: shot.imagePath || undefined,
-              merged_character_image: shot.mergedCharacterImage || undefined,
-              dialogues: shot.dialogues,
-              keyframes: shot.keyframes || [],
-              reference_audio_url: shot.referenceAudioUrl || undefined,
-              reference_audio_type: shot.referenceAudioType || 'none',
-            }));
-            const parsedWithShots = {
-              chapter: chapter.title,
-              characters: [],
-              scenes: [],
-              shots: shotsData
-            };
-            set({
-              parsedData: parsedWithShots,
-              editableJson: JSON.stringify(parsedWithShots, null, 2)
-            });
+          // 如果没有 parsedData，初始化空的资源数据
+          const parsedData: ParsedData = {
+            chapter: chapter.title,
+            characters: [],
+            scenes: [],
+            props: [],
+          };
+          set({
+            parsedData,
+            editableJson: JSON.stringify(parsedData, null, 2)
+          });
 
-            // 初始化章节级资源
-            get().initChapterResources();
-          }
+          // 初始化章节级资源
+          get().initChapterResources();
         }
       }
     } catch (error) {
@@ -223,16 +188,16 @@ export const createDataSlice: StateCreator<
         const shots = result.data;
         set({ shots });
 
-        // 更新 shotImages 和 shotVideos 映射
-        const shotImages: Record<number, string> = {};
-        const shotVideos: Record<number, string> = {};
+        // 更新 shotImages 和 shotVideos 映射（使用 shot.id 作为 key）
+        const shotImages: Record<string, string> = {};
+        const shotVideos: Record<string, string> = {};
 
         shots.forEach((shot) => {
           if (shot.imageUrl) {
-            shotImages[shot.index] = shot.imageUrl;
+            shotImages[shot.id] = shot.imageUrl;
           }
           if (shot.videoUrl) {
-            shotVideos[shot.index] = shot.videoUrl;
+            shotVideos[shot.id] = shot.videoUrl;
           }
         });
 
@@ -252,16 +217,16 @@ export const createDataSlice: StateCreator<
       if (result.success) {
         const shots = result.data;
 
-        // 更新 shotImages 和 shotVideos 映射
-        const shotImages: Record<number, string> = {};
-        const shotVideos: Record<number, string> = {};
+        // 更新 shotImages 和 shotVideos 映射（使用 shot.id 作为 key）
+        const shotImages: Record<string, string> = {};
+        const shotVideos: Record<string, string> = {};
 
         shots.forEach((shot) => {
           if (shot.imageUrl) {
-            shotImages[shot.index] = shot.imageUrl;
+            shotImages[shot.id] = shot.imageUrl;
           }
           if (shot.videoUrl) {
-            shotVideos[shot.index] = shot.videoUrl;
+            shotVideos[shot.id] = shot.videoUrl;
           }
         });
 

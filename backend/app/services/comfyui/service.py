@@ -7,6 +7,10 @@ from typing import Dict, Any, Optional, List
 
 from .client import ComfyUIClient
 from .workflows import WorkflowBuilder
+from app.utils.workflow_disconnect import (
+    disconnect_reference_chain,
+    disconnect_unuploaded_reference_nodes,
+)
 
 
 class ComfyUIService:
@@ -291,6 +295,23 @@ class ComfyUIService:
                             print(f"[ComfyUI] No keyframe_node_{keyframe_index} in mapping, skipping")
                     else:
                         print(f"[ComfyUI] Keyframe {keyframe_index} upload failed: {keyframe_upload_result.get('message')}")
+
+            # 断开未上传关键帧图片的节点
+            # 收集所有关键帧节点
+            keyframe_keys = [
+                key for key in node_mapping
+                if key.startswith("keyframe_node_")
+            ]
+            for kf_key in keyframe_keys:
+                node_id = node_mapping.get(kf_key)
+                if node_id and str(node_id) in workflow:
+                    node_id_str = str(node_id)
+                    # 检查该节点是否有有效的图片
+                    image_value = workflow[node_id_str].get("inputs", {}).get("image", "")
+                    # 如果没有有效图片，断开下游参考链路
+                    if not image_value or image_value in ["", ""]:
+                        disconnect_reference_chain(workflow, node_id_str)
+                        print(f"[ComfyUI] Disconnected {kf_key} {node_id_str} - no image uploaded")
 
             # 提交任务
             queue_result = await self.client.queue_prompt(workflow)

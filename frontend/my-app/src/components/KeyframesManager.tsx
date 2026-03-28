@@ -12,10 +12,12 @@ import {
   ChevronDown,
   ChevronUp,
   RefreshCw,
+  Eye,
 } from 'lucide-react';
 import { useTranslation } from '../stores/i18nStore';
 import { KeyframeData } from '../types';
 import { shotsApi } from '../api/shots';
+import { ImagePreviewModal } from './ImagePreviewModal';
 
 interface KeyframesManagerProps {
   novelId: string;
@@ -48,6 +50,7 @@ export default function KeyframesManager({
   const [newKeyframeDescription, setNewKeyframeDescription] = useState('');
   const [isAddingKeyframe, setIsAddingKeyframe] = useState(false);
   const [referenceModes, setReferenceModes] = useState<Record<number, ReferenceMode>>({});
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const referenceInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
@@ -70,19 +73,60 @@ export default function KeyframesManager({
 
   // Poll for image generation status
   useEffect(() => {
-    const taskIds = keyframes
-      .filter((kf) => kf.image_task_id && !kf.image_url)
-      .map((kf) => ({ frameIndex: kf.frame_index, taskId: kf.image_task_id! }));
+    // 使用 generatingImages 状态来判断是否需要轮询
+    if (generatingImages.size === 0) return;
 
-    if (taskIds.length === 0) return;
+    console.log('[KeyframesManager] Starting poll, generating frames:', [...generatingImages]);
 
     const pollInterval = setInterval(async () => {
-      // Check task status via API (we would need a task status API)
-      // For now, we'll refresh the shot data periodically
+      try {
+        // 查询关键帧图片任务状态
+        const response = await fetch(
+          `/api/tasks/?chapter_id=${chapterId}&type=keyframe_image`
+        );
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          let hasUpdates = false;
+          const updatedKeyframes = keyframes.map((kf) => {
+            if (kf.image_task_id && generatingImages.has(kf.frame_index)) {
+              const task = result.data.find((t: any) => t.id === kf.image_task_id);
+              if (task) {
+                console.log(`[KeyframesManager] Task ${kf.image_task_id} status: ${task.status}`);
+                if (task.status === 'completed' && task.resultUrl) {
+                  hasUpdates = true;
+                  // 清除生成中状态
+                  setGeneratingImages((prev) => {
+                    const next = new Set(prev);
+                    next.delete(kf.frame_index);
+                    return next;
+                  });
+                  return { ...kf, image_url: task.resultUrl };
+                } else if (task.status === 'failed') {
+                  // 任务失败，清除生成中状态
+                  setGeneratingImages((prev) => {
+                    const next = new Set(prev);
+                    next.delete(kf.frame_index);
+                    return next;
+                  });
+                  console.error(`[KeyframesManager] Task ${kf.image_task_id} failed:`, task.errorMessage);
+                }
+              }
+            }
+            return kf;
+          });
+
+          if (hasUpdates) {
+            onKeyframesUpdate(updatedKeyframes);
+          }
+        }
+      } catch (error) {
+        console.error('Error polling keyframe task status:', error);
+      }
     }, 3000);
 
     return () => clearInterval(pollInterval);
-  }, [keyframes]);
+  }, [generatingImages, keyframes, chapterId, onKeyframesUpdate]);
 
   // Generate keyframe descriptions using AI
   const handleGenerateDescriptions = async () => {
@@ -117,7 +161,9 @@ export default function KeyframesManager({
         frameIndex,
         workflowId
       );
+      console.log('[KeyframesManager] API result:', result);
       if (result.success && result.data?.task_id) {
+        console.log('[KeyframesManager] Got task_id:', result.data.task_id);
         // Update keyframe with task_id
         const updatedKeyframes = keyframes.map((kf) =>
           kf.frame_index === frameIndex
@@ -125,12 +171,19 @@ export default function KeyframesManager({
             : kf
         );
         onKeyframesUpdate(updatedKeyframes);
+        // 不清除 generatingImages，等待轮询更新
       } else {
-        console.error('Failed to generate keyframe image:', result.message);
+        console.error('[KeyframesManager] Failed to generate keyframe image:', result.message);
+        // 提交失败时清除状态
+        setGeneratingImages((prev) => {
+          const next = new Set(prev);
+          next.delete(frameIndex);
+          return next;
+        });
       }
     } catch (error) {
-      console.error('Error generating keyframe image:', error);
-    } finally {
+      console.error('[KeyframesManager] Error generating keyframe image:', error);
+      // 出错时清除状态
       setGeneratingImages((prev) => {
         const next = new Set(prev);
         next.delete(frameIndex);
@@ -190,7 +243,7 @@ export default function KeyframesManager({
           setReferenceModes((prev) => ({ ...prev, [frameIndex]: 'custom' }));
 
           // Update keyframe with reference_url and reference_mode
-          const updatedKeyframes = keyframes.map((kf) =>
+          const updatedKeyframes: KeyframeData[] = keyframes.map((kf) =>
             kf.frame_index === frameIndex
               ? { ...kf, reference_image_url: referenceUrl, reference_mode: 'custom' }
               : kf
@@ -388,22 +441,35 @@ export default function KeyframesManager({
 
             return (
               <div
-                key={kf.frame_index}
-                className="bg-gray-700 rounded-lg overflow-hidden"
-              >
+                  key={kf.frame_index}
+                  className="bg-gray-700 rounded-lg overflow-hidden group"
+                >
                 {/* Keyframe header */}
                 <div
                   className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-600/50 transition-colors"
                   onClick={() => toggleExpanded(kf.frame_index)}
                 >
                   {/* Thumbnail */}
-                  <div className="w-16 h-16 bg-gray-600 rounded flex items-center justify-center overflow-hidden flex-shrink-0">
+                  <div className="relative w-16 h-16 bg-gray-600 rounded flex items-center justify-center overflow-hidden flex-shrink-0">
                     {kf.image_url ? (
-                      <img
-                        src={kf.image_url}
-                        alt={t('chapterGenerate.keyframeImage')}
-                        className="w-full h-full object-cover"
-                      />
+                      <>
+                        <img
+                          src={kf.image_url}
+                          alt={t('chapterGenerate.keyframeImage')}
+                          className="w-full h-full object-cover"
+                        />
+                        {/* 查看大图按钮 */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setPreviewImage(kf.image_url!);
+                          }}
+                          className="absolute top-0.5 right-0.5 p-1 bg-black/60 hover:bg-black/80 rounded-full text-white hover:text-blue-400 transition-all opacity-0 group-hover:opacity-100"
+                          title={t('chapterGenerate.viewLargeImage') || '查看大图'}
+                        >
+                          <Eye className="h-3 w-3" />
+                        </button>
+                      </>
                     ) : (
                       <ImageIcon className="h-6 w-6 text-gray-400" />
                     )}
@@ -605,11 +671,21 @@ export default function KeyframesManager({
                             <p className="text-xs text-gray-500 mb-1">
                               {t('chapterGenerate.referenceImagePreview')}
                             </p>
-                            <img
-                              src={referenceUrl}
-                              alt={t('chapterGenerate.referenceImage')}
-                              className="w-24 h-24 object-cover rounded border border-gray-600"
-                            />
+                            <div className="relative inline-block group/ref">
+                              <img
+                                src={referenceUrl}
+                                alt={t('chapterGenerate.referenceImage')}
+                                className="w-24 h-24 object-cover rounded border border-gray-600"
+                              />
+                              {/* 查看大图按钮 */}
+                              <button
+                                onClick={() => setPreviewImage(referenceUrl)}
+                                className="absolute top-1 right-1 p-1 bg-black/60 hover:bg-black/80 rounded-full text-white hover:text-blue-400 transition-all opacity-0 group-hover/ref:opacity-100"
+                                title={t('chapterGenerate.viewLargeImage') || '查看大图'}
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -661,6 +737,14 @@ export default function KeyframesManager({
           </button>
         )}
       </div>
+
+      {/* Image Preview Modal */}
+      <ImagePreviewModal
+        isOpen={!!previewImage}
+        url={previewImage}
+        onClose={() => setPreviewImage(null)}
+        showDownload={true}
+      />
     </div>
   );
 }

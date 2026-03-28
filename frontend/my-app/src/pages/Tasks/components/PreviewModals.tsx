@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import { X, Download } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 
 interface ImagePreviewModalProps {
@@ -32,6 +32,23 @@ export function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps)
       .catch(() => {});
   }, [imageUrl]);
 
+  const handleDownload = async () => {
+    try {
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const downloadUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = imageUrl.split('/').pop() || 'image.png';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error('Download failed:', error);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4" onClick={onClose}>
       <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">
@@ -47,10 +64,18 @@ export function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps)
             {info.size && <span>{t('tasks.size')}: {info.size}</span>}
           </div>
         )}
+        {/* 关闭按钮 */}
         <button onClick={onClose} className="absolute -top-10 right-0 p-2 text-white hover:text-gray-300 transition-colors">
           <X className="h-6 w-6" />
         </button>
-        <div className="mt-4 text-white text-sm opacity-60">{t('tasks.clickOutsideToClose')}</div>
+        {/* 下载按钮 */}
+        <button
+          onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+          className="absolute -top-10 right-10 p-2 text-white hover:text-blue-400 transition-colors"
+          title={t('common.download') || '下载'}
+        >
+          <Download className="h-6 w-6" />
+        </button>
       </div>
     </div>
   );
@@ -70,7 +95,6 @@ export function VideoPreviewModal({ videoUrl, onClose }: VideoPreviewModalProps)
         <button onClick={onClose} className="absolute -top-10 right-0 p-2 text-white hover:text-gray-300 transition-colors">
           <X className="h-6 w-6" />
         </button>
-        <div className="mt-4 text-white text-sm opacity-60">{t('tasks.clickOutsideToCloseVideo')}</div>
       </div>
     </div>
   );

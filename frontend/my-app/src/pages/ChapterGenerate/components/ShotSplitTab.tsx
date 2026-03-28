@@ -5,6 +5,8 @@
  * - 左侧：原文内容
  * - 中间：AI 拆分结果预览 + 分镜编辑
  * - 右侧：ComfyUI 状态
+ *
+ * 数据源统一使用 store.shots（从后端 Shot 表获取）
  */
 
 import { useState } from 'react';
@@ -14,10 +16,10 @@ import { chapterApi } from '../../../api/chapters';
 import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
 import { useTranslation } from '../../../stores/i18nStore';
+import type { Shot } from '../../../api/shots';
 
 interface ShotSplitTabProps {
   chapter?: any;
-  parsedData?: any;
   currentShot?: number;
   novelId?: string;
   chapterId?: string;
@@ -25,21 +27,23 @@ interface ShotSplitTabProps {
 
 export function ShotSplitTab({
   chapter,
-  parsedData,
   currentShot,
   novelId,
   chapterId,
 }: ShotSplitTabProps) {
   const { t } = useTranslation();
-  // 使用选择器模式订阅状态变化
+
+  // 使用选择器模式订阅 store 状态
   const currentShotIndex = useChapterGenerateStore((state) => state.currentShotIndex);
+  const currentShotId = useChapterGenerateStore((state) => state.currentShotId);
   const setCurrentShot = useChapterGenerateStore((state) => state.setCurrentShot);
   const markTabComplete = useChapterGenerateStore((state) => state.markTabComplete);
   const parsedDataFromStore = useChapterGenerateStore((state) => state.parsedData);
   const setParsedData = useChapterGenerateStore((state) => state.setParsedData);
   const saveChapterResources = useChapterGenerateStore((state) => state.saveChapterResources);
+  const storeShots = useChapterGenerateStore((state) => state.shots);
 
-  // 使用 useDataSlice 获取 initChapterResources 方法
+  // 使用 useDataSlice 获取方法
   const { initChapterResources, fetchShots } = useDataSlice();
 
   const [isSplitting, setIsSplitting] = useState(false);
@@ -48,48 +52,46 @@ export function ShotSplitTab({
   const [isImporting, setIsImporting] = useState(false);
   const [showImportConfirm, setShowImportConfirm] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [showSplitConfirm, setShowSplitConfirm] = useState(false);
   const [isAddingShot, setIsAddingShot] = useState(false);
   const [isInsertingShot, setIsInsertingShot] = useState<number | null>(null);
   const [isDeletingShot, setIsDeletingShot] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteShotInfo, setDeleteShotInfo] = useState<{ shotId: string; shotIndex: number } | null>(null);
 
-  // 使用 store 中的 parsedData，如果 props 中提供了则优先使用 props
-  const shotsData = parsedData || parsedDataFromStore;
+  // 统一使用 store.shots 作为分镜数据源
+  const shots = storeShots;
 
-  // 处理 AI 拆分
-  const handleSplit = async () => {
+  // 显示拆分确认对话框
+  const handleSplit = () => {
     if (!novelId || !chapterId) return;
+    setShowSplitConfirm(true);
+  };
+
+  // 确认并执行 AI 拆分
+  const confirmSplit = async () => {
+    if (!novelId || !chapterId) return;
+    setShowSplitConfirm(false);
     setIsSplitting(true);
     try {
       const result = await chapterApi.split(novelId, chapterId);
       if (result.success && result.data) {
-        // 拆分成功后更新 store 中的 parsedData（包含完整的章节资源数据）
+        // 拆分成功后更新 store 中的 parsedData（仅包含章节资源，不含 shots）
         const data = result.data as any;
-        const parsedData = {
+        const newParsedData = {
           chapter: data.chapter || '',
           characters: data.characters || [],
           scenes: data.scenes || [],
           props: data.props || [],
-          shots: data.shots.map((shot: any, idx: number) => ({
-            id: shot.id || String(idx + 1),
-            chapterId: chapterId,
-            index: shot.index || (idx + 1),
-            description: shot.description || '',
-            video_description: shot.video_description || '',
-            characters: shot.characters || [],
-            scene: shot.scene || '',
-            props: shot.props || [],
-            duration: shot.duration || 5,
-            dialogues: shot.dialogues || [],
-          }))
         };
-        // 更新到 store
-        setParsedData(parsedData);
-        // 初始化章节资源（从 parsedData 中提取 characters/scenes/props 到 chapterCharacters/chapterScenes/chapterProps）
+        setParsedData(newParsedData);
+
+        // 调用 fetchShots 同步更新 store.shots
+        await fetchShots(novelId, chapterId);
+
+        // 初始化章节资源
         initChapterResources();
-        console.log('AI 拆分成功:', parsedData);
-        // 拆分完成后标记阶段完成
+        console.log('AI 拆分成功');
         markTabComplete(0);
         toast.success(t('chapterGenerate.aiSplitSuccess'));
       } else {
@@ -113,12 +115,11 @@ export function ShotSplitTab({
       await saveChapterResources(novelId, chapterId);
 
       // 2. 批量保存分镜数据到 Shot 表
-      const shotsData = parsedData || parsedDataFromStore;
-      if (shotsData?.shots && shotsData.shots.length > 0) {
+      if (shots.length > 0) {
         const result = await shotsApi.batchUpdateShots(
           novelId,
           chapterId,
-          shotsData.shots.map((shot: any) => ({
+          shots.map((shot) => ({
             id: shot.id,
             description: shot.description,
             characters: shot.characters,
@@ -139,7 +140,6 @@ export function ShotSplitTab({
           toast.error(t('chapterGenerate.shotSaveFailed', { message: result.message || t('common.unknownError') }));
         }
       } else {
-        // 没有分镜数据，只保存章节资源
         markTabComplete(0);
         toast.success(t('chapterGenerate.chapterResourceSaved'));
       }
@@ -170,25 +170,10 @@ export function ShotSplitTab({
         dialogues: [],
       });
 
-      if (result.success && result.data) {
-        // 刷新分镜数据（同时更新 parsedData 和 shotImages）
+      if (result.success) {
+        // 刷新分镜数据
         await fetchShots(novelId, chapterId);
-
-        // 重新获取更新后的分镜列表
-        const updatedShots = await shotsApi.getShots(novelId, chapterId);
-        if (updatedShots.success) {
-          // 更新 store 中的 parsedData
-          const shotsData = parsedData || parsedDataFromStore;
-          const newParsedData = {
-            ...shotsData,
-            shots: updatedShots.data.map((shot, idx) => ({
-              ...shot,
-              index: idx + 1,
-            })),
-          };
-          setParsedData(newParsedData);
-          toast.success(t('chapterGenerate.shotAdded'));
-        }
+        toast.success(t('chapterGenerate.shotAdded'));
       } else {
         toast.error(t('chapterGenerate.shotAddFailed', { message: result.message || t('common.unknownError') }));
       }
@@ -205,7 +190,6 @@ export function ShotSplitTab({
     if (!novelId || !chapterId) return;
     setIsInsertingShot(beforeIndex);
     try {
-      // 在指定分镜前面插入，insert_index 就是 beforeIndex
       const result = await shotsApi.createShot(novelId, chapterId, {
         description: t('chapterGenerate.insertedShotDescription'),
         duration: 5,
@@ -216,25 +200,10 @@ export function ShotSplitTab({
         insert_index: beforeIndex,
       });
 
-      if (result.success && result.data) {
-        // 刷新分镜数据（同时更新 parsedData 和 shotImages）
+      if (result.success) {
+        // 刷新分镜数据
         await fetchShots(novelId, chapterId);
-
-        // 重新获取更新后的分镜列表
-        const updatedShots = await shotsApi.getShots(novelId, chapterId);
-        if (updatedShots.success) {
-          // 更新 store 中的 parsedData
-          const shotsData = parsedData || parsedDataFromStore;
-          const newParsedData = {
-            ...shotsData,
-            shots: updatedShots.data.map((shot, idx) => ({
-              ...shot,
-              index: idx + 1,
-            })),
-          };
-          setParsedData(newParsedData);
-          toast.success(t('chapterGenerate.shotInserted'));
-        }
+        toast.success(t('chapterGenerate.shotInserted'));
       } else {
         toast.error(t('chapterGenerate.shotInsertFailed', { message: result.message || t('common.unknownError') }));
       }
@@ -249,8 +218,6 @@ export function ShotSplitTab({
   // 删除分镜
   const handleDeleteShot = async (shotId: string, shotIndex: number) => {
     if (!novelId || !chapterId) return;
-
-    // 显示确认对话框
     setDeleteShotInfo({ shotId, shotIndex });
     setShowDeleteConfirm(true);
   };
@@ -265,43 +232,29 @@ export function ShotSplitTab({
       const result = await shotsApi.deleteShot(novelId, chapterId, shotId);
 
       if (result.success) {
-        // 刷新分镜数据（同时更新 parsedData 和 shotImages）
+        // 刷新分镜数据
         await fetchShots(novelId, chapterId);
 
-        // 重新获取更新后的分镜列表
-        const updatedShotsResult = await shotsApi.getShots(novelId, chapterId);
-        if (updatedShotsResult.success) {
-          // 更新 store 中的 parsedData
-          const shotsData = parsedData || parsedDataFromStore;
-          const newParsedData = {
-            ...shotsData,
-            shots: updatedShotsResult.data.map((shot, idx) => ({
-              ...shot,
-              index: idx + 1,
-            })),
-          };
-          setParsedData(newParsedData);
-
-          // 如果删除的是当前选中的分镜，调整选中索引
-          if (currentShot === shotIndex) {
-            if (updatedShotsResult.data.length > 0) {
-              // 如果还有分镜，选中同位置的分镜（如果超出范围则选最后一个）
-              const newShotIndex = Math.min(shotIndex, updatedShotsResult.data.length);
-              const newShot = updatedShotsResult.data[newShotIndex - 1];
-              setCurrentShot(newShot.id, newShotIndex);
-            }
-          } else if ((currentShot || 0) > shotIndex) {
-            // 如果删除的是当前分镜前面的分镜，当前分镜索引 -1
-            const newShotIndex = (currentShot || 0) - 1;
-            // 找到新索引对应的分镜 ID
-            const newShot = updatedShotsResult.data[newShotIndex - 1];
-            if (newShot) {
-              setCurrentShot(newShot.id, newShotIndex);
+        // 如果删除的是当前选中的分镜，调整选中
+        if (currentShotId === shotId) {
+          if (shots.length > 1) {
+            const newIndex = Math.min(shotIndex, shots.length - 1);
+            const newShot = shots[newIndex];
+            if (newShot && newShot.id !== shotId) {
+              setCurrentShot(newShot.id, newIndex);
+            } else if (shots[newIndex - 1]) {
+              setCurrentShot(shots[newIndex - 1].id, newIndex);
             }
           }
-
-          toast.success(t('chapterGenerate.shotDeleted'));
+        } else if (currentShotIndex > shotIndex) {
+          const newShotIndex = currentShotIndex - 1;
+          const newShot = shots[newShotIndex - 1];
+          if (newShot) {
+            setCurrentShot(newShot.id, newShotIndex);
+          }
         }
+
+        toast.success(t('chapterGenerate.shotDeleted'));
       } else {
         toast.error(t('chapterGenerate.shotDeleteFailed', { message: result.message || t('common.unknownError') }));
       }
@@ -317,21 +270,20 @@ export function ShotSplitTab({
 
   // 导出分镜数据为 JSON
   const handleExport = () => {
-    if (!shotsData || !shotsData.shots || shotsData.shots.length === 0) {
+    if (shots.length === 0) {
       toast.warning(t('chapterGenerate.noShotsToExport'));
       return;
     }
 
     setIsExporting(true);
     try {
-      // 构建与 AI 拆分返回格式一致的数据
       const exportData = {
-        chapter: shotsData.chapter || chapter?.title || '',
-        characters: shotsData.characters || [],
-        scenes: shotsData.scenes || [],
-        props: shotsData.props || [],
-        shots: shotsData.shots.map((shot: any, idx: number) => ({
-          id: shot.id || String(idx + 1),
+        chapter: parsedDataFromStore?.chapter || chapter?.title || '',
+        characters: parsedDataFromStore?.characters || [],
+        scenes: parsedDataFromStore?.scenes || [],
+        props: parsedDataFromStore?.props || [],
+        shots: shots.map((shot, idx) => ({
+          id: shot.id,
           index: shot.index || (idx + 1),
           description: shot.description || '',
           video_description: shot.video_description || '',
@@ -343,12 +295,10 @@ export function ShotSplitTab({
         }))
       };
 
-      // 创建 JSON blob
       const jsonString = JSON.stringify(exportData, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
 
-      // 创建下载链接
       const a = document.createElement('a');
       a.href = url;
       a.download = `${t('chapterGenerate.shotData_')}${chapter?.title || chapterId || 'unknown'}.json`;
@@ -369,15 +319,12 @@ export function ShotSplitTab({
 
   // 导入分镜数据
   const handleImport = () => {
-    // 创建文件输入元素
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
     input.onchange = async (e: Event) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (!file) return;
-
-      // 设置文件并显示确认对话框
       setImportFile(file);
       setShowImportConfirm(true);
     };
@@ -397,14 +344,12 @@ export function ShotSplitTab({
           const content = readEvent.target?.result as string;
           const importedData = JSON.parse(content);
 
-          // 验证数据格式
           if (!importedData || !Array.isArray(importedData.shots)) {
             throw new Error(t('chapterGenerate.invalidJsonFormat'));
           }
 
-          // 构建分镜数据列表
-          const shotsList = importedData.shots.map((shot: any, idx: number) => ({
-            id: shot.id || String(idx + 1),
+          const shotsList = importedData.shots.map((shot: any) => ({
+            id: shot.id,
             description: shot.description || '',
             video_description: shot.video_description || '',
             characters: shot.characters || [],
@@ -414,42 +359,29 @@ export function ShotSplitTab({
             dialogues: shot.dialogues || [],
           }));
 
-          // 1. 批量保存分镜数据到数据库
+          // 批量保存分镜数据到数据库
           const result = await shotsApi.batchUpdateShots(novelId, chapterId, shotsList);
 
           if (!result.success) {
             throw new Error(result.message || '保存失败');
           }
 
-          // 2. 如果有章节资源数据，也保存到数据库
+          // 更新章节资源
           if (importedData.characters || importedData.scenes || importedData.props) {
-            const parsedData = {
+            setParsedData({
               chapter: importedData.chapter || '',
               characters: importedData.characters || [],
               scenes: importedData.scenes || [],
               props: importedData.props || [],
-              shots: shotsList
-            };
-            setParsedData(parsedData);
+            });
             await saveChapterResources(novelId, chapterId);
           }
 
-          // 3. 更新 store
-          const newParsedData = {
-            chapter: importedData.chapter || '',
-            characters: importedData.characters || [],
-            scenes: importedData.scenes || [],
-            props: importedData.props || [],
-            shots: shotsList.map((shot: any, idx: number) => ({
-              ...shot,
-              chapterId: chapterId,
-              index: idx + 1,
-            }))
-          };
-          setParsedData(newParsedData);
+          // 刷新分镜数据
+          await fetchShots(novelId, chapterId);
           initChapterResources();
 
-          console.log(t('chapterGenerate.shotDataImported') + ':', newParsedData);
+          console.log(t('chapterGenerate.shotDataImported'));
           markTabComplete(0);
           toast.success(t('chapterGenerate.shotDataImported'));
         } catch (parseError) {
@@ -469,8 +401,6 @@ export function ShotSplitTab({
     }
   };
 
-  const shots = shotsData?.shots || [];
-  // 优先使用 props 中的 currentShot，其次使用 store 中的 currentShotIndex
   const shotIndex = currentShot ?? currentShotIndex ?? 1;
 
   return (
@@ -501,7 +431,7 @@ export function ShotSplitTab({
           </button>
           <button
             onClick={handleExport}
-            disabled={isExporting || !shotsData || shots.length === 0}
+            disabled={isExporting || shots.length === 0}
             className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isExporting ? t('chapterGenerate.exporting') : t('chapterGenerate.exportShots')}
@@ -523,42 +453,36 @@ export function ShotSplitTab({
       <div className="flex-1 min-h-0 flex gap-4 overflow-hidden">
         {/* 分镜列表 */}
         <div className="w-72 flex-shrink-0 overflow-y-auto border border-gray-200 rounded-lg">
-          {shots.map((shot: any, idx: number) => {
+          {shots.map((shot: Shot, idx: number) => {
             const shotNum = idx + 1;
-            const shotId = shot.id || String(shotNum);
-            const isSelected = shotNum === shotIndex;
-            const characters = shot.parsed_data?.characters || shot.characters || [];
-            const scene = shot.parsed_data?.scene || shot.scene;
-            const props = shot.parsed_data?.props || shot.props || [];
-            const dialogues = shot.parsed_data?.dialogues || shot.dialogues || [];
+            const shotId = shot.id;
+            const isSelected = shot.id === currentShotId;
+            const characters = shot.characters || [];
+            const scene = shot.scene;
+            const props = shot.props || [];
+            const dialogues = shot.dialogues || [];
 
-            // 提取有台词的角色（去重）
             const dialogueCharacters = Array.from(
-              new Set(dialogues.map((d: any) => d.character_name))
+              new Set(dialogues.map((d) => d.character_name))
             );
 
             return (
               <div
-                key={shot.id || idx}
+                key={shot.id}
                 className={`p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 transition-colors ${
                   isSelected ? 'bg-blue-50 border-blue-200' : ''
                 }`}
+                onClick={() => handleShotClick(shotId, shotNum)}
               >
                 {/* 分镜编号和操作按钮 */}
                 <div className="flex items-center justify-between mb-2">
-                  <div
-                    className="flex items-center gap-2 flex-1 min-w-0"
-                    onClick={() => handleShotClick(shotId, shotNum)}
-                  >
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
                     <span className="text-sm font-bold text-gray-900">{t('chapterGenerate.shotNumberLabel', { number: shotNum })}</span>
                     <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{shot.duration}{t('common.second')}</span>
                   </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleInsertShot(shotNum);
-                      }}
+                      onClick={() => handleInsertShot(shotNum)}
                       disabled={isInsertingShot === shotNum}
                       className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
                       title={t('chapterGenerate.insertShotBefore')}
@@ -574,10 +498,7 @@ export function ShotSplitTab({
                       )}
                     </button>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteShot(shotId, shotNum);
-                      }}
+                      onClick={() => handleDeleteShot(shotId, shotNum)}
                       disabled={isDeletingShot}
                       className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                       title={t('chapterGenerate.deleteShot')}
@@ -599,7 +520,7 @@ export function ShotSplitTab({
                     <div className="flex flex-wrap gap-1">
                       <span className="text-xs text-gray-500 flex-shrink-0">{t('chapterGenerate.charactersColon')}</span>
                       <div className="flex flex-wrap gap-1">
-                        {characters.slice(0, 3).map((charName: string) => (
+                        {characters.slice(0, 3).map((charName) => (
                           <span
                             key={charName}
                             className="inline-flex items-center px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs"
@@ -649,7 +570,7 @@ export function ShotSplitTab({
                     <div className="flex flex-wrap gap-1">
                       <span className="text-xs text-gray-500 flex-shrink-0">{t('chapterGenerate.propsColon')}</span>
                       <div className="flex flex-wrap gap-1">
-                        {props.slice(0, 3).map((propName: string) => (
+                        {props.slice(0, 3).map((propName) => (
                           <span
                             key={propName}
                             className="inline-flex items-center px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded text-xs"
@@ -690,6 +611,40 @@ export function ShotSplitTab({
           )}
         </div>
       </div>
+
+      {/* 拆分确认对话框 */}
+      {showSplitConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center">
+                <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">{t('chapterGenerate.confirmAiSplit')}</h3>
+            </div>
+            <p className="text-sm text-red-600 mb-6">
+              {t('chapterGenerate.aiSplitClearWarning')}
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowSplitConfirm(false)}
+                className="btn-secondary"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                onClick={confirmSplit}
+                disabled={isSplitting}
+                className="btn-primary bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSplitting ? t('chapterGenerate.splitting') : t('chapterGenerate.confirmSplit')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 导入确认对话框 */}
       {showImportConfirm && (

@@ -125,16 +125,12 @@ export function ShotThumbnail({
       )}
 
       {/* 分镜编号 */}
-      <div className="absolute top-1 left-1 px-2 py-0.5 bg-black/60 text-white text-xs rounded">
+      <div className={`absolute top-1 left-1 px-2 py-0.5 text-white text-xs rounded flex items-center gap-1 ${
+        isSelected ? 'bg-blue-500' : 'bg-black/60'
+      }`}>
         #{index}
+        {isSelected && <CheckCircle className="w-3 h-3" />}
       </div>
-
-      {/* 选中状态标记 */}
-      {isSelected && (
-        <div className="absolute top-1 right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-          <CheckCircle className="w-4 h-4 text-white" />
-        </div>
-      )}
 
       {/* 状态指示器（底部） */}
       <div className={`absolute bottom-0 left-0 right-0 h-1 ${status === 'completed' ? 'bg-green-500' : status === 'generating' ? 'bg-blue-500' : 'bg-gray-300'}`} />
