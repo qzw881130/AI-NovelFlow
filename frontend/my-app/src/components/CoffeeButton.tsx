@@ -30,6 +30,20 @@ export default function CoffeeButton() {
       url: 'https://space.bilibili.com/523189446',
       color: 'bg-pink-500',
     },
+    {
+      icon: Mail,
+      name: 'E-mail',
+      value: '1099587251g@gmail.com',
+      url: 'mailto:1099587251g@gmail.com',
+      color: 'bg-red-500',
+    },
+    {
+      icon: Tv,
+      name: 'Bilibili',
+      value: '搞机程序猿',
+      url: 'https://space.bilibili.com/85981389',
+      color: 'bg-pink-500',
+    },
   ];
 
   return (
@@ -160,7 +174,7 @@ export default function CoffeeButton() {
                 </p>
 
                 {/* QR Codes */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   {/* WeChat Pay */}
                   <div className="rounded-xl bg-white p-3 text-center shadow-sm">
                     <p className="mb-2 text-sm font-medium text-gray-700">
@@ -183,6 +197,20 @@ export default function CoffeeButton() {
                     <div className="overflow-hidden rounded-lg">
                       <img
                         src="/images/alipay.jpg"
+                        alt="Alipay"
+                        className="h-auto w-full object-contain"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Alipay 2 */}
+                  <div className="rounded-xl bg-white p-3 text-center shadow-sm">
+                    <p className="mb-2 text-sm font-medium text-gray-700">
+                      {t('coffee.alipay')}
+                    </p>
+                    <div className="overflow-hidden rounded-lg">
+                      <img
+                        src="/images/alipay2.jpg"
                         alt="Alipay"
                         className="h-auto w-full object-contain"
                       />
