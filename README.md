@@ -43,6 +43,10 @@ NovelFlow 是一个将小说自动转换为视频的 AI 平台。
 - 场景一致性保持（场景环境在多镜头中保持一致）
 - 自动分镜生成和视频合成
 
+## 界面预览
+
+<img src="docs/index-cn.png" alt="界面预览" width="800">
+
 ## 视频介绍
 
 ### Bilibili
