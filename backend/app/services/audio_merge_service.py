@@ -3,9 +3,7 @@
 
 负责合并多条台词音频文件
 
-支持两种方式：
-1. pydub（纯Python库，需要安装 pydub 和 audioop-lts）
-2. ffmpeg（可选，如果可用则使用）
+使用 ffmpeg 进行音频合并（与视频合并保持一致）
 """
 import json
 import asyncio
@@ -20,14 +18,6 @@ from sqlalchemy.orm import Session
 
 from app.repositories.shot_repository import ShotRepository
 from app.services.file_storage import file_storage
-
-# 尝试导入 pydub
-try:
-    from pydub import AudioSegment
-    PYDUB_AVAILABLE = True
-except ImportError:
-    PYDUB_AVAILABLE = False
-    print("[AudioMerge] Warning: pydub not installed, audio merge may not work")
 
 
 class AudioMergeService:
@@ -133,14 +123,14 @@ class AudioMergeService:
                     "success": True,
                     "audio_url": audio_url,
                     "message": "只有一个音频文件，无需合并",
-                    "duration": await self._get_audio_duration_pydub(local_audio_paths[0])
+                    "duration": await self._get_audio_duration_ffmpeg(local_audio_paths[0])
                 }
 
             # 生成合并后的音频文件路径
             merged_path = self._get_merged_audio_path(novel_id, chapter_id, shot_index)
 
-            # 使用 pydub 合并音频
-            result = await self._concatenate_audios_pydub(local_audio_paths, str(merged_path))
+            # 使用 ffmpeg 合并音频
+            result = await self._concatenate_audios_ffmpeg(local_audio_paths, str(merged_path))
 
             if result["success"]:
                 # 返回 API URL
@@ -235,13 +225,13 @@ class AudioMergeService:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         return save_dir / f"shot_{shot_index:03d}_merged_{timestamp}.flac"
 
-    async def _concatenate_audios_pydub(
+    async def _concatenate_audios_ffmpeg(
         self,
         audio_paths: List[str],
         output_path: str
     ) -> Dict[str, Any]:
         """
-        使用 pydub 合并多个音频文件
+        使用 ffmpeg 合并多个音频文件
 
         Args:
             audio_paths: 音频文件路径列表
@@ -250,77 +240,100 @@ class AudioMergeService:
         Returns:
             {"success": bool, "message": str, "duration": float}
         """
-        if not PYDUB_AVAILABLE:
-            return {
-                "success": False,
-                "message": "pydub 未安装，请运行: pip install pydub audioop-lts"
-            }
-
         try:
-            loop = asyncio.get_event_loop()
+            if not audio_paths or len(audio_paths) == 0:
+                return {"success": False, "message": "没有音频文件"}
 
-            def _merge_audios():
-                combined = None
-                for i, audio_path in enumerate(audio_paths):
-                    try:
-                        # 根据文件扩展名加载音频
-                        ext = Path(audio_path).suffix.lstrip('.').lower()
-                        if ext == 'flac':
-                            audio = AudioSegment.from_file(audio_path, format='flac')
-                        elif ext == 'mp3':
-                            audio = AudioSegment.from_file(audio_path, format='mp3')
-                        elif ext == 'wav':
-                            audio = AudioSegment.from_file(audio_path, format='wav')
-                        elif ext in ['ogg', 'oga']:
-                            audio = AudioSegment.from_file(audio_path, format='ogg')
-                        elif ext == 'm4a':
-                            audio = AudioSegment.from_file(audio_path, format='m4a')
-                        else:
-                            # 尝试自动检测格式
-                            audio = AudioSegment.from_file(audio_path)
+            # 检查所有音频文件是否存在
+            valid_paths = [p for p in audio_paths if Path(p).exists()]
+            if not valid_paths:
+                return {"success": False, "message": "没有有效的音频文件"}
 
-                        if combined is None:
-                            combined = audio
-                        else:
-                            combined += audio
+            print(f"[AudioMerge] Merging {len(valid_paths)} audios with ffmpeg")
 
-                    except Exception as e:
-                        print(f"[AudioMerge] Failed to load audio {audio_path}: {e}")
-                        continue
+            # 创建临时文件列表
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+                concat_file = f.name
+                for audio_path in valid_paths:
+                    # 使用 file 协议，需要处理路径中的特殊字符
+                    escaped_path = audio_path.replace("'", "'\\''")
+                    f.write(f"file '{escaped_path}'\n")
 
-                if combined is None:
-                    raise ValueError("无法加载任何音频文件")
+            try:
+                # 使用 ffmpeg concat 协议合并音频
+                # -f concat: 使用 concat 协议
+                # -safe 0: 允许不安全的文件路径
+                # -c copy: 直接复制流，不重新编码（速度快，质量无损）
+                cmd = [
+                    'ffmpeg',
+                    '-f', 'concat',
+                    '-safe', '0',
+                    '-i', concat_file,
+                    '-c', 'copy',
+                    '-y',  # 覆盖输出文件
+                    output_path
+                ]
 
-                # 导出合并后的音频
-                output_ext = Path(output_path).suffix.lstrip('.').lower()
-                if output_ext == 'flac':
-                    combined.export(output_path, format='flac')
-                else:
-                    combined.export(output_path, format=output_ext)
+                print(f"[AudioMerge] Running ffmpeg: {' '.join(cmd)}")
 
-                return len(combined) / 1000.0  # 返回时长（秒）
+                # 在线程池中执行
+                loop = asyncio.get_event_loop()
 
-            duration = await loop.run_in_executor(None, _merge_audios)
+                def _run_ffmpeg():
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True
+                    )
+                    return result
 
-            print(f"[AudioMerge] Audio merged successfully with pydub: {output_path}")
-            return {
-                "success": True,
-                "message": "合并成功",
-                "duration": duration
-            }
+                result = await loop.run_in_executor(None, _run_ffmpeg)
+
+                # 清理临时文件
+                os.unlink(concat_file)
+
+                if result.returncode != 0:
+                    print(f"[AudioMerge] FFmpeg error: {result.stderr}")
+                    return {
+                        "success": False,
+                        "message": f"音频合并失败: {result.stderr[:200]}"
+                    }
+
+                # 检查输出文件是否存在
+                if not Path(output_path).exists():
+                    return {
+                        "success": False,
+                        "message": "输出文件未生成"
+                    }
+
+                # 获取合并后的音频时长
+                duration = await self._get_audio_duration_ffmpeg(output_path)
+
+                print(f"[AudioMerge] Audio merged successfully with ffmpeg: {output_path}")
+                return {
+                    "success": True,
+                    "message": "合并成功",
+                    "duration": duration
+                }
+
+            except Exception as e:
+                # 清理临时文件
+                if os.path.exists(concat_file):
+                    os.unlink(concat_file)
+                raise e
 
         except Exception as e:
             import traceback
-            print(f"[AudioMerge] Failed to concatenate audios with pydub: {e}")
+            print(f"[AudioMerge] Failed to concatenate audios with ffmpeg: {e}")
             traceback.print_exc()
             return {
                 "success": False,
                 "message": f"合并失败: {str(e)}"
             }
 
-    async def _get_audio_duration_pydub(self, audio_path: str) -> float:
+    async def _get_audio_duration_ffmpeg(self, audio_path: str) -> float:
         """
-        使用 pydub 获取音频文件时长
+        使用 ffprobe 获取音频文件时长
 
         Args:
             audio_path: 音频文件路径
@@ -328,23 +341,26 @@ class AudioMergeService:
         Returns:
             时长（秒）
         """
-        if not PYDUB_AVAILABLE:
-            return 0.0
-
         try:
             loop = asyncio.get_event_loop()
 
             def _get_duration():
-                ext = Path(audio_path).suffix.lstrip('.').lower()
-                if ext == 'flac':
-                    audio = AudioSegment.from_file(audio_path, format='flac')
-                elif ext == 'mp3':
-                    audio = AudioSegment.from_file(audio_path, format='mp3')
-                elif ext == 'wav':
-                    audio = AudioSegment.from_file(audio_path, format='wav')
-                else:
-                    audio = AudioSegment.from_file(audio_path)
-                return len(audio) / 1000.0
+                # 使用 ffprobe 获取音频时长
+                cmd = [
+                    'ffprobe',
+                    '-v', 'error',
+                    '-show_entries', 'format=duration',
+                    '-of', 'default=noprint_wrappers=1:nokey=1',
+                    audio_path
+                ]
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return float(result.stdout.strip())
+                return 0.0
 
             return await loop.run_in_executor(None, _get_duration)
 

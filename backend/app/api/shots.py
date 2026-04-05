@@ -538,6 +538,7 @@ async def merge_chapter_videos(
     data: MergeVideosRequest,
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
     """合并章节视频"""
     novel = novel_repo.get_by_id(novel_id)
@@ -551,7 +552,6 @@ async def merge_chapter_videos(
     include_transitions = data.include_transitions
 
     # 从 Shot 表获取分镜视频列表
-    shot_repo = ShotRepository(db)
     shots = shot_repo.get_by_chapter(chapter_id)
 
     shot_videos = [shot.video_url for shot in shots if shot.video_url]

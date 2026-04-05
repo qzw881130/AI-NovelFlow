@@ -26,6 +26,9 @@ export default {
       keyframeReferenceNodes: '關鍵幀參考圖節點',
       keyframeReferenceNodesHint: '用於關鍵幀圖片生成的參考圖輸入節點，按順序新增',
       keyframeReferenceNode: '關鍵幀參考節點',
+      // 時長秒數節點
+      durationSecondsNode: '時長秒數節點',
+      durationSecondsNodeHint: '用於設定視訊時長秒數的 easy int 節點，優先於總幀數節點',
     },
     subtitle: '組態 LLM、代理和 ComfyUI 設定',
     llmConfig: 'LLM 組態',

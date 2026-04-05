@@ -208,6 +208,7 @@ async def generate_shot_video_task(
             aspect_ratio=novel.aspect_ratio or "16:9",
             character_reference_path=character_reference_path,
             frame_count=frame_count,
+            duration_seconds=duration,
             style=style,
             character_appearances=character_appearances,
             scene_setting=scene_setting,

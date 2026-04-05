@@ -106,10 +106,10 @@ def merge_character_images(
             images.append((char_name, img))
         
         # 设置布局参数
-        name_height = 24
+        name_height = 36
         padding = 15
         img_spacing = 10
-        text_offset = 5
+        text_offset = 8
         
         # 使用原图，不进行缩放
         processed_images = [(char_name, img.copy()) for char_name, img in images]
@@ -139,8 +139,8 @@ def merge_character_images(
         draw = ImageDraw.Draw(canvas)
         
         # 加载字体
-        font = load_chinese_font(16)
-        
+        font = load_chinese_font(22)
+
         # 绘制每个角色（名称在图片上方）
         current_y = padding
         for idx, (char_name, img) in enumerate(processed_images):
@@ -150,12 +150,22 @@ def merge_character_images(
             x = padding + sum(col_widths[:col]) + col * img_spacing
             y = current_y
 
-            # 先绘制名称
+            # 先绘制名称背景（增加醒目度）
             text_bbox = draw.textbbox((0, 0), char_name, font=font)
             text_width = text_bbox[2] - text_bbox[0]
             text_x = x + (col_widths[col] - text_width) // 2
             text_y = y + text_offset
-            draw.text((text_x, text_y), char_name, fill=(51, 51, 51), font=font)
+
+            # 绘制名称背景条
+            bg_padding = 4
+            draw.rectangle(
+                [text_x - bg_padding, text_y - bg_padding,
+                 text_x + text_width + bg_padding, text_y + name_height - text_offset],
+                fill=(240, 240, 245)
+            )
+
+            # 绘制名称文字（使用深色粗体风格）
+            draw.text((text_x, text_y), char_name, fill=(30, 30, 30), font=font)
 
             # 再绘制图片（在名称下方）
             img_x = x + (col_widths[col] - img.width) // 2

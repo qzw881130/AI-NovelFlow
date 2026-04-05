@@ -702,24 +702,48 @@ export const createGenerationSlice: StateCreator<
       const result = await response.json();
 
       if (result.success && result.data) {
-        // 构建 shotId -> task 的映射（优先使用 shotId 字段）
-        const taskMap: Record<string, any> = {};
+        // 构建 shotId -> tasks 列表的映射（一个 shotId 可能有多个任务）
+        const shotTasksMap: Record<string, any[]> = {};
         result.data.forEach((task: any) => {
           // 优先使用 task.shotId 字段（后端返回驼峰格式）
-          if (task.shotId) {
-            taskMap[task.shotId] = task;
-          } else {
+          let shotId = task.shotId;
+          if (!shotId) {
             // 兼容旧逻辑：从 task.name 中提取镜号
             const match = task.name?.match(/镜\s*(\d+)/);
             if (match) {
               const shotIndex = parseInt(match[1], 10);
               const shot = get().shots.find(s => s.index === shotIndex);
               if (shot) {
-                taskMap[shot.id] = task;
+                shotId = shot.id;
               }
             }
           }
+          if (shotId) {
+            if (!shotTasksMap[shotId]) {
+              shotTasksMap[shotId] = [];
+            }
+            shotTasksMap[shotId].push(task);
+          }
         });
+
+        // 为每个 shotId 选择最合适的任务
+        // 优先级：running > pending > completed（最新的）> failed
+        const taskMap: Record<string, any> = {};
+        for (const [shotId, tasks] of Object.entries(shotTasksMap)) {
+          // 按创建时间排序（最新的在前）
+          const sortedTasks = (tasks as any[]).sort((a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+
+          // 优先选择正在运行或等待中的任务
+          const runningTask = sortedTasks.find(t => t.status === 'running' || t.status === 'pending');
+          if (runningTask) {
+            taskMap[shotId] = runningTask;
+          } else {
+            // 否则选择最新的任务（无论是完成还是失败）
+            taskMap[shotId] = sortedTasks[0];
+          }
+        }
 
         const { shots, shotVideos, generatingVideos } = get();
         let shotVideosUpdated = false;

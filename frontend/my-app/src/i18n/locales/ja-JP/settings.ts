@@ -182,6 +182,9 @@ export default {
       keyframeReferenceNodes: 'キーフレーム参照画像ノード',
       keyframeReferenceNodesHint: 'キーフレーム画像生成用の参照画像入力ノード、順番に追加',
       keyframeReferenceNode: 'キーフレーム参照ノード',
+      // 再生時間（秒）ノード
+      durationSecondsNode: '再生時間（秒）ノード',
+      durationSecondsNodeHint: '動画の再生時間（秒）を設定するeasy intノード、フレーム数ノードより優先',
     },
   },
 
