@@ -93,3 +93,75 @@
 - **THEN** 若分镜有 `reference_audio_url`
 - **AND** 工作流配置了 `reference_audio_node_id`
 - **THEN** 系统 SHALL 将音频 URL 注入到对应节点
+
+### Requirement: 前端音频参考选择组件详细设计
+
+前端 SHALL 提供 AudioReferenceSelector 组件用于设置视频生成的参考音频。
+
+#### Scenario: 组件位置
+- **WHEN** 渲染视频生成标签页
+- **THEN** AudioReferenceSelector 组件 SHALL 显示在右侧面板关键帧设置区域下方
+- **AND** 组件 SHALL 接收当前分镜数据作为 props
+
+#### Scenario: 音频来源选择 UI
+- **WHEN** 渲染音频参考选择器
+- **THEN** 系统 SHALL 以单选按钮组形式显示四个选项：
+  - 无音频参考（默认选中）
+  - 合并台词音频
+  - 上传音频文件
+  - 角色音色
+
+#### Scenario: 选择无音频参考
+- **WHEN** 用户选择"无音频参考"
+- **THEN** 系统 SHALL 清除 `reference_audio_url`
+- **AND** 系统 SHALL 不显示音频预览
+
+#### Scenario: 选择合并台词音频
+- **WHEN** 用户选择"合并台词音频"
+- **THEN** 系统 SHALL 检查分镜是否有台词音频
+- **AND** 若无台词音频，系统 SHALL 显示提示"该分镜无台词音频"
+- **AND** 若有台词音频，系统 SHALL 调用合并 API
+- **AND** 合并完成后 SHALL 显示音频播放器和时长
+
+#### Scenario: 选择上传音频文件
+- **WHEN** 用户选择"上传音频文件"
+- **THEN** 系统 SHALL 显示文件上传按钮
+- **AND** 上传成功后 SHALL 显示音频播放器
+
+#### Scenario: 选择角色音色
+- **WHEN** 用户选择"角色音色"
+- **THEN** 系统 SHALL 显示角色下拉选择器
+- **AND** 仅显示该分镜已选中的角色
+- **AND** 选择角色后 SHALL 使用该角色的 `referenceAudioUrl`
+
+#### Scenario: 音频预览播放
+- **WHEN** 已设置参考音频
+- **THEN** 组件 SHALL 显示音频播放器
+- **AND** 播放器 SHALL 支持：播放/暂停、进度条、时长显示
+
+#### Scenario: 合并音频状态显示
+- **WHEN** 合并音频任务进行中
+- **THEN** 组件 SHALL 显示加载动画和"合并中..."提示
+- **AND** 系统 SHALL 轮询任务状态直到完成
+
+### Requirement: 前端音频参考状态管理
+
+前端 Store SHALL 支持参考音频的状态管理。
+
+#### Scenario: 参考音频状态初始化
+- **WHEN** 加载分镜数据
+- **THEN** Store SHALL 从分镜数据中解析 `reference_audio_url` 字段
+- **AND** Store SHALL 根据URL判断音频来源类型
+
+#### Scenario: 更新参考音频
+- **WHEN** 用户更改音频来源设置
+- **THEN** Store SHALL 更新分镜的 `reference_audio_url`
+- **AND** Store SHALL 同步更新 parsedData 状态
+
+#### Scenario: 音频来源类型推断
+- **WHEN** 需要显示当前音频来源类型
+- **THEN** 系统 SHALL 根据以下规则推断：
+  - URL 为空 → "无"
+  - URL 包含 "merged_audio" → "合并台词"
+  - URL 包含 "reference_audio" → "上传文件"
+  - 其他 → 需要查询角色音色匹配
