@@ -47,6 +47,10 @@ NovelFlow is an AI platform that automatically converts novels into videos.
 - Scene consistency (maintain scene environment across multiple shots)
 - Automatic shot generation and video composition
 
+## Interface Preview
+
+<img src="docs/index-en.png" alt="Interface Preview" width="800">
+
 ## Video Introduction
 
 📺 <a href="https://www.bilibili.com/video/BV1VdZbBDEXF" target="_blank">Bilibili: AI-NovelFlow Novel to Video Platform Introduction</a>

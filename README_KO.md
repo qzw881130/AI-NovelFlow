@@ -46,6 +46,10 @@ NovelFlow는 소설을 자동으로 동영상으로 변환하는 AI 플랫폼입
 - 장면 일관성 (여러 샷에서 장면 환경 유지)
 - 자동 샷 생성 및 동영상 합성
 
+## 인터페이스 미리보기
+
+<img src="docs/index-en.png" alt="인터페이스 미리보기" width="800">
+
 ## 비디오 소개
 
 📺 <a href="https://www.bilibili.com/video/BV1VdZbBDEXF" target="_blank">Bilibili: AI-NovelFlow 소설 동영상 변환 플랫폼 소개</a>
