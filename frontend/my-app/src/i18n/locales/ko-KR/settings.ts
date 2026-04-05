@@ -174,6 +174,9 @@ export default {
       keyframeReferenceNodes: '키프레임 참조 이미지 노드',
       keyframeReferenceNodesHint: '키프레임 이미지 생성용 참조 이미지 입력 노드, 순서대로 추가',
       keyframeReferenceNode: '키프레임 참조 노드',
+      // 재생 시간(초) 노드
+      durationSecondsNode: '재생 시간(초) 노드',
+      durationSecondsNodeHint: '비디오 재생 시간(초) 설정용 easy int 노드, 프레임 수 노드보다 우선',
     },
   },
 

@@ -28,6 +28,8 @@ interface MappingForm {
   emotionPromptNodeId: string;
   // 关键帧节点（视频生成工作流）
   keyframeNodes: string[];
+  // 时长秒数节点（视频生成工作流）
+  durationSecondsNodeId: string;
 }
 
 interface MappingModalProps {
@@ -58,7 +60,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     referenceAudioNodeId: '',
     textNodeId: '',
     emotionPromptNodeId: '',
-    keyframeNodes: []
+    keyframeNodes: [],
+    durationSecondsNodeId: ''
   });
   const [availableNodes, setAvailableNodes] = useState<AvailableNodes>({
     clipTextEncode: [],
@@ -120,7 +123,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   clipTextEncode.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'SaveImage') {
                   saveImage.push(`${nodeId} (${metaTitle || classType})`);
-                } else if (classType === 'easy int' || classType === 'JWInteger') {
+                } else if (classType === 'easy int' || classType === 'JWInteger' || classType === 'INTConstant') {
                   easyInt.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'CR Prompt Text') {
                   crPromptText.push(`${nodeId} (${metaTitle || classType})`);
@@ -183,7 +186,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 referenceAudioNodeId: mapping.reference_audio_node_id || '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
-                keyframeNodes
+                keyframeNodes,
+                durationSecondsNodeId: mapping.duration_seconds_node_id || ''
               });
             } else if (wf.type === 'transition') {
               setMappingForm({
@@ -351,7 +355,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           max_side_node_id: mappingForm.maxSideNodeId || null,
           reference_image_node_id: mappingForm.referenceImageNodeId || null,
           frame_count_node_id: mappingForm.frameCountNodeId || null,
-          reference_audio_node_id: mappingForm.referenceAudioNodeId || null
+          reference_audio_node_id: mappingForm.referenceAudioNodeId || null,
+          duration_seconds_node_id: mappingForm.durationSecondsNodeId || null
         };
         // 添加关键帧节点
         mappingForm.keyframeNodes.forEach((nodeId, index) => {
@@ -561,7 +566,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   <div className="grid grid-cols-2 gap-4">
                     <NodeSelectField
                       label={t('systemSettings.workflow.widthNode')}
-                      nodeTypeHint="easy int, JWInteger"
+                      nodeTypeHint="easy int, JWInteger, INTConstant"
                       value={mappingForm.widthNodeId}
                       options={availableNodes.easyInt}
                       onChange={(v) => handleNodeSelect(v, 'widthNodeId')}
@@ -570,7 +575,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     />
                     <NodeSelectField
                       label={t('systemSettings.workflow.heightNode')}
-                      nodeTypeHint="easy int, JWInteger"
+                      nodeTypeHint="easy int, JWInteger, INTConstant"
                       value={mappingForm.heightNodeId}
                       options={availableNodes.easyInt}
                       onChange={(v) => handleNodeSelect(v, 'heightNodeId')}
@@ -660,7 +665,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.maxSideNode')}
-                    nodeTypeHint="easy int, JWInteger"
+                    nodeTypeHint="easy int, JWInteger, INTConstant"
                     value={mappingForm.maxSideNodeId}
                     options={availableNodes.easyInt}
                     onChange={(v) => handleNodeSelect(v, 'maxSideNodeId')}
@@ -678,10 +683,19 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.frameCountNode')}
-                    nodeTypeHint="easy int, JWInteger"
+                    nodeTypeHint="easy int, JWInteger, INTConstant"
                     value={mappingForm.frameCountNodeId}
                     options={availableNodes.easyInt}
                     onChange={(v) => handleNodeSelect(v, 'frameCountNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.durationSecondsNode')}
+                    nodeTypeHint="easy int, JWInteger, INTConstant"
+                    value={mappingForm.durationSecondsNodeId}
+                    options={availableNodes.easyInt}
+                    onChange={(v) => handleNodeSelect(v, 'durationSecondsNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}
                   />
@@ -765,7 +779,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.frameCountNode')}
-                    nodeTypeHint="easy int, JWInteger"
+                    nodeTypeHint="easy int, JWInteger, INTConstant"
                     value={mappingForm.frameCountNodeId}
                     options={availableNodes.easyInt}
                     onChange={(v) => handleNodeSelect(v, 'frameCountNodeId')}

@@ -1,7 +1,6 @@
 """
 小说路由 - 小说 CRUD 和解析相关接口
 """
-import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -9,7 +8,6 @@ from app.core.database import get_db
 from app.models.novel import Novel
 from app.schemas.novel import NovelCreate
 from app.repositories import NovelRepository, ChapterRepository, CharacterRepository, PromptTemplateRepository
-from app.services.llm_service import LLMService
 from app.services.novel_service import NovelService
 from app.api.deps import get_novel_repo, get_chapter_repo, get_character_repo
 from app.utils.time_utils import format_datetime
@@ -165,47 +163,6 @@ async def delete_novel(
 
 
 # ==================== 小说解析 ====================
-
-@router.post("/{novel_id}/parse", response_model=dict)
-async def parse_novel(
-    novel_id: str, 
-    db: Session = Depends(get_db), 
-    novel_repo: NovelRepository = Depends(get_novel_repo), 
-    chapter_repo: ChapterRepository = Depends(get_chapter_repo)
-):
-    """解析小说内容，提取角色和场景"""
-    novel = novel_repo.get_by_id(novel_id)
-    if not novel:
-        raise HTTPException(status_code=404, detail="小说不存在")
-    
-    # 获取所有章节内容
-    chapters = chapter_repo.list_by_novel(novel_id)
-    full_text = "\n\n".join([c.content for c in chapters if c.content])
-    
-    # 更新状态为解析中
-    novel.status = "processing"
-    db.commit()
-    
-    # 异步解析
-    async def do_parse():
-        try:
-            result = await get_llm_service().parse_novel_text(full_text)
-            
-            # 保存解析结果到各个章节
-            for chapter in chapters:
-                if chapter.content:
-                    chapter.parsed_data = result
-            
-            novel.status = "completed"
-            db.commit()
-        except Exception as e:
-            novel.status = "failed"
-            db.commit()
-    
-    asyncio.create_task(do_parse())
-    
-    return {"success": True, "message": "解析任务已启动"}
-
 
 @router.post("/{novel_id}/parse-characters/", response_model=dict)
 async def parse_characters(

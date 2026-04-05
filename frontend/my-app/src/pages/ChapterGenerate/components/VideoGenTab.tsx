@@ -34,11 +34,11 @@ interface VideoGenTabProps {
 
 export function VideoGenTab({
   chapter,
-  shotVideos = {},
-  shotImages = {},
-  transitionVideos = {},
-  generatingVideos = new Set(),
-  generatingTransitions = new Set(),
+  shotVideos: propShotVideos = {},
+  shotImages: propShotImages = {},
+  transitionVideos: propTransitionVideos = {},
+  generatingVideos: propGeneratingVideos,
+  generatingTransitions: propGeneratingTransitions,
   currentShot,
   novelId,
   chapterId,
@@ -48,15 +48,26 @@ export function VideoGenTab({
   const store = useChapterGenerateStore();
   const { markTabComplete, setCurrentShot, downloadChapterMaterials, generateShotVideo, setShots, generateTransition, transitionWorkflows, selectedTransitionWorkflow, setSelectedTransitionWorkflow, fetchTransitionWorkflows } = store;
 
-  // 从 store 获取 shots 数据
+  // 直接订阅 store 状态（确保状态更新时组件重新渲染）
   const storeShots = useChapterGenerateStore((state) => state.shots);
+  const storeShotVideos = useChapterGenerateStore((state) => state.shotVideos);
+  const storeShotImages = useChapterGenerateStore((state) => state.shotImages);
+  const storeTransitionVideos = useChapterGenerateStore((state) => state.transitionVideos);
+  const storeGeneratingVideos = useChapterGenerateStore((state) => state.generatingVideos);
+  const storeGeneratingTransitions = useChapterGenerateStore((state) => state.generatingTransitions);
+
+  // 优先使用 store 状态，props 作为备用
+  const shotVideos = storeShotVideos;
+  const shotImages = storeShotImages;
+  const transitionVideos = storeTransitionVideos;
+  const generatingVideos = propGeneratingVideos ?? storeGeneratingVideos;
+  const generatingTransitions = propGeneratingTransitions ?? storeGeneratingTransitions;
 
   // 优先使用 props 传入的 novelId，否则从 chapter 对象获取
   const effectiveNovelId = novelId || chapter?.novelId;
   const effectiveChapterId = chapterId || chapter?.id;
 
   const [selectedVideo, setSelectedVideo] = useState<number>(1);
-  const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -85,6 +96,9 @@ export function VideoGenTab({
   // 优先从 shot.imageUrl 获取，其次从 shotImages 映射获取
   const currentShotImageUrl = currentShotData?.imageUrl || shotImages[currentShotId];
 
+  // 获取当前分镜的视频 URL（shotVideos 使用 shot.id 作为 key）
+  const currentShotVideoUrl = currentShotData?.videoUrl || (currentShotId ? shotVideos[currentShotId] : undefined);
+
   // 检查当前分镜是否正在生成
   const isGeneratingCurrent = currentShotId ? generatingVideos.has(currentShotId) : false;
 
@@ -112,19 +126,16 @@ export function VideoGenTab({
     }
   };
 
-  const hasVideo = !!shotVideos[selectedVideo];
+  const hasVideo = !!currentShotVideoUrl;
 
   // 处理单个视频生成
   const handleGenerateVideo = async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
-    setIsGenerating(true);
     try {
       await generateShotVideo(effectiveNovelId, effectiveChapterId, currentShotId);
       markTabComplete(3);
     } catch (error) {
       console.error(t('chapterGenerate.videoGenerateFailed') + ':', error);
-    } finally {
-      setIsGenerating(false);
     }
   };
 
@@ -132,7 +143,7 @@ export function VideoGenTab({
   const handleOpenBatchSelect = () => {
     // 初始化选择：默认选中所有待生成的分镜（没有视频的）
     const pendingShots = shotsList
-      .filter((_: any, idx: number) => !shotVideos[idx + 1])
+      .filter((shot: any) => !shot.videoUrl && !shotVideos[shot.id])
       .map((_: any, idx: number) => idx + 1);
     setSelectedShots(new Set(pendingShots));
     setShowBatchSelectModal(true);
@@ -267,7 +278,12 @@ export function VideoGenTab({
   const handleMergeVideos = async (includeTransitions: boolean) => {
     if (!effectiveNovelId || !effectiveChapterId) return;
 
-    const videoList = Object.values(shotVideos).filter(Boolean);
+    // 从 shots 数据中获取所有视频 URL
+    const videoList = shotsList
+      .filter((shot: any) => shot.videoUrl || shotVideos[shot.id])
+      .map((shot: any) => shot.videoUrl || shotVideos[shot.id])
+      .filter(Boolean);
+
     if (videoList.length === 0) {
       toast.error(t('chapterGenerate.noVideosToMerge'));
       return;
@@ -301,6 +317,9 @@ export function VideoGenTab({
     }
   };
 
+  // 计算已生成视频的数量
+  const videoCount = shotsList.filter((shot: any) => shot.videoUrl || shotVideos[shot.id]).length;
+
   return (
     <div className="h-full flex flex-col">
       {/* 操作栏 */}
@@ -308,10 +327,10 @@ export function VideoGenTab({
         <div className="flex items-center gap-4">
           <button
             onClick={handleGenerateVideo}
-            disabled={isGenerating || isGeneratingCurrent || !effectiveChapterId}
+            disabled={isGeneratingCurrent || !effectiveChapterId}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
-            {isGenerating || isGeneratingCurrent ? (
+            {isGeneratingCurrent ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
                 {t('chapterGenerate.videoGenerating')}
@@ -366,7 +385,7 @@ export function VideoGenTab({
           </button>
           <button
             onClick={() => handleMergeVideos(Object.keys(transitionVideos).length > 0)}
-            disabled={isMerging || !effectiveChapterId || Object.keys(shotVideos).length === 0}
+            disabled={isMerging || !effectiveChapterId || videoCount === 0}
             className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             {isMerging ? (
@@ -456,7 +475,7 @@ export function VideoGenTab({
             <div className="flex-1 relative bg-gray-100">
               {hasVideo ? (
                 <video
-                  src={shotVideos[selectedVideo]}
+                  src={currentShotVideoUrl}
                   className="absolute inset-0 w-full h-full object-contain"
                   controls
                 />
@@ -726,7 +745,7 @@ export function VideoGenTab({
                   const shotIndex = idx + 1;
                   const shotId = shot.id;
                   const isSelected = selectedShots.has(shotIndex);
-                  const hasVideo = !!shotVideos[shotIndex];
+                  const hasVideo = !!(shot.videoUrl || shotVideos[shotId]);
                   const isGenerating = shotId ? generatingVideos.has(shotId) : false;
                   const isPending = !hasVideo && !isGenerating;
 

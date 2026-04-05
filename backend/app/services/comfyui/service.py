@@ -196,6 +196,7 @@ class ComfyUIService:
         character_reference_path: Optional[str] = None,
         seed: Optional[int] = None,
         frame_count: Optional[int] = None,
+        duration_seconds: Optional[int] = None,
         style: Optional[str] = None,
         character_appearances: Optional[Dict[str, str]] = None,
         scene_setting: Optional[str] = None,
@@ -208,6 +209,7 @@ class ComfyUIService:
         Args:
             reference_audio_path: 参考音频本地路径，用于口型同步
             keyframe_paths: 关键帧图片本地路径列表，用于视频生成
+            duration_seconds: 视频时长秒数（优先于 frame_count）
         """
         try:
             workflow = self.builder.build_video_workflow(
@@ -217,6 +219,7 @@ class ComfyUIService:
                 aspect_ratio=aspect_ratio,
                 seed=seed,
                 frame_count=frame_count,
+                duration_seconds=duration_seconds,
                 style=style,
                 character_appearances=character_appearances,
                 scene_setting=scene_setting,

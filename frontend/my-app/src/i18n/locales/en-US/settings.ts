@@ -193,6 +193,9 @@ export default {
       keyframeReferenceNodes: 'Keyframe Reference Image Nodes',
       keyframeReferenceNodesHint: 'Reference image input nodes for keyframe image generation, add in order',
       keyframeReferenceNode: 'Keyframe Reference Node',
+      // Duration seconds node
+      durationSecondsNode: 'Duration Seconds Node',
+      durationSecondsNodeHint: 'easy int node for setting video duration in seconds, takes priority over frame count node',
     },
   },
 

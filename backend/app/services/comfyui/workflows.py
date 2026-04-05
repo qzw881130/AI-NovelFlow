@@ -163,6 +163,7 @@ class WorkflowBuilder:
         aspect_ratio: str = "16:9",
         seed: Optional[int] = None,
         frame_count: Optional[int] = None,
+        duration_seconds: Optional[int] = None,
         style: Optional[str] = None,
         character_appearances: Optional[Dict[str, str]] = None,
         scene_setting: Optional[str] = None,
@@ -177,7 +178,8 @@ class WorkflowBuilder:
             node_mapping: 节点映射配置
             aspect_ratio: 画面比例
             seed: 随机种子
-            frame_count: 总帧数
+            frame_count: 总帧数（优先使用 duration_seconds）
+            duration_seconds: 视频时长秒数（INTConstant 节点）
             style: 风格提示词
             character_appearances: 角色外貌描述映射 {角色名：外貌描述}
             scene_setting: 场景环境设定
@@ -195,6 +197,7 @@ class WorkflowBuilder:
         prompt_node_id = node_mapping.get("prompt_node_id")
         max_side_node_id = node_mapping.get("max_side_node_id", "36")
         frame_count_node_id = node_mapping.get("frame_count_node_id", "35")
+        duration_seconds_node_id = node_mapping.get("duration_seconds_node_id", "")
 
         # 设置提示词
         if prompt_node_id and prompt_node_id in workflow:
@@ -203,11 +206,14 @@ class WorkflowBuilder:
         # 根据画面比例设置最长边
         if max_side_node_id and max_side_node_id in workflow:
             max_side = self._get_max_side(aspect_ratio)
-            workflow[max_side_node_id]["inputs"]["value"] = max_side
+            self._set_value(workflow, max_side_node_id, max_side)
 
-        # 设置总帧数
-        if frame_count and frame_count_node_id in workflow:
-            workflow[frame_count_node_id]["inputs"]["value"] = frame_count
+        # 设置时长秒数（优先使用 duration_seconds_node_id）
+        if duration_seconds and duration_seconds_node_id:
+            self._set_value(workflow, duration_seconds_node_id, duration_seconds)
+        # 如果没有时长秒数节点，则设置帧数节点
+        elif frame_count and frame_count_node_id:
+            self._set_value(workflow, frame_count_node_id, frame_count)
 
         # 设置随机种子
         if seed is None:
@@ -871,7 +877,35 @@ class WorkflowBuilder:
             elif "prompt" in inputs:
                 inputs["prompt"] = prompt
             print(f"[ComfyUI] Set prompt to node {node_id} (type: {class_type})")
-    
+
+    def _set_value(self, workflow: Dict[str, Any], node_id: str, value: int | float):
+        """设置数值节点的值
+
+        支持的节点类型：easy int, JWInteger, INTConstant, PrimitiveFloat, PrimitiveInt 等
+        """
+        if node_id not in workflow:
+            return False
+
+        node = workflow[node_id]
+        class_type = node.get("class_type", "")
+
+        # 数值节点类型列表（与前端 MappingModal.tsx 保持一致）
+        VALUE_NODE_TYPES = ["easy int", "JWInteger", "INTConstant", "PrimitiveFloat", "PrimitiveInt", "INT", "Float"]
+
+        if class_type in VALUE_NODE_TYPES:
+            workflow[node_id]["inputs"]["value"] = value
+            print(f"[ComfyUI] Set value={value} to {class_type} node {node_id}")
+            return True
+        else:
+            # 尝试通用的 value 字段
+            inputs = node.get("inputs", {})
+            if "value" in inputs:
+                inputs["value"] = value
+                print(f"[ComfyUI] Set value={value} to node {node_id} (type: {class_type})")
+                return True
+
+        return False
+
     def _set_random_seed(self, workflow: Dict[str, Any], seed: int):
         """设置随机种子"""
         for node_id, node in workflow.items():

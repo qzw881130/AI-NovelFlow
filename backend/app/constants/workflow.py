@@ -69,8 +69,10 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
         "reference_image_node_id": "12",
         # 最大边长节点
         "max_side_node_id": "36",
-        # 帧数节点
+        # 帧数节点 (INTConstant)
         "frame_count_node_id": "35",
+        # 时长秒数节点 (INTConstant，标题为 LENGTH (in seconds))
+        "duration_seconds_node_id": "",
         # 参考音频节点 (LoadAudio) - 用于口型同步
         "reference_audio_node_id": "",
     },
@@ -122,7 +124,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "nameKey": f"{NAME_KEY_PREFIX}.LTX2 视频生成-直接版",
         "description": "LTX-2 图生视频，直接使用用户提示词",
         "descriptionKey": f"{DESC_KEY_PREFIX}.LTX-2 图生视频，直接使用用户提示词",
-        "node_mapping": {"prompt_node_id": "11", "video_save_node_id": "1", "reference_image_node_id": "12", "max_side_node_id": "36", "frame_count_node_id": "35"},
+        "node_mapping": {"prompt_node_id": "11", "video_save_node_id": "1", "reference_image_node_id": "12", "max_side_node_id": "36", "frame_count_node_id": "35", "duration_seconds_node_id": ""},
     },
     {
         "filename": "video_ltx2_expanded.json",
@@ -131,7 +133,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "nameKey": f"{NAME_KEY_PREFIX}.LTX2 视频生成-扩写版",
         "description": "LTX-2 图生视频，使用 Qwen3 自动扩写提示词",
         "descriptionKey": f"{DESC_KEY_PREFIX}.LTX-2 图生视频，使用 Qwen3 自动扩写提示词",
-        "node_mapping": {"prompt_node_id": "15", "video_save_node_id": "1", "reference_image_node_id": "12", "max_side_node_id": "36", "frame_count_node_id": "35"},
+        "node_mapping": {"prompt_node_id": "15", "video_save_node_id": "1", "reference_image_node_id": "12", "max_side_node_id": "36", "frame_count_node_id": "35", "duration_seconds_node_id": ""},
     },
     {
         "filename": "transition_ltx2_camera.json",

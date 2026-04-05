@@ -193,6 +193,9 @@ export default {
       keyframeReferenceNodes: '关键帧参考图节点',
       keyframeReferenceNodesHint: '用于关键帧图片生成的参考图输入节点，按顺序添加',
       keyframeReferenceNode: '关键帧参考图节点',
+      // 时长秒数节点
+      durationSecondsNode: '时长秒数节点',
+      durationSecondsNodeHint: '用于设置视频时长秒数的 easy int 节点，优先于总帧数节点',
     },
   },
 
