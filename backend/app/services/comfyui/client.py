@@ -228,7 +228,7 @@ class ComfyUIClient:
             workflow: 提交的工作流，用于识别正确的 SaveImage 节点
             save_image_node_id: 配置的 SaveImage 节点 ID，优先使用
         """
-        print(f"ComfyUI Waiting for result: prompt_id={prompt_id}, workflow_json:\n{json.dumps(workflow, indent=2, ensure_ascii=False)}")
+        print(f"ComfyUI Waiting for result: prompt_id={prompt_id}, workflow_json:\n{json.dumps(workflow, indent=2, ensure_ascii=True)}")
         start_time = asyncio.get_event_loop().time()
 
         while True:

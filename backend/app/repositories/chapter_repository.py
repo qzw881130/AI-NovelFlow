@@ -197,3 +197,94 @@ class ChapterRepository:
         chapter.transition_videos = None
         chapter.merged_image = None
         self.db.commit()
+
+    def bulk_upsert(self, novel_id: str, chapters_data: list[dict]) -> dict:
+        """
+        批量 upsert 章节。按 number 匹配已有章节，存在则更新 title+content，不存在则新建。
+
+        Args:
+            novel_id: 小说 ID
+            chapters_data: 章节数据列表，每项包含 number, title, content
+
+        Returns:
+            {created: int, updated: int, failed: int, errors: list, chapters: list}
+        """
+        # 1. 获取已有章节号 -> 章节映射
+        existing = self.db.query(Chapter).filter(
+            Chapter.novel_id == novel_id
+        ).all()
+        existing_by_number = {c.number: c for c in existing}
+
+        # 2. 检测传入数据中的重复 chapter number
+        seen_numbers: set[int] = set()
+        created = 0
+        updated = 0
+        failed = 0
+        errors: list[dict] = []
+        result_chapters: list[dict] = []
+
+        for ch in chapters_data:
+            num = ch['number']
+            if num in seen_numbers:
+                failed += 1
+                errors.append({
+                    'number': num,
+                    'title': ch['title'],
+                    'reason': f'章节号 {num} 重复',
+                })
+                continue
+            seen_numbers.add(num)
+
+            try:
+                if num in existing_by_number:
+                    # 更新已有章节（仅更新 title 和 content，保留其他资源）
+                    existing_ch = existing_by_number[num]
+                    existing_ch.title = ch['title']
+                    existing_ch.content = ch['content']
+                    updated += 1
+                    result_chapters.append(self.to_response(existing_ch))
+                else:
+                    # 新建章节
+                    new_ch = Chapter(
+                        novel_id=novel_id,
+                        number=num,
+                        title=ch['title'],
+                        content=ch['content'],
+                    )
+                    self.db.add(new_ch)
+                    created += 1
+            except Exception as e:
+                failed += 1
+                errors.append({
+                    'number': num,
+                    'title': ch['title'],
+                    'reason': str(e),
+                })
+
+        # 3. 批量提交
+        if created > 0 or updated > 0:
+            self.db.commit()
+            # refresh 新建的章节以获取 ID
+            for ch in chapters_data:
+                if ch['number'] not in existing_by_number and ch['number'] in seen_numbers:
+                    new_ch = self.db.query(Chapter).filter(
+                        Chapter.novel_id == novel_id,
+                        Chapter.number == ch['number']
+                    ).first()
+                    if new_ch:
+                        result_chapters.append(self.to_response(new_ch))
+
+            # 更新 novel.chapter_count
+            from app.models.novel import Novel
+            novel = self.db.query(Novel).filter(Novel.id == novel_id).first()
+            if novel:
+                novel.chapter_count = self.count_by_novel(novel_id)
+                self.db.commit()
+
+        return {
+            'created': created,
+            'updated': updated,
+            'failed': failed,
+            'errors': errors,
+            'chapters': result_chapters,
+        }

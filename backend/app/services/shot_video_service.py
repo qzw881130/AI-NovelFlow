@@ -217,7 +217,7 @@ async def generate_shot_video_task(
             keyframe_paths=keyframe_paths
         )
 
-        print(f"[VideoTask {task_id}] Generation result: {result}")
+        print(f"[VideoTask {task_id}] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
         if result.get("prompt_id"):
             task.comfyui_prompt_id = result["prompt_id"]

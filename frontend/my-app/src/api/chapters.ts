@@ -121,4 +121,29 @@ export const chapterApi = {
       };
       message: string;
     }>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotIndex}/dialogues/${encodeURIComponent(characterName)}/audio`),
+
+  /** 批量导入预览 */
+  batchImportPreview: (novelId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.upload<{
+      chapters: { number: number; title: string; content_length: number; action: 'new' | 'replace' }[];
+      summary: { total: number; new: number; replace: number };
+      errors: { segment: number; title: string; reason: string }[];
+    }>(`/novels/${novelId}/chapters/batch-import/preview`, formData);
+  },
+
+  /** 批量导入执行 */
+  batchImport: (novelId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.upload<{
+      total: number;
+      created: number;
+      updated: number;
+      failed: number;
+      errors: { number?: number; title: string; reason: string }[];
+      chapters: any[];
+    }>(`/novels/${novelId}/chapters/batch-import`, formData);
+  },
 };

@@ -192,7 +192,7 @@ class CharacterService:
                 workflow=submitted_workflow
             )
 
-            print(f"[VoiceTask] Generation result: {result}")
+            print(f"[VoiceTask] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
             if result.get("success"):
                 audio_url = result.get("audio_url")
@@ -451,7 +451,7 @@ class CharacterService:
                 workflow=submitted_workflow  # 传递已构建的工作流，避免重复构建
             )
 
-            print(f"[Task] Generation result: {result}")
+            print(f"[Task] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
             if result.get("success"):
                 image_url = result.get("image_url")
