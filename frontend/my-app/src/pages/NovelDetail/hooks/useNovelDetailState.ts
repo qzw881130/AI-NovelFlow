@@ -13,6 +13,7 @@ export function useNovelDetailState() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showBatchImportModal, setShowBatchImportModal] = useState(false);
   const [newChapter, setNewChapter] = useState({ title: '', content: '', number: 1 });
 
   useEffect(() => { if (id) fetchData(); }, [id]);
@@ -60,6 +61,10 @@ export function useNovelDetailState() {
     }
   };
 
+  const handleBatchImportComplete = async () => {
+    await fetchData();
+  };
+
   const getStatusIcon = (status: Chapter['status']) => {
     switch (status) {
       case 'completed': return { icon: 'check', color: 'text-green-600' };
@@ -72,7 +77,7 @@ export function useNovelDetailState() {
   const getStatusText = (status: Chapter['status']) => t(`chapterStatus.${status}`, { defaultValue: status });
 
   return {
-    id, novel, chapters, isLoading, showCreateModal, setShowCreateModal, newChapter, setNewChapter,
-    handleCreateChapter, handleDeleteChapter, getStatusIcon, getStatusText
+    id, novel, chapters, isLoading, showCreateModal, setShowCreateModal, showBatchImportModal, setShowBatchImportModal, newChapter, setNewChapter,
+    handleCreateChapter, handleDeleteChapter, handleBatchImportComplete, getStatusIcon, getStatusText
   };
 }

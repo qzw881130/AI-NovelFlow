@@ -490,7 +490,7 @@ class ShotAudioService:
                 prompt_id, submitted_workflow, save_audio_node_id, timeout=600
             )
 
-            print(f"[AudioTask] Generation result: {result}")
+            print(f"[AudioTask] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
             if result.get("success"):
                 audio_url = result.get("audio_url")

@@ -1,7 +1,7 @@
 """
-章节路由 - 章节 CRUD 和解析相关接口
+章节路由 - 章节 CRUD 和批量导入相关接口
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -9,6 +9,7 @@ from app.models.novel import Chapter
 from app.repositories import NovelRepository, ChapterRepository, CharacterRepository, SceneRepository, PropRepository
 from app.api.deps import get_novel_repo, get_chapter_repo, get_character_repo, get_scene_repo, get_prop_repo
 from app.utils.time_utils import format_datetime
+from app.utils.text_utils import detect_encoding, parse_chapters_from_text
 
 router = APIRouter()
 
@@ -291,3 +292,150 @@ async def split_chapter(
         scene_names=scene_names,
         prop_names=prop_names
     )
+
+
+# ==================== 批量导入 ====================
+
+@router.post("/{novel_id}/chapters/batch-import/preview", response_model=dict)
+async def batch_import_preview(
+    novel_id: str,
+    file: UploadFile = File(...),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo)
+):
+    """批量导入预览：解析 TXT 文件但不入库，返回章节列表及操作类型。"""
+    # 校验文件扩展名
+    if not file.filename or not file.filename.lower().endswith('.txt'):
+        raise HTTPException(status_code=400, detail="仅支持 .txt 格式文件")
+
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    # 读取文件内容
+    raw_bytes = await file.read()
+    if not raw_bytes:
+        return {
+            "success": True,
+            "data": {
+                "chapters": [],
+                "summary": {"total": 0, "new": 0, "replace": 0},
+                "errors": [],
+            }
+        }
+
+    encoding = detect_encoding(raw_bytes)
+    text = raw_bytes.decode(encoding, errors='replace')
+
+    # 解析章节
+    chapters, errors = parse_chapters_from_text(text)
+
+    # 获取已有章节号
+    existing_chapters = chapter_repo.list_by_novel(novel_id)
+    existing_numbers = {c.number for c in existing_chapters}
+
+    # 计算 action 类型
+    preview_chapters = []
+    new_count = 0
+    replace_count = 0
+    for ch in chapters:
+        action = "replace" if ch['number'] in existing_numbers else "new"
+        if action == "new":
+            new_count += 1
+        else:
+            replace_count += 1
+        preview_chapters.append({
+            "number": ch['number'],
+            "title": ch['title'],
+            "content_length": len(ch['content']),
+            "action": action,
+        })
+
+    return {
+        "success": True,
+        "data": {
+            "chapters": preview_chapters,
+            "summary": {
+                "total": len(preview_chapters),
+                "new": new_count,
+                "replace": replace_count,
+            },
+            "errors": errors,
+        }
+    }
+
+
+@router.post("/{novel_id}/chapters/batch-import", response_model=dict)
+async def batch_import_chapters(
+    novel_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo)
+):
+    """批量导入执行：解析 TXT 文件并执行 bulk_upsert。"""
+    # 校验文件扩展名
+    if not file.filename or not file.filename.lower().endswith('.txt'):
+        raise HTTPException(status_code=400, detail="仅支持 .txt 格式文件")
+
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    # 读取文件内容
+    raw_bytes = await file.read()
+    if not raw_bytes:
+        return {
+            "success": True,
+            "data": {
+                "total": 0,
+                "created": 0,
+                "updated": 0,
+                "failed": 0,
+                "errors": [],
+                "chapters": [],
+            },
+            "message": "文件为空",
+        }
+
+    encoding = detect_encoding(raw_bytes)
+    text = raw_bytes.decode(encoding, errors='replace')
+
+    # 解析章节
+    chapters, parse_errors = parse_chapters_from_text(text)
+
+    # 完全无法解析章节
+    if not chapters:
+        return {
+            "success": False,
+            "message": "无法解析章节，请检查文件格式",
+            "data": {"errors": parse_errors},
+        }
+
+    # 执行批量 upsert
+    result = chapter_repo.bulk_upsert(novel_id, chapters)
+
+    # 合并解析错误和 upsert 错误
+    all_errors = parse_errors + result['errors']
+
+    success_count = result['created'] + result['updated']
+    failed_count = result['failed']
+
+    # 构建消息
+    if failed_count == 0:
+        message = f"导入完成：成功 {success_count} 个"
+    else:
+        message = f"导入完成：成功 {success_count} 个，失败 {failed_count} 个"
+
+    return {
+        "success": True,
+        "data": {
+            "total": len(chapters),
+            "created": result['created'],
+            "updated": result['updated'],
+            "failed": failed_count,
+            "errors": all_errors,
+            "chapters": result['chapters'],
+        },
+        "message": message,
+    }

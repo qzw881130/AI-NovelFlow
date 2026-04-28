@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Loader2, FileText, Trash2, Edit3, CheckCircle, AlertCircle, Clock, Wand2 } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, FileText, Trash2, Edit3, CheckCircle, AlertCircle, Clock, Wand2, Upload } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import type { Chapter } from '../../types';
 import { useNovelDetailState } from './hooks/useNovelDetailState';
 import { CreateChapterModal } from './components/CreateChapterModal';
+import { BatchImportModal } from './components/BatchImportModal';
 
 function StatusIcon({ status, iconInfo }: { status: Chapter['status']; iconInfo: { icon: string; color: string; spin?: boolean } }) {
   if (iconInfo.icon === 'check') return <CheckCircle className={`h-5 w-5 ${iconInfo.color}`} />;
@@ -69,9 +70,20 @@ export default function NovelDetail() {
             <p className="text-sm text-gray-500">{state.novel.author} · {state.chapters.length} {t('novelDetail.chapters')}</p>
           </div>
         </div>
-        <button onClick={() => state.setShowCreateModal(true)} className="btn-primary">
-          <Plus className="h-4 w-4 mr-2" />{t('novelDetail.addChapter')}
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => state.setShowCreateModal(true)}
+            className="btn-primary"
+          >
+            <Plus className="h-4 w-4 mr-2" />{t('novelDetail.addChapter')}
+          </button>
+          <button
+            onClick={() => state.setShowBatchImportModal(true)}
+            className="btn-secondary"
+          >
+            <Upload className="h-4 w-4 mr-2" />{t('novelDetail.batchImport.button')}
+          </button>
+        </div>
       </div>
 
       {state.novel.description && <div className="card bg-gray-50"><p className="text-gray-600">{state.novel.description}</p></div>}
@@ -97,6 +109,8 @@ export default function NovelDetail() {
 
       <CreateChapterModal show={state.showCreateModal} newChapter={state.newChapter}
         onClose={() => state.setShowCreateModal(false)} onSubmit={state.handleCreateChapter} setNewChapter={state.setNewChapter} />
+      <BatchImportModal show={state.showBatchImportModal} novelId={state.id!}
+        onClose={() => state.setShowBatchImportModal(false)} onImportComplete={state.handleBatchImportComplete} />
     </div>
   );
 }

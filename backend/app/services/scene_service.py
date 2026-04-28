@@ -231,7 +231,7 @@ class SceneService:
                 workflow=submitted_workflow
             )
 
-            print(f"[Task] Scene generation result: {result}")
+            print(f"[Task] Scene generation result: {json.dumps(result, ensure_ascii=True)}")
 
             if result.get("success"):
                 image_url = result.get("image_url")

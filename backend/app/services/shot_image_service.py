@@ -222,7 +222,7 @@ async def generate_shot_image_task(
             style=style,
         )
 
-        print(f"[ShotTask {task_id}] Generation result: {result}")
+        print(f"[ShotTask {task_id}] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
         if result.get("prompt_id"):
             task.comfyui_prompt_id = result["prompt_id"]

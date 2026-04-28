@@ -200,7 +200,7 @@ class ComfyUIMonitor:
                 
                 if response.status_code == 200:
                     data = response.json()
-                    print(f"[ComfyUIMonitor] system_stats 响应: {json.dumps(data, indent=2)[:500]}")
+                    print(f"[ComfyUIMonitor] system_stats 响应: {json.dumps(data, indent=2, ensure_ascii=True)[:500]}")
                     
                     # 解析显存信息
                     devices = data.get("devices", [])

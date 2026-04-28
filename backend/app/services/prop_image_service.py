@@ -248,7 +248,7 @@ class PropService:
                 workflow=submitted_workflow
             )
 
-            print(f"[PropTask] Generation result: {result}")
+            print(f"[PropTask] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
             if result.get("prompt_id"):
                 task.comfyui_prompt_id = result["prompt_id"]
