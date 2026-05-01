@@ -88,10 +88,10 @@ async def generate_shot_video_task(
             db.commit()
             return
 
-        # 从 Shot 模型获取分镜描述
-        shot_description = shot.description or ""
+        # 视频生成优先使用专用视频描述，未填写时回退到分镜描述
+        shot_prompt = (shot.video_description or "").strip() or (shot.description or "")
 
-        task.prompt_text = shot_description
+        task.prompt_text = shot_prompt
         db.commit()
 
         duration = shot.duration or 4
@@ -202,7 +202,7 @@ async def generate_shot_video_task(
 
         comfyui_service = ComfyUIService()
         result = await comfyui_service.generate_shot_video_with_workflow(
-            prompt=shot_description,
+            prompt=shot_prompt,
             workflow_json=workflow.workflow_json,
             node_mapping=node_mapping,
             aspect_ratio=novel.aspect_ratio or "16:9",
