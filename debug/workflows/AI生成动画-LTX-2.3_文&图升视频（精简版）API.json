@@ -1,0 +1,463 @@
+{
+  "1241": {
+    "inputs": {
+      "frame_rate": [
+        "4978",
+        0
+      ],
+      "positive": [
+        "2483",
+        0
+      ],
+      "negative": [
+        "2612",
+        0
+      ]
+    },
+    "class_type": "LTXVConditioning",
+    "_meta": {
+      "title": "#1241 LTXVConditioning"
+    }
+  },
+  "2004": {
+    "inputs": {
+      "image": "shot_8bf2cc8b_20260501_101218.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#2004 Load Image"
+    }
+  },
+  "2483": {
+    "inputs": {
+      "text": [
+        "5042",
+        0
+      ],
+      "clip": [
+        "4960",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "#2483 CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "2612": {
+    "inputs": {
+      "text": "pc game, console game, video game, cartoon, childish, ugly",
+      "clip": [
+        "4960",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "#2612 CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "3059": {
+    "inputs": {
+      "width": [
+        "5041",
+        3
+      ],
+      "height": [
+        "5041",
+        4
+      ],
+      "length": [
+        "4995",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLTXVLatentVideo",
+    "_meta": {
+      "title": "#3059 EmptyLTXVLatentVideo"
+    }
+  },
+  "3159": {
+    "inputs": {
+      "strength": 0.7,
+      "bypass": [
+        "4977",
+        0
+      ],
+      "vae": [
+        "3940",
+        2
+      ],
+      "image": [
+        "3336",
+        0
+      ],
+      "latent": [
+        "3059",
+        0
+      ]
+    },
+    "class_type": "LTXVImgToVideoConditionOnly",
+    "_meta": {
+      "title": "#3159 🅛🅣🅧 LTXV Img To Video Condition Only"
+    }
+  },
+  "3336": {
+    "inputs": {
+      "img_compression": 18,
+      "image": [
+        "5041",
+        0
+      ]
+    },
+    "class_type": "LTXVPreprocess",
+    "_meta": {
+      "title": "#3336 LTXVPreprocess"
+    }
+  },
+  "3940": {
+    "inputs": {
+      "ckpt_name": "LTX-2.3\\ltx-2.3-22b-dev-fp8.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "#3940 Load Checkpoint"
+    }
+  },
+  "3980": {
+    "inputs": {
+      "frames_number": [
+        "4995",
+        0
+      ],
+      "frame_rate": [
+        "5037",
+        0
+      ],
+      "batch_size": 1,
+      "audio_vae": [
+        "4010",
+        0
+      ]
+    },
+    "class_type": "LTXVEmptyLatentAudio",
+    "_meta": {
+      "title": "#3980 LTXV Empty Latent Audio"
+    }
+  },
+  "4010": {
+    "inputs": {
+      "ckpt_name": "LTX-2.3\\ltx-2.3-22b-dev-fp8.safetensors"
+    },
+    "class_type": "LTXVAudioVAELoader",
+    "_meta": {
+      "title": "#4010 LTXV Audio VAE Loader"
+    }
+  },
+  "4528": {
+    "inputs": {
+      "video_latent": [
+        "3159",
+        0
+      ],
+      "audio_latent": [
+        "3980",
+        0
+      ]
+    },
+    "class_type": "LTXVConcatAVLatent",
+    "_meta": {
+      "title": "#4528 LTXVConcatAVLatent"
+    }
+  },
+  "4828": {
+    "inputs": {
+      "cfg": 1,
+      "model": [
+        "4922",
+        0
+      ],
+      "positive": [
+        "1241",
+        0
+      ],
+      "negative": [
+        "1241",
+        1
+      ]
+    },
+    "class_type": "CFGGuider",
+    "_meta": {
+      "title": "#4828 CFGGuider"
+    }
+  },
+  "4829": {
+    "inputs": {
+      "noise": [
+        "4832",
+        0
+      ],
+      "guider": [
+        "4828",
+        0
+      ],
+      "sampler": [
+        "4831",
+        0
+      ],
+      "sigmas": [
+        "4971",
+        0
+      ],
+      "latent_image": [
+        "4528",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#4829 SamplerCustomAdvanced"
+    }
+  },
+  "4831": {
+    "inputs": {
+      "sampler_name": "euler_ancestral_cfg_pp"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "#4831 KSamplerSelect"
+    }
+  },
+  "4832": {
+    "inputs": {
+      "noise_seed": 43
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#4832 RandomNoise"
+    }
+  },
+  "4845": {
+    "inputs": {
+      "av_latent": [
+        "4829",
+        0
+      ]
+    },
+    "class_type": "LTXVSeparateAVLatent",
+    "_meta": {
+      "title": "#4845 LTXVSeparateAVLatent"
+    }
+  },
+  "4848": {
+    "inputs": {
+      "samples": [
+        "4845",
+        1
+      ],
+      "audio_vae": [
+        "4010",
+        0
+      ]
+    },
+    "class_type": "LTXVAudioVAEDecode",
+    "_meta": {
+      "title": "#4848 LTXV Audio VAE Decode"
+    }
+  },
+  "4851": {
+    "inputs": {
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 512,
+      "temporal_overlap": 64,
+      "samples": [
+        "4845",
+        0
+      ],
+      "vae": [
+        "3940",
+        2
+      ]
+    },
+    "class_type": "VAEDecodeTiled",
+    "_meta": {
+      "title": "#4851 VAE Decode (Tiled)"
+    }
+  },
+  "4922": {
+    "inputs": {
+      "lora_name": "LTX2.3\\ltx-2.3-22b-distilled-lora-384.safetensors",
+      "strength_model": 0.5,
+      "model": [
+        "3940",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "#4922 Load LoRA"
+    }
+  },
+  "4960": {
+    "inputs": {
+      "text_encoder": "gemma_3_12B_it_fpmixed.safetensors",
+      "ckpt_name": "LTX-2.3\\ltx-2.3-22b-dev-fp8.safetensors",
+      "device": "default"
+    },
+    "class_type": "LTXAVTextEncoderLoader",
+    "_meta": {
+      "title": "#4960 LTXV Audio Text Encoder Loader"
+    }
+  },
+  "4971": {
+    "inputs": {
+      "sigmas": "1.0, 0.99375, 0.9875, 0.98125, 0.975, 0.909375, 0.725, 0.421875, 0.0"
+    },
+    "class_type": "ManualSigmas",
+    "_meta": {
+      "title": "#4971 ManualSigmas"
+    }
+  },
+  "4977": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "#4977 切换文生视频"
+    }
+  },
+  "4978": {
+    "inputs": {
+      "value": 24
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "#4978 fps"
+    }
+  },
+  "4987": {
+    "inputs": {
+      "anything": [
+        "2004",
+        0
+      ]
+    },
+    "class_type": "easy cleanGpuUsed",
+    "_meta": {
+      "title": "#4987 Clean VRAM Used"
+    }
+  },
+  "4995": {
+    "inputs": {
+      "value": "a * b + 1",
+      "a": [
+        "5034",
+        0
+      ],
+      "b": [
+        "4978",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "#4995 🔧 Simple Math"
+    }
+  },
+  "5033": {
+    "inputs": {
+      "frame_rate": [
+        "4978",
+        0
+      ],
+      "loop_count": 0,
+      "filename_prefix": "LTX2/ltx2-i2v",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "4851",
+        0
+      ],
+      "audio": [
+        "4848",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "#5033 Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "5034": {
+    "inputs": {
+      "value": 10
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "#5034 时长"
+    }
+  },
+  "5037": {
+    "inputs": {
+      "value": [
+        "4978",
+        0
+      ],
+      "mode": "round"
+    },
+    "class_type": "JWFloatToInteger",
+    "_meta": {
+      "title": "#5037 Float to Integer"
+    }
+  },
+  "5040": {
+    "inputs": {
+      "value": 960
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#116 最长边"
+    }
+  },
+  "5041": {
+    "inputs": {
+      "aspect_ratio": "original",
+      "proportional_width": 1,
+      "proportional_height": 1,
+      "fit": "crop",
+      "method": "lanczos",
+      "round_to_multiple": "32",
+      "scale_to_side": "longest",
+      "scale_to_length": [
+        "5040",
+        0
+      ],
+      "background_color": "#000000",
+      "image": [
+        "2004",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: ImageScaleByAspectRatio V2",
+    "_meta": {
+      "title": "#118 LayerUtility: ImageScaleByAspectRatio V2"
+    }
+  },
+  "5042": {
+    "inputs": {
+      "prompt": "Character Constraints:\n- mother pony: keep original face, hairstyle, body proportions and outfit silhouette unchanged; do not change age, body type or identity\n- baby pony: keep original face, hairstyle, body proportions and outfit silhouette unchanged; do not change age, body type or identity\n\n(0.0-2.0s): Static Medium Shot\n母马缓缓俯身靠近小马，表情温柔，轻轻牵起小马的蹄子。\n母马开始说话（slow, gentle tone），嘴唇缓慢开启并自然运动：\n\"孩子，你已经是能帮妈妈做事的小大人了。\"\n\n(2.0-5.0s): Speaking Continuation\n母马继续说话，头部轻微点动，保持温和表情，嘴部持续自然开合：\n\"家里的麦子吃完了，你帮妈妈把这半袋麦子送到河对岸的磨坊去吧，好吗？\"\n小马认真听，眼睛轻微眨动。\n\n(5.0-7.0s): Response Transition\n母马说完后停顿，小马抬头，表情变得兴奋，开始回应，嘴部轻微开启：\n\"太好了妈妈！\"\n\n(7.0-9.0s): Response Completion\n小马点头，动作积极自然，继续说话：\n\"我保证完成任务！\"\n\n(9.0-10.0s): Ending Hold\n母马温和看着小马，轻微回正身体，小马完成点头，双方保持自然呼吸与细微动作。\n\nMOTION:\nslow, smooth animation, natural speaking motion, stable, no jitter\n\nCAMERA:\nstatic camera, medium shot"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#-1 ⚙️ CR Prompt Text"
+    }
+  }
+}
