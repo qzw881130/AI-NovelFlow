@@ -8,7 +8,17 @@ cd "$SCRIPT_DIR"
 
 # 停止已有的 uvicorn 进程
 echo "正在停止已有的服务..."
-pkill -f "uvicorn app.main:app" 2>/dev/null || true
+pkill -f "uvicorn.*app.main:app" 2>/dev/null || true
+pkill -f "python -m uvicorn app.main:app" 2>/dev/null || true
+
+# 兜底：如果 8000 端口仍被占用，直接杀掉监听进程
+if command -v lsof &> /dev/null; then
+    while IFS= read -r pid; do
+        if [[ -n "$pid" ]]; then
+            kill -9 "$pid" 2>/dev/null || true
+        fi
+    done < <(lsof -tiTCP:8000 -sTCP:LISTEN 2>/dev/null)
+fi
 sleep 2
 
 # 激活虚拟环境
@@ -58,12 +68,13 @@ echo ""
 
 # 使用 nohup 在后台运行，输出到 backend.log
 nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload > backend.log 2>&1 &
+disown 2>/dev/null || true
 
 # 等待服务启动
 sleep 3
 
 # 检查服务是否启动成功
-if curl -s http://localhost:8000/api/health/ > /dev/null 2>&1; then
+if curl --max-time 5 -s http://localhost:8000/api/health/ > /dev/null 2>&1; then
     echo "✅ 服务启动成功！"
     echo "健康检查: http://localhost:8000/api/health/"
     echo "日志文件: $SCRIPT_DIR/backend.log"
