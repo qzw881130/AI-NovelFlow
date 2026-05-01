@@ -552,21 +552,20 @@ async def merge_chapter_videos(
 
     include_transitions = data.include_transitions
 
-    # 从 Shot 表获取分镜视频列表
+    # 从 Shot 表获取分镜视频列表（保留分镜 index，便于正确匹配转场）
     shots = shot_repo.get_by_chapter(chapter_id)
-
-    shot_videos = [shot.video_url for shot in shots if shot.video_url]
+    generated_shots = [(shot.index, shot.video_url) for shot in shots if shot.video_url]
 
     # 从 parsed_data 获取转场视频
     parsed_data = json.loads(chapter.parsed_data) if chapter.parsed_data else {}
     transition_videos = parsed_data.get("transition_videos", {})
 
-    if not shot_videos or len(shot_videos) == 0:
+    if not generated_shots or len(generated_shots) == 0:
         return {"success": False, "message": "没有分镜视频可以合并"}
 
     # 转换 URL 为本地路径
     video_paths = []
-    for video_url in shot_videos:
+    for _, video_url in generated_shots:
         if video_url and video_url.startswith("/api/files/"):
             full_path = url_to_local_path(video_url)
             if full_path:
@@ -578,8 +577,10 @@ async def merge_chapter_videos(
     # 获取转场视频路径
     trans_paths = []
     if include_transitions and transition_videos:
-        for i in range(len(shot_videos) - 1):
-            key = f"{i + 1}-{i + 2}"
+        for i in range(len(generated_shots) - 1):
+            from_index = generated_shots[i][0]
+            to_index = generated_shots[i + 1][0]
+            key = f"{from_index}-{to_index}"
             trans_url = transition_videos.get(key)
             if trans_url and trans_url.startswith("/api/files/"):
                 full_path = url_to_local_path(trans_url)

@@ -75,10 +75,16 @@ export function useTasksState() {
   const handleDelete = async (taskId: string) => {
     if (!confirm(t('tasks.confirmDelete'))) return;
     try {
-      await taskApi.delete(taskId);
+      const result = await taskApi.delete(taskId) as { success?: boolean; message?: string; detail?: string };
+      if (!result.success) {
+        toast.error(result.message || result.detail || t('common.deleteFailed'));
+        return;
+      }
       setTasks(tasks.filter(t => t.id !== taskId));
+      toast.success(result.message || '任务已删除');
     } catch (error) {
       console.error('删除失败:', error);
+      toast.error(error instanceof Error ? error.message : t('common.deleteFailed'));
     }
   };
 

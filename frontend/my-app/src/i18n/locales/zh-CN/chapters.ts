@@ -408,6 +408,8 @@ export default {
     backToShotVideos: '返回分镜视频',
     transitionConfig: '转场配置',
     transitionWorkflow: '转场工作流',
+    transitionDuration: '转场秒数',
+    transitionFrameHint: '总帧数 = 秒数 x 24',
     selectTransitionWorkflow: '选择转场工作流',
     transitionBetweenShots: '镜{from} → 镜{to}',
     shotThumbnail: '分镜缩略图',

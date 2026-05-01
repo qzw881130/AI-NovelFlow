@@ -9,21 +9,6 @@ const asNumber = (value: unknown, fallback = 0) =>
 const asOptionalNumber = (value: unknown) =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 
-const getSourceLabel = (gpuSource?: SystemStats['gpuSource']) => {
-  switch (gpuSource) {
-    case 'windows_gpu_monitor':
-      return 'windows_gpu_monitor';
-    case 'comfyui_fallback':
-      return 'ComfyUI';
-    case 'comfyui':
-      return 'ComfyUI';
-    case 'real':
-      return 'windows_gpu_monitor';
-    default:
-      return undefined;
-  }
-};
-
 export default function ComfyUIStatus() {
   const { t } = useTranslation();
   const [stats, setStats] = useState<SystemStats>({
@@ -79,7 +64,7 @@ export default function ComfyUIStatus() {
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+      <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
           <span className="ml-2 text-gray-500">{t('tasks.connecting')}</span>
@@ -89,28 +74,27 @@ export default function ComfyUIStatus() {
   }
 
   return (
-    <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+    <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
       <h3 className="text-lg font-semibold text-gray-900 mb-5">{t('tasks.systemStatusTitle')}</h3>
       
       <div className="space-y-5">
         {/* ComfyUI 状态 */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gray-50 rounded-lg">
-              <Server className="h-5 w-5 text-gray-600" />
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2 bg-gray-50 rounded-lg flex-shrink-0">
+                <Server className="h-5 w-5 text-gray-600" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-gray-700 font-medium leading-6">ComfyUI</div>
+              </div>
             </div>
-              <span className="text-gray-700 font-medium">ComfyUI</span>
-              {getSourceLabel(stats.gpuSource) && (
-                <span className="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
-                  {getSourceLabel(stats.gpuSource)}
-                </span>
-              )}
+            <div className="flex items-center gap-1.5 flex-shrink-0 self-start pl-1">
+              <span className={`w-2.5 h-2.5 rounded-full ${stats.status === 'online' ? 'bg-green-500' : 'bg-gray-300'}`} />
+              <span className={`text-sm font-medium whitespace-nowrap ${stats.status === 'online' ? 'text-green-600' : 'text-gray-400'}`}>
+                {stats.status === 'online' ? t('tasks.online') : t('tasks.offline')}
+              </span>
             </div>
-          <div className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${stats.status === 'online' ? 'bg-green-500' : 'bg-gray-300'}`} />
-            <span className={`text-sm font-medium ${stats.status === 'online' ? 'text-green-600' : 'text-gray-400'}`}>
-              {stats.status === 'online' ? t('tasks.online') : t('tasks.offline')}
-            </span>
           </div>
         </div>
 
@@ -127,16 +111,16 @@ export default function ComfyUIStatus() {
         )}
 
         {/* GPU 使用率 */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-gray-700 font-medium">{t('tasks.gpuUsage')}</span>
-              {stats.gpuSource === 'real' && (
-                <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded">{t('tasks.realtime')}</span>
-              )}
+          <div>
+            <div className="flex flex-col gap-1 mb-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-gray-700 font-medium">{t('tasks.gpuUsage')}</span>
+                {stats.gpuSource === 'real' && (
+                  <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded">{t('tasks.realtime')}</span>
+                )}
+              </div>
+              <span className="text-gray-900 font-semibold sm:text-right">{stats.gpuUsage}%</span>
             </div>
-            <span className="text-gray-900 font-semibold">{stats.gpuUsage}%</span>
-          </div>
           <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
             <div 
               className={`h-full rounded-full transition-all duration-500 ${
@@ -149,13 +133,13 @@ export default function ComfyUIStatus() {
         </div>
 
         {/* 显存占用 */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-gray-700 font-medium">{t('tasks.vramUsage')}</span>
-            <span className="text-gray-900 font-semibold">
-              {stats.vramUsed.toFixed(1)} / {stats.vramTotal.toFixed(0)} GB
-            </span>
-          </div>
+          <div>
+            <div className="flex flex-col gap-1 mb-2 sm:flex-row sm:items-center sm:justify-between">
+              <span className="text-gray-700 font-medium">{t('tasks.vramUsage')}</span>
+              <span className="text-gray-900 font-semibold break-words sm:text-right">
+                {stats.vramUsed.toFixed(1)} / {stats.vramTotal.toFixed(0)} GB
+              </span>
+            </div>
           <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
             <div 
               className={`h-full rounded-full transition-all duration-500 ${
@@ -170,12 +154,12 @@ export default function ComfyUIStatus() {
         {/* 内存占用 */}
         {stats.ramUsed != null && stats.ramTotal != null && (
           <div>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-1 mb-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2 min-w-0">
                 <MemoryStick className="h-4 w-4 text-gray-500" />
                 <span className="text-gray-700 font-medium">{t('tasks.ramUsage')}</span>
               </div>
-              <span className="text-gray-900 font-semibold">
+              <span className="text-gray-900 font-semibold break-words sm:text-right">
                 {stats.ramUsed.toFixed(1)} / {stats.ramTotal.toFixed(0)} GB
               </span>
             </div>
@@ -193,8 +177,8 @@ export default function ComfyUIStatus() {
 
         {/* GPU 温度 */}
         {stats.temperature !== undefined && stats.temperature > 0 && (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 min-w-0">
               <Thermometer className="h-4 w-4 text-gray-500" />
               <span className="text-gray-700 font-medium">{t('tasks.gpuTemperature')}</span>
             </div>

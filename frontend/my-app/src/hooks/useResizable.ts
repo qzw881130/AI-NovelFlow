@@ -92,15 +92,6 @@ export function useResizable({
     [minWidth, maxWidth, storageKey, onWidthChange]
   );
 
-  // 处理外部收起状态变化
-  useEffect(() => {
-    if (externalCollapsed) {
-      setWidthState(collapsedWidth);
-    } else {
-      setWidthState(width); // 恢复到最后记录的宽度
-    }
-  }, [externalCollapsed, collapsedWidth]);
-
   // 鼠标按下开始拖动
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {

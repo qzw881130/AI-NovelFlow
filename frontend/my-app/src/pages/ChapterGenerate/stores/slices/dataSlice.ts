@@ -91,7 +91,10 @@ export const createDataSlice: StateCreator<
           createdAt: rawChapter.created_at || rawChapter.createdAt,
           updatedAt: rawChapter.updated_at || rawChapter.updatedAt,
         };
-        set({ chapter });
+        set({
+          chapter,
+          transitionVideos: chapter.transitionVideos || {},
+        });
 
         // 获取分镜数据（存储在独立的 shots 表中）
         await get().fetchShotsWithReturn(novelId, chapterId);
@@ -111,10 +114,11 @@ export const createDataSlice: StateCreator<
               props: parsed.props || [],
             };
 
-            set({
-              parsedData,
-              editableJson: JSON.stringify(parsedData, null, 2)
-            });
+              set({
+                parsedData,
+                editableJson: JSON.stringify(parsedData, null, 2),
+                transitionVideos: parsed.transition_videos || chapter.transitionVideos || {},
+              });
 
             // 初始化章节级资源
             get().initChapterResources();
@@ -131,7 +135,8 @@ export const createDataSlice: StateCreator<
           };
           set({
             parsedData,
-            editableJson: JSON.stringify(parsedData, null, 2)
+            editableJson: JSON.stringify(parsedData, null, 2),
+            transitionVideos: chapter.transitionVideos || {},
           });
 
           // 初始化章节级资源

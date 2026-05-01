@@ -77,11 +77,21 @@ async def get_task(task_id: str, task_repo: TaskRepository = Depends(get_task_re
 # ==================== 任务操作 ====================
 
 @router.delete("/{task_id}")
-async def delete_task(task_id: str, task_repo: TaskRepository = Depends(get_task_repo)):
+async def delete_task(
+    task_id: str,
+    task_service: TaskService = Depends(get_task_service),
+    task_repo: TaskRepository = Depends(get_task_repo),
+):
     """删除任务"""
     task = task_repo.get_by_id(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
+
+    if task.status in ["pending", "running"]:
+        cancel_result = await task_service.cancel_task(task_id)
+        if cancel_result.get("status_code"):
+            raise HTTPException(status_code=cancel_result["status_code"], detail=cancel_result.get("message"))
+        task = cancel_result.get("task") or task_repo.get_by_id(task_id)
 
     task_repo.delete(task)
 

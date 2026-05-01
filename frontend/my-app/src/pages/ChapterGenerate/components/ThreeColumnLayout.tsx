@@ -34,8 +34,8 @@ export function ThreeColumnLayout({
   rightPanel,
   minLeftWidth = 200,
   maxLeftWidth = 400,
-  minRightWidth = 200,
-  maxRightWidth = 350, // 调小右侧栏最大宽度，给中间更多空间
+  minRightWidth = 320,
+  maxRightWidth = 440,
 }: ThreeColumnLayoutProps) {
   const store = useChapterGenerateStore();
 
@@ -128,7 +128,7 @@ export function ThreeColumnLayout({
 
       {/* 中间内容区域 */}
       <div className="flex-1 min-w-0 overflow-hidden" style={{ maxWidth: 'calc(100% - 96px)' }}>
-        <div className="h-full overflow-auto">{centerContent}</div>
+        <div className="h-full overflow-hidden">{centerContent}</div>
       </div>
 
       {/* 右侧栏 */}
@@ -140,7 +140,7 @@ export function ThreeColumnLayout({
       >
         <div className="h-full overflow-hidden bg-gray-50 border-l border-gray-200">
           {/* 右侧栏内容 */}
-          <div className={`h-full ${rightPanelCollapsed ? 'p-2' : 'p-4'}`}>
+          <div className={`h-full ${rightPanelCollapsed ? 'p-2' : 'pl-4 pr-2 py-4'}`}>
             {!rightPanelCollapsed && rightPanel}
           </div>
         </div>
@@ -156,7 +156,7 @@ export function ThreeColumnLayout({
         {/* 收起/展开按钮 */}
         <button
           onClick={toggleRightPanel}
-          className="absolute -left-3 top-4 z-10 w-6 h-6 bg-white border border-gray-200 rounded-full shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors"
+          className="absolute -left-3 top-12 z-10 w-6 h-6 bg-white border border-gray-200 rounded-full shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors"
           title={rightPanelCollapsed ? '展开' : '收起'}
         >
           {rightPanelCollapsed ? (

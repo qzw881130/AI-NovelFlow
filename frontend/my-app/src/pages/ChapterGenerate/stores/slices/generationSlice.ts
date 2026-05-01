@@ -15,6 +15,28 @@ import type {
 import { shotsApi } from '../../../../api/shots';
 import { chapterApi } from '../../../../api/chapters';
 
+const TRANSITION_SETTINGS_STORAGE_KEY = 'chapterGenerate_transitionSettings';
+
+const getSavedTransitionSettings = () => {
+  try {
+    const saved = localStorage.getItem(TRANSITION_SETTINGS_STORAGE_KEY);
+    if (!saved) return null;
+    return JSON.parse(saved) as { selectedTransitionWorkflow?: string; transitionDuration?: number };
+  } catch {
+    return null;
+  }
+};
+
+const saveTransitionSettings = (settings: { selectedTransitionWorkflow: string; transitionDuration: number }) => {
+  try {
+    localStorage.setItem(TRANSITION_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // ignore localStorage errors
+  }
+};
+
+const savedTransitionSettings = getSavedTransitionSettings();
+
 export interface GenerationSlice extends GenerationSliceState {
   // ========== 图片生成 ==========
   generateShotImage: (novelId: string, chapterId: string, shotId: string) => Promise<void>;
@@ -99,8 +121,8 @@ export const createGenerationSlice: StateCreator<
   generatingTransitions: new Set(),
   currentTransition: '',
   transitionWorkflows: [],
-  selectedTransitionWorkflow: '',
-  transitionDuration: 2,
+  selectedTransitionWorkflow: savedTransitionSettings?.selectedTransitionWorkflow ?? '',
+  transitionDuration: Math.min(7, Math.max(3, savedTransitionSettings?.transitionDuration ?? 5)),
 
   // 分镜工作流
   shotWorkflows: [],
@@ -301,8 +323,8 @@ export const createGenerationSlice: StateCreator<
     try {
       const { selectedTransitionWorkflow, transitionDuration } = get();
 
-      // 计算 frame_count: 每秒约8帧 + 1（transitionDuration是秒数）
-      const frameCount = Math.round(transitionDuration * 8) + 1;
+      // 转场总帧数按 24fps 计算
+      const frameCount = Math.round(transitionDuration * 24);
 
       const response = await fetch(
         `/api/novels/${novelId}/chapters/${chapterId}/transitions`,
@@ -366,11 +388,24 @@ export const createGenerationSlice: StateCreator<
   },
 
   setSelectedTransitionWorkflow: (workflowId) => {
-    set({ selectedTransitionWorkflow: workflowId });
+    set((state) => {
+      saveTransitionSettings({
+        selectedTransitionWorkflow: workflowId,
+        transitionDuration: state.transitionDuration,
+      });
+      return { selectedTransitionWorkflow: workflowId };
+    });
   },
 
   setTransitionDuration: (duration) => {
-    set({ transitionDuration: duration });
+    const clampedDuration = Math.min(7, Math.max(3, duration));
+    set((state) => {
+      saveTransitionSettings({
+        selectedTransitionWorkflow: state.selectedTransitionWorkflow,
+        transitionDuration: clampedDuration,
+      });
+      return { transitionDuration: clampedDuration };
+    });
   },
 
   // ========== 音频生成方法 ==========
@@ -808,23 +843,27 @@ export const createGenerationSlice: StateCreator<
 
   checkTransitionTaskStatus: async (chapterId: string) => {
     try {
-      const response = await fetch(`/api/tasks/?chapter_id=${chapterId}&type=transition`);
+      const response = await fetch(`/api/tasks/?chapter_id=${chapterId}&type=transition_video`);
       const result = await response.json();
 
       if (result.success && result.data) {
         // 更新转场视频状态
         const newTransitionVideos = { ...get().transitionVideos };
+        const newGeneratingTransitions = new Set(get().generatingTransitions);
         result.data.forEach((task: any) => {
+          const match = task.name?.match(/镜\s*(\d+)\s*[→\-]\s*镜\s*(\d+)/) || task.name?.match(/(\d+)-(\d+)/);
+          if (!match) return;
+
+          const transitionKey = `${match[1]}-${match[2]}`;
+
           if (task.resultUrl) {
-            // 从 task.name 中提取转场 key，例如 "转场视频：1-2"
-            const match = task.name?.match(/(\d+)-(\d+)/);
-            if (match) {
-              const transitionKey = `${match[1]}-${match[2]}`;
-              newTransitionVideos[transitionKey] = task.resultUrl;
-            }
+            newTransitionVideos[transitionKey] = task.resultUrl;
+            newGeneratingTransitions.delete(transitionKey);
+          } else if (task.status === 'failed' || task.status === 'completed') {
+            newGeneratingTransitions.delete(transitionKey);
           }
         });
-        set({ transitionVideos: newTransitionVideos });
+        set({ transitionVideos: newTransitionVideos, generatingTransitions: newGeneratingTransitions });
       }
     } catch (error) {
       console.error('检查转场任务状态失败:', error);

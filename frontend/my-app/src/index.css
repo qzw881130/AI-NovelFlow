@@ -69,7 +69,7 @@
 
 /* 底部导航条滚动条 - 更明显 */
 .bottom-nav-scroll {
-  overflow-x: scroll !important;
+  overflow-x: auto !important;
 }
 
 .bottom-nav-scroll::-webkit-scrollbar {

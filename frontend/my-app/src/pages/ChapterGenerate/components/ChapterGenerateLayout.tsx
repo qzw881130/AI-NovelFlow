@@ -310,7 +310,7 @@ export function ChapterGenerateLayout({
         />
 
         {/* 为底部导航预留空间 */}
-        <div className={bottomNavCollapsed ? 'h-10' : 'h-40'} />
+        <div className={bottomNavCollapsed ? 'h-10' : 'h-44'} />
       </div>
     );
   }
@@ -354,7 +354,7 @@ export function ChapterGenerateLayout({
       </div>
 
       {/* 三栏布局 */}
-      <div className="flex-1 min-h-0 px-4 py-2">
+      <div className="flex-1 min-h-0 pl-4 pr-0 py-2">
         <ThreeColumnLayout
           leftPanel={renderLeftPanel()}
           centerContent={renderCenterContent()}
@@ -375,7 +375,7 @@ export function ChapterGenerateLayout({
       />
 
       {/* 为底部导航预留空间 */}
-      <div className={bottomNavCollapsed ? 'h-10' : 'h-40'} />
+      <div className={bottomNavCollapsed ? 'h-10' : 'h-44'} />
     </div>
   );
 }

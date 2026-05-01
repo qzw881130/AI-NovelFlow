@@ -377,9 +377,9 @@ class ComfyUIService:
             if last_image_node_id in workflow:
                 workflow[last_image_node_id]["inputs"]["image"] = last_upload.get("filename")
             
-            # 设置帧数
-            if frame_count and frame_count_node_id in workflow:
-                workflow[frame_count_node_id]["inputs"]["value"] = frame_count
+            # 设置总帧数节点，兼容 easy int / JWInteger / INTConstant 等数值节点
+            if frame_count and frame_count_node_id:
+                self.builder._set_value(workflow, frame_count_node_id, frame_count)
             
             # 设置随机种子
             import random

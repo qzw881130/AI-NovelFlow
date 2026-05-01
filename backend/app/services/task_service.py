@@ -101,7 +101,64 @@ class TaskService:
     # ==================== 任务创建 ====================
     
     # ==================== 任务操作 ====================
-    
+
+    async def cancel_task(self, task_id: str, db: Session = None) -> Dict[str, Any]:
+        """取消单个任务对应的 ComfyUI 执行。"""
+        db = db or self.db
+        task_repo = TaskRepository(db)
+
+        task = task_repo.get_by_id(task_id)
+        if not task:
+            return {"success": False, "message": "任务不存在", "status_code": 404}
+
+        if task.status not in ["pending", "running"]:
+            return {
+                "success": True,
+                "message": "任务不是进行中状态，无需取消",
+                "task": task,
+                "details": {"skipped": True},
+            }
+
+        if not task.comfyui_prompt_id:
+            return {
+                "success": False,
+                "message": "任务缺少 ComfyUI prompt_id，无法安全终止对应执行",
+                "status_code": 409,
+            }
+
+        cancel_result = await self.comfyui_service.cancel_all_matching_tasks([task.comfyui_prompt_id])
+        deleted_from_queue = cancel_result.get("deleted_from_queue", [])
+        interrupted = cancel_result.get("interrupted", False)
+        not_found = cancel_result.get("not_found", [])
+
+        if task.comfyui_prompt_id in not_found:
+            return {
+                "success": False,
+                "message": "ComfyUI 中未找到对应任务，已阻止删除以避免残留状态不一致",
+                "status_code": 409,
+                "details": cancel_result,
+            }
+
+        if not deleted_from_queue and not interrupted:
+            return {
+                "success": False,
+                "message": "终止 ComfyUI 任务失败，已阻止删除",
+                "status_code": 502,
+                "details": cancel_result,
+            }
+
+        task.status = "failed"
+        task.error_message = "任务被用户删除并终止"
+        task.current_step = "已终止"
+        db.commit()
+
+        return {
+            "success": True,
+            "message": "已终止对应 ComfyUI 任务",
+            "task": task,
+            "details": cancel_result,
+        }
+
     async def cancel_all_tasks(self, db: Session = None) -> Dict[str, Any]:
         """
         终止所有正在进行或待处理的任务

@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useChapterGenerateStore } from '../stores';
-import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2 } from 'lucide-react';
+import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
@@ -18,6 +18,8 @@ import KeyframesManager from '../../../components/KeyframesManager';
 import AudioReferenceSelector from '../../../components/AudioReferenceSelector';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import type { KeyframeData } from '../../../types';
+
+const VIDEO_TAB_UI_STORAGE_KEY = 'chapterGenerate_videoTab_ui';
 
 interface VideoGenTabProps {
   chapter?: any;
@@ -46,7 +48,7 @@ export function VideoGenTab({
 }: VideoGenTabProps) {
   const { t } = useTranslation();
   const store = useChapterGenerateStore();
-  const { markTabComplete, setCurrentShot, downloadChapterMaterials, generateShotVideo, setShots, generateTransition, transitionWorkflows, selectedTransitionWorkflow, setSelectedTransitionWorkflow, fetchTransitionWorkflows } = store;
+  const { markTabComplete, setCurrentShot, downloadChapterMaterials, generateShotVideo, setShots, generateTransition, transitionWorkflows, selectedTransitionWorkflow, setSelectedTransitionWorkflow, fetchTransitionWorkflows, transitionDuration, setTransitionDuration } = store;
 
   // 直接订阅 store 状态（确保状态更新时组件重新渲染）
   const storeShots = useChapterGenerateStore((state) => state.shots);
@@ -74,6 +76,7 @@ export function VideoGenTab({
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
   const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewTransitionVideo, setPreviewTransitionVideo] = useState<string | null>(null);
 
   // 关键帧展开状态
   const [showKeyframes, setShowKeyframes] = useState(true);
@@ -108,6 +111,36 @@ export function VideoGenTab({
       fetchTransitionWorkflows();
     }
   }, [fetchTransitionWorkflows, transitionWorkflows.length]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(VIDEO_TAB_UI_STORAGE_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as {
+        showKeyframes?: boolean;
+        showAudioRef?: boolean;
+      };
+      if (typeof parsed.showKeyframes === 'boolean') {
+        setShowKeyframes(parsed.showKeyframes);
+      }
+      if (typeof parsed.showAudioRef === 'boolean') {
+        setShowAudioRef(parsed.showAudioRef);
+      }
+    } catch {
+      // ignore localStorage errors
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        VIDEO_TAB_UI_STORAGE_KEY,
+        JSON.stringify({ showKeyframes, showAudioRef })
+      );
+    } catch {
+      // ignore localStorage errors
+    }
+  }, [showKeyframes, showAudioRef]);
 
   // 同步 currentShot 和 selectedVideo
   useEffect(() => {
@@ -564,7 +597,7 @@ export function VideoGenTab({
             <h3 className="text-sm font-medium text-gray-700 mb-3">{t('chapterGenerate.transitionConfig')}</h3>
 
           {/* 转场工作流选择 */}
-          <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+          <div className="mb-4 p-3 bg-gray-50 rounded-lg space-y-4">
             <label className="block text-xs font-medium text-gray-600 mb-2">
               {t('chapterGenerate.transitionWorkflow')}
             </label>
@@ -583,6 +616,27 @@ export function VideoGenTab({
               </select>
               <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
             </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-xs font-medium text-gray-600">
+                  {t('chapterGenerate.transitionDuration') || '转场秒数'}
+                </label>
+                <span className="text-sm font-medium text-blue-600">{transitionDuration}s</span>
+              </div>
+              <input
+                type="range"
+                min={3}
+                max={7}
+                step={1}
+                value={transitionDuration}
+                onChange={(e) => setTransitionDuration(Number(e.target.value))}
+                className="w-full accent-blue-600"
+              />
+              <div className="mt-1 text-xs text-gray-500">
+                {t('chapterGenerate.transitionFrameHint') || `总帧数 = 秒数 x 24，当前 ${transitionDuration * 24} 帧`}
+              </div>
+            </div>
           </div>
 
           {/* 转场列表 */}
@@ -592,6 +646,7 @@ export function VideoGenTab({
               const from = idx + 1;
               const to = idx + 2;
               const hasTransition = !!transitionVideos[`${from}-${to}`];
+              const transitionVideoUrl = transitionVideos[`${from}-${to}`];
               const isGeneratingTransition = generatingTransitions.has(`${from}-${to}`);
 
               // 获取前后分镜的缩略图
@@ -680,8 +735,24 @@ export function VideoGenTab({
                     </div>
                   </div>
 
-                  {/* 生成按钮 */}
-                  {!hasTransition && !isGeneratingTransition && (
+                  {/* 操作按钮 */}
+                  {hasTransition ? (
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setPreviewTransitionVideo(transitionVideoUrl)}
+                        className="flex-1 px-3 py-1.5 text-sm bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <Play className="w-4 h-4" />
+                        {t('chapterGenerate.transitionPreview', { transition: `${from}→${to}` })}
+                      </button>
+                      <button
+                        onClick={() => handleGenerateTransition(from, to)}
+                        className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                      >
+                        {t('chapterGenerate.regenerateTransition')}
+                      </button>
+                    </div>
+                  ) : !isGeneratingTransition && (
                     <button
                       onClick={() => handleGenerateTransition(from, to)}
                       className="w-full px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
@@ -893,6 +964,35 @@ export function VideoGenTab({
                 <Download className="w-4 h-4" />
                 {t('common.download')}
               </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 转场视频预览弹窗 */}
+      {previewTransitionVideo && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div className="flex items-center gap-2">
+                <Film className="w-5 h-5 text-emerald-600" />
+                <h3 className="text-lg font-semibold text-gray-800">{t('chapterGenerate.transitionVideos')}</h3>
+              </div>
+              <button
+                onClick={() => setPreviewTransitionVideo(null)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                title={t('common.close')}
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 p-4 flex items-center justify-center bg-gray-100">
+              <video
+                src={previewTransitionVideo}
+                controls
+                autoPlay
+                className="max-w-full max-h-[60vh] w-full h-full object-contain rounded-lg shadow-lg"
+              />
             </div>
           </div>
         </div>

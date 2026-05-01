@@ -174,7 +174,7 @@ export function BottomNavigator({
   return (
     <div
       className={`fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-lg transition-all duration-300 ease-in-out ${
-        collapsed ? 'h-10' : 'h-40'
+        collapsed ? 'h-10' : 'h-44'
       }`}
       style={{
         left: `${sidebarWidth}px`,

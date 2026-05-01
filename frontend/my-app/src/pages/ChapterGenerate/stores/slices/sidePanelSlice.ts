@@ -53,8 +53,8 @@ export type SidePanelSlice = SidePanelSliceState & SidePanelSliceActions;
 
 const MIN_LEFT_WIDTH = 200;
 const MAX_LEFT_WIDTH = 400;
-const MIN_RIGHT_WIDTH = 200;
-const MAX_RIGHT_WIDTH = 450;
+const MIN_RIGHT_WIDTH = 320;
+const MAX_RIGHT_WIDTH = 440;
 const COLLAPSED_WIDTH = 48;
 
 // ========== Initial State ==========
@@ -65,12 +65,12 @@ const getInitialState = (): SidePanelSliceState => {
     const saved = localStorage.getItem('chapterGenerate_sidePanel');
     if (saved) {
       const parsed = JSON.parse(saved);
-      return {
-        leftPanelWidth: parsed.leftPanelWidth ?? MIN_LEFT_WIDTH,
-        rightPanelWidth: parsed.rightPanelWidth ?? MIN_RIGHT_WIDTH,
-        leftPanelCollapsed: parsed.leftPanelCollapsed ?? false,
-        rightPanelCollapsed: parsed.rightPanelCollapsed ?? false,
-      };
+        return {
+          leftPanelWidth: parsed.leftPanelWidth ?? MIN_LEFT_WIDTH,
+          rightPanelWidth: Math.max(MIN_RIGHT_WIDTH, Math.min(MAX_RIGHT_WIDTH, parsed.rightPanelWidth ?? MIN_RIGHT_WIDTH)),
+          leftPanelCollapsed: parsed.leftPanelCollapsed ?? false,
+          rightPanelCollapsed: parsed.rightPanelCollapsed ?? false,
+        };
     }
   } catch (e) {
     console.warn('Failed to restore sidePanel state from localStorage:', e);

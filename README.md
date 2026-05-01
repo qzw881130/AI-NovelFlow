@@ -343,7 +343,11 @@ npm run dev
   - 分镜生视频: 提示词节点 + 视频保存节点 + 参考图节点
   - 转场视频: 首帧图节点 + 尾帧图节点 + 视频保存节点
 
-#### 2.1 模型文件
+### 3. ComfyUI 节点 & 模型云盘下载
+
+https://pan.quark.cn/s/762097a36829
+
+#### 3.1 模型文件
 
 目录以 `ComfyUI/models/...` 为基准；如果你用的是 ComfyUI-Manager，一般也按这些目录扫描。
 
@@ -362,7 +366,7 @@ npm run dev
 | `z_image_turbo_bf16.safetensors` | UNet | Z-image-turbo 单图生成 UNet | Z-image-turbo 单图生成 / 系统默认-人设生成 | `models/unet/` |
 | `qwen_3_4b.safetensors` | text encoder | Z-image-turbo 文本编码 | Z-image-turbo 单图生成 / 系统默认-人设生成 | `models/clip/` |
 
-#### 2.2 第三方节点包
+#### 3.2 第三方节点包
 
 | 第三方节点包 | GitHub 仓库 | 工作流中命中的节点 class_type |
 |-------------|------------|------------------------------|
