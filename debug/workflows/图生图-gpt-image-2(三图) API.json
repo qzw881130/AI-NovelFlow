@@ -1,0 +1,218 @@
+{
+  "8": {
+    "inputs": {
+      "filename_prefix": "jpm/Han_Daoguo",
+      "images": [
+        "30",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "#8 Save Image"
+    }
+  },
+  "24": {
+    "inputs": {
+      "string_a": [
+        "26",
+        0
+      ],
+      "string_b": [
+        "40",
+        0
+      ],
+      "delimiter": ""
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "#24 Concatenate"
+    }
+  },
+  "26": {
+    "inputs": {
+      "text": "让小马驮着麦子,走在小路上"
+    },
+    "class_type": "CR Text",
+    "_meta": {
+      "title": "#26 🔤 CR Text"
+    }
+  },
+  "27": {
+    "inputs": {
+      "api_base": "ip",
+      "apikey": "sk-uGYpHHOyZsfJ1A92x4A5AP723NTZHT3Pg92NcXktwJBmc8MC",
+      "custom_ip": "https://ai.t8star.cn"
+    },
+    "class_type": "Comfly_api_set",
+    "_meta": {
+      "title": "#27 Zhenzhen API Settings"
+    }
+  },
+  "28": {
+    "inputs": {
+      "text": "**Model**: gpt-image-2\n**Quality**: auto\n**Size**: auto\n**Background**: auto\n**Seed**: 667336102802684\n**Time**: 2026-05-05 09:09:14",
+      "anything": [
+        "30",
+        1
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#28 Show Any"
+    }
+  },
+  "29": {
+    "inputs": {
+      "text": "让小马驮着麦子,走在小路上尺寸:1088x1920",
+      "anything": [
+        "24",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#29 Show Any"
+    }
+  },
+  "30": {
+    "inputs": {
+      "prompt": [
+        "24",
+        0
+      ],
+      "api_key": [
+        "27",
+        0
+      ],
+      "model": "gpt-image-2",
+      "quality": "auto",
+      "size": "auto",
+      "background": "auto",
+      "output_format": "png",
+      "moderation": "auto",
+      "seed": 446921337052343,
+      "clear_chats": true,
+      "image_download_timeout": 600,
+      "image1": [
+        "33",
+        0
+      ],
+      "image2": [
+        "34",
+        0
+      ],
+      "image3": [
+        "35",
+        0
+      ]
+    },
+    "class_type": "Comfly_gpt_image_2",
+    "_meta": {
+      "title": "#30 #-1 Zhenzhen_gpt_image_2"
+    }
+  },
+  "31": {
+    "inputs": {
+      "text_0": "https://oss.filenest.top/uploads/16b0584b-3072-4acd-9c40-b6e40e0bbeae.png",
+      "text": [
+        "30",
+        2
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "#31 #-1 Show Text 🐍"
+    }
+  },
+  "33": {
+    "inputs": {
+      "image": "小马_20260501_095126.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#33 #-1 Load Image 角色"
+    }
+  },
+  "34": {
+    "inputs": {
+      "image": "小路_20260501_095529.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#34 #-1 Load Image 场景"
+    }
+  },
+  "35": {
+    "inputs": {
+      "image": "半袋麦子_20260501_100040.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#35 #-1 Load Image 道具"
+    }
+  },
+  "36": {
+    "inputs": {
+      "value": 1088
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#34 Width"
+    }
+  },
+  "37": {
+    "inputs": {
+      "value": 704
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#35 Height"
+    }
+  },
+  "38": {
+    "inputs": {
+      "prefix": "尺寸:",
+      "suffix": "",
+      "input": [
+        "36",
+        0
+      ]
+    },
+    "class_type": "SomethingToString",
+    "_meta": {
+      "title": "#37 #-1 Something To String"
+    }
+  },
+  "39": {
+    "inputs": {
+      "prefix": "",
+      "suffix": "",
+      "input": [
+        "37",
+        0
+      ]
+    },
+    "class_type": "SomethingToString",
+    "_meta": {
+      "title": "#38 #-1 Something To String"
+    }
+  },
+  "40": {
+    "inputs": {
+      "string_a": [
+        "38",
+        0
+      ],
+      "string_b": [
+        "39",
+        0
+      ],
+      "delimiter": "x"
+    },
+    "class_type": "StringConcatenate",
+    "_meta": {
+      "title": "#36 Concatenate"
+    }
+  }
+}

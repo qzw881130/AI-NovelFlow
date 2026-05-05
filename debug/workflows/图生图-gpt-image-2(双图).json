@@ -1,0 +1,952 @@
+{
+  "id": "68c8f6f6-9ef9-4c1b-aa82-1d1b428a7c7c",
+  "revision": 0,
+  "last_node_id": 39,
+  "last_link_id": 41,
+  "nodes": [
+    {
+      "id": 8,
+      "type": "SaveImage",
+      "pos": [
+        2187.7291281368916,
+        -73.17578728638621
+      ],
+      "size": [
+        480.7369741584023,
+        387.06283615688153
+      ],
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "label": "images",
+          "name": "images",
+          "type": "IMAGE",
+          "link": 30
+        },
+        {
+          "label": "filename_prefix",
+          "name": "filename_prefix",
+          "type": "STRING",
+          "widget": {
+            "name": "filename_prefix"
+          },
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "label": "image_urls",
+          "name": "image_urls",
+          "type": "STRING"
+        }
+      ],
+      "title": "#8 Save Image",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.8.2",
+        "Node name for S&R": "SaveImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.4.1"
+        },
+        "hasSecondTab": false,
+        "widget_ue_connectable": {
+          "filename_prefix": true
+        },
+        "secondTabText": "Send Back",
+        "enableTabs": false,
+        "secondTabOffset": 80,
+        "tabWidth": 65,
+        "secondTabWidth": 65,
+        "tabXOffset": 10
+      },
+      "widgets_values": [
+        "jpm/Han_Daoguo"
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159"
+    },
+    {
+      "id": 31,
+      "type": "ShowText|pysssss",
+      "pos": [
+        2299.717638054449,
+        558.662725268512
+      ],
+      "size": [
+        183.0044921875,
+        76
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 32
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "shape": 6,
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "#31 #-1 Show Text 🐍",
+      "properties": {
+        "cnr_id": "comfyui-custom-scripts",
+        "ver": "1.2.5",
+        "Node name for S&R": "ShowText|pysssss",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "https://oss.filenest.top/uploads/0078853c-95d8-4bef-b882-f7380f765f3d.png"
+      ]
+    },
+    {
+      "id": 24,
+      "type": "StringConcatenate",
+      "pos": [
+        1206.8591264513288,
+        -24.266342167237497
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "string_a",
+          "type": "STRING",
+          "widget": {
+            "name": "string_a"
+          },
+          "link": 26
+        },
+        {
+          "name": "string_b",
+          "type": "STRING",
+          "widget": {
+            "name": "string_b"
+          },
+          "link": 41
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            29,
+            33
+          ]
+        }
+      ],
+      "title": "#24 Concatenate",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.12.3",
+        "Node name for S&R": "StringConcatenate",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "id": 30,
+      "type": "Comfly_gpt_image_2",
+      "pos": [
+        1697.025970597357,
+        28.27377221925781
+      ],
+      "size": [
+        400,
+        412
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 35
+        },
+        {
+          "name": "image2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 36
+        },
+        {
+          "name": "image3",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "image4",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 33
+        },
+        {
+          "name": "api_key",
+          "shape": 7,
+          "type": "STRING",
+          "widget": {
+            "name": "api_key"
+          },
+          "link": 34
+        }
+      ],
+      "outputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "links": [
+            30
+          ]
+        },
+        {
+          "name": "response",
+          "type": "STRING",
+          "links": [
+            31
+          ]
+        },
+        {
+          "name": "image_urls",
+          "type": "STRING",
+          "links": [
+            32
+          ]
+        },
+        {
+          "name": "chats",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "#30 #-1 Zhenzhen_gpt_image_2",
+      "properties": {
+        "cnr_id": "zhenzhen",
+        "ver": "234b19b2e8b8ffb83f8df1d182b56795eae9ed3d",
+        "Node name for S&R": "Comfly_gpt_image_2",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "",
+        "",
+        "gpt-image-2",
+        "auto",
+        "auto",
+        "auto",
+        "png",
+        "auto",
+        667336102802684,
+        "randomize",
+        true,
+        600
+      ]
+    },
+    {
+      "id": 28,
+      "type": "easy showAnything",
+      "pos": [
+        2269.934811530774,
+        391.9932349006871
+      ],
+      "size": [
+        274.4823110366101,
+        88
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 31
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "title": "#28 Show Any",
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "**Model**: gpt-image-2\n**Quality**: auto\n**Size**: auto\n**Background**: auto\n**Seed**: 1053105965101352\n**Time**: 2026-05-05 09:07:26"
+      ]
+    },
+    {
+      "id": 26,
+      "type": "CR Text",
+      "pos": [
+        713.6470920205414,
+        -38.44766839915714
+      ],
+      "size": [
+        418.6966141949506,
+        271.75507114496236
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "*",
+          "links": [
+            26
+          ]
+        },
+        {
+          "name": "show_help",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "title": "#26 🔤 CR Text",
+      "properties": {
+        "cnr_id": "ComfyUI_Comfyroll_CustomNodes",
+        "ver": "d78b780ae43fcf8c6b7c6505e6ffb4584281ceca",
+        "Node name for S&R": "CR Text",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "让小马驮着麦子"
+      ]
+    },
+    {
+      "id": 33,
+      "type": "LoadImage",
+      "pos": [
+        367.7889145021581,
+        -42.06869286012532
+      ],
+      "size": [
+        282.798828125,
+        314.00000000000006
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            35
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "#33 #-1 Load Image 角色",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.19.3",
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "小马_20260501_095126.png",
+        "image"
+      ]
+    },
+    {
+      "id": 34,
+      "type": "LoadImage",
+      "pos": [
+        366.391628723636,
+        376.14716555110004
+      ],
+      "size": [
+        282.798828125,
+        314.00000000000006
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            36
+          ]
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "#34 #-1 Load Image",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.19.3",
+        "Node name for S&R": "LoadImage",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "半袋麦子_20260501_100040.png",
+        "image"
+      ]
+    },
+    {
+      "id": 27,
+      "type": "Comfly_api_set",
+      "pos": [
+        1379.312916434624,
+        236.84039648328275
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "apikey",
+          "type": "STRING",
+          "links": [
+            34
+          ]
+        }
+      ],
+      "title": "#27 Zhenzhen API Settings",
+      "properties": {
+        "cnr_id": "zhenzhen",
+        "ver": "7d503ff49cca6ee673c77f97d70ed2109db79867",
+        "Node name for S&R": "Comfly_api_set",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "ip",
+        "sk-uGYpHHOyZsfJ1A92x4A5AP723NTZHT3Pg92NcXktwJBmc8MC",
+        "https://ai.t8star.cn"
+      ]
+    },
+    {
+      "id": 29,
+      "type": "easy showAnything",
+      "pos": [
+        1798.8679430214731,
+        557.3239261745314
+      ],
+      "size": [
+        210,
+        88
+      ],
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "anything",
+          "shape": 7,
+          "type": "*",
+          "link": 29
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "title": "#29 Show Any",
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy showAnything",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "让小马驮着麦子尺寸:1088x1920"
+      ]
+    },
+    {
+      "id": 38,
+      "type": "SomethingToString",
+      "pos": [
+        1007.290353331009,
+        381.1566711218931
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 38
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            39
+          ]
+        }
+      ],
+      "title": "#38 #-1 Something To String",
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "01d9fa9c983273532cacdf9532c74a93c7dc86d2",
+        "Node name for S&R": "SomethingToString",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "尺寸:",
+        ""
+      ]
+    },
+    {
+      "id": 35,
+      "type": "easy int",
+      "pos": [
+        707.2139706480922,
+        382.35299625407043
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "int",
+          "type": "INT",
+          "links": [
+            38
+          ]
+        }
+      ],
+      "title": "#35 Width",
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy int",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        1088
+      ]
+    },
+    {
+      "id": 36,
+      "type": "easy int",
+      "pos": [
+        707.9488151598982,
+        563.0666873128102
+      ],
+      "size": [
+        270,
+        108
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "int",
+          "type": "INT",
+          "links": [
+            37
+          ]
+        }
+      ],
+      "title": "#36 Height",
+      "properties": {
+        "cnr_id": "comfyui-easy-use",
+        "ver": "1.3.6",
+        "Node name for S&R": "easy int",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        704
+      ]
+    },
+    {
+      "id": 39,
+      "type": "StringConcatenate",
+      "pos": [
+        1370.9930067843416,
+        494.4378206755981
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "string_a",
+          "type": "STRING",
+          "widget": {
+            "name": "string_a"
+          },
+          "link": 39
+        },
+        {
+          "name": "string_b",
+          "type": "STRING",
+          "widget": {
+            "name": "string_b"
+          },
+          "link": 40
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            41
+          ]
+        }
+      ],
+      "title": "#39 Concatenate",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.12.3",
+        "Node name for S&R": "StringConcatenate",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.5.2"
+        }
+      },
+      "widgets_values": [
+        "",
+        "",
+        "x"
+      ]
+    },
+    {
+      "id": 37,
+      "type": "SomethingToString",
+      "pos": [
+        1011.001154304586,
+        572.9070474362305
+      ],
+      "size": [
+        270,
+        82
+      ],
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "input",
+          "type": "*",
+          "link": 37
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            40
+          ]
+        }
+      ],
+      "title": "#37 #-1 Something To String",
+      "properties": {
+        "cnr_id": "comfyui-kjnodes",
+        "ver": "01d9fa9c983273532cacdf9532c74a93c7dc86d2",
+        "Node name for S&R": "SomethingToString",
+        "ue_properties": {
+          "widget_ue_connectable": {},
+          "input_ue_unconnectable": {},
+          "version": "7.7"
+        }
+      },
+      "widgets_values": [
+        "",
+        ""
+      ]
+    }
+  ],
+  "links": [
+    [
+      26,
+      26,
+      0,
+      24,
+      0,
+      "STRING"
+    ],
+    [
+      29,
+      24,
+      0,
+      29,
+      0,
+      "STRING"
+    ],
+    [
+      30,
+      30,
+      0,
+      8,
+      0,
+      "IMAGE"
+    ],
+    [
+      31,
+      30,
+      1,
+      28,
+      0,
+      "STRING"
+    ],
+    [
+      32,
+      30,
+      2,
+      31,
+      0,
+      "STRING"
+    ],
+    [
+      33,
+      24,
+      0,
+      30,
+      4,
+      "STRING"
+    ],
+    [
+      34,
+      27,
+      0,
+      30,
+      5,
+      "STRING"
+    ],
+    [
+      35,
+      33,
+      0,
+      30,
+      0,
+      "IMAGE"
+    ],
+    [
+      36,
+      34,
+      0,
+      30,
+      1,
+      "IMAGE"
+    ],
+    [
+      37,
+      36,
+      0,
+      37,
+      0,
+      "INT"
+    ],
+    [
+      38,
+      35,
+      0,
+      38,
+      0,
+      "INT"
+    ],
+    [
+      39,
+      38,
+      0,
+      39,
+      0,
+      "STRING"
+    ],
+    [
+      40,
+      37,
+      0,
+      39,
+      1,
+      "STRING"
+    ],
+    [
+      41,
+      39,
+      0,
+      24,
+      1,
+      "STRING"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "文生图",
+      "bounding": [
+        312.5539678916834,
+        -130.8126000979029,
+        3012.7088082131395,
+        922.5729149817682
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    },
+    {
+      "id": 2,
+      "title": "https://github.com/T8mars/Comfyui-zhenzhen?tab=readme-ov-file",
+      "bounding": [
+        610.1143771570163,
+        -619.3274511017084,
+        1774.0678605882354,
+        246.10821690599562
+      ],
+      "color": "#3f789e",
+      "font_size": 44,
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "白图问题: https://www.bilibili.com/video/BV1H3UuB2EJ3/?vd_source=1437f0213c8d258d18e9909377d3da04",
+      "bounding": [
+        629.7965549898172,
+        -539.9184479975007,
+        1230.493757387645,
+        80
+      ],
+      "color": "#3f789e",
+      "font_size": 24,
+      "flags": {}
+    }
+  ],
+  "config": {},
+  "extra": {
+    "workflowRendererVersion": "LG",
+    "ue_links": [],
+    "ds": {
+      "scale": 0.7372919395262846,
+      "offset": [
+        -133.28583319246187,
+        437.17483247241734
+      ]
+    },
+    "links_added_by_ue": [],
+    "frontendVersion": "1.42.14",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}
