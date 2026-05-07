@@ -641,8 +641,7 @@ class FileStorageService:
                         [
                             'ffprobe',
                             '-v', 'error',
-                            '-select_streams', 'v:0',
-                            '-show_entries', 'stream=width,height,r_frame_rate,pix_fmt,codec_name',
+                            '-show_entries', 'stream=codec_type,width,height',
                             '-of', 'json',
                             video_path,
                         ],
@@ -659,10 +658,14 @@ class FileStorageService:
                 if not streams:
                     raise RuntimeError(f"No video stream found in {video_path}")
 
-                stream = streams[0]
+                video_stream = next((stream for stream in streams if stream.get('codec_type') == 'video'), None)
+                if not video_stream:
+                    raise RuntimeError(f"No video stream found in {video_path}")
+
                 return {
-                    'width': int(stream.get('width') or 0),
-                    'height': int(stream.get('height') or 0),
+                    'width': int(video_stream.get('width') or 0),
+                    'height': int(video_stream.get('height') or 0),
+                    'has_audio': any(stream.get('codec_type') == 'audio' for stream in streams),
                 }
 
             target_info = await _get_video_info(final_video_list[0])
@@ -682,18 +685,36 @@ class FileStorageService:
 
                 for index, video_path in enumerate(final_video_list):
                     normalized_path = os.path.join(temp_normalized_dir, f'normalized_{index:03d}.mp4')
+                    video_info = await _get_video_info(video_path)
                     normalize_cmd = [
                         'ffmpeg',
                         '-i', video_path,
+                    ]
+
+                    if not video_info['has_audio']:
+                        normalize_cmd.extend([
+                            '-f', 'lavfi',
+                            '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000',
+                        ])
+
+                    normalize_cmd.extend([
                         '-vf', f'scale={target_width}:{target_height}:force_original_aspect_ratio=decrease,pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2:black,fps=24,format=yuv420p',
-                        '-an',
                         '-c:v', 'libx264',
                         '-preset', 'medium',
                         '-crf', '18',
+                        '-c:a', 'aac',
+                        '-ar', '48000',
+                        '-ac', '2',
+                    ])
+
+                    if not video_info['has_audio']:
+                        normalize_cmd.append('-shortest')
+
+                    normalize_cmd.extend([
                         '-movflags', '+faststart',
                         '-y',
                         normalized_path,
-                    ]
+                    ])
 
                     print(f"[FileStorage] Normalizing video: {' '.join(normalize_cmd)}")
 
