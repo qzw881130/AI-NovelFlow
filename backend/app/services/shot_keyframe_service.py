@@ -21,7 +21,7 @@ from app.repositories.shot_repository import ShotRepository
 from app.services.comfyui import ComfyUIService
 from app.services.llm_service import LLMService
 from app.services.file_storage import file_storage
-from app.utils.path_utils import url_to_local_path
+from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.workflow_disconnect import (
     disconnect_reference_chain,
     disconnect_unuploaded_reference_nodes,
@@ -389,6 +389,10 @@ class ShotKeyframeService:
             task.comfyui_prompt_id = prompt_id
             task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
             task.prompt_text = prompt
+            reference_url = local_path_to_url(reference_path) if reference_path else None
+            task.reference_images = json.dumps(
+                [{"label": "参考图", "url": reference_url}], ensure_ascii=False
+            ) if reference_url else None
             db.commit()
 
             # 等待结果

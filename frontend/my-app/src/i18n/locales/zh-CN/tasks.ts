@@ -112,6 +112,8 @@ export default {
     viewResult: '查看结果',
     viewOriginal: '查看原图',
     generatedResult: '生成结果',
+    referenceImages: '参考图',
+    referenceImage: '参考图',
     clickToPreview: '点击查看大图',
     dimensions: '尺寸',
     size: '大小',

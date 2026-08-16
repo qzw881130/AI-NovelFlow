@@ -41,6 +41,8 @@ export default {
     gpuTemperature: 'GPU 溫度',
     queueTasks: '佇列任務',
     taskList: '任務列表',
+    referenceImages: '參考圖',
+    referenceImage: '參考圖',
     types: {
       characterPortrait: '人設生成',
       sceneImage: '場景圖片',

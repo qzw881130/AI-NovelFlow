@@ -112,6 +112,8 @@ export default {
     viewResult: 'View Result',
     viewOriginal: 'View Original',
     generatedResult: 'Generated Result',
+    referenceImages: 'Reference Images',
+    referenceImage: 'Reference Image',
     clickToPreview: 'Click to preview',
     dimensions: 'Dimensions',
     size: 'Size',

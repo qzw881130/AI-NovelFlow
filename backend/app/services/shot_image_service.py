@@ -17,7 +17,7 @@ from app.core.database import SessionLocal
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import get_style
-from app.utils.path_utils import url_to_local_path
+from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.image_utils import merge_character_images, merge_prop_images
 from app.repositories.shot_repository import ShotRepository
 from app.utils.workflow_disconnect import (
@@ -521,6 +521,24 @@ async def _upload_references_and_update_workflow(
     task.current_step = "上传参考图..."
     db.commit()
     print(f"[ShotTask {task_id}] Uploading reference images before submission")
+
+    reference_images = []
+    if character_reference_path:
+        character_url = local_path_to_url(character_reference_path)
+        if character_url:
+            reference_images.append({"label": "角色图", "url": character_url})
+    if scene_reference_path:
+        scene_url = local_path_to_url(scene_reference_path)
+        if scene_url:
+            reference_images.append({"label": "场景图", "url": scene_url})
+    if prop_reference_paths:
+        for prop_name, prop_path in prop_reference_paths.items():
+            prop_url = local_path_to_url(prop_path)
+            if prop_url:
+                reference_images.append({"label": prop_name, "url": prop_url})
+
+    task.reference_images = json.dumps(reference_images, ensure_ascii=False) if reference_images else None
+    db.commit()
 
     # 上传角色参考图
     character_uploaded_filename = None

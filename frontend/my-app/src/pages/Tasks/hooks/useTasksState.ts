@@ -16,8 +16,40 @@ export function useTasksState() {
   const [workflowData, setWorkflowData] = useState<WorkflowData | null>(null);
   const [loadingWorkflow, setLoadingWorkflow] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewImages, setPreviewImages] = useState<Array<{ label?: string; url: string }>>([]);
+  const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [imageInfo, setImageInfo] = useState<Record<string, ImageInfo>>({});
   const [previewVideo, setPreviewVideo] = useState<string | null>(null);
+
+  const openImagePreview = (url: string) => {
+    setPreviewImages([{ url }]);
+    setPreviewImageIndex(0);
+    setPreviewImage(url);
+  };
+
+  const openImageGallery = (images: Array<{ label?: string; url: string }>, index: number) => {
+    const validImages = images.filter(image => image.url);
+    if (!validImages.length) return;
+    const safeIndex = Math.max(0, Math.min(index, validImages.length - 1));
+    setPreviewImages(validImages);
+    setPreviewImageIndex(safeIndex);
+    setPreviewImage(validImages[safeIndex].url);
+  };
+
+  const navigatePreviewImage = (direction: 'prev' | 'next') => {
+    if (previewImages.length <= 1) return;
+    const nextIndex = direction === 'prev'
+      ? (previewImageIndex === 0 ? previewImages.length - 1 : previewImageIndex - 1)
+      : (previewImageIndex === previewImages.length - 1 ? 0 : previewImageIndex + 1);
+    setPreviewImageIndex(nextIndex);
+    setPreviewImage(previewImages[nextIndex].url);
+  };
+
+  const closeImagePreview = () => {
+    setPreviewImage(null);
+    setPreviewImages([]);
+    setPreviewImageIndex(0);
+  };
 
   const fetchImageInfo = async (url: string, taskId: string) => {
     try {
@@ -174,6 +206,8 @@ export function useTasksState() {
     workflowData,
     loadingWorkflow,
     previewImage,
+    previewImages,
+    previewImageIndex,
     previewVideo,
     imageInfo,
     stats,
@@ -187,6 +221,10 @@ export function useTasksState() {
     handleViewWorkflow,
     handleRetry,
     fetchImageInfo,
+    openImagePreview,
+    openImageGallery,
+    navigatePreviewImage,
+    closeImagePreview,
     setPreviewImage,
     setPreviewVideo,
     setViewingWorkflow,

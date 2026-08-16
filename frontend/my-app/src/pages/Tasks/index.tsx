@@ -19,6 +19,8 @@ export default function Tasks() {
     workflowData,
     loadingWorkflow,
     previewImage,
+    previewImages,
+    previewImageIndex,
     previewVideo,
     imageInfo,
     stats,
@@ -30,7 +32,10 @@ export default function Tasks() {
     handleViewWorkflow,
     handleRetry,
     fetchImageInfo,
-    setPreviewImage,
+    openImagePreview,
+    openImageGallery,
+    navigatePreviewImage,
+    closeImagePreview,
     setPreviewVideo,
     setViewingWorkflow,
     setWorkflowData,
@@ -208,7 +213,8 @@ export default function Tasks() {
                 onRetry={handleRetry}
                 onViewWorkflow={handleViewWorkflow}
                 onToggleError={toggleErrorDetail}
-                onPreviewImage={setPreviewImage}
+                onPreviewImage={openImagePreview}
+                onPreviewImages={openImageGallery}
                 onPreviewVideo={setPreviewVideo}
                 fetchImageInfo={fetchImageInfo}
                 getTaskDisplayName={getTaskDisplayName}
@@ -225,7 +231,15 @@ export default function Tasks() {
         )}
       </div>
 
-      {previewImage && <ImagePreviewModal imageUrl={previewImage} onClose={() => setPreviewImage(null)} />}
+      {previewImage && (
+        <ImagePreviewModal
+          imageUrl={previewImage}
+          images={previewImages}
+          currentIndex={previewImageIndex}
+          onNavigate={navigatePreviewImage}
+          onClose={closeImagePreview}
+        />
+      )}
       {previewVideo && <VideoPreviewModal videoUrl={previewVideo} onClose={() => setPreviewVideo(null)} />}
       <WorkflowViewModal
         viewingWorkflow={viewingWorkflow}

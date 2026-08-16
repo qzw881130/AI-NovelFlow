@@ -33,3 +33,23 @@ def url_to_local_path(url: str) -> Optional[str]:
     if os.path.exists(full_path):
         return full_path
     return None
+
+
+def local_path_to_url(path: str) -> Optional[str]:
+    """将 user_story 下的本地路径转换为 /api/files/ URL。"""
+    if not path:
+        return None
+
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    user_story_dir = os.path.abspath(os.path.join(backend_dir, "user_story"))
+    full_path = os.path.abspath(path)
+
+    try:
+        relative_path = os.path.relpath(full_path, user_story_dir)
+    except ValueError:
+        return None
+
+    if relative_path.startswith(".."):
+        return None
+
+    return f"/api/files/{relative_path.replace(os.sep, '/')}"

@@ -27,6 +27,8 @@ export default {
     gpuTemperature: 'GPU 온도',
     queueTasks: '큐 작업',
     taskList: '작업 목록',
+    referenceImages: '참조 이미지',
+    referenceImage: '참조 이미지',
     types: {
       characterPortrait: '캐릭터 생성',
       sceneImage: '장면 이미지',

@@ -221,6 +221,7 @@ export interface Task {
   workflowIsSystem?: boolean;
   hasWorkflowJson?: boolean;
   hasPromptText?: boolean;
+  referenceImages?: Array<{ label?: string; url: string }>;
   novelId?: string;
   novelName?: string;
   chapterId?: string;

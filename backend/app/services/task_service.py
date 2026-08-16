@@ -344,6 +344,17 @@ class TaskService:
         Returns:
             格式化后的任务列表
         """
+        import json
+
+        def parse_reference_images(value: str):
+            if not value:
+                return []
+            try:
+                parsed = json.loads(value)
+                return parsed if isinstance(parsed, list) else []
+            except Exception:
+                return []
+
         return [
             {
                 "id": t.id,
@@ -361,6 +372,7 @@ class TaskService:
                     t.workflow_id).is_system if t.workflow_id and t.workflow_id in workflows else False,
                 "hasWorkflowJson": t.workflow_json is not None,
                 "hasPromptText": t.prompt_text is not None,
+                "referenceImages": parse_reference_images(t.reference_images),
                 "novelId": t.novel_id,
                 "novelName": novels.get(t.novel_id).title if t.novel_id and t.novel_id in novels else None,
                 "chapterId": t.chapter_id,
@@ -386,6 +398,13 @@ class TaskService:
         Returns:
             格式化后的任务详情
         """
+        import json
+
+        try:
+            reference_images = json.loads(task.reference_images) if task.reference_images else []
+        except Exception:
+            reference_images = []
+
         return {
             "id": task.id,
             "type": task.type,
@@ -400,6 +419,7 @@ class TaskService:
             "workflowName": task.workflow_name,
             "workflowJson": task.workflow_json,
             "promptText": task.prompt_text,
+            "referenceImages": reference_images,
             "novelId": task.novel_id,
             "chapterId": task.chapter_id,
             "characterId": task.character_id,

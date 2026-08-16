@@ -15,6 +15,7 @@ interface TaskCardProps {
   onViewWorkflow: (task: Task) => void;
   onToggleError: (id: string) => void;
   onPreviewImage: (url: string) => void;
+  onPreviewImages: (images: Array<{ label?: string; url: string }>, index: number) => void;
   onPreviewVideo: (url: string) => void;
   fetchImageInfo: (url: string, taskId: string) => void;
   getTaskDisplayName: (task: Task) => string;
@@ -36,6 +37,7 @@ export function TaskCard({
   onViewWorkflow,
   onToggleError,
   onPreviewImage,
+  onPreviewImages,
   onPreviewVideo,
   fetchImageInfo,
   getTaskDisplayName,
@@ -121,6 +123,37 @@ export function TaskCard({
               {task.errorMessage.includes('ComfyUI') && (
                 <p className="text-xs text-red-600 mt-1 ml-6">{t('tasks.comfyuiHint')}</p>
               )}
+            </div>
+          )}
+          {!!task.referenceImages?.length && (
+            <div className="mt-3">
+              <div className="text-xs text-gray-500 mb-1">{t('tasks.referenceImages')}</div>
+              <div className="flex flex-wrap gap-2">
+                {task.referenceImages.map((image, index) => (
+                  <button
+                    key={`${image.url}-${index}`}
+                    type="button"
+                    onClick={() => onPreviewImages(task.referenceImages || [], index)}
+                    className="group relative h-16 w-24 overflow-hidden rounded-md border border-gray-200 bg-white hover:shadow-md transition-shadow"
+                    title={image.label || t('tasks.referenceImage')}
+                  >
+                    <img
+                      src={image.url}
+                      alt={image.label || t('tasks.referenceImage')}
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).className = 'hidden';
+                      }}
+                    />
+                    {image.label && (
+                      <span className="absolute bottom-0 left-0 right-0 truncate bg-black/55 px-1 py-0.5 text-[10px] text-white">
+                        {image.label}
+                      </span>
+                    )}
+                    <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           {task.status === 'completed' && task.resultUrl && (

@@ -24,6 +24,11 @@ def ensure_schema_updates():
             shot_columns = [row[1] for row in result.fetchall()]
             if "merged_prop_image" not in shot_columns:
                 conn.execute(text("ALTER TABLE shots ADD COLUMN merged_prop_image VARCHAR"))
+
+            result = conn.execute(text("PRAGMA table_info(tasks)"))
+            task_columns = [row[1] for row in result.fetchall()]
+            if "reference_images" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN reference_images TEXT"))
             conn.commit()
         except Exception as exc:
             print(f"[Startup] Failed to ensure schema updates: {exc}")

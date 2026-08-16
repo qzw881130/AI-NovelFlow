@@ -44,6 +44,7 @@ class Task(Base):
     workflow_name = Column(String, nullable=True)
     workflow_json = Column(Text, nullable=True)
     prompt_text = Column(Text, nullable=True)
+    reference_images = Column(Text, nullable=True)
 
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now())
