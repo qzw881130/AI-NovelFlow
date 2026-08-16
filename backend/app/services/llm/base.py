@@ -30,7 +30,6 @@ def save_llm_log(
         from app.constants import (
             LOG_SYSTEM_PROMPT_MAX_LENGTH,
             LOG_USER_PROMPT_MAX_LENGTH,
-            LOG_RESPONSE_MAX_LENGTH,
             LOG_ERROR_MESSAGE_MAX_LENGTH,
         )
 
@@ -41,7 +40,7 @@ def save_llm_log(
                 model=model,
                 system_prompt=system_prompt[:LOG_SYSTEM_PROMPT_MAX_LENGTH] if system_prompt else None,
                 user_prompt=user_prompt[:LOG_USER_PROMPT_MAX_LENGTH] if user_prompt else None,
-                response=response[:LOG_RESPONSE_MAX_LENGTH] if response else None,
+                response=response,
                 status=status,
                 error_message=error_message[:LOG_ERROR_MESSAGE_MAX_LENGTH] if error_message else None,
                 task_type=task_type,

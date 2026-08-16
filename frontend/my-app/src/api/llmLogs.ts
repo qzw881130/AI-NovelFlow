@@ -51,6 +51,9 @@ export const llmLogsApi = {
     return api.get<LLMLogsResponse>(`/llm-logs/?${params}`);
   },
 
+  /** 获取日志详情 */
+  fetchDetail: (id: string) => api.get<LLMLog>(`/llm-logs/${id}`),
+
   /** 获取筛选选项 */
   fetchFilterOptions: () => api.get<FilterOptions>('/llm-logs/filters'),
 };

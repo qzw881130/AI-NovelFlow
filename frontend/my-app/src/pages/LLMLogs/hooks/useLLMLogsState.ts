@@ -64,6 +64,16 @@ export function useLLMLogsState() {
     setTimeout(fetchLogs, 0);
   };
 
+  const openLogDetail = async (log: LLMLog) => {
+    setSelectedLog(log);
+    try {
+      const data = await llmLogsApi.fetchDetail(log.id);
+      if (data.success && data.data) setSelectedLog(data.data);
+    } catch (error) {
+      console.error('加载日志详情失败:', error);
+    }
+  };
+
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-';
     const date = new Date(dateStr);
@@ -109,7 +119,7 @@ export function useLLMLogsState() {
 
   return {
     logs, pagination, loading, filters, filterOptions, selectedLog, activePromptTab, autoRefreshInterval,
-    setPagination, setSelectedLog, setActivePromptTab, handleFilterChange, applyFilters, resetFilters,
+    setPagination, setSelectedLog, setActivePromptTab, handleFilterChange, applyFilters, resetFilters, openLogDetail,
     setAutoRefreshInterval, fetchLogs, formatDate, truncateText, getTaskTypeLabel, getStatusBadgeConfig, closeModal
   };
 }

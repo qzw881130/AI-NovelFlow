@@ -70,6 +70,11 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             return content
         return response_data.get("content", "")
 
+    def _get_finish_reason(self, response_data: Dict[str, Any]) -> Optional[str]:
+        if "choices" in response_data and response_data["choices"]:
+            return response_data["choices"][0].get("finish_reason")
+        return None
+
     async def chat_completion(
         self,
         system_prompt: str,
@@ -149,6 +154,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             if response.status_code == 200:
                 data = response.json()
                 content = self._parse_response(data)
+                finish_reason = self._get_finish_reason(data)
 
                 if not content:
                     raw_response = json.dumps(data, ensure_ascii=False)
@@ -173,6 +179,33 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     return LLMResponse(
                         success=False,
                         error=error_msg,
+                        raw_response=data,
+                        duration=duration
+                    )
+
+                if finish_reason == "length":
+                    error_msg = "API 响应因长度限制被截断，请提高最大 token 数或缩短输入后重试"
+
+                    save_llm_log(
+                        provider=self.config.provider,
+                        model=self.config.model,
+                        system_prompt=system_prompt,
+                        user_prompt=user_content,
+                        response=content,
+                        status="error",
+                        error_message=error_msg,
+                        task_type=task_type,
+                        novel_id=novel_id,
+                        chapter_id=chapter_id,
+                        character_id=character_id,
+                        used_proxy=used_proxy,
+                        duration=duration
+                    )
+
+                    return LLMResponse(
+                        success=False,
+                        error=error_msg,
+                        content=content,
                         raw_response=data,
                         duration=duration
                     )

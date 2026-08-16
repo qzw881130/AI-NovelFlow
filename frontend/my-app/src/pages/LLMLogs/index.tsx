@@ -116,7 +116,7 @@ export default function LLMLogs() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {state.logs.map((log) => (
-                  <LogTableRow key={log.id} log={log} onView={() => state.setSelectedLog(log)}
+                  <LogTableRow key={log.id} log={log} onView={() => state.openLogDetail(log)}
                     formatDate={state.formatDate} truncateText={state.truncateText}
                     getTaskTypeLabel={state.getTaskTypeLabel} getStatusBadgeConfig={state.getStatusBadgeConfig} />
                 ))}

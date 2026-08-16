@@ -36,3 +36,10 @@ def test_parse_response_returns_empty_string_for_empty_message():
     response_data = {"choices": [{"message": {"content": ""}}]}
 
     assert provider._parse_response(response_data) == ""
+
+
+def test_get_finish_reason_reads_choice_finish_reason():
+    provider = make_provider()
+    response_data = {"choices": [{"finish_reason": "length", "message": {"content": "partial"}}]}
+
+    assert provider._get_finish_reason(response_data) == "length"
