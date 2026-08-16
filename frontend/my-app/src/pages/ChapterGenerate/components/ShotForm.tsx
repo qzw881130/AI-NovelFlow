@@ -11,8 +11,10 @@
  */
 
 import { useState, useMemo, useEffect } from 'react';
+import { Copy } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { useChapterGenerateStore } from '../stores';
+import { toast } from '../../../stores/toastStore';
 import type { DialogueData } from '../types';
 import type { Shot } from '../../../api/shots';
 
@@ -37,6 +39,8 @@ interface ShotFormProps {
   showVideoDescription?: boolean;
   /** 是否显示时长编辑（默认 false） */
   showDuration?: boolean;
+  /** 保存快捷键回调 */
+  onSave?: () => void | Promise<void>;
 }
 
 export function ShotForm({
@@ -50,6 +54,7 @@ export function ShotForm({
   showDialogues = true,
   showVideoDescription = false,
   showDuration = false,
+  onSave,
 }: ShotFormProps) {
   const { t } = useTranslation();
   const currentShotIndex = useChapterGenerateStore((state) => state.currentShotIndex);
@@ -209,6 +214,37 @@ export function ShotForm({
     setDialogues(newDialogues);
   };
 
+  const handleSaveShortcut = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      event.stopPropagation();
+      onSave?.();
+    }
+  };
+
+  const copyText = async (content: string) => {
+    if (!content) return;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = content;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      toast.success(t('common.copied'));
+    } catch (error) {
+      console.error('复制分镜文本失败:', error);
+      toast.error(t('common.copyFailed'));
+    }
+  };
+
   // 台词编辑区域展开/收起状态
   const [dialoguesExpanded, setDialoguesExpanded] = useState(false);
 
@@ -216,12 +252,25 @@ export function ShotForm({
     <div className="shot-form space-y-4">
       {/* 分镜描述 */}
       <div className="shot-description-field">
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {t('chapterGenerate.shotDescForImage')}
-        </label>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium text-gray-700">
+            {t('chapterGenerate.shotDescForImage')}
+          </label>
+          <button
+            type="button"
+            onClick={() => copyText(description)}
+            disabled={!description}
+            className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={t('common.copy')}
+            aria-label={t('common.copy')}
+          >
+            <Copy className="h-4 w-4" />
+          </button>
+        </div>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+          onKeyDown={handleSaveShortcut}
           disabled={readOnly}
           rows={6}
           className="shot-description-textarea input-field"
@@ -239,12 +288,25 @@ export function ShotForm({
       {/* 视频描述 */}
       {showVideoDescription && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t('chapterGenerate.videoDescForVideo')}
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {t('chapterGenerate.videoDescForVideo')}
+            </label>
+            <button
+              type="button"
+              onClick={() => copyText(videoDescription)}
+              disabled={!videoDescription}
+              className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              title={t('common.copy')}
+              aria-label={t('common.copy')}
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+          </div>
           <textarea
             value={videoDescription}
             onChange={(e) => setVideoDescription(e.target.value)}
+            onKeyDown={handleSaveShortcut}
             disabled={readOnly}
             rows={6}
             className="input-field"

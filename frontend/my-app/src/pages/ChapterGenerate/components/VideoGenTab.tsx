@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useChapterGenerateStore } from '../stores';
-import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play } from 'lucide-react';
+import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
@@ -310,6 +310,38 @@ export function VideoGenTab({
     }
   };
 
+  const handleSaveShortcut = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+      event.preventDefault();
+      event.stopPropagation();
+      handleSaveShot();
+    }
+  };
+
+  const copyVideoDescription = async () => {
+    const content = currentShotData?.video_description || '';
+    if (!content) return;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = content;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      toast.success(t('common.copied'));
+    } catch (error) {
+      console.error('复制视频描述失败:', error);
+      toast.error(t('common.copyFailed'));
+    }
+  };
+
   // 处理下载章节素材
   const handleDownloadMaterials = async () => {
     if (!effectiveNovelId || !effectiveChapterId) return;
@@ -491,9 +523,22 @@ export function VideoGenTab({
 
           {/* 视频提示词编辑区 */}
           <div className="video-description-card flex-shrink-0 border border-gray-200 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-gray-700 mb-3">{t('chapterGenerate.videoDescForVideo')}</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.videoDescForVideo')}</h3>
+              <button
+                type="button"
+                onClick={copyVideoDescription}
+                disabled={!currentShotData?.video_description}
+                className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                title={t('common.copy')}
+                aria-label={t('common.copy')}
+              >
+                <Copy className="h-4 w-4" />
+              </button>
+            </div>
             <textarea
               value={currentShotData?.video_description || ''}
+              onKeyDown={handleSaveShortcut}
               onChange={(e) => {
                 const shotIndex = selectedVideo - 1;
                 if (shotsList[shotIndex]) {

@@ -1,4 +1,4 @@
-import { Eye, Edit2, Trash2, Copy } from 'lucide-react';
+import { Eye, Edit2, Trash2, Copy, Download } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { PromptTemplate } from '../../../types';
 import type { TemplateType } from '../types';
@@ -18,6 +18,17 @@ export function TemplateCard({
   template, type, onView, onEdit, onCopy, onDelete, getDisplayName, getDisplayDescription
 }: TemplateCardProps) {
   const { t } = useTranslation();
+
+  const handleDownload = () => {
+    const blob = new Blob([template.template], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const safeName = getDisplayName(template).replace(/[\\/:*?"<>|\s]+/g, '_');
+    link.href = url;
+    link.download = `${safeName || template.id}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-gray-300 bg-white transition-colors">
@@ -41,6 +52,9 @@ export function TemplateCard({
             <button onClick={() => onView(template)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors" title={t('common.view')}>
               <Eye className="h-4 w-4" />
             </button>
+            <button onClick={handleDownload} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors" title={t('common.download')}>
+              <Download className="h-4 w-4" />
+            </button>
             <button onClick={() => onCopy(template)} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-100 rounded transition-colors" title={t('promptConfig.copyAsUser')}>
               <Copy className="h-4 w-4" />
             </button>
@@ -49,6 +63,9 @@ export function TemplateCard({
           <>
             <button onClick={() => onView(template)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors" title={t('common.view')}>
               <Eye className="h-4 w-4" />
+            </button>
+            <button onClick={handleDownload} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors" title={t('common.download')}>
+              <Download className="h-4 w-4" />
             </button>
             <button onClick={() => onEdit(type, template)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors" title={t('common.edit')}>
               <Edit2 className="h-4 w-4" />

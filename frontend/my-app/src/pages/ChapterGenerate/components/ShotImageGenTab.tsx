@@ -7,7 +7,7 @@
  * - 右侧：任务状态
  */
 
-import { useRef, useState } from 'react';
+import { cloneElement, isValidElement, useRef, useState } from 'react';
 import { useChapterGenerateStore } from '../stores';
 import { Box, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
 import { shotsApi } from '../../../api/shots';
@@ -214,6 +214,10 @@ export function ShotImageGenTab({
     }
   };
 
+  const childrenWithSaveShortcut = isValidElement(children)
+    ? cloneElement(children, { onSave: handleSaveShot } as { onSave: () => Promise<void> })
+    : children;
+
   return (
     <div className="h-full flex flex-col">
       {/* 操作栏 */}
@@ -290,7 +294,7 @@ export function ShotImageGenTab({
       <div className="flex-1 min-h-0 flex gap-4 overflow-hidden">
         {/* 表单编辑区 - 固定宽度 600px */}
         <div className="shot-image-form-panel w-[600px] flex-shrink-0 overflow-y-auto border border-gray-200 rounded-lg p-4">
-          {children}
+          {childrenWithSaveShortcut}
         </div>
 
         {/* 分镜图预览区 - 自适应剩余宽度 */}
