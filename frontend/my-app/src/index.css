@@ -133,3 +133,29 @@
     height: 22rem;
   }
 }
+
+/* 分镜图生成页：表单列较窄时，让分镜描述尽量占满资源选择项之外的剩余高度。 */
+.shot-image-form-panel {
+  container-type: inline-size;
+}
+
+@container (max-width: 640px) {
+  .shot-image-form-panel .shot-form {
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+  }
+
+  .shot-image-form-panel .shot-description-field {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .shot-image-form-panel .shot-description-textarea {
+    flex: 1 1 auto;
+    min-height: 18rem;
+    resize: none;
+  }
+}

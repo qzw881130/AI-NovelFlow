@@ -213,9 +213,9 @@ export function ShotForm({
   const [dialoguesExpanded, setDialoguesExpanded] = useState(false);
 
   return (
-    <div className="space-y-4">
+    <div className="shot-form space-y-4">
       {/* 分镜描述 */}
-      <div>
+      <div className="shot-description-field">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {t('chapterGenerate.shotDescForImage')}
         </label>
@@ -224,7 +224,7 @@ export function ShotForm({
           onChange={(e) => setDescription(e.target.value)}
           disabled={readOnly}
           rows={6}
-          className="input-field"
+          className="shot-description-textarea input-field"
           placeholder={t('chapterGenerate.shotDescPlaceholder')}
         />
         <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 flex-wrap">

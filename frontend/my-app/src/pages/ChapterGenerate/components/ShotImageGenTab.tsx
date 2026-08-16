@@ -289,7 +289,7 @@ export function ShotImageGenTab({
       {/* 内容区 */}
       <div className="flex-1 min-h-0 flex gap-4 overflow-hidden">
         {/* 表单编辑区 - 固定宽度 600px */}
-        <div className="w-[600px] flex-shrink-0 overflow-y-auto border border-gray-200 rounded-lg p-4">
+        <div className="shot-image-form-panel w-[600px] flex-shrink-0 overflow-y-auto border border-gray-200 rounded-lg p-4">
           {children}
         </div>
 
