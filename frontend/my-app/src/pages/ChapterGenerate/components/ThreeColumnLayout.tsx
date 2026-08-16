@@ -66,7 +66,7 @@ export function ThreeColumnLayout({
     initialWidth: rightPanelWidth,
     minWidth: minRightWidth,
     maxWidth: maxRightWidth,
-    collapsedWidth: 48,
+    collapsedWidth: 0,
     collapsed: rightPanelCollapsed,
     onWidthChange: setRightPanelWidth,
     storageKey: 'chapterGenerate_rightPanelWidth',
@@ -80,7 +80,7 @@ export function ThreeColumnLayout({
   };
 
   const getRightWidth = () => {
-    if (rightPanelCollapsed) return 48;
+    if (rightPanelCollapsed) return 0;
     return rightResizable.width;
   };
 
@@ -127,7 +127,7 @@ export function ThreeColumnLayout({
       </div>
 
       {/* 中间内容区域 */}
-      <div className="flex-1 min-w-0 overflow-hidden" style={{ maxWidth: 'calc(100% - 96px)' }}>
+      <div className="flex-1 min-w-0 overflow-hidden">
         <div className="h-full overflow-hidden">{centerContent}</div>
       </div>
 
@@ -135,12 +135,12 @@ export function ThreeColumnLayout({
       <div
         className="relative flex-shrink-0 transition-all duration-200 ease-in-out"
         style={{
-          width: rightPanelCollapsed ? 48 : getRightWidth(),
+          width: getRightWidth(),
         }}
       >
-        <div className="h-full overflow-hidden bg-gray-50 border-l border-gray-200">
+        <div className={`h-full overflow-hidden bg-gray-50 ${rightPanelCollapsed ? '' : 'border-l border-gray-200'}`}>
           {/* 右侧栏内容 */}
-          <div className={`h-full ${rightPanelCollapsed ? 'p-2' : 'pl-4 pr-2 py-4'}`}>
+          <div className="h-full pl-4 pr-2 py-4">
             {!rightPanelCollapsed && rightPanel}
           </div>
         </div>
