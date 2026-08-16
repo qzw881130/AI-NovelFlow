@@ -158,7 +158,13 @@ export const createGenerationSlice: StateCreator<
     // 添加到生成中集合
     console.log('[generateShotImage] Adding to generatingShots:', shotId);
     set(state => ({
-      generatingShots: new Set([...state.generatingShots, shotId])
+      generatingShots: new Set([...state.generatingShots, shotId]),
+      shotImages: Object.fromEntries(Object.entries(state.shotImages).filter(([key]) => key !== shotId)),
+      shots: state.shots.map(s =>
+        s.id === shotId
+          ? { ...s, imageUrl: null, imagePath: null, imageStatus: 'generating' as const, imageTaskId: null }
+          : s
+      )
     }));
 
     // 验证状态已更新
@@ -172,7 +178,7 @@ export const createGenerationSlice: StateCreator<
         // 更新 shot 的 imageStatus
         const updatedShots = get().shots.map(s =>
           s.id === shotId
-            ? { ...s, imageStatus: 'generating' as const, imageTaskId: result.data?.taskId || null }
+            ? { ...s, imageUrl: null, imagePath: null, imageStatus: 'generating' as const, imageTaskId: result.data?.taskId || null }
             : s
         );
         set({ shots: updatedShots });
@@ -693,18 +699,21 @@ export const createGenerationSlice: StateCreator<
             }
 
             // 使用最新任务的结果 URL（优先使用已完成的任务）
-            const completedTask = sortedTasks.find(t => t.status === 'completed' && t.resultUrl);
-            if (completedTask && completedTask.resultUrl) {
+            const completedTask = latestTask.status === 'completed' && latestTask.resultUrl ? latestTask : null;
+            if (completedTask) {
               if (newShotImages[shot.id] !== completedTask.resultUrl) {
                 newShotImages[shot.id] = completedTask.resultUrl;
                 shotImagesUpdated = true;
               }
+            } else if (hasRunningTask && newShotImages[shot.id]) {
+              delete newShotImages[shot.id];
+              shotImagesUpdated = true;
             }
 
             return {
               ...shot,
               imageStatus: latestTask.status,
-              imageUrl: completedTask?.resultUrl || shot.imageUrl,
+              imageUrl: completedTask?.resultUrl || (hasRunningTask ? null : shot.imageUrl),
               imageTaskId: latestTask.id || shot.imageTaskId,
             };
           }

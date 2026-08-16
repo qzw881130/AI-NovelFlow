@@ -231,6 +231,15 @@ export default function Tasks() {
         )}
       </div>
 
+      {previewVideo && <VideoPreviewModal videoUrl={previewVideo} onClose={() => setPreviewVideo(null)} />}
+      <WorkflowViewModal
+        viewingWorkflow={viewingWorkflow}
+        workflowData={workflowData}
+        loadingWorkflow={loadingWorkflow}
+        onClose={() => { setViewingWorkflow(null); setWorkflowData(null); }}
+        onPreviewImages={openImageGallery}
+        convertShotName={convertShotName}
+      />
       {previewImage && (
         <ImagePreviewModal
           imageUrl={previewImage}
@@ -240,14 +249,6 @@ export default function Tasks() {
           onClose={closeImagePreview}
         />
       )}
-      {previewVideo && <VideoPreviewModal videoUrl={previewVideo} onClose={() => setPreviewVideo(null)} />}
-      <WorkflowViewModal
-        viewingWorkflow={viewingWorkflow}
-        workflowData={workflowData}
-        loadingWorkflow={loadingWorkflow}
-        onClose={() => { setViewingWorkflow(null); setWorkflowData(null); }}
-        convertShotName={convertShotName}
-      />
     </div>
   );
 }

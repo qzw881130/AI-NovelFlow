@@ -126,7 +126,10 @@ async def generate_shot_image(
     # 清除旧的图片数据和文件
     file_storage.delete_shot_image(novel_id, chapter_id, shot_index, shot_id=shot.id)
 
-    # 更新分镜图片状态为 generating
+    # 更新分镜图片状态为 generating，并清除旧图片数据
+    shot.image_url = None
+    shot.image_path = None
+    shot.image_task_id = None
     shot_repo.update_image_status(shot, "generating")
 
     db.commit()

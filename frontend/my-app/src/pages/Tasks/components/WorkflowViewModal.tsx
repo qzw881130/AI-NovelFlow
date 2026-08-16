@@ -10,6 +10,7 @@ interface WorkflowViewModalProps {
   workflowData: WorkflowData | null;
   loadingWorkflow: boolean;
   onClose: () => void;
+  onPreviewImages: (images: Array<{ label?: string; url: string }>, index: number) => void;
   convertShotName: (name: string) => string;
 }
 
@@ -18,6 +19,7 @@ export function WorkflowViewModal({
   workflowData,
   loadingWorkflow,
   onClose,
+  onPreviewImages,
   convertShotName,
 }: WorkflowViewModalProps) {
   const { t } = useTranslation();
@@ -105,6 +107,34 @@ export function WorkflowViewModal({
             </div>
           ) : workflowData ? (
             <div className="space-y-4">
+              {!!viewingWorkflow.referenceImages?.length && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">{t('tasks.referenceImages')}</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {viewingWorkflow.referenceImages.map((image, index) => (
+                      <button
+                        key={`${image.url}-${index}`}
+                        type="button"
+                        onClick={() => onPreviewImages(viewingWorkflow.referenceImages || [], index)}
+                        className="group relative h-20 w-32 overflow-hidden rounded-md border border-gray-200 bg-white hover:shadow-md transition-shadow"
+                        title={image.label || t('tasks.referenceImage')}
+                      >
+                        <img
+                          src={image.url}
+                          alt={image.label || t('tasks.referenceImage')}
+                          className="h-full w-full object-cover"
+                        />
+                        {image.label && (
+                          <span className="absolute bottom-0 left-0 right-0 truncate bg-black/55 px-1 py-0.5 text-xs text-white">
+                            {image.label}
+                          </span>
+                        )}
+                        <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-sm font-medium text-gray-700">{t('tasks.generationPrompt')}</h4>
