@@ -46,6 +46,7 @@ export default {
     task: '작업',
     errorMessage: '오류 메시지',
     llmResponse: 'LLM 응답',
+    characterCount: '문자 수: {count}',
     proxy: '프록시',
     yes: '예',
     no: '아니오',

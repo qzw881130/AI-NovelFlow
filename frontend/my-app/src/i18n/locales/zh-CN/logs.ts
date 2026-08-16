@@ -44,6 +44,7 @@ export default {
     task: '任务',
     errorMessage: '错误信息',
     llmResponse: 'LLM 响应',
+    characterCount: '字数：{count}',
     proxy: '代理',
     duration: '耗时',  // 新增耗时字段
     yes: '是',

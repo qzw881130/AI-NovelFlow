@@ -23,6 +23,19 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
     return log.response || '';
   };
 
+  const getDisplayContent = () => {
+    const content = getActiveContent();
+    if (activeTab !== 'response' || !content) return content || '-';
+
+    try {
+      return JSON.stringify(JSON.parse(content), null, 2);
+    } catch {
+      return content;
+    }
+  };
+
+  const activeContentLength = getActiveContent().length;
+
   const handleCopy = async () => {
     const content = getActiveContent();
     if (!content) return;
@@ -129,9 +142,12 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
             </div>
           </div>
           <div className="bg-gray-50 rounded-lg p-4">
-            {activeTab === 'system' && <pre className="text-sm text-gray-700 whitespace-pre-wrap overflow-x-auto">{log.system_prompt || '-'}</pre>}
-            {activeTab === 'user' && <pre className="text-sm text-gray-700 whitespace-pre-wrap overflow-x-auto">{log.user_prompt}</pre>}
-            {activeTab === 'response' && log.response && <pre className="text-sm text-gray-700 whitespace-pre-wrap overflow-x-auto max-h-96">{log.response}</pre>}
+            <pre className="text-sm text-gray-700 whitespace-pre-wrap break-words overflow-x-auto">
+              {getDisplayContent()}
+            </pre>
+            <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500 text-right">
+              {t('llmLogs.characterCount', { count: activeContentLength })}
+            </div>
           </div>
         </div>
       </div>

@@ -44,6 +44,7 @@ export default {
     task: 'Task',
     errorMessage: 'Error Message',
     llmResponse: 'LLM Response',
+    characterCount: 'Characters: {count}',
     proxy: 'Proxy',
     duration: 'Duration',
     yes: 'Yes',

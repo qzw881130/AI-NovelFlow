@@ -46,6 +46,7 @@ export default {
     task: 'タスク',
     errorMessage: 'エラーメッセージ',
     llmResponse: 'LLMレスポンス',
+    characterCount: '文字数：{count}',
     proxy: 'プロキシ',
     yes: 'はい',
     no: 'いいえ',
