@@ -701,6 +701,17 @@ class NovelService:
         
         if not prompt_template:
             return {"success": False, "message": "未找到章节拆分提示词模板"}
+
+        # 重新拆分代表旧分镜及其生成资源已失效，先清空，避免失败或长耗时期间继续展示旧数据。
+        shot_repo = ShotRepository(self.db)
+        file_storage.delete_chapter_directory(novel.id, chapter.id)
+        shot_repo.delete_by_chapter(chapter.id)
+        chapter.parsed_data = None
+        chapter.shot_images = None
+        chapter.shot_videos = None
+        chapter.transition_videos = None
+        chapter.merged_image = None
+        self.db.commit()
         
         # 获取风格提示词
         style, style_template = get_style(self.db, novel, "character")
@@ -728,12 +739,6 @@ class NovelService:
 
         shots_data = result.get("shots", [])
 
-        # 使用 ShotRepository 管理分镜数据
-        shot_repo = ShotRepository(self.db)
-
-        # 删除章节的现有分镜记录（重新拆分时）
-        shot_repo.delete_by_chapter(chapter.id)
-
         # 创建 Shot 记录
         created_shots = []
         for idx, shot_data in enumerate(shots_data, 1):
@@ -757,16 +762,6 @@ class NovelService:
             "scenes": result.get("scenes", []),
             "props": result.get("props", []),
         }
-        # 保留 transition_videos（如果存在）
-        existing_parsed = {}
-        if chapter.parsed_data:
-            try:
-                existing_parsed = json.loads(chapter.parsed_data)
-            except:
-                pass
-        if existing_parsed.get("transition_videos"):
-            parsed_data_for_storage["transition_videos"] = existing_parsed["transition_videos"]
-
         chapter.parsed_data = json.dumps(parsed_data_for_storage, ensure_ascii=False)
         self.db.commit()
 
