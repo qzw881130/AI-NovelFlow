@@ -1,5 +1,6 @@
-import { Download, Loader2, X } from 'lucide-react';
+import { Copy, Download, Loader2, X } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
+import { toast } from '../../../stores/toastStore';
 import JSONEditor from '../../../components/JSONEditor';
 import type { Task } from '../../../types';
 import type { WorkflowData } from '../types';
@@ -61,6 +62,29 @@ export function WorkflowViewModal({
     URL.revokeObjectURL(url);
   };
 
+  const copyPrompt = async () => {
+    if (!workflowData?.prompt) return;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(workflowData.prompt);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = workflowData.prompt;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      toast.success(t('common.copied'));
+    } catch (error) {
+      console.error('复制生成提示词失败:', error);
+      toast.error(t('common.copyFailed'));
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
@@ -82,7 +106,18 @@ export function WorkflowViewModal({
           ) : workflowData ? (
             <div className="space-y-4">
               <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">{t('tasks.generationPrompt')}</h4>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-sm font-medium text-gray-700">{t('tasks.generationPrompt')}</h4>
+                  <button
+                    type="button"
+                    onClick={copyPrompt}
+                    className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50"
+                    title={t('common.copy')}
+                    aria-label={t('common.copy')}
+                  >
+                    <Copy className="h-4 w-4" />
+                  </button>
+                </div>
                 <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 h-72 overflow-y-auto">
                   <p className="text-sm text-gray-600 font-mono whitespace-pre-wrap break-all">{workflowData.prompt}</p>
                 </div>
