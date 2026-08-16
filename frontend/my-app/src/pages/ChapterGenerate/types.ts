@@ -92,6 +92,7 @@ export interface UIState {
   previewImageUrl: string | null;
   previewImageIndex: number;
   mergedImage: string | null;
+  mergedImageLabel: string;
   isMerging: boolean;
   editorKey: number;
   splitConfirmDialog: { isOpen: boolean; hasResources: boolean };

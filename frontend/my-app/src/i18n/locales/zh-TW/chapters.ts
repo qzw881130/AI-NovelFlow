@@ -101,6 +101,8 @@ export default {
     characterImagesLabel: '角色圖',
     sceneImages: '場景圖片',
     mergedCharacterImage: '合併角色圖',
+    mergedPropImage: '合併道具圖',
+    mergedImage: '合併圖',
     shotImages: '分鏡圖片',
     dialogueAudios: '台詞音頻',
     shotVideos: '分鏡影片',
@@ -299,10 +301,12 @@ export default {
     aiGenerateCharacter: 'AI 生成角色形象',
     noCharacterImages: '暫無角色圖片',
     viewMergedImage: '查看合併角色圖',
+    viewMergedPropImage: '查看合併道具圖',
     generateMergedImageFirst: '請先生成合併角色圖',
     mergedCharacterImageTitle: '合併角色圖',
     characterImage: '角色圖',
     noMergedCharacterImage: '當前分鏡沒有合併角色圖',
+    noMergedPropImage: '當前分鏡沒有合併道具圖',
 
     // 場景圖
     aiGenerateScene: 'AI 生成場景圖',

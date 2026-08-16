@@ -18,7 +18,7 @@ from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import get_style
 from app.utils.path_utils import url_to_local_path
-from app.utils.image_utils import merge_character_images
+from app.utils.image_utils import merge_character_images, merge_prop_images
 from app.repositories.shot_repository import ShotRepository
 from app.utils.workflow_disconnect import (
     disconnect_reference_chain,
@@ -138,7 +138,7 @@ async def generate_shot_image_task(
 
         # 处理道具图
         prop_reference_paths = await _process_prop_references(
-            db, task, novel_id, shot_props, task_id
+            db, task, novel_id, chapter_id, shot_index, shot_props, task_id, shot_repo
         )
 
         # ========== 查询角色/场景/道具的描述信息（用于占位符替换） ==========
@@ -383,7 +383,14 @@ async def _process_scene_reference(
 
 
 async def _process_prop_references(
-    db, task, novel_id: str, shot_props: list, task_id: str
+    db,
+    task,
+    novel_id: str,
+    chapter_id: str,
+    shot_index: int,
+    shot_props: list,
+    task_id: str,
+    shot_repo: ShotRepository = None,
 ) -> Optional[Dict[str, str]]:
     """
     处理道具参考图片
@@ -396,7 +403,7 @@ async def _process_prop_references(
         task_id: 任务 ID
 
     Returns:
-        道具名称到图片路径的映射字典 {道具名称: 图片路径}
+        道具名称到图片路径的映射字典。多个道具时返回合并道具图。
     """
     if not shot_props:
         return None
@@ -404,7 +411,7 @@ async def _process_prop_references(
     task.current_step = f"查找道具图: {', '.join(shot_props)}"
     db.commit()
 
-    prop_reference_paths = {}
+    prop_images = []
     print(f"[ShotTask {task_id}] Looking for {len(shot_props)} props: {shot_props}")
 
     for prop_name in shot_props:
@@ -421,18 +428,55 @@ async def _process_prop_references(
         if prop and prop.image_url:
             full_path = url_to_local_path(prop.image_url)
             if full_path:
-                prop_reference_paths[prop_name] = full_path
+                prop_images.append((prop_name, full_path))
                 print(
                     f"[ShotTask {task_id}] Found prop image: {prop_name} -> {full_path}"
                 )
 
-    print(f"[ShotTask {task_id}] Total prop images found: {len(prop_reference_paths)}")
+    print(f"[ShotTask {task_id}] Total prop images found: {len(prop_images)}")
 
-    if prop_reference_paths:
-        task.current_step = f"已找到 {len(prop_reference_paths)} 个道具图片"
+    if not prop_images:
+        return None
+
+    if len(prop_images) == 1:
+        task.current_step = "已找到 1 个道具图片"
         db.commit()
+        return {prop_images[0][0]: prop_images[0][1]}
 
-    return prop_reference_paths if prop_reference_paths else None
+    task.current_step = f"合并道具图片: {', '.join(name for name, _ in prop_images)}"
+    db.commit()
+
+    merged_path = merge_prop_images(novel_id, chapter_id, shot_index, prop_images, file_storage)
+    if merged_path:
+        _update_shot_merged_prop_url(db, chapter_id, shot_index, merged_path, shot_repo)
+        print(f"[ShotTask {task_id}] Merged prop image saved: {merged_path}")
+        task.current_step = f"已合并 {len(prop_images)} 个道具图片"
+        db.commit()
+        return {"合并道具图": merged_path}
+
+    print(f"[ShotTask {task_id}] Failed to merge prop images")
+    task.current_step = "道具图片合并失败，继续使用首个道具图..."
+    db.commit()
+    return {prop_images[0][0]: prop_images[0][1]}
+
+
+def _update_shot_merged_prop_url(
+    db, chapter_id: str, shot_index: int, merged_path: str, shot_repo: ShotRepository = None
+):
+    """更新 Shot 记录中合并道具图的 URL"""
+    if shot_repo is None:
+        shot_repo = ShotRepository(db)
+
+    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+    if not shot:
+        return
+
+    merged_relative_path = (
+        str(merged_path).replace(str(file_storage.base_dir), "").replace("\\", "/")
+    )
+    merged_url = f"/api/files/{merged_relative_path.lstrip('/')}"
+
+    shot_repo.update(shot, merged_prop_image=merged_url)
 
 
 async def _upload_references_and_update_workflow(

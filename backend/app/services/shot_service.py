@@ -83,7 +83,7 @@ class ShotService:
             'description', 'characters', 'scene', 'props', 'duration',
             'image_url', 'image_path', 'image_status', 'image_task_id',
             'video_url', 'video_status', 'video_task_id',
-            'merged_character_image', 'dialogues'
+            'merged_character_image', 'merged_prop_image', 'dialogues'
         }
         update_data = {k: v for k, v in data.items() if k in valid_fields}
 
@@ -280,6 +280,7 @@ class ShotService:
                 "video_status": "completed" if shot_data.get("video_url") else "pending",
                 "video_task_id": shot_data.get("video_task_id"),
                 "merged_character_image": shot_data.get("merged_character_image"),
+                "merged_prop_image": shot_data.get("merged_prop_image"),
                 "dialogues": shot_data.get("dialogues", []),
             }
             create_data.append(data)

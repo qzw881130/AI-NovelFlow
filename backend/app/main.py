@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
+from sqlalchemy import text
 
 from app.api import characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props
 from app.api import novels, chapters, shots
@@ -12,12 +13,27 @@ from app.models.test_case import TestCase
 from app.models.prompt_template import PromptTemplate
 from app.models.llm_log import LLMLog
 from app.models.system_config import SystemConfig  # 导入系统配置模型
+from app.models.shot import Shot
+
+
+def ensure_schema_updates():
+    """补齐 create_all 不会自动添加的轻量字段。"""
+    with engine.connect() as conn:
+        try:
+            result = conn.execute(text("PRAGMA table_info(shots)"))
+            shot_columns = [row[1] for row in result.fetchall()]
+            if "merged_prop_image" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN merged_prop_image VARCHAR"))
+            conn.commit()
+        except Exception as exc:
+            print(f"[Startup] Failed to ensure schema updates: {exc}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     Base.metadata.create_all(bind=engine)
+    ensure_schema_updates()
     
     # 初始化预设数据和系统配置
     from app.api.test_cases import init_preset_test_cases

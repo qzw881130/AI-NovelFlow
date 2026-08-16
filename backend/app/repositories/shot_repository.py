@@ -325,6 +325,7 @@ class ShotRepository:
             "videoStatus": shot.video_status,
             "videoTaskId": shot.video_task_id,
             "mergedCharacterImage": shot.merged_character_image,
+            "mergedPropImage": shot.merged_prop_image,
             "dialogues": json.loads(shot.dialogues) if shot.dialogues else [],
             "keyframes": json.loads(shot.keyframes) if shot.keyframes else [],
             "referenceAudioUrl": shot.reference_audio_url,

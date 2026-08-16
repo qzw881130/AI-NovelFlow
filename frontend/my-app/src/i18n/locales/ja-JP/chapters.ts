@@ -160,6 +160,8 @@ export default {
     characterImagesLabel: 'キャラクター画像',
     sceneImages: 'シーン画像',
     mergedCharacterImage: '統合キャラクター画像',
+    mergedPropImage: '統合プロップ画像',
+    mergedImage: '統合画像',
     shotImages: 'ショット画像',
     dialogueAudios: 'セリフ音声',
     shotVideos: 'ショット動画',
@@ -358,10 +360,12 @@ export default {
     aiGenerateCharacter: 'AI キャラクター生成',
     noCharacterImages: 'キャラクター画像がありません',
     viewMergedImage: '統合画像を表示',
+    viewMergedPropImage: '統合プロップ画像を表示',
     generateMergedImageFirst: '先に統合キャラクター画像を生成してください',
     mergedCharacterImageTitle: '統合キャラクター画像',
     characterImage: 'キャラクター',
     noMergedCharacterImage: '現在のショットに統合キャラクター画像はありません',
+    noMergedPropImage: '現在のショットに統合プロップ画像はありません',
 
     // シーン画像
     aiGenerateScene: 'AI シーン画像生成',

@@ -3,7 +3,7 @@
 
 封装图片处理相关的工具函数
 """
-from typing import List, Tuple, Optional
+from typing import Callable, List, Tuple, Optional
 from PIL import Image, ImageDraw, ImageFont
 
 
@@ -41,52 +41,41 @@ def load_chinese_font(size: int) -> ImageFont:
     return ImageFont.load_default()
 
 
-def merge_character_images(
+def _merge_labeled_images(
     novel_id: str,
     chapter_id: str,
     shot_index: int,
-    character_images: List[Tuple[str, str]],
-    file_storage
+    named_images: List[Tuple[str, str]],
+    file_storage,
+    folder_name: str,
+    filename_suffix: str,
+    path_getter: Callable,
+    log_prefix: str,
 ) -> Optional[str]:
-    """
-    合并多个角色图片为一个参考图
-    
-    Args:
-        novel_id: 小说ID
-        chapter_id: 章节ID
-        shot_index: 分镜索引
-        character_images: [(角色名, 图片路径), ...]
-        file_storage: 文件存储服务实例
-        
-    Returns:
-        合并后的图片路径，失败返回 None
-    """
     import os
     import glob
-    
-    if not character_images:
+
+    if not named_images:
         return None
-    
+
     try:
-        # 删除旧的合并角色图
         story_dir = file_storage._get_story_dir(novel_id)
         chapter_short = chapter_id[:8] if chapter_id else "unknown"
-        merged_dir = story_dir / f"chapter_{chapter_short}" / "merged_characters"
+        merged_dir = story_dir / f"chapter_{chapter_short}" / folder_name
         if merged_dir.exists():
-            old_files = glob.glob(str(merged_dir / f"shot_{shot_index:03d}_*_characters.png"))
+            old_files = glob.glob(str(merged_dir / f"shot_{shot_index:03d}_*_{filename_suffix}.png"))
             for old_file in old_files:
                 try:
                     os.remove(old_file)
-                    print(f"[MergeCharacters] Removed old merged character image: {old_file}")
+                    print(f"[{log_prefix}] Removed old merged image: {old_file}")
                 except Exception as e:
-                    print(f"[MergeCharacters] Failed to remove old file {old_file}: {e}")
-        
-        # 获取角色名列表
-        character_names = [name for name, _ in character_images]
-        merged_path = file_storage.get_merged_characters_path(novel_id, chapter_id, shot_index, character_names)
-        
+                    print(f"[{log_prefix}] Failed to remove old file {old_file}: {e}")
+
+        names = [name for name, _ in named_images]
+        merged_path = path_getter(novel_id, chapter_id, shot_index, names)
+
         # 计算布局
-        count = len(character_images)
+        count = len(named_images)
         if count == 1:
             cols, rows = 1, 1
         elif count <= 3:
@@ -101,9 +90,9 @@ def merge_character_images(
         
         # 加载所有图片
         images = []
-        for char_name, img_path in character_images:
+        for name, img_path in named_images:
             img = Image.open(img_path)
-            images.append((char_name, img))
+            images.append((name, img))
         
         # 设置布局参数
         name_height = 36
@@ -112,7 +101,7 @@ def merge_character_images(
         text_offset = 8
         
         # 使用原图，不进行缩放
-        processed_images = [(char_name, img.copy()) for char_name, img in images]
+        processed_images = [(name, img.copy()) for name, img in images]
         
         # 计算每列的最大宽度
         col_widths = []
@@ -141,9 +130,9 @@ def merge_character_images(
         # 加载字体
         font = load_chinese_font(22)
 
-        # 绘制每个角色（名称在图片上方）
+        # 绘制每张图片（名称在图片上方）
         current_y = padding
-        for idx, (char_name, img) in enumerate(processed_images):
+        for idx, (name, img) in enumerate(processed_images):
             col = idx % cols
             row = idx // cols
 
@@ -151,7 +140,7 @@ def merge_character_images(
             y = current_y
 
             # 先绘制名称背景（增加醒目度）
-            text_bbox = draw.textbbox((0, 0), char_name, font=font)
+            text_bbox = draw.textbbox((0, 0), name, font=font)
             text_width = text_bbox[2] - text_bbox[0]
             text_x = x + (col_widths[col] - text_width) // 2
             text_y = y + text_offset
@@ -165,7 +154,7 @@ def merge_character_images(
             )
 
             # 绘制名称文字（使用深色粗体风格）
-            draw.text((text_x, text_y), char_name, fill=(30, 30, 30), font=font)
+            draw.text((text_x, text_y), name, fill=(30, 30, 30), font=font)
 
             # 再绘制图片（在名称下方）
             img_x = x + (col_widths[col] - img.width) // 2
@@ -177,12 +166,54 @@ def merge_character_images(
         
         # 保存合并图片
         canvas.save(merged_path, "PNG")
-        print(f"[MergeCharacters] Merged character image saved: {merged_path}")
-        
+        print(f"[{log_prefix}] Merged image saved: {merged_path}")
+
         return str(merged_path)
-        
+
     except Exception as e:
-        print(f"[MergeCharacters] Failed to merge character images: {e}")
+        print(f"[{log_prefix}] Failed to merge images: {e}")
         import traceback
         traceback.print_exc()
         return None
+
+
+def merge_character_images(
+    novel_id: str,
+    chapter_id: str,
+    shot_index: int,
+    character_images: List[Tuple[str, str]],
+    file_storage
+) -> Optional[str]:
+    """合并多个角色图片为一个参考图"""
+    return _merge_labeled_images(
+        novel_id,
+        chapter_id,
+        shot_index,
+        character_images,
+        file_storage,
+        "merged_characters",
+        "characters",
+        file_storage.get_merged_characters_path,
+        "MergeCharacters",
+    )
+
+
+def merge_prop_images(
+    novel_id: str,
+    chapter_id: str,
+    shot_index: int,
+    prop_images: List[Tuple[str, str]],
+    file_storage
+) -> Optional[str]:
+    """合并多个道具图片为一个参考图"""
+    return _merge_labeled_images(
+        novel_id,
+        chapter_id,
+        shot_index,
+        prop_images,
+        file_storage,
+        "merged_props",
+        "props",
+        file_storage.get_merged_props_path,
+        "MergeProps",
+    )

@@ -23,6 +23,7 @@ export interface ShotDataFromParsed {
   image_url?: string;
   image_path?: string;
   merged_character_image?: string;
+  merged_prop_image?: string;
   video_url?: string;
   keyframes?: KeyframeData[];
   reference_audio_url?: string;
@@ -192,6 +193,7 @@ export interface UiSliceState {
 
   // 合并图片
   mergedImage: string | null;
+  mergedImageLabel: string;
   isMerging: boolean;
 
   // 确认对话框
@@ -378,7 +380,7 @@ export interface ChapterGenerateStore
   setShowFullTextModal: (show: boolean) => void;
   setShowMergedImageModal: (show: boolean) => void;
   setShowImagePreview: (show: boolean, url?: string | null, index?: number) => void;
-  setMergedImage: (image: string | null) => void;
+  setMergedImage: (image: string | null, label?: string) => void;
   setIsMerging: (merging: boolean) => void;
   setSplitConfirmDialog: (dialog: UiSliceState['splitConfirmDialog']) => void;
   setShowTransitionConfig: (show: boolean) => void;

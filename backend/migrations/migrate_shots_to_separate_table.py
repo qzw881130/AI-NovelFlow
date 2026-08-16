@@ -80,6 +80,7 @@ def create_shots_table(conn):
             video_status VARCHAR DEFAULT 'pending',
             video_task_id VARCHAR,
             merged_character_image VARCHAR,
+            merged_prop_image VARCHAR,
             dialogues TEXT DEFAULT '[]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP,
@@ -164,8 +165,8 @@ def migrate_shots_data(conn):
                     id, chapter_id, "index", description, characters, scene, props, duration,
                     image_url, image_path, image_status, image_task_id,
                     video_url, video_status, video_task_id,
-                    merged_character_image, dialogues
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    merged_character_image, merged_prop_image, dialogues
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 shot_id,
                 chapter_id,
@@ -183,6 +184,7 @@ def migrate_shots_data(conn):
                 video_status,
                 shot_data.get("video_task_id"),
                 shot_data.get("merged_character_image"),
+                shot_data.get("merged_prop_image"),
                 json.dumps(shot_data.get("dialogues", []), ensure_ascii=False)
             ))
 

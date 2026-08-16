@@ -39,6 +39,8 @@ class Shot(Base):
 
     # 角色图
     merged_character_image = Column(String, nullable=True)
+    # 道具图
+    merged_prop_image = Column(String, nullable=True)
 
     # 台词音频 (JSON array)
     # 结构：[{"character_name": "角色 1", "text": "台词内容", "audio_url": "...", "audio_source": "generated", "audio_task_id": "..."}]

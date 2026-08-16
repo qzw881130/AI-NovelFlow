@@ -160,6 +160,8 @@ export default {
     characterImagesLabel: '캐릭터 이미지',
     sceneImages: '장면 이미지',
     mergedCharacterImage: '통합 캐릭터 이미지',
+    mergedPropImage: '통합 소품 이미지',
+    mergedImage: '통합 이미지',
     shotImages: '샷 이미지',
     dialogueAudios: '대사 오디오',
     shotVideos: '샷 비디오',
@@ -358,10 +360,12 @@ export default {
     aiGenerateCharacter: 'AI 캐릭터 생성',
     noCharacterImages: '캐릭터 이미지가 없습니다',
     viewMergedImage: '통합 이미지 보기',
+    viewMergedPropImage: '통합 소품 이미지 보기',
     generateMergedImageFirst: '먼저 통합 캐릭터 이미지를 생성하세요',
     mergedCharacterImageTitle: '통합 캐릭터 이미지',
     characterImage: '캐릭터',
     noMergedCharacterImage: '현재 샷에 통합 캐릭터 이미지가 없습니다',
+    noMergedPropImage: '현재 샷에 통합 소품 이미지가 없습니다',
 
     // 장면 이미지
     aiGenerateScene: 'AI 장면 이미지 생성',

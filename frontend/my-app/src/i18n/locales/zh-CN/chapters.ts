@@ -129,6 +129,8 @@ export default {
     characterImagesLabel: '角色图',
     sceneImages: '场景图片',
     mergedCharacterImage: '合并角色图',
+    mergedPropImage: '合并道具图',
+    mergedImage: '合并图',
     shotImages: '分镜图片',
     dialogueAudios: '台词音频',
     shotVideos: '分镜视频',
@@ -327,10 +329,12 @@ export default {
     aiGenerateCharacter: 'AI 生成角色形象',
     noCharacterImages: '暂无角色图片',
     viewMergedImage: '查看合并角色图',
+    viewMergedPropImage: '查看合并道具图',
     generateMergedImageFirst: '请先生成合并角色图',
     mergedCharacterImageTitle: '合并角色图',
     characterImage: '角色图',
     noMergedCharacterImage: '当前分镜没有合并角色图',
+    noMergedPropImage: '当前分镜没有合并道具图',
 
     // 场景图
     aiGenerateScene: 'AI 生成场景图',

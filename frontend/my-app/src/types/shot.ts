@@ -34,6 +34,7 @@ export interface Shot {
   videoStatus: ShotStatus;
   videoTaskId: string | null;
   mergedCharacterImage: string | null;
+  mergedPropImage: string | null;
   dialogues: DialogueData[];
   keyframes?: KeyframeData[];
   referenceAudioUrl?: string | null;

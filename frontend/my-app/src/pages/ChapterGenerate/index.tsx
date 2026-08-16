@@ -24,7 +24,7 @@ export default function ChapterGenerate() {
     shotImages, shotVideos, transitionVideos, generatingShots, pendingShots,
     generatingVideos, pendingVideos, generatingTransitions, generatingAudios,
     showFullTextModal, showMergedImageModal, showImagePreview,
-    previewImageUrl, previewImageIndex, mergedImage, isMerging,
+    previewImageUrl, previewImageIndex, mergedImage, mergedImageLabel, isMerging,
     splitConfirmDialog, audioTasks, audioWarnings,
     currentShotIndex, shots,
   } = store;
@@ -262,6 +262,7 @@ export default function ChapterGenerate() {
         isOpen={showMergedImageModal}
         onClose={() => setShowMergedImageModal(false)}
         mergedImage={mergedImage}
+        imageLabel={mergedImageLabel}
         currentShot={currentShotIndex}
       />
 

@@ -9,7 +9,7 @@
 
 import { useRef, useState } from 'react';
 import { useChapterGenerateStore } from '../stores';
-import { Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
+import { Box, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
 import { shotsApi } from '../../../api/shots';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Shot } from '../../../api/shots';
@@ -200,7 +200,16 @@ export function ShotImageGenTab({
   const handleViewMergedImage = () => {
     const currentShotData = shotsList[currentShotIndex - 1];
     if (currentShotData?.mergedCharacterImage) {
-      setMergedImage(currentShotData.mergedCharacterImage);
+      setMergedImage(currentShotData.mergedCharacterImage, t('chapterGenerate.mergedCharacterImage'));
+      setShowMergedImageModal(true);
+    }
+  };
+
+  // 查看合并道具图
+  const handleViewMergedPropImage = () => {
+    const currentShotData = shotsList[currentShotIndex - 1];
+    if (currentShotData?.mergedPropImage) {
+      setMergedImage(currentShotData.mergedPropImage, t('chapterGenerate.mergedPropImage'));
       setShowMergedImageModal(true);
     }
   };
@@ -261,6 +270,15 @@ export function ShotImageGenTab({
           >
             <Users className="w-4 h-4" />
             {t('chapterGenerate.viewMergedImage')}
+          </button>
+          <button
+            onClick={handleViewMergedPropImage}
+            disabled={!shotsList[currentShotIndex - 1]?.mergedPropImage}
+            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            title={!shotsList[currentShotIndex - 1]?.mergedPropImage ? t('chapterGenerate.noMergedPropImage') : t('chapterGenerate.viewMergedPropImage')}
+          >
+            <Box className="w-4 h-4" />
+            {t('chapterGenerate.viewMergedPropImage')}
           </button>
           <div className="text-sm text-gray-500">
             {t('chapterGenerate.shotId', { id: currentShot || 0, total: shotsList.length })}

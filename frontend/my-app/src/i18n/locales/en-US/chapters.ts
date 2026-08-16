@@ -129,6 +129,8 @@ export default {
     characterImagesLabel: 'Character Images',
     sceneImages: 'Scene Images',
     mergedCharacterImage: 'Merged Character Image',
+    mergedPropImage: 'Merged Prop Image',
+    mergedImage: 'Merged Image',
     shotImages: 'Shot Images',
     dialogueAudios: 'Dialogue Audios',
     shotVideos: 'Shot Videos',
@@ -327,10 +329,12 @@ export default {
     aiGenerateCharacter: 'AI Generate Character',
     noCharacterImages: 'No character images',
     viewMergedImage: 'View Merged Character Image',
+    viewMergedPropImage: 'View Merged Prop Image',
     generateMergedImageFirst: 'Please generate merged character image first',
     mergedCharacterImageTitle: 'Merged Character Image',
     characterImage: 'Character Image',
     noMergedCharacterImage: 'No merged character image in current shot',
+    noMergedPropImage: 'No merged prop image in current shot',
 
     // Scene Images
     aiGenerateScene: 'AI Generate Scene Image',

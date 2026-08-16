@@ -53,10 +53,11 @@ interface MergedImageModalProps {
   isOpen: boolean;
   onClose: () => void;
   mergedImage: string | null;
+  imageLabel?: string;
   currentShot: number;
 }
 
-export function MergedImageModal({ isOpen, onClose, mergedImage, currentShot }: MergedImageModalProps) {
+export function MergedImageModal({ isOpen, onClose, mergedImage, imageLabel, currentShot }: MergedImageModalProps) {
   const { t } = useTranslation();
 
   if (!isOpen || !mergedImage) return null;
@@ -72,14 +73,14 @@ export function MergedImageModal({ isOpen, onClose, mergedImage, currentShot }: 
         </button>
         <img 
           src={mergedImage} 
-          alt={t('chapterGenerate.mergedCharacterImage')} 
+          alt={imageLabel || t('chapterGenerate.mergedImage')}
           className="max-w-full max-h-[80vh] object-contain rounded-lg"
         />
         <div className="mt-4 text-center">
           <button
             onClick={() => {
               const link = document.createElement('a');
-              link.download = `${t('chapterGenerate.characterImage')}_${t('chapterGenerate.shot')}${currentShot}.png`;
+              link.download = `${imageLabel || t('chapterGenerate.mergedImage')}_${t('chapterGenerate.shot')}${currentShot}.png`;
               link.href = mergedImage;
               link.click();
             }}

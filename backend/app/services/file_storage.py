@@ -357,6 +357,27 @@ class FileStorageService:
         
         return save_dir / filename
 
+    def get_merged_props_path(self, novel_id: str, chapter_id: str,
+                              shot_number: int, prop_names: list = None) -> Path:
+        """获取合并道具图保存路径"""
+        import hashlib
+
+        story_dir = self._get_story_dir(novel_id)
+        chapter_short = chapter_id[:8] if chapter_id else "unknown"
+        save_dir = story_dir / f"chapter_{chapter_short}" / "merged_props"
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        if prop_names and len(prop_names) > 0:
+            sorted_names = sorted(prop_names)
+            names_str = "_".join(sorted_names)
+            name_hash = hashlib.md5(names_str.encode('utf-8')).hexdigest()[:8]
+            filename = f"shot_{shot_number:03d}_{name_hash}_props.png"
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"shot_{shot_number:03d}_{timestamp}_props.png"
+
+        return save_dir / filename
+
 
     def get_transition_video_path(self, novel_id: str, chapter_id: str,
                                   first_video_filename: str, second_video_filename: str) -> Path:
