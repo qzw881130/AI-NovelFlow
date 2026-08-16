@@ -461,7 +461,7 @@ export function VideoGenTab({
         {/* 中间：视频提示词编辑 + 视频预览 */}
         <div className="video-main-column flex-1 min-w-0 flex flex-col gap-4">
           {/* 时长设置 */}
-          <div className="video-description-card flex-shrink-0 border border-gray-200 rounded-lg p-4">
+          <div className="flex-shrink-0 border border-gray-200 rounded-lg p-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-gray-700">{t('chapterGenerate.durationLabel')}</label>
@@ -490,7 +490,7 @@ export function VideoGenTab({
           </div>
 
           {/* 视频提示词编辑区 */}
-          <div className="flex-shrink-0 border border-gray-200 rounded-lg p-4">
+          <div className="video-description-card flex-shrink-0 border border-gray-200 rounded-lg p-4">
             <h3 className="text-sm font-medium text-gray-700 mb-3">{t('chapterGenerate.videoDescForVideo')}</h3>
             <textarea
               value={currentShotData?.video_description || ''}

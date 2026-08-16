@@ -99,12 +99,27 @@
 }
 
 @container (max-width: 720px) {
+  .video-main-column {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .video-description-card {
+    display: flex;
+    flex: 1 1 0;
+    min-height: 0;
+    flex-direction: column;
+  }
+
   .video-description-textarea {
-    height: 18rem;
+    height: auto;
+    min-height: 18rem;
+    flex: 1 1 auto;
   }
 
   .video-preview-card {
     flex: 0 0 auto;
+    margin-top: auto;
   }
 
   .video-preview-body {
