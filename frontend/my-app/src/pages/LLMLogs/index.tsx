@@ -76,6 +76,19 @@ export default function LLMLogs() {
           <button onClick={state.fetchLogs} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors">
             <RefreshCw className="h-4 w-4" />{t('llmLogs.refresh')}
           </button>
+          <div className="ml-auto flex items-center gap-2">
+            <label className="text-sm text-gray-600 whitespace-nowrap">{t('llmLogs.autoRefresh')}</label>
+            <select
+              value={state.autoRefreshInterval}
+              onChange={(e) => state.setAutoRefreshInterval(Number(e.target.value))}
+              className="input-field text-sm w-32"
+            >
+              <option value={0}>{t('llmLogs.autoRefreshOff')}</option>
+              <option value={5000}>{t('llmLogs.autoRefresh5s')}</option>
+              <option value={20000}>{t('llmLogs.autoRefresh20s')}</option>
+              <option value={60000}>{t('llmLogs.autoRefresh1m')}</option>
+            </select>
+          </div>
         </div>
       </div>
 

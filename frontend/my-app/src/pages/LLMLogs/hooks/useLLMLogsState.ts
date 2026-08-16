@@ -14,6 +14,7 @@ export function useLLMLogsState() {
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({ providers: [], models: [], task_types: [] });
   const [selectedLog, setSelectedLog] = useState<LLMLog | null>(null);
   const [activePromptTab, setActivePromptTab] = useState<PromptTab>('user');
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState(0);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape' && selectedLog) setSelectedLog(null); };
@@ -22,6 +23,12 @@ export function useLLMLogsState() {
   }, [selectedLog]);
 
   useEffect(() => { fetchLogs(); fetchFilterOptions(); }, [pagination.page]);
+
+  useEffect(() => {
+    if (!autoRefreshInterval) return;
+    const timer = window.setInterval(fetchLogs, autoRefreshInterval);
+    return () => window.clearInterval(timer);
+  }, [autoRefreshInterval, pagination.page, pagination.page_size, filters]);
 
   const fetchLogs = async () => {
     setLoading(true);
@@ -101,8 +108,8 @@ export function useLLMLogsState() {
   const closeModal = () => { setSelectedLog(null); setActivePromptTab('user'); };
 
   return {
-    logs, pagination, loading, filters, filterOptions, selectedLog, activePromptTab,
+    logs, pagination, loading, filters, filterOptions, selectedLog, activePromptTab, autoRefreshInterval,
     setPagination, setSelectedLog, setActivePromptTab, handleFilterChange, applyFilters, resetFilters,
-    fetchLogs, formatDate, truncateText, getTaskTypeLabel, getStatusBadgeConfig, closeModal
+    setAutoRefreshInterval, fetchLogs, formatDate, truncateText, getTaskTypeLabel, getStatusBadgeConfig, closeModal
   };
 }
