@@ -12,7 +12,6 @@
 import { useState } from 'react';
 import { useChapterGenerateStore, useDataSlice } from '../stores';
 import { ShotForm } from './ShotForm';
-import { chapterApi } from '../../../api/chapters';
 import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
 import { useTranslation } from '../../../stores/i18nStore';
@@ -41,6 +40,7 @@ export function ShotSplitTab({
   const parsedDataFromStore = useChapterGenerateStore((state) => state.parsedData);
   const setParsedData = useChapterGenerateStore((state) => state.setParsedData);
   const saveChapterResources = useChapterGenerateStore((state) => state.saveChapterResources);
+  const splitChapter = useChapterGenerateStore((state) => state.splitChapter);
   const storeShots = useChapterGenerateStore((state) => state.shots);
 
   // 使用 useDataSlice 获取方法
@@ -74,29 +74,12 @@ export function ShotSplitTab({
     setShowSplitConfirm(false);
     setIsSplitting(true);
     try {
-      const result = await chapterApi.split(novelId, chapterId);
-      if (result.success && result.data) {
-        // 拆分成功后更新 store 中的 parsedData（仅包含章节资源，不含 shots）
-        const data = result.data as any;
-        const newParsedData = {
-          chapter: data.chapter || '',
-          characters: data.characters || [],
-          scenes: data.scenes || [],
-          props: data.props || [],
-        };
-        setParsedData(newParsedData);
+      await splitChapter(novelId, chapterId);
 
-        // 调用 fetchShots 同步更新 store.shots
-        await fetchShots(novelId, chapterId);
-
-        // 初始化章节资源
+      if (useChapterGenerateStore.getState().shots.length > 0) {
         initChapterResources();
         console.log('AI 拆分成功');
         markTabComplete(0);
-        toast.success(t('chapterGenerate.aiSplitSuccess'));
-      } else {
-        console.error('AI 拆分失败:', result.message);
-        toast.error(t('chapterGenerate.aiSplitFailed', { message: result.message || t('common.unknownError') }));
       }
     } catch (error) {
       console.error('AI 拆分失败:', error);
