@@ -31,7 +31,8 @@ async def list_tasks(
         chapter_id: Optional[str] = None,
         limit: int = 50,
         db: Session = Depends(get_db),
-        task_repo: TaskRepository = Depends(get_task_repo)
+        task_repo: TaskRepository = Depends(get_task_repo),
+        task_service: TaskService = Depends(get_task_service)
 ):
     """获取任务列表"""
     if chapter_id:
@@ -44,6 +45,18 @@ async def list_tasks(
             tasks = [t for t in tasks if t.status == status]
     else:
         tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
+
+    if any(t.status in ["pending", "running"] for t in tasks):
+        updated_count = await task_service.reconcile_active_tasks(tasks, db=db)
+        if updated_count:
+            if chapter_id:
+                tasks = task_repo.get_by_chapter(chapter_id)
+                if type:
+                    tasks = [t for t in tasks if t.type == type]
+                if status:
+                    tasks = [t for t in tasks if t.status == status]
+            else:
+                tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
 
     # 获取所有需要的小说、章节和工作流信息
     novel_ids = {t.novel_id for t in tasks if t.novel_id}

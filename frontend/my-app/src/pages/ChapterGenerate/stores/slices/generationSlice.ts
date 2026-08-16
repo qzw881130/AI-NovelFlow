@@ -391,7 +391,9 @@ export const createGenerationSlice: StateCreator<
           transitionWorkflows: result.data.map((w: any) => ({
             id: w.id,
             name: w.name,
-            isActive: w.is_active,
+            description: w.description,
+            descriptionKey: w.descriptionKey,
+            isActive: w.isActive ?? w.is_active,
           })),
         });
       }
@@ -971,7 +973,7 @@ export const createGenerationSlice: StateCreator<
 
   fetchActiveTasks: async (chapterId: string) => {
     // 获取所有活跃任务
-    await Promise.all([
+    await Promise.allSettled([
       get().checkShotTaskStatus(chapterId),
       get().checkVideoTaskStatus(chapterId),
       get().checkTransitionTaskStatus(chapterId),

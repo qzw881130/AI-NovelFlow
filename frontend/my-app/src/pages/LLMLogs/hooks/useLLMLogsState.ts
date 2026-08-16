@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '../../../stores/toastStore';
 import { useTranslation } from '../../../stores/i18nStore';
 import { llmLogsApi, type LLMLog, type Pagination, type FilterOptions } from '../../../api/llmLogs';
 
-export type PromptTab = 'system' | 'user' | 'response';
+export type PromptTab = 'params' | 'system' | 'user' | 'response';
 
 export function useLLMLogsState() {
   const { t, i18n } = useTranslation();
@@ -15,6 +15,7 @@ export function useLLMLogsState() {
   const [selectedLog, setSelectedLog] = useState<LLMLog | null>(null);
   const [activePromptTab, setActivePromptTab] = useState<PromptTab>('user');
   const [autoRefreshInterval, setAutoRefreshInterval] = useState(0);
+  const isFetchingLogsRef = useRef(false);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape' && selectedLog) setSelectedLog(null); };
@@ -22,16 +23,10 @@ export function useLLMLogsState() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedLog]);
 
-  useEffect(() => { fetchLogs(); fetchFilterOptions(); }, [pagination.page]);
-
-  useEffect(() => {
-    if (!autoRefreshInterval) return;
-    const timer = window.setInterval(fetchLogs, autoRefreshInterval);
-    return () => window.clearInterval(timer);
-  }, [autoRefreshInterval, pagination.page, pagination.page_size, filters]);
-
-  const fetchLogs = async () => {
-    setLoading(true);
+  const fetchLogs = useCallback(async (options?: { silent?: boolean }) => {
+    if (isFetchingLogsRef.current) return;
+    isFetchingLogsRef.current = true;
+    if (!options?.silent) setLoading(true);
     try {
       const data = await llmLogsApi.fetchList(pagination.page, pagination.page_size, filters);
       if (data.success && data.data) { setLogs(data.data.items); setPagination(data.data.pagination); }
@@ -39,9 +34,34 @@ export function useLLMLogsState() {
       console.error('加载日志失败:', error);
       toast.error('加载日志失败');
     } finally {
-      setLoading(false);
+      isFetchingLogsRef.current = false;
+      if (!options?.silent) setLoading(false);
     }
-  };
+  }, [pagination.page, pagination.page_size, filters]);
+
+  useEffect(() => { fetchLogs(); fetchFilterOptions(); }, [fetchLogs]);
+
+  useEffect(() => {
+    if (!autoRefreshInterval) return;
+
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof window.setTimeout> | null = null;
+
+    const refresh = async () => {
+      if (cancelled) return;
+      await fetchLogs({ silent: true });
+      if (!cancelled) {
+        timeoutId = window.setTimeout(refresh, autoRefreshInterval);
+      }
+    };
+
+    timeoutId = window.setTimeout(refresh, autoRefreshInterval);
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [autoRefreshInterval, fetchLogs]);
 
   const fetchFilterOptions = async () => {
     try {

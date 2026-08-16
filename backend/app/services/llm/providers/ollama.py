@@ -8,7 +8,7 @@ import os
 import re
 import time
 from typing import Dict, Any, Optional, List
-from ..base import BaseLLMProvider, LLMConfig, LLMResponse, save_llm_log
+from ..base import BaseLLMProvider, LLMConfig, LLMResponse, save_llm_log, build_llm_request_info
 
 
 class OllamaProvider(BaseLLMProvider):
@@ -117,6 +117,17 @@ class OllamaProvider(BaseLLMProvider):
         transport = httpx.AsyncHTTPTransport(proxy=None)
         client = httpx.AsyncClient(transport=transport, timeout=300.0)
         used_proxy = False
+        timeout = 300.0
+        request_info = build_llm_request_info(
+            provider=self.config.provider,
+            base_url=self.config.api_url,
+            endpoint=endpoint,
+            model=self.config.model,
+            headers=headers,
+            payload=body,
+            proxy_url=None,
+            timeout_seconds=timeout,
+        )
 
         try:
             async with client:
@@ -124,7 +135,7 @@ class OllamaProvider(BaseLLMProvider):
                     endpoint,
                     headers=headers,
                     json=body,
-                    timeout=300.0
+                    timeout=timeout
                 )
 
             # 恢复环境变量
@@ -155,7 +166,8 @@ class OllamaProvider(BaseLLMProvider):
                     chapter_id=chapter_id,
                     character_id=character_id,
                     used_proxy=used_proxy,
-                    duration=duration
+                    duration=duration,
+                    request_info=request_info,
                 )
 
                 return LLMResponse(
@@ -178,7 +190,8 @@ class OllamaProvider(BaseLLMProvider):
                     chapter_id=chapter_id,
                     character_id=character_id,
                     used_proxy=used_proxy,
-                    duration=duration
+                    duration=duration,
+                    request_info=request_info,
                 )
 
                 return LLMResponse(
@@ -217,7 +230,8 @@ class OllamaProvider(BaseLLMProvider):
                 chapter_id=chapter_id,
                 character_id=character_id,
                 used_proxy=used_proxy,
-                duration=duration
+                duration=duration,
+                request_info=request_info,
             )
 
             return LLMResponse(

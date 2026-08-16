@@ -230,6 +230,7 @@ class ComfyUIClient:
         """
         print(f"ComfyUI Waiting for result: prompt_id={prompt_id}, workflow_json:\n{json.dumps(workflow, indent=2, ensure_ascii=True)}")
         start_time = asyncio.get_event_loop().time()
+        missing_from_queue_since = None
 
         while True:
             elapsed = asyncio.get_event_loop().time() - start_time
@@ -250,8 +251,10 @@ class ComfyUIClient:
                         history = response.json()
 
                         if prompt_id in history:
+                            missing_from_queue_since = None
                             prompt_history = history[prompt_id]
                             outputs = prompt_history.get("outputs", {})
+                            status = prompt_history.get("status", {})
 
                             if outputs:
                                 result = self._parse_outputs(
@@ -260,8 +263,13 @@ class ComfyUIClient:
                                 if result:
                                     return result
 
+                                if self._is_completed_status(status):
+                                    return {
+                                        "success": False,
+                                        "message": "ComfyUI 任务已完成，但未找到可保存的图片或视频输出。请检查保存节点映射和工作流输出。"
+                                    }
+
                             # 检查是否有错误
-                            status = prompt_history.get("status", {})
                             if status.get("status_str") == "error":
                                 error_msg = "未知错误"
                                 messages = status.get("messages")
@@ -275,6 +283,24 @@ class ComfyUIClient:
                                     "success": False,
                                     "message": error_msg
                                 }
+
+                            if self._is_completed_status(status):
+                                return {
+                                    "success": False,
+                                    "message": "ComfyUI 任务已完成，但 history 中没有输出结果。请检查工作流保存节点。"
+                                }
+                        else:
+                            queue_info = await self.get_queue_info()
+                            if self._queue_contains_prompt(queue_info, prompt_id):
+                                missing_from_queue_since = None
+                            else:
+                                if missing_from_queue_since is None:
+                                    missing_from_queue_since = elapsed
+                                elif elapsed - missing_from_queue_since >= 30:
+                                    return {
+                                        "success": False,
+                                        "message": "ComfyUI 中已找不到该任务，且未产生 history 结果。任务可能被清理、取消或 ComfyUI 异常退出。"
+                                    }
 
                     await asyncio.sleep(poll_interval)
 
@@ -300,6 +326,7 @@ class ComfyUIClient:
             poll_interval: 轮询间隔（秒）
         """
         start_time = asyncio.get_event_loop().time()
+        missing_from_queue_since = None
 
         while True:
             elapsed = asyncio.get_event_loop().time() - start_time
@@ -320,8 +347,10 @@ class ComfyUIClient:
                         history = response.json()
 
                         if prompt_id in history:
+                            missing_from_queue_since = None
                             prompt_history = history[prompt_id]
                             outputs = prompt_history.get("outputs", {})
+                            status = prompt_history.get("status", {})
 
                             if outputs:
                                 result = self._parse_audio_outputs(
@@ -330,8 +359,13 @@ class ComfyUIClient:
                                 if result:
                                     return result
 
+                                if self._is_completed_status(status):
+                                    return {
+                                        "success": False,
+                                        "message": "ComfyUI 音频任务已完成，但未找到可保存的音频输出。请检查保存节点映射和工作流输出。"
+                                    }
+
                             # 检查是否有错误
-                            status = prompt_history.get("status", {})
                             if status.get("status_str") == "error":
                                 error_msg = "未知错误"
                                 messages = status.get("messages")
@@ -345,6 +379,24 @@ class ComfyUIClient:
                                     "success": False,
                                     "message": error_msg
                                 }
+
+                            if self._is_completed_status(status):
+                                return {
+                                    "success": False,
+                                    "message": "ComfyUI 音频任务已完成，但 history 中没有输出结果。请检查工作流保存节点。"
+                                }
+                        else:
+                            queue_info = await self.get_queue_info()
+                            if self._queue_contains_prompt(queue_info, prompt_id):
+                                missing_from_queue_since = None
+                            else:
+                                if missing_from_queue_since is None:
+                                    missing_from_queue_since = elapsed
+                                elif elapsed - missing_from_queue_since >= 30:
+                                    return {
+                                        "success": False,
+                                        "message": "ComfyUI 中已找不到该音频任务，且未产生 history 结果。任务可能被清理、取消或 ComfyUI 异常退出。"
+                                    }
 
                     await asyncio.sleep(poll_interval)
 
@@ -471,6 +523,33 @@ class ComfyUIClient:
         
         return None
 
+    def _is_completed_status(self, status: Dict[str, Any]) -> bool:
+        """判断 ComfyUI history 状态是否已经结束。"""
+        return bool(status.get("completed")) or status.get("status_str") in {"success", "completed"}
+
+    def _extract_status_error(self, status: Dict[str, Any]) -> str:
+        """提取 ComfyUI history status 中的错误信息。"""
+        messages = status.get("messages")
+        if messages and len(messages) > 0:
+            msg_item = messages[0]
+            if isinstance(msg_item, (list, tuple)) and len(msg_item) > 1:
+                return str(msg_item[1])
+            return str(msg_item)
+        return "未知错误"
+
+    def _queue_contains_prompt(self, queue_info: Dict[str, Any], prompt_id: str) -> bool:
+        """ComfyUI queue item 结构随版本变化，递归查找 prompt_id 更稳妥。"""
+        def contains(value: Any) -> bool:
+            if isinstance(value, str):
+                return value == prompt_id
+            if isinstance(value, dict):
+                return any(contains(v) for v in value.values())
+            if isinstance(value, (list, tuple)):
+                return any(contains(v) for v in value)
+            return False
+
+        return contains(queue_info.get("queue_running", [])) or contains(queue_info.get("queue_pending", []))
+
     def _parse_audio_outputs(
         self,
         outputs: Dict[str, Any],
@@ -555,6 +634,35 @@ class ComfyUIClient:
         except Exception as e:
             print(f"[ComfyUI] Get queue error: {e}")
             return {"queue_running": [], "queue_pending": []}
+
+    async def get_prompt_state(self, prompt_id: str, queue_info: Dict[str, Any] = None) -> Dict[str, Any]:
+        """查询 prompt 当前在 ComfyUI 的状态。"""
+        queue_info = queue_info if queue_info is not None else await self.get_queue_info()
+        if self._queue_contains_prompt(queue_info, prompt_id):
+            return {"state": "queued"}
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{self.base_url}/history/{prompt_id}",
+                    timeout=10.0
+                )
+            if response.status_code != 200:
+                return {"state": "unknown", "message": f"history HTTP {response.status_code}"}
+
+            history = response.json()
+            prompt_history = history.get(prompt_id)
+            if not prompt_history:
+                return {"state": "missing"}
+
+            status = prompt_history.get("status", {})
+            if status.get("status_str") == "error":
+                return {"state": "error", "message": self._extract_status_error(status)}
+            if self._is_completed_status(status):
+                return {"state": "completed", "history": prompt_history}
+            return {"state": "history", "history": prompt_history}
+        except Exception as e:
+            return {"state": "unknown", "message": str(e)}
     
     async def clear_queue(self, max_retries: int = 3) -> Dict[str, Any]:
         """清空 ComfyUI 队列中的所有等待任务"""

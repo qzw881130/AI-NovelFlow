@@ -6,6 +6,38 @@ LLM 服务基类定义
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
+import json
+
+
+def _sanitize_headers(headers: Dict[str, Any] = None) -> Dict[str, Any]:
+    sanitized = dict(headers or {})
+    for key in list(sanitized.keys()):
+        if key.lower() in {"authorization", "x-api-key", "api-key", "apikey"}:
+            sanitized[key] = "Bearer ***" if str(sanitized[key]).lower().startswith("bearer ") else "***"
+    return sanitized
+
+
+def build_llm_request_info(
+    provider: str,
+    base_url: str,
+    endpoint: str,
+    model: str,
+    headers: Dict[str, Any],
+    payload: Dict[str, Any],
+    proxy_url: str = None,
+    timeout_seconds: int | float = None,
+) -> Dict[str, Any]:
+    """构建用于日志展示的 LLM 请求参数，敏感字段会被脱敏。"""
+    return {
+        "provider": provider,
+        "baseUrl": base_url,
+        "url": endpoint,
+        "model": model,
+        "proxyUrl": proxy_url or "",
+        "timeoutSeconds": timeout_seconds,
+        "headers": _sanitize_headers(headers),
+        "payload": payload,
+    }
 
 
 def save_llm_log(
@@ -21,7 +53,8 @@ def save_llm_log(
     chapter_id: str = None,
     character_id: str = None,
     used_proxy: bool = False,
-    duration: float = None
+    duration: float = None,
+    request_info: Dict[str, Any] = None,
 ):
     """保存 LLM 调用日志到数据库（异步执行，不阻塞主流程）"""
     try:
@@ -44,7 +77,8 @@ def save_llm_log(
                 chapter_id=chapter_id,
                 character_id=character_id,
                 used_proxy=used_proxy,
-                duration=duration
+                duration=duration,
+                request_info=json.dumps(request_info, ensure_ascii=False, indent=2) if request_info else None
             )
             db.add(log)
             db.commit()

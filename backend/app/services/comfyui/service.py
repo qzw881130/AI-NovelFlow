@@ -119,7 +119,8 @@ class ComfyUIService:
         scene_reference_path: Optional[str] = None,
         seed: Optional[int] = None,
         workflow: Dict[str, Any] = None,
-        style: str = "anime style, high quality, detailed"
+        style: str = "anime style, high quality, detailed",
+        on_prompt_queued=None
     ) -> Dict[str, Any]:
         """使用指定工作流生成分镜图片"""
         try:
@@ -168,6 +169,8 @@ class ComfyUIService:
                 return {"success": False, "message": queue_result.get("error", "提交任务失败")}
             
             prompt_id = queue_result.get("prompt_id")
+            if on_prompt_queued and prompt_id:
+                on_prompt_queued(prompt_id)
             
             result = await self.client.wait_for_result(
                 prompt_id, workflow, save_image_node_id, timeout=7200
@@ -202,7 +205,8 @@ class ComfyUIService:
         scene_setting: Optional[str] = None,
         prop_appearances: Optional[Dict[str, str]] = None,
         reference_audio_path: Optional[str] = None,
-        keyframe_paths: Optional[List[str]] = None
+        keyframe_paths: Optional[List[str]] = None,
+        on_prompt_queued=None
     ) -> Dict[str, Any]:
         """使用指定工作流生成分镜视频 (LTX2)
 
@@ -323,6 +327,8 @@ class ComfyUIService:
                 return {"success": False, "message": queue_result.get("error", "提交任务失败")}
             
             prompt_id = queue_result.get("prompt_id")
+            if on_prompt_queued and prompt_id:
+                on_prompt_queued(prompt_id)
             video_save_node_id = node_mapping.get("video_save_node_id", "1")
             
             result = await self.client.wait_for_result(
@@ -349,7 +355,8 @@ class ComfyUIService:
         last_image_path: str,
         aspect_ratio: str = "16:9",
         duration_seconds: Optional[float] = None,
-        frame_count: Optional[int] = None
+        frame_count: Optional[int] = None,
+        on_prompt_queued=None
     ) -> Dict[str, Any]:
         """生成转场视频 (首帧+尾帧)"""
         try:
@@ -402,6 +409,8 @@ class ComfyUIService:
                 return {"success": False, "message": queue_result.get("error", "提交任务失败")}
             
             prompt_id = queue_result.get("prompt_id")
+            if on_prompt_queued and prompt_id:
+                on_prompt_queued(prompt_id)
             
             result = await self.client.wait_for_result(
                 prompt_id, workflow, video_save_node_id, timeout=7200

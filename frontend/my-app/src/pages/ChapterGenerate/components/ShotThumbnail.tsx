@@ -8,7 +8,7 @@
  */
 
 import { useState } from 'react';
-import { Film, Loader2, AlertCircle, CheckCircle, Eye } from 'lucide-react';
+import { Film, Loader2, AlertCircle, CheckCircle, Eye, Box } from 'lucide-react';
 
 export type ShotStatus = 'pending' | 'generating' | 'completed' | 'failed' | 'current';
 
@@ -23,6 +23,8 @@ export interface ShotThumbnailProps {
   status: ShotStatus;
   /** 是否被选中（批量模式） */
   isSelected?: boolean;
+  /** 是否关联道具 */
+  hasProps?: boolean;
   /** 点击回调 */
   onClick?: () => void;
   /** 双击回调 */
@@ -39,6 +41,7 @@ export function ShotThumbnail({
   thumbnailUrl,
   status,
   isSelected = false,
+  hasProps = false,
   onClick,
   onDoubleClick,
   onContextMenu,
@@ -131,6 +134,15 @@ export function ShotThumbnail({
         #{index}
         {isSelected && <CheckCircle className="w-3 h-3" />}
       </div>
+
+      {hasProps && (
+        <div
+          className="absolute bottom-2 left-1 p-1 rounded-md bg-white/90 shadow-sm border border-purple-200"
+          title="包含道具"
+        >
+          <Box className="w-4 h-4 text-purple-500" />
+        </div>
+      )}
 
       {/* 状态指示器（底部） */}
       <div className={`absolute bottom-0 left-0 right-0 h-1 ${status === 'completed' ? 'bg-green-500' : status === 'generating' ? 'bg-blue-500' : 'bg-gray-300'}`} />

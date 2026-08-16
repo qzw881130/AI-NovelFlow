@@ -43,7 +43,7 @@ def to_shanghai_time(dt: datetime) -> str:
 
 
 @router.get("/")
-async def get_llm_logs(
+def get_llm_logs(
     page: int = Query(1, ge=1, description="页码"),
     page_size: int = Query(20, ge=1, le=100, description="每页数量"),
     provider: Optional[str] = Query(None, description="LLM厂商筛选"),
@@ -54,7 +54,7 @@ async def get_llm_logs(
     llmlog_repo: LLMLogRepository = Depends(get_llmlog_repo)
 ):
     """获取LLM调用日志列表"""
-    logs, total = llmlog_repo.list_paginated(
+    logs, total = llmlog_repo.list_paginated_summaries(
         page=page,
         page_size=page_size,
         provider=provider,
@@ -73,9 +73,10 @@ async def get_llm_logs(
                     "created_at": to_shanghai_time(log.created_at),
                     "provider": log.provider,
                     "model": log.model,
-                    "system_prompt": log.system_prompt,
-                    "user_prompt": log.user_prompt,
-                    "response": log.response,
+                    "system_prompt": "",
+                    "user_prompt": log.user_prompt or "",
+                    "request_info": "",
+                    "response": "",
                     "status": log.status,
                     "error_message": log.error_message,
                     "task_type": log.task_type,
@@ -98,7 +99,7 @@ async def get_llm_logs(
 
 
 @router.get("/filters")
-async def get_log_filters(llmlog_repo: LLMLogRepository = Depends(get_llmlog_repo)):
+def get_log_filters(llmlog_repo: LLMLogRepository = Depends(get_llmlog_repo)):
     """获取日志筛选选项"""
     providers = llmlog_repo.get_distinct_providers()
     models = llmlog_repo.get_distinct_models()
@@ -115,7 +116,7 @@ async def get_log_filters(llmlog_repo: LLMLogRepository = Depends(get_llmlog_rep
 
 
 @router.get("/{log_id}")
-async def get_llm_log_detail(
+def get_llm_log_detail(
     log_id: str, 
     llmlog_repo: LLMLogRepository = Depends(get_llmlog_repo)
 ):
@@ -134,6 +135,7 @@ async def get_llm_log_detail(
             "model": log.model,
             "system_prompt": log.system_prompt,
             "user_prompt": log.user_prompt,
+            "request_info": log.request_info,
             "response": log.response,
             "status": log.status,
             "error_message": log.error_message,

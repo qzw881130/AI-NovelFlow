@@ -6,7 +6,7 @@ Google Gemini 提供商
 import httpx
 import time
 from typing import Dict, Any, Optional
-from ..base import BaseLLMProvider, LLMConfig, LLMResponse, save_llm_log
+from ..base import BaseLLMProvider, LLMConfig, LLMResponse, save_llm_log, build_llm_request_info
 
 
 class GeminiProvider(BaseLLMProvider):
@@ -99,6 +99,17 @@ class GeminiProvider(BaseLLMProvider):
         # 获取代理配置
         proxy = self._get_proxy_config()
         used_proxy = proxy is not None
+        timeout = 300.0
+        request_info = build_llm_request_info(
+            provider=self.config.provider,
+            base_url=self.config.api_url,
+            endpoint=endpoint,
+            model=self.config.model,
+            headers=headers,
+            payload=body,
+            proxy_url=proxy,
+            timeout_seconds=timeout,
+        )
 
         client = httpx.AsyncClient(proxy=proxy, timeout=600.0)
 
@@ -108,7 +119,7 @@ class GeminiProvider(BaseLLMProvider):
                     endpoint,
                     headers=headers,
                     json=body,
-                    timeout=300.0
+                    timeout=timeout
                 )
 
             duration = time.time() - start_time
@@ -129,7 +140,8 @@ class GeminiProvider(BaseLLMProvider):
                     chapter_id=chapter_id,
                     character_id=character_id,
                     used_proxy=used_proxy,
-                    duration=duration
+                    duration=duration,
+                    request_info=request_info,
                 )
 
                 return LLMResponse(
@@ -152,7 +164,8 @@ class GeminiProvider(BaseLLMProvider):
                     chapter_id=chapter_id,
                     character_id=character_id,
                     used_proxy=used_proxy,
-                    duration=duration
+                    duration=duration,
+                    request_info=request_info,
                 )
 
                 return LLMResponse(
@@ -181,7 +194,8 @@ class GeminiProvider(BaseLLMProvider):
                 chapter_id=chapter_id,
                 character_id=character_id,
                 used_proxy=used_proxy,
-                duration=duration
+                duration=duration,
+                request_info=request_info,
             )
 
             return LLMResponse(

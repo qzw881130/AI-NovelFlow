@@ -62,10 +62,17 @@ export function BottomNavigator({
   const bulkMode = useChapterGenerateStore((state) => state.bulkMode);
   const setCurrentShot = useChapterGenerateStore((state) => state.setCurrentShot);
   const toggleShotSelection = useChapterGenerateStore((state) => state.toggleShotSelection);
-  const previousShot = useChapterGenerateStore((state) => state.previousShot);
-  const nextShot = useChapterGenerateStore((state) => state.nextShot);
   const setShowImagePreview = useChapterGenerateStore((state) => state.setShowImagePreview);
   const showImagePreview = useChapterGenerateStore((state) => state.showImagePreview);
+
+  const goToShot = (index: number) => {
+    if (index < 1 || index > shots.length) return;
+    const shot = shots[index - 1];
+    setCurrentShot(String(shot?.id || index), index);
+  };
+
+  const goToPreviousShot = () => goToShot(currentShotIndex - 1);
+  const goToNextShot = () => goToShot(currentShotIndex + 1);
 
   const handleToggleCollapsed = () => {
     const newCollapsed = !collapsed;
@@ -98,16 +105,16 @@ export function BottomNavigator({
 
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        previousShot(shots.length);
+        goToPreviousShot();
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        nextShot(shots.length);
+        goToNextShot();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [shots.length, previousShot, nextShot, showImagePreview]);
+  }, [currentShotIndex, shots, showImagePreview]);
 
   // 滚动到当前分镜
   useEffect(() => {
@@ -202,14 +209,14 @@ export function BottomNavigator({
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => previousShot(shots.length)}
+                onClick={goToPreviousShot}
                 disabled={currentShotIndex <= 1}
                 className="min-w-[104px] px-4 py-2 text-sm whitespace-nowrap border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {t('chapterGenerate.previousShot')}
               </button>
               <button
-                onClick={() => nextShot(shots.length)}
+                onClick={goToNextShot}
                 disabled={currentShotIndex >= shots.length}
                 className="min-w-[104px] px-4 py-2 text-sm whitespace-nowrap border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -247,6 +254,7 @@ export function BottomNavigator({
                     thumbnailUrl={shot.imageUrl}
                     status={getShotStatus(shotIdStr, shotNum)}
                     isSelected={isSelected}
+                    hasProps={Array.isArray(shot.props) && shot.props.length > 0}
                     onClick={() => handleShotClick(shotIdStr, shotNum)}
                     onDoubleClick={() => handleShotDoubleClick(shot)}
                     onContextMenu={() => handleShotContextMenu(shotIdStr, shotNum)}

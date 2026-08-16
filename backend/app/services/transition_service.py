@@ -131,13 +131,20 @@ async def generate_transition_video_task(
                 pass
 
         comfyui_service = ComfyUIService()
+
+        def save_prompt_id(prompt_id: str):
+            task.comfyui_prompt_id = prompt_id
+            db.commit()
+            print(f"[TransitionTask] Saved ComfyUI prompt_id: {prompt_id}")
+
         result = await comfyui_service.generate_transition_video_with_workflow(
             workflow_json=workflow.workflow_json,
             node_mapping=node_mapping,
             first_image_path=last_frame_path,
             last_image_path=first_frame_path,
             duration_seconds=duration_seconds,
-            frame_count=frame_count
+            frame_count=frame_count,
+            on_prompt_queued=save_prompt_id
         )
 
         if result.get("prompt_id"):

@@ -124,32 +124,32 @@ export default function ChapterDetail() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link to={`/novels/${state.id}`} className="p-2 text-gray-400 hover:text-gray-600 transition-colors"><ArrowLeft className="h-5 w-5" /></Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{t('chapterDetail.chapterTitle', { number: state.chapter.number, title: state.chapter.title })}</h1>
-            <p className="text-sm text-gray-500">{state.novel.title}</p>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <Link to={`/novels/${state.id}`} className="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"><ArrowLeft className="h-5 w-5" /></Link>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-gray-900 truncate">{t('chapterDetail.chapterTitle', { number: state.chapter.number, title: state.chapter.title })}</h1>
+            <p className="text-sm text-gray-500 truncate">{state.novel.title}</p>
           </div>
         </div>
-        <div className="flex gap-3">
-          <button onClick={state.handleDelete} className="btn-secondary text-red-600 hover:text-red-700 border-red-200 hover:border-red-300">
-            <Trash2 className="h-4 w-4 mr-2" />{t('common.delete')}
+        <div className="flex gap-3 overflow-x-auto pb-1 flex-shrink-0 max-w-[70vw]">
+          <button onClick={state.handleDelete} className="btn-secondary text-red-600 hover:text-red-700 border-red-200 hover:border-red-300 whitespace-nowrap flex-shrink-0">
+            <Trash2 className="h-4 w-4 mr-2 flex-shrink-0" />{t('common.delete')}
           </button>
-          <button onClick={state.handleSave} disabled={state.isSaving} className="btn-primary">
-            {state.isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}{t('common.save')}
+          <button onClick={state.handleSave} disabled={state.isSaving} className="btn-primary whitespace-nowrap flex-shrink-0">
+            {state.isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin flex-shrink-0" /> : <Save className="h-4 w-4 mr-2 flex-shrink-0" />}{t('common.save')}
           </button>
-          <button onClick={state.handleParseCharacters} className="btn-secondary text-purple-600 border-purple-200 hover:bg-purple-50 disabled:opacity-50">
-            {state.parsingChapter ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}{t('chapterDetail.parseCharacters')}
+          <button onClick={state.handleParseCharacters} className="btn-secondary text-purple-600 border-purple-200 hover:bg-purple-50 disabled:opacity-50 whitespace-nowrap flex-shrink-0">
+            {state.parsingChapter ? <Loader2 className="h-4 w-4 mr-2 animate-spin flex-shrink-0" /> : <Sparkles className="h-4 w-4 mr-2 flex-shrink-0" />}{t('chapterDetail.parseCharacters')}
           </button>
-          <button onClick={state.handleParseScenes} className="btn-secondary text-teal-600 border-teal-200 hover:bg-teal-50 disabled:opacity-50" disabled={state.parsingScenes}>
-            {state.parsingScenes ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <MapPin className="h-4 w-4 mr-2" />}{t('chapterDetail.parseScenes')}
+          <button onClick={state.handleParseScenes} className="btn-secondary text-teal-600 border-teal-200 hover:bg-teal-50 disabled:opacity-50 whitespace-nowrap flex-shrink-0" disabled={state.parsingScenes}>
+            {state.parsingScenes ? <Loader2 className="h-4 w-4 mr-2 animate-spin flex-shrink-0" /> : <MapPin className="h-4 w-4 mr-2 flex-shrink-0" />}{t('chapterDetail.parseScenes')}
           </button>
-          <button onClick={state.handleParseProps} className="btn-secondary text-amber-600 border-amber-200 hover:bg-amber-50 disabled:opacity-50" disabled={state.parsingProps}>
-            {state.parsingProps ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Package className="h-4 w-4 mr-2" />}{t('chapterDetail.parseProps')}
+          <button onClick={state.handleParseProps} className="btn-secondary text-amber-600 border-amber-200 hover:bg-amber-50 disabled:opacity-50 whitespace-nowrap flex-shrink-0" disabled={state.parsingProps}>
+            {state.parsingProps ? <Loader2 className="h-4 w-4 mr-2 animate-spin flex-shrink-0" /> : <Package className="h-4 w-4 mr-2 flex-shrink-0" />}{t('chapterDetail.parseProps')}
           </button>
-          <button onClick={state.handleGenerate} className="btn-primary bg-green-600 hover:bg-green-700" disabled={state.chapter.status !== 'pending' && state.chapter.status !== 'failed'}>
-            <Play className="h-4 w-4 mr-2" />{t('chapterDetail.generateVideo')}
+          <button onClick={state.handleGenerate} className="btn-primary bg-green-600 hover:bg-green-700 whitespace-nowrap flex-shrink-0" disabled={state.chapter.status !== 'pending' && state.chapter.status !== 'failed'}>
+            <Play className="h-4 w-4 mr-2 flex-shrink-0" />{t('chapterDetail.generateVideo')}
           </button>
         </div>
       </div>

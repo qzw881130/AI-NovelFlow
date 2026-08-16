@@ -14,6 +14,7 @@ export default function ChapterGenerate() {
   const { t } = useTranslation();
   const { id, cid } = useParams<{ id: string; cid: string }>();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const activeTasksSyncedChapterRef = useRef<string | null>(null);
 
   // 使用 Store 获取状态和方法
   const store = useChapterGenerateStore();
@@ -40,13 +41,13 @@ export default function ChapterGenerate() {
     generateShotImage, generateAllImages, uploadShotImage, generateShotVideo,
     generateAllVideos, generateTransition, generateAllTransitions, generateShotAudio,
     generateAllAudio, fetchTransitionWorkflows, checkShotTaskStatus, checkVideoTaskStatus,
-    checkTransitionTaskStatus, checkAudioTaskStatus,
+    checkTransitionTaskStatus, checkAudioTaskStatus, fetchActiveTasks,
   } = store;
 
   // UI 方法
   const {
     setShowFullTextModal, setShowMergedImageModal, setShowImagePreview,
-    setMergedImage, setIsMerging, setSplitConfirmDialog,
+    setMergedImage, setIsMerging, setSplitConfirmDialog, setCurrentShot,
   } = store;
 
   // Chapter Actions 方法
@@ -72,8 +73,13 @@ export default function ChapterGenerate() {
 
     if (!hasGeneratingTasks) return;
 
-    // 每 2 秒轮询一次，只检查有任务在运行的类型
-    const intervalId = setInterval(async () => {
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof window.setTimeout> | null = null;
+
+    // 上一轮完成后再等 2 秒发下一轮，避免慢请求堆积成大量 pending。
+    const pollTasks = async () => {
+      if (cancelled) return;
+
       const checks = [];
       if (generatingShots.size > 0) {
         checks.push(checkShotTaskStatus(cid));
@@ -88,16 +94,28 @@ export default function ChapterGenerate() {
         checks.push(checkAudioTaskStatus(cid));
       }
       if (checks.length > 0) {
-        await Promise.all(checks);
+        await Promise.allSettled(checks);
       }
-    }, 2000);
 
-    return () => clearInterval(intervalId);
+      if (!cancelled) {
+        timeoutId = window.setTimeout(pollTasks, 2000);
+      }
+    };
+
+    timeoutId = window.setTimeout(pollTasks, 2000);
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) {
+        window.clearTimeout(timeoutId);
+      }
+    };
   }, [cid, id, generatingShots.size, generatingVideos.size, generatingTransitions.size, generatingAudios.size]);
 
   // 获取真实章节数据和角色列表
   useEffect(() => {
     if (cid && id) {
+      activeTasksSyncedChapterRef.current = null;
       fetchNovel(id);
       fetchCharacters(id);
       fetchScenes(id);
@@ -106,6 +124,14 @@ export default function ChapterGenerate() {
       fetchTransitionWorkflows();
     }
   }, [cid, id, fetchProps]);
+
+  // 刷新页面后本地 generating 集合为空，需要先从后端恢复一次任务状态。
+  useEffect(() => {
+    if (!cid || shots.length === 0 || activeTasksSyncedChapterRef.current === cid) return;
+
+    activeTasksSyncedChapterRef.current = cid;
+    fetchActiveTasks(cid);
+  }, [cid, shots.length, fetchActiveTasks]);
 
   // 从章节数据初始化状态
   useEffect(() => {
@@ -135,24 +161,29 @@ export default function ChapterGenerate() {
 
   // 图片预览导航
   const navigateImagePreview = (direction: 'prev' | 'next') => {
-    const allImages = shots?.map((shot, idx: number) => {
+    const imageEntries = shots?.map((shot, idx: number) => {
       const shotNum = idx + 1;
-      return shotImages[shot.id] || shotImages[shotNum] || shot.imageUrl || (shot as any).image_url;
-    }).filter(Boolean) as string[] || [];
+      const imageUrl = shotImages[shot.id] || shotImages[shotNum] || shot.imageUrl || (shot as any).image_url;
+      return imageUrl ? { imageUrl, shotId: String(shot.id || shotNum), shotIndex: shotNum } : null;
+    }).filter(Boolean) as { imageUrl: string; shotId: string; shotIndex: number }[] || [];
 
-    if (allImages.length <= 1) return;
+    if (imageEntries.length <= 1) return;
 
-    const currentIndex = previewImageUrl ? allImages.indexOf(previewImageUrl) : -1;
-    const safeIndex = currentIndex >= 0 ? currentIndex : Math.min(previewImageIndex, allImages.length - 1);
+    const currentIndex = previewImageUrl ? imageEntries.findIndex(entry => entry.imageUrl === previewImageUrl) : -1;
+    const safeIndex = currentIndex >= 0 ? currentIndex : Math.min(previewImageIndex, imageEntries.length - 1);
 
     let newIndex: number;
     if (direction === 'prev') {
-      newIndex = safeIndex === 0 ? allImages.length - 1 : safeIndex - 1;
+      newIndex = safeIndex === 0 ? imageEntries.length - 1 : safeIndex - 1;
     } else {
-      newIndex = safeIndex === allImages.length - 1 ? 0 : safeIndex + 1;
+      newIndex = safeIndex === imageEntries.length - 1 ? 0 : safeIndex + 1;
     }
 
-    setShowImagePreview(true, allImages[newIndex] || null, newIndex);
+    const nextImage = imageEntries[newIndex];
+    if (!nextImage) return;
+
+    setCurrentShot(nextImage.shotId, nextImage.shotIndex);
+    setShowImagePreview(true, nextImage.imageUrl, nextImage.shotIndex - 1);
   };
 
   // 打开图片预览

@@ -17,7 +17,30 @@ interface LogDetailModalProps {
 export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDate, getTaskTypeLabel, getStatusBadgeConfig }: LogDetailModalProps) {
   const { t } = useTranslation();
 
+  const getRequestInfo = () => {
+    if (log.request_info) return log.request_info;
+
+    return JSON.stringify({
+      provider: log.provider,
+      model: log.model,
+      usedProxy: log.used_proxy,
+      durationSeconds: log.duration,
+      taskType: log.task_type,
+      novelId: log.novel_id,
+      chapterId: log.chapter_id,
+      characterId: log.character_id,
+      payload: {
+        model: log.model,
+        messages: [
+          { role: 'system', content: log.system_prompt || '' },
+          { role: 'user', content: log.user_prompt || '' },
+        ],
+      },
+    }, null, 2);
+  };
+
   const getActiveContent = () => {
+    if (activeTab === 'params') return getRequestInfo();
     if (activeTab === 'system') return log.system_prompt || '';
     if (activeTab === 'user') return log.user_prompt || '';
     return log.response || '';
@@ -25,7 +48,7 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
 
   const getDisplayContent = () => {
     const content = getActiveContent();
-    if (activeTab !== 'response' || !content) return content || '-';
+    if ((activeTab !== 'response' && activeTab !== 'params') || !content) return content || '-';
 
     try {
       return JSON.stringify(JSON.parse(content), null, 2);
@@ -103,6 +126,10 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
           )}
           <div className="flex items-center justify-between border-b border-gray-200">
             <div className="flex">
+              <button onClick={() => onTabChange('params')}
+                className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'params' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-50'}`}>
+                LLM参数
+              </button>
               <button onClick={() => onTabChange('system')}
                 className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'system' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-50'}`}>
                 System Prompt
@@ -145,10 +172,10 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
             <pre className="text-sm text-gray-700 whitespace-pre-wrap break-words overflow-x-auto">
               {getDisplayContent()}
             </pre>
-            <div className="mt-3 pt-3 border-t border-gray-200 text-xs text-gray-500 text-right">
-              {t('llmLogs.characterCount', { count: activeContentLength })}
-            </div>
           </div>
+        </div>
+        <div className="flex-shrink-0 px-6 py-3 border-t border-gray-200 bg-white text-xs text-gray-500 text-right">
+          {t('llmLogs.characterCount', { count: activeContentLength })}
         </div>
       </div>
     </div>

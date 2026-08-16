@@ -10,6 +10,7 @@ export interface LLMLog {
   model: string;
   system_prompt: string;
   user_prompt: string;
+  request_info?: string;
   response: string;
   status: string;
   error_message: string;

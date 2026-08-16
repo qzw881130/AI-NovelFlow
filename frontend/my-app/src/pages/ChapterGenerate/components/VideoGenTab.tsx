@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useChapterGenerateStore } from '../stores';
-import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy } from 'lucide-react';
+import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
@@ -93,6 +93,13 @@ export function VideoGenTab({
   const transitionVideos = storeTransitionVideos;
   const generatingVideos = propGeneratingVideos ?? storeGeneratingVideos;
   const generatingTransitions = propGeneratingTransitions ?? storeGeneratingTransitions;
+
+  const selectedTransitionWorkflowData = transitionWorkflows.find((workflow: any) => (
+    selectedTransitionWorkflow ? workflow.id === selectedTransitionWorkflow : workflow.isActive
+  ));
+  const selectedTransitionDescription = selectedTransitionWorkflowData
+    ? t(selectedTransitionWorkflowData.descriptionKey || '', { defaultValue: selectedTransitionWorkflowData.description || '' })
+    : '';
 
   // 优先使用 props 传入的 novelId，否则从 chapter 对象获取
   const effectiveNovelId = novelId || chapter?.novelId;
@@ -663,20 +670,30 @@ export function VideoGenTab({
             <label className="block text-xs font-medium text-gray-600 mb-2">
               {t('chapterGenerate.transitionWorkflow')}
             </label>
-            <div className="relative">
-              <select
-                value={selectedTransitionWorkflow}
-                onChange={(e) => setSelectedTransitionWorkflow(e.target.value)}
-                className="w-full px-3 py-2 pr-8 text-sm border border-gray-300 rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">{t('chapterGenerate.default')}</option>
-                {transitionWorkflows.map((workflow: any) => (
-                  <option key={workflow.id} value={workflow.id}>
-                    {workflow.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <select
+                  value={selectedTransitionWorkflow}
+                  onChange={(e) => setSelectedTransitionWorkflow(e.target.value)}
+                  className="w-full px-3 py-2 pr-8 text-sm border border-gray-300 rounded-lg appearance-none bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="">{t('chapterGenerate.default')}</option>
+                  {transitionWorkflows.map((workflow: any) => (
+                    <option key={workflow.id} value={workflow.id}>
+                      {workflow.name}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" />
+              </div>
+              {selectedTransitionDescription && (
+                <div className="relative group shrink-0">
+                  <Info className="w-4 h-4 text-gray-400 hover:text-blue-600 cursor-help" />
+                  <div className="pointer-events-none absolute right-0 top-6 z-20 hidden w-72 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs leading-relaxed text-gray-700 shadow-lg group-hover:block whitespace-pre-wrap">
+                    {selectedTransitionDescription}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>

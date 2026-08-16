@@ -212,6 +212,12 @@ async def generate_shot_video_task(
         db.commit()
 
         comfyui_service = ComfyUIService()
+
+        def save_prompt_id(prompt_id: str):
+            task.comfyui_prompt_id = prompt_id
+            db.commit()
+            print(f"[VideoTask {task_id}] Saved ComfyUI prompt_id: {prompt_id}")
+
         result = await comfyui_service.generate_shot_video_with_workflow(
             prompt=shot_prompt,
             workflow_json=workflow.workflow_json,
@@ -225,7 +231,8 @@ async def generate_shot_video_task(
             scene_setting=scene_setting,
             prop_appearances=prop_appearances,
             reference_audio_path=reference_audio_path,
-            keyframe_paths=keyframe_paths
+            keyframe_paths=keyframe_paths,
+            on_prompt_queued=save_prompt_id
         )
 
         print(f"[VideoTask {task_id}] Generation result: {json.dumps(result, ensure_ascii=True)}")

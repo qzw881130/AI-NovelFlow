@@ -92,6 +92,8 @@ export interface ShotWorkflow {
 export interface TransitionWorkflow {
   id: string;
   name: string;
+  description?: string;
+  descriptionKey?: string;
   isActive: boolean;
 }
 

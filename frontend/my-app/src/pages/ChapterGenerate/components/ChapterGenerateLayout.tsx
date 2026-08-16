@@ -9,10 +9,12 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { useChapterGenerateStore } from '../stores';
+import { novelApi } from '../../../api/novels';
+import type { Chapter } from '../../../types';
 
 // 布局组件
 import { ThreeColumnLayout } from './ThreeColumnLayout';
@@ -93,7 +95,9 @@ export function ChapterGenerateLayout({
 }: ChapterGenerateLayoutProps) {
   const { t } = useTranslation();
   const { id, cid } = useParams<{ id: string; cid: string }>();
+  const navigate = useNavigate();
   const [bottomNavCollapsed, setBottomNavCollapsed] = useState(false);
+  const [chapterList, setChapterList] = useState<Chapter[]>([]);
 
   // 使用选择器正确订阅 store 状态
   const storeParsedData = useChapterGenerateStore((state) => state.parsedData);
@@ -136,12 +140,57 @@ export function ChapterGenerateLayout({
   // 获取分镜列表（统一使用 store.shots）
   const shots = storeShots;
   const currentShot = shots[currentShotIndex - 1];
+  const sortedChapters = [...chapterList].sort((a, b) => a.number - b.number);
+  const currentChapterIndex = sortedChapters.findIndex((item) => item.id === cid);
+  const previousChapter = currentChapterIndex > 0 ? sortedChapters[currentChapterIndex - 1] : null;
+  const nextChapter = currentChapterIndex >= 0 && currentChapterIndex < sortedChapters.length - 1
+    ? sortedChapters[currentChapterIndex + 1]
+    : null;
+
+  const goToChapter = (chapterId?: string) => {
+    if (!id || !chapterId) return;
+    navigate(`/novels/${id}/chapters/${chapterId}/generate`);
+  };
 
   useEffect(() => {
     if (id && cid) {
       loadWorkflowState(id, cid);
     }
   }, [id, cid, loadWorkflowState]);
+
+  useEffect(() => {
+    if (!id) return;
+    novelApi.fetchChapters(id).then((res) => {
+      if (res.success && res.data) setChapterList(res.data);
+    }).catch((error) => {
+      console.error('加载章节列表失败:', error);
+    });
+  }, [id]);
+
+  const renderChapterSwitch = () => (
+    <div className="flex items-center gap-2 flex-shrink-0">
+      <button
+        type="button"
+        onClick={() => goToChapter(previousChapter?.id)}
+        disabled={!previousChapter}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap transition-colors"
+        title={previousChapter ? previousChapter.title : '已经是第一回'}
+      >
+        <ChevronLeft className="h-4 w-4 flex-shrink-0" />
+        上一回
+      </button>
+      <button
+        type="button"
+        onClick={() => goToChapter(nextChapter?.id)}
+        disabled={!nextChapter}
+        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap transition-colors"
+        title={nextChapter ? nextChapter.title : '已经是最后一回'}
+      >
+        下一回
+        <ChevronRight className="h-4 w-4 flex-shrink-0" />
+      </button>
+    </div>
+  );
 
   // 渲染左侧栏内容（根据当前 Tab 变化）
   const renderLeftPanel = () => {
@@ -262,32 +311,35 @@ export function ChapterGenerateLayout({
       <div className="h-full flex flex-col">
         {/* Header */}
         <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4 min-w-0">
               <Link
                 to={`/novels/${id}`}
-                className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
               >
                 <ArrowLeft className="h-5 w-5" />
               </Link>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900">
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold text-gray-900 truncate">
                   {chapter?.title || t('chapterGenerate.unnamedChapter')}
                 </h1>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="text-sm text-gray-500 mt-1 truncate">
                   {t('chapterGenerate.shotCount', { count: shots.length })}
                 </p>
               </div>
             </div>
-            {/* 章节资源管理按钮 */}
-            <button
-              onClick={onResourcesManageClick}
-              className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-              title="管理本章节使用的角色、场景、道具"
-            >
-              <span>📦</span>
-              章节资源
-            </button>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              {renderChapterSwitch()}
+              {/* 章节资源管理按钮 */}
+              <button
+                onClick={onResourcesManageClick}
+                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 whitespace-nowrap flex-shrink-0"
+                title="管理本章节使用的角色、场景、道具"
+              >
+                <span>📦</span>
+                章节资源
+              </button>
+            </div>
           </div>
         </div>
 
@@ -326,32 +378,35 @@ export function ChapterGenerateLayout({
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0">
             <Link
               to={`/novels/${id}`}
-              className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
+              className="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-gray-900 truncate">
                 {chapter?.title || t('chapterGenerate.unnamedChapter')}
               </h1>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-500 mt-1 truncate">
                 {t('chapterGenerate.shotCount', { count: shots.length })}
               </p>
             </div>
           </div>
-          {/* 章节资源管理按钮 */}
-          <button
-            onClick={onResourcesManageClick}
-            className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-            title="管理本章节使用的角色、场景、道具"
-          >
-            <span>📦</span>
-            章节资源
-          </button>
+          <div className="flex items-center gap-3 flex-shrink-0">
+            {renderChapterSwitch()}
+            {/* 章节资源管理按钮 */}
+            <button
+              onClick={onResourcesManageClick}
+              className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 whitespace-nowrap flex-shrink-0"
+              title="管理本章节使用的角色、场景、道具"
+            >
+              <span>📦</span>
+              章节资源
+            </button>
+          </div>
         </div>
       </div>
 

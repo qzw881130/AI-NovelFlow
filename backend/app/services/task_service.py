@@ -5,7 +5,8 @@
 """
 import json
 import asyncio
-from datetime import datetime
+import re
+from datetime import datetime, timezone
 from typing import Dict, Any, Tuple
 
 from sqlalchemy.orm import Session
@@ -16,6 +17,7 @@ from app.models.task import Task
 from app.models.novel import Novel
 from app.models.workflow import Workflow
 from app.repositories import TaskRepository, WorkflowRepository
+from app.repositories.shot_repository import ShotRepository
 from app.repositories.character_repository import CharacterRepository
 from app.repositories.scene_repository import SceneRepository
 from app.repositories.prompt_template import PromptTemplateRepository
@@ -293,9 +295,12 @@ class TaskService:
         task.error_message = None
         task.result_url = None
         task.completed_at = None
+        task.comfyui_prompt_id = None
+        task.workflow_json = None
         db.commit()
 
         # 根据任务类型重新执行
+        restarted = False
         if task.type == "character_portrait" and task.character_id:
             # 从CharacterService重新执行任务
             from app.services.character_service import CharacterService
@@ -311,6 +316,7 @@ class TaskService:
                         character.description
                     )
                 )
+                restarted = True
         elif task.type == "scene_image" and task.scene_id:
             # 从SceneService重新执行任务
             from app.services.scene_service import SceneService
@@ -326,6 +332,50 @@ class TaskService:
                         scene.description
                     )
                 )
+                restarted = True
+        elif task.type == "shot_image" and task.novel_id and task.chapter_id and task.workflow_id:
+            from app.services.shot_image_service import generate_shot_image_task
+
+            shot_repo = ShotRepository(db)
+            shot = shot_repo.get_by_id(task.shot_id) if task.shot_id else None
+            if not shot:
+                match = re.search(r"镜\s*(\d+)", task.name or "")
+                if match:
+                    shot = shot_repo.get_by_chapter_and_index(task.chapter_id, int(match.group(1)))
+
+            if not shot:
+                task.status = "failed"
+                task.error_message = "重试失败：找不到关联分镜"
+                task.current_step = "重试失败"
+                db.commit()
+                return {"success": False, "message": task.error_message, "status_code": 400}
+
+            shot_repo.update(
+                shot,
+                image_url=None,
+                image_path=None,
+                image_status="generating",
+                image_task_id=task.id,
+            )
+
+            asyncio.create_task(
+                generate_shot_image_task(
+                    task.id,
+                    task.novel_id,
+                    task.chapter_id,
+                    shot.index,
+                    shot.description or "",
+                    task.workflow_id,
+                )
+            )
+            restarted = True
+
+        if not restarted:
+            task.status = "failed"
+            task.error_message = "当前任务类型暂不支持重试，或缺少必要关联数据"
+            task.current_step = "重试失败"
+            db.commit()
+            return {"success": False, "message": task.error_message, "status_code": 400}
 
         return {
             "success": True,
@@ -337,7 +387,71 @@ class TaskService:
         }
     
     # ==================== 任务列表格式化 ====================
-    
+
+    async def reconcile_active_tasks(self, tasks=None, db: Session = None) -> int:
+        """校准本地 running/pending 任务，避免 ComfyUI 已无任务但本地假死。"""
+        db = db or self.db
+        task_repo = TaskRepository(db)
+        tasks = tasks if tasks is not None else task_repo.list_active_tasks()
+        active_tasks = [task for task in tasks if task.status in ["pending", "running"]]
+        if not active_tasks:
+            return 0
+
+        queue_info = await self.comfyui_service.get_queue_info()
+        now = datetime.utcnow()
+        updated_count = 0
+
+        def task_age_seconds(task: Task) -> float:
+            started_at = task.started_at or task.created_at
+            if not started_at:
+                return 0
+            if started_at.tzinfo is not None:
+                started_at = started_at.astimezone(timezone.utc).replace(tzinfo=None)
+            return (now - started_at).total_seconds()
+
+        for task in active_tasks:
+            age_seconds = task_age_seconds(task)
+            if task.comfyui_prompt_id:
+                prompt_state = await self.comfyui_service.client.get_prompt_state(
+                    task.comfyui_prompt_id,
+                    queue_info=queue_info,
+                )
+                state = prompt_state.get("state")
+                if state in ["queued", "history", "unknown"]:
+                    continue
+
+                if state == "error":
+                    task.status = "failed"
+                    task.error_message = prompt_state.get("message") or "ComfyUI 执行失败"
+                    task.current_step = "生成失败"
+                    updated_count += 1
+                    continue
+
+                if state == "missing" and age_seconds > 60:
+                    task.status = "failed"
+                    task.error_message = "ComfyUI 队列和 history 中均找不到该任务，可能已被清理、取消或 ComfyUI 异常退出"
+                    task.current_step = "任务异常"
+                    updated_count += 1
+                    continue
+
+                if state == "completed" and age_seconds > 60 and task.current_step and "ComfyUI" in task.current_step:
+                    task.status = "failed"
+                    task.error_message = "ComfyUI 已完成该任务，但后端未保存结果，可能是输出节点映射错误或后台任务中断"
+                    task.current_step = "任务异常"
+                    updated_count += 1
+                    continue
+
+            elif task.status == "running" and task.current_step and "ComfyUI" in task.current_step:
+                if age_seconds > 600:
+                    task.status = "failed"
+                    task.error_message = "任务停留在 ComfyUI 调用阶段超过 10 分钟且未保存 prompt_id，可能是旧后台任务已中断"
+                    task.current_step = "任务异常"
+                    updated_count += 1
+
+        if updated_count:
+            db.commit()
+        return updated_count
+
     @staticmethod
     def format_task_list(tasks: list, novels: dict, chapters: dict, workflows: dict) -> list:
         """

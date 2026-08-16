@@ -8,7 +8,7 @@ import os
 import time
 import json
 from typing import Dict, Any, Optional
-from ..base import BaseLLMProvider, LLMConfig, LLMResponse, save_llm_log
+from ..base import BaseLLMProvider, LLMConfig, LLMResponse, save_llm_log, build_llm_request_info
 
 
 class OpenAICompatibleProvider(BaseLLMProvider):
@@ -51,10 +51,21 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 {"role": "user", "content": user_content}
             ],
             "temperature": temperature,
-            "max_tokens": max_tokens
+            "max_tokens": max_tokens,
+            "stream": False,
         }
+
+        is_deepseek_v4 = self.config.provider == "deepseek" and self.config.model in {
+            "deepseek-v4-flash",
+            "deepseek-v4-pro",
+        }
+
         if response_format == "json_object" and ("Doubao-Seed" not in self.config.model):
             body["response_format"] = {"type": "json_object"}
+            if is_deepseek_v4:
+                # DeepSeek V4 defaults to thinking mode. Structured JSON tasks do not need
+                # reasoning output, and disabling it reduces length truncation risk.
+                body["thinking"] = {"type": "disabled"}
         return body
 
     def _parse_response(self, response_data: Dict[str, Any]) -> str:
@@ -116,6 +127,16 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         used_proxy = proxy is not None
 
         timeout = 600
+        request_info = build_llm_request_info(
+            provider=self.config.provider,
+            base_url=self.config.api_url,
+            endpoint=endpoint,
+            model=self.config.model,
+            headers=headers,
+            payload=body,
+            proxy_url=proxy,
+            timeout_seconds=timeout,
+        )
         # Ollama 和 custom 不需要代理
         if self.config.provider in ("ollama", "custom"):
             old_http_proxy = os.environ.pop('HTTP_PROXY', None)
@@ -173,7 +194,8 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                         chapter_id=chapter_id,
                         character_id=character_id,
                         used_proxy=used_proxy,
-                        duration=duration
+                        duration=duration,
+                        request_info=request_info,
                     )
 
                     return LLMResponse(
@@ -199,7 +221,8 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                         chapter_id=chapter_id,
                         character_id=character_id,
                         used_proxy=used_proxy,
-                        duration=duration
+                        duration=duration,
+                        request_info=request_info,
                     )
 
                     return LLMResponse(
@@ -222,7 +245,8 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     chapter_id=chapter_id,
                     character_id=character_id,
                     used_proxy=used_proxy,
-                    duration=duration
+                    duration=duration,
+                    request_info=request_info,
                 )
 
                 return LLMResponse(
@@ -245,7 +269,8 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     chapter_id=chapter_id,
                     character_id=character_id,
                     used_proxy=used_proxy,
-                    duration=duration
+                    duration=duration,
+                    request_info=request_info,
                 )
 
                 return LLMResponse(
@@ -274,7 +299,8 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 chapter_id=chapter_id,
                 character_id=character_id,
                 used_proxy=used_proxy,
-                duration=duration
+                duration=duration,
+                request_info=request_info,
             )
 
             return LLMResponse(

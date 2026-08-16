@@ -29,6 +29,11 @@ def ensure_schema_updates():
             task_columns = [row[1] for row in result.fetchall()]
             if "reference_images" not in task_columns:
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN reference_images TEXT"))
+
+            result = conn.execute(text("PRAGMA table_info(llm_logs)"))
+            llm_log_columns = [row[1] for row in result.fetchall()]
+            if "request_info" not in llm_log_columns:
+                conn.execute(text("ALTER TABLE llm_logs ADD COLUMN request_info TEXT"))
             conn.commit()
         except Exception as exc:
             print(f"[Startup] Failed to ensure schema updates: {exc}")

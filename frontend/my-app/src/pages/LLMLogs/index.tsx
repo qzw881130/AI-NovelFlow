@@ -73,7 +73,7 @@ export default function LLMLogs() {
         <div className="flex items-center gap-2 mt-4">
           <button onClick={state.applyFilters} className="btn-primary text-sm">{t('llmLogs.applyFilter')}</button>
           <button onClick={state.resetFilters} className="btn-secondary text-sm">{t('llmLogs.reset')}</button>
-          <button onClick={state.fetchLogs} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors">
+          <button onClick={() => state.fetchLogs()} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors">
             <RefreshCw className="h-4 w-4" />{t('llmLogs.refresh')}
           </button>
           <div className="ml-auto flex items-center gap-2">
