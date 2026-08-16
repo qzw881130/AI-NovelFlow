@@ -1,0 +1,412 @@
+{
+  "115": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": [
+        "170",
+        0
+      ],
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "#115 Resolution Selector (Size)"
+    }
+  },
+  "119": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#119 Load VAE"
+    }
+  },
+  "120": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#120 Load VAE"
+    }
+  },
+  "121": {
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "#121 VAE Decode Audio"
+    }
+  },
+  "122": {
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#122 VAE Decode"
+    }
+  },
+  "123": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "#123 KSamplerSelect"
+    }
+  },
+  "124": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 6,
+      "denoise": 1,
+      "model": [
+        "141",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "#124 BasicScheduler"
+    }
+  },
+  "125": {
+    "inputs": {
+      "noise": [
+        "129",
+        0
+      ],
+      "guider": [
+        "126",
+        0
+      ],
+      "sampler": [
+        "123",
+        0
+      ],
+      "sigmas": [
+        "124",
+        0
+      ],
+      "latent_image": [
+        "136",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#125 SamplerCustomAdvanced"
+    }
+  },
+  "126": {
+    "inputs": {
+      "model": [
+        "141",
+        0
+      ],
+      "conditioning": [
+        "136",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "#126 Basic Guider"
+    }
+  },
+  "127": {
+    "inputs": {
+      "unet_name": "minimax_h3_ref2va_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#127 Load Diffusion Model"
+    }
+  },
+  "128": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#128 Load CLIP"
+    }
+  },
+  "129": {
+    "inputs": {
+      "noise_seed": 999
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#129 RandomNoise"
+    }
+  },
+  "130": {
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "images": [
+        "122",
+        0
+      ],
+      "audio": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "#130 Create Video"
+    }
+  },
+  "131": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "132",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "#131 Math Expression"
+    }
+  },
+  "132": {
+    "inputs": {
+      "value": 10
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "#132 Float (Duration)"
+    }
+  },
+  "136": {
+    "inputs": {
+      "prompt": [
+        "138",
+        0
+      ],
+      "width": [
+        "115",
+        0
+      ],
+      "height": [
+        "115",
+        1
+      ],
+      "length": [
+        "131",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "128",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ],
+      "audio_vae": [
+        "120",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "137",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "#136 MiniMax H3 Reference to Video"
+    }
+  },
+  "137": {
+    "inputs": {
+      "image": "file1.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#137 Load Image"
+    }
+  },
+  "138": {
+    "inputs": {
+      "value": "subject_definitions:\n\n<Subject 1> is Zhuge Liang from <Picture 1>, a middle-aged Han strategist with a refined scholarly appearance, wearing a pale blue robe, white inner garments, and a light blue headscarf. He holds a white feather fan and rides in a traditional wooden handcart. His calm expression, composed posture, and elegant demeanor define his identity.\n\n<Picture 1> defines Zhuge Liang's facial features, clothing, handcart, feather fan, and overall artistic style.\n\n<Picture 2> defines the battlefield environment, the bamboo bridge construction, the river crossing formation, the army scale, and the surrounding bamboo forest landscape.\n\nsummary:\n\n[reference generation]\n\nCreate a cinematic historical sequence inspired by Romance of the Three Kingdoms.\n\nThe video begins with Zhuge Liang quietly observing the water conditions along the western bank of the Xier River while seated in his wooden handcart. After carefully studying the river current, he calmly issues military orders.\n\nThe scene then transitions to a massive engineering operation. Nearly thirty thousand Shu soldiers rapidly cut bamboo, transport timber, and construct a long bamboo bridge across the river. Under Zhuge Liang's command, the completed bridge allows the entire army to march across the river in orderly formations with banners flying.\n\nThe entire video preserves the delicate traditional Chinese gongbi painting style shown in both reference images.\n\nretention_analysis:\n\n<Subject 1>:\nFully preserved.\nMaintain Zhuge Liang's facial appearance, blue headscarf, feather fan, wooden handcart, calm expression, scholar temperament, and traditional Han clothing from <Picture 1>.\n\n<Picture 1>:\nUsed primarily for character identity, costume, posture, vehicle, and artistic style.\n\n<Picture 2>:\nUsed for battlefield layout, bamboo bridge construction, troop formations, environmental composition, bamboo forest, river, and military atmosphere.\n\ndetailed_description:\n\nOverall visual style:\nTraditional Chinese gongbi painting, elegant ink outlines, soft mineral colors, fine brushwork, cinematic composition, highly detailed landscape, atmospheric perspective, realistic river reflections, historical authenticity.\n\n[Shot 1]\n\nA peaceful panoramic shot along the Xier River.\n\nZhuge Liang sits quietly in his wooden handcart beside the riverbank, holding his feather fan while observing the flowing current. Gentle morning mist drifts over the water. Distant green mountains, scattered villages, and calm reflections create a tranquil atmosphere. Several attendants wait silently behind him.\n\nThe camera slowly pushes forward from a wide landscape toward Zhuge Liang, emphasizing his thoughtful expression as he studies the river.\n\n[Shot 2]\n\nAfter making his decision, Zhuge Liang slowly raises his feather fan and calmly points toward the opposite riverbank.\n\nMessengers immediately depart with military orders.\n\nThe camera follows the direction of the feather fan before transitioning toward the engineering site.\n\n[Shot 3]\n\nThousands of Shu soldiers begin cutting giant bamboo in the surrounding forest.\n\nLarge teams transport bamboo poles, ropes, and wooden beams toward the river.\n\nWorkers cooperate efficiently, lifting, binding, and assembling bridge sections.\n\nThe camera alternates between aerial views, medium construction shots, and close-ups of hands binding bamboo with ropes.\n\nDust, splashing water, swinging bamboo, and rhythmic labor create a sense of momentum.\n\n[Shot 4]\n\nThe bamboo bridge rapidly extends across the Xier River.\n\nRows of soldiers stabilize the bridge while engineers reinforce the supports.\n\nBoats assist construction beneath the bridge.\n\nThe camera rises high above the valley, revealing the enormous scale of the engineering effort stretching from one riverbank to the other.\n\n[Shot 5]\n\nThe completed bridge spans the river.\n\nThousands of Shu soldiers march across in disciplined formations carrying red battle banners.\n\nInfantry, officers, supply carts, and cavalry cross continuously.\n\nZhuge Liang remains beside the bridge, calmly watching the successful crossing while gently holding his feather fan.\n\nThe camera performs a grand aerial pullback, revealing the endless procession of soldiers crossing the river through the magnificent mountain landscape.\n\noverall_soundscape:\n\nNatural flowing river.\nGentle wind through bamboo forests.\nBirdsong during the opening.\nSoft movement of Zhuge Liang's wooden cart.\nThe sound of bamboo being cut.\nAxes striking bamboo.\nRopes tightening.\nWood knocking together.\nThousands of coordinated footsteps.\nMilitary commands.\nFlags fluttering.\nHorse hooves.\nFlowing river beneath the bridge.\nThe atmosphere gradually grows from peaceful strategy to majestic military momentum.\n\nnon_diegetic_music:\n\nA grand traditional Chinese orchestral score.\n\nBegins with soft guqin and xiao flute while Zhuge Liang studies the river.\n\nGradually introduces pipa, drums, and low strings as construction begins.\n\nThe climax features powerful Chinese war drums, large orchestral percussion, brass, and soaring strings during the army's river crossing, conveying wisdom, discipline, and the overwhelming scale of the Shu army."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "#138 Input Text (Prompt)"
+    }
+  },
+  "141": {
+    "inputs": {
+      "max_resolution": 1024,
+      "jpeg_quality": 80,
+      "suppress_default_preview": true,
+      "preview_frames": [
+        "131",
+        1
+      ],
+      "preview_fps": 12,
+      "tiny_vae": "none",
+      "model": [
+        "149",
+        0
+      ]
+    },
+    "class_type": "ModelPreviewOverrideKJ",
+    "_meta": {
+      "title": "#141 Model Preview Override"
+    }
+  },
+  "142": {
+    "inputs": {
+      "model": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+    "_meta": {
+      "title": "#142 MiniMax H3 Mem Eff Sage Attention Patch"
+    }
+  },
+  "143": {
+    "inputs": {
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
+      "quality": "ULTRA",
+      "images": [
+        "122",
+        0
+      ]
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "#143 RTX Video Super Resolution"
+    }
+  },
+  "144": {
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "images": [
+        "143",
+        0
+      ],
+      "audio": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "#144 Create Video"
+    }
+  },
+  "147": {
+    "inputs": {
+      "lora_name": "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+      "strength_model": 0.75,
+      "model": [
+        "142",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "#147 Load LoRA"
+    }
+  },
+  "148": {
+    "inputs": {
+      "clean_file_cache": true,
+      "clean_processes": true,
+      "clean_dlls": true,
+      "retry_times": 3,
+      "anything": [
+        "144",
+        0
+      ]
+    },
+    "class_type": "RAMCleanup",
+    "_meta": {
+      "title": "#148 🎈RAM-Cleanup"
+    }
+  },
+  "149": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "147",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "#149 ModelSamplingMiniMaxH3"
+    }
+  },
+  "150": {
+    "inputs": {
+      "filename_prefix": "video/MiniMax_H3",
+      "format": "auto",
+      "codec": "auto",
+      "video": [
+        "148",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "#150 Save Video（高分辨率）"
+    }
+  },
+  "169": {
+    "inputs": {
+      "filename_prefix": "video/MiniMax_H3",
+      "format": "auto",
+      "codec": "auto",
+      "video": [
+        "130",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "#169 Save Video(低分辨率)"
+    }
+  },
+  "170": {
+    "inputs": {
+      "value": 0.4
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "#170 Megapixels"
+    }
+  }
+}

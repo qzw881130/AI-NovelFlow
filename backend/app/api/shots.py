@@ -323,6 +323,7 @@ async def generate_transition_video(
 
     from_index = data.from_index
     to_index = data.to_index
+    duration_seconds = data.duration_seconds
     frame_count = data.frame_count
     workflow_id = data.workflow_id
 
@@ -402,6 +403,7 @@ async def generate_transition_video(
             from_index,
             to_index,
             workflow.id,
+            duration_seconds,
             frame_count,
         )
     )
@@ -444,6 +446,7 @@ async def generate_all_transitions(
             status_code=400, detail="部分分镜视频尚未生成，请先生成所有分镜视频"
         )
 
+    duration_seconds = data.duration_seconds
     frame_count = data.frame_count
     workflow_id = data.workflow_id
 
@@ -457,6 +460,13 @@ async def generate_all_transitions(
 
     if not workflow:
         raise HTTPException(status_code=400, detail="未配置转场视频工作流")
+
+    # 验证工作流节点映射配置
+    is_valid, error_msg = TaskService.validate_workflow_node_mapping(
+        workflow, "transition"
+    )
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
 
     # 为每对相邻分镜创建任务
     task_ids = []
@@ -493,6 +503,7 @@ async def generate_all_transitions(
                 from_idx,
                 to_idx,
                 workflow.id,
+                duration_seconds,
                 frame_count,
             )
         )

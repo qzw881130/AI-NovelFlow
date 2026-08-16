@@ -142,7 +142,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "nameKey": f"{NAME_KEY_PREFIX}.LTX2 镜头转场视频",
         "description": "适合：首尾帧是同一场景不同景别/角度",
         "descriptionKey": f"{DESC_KEY_PREFIX}.适合：首尾帧是同一场景不同景别/角度",
-        "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "video_save_node_id": "105"},
+        "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "duration_seconds_node_id": "", "megapixels_node_id": "", "megapixels_value": "0.4", "video_save_node_id": "105"},
     },
     {
         "filename": "transition_ltx2_lighting.json",
@@ -151,7 +151,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "nameKey": f"{NAME_KEY_PREFIX}.LTX2 光线转场视频",
         "description": "适合：首尾帧颜色差很多，但场景/人物不变",
         "descriptionKey": f"{DESC_KEY_PREFIX}.适合：首尾帧颜色差很多，但场景/人物不变",
-        "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "video_save_node_id": "105"},
+        "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "duration_seconds_node_id": "", "megapixels_node_id": "", "megapixels_value": "0.4", "video_save_node_id": "105"},
     },
     {
         "filename": "transition_ltx2_first_last_frame.json",
@@ -160,7 +160,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "nameKey": f"{NAME_KEY_PREFIX}.LTX2 遮挡转场视频",
         "description": "适合：两张图差异大，想自然衔接",
         "descriptionKey": f"{DESC_KEY_PREFIX}.适合：两张图差异大，想自然衔接",
-        "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "video_save_node_id": "105"},
+        "node_mapping": {"first_image_node_id": "98", "last_image_node_id": "106", "frame_count_node_id": "174", "duration_seconds_node_id": "", "megapixels_node_id": "", "megapixels_value": "0.4", "video_save_node_id": "105"},
     },
     {
         "filename": "scene_default.json",

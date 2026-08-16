@@ -348,6 +348,7 @@ class ComfyUIService:
         first_image_path: str,
         last_image_path: str,
         aspect_ratio: str = "16:9",
+        duration_seconds: Optional[float] = None,
         frame_count: Optional[int] = None
     ) -> Dict[str, Any]:
         """生成转场视频 (首帧+尾帧)"""
@@ -359,6 +360,9 @@ class ComfyUIService:
             last_image_node_id = node_mapping.get("last_image_node_id", "106")
             video_save_node_id = node_mapping.get("video_save_node_id", "105")
             frame_count_node_id = node_mapping.get("frame_count_node_id", "174")
+            duration_seconds_node_id = node_mapping.get("duration_seconds_node_id", "")
+            megapixels_node_id = node_mapping.get("megapixels_node_id", "")
+            megapixels_value = node_mapping.get("megapixels_value", 0.4)
             
             # 上传首帧图片
             first_upload = await self.client.upload_image(first_image_path)
@@ -377,8 +381,14 @@ class ComfyUIService:
             if last_image_node_id in workflow:
                 workflow[last_image_node_id]["inputs"]["image"] = last_upload.get("filename")
             
-            # 设置总帧数节点，兼容 easy int / JWInteger / INTConstant 等数值节点
-            if frame_count and frame_count_node_id:
+            # Megapixels 是转场工作流的可选尺寸控制节点。
+            if megapixels_node_id:
+                self.builder._set_value(workflow, megapixels_node_id, float(megapixels_value))
+
+            # 时长秒数节点和总帧数节点由映射配置二选一。
+            if duration_seconds and duration_seconds_node_id:
+                self.builder._set_value(workflow, duration_seconds_node_id, duration_seconds)
+            elif frame_count and frame_count_node_id:
                 self.builder._set_value(workflow, frame_count_node_id, frame_count)
             
             # 设置随机种子

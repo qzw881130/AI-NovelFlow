@@ -186,6 +186,8 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
       );
     case 'transition':
       const transitionMapping = mapping as any;
+      const hasTransitionFrameCount = transitionMapping.frame_count_node_id && transitionMapping.frame_count_node_id !== 'auto';
+      const hasTransitionDuration = transitionMapping.duration_seconds_node_id && transitionMapping.duration_seconds_node_id !== 'auto';
       return !!(
         transitionMapping.first_image_node_id &&
         transitionMapping.first_image_node_id !== 'auto' &&
@@ -193,8 +195,7 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
         transitionMapping.last_image_node_id !== 'auto' &&
         transitionMapping.video_save_node_id &&
         transitionMapping.video_save_node_id !== 'auto' &&
-        transitionMapping.frame_count_node_id &&
-        transitionMapping.frame_count_node_id !== 'auto'
+        hasTransitionFrameCount !== hasTransitionDuration
       );
     case 'voice_design':
       const voiceMapping = mapping as any;

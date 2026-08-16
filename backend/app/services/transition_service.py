@@ -25,6 +25,7 @@ async def generate_transition_video_task(
     from_index: int,
     to_index: int,
     workflow_id: str,
+    duration_seconds: float | None = None,
     frame_count: int = 49
 ):
     """
@@ -37,6 +38,7 @@ async def generate_transition_video_task(
         from_index: 起始分镜索引
         to_index: 结束分镜索引
         workflow_id: 工作流ID
+        duration_seconds: 时长秒数
         frame_count: 帧数
     """
     db = SessionLocal()
@@ -134,6 +136,7 @@ async def generate_transition_video_task(
             node_mapping=node_mapping,
             first_image_path=last_frame_path,
             last_image_path=first_frame_path,
+            duration_seconds=duration_seconds,
             frame_count=frame_count
         )
 

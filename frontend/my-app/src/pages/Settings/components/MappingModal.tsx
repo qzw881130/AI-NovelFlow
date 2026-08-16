@@ -224,8 +224,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 heightNodeId: '',
                 videoSaveNodeId: mapping.video_save_node_id || '',
                 maxSideNodeId: '',
-                megapixelsNodeId: '',
-                megapixelsValue: '0.4',
+                megapixelsNodeId: mapping.megapixels_node_id || '',
+                megapixelsValue: mapping.megapixels_value || '0.4',
                 referenceImageNodeId: '',
                 frameCountNodeId: mapping.frame_count_node_id || '',
                 firstImageNodeId: mapping.first_image_node_id || '',
@@ -240,7 +240,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 textNodeId: '',
                 emotionPromptNodeId: '',
                 keyframeNodes: [],
-                durationSecondsNodeId: ''
+                durationSecondsNodeId: mapping.duration_seconds_node_id || ''
               });
             } else if (wf.type === 'shot') {
               setMappingForm({
@@ -418,10 +418,21 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           nodeMapping[`keyframe_node_${index + 1}`] = nodeId || null;
         });
       } else if (workflow.type === 'transition') {
+        const hasFrameCount = Boolean(mappingForm.frameCountNodeId);
+        const hasDurationSeconds = Boolean(mappingForm.durationSecondsNodeId);
+        if (hasFrameCount === hasDurationSeconds) {
+          toast.error('总帧数节点和时长秒数节点必须且只能配置其中一个');
+          setSavingMapping(false);
+          return;
+        }
+
         nodeMapping = {
           first_image_node_id: mappingForm.firstImageNodeId || null,
           last_image_node_id: mappingForm.lastImageNodeId || null,
           frame_count_node_id: mappingForm.frameCountNodeId || null,
+          duration_seconds_node_id: mappingForm.durationSecondsNodeId || null,
+          megapixels_node_id: mappingForm.megapixelsNodeId || null,
+          megapixels_value: mappingForm.megapixelsNodeId ? mappingForm.megapixelsValue : null,
           video_save_node_id: mappingForm.videoSaveNodeId || null
         };
       } else if (workflow.type === 'shot') {
@@ -504,6 +515,24 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
       megapixelsNodeId: value,
       maxSideNodeId: value ? '' : mappingForm.maxSideNodeId,
       megapixelsValue: mappingForm.megapixelsValue || '0.4'
+    });
+    if (value) setSelectedNodeId(value);
+  };
+
+  const handleFrameCountNodeSelect = (value: string) => {
+    setMappingForm({
+      ...mappingForm,
+      frameCountNodeId: value,
+      durationSecondsNodeId: workflow?.type === 'transition' && value ? '' : mappingForm.durationSecondsNodeId
+    });
+    if (value) setSelectedNodeId(value);
+  };
+
+  const handleDurationSecondsNodeSelect = (value: string) => {
+    setMappingForm({
+      ...mappingForm,
+      durationSecondsNodeId: value,
+      frameCountNodeId: workflow?.type === 'transition' && value ? '' : mappingForm.frameCountNodeId
     });
     if (value) setSelectedNodeId(value);
   };
@@ -791,7 +820,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     nodeTypeHint="easy int, JWInteger, INTConstant"
                     value={mappingForm.frameCountNodeId}
                     options={availableNodes.easyInt}
-                    onChange={(v) => handleNodeSelect(v, 'frameCountNodeId')}
+                    onChange={handleFrameCountNodeSelect}
                     onFocus={handleNodeFocus}
                     t={t}
                   />
@@ -800,7 +829,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     nodeTypeHint="easy int, JWInteger, INTConstant, Float, easy float"
                     value={mappingForm.durationSecondsNodeId}
                     options={[...availableNodes.easyInt, ...availableNodes.easyFloat]}
-                    onChange={(v) => handleNodeSelect(v, 'durationSecondsNodeId')}
+                    onChange={handleDurationSecondsNodeSelect}
                     onFocus={handleNodeFocus}
                     t={t}
                   />
@@ -882,15 +911,55 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onFocus={handleNodeFocus}
                     t={t}
                   />
+                  <div>
+                    <NodeSelectField
+                      label="Megapixels 节点"
+                      nodeTypeHint="Float, easy float, JWFloat, FloatConstant"
+                      value={mappingForm.megapixelsNodeId}
+                      options={availableNodes.easyFloat}
+                      onChange={(v) => handleNodeSelect(v, 'megapixelsNodeId')}
+                      onFocus={handleNodeFocus}
+                      t={t}
+                    />
+                    {mappingForm.megapixelsNodeId && (
+                      <div className="mt-2 grid grid-cols-[1fr_auto] gap-3 items-end">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Megapixels</label>
+                          <select
+                            value={mappingForm.megapixelsValue}
+                            onChange={(e) => setMappingForm({ ...mappingForm, megapixelsValue: e.target.value })}
+                            className="input-field"
+                          >
+                            {MEGAPIXEL_OPTIONS.map(option => (
+                              <option key={option.value} value={option.value}>{option.value}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="text-sm text-gray-600 pb-2 whitespace-nowrap">
+                          output: {MEGAPIXEL_OPTIONS.find(option => option.value === mappingForm.megapixelsValue)?.output || '864x480'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <NodeSelectField
                     label={t('systemSettings.workflow.frameCountNode')}
                     nodeTypeHint="easy int, JWInteger, INTConstant"
                     value={mappingForm.frameCountNodeId}
                     options={availableNodes.easyInt}
-                    onChange={(v) => handleNodeSelect(v, 'frameCountNodeId')}
+                    onChange={handleFrameCountNodeSelect}
                     onFocus={handleNodeFocus}
                     t={t}
                   />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.durationSecondsNode')}
+                    nodeTypeHint="easy int, JWInteger, INTConstant, Float, easy float"
+                    value={mappingForm.durationSecondsNodeId}
+                    options={[...availableNodes.easyInt, ...availableNodes.easyFloat]}
+                    onChange={handleDurationSecondsNodeSelect}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <p className="text-xs text-amber-600">总帧数节点和时长秒数节点只能配置其中一个，且必须配置一个。</p>
                 </>
               )}
 

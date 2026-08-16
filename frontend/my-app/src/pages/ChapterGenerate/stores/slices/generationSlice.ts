@@ -346,6 +346,7 @@ export const createGenerationSlice: StateCreator<
           body: JSON.stringify({
             from_index: fromIndex,
             to_index: toIndex,
+            duration_seconds: transitionDuration,
             frame_count: frameCount,
             workflow_id: selectedTransitionWorkflow || undefined,
           }),

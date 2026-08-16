@@ -85,6 +85,8 @@ class TaskService:
             "reference_image_node_id": "参考图片节点",
             "first_image_node_id": "第一张图片节点",
             "last_image_node_id": "最后一张图片节点",
+            "frame_count_node_id": "总帧数节点",
+            "duration_seconds_node_id": "时长秒数节点",
             "reference_audio_node_id": "参考音频节点",
             "text_node_id": "文本节点"
         }
@@ -101,6 +103,12 @@ class TaskService:
             has_megapixels = bool(node_mapping.get("megapixels_node_id"))
             if has_max_side == has_megapixels:
                 return False, f"工作流 '{workflow.name}' 的映射配置不完整，最长边节点和 Megapixels 必须且只能配置其中一个。"
+
+        if task_type == "transition":
+            has_frame_count = bool(node_mapping.get("frame_count_node_id"))
+            has_duration_seconds = bool(node_mapping.get("duration_seconds_node_id"))
+            if has_frame_count == has_duration_seconds:
+                return False, f"工作流 '{workflow.name}' 的映射配置不完整，总帧数节点和时长秒数节点必须且只能配置其中一个。"
 
         return True, ""
     

@@ -50,6 +50,7 @@ class TransitionVideoRequest(BaseModel):
 
     from_index: int = Field(..., ge=1, description="起始分镜索引(1-based)")
     to_index: int = Field(..., ge=1, description="结束分镜索引(1-based)")
+    duration_seconds: Optional[float] = Field(None, gt=0, description="转场时长秒数")
     frame_count: int = Field(49, description="总帧数（8的倍数+1）")
     workflow_id: Optional[str] = Field(None, description="指定工作流ID")
 
@@ -57,6 +58,7 @@ class TransitionVideoRequest(BaseModel):
 class BatchTransitionRequest(BaseModel):
     """批量生成转场视频请求"""
 
+    duration_seconds: Optional[float] = Field(None, gt=0, description="转场时长秒数")
     frame_count: int = Field(49, description="总帧数（8的倍数+1）")
     workflow_id: Optional[str] = Field(None, description="指定工作流ID")
 

@@ -23,6 +23,7 @@ export interface Workflow {
     megapixels_value?: string;
     reference_image_node_id?: string;
     frame_count_node_id?: string;
+    duration_seconds_node_id?: string;
     first_image_node_id?: string;
     last_image_node_id?: string;
     character_reference_image_node_id?: string;
