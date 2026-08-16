@@ -459,9 +459,9 @@ export function VideoGenTab({
       {/* 内容区 - 两栏布局 */}
       <div className="flex-1 min-h-0 flex gap-4 overflow-hidden">
         {/* 中间：视频提示词编辑 + 视频预览 */}
-        <div className="flex-1 min-w-0 flex flex-col gap-4">
+        <div className="video-main-column flex-1 min-w-0 flex flex-col gap-4">
           {/* 时长设置 */}
-          <div className="flex-shrink-0 border border-gray-200 rounded-lg p-4">
+          <div className="video-description-card flex-shrink-0 border border-gray-200 rounded-lg p-4">
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <label className="text-sm font-medium text-gray-700">{t('chapterGenerate.durationLabel')}</label>
@@ -506,7 +506,7 @@ export function VideoGenTab({
                 }
               }}
               placeholder={t('chapterGenerate.videoDescPlaceholder')}
-              className="w-full h-40 px-3 py-2 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              className="video-description-textarea w-full h-40 px-3 py-2 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             />
             <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
               <span>{t('chapterGenerate.placeholderHint')}</span>
@@ -517,12 +517,12 @@ export function VideoGenTab({
           </div>
 
           {/* 视频预览区 */}
-          <div className="flex-1 min-h-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
+          <div className="video-preview-card flex-1 min-h-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
             <div className="flex-shrink-0 p-3 border-b border-gray-200 bg-gray-50">
               <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.videoPreview')}</h3>
             </div>
 
-            <div className="flex-1 relative bg-gray-100">
+            <div className="video-preview-body flex-1 relative bg-gray-100">
               {hasVideo ? (
                 <video
                   src={currentShotVideoUrl}

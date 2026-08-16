@@ -92,3 +92,29 @@
 .bottom-nav-scroll::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, #6b7280, #4b5563);
 }
+
+/* 视频生成页：中间列变窄时，提高描述编辑区，预览按 16:9 内容高度显示，避免撑出大块空白。 */
+.video-main-column {
+  container-type: inline-size;
+}
+
+@container (max-width: 720px) {
+  .video-description-textarea {
+    height: 18rem;
+  }
+
+  .video-preview-card {
+    flex: 0 0 auto;
+  }
+
+  .video-preview-body {
+    aspect-ratio: 16 / 9;
+    flex: 0 0 auto;
+  }
+}
+
+@container (max-width: 560px) {
+  .video-description-textarea {
+    height: 22rem;
+  }
+}
