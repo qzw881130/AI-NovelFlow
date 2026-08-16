@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { X } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 
@@ -120,10 +121,41 @@ export function ImagePreviewModal({
 }: ImagePreviewModalProps) {
   const { t } = useTranslation();
 
-  if (!isOpen || !previewImageUrl) return null;
-
   // 计算有图片的分镜数量
-  const imagesWithShots = parsedDataShots?.filter((_shot: any, idx: number) => shotImages[idx + 1] || parsedDataShots?.[idx]?.image_url).length || 0;
+  const imagesWithShots = parsedDataShots?.filter((shot: any, idx: number) => (
+    shotImages[shot.id] || shotImages[idx + 1] || shot.imageUrl || shot.image_url
+  )).length || 0;
+  const canNavigate = imagesWithShots > 1;
+  const previewShot = parsedDataShots?.find((shot: any, idx: number) => {
+    const shotNum = idx + 1;
+    const imageUrl = shotImages[shot.id] || shotImages[shotNum] || shot.imageUrl || shot.image_url;
+    return imageUrl === previewImageUrl;
+  });
+  const previewShotNumber = previewShot?.index || (previewImageIndex >= 0 ? previewImageIndex + 1 : currentShot);
+  const previewShotDescription = previewShot?.description || '';
+
+  useEffect(() => {
+    if (!isOpen || !canNavigate) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        onNavigate('prev');
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        onNavigate('next');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, canNavigate, onNavigate]);
+
+  if (!isOpen || !previewImageUrl) return null;
 
   return (
     <div
@@ -132,10 +164,12 @@ export function ImagePreviewModal({
     >
       <div className="relative max-w-5xl max-h-[90vh] w-full flex items-center" onClick={e => e.stopPropagation()}>
         {/* 左导航按钮 */}
-        {imagesWithShots > 1 && (
+        {canNavigate && (
           <button
             onClick={(e) => { e.stopPropagation(); onNavigate('prev'); }}
-            className="absolute -left-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all z-10"
+            className="fixed left-6 top-1/2 -translate-y-1/2 p-3 text-white bg-black/30 hover:bg-white/15 hover:text-gray-100 rounded-full transition-all z-10"
+            title="上一个分镜图 (←)"
+            aria-label="上一个分镜图"
           >
             <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -159,12 +193,21 @@ export function ImagePreviewModal({
             className="max-w-full max-h-[75vh] object-contain rounded-lg mx-auto"
           />
 
+          <div className="mt-3 mx-auto w-full max-w-5xl rounded-lg bg-black/45 text-white px-4 py-3 backdrop-blur-sm">
+            <div className="text-sm font-semibold mb-1">#{previewShotNumber}</div>
+            {previewShotDescription && (
+              <div className="text-sm text-gray-200 leading-relaxed max-h-24 overflow-y-auto whitespace-pre-wrap">
+                {previewShotDescription}
+              </div>
+            )}
+          </div>
+
           {/* 下载按钮 */}
-          <div className="mt-4 flex justify-center">
+          <div className="mt-4 flex flex-col items-center gap-3">
             <button
               onClick={() => {
                 const link = document.createElement('a');
-                link.download = `${t('chapterGenerate.shot')}_${currentShot}.png`;
+                link.download = `${t('chapterGenerate.shot')}_${previewShotNumber}.png`;
                 link.href = previewImageUrl;
                 link.click();
               }}
@@ -175,14 +218,21 @@ export function ImagePreviewModal({
               </svg>
               {t('chapterGenerate.downloadImage')}
             </button>
+            {canNavigate && (
+              <div className="text-xs text-gray-300 bg-black/30 rounded-full px-3 py-1">
+                ← 上一个分镜图 · 下一个分镜图 →
+              </div>
+            )}
           </div>
         </div>
 
         {/* 右导航按钮 */}
-        {imagesWithShots > 1 && (
+        {canNavigate && (
           <button
             onClick={(e) => { e.stopPropagation(); onNavigate('next'); }}
-            className="absolute -right-16 top-1/2 -translate-y-1/2 p-3 text-white hover:text-gray-300 hover:bg-white/10 rounded-full transition-all z-10"
+            className="fixed right-6 top-1/2 -translate-y-1/2 p-3 text-white bg-black/30 hover:bg-white/15 hover:text-gray-100 rounded-full transition-all z-10"
+            title="下一个分镜图 (→)"
+            aria-label="下一个分镜图"
           >
             <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

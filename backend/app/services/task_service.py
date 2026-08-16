@@ -96,6 +96,12 @@ class TaskService:
         if missing_fields:
             return False, f"工作流 '{workflow.name}' 的映射配置不完整，缺少以下必需字段：{', '.join(missing_fields)}。请在【系统配置-ComfyUI工作流】中配置完整后再试。"
 
+        if task_type == "video":
+            has_max_side = bool(node_mapping.get("max_side_node_id"))
+            has_megapixels = bool(node_mapping.get("megapixels_node_id"))
+            if has_max_side == has_megapixels:
+                return False, f"工作流 '{workflow.name}' 的映射配置不完整，最长边节点和 Megapixels 必须且只能配置其中一个。"
+
         return True, ""
     
     # ==================== 任务创建 ====================

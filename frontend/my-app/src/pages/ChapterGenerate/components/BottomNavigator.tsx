@@ -65,6 +65,7 @@ export function BottomNavigator({
   const previousShot = useChapterGenerateStore((state) => state.previousShot);
   const nextShot = useChapterGenerateStore((state) => state.nextShot);
   const setShowImagePreview = useChapterGenerateStore((state) => state.setShowImagePreview);
+  const showImagePreview = useChapterGenerateStore((state) => state.showImagePreview);
 
   const handleToggleCollapsed = () => {
     const newCollapsed = !collapsed;
@@ -88,6 +89,9 @@ export function BottomNavigator({
   // 键盘导航
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (showImagePreview) {
+        return;
+      }
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
@@ -103,7 +107,7 @@ export function BottomNavigator({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [shots.length, previousShot, nextShot]);
+  }, [shots.length, previousShot, nextShot, showImagePreview]);
 
   // 滚动到当前分镜
   useEffect(() => {

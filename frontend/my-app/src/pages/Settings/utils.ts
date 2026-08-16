@@ -173,13 +173,16 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
       return hasBasicFields && (hasDualReference || hasCustomReference);
     case 'video':
       const videoMapping = mapping as any;
+      const hasMaxSide = videoMapping.max_side_node_id && videoMapping.max_side_node_id !== 'auto';
+      const hasMegapixels = videoMapping.megapixels_node_id && videoMapping.megapixels_node_id !== 'auto';
       return !!(
         mapping.prompt_node_id &&
         mapping.prompt_node_id !== 'auto' &&
         videoMapping.video_save_node_id &&
         videoMapping.video_save_node_id !== 'auto' &&
         videoMapping.reference_image_node_id &&
-        videoMapping.reference_image_node_id !== 'auto'
+        videoMapping.reference_image_node_id !== 'auto' &&
+        hasMaxSide !== hasMegapixels
       );
     case 'transition':
       const transitionMapping = mapping as any;

@@ -13,6 +13,7 @@ import { api } from '../../api';
 import { ImagePreviewModal, PropCard } from './components';
 import { ALLOWED_IMAGE_TYPES, POLL_CONFIG, ASPECT_RATIO_CLASSES } from './constants';
 import type { PreviewImageState, DeleteAllConfirmDialog, PropPrompt } from './types';
+import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
 
 export default function Props() {
   const { t } = useTranslation();
@@ -21,9 +22,9 @@ export default function Props() {
   const [novels, setNovels] = useState<Novel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const novelIdFromUrl = searchParams.get('novel') || '';
+  const novelIdFromUrl = searchParams.get('novel') || searchParams.get('novel_id') || '';
   const highlightId = searchParams.get('highlight');
-  const [selectedNovel, setSelectedNovel] = useState<string>(novelIdFromUrl);
+  const [selectedNovel, setSelectedNovel] = useState<string>(novelIdFromUrl || getLastSelectedNovelId());
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProp, setEditingProp] = useState<Prop | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
@@ -45,6 +46,15 @@ export default function Props() {
     appearance: '',
     novelId: '',
   });
+
+  const syncSelectedNovel = (novelId: string, replace = false) => {
+    if (!novelId) return;
+    setLastSelectedNovelId(novelId);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('novel', novelId);
+    nextParams.delete('novel_id');
+    setSearchParams(nextParams, { replace });
+  };
 
   useEffect(() => {
     fetchProps();
@@ -131,10 +141,16 @@ export default function Props() {
         const novelsList = data.data || [];
         setNovels(novelsList);
 
-        if (!selectedNovel && novelsList.length > 0) {
-          const firstNovelId = novelsList[0].id;
-          setSelectedNovel(firstNovelId);
-          setSearchParams({ novel: firstNovelId });
+        if (novelsList.length > 0) {
+          const selectedExists = novelsList.some(novel => novel.id === selectedNovel);
+          const savedNovelId = getLastSelectedNovelId();
+          const savedExists = novelsList.some(novel => novel.id === savedNovelId);
+          const nextNovelId = selectedExists ? selectedNovel : savedExists ? savedNovelId : novelsList[0].id;
+
+          if (nextNovelId !== selectedNovel) {
+            setSelectedNovel(nextNovelId);
+          }
+          syncSelectedNovel(nextNovelId, true);
         }
       }
     } catch (error) {
@@ -524,8 +540,9 @@ export default function Props() {
         <select
           value={selectedNovel}
           onChange={(e) => {
-            setSelectedNovel(e.target.value);
-            setSearchParams({ novel: e.target.value });
+            const novelId = e.target.value;
+            setSelectedNovel(novelId);
+            syncSelectedNovel(novelId);
           }}
           className="input-field flex-1"
         >

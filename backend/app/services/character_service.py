@@ -432,7 +432,8 @@ class CharacterService:
                 character_name=name,
                 aspect_ratio=novel.aspect_ratio if novel else None,
                 node_mapping=node_mapping,
-                style=style
+                style=style,
+                character_appearance=appearance
             )
 
             # 保存构建后的完整工作流到任务，让用户可以立即查看

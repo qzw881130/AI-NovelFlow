@@ -84,11 +84,14 @@ class NovelService:
             # 创建角色记录
             created_characters = []
             updated_characters = []
-            
+            deleted_count = 0
+            parsed_names = set()
+
             for char_data in characters_data:
                 name = char_data.get("name", "").strip()
                 if not name:
                     continue
+                parsed_names.add(name)
                 
                 # 检查是否已存在
                 existing = character_repo.get_by_name(novel_id, name)
@@ -133,7 +136,19 @@ class NovelService:
                     )
                     self.db.add(character)
                     created_characters.append(character)
-            
+
+            # 全书非增量解析应以本次 LLM 返回结果为准，删除未再出现的旧角色。
+            # 章节范围解析不删除，避免误删范围外章节的角色；旁白角色始终保留。
+            should_delete_missing = not is_incremental and start_chapter is None and end_chapter is None
+            if should_delete_missing:
+                existing_characters = character_repo.list_by_novel(novel_id)
+                for character in existing_characters:
+                    if character.is_narrator:
+                        continue
+                    if character.name not in parsed_names:
+                        self.db.delete(character)
+                        deleted_count += 1
+
             self.db.commit()
             
             # 刷新对象以获取 ID
@@ -146,6 +161,8 @@ class NovelService:
                 message_parts.append(f"新增 {len(created_characters)} 个角色")
             if updated_characters:
                 message_parts.append(f"更新 {len(updated_characters)} 个角色")
+            if deleted_count:
+                message_parts.append(f"删除 {deleted_count} 个旧角色")
 
             # 自动创建旁白角色
             from app.repositories import CharacterRepository
@@ -176,6 +193,7 @@ class NovelService:
                 "statistics": {
                     "created": len(created_characters),
                     "updated": len(updated_characters),
+                    "deleted": deleted_count,
                     "total": len(created_characters) + len(updated_characters)
                 }
             }

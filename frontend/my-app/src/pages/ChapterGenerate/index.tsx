@@ -137,16 +137,19 @@ export default function ChapterGenerate() {
   const navigateImagePreview = (direction: 'prev' | 'next') => {
     const allImages = shots?.map((shot, idx: number) => {
       const shotNum = idx + 1;
-      return shotImages[shot.id] || shot.imageUrl;
+      return shotImages[shot.id] || shotImages[shotNum] || shot.imageUrl || (shot as any).image_url;
     }).filter(Boolean) as string[] || [];
 
     if (allImages.length <= 1) return;
 
+    const currentIndex = previewImageUrl ? allImages.indexOf(previewImageUrl) : -1;
+    const safeIndex = currentIndex >= 0 ? currentIndex : Math.min(previewImageIndex, allImages.length - 1);
+
     let newIndex: number;
     if (direction === 'prev') {
-      newIndex = previewImageIndex === 0 ? allImages.length - 1 : previewImageIndex - 1;
+      newIndex = safeIndex === 0 ? allImages.length - 1 : safeIndex - 1;
     } else {
-      newIndex = previewImageIndex === allImages.length - 1 ? 0 : previewImageIndex + 1;
+      newIndex = safeIndex === allImages.length - 1 ? 0 : safeIndex + 1;
     }
 
     setShowImagePreview(true, allImages[newIndex] || null, newIndex);
@@ -155,7 +158,8 @@ export default function ChapterGenerate() {
   // 打开图片预览
   const onImageClick = (url: string) => {
     const allImages = shots?.map((shot, idx: number) => {
-      return shotImages[shot.id] || shot.imageUrl;
+      const shotNum = idx + 1;
+      return shotImages[shot.id] || shotImages[shotNum] || shot.imageUrl || (shot as any).image_url;
     }).filter(Boolean) as string[] || [];
 
     // 同时检查资源和分镜图片

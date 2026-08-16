@@ -11,6 +11,8 @@ interface MappingForm {
   heightNodeId: string;
   videoSaveNodeId: string;
   maxSideNodeId: string;
+  megapixelsNodeId: string;
+  megapixelsValue: string;
   referenceImageNodeId: string;
   frameCountNodeId: string;
   firstImageNodeId: string;
@@ -38,6 +40,23 @@ interface MappingModalProps {
   onSuccess: () => void;
 }
 
+const MEGAPIXEL_OPTIONS = [
+  { value: '0.2', output: '608x352' },
+  { value: '0.3', output: '736x416' },
+  { value: '0.4', output: '864x480' },
+  { value: '0.5', output: '960x544' },
+  { value: '0.6', output: '1056x608' },
+  { value: '0.7', output: '1152x640' },
+  { value: '0.8', output: '1216x672' },
+  { value: '0.9', output: '1280x736' },
+  { value: '0.98', output: '1344x768' },
+  { value: '1.0', output: '1376x768' },
+  { value: '1.2', output: '1504x832' },
+  { value: '1.5', output: '1664x928' },
+  { value: '1.8', output: '1824x1024' },
+  { value: '2.0', output: '1920x1088' },
+];
+
 export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps) {
   const { t } = useTranslation();
   const [mappingForm, setMappingForm] = useState<MappingForm>({
@@ -47,6 +66,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     heightNodeId: '',
     videoSaveNodeId: '',
     maxSideNodeId: '',
+    megapixelsNodeId: '',
+    megapixelsValue: '0.4',
     referenceImageNodeId: '',
     frameCountNodeId: '',
     firstImageNodeId: '',
@@ -67,6 +88,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     clipTextEncode: [],
     saveImage: [],
     easyInt: [],
+    easyFloat: [],
     crPromptText: [],
     vhsVideoCombine: [],
     saveVideo: [],
@@ -104,6 +126,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
             const clipTextEncode: string[] = [];
             const saveImage: string[] = [];
             const easyInt: string[] = [];
+            const easyFloat: string[] = [];
             const crPromptText: string[] = [];
             const vhsVideoCombine: string[] = [];
             const saveVideo: string[] = [];
@@ -119,12 +142,14 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 const classType = (node as any).class_type || '';
                 const metaTitle = (node as any)._meta?.title || '';
 
-                if (classType === 'CLIPTextEncode' || classType === 'CR Text') {
+                if (classType === 'CLIPTextEncode' || classType === 'CR Text' || isStringValueNode(classType, metaTitle, (node as any).inputs)) {
                   clipTextEncode.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'SaveImage') {
                   saveImage.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'easy int' || classType === 'JWInteger' || classType === 'INTConstant') {
                   easyInt.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (isFloatValueNode(classType, metaTitle, (node as any).inputs)) {
+                  easyFloat.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'CR Prompt Text') {
                   crPromptText.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'VHS_VideoCombine') {
@@ -147,7 +172,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               }
             }
 
-            setAvailableNodes({ clipTextEncode, saveImage, easyInt, crPromptText, vhsVideoCombine, saveVideo, loadImage, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
+            setAvailableNodes({ clipTextEncode, saveImage, easyInt, easyFloat, crPromptText, vhsVideoCombine, saveVideo, loadImage, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
             
             // 提取自定义参考图节点
             const customReferenceImageNodes: string[] = [];
@@ -173,6 +198,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 heightNodeId: '',
                 videoSaveNodeId: mapping.video_save_node_id || '',
                 maxSideNodeId: mapping.max_side_node_id || '',
+                megapixelsNodeId: mapping.megapixels_node_id || '',
+                megapixelsValue: mapping.megapixels_value || '0.4',
                 referenceImageNodeId: mapping.reference_image_node_id || '',
                 frameCountNodeId: mapping.frame_count_node_id || '',
                 firstImageNodeId: '',
@@ -197,6 +224,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 heightNodeId: '',
                 videoSaveNodeId: mapping.video_save_node_id || '',
                 maxSideNodeId: '',
+                megapixelsNodeId: '',
+                megapixelsValue: '0.4',
                 referenceImageNodeId: '',
                 frameCountNodeId: mapping.frame_count_node_id || '',
                 firstImageNodeId: mapping.first_image_node_id || '',
@@ -221,6 +250,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 heightNodeId: mapping.height_node_id || '',
                 videoSaveNodeId: '',
                 maxSideNodeId: '',
+                megapixelsNodeId: '',
+                megapixelsValue: '0.4',
                 referenceImageNodeId: mapping.reference_image_node_id || '',
                 frameCountNodeId: '',
                 firstImageNodeId: '',
@@ -245,6 +276,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 heightNodeId: '',
                 videoSaveNodeId: '',
                 maxSideNodeId: '',
+                megapixelsNodeId: '',
+                megapixelsValue: '0.4',
                 referenceImageNodeId: '',
                 frameCountNodeId: '',
                 firstImageNodeId: '',
@@ -269,6 +302,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 heightNodeId: '',
                 videoSaveNodeId: '',
                 maxSideNodeId: '',
+                megapixelsNodeId: '',
+                megapixelsValue: '0.4',
                 referenceImageNodeId: '',
                 frameCountNodeId: '',
                 firstImageNodeId: '',
@@ -294,6 +329,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 heightNodeId: '',
                 videoSaveNodeId: '',
                 maxSideNodeId: '',
+                megapixelsNodeId: '',
+                megapixelsValue: '0.4',
                 referenceImageNodeId: mapping.reference_image_node_id || '',
                 frameCountNodeId: '',
                 firstImageNodeId: '',
@@ -318,6 +355,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 heightNodeId: '',
                 videoSaveNodeId: '',
                 maxSideNodeId: '',
+                megapixelsNodeId: '',
+                megapixelsValue: '0.4',
                 referenceImageNodeId: '',
                 frameCountNodeId: '',
                 firstImageNodeId: '',
@@ -355,10 +394,20 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
       let nodeMapping: Record<string, string | null> = {};
       
       if (workflow.type === 'video') {
+        const hasMaxSide = Boolean(mappingForm.maxSideNodeId);
+        const hasMegapixels = Boolean(mappingForm.megapixelsNodeId);
+        if (hasMaxSide === hasMegapixels) {
+          toast.error('最长边节点和 Megapixels 必须且只能配置其中一个');
+          setSavingMapping(false);
+          return;
+        }
+
         nodeMapping = {
           prompt_node_id: mappingForm.promptNodeId || null,
           video_save_node_id: mappingForm.videoSaveNodeId || null,
           max_side_node_id: mappingForm.maxSideNodeId || null,
+          megapixels_node_id: mappingForm.megapixelsNodeId || null,
+          megapixels_value: mappingForm.megapixelsNodeId ? mappingForm.megapixelsValue : null,
           reference_image_node_id: mappingForm.referenceImageNodeId || null,
           frame_count_node_id: mappingForm.frameCountNodeId || null,
           reference_audio_node_id: mappingForm.referenceAudioNodeId || null,
@@ -437,6 +486,25 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
 
   const handleNodeSelect = (value: string, field: keyof MappingForm) => {
     setMappingForm({ ...mappingForm, [field]: value });
+    if (value) setSelectedNodeId(value);
+  };
+
+  const handleMaxSideNodeSelect = (value: string) => {
+    setMappingForm({
+      ...mappingForm,
+      maxSideNodeId: value,
+      megapixelsNodeId: value ? '' : mappingForm.megapixelsNodeId
+    });
+    if (value) setSelectedNodeId(value);
+  };
+
+  const handleMegapixelsNodeSelect = (value: string) => {
+    setMappingForm({
+      ...mappingForm,
+      megapixelsNodeId: value,
+      maxSideNodeId: value ? '' : mappingForm.maxSideNodeId,
+      megapixelsValue: mappingForm.megapixelsValue || '0.4'
+    });
     if (value) setSelectedNodeId(value);
   };
 
@@ -674,10 +742,41 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     nodeTypeHint="easy int, JWInteger, INTConstant"
                     value={mappingForm.maxSideNodeId}
                     options={availableNodes.easyInt}
-                    onChange={(v) => handleNodeSelect(v, 'maxSideNodeId')}
+                    onChange={handleMaxSideNodeSelect}
                     onFocus={handleNodeFocus}
                     t={t}
                   />
+                  <div>
+                    <NodeSelectField
+                      label="Megapixels 节点"
+                      nodeTypeHint="Float, easy float, JWFloat, FloatConstant"
+                      value={mappingForm.megapixelsNodeId}
+                      options={availableNodes.easyFloat}
+                      onChange={handleMegapixelsNodeSelect}
+                      onFocus={handleNodeFocus}
+                      t={t}
+                    />
+                    {mappingForm.megapixelsNodeId && (
+                      <div className="mt-2 grid grid-cols-[1fr_auto] gap-3 items-end">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Megapixels</label>
+                          <select
+                            value={mappingForm.megapixelsValue}
+                            onChange={(e) => setMappingForm({ ...mappingForm, megapixelsValue: e.target.value })}
+                            className="input-field"
+                          >
+                            {MEGAPIXEL_OPTIONS.map(option => (
+                              <option key={option.value} value={option.value}>{option.value}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="text-sm text-gray-600 pb-2 whitespace-nowrap">
+                          output: {MEGAPIXEL_OPTIONS.find(option => option.value === mappingForm.megapixelsValue)?.output || '864x480'}
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-xs text-amber-600 mt-1">最长边节点和 Megapixels 只能配置其中一个，且必须配置一个。</p>
+                  </div>
                   <NodeSelectField
                     label={t('systemSettings.workflow.referenceImageNode')}
                     nodeTypeHint="LoadImage"
@@ -698,9 +797,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.durationSecondsNode')}
-                    nodeTypeHint="easy int, JWInteger, INTConstant"
+                    nodeTypeHint="easy int, JWInteger, INTConstant, Float, easy float"
                     value={mappingForm.durationSecondsNodeId}
-                    options={availableNodes.easyInt}
+                    options={[...availableNodes.easyInt, ...availableNodes.easyFloat]}
                     onChange={(v) => handleNodeSelect(v, 'durationSecondsNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}
@@ -954,5 +1053,30 @@ function NodeSelectField({ label, nodeTypeHint, value, options, onChange, onFocu
         ))}
       </select>
     </div>
+  );
+}
+
+function isFloatValueNode(classType: string, metaTitle: string, inputs: Record<string, any> = {}) {
+  const classTypeLower = classType.toLowerCase();
+  const titleLower = metaTitle.toLowerCase();
+  const value = inputs?.value;
+  const hasWritableValue = Object.prototype.hasOwnProperty.call(inputs || {}, 'value') && !Array.isArray(value);
+
+  return (
+    (hasWritableValue && classTypeLower.includes('float')) ||
+    titleLower.includes('megapixels') ||
+    titleLower.includes('duration')
+  );
+}
+
+function isStringValueNode(classType: string, metaTitle: string, inputs: Record<string, any> = {}) {
+  const classTypeLower = classType.toLowerCase();
+  const titleLower = metaTitle.toLowerCase();
+  const value = inputs?.value;
+  const hasWritableValue = Object.prototype.hasOwnProperty.call(inputs || {}, 'value') && typeof value === 'string';
+
+  return (
+    hasWritableValue &&
+    (classTypeLower.includes('string') || classTypeLower === 'string' || titleLower.includes('prompt') || titleLower.includes('input text'))
   );
 }

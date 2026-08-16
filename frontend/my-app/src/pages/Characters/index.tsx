@@ -13,6 +13,7 @@ import { api } from '../../api';
 import { ImagePreviewModal, CharacterCard } from './components';
 import { ASPECT_RATIO_CLASSES, ALLOWED_IMAGE_TYPES, ALLOWED_AUDIO_TYPES, MAX_AUDIO_SIZE, POLL_CONFIG } from './constants';
 import type { CharacterPrompt, PreviewImageState, DeleteAllConfirmDialog } from './types';
+import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
 
 export default function Characters() {
   const { t } = useTranslation();
@@ -23,7 +24,7 @@ export default function Characters() {
   const [searchQuery, setSearchQuery] = useState('');
   const novelIdFromUrl = searchParams.get('novel') || searchParams.get('novel_id') || '';
   const highlightId = searchParams.get('highlight');
-  const [selectedNovel, setSelectedNovel] = useState<string>(novelIdFromUrl);
+  const [selectedNovel, setSelectedNovel] = useState<string>(novelIdFromUrl || getLastSelectedNovelId());
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
@@ -49,6 +50,15 @@ export default function Characters() {
     appearance: '',
     novelId: '',
   });
+
+  const syncSelectedNovel = (novelId: string, replace = false) => {
+    if (!novelId) return;
+    setLastSelectedNovelId(novelId);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('novel', novelId);
+    nextParams.delete('novel_id');
+    setSearchParams(nextParams, { replace });
+  };
 
   // 加载角色和小说数据
   useEffect(() => {
@@ -116,11 +126,17 @@ export default function Characters() {
       if (data.success) {
         const novelsList = data.data || [];
         setNovels(novelsList);
-        
-        if (!selectedNovel && novelsList.length > 0) {
-          const firstNovelId = novelsList[0].id;
-          setSelectedNovel(firstNovelId);
-          setSearchParams({ novel: firstNovelId });
+
+        if (novelsList.length > 0) {
+          const selectedExists = novelsList.some(novel => novel.id === selectedNovel);
+          const savedNovelId = getLastSelectedNovelId();
+          const savedExists = novelsList.some(novel => novel.id === savedNovelId);
+          const nextNovelId = selectedExists ? selectedNovel : savedExists ? savedNovelId : novelsList[0].id;
+
+          if (nextNovelId !== selectedNovel) {
+            setSelectedNovel(nextNovelId);
+          }
+          syncSelectedNovel(nextNovelId, true);
         }
       }
     } catch (error) {
@@ -620,8 +636,9 @@ export default function Characters() {
         <select
           value={selectedNovel}
           onChange={(e) => {
-            setSelectedNovel(e.target.value);
-            setSearchParams({ novel: e.target.value });
+            const novelId = e.target.value;
+            setSelectedNovel(novelId);
+            syncSelectedNovel(novelId);
           }}
           className="input-field flex-1"
         >

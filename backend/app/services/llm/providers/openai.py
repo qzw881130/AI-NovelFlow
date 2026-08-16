@@ -6,6 +6,7 @@ OpenAI 兼容的 LLM 提供商
 import httpx
 import os
 import time
+import json
 from typing import Dict, Any, Optional
 from ..base import BaseLLMProvider, LLMConfig, LLMResponse, save_llm_log
 
@@ -64,6 +65,8 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             # 某些模型可能返回空的 content 但有 reasoning
             if not content and "reasoning" in message:
                 content = message["reasoning"]
+            if not content and "reasoning_content" in message:
+                content = message["reasoning_content"]
             return content
         return response_data.get("content", "")
 
@@ -146,6 +149,33 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             if response.status_code == 200:
                 data = response.json()
                 content = self._parse_response(data)
+
+                if not content:
+                    raw_response = json.dumps(data, ensure_ascii=False)
+                    error_msg = "API 返回成功状态，但响应内容为空"
+
+                    save_llm_log(
+                        provider=self.config.provider,
+                        model=self.config.model,
+                        system_prompt=system_prompt,
+                        user_prompt=user_content,
+                        response=raw_response,
+                        status="error",
+                        error_message=error_msg,
+                        task_type=task_type,
+                        novel_id=novel_id,
+                        chapter_id=chapter_id,
+                        character_id=character_id,
+                        used_proxy=used_proxy,
+                        duration=duration
+                    )
+
+                    return LLMResponse(
+                        success=False,
+                        error=error_msg,
+                        raw_response=data,
+                        duration=duration
+                    )
 
                 save_llm_log(
                     provider=self.config.provider,

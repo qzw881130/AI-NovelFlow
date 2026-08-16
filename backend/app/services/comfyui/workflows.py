@@ -37,6 +37,7 @@ class WorkflowBuilder:
         aspect_ratio: str = None,
         node_mapping: Dict[str, str] = None,
         style: str = "anime style, high quality, detailed",
+        character_appearance: str = None,
         **kwargs
     ) -> Dict[str, Any]:
         """构建角色人设图工作流"""
@@ -44,7 +45,7 @@ class WorkflowBuilder:
             workflow = json.loads(workflow_json)
             return self.inject_prompt(
                 workflow, prompt, novel_id, character_name,
-                aspect_ratio, node_mapping, style
+                aspect_ratio, node_mapping, style, character_appearance
             )
         else:
             width, height = self.get_aspect_ratio_dimensions(aspect_ratio)
@@ -196,6 +197,8 @@ class WorkflowBuilder:
         # 获取节点映射
         prompt_node_id = node_mapping.get("prompt_node_id")
         max_side_node_id = node_mapping.get("max_side_node_id", "36")
+        megapixels_node_id = node_mapping.get("megapixels_node_id", "")
+        megapixels_value = node_mapping.get("megapixels_value", 0.4)
         frame_count_node_id = node_mapping.get("frame_count_node_id", "35")
         duration_seconds_node_id = node_mapping.get("duration_seconds_node_id", "")
 
@@ -203,8 +206,10 @@ class WorkflowBuilder:
         if prompt_node_id and prompt_node_id in workflow:
             self._set_prompt(workflow, prompt_node_id, prompt)
 
-        # 根据画面比例设置最长边
-        if max_side_node_id and max_side_node_id in workflow:
+        # 根据配置设置画面尺寸：Megapixels 优先，否则使用最长边
+        if megapixels_node_id and megapixels_node_id in workflow:
+            self._set_value(workflow, megapixels_node_id, float(megapixels_value))
+        elif max_side_node_id and max_side_node_id in workflow:
             max_side = self._get_max_side(aspect_ratio)
             self._set_value(workflow, max_side_node_id, max_side)
 
@@ -491,7 +496,8 @@ class WorkflowBuilder:
         character_name: str = None,
         aspect_ratio: str = None,
         node_mapping: Dict[str, str] = None,
-        style: str = "anime style, high quality, detailed"
+        style: str = "anime style, high quality, detailed",
+        character_appearance: str = None
     ) -> Dict[str, Any]:
         """将提示词注入到工作流中"""
         # 检测工作流格式
@@ -516,6 +522,7 @@ class WorkflowBuilder:
         
         # 获取节点映射
         prompt_node_id = str(node_mapping.get("prompt_node_id", "")) if node_mapping else ""
+        appearance_node_id = str(node_mapping.get("appearance_node_id", "")) if node_mapping else ""
         save_image_node_id = str(node_mapping.get("save_image_node_id", "")) if node_mapping else ""
         
         # 遍历所有节点进行修改
@@ -547,17 +554,28 @@ class WorkflowBuilder:
             
             # 注入提示词
             node_id_str = str(node_id)
-            if "text" in inputs:
-                current_text = inputs.get("text", "")
+            prompt_field = "text" if "text" in inputs else "prompt" if "prompt" in inputs else None
+            if prompt_field:
+                current_text = inputs.get(prompt_field, "")
                 if isinstance(current_text, str):
-                    if prompt_node_id and node_id_str == prompt_node_id:
-                        inputs["text"] = prompt
+                    if appearance_node_id and node_id_str == appearance_node_id:
+                        inputs[prompt_field] = self._apply_character_appearance_constraints(character_appearance or prompt)
+                        modified_count += 1
+                    elif prompt_node_id and node_id_str == prompt_node_id:
+                        prompt_value = character_appearance if character_appearance and self._is_character_appearance_node(node) else prompt
+                        if character_appearance and self._is_character_appearance_node(node):
+                            prompt_value = self._apply_character_appearance_constraints(prompt_value)
+                        if "##STYLE##" in current_text:
+                            inputs[prompt_field] = current_text.replace("##STYLE##", style or prompt_value)
+                            print(f"[Workflow] Replaced ##STYLE## in mapped prompt node {node_id_str}")
+                        else:
+                            inputs[prompt_field] = prompt_value
                         modified_count += 1
                     elif "{CHARACTER_PROMPT}" in current_text:
-                        inputs["text"] = prompt
+                        inputs[prompt_field] = prompt
                         modified_count += 1
                     elif current_text == "" or current_text == "prompt here":
-                        inputs["text"] = prompt
+                        inputs[prompt_field] = prompt
                         modified_count += 1
         
         # 回退：自动查找 CLIPTextEncode
@@ -586,6 +604,8 @@ class WorkflowBuilder:
         
         # 替换 ##STYLE## 占位符
         self._replace_style_placeholder(api_workflow, style)
+        if self._is_human_character_without_horns(character_appearance):
+            self._sanitize_human_character_workflow_prompts(api_workflow)
         
         return api_workflow
     
@@ -876,7 +896,55 @@ class WorkflowBuilder:
                 inputs["text"] = prompt
             elif "prompt" in inputs:
                 inputs["prompt"] = prompt
+            elif "value" in inputs and isinstance(inputs["value"], str):
+                inputs["value"] = prompt
             print(f"[ComfyUI] Set prompt to node {node_id} (type: {class_type})")
+
+    def _is_character_appearance_node(self, node: Dict[str, Any]) -> bool:
+        """判断节点是否用于接收角色外貌/人物形象描述。"""
+        title = str(node.get("_meta", {}).get("title", "")).lower()
+        return any(keyword in title for keyword in ["人物形象", "外貌", "appearance", "character appearance"])
+
+    def _apply_character_appearance_constraints(self, appearance: str) -> str:
+        """返回角色外貌描述。"""
+        return appearance
+
+    def _is_human_character_without_horns(self, appearance: str) -> bool:
+        """判断外貌描述是否是未明确长角的人类角色。"""
+        if not appearance:
+            return False
+        appearance_lower = appearance.lower()
+        horn_terms = ["兽角", "牛角", "羊角", "鹿角", "龙角", "恶魔角", "长角", "有角", "horn"]
+        if any(term in appearance_lower for term in horn_terms):
+            return False
+        non_human_terms = ["动物", "狼", "狗", "猫", "马", "牛", "羊", "鹿", "龙", "怪物", "兽人", "妖怪"]
+        if any(term in appearance_lower for term in non_human_terms):
+            return False
+        human_terms = ["人类", "女性", "男性", "女人", "男人", "女孩", "男孩", "母亲", "妈妈", "老人", "老年", "农妇", "村民"]
+        return any(term in appearance_lower for term in human_terms)
+
+    def _sanitize_human_character_workflow_prompts(self, workflow: Dict[str, Any]):
+        """净化人类角色的固定工作流提示词，避免正向模板诱导出非人类特征。"""
+        replacements = {
+            "后脑、头饰背面、后颈": "后脑、发型或头巾背面（仅当人物形象明确描述）、后颈",
+            "脸型、五官、肤色、发型、头饰、服装": "脸型、五官、肤色、发型、真实佩戴的头巾或发饰（仅当人物形象明确描述）、服装",
+            "例如脸型或头部轮廓、眼睛、眉毛、鼻子、嘴巴、口鼻部、耳朵、毛发、发型、头饰、角、触须、鳞片、羽毛以及其他实际存在的头部特征。": "例如脸型或头部轮廓、眼睛、眉毛、鼻子、嘴巴、耳朵、毛发、发型，以及人物形象中明确描述的头巾或发饰。",
+            "保持年龄、脸型、五官、肤色、发型、头饰、服装": "保持年龄、脸型、五官、肤色、发型、真实佩戴的头巾或发饰、服装",
+        }
+        for node_id, node in workflow.items():
+            if not isinstance(node, dict):
+                continue
+            inputs = node.get("inputs", {})
+            for key in ("text", "prompt"):
+                value = inputs.get(key)
+                if not isinstance(value, str):
+                    continue
+                updated = value
+                for old, new in replacements.items():
+                    updated = updated.replace(old, new)
+                if updated != value:
+                    print(f"[Workflow] Sanitized human character prompt in node {node_id}.{key}")
+                inputs[key] = updated
 
     def _set_value(self, workflow: Dict[str, Any], node_id: str, value: int | float):
         """设置数值节点的值

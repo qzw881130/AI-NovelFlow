@@ -19,6 +19,8 @@ export interface Workflow {
     height_node_id?: string;
     video_save_node_id?: string;
     max_side_node_id?: string;
+    megapixels_node_id?: string;
+    megapixels_value?: string;
     reference_image_node_id?: string;
     frame_count_node_id?: string;
     first_image_node_id?: string;
@@ -71,6 +73,8 @@ export interface MappingForm {
   heightNodeId: string;
   videoSaveNodeId: string;
   maxSideNodeId: string;
+  megapixelsNodeId: string;
+  megapixelsValue: string;
   referenceImageNodeId: string;
   frameCountNodeId: string;
   firstImageNodeId: string;
@@ -91,6 +95,7 @@ export interface AvailableNodes {
   clipTextEncode: string[];
   saveImage: string[];
   easyInt: string[];
+  easyFloat: string[];
   crPromptText: string[];
   vhsVideoCombine: string[];
   saveVideo: string[];
