@@ -190,6 +190,29 @@ class FileStorageService:
         except Exception as e:
             print(f"[FileStorage] Failed to download video: {e}")
             return None
+
+    def delete_shot_video(self, novel_id: str, chapter_id: str, shot_number: int) -> bool:
+        """删除指定分镜的旧视频文件"""
+        try:
+            story_dir = self._get_story_dir(novel_id)
+            chapter_short = chapter_id[:8] if chapter_id else "unknown"
+            videos_dir = story_dir / f"chapter_{chapter_short}" / "videos"
+
+            if not videos_dir.exists():
+                return True
+
+            old_files = list(videos_dir.glob(f"shot_{shot_number:03d}_*.mp4"))
+            for old_file in old_files:
+                try:
+                    old_file.unlink()
+                    print(f"[FileStorage] Deleted old shot video: {old_file}")
+                except Exception as e:
+                    print(f"[FileStorage] Failed to delete {old_file}: {e}")
+
+            return True
+        except Exception as e:
+            print(f"[FileStorage] Failed to delete shot video: {e}")
+            return False
     
     def get_character_image_path(self, novel_id: str, character_name: str) -> Path:
         """获取角色图片保存路径（用于生成前）"""

@@ -265,7 +265,13 @@ export const createGenerationSlice: StateCreator<
     if (!shot) return;
 
     set(state => ({
-      generatingVideos: new Set([...state.generatingVideos, shotId])
+      generatingVideos: new Set([...state.generatingVideos, shotId]),
+      shotVideos: Object.fromEntries(Object.entries(state.shotVideos).filter(([key]) => key !== shotId)),
+      shots: state.shots.map(s =>
+        s.id === shotId
+          ? { ...s, videoUrl: null, videoStatus: 'generating' as const, videoTaskId: null }
+          : s
+      )
     }));
 
     try {
@@ -274,7 +280,7 @@ export const createGenerationSlice: StateCreator<
       if (result.success) {
         const updatedShots = get().shots.map(s =>
           s.id === shotId
-            ? { ...s, videoStatus: 'generating' as const, videoTaskId: result.data?.taskId || null }
+            ? { ...s, videoUrl: null, videoStatus: 'generating' as const, videoTaskId: result.data?.taskId || null }
             : s
         );
         set({ shots: updatedShots });
@@ -818,6 +824,9 @@ export const createGenerationSlice: StateCreator<
                 newGeneratingVideos.delete(shot.id);
                 generatingVideosUpdated = true;
               }
+            } else if (isRunning && newShotVideos[shot.id]) {
+              delete newShotVideos[shot.id];
+              shotVideosUpdated = true;
             } else if (isFailed) {
               if (newGeneratingVideos.has(shot.id)) {
                 newGeneratingVideos.delete(shot.id);
@@ -828,7 +837,7 @@ export const createGenerationSlice: StateCreator<
             return {
               ...shot,
               videoStatus: task.status,
-              videoUrl: task.resultUrl || shot.videoUrl,
+              videoUrl: isCompleted && task.resultUrl ? task.resultUrl : (isRunning ? null : shot.videoUrl),
               videoTaskId: task.id || shot.videoTaskId,
             };
           }

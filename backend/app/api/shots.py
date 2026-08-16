@@ -240,12 +240,13 @@ async def generate_shot_video(
         )
         task_repo.delete(failed_task)
 
-    # 清除该分镜的旧视频记录（直接更新 Shot 表）
+    # 清除该分镜的旧视频文件和记录
     if shot.video_url:
-        print(
-            f"[GenerateVideo] Clearing old video record for shot {shot_id}: {shot.video_url}"
-        )
-        shot_repo.update_video_status(shot, "pending", video_url=None, task_id=None)
+        print(f"[GenerateVideo] Clearing old video record for shot {shot_id}: {shot.video_url}")
+    file_storage.delete_shot_video(novel_id, chapter_id, shot_index)
+    shot.video_url = None
+    shot.video_task_id = None
+    shot_repo.update_video_status(shot, "generating")
 
     # 获取视频生成工作流（优先使用指定的工作流，否则使用激活的工作流）
     if request.workflow_id:
@@ -280,7 +281,7 @@ async def generate_shot_video(
     print(f"[GenerateVideo] Created task {task.id} for shot {shot_id}")
     print(f"[GenerateVideo] use_keyframes={request.use_keyframes}, use_reference_audio={request.use_reference_audio}")
 
-    # 更新 Shot 表状态为 generating
+    # 更新 Shot 表任务 ID
     shot_repo.update_video_status(shot, "generating", task_id=task.id)
 
     # 启动后台任务
