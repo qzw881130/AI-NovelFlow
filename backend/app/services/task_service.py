@@ -4,7 +4,6 @@
 封装任务相关的业务逻辑和后台任务
 """
 import json
-import asyncio
 import re
 from datetime import datetime, timezone
 from typing import Dict, Any, Tuple
@@ -361,7 +360,7 @@ class TaskService:
                 )
                 restarted = True
         elif task.type == "shot_image" and task.novel_id and task.chapter_id and task.workflow_id:
-            from app.services.shot_image_service import generate_shot_image_task
+            from app.services.shot_image_service import enqueue_shot_image_task
 
             shot_repo = ShotRepository(db)
             shot = shot_repo.get_by_id(task.shot_id) if task.shot_id else None
@@ -385,15 +384,46 @@ class TaskService:
                 image_task_id=task.id,
             )
 
-            asyncio.create_task(
-                generate_shot_image_task(
-                    task.id,
-                    task.novel_id,
-                    task.chapter_id,
-                    shot.index,
-                    shot.description or "",
-                    task.workflow_id,
-                )
+            enqueue_shot_image_task(
+                task.id,
+                task.novel_id,
+                task.chapter_id,
+                shot.index,
+                shot.description or "",
+                task.workflow_id,
+            )
+            restarted = True
+        elif task.type == "shot_video" and task.novel_id and task.chapter_id and task.workflow_id:
+            from app.services.shot_video_service import enqueue_shot_video_task
+
+            shot_repo = ShotRepository(db)
+            shot = shot_repo.get_by_id(task.shot_id) if task.shot_id else None
+            if not shot:
+                match = re.search(r"镜\s*(\d+)", task.name or "")
+                if match:
+                    shot = shot_repo.get_by_chapter_and_index(task.chapter_id, int(match.group(1)))
+
+            if not shot:
+                task.status = "failed"
+                task.error_message = "重试失败：找不到关联分镜"
+                task.current_step = "重试失败"
+                db.commit()
+                return {"success": False, "message": task.error_message, "status_code": 400}
+
+            shot_repo.update(
+                shot,
+                video_url=None,
+                video_status="generating",
+                video_task_id=task.id,
+            )
+
+            enqueue_shot_video_task(
+                task.id,
+                task.novel_id,
+                task.chapter_id,
+                shot.index,
+                task.workflow_id,
+                shot.image_url or "",
             )
             restarted = True
 

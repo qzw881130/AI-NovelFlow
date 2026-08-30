@@ -6,6 +6,7 @@
 
 import json
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
@@ -20,12 +21,33 @@ from app.services.prompt_builder import get_style
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.image_utils import merge_character_images, merge_prop_images
 from app.repositories.shot_repository import ShotRepository
-from app.utils.workflow_disconnect import (
-    disconnect_reference_chain,
-    disconnect_unuploaded_reference_nodes,
-    disconnect_all_reference_nodes,
-    clear_unset_reference_nodes,
-)
+from app.services.background_workers import worker_manager
+
+
+PLACEHOLDER_PROMPT = """Reference images may include neutral blank placeholder images.
+Any blank placeholder image contains no visual reference information and must be ignored completely.
+Do not reproduce its blank background, color, composition, or any visual feature."""
+
+
+def enqueue_shot_image_task(
+    task_id: str,
+    novel_id: str,
+    chapter_id: str,
+    shot_index: int,
+    shot_description: str,
+    workflow_id: str,
+) -> None:
+    """Queue shot image generation in its dedicated serial worker."""
+    worker_manager.worker("shot_image").enqueue(
+        lambda: generate_shot_image_task(
+            task_id,
+            novel_id,
+            chapter_id,
+            shot_index,
+            shot_description,
+            workflow_id,
+        )
+    )
 
 
 async def generate_shot_image_task(
@@ -116,10 +138,6 @@ async def generate_shot_image_task(
         )
         print(f"[ShotTask {task_id}] Node mapping: {node_mapping}")
 
-        # 先保存提示词
-        task.prompt_text = shot_description
-        db.commit()
-
         # 获取风格提示词
         style, _ = get_style(db, novel, "character")
         print(f"[ShotTask {task_id}] Using style: {style}")
@@ -140,6 +158,16 @@ async def generate_shot_image_task(
         prop_reference_paths = await _process_prop_references(
             db, task, novel_id, chapter_id, shot_index, shot_props, task_id, shot_repo
         )
+
+        effective_prompt = _append_placeholder_prompt_notes(
+            shot_description,
+            character_reference_path is None and bool(node_mapping.get("character_reference_image_node_id")),
+            scene_reference_path is None and bool(node_mapping.get("scene_reference_image_node_id")),
+            prop_reference_paths is None and bool(node_mapping.get("custom_reference_image_node_1")),
+            bool(shot_props),
+        )
+        task.prompt_text = effective_prompt
+        db.commit()
 
         # ========== 查询角色/场景/道具的描述信息（用于占位符替换） ==========
         # 查询角色外貌描述
@@ -183,7 +211,7 @@ async def generate_shot_image_task(
         db.commit()
 
         submitted_workflow = comfyui_service.builder.build_shot_workflow(
-            prompt=shot_description,
+            prompt=effective_prompt,
             workflow_json=workflow.workflow_json,
             node_mapping=node_mapping,
             aspect_ratio=novel.aspect_ratio or "16:9",
@@ -217,7 +245,7 @@ async def generate_shot_image_task(
             print(f"[ShotTask {task_id}] Saved ComfyUI prompt_id: {prompt_id}")
 
         result = await comfyui_service.generate_shot_image_with_workflow(
-            prompt=shot_description,
+            prompt=effective_prompt,
             workflow_json=workflow.workflow_json,
             node_mapping=node_mapping,
             aspect_ratio=novel.aspect_ratio or "16:9",
@@ -269,6 +297,33 @@ async def generate_shot_image_task(
 
 
 # ==================== 辅助函数 ====================
+
+
+def _get_reference_placeholder_path() -> str:
+    return str(Path(__file__).resolve().parents[2] / "assets" / "reference_placeholder.png")
+
+
+def _append_placeholder_prompt_notes(
+    prompt: str,
+    missing_character_reference: bool,
+    missing_scene_reference: bool,
+    missing_prop_reference: bool,
+    has_props: bool,
+) -> str:
+    notes = []
+    if missing_character_reference:
+        notes.append("第一张角色参考图仅为空白占位图，不包含任何有效视觉信息，必须完全忽略第一张参考图。")
+    if missing_scene_reference:
+        notes.append("第二张场景参考图仅为空白占位图，不包含任何有效视觉信息，必须完全忽略第二张参考图。")
+    if missing_prop_reference:
+        if has_props:
+            notes.append("第三张道具参考图仅为空白占位图，表示当前道具暂无有效图片，必须完全忽略第三张参考图。")
+        else:
+            notes.append("当前镜头没有道具参考图。第三张参考图仅为空白占位图，不包含任何有效视觉信息，必须完全忽略第三张参考图。")
+
+    if not notes:
+        return prompt
+    return f"{prompt}\n\n{PLACEHOLDER_PROMPT}\n" + "\n".join(notes)
 
 
 async def _process_character_references(
@@ -510,23 +565,11 @@ async def _upload_references_and_update_workflow(
         task_id: 任务 ID
         prop_reference_paths: 道具参考图路径字典 {道具名称: 图片路径}
     """
-    # 收集所有需要上传的参考图
-    has_any_reference = (
-        character_reference_path or scene_reference_path or prop_reference_paths
-    )
-
-    if not has_any_reference:
-        # 没有任何参考图，断开所有参考图节点的下游连接
-        disconnect_all_reference_nodes(submitted_workflow, node_mapping)
-        task.workflow_json = json.dumps(
-            submitted_workflow, ensure_ascii=False, indent=2
-        )
-        db.commit()
-        return
-
     task.current_step = "上传参考图..."
     db.commit()
     print(f"[ShotTask {task_id}] Uploading reference images before submission")
+
+    placeholder_path = _get_reference_placeholder_path()
 
     reference_images = []
     if character_reference_path:
@@ -546,11 +589,12 @@ async def _upload_references_and_update_workflow(
     task.reference_images = json.dumps(reference_images, ensure_ascii=False) if reference_images else None
     db.commit()
 
-    # 上传角色参考图
+    # 上传角色参考图；缺失时用中性占位图，保持固定槽位。
     character_uploaded_filename = None
-    if character_reference_path:
+    character_upload_path = character_reference_path or (placeholder_path if node_mapping.get("character_reference_image_node_id") else None)
+    if character_upload_path:
         upload_result = await comfyui_service.client.upload_image(
-            character_reference_path
+            character_upload_path
         )
         if upload_result.get("success"):
             character_uploaded_filename = upload_result.get("filename")
@@ -562,10 +606,11 @@ async def _upload_references_and_update_workflow(
                 f"[ShotTask {task_id}] Failed to upload character image: {upload_result.get('message')}"
             )
 
-    # 上传场景参考图
+    # 上传场景参考图；缺失时用中性占位图，保持固定槽位。
     scene_uploaded_filename = None
-    if scene_reference_path:
-        upload_result = await comfyui_service.client.upload_image(scene_reference_path)
+    scene_upload_path = scene_reference_path or (placeholder_path if node_mapping.get("scene_reference_image_node_id") else None)
+    if scene_upload_path:
+        upload_result = await comfyui_service.client.upload_image(scene_upload_path)
         if upload_result.get("success"):
             scene_uploaded_filename = upload_result.get("filename")
             print(
@@ -591,6 +636,17 @@ async def _upload_references_and_update_workflow(
                     print(
                         f"[ShotTask {task_id}] Failed to upload prop '{prop_name}' image: {upload_result.get('message')}"
                     )
+    elif node_mapping.get("custom_reference_image_node_1"):
+        upload_result = await comfyui_service.client.upload_image(placeholder_path)
+        if upload_result.get("success"):
+            prop_uploaded_filenames["道具占位图"] = upload_result.get("filename")
+            print(
+                f"[ShotTask {task_id}] Prop placeholder uploaded successfully: {upload_result.get('filename')}"
+            )
+        else:
+            print(
+                f"[ShotTask {task_id}] Failed to upload prop placeholder: {upload_result.get('message')}"
+            )
 
     # 设置工作流节点中的图片
     character_node_id = node_mapping.get("character_reference_image_node_id")
@@ -648,18 +704,6 @@ async def _upload_references_and_update_workflow(
                         f"[ShotTask {task_id}] Warning: prop_reference_image_node_id '{node_id_str}' not found in workflow"
                     )
             index += 1
-
-    # 清空未设置参考图的节点（工作流中可能有默认图片，需要清除才能正确断开下游）
-    clear_unset_reference_nodes(
-        submitted_workflow,
-        node_mapping,
-        character_reference_path,
-        scene_reference_path,
-        prop_reference_paths,
-    )
-
-    # 检测并断开未上传图片的参考图节点的下游连接
-    disconnect_unuploaded_reference_nodes(submitted_workflow, node_mapping)
 
     task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
     db.commit()

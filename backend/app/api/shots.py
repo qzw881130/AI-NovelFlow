@@ -21,10 +21,10 @@ from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.novel_service import (
     NovelService,
-    generate_shot_task,
-    generate_shot_video_task,
     generate_transition_video_task,
 )
+from app.services.shot_image_service import enqueue_shot_image_task
+from app.services.shot_video_service import enqueue_shot_video_task
 from app.repositories.shot_repository import ShotRepository
 from app.services.task_service import TaskService
 from app.repositories import (
@@ -151,11 +151,14 @@ async def generate_shot_image(
 
     print(f"[GenerateShot] Created task {task.id} for shot {shot_id}")
 
-    # 启动后台任务
-    asyncio.create_task(
-        generate_shot_task(
-            task.id, novel_id, chapter_id, shot_index, shot_description, workflow.id
-        )
+    # 加入分镜图片专用 worker，避免批量生成时并发打 ComfyUI。
+    enqueue_shot_image_task(
+        task.id,
+        novel_id,
+        chapter_id,
+        shot_index,
+        shot_description,
+        workflow.id,
     )
 
     return {
@@ -288,13 +291,15 @@ async def generate_shot_video(
     # 更新 Shot 表任务 ID
     shot_repo.update_video_status(shot, "generating", task_id=task.id)
 
-    # 启动后台任务
-    asyncio.create_task(
-        generate_shot_video_task(
-            task.id, novel_id, chapter_id, shot_index, workflow.id, shot_image_url,
-            use_keyframes=request.use_keyframes,
-            use_reference_audio=request.use_reference_audio
-        )
+    enqueue_shot_video_task(
+        task.id,
+        novel_id,
+        chapter_id,
+        shot_index,
+        workflow.id,
+        shot_image_url,
+        use_keyframes=request.use_keyframes,
+        use_reference_audio=request.use_reference_audio,
     )
 
     return {

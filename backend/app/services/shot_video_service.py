@@ -14,6 +14,32 @@ from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.repositories.shot_repository import ShotRepository
+from app.services.background_workers import worker_manager
+
+
+def enqueue_shot_video_task(
+    task_id: str,
+    novel_id: str,
+    chapter_id: str,
+    shot_index: int,
+    workflow_id: str,
+    shot_image_url: str,
+    use_keyframes: bool = True,
+    use_reference_audio: bool = True,
+) -> None:
+    """Queue shot video generation in its dedicated serial worker."""
+    worker_manager.worker("shot_video").enqueue(
+        lambda: generate_shot_video_task(
+            task_id,
+            novel_id,
+            chapter_id,
+            shot_index,
+            workflow_id,
+            shot_image_url,
+            use_keyframes=use_keyframes,
+            use_reference_audio=use_reference_audio,
+        )
+    )
 
 
 async def generate_shot_video_task(
