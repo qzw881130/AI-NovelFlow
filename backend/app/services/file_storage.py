@@ -86,8 +86,14 @@ class FileStorageService:
             # 创建子目录
             if image_type == "character":
                 save_dir = story_dir / "characters"
+            elif image_type == "character_edit":
+                save_dir = story_dir / "characters" / "edits"
             elif image_type == "scene":
                 save_dir = story_dir / "scenes"
+            elif image_type == "scene_edit":
+                save_dir = story_dir / "scenes" / "edits"
+            elif image_type == "prop_edit":
+                save_dir = story_dir / "props" / "edits"
             elif image_type == "shot":
                 # 分镜图片保存到 chapter_{chapter_id}/shots/
                 chapter_short = chapter_id[:8] if chapter_id else "unknown"

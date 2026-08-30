@@ -55,3 +55,29 @@ async def test_configured_max_tokens_override_business_default(monkeypatch):
     await service.chat_completion("system", "user", max_tokens=15000)
 
     assert captured["max_tokens"] == 93216
+
+
+def test_openai_without_api_key_does_not_fallback_to_deepseek(monkeypatch):
+    from app.services.llm_service import LLMService
+
+    class Settings:
+        LLM_PROVIDER = "openai"
+        LLM_MODEL = "gpt-5.6-sol"
+        LLM_API_URL = "http://127.0.0.1:8088/v1"
+        LLM_API_KEY = ""
+        LLM_MAX_TOKENS = 193216
+        LLM_TEMPERATURE = "0.2"
+        LLM_TIMEOUT = 1800
+        PROXY_ENABLED = False
+        HTTP_PROXY = ""
+        HTTPS_PROXY = ""
+        DEEPSEEK_API_KEY = "legacy-key"
+        DEEPSEEK_API_URL = "https://api.deepseek.com"
+
+    monkeypatch.setattr("app.core.config.get_settings", lambda: Settings())
+
+    service = LLMService()
+
+    assert service.provider == "openai"
+    assert service.api_url == "http://127.0.0.1:8088/v1"
+    assert service.api_key == ""

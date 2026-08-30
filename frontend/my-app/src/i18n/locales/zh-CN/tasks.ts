@@ -42,6 +42,7 @@ export default {
     types: {
       characterPortrait: '人设生成',
       shotImage: '分镜图片',
+      singleImageEdit: '单图编辑',
       shotVideo: '分镜视频',
       chapterVideo: '章节视频',
       transitionVideo: '转场视频',
@@ -62,6 +63,7 @@ export default {
       'Flux2-Klein-9B 分镜生图': 'Flux2-Klein-9B 分镜生图',
       'Flux2-Klein-9B 分镜生图双图参考': 'Flux2-Klein-9B 分镜生图双图参考',
       'Flux2-Klein-9B 关键帧生图': 'Flux2-Klein-9B 关键帧生图',
+      'Flux2-Klein-9B 单图编辑': 'Flux2-Klein-9B 单图编辑',
       'LTX2 视频生成-直接版': 'LTX2 视频生成-直接版',
       'LTX2 视频生成-扩写版': 'LTX2 视频生成-扩写版',
       'LTX2 镜头转场视频': 'LTX2 镜头转场视频',
@@ -81,6 +83,7 @@ export default {
       'Flux2-Klein-9B 图像编辑工作流，仅支持角色参考图': 'Flux2-Klein-9B 图像编辑工作流，仅支持角色参考图',
       'Flux2-Klein-9B 双图参考工作流，支持角色参考图+场景参考图，保持场景一致性': 'Flux2-Klein-9B 双图参考工作流，支持角色参考图+场景参考图，保持场景一致性',
       'Flux2-Klein-9B 关键帧生图工作流，支持参考图': 'Flux2-Klein-9B 关键帧生图工作流，支持参考图',
+      'Flux2-Klein-9B 单图编辑工作流，支持 Load Image + 提示词 + Save Image': 'Flux2-Klein-9B 单图编辑工作流，支持 Load Image + 提示词 + Save Image',
       'LTX-2 图生视频，直接使用用户提示词': 'LTX-2 图生视频，直接使用用户提示词',
       'LTX-2 图生视频，使用 Qwen3 自动扩写提示词': 'LTX-2 图生视频，使用 Qwen3 自动扩写提示词',
       '适合：首尾帧是同一场景不同景别/角度': '适合：首尾帧是同一场景不同景别/角度',
@@ -91,6 +94,7 @@ export default {
     taskNames: {
       characterPortrait: '生成角色形象: {name}',
       shotImage: '生成分镜图片: {name}',
+      singleImageEdit: '编辑角色图片: {name}',
       shotVideo: '生成分镜视频: {name}',
       transitionVideo: '生成转场视频: {from} → {to}',
       chapterVideo: '生成章节视频: {name}',
@@ -99,6 +103,7 @@ export default {
     taskDescriptions: {
       characterPortrait: "为角色 '{name}' 生成人设图",
       shotImage: "为分镜 '{name}' 生成图片",
+      singleImageEdit: "为角色 '{name}' 编辑图片",
       shotVideo: "为分镜 '{name}' 生成视频",
       transitionVideo: "生成从分镜 {from} 到 {to} 的转场视频",
       chapterVideo: "为章节 '{name}' 生成视频",

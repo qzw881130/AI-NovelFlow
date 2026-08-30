@@ -158,6 +158,7 @@ export interface Character {
   novelId: string;
   novelName?: string;
   isNarrator?: boolean;
+  updatedAt?: string;
 }
 
 export interface Scene {
@@ -209,7 +210,7 @@ export interface Shot {
 
 export interface Task {
   id: string;
-  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'keyframe_image' | 'shot_video' | 'chapter_video' | 'transition_video' | 'prop_image';
+  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'chapter_video' | 'transition_video' | 'prop_image';
   name: string;
   description?: string;
   status: 'pending' | 'running' | 'completed' | 'failed';

@@ -24,6 +24,7 @@ const typeIcons = {
   voice_design: Mic,
   audio: Music,
   keyframe_image: Clapperboard,
+  single_image_edit: ImageIcon,
 };
 
 interface WorkflowManagerProps {
@@ -127,7 +128,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
     }
   };
 
-  const getWorkflowsByType = (type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio' | 'keyframe_image') => {
+  const getWorkflowsByType = (type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio' | 'keyframe_image' | 'single_image_edit') => {
     return workflows.filter(w => w.type === type);
   };
 
@@ -150,7 +151,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
       </div>
 
       {/* 按类型分组显示工作流 */}
-      {(['character', 'scene', 'prop', 'shot', 'keyframe_image', 'video', 'transition', 'voice_design', 'audio'] as const).map(type => {
+      {(['character', 'scene', 'prop', 'shot', 'keyframe_image', 'single_image_edit', 'video', 'transition', 'voice_design', 'audio'] as const).map(type => {
         const typeWorkflows = getWorkflowsByType(type);
         if (typeWorkflows.length === 0) return null;
         

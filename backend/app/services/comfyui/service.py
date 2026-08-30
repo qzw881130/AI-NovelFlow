@@ -108,6 +108,63 @@ class ComfyUIService:
             node_mapping=node_mapping,
             **kwargs
         )
+
+    async def edit_image_with_workflow(
+        self,
+        image_path: str,
+        prompt: str,
+        workflow_json: str,
+        node_mapping: Dict[str, str],
+        on_prompt_queued=None,
+    ) -> Dict[str, Any]:
+        """使用单图编辑工作流编辑图片。"""
+        try:
+            import json
+
+            workflow = json.loads(workflow_json)
+            load_image_node_id = str(node_mapping.get("load_image_node_id", ""))
+            prompt_node_id = str(node_mapping.get("prompt_node_id", ""))
+            save_image_node_id = str(node_mapping.get("save_image_node_id", ""))
+
+            if not load_image_node_id or load_image_node_id not in workflow:
+                return {"success": False, "message": "单图编辑工作流缺少 Load Image 节点映射"}
+            if not prompt_node_id or prompt_node_id not in workflow:
+                return {"success": False, "message": "单图编辑工作流缺少提示词节点映射"}
+            if not save_image_node_id or save_image_node_id not in workflow:
+                return {"success": False, "message": "单图编辑工作流缺少 Save Image 节点映射"}
+
+            upload_result = await self.client.upload_image(image_path)
+            if not upload_result.get("success"):
+                return {"success": False, "message": upload_result.get("message", "图片上传失败")}
+
+            workflow[load_image_node_id].setdefault("inputs", {})["image"] = upload_result.get("filename")
+            self.builder._set_prompt(workflow, prompt_node_id, prompt)
+
+            queue_result = await self.client.queue_prompt(workflow)
+            if not queue_result.get("success"):
+                return {"success": False, "message": queue_result.get("error", "提交任务失败")}
+
+            prompt_id = queue_result.get("prompt_id")
+            if on_prompt_queued and prompt_id:
+                on_prompt_queued(prompt_id, workflow)
+
+            result = await self.client.wait_for_result(
+                prompt_id,
+                workflow,
+                save_image_node_id,
+                timeout=7200,
+            )
+
+            return {
+                "success": result.get("success") if result else False,
+                "image_url": result.get("image_url") if result else None,
+                "message": str(result.get("message", "编辑成功" if (result and result.get("success")) else "编辑失败")) if result else "编辑失败",
+                "submitted_workflow": workflow,
+                "prompt_id": prompt_id,
+            }
+        except Exception as e:
+            print(f"[ComfyUI] Edit image failed: {e}")
+            return {"success": False, "message": f"编辑失败: {str(e)}"}
     
     async def generate_shot_image_with_workflow(
         self,

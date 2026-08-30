@@ -49,6 +49,8 @@ export default function Tasks() {
   const getTaskDisplayName = (task: Task): string => {
     const charMatch = task.name.match(/生成角色形象:\s*(.+)/);
     if (charMatch) return t('tasks.taskNames.characterPortrait', { name: charMatch[1] });
+    const editImageMatch = task.name.match(/编辑(角色|场景|道具)图片:\s*(.+)/);
+    if (editImageMatch) return t('tasks.taskNames.singleImageEdit', { name: `${editImageMatch[1]} ${editImageMatch[2]}` });
     const shotMatch = task.name.match(/生成分镜(图|视频|图片):\s*(.+)/);
     if (shotMatch) {
       const type = shotMatch[1] === '视频' ? 'shotVideo' : 'shotImage';
@@ -63,6 +65,8 @@ export default function Tasks() {
     if (!task.description) return '';
     const charMatch = task.description.match(/为角色\s*['"](.+)['"]\s*生成人设图/);
     if (charMatch) return t('tasks.taskDescriptions.characterPortrait', { name: charMatch[1] });
+    const editImageMatch = task.description.match(/为(角色|场景|道具)\s*['"](.+)['"]\s*编辑图片/);
+    if (editImageMatch) return t('tasks.taskDescriptions.singleImageEdit', { name: `${editImageMatch[1]} ${editImageMatch[2]}` });
     const shotImgMatch = task.description.match(/为章节\s*['"](.+)['"]\s*的分镜\s*(\d+)\s*生成图片/);
     if (shotImgMatch) return t('tasks.taskDescriptions.shotImage', { name: `Shot ${shotImgMatch[2]}` });
     const shotImgMatch2 = task.description.match(/为分镜\s*['"](.+)['"]\s*生成图片/);
@@ -80,6 +84,7 @@ export default function Tasks() {
     const names: Record<string, string> = {
       'character_portrait': t('tasks.types.characterPortrait'),
       'shot_image': t('tasks.types.shotImage'),
+      'single_image_edit': t('tasks.types.singleImageEdit'),
       'shot_video': t('tasks.types.shotVideo'),
       'chapter_video': t('tasks.types.chapterVideo'),
       'transition_video': t('tasks.types.transitionVideo'),

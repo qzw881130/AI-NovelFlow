@@ -17,6 +17,26 @@ from app.repositories import TaskRepository, WorkflowRepository, PropRepository
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import build_prop_prompt, get_style
+from app.services.background_workers import worker_manager
+
+
+def enqueue_prop_image_task(
+    task_id: str,
+    prop_id: str,
+    name: str,
+    appearance: str,
+    description: str
+) -> None:
+    """Queue prop image generation in its dedicated serial worker."""
+    worker_manager.worker("prop_image").enqueue(
+        lambda: PropService()._generate_prop_image_task(
+            task_id,
+            prop_id,
+            name,
+            appearance,
+            description,
+        )
+    )
 
 
 class PropService:
@@ -64,7 +84,7 @@ class PropService:
             }
 
         # 检查道具生成状态
-        if prop.generating_status == "running":
+        if prop.generating_status in ["pending", "running"]:
             return {
                 "success": False,
                 "message": "该道具正在生成图片中，请稍后再试"
@@ -93,19 +113,16 @@ class PropService:
         task_repo.create(task)
 
         # 更新道具生成状态
-        prop.generating_status = "running"
+        prop.generating_status = "pending"
         prop.prop_task_id = task.id
         db.commit()
 
-        # 启动后台任务
-        asyncio.create_task(
-            self._generate_prop_image_task(
-                task.id,
-                prop_id,
-                prop.name,
-                prop.appearance,
-                prop.description
-            )
+        enqueue_prop_image_task(
+            task.id,
+            prop_id,
+            prop.name,
+            prop.appearance,
+            prop.description,
         )
 
         return {
@@ -146,6 +163,9 @@ class PropService:
             task = task_repo.get_by_id(task_id)
             if not task:
                 return
+            if task.status not in ["pending", "running"]:
+                print(f"[PropTask] Skip prop task {task_id}, status={task.status}")
+                return
 
             # 获取当前激活的工作流（优先 prop，其次 scene）
             workflow = workflow_repo.get_active_by_type("prop")
@@ -161,6 +181,9 @@ class PropService:
             # 更新任务状态为运行中
             task.status = "running"
             task.started_at = datetime.utcnow()
+            prop = prop_repo.get_by_id(prop_id)
+            if prop:
+                prop.generating_status = "running"
             db.commit()
 
             # 获取道具所属小说
@@ -320,6 +343,29 @@ class PropService:
             db.commit()
         finally:
             db.close()
+
+    def create_missing_prop_image_tasks(self, novel_id: str, db: Session = None) -> Dict[str, Any]:
+        """Queue image tasks for props without images or with failed generation."""
+        db = db or self.db
+        prop_repo = PropRepository(db)
+        task_repo = TaskRepository(db)
+        props = prop_repo.list_by_novel(novel_id)
+        targets = [
+            prop for prop in props
+            if (not prop.image_url or prop.generating_status == "failed")
+            and not task_repo.get_active_by_prop(prop.id)
+        ]
+
+        queued_count = 0
+        failed_items = []
+        for prop in targets:
+            result = self.create_prop_image_task(prop.id, db=db)
+            if result.get("success"):
+                queued_count += 1
+            else:
+                failed_items.append({"id": prop.id, "name": prop.name, "message": result.get("message", "创建任务失败")})
+
+        return {"success": True, "message": f"已加入 {queued_count} 个道具图生成任务", "data": {"queuedCount": queued_count, "failedCount": len(failed_items), "failedItems": failed_items}}
 
     def _validate_workflow_node_mapping(self, workflow: Workflow, task_type: str) -> tuple[bool, str]:
         """

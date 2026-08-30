@@ -9,13 +9,17 @@ import json
 
 from app.core.database import get_db
 from app.repositories.prop_repository import PropRepository
+from app.repositories.task import TaskRepository
 from app.repositories.novel_repository import NovelRepository
 from app.repositories import PromptTemplateRepository
 from app.services.llm_service import LLMService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import build_prop_prompt, get_style
-from app.api.deps import get_prop_repo, get_novel_repo, get_llm_service, get_prompt_template_repo
-from app.schemas.prop import PropCreate, PropUpdate
+from app.api.deps import get_prop_repo, get_novel_repo, get_llm_service, get_prompt_template_repo, get_task_repo
+from app.services.prop_image_service import PropService
+from app.schemas.prop import PropCreate, PropUpdate, PropImageEditRequest, PropImageReplaceRequest
+from app.services.single_image_edit_service import SingleImageEditService
+from app.utils.path_utils import url_to_local_path
 
 router = APIRouter()
 
@@ -32,10 +36,22 @@ def format_datetime(dt: Optional[datetime]) -> Optional[str]:
 async def get_props(
     novel_id: str = Query(..., description="小说ID"),
     db: Session = Depends(get_db),
-    prop_repo: PropRepository = Depends(get_prop_repo)
+    prop_repo: PropRepository = Depends(get_prop_repo),
+    task_repo: TaskRepository = Depends(get_task_repo)
 ):
     """获取小说的所有道具"""
     props = prop_repo.list_by_novel(novel_id)
+    fixed_stale_status = False
+    for prop in props:
+        if prop.generating_status == "running" and prop.prop_task_id:
+            task = task_repo.get_by_id(prop.prop_task_id)
+            if not task or task.status not in ["pending", "running"]:
+                prop.generating_status = "completed" if prop.image_url and task and task.status == "completed" else "failed"
+                fixed_stale_status = True
+
+    if fixed_stale_status:
+        prop_repo.db.commit()
+
     return {
         "success": True,
         "data": [
@@ -59,6 +75,16 @@ async def get_props(
             for p in props
         ]
     }
+
+
+@router.post("/generate-missing-images", response_model=dict)
+async def generate_missing_prop_images(
+    novel_id: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Queue image tasks for props without images or with failed generation."""
+    prop_service = PropService(db)
+    return prop_service.create_missing_prop_image_tasks(novel_id)
 
 
 @router.get("/{prop_id}", response_model=dict)
@@ -283,6 +309,69 @@ async def upload_prop_image(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
+
+
+@router.post("/{prop_id}/edit-image", response_model=dict)
+async def edit_prop_image(
+    prop_id: str,
+    data: PropImageEditRequest,
+    db: Session = Depends(get_db),
+    prop_repo: PropRepository = Depends(get_prop_repo),
+):
+    """使用当前激活的单图编辑工作流编辑道具图片。"""
+    prop = prop_repo.get_by_id(prop_id)
+    if not prop:
+        raise HTTPException(status_code=404, detail="道具不存在")
+    if not prop.image_url:
+        raise HTTPException(status_code=400, detail="道具暂无图片，无法编辑")
+
+    result = await SingleImageEditService(db).edit_image(
+        source_image_url=prop.image_url,
+        prompt=data.prompt,
+        novel_id=prop.novel_id,
+        entity_id=prop.id,
+        entity_name=prop.name,
+        entity_type="prop",
+        output_image_type="prop_edit",
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=result.get("status_code", 500), detail=result.get("message", "编辑图片失败"))
+
+    return {"success": True, "data": {"imageUrl": result["image_url"], "taskId": result.get("task_id")}, "message": "图片编辑成功"}
+
+
+@router.post("/{prop_id}/replace-image", response_model=dict)
+async def replace_prop_image(
+    prop_id: str,
+    data: PropImageReplaceRequest,
+    prop_repo: PropRepository = Depends(get_prop_repo),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+):
+    """用编辑结果替换道具图片。"""
+    prop = prop_repo.get_by_id(prop_id)
+    if not prop:
+        raise HTTPException(status_code=404, detail="道具不存在")
+    if not url_to_local_path(data.image_url):
+        raise HTTPException(status_code=400, detail="图片文件不存在或不是本地图片")
+
+    prop_repo.update_image(prop, data.image_url)
+    novel = novel_repo.get_by_id(prop.novel_id)
+    return {
+        "success": True,
+        "data": {
+            "id": prop.id,
+            "novelId": prop.novel_id,
+            "name": prop.name,
+            "description": prop.description,
+            "appearance": prop.appearance,
+            "imageUrl": prop.image_url,
+            "generatingStatus": prop.generating_status,
+            "propTaskId": prop.prop_task_id,
+            "novelName": novel.title if novel else None,
+            "updatedAt": format_datetime(prop.updated_at),
+        },
+        "message": "道具图片已替换",
+    }
 
 
 # ==================== 道具解析 ====================

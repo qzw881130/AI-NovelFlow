@@ -27,13 +27,16 @@ class OpenAICompatibleProvider(BaseLLMProvider):
 
     def _get_headers(self) -> Dict[str, str]:
         """获取请求头"""
-        return {
+        headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self._get_current_api_key()}",
             "HTTP-Referer": "https://opencode.ai/",
             "X-Title": "opencode",
             "User-Agent": "Anthropic/JS 0.73.0"
         }
+        api_key = self._get_current_api_key()
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        return headers
 
     def _build_request_body(
         self,

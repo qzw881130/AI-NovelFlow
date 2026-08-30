@@ -43,10 +43,22 @@ export const propApi = {
   generateImage: (propId: string) =>
     api.post(`/props/${propId}/generate-image`),
 
+  /** 为未生成或失败的道具生成图片任务 */
+  generateMissingImages: (novelId: string) =>
+    api.post<{ queuedCount: number; failedCount: number; failedItems: Array<{ id: string; name: string; message: string }> }>(`/props/generate-missing-images?novel_id=${novelId}`),
+
   /** 上传道具图片 */
   uploadImage: async (propId: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     return api.upload<Prop>(`/props/${propId}/upload-image`, formData);
   },
+
+  /** 使用单图编辑工作流编辑道具图片 */
+  editImage: (propId: string, prompt: string) =>
+    api.post<{ imageUrl: string; taskId?: string }>(`/props/${propId}/edit-image`, { prompt }),
+
+  /** 用编辑结果替换道具图片 */
+  replaceImage: (propId: string, imageUrl: string) =>
+    api.post<Prop>(`/props/${propId}/replace-image`, { imageUrl }),
 };

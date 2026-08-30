@@ -20,6 +20,7 @@ from app.repositories import TaskRepository, WorkflowRepository
 from app.repositories.shot_repository import ShotRepository
 from app.repositories.character_repository import CharacterRepository
 from app.repositories.scene_repository import SceneRepository
+from app.repositories.prop_repository import PropRepository
 from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
@@ -118,6 +119,22 @@ class TaskService:
     
     # ==================== 任务操作 ====================
 
+    @staticmethod
+    def _mark_related_task_failed(task: Task, db: Session) -> None:
+        """Keep entity generation status in sync when a task is cancelled."""
+        if task.type == "character_portrait" and task.character_id:
+            character = CharacterRepository(db).get_by_id(task.character_id)
+            if character and character.portrait_task_id == task.id:
+                character.generating_status = "failed"
+        elif task.type == "scene_image" and task.scene_id:
+            scene = SceneRepository(db).get_by_id(task.scene_id)
+            if scene and scene.scene_task_id == task.id:
+                scene.generating_status = "failed"
+        elif task.type == "prop_image" and task.prop_id:
+            prop = PropRepository(db).get_by_id(task.prop_id)
+            if prop and prop.prop_task_id == task.id:
+                prop.generating_status = "failed"
+
     async def cancel_task(self, task_id: str, db: Session = None) -> Dict[str, Any]:
         """取消单个任务对应的 ComfyUI 执行。"""
         db = db or self.db
@@ -166,6 +183,7 @@ class TaskService:
         task.status = "failed"
         task.error_message = "任务被用户删除并终止"
         task.current_step = "已终止"
+        self._mark_related_task_failed(task, db)
         db.commit()
 
         return {
@@ -239,6 +257,7 @@ class TaskService:
                 task.status = "failed"
                 task.error_message = "任务被用户终止"
                 task.current_step = "已终止"
+                self._mark_related_task_failed(task, db)
                 cancelled_count += 1
             except Exception as e:
                 print(f"[CancelAll] Failed to update task {task.id}: {e}")
@@ -303,34 +322,42 @@ class TaskService:
         restarted = False
         if task.type == "character_portrait" and task.character_id:
             # 从CharacterService重新执行任务
-            from app.services.character_service import CharacterService
-            character_service = CharacterService(db)
+            from app.services.character_service import enqueue_character_portrait_task
             character = character_repo.get_by_id(task.character_id)
             if character:
-                asyncio.create_task(
-                    character_service._generate_portrait_task(
-                        task.id,
-                        character.id,
-                        character.name,
-                        character.appearance,
-                        character.description
-                    )
+                enqueue_character_portrait_task(
+                    task.id,
+                    character.id,
+                    character.name,
+                    character.appearance,
+                    character.description,
                 )
                 restarted = True
         elif task.type == "scene_image" and task.scene_id:
             # 从SceneService重新执行任务
-            from app.services.scene_service import SceneService
-            scene_service = SceneService(db)
+            from app.services.scene_service import enqueue_scene_image_task
             scene = scene_repo.get_by_id(task.scene_id)
             if scene:
-                asyncio.create_task(
-                    scene_service._generate_scene_image_task(
-                        task.id,
-                        scene.id,
-                        scene.name,
-                        scene.setting,
-                        scene.description
-                    )
+                enqueue_scene_image_task(
+                    task.id,
+                    scene.id,
+                    scene.name,
+                    scene.setting,
+                    scene.description,
+                )
+                restarted = True
+        elif task.type == "prop_image" and task.prop_id:
+            from app.services.prop_image_service import enqueue_prop_image_task
+
+            prop_repo = PropRepository(db)
+            prop = prop_repo.get_by_id(task.prop_id)
+            if prop:
+                enqueue_prop_image_task(
+                    task.id,
+                    prop.id,
+                    prop.name,
+                    prop.appearance,
+                    prop.description,
                 )
                 restarted = True
         elif task.type == "shot_image" and task.novel_id and task.chapter_id and task.workflow_id:

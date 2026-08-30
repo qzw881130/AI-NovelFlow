@@ -6,10 +6,16 @@ import type { Character } from '../types';
 
 export const characterApi = {
   /** 获取角色列表 */
-  fetchList: (novelId: string) => api.get<Character[]>(`/characters?novel_id=${novelId}`),
+  fetchList: async (novelId: string) => {
+    const res = await fetch(`${API_BASE}/characters?novel_id=${novelId}`, { cache: 'no-store' });
+    return res.json() as Promise<{ success: boolean; data?: Character[]; message?: string }>;
+  },
 
   /** 获取单个角色 */
-  fetch: (id: string) => api.get<Character>(`/characters/${id}`),
+  fetch: async (id: string) => {
+    const res = await fetch(`${API_BASE}/characters/${id}`, { cache: 'no-store' });
+    return res.json() as Promise<{ success: boolean; data?: Character; message?: string }>;
+  },
 
   /** 创建角色 */
   create: (data: Partial<Character>) => api.post<Character>('/characters/', data),
@@ -35,12 +41,28 @@ export const characterApi = {
   generatePortrait: (characterId: string) => 
     api.post(`/characters/${characterId}/generate-portrait/`),
 
+  /** 为未生成或失败的角色生成人设图任务 */
+  generateMissingPortraits: (novelId: string) =>
+    api.post<{
+      queuedCount: number;
+      failedCount: number;
+      failedItems: Array<{ id: string; name: string; message: string }>;
+    }>(`/characters/generate-missing-portraits?novel_id=${novelId}`),
+
   /** 上传角色图片 */
   uploadImage: async (characterId: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     return api.upload<Character>(`/characters/${characterId}/upload-image`, formData);
   },
+
+  /** 使用单图编辑工作流编辑角色图片 */
+  editImage: (characterId: string, prompt: string) =>
+    api.post<{ imageUrl: string }>(`/characters/${characterId}/edit-image`, { prompt }),
+
+  /** 用编辑结果替换角色图片 */
+  replaceImage: (characterId: string, imageUrl: string) =>
+    api.post<Character>(`/characters/${characterId}/replace-image`, { imageUrl }),
 
   /** 清空角色图片目录 */
   clearImagesDir: (novelId: string) =>

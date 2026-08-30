@@ -28,6 +28,18 @@ class CharacterUpdate(BaseModel):
     is_narrator: Optional[bool] = Field(None, description="是否为旁白角色")
 
 
+class CharacterImageEditRequest(BaseModel):
+    """编辑角色图片请求"""
+    prompt: str = Field(..., min_length=1, description="图像编辑提示词")
+
+
+class CharacterImageReplaceRequest(BaseModel):
+    """替换角色图片请求"""
+    image_url: str = Field(..., alias="imageUrl", description="新的角色图片 URL")
+
+    model_config = {"populate_by_name": True}
+
+
 class CharacterResponse(CharacterBase):
     """角色响应"""
     id: str

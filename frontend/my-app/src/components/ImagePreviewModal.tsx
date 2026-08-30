@@ -8,7 +8,7 @@
  * - 点击背景或按 ESC 关闭
  */
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { X, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ImagePreviewModalProps {
@@ -43,6 +43,12 @@ export function ImagePreviewModal({
   onPrev,
   onNext,
 }: ImagePreviewModalProps) {
+  const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    setImageSize(null);
+  }, [url]);
+
   // 键盘事件处理
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!isOpen) return;
@@ -102,6 +108,12 @@ export function ImagePreviewModal({
           src={url}
           alt={name || 'Preview'}
           className="max-w-full max-h-[80vh] object-contain rounded-lg"
+          onLoad={(event) => {
+            setImageSize({
+              width: event.currentTarget.naturalWidth,
+              height: event.currentTarget.naturalHeight,
+            });
+          }}
           onClick={(e) => e.stopPropagation()}
         />
 
@@ -124,9 +136,21 @@ export function ImagePreviewModal({
         )}
 
         {/* 标题栏 */}
-        {name && (
-          <div className="mt-3 text-white text-lg font-medium">
-            {name}
+        {(name || imageSize || showDownload) && (
+          <div className="mt-3 flex flex-col items-center gap-2 text-white">
+            {name && <div className="text-lg font-medium">{name}</div>}
+            <div className="flex items-center gap-3 text-sm text-white/70">
+              {imageSize && <span>{imageSize.width} x {imageSize.height} px</span>}
+              {showDownload && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleDownload(); }}
+                  className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-white transition-colors hover:bg-white/25"
+                >
+                  <Download className="h-4 w-4" />
+                  下载
+                </button>
+              )}
+            </div>
           </div>
         )}
 
@@ -138,16 +162,6 @@ export function ImagePreviewModal({
           <X className="h-6 w-6" />
         </button>
 
-        {/* 下载按钮 */}
-        {showDownload && (
-          <button
-            onClick={(e) => { e.stopPropagation(); handleDownload(); }}
-            className="absolute -top-12 right-10 p-2 text-white hover:text-blue-400 transition-colors"
-            title="下载图片"
-          >
-            <Download className="h-6 w-6" />
-          </button>
-        )}
       </div>
     </div>
   );

@@ -79,12 +79,15 @@ def reload_settings_from_db(db_config: dict) -> None:
         _settings_instance.LLM_PROVIDER = db_config["llm_provider"]
     if db_config.get("llm_model"):
         _settings_instance.LLM_MODEL = db_config["llm_model"]
+    provider = db_config.get("llm_provider")
     if db_config.get("llm_api_url"):
         _settings_instance.LLM_API_URL = db_config["llm_api_url"]
-        _settings_instance.DEEPSEEK_API_URL = db_config["llm_api_url"]
+        if provider == "deepseek":
+            _settings_instance.DEEPSEEK_API_URL = db_config["llm_api_url"]
     if db_config.get("llm_api_key"):
         _settings_instance.LLM_API_KEY = db_config["llm_api_key"]
-        _settings_instance.DEEPSEEK_API_KEY = db_config["llm_api_key"]
+        if provider == "deepseek":
+            _settings_instance.DEEPSEEK_API_KEY = db_config["llm_api_key"]
     if "llm_max_tokens" in db_config:
         _settings_instance.LLM_MAX_TOKENS = db_config["llm_max_tokens"]
     if "llm_temperature" in db_config:

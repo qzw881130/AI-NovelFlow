@@ -14,7 +14,8 @@ const typeIcons = {
   prop: Box,
   voice_design: Mic,
   audio: Music,
-  keyframe_image: Clapperboard
+  keyframe_image: Clapperboard,
+  single_image_edit: ImageIcon
 };
 
 const typeColors = {
@@ -26,7 +27,8 @@ const typeColors = {
   prop: 'bg-orange-100 text-orange-600',
   voice_design: 'bg-cyan-100 text-cyan-600',
   audio: 'bg-indigo-100 text-indigo-600',
-  keyframe_image: 'bg-teal-100 text-teal-600'
+  keyframe_image: 'bg-teal-100 text-teal-600',
+  single_image_edit: 'bg-violet-100 text-violet-600'
 };
 
 interface WorkflowCardProps {

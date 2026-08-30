@@ -347,6 +347,32 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 keyframeNodes: [],
                 durationSecondsNodeId: ''
               });
+            } else if (wf.type === 'single_image_edit') {
+              setMappingForm({
+                promptNodeId: mapping.prompt_node_id || '',
+                saveImageNodeId: mapping.save_image_node_id || '',
+                widthNodeId: '',
+                heightNodeId: '',
+                videoSaveNodeId: '',
+                maxSideNodeId: '',
+                megapixelsNodeId: '',
+                megapixelsValue: '0.4',
+                referenceImageNodeId: mapping.load_image_node_id || '',
+                frameCountNodeId: '',
+                firstImageNodeId: '',
+                lastImageNodeId: '',
+                characterReferenceImageNodeId: '',
+                sceneReferenceImageNodeId: '',
+                customReferenceImageNodes,
+                voicePromptNodeId: '',
+                refTextNodeId: '',
+                saveAudioNodeId: '',
+                referenceAudioNodeId: '',
+                textNodeId: '',
+                emotionPromptNodeId: '',
+                keyframeNodes: [],
+                durationSecondsNodeId: ''
+              });
             } else {
               setMappingForm({
                 promptNodeId: mapping.prompt_node_id || '',
@@ -463,6 +489,12 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           prompt_node_id: mappingForm.promptNodeId || null,
           save_image_node_id: mappingForm.saveImageNodeId || null,
           reference_image_node_id: mappingForm.referenceImageNodeId || null
+        };
+      } else if (workflow.type === 'single_image_edit') {
+        nodeMapping = {
+          load_image_node_id: mappingForm.referenceImageNodeId || null,
+          prompt_node_id: mappingForm.promptNodeId || null,
+          save_image_node_id: mappingForm.saveImageNodeId || null
         };
       } else {
         nodeMapping = {
@@ -1062,6 +1094,38 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     value={mappingForm.referenceImageNodeId}
                     options={availableNodes.loadImage}
                     onChange={(v) => handleNodeSelect(v, 'referenceImageNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                </>
+              )}
+
+              {workflow.type === 'single_image_edit' && (
+                <>
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.loadImageNode')}
+                    nodeTypeHint="LoadImage"
+                    value={mappingForm.referenceImageNodeId}
+                    options={availableNodes.loadImage}
+                    onChange={(v) => handleNodeSelect(v, 'referenceImageNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.promptInputNode')}
+                    nodeTypeHint="CLIPTextEncode, CR Text"
+                    value={mappingForm.promptNodeId}
+                    options={[...availableNodes.clipTextEncode, ...availableNodes.crPromptText]}
+                    onChange={(v) => handleNodeSelect(v, 'promptNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.imageSaveNode')}
+                    nodeTypeHint="SaveImage"
+                    value={mappingForm.saveImageNodeId}
+                    options={availableNodes.saveImage}
+                    onChange={(v) => handleNodeSelect(v, 'saveImageNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}
                   />

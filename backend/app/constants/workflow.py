@@ -21,7 +21,8 @@ WORKFLOW_TYPES = {
     "prop": "道具生成",
     "voice_design": "音色设计",
     "audio": "音频生成",
-    "keyframe_image": "关键帧生图"
+    "keyframe_image": "关键帧生图",
+    "single_image_edit": "单图编辑"
 }
 
 
@@ -34,7 +35,8 @@ DEFAULT_WORKFLOWS = {
     "prop": "prop_default.json",
     "voice_design": "Qwen3-TTS-Voice-Design.json",  # 实际是音色设计工作流
     "audio": "Qwen3-TTS-Voice-Clone.json",  # 音频生成工作流（带参考音频的语音克隆）
-    "keyframe_image": "keyframe_flux2_klein.json"
+    "keyframe_image": "keyframe_flux2_klein.json",
+    "single_image_edit": "single_image_edit_flux2_klein.json"
 }
 
 
@@ -83,6 +85,14 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
         "save_image_node_id": "9",
         # 参考图片节点 (LoadImage) - 用于关键帧图片生成的参考图
         "reference_image_node_id": "76",
+    },
+    "single_image_edit": {
+        # 待编辑图片节点 (LoadImage)
+        "load_image_node_id": "76",
+        # 提示词节点
+        "prompt_node_id": "117",
+        # 保存图片节点
+        "save_image_node_id": "9",
     },
 }
 
@@ -218,6 +228,15 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "description": "Flux2-Klein-9B 关键帧生图工作流，支持参考图",
         "descriptionKey": f"{DESC_KEY_PREFIX}.Flux2-Klein-9B 关键帧生图工作流，支持参考图",
         "node_mapping": {"prompt_node_id": "110", "save_image_node_id": "9", "reference_image_node_id": "76"},
+    },
+    {
+        "filename": "single_image_edit_flux2_klein.json",
+        "type": "single_image_edit",
+        "name": "Flux2-Klein-9B 单图编辑",
+        "nameKey": f"{NAME_KEY_PREFIX}.Flux2-Klein-9B 单图编辑",
+        "description": "Flux2-Klein-9B 单图编辑工作流，支持 Load Image + 提示词 + Save Image",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.Flux2-Klein-9B 单图编辑工作流，支持 Load Image + 提示词 + Save Image",
+        "node_mapping": {"load_image_node_id": "76", "prompt_node_id": "117", "save_image_node_id": "9"},
     },
 ]
 

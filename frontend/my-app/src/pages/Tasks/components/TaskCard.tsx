@@ -57,6 +57,7 @@ export function TaskCard({
       case 'prop_image': return <ImageIcon className="h-5 w-5" />;
       case 'shot_image': return <ImageIcon className="h-5 w-5" />;
       case 'keyframe_image': return <ImageIcon className="h-5 w-5" />;
+      case 'single_image_edit': return <ImageIcon className="h-5 w-5" />;
       case 'character_audio':
       case 'narrator_audio': return <Music className="h-5 w-5" />;
       case 'shot_video':
@@ -158,7 +159,7 @@ export function TaskCard({
           )}
           {task.status === 'completed' && task.resultUrl && (
             <div className="mt-2">
-              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' ? (
+              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' || task.type === 'single_image_edit' ? (
                 <div>
                   <div className="relative group inline-block">
                     <img

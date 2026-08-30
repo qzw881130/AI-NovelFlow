@@ -8,7 +8,7 @@ export interface Workflow {
   nameKey?: string;
   description?: string;
   descriptionKey?: string;
-  type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio' | 'keyframe_image';
+  type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio' | 'keyframe_image' | 'single_image_edit';
   typeName: string;
   isSystem: boolean;
   isActive: boolean;
@@ -22,6 +22,7 @@ export interface Workflow {
     megapixels_node_id?: string;
     megapixels_value?: string;
     reference_image_node_id?: string;
+    load_image_node_id?: string;
     frame_count_node_id?: string;
     duration_seconds_node_id?: string;
     first_image_node_id?: string;

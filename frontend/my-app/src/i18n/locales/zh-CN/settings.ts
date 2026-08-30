@@ -135,6 +135,8 @@ export default {
       prop: '道具生成',
       voiceDesign: '音色设计',
       keyframeImage: '关键帧生图',
+      singleImageEdit: '单图编辑',
+      loadImageNode: 'Load Image 节点',
       // 上传弹窗
       type: '工作流类型',
       name: '工作流名称',

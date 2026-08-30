@@ -51,12 +51,10 @@ class LLMService:
         self.http_proxy = current_settings.HTTP_PROXY
         self.https_proxy = current_settings.HTTPS_PROXY
 
-        # 仅对历史 DeepSeek 配置做兼容回退。
-        # custom / ollama 可以不填 API Key，不能错误回退到 deepseek。
-        if not self.api_key and self.provider not in ("ollama", "custom"):
+        # 仅 DeepSeek 自身允许读取历史 DeepSeek Key，不能把 OpenAI 等厂商改成 deepseek。
+        if self.provider == "deepseek" and not self.api_key:
             self.api_key = current_settings.DEEPSEEK_API_KEY
             self.api_url = current_settings.DEEPSEEK_API_URL
-            self.provider = "deepseek"
 
         # 初始化 API Key 轮询机制
         self.api_keys = []
@@ -142,10 +140,6 @@ class LLMService:
 
     async def check_health(self) -> bool:
         """检查 LLM API 状态"""
-        # Ollama / Custom 通常不强制需要 API Key
-        if not self.api_key and self.provider not in ("ollama", "custom"):
-            return False
-
         try:
             # 简单测试请求
             result = await self.chat_completion(
@@ -174,7 +168,7 @@ class LLMService:
 
         result = await self.chat_completion(
             system_prompt=system_prompt,
-            user_content=f"请解析以下小说文本：\n\n{text[:NOVEL_TEXT_MAX_LENGTH]}",
+            user_content=f"请解析以下小说文本：\n\n{text}",
             temperature=DEFAULT_TEMPERATURE,
             max_tokens=NOVEL_TEXT_MAX_LENGTH,
             response_format="json_object",

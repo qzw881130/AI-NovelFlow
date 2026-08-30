@@ -17,6 +17,26 @@ from app.repositories import TaskRepository, WorkflowRepository, SceneRepository
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import build_scene_prompt, get_style
+from app.services.background_workers import worker_manager
+
+
+def enqueue_scene_image_task(
+    task_id: str,
+    scene_id: str,
+    name: str,
+    setting: str,
+    description: str
+) -> None:
+    """Queue scene image generation in its dedicated serial worker."""
+    worker_manager.worker("scene_image").enqueue(
+        lambda: SceneService()._generate_scene_image_task(
+            task_id,
+            scene_id,
+            name,
+            setting,
+            description,
+        )
+    )
 
 
 class SceneService:
@@ -64,7 +84,7 @@ class SceneService:
             }
         
         # 检查场景生成状态
-        if scene.generating_status == "running":
+        if scene.generating_status in ["pending", "running"]:
             return {
                 "success": False,
                 "message": "该场景正在生成图片中，请稍后再试"
@@ -88,19 +108,16 @@ class SceneService:
         task_repo.create(task)
         
         # 更新场景生成状态
-        scene.generating_status = "running"
+        scene.generating_status = "pending"
         scene.scene_task_id = task.id
         db.commit()
         
-        # 启动后台任务
-        asyncio.create_task(
-            self._generate_scene_image_task(
-                task.id,
-                scene_id,
-                scene.name,
-                scene.setting,
-                scene.description
-            )
+        enqueue_scene_image_task(
+            task.id,
+            scene_id,
+            scene.name,
+            scene.setting,
+            scene.description,
         )
         
         return {
@@ -141,6 +158,9 @@ class SceneService:
             task = task_repo.get_by_id(task_id)
             if not task:
                 return
+            if task.status not in ["pending", "running"]:
+                print(f"[SceneTask] Skip scene task {task_id}, status={task.status}")
+                return
 
             # 获取当前激活的 scene 工作流
             workflow = workflow_repo.get_active_by_type("scene")
@@ -156,6 +176,9 @@ class SceneService:
             # 更新任务状态为运行中
             task.status = "running"
             task.started_at = datetime.utcnow()
+            scene = scene_repo.get_by_id(scene_id)
+            if scene:
+                scene.generating_status = "running"
             db.commit()
 
             # 获取场景所属小说
@@ -300,6 +323,29 @@ class SceneService:
             db.commit()
         finally:
             db.close()
+
+    def create_missing_scene_image_tasks(self, novel_id: str, db: Session = None) -> Dict[str, Any]:
+        """Queue image tasks for scenes without images or with failed generation."""
+        db = db or self.db
+        scene_repo = SceneRepository(db)
+        task_repo = TaskRepository(db)
+        scenes = scene_repo.list_by_novel(novel_id)
+        targets = [
+            scene for scene in scenes
+            if (not scene.image_url or scene.generating_status == "failed")
+            and not task_repo.get_active_by_scene(scene.id)
+        ]
+
+        queued_count = 0
+        failed_items = []
+        for scene in targets:
+            result = self.create_scene_image_task(scene.id, db=db)
+            if result.get("success"):
+                queued_count += 1
+            else:
+                failed_items.append({"id": scene.id, "name": scene.name, "message": result.get("message", "创建任务失败")})
+
+        return {"success": True, "message": f"已加入 {queued_count} 个场景图生成任务", "data": {"queuedCount": queued_count, "failedCount": len(failed_items), "failedItems": failed_items}}
     
     def _validate_workflow_node_mapping(self, workflow: Workflow, task_type: str) -> tuple[bool, str]:
         """
