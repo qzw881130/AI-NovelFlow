@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useChapterGenerateStore } from '../stores';
-import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info } from 'lucide-react';
+import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
@@ -26,24 +26,26 @@ const getSavedVideoTabUiState = () => {
   try {
     const saved = localStorage.getItem(VIDEO_TAB_UI_STORAGE_KEY);
     if (!saved) {
-      return { showKeyframes: true, showAudioRef: true };
+      return { showKeyframes: true, showAudioRef: true, isSidePanelCollapsed: false };
     }
 
     const parsed = JSON.parse(saved) as {
       showKeyframes?: boolean;
       showAudioRef?: boolean;
+      isSidePanelCollapsed?: boolean;
     };
 
     return {
       showKeyframes: typeof parsed.showKeyframes === 'boolean' ? parsed.showKeyframes : true,
       showAudioRef: typeof parsed.showAudioRef === 'boolean' ? parsed.showAudioRef : true,
+      isSidePanelCollapsed: typeof parsed.isSidePanelCollapsed === 'boolean' ? parsed.isSidePanelCollapsed : false,
     };
   } catch {
-    return { showKeyframes: true, showAudioRef: true };
+    return { showKeyframes: true, showAudioRef: true, isSidePanelCollapsed: false };
   }
 };
 
-const saveVideoTabUiState = (state: { showKeyframes: boolean; showAudioRef: boolean }) => {
+const saveVideoTabUiState = (state: { showKeyframes: boolean; showAudioRef: boolean; isSidePanelCollapsed: boolean }) => {
   try {
     localStorage.setItem(VIDEO_TAB_UI_STORAGE_KEY, JSON.stringify(state));
   } catch {
@@ -123,6 +125,8 @@ export function VideoGenTab({
   // 音频参考展开状态
   const [showAudioRef, setShowAudioRef] = useState(initialVideoTabUiState.showAudioRef);
 
+  const [isSidePanelCollapsed, setIsSidePanelCollapsed] = useState(initialVideoTabUiState.isSidePanelCollapsed);
+
   // 合并视频相关状态
   const [mergingMode, setMergingMode] = useState<MergeVideoMode | null>(null);
   const [showMergeMenu, setShowMergeMenu] = useState(false);
@@ -158,19 +162,25 @@ export function VideoGenTab({
   }, [fetchTransitionWorkflows, transitionWorkflows.length]);
 
   useEffect(() => {
-    saveVideoTabUiState({ showKeyframes, showAudioRef });
-  }, [showKeyframes, showAudioRef]);
+    saveVideoTabUiState({ showKeyframes, showAudioRef, isSidePanelCollapsed });
+  }, [showKeyframes, showAudioRef, isSidePanelCollapsed]);
 
   const handleToggleKeyframes = () => {
     const nextShowKeyframes = !showKeyframes;
     setShowKeyframes(nextShowKeyframes);
-    saveVideoTabUiState({ showKeyframes: nextShowKeyframes, showAudioRef });
+    saveVideoTabUiState({ showKeyframes: nextShowKeyframes, showAudioRef, isSidePanelCollapsed });
   };
 
   const handleToggleAudioRef = () => {
     const nextShowAudioRef = !showAudioRef;
     setShowAudioRef(nextShowAudioRef);
-    saveVideoTabUiState({ showKeyframes, showAudioRef: nextShowAudioRef });
+    saveVideoTabUiState({ showKeyframes, showAudioRef: nextShowAudioRef, isSidePanelCollapsed });
+  };
+
+  const handleToggleSidePanel = () => {
+    const nextCollapsed = !isSidePanelCollapsed;
+    setIsSidePanelCollapsed(nextCollapsed);
+    saveVideoTabUiState({ showKeyframes, showAudioRef, isSidePanelCollapsed: nextCollapsed });
   };
 
   // 同步 currentShot 和 selectedVideo
@@ -645,7 +655,26 @@ export function VideoGenTab({
         </div>
 
         {/* 右侧：关键帧设置 + 转场配置区 */}
-        <div className="w-96 flex-shrink-0 overflow-y-auto border border-gray-200 rounded-lg p-4 space-y-4">
+        <div className={`${isSidePanelCollapsed ? 'w-12 p-2' : 'w-96 p-4'} flex-shrink-0 overflow-y-auto border border-gray-200 rounded-lg space-y-4 transition-all duration-200`}>
+          <button
+            type="button"
+            onClick={handleToggleSidePanel}
+            className={`w-full flex items-center ${isSidePanelCollapsed ? 'justify-center' : 'justify-between'} rounded-lg px-2 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors`}
+            title={isSidePanelCollapsed ? '展开关键帧及转场' : '收起关键帧及转场'}
+            aria-label={isSidePanelCollapsed ? '展开关键帧及转场' : '收起关键帧及转场'}
+          >
+            {!isSidePanelCollapsed && <span>关键帧及转场</span>}
+            {isSidePanelCollapsed ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+          </button>
+
+          {isSidePanelCollapsed ? (
+            <div className="flex flex-col items-center gap-3 pt-2 text-gray-400">
+              <Layers className="w-4 h-4" />
+              <Volume2 className="w-4 h-4" />
+              <Combine className="w-4 h-4" />
+            </div>
+          ) : (
+            <>
           {/* 关键帧设置区 */}
           <div className="border-b border-gray-200 pb-4">
             <button
@@ -888,6 +917,8 @@ export function VideoGenTab({
             })}
           </div>
           </div>
+            </>
+          )}
         </div>
       </div>
 

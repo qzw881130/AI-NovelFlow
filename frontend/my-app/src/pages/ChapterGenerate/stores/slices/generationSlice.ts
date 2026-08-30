@@ -817,6 +817,7 @@ export const createGenerationSlice: StateCreator<
         const { shots, shotVideos, generatingVideos } = get();
         let shotVideosUpdated = false;
         let generatingVideosUpdated = false;
+        let hasTerminalVideoTask = false;
         const newShotVideos = { ...shotVideos };
         const newGeneratingVideos = new Set(generatingVideos);
 
@@ -826,6 +827,7 @@ export const createGenerationSlice: StateCreator<
             const isCompleted = task.status === 'completed';
             const isFailed = task.status === 'failed';
             const isRunning = task.status === 'running' || task.status === 'pending';
+            const videoStatus = isCompleted ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : shot.videoStatus;
 
             // 如果任务正在运行，确保在 generatingVideos 中
             if (isRunning && !newGeneratingVideos.has(shot.id)) {
@@ -834,28 +836,32 @@ export const createGenerationSlice: StateCreator<
             }
 
             if (isCompleted && task.resultUrl) {
+              const wasGenerating = newGeneratingVideos.has(shot.id);
               if (newShotVideos[shot.id] !== task.resultUrl) {
                 newShotVideos[shot.id] = task.resultUrl;
                 shotVideosUpdated = true;
               }
               // 从生成中集合移除（使用 shotId）
-              if (newGeneratingVideos.has(shot.id)) {
+              if (wasGenerating) {
                 newGeneratingVideos.delete(shot.id);
                 generatingVideosUpdated = true;
               }
+              hasTerminalVideoTask = wasGenerating || shot.videoUrl !== task.resultUrl;
             } else if (isRunning && newShotVideos[shot.id]) {
               delete newShotVideos[shot.id];
               shotVideosUpdated = true;
             } else if (isFailed) {
+              const wasGenerating = newGeneratingVideos.has(shot.id);
               if (newGeneratingVideos.has(shot.id)) {
                 newGeneratingVideos.delete(shot.id);
                 generatingVideosUpdated = true;
               }
+              hasTerminalVideoTask = wasGenerating || shot.videoStatus !== 'failed';
             }
 
             return {
               ...shot,
-              videoStatus: task.status,
+              videoStatus,
               videoUrl: isCompleted && task.resultUrl ? task.resultUrl : (isRunning ? null : shot.videoUrl),
               videoTaskId: task.id || shot.videoTaskId,
             };
@@ -871,6 +877,13 @@ export const createGenerationSlice: StateCreator<
           });
         } else {
           set({ shots: updatedShots });
+        }
+
+        if (hasTerminalVideoTask) {
+          const novelId = get().chapter?.novelId || get().novel?.id;
+          if (novelId) {
+            await get().fetchShotsWithReturn(novelId, chapterId);
+          }
         }
       }
     } catch (error) {

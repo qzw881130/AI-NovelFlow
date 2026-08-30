@@ -87,7 +87,7 @@ export function BottomNavigator({
     if (shotId === currentShotId || (!currentShotId && index === currentShotIndex)) {
       return 'current';
     }
-    if (shotImages[index] || shotVideos[index]) {
+    if (shotImages[shotId] || shotVideos[shotId]) {
       return 'completed';
     }
     return 'pending';
