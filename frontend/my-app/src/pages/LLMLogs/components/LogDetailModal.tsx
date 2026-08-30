@@ -10,7 +10,7 @@ interface LogDetailModalProps {
   onTabChange: (tab: PromptTab) => void;
   onClose: () => void;
   formatDate: (date: string) => string;
-  getTaskTypeLabel: (type: string) => string;
+  getTaskTypeLabel: (type: string | null) => string;
   getStatusBadgeConfig: (status: string) => { bg: string; text: string; label: string };
 }
 

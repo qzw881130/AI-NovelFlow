@@ -305,6 +305,7 @@ export default {
     mergeResult: 'Merge Result',
     noVideosToMerge: 'No videos to merge',
     mergeSuccess: 'Video merge successful',
+    mergeCacheHit: 'Source videos are unchanged; showing the previous merge',
     mergeFailed: 'Merge failed',
     mergingVideo: 'Generating video...',
     clickToGenerateVideo: 'Click "Generate Current Shot" button to generate video',

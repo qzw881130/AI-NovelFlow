@@ -8,7 +8,7 @@ import os
 import time
 import json
 from typing import Dict, Any, Optional
-from ..base import BaseLLMProvider, LLMConfig, LLMResponse, save_llm_log, build_llm_request_info
+from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
 
 
 class OpenAICompatibleProvider(BaseLLMProvider):
@@ -150,9 +150,22 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             client = httpx.AsyncClient(proxy=proxy, timeout=timeout)
             old_http_proxy = old_https_proxy = old_http_proxy_lower = old_https_proxy_lower = None
 
+        log_id = None
         try:
             async with client:
                 print(f"[openai chat_completion] endpoint:{endpoint}, headers:{headers}, timeout:{timeout}")
+                log_id = create_llm_log(
+                    provider=self.config.provider,
+                    model=self.config.model,
+                    system_prompt=system_prompt,
+                    user_prompt=user_content,
+                    task_type=task_type,
+                    novel_id=novel_id,
+                    chapter_id=chapter_id,
+                    character_id=character_id,
+                    used_proxy=used_proxy,
+                    request_info=request_info,
+                )
                 response = await client.post(
                     endpoint,
                     headers=headers,
@@ -181,21 +194,12 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     raw_response = json.dumps(data, ensure_ascii=False)
                     error_msg = "API 返回成功状态，但响应内容为空"
 
-                    save_llm_log(
-                        provider=self.config.provider,
-                        model=self.config.model,
-                        system_prompt=system_prompt,
-                        user_prompt=user_content,
+                    update_llm_log(
+                        log_id=log_id,
                         response=raw_response,
                         status="error",
                         error_message=error_msg,
-                        task_type=task_type,
-                        novel_id=novel_id,
-                        chapter_id=chapter_id,
-                        character_id=character_id,
-                        used_proxy=used_proxy,
                         duration=duration,
-                        request_info=request_info,
                     )
 
                     return LLMResponse(
@@ -208,21 +212,12 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 if finish_reason == "length":
                     error_msg = "API 响应因长度限制被截断，请提高最大 token 数或缩短输入后重试"
 
-                    save_llm_log(
-                        provider=self.config.provider,
-                        model=self.config.model,
-                        system_prompt=system_prompt,
-                        user_prompt=user_content,
+                    update_llm_log(
+                        log_id=log_id,
                         response=content,
                         status="error",
                         error_message=error_msg,
-                        task_type=task_type,
-                        novel_id=novel_id,
-                        chapter_id=chapter_id,
-                        character_id=character_id,
-                        used_proxy=used_proxy,
                         duration=duration,
-                        request_info=request_info,
                     )
 
                     return LLMResponse(
@@ -233,20 +228,11 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                         duration=duration
                     )
 
-                save_llm_log(
-                    provider=self.config.provider,
-                    model=self.config.model,
-                    system_prompt=system_prompt,
-                    user_prompt=user_content,
+                update_llm_log(
+                    log_id=log_id,
                     response=content,
                     status="success",
-                    task_type=task_type,
-                    novel_id=novel_id,
-                    chapter_id=chapter_id,
-                    character_id=character_id,
-                    used_proxy=used_proxy,
                     duration=duration,
-                    request_info=request_info,
                 )
 
                 return LLMResponse(
@@ -257,20 +243,11 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 )
             else:
                 error_msg = f"API 错误 ({response.status_code}): {response.text}"
-                save_llm_log(
-                    provider=self.config.provider,
-                    model=self.config.model,
-                    system_prompt=system_prompt,
-                    user_prompt=user_content,
+                update_llm_log(
+                    log_id=log_id,
                     status="error",
                     error_message=error_msg,
-                    task_type=task_type,
-                    novel_id=novel_id,
-                    chapter_id=chapter_id,
-                    character_id=character_id,
-                    used_proxy=used_proxy,
                     duration=duration,
-                    request_info=request_info,
                 )
 
                 return LLMResponse(
@@ -287,20 +264,11 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             traceback.print_exc()
 
             duration = time.time() - start_time
-            save_llm_log(
-                provider=self.config.provider,
-                model=self.config.model,
-                system_prompt=system_prompt,
-                user_prompt=user_content,
+            update_llm_log(
+                log_id=log_id,
                 status="error",
                 error_message=error_msg,
-                task_type=task_type,
-                novel_id=novel_id,
-                chapter_id=chapter_id,
-                character_id=character_id,
-                used_proxy=used_proxy,
                 duration=duration,
-                request_info=request_info,
             )
 
             return LLMResponse(

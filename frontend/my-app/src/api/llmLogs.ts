@@ -8,18 +8,18 @@ export interface LLMLog {
   created_at: string;
   provider: string;
   model: string;
-  system_prompt: string;
+  system_prompt: string | null;
   user_prompt: string;
-  request_info?: string;
-  response: string;
-  status: string;
-  error_message: string;
-  task_type: string;
-  novel_id: string;
-  chapter_id: string;
-  character_id: string;
+  request_info?: string | null;
+  response: string | null;
+  status: 'pending' | 'success' | 'error';
+  error_message: string | null;
+  task_type: string | null;
+  novel_id: string | null;
+  chapter_id: string | null;
+  character_id: string | null;
   used_proxy: boolean;
-  duration: number;
+  duration: number | null;
 }
 
 export interface Pagination {

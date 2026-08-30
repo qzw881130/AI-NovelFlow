@@ -13,6 +13,7 @@ export default {
     allTypes: '전체 타입',
     parseCharacters: '캐릭터 파싱',
     parseScenes: '장면 파싱',
+    parseProps: '소품 파싱',
     splitShots: '샷 분할',
     generateAppearance: '외형 생성',
     expandVideoPrompt: '비디오 프롬프트 확장',
@@ -50,5 +51,6 @@ export default {
     proxy: '프록시',
     yes: '예',
     no: '아니오',
+    pending: '진행 중',
   },
 };

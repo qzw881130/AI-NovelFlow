@@ -119,9 +119,9 @@ class LLMService:
                 "error": str (optional)
             }
         """
-        # 使用配置的参数，如果提供了则覆盖默认值
+        # 系统设置是所有 LLM 请求的统一输出上限；仅在未配置时使用调用方默认值。
         final_temperature = float(self.temperature) if self.temperature else temperature
-        final_max_tokens = max_tokens if max_tokens is not None else self.max_tokens
+        final_max_tokens = self.max_tokens if self.max_tokens is not None else max_tokens
         if final_max_tokens is None:
             final_max_tokens = DEFAULT_MAX_TOKENS
         final_max_tokens = self._normalize_max_tokens(final_max_tokens)

@@ -4,6 +4,9 @@
 
 import json
 import asyncio
+import os
+import uuid
+from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse
@@ -60,6 +63,7 @@ from app.utils.time_utils import format_datetime
 
 router = APIRouter()
 comfyui_service = ComfyUIService()
+merge_video_locks = {}
 
 
 # ==================== 分镜图生成 ====================
@@ -565,7 +569,8 @@ async def merge_chapter_videos(
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
 
-    include_transitions = data.include_transitions
+    mode = data.mode or ("shots_with_transitions" if data.include_transitions else "shots_only")
+    include_transitions = mode == "shots_with_transitions"
 
     # 从 Shot 表获取分镜视频列表（保留分镜 index，便于正确匹配转场）
     shots = shot_repo.get_by_chapter(chapter_id)
@@ -573,52 +578,74 @@ async def merge_chapter_videos(
 
     # 从 parsed_data 获取转场视频
     parsed_data = json.loads(chapter.parsed_data) if chapter.parsed_data else {}
-    transition_videos = parsed_data.get("transition_videos", {})
+    transition_videos = parsed_data.get("transition_videos") or {}
 
     if not generated_shots or len(generated_shots) == 0:
         return {"success": False, "message": "没有分镜视频可以合并"}
 
-    # 转换 URL 为本地路径
-    video_paths = []
-    for _, video_url in generated_shots:
+    # 转换 URL 为本地路径，并仅使用确实存在的分镜视频。
+    valid_shots = []
+    for shot_index, video_url in generated_shots:
         if video_url and video_url.startswith("/api/files/"):
             full_path = url_to_local_path(video_url)
-            if full_path:
-                video_paths.append(full_path)
+            if full_path and Path(full_path).is_file():
+                valid_shots.append((shot_index, full_path))
 
-    if len(video_paths) == 0:
+    if len(valid_shots) == 0:
         return {"success": False, "message": "视频文件不存在"}
 
-    # 获取转场视频路径
+    video_paths = [path for _, path in valid_shots]
+    segments = []
     trans_paths = []
-    if include_transitions and transition_videos:
-        for i in range(len(generated_shots) - 1):
-            from_index = generated_shots[i][0]
-            to_index = generated_shots[i + 1][0]
+    for i, (shot_index, shot_path) in enumerate(valid_shots):
+        segments.append({"kind": "shot", "key": str(shot_index), "path": shot_path})
+        if include_transitions and i < len(valid_shots) - 1:
+            from_index = shot_index
+            to_index = valid_shots[i + 1][0]
             key = f"{from_index}-{to_index}"
             trans_url = transition_videos.get(key)
+            trans_path = None
             if trans_url and trans_url.startswith("/api/files/"):
                 full_path = url_to_local_path(trans_url)
-                if full_path:
-                    trans_paths.append(full_path)
-                else:
-                    trans_paths.append(None)
-            else:
-                trans_paths.append(None)
+                if full_path and Path(full_path).is_file():
+                    trans_path = full_path
+                    segments.append({"kind": "transition", "key": key, "path": full_path})
+            trans_paths.append(trans_path)
 
-    # 生成输出路径
+    signature = await asyncio.to_thread(
+        file_storage.get_video_merge_signature, mode, segments
+    )
     story_dir = file_storage._get_story_dir(novel_id)
     chapter_short = chapter_id[:8] if chapter_id else "unknown"
-    output_filename = f"chapter_{chapter_short}_merged{'_with_trans' if include_transitions else ''}.mp4"
-    output_path = str(story_dir / output_filename)
+    output_dir = story_dir / f"chapter_{chapter_short}" / "merged-videos"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"{mode}-{signature}.mp4"
 
-    # 合并视频
-    result = await file_storage.merge_videos(
-        video_paths, output_path, trans_paths if include_transitions else None
-    )
+    lock = merge_video_locks.setdefault(str(output_path), asyncio.Lock())
+    async with lock:
+        if output_path.is_file() and output_path.stat().st_size > 0:
+            result = {
+                "success": True,
+                "message": f"使用上次合并结果，共 {len(segments)} 个视频片段",
+            }
+            cache_hit = True
+        else:
+            temp_path = output_dir / f".{mode}-{uuid.uuid4().hex}.tmp.mp4"
+            try:
+                result = await file_storage.merge_videos(
+                    video_paths,
+                    str(temp_path),
+                    trans_paths if include_transitions else None,
+                )
+                if result.get("success"):
+                    os.replace(temp_path, output_path)
+            finally:
+                if temp_path.exists():
+                    temp_path.unlink()
+            cache_hit = False
 
     if result.get("success"):
-        relative_path = output_path.replace(str(file_storage.base_dir), "").replace(
+        relative_path = str(output_path).replace(str(file_storage.base_dir), "").replace(
             "\\", "/"
         )
         video_url = f"/api/files/{relative_path.lstrip('/')}"
@@ -627,6 +654,8 @@ async def merge_chapter_videos(
             "success": True,
             "video_url": video_url,
             "message": result.get("message", "合并成功"),
+            "cache_hit": cache_hit,
+            "mode": mode,
         }
     else:
         return {"success": False, "message": result.get("message", "合并失败")}

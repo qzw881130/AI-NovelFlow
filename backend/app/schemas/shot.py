@@ -66,7 +66,10 @@ class BatchTransitionRequest(BaseModel):
 class MergeVideosRequest(BaseModel):
     """合并视频请求"""
 
-    include_transitions: bool = Field(False, description="是否包含转场视频")
+    mode: Optional[Literal["shots_only", "shots_with_transitions"]] = Field(
+        None, description="合并模式"
+    )
+    include_transitions: bool = Field(False, description="是否包含转场视频（兼容旧请求）")
 
 
 class ShotUpdate(BaseModel):

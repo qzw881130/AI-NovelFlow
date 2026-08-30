@@ -13,6 +13,7 @@ export default {
     allTypes: '全タイプ',
     parseCharacters: 'キャラクター解析',
     parseScenes: 'シーン解析',
+    parseProps: '小道具解析',
     splitShots: 'ショット分割',
     generateAppearance: '外見を生成',
     expandVideoPrompt: '動画プロンプトを展開',
@@ -50,5 +51,6 @@ export default {
     proxy: 'プロキシ',
     yes: 'はい',
     no: 'いいえ',
+    pending: '処理中',
   },
 };

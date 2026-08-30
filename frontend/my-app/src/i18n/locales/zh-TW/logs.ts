@@ -13,6 +13,7 @@ export default {
     allTypes: '全部類型',
     parseCharacters: '解析角色',
     parseScenes: '解析場景',
+    parseProps: '解析道具',
     splitShots: '拆分分鏡',
     generateAppearance: '生成外貌描述',
     expandVideoPrompt: '擴寫影片提示詞',
@@ -50,5 +51,6 @@ export default {
     proxy: '代理',
     yes: '是',
     no: '否',
+    pending: '進行中',
   },
 };

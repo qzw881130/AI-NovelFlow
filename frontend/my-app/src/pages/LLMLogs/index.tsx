@@ -6,7 +6,7 @@ import { LogDetailModal } from './components/LogDetailModal';
 
 function LogTableRow({ log, onView, formatDate, truncateText, getTaskTypeLabel, getStatusBadgeConfig }: {
   log: LLMLog; onView: () => void; formatDate: (d: string) => string;
-  truncateText: (t: string, m?: number) => string; getTaskTypeLabel: (t: string) => string;
+  truncateText: (t: string, m?: number) => string; getTaskTypeLabel: (t: string | null) => string;
   getStatusBadgeConfig: (s: string) => { bg: string; text: string; label: string };
 }) {
   const { t } = useTranslation();
@@ -54,7 +54,7 @@ export default function LLMLogs() {
             { key: 'provider', label: t('llmLogs.llmProvider'), options: state.filterOptions.providers },
             { key: 'model', label: t('llmLogs.model'), options: state.filterOptions.models },
             { key: 'task_type', label: t('llmLogs.taskType'), options: state.filterOptions.task_types, useLabel: true },
-            { key: 'status', label: t('common.status'), options: ['success', 'error'], isStatus: true }
+            { key: 'status', label: t('common.status'), options: ['pending', 'success', 'error'], isStatus: true }
           ].map(({ key, label, options, useLabel, isStatus }) => (
             <div key={key}>
               <label className="block text-xs text-gray-500 mb-1">{label}</label>
@@ -62,7 +62,11 @@ export default function LLMLogs() {
                 onChange={(e) => state.handleFilterChange(key, e.target.value)} className="input-field text-sm w-full">
                 <option value="">{t('llmLogs.all')}</option>
                 {isStatus ? (
-                  [<option key="success" value="success">{t('common.success')}</option>, <option key="error" value="error">{t('common.failed')}</option>]
+                  [
+                    <option key="pending" value="pending">{t('llmLogs.pending')}</option>,
+                    <option key="success" value="success">{t('common.success')}</option>,
+                    <option key="error" value="error">{t('common.failed')}</option>
+                  ]
                 ) : options?.map((o: string) => (
                   <option key={o} value={o}>{useLabel ? state.getTaskTypeLabel(o) : o}</option>
                 ))}

@@ -49,7 +49,7 @@ def get_llm_logs(
     provider: Optional[str] = Query(None, description="LLM厂商筛选"),
     model: Optional[str] = Query(None, description="模型筛选"),
     task_type: Optional[str] = Query(None, description="任务类型筛选"),
-    status: Optional[str] = Query(None, description="状态筛选: success/error"),
+    status: Optional[str] = Query(None, description="状态筛选: pending/success/error"),
     novel_id: Optional[str] = Query(None, description="小说ID筛选"),
     llmlog_repo: LLMLogRepository = Depends(get_llmlog_repo)
 ):

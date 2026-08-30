@@ -336,6 +336,7 @@ export default {
     mergeResult: '統合結果',
     noVideosToMerge: '統合する動画がありません',
     mergeSuccess: '動画統合成功',
+    mergeCacheHit: '参照動画に変更がないため、前回の統合結果を表示しました',
     mergeFailed: '統合失敗',
     mergingVideo: '動画生成中...',
     clickToGenerateVideo: '「現在のショットを生成」ボタンをクリックして動画を生成',

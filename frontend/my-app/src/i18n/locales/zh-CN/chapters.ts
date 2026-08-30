@@ -305,6 +305,7 @@ export default {
     mergeResult: '合并结果',
     noVideosToMerge: '没有可合并的视频',
     mergeSuccess: '视频合并成功',
+    mergeCacheHit: '参考视频未变更，已显示上次合并结果',
     mergeFailed: '视频合并失败',
     mergingVideo: '正在生成视频...',
     clickToGenerateVideo: '点击"生成当前分镜"按钮生成视频',

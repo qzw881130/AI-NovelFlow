@@ -121,18 +121,20 @@ export function useLLMLogsState() {
     return text.substring(0, maxLength) + '...';
   };
 
-  const getTaskTypeLabel = (type: string) => {
+  const getTaskTypeLabel = (type: string | null) => {
     const labels: Record<string, string> = {
       'parse_characters': t('llmLogs.parseCharacters'), 'parse_scenes': t('llmLogs.parseScenes'),
+      'parse_props': t('llmLogs.parseProps'),
       'split_chapter': t('llmLogs.splitShots'), 'generate_character_appearance': t('llmLogs.generateAppearance'),
       'expand_video_prompt': t('llmLogs.expandVideoPrompt')
     };
-    return labels[type] || type || '-';
+    return (type && labels[type]) || type || '-';
   };
 
   const getStatusBadgeConfig = (status: string) => {
     if (status === 'success') return { bg: 'bg-green-100', text: 'text-green-700', label: t('common.success') };
-    return { bg: 'bg-red-100', text: 'text-red-700', label: t('status.failed') };
+    if (status === 'pending') return { bg: 'bg-amber-100', text: 'text-amber-700', label: t('llmLogs.pending') };
+    return { bg: 'bg-red-100', text: 'text-red-700', label: t('common.failed') };
   };
 
   const closeModal = () => { setSelectedLog(null); setActivePromptTab('user'); };

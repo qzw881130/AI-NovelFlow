@@ -7,6 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
 import json
+import uuid
 
 
 def _sanitize_headers(headers: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -40,23 +41,64 @@ def build_llm_request_info(
     }
 
 
-def save_llm_log(
+def create_llm_log(
     provider: str,
     model: str,
     system_prompt: str,
     user_prompt: str,
-    response: str = None,
-    status: str = "success",
-    error_message: str = None,
     task_type: str = None,
     novel_id: str = None,
     chapter_id: str = None,
     character_id: str = None,
     used_proxy: bool = False,
-    duration: float = None,
     request_info: Dict[str, Any] = None,
-):
-    """保存 LLM 调用日志到数据库（异步执行，不阻塞主流程）"""
+) -> Optional[str]:
+    """在请求发出前创建一条进行中的 LLM 调用日志。"""
+    log_id = str(uuid.uuid4())
+    try:
+        from app.core.database import SessionLocal
+        from app.models.llm_log import LLMLog
+
+        db = SessionLocal()
+        try:
+            log = LLMLog(
+                id=log_id,
+                provider=provider,
+                model=model,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                status="pending",
+                task_type=task_type,
+                novel_id=novel_id,
+                chapter_id=chapter_id,
+                character_id=character_id,
+                used_proxy=used_proxy,
+                request_info=json.dumps(request_info, ensure_ascii=False, indent=2, default=str) if request_info else None,
+            )
+            db.add(log)
+            db.commit()
+            return log_id
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[LLM Log] 创建日志失败：{e}")
+        return None
+
+
+def update_llm_log(
+    log_id: Optional[str],
+    status: str,
+    response: str = None,
+    error_message: str = None,
+    duration: float = None,
+) -> None:
+    """请求结束后更新同一条 LLM 调用日志。"""
+    if not log_id:
+        return
+
     try:
         from app.core.database import SessionLocal
         from app.models.llm_log import LLMLog
@@ -64,28 +106,22 @@ def save_llm_log(
 
         db = SessionLocal()
         try:
-            log = LLMLog(
-                provider=provider,
-                model=model,
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                response=response,
-                status=status,
-                error_message=error_message[:LOG_ERROR_MESSAGE_MAX_LENGTH] if error_message else None,
-                task_type=task_type,
-                novel_id=novel_id,
-                chapter_id=chapter_id,
-                character_id=character_id,
-                used_proxy=used_proxy,
-                duration=duration,
-                request_info=json.dumps(request_info, ensure_ascii=False, indent=2) if request_info else None
-            )
-            db.add(log)
+            updated = db.query(LLMLog).filter(LLMLog.id == log_id).update({
+                "response": response,
+                "status": status,
+                "error_message": error_message[:LOG_ERROR_MESSAGE_MAX_LENGTH] if error_message else None,
+                "duration": duration,
+            })
+            if not updated:
+                raise RuntimeError(f"日志不存在: {log_id}")
             db.commit()
+        except Exception:
+            db.rollback()
+            raise
         finally:
             db.close()
     except Exception as e:
-        print(f"[LLM Log] 保存日志失败：{e}")
+        print(f"[LLM Log] 更新日志失败：{e}")
 
 
 @dataclass

@@ -28,7 +28,7 @@ class LLMLog(Base):
     request_info = Column(Text, nullable=True)
     
     # 状态
-    status = Column(String, default="success")  # success, error
+    status = Column(String, default="pending")  # pending, success, error
     error_message = Column(Text, nullable=True)
     
     # 任务类型

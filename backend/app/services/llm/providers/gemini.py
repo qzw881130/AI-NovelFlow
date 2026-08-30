@@ -6,7 +6,7 @@ Google Gemini 提供商
 import httpx
 import time
 from typing import Dict, Any, Optional
-from ..base import BaseLLMProvider, LLMConfig, LLMResponse, save_llm_log, build_llm_request_info
+from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
 
 
 class GeminiProvider(BaseLLMProvider):
@@ -113,8 +113,21 @@ class GeminiProvider(BaseLLMProvider):
 
         client = httpx.AsyncClient(proxy=proxy, timeout=timeout)
 
+        log_id = None
         try:
             async with client:
+                log_id = create_llm_log(
+                    provider=self.config.provider,
+                    model=self.config.model,
+                    system_prompt=system_prompt,
+                    user_prompt=user_content,
+                    task_type=task_type,
+                    novel_id=novel_id,
+                    chapter_id=chapter_id,
+                    character_id=character_id,
+                    used_proxy=used_proxy,
+                    request_info=request_info,
+                )
                 response = await client.post(
                     endpoint,
                     headers=headers,
@@ -128,20 +141,11 @@ class GeminiProvider(BaseLLMProvider):
                 data = response.json()
                 content = self._parse_response(data)
 
-                save_llm_log(
-                    provider=self.config.provider,
-                    model=self.config.model,
-                    system_prompt=system_prompt,
-                    user_prompt=user_content,
+                update_llm_log(
+                    log_id=log_id,
                     response=content,
                     status="success",
-                    task_type=task_type,
-                    novel_id=novel_id,
-                    chapter_id=chapter_id,
-                    character_id=character_id,
-                    used_proxy=used_proxy,
                     duration=duration,
-                    request_info=request_info,
                 )
 
                 return LLMResponse(
@@ -152,20 +156,11 @@ class GeminiProvider(BaseLLMProvider):
                 )
             else:
                 error_msg = f"API 错误 ({response.status_code}): {response.text}"
-                save_llm_log(
-                    provider=self.config.provider,
-                    model=self.config.model,
-                    system_prompt=system_prompt,
-                    user_prompt=user_content,
+                update_llm_log(
+                    log_id=log_id,
                     status="error",
                     error_message=error_msg,
-                    task_type=task_type,
-                    novel_id=novel_id,
-                    chapter_id=chapter_id,
-                    character_id=character_id,
-                    used_proxy=used_proxy,
                     duration=duration,
-                    request_info=request_info,
                 )
 
                 return LLMResponse(
@@ -182,20 +177,11 @@ class GeminiProvider(BaseLLMProvider):
             traceback.print_exc()
 
             duration = time.time() - start_time
-            save_llm_log(
-                provider=self.config.provider,
-                model=self.config.model,
-                system_prompt=system_prompt,
-                user_prompt=user_content,
+            update_llm_log(
+                log_id=log_id,
                 status="error",
                 error_message=error_msg,
-                task_type=task_type,
-                novel_id=novel_id,
-                chapter_id=chapter_id,
-                character_id=character_id,
-                used_proxy=used_proxy,
                 duration=duration,
-                request_info=request_info,
             )
 
             return LLMResponse(

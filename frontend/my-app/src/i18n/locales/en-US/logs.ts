@@ -11,6 +11,7 @@ export default {
     allTypes: 'All Types',
     parseCharacters: 'Parse Characters',
     parseScenes: 'Parse Scenes',
+    parseProps: 'Parse Props',
     splitShots: 'Split Shots',
     generateAppearance: 'Generate Appearance',
     expandVideoPrompt: 'Expand Video Prompt',
@@ -49,5 +50,6 @@ export default {
     duration: 'Duration',
     yes: 'Yes',
     no: 'No',
+    pending: 'In progress',
   },
 };

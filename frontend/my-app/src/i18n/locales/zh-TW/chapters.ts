@@ -277,6 +277,7 @@ export default {
     mergeResult: '合併結果',
     noVideosToMerge: '沒有可合併的影片',
     mergeSuccess: '影片合併成功',
+    mergeCacheHit: '參考影片未變更，已顯示上次合併結果',
     mergeFailed: '合併失敗',
     mergingVideo: '正在生成影片...',
     clickToGenerateVideo: '點擊"生成當前分鏡"按鈕生成影片',

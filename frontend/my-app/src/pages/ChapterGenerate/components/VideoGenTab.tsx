@@ -20,6 +20,7 @@ import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import type { KeyframeData } from '../../../types';
 
 const VIDEO_TAB_UI_STORAGE_KEY = 'chapterGenerate_videoTab_ui';
+type MergeVideoMode = 'shots_only' | 'shots_with_transitions';
 
 const getSavedVideoTabUiState = () => {
   try {
@@ -123,7 +124,8 @@ export function VideoGenTab({
   const [showAudioRef, setShowAudioRef] = useState(initialVideoTabUiState.showAudioRef);
 
   // 合并视频相关状态
-  const [isMerging, setIsMerging] = useState(false);
+  const [mergingMode, setMergingMode] = useState<MergeVideoMode | null>(null);
+  const [showMergeMenu, setShowMergeMenu] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
 
@@ -375,7 +377,7 @@ export function VideoGenTab({
   };
 
   // 处理合并视频
-  const handleMergeVideos = async (includeTransitions: boolean) => {
+  const handleMergeVideos = async (mode: MergeVideoMode) => {
     if (!effectiveNovelId || !effectiveChapterId) return;
 
     // 从 shots 数据中获取所有视频 URL
@@ -389,23 +391,23 @@ export function VideoGenTab({
       return;
     }
 
-    setIsMerging(true);
+    setMergingMode(mode);
     try {
       const response = await fetch(
         `/api/novels/${effectiveNovelId}/chapters/${effectiveChapterId}/merge-videos`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ include_transitions: includeTransitions })
+          body: JSON.stringify({ mode })
         }
       );
 
       const data = await response.json();
 
-      if (data.success) {
+      if (response.ok && data.success) {
         setMergedVideoUrl(data.video_url);
         setShowMergeModal(true);
-        toast.success(t('chapterGenerate.mergeSuccess'));
+        toast.success(t(data.cache_hit ? 'chapterGenerate.mergeCacheHit' : 'chapterGenerate.mergeSuccess'));
       } else {
         toast.error(data.message || t('chapterGenerate.mergeFailed'));
       }
@@ -413,7 +415,7 @@ export function VideoGenTab({
       console.error('Merge error:', error);
       toast.error(t('chapterGenerate.mergeFailed'));
     } finally {
-      setIsMerging(false);
+      setMergingMode(null);
     }
   };
 
@@ -483,23 +485,54 @@ export function VideoGenTab({
               </>
             )}
           </button>
-          <button
-            onClick={() => handleMergeVideos(Object.keys(transitionVideos).length > 0)}
-            disabled={isMerging || !effectiveChapterId || videoCount === 0}
-            className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          <div
+            className="relative"
+            onBlur={(event) => {
+              if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget as Node)) {
+                setShowMergeMenu(false);
+              }
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setShowMergeMenu(false);
+            }}
           >
-            {isMerging ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {t('chapterGenerate.merging')}
-              </>
-            ) : (
-              <>
-                <Combine className="w-4 h-4" />
-                {t('chapterGenerate.mergeVideo')}
-              </>
+            <button
+              onClick={() => setShowMergeMenu((visible) => !visible)}
+              disabled={mergingMode !== null || !effectiveChapterId || videoCount === 0}
+              className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              aria-haspopup="menu"
+              aria-expanded={showMergeMenu}
+            >
+              {mergingMode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Combine className="w-4 h-4" />}
+              {mergingMode ? t('chapterGenerate.merging') : t('chapterGenerate.mergeVideo')}
+              {!mergingMode && <ChevronDown className={`w-4 h-4 transition-transform ${showMergeMenu ? 'rotate-180' : ''}`} />}
+            </button>
+            {showMergeMenu && !mergingMode && (
+              <div className="absolute right-0 top-full mt-2 min-w-56 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg z-30" role="menu">
+                <button
+                  onClick={() => {
+                    setShowMergeMenu(false);
+                    handleMergeVideos('shots_only');
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-pink-50 hover:text-pink-700 transition-colors"
+                  role="menuitem"
+                >
+                  {t('chapterGenerate.mergeShotsOnly')}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowMergeMenu(false);
+                    handleMergeVideos('shots_with_transitions');
+                  }}
+                  disabled={Object.keys(transitionVideos).length === 0}
+                  className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-pink-50 hover:text-pink-700 disabled:text-gray-300 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors"
+                  role="menuitem"
+                >
+                  {t('chapterGenerate.mergeShotsAndTransitions')}
+                </button>
+              </div>
             )}
-          </button>
+          </div>
         </div>
         <div className="text-sm text-gray-500">
           {t('chapterGenerate.shotId', { id: selectedVideo || 0, total: shotsList.length })}

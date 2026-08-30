@@ -11,6 +11,7 @@ export default {
     allTypes: '全部类型',
     parseCharacters: '解析角色',
     parseScenes: '解析场景',
+    parseProps: '解析道具',
     splitShots: '拆分分镜',
     generateAppearance: '生成外貌描述',
     expandVideoPrompt: '扩写视频提示词',
@@ -49,5 +50,6 @@ export default {
     duration: '耗时',  // 新增耗时字段
     yes: '是',
     no: '否',
+    pending: '进行中',
   },
 };

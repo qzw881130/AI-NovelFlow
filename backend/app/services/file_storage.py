@@ -2,6 +2,8 @@
 文件存储服务 - 管理小说相关的所有资源文件
 """
 import os
+import hashlib
+import json
 import httpx
 import shutil
 from pathlib import Path
@@ -41,6 +43,27 @@ class FileStorageService:
         for char in invalid_chars:
             name = name.replace(char, '_')
         return name.strip()
+
+    def get_video_merge_signature(self, mode: str, segments: List[Dict[str, str]]) -> str:
+        """根据实际参与合并的视频内容和顺序生成缓存签名。"""
+        manifest = []
+        for segment in segments:
+            content_hash = hashlib.sha256()
+            with open(segment["path"], "rb") as source:
+                for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                    content_hash.update(chunk)
+            manifest.append({
+                "kind": segment["kind"],
+                "key": segment["key"],
+                "sha256": content_hash.hexdigest(),
+            })
+
+        payload = json.dumps(
+            {"version": 1, "mode": mode, "segments": manifest},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
     
     async def download_image(self, url: str, novel_id: str, character_name: str,
                             image_type: str = "character", chapter_id: str = None) -> Optional[str]:
@@ -584,6 +607,8 @@ class FileStorageService:
                 # 1. 遍历章节目录下的所有文件
                 if chapter_dir.exists():
                     for item in chapter_dir.rglob('*'):
+                        if "merged-videos" in item.relative_to(chapter_dir).parts:
+                            continue
                         if item.is_file():
                             arcname = item.relative_to(story_dir)
                             zipf.write(item, arcname)

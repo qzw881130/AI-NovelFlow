@@ -336,6 +336,7 @@ export default {
     mergeResult: '합성 결과',
     noVideosToMerge: '합성할 비디오가 없습니다',
     mergeSuccess: '비디오 합성 성공',
+    mergeCacheHit: '참조 비디오가 변경되지 않아 이전 합성 결과를 표시했습니다',
     mergeFailed: '합성 실패',
     mergingVideo: '비디오 생성 중...',
     clickToGenerateVideo: '"현재 샷 생성" 버튼을 클릭하여 비디오 생성',
