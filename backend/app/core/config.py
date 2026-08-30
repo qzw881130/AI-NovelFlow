@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ""
     LLM_MAX_TOKENS: Optional[int] = 393216  # 最大token数
     LLM_TEMPERATURE: Optional[str] = None  # 温度参数
+    LLM_TIMEOUT: Optional[int] = 1800  # 请求超时（秒），默认 30 分钟
     
     # Proxy Configuration (代理配置)
     PROXY_ENABLED: bool = False
@@ -88,6 +89,8 @@ def reload_settings_from_db(db_config: dict) -> None:
         _settings_instance.LLM_MAX_TOKENS = db_config["llm_max_tokens"]
     if "llm_temperature" in db_config:
         _settings_instance.LLM_TEMPERATURE = db_config["llm_temperature"]
+    if db_config.get("llm_timeout") is not None:
+        _settings_instance.LLM_TIMEOUT = db_config["llm_timeout"]
     
     if db_config.get("proxy_enabled") is not None:
         _settings_instance.PROXY_ENABLED = db_config["proxy_enabled"]

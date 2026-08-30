@@ -44,6 +44,7 @@ class LLMService:
         self.api_key = current_settings.LLM_API_KEY
         self.max_tokens = getattr(current_settings, 'LLM_MAX_TOKENS', None)  # 从配置中获取 max_tokens
         self.temperature = getattr(current_settings, 'LLM_TEMPERATURE', None)  # 从配置中获取 temperature
+        self.timeout = getattr(current_settings, 'LLM_TIMEOUT', None)  # 从配置中获取请求超时（秒）
 
         # 代理配置
         self.proxy_enabled = current_settings.PROXY_ENABLED
@@ -77,6 +78,7 @@ class LLMService:
             api_key=self.api_key,
             max_tokens=self.max_tokens,
             temperature=float(self.temperature) if self.temperature else None,
+            timeout=self.timeout,
             proxy_enabled=self.proxy_enabled,
             http_proxy=self.http_proxy,
             https_proxy=self.https_proxy,

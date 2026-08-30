@@ -62,6 +62,7 @@ export interface SettingsFormData {
   llmApiUrl: string;
   llmMaxTokens?: number;
   llmTemperature?: string;
+  llmTimeout?: number;
   proxy: ProxyConfig;
   comfyUIHost: string;
   systemStatusSource: SystemStatusSource;

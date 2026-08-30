@@ -25,6 +25,7 @@ export interface SystemConfig {
   llmApiUrl: string;
   llmMaxTokens?: number;  // 最大token数
   llmTemperature?: string;  // 温度参数
+  llmTimeout?: number;  // 请求超时（秒）
   
   // 代理配置
   proxy: ProxyConfig;

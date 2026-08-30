@@ -283,7 +283,23 @@ export const createGenerationSlice: StateCreator<
             ? { ...s, videoUrl: null, videoStatus: 'generating' as const, videoTaskId: result.data?.taskId || null }
             : s
         );
-        set({ shots: updatedShots });
+        set(state => ({
+          shots: updatedShots,
+          generatingVideos: new Set([...state.generatingVideos, shotId]),
+        }));
+
+        get().checkVideoTaskStatus(chapterId);
+
+        let attempts = 0;
+        const pollVideoTask = async () => {
+          if (!get().generatingVideos.has(shotId) || attempts >= 180) return;
+          attempts += 1;
+          await get().checkVideoTaskStatus(chapterId);
+          if (get().generatingVideos.has(shotId)) {
+            window.setTimeout(pollVideoTask, 2000);
+          }
+        };
+        window.setTimeout(pollVideoTask, 2000);
       } else {
         throw new Error(result.message || '生成失败');
       }

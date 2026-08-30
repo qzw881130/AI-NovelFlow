@@ -140,6 +140,11 @@ export function VideoGenTab({
   // 获取当前分镜的视频 URL（shotVideos 使用 shot.id 作为 key）
   const currentShotVideoUrl = currentShotData?.videoUrl || (currentShotId ? shotVideos[currentShotId] : undefined);
 
+  const hasShotVideo = (shot: any) => {
+    const shotId = shot?.id ? String(shot.id) : '';
+    return !!(shot?.videoUrl || (shotId && shotVideos[shotId]));
+  };
+
   // 检查当前分镜是否正在生成
   const isGeneratingCurrent = currentShotId ? generatingVideos.has(currentShotId) : false;
 
@@ -188,6 +193,8 @@ export function VideoGenTab({
   // 处理单个视频生成
   const handleGenerateVideo = async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+    if (hasVideo && !window.confirm('视频已存在，确认删除旧的吗？')) return;
+
     try {
       await generateShotVideo(effectiveNovelId, effectiveChapterId, currentShotId);
       markTabComplete(3);
@@ -231,11 +238,15 @@ export function VideoGenTab({
   // 处理批量视频生成
   const handleGenerateAll = async () => {
     if (!effectiveNovelId || !effectiveChapterId) return;
+    const selectedShotList = Array.from(selectedShots)
+      .map(index => shotsList[index - 1])
+      .filter(Boolean);
+    if (selectedShotList.some(hasShotVideo) && !window.confirm('视频已存在，确认删除旧的吗？')) return;
+
     setIsGeneratingAll(true);
     try {
       // 依次生成选中的分镜
-      for (const index of selectedShots) {
-        const shot = shotsList[index - 1];
+      for (const shot of selectedShotList) {
         if (shot?.id) {
           await generateShotVideo(effectiveNovelId, effectiveChapterId, shot.id);
         }
@@ -895,7 +906,7 @@ export function VideoGenTab({
                   const shotIndex = idx + 1;
                   const shotId = shot.id;
                   const isSelected = selectedShots.has(shotIndex);
-                  const hasVideo = !!(shot.videoUrl || shotVideos[shotId]);
+                  const hasVideo = hasShotVideo(shot);
                   const isGenerating = shotId ? generatingVideos.has(shotId) : false;
                   const isPending = !hasVideo && !isGenerating;
 

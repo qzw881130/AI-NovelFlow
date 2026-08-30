@@ -65,15 +65,23 @@ export function ShotForm({
   const chapterCharacters = useChapterGenerateStore((state) => state.chapterCharacters);
   const chapterScenes = useChapterGenerateStore((state) => state.chapterScenes);
   const chapterProps = useChapterGenerateStore((state) => state.chapterProps);
+  const libraryCharacters = useChapterGenerateStore((state) => state.characters);
+  const libraryScenes = useChapterGenerateStore((state) => state.scenes);
+  const libraryProps = useChapterGenerateStore((state) => state.props);
 
   // 优先使用 props 中的 shotIndex 和 shotData，否则从 store 获取
   const shotIndex = propShotIndex || currentShotIndex;
   const shotData = propShotData || storeShots[shotIndex - 1];
 
-  // 可用资源：优先使用 props，其次使用章节级资源
-  const availableCharacters = propAvailableCharacters || chapterCharacters;
-  const availableScenes = propAvailableScenes || chapterScenes;
-  const availableProps = propAvailableProps || chapterProps;
+  const mergeNames = (primary: string[], library: any[]) => {
+    const names = library.map((item) => item?.name).filter(Boolean);
+    return Array.from(new Set([...primary, ...names]));
+  };
+
+  // 可用资源：章节资源 + 小说资源库，避免手动创建的资源无法在分镜里选择。
+  const availableCharacters = propAvailableCharacters || mergeNames(chapterCharacters, libraryCharacters);
+  const availableScenes = propAvailableScenes || mergeNames(chapterScenes, libraryScenes);
+  const availableProps = propAvailableProps || mergeNames(chapterProps, libraryProps);
 
   // 本地状态
   const [description, setDescription] = useState(shotData?.description || '');

@@ -24,6 +24,7 @@ class LLMConfig(BaseModel):
     apiUrl: str
     maxTokens: Optional[int] = None  # 最大token数
     temperature: Optional[str] = None  # 温度参数（字符串类型，支持范围0.0-2.0）
+    timeout: Optional[int] = None  # 请求超时（秒）
 
 
 class ProxyConfig(BaseModel):
@@ -71,6 +72,7 @@ async def get_config(db: Session = Depends(get_db)):
             "llmApiUrl": config.llm_api_url,
             "llmMaxTokens": config.llm_max_tokens,
             "llmTemperature": config.llm_temperature,
+            "llmTimeout": config.llm_timeout,
             # 代理配置
             "proxyEnabled": config.proxy_enabled,
             "httpProxy": config.http_proxy,
@@ -107,6 +109,7 @@ async def get_full_config(db: Session = Depends(get_db)):
             "llm_api_key": api_key,
             "llm_max_tokens": config.llm_max_tokens,
             "llm_temperature": config.llm_temperature,
+            "llm_timeout": config.llm_timeout,
             "proxy_enabled": config.proxy_enabled,
             "http_proxy": config.http_proxy,
             "https_proxy": config.https_proxy,
@@ -134,12 +137,14 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
             db_config.llm_api_url = config.llm.apiUrl
             db_config.llm_max_tokens = config.llm.maxTokens
             db_config.llm_temperature = config.llm.temperature
+            db_config.llm_timeout = config.llm.timeout
             
             updates["llm_provider"] = config.llm.provider
             updates["llm_model"] = config.llm.model
             updates["llm_api_url"] = config.llm.apiUrl
             updates["llm_max_tokens"] = config.llm.maxTokens
             updates["llm_temperature"] = config.llm.temperature
+            updates["llm_timeout"] = config.llm.timeout
             
             # 允许显式清空已保存的 API Key，避免界面清空后后端仍使用旧值
             if config.llm.apiKey is not None:
@@ -343,6 +348,7 @@ def init_system_config(db: Session) -> None:
         "llm_api_key": api_key,
         "llm_max_tokens": config.llm_max_tokens,
         "llm_temperature": config.llm_temperature,
+        "llm_timeout": config.llm_timeout,
         "proxy_enabled": config.proxy_enabled,
         "http_proxy": config.http_proxy,
         "https_proxy": config.https_proxy,

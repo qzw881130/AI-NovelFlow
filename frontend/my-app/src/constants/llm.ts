@@ -23,6 +23,7 @@ export const DEFAULT_CONFIG: SystemConfig = {
   llmApiUrl: 'https://api.deepseek.com',
   llmMaxTokens: 393216,
   llmTemperature: undefined,
+  llmTimeout: 1800,
   proxy: DEFAULT_PROXY,
   comfyUIHost: 'http://127.0.0.1:8188',
   systemStatusSource: 'comfyui',
@@ -53,6 +54,9 @@ export const LLM_PROVIDER_PRESETS: LLMProviderPreset[] = [
     name: 'OpenAI',
     defaultApiUrl: 'https://api.openai.com/v1',
     models: [
+      { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna' },
+      { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' },
+      { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra' },
       { id: 'gpt-5.5', name: 'GPT-5.5', description: '旗舰推理与编码模型', maxTokens: 1000000 },
       { id: 'gpt-5.4', name: 'GPT-5.4', description: '高性价比专业模型', maxTokens: 1000000 },
       { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', description: '轻量高性能模型', maxTokens: 400000 },

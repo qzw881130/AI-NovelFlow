@@ -18,6 +18,7 @@ class SystemConfig(Base):
     llm_api_key = Column(Text, nullable=True)  # 加密存储
     llm_max_tokens = Column(Integer, default=393216, nullable=True)  # 最大token数
     llm_temperature = Column(String, nullable=True)  # 温度参数（字符串类型，支持范围0.0-2.0）
+    llm_timeout = Column(Integer, default=1800, nullable=True)  # 请求超时（秒）
     
     # 代理配置
     proxy_enabled = Column(Boolean, default=False)

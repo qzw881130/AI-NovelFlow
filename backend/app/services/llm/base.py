@@ -97,6 +97,7 @@ class LLMConfig:
     api_key: str
     max_tokens: Optional[int] = None
     temperature: Optional[float] = None
+    timeout: Optional[int] = None  # 请求超时（秒）
 
     # 代理配置
     proxy_enabled: bool = False

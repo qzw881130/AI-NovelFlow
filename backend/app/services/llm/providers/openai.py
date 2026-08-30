@@ -126,7 +126,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         proxy = self._get_proxy_config()
         used_proxy = proxy is not None
 
-        timeout = 600
+        timeout = self.config.timeout or 600
         request_info = build_llm_request_info(
             provider=self.config.provider,
             base_url=self.config.api_url,

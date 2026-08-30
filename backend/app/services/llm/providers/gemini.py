@@ -99,7 +99,7 @@ class GeminiProvider(BaseLLMProvider):
         # 获取代理配置
         proxy = self._get_proxy_config()
         used_proxy = proxy is not None
-        timeout = 300.0
+        timeout = self.config.timeout or 300.0
         request_info = build_llm_request_info(
             provider=self.config.provider,
             base_url=self.config.api_url,
@@ -111,7 +111,7 @@ class GeminiProvider(BaseLLMProvider):
             timeout_seconds=timeout,
         )
 
-        client = httpx.AsyncClient(proxy=proxy, timeout=600.0)
+        client = httpx.AsyncClient(proxy=proxy, timeout=timeout)
 
         try:
             async with client:

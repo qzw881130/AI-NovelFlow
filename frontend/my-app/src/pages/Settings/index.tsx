@@ -39,6 +39,7 @@ export default function Settings() {
             llmApiUrl: config.llmApiUrl || 'https://api.deepseek.com',
             llmMaxTokens: config.llmMaxTokens || DEFAULT_CONFIG.llmMaxTokens,
             llmTemperature: config.llmTemperature,
+            llmTimeout: config.llmTimeout || DEFAULT_CONFIG.llmTimeout,
             proxy: config.proxyEnabled !== undefined ? {
               enabled: config.proxyEnabled,
               httpProxy: config.httpProxy || '',
@@ -71,6 +72,7 @@ export default function Settings() {
             apiUrl: formData.llmApiUrl,
             maxTokens: formData.llmMaxTokens,
             temperature: formData.llmTemperature,
+            timeout: formData.llmTimeout,
           },
         };
       } else if (activeTab === 'proxy') {

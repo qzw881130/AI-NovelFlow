@@ -115,9 +115,9 @@ class OllamaProvider(BaseLLMProvider):
         old_https_proxy_lower = os.environ.pop('https_proxy', None)
 
         transport = httpx.AsyncHTTPTransport(proxy=None)
-        client = httpx.AsyncClient(transport=transport, timeout=300.0)
         used_proxy = False
-        timeout = 300.0
+        timeout = self.config.timeout or 300.0
+        client = httpx.AsyncClient(transport=transport, timeout=timeout)
         request_info = build_llm_request_info(
             provider=self.config.provider,
             base_url=self.config.api_url,
