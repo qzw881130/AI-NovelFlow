@@ -67,6 +67,19 @@ export function TaskCard({
     }
   };
 
+  const getElapsedSeconds = () => {
+    if (task.status !== 'completed' || !task.completedAt) return null;
+    const startValue = task.startedAt || task.createdAt;
+    if (!startValue) return null;
+    const parseDate = (value: string) => new Date(value.replace(/\//g, '-')).getTime();
+    const startedAt = parseDate(startValue);
+    const completedAt = parseDate(task.completedAt);
+    if (!Number.isFinite(startedAt) || !Number.isFinite(completedAt) || completedAt < startedAt) return null;
+    return Math.max(0, Math.round((completedAt - startedAt) / 1000));
+  };
+
+  const elapsedSeconds = getElapsedSeconds();
+
   return (
     <div className={`p-4 rounded-lg border ${getStatusColor(task.status)} transition-all hover:shadow-md`}>
       <div className="flex items-start gap-4">
@@ -236,6 +249,7 @@ export function TaskCard({
           <div className="mt-2 text-xs opacity-60">
             {t('common.createdAt')}: {formatDate(task.createdAt)}
             {task.completedAt && ` · ${t('tasks.completedAt')}: ${formatDate(task.completedAt)}`}
+            {elapsedSeconds !== null && ` · 耗时: ${elapsedSeconds} 秒`}
           </div>
         </div>
         <div className="flex items-center gap-2">

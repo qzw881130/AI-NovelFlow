@@ -1,4 +1,5 @@
-import { ListTodo, Loader2, RefreshCw, Square, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ListTodo, Loader2, RefreshCw, Square, CheckCircle, XCircle, Clock, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import ComfyUIStatus from '../../components/ComfyUIStatus';
 import { useTasksState } from './hooks/useTasksState';
@@ -9,6 +10,8 @@ import type { Task } from '../../types';
 
 export default function Tasks() {
   const { t, i18n } = useTranslation();
+  const [pageSize, setPageSize] = useState(30);
+  const [currentPage, setCurrentPage] = useState(1);
   const {
     isLoading,
     filter,
@@ -40,6 +43,20 @@ export default function Tasks() {
     setViewingWorkflow,
     setWorkflowData,
   } = useTasksState();
+
+  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / pageSize));
+  const paginatedTasks = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredTasks.slice(start, start + pageSize);
+  }, [filteredTasks, currentPage, pageSize]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, pageSize]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [currentPage, totalPages]);
 
   // Helper functions
   const convertShotName = (name: string): string => {
@@ -195,7 +212,23 @@ export default function Tasks() {
       </div>
 
       <div className="card">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('tasks.taskList')}</h2>
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <h2 className="text-lg font-semibold text-gray-900">{t('tasks.taskList')}</h2>
+          <div className="flex items-center gap-3 text-sm text-gray-600">
+            <span>每页</span>
+            <select
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+              className="rounded-lg border border-gray-300 bg-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              {[30, 50, 100].map((size) => (
+                <option key={size} value={size}>{size}</option>
+              ))}
+            </select>
+            <span>条</span>
+            <span className="text-gray-400">共 {filteredTasks.length} 条</span>
+          </div>
+        </div>
         {isLoading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
@@ -207,32 +240,57 @@ export default function Tasks() {
             <p className="mt-1 text-sm text-gray-500">{filter === 'all' ? t('tasks.noTasksCreated') : t('tasks.noTasksInStatus')}</p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {filteredTasks.map((task) => (
-              <TaskCard
-                key={task.id}
-                task={task}
-                imageInfo={imageInfo}
-                expandedErrors={expandedErrors}
-                onDelete={handleDelete}
-                onRetry={handleRetry}
-                onViewWorkflow={handleViewWorkflow}
-                onToggleError={toggleErrorDetail}
-                onPreviewImage={openImagePreview}
-                onPreviewImages={openImageGallery}
-                onPreviewVideo={setPreviewVideo}
-                fetchImageInfo={fetchImageInfo}
-                getTaskDisplayName={getTaskDisplayName}
-                getTaskDisplayDescription={getTaskDisplayDescription}
-                getTaskTypeName={getTaskTypeName}
-                getWorkflowDisplayName={getWorkflowDisplayName}
-                getStatusIcon={getStatusIcon}
-                getStatusText={getStatusText}
-                getStatusColor={getStatusColor}
-                formatDate={formatDate}
-              />
-            ))}
-          </div>
+          <>
+            <div className="space-y-3">
+              {paginatedTasks.map((task) => (
+                <TaskCard
+                  key={task.id}
+                  task={task}
+                  imageInfo={imageInfo}
+                  expandedErrors={expandedErrors}
+                  onDelete={handleDelete}
+                  onRetry={handleRetry}
+                  onViewWorkflow={handleViewWorkflow}
+                  onToggleError={toggleErrorDetail}
+                  onPreviewImage={openImagePreview}
+                  onPreviewImages={openImageGallery}
+                  onPreviewVideo={setPreviewVideo}
+                  fetchImageInfo={fetchImageInfo}
+                  getTaskDisplayName={getTaskDisplayName}
+                  getTaskDisplayDescription={getTaskDisplayDescription}
+                  getTaskTypeName={getTaskTypeName}
+                  getWorkflowDisplayName={getWorkflowDisplayName}
+                  getStatusIcon={getStatusIcon}
+                  getStatusText={getStatusText}
+                  getStatusColor={getStatusColor}
+                  formatDate={formatDate}
+                />
+              ))}
+            </div>
+            <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4 text-sm text-gray-600">
+              <span>第 {currentPage} / {totalPages} 页</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  disabled={currentPage <= 1}
+                  className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  上一页
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="inline-flex items-center gap-1 rounded-lg border border-gray-300 px-3 py-1.5 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  下一页
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          </>
         )}
       </div>
 

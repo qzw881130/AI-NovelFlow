@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useChapterGenerateStore } from '../stores';
-import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
@@ -21,6 +21,33 @@ import type { KeyframeData } from '../../../types';
 
 const VIDEO_TAB_UI_STORAGE_KEY = 'chapterGenerate_videoTab_ui';
 type MergeVideoMode = 'shots_only' | 'shots_with_transitions';
+type BatchSelectionMode = 'all' | 'pending' | null;
+
+interface VideoMetadata {
+  duration: number | null;
+  width: number | null;
+  height: number | null;
+  sizeBytes: number | null;
+}
+
+const formatDuration = (seconds: number | null) => {
+  if (!seconds || !Number.isFinite(seconds)) return '-';
+  const minutes = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60).toString().padStart(2, '0');
+  return `${minutes}:${secs}`;
+};
+
+const formatFileSize = (bytes: number | null) => {
+  if (!bytes || !Number.isFinite(bytes)) return '-';
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+};
+
+const formatBitrate = (bytes: number | null, duration: number | null) => {
+  if (!bytes || !duration || !Number.isFinite(duration)) return '-';
+  const kbps = (bytes * 8) / duration / 1000;
+  return kbps >= 1000 ? `${(kbps / 1000).toFixed(2)} Mbps` : `${Math.round(kbps)} kbps`;
+};
 
 const getSavedVideoTabUiState = () => {
   try {
@@ -80,7 +107,7 @@ export function VideoGenTab({
 }: VideoGenTabProps) {
   const { t } = useTranslation();
   const store = useChapterGenerateStore();
-  const { markTabComplete, setCurrentShot, downloadChapterMaterials, generateShotVideo, setShots, generateTransition, transitionWorkflows, selectedTransitionWorkflow, setSelectedTransitionWorkflow, fetchTransitionWorkflows, transitionDuration, setTransitionDuration } = store;
+  const { markTabComplete, setCurrentShot, downloadChapterMaterials, generateShotVideo, setShots, setShotVideos, checkVideoTaskStatus, generateTransition, transitionWorkflows, selectedTransitionWorkflow, setSelectedTransitionWorkflow, fetchTransitionWorkflows, transitionDuration, setTransitionDuration } = store;
 
   // 直接订阅 store 状态（确保状态更新时组件重新渲染）
   const storeShots = useChapterGenerateStore((state) => state.shots);
@@ -114,6 +141,7 @@ export function VideoGenTab({
   const [isDownloading, setIsDownloading] = useState(false);
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
   const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
+  const [batchSelectionMode, setBatchSelectionMode] = useState<BatchSelectionMode>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewTransitionVideo, setPreviewTransitionVideo] = useState<string | null>(null);
 
@@ -132,6 +160,13 @@ export function VideoGenTab({
   const [showMergeMenu, setShowMergeMenu] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
+  const [isRefreshingVideo, setIsRefreshingVideo] = useState(false);
+  const [videoMetadata, setVideoMetadata] = useState<VideoMetadata>({
+    duration: null,
+    width: null,
+    height: null,
+    sizeBytes: null,
+  });
 
   // 统一使用 store.shots 作为分镜数据源
   const shotsList = storeShots.length > 0 ? storeShots : propShots;
@@ -164,6 +199,29 @@ export function VideoGenTab({
   useEffect(() => {
     saveVideoTabUiState({ showKeyframes, showAudioRef, isSidePanelCollapsed });
   }, [showKeyframes, showAudioRef, isSidePanelCollapsed]);
+
+  useEffect(() => {
+    setVideoMetadata({ duration: null, width: null, height: null, sizeBytes: null });
+    if (!currentShotVideoUrl) return;
+
+    let cancelled = false;
+    fetch(currentShotVideoUrl, { method: 'HEAD' })
+      .then((response) => {
+        if (cancelled) return;
+        const contentLength = response.headers.get('content-length');
+        setVideoMetadata((metadata) => ({
+          ...metadata,
+          sizeBytes: contentLength ? Number(contentLength) : null,
+        }));
+      })
+      .catch(() => {
+        // Some file servers may not expose Content-Length for HEAD requests.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentShotVideoUrl]);
 
   const handleToggleKeyframes = () => {
     const nextShowKeyframes = !showKeyframes;
@@ -217,11 +275,8 @@ export function VideoGenTab({
 
   // 打开批量选择弹窗
   const handleOpenBatchSelect = () => {
-    // 初始化选择：默认选中所有待生成的分镜（没有视频的）
-    const pendingShots = shotsList
-      .filter((shot: any) => !shot.videoUrl && !shotVideos[shot.id])
-      .map((_: any, idx: number) => idx + 1);
-    setSelectedShots(new Set(pendingShots));
+    setSelectedShots(new Set(shotsList.map((_: any, idx: number) => idx + 1)));
+    setBatchSelectionMode('all');
     setShowBatchSelectModal(true);
   };
 
@@ -234,17 +289,49 @@ export function VideoGenTab({
       } else {
         newSet.add(index);
       }
+      setBatchSelectionMode(null);
       return newSet;
     });
   };
 
   // 全选/取消全选
   const toggleSelectAll = () => {
-    if (selectedShots.size === shotsList.length) {
+    if (batchSelectionMode === 'all') {
       setSelectedShots(new Set());
+      setBatchSelectionMode(null);
     } else {
       setSelectedShots(new Set(shotsList.map((_: any, idx: number) => idx + 1)));
+      setBatchSelectionMode('all');
     }
+  };
+
+  const toggleSelectPendingVideos = () => {
+    if (batchSelectionMode === 'pending') {
+      setSelectedShots(new Set());
+      setBatchSelectionMode(null);
+      return;
+    }
+
+    const pendingShots = shotsList
+      .map((shot: any, idx: number) => {
+        const shotId = shot?.id ? String(shot.id) : '';
+        const isGenerating = shotId ? generatingVideos.has(shotId) : false;
+        return !hasShotVideo(shot) && !isGenerating ? idx + 1 : null;
+      })
+      .filter((index: number | null): index is number => index !== null);
+
+    setSelectedShots(new Set(pendingShots));
+    setBatchSelectionMode('pending');
+  };
+
+  const handleVideoMetadataLoaded = (event: React.SyntheticEvent<HTMLVideoElement>) => {
+    const video = event.currentTarget;
+    setVideoMetadata((metadata) => ({
+      ...metadata,
+      duration: Number.isFinite(video.duration) ? video.duration : null,
+      width: video.videoWidth || null,
+      height: video.videoHeight || null,
+    }));
   };
 
   // 处理批量视频生成
@@ -369,6 +456,34 @@ export function VideoGenTab({
     } catch (error) {
       console.error('复制视频描述失败:', error);
       toast.error(t('common.copyFailed'));
+    }
+  };
+
+  const handleRefreshCurrentVideo = async () => {
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+
+    setIsRefreshingVideo(true);
+    try {
+      await checkVideoTaskStatus(effectiveChapterId);
+
+      const result = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, currentShotId);
+      if (result.success && result.data) {
+        setShots(shotsList.map((shot: any) => (
+          shot.id === currentShotId ? { ...shot, ...result.data } : shot
+        )));
+
+        if (result.data.videoUrl) {
+          setShotVideos((prev) => ({ ...prev, [currentShotId]: result.data.videoUrl || '' }));
+          toast.success('视频预览已刷新');
+        } else {
+          toast.info('当前分镜还没有视频');
+        }
+      }
+    } catch (error) {
+      console.error('刷新视频预览失败:', error);
+      toast.error('刷新视频预览失败');
+    } finally {
+      setIsRefreshingVideo(false);
     }
   };
 
@@ -624,8 +739,18 @@ export function VideoGenTab({
 
           {/* 视频预览区 */}
           <div className="video-preview-card flex-1 min-h-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
-            <div className="flex-shrink-0 p-3 border-b border-gray-200 bg-gray-50">
+            <div className="flex-shrink-0 p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
               <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.videoPreview')}</h3>
+              <button
+                type="button"
+                onClick={handleRefreshCurrentVideo}
+                disabled={isRefreshingVideo || !effectiveChapterId || !currentShotId}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-white hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="刷新视频预览"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingVideo ? 'animate-spin' : ''}`} />
+                刷新
+              </button>
             </div>
 
             <div className="video-preview-body flex-1 relative bg-gray-100">
@@ -634,6 +759,7 @@ export function VideoGenTab({
                   src={currentShotVideoUrl}
                   className="absolute inset-0 w-full h-full object-contain"
                   controls
+                  onLoadedMetadata={handleVideoMetadataLoaded}
                 />
               ) : isGeneratingCurrent ? (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -651,6 +777,14 @@ export function VideoGenTab({
                 </div>
               )}
             </div>
+            {hasVideo && (
+              <div className="flex-shrink-0 border-t border-gray-200 bg-white px-3 py-2 text-xs text-gray-600 flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span>时长：{formatDuration(videoMetadata.duration)}</span>
+                <span>分辨率：{videoMetadata.width && videoMetadata.height ? `${videoMetadata.width} x ${videoMetadata.height}` : '-'}</span>
+                <span>大小：{formatFileSize(videoMetadata.sizeBytes)}</span>
+                <span>码率：{formatBitrate(videoMetadata.sizeBytes, videoMetadata.duration)}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -942,27 +1076,27 @@ export function VideoGenTab({
             </div>
 
             {/* 弹窗内容 - 分镜列表 */}
-            <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex-1 overflow-y-auto p-4 pb-8">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-gray-600">
                   {t('chapterGenerate.selectedShots', { selected: selectedShots.size, total: shotsList.length })}
                 </span>
-                <button
-                  onClick={toggleSelectAll}
-                  className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
-                >
-                  {selectedShots.size === shotsList.length ? (
-                    <>
-                      <Square className="w-4 h-4" />
-                      {t('common.deselectAll')}
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" />
-                      {t('common.selectAll')}
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={toggleSelectPendingVideos}
+                    className={`text-sm flex items-center gap-1 transition-colors ${batchSelectionMode === 'pending' ? 'text-blue-700 font-medium' : 'text-gray-600 hover:text-blue-800'}`}
+                  >
+                    {batchSelectionMode === 'pending' ? <Check className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                    选择所有未生成
+                  </button>
+                  <button
+                    onClick={toggleSelectAll}
+                    className={`text-sm flex items-center gap-1 transition-colors ${batchSelectionMode === 'all' ? 'text-blue-700 font-medium' : 'text-gray-600 hover:text-blue-800'}`}
+                  >
+                    {batchSelectionMode === 'all' ? <Check className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                    {t('common.selectAll')}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-4 gap-3">
