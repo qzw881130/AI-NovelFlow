@@ -72,8 +72,9 @@ export function ShotImageGenTab({
   // 获取当前分镜对象
   const currentShotObj = shots.find(s => s.index === currentShotIndex);
   const currentShotId = currentShotObj?.id || shotsList[currentShotIndex - 1]?.id || '';
+  const currentImageUrl = currentShotObj?.imageUrl || currentShotData?.imageUrl || shotImages[currentShotId];
 
-  const hasImage = !!(currentShotObj?.imageUrl || currentShotData?.imageUrl || shotImages[currentShotId]);
+  const hasImage = !!currentImageUrl;
   // 完全依赖 store 的 generatingShots 状态
   const isGeneratingCurrent = generatingShots.has(currentShotId);
 
@@ -214,6 +215,15 @@ export function ShotImageGenTab({
     }
   };
 
+  const handlePreviewShotImage = () => {
+    if (!currentImageUrl) return;
+    if (onImageClick) {
+      onImageClick(currentImageUrl);
+    } else {
+      setShowImagePreview(true, currentImageUrl, currentShotIndex - 1);
+    }
+  };
+
   const childrenWithSaveShortcut = isValidElement(children)
     ? cloneElement(children, { onSave: handleSaveShot } as { onSave: () => Promise<void> })
     : children;
@@ -334,21 +344,16 @@ export function ShotImageGenTab({
             {hasImage ? (
               <>
                 <img
-                  src={currentShotObj?.imageUrl || currentShotData?.imageUrl || shotImages[currentShotId]}
+                  src={currentImageUrl}
                   alt={`${t('chapterGenerate.shot')}${currentShotIndex}`}
-                  className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                  onClick={handlePreviewShotImage}
+                  className="max-w-full max-h-full object-contain rounded-lg shadow-lg cursor-zoom-in hover:shadow-xl transition-shadow"
                 />
                 {/* 查看大图按钮 */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    const imageUrl = currentShotObj?.imageUrl || currentShotData?.imageUrl || shotImages[currentShotId];
-                    if (onImageClick) {
-                      onImageClick(imageUrl);
-                    } else {
-                      // 如果没有 onImageClick 回调，直接使用 store 方法
-                      setShowImagePreview(true, imageUrl, currentShotIndex - 1);
-                    }
+                    handlePreviewShotImage();
                   }}
                   className="absolute top-6 right-6 p-2 bg-black/60 hover:bg-black/80 rounded-full text-white hover:text-blue-400 transition-all"
                   title={t('common.viewLargeImage')}

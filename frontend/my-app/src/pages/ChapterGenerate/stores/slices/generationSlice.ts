@@ -818,6 +818,7 @@ export const createGenerationSlice: StateCreator<
         let shotVideosUpdated = false;
         let generatingVideosUpdated = false;
         let hasTerminalVideoTask = false;
+        const terminalShotIds = new Set<string>();
         const newShotVideos = { ...shotVideos };
         const newGeneratingVideos = new Set(generatingVideos);
 
@@ -835,9 +836,9 @@ export const createGenerationSlice: StateCreator<
               generatingVideosUpdated = true;
             }
 
-            if (isCompleted && task.resultUrl) {
+            if (isCompleted) {
               const wasGenerating = newGeneratingVideos.has(shot.id);
-              if (newShotVideos[shot.id] !== task.resultUrl) {
+              if (task.resultUrl && newShotVideos[shot.id] !== task.resultUrl) {
                 newShotVideos[shot.id] = task.resultUrl;
                 shotVideosUpdated = true;
               }
@@ -846,17 +847,23 @@ export const createGenerationSlice: StateCreator<
                 newGeneratingVideos.delete(shot.id);
                 generatingVideosUpdated = true;
               }
-              hasTerminalVideoTask = wasGenerating || shot.videoUrl !== task.resultUrl;
+              if (wasGenerating || (task.resultUrl && shot.videoUrl !== task.resultUrl) || !task.resultUrl) {
+                terminalShotIds.add(shot.id);
+              }
+              hasTerminalVideoTask = terminalShotIds.size > 0;
             } else if (isRunning && newShotVideos[shot.id]) {
               delete newShotVideos[shot.id];
               shotVideosUpdated = true;
             } else if (isFailed) {
               const wasGenerating = newGeneratingVideos.has(shot.id);
-              if (newGeneratingVideos.has(shot.id)) {
+              if (wasGenerating) {
                 newGeneratingVideos.delete(shot.id);
                 generatingVideosUpdated = true;
               }
-              hasTerminalVideoTask = wasGenerating || shot.videoStatus !== 'failed';
+              if (wasGenerating || shot.videoStatus !== 'failed') {
+                terminalShotIds.add(shot.id);
+              }
+              hasTerminalVideoTask = terminalShotIds.size > 0;
             }
 
             return {
@@ -882,7 +889,29 @@ export const createGenerationSlice: StateCreator<
         if (hasTerminalVideoTask) {
           const novelId = get().chapter?.novelId || get().novel?.id;
           if (novelId) {
-            await get().fetchShotsWithReturn(novelId, chapterId);
+            const refreshedShots = await Promise.all(
+              Array.from(terminalShotIds).map((shotId) => shotsApi.getShot(novelId, chapterId, shotId))
+            );
+
+            set(state => {
+              const nextShotVideos = { ...state.shotVideos };
+              const nextGeneratingVideos = new Set(state.generatingVideos);
+              const nextShots = state.shots.map(shot => {
+                const refreshed = refreshedShots.find(result => result.success && result.data?.id === shot.id)?.data;
+                if (!refreshed) return shot;
+                if (refreshed.videoUrl) {
+                  nextShotVideos[shot.id] = refreshed.videoUrl;
+                }
+                nextGeneratingVideos.delete(shot.id);
+                return { ...shot, ...refreshed };
+              });
+
+              return {
+                shots: nextShots,
+                shotVideos: nextShotVideos,
+                generatingVideos: nextGeneratingVideos,
+              };
+            });
           }
         }
       }

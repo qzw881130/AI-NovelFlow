@@ -160,10 +160,11 @@ export function ImagePreviewModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4"
+      className="fixed inset-0 bg-black bg-opacity-90 z-50 overflow-y-auto"
       onClick={onClose}
     >
-      <div className="relative max-w-5xl max-h-[90vh] w-full flex items-center" onClick={e => e.stopPropagation()}>
+      <div className="min-h-full flex items-center justify-center p-4 py-14">
+        <div className="relative w-full max-w-5xl flex items-center" onClick={e => e.stopPropagation()}>
         {/* 左导航按钮 */}
         {canNavigate && (
           <button
@@ -191,13 +192,13 @@ export function ImagePreviewModal({
           <img
             src={previewImageUrl}
             alt={t('chapterGenerate.shotPreview')}
-            className="max-w-full max-h-[75vh] object-contain rounded-lg mx-auto"
+            className="max-w-full h-auto object-contain rounded-lg mx-auto"
           />
 
           <div className="mt-3 mx-auto w-full max-w-5xl rounded-lg bg-black/45 text-white px-4 py-3 backdrop-blur-sm">
             <div className="text-sm font-semibold mb-1">#{previewShotNumber}</div>
             {previewShotDescription && (
-              <div className="text-sm text-gray-200 leading-relaxed max-h-24 overflow-y-auto whitespace-pre-wrap">
+              <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
                 {previewShotDescription}
               </div>
             )}
@@ -240,6 +241,7 @@ export function ImagePreviewModal({
             </svg>
           </button>
         )}
+        </div>
       </div>
     </div>
   );
