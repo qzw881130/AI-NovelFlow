@@ -1,0 +1,490 @@
+{
+  "115": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": [
+        "170",
+        0
+      ],
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "#115 Resolution Selector (Size)"
+    }
+  },
+  "119": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#119 Load VAE"
+    }
+  },
+  "120": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#120 Load VAE"
+    }
+  },
+  "121": {
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "#121 VAE Decode Audio"
+    }
+  },
+  "122": {
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#122 VAE Decode"
+    }
+  },
+  "123": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "#123 KSamplerSelect"
+    }
+  },
+  "124": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 6,
+      "denoise": 1,
+      "model": [
+        "141",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "#124 BasicScheduler"
+    }
+  },
+  "125": {
+    "inputs": {
+      "noise": [
+        "129",
+        0
+      ],
+      "guider": [
+        "126",
+        0
+      ],
+      "sampler": [
+        "123",
+        0
+      ],
+      "sigmas": [
+        "124",
+        0
+      ],
+      "latent_image": [
+        "136",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#125 SamplerCustomAdvanced"
+    }
+  },
+  "126": {
+    "inputs": {
+      "model": [
+        "141",
+        0
+      ],
+      "conditioning": [
+        "136",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "#126 Basic Guider"
+    }
+  },
+  "127": {
+    "inputs": {
+      "unet_name": "minimax_h3_ref2va_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#127 Load Diffusion Model"
+    }
+  },
+  "128": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#128 Load CLIP"
+    }
+  },
+  "129": {
+    "inputs": {
+      "noise_seed": 999
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#129 RandomNoise"
+    }
+  },
+  "130": {
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "color_space": "sRGB",
+      "images": [
+        "122",
+        0
+      ],
+      "audio": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "#130 Create Video"
+    }
+  },
+  "131": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "132",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "#131 Math Expression"
+    }
+  },
+  "132": {
+    "inputs": {
+      "value": 10
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "#132 Float (Duration)"
+    }
+  },
+  "136": {
+    "inputs": {
+      "prompt": [
+        "171",
+        0
+      ],
+      "width": [
+        "115",
+        0
+      ],
+      "height": [
+        "115",
+        1
+      ],
+      "length": [
+        "131",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "128",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ],
+      "audio_vae": [
+        "120",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "137",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "#136 MiniMax H3 Reference to Video"
+    }
+  },
+  "137": {
+    "inputs": {
+      "image": "file1.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#137 Load Image"
+    }
+  },
+  "138": {
+    "inputs": {
+      "value": "图片1生成动效视频"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "#138 Input Text (Prompt)"
+    }
+  },
+  "141": {
+    "inputs": {
+      "max_resolution": 1024,
+      "jpeg_quality": 80,
+      "suppress_default_preview": true,
+      "preview_frames": [
+        "131",
+        1
+      ],
+      "preview_fps": 12,
+      "tiny_vae": "none",
+      "model": [
+        "149",
+        0
+      ]
+    },
+    "class_type": "ModelPreviewOverrideKJ",
+    "_meta": {
+      "title": "#141 Model Preview Override"
+    }
+  },
+  "142": {
+    "inputs": {
+      "model": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+    "_meta": {
+      "title": "#142 MiniMax H3 Mem Eff Sage Attention Patch"
+    }
+  },
+  "143": {
+    "inputs": {
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
+      "quality": "ULTRA",
+      "images": [
+        "122",
+        0
+      ]
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "#143 RTX Video Super Resolution"
+    }
+  },
+  "144": {
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "color_space": "sRGB",
+      "images": [
+        "143",
+        0
+      ],
+      "audio": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "#144 Create Video"
+    }
+  },
+  "147": {
+    "inputs": {
+      "lora_name": "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+      "strength_model": 0.75,
+      "model": [
+        "142",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "#147 Load LoRA"
+    }
+  },
+  "148": {
+    "inputs": {
+      "clean_file_cache": true,
+      "clean_processes": true,
+      "clean_dlls": true,
+      "retry_times": 3,
+      "anything": [
+        "144",
+        0
+      ]
+    },
+    "class_type": "RAMCleanup",
+    "_meta": {
+      "title": "#148 🎈RAM-Cleanup"
+    }
+  },
+  "149": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "147",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "#149 ModelSamplingMiniMaxH3"
+    }
+  },
+  "150": {
+    "inputs": {
+      "filename_prefix": "video/MiniMax_H3",
+      "format": "auto",
+      "format.codec": "auto",
+      "codec": "auto",
+      "video-preview": "",
+      "video": [
+        "148",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "#150 Save Video（高分辨率）"
+    }
+  },
+  "169": {
+    "inputs": {
+      "filename_prefix": "video/MiniMax_H3",
+      "format": "auto",
+      "format.codec": "auto",
+      "codec": "auto",
+      "video-preview": "",
+      "video": [
+        "130",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "#169 Save Video(低分辨率)"
+    }
+  },
+  "170": {
+    "inputs": {
+      "value": 0.4
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "#170 Megapixels"
+    }
+  },
+  "171": {
+    "inputs": {
+      "prompt": [
+        "138",
+        0
+      ],
+      "task_type": "Ref2VA（参考图/视频生音视频）",
+      "duration_seconds": [
+        "174",
+        0
+      ],
+      "shot_count": "AUTO（系统自动判断）",
+      "rewrite_mode": "balanced",
+      "description_word_target": 0,
+      "output_language": "中文",
+      "prompt_mode": "官方增强",
+      "official_skill_profile": "现有兼容（保留中英文）",
+      "creative_preset": "AUTO（根据意图判断）",
+      "case_template": "无（不使用 T8 案例）",
+      "api_mode": "本地 GGUF（llama.cpp / Qwen，离线）",
+      "ai_workshop_model": "gemini-3.5-flash",
+      "reference_context": "",
+      "constraints": "",
+      "reference_template": "",
+      "custom_model": "",
+      "openai_base_url": "",
+      "openai_video_urls": "",
+      "seed": 335298150241011,
+      "local_model": "Qwen3.8-27B-Q4_K_M.gguf",
+      "local_mmproj": "mmproj-F16.gguf",
+      "local_context_size": 32768,
+      "local_max_tokens": 4096,
+      "local_think_mode": "关闭（推荐，速度优先）",
+      "local_reasoning_effort": "medium",
+      "local_video_sample_fps": 2,
+      "local_unload_policy": "执行后卸载（推荐）",
+      "local_comfy_memory_policy": "AUTO（显存不足时释放）",
+      "reference_images.reference_image_0": [
+        "137",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3PromptEnhancerT8",
+    "_meta": {
+      "title": "#171 MiniMax H3 Prompt Enhancer (Cloud / Local Qwen)"
+    }
+  },
+  "172": {
+    "inputs": {
+      "text": "subject_definitions:\n<Subject 1> is the complete ancient Chinese river landscape scene from <Picture 1>, featuring a wide calm river, distant misty mountains, traditional village houses with grey roofs, and a sandy bank with sparse vegetation.\n<Subject 2> is the central scholar figure in <Picture 1>, wearing a blue headband, light green outer robe, and beige trousers, holding a white feather fan while seated in a wooden cart.\n<Subject 3> is the group of attendants in <Picture 1>, including a man in a dark grey robe pushing the cart from behind and two men in red robes with spears standing on the right bank.\n\nsummary:\n[reference generation] The target video animates <Picture 1> into a dynamic scene where <Subject 2> observes the river while <Subject 3> moves the wooden cart along the shore of <Subject 1>.\n\nretention_analysis:\n<Subject 1> (appears in [Shot 1], [Shot 2]): fully_preserved - the river, mountains, village houses, and bank environment are retained with subtle water movement.\n<Subject 2> (appears in [Shot 1], [Shot 2]): fully_preserved - the scholar's appearance, blue headband, green robe, and feather fan are maintained throughout the motion.\n<Subject 3> (appears in [Shot 1], [Shot 2]): fully_preserved - the attendants' clothing, dark grey and red robes, and their positions relative to the cart are preserved.\n\ndetailed_description:\n目标视频呈现一种古典水墨动画风格，色彩柔和且带有细腻的笔触质感。\n[Shot 1] 画面从<Subject 1>的全景构图开始，宽阔平静的河流占据画面中心，远处山峦在薄雾中若隐若现，河岸两侧分布着古朴的村落房屋。<Subject 2>坐在木制马车的车厢内，他头戴蓝色发带，身着浅绿色长袍，右手轻握白色羽毛扇抵在下巴处，神情沉静地凝视着前方水面。在他身后，<Subject 3>中的灰袍侍从正推着车轮缓慢前行，右侧河岸上两名红袍持矛护卫静静伫立。镜头以极缓慢的速度向右平移，模拟马车移动的视角，河水表面泛起细微的涟漪，岸边的芦苇随风轻轻摇曳。\n[Shot 2] At 00:05.000, 镜头平滑地推近至<Subject 2>的中景特写。<Subject 2>微微转动头部，目光在河面与远方山峦间游移，手中的羽毛扇随之轻微晃动，展现出一种从容的领袖气质。背景中的河流和山脉因焦点转换而呈现柔和的虚化效果，增强了画面的空间层次感。此时<Subject 3>依然保持在马车后方，随着镜头的推进，灰袍侍从推车的动作显得更加连贯有力。整个画面维持着古典插画的视觉基调，光影过渡自然，营造出宁静致远的氛围。\n\noverall_soundscape:\n环境音以轻柔的水流声和远处隐约的风声为主，伴随车轮在沙石地面上滚动的细微摩擦声，整体氛围宁静且充满古意。\n\nnon_diegetic_music:\n一段缓慢而悠扬的笛声旋律作为背景音乐，节奏舒缓，带有淡淡的古典意境，音量控制在背景层次，不干扰画面的静谧感。",
+      "anything": [
+        "171",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#172 Show Any"
+    }
+  },
+  "174": {
+    "inputs": {
+      "a": [
+        "132",
+        0
+      ]
+    },
+    "class_type": "CM_FloatToInt",
+    "_meta": {
+      "title": "#-1 FloatToInt"
+    }
+  }
+}
