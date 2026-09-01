@@ -93,6 +93,7 @@ class ShotRepository:
             scene=scene,
             props=json.dumps(props or [], ensure_ascii=False),
             duration=duration,
+            continuity_mode=kwargs.pop("continuity_mode", "NORMAL"),
         )
 
         # 设置其他字段
@@ -121,7 +122,7 @@ class ShotRepository:
         for key, value in kwargs.items():
             if hasattr(shot, key):
                 # JSON 字段需要序列化
-                if key in ('characters', 'props', 'dialogues', 'keyframes') and isinstance(value, (list, dict)):
+                if key in ('characters', 'props', 'dialogues', 'keyframes', 'video_director_plan') and isinstance(value, (list, dict)):
                     value = json.dumps(value, ensure_ascii=False)
                 setattr(shot, key, value)
         self.db.commit()
@@ -313,10 +314,13 @@ class ShotRepository:
             "index": shot.index,
             "description": shot.description,
             "video_description": shot.video_description,
+            "shotImagePrompt": shot.shot_image_prompt,
             "characters": json.loads(shot.characters) if shot.characters else [],
             "scene": shot.scene,
             "props": json.loads(shot.props) if shot.props else [],
             "duration": shot.duration,
+            "continuity_mode": shot.continuity_mode or "NORMAL",
+            "videoDirectorPlan": json.loads(shot.video_director_plan) if shot.video_director_plan else {},
             "imageUrl": shot.image_url,
             "imagePath": shot.image_path,
             "imageStatus": shot.image_status,

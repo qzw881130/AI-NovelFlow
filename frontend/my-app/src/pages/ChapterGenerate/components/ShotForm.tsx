@@ -90,6 +90,7 @@ export function ShotForm({
   const [selectedScene, setSelectedScene] = useState(shotData?.scene || '');
   const [selectedProps, setSelectedProps] = useState<string[]>(shotData?.props || []);
   const [duration, setDuration] = useState(shotData?.duration || 5);
+  const [continuityMode, setContinuityMode] = useState(shotData?.continuity_mode || 'NORMAL');
   const [dialogues, setDialogues] = useState<DialogueData[]>(shotData?.dialogues || []);
 
   // 当 shotIndex 或 shotData 变化时，同步本地状态
@@ -101,6 +102,7 @@ export function ShotForm({
       setSelectedScene(shotData.scene || '');
       setSelectedProps(shotData.props || []);
       setDuration(shotData.duration || 5);
+      setContinuityMode(shotData.continuity_mode || 'NORMAL');
       setDialogues(shotData.dialogues || []);
     }
   }, [shotIndex, shotData]);
@@ -143,6 +145,7 @@ export function ShotForm({
       scene: selectedScene,
       props: selectedProps,
       duration,
+      continuity_mode: continuityMode,
       dialogues,
     };
     onChange?.(newShotData);
@@ -161,6 +164,7 @@ export function ShotForm({
               scene: selectedScene,
               props: selectedProps,
               duration,
+              continuity_mode: continuityMode,
               dialogues,
             }
           : shot
@@ -173,7 +177,7 @@ export function ShotForm({
   useEffect(() => {
     handleChange();
     syncToStore();
-  }, [description, videoDescription, selectedCharacters, selectedScene, selectedProps, duration, dialogues]);
+  }, [description, videoDescription, selectedCharacters, selectedScene, selectedProps, duration, continuityMode, dialogues]);
 
   // 处理角色选择切换
   const toggleCharacter = (charName: string) => {
@@ -330,13 +334,15 @@ export function ShotForm({
         </div>
       )}
 
+      <div className={showDuration ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-4'}>
       {/* 角色选择 */}
-      <div>
+      <div className="min-w-0">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {t('chapterGenerate.appearingCharacters')}
         </label>
-        {selectedCharacters.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
+        <div className="min-h-7 mb-2 flex flex-wrap gap-1 items-start">
+          {selectedCharacters.length > 0 && (
+            <>
             {selectedCharacters.map((charName) => (
               <span
                 key={charName}
@@ -351,8 +357,9 @@ export function ShotForm({
                 </button>
               </span>
             ))}
-          </div>
-        )}
+            </>
+          )}
+        </div>
         <button
           onClick={() => setCharacterExpanded(!characterExpanded)}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 flex items-center justify-between mb-2 input-field"
@@ -396,12 +403,12 @@ export function ShotForm({
       </div>
 
       {/* 场景选择 */}
-      <div>
+      <div className="min-w-0">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {t('chapterGenerate.scene')}
         </label>
-        {selectedScene && (
-          <div className="mb-2">
+        <div className="min-h-7 mb-2 flex flex-wrap gap-1 items-start">
+          {selectedScene && (
             <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
               {selectedScene}
               <button
@@ -411,8 +418,8 @@ export function ShotForm({
                 ×
               </button>
             </span>
-          </div>
-        )}
+          )}
+        </div>
         <button
           onClick={() => setSceneExpanded(!sceneExpanded)}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 flex items-center justify-between mb-2 input-field"
@@ -457,12 +464,13 @@ export function ShotForm({
       </div>
 
       {/* 道具选择 */}
-      <div>
+      <div className="min-w-0">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {t('chapterGenerate.props')}
         </label>
-        {selectedProps.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
+        <div className="min-h-7 mb-2 flex flex-wrap gap-1 items-start">
+          {selectedProps.length > 0 && (
+            <>
             {selectedProps.map((propName) => (
               <span
                 key={propName}
@@ -477,8 +485,9 @@ export function ShotForm({
                 </button>
               </span>
             ))}
-          </div>
-        )}
+            </>
+          )}
+        </div>
         <button
           onClick={() => setPropExpanded(!propExpanded)}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 flex items-center justify-between mb-2 input-field"
@@ -523,20 +532,40 @@ export function ShotForm({
 
       {/* 时长设置 */}
       {showDuration && (
-        <div>
+        <div className="min-w-0">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             {t('chapterGenerate.durationLabel')}
           </label>
+          <div className="min-h-7 mb-2" />
           <input
             type="number"
             value={duration}
-            onChange={(e) => setDuration(Math.min(60, Math.max(1, parseInt(e.target.value) || 5)))}
+            onChange={(e) => setDuration(Math.min(180, Math.max(1, parseInt(e.target.value) || 5)))}
             disabled={readOnly}
             min={1}
-            max={60}
+            max={180}
             className="input-field"
           />
-          <p className="text-xs text-gray-500 mt-1">{t('common.recommended')} 3-10 {t('common.second')}，{t('common.max')} 60 {t('common.second')}</p>
+          <p className="text-xs text-gray-500 mt-1">{t('common.recommended')} 3-10 {t('common.second')}，{t('common.max')} 180 {t('common.second')}</p>
+        </div>
+      )}
+      </div>
+
+      {showDuration && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            连续模式
+          </label>
+          <select
+            value={continuityMode}
+            onChange={(e) => setContinuityMode(e.target.value)}
+            disabled={readOnly}
+            className="input-field"
+          >
+            <option value="NORMAL">普通分镜</option>
+            <option value="CONTINUOUS_TAKE">一镜到底</option>
+          </select>
+          <p className="text-xs text-gray-500 mt-1">用于视频导演链路判断是否按连续镜头处理。</p>
         </div>
       )}
 

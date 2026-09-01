@@ -17,6 +17,9 @@ function LogTableRow({ log, onView, formatDate, truncateText, getTaskTypeLabel, 
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{log.provider}</td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.model}</td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{getTaskTypeLabel(log.task_type)}</td>
+      <td className="px-4 py-3 text-sm text-gray-600 max-w-[180px]">
+        <div className="truncate" title={log.prompt_template_name || ''}>{log.prompt_template_name || '-'}</div>
+      </td>
       <td className="px-4 py-3 whitespace-nowrap"><span className={`px-2 py-1 text-xs ${badge.bg} ${badge.text} rounded-full`}>{badge.label}</span></td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}</td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.duration ? `${log.duration.toFixed(2)}s` : '-'}</td>
@@ -112,7 +115,7 @@ export default function LLMLogs() {
                 <tr>
                   {[
                     t('llmLogs.timestamp'), t('llmLogs.llmProvider'), t('llmLogs.model'), t('llmLogs.taskType'),
-                    t('common.status'), t('llmLogs.proxy'), t('llmLogs.duration'), t('llmLogs.promptPreview'), t('common.actions')
+                    t('llmLogs.promptTemplateName'), t('common.status'), t('llmLogs.proxy'), t('llmLogs.duration'), t('llmLogs.promptPreview'), t('common.actions')
                   ].map((h, i) => (
                     <th key={i} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
                   ))}

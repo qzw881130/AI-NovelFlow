@@ -6,12 +6,9 @@
 
 import json
 from datetime import datetime
-from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
-from app.models.shot import Shot
-from app.models.prompt_template import PromptTemplate
 from app.models.task import Task
 from app.models.workflow import Workflow
 from app.core.database import SessionLocal
@@ -22,11 +19,7 @@ from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.image_utils import merge_character_images, merge_prop_images
 from app.repositories.shot_repository import ShotRepository
 from app.services.background_workers import worker_manager
-
-
-PLACEHOLDER_PROMPT = """Reference images may include neutral blank placeholder images.
-Any blank placeholder image contains no visual reference information and must be ignored completely.
-Do not reproduce its blank background, color, composition, or any visual feature."""
+from app.utils.workflow_disconnect import disconnect_reference_chain
 
 
 def enqueue_shot_image_task(
@@ -159,13 +152,7 @@ async def generate_shot_image_task(
             db, task, novel_id, chapter_id, shot_index, shot_props, task_id, shot_repo
         )
 
-        effective_prompt = _append_placeholder_prompt_notes(
-            shot_description,
-            character_reference_path is None and bool(node_mapping.get("character_reference_image_node_id")),
-            scene_reference_path is None and bool(node_mapping.get("scene_reference_image_node_id")),
-            prop_reference_paths is None and bool(node_mapping.get("custom_reference_image_node_1")),
-            bool(shot_props),
-        )
+        effective_prompt = shot_description
         task.prompt_text = effective_prompt
         db.commit()
 
@@ -297,33 +284,6 @@ async def generate_shot_image_task(
 
 
 # ==================== 辅助函数 ====================
-
-
-def _get_reference_placeholder_path() -> str:
-    return str(Path(__file__).resolve().parents[2] / "assets" / "reference_placeholder.png")
-
-
-def _append_placeholder_prompt_notes(
-    prompt: str,
-    missing_character_reference: bool,
-    missing_scene_reference: bool,
-    missing_prop_reference: bool,
-    has_props: bool,
-) -> str:
-    notes = []
-    if missing_character_reference:
-        notes.append("第一张角色参考图仅为空白占位图，不包含任何有效视觉信息，必须完全忽略第一张参考图。")
-    if missing_scene_reference:
-        notes.append("第二张场景参考图仅为空白占位图，不包含任何有效视觉信息，必须完全忽略第二张参考图。")
-    if missing_prop_reference:
-        if has_props:
-            notes.append("第三张道具参考图仅为空白占位图，表示当前道具暂无有效图片，必须完全忽略第三张参考图。")
-        else:
-            notes.append("当前镜头没有道具参考图。第三张参考图仅为空白占位图，不包含任何有效视觉信息，必须完全忽略第三张参考图。")
-
-    if not notes:
-        return prompt
-    return f"{prompt}\n\n{PLACEHOLDER_PROMPT}\n" + "\n".join(notes)
 
 
 async def _process_character_references(
@@ -567,147 +527,103 @@ async def _upload_references_and_update_workflow(
     """
     task.current_step = "上传参考图..."
     db.commit()
-    print(f"[ShotTask {task_id}] Uploading reference images before submission")
+    print(f"[ShotTask {task_id}] Uploading compact reference images before submission")
 
-    placeholder_path = _get_reference_placeholder_path()
-
-    reference_images = []
+    reference_items_by_key = {}
     if character_reference_path:
         character_url = local_path_to_url(character_reference_path)
         if character_url:
-            reference_images.append({"label": "角色图", "url": character_url})
+            reference_items_by_key["character_reference_image_node_id"] = {"label": "角色合并图", "url": character_url, "path": character_reference_path}
     if scene_reference_path:
         scene_url = local_path_to_url(scene_reference_path)
         if scene_url:
-            reference_images.append({"label": "场景图", "url": scene_url})
+            reference_items_by_key["scene_reference_image_node_id"] = {"label": "场景图", "url": scene_url, "path": scene_reference_path}
     if prop_reference_paths:
-        for prop_name, prop_path in prop_reference_paths.items():
-            prop_url = local_path_to_url(prop_path)
-            if prop_url:
-                reference_images.append({"label": prop_name, "url": prop_url})
+        prop_label = "、".join(prop_reference_paths.keys())
+        prop_path = next((path for path in prop_reference_paths.values() if path), None)
+        prop_url = local_path_to_url(prop_path) if prop_path else None
+        if prop_path and prop_url:
+            prop_item = {"label": f"道具合并图: {prop_label}", "url": prop_url, "path": prop_path}
+            reference_items_by_key["prop_reference_image_node_id"] = prop_item
+            first_custom_key = _get_first_custom_reference_node_key(node_mapping)
+            if first_custom_key:
+                reference_items_by_key[first_custom_key] = prop_item
 
-    task.reference_images = json.dumps(reference_images, ensure_ascii=False) if reference_images else None
+    reference_node_keys = _get_compact_reference_node_keys(node_mapping)
+    reference_items = [reference_items_by_key.get(key) for key in reference_node_keys]
+    visible_reference_items = [item for item in reference_items if item]
+
+    task.reference_images = (
+        json.dumps(
+            [{"label": item["label"], "url": item["url"]} for item in visible_reference_items],
+            ensure_ascii=False,
+        )
+        if visible_reference_items
+        else None
+    )
     db.commit()
 
-    # 上传角色参考图；缺失时用中性占位图，保持固定槽位。
-    character_uploaded_filename = None
-    character_upload_path = character_reference_path or (placeholder_path if node_mapping.get("character_reference_image_node_id") else None)
-    if character_upload_path:
-        upload_result = await comfyui_service.client.upload_image(
-            character_upload_path
-        )
+    uploaded_filenames = []
+    for item in reference_items:
+        if not item:
+            uploaded_filenames.append(None)
+            continue
+        upload_result = await comfyui_service.client.upload_image(item["path"])
         if upload_result.get("success"):
-            character_uploaded_filename = upload_result.get("filename")
+            uploaded_filenames.append(upload_result.get("filename"))
             print(
-                f"[ShotTask {task_id}] Character image uploaded successfully: {character_uploaded_filename}"
+                f"[ShotTask {task_id}] {item['label']} uploaded successfully: "
+                f"{upload_result.get('filename')}"
             )
         else:
+            uploaded_filenames.append(None)
             print(
-                f"[ShotTask {task_id}] Failed to upload character image: {upload_result.get('message')}"
+                f"[ShotTask {task_id}] Failed to upload {item['label']}: "
+                f"{upload_result.get('message')}"
             )
 
-    # 上传场景参考图；缺失时用中性占位图，保持固定槽位。
-    scene_uploaded_filename = None
-    scene_upload_path = scene_reference_path or (placeholder_path if node_mapping.get("scene_reference_image_node_id") else None)
-    if scene_upload_path:
-        upload_result = await comfyui_service.client.upload_image(scene_upload_path)
-        if upload_result.get("success"):
-            scene_uploaded_filename = upload_result.get("filename")
+    for index, ref_key in enumerate(reference_node_keys):
+        node_id = node_mapping.get(ref_key)
+        node_id_str = str(node_id) if node_id else ""
+        if not node_id_str or node_id_str not in submitted_workflow:
+            continue
+        uploaded_filename = uploaded_filenames[index] if index < len(uploaded_filenames) else None
+        if uploaded_filename:
+            submitted_workflow[node_id_str]["inputs"]["image"] = uploaded_filename
             print(
-                f"[ShotTask {task_id}] Scene image uploaded successfully: {scene_uploaded_filename}"
+                f"[ShotTask {task_id}] Set <Picture {index + 1}> node "
+                f"{node_id_str} to {uploaded_filename}"
             )
         else:
-            print(
-                f"[ShotTask {task_id}] Failed to upload scene image: {upload_result.get('message')}"
-            )
-
-    # 上传道具参考图
-    prop_uploaded_filenames = {}  # {道具名称: 上传后的文件名}
-    if prop_reference_paths:
-        for prop_name, prop_path in prop_reference_paths.items():
-            if prop_path:
-                upload_result = await comfyui_service.client.upload_image(prop_path)
-                if upload_result.get("success"):
-                    prop_uploaded_filenames[prop_name] = upload_result.get("filename")
-                    print(
-                        f"[ShotTask {task_id}] Prop '{prop_name}' image uploaded successfully: {upload_result.get('filename')}"
-                    )
-                else:
-                    print(
-                        f"[ShotTask {task_id}] Failed to upload prop '{prop_name}' image: {upload_result.get('message')}"
-                    )
-    elif node_mapping.get("custom_reference_image_node_1"):
-        upload_result = await comfyui_service.client.upload_image(placeholder_path)
-        if upload_result.get("success"):
-            prop_uploaded_filenames["道具占位图"] = upload_result.get("filename")
-            print(
-                f"[ShotTask {task_id}] Prop placeholder uploaded successfully: {upload_result.get('filename')}"
-            )
-        else:
-            print(
-                f"[ShotTask {task_id}] Failed to upload prop placeholder: {upload_result.get('message')}"
-            )
-
-    # 设置工作流节点中的图片
-    character_node_id = node_mapping.get("character_reference_image_node_id")
-    scene_node_id = node_mapping.get("scene_reference_image_node_id")
-
-    print(
-        f"[ShotTask {task_id}] Node mapping - character_node: {character_node_id}, scene_node: {scene_node_id}"
-    )
-
-    # 设置角色参考图
-    if character_uploaded_filename and character_node_id:
-        node_id_str = str(character_node_id)
-        if node_id_str in submitted_workflow:
-            submitted_workflow[node_id_str]["inputs"]["image"] = (
-                character_uploaded_filename
-            )
-            print(
-                f"[ShotTask {task_id}] Set LoadImage node {node_id_str} to character image: {character_uploaded_filename}"
-            )
-        else:
-            print(
-                f"[ShotTask {task_id}] Warning: character_reference_image_node_id '{node_id_str}' not found in workflow"
-            )
-
-    # 设置场景参考图
-    if scene_uploaded_filename and scene_node_id:
-        node_id_str = str(scene_node_id)
-        if node_id_str in submitted_workflow:
-            submitted_workflow[node_id_str]["inputs"]["image"] = scene_uploaded_filename
-            print(
-                f"[ShotTask {task_id}] Set LoadImage node {node_id_str} to scene image: {scene_uploaded_filename}"
-            )
-        else:
-            print(
-                f"[ShotTask {task_id}] Warning: scene_reference_image_node_id '{node_id_str}' not found in workflow"
-            )
-
-    # 设置道具参考图
-    # 道具节点映射格式: custom_reference_image_node_<索引>
-    if prop_uploaded_filenames:
-        index = 1
-        for prop_name, uploaded_filename in prop_uploaded_filenames.items():
-            prop_node_id = node_mapping.get(f"custom_reference_image_node_{index}")
-            if prop_node_id:
-                node_id_str = str(prop_node_id)
-                if node_id_str in submitted_workflow:
-                    submitted_workflow[node_id_str]["inputs"]["image"] = (
-                        uploaded_filename
-                    )
-                    print(
-                        f"[ShotTask {task_id}] Set LoadImage node {node_id_str} to prop '{prop_name}' image: {uploaded_filename}"
-                    )
-                else:
-                    print(
-                        f"[ShotTask {task_id}] Warning: prop_reference_image_node_id '{node_id_str}' not found in workflow"
-                    )
-            index += 1
+            submitted_workflow[node_id_str]["inputs"]["image"] = ""
+            disconnect_reference_chain(submitted_workflow, node_id_str)
+            print(f"[ShotTask {task_id}] Disconnected unused reference node {node_id_str}")
 
     task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
     db.commit()
     print(f"[ShotTask {task_id}] Saved workflow with reference images to task")
+
+
+def _get_compact_reference_node_keys(node_mapping: dict):
+    keys = []
+    if node_mapping.get("character_reference_image_node_id"):
+        keys.append("character_reference_image_node_id")
+    if node_mapping.get("scene_reference_image_node_id"):
+        keys.append("scene_reference_image_node_id")
+    if node_mapping.get("prop_reference_image_node_id"):
+        keys.append("prop_reference_image_node_id")
+    index = 1
+    while node_mapping.get(f"custom_reference_image_node_{index}"):
+        keys.append(f"custom_reference_image_node_{index}")
+        index += 1
+    return keys
+
+
+def _get_first_custom_reference_node_key(node_mapping: dict) -> Optional[str]:
+    index = 1
+    while node_mapping.get(f"custom_reference_image_node_{index}"):
+        return f"custom_reference_image_node_{index}"
+    return None
 
 
 async def _save_generated_image(

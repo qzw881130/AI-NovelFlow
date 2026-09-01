@@ -66,6 +66,7 @@ class LLMClient:
         max_tokens: int = 4000,
         response_format: Optional[str] = None,
         task_type: str = None,
+        prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
         character_id: str = None
@@ -99,6 +100,7 @@ class LLMClient:
             max_tokens=max_tokens,
             response_format=response_format,
             task_type=task_type,
+            prompt_template_name=prompt_template_name,
             novel_id=novel_id,
             chapter_id=chapter_id,
             character_id=character_id

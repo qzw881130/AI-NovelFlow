@@ -3,6 +3,17 @@ import { useTranslation } from '../../../stores/i18nStore';
 import type { PromptTemplate } from '../../../types';
 import type { TemplateType, PromptForm } from '../types';
 
+const JSON_OUTPUT_TEMPLATE_TYPES: TemplateType[] = [
+  'character_parse',
+  'scene_parse',
+  'prop_parse',
+  'chapter_split',
+  'video_mode_recommender',
+  'keyframe_description',
+  'keyframe_planner',
+  'keyframe_transition',
+];
+
 interface EditModalProps {
   show: boolean;
   onClose: () => void;
@@ -49,7 +60,7 @@ export function EditModal({ show, onClose, onSave, modalType, editingPrompt, for
               </span>
             </label>
             {/* 仅对返回 JSON 结构的模板类型显示警告 */}
-            {!['style', 'character', 'scene'].includes(modalType) && (
+            {JSON_OUTPUT_TEMPLATE_TYPES.includes(modalType) && (
               <div className="mb-2 p-2 bg-red-50 border border-red-200 rounded-md">
                 <p className="text-xs text-red-600 font-medium flex items-center gap-1">
                   <svg className="h-4 w-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -59,7 +70,7 @@ export function EditModal({ show, onClose, onSave, modalType, editingPrompt, for
                 </p>
               </div>
             )}
-            <textarea rows={modalType === 'chapter_split' ? 12 : 6} required value={form.template}
+            <textarea rows={form.template.length > 1200 ? 12 : 6} required value={form.template}
               onChange={(e) => setForm({ ...form, template: e.target.value })} className="input-field font-mono text-sm"
               placeholder={modalType === 'character' ? t('promptConfig.templatePlaceholderCharacter') : t('promptConfig.templatePlaceholderChapter')}
               readOnly={editingPrompt?.isSystem} />

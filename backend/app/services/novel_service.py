@@ -262,7 +262,8 @@ class NovelService:
             # 调用 LLM 解析文本提取道具
             result = await self.get_llm_service().parse_props(
                 text=full_text[:150000],  # 限制长度
-                prompt_template=prompt_template
+                prompt_template=prompt_template,
+                prompt_template_name=template.name if template else "默认道具解析提示词"
             )
 
             if result.get("error"):
@@ -402,9 +403,12 @@ class NovelService:
         
         # 获取场景解析提示词模板
         prompt_template = None
+        prompt_template_name = None
         if prompt_template_repo:
             templates = prompt_template_repo.list_by_type('scene_parse')
-            prompt_template = templates[0].template if templates else None
+            if templates:
+                prompt_template = templates[0].template
+                prompt_template_name = templates[0].name
         
         try:
             # 调用 LLM 解析场景
@@ -412,7 +416,8 @@ class NovelService:
                 novel_id=novel_id,
                 chapter_content=combined_content[:150000],  # 限制长度
                 chapter_title=source_range,
-                prompt_template=prompt_template
+                prompt_template=prompt_template,
+                prompt_template_name=prompt_template_name
             )
             
             if result.get("error"):
@@ -537,7 +542,8 @@ class NovelService:
                 novel_id=novel_id,
                 chapter_content=chapter.content[:20000],  # 限制长度
                 chapter_title=source_range,
-                prompt_template=prompt_template
+                prompt_template=prompt_template,
+                prompt_template_name=template.name if template else "默认场景解析提示词"
             )
             
             if result.get("error"):
@@ -726,7 +732,10 @@ class NovelService:
             character_names=character_names,
             scene_names=scene_names,
             prop_names=prop_names,
-            style=style
+            style=style,
+            novel_id=novel.id,
+            chapter_id=chapter.id,
+            prompt_template_name=prompt_template.name
         )
 
         # 检查是否有错误

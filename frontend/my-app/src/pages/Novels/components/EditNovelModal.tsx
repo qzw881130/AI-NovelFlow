@@ -13,6 +13,14 @@ const TEMPLATE_FIELDS = [
   { key: 'propPromptTemplateId', labelKey: 'novels.propPromptLabel', hintKey: 'novels.propPromptHint', templateType: 'prop' },
   { key: 'chapterSplitPromptTemplateId', labelKey: 'novels.splitPromptLabel', hintKey: 'novels.splitPromptHint', templateType: 'chapter_split' },
   { key: 'keyframeDescriptionPromptTemplateId', labelKey: 'novels.keyframeDescriptionPromptLabel', hintKey: 'novels.keyframeDescriptionPromptHint', templateType: 'keyframe_description' },
+  { key: 'shotImagePromptTemplateId', labelKey: 'novels.shotImagePromptLabel', hintKey: 'novels.shotImagePromptHint', templateType: 'shot_image_prompt' },
+  { key: 'videoModeRecommenderPromptTemplateId', labelKey: 'novels.videoModeRecommenderPromptLabel', hintKey: 'novels.videoModeRecommenderPromptHint', templateType: 'video_mode_recommender' },
+  { key: 'keyframePlannerPromptTemplateId', labelKey: 'novels.keyframePlannerPromptLabel', hintKey: 'novels.keyframePlannerPromptHint', templateType: 'keyframe_planner' },
+  { key: 'keyframeImagePromptTemplateId', labelKey: 'novels.keyframeImagePromptLabel', hintKey: 'novels.keyframeImagePromptHint', templateType: 'keyframe_image_prompt' },
+  { key: 'keyframeTransitionPromptTemplateId', labelKey: 'novels.keyframeTransitionPromptLabel', hintKey: 'novels.keyframeTransitionPromptHint', templateType: 'keyframe_transition' },
+  { key: 'h3SingleFramePromptTemplateId', labelKey: 'novels.h3SingleFramePromptLabel', hintKey: 'novels.h3SingleFramePromptHint', templateType: 'h3_single_frame_prompt' },
+  { key: 'h3FirstLastFramePromptTemplateId', labelKey: 'novels.h3FirstLastFramePromptLabel', hintKey: 'novels.h3FirstLastFramePromptHint', templateType: 'h3_first_last_frame_prompt' },
+  { key: 'h3MultiKeyframePromptTemplateId', labelKey: 'novels.h3MultiKeyframePromptLabel', hintKey: 'novels.h3MultiKeyframePromptHint', templateType: 'h3_multi_keyframe_prompt' },
 ] as const;
 
 interface EditNovelModalProps {

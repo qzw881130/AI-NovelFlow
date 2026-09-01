@@ -101,6 +101,9 @@ export const getModelDescription = (modelId: string, t: any): string => {
 export const getTypeNames = (t: any) => ({
   character: t('systemSettings.workflow.character'),
   scene: t('systemSettings.workflow.scene'),
+  shot_scene: t('systemSettings.workflow.shotScene'),
+  shot_character_scene: t('systemSettings.workflow.shotCharacterScene'),
+  shot_scene_prop: t('systemSettings.workflow.shotSceneProp'),
   shot: t('systemSettings.workflow.shot'),
   video: t('systemSettings.workflow.video'),
   transition: t('systemSettings.workflow.transition'),
@@ -108,7 +111,10 @@ export const getTypeNames = (t: any) => ({
   voice_design: t('systemSettings.workflow.voiceDesign'),
   audio: t('systemSettings.workflow.audio'),
   keyframe_image: t('systemSettings.workflow.keyframeImage'),
-  single_image_edit: t('systemSettings.workflow.singleImageEdit')
+  single_image_edit: t('systemSettings.workflow.singleImageEdit'),
+  first_last_video: t('systemSettings.workflow.firstLastVideo'),
+  three_frame_video: t('systemSettings.workflow.threeFrameVideo'),
+  four_frame_video: t('systemSettings.workflow.fourFrameVideo')
 });
 
 /**
@@ -172,10 +178,60 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
         key => key.startsWith('custom_reference_image_node_') && shotMapping[key] && shotMapping[key] !== 'auto'
       );
       return hasBasicFields && (hasDualReference || hasCustomReference);
+    case 'shot_scene':
+      return !!(
+        mapping.prompt_node_id &&
+        mapping.prompt_node_id !== 'auto' &&
+        mapping.save_image_node_id &&
+        mapping.save_image_node_id !== 'auto' &&
+        mapping.width_node_id &&
+        mapping.width_node_id !== 'auto' &&
+        mapping.height_node_id &&
+        mapping.height_node_id !== 'auto' &&
+        mapping.scene_reference_image_node_id &&
+        mapping.scene_reference_image_node_id !== 'auto'
+      );
+    case 'shot_character_scene':
+      return !!(
+        mapping.prompt_node_id &&
+        mapping.prompt_node_id !== 'auto' &&
+        mapping.save_image_node_id &&
+        mapping.save_image_node_id !== 'auto' &&
+        mapping.width_node_id &&
+        mapping.width_node_id !== 'auto' &&
+        mapping.height_node_id &&
+        mapping.height_node_id !== 'auto' &&
+        mapping.character_reference_image_node_id &&
+        mapping.character_reference_image_node_id !== 'auto' &&
+        mapping.scene_reference_image_node_id &&
+        mapping.scene_reference_image_node_id !== 'auto'
+      );
+    case 'shot_scene_prop':
+      return !!(
+        mapping.prompt_node_id &&
+        mapping.prompt_node_id !== 'auto' &&
+        mapping.save_image_node_id &&
+        mapping.save_image_node_id !== 'auto' &&
+        mapping.width_node_id &&
+        mapping.width_node_id !== 'auto' &&
+        mapping.height_node_id &&
+        mapping.height_node_id !== 'auto' &&
+        mapping.scene_reference_image_node_id &&
+        mapping.scene_reference_image_node_id !== 'auto' &&
+        (mapping as any).prop_reference_image_node_id &&
+        (mapping as any).prop_reference_image_node_id !== 'auto'
+      );
     case 'video':
+    case 'three_frame_video':
+    case 'four_frame_video':
       const videoMapping = mapping as any;
       const hasMaxSide = videoMapping.max_side_node_id && videoMapping.max_side_node_id !== 'auto';
       const hasMegapixels = videoMapping.megapixels_node_id && videoMapping.megapixels_node_id !== 'auto';
+      const requiredKeyframeCount = workflow.type === 'three_frame_video' ? 2 : workflow.type === 'four_frame_video' ? 3 : 0;
+      const hasRequiredKeyframes = Array.from({ length: requiredKeyframeCount }).every((_, index) => {
+        const nodeId = videoMapping[`keyframe_node_${index + 1}`];
+        return nodeId && nodeId !== 'auto';
+      });
       return !!(
         mapping.prompt_node_id &&
         mapping.prompt_node_id !== 'auto' &&
@@ -183,7 +239,23 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
         videoMapping.video_save_node_id !== 'auto' &&
         videoMapping.reference_image_node_id &&
         videoMapping.reference_image_node_id !== 'auto' &&
-        hasMaxSide !== hasMegapixels
+        hasMaxSide !== hasMegapixels &&
+        hasRequiredKeyframes
+      );
+    case 'first_last_video':
+      const firstLastVideoMapping = mapping as any;
+      const hasFirstLastFrameCount = firstLastVideoMapping.frame_count_node_id && firstLastVideoMapping.frame_count_node_id !== 'auto';
+      const hasFirstLastDuration = firstLastVideoMapping.duration_seconds_node_id && firstLastVideoMapping.duration_seconds_node_id !== 'auto';
+      return !!(
+        firstLastVideoMapping.prompt_node_id &&
+        firstLastVideoMapping.prompt_node_id !== 'auto' &&
+        firstLastVideoMapping.first_image_node_id &&
+        firstLastVideoMapping.first_image_node_id !== 'auto' &&
+        firstLastVideoMapping.last_image_node_id &&
+        firstLastVideoMapping.last_image_node_id !== 'auto' &&
+        firstLastVideoMapping.video_save_node_id &&
+        firstLastVideoMapping.video_save_node_id !== 'auto' &&
+        hasFirstLastFrameCount !== hasFirstLastDuration
       );
     case 'transition':
       const transitionMapping = mapping as any;

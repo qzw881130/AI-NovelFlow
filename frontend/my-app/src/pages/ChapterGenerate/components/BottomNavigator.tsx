@@ -58,6 +58,7 @@ export function BottomNavigator({
   // 从 store 获取状态和方法
   const currentShotIndex = useChapterGenerateStore((state) => state.currentShotIndex);
   const currentShotId = useChapterGenerateStore((state) => state.currentShotId);
+  const currentTab = useChapterGenerateStore((state) => state.currentTab);
   const selectedShotIds = useChapterGenerateStore((state) => state.selectedShotIds);
   const bulkMode = useChapterGenerateStore((state) => state.bulkMode);
   const setCurrentShot = useChapterGenerateStore((state) => state.setCurrentShot);
@@ -80,12 +81,18 @@ export function BottomNavigator({
   };
 
   // 获取分镜状态
-  const getShotStatus = (shotId: string, index: number): ShotThumbnailStatus => {
+  const getShotStatus = (shot: Shot, shotId: string, index: number): ShotThumbnailStatus => {
     if (generatingShots.has(shotId) || generatingVideos.has(shotId)) {
       return 'generating';
     }
     if (shotId === currentShotId || (!currentShotId && index === currentShotIndex)) {
       return 'current';
+    }
+    if (currentTab === 3) {
+      return (shot.videoUrl || shotVideos[shotId]) ? 'completed' : 'pending';
+    }
+    if (currentTab === 1) {
+      return (shot.imageUrl || shotImages[shotId]) ? 'completed' : 'pending';
     }
     if (shotImages[shotId] || shotVideos[shotId]) {
       return 'completed';
@@ -148,7 +155,7 @@ export function BottomNavigator({
 
   // 处理双击（大图预览）
   const handleShotDoubleClick = (shot: Shot) => {
-    const imageUrl = shot.imageUrl;
+    const imageUrl = shot.imageUrl || shotImages[String(shot.id)];
     if (imageUrl) {
       setShowImagePreview(true, imageUrl, shot.index - 1);
     }
@@ -156,7 +163,7 @@ export function BottomNavigator({
 
   // 处理查看大图（眼睛图标点击）
   const handleViewLarge = (shot: Shot) => {
-    const imageUrl = shot.imageUrl;
+    const imageUrl = shot.imageUrl || shotImages[String(shot.id)];
     if (imageUrl) {
       setShowImagePreview(true, imageUrl, shot.index - 1);
     }
@@ -185,7 +192,7 @@ export function BottomNavigator({
   return (
     <div
       className={`fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-lg transition-all duration-300 ease-in-out ${
-        collapsed ? 'h-10' : 'h-44'
+        collapsed ? 'h-10' : 'h-48'
       }`}
       style={{
         left: `${sidebarWidth}px`,
@@ -235,15 +242,16 @@ export function BottomNavigator({
           </div>
 
           {/* 缩略图滚动区 - 为滚动条预留空间 */}
-          <div className="flex-1 overflow-hidden py-2">
+          <div className="flex-1 overflow-hidden pt-2 pb-4">
             <div
               ref={scrollRef}
-              className="flex gap-2 overflow-x-auto h-full px-4 bottom-nav-scroll"
+              className="flex h-full gap-2 overflow-x-auto overflow-y-hidden px-4 bottom-nav-scroll"
               style={{ scrollBehavior: 'smooth' }}
             >
               {shots.map((shot: Shot, index: number) => {
                 const shotNum = index + 1;
                 const shotIdStr = String(shot.id || shotNum);
+                const thumbnailUrl = shot.imageUrl || shotImages[shotIdStr];
                 const isCurrentShot = shot.id ? shot.id === currentShotId : shotNum === currentShotIndex;
                 const isSelected = bulkMode ? selectedShotIds.includes(shotIdStr) : isCurrentShot;
                 return (
@@ -251,10 +259,11 @@ export function BottomNavigator({
                     key={shot.id || `shot-${index}`}
                     shotId={shotIdStr}
                     index={shotNum}
-                    thumbnailUrl={shot.imageUrl}
-                    status={getShotStatus(shotIdStr, shotNum)}
+                    thumbnailUrl={thumbnailUrl}
+                    status={getShotStatus(shot, shotIdStr, shotNum)}
                     isSelected={isSelected}
                     hasProps={Array.isArray(shot.props) && shot.props.length > 0}
+                    duration={shot.duration}
                     onClick={() => handleShotClick(shotIdStr, shotNum)}
                     onDoubleClick={() => handleShotDoubleClick(shot)}
                     onContextMenu={() => handleShotContextMenu(shotIdStr, shotNum)}

@@ -16,8 +16,36 @@ export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descK
   scene: { nameKey: 'promptConfig.types.scene', descKey: 'promptConfig.types.sceneDesc', defaultTemplate: '' },
   prop: { nameKey: 'promptConfig.types.prop', descKey: 'promptConfig.types.propDesc', defaultTemplate: '' },
   chapter_split: { nameKey: 'promptConfig.types.chapterSplit', descKey: 'promptConfig.types.chapterSplitDesc', defaultTemplate: DEFAULT_CHAPTER_SPLIT_TEMPLATE },
+  shot_image_prompt: { nameKey: 'promptConfig.types.shotImagePrompt', descKey: 'promptConfig.types.shotImagePromptDesc', defaultTemplate: '' },
+  video_mode_recommender: { nameKey: 'promptConfig.types.videoModeRecommender', descKey: 'promptConfig.types.videoModeRecommenderDesc', defaultTemplate: '' },
   keyframe_description: { nameKey: 'promptConfig.types.keyframeDescription', descKey: 'promptConfig.types.keyframeDescriptionDesc', defaultTemplate: '' },
+  keyframe_planner: { nameKey: 'promptConfig.types.keyframePlanner', descKey: 'promptConfig.types.keyframePlannerDesc', defaultTemplate: '' },
+  keyframe_image_prompt: { nameKey: 'promptConfig.types.keyframeImagePrompt', descKey: 'promptConfig.types.keyframeImagePromptDesc', defaultTemplate: '' },
+  keyframe_transition: { nameKey: 'promptConfig.types.keyframeTransition', descKey: 'promptConfig.types.keyframeTransitionDesc', defaultTemplate: '' },
+  h3_single_frame_prompt: { nameKey: 'promptConfig.types.h3SingleFramePrompt', descKey: 'promptConfig.types.h3SingleFramePromptDesc', defaultTemplate: '' },
+  h3_first_last_frame_prompt: { nameKey: 'promptConfig.types.h3FirstLastFramePrompt', descKey: 'promptConfig.types.h3FirstLastFramePromptDesc', defaultTemplate: '' },
+  h3_multi_keyframe_prompt: { nameKey: 'promptConfig.types.h3MultiKeyframePrompt', descKey: 'promptConfig.types.h3MultiKeyframePromptDesc', defaultTemplate: '' },
 };
+
+export const TEMPLATE_TYPES: TemplateType[] = [
+  'style',
+  'character_parse',
+  'scene_parse',
+  'prop_parse',
+  'character',
+  'scene',
+  'prop',
+  'chapter_split',
+  'shot_image_prompt',
+  'video_mode_recommender',
+  'keyframe_description',
+  'keyframe_planner',
+  'keyframe_image_prompt',
+  'keyframe_transition',
+  'h3_single_frame_prompt',
+  'h3_first_last_frame_prompt',
+  'h3_multi_keyframe_prompt',
+];
 
 export function usePromptConfigState() {
   const { t } = useTranslation();
@@ -32,7 +60,15 @@ export function usePromptConfigState() {
     scene: [],
     prop: [],
     chapter_split: [],
+    shot_image_prompt: [],
+    video_mode_recommender: [],
     keyframe_description: [],
+    keyframe_planner: [],
+    keyframe_image_prompt: [],
+    keyframe_transition: [],
+    h3_single_frame_prompt: [],
+    h3_first_last_frame_prompt: [],
+    h3_multi_keyframe_prompt: [],
   });
   const [loadingByType, setLoadingByType] = useState<Record<TemplateType, boolean>>({
     style: true,
@@ -43,7 +79,15 @@ export function usePromptConfigState() {
     scene: true,
     prop: true,
     chapter_split: true,
+    shot_image_prompt: true,
+    video_mode_recommender: true,
     keyframe_description: true,
+    keyframe_planner: true,
+    keyframe_image_prompt: true,
+    keyframe_transition: true,
+    h3_single_frame_prompt: true,
+    h3_first_last_frame_prompt: true,
+    h3_multi_keyframe_prompt: true,
   });
 
   // 弹窗状态
@@ -59,8 +103,7 @@ export function usePromptConfigState() {
 
   // 加载所有类型的模板
   useEffect(() => {
-    const types: TemplateType[] = ['style', 'character_parse', 'scene_parse', 'prop_parse', 'character', 'scene', 'prop', 'chapter_split', 'keyframe_description'];
-    types.forEach(type => fetchTemplates(type));
+    TEMPLATE_TYPES.forEach(type => fetchTemplates(type));
   }, []);
 
   const fetchTemplates = async (type: TemplateType) => {

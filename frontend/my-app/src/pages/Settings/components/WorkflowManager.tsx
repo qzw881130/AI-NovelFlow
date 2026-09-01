@@ -17,8 +17,14 @@ import { WorkflowCard } from './WorkflowCard';
 const typeIcons = {
   character: User,
   scene: Mountain,
+  shot_scene: ImageIcon,
+  shot_character_scene: ImageIcon,
+  shot_scene_prop: ImageIcon,
   shot: ImageIcon,
   video: Film,
+  first_last_video: Film,
+  three_frame_video: Film,
+  four_frame_video: Film,
   transition: Film,
   prop: Box,
   voice_design: Mic,
@@ -128,7 +134,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
     }
   };
 
-  const getWorkflowsByType = (type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio' | 'keyframe_image' | 'single_image_edit') => {
+  const getWorkflowsByType = (type: Workflow['type']) => {
     return workflows.filter(w => w.type === type);
   };
 
@@ -151,7 +157,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
       </div>
 
       {/* 按类型分组显示工作流 */}
-      {(['character', 'scene', 'prop', 'shot', 'keyframe_image', 'single_image_edit', 'video', 'transition', 'voice_design', 'audio'] as const).map(type => {
+      {(['character', 'scene', 'prop', 'shot_scene', 'shot_character_scene', 'shot_scene_prop', 'shot', 'keyframe_image', 'single_image_edit', 'video', 'first_last_video', 'three_frame_video', 'four_frame_video', 'transition', 'voice_design', 'audio'] as const).map(type => {
         const typeWorkflows = getWorkflowsByType(type);
         if (typeWorkflows.length === 0) return null;
         

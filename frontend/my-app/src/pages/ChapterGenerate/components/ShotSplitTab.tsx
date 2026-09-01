@@ -3,15 +3,13 @@
  *
  * 功能：
  * - 左侧：原文内容
- * - 中间：AI 拆分结果预览 + 分镜编辑
- * - 右侧：ComfyUI 状态
+ * - 中间：AI 拆分结果预览
  *
  * 数据源统一使用 store.shots（从后端 Shot 表获取）
  */
 
 import { useState } from 'react';
 import { useChapterGenerateStore, useDataSlice } from '../stores';
-import { ShotForm } from './ShotForm';
 import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
 import { useTranslation } from '../../../stores/i18nStore';
@@ -105,10 +103,12 @@ export function ShotSplitTab({
           shots.map((shot) => ({
             id: shot.id,
             description: shot.description,
+            video_description: shot.video_description,
             characters: shot.characters,
             scene: shot.scene,
             props: shot.props,
             duration: shot.duration,
+            continuity_mode: shot.continuity_mode || 'NORMAL',
             dialogues: shot.dialogues,
           }))
         );
@@ -151,6 +151,7 @@ export function ShotSplitTab({
         scene: '',
         props: [],
         dialogues: [],
+        continuity_mode: 'NORMAL',
       });
 
       if (result.success) {
@@ -180,6 +181,7 @@ export function ShotSplitTab({
         scene: '',
         props: [],
         dialogues: [],
+        continuity_mode: 'NORMAL',
         insert_index: beforeIndex,
       });
 
@@ -274,6 +276,7 @@ export function ShotSplitTab({
           scene: shot.scene || '',
           props: shot.props || [],
           duration: shot.duration || 5,
+          continuity_mode: shot.continuity_mode || 'NORMAL',
           dialogues: shot.dialogues || [],
         }))
       };
@@ -339,6 +342,7 @@ export function ShotSplitTab({
             scene: shot.scene || '',
             props: shot.props || [],
             duration: shot.duration || 5,
+            continuity_mode: shot.continuity_mode || 'NORMAL',
             dialogues: shot.dialogues || [],
           }));
 
@@ -385,6 +389,9 @@ export function ShotSplitTab({
   };
 
   const shotIndex = currentShot ?? currentShotIndex ?? 1;
+  const truncateText = (value: string, maxLength = 42) => (
+    value.length > maxLength ? `${value.slice(0, maxLength)}...` : value
+  );
 
   return (
     <div className="h-full flex flex-col">
@@ -432,14 +439,14 @@ export function ShotSplitTab({
         </div>
       </div>
 
-      {/* 分镜列表和编辑区 */}
-      <div className="flex-1 min-h-0 flex gap-4 overflow-hidden">
+      {/* 分镜列表 */}
+      <div className="flex-1 min-h-0 overflow-hidden">
         {/* 分镜列表 */}
-        <div className="w-72 flex-shrink-0 overflow-y-auto border border-gray-200 rounded-lg">
+        <div className="h-full overflow-y-auto border border-gray-200 rounded-lg bg-white">
           {shots.map((shot: Shot, idx: number) => {
             const shotNum = idx + 1;
             const shotId = shot.id;
-            const isSelected = shot.id === currentShotId;
+            const isSelected = shot.id === currentShotId || (!currentShotId && shotNum === shotIndex);
             const characters = shot.characters || [];
             const scene = shot.scene;
             const props = shot.props || [];
@@ -494,7 +501,9 @@ export function ShotSplitTab({
                 </div>
 
                 {/* 分镜描述 */}
-                <p className="text-xs text-gray-600 line-clamp-2 mb-2 leading-relaxed">{shot.description}</p>
+                <p className="text-xs text-gray-600 truncate mb-2 leading-relaxed" title={shot.description}>
+                  {truncateText(shot.description || '', 160)}
+                </p>
 
                 {/* 角色、场景、道具信息 */}
                 <div className="space-y-1">
@@ -540,10 +549,13 @@ export function ShotSplitTab({
 
                   {/* 场景 */}
                   {scene && (
-                    <div className="flex items-center gap-1 flex-wrap">
+                    <div className="flex items-center gap-1 min-w-0">
                       <span className="text-xs text-gray-500 flex-shrink-0">{t('chapterGenerate.sceneColon')}</span>
-                      <span className="inline-flex items-center px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs">
-                        {scene}
+                      <span
+                        className="inline-flex items-center max-w-full px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs truncate"
+                        title={scene}
+                      >
+                        {truncateText(scene, 24)}
                       </span>
                     </div>
                   )}
@@ -574,22 +586,6 @@ export function ShotSplitTab({
           {shots.length === 0 && (
             <div className="p-8 text-center text-gray-500 text-sm">
               {t('chapterGenerate.clickAiSplitHint')}
-            </div>
-          )}
-        </div>
-
-        {/* 分镜编辑区 */}
-        <div className="flex-1 overflow-y-auto border border-gray-200 rounded-lg p-4">
-          {shots.length > 0 && shotIndex >= 1 && shotIndex <= shots.length ? (
-            <ShotForm
-              shotIndex={shotIndex}
-              shotData={shots[shotIndex - 1]}
-              showVideoDescription={true}
-              showDuration={true}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">
-              {t('chapterGenerate.selectShotToEdit')}
             </div>
           )}
         </div>

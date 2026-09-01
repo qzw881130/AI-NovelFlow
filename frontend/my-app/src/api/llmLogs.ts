@@ -8,6 +8,7 @@ export interface LLMLog {
   created_at: string;
   provider: string;
   model: string;
+  prompt_template_name: string | null;
   system_prompt: string | null;
   user_prompt: string;
   request_info?: string | null;

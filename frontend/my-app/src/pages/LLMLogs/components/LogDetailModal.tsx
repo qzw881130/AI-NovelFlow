@@ -26,6 +26,7 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
       usedProxy: log.used_proxy,
       durationSeconds: log.duration,
       taskType: log.task_type,
+      promptTemplateName: log.prompt_template_name,
       novelId: log.novel_id,
       chapterId: log.chapter_id,
       characterId: log.character_id,
@@ -117,6 +118,10 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
             <span className="text-gray-500">{t('llmLogs.proxy')}:</span><span className="font-medium">{log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}</span>
             <span className="text-gray-500">{t('llmLogs.duration')}:</span>
             <span className="font-medium">{log.duration ? `${log.duration.toFixed(2)}s` : '-'}</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-gray-500">{t('llmLogs.promptTemplateName')}:</span>
+            <span className="font-medium text-gray-900">{log.prompt_template_name || '-'}</span>
           </div>
           {log.error_message && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">

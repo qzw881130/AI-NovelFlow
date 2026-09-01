@@ -49,6 +49,15 @@ export default function Novels() {
     scenePromptTemplateId: '',
     propPromptTemplateId: '',
     chapterSplitPromptTemplateId: '',
+    keyframeDescriptionPromptTemplateId: '',
+    shotImagePromptTemplateId: '',
+    videoModeRecommenderPromptTemplateId: '',
+    keyframePlannerPromptTemplateId: '',
+    keyframeImagePromptTemplateId: '',
+    keyframeTransitionPromptTemplateId: '',
+    h3SingleFramePromptTemplateId: '',
+    h3FirstLastFramePromptTemplateId: '',
+    h3MultiKeyframePromptTemplateId: '',
     aspectRatio: '16:9'
   });
 
@@ -68,6 +77,15 @@ export default function Novels() {
       scenePromptTemplateId: '',
       propPromptTemplateId: '',
       chapterSplitPromptTemplateId: '',
+      keyframeDescriptionPromptTemplateId: '',
+      shotImagePromptTemplateId: '',
+      videoModeRecommenderPromptTemplateId: '',
+      keyframePlannerPromptTemplateId: '',
+      keyframeImagePromptTemplateId: '',
+      keyframeTransitionPromptTemplateId: '',
+      h3SingleFramePromptTemplateId: '',
+      h3FirstLastFramePromptTemplateId: '',
+      h3MultiKeyframePromptTemplateId: '',
       aspectRatio: '16:9'
     });
   };
@@ -87,6 +105,15 @@ export default function Novels() {
       scenePromptTemplateId: editingNovel.scenePromptTemplateId,
       propPromptTemplateId: editingNovel.propPromptTemplateId,
       chapterSplitPromptTemplateId: editingNovel.chapterSplitPromptTemplateId,
+      keyframeDescriptionPromptTemplateId: editingNovel.keyframeDescriptionPromptTemplateId,
+      shotImagePromptTemplateId: editingNovel.shotImagePromptTemplateId,
+      videoModeRecommenderPromptTemplateId: editingNovel.videoModeRecommenderPromptTemplateId,
+      keyframePlannerPromptTemplateId: editingNovel.keyframePlannerPromptTemplateId,
+      keyframeImagePromptTemplateId: editingNovel.keyframeImagePromptTemplateId,
+      keyframeTransitionPromptTemplateId: editingNovel.keyframeTransitionPromptTemplateId,
+      h3SingleFramePromptTemplateId: editingNovel.h3SingleFramePromptTemplateId,
+      h3FirstLastFramePromptTemplateId: editingNovel.h3FirstLastFramePromptTemplateId,
+      h3MultiKeyframePromptTemplateId: editingNovel.h3MultiKeyframePromptTemplateId,
       aspectRatio: editingNovel.aspectRatio,
     });
     setEditingNovel(null);

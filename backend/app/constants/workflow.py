@@ -15,14 +15,20 @@ DESC_KEY_PREFIX = f"{I18N_PREFIX}.workflowDescriptions"
 WORKFLOW_TYPES = {
     "character": "人设生成",
     "scene": "场景生成",
-    "shot": "分镜生图",
-    "video": "分镜生视频",
+    "shot_scene": "分镜生图（场景）",
+    "shot_character_scene": "分镜生图（角色+场景）",
+    "shot_scene_prop": "分镜生图（场景+道具）",
+    "shot": "分镜生图（角色+场景+道具）",
+    "video": "单帧生视频",
     "transition": "分镜生转场视频",
     "prop": "道具生成",
     "voice_design": "音色设计",
     "audio": "音频生成",
     "keyframe_image": "关键帧生图",
-    "single_image_edit": "单图编辑"
+    "single_image_edit": "单图编辑",
+    "first_last_video": "首尾帧生视频",
+    "three_frame_video": "三帧生视频",
+    "four_frame_video": "四帧生视频",
 }
 
 
@@ -30,13 +36,19 @@ WORKFLOW_TYPES = {
 DEFAULT_WORKFLOWS = {
     "character": "character_default.json",
     "scene": "scene_default.json",
+    "shot_scene": "shot_scene_qwen_edit_2511.json",
+    "shot_character_scene": "shot_character_scene_qwen_edit_2511.json",
+    "shot_scene_prop": "shot_scene_prop_qwen_edit_2511.json",
     "shot": "shot_default.json",
     "video": "video_default.json",
     "prop": "prop_default.json",
     "voice_design": "Qwen3-TTS-Voice-Design.json",  # 实际是音色设计工作流
     "audio": "Qwen3-TTS-Voice-Clone.json",  # 音频生成工作流（带参考音频的语音克隆）
     "keyframe_image": "keyframe_flux2_klein.json",
-    "single_image_edit": "single_image_edit_flux2_klein.json"
+    "single_image_edit": "single_image_edit_flux2_klein.json",
+    "first_last_video": "first_last_video_minimax_h3_ref2va.json",
+    "three_frame_video": "three_frame_video_minimax_h3_ref2va.json",
+    "four_frame_video": "four_frame_video_minimax_h3_ref2va.json",
 }
 
 
@@ -94,6 +106,65 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
         # 保存图片节点
         "save_image_node_id": "9",
     },
+    "shot_scene": {
+        "prompt_node_id": "184",
+        "save_image_node_id": "163",
+        "width_node_id": "182",
+        "height_node_id": "183",
+        "scene_reference_image_node_id": "170",
+    },
+    "shot_character_scene": {
+        "prompt_node_id": "184",
+        "save_image_node_id": "163",
+        "width_node_id": "182",
+        "height_node_id": "183",
+        "character_reference_image_node_id": "170",
+        "scene_reference_image_node_id": "171",
+    },
+    "shot_scene_prop": {
+        "prompt_node_id": "184",
+        "save_image_node_id": "163",
+        "width_node_id": "182",
+        "height_node_id": "183",
+        "scene_reference_image_node_id": "170",
+        "prop_reference_image_node_id": "171",
+    },
+    "first_last_video": {
+        "prompt_node_id": "138",
+        "first_image_node_id": "137",
+        "last_image_node_id": "139",
+        "video_save_node_id": "150",
+        "megapixels_node_id": "171",
+        "megapixels_value": "0.4",
+        "frame_count_node_id": "",
+        "duration_seconds_node_id": "132",
+        "reference_audio_node_id": "",
+    },
+    "three_frame_video": {
+        "prompt_node_id": "138",
+        "video_save_node_id": "150",
+        "reference_image_node_id": "137",
+        "keyframe_node_1": "139",
+        "keyframe_node_2": "172",
+        "megapixels_node_id": "171",
+        "megapixels_value": "0.4",
+        "frame_count_node_id": "",
+        "duration_seconds_node_id": "132",
+        "reference_audio_node_id": "",
+    },
+    "four_frame_video": {
+        "prompt_node_id": "138",
+        "video_save_node_id": "150",
+        "reference_image_node_id": "137",
+        "keyframe_node_1": "139",
+        "keyframe_node_2": "172",
+        "keyframe_node_3": "173",
+        "megapixels_node_id": "171",
+        "megapixels_value": "0.4",
+        "frame_count_node_id": "",
+        "duration_seconds_node_id": "132",
+        "reference_audio_node_id": "",
+    },
 }
 
 
@@ -110,6 +181,33 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "descriptionKey": f"{DESC_KEY_PREFIX}.Z-image-turbo【非三视图】",
     },
     # 双图参考工作流（角色图+场景图）作为分镜生图的默认工作流
+    {
+        "filename": "shot_scene_qwen_edit_2511.json",
+        "type": "shot_scene",
+        "name": "Qwen-Edit-2511 分镜生图（场景）",
+        "nameKey": f"{NAME_KEY_PREFIX}.Qwen-Edit-2511 分镜生图（场景）",
+        "description": "Qwen-Edit-2511 单图编辑工作流，仅使用场景参考图生成分镜图",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.Qwen-Edit-2511 单图编辑工作流，仅使用场景参考图生成分镜图",
+        "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["shot_scene"],
+    },
+    {
+        "filename": "shot_character_scene_qwen_edit_2511.json",
+        "type": "shot_character_scene",
+        "name": "Qwen-Edit-2511 分镜生图（角色+场景）",
+        "nameKey": f"{NAME_KEY_PREFIX}.Qwen-Edit-2511 分镜生图（角色+场景）",
+        "description": "Qwen-Edit-2511 双图编辑工作流，使用角色参考图和场景参考图生成分镜图",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.Qwen-Edit-2511 双图编辑工作流，使用角色参考图和场景参考图生成分镜图",
+        "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["shot_character_scene"],
+    },
+    {
+        "filename": "shot_scene_prop_qwen_edit_2511.json",
+        "type": "shot_scene_prop",
+        "name": "Qwen-Edit-2511 分镜生图（场景+道具）",
+        "nameKey": f"{NAME_KEY_PREFIX}.Qwen-Edit-2511 分镜生图（场景+道具）",
+        "description": "Qwen-Edit-2511 双图编辑工作流，使用场景参考图和道具参考图生成分镜图",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.Qwen-Edit-2511 双图编辑工作流，使用场景参考图和道具参考图生成分镜图",
+        "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["shot_scene_prop"],
+    },
     {
         "filename": "shot_flux2_klein_dual_reference.json",
         "type": "shot",
@@ -144,6 +242,36 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "description": "LTX-2 图生视频，使用 Qwen3 自动扩写提示词",
         "descriptionKey": f"{DESC_KEY_PREFIX}.LTX-2 图生视频，使用 Qwen3 自动扩写提示词",
         "node_mapping": {"prompt_node_id": "15", "video_save_node_id": "1", "reference_image_node_id": "12", "max_side_node_id": "36", "frame_count_node_id": "35", "duration_seconds_node_id": ""},
+    },
+    {
+        "filename": "first_last_video_minimax_h3_ref2va.json",
+        "type": "first_last_video",
+        "name": "Minimax H3 首尾帧生视频",
+        "nameKey": f"{NAME_KEY_PREFIX}.Minimax H3 首尾帧生视频",
+        "description": "MiniMax H3 首尾帧参考视频工作流，使用 START/END 两张图",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.MiniMax H3 首尾帧参考视频工作流，使用 START/END 两张图",
+        "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["first_last_video"],
+        "extension": {"max_clip_duration": 15, "frame_count": 2},
+    },
+    {
+        "filename": "three_frame_video_minimax_h3_ref2va.json",
+        "type": "three_frame_video",
+        "name": "Minimax H3 三帧生视频",
+        "nameKey": f"{NAME_KEY_PREFIX}.Minimax H3 三帧生视频",
+        "description": "MiniMax H3 三帧参考视频工作流，使用 3 张关键帧图",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.MiniMax H3 三帧参考视频工作流，使用 3 张关键帧图",
+        "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["three_frame_video"],
+        "extension": {"max_clip_duration": 15, "frame_count": 3},
+    },
+    {
+        "filename": "four_frame_video_minimax_h3_ref2va.json",
+        "type": "four_frame_video",
+        "name": "Minimax H3 四帧生视频",
+        "nameKey": f"{NAME_KEY_PREFIX}.Minimax H3 四帧生视频",
+        "description": "MiniMax H3 四帧参考视频工作流，使用 4 张关键帧图",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.MiniMax H3 四帧参考视频工作流，使用 4 张关键帧图",
+        "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["four_frame_video"],
+        "extension": {"max_clip_duration": 15, "frame_count": 4},
     },
     {
         "filename": "transition_ltx2_camera.json",

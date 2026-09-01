@@ -38,6 +38,7 @@ export function ThreeColumnLayout({
   maxRightWidth = 440,
 }: ThreeColumnLayoutProps) {
   const store = useChapterGenerateStore();
+  const hasRightPanel = rightPanel !== null && rightPanel !== undefined;
 
   const {
     leftPanelWidth,
@@ -80,6 +81,7 @@ export function ThreeColumnLayout({
   };
 
   const getRightWidth = () => {
+    if (!hasRightPanel) return 0;
     if (rightPanelCollapsed) return 0;
     return rightResizable.width;
   };
@@ -132,44 +134,46 @@ export function ThreeColumnLayout({
       </div>
 
       {/* 右侧栏 */}
-      <div
-        className="relative flex-shrink-0 transition-all duration-200 ease-in-out"
-        style={{
-          width: getRightWidth(),
-        }}
-      >
-        <div className={`h-full overflow-hidden bg-gray-50 ${rightPanelCollapsed ? '' : 'border-l border-gray-200'}`}>
-          {/* 右侧栏内容 */}
-          <div className="h-full pl-4 pr-2 py-4">
-            {!rightPanelCollapsed && rightPanel}
-          </div>
-        </div>
-
-        {/* 拖动把手 */}
-        {!rightPanelCollapsed && (
-          <div
-            onMouseDown={rightResizable.handleMouseDown}
-            className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-blue-200 hover:opacity-50 transition-colors"
-          />
-        )}
-
-        {/* 收起/展开按钮 */}
-        <button
-          onClick={toggleRightPanel}
-          className="absolute -left-3 top-12 z-10 w-6 h-6 bg-white border border-gray-200 rounded-full shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors"
-          title={rightPanelCollapsed ? '展开' : '收起'}
+      {hasRightPanel && (
+        <div
+          className="relative flex-shrink-0 transition-all duration-200 ease-in-out"
+          style={{
+            width: getRightWidth(),
+          }}
         >
-          {rightPanelCollapsed ? (
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          ) : (
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
+          <div className={`h-full overflow-hidden bg-gray-50 ${rightPanelCollapsed ? '' : 'border-l border-gray-200'}`}>
+            {/* 右侧栏内容 */}
+            <div className="h-full pl-4 pr-2 py-4">
+              {!rightPanelCollapsed && rightPanel}
+            </div>
+          </div>
+
+          {/* 拖动把手 */}
+          {!rightPanelCollapsed && (
+            <div
+              onMouseDown={rightResizable.handleMouseDown}
+              className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-blue-200 hover:opacity-50 transition-colors"
+            />
           )}
-        </button>
-      </div>
+
+          {/* 收起/展开按钮 */}
+          <button
+            onClick={toggleRightPanel}
+            className="absolute -left-3 top-12 z-10 w-6 h-6 bg-white border border-gray-200 rounded-full shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors"
+            title={rightPanelCollapsed ? '展开' : '收起'}
+          >
+            {rightPanelCollapsed ? (
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            ) : (
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

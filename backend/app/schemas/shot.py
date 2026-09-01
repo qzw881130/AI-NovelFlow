@@ -4,6 +4,9 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Literal
 
 
+VideoMode = Literal["SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"]
+
+
 class DialogueData(BaseModel):
     """台词数据"""
 
@@ -37,6 +40,15 @@ class ShotAudioRequest(BaseModel):
     """单分镜音频生成请求"""
 
     dialogues: List[DialogueData] = Field(..., description="台词列表")
+
+
+class GenerateShotImageRequest(BaseModel):
+    """生成分镜图片请求"""
+
+    prompt_text: Optional[str] = Field(None, description="已确认的最终生图提示词；为空时由 LLM 生成")
+    workflow_type: Optional[Literal["shot", "shot_scene", "shot_character_scene", "shot_scene_prop"]] = Field(
+        None, description="分镜生图工作流类型；为空时使用角色+场景+道具"
+    )
 
 
 class BatchShotAudioRequest(BaseModel):
@@ -77,10 +89,15 @@ class ShotUpdate(BaseModel):
 
     description: Optional[str] = Field(None, description="分镜描述")
     video_description: Optional[str] = Field(None, description="视频生成提示词")
+    shot_image_prompt: Optional[str] = Field(None, description="主分镜图最终生图提示词")
     characters: Optional[List[str]] = Field(None, description="角色名称列表")
     scene: Optional[str] = Field(None, description="场景名称")
     props: Optional[List[str]] = Field(None, description="道具名称列表")
-    duration: Optional[int] = Field(None, ge=1, le=60, description="时长（秒）")
+    duration: Optional[int] = Field(None, ge=1, le=180, description="时长（秒）")
+    continuity_mode: Optional[Literal["NORMAL", "CONTINUOUS_TAKE"]] = Field(
+        None, description="连续模式：NORMAL 或 CONTINUOUS_TAKE"
+    )
+    video_director_plan: Optional[dict] = Field(None, description="视频导演规划数据")
     dialogues: Optional[List[dict]] = Field(None, description="台词数据")
     keyframes: Optional[List[dict]] = Field(None, description="关键帧数据")
     reference_audio_url: Optional[str] = Field(None, description="参考音频URL")
@@ -95,10 +112,13 @@ class ShotResponse(BaseModel):
     index: int
     description: str
     video_description: Optional[str] = None
+    shotImagePrompt: Optional[str] = None
     characters: List[str]
     scene: str
     props: List[str]
     duration: int
+    continuity_mode: str = "NORMAL"
+    videoDirectorPlan: dict = {}
     imageUrl: Optional[str] = None
     imagePath: Optional[str] = None
     imageStatus: str
@@ -162,3 +182,30 @@ class GenerateVideoRequest(BaseModel):
     use_keyframes: bool = Field(True, description="是否使用关键帧（如果存在）")
     use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
     workflow_id: Optional[str] = Field(None, description="指定工作流ID")
+    selected_mode: Optional[VideoMode] = Field(None, description="视频导演选择的生成模式")
+
+
+class SaveVideoDirectorPlanRequest(BaseModel):
+    """保存视频导演规划请求"""
+
+    selected_mode: Optional[VideoMode] = None
+    recommended_mode: Optional[VideoMode] = None
+    recommendation_reason: Optional[str] = None
+    keyframes: Optional[List[dict]] = None
+    transitions: Optional[List[dict]] = None
+    clips: Optional[List[dict]] = None
+    execution_windows: Optional[List[dict]] = None
+    window_plans: Optional[List[dict]] = None
+    validation: Optional[dict] = None
+
+
+class RecommendVideoModeRequest(BaseModel):
+    """推荐视频生成模式请求"""
+
+    force: bool = Field(False, description="是否强制重新推荐")
+
+
+class PlanVideoKeyframesRequest(BaseModel):
+    """规划视频关键帧时间轴请求"""
+
+    force: bool = Field(False, description="是否强制重新规划关键帧时间轴")

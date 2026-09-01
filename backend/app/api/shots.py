@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.core.database import get_db
-from app.models.novel import Novel, Chapter
+from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.task import Task
 from app.models.workflow import Workflow
 from app.services.comfyui import ComfyUIService
@@ -49,7 +49,11 @@ from app.schemas.shot import (
     SetReferenceAudioRequest,
     SetReferenceImageRequest,
     GenerateKeyframeDescriptionsRequest,
+    GenerateShotImageRequest,
     GenerateVideoRequest,
+    RecommendVideoModeRequest,
+    PlanVideoKeyframesRequest,
+    SaveVideoDirectorPlanRequest,
 )
 from app.api.deps import (
     get_novel_repo,
@@ -57,16 +61,247 @@ from app.api.deps import (
     get_task_repo,
     get_workflow_repo,
     get_shot_repo,
+    get_prompt_template_repo,
+    get_llm_service,
 )
 from app.utils.path_utils import url_to_local_path
 from app.utils.time_utils import format_datetime
+from app.services.prompt_builder import get_style
+from app.services.llm_service import LLMService
+from app.repositories import PromptTemplateRepository
+from app.services.video_director_ai import append_video_ai_call, strip_media_refs
 
 router = APIRouter()
 comfyui_service = ComfyUIService()
 merge_video_locks = {}
+shot_image_generation_locks = {}
 
 
 # ==================== 分镜图生成 ====================
+
+
+def _safe_json_list(value):
+    if not value:
+        return []
+    if isinstance(value, list):
+        return value
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, list) else []
+    except Exception:
+        return []
+
+
+def _get_shot_image_prompt_template(novel: Novel, template_repo: PromptTemplateRepository):
+    template = None
+    if novel.shot_image_prompt_template_id:
+        template = template_repo.get_by_id(novel.shot_image_prompt_template_id)
+    if not template:
+        template = template_repo.get_default_system_template("shot_image_prompt")
+    if not template:
+        raise HTTPException(status_code=400, detail="未配置主分镜图提示词模板")
+    return template
+
+
+def _build_shot_image_reference_manifest(db: Session, novel: Novel, shot):
+    shot_characters = _safe_json_list(shot.characters)
+    shot_props = _safe_json_list(shot.props)
+
+    manifest = []
+    picture_index = 1
+
+    character_members = []
+    for name in shot_characters:
+        character = (
+            db.query(Character)
+            .filter(Character.novel_id == novel.id, Character.name == name)
+            .first()
+        )
+        if character and character.image_url and url_to_local_path(character.image_url):
+            character_members.append(name)
+    if character_members:
+        manifest.append(
+            {
+                "picture_index": picture_index,
+                "type": "MERGED_CHARACTER",
+                "members": character_members,
+            }
+        )
+        picture_index += 1
+
+    if shot.scene:
+        scene = (
+            db.query(Scene)
+            .filter(Scene.novel_id == novel.id, Scene.name == shot.scene)
+            .first()
+        )
+        if scene and scene.image_url and url_to_local_path(scene.image_url):
+            manifest.append(
+                {
+                    "picture_index": picture_index,
+                    "type": "SCENE",
+                    "name": shot.scene,
+                }
+            )
+            picture_index += 1
+
+    prop_members = []
+    for name in shot_props:
+        prop = (
+            db.query(Prop)
+            .filter(Prop.novel_id == novel.id, Prop.name == name)
+            .first()
+        )
+        if prop and prop.image_url and url_to_local_path(prop.image_url):
+            prop_members.append(name)
+    if prop_members:
+        manifest.append(
+            {
+                "picture_index": picture_index,
+                "type": "MERGED_PROP",
+                "members": prop_members,
+            }
+        )
+
+    return manifest
+
+
+def _resolve_shot_image_workflow_type(db: Session, novel: Novel, shot) -> str:
+    manifest = _build_shot_image_reference_manifest(db, novel, shot)
+    has_character = any(item.get("type") == "MERGED_CHARACTER" for item in manifest)
+    has_scene = any(item.get("type") == "SCENE" for item in manifest)
+    has_prop = any(item.get("type") == "MERGED_PROP" for item in manifest)
+
+    if has_character and has_scene and has_prop:
+        return "shot"
+    if has_character and has_scene:
+        return "shot_character_scene"
+    if has_scene and has_prop:
+        return "shot_scene_prop"
+    if has_scene:
+        return "shot_scene"
+    return "shot"
+
+
+def _build_shot_image_reference_bundle(db: Session, novel: Novel, shot):
+    shot_characters = _safe_json_list(shot.characters)
+    shot_props = _safe_json_list(shot.props)
+
+    character_members = []
+    for name in shot_characters:
+        character = (
+            db.query(Character)
+            .filter(Character.novel_id == novel.id, Character.name == name)
+            .first()
+        )
+        if character and character.image_url and url_to_local_path(character.image_url):
+            character_members.append(name)
+
+    scene_name = ""
+    scene_empty = True
+    if shot.scene:
+        scene = (
+            db.query(Scene)
+            .filter(Scene.novel_id == novel.id, Scene.name == shot.scene)
+            .first()
+        )
+        scene_name = shot.scene
+        scene_empty = not bool(
+            scene and scene.image_url and url_to_local_path(scene.image_url)
+        )
+
+    prop_members = []
+    for name in shot_props:
+        prop = (
+            db.query(Prop)
+            .filter(Prop.novel_id == novel.id, Prop.name == name)
+            .first()
+        )
+        if prop and prop.image_url and url_to_local_path(prop.image_url):
+            prop_members.append(name)
+
+    return {
+        "picture_1": {
+            "type": "MERGED_CHARACTER",
+            "members": character_members,
+            "empty": len(character_members) == 0,
+        },
+        "picture_2": {"type": "SCENE", "name": scene_name, "empty": scene_empty},
+        "picture_3": {
+            "type": "MERGED_PROP",
+            "members": prop_members,
+            "empty": len(prop_members) == 0,
+        },
+    }
+
+
+def _build_shot_image_prompt_input(db: Session, novel: Novel, shot, template_body: str) -> str:
+    shot_characters = _safe_json_list(shot.characters)
+    shot_props = _safe_json_list(shot.props)
+    shot_dialogues = _safe_json_list(shot.dialogues)
+    visual_style, _ = get_style(db, novel, "character")
+
+    payload = {
+        "shot": {
+            "id": shot.id,
+            "index": shot.index,
+            "description": shot.description or "",
+            "video_description": shot.video_description or "",
+            "characters": shot_characters,
+            "scene": shot.scene or "",
+            "props": shot_props,
+            "dialogues": shot_dialogues,
+        },
+        "visual_style": visual_style,
+    }
+
+    if "reference_image_manifest" in template_body:
+        payload["reference_image_manifest"] = _build_shot_image_reference_manifest(
+            db, novel, shot
+        )
+    elif "reference_bundle" in template_body:
+        payload["reference_bundle"] = _build_shot_image_reference_bundle(db, novel, shot)
+    else:
+        payload["reference_image_manifest"] = _build_shot_image_reference_manifest(db, novel, shot)
+
+    return (
+        "请基于以下已保存的 Shot 数据、正式视觉风格和参考图清单，"
+        "生成可直接用于 Qwen-Image-Edit-2511 的主分镜图最终提示词。\n\n"
+        + json.dumps(payload, ensure_ascii=False, indent=2)
+    )
+
+
+async def _resolve_shot_image_prompt_text(
+    db: Session,
+    novel: Novel,
+    shot,
+    template_repo: PromptTemplateRepository,
+    llm_service: LLMService,
+    prompt_text: Optional[str],
+):
+    if prompt_text and prompt_text.strip():
+        return prompt_text.strip(), "用户编辑的主分镜图提示词"
+
+    template = _get_shot_image_prompt_template(novel, template_repo)
+    user_content = _build_shot_image_prompt_input(db, novel, shot, template.template)
+    result = await llm_service.chat_completion(
+        system_prompt=template.template,
+        user_content=user_content,
+        temperature=0.3,
+        max_tokens=4096,
+        task_type="shot_image_prompt",
+        prompt_template_name=template.name,
+        novel_id=novel.id,
+        chapter_id=shot.chapter_id,
+    )
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=500, detail=result.get("error") or "主分镜图提示词生成失败"
+        )
+    final_prompt = (result.get("content") or "").strip()
+    if not final_prompt:
+        raise HTTPException(status_code=500, detail="主分镜图提示词生成结果为空")
+    return final_prompt, template.name
 
 
 @router.post(
@@ -76,14 +311,57 @@ async def generate_shot_image(
     novel_id: str,
     chapter_id: str,
     shot_id: str,
+    request: Optional[GenerateShotImageRequest] = None,
     db: Session = Depends(get_db),
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     task_repo: TaskRepository = Depends(get_task_repo),
     workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
+    template_repo: PromptTemplateRepository = Depends(get_prompt_template_repo),
+    llm_service: LLMService = Depends(get_llm_service),
 ):
     """为指定分镜生成图片（创建后台任务）"""
+    lock_key = f"{novel_id}:{chapter_id}:{shot_id}"
+    lock = shot_image_generation_locks.setdefault(lock_key, asyncio.Lock())
+    if lock.locked():
+        return {
+            "success": True,
+            "message": "该分镜正在解析提示词或创建生图任务",
+            "data": {"taskId": None, "status": "generating", "promptText": None},
+        }
+
+    async with lock:
+        return await _generate_shot_image_locked(
+            novel_id=novel_id,
+            chapter_id=chapter_id,
+            shot_id=shot_id,
+            request=request,
+            db=db,
+            novel_repo=novel_repo,
+            chapter_repo=chapter_repo,
+            task_repo=task_repo,
+            workflow_repo=workflow_repo,
+            shot_repo=shot_repo,
+            template_repo=template_repo,
+            llm_service=llm_service,
+        )
+
+
+async def _generate_shot_image_locked(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    request: Optional[GenerateShotImageRequest],
+    db: Session,
+    novel_repo: NovelRepository,
+    chapter_repo: ChapterRepository,
+    task_repo: TaskRepository,
+    workflow_repo: WorkflowRepository,
+    shot_repo: ShotRepository,
+    template_repo: PromptTemplateRepository,
+    llm_service: LLMService,
+):
     # 获取章节
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
 
@@ -113,19 +391,29 @@ async def generate_shot_image(
         return {
             "success": True,
             "message": "已有进行中的生成任务",
-            "data": {"taskId": existing_task.id, "status": existing_task.status},
+            "data": {"taskId": existing_task.id, "status": existing_task.status, "promptText": existing_task.prompt_text},
         }
 
     # 获取激活的分镜生图工作流
-    workflow = workflow_repo.get_active_by_type("shot")
+    shot_workflow_type = request.workflow_type if request and request.workflow_type else _resolve_shot_image_workflow_type(db, novel, shot)
+    workflow = workflow_repo.get_active_by_type(shot_workflow_type)
 
     if not workflow:
-        raise HTTPException(status_code=400, detail="未配置分镜生图工作流")
+        raise HTTPException(status_code=400, detail=f"未配置{shot_workflow_type}分镜生图工作流")
 
     # 验证工作流节点映射配置
-    is_valid, error_msg = TaskService.validate_workflow_node_mapping(workflow, "shot")
+    is_valid, error_msg = TaskService.validate_workflow_node_mapping(workflow, shot_workflow_type)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_msg)
+
+    final_prompt, prompt_template_name = await _resolve_shot_image_prompt_text(
+        db,
+        novel,
+        shot,
+        template_repo,
+        llm_service,
+        request.prompt_text if request else None,
+    )
 
     # 清除旧的图片数据和文件
     file_storage.delete_shot_image(novel_id, chapter_id, shot_index, shot_id=shot.id)
@@ -148,6 +436,10 @@ async def generate_shot_image(
         workflow_name=workflow.name,
         shot_id=shot_id,
     )
+    task.prompt_text = final_prompt
+    task.description = f"{task.description}；提示词模板：{prompt_template_name}"
+    shot.shot_image_prompt = final_prompt
+    db.commit()
 
     print(f"[GenerateShot] Created task {task.id} for shot {shot_id}")
 
@@ -157,18 +449,717 @@ async def generate_shot_image(
         novel_id,
         chapter_id,
         shot_index,
-        shot_description,
+        final_prompt,
         workflow.id,
     )
 
     return {
         "success": True,
         "message": "分镜图生成任务已创建",
-        "data": {"taskId": task.id, "status": "pending"},
+        "data": {"taskId": task.id, "status": "pending", "promptText": final_prompt},
     }
 
 
 # ==================== 分镜视频生成 ====================
+
+
+VIDEO_MODE_LABELS = {
+    "SINGLE_FRAME": "单帧",
+    "FIRST_LAST_FRAME": "首尾帧",
+    "MULTI_KEYFRAME": "多关键帧",
+}
+
+
+def _safe_json_dict(value):
+    if not value:
+        return {}
+    if isinstance(value, dict):
+        return value
+    try:
+        parsed = json.loads(value)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def _get_video_workflow_capability(workflow: Optional[Workflow]) -> dict:
+    extension = _safe_json_dict(workflow.extension if workflow else None)
+    max_clip_duration = int(extension.get("max_clip_duration") or extension.get("max_seconds") or 15)
+    workflow_mode = str(extension.get("mode") or extension.get("video_mode") or "").lower()
+    return {
+        "single_frame": extension.get("single_frame", True),
+        "first_last_frame": extension.get("first_last_frame", True),
+        "multi_keyframe": extension.get("multi_keyframe", True),
+        "max_clip_duration": max_clip_duration,
+        "max_keyframes_per_generation": int(extension.get("max_keyframes_per_generation") or 2),
+        "first_last_frame_capability": {
+            "enabled": True,
+            "max_clip_duration": max_clip_duration,
+            "frame_count": 2,
+        },
+        "multi_keyframe_capability": {
+            "enabled": True,
+            "max_clip_duration": max_clip_duration,
+            "supported_frame_counts": [3, 4],
+            "available_workflows": [
+                {"frame_count": 3, "workflow_key": "MINIMAX_H3_3FRAME", "workflow_type": "three_frame_video"},
+                {"frame_count": 4, "workflow_key": "MINIMAX_H3_4FRAME", "workflow_type": "four_frame_video"},
+            ],
+        },
+        "workflow_name": workflow.name if workflow else "",
+        "workflow_mode": workflow_mode,
+    }
+
+
+def _get_video_mode_template(novel: Novel, template_repo: PromptTemplateRepository):
+    template = None
+    if novel.video_mode_recommender_prompt_template_id:
+        template = template_repo.get_by_id(novel.video_mode_recommender_prompt_template_id)
+    if not template:
+        template = template_repo.get_default_system_template("video_mode_recommender")
+    if not template:
+        raise HTTPException(status_code=400, detail="未配置视频生成模式推荐提示词模板")
+    return template
+
+
+def _build_video_mode_user_content(shot, workflow_capability: dict) -> str:
+    payload = {
+        "shot": {
+            "id": shot.id,
+            "index": shot.index,
+            "description": shot.description or "",
+            "video_description": shot.video_description or "",
+            "characters": _safe_json_list(shot.characters),
+            "scene": shot.scene or "",
+            "props": _safe_json_list(shot.props),
+            "duration": shot.duration or 4,
+            "continuity_mode": shot.continuity_mode or "NORMAL",
+            "dialogues": _safe_json_list(shot.dialogues),
+        },
+        "workflow_capability": workflow_capability,
+    }
+    return "请根据以下正式保存的 Shot 与 Workflow 能力推荐视频生成模式。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def _parse_recommended_mode(content: str, duration: int, workflow_capability: dict) -> str:
+    try:
+        parsed = json.loads(content.strip())
+    except Exception:
+        start = content.find("{")
+        end = content.rfind("}")
+        parsed = json.loads(content[start:end + 1]) if start >= 0 and end > start else {}
+    mode = parsed.get("recommended_mode")
+    if mode not in VIDEO_MODE_LABELS:
+        mode = "MULTI_KEYFRAME" if duration > workflow_capability["max_clip_duration"] else "SINGLE_FRAME"
+    if mode == "FIRST_LAST_FRAME" and duration > workflow_capability["max_clip_duration"]:
+        mode = "MULTI_KEYFRAME"
+    return mode
+
+
+def _build_video_mode_reason(shot, mode: str, workflow_capability: dict) -> str:
+    duration = shot.duration or 4
+    max_clip_duration = workflow_capability["max_clip_duration"]
+    if duration > max_clip_duration:
+        return f"{duration} 秒超过当前 Workflow 单次最大 {max_clip_duration} 秒，V1 请使用多关键帧拆分为多个 Clip。"
+    if mode == "SINGLE_FRAME":
+        return f"{duration} 秒不超过当前 Workflow 单次最大 {max_clip_duration} 秒，适合由主分镜图驱动的简单 Shot。"
+    if mode == "FIRST_LAST_FRAME":
+        return f"{duration} 秒不超过当前 Workflow 单次最大 {max_clip_duration} 秒，适合用起点与终点共同约束画面变化。"
+    return "该 Shot 存在较强连续性或多阶段视觉变化，建议使用多关键帧保持画面稳定。"
+
+
+def _build_clip_plan(duration: int, max_clip_duration: int) -> list:
+    clips = []
+    start = 0
+    index = 1
+    while start < duration:
+        end = min(duration, start + max_clip_duration)
+        clips.append({
+            "clip_index": index,
+            "start_time": start,
+            "end_time": end,
+            "status": "PENDING",
+        })
+        start = end
+        index += 1
+    return clips
+
+
+def _build_execution_windows(duration: int, max_clip_duration: int) -> list:
+    return [
+        {
+            "window_index": clip["clip_index"],
+            "start_time": clip["start_time"],
+            "end_time": clip["end_time"],
+        }
+        for clip in _build_clip_plan(duration, max_clip_duration)
+    ]
+
+
+def _build_minimal_keyframes(shot, mode: str, max_clip_duration: int) -> list:
+    duration = shot.duration or 4
+    if mode == "SINGLE_FRAME":
+        return []
+    if mode == "FIRST_LAST_FRAME":
+        return [
+            {"index": 1, "time_seconds": 0, "role": "START", "description": None},
+            {"index": 2, "time_seconds": duration, "role": "END", "description": shot.video_description or shot.description or ""},
+        ]
+    keyframes = []
+    time_seconds = 0
+    index = 1
+    while time_seconds < duration:
+        keyframes.append({
+            "index": index,
+            "time_seconds": time_seconds,
+            "role": "START" if time_seconds == 0 else "INTERMEDIATE",
+            "description": None if time_seconds == 0 else shot.video_description or shot.description or "",
+        })
+        time_seconds = min(duration, time_seconds + max_clip_duration)
+        index += 1
+    keyframes.append({
+        "index": index,
+        "time_seconds": duration,
+        "role": "END",
+        "description": shot.video_description or shot.description or "",
+    })
+    return keyframes
+
+
+def _merge_video_director_plan(shot, plan_updates: dict) -> dict:
+    plan = _safe_json_dict(shot.video_director_plan)
+    plan.update({key: value for key, value in plan_updates.items() if value is not None})
+    return plan
+
+
+def _validate_multi_keyframe_plan_for_execution(shot, plan: dict) -> tuple[bool, str, Optional[int]]:
+    window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+    execution_windows = plan.get("execution_windows") if isinstance(plan.get("execution_windows"), list) else []
+    keyframes = plan.get("keyframes") if isinstance(plan.get("keyframes"), list) else []
+
+    if not execution_windows:
+        return False, "多关键帧模式缺少 execution_windows，请先完成 #08 关键帧时间轴规划。", None
+    if not window_plans:
+        return False, "多关键帧模式缺少 window_plans，请先完成 #08 关键帧时间轴规划。", None
+    if len(window_plans) != len(execution_windows):
+        return False, "window_plans 数量与 execution_windows 不一致，请重新规划关键帧时间轴。", None
+
+    keyframes_by_index = {
+        int(kf.get("index")): kf
+        for kf in keyframes
+        if isinstance(kf, dict) and kf.get("index") is not None
+    }
+
+    first_frame_count = None
+    for plan_item in window_plans:
+        frame_count = int(plan_item.get("selected_frame_count") or 0)
+        if frame_count not in {3, 4}:
+            return False, "每个执行 Clip 必须选择 3 帧或 4 帧 Workflow。", None
+        if first_frame_count is None:
+            first_frame_count = frame_count
+
+        keyframe_indexes = plan_item.get("keyframe_indexes") if isinstance(plan_item.get("keyframe_indexes"), list) else []
+        if len(keyframe_indexes) != frame_count:
+            return False, f"Clip {plan_item.get('window_index')} 的 keyframe_indexes 数量与 selected_frame_count 不一致。", None
+        for keyframe_index in keyframe_indexes:
+            try:
+                numeric_index = int(keyframe_index)
+            except Exception:
+                return False, f"Clip {plan_item.get('window_index')} 包含无效 Keyframe index。", None
+            keyframe = keyframes_by_index.get(numeric_index)
+            if not keyframe:
+                return False, f"Clip {plan_item.get('window_index')} 引用了不存在的 Keyframe {numeric_index}。", None
+            if numeric_index == 1 and keyframe.get("role") == "START":
+                continue
+            if not keyframe.get("image_url"):
+                return False, f"Keyframe {numeric_index} 尚未生成图片，请先生成缺失关键帧图。", None
+
+    return True, "", first_frame_count
+
+
+def _get_keyframe_planner_template(novel: Novel, template_repo: PromptTemplateRepository):
+    template = None
+    if novel.keyframe_planner_prompt_template_id:
+        template = template_repo.get_by_id(novel.keyframe_planner_prompt_template_id)
+    if not template:
+        template = template_repo.get_default_system_template("keyframe_planner")
+    if not template:
+        raise HTTPException(status_code=400, detail="未配置关键帧规划提示词模板")
+    return template
+
+
+def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: dict) -> str:
+    payload = {
+        "shot": {
+            "id": shot.id,
+            "index": shot.index,
+            "description": shot.description or "",
+            "video_description": shot.video_description or "",
+            "characters": _safe_json_list(shot.characters),
+            "scene": shot.scene or "",
+            "props": _safe_json_list(shot.props),
+            "duration": shot.duration or 4,
+            "continuity_mode": shot.continuity_mode or "NORMAL",
+            "dialogues": _safe_json_list(shot.dialogues),
+        },
+        "selected_mode": plan.get("selected_mode") or "MULTI_KEYFRAME",
+        "execution_windows": plan.get("execution_windows") or [],
+        "workflow_capability": strip_media_refs(workflow_capability),
+        "existing_keyframes": strip_media_refs(plan.get("keyframes") or []),
+        "requirements": {
+            "output_top_level_keys": ["validation", "keyframes", "window_plans"],
+            "window_plan_rule": "每个 execution_window 必须对应一个 window_plan，且 selected_frame_count 只能为 3 或 4。",
+            "shared_boundary_rule": "相邻 window 共享边界 Keyframe。",
+        },
+    }
+    return "请基于以下正式保存的 Shot 与执行窗口，规划多关键帧时间轴。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def _parse_keyframe_planner_content(content: str) -> dict:
+    try:
+        return json.loads(content.strip())
+    except Exception:
+        start = content.find("{")
+        end = content.rfind("}")
+        if start >= 0 and end > start:
+            return json.loads(content[start:end + 1])
+        raise
+
+
+def _normalize_keyframe_planner_result(parsed: dict, execution_windows: list, duration: int) -> tuple[list, list, dict]:
+    if not isinstance(parsed, dict):
+        raise ValueError("#08 返回必须是 JSON Object")
+    raw_keyframes = parsed.get("keyframes") if isinstance(parsed.get("keyframes"), list) else []
+    raw_window_plans = parsed.get("window_plans") if isinstance(parsed.get("window_plans"), list) else []
+    if not raw_keyframes:
+        raise ValueError("#08 返回缺少 keyframes")
+    if len(raw_window_plans) != len(execution_windows):
+        raise ValueError("#08 返回的 window_plans 数量必须与 execution_windows 一致")
+
+    normalized_keyframes = []
+    for idx, keyframe in enumerate(raw_keyframes, 1):
+        if not isinstance(keyframe, dict):
+            raise ValueError("keyframes 中存在无效对象")
+        keyframe_index = int(keyframe.get("index") or idx)
+        time_seconds = float(keyframe.get("time_seconds") if keyframe.get("time_seconds") is not None else 0)
+        role = keyframe.get("role") or ("START" if keyframe_index == 1 else "END" if time_seconds >= duration else "INTERMEDIATE")
+        if role not in {"START", "INTERMEDIATE", "END"}:
+            role = "INTERMEDIATE"
+        normalized_keyframes.append({
+            "index": keyframe_index,
+            "time_seconds": time_seconds,
+            "role": role,
+            "description": keyframe.get("description") or keyframe.get("visual_description") or "",
+            "image_url": None,
+            "image_task_id": None,
+        })
+
+    keyframe_indexes = {kf["index"] for kf in normalized_keyframes}
+    windows_by_index = {int(window["window_index"]): window for window in execution_windows}
+    normalized_window_plans = []
+    for idx, plan_item in enumerate(raw_window_plans, 1):
+        if not isinstance(plan_item, dict):
+            raise ValueError("window_plans 中存在无效对象")
+        window_index = int(plan_item.get("window_index") or idx)
+        window = windows_by_index.get(window_index)
+        if not window:
+            raise ValueError(f"window_plans 引用了不存在的 execution_window {window_index}")
+        selected_frame_count = int(plan_item.get("selected_frame_count") or plan_item.get("frame_count") or 0)
+        if selected_frame_count not in {3, 4}:
+            raise ValueError("每个 window_plan 的 selected_frame_count 必须是 3 或 4")
+        indexes = [int(index) for index in (plan_item.get("keyframe_indexes") or [])]
+        if len(indexes) != selected_frame_count:
+            raise ValueError(f"window_plan {window_index} 的 keyframe_indexes 数量必须等于 selected_frame_count")
+        missing = [index for index in indexes if index not in keyframe_indexes]
+        if missing:
+            raise ValueError(f"window_plan {window_index} 引用了不存在的 Keyframe: {missing}")
+        workflow_type = "three_frame_video" if selected_frame_count == 3 else "four_frame_video"
+        workflow_key = "MINIMAX_H3_3FRAME" if selected_frame_count == 3 else "MINIMAX_H3_4FRAME"
+        normalized_window_plans.append({
+            "window_index": window_index,
+            "start_time": window.get("start_time"),
+            "end_time": window.get("end_time"),
+            "selected_frame_count": selected_frame_count,
+            "workflow_key": plan_item.get("workflow_key") or workflow_key,
+            "workflow_type": plan_item.get("workflow_type") or workflow_type,
+            "keyframe_indexes": indexes,
+            "status": plan_item.get("status") or "PENDING",
+        })
+
+    validation = parsed.get("validation") if isinstance(parsed.get("validation"), dict) else {}
+    return normalized_keyframes, normalized_window_plans, validation
+
+
+def _get_keyframe_transition_template(novel: Novel, template_repo: PromptTemplateRepository):
+    template = None
+    if novel.keyframe_transition_prompt_template_id:
+        template = template_repo.get_by_id(novel.keyframe_transition_prompt_template_id)
+    if not template:
+        template = template_repo.get_default_system_template("keyframe_transition")
+    if not template:
+        raise HTTPException(status_code=400, detail="未配置关键帧过渡规划提示词模板")
+    return template
+
+
+def _transition_keyframe_payload(shot, keyframe: dict) -> dict:
+    description = keyframe.get("description")
+    if keyframe.get("role") == "START" and not description:
+        description = shot.description or ""
+    return strip_media_refs({
+        "index": keyframe.get("index"),
+        "role": keyframe.get("role"),
+        "time_seconds": keyframe.get("time_seconds"),
+        "description": description or "",
+    })
+
+
+def _build_keyframe_transition_user_content(shot, from_keyframe: dict, to_keyframe: dict, segment_index: int) -> str:
+    payload = {
+        "shot": {
+            "id": shot.id,
+            "index": shot.index,
+            "description": shot.description or "",
+            "video_description": shot.video_description or "",
+            "characters": _safe_json_list(shot.characters),
+            "scene": shot.scene or "",
+            "props": _safe_json_list(shot.props),
+            "duration": shot.duration or 4,
+            "continuity_mode": shot.continuity_mode or "NORMAL",
+            "dialogues": _safe_json_list(shot.dialogues),
+        },
+        "segment_index": segment_index,
+        "from_keyframe": _transition_keyframe_payload(shot, from_keyframe),
+        "to_keyframe": _transition_keyframe_payload(shot, to_keyframe),
+    }
+    return "请基于以下相邻关键帧规划，生成这两个关键帧之间的动态过渡导演描述。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+async def _plan_keyframe_transitions(
+    db: Session,
+    novel: Novel,
+    chapter: Chapter,
+    shot,
+    keyframes: list,
+    template_repo: PromptTemplateRepository,
+    llm_service: LLMService,
+) -> list:
+    if len(keyframes) < 2:
+        return []
+    template = _get_keyframe_transition_template(novel, template_repo)
+    transitions = []
+    for index in range(len(keyframes) - 1):
+        from_keyframe = keyframes[index]
+        to_keyframe = keyframes[index + 1]
+        segment_index = index + 1
+        result = await llm_service.chat_completion(
+            system_prompt=template.template,
+            user_content=_build_keyframe_transition_user_content(shot, from_keyframe, to_keyframe, segment_index),
+            temperature=0.3,
+            max_tokens=1600,
+            response_format="json_object",
+            task_type="keyframe_transition",
+            prompt_template_name=template.name,
+            novel_id=novel.id,
+            chapter_id=chapter.id,
+        )
+        if not result.get("success"):
+            append_video_ai_call(shot, {
+                "step": "10",
+                "task_type": "keyframe_transition",
+                "prompt_template_name": template.name,
+                "status": "error",
+                "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
+                "response": result.get("error") or "",
+            })
+            db.commit()
+            raise HTTPException(status_code=500, detail=result.get("error") or "关键帧过渡规划失败")
+        try:
+            parsed = _parse_keyframe_planner_content(result.get("content") or "{}")
+        except Exception as exc:
+            append_video_ai_call(shot, {
+                "step": "10",
+                "task_type": "keyframe_transition",
+                "prompt_template_name": template.name,
+                "status": "error",
+                "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
+                "response": result.get("content") or "",
+                "parsed_result": {"error": str(exc)},
+            })
+            db.commit()
+            raise HTTPException(status_code=400, detail=f"#10 返回格式无效：{exc}")
+
+        transition = {
+            "segment_index": int(parsed.get("segment_index") or segment_index),
+            "from_keyframe_index": int(parsed.get("from_keyframe_index") or from_keyframe.get("index")),
+            "to_keyframe_index": int(parsed.get("to_keyframe_index") or to_keyframe.get("index")),
+            "start_time": parsed.get("start_time") if parsed.get("start_time") is not None else from_keyframe.get("time_seconds"),
+            "end_time": parsed.get("end_time") if parsed.get("end_time") is not None else to_keyframe.get("time_seconds"),
+            "transition_description": parsed.get("transition_description") or "",
+        }
+        transitions.append(transition)
+        append_video_ai_call(shot, {
+            "step": "10",
+            "task_type": "keyframe_transition",
+            "prompt_template_name": template.name,
+            "status": "success",
+            "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
+            "response": result.get("content") or "",
+            "parsed_result": transition,
+        })
+        db.commit()
+    return transitions
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/video-director/recommend",
+    response_model=dict,
+)
+async def recommend_video_mode(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    request: RecommendVideoModeRequest = RecommendVideoModeRequest(),
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
+    template_repo: PromptTemplateRepository = Depends(get_prompt_template_repo),
+    llm_service: LLMService = Depends(get_llm_service),
+):
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    existing_plan = _safe_json_dict(shot.video_director_plan)
+    if existing_plan.get("recommended_mode") and not request.force:
+        return {"success": True, "data": existing_plan}
+
+    workflow = workflow_repo.get_active_by_type("video")
+    workflow_capability = _get_video_workflow_capability(workflow)
+    template = _get_video_mode_template(novel, template_repo)
+    result = await llm_service.chat_completion(
+        system_prompt=template.template,
+        user_content=_build_video_mode_user_content(shot, workflow_capability),
+        temperature=0.2,
+        max_tokens=512,
+        response_format="json_object",
+        task_type="video_mode_recommender",
+        prompt_template_name=template.name,
+        novel_id=novel.id,
+        chapter_id=chapter.id,
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error") or "视频生成模式推荐失败")
+
+    duration = shot.duration or 4
+    selected_mode = _parse_recommended_mode(result.get("content") or "{}", duration, workflow_capability)
+    max_clip_duration = workflow_capability["max_clip_duration"]
+    parsed_result = {"recommended_mode": selected_mode}
+    execution_windows = _build_execution_windows(duration, max_clip_duration) if selected_mode == "MULTI_KEYFRAME" else []
+    clips = [] if selected_mode == "MULTI_KEYFRAME" else _build_clip_plan(duration, max_clip_duration)
+    plan = _merge_video_director_plan(shot, {
+        "selected_mode": selected_mode,
+        "recommended_mode": selected_mode,
+        "recommended_label": VIDEO_MODE_LABELS[selected_mode],
+        "recommendation_reason": _build_video_mode_reason(shot, selected_mode, workflow_capability),
+        "workflow_capability": workflow_capability,
+        "first_last_available": duration <= max_clip_duration,
+        "notice": f"V1: {duration}s > {max_clip_duration}s，FIRST_LAST_FRAME 不可执行；请使用多关键帧" if duration > max_clip_duration else "",
+        "execution_windows": execution_windows,
+        "clips": clips,
+        "keyframes": _build_minimal_keyframes(shot, selected_mode, max_clip_duration),
+        "window_plans": [],
+    })
+    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+    plan = append_video_ai_call(shot, {
+        "step": "07",
+        "task_type": "video_mode_recommender",
+        "prompt_template_name": template.name,
+        "status": "success",
+        "input_summary": f"Shot {shot.index} · duration {duration}s · max {max_clip_duration}s",
+        "response": result.get("content") or "",
+        "parsed_result": parsed_result,
+    })
+    shot_repo.update(shot, video_director_plan=plan)
+    return {"success": True, "data": plan}
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/video-director/plan-keyframes",
+    response_model=dict,
+)
+async def plan_video_keyframes(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    request: PlanVideoKeyframesRequest = PlanVideoKeyframesRequest(),
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
+    template_repo: PromptTemplateRepository = Depends(get_prompt_template_repo),
+    llm_service: LLMService = Depends(get_llm_service),
+):
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    plan = _safe_json_dict(shot.video_director_plan)
+    selected_mode = plan.get("selected_mode") or plan.get("recommended_mode")
+    if selected_mode != "MULTI_KEYFRAME":
+        raise HTTPException(status_code=400, detail="只有多关键帧模式需要 #08 关键帧时间轴规划。")
+    if plan.get("window_plans") and not request.force:
+        return {"success": True, "data": plan}
+
+    workflow = workflow_repo.get_active_by_type("video")
+    workflow_capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else _get_video_workflow_capability(workflow)
+    max_clip_duration = int(workflow_capability.get("max_clip_duration") or 15)
+    duration = shot.duration or 4
+    execution_windows = plan.get("execution_windows") if isinstance(plan.get("execution_windows"), list) else []
+    if not execution_windows:
+        execution_windows = _build_execution_windows(duration, max_clip_duration)
+        plan["execution_windows"] = execution_windows
+    plan["workflow_capability"] = workflow_capability
+    plan["clips"] = []
+
+    template = _get_keyframe_planner_template(novel, template_repo)
+    user_content = _build_keyframe_planner_user_content(shot, plan, workflow_capability)
+    result = await llm_service.chat_completion(
+        system_prompt=template.template,
+        user_content=user_content,
+        temperature=0.3,
+        max_tokens=2500,
+        response_format="json_object",
+        task_type="keyframe_planner",
+        prompt_template_name=template.name,
+        novel_id=novel.id,
+        chapter_id=chapter.id,
+    )
+    if not result.get("success"):
+        plan = append_video_ai_call(shot, {
+            "step": "08",
+            "task_type": "keyframe_planner",
+            "prompt_template_name": template.name,
+            "status": "error",
+            "input_summary": f"Shot {shot.index} · {len(execution_windows)} execution windows",
+            "response": result.get("error") or "",
+        })
+        shot_repo.update(shot, video_director_plan=plan)
+        raise HTTPException(status_code=500, detail=result.get("error") or "关键帧时间轴规划失败")
+
+    try:
+        parsed = _parse_keyframe_planner_content(result.get("content") or "{}")
+        keyframes, window_plans, validation = _normalize_keyframe_planner_result(parsed, execution_windows, duration)
+    except Exception as exc:
+        plan = append_video_ai_call(shot, {
+            "step": "08",
+            "task_type": "keyframe_planner",
+            "prompt_template_name": template.name,
+            "status": "error",
+            "input_summary": f"Shot {shot.index} · {len(execution_windows)} execution windows",
+            "response": result.get("content") or "",
+            "parsed_result": {"error": str(exc)},
+        })
+        shot_repo.update(shot, video_director_plan=plan)
+        raise HTTPException(status_code=400, detail=f"#08 返回格式无效：{exc}")
+
+    plan.update({
+        "selected_mode": "MULTI_KEYFRAME",
+        "recommended_label": VIDEO_MODE_LABELS["MULTI_KEYFRAME"],
+        "keyframes": keyframes,
+        "transitions": [],
+        "window_plans": window_plans,
+        "validation": validation,
+    })
+    legacy_keyframes = [
+        {
+            "frame_index": position,
+            "plan_keyframe_index": keyframe.get("index"),
+            "time_seconds": keyframe.get("time_seconds"),
+            "description": keyframe.get("description") or shot.description or "",
+            "image_url": keyframe.get("image_url"),
+            "image_task_id": keyframe.get("image_task_id"),
+            "reference_image_url": None,
+            "reference_mode": "auto_select",
+        }
+        for position, keyframe in enumerate([keyframe for keyframe in keyframes if keyframe.get("role") != "START"])
+    ]
+    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+    plan = append_video_ai_call(shot, {
+        "step": "08",
+        "task_type": "keyframe_planner",
+        "prompt_template_name": template.name,
+        "status": "success",
+        "input_summary": f"Shot {shot.index} · {len(execution_windows)} execution windows",
+        "response": result.get("content") or "",
+        "parsed_result": {"keyframes": keyframes, "window_plans": window_plans, "validation": validation},
+    })
+    shot_repo.update(shot, video_director_plan=plan, keyframes=legacy_keyframes)
+
+    transitions = await _plan_keyframe_transitions(
+        db=db,
+        novel=novel,
+        chapter=chapter,
+        shot=shot,
+        keyframes=keyframes,
+        template_repo=template_repo,
+        llm_service=llm_service,
+    )
+    plan = _safe_json_dict(shot.video_director_plan)
+    plan["transitions"] = transitions
+    shot_repo.update(shot, video_director_plan=plan)
+    return {"success": True, "data": plan}
+
+
+@router.patch(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/video-director",
+    response_model=dict,
+)
+async def save_video_director_plan(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    request: SaveVideoDirectorPlanRequest,
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    updates = request.model_dump(exclude_unset=True)
+    plan = _merge_video_director_plan(shot, updates)
+    duration = shot.duration or 4
+    max_clip_duration = _safe_json_dict(plan.get("workflow_capability")).get("max_clip_duration", 15)
+    if updates.get("selected_mode"):
+        plan["first_last_available"] = duration <= max_clip_duration
+        if updates["selected_mode"] == "MULTI_KEYFRAME":
+            if not plan.get("execution_windows"):
+                plan["execution_windows"] = _build_execution_windows(duration, max_clip_duration)
+            if not plan.get("window_plans"):
+                plan["window_plans"] = []
+            plan["clips"] = []
+        if updates["selected_mode"] in {"FIRST_LAST_FRAME", "MULTI_KEYFRAME"} and not plan.get("keyframes"):
+            plan["keyframes"] = _build_minimal_keyframes(shot, updates["selected_mode"], max_clip_duration)
+    shot_repo.update(shot, video_director_plan=plan)
+    return {"success": True, "data": plan}
 
 
 
@@ -247,31 +1238,59 @@ async def generate_shot_video(
         )
         task_repo.delete(failed_task)
 
-    # 清除该分镜的旧视频文件和记录
+    video_director_plan = _safe_json_dict(shot.video_director_plan)
+    selected_mode = request.selected_mode or video_director_plan.get("selected_mode") or "SINGLE_FRAME"
+    expected_workflow_type = "video"
+    if selected_mode == "FIRST_LAST_FRAME":
+        expected_workflow_type = "first_last_video"
+    elif selected_mode == "MULTI_KEYFRAME":
+        valid_plan, plan_error, first_frame_count = _validate_multi_keyframe_plan_for_execution(shot, video_director_plan)
+        if not valid_plan:
+            raise HTTPException(status_code=400, detail=plan_error)
+        window_plans = video_director_plan.get("window_plans") if isinstance(video_director_plan.get("window_plans"), list) else []
+        needed_workflow_types = {
+            "three_frame_video" if int(window_plan.get("selected_frame_count") or 0) == 3 else "four_frame_video"
+            for window_plan in window_plans
+        }
+        for workflow_type in needed_workflow_types:
+            clip_workflow = workflow_repo.get_active_by_type(workflow_type)
+            if not clip_workflow:
+                raise HTTPException(status_code=400, detail=f"未配置 {workflow_type} 视频生成工作流，请在系统设置中配置")
+            is_valid, error_msg = TaskService.validate_workflow_node_mapping(clip_workflow, workflow_type)
+            if not is_valid:
+                raise HTTPException(status_code=400, detail=error_msg)
+        expected_workflow_type = "three_frame_video" if first_frame_count == 3 else "four_frame_video"
+
+    # 获取视频生成工作流（优先使用指定的工作流，否则按 selected_mode 使用激活工作流）
+    if request.workflow_id:
+        workflow = workflow_repo.get_by_id(request.workflow_id)
+        if not workflow or workflow.type != expected_workflow_type:
+            raise HTTPException(status_code=400, detail="指定的工作流不存在或类型不正确")
+    else:
+        workflow = workflow_repo.get_active_by_type(expected_workflow_type)
+
+    if not workflow:
+        raise HTTPException(
+            status_code=400, detail=f"未配置 {expected_workflow_type} 视频生成工作流，请在系统设置中配置"
+        )
+
+    if selected_mode == "FIRST_LAST_FRAME":
+        max_clip_duration = _get_video_workflow_capability(workflow)["max_clip_duration"]
+        if shot_duration > max_clip_duration:
+            raise HTTPException(status_code=400, detail=f"首尾帧模式当前仅支持不超过 {max_clip_duration}s 的 Shot；请改用多关键帧模式。")
+
+    # 验证工作流节点映射配置
+    is_valid, error_msg = TaskService.validate_workflow_node_mapping(workflow, expected_workflow_type)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+
+    # 清除该分镜的旧视频文件和记录。所有 preflight 通过后再删除，避免计划未就绪时丢失旧视频。
     if shot.video_url:
         print(f"[GenerateVideo] Clearing old video record for shot {shot_id}: {shot.video_url}")
     file_storage.delete_shot_video(novel_id, chapter_id, shot_index)
     shot.video_url = None
     shot.video_task_id = None
     shot_repo.update_video_status(shot, "generating")
-
-    # 获取视频生成工作流（优先使用指定的工作流，否则使用激活的工作流）
-    if request.workflow_id:
-        workflow = workflow_repo.get_by_id(request.workflow_id)
-        if not workflow or workflow.type != "video":
-            raise HTTPException(status_code=400, detail="指定的工作流不存在或类型不正确")
-    else:
-        workflow = workflow_repo.get_active_by_type("video")
-
-    if not workflow:
-        raise HTTPException(
-            status_code=400, detail="未配置视频生成工作流，请在系统设置中配置"
-        )
-
-    # 验证工作流节点映射配置
-    is_valid, error_msg = TaskService.validate_workflow_node_mapping(workflow, "video")
-    if not is_valid:
-        raise HTTPException(status_code=400, detail=error_msg)
 
     # 使用 Repository 创建任务记录
     task = task_repo.create_shot_video_task(
@@ -286,7 +1305,10 @@ async def generate_shot_video(
     )
 
     print(f"[GenerateVideo] Created task {task.id} for shot {shot_id}")
-    print(f"[GenerateVideo] use_keyframes={request.use_keyframes}, use_reference_audio={request.use_reference_audio}")
+    task.description = f"{task.description}；视频模式：{VIDEO_MODE_LABELS.get(selected_mode, selected_mode)}"
+    db = shot_repo.db
+    db.commit()
+    print(f"[GenerateVideo] selected_mode={selected_mode}, use_keyframes={request.use_keyframes}, use_reference_audio={request.use_reference_audio}")
 
     # 更新 Shot 表任务 ID
     shot_repo.update_video_status(shot, "generating", task_id=task.id)
@@ -300,6 +1322,7 @@ async def generate_shot_video(
         shot_image_url,
         use_keyframes=request.use_keyframes,
         use_reference_audio=request.use_reference_audio,
+        selected_mode=selected_mode,
     )
 
     return {
@@ -1265,7 +2288,7 @@ async def batch_update_shots(
 
         # 构建更新数据
         update_data = {}
-        for key in ["description", "video_description", "characters", "scene", "props", "duration", "dialogues"]:
+        for key in ["description", "video_description", "shot_image_prompt", "characters", "scene", "props", "duration", "continuity_mode", "video_director_plan", "dialogues"]:
             if key in shot_data:
                 update_data[key] = shot_data[key]
 
@@ -1493,6 +2516,7 @@ async def create_shot(
         "scene": data.scene or "",
         "props": data.props or [],
         "duration": data.duration or 5,
+        "continuity_mode": data.continuity_mode or "NORMAL",
         "dialogues": data.dialogues or [],
     }
 

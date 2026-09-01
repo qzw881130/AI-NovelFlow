@@ -21,10 +21,13 @@ export interface Shot {
   index: number;
   description: string;
   video_description?: string;
+  shotImagePrompt?: string | null;
   characters: string[];
   scene: string;
   props: string[];
   duration: number;
+  continuity_mode?: string;
+  videoDirectorPlan?: VideoDirectorPlan;
   imageUrl: string | null;
   imagePath: string | null;
   imageStatus: 'pending' | 'generating' | 'completed' | 'failed';
@@ -42,6 +45,81 @@ export interface Shot {
   updatedAt: string | null;
 }
 
+export type VideoMode = 'SINGLE_FRAME' | 'FIRST_LAST_FRAME' | 'MULTI_KEYFRAME';
+
+export interface VideoAiCall {
+  step?: string;
+  title?: string;
+  task_type?: string;
+  prompt_template_name?: string;
+  status?: string;
+  input_summary?: string;
+  response?: string;
+  parsed_result?: any;
+  final_prompt?: string | null;
+  clip_index?: number | null;
+  workflow_type?: string | null;
+  workflow_name?: string | null;
+  reference_images?: Array<{ label?: string; url?: string }> | null;
+  created_at?: string;
+}
+
+export interface VideoDirectorPlan {
+  selected_mode?: VideoMode;
+  recommended_mode?: VideoMode;
+  recommended_label?: string;
+  recommendation_reason?: string;
+  first_last_available?: boolean;
+  notice?: string;
+  workflow_capability?: {
+    max_clip_duration?: number;
+    workflow_name?: string;
+    [key: string]: any;
+  };
+  keyframes?: Array<{
+    index: number;
+    time_seconds: number;
+    role: 'START' | 'INTERMEDIATE' | 'END';
+    description?: string | null;
+    image_url?: string;
+  }>;
+  transitions?: Array<{
+    segment_index?: number;
+    from_keyframe_index?: number;
+    to_keyframe_index?: number;
+    transition_description?: string;
+    [key: string]: any;
+  }>;
+  clips?: Array<{
+    clip_index: number;
+    start_time: number;
+    end_time: number;
+    frame_count?: number;
+    selected_frame_count?: number;
+    workflow_key?: string;
+    workflow_type?: string;
+    keyframe_indexes?: number[];
+    status?: string;
+  }>;
+  execution_windows?: Array<{
+    window_index: number;
+    start_time: number;
+    end_time: number;
+  }>;
+  window_plans?: Array<{
+    window_index: number;
+    start_time: number;
+    end_time: number;
+    selected_frame_count: 3 | 4;
+    workflow_key?: string;
+    workflow_type?: string;
+    keyframe_indexes: number[];
+    status?: string;
+  }>;
+  ai_calls?: VideoAiCall[];
+  validation?: Record<string, any>;
+}
+
 // 关键帧数据
 export interface KeyframeData {
   frame_index: number;
@@ -56,10 +134,12 @@ export interface KeyframeData {
 export interface ShotUpdateRequest {
   description?: string;
   video_description?: string;
+  shot_image_prompt?: string;
   characters?: string[];
   scene?: string;
   props?: string[];
   duration?: number;
+  continuity_mode?: string;
   dialogues?: DialogueData[];
 }
 
@@ -103,11 +183,16 @@ export const shotsApi = {
   generateImage: async (
     novelId: string,
     chapterId: string,
-    shotId: string
-  ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string }> => {
+    shotId: string,
+    options?: { prompt_text?: string; workflow_type?: 'shot' | 'shot_scene' | 'shot_character_scene' | 'shot_scene_prop' }
+  ): Promise<{ success: boolean; data?: { taskId: string; status: string; promptText?: string | null }; message?: string }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/generate/`,
-      { method: 'POST' }
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt_text: options?.prompt_text || null, workflow_type: options?.workflow_type || null }),
+      }
     );
     return response.json();
   },
@@ -123,8 +208,9 @@ export const shotsApi = {
       use_keyframes?: boolean;
       use_reference_audio?: boolean;
       workflow_id?: string;
+      selected_mode?: VideoMode;
     }
-  ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string }> => {
+  ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string; detail?: string }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/generate-video`,
       {
@@ -134,7 +220,63 @@ export const shotsApi = {
           use_keyframes: options?.use_keyframes ?? true,
           use_reference_audio: options?.use_reference_audio ?? true,
           workflow_id: options?.workflow_id,
+          selected_mode: options?.selected_mode,
         }),
+      }
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || '生成失败', detail: data?.detail };
+    }
+    return data;
+  },
+
+  recommendVideoMode: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    force = false
+  ): Promise<{ success: boolean; data?: VideoDirectorPlan; message?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/recommend`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force }),
+      }
+    );
+    return response.json();
+  },
+
+  saveVideoDirectorPlan: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    plan: Partial<VideoDirectorPlan>
+  ): Promise<{ success: boolean; data?: VideoDirectorPlan; message?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(plan),
+      }
+    );
+    return response.json();
+  },
+
+  planVideoKeyframes: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    force = false
+  ): Promise<{ success: boolean; data?: VideoDirectorPlan; message?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/plan-keyframes`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ force }),
       }
     );
     return response.json();
@@ -258,6 +400,7 @@ export const shotsApi = {
       scene?: string;
       props?: string[];
       duration?: number;
+      continuity_mode?: string;
       dialogues?: DialogueData[];
       insert_index?: number;
     }

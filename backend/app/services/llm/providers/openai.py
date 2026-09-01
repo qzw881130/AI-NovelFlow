@@ -97,6 +97,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         max_tokens: int = 4000,
         response_format: Optional[str] = None,
         task_type: str = None,
+        prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
         character_id: str = None
@@ -162,6 +163,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     model=self.config.model,
                     system_prompt=system_prompt,
                     user_prompt=user_content,
+                    prompt_template_name=prompt_template_name,
                     task_type=task_type,
                     novel_id=novel_id,
                     chapter_id=chapter_id,

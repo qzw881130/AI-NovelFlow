@@ -25,6 +25,8 @@ export interface ShotThumbnailProps {
   isSelected?: boolean;
   /** 是否关联道具 */
   hasProps?: boolean;
+  /** 分镜时长（秒） */
+  duration?: number | null;
   /** 点击回调 */
   onClick?: () => void;
   /** 双击回调 */
@@ -42,6 +44,7 @@ export function ShotThumbnail({
   status,
   isSelected = false,
   hasProps = false,
+  duration,
   onClick,
   onDoubleClick,
   onContextMenu,
@@ -141,6 +144,12 @@ export function ShotThumbnail({
           title="包含道具"
         >
           <Box className="w-4 h-4 text-purple-500" />
+        </div>
+      )}
+
+      {typeof duration === 'number' && duration > 0 && (
+        <div className="absolute bottom-2 right-1 rounded bg-black/65 px-1.5 py-0.5 text-[11px] font-medium leading-none text-white shadow-sm">
+          {duration}s
         </div>
       )}
 

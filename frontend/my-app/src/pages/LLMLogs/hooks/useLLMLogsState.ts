@@ -121,14 +121,47 @@ export function useLLMLogsState() {
     return text.substring(0, maxLength) + '...';
   };
 
+  const getTaskTypeCategoryLabel = (type: string | null) => {
+    const categories: Record<string, string> = {
+      'parse_characters': '素材解析',
+      'parse_scenes': '素材解析',
+      'parse_props': '素材解析',
+      'generate_character_appearance': '素材生成',
+      'shot_image_prompt': '分镜生图',
+      'split_chapter': '分镜规划',
+      'video_mode_recommender': '视频导演',
+      'keyframe_description': '视频导演',
+      'keyframe_planner': '视频导演',
+      'keyframe_transition': '视频导演',
+      'keyframe_image_prompt': '关键帧生图',
+      'expand_video_prompt': '视频生成',
+      'h3_single_frame_prompt': '视频生成',
+      'h3_first_last_frame_prompt': '视频生成',
+      'h3_multi_keyframe_prompt': '视频生成',
+    };
+    return (type && categories[type]) || '其他';
+  };
+
   const getTaskTypeLabel = (type: string | null) => {
     const labels: Record<string, string> = {
       'parse_characters': t('llmLogs.parseCharacters'), 'parse_scenes': t('llmLogs.parseScenes'),
       'parse_props': t('llmLogs.parseProps'),
       'split_chapter': t('llmLogs.splitShots'), 'generate_character_appearance': t('llmLogs.generateAppearance'),
-      'expand_video_prompt': t('llmLogs.expandVideoPrompt')
+      'expand_video_prompt': t('llmLogs.expandVideoPrompt'),
+      'shot_image_prompt': '主分镜图提示词',
+      'video_mode_recommender': '视频模式推荐',
+      'keyframe_description': '关键帧描述',
+      'keyframe_planner': '关键帧规划',
+      'keyframe_transition': '关键帧过渡规划',
+      'keyframe_image_prompt': '关键帧生图提示词',
+      'h3_single_frame_prompt': 'H3 单帧视频提示词',
+      'h3_first_last_frame_prompt': 'H3 首尾帧视频提示词',
+      'h3_multi_keyframe_prompt': 'H3 多关键帧视频提示词',
     };
-    return (type && labels[type]) || type || '-';
+    if (!type) return '-';
+    const category = getTaskTypeCategoryLabel(type);
+    const label = labels[type] || type;
+    return `${category} / ${label}`;
   };
 
   const getStatusBadgeConfig = (status: string) => {
@@ -142,6 +175,6 @@ export function useLLMLogsState() {
   return {
     logs, pagination, loading, filters, filterOptions, selectedLog, activePromptTab, autoRefreshInterval,
     setPagination, setSelectedLog, setActivePromptTab, handleFilterChange, applyFilters, resetFilters, openLogDetail,
-    setAutoRefreshInterval, fetchLogs, formatDate, truncateText, getTaskTypeLabel, getStatusBadgeConfig, closeModal
+    setAutoRefreshInterval, fetchLogs, formatDate, truncateText, getTaskTypeLabel, getTaskTypeCategoryLabel, getStatusBadgeConfig, closeModal
   };
 }

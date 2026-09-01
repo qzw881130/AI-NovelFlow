@@ -75,6 +75,11 @@ export function useResizable({
   const [startX, setStartX] = useState<number>(0);
   const [startWidth, setStartWidth] = useState<number>(0);
 
+  useEffect(() => {
+    const clampedWidth = Math.max(minWidth, Math.min(maxWidth, initialWidth));
+    setWidthState(clampedWidth);
+  }, [initialWidth, minWidth, maxWidth]);
+
   // 设置宽度并保存到 localStorage
   const setWidth = useCallback(
     (newWidth: number) => {

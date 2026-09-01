@@ -67,8 +67,14 @@ class TaskService:
         required_fields = {
             "character": ["prompt_node_id", "save_image_node_id"],
             "scene": ["prompt_node_id", "save_image_node_id"],
+            "shot_scene": ["prompt_node_id", "save_image_node_id", "width_node_id", "height_node_id", "scene_reference_image_node_id"],
+            "shot_character_scene": ["prompt_node_id", "save_image_node_id", "width_node_id", "height_node_id", "character_reference_image_node_id", "scene_reference_image_node_id"],
+            "shot_scene_prop": ["prompt_node_id", "save_image_node_id", "width_node_id", "height_node_id", "scene_reference_image_node_id", "prop_reference_image_node_id"],
             "shot": ["prompt_node_id", "save_image_node_id", "width_node_id", "height_node_id"],
             "video": ["prompt_node_id", "video_save_node_id", "reference_image_node_id"],
+            "first_last_video": ["prompt_node_id", "first_image_node_id", "last_image_node_id", "video_save_node_id"],
+            "three_frame_video": ["prompt_node_id", "video_save_node_id", "reference_image_node_id", "keyframe_node_1", "keyframe_node_2"],
+            "four_frame_video": ["prompt_node_id", "video_save_node_id", "reference_image_node_id", "keyframe_node_1", "keyframe_node_2", "keyframe_node_3"],
             "transition": ["first_image_node_id", "last_image_node_id", "video_save_node_id"],
             "character_audio": ["reference_audio_node_id", "text_node_id"]
         }
@@ -84,13 +90,19 @@ class TaskService:
             "video_save_node_id": "视频保存节点",
             "width_node_id": "宽度节点",
             "height_node_id": "高度节点",
-            "reference_image_node_id": "参考图片节点",
+            "reference_image_node_id": "参考图片节点1",
+            "character_reference_image_node_id": "角色参考图节点",
+            "scene_reference_image_node_id": "场景参考图节点",
+            "prop_reference_image_node_id": "道具参考图节点",
             "first_image_node_id": "第一张图片节点",
             "last_image_node_id": "最后一张图片节点",
             "frame_count_node_id": "总帧数节点",
             "duration_seconds_node_id": "时长秒数节点",
             "reference_audio_node_id": "参考音频节点",
-            "text_node_id": "文本节点"
+            "text_node_id": "文本节点",
+            "keyframe_node_1": "参考图片节点2",
+            "keyframe_node_2": "参考图片节点3",
+            "keyframe_node_3": "参考图片节点4",
         }
 
         for field in fields:
@@ -100,13 +112,13 @@ class TaskService:
         if missing_fields:
             return False, f"工作流 '{workflow.name}' 的映射配置不完整，缺少以下必需字段：{', '.join(missing_fields)}。请在【系统配置-ComfyUI工作流】中配置完整后再试。"
 
-        if task_type == "video":
+        if task_type in {"video", "three_frame_video", "four_frame_video"}:
             has_max_side = bool(node_mapping.get("max_side_node_id"))
             has_megapixels = bool(node_mapping.get("megapixels_node_id"))
             if has_max_side == has_megapixels:
                 return False, f"工作流 '{workflow.name}' 的映射配置不完整，最长边节点和 Megapixels 必须且只能配置其中一个。"
 
-        if task_type == "transition":
+        if task_type in {"transition", "first_last_video"}:
             has_frame_count = bool(node_mapping.get("frame_count_node_id"))
             has_duration_seconds = bool(node_mapping.get("duration_seconds_node_id"))
             if has_frame_count == has_duration_seconds:

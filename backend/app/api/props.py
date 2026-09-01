@@ -395,12 +395,14 @@ async def parse_props(
         
         # 获取道具解析提示词模板
         prompt_template = None
+        prompt_template_name = None
         if novel and novel.prop_parse_prompt_template_id:
             # 使用小说配置的模板
             template_repo = PromptTemplateRepository(db)
             template = template_repo.get_by_id(novel.prop_parse_prompt_template_id)
             if template:
                 prompt_template = template.template
+                prompt_template_name = template.name
         
         # 如果没有配置模板，使用默认模板文件
         if not prompt_template:
@@ -408,15 +410,24 @@ async def parse_props(
             template_path = os.path.join(os.path.dirname(__file__), '..', '..', 'prompt_templates', 'prop_parse.txt')
             with open(template_path, "r", encoding="utf-8") as f:
                 prompt_template = f.read()
+                prompt_template_name = "默认道具解析提示词"
         
         # 调用LLM解析道具
-        result = await llm_service.generate(
-            prompt=text,
-            system_prompt=prompt_template
+        result = await llm_service.chat_completion(
+            system_prompt=prompt_template,
+            user_content=text,
+            temperature=0.3,
+            max_tokens=4000,
+            response_format="json_object",
+            task_type="parse_props",
+            prompt_template_name=prompt_template_name,
+            novel_id=novel_id
         )
+        if not result.get("success"):
+            raise HTTPException(status_code=500, detail=result.get("error") or "解析道具失败")
         
         # 解析LLM返回的JSON
-        parsed_data = json.loads(result)
+        parsed_data = json.loads(result.get("content") or "{}")
         props_data = parsed_data.get("props", [])
         
         # 处理解析结果

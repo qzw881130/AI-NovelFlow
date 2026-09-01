@@ -24,6 +24,29 @@ def ensure_schema_updates():
             shot_columns = [row[1] for row in result.fetchall()]
             if "merged_prop_image" not in shot_columns:
                 conn.execute(text("ALTER TABLE shots ADD COLUMN merged_prop_image VARCHAR"))
+            if "continuity_mode" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN continuity_mode VARCHAR DEFAULT 'NORMAL'"))
+            if "video_director_plan" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN video_director_plan TEXT DEFAULT '{}'"))
+            if "shot_image_prompt" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN shot_image_prompt TEXT DEFAULT ''"))
+
+            result = conn.execute(text("PRAGMA table_info(novels)"))
+            novel_columns = [row[1] for row in result.fetchall()]
+            novel_prompt_columns = [
+                "keyframe_description_prompt_template_id",
+                "shot_image_prompt_template_id",
+                "video_mode_recommender_prompt_template_id",
+                "keyframe_planner_prompt_template_id",
+                "keyframe_image_prompt_template_id",
+                "keyframe_transition_prompt_template_id",
+                "h3_single_frame_prompt_template_id",
+                "h3_first_last_frame_prompt_template_id",
+                "h3_multi_keyframe_prompt_template_id",
+            ]
+            for column in novel_prompt_columns:
+                if column not in novel_columns:
+                    conn.execute(text(f"ALTER TABLE novels ADD COLUMN {column} VARCHAR"))
 
             result = conn.execute(text("PRAGMA table_info(tasks)"))
             task_columns = [row[1] for row in result.fetchall()]
@@ -34,6 +57,8 @@ def ensure_schema_updates():
             llm_log_columns = [row[1] for row in result.fetchall()]
             if "request_info" not in llm_log_columns:
                 conn.execute(text("ALTER TABLE llm_logs ADD COLUMN request_info TEXT"))
+            if "prompt_template_name" not in llm_log_columns:
+                conn.execute(text("ALTER TABLE llm_logs ADD COLUMN prompt_template_name VARCHAR"))
             conn.commit()
         except Exception as exc:
             print(f"[Startup] Failed to ensure schema updates: {exc}")

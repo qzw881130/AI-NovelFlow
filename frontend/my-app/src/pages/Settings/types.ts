@@ -8,7 +8,7 @@ export interface Workflow {
   nameKey?: string;
   description?: string;
   descriptionKey?: string;
-  type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio' | 'keyframe_image' | 'single_image_edit';
+  type: 'character' | 'scene' | 'shot_scene' | 'shot_character_scene' | 'shot_scene_prop' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio' | 'keyframe_image' | 'single_image_edit' | 'first_last_video' | 'three_frame_video' | 'four_frame_video';
   typeName: string;
   isSystem: boolean;
   isActive: boolean;
@@ -29,6 +29,7 @@ export interface Workflow {
     last_image_node_id?: string;
     character_reference_image_node_id?: string;
     scene_reference_image_node_id?: string;
+    prop_reference_image_node_id?: string;
     // 音色设计相关节点
     voice_prompt_node_id?: string;
     ref_text_node_id?: string;
@@ -84,6 +85,7 @@ export interface MappingForm {
   lastImageNodeId: string;
   characterReferenceImageNodeId: string;
   sceneReferenceImageNodeId: string;
+  propReferenceImageNodeId: string;
   // 音色设计相关节点
   voicePromptNodeId: string;
   refTextNodeId: string;

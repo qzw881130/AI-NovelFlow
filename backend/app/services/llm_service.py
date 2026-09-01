@@ -101,6 +101,7 @@ class LLMService:
         max_tokens: Optional[int] = None,
         response_format: Optional[str] = None,
         task_type: str = None,
+        prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
         character_id: str = None
@@ -133,6 +134,7 @@ class LLMService:
             max_tokens=final_max_tokens,
             response_format=response_format,
             task_type=task_type,
+            prompt_template_name=prompt_template_name,
             novel_id=novel_id,
             chapter_id=chapter_id,
             character_id=character_id
@@ -173,6 +175,7 @@ class LLMService:
             max_tokens=NOVEL_TEXT_MAX_LENGTH,
             response_format="json_object",
             task_type="parse_characters",
+            prompt_template_name="系统配置角色解析提示词",
             novel_id=novel_id
         )
 
@@ -216,6 +219,7 @@ class LLMService:
             temperature=0.8,
             max_tokens=1000,
             task_type="generate_character_appearance",
+            prompt_template_name=f"{style} 角色外貌描述提示词",
             novel_id=novel_id,
             character_id=character_id
         )
@@ -270,6 +274,7 @@ class LLMService:
             temperature=0.8,
             max_tokens=1000,
             task_type="generate_scene_setting",
+            prompt_template_name=f"{style} 场景设定提示词",
             novel_id=novel_id
         )
 
@@ -304,6 +309,7 @@ class LLMService:
             temperature=0.8,
             max_tokens=1000,
             task_type="generate_prop_appearance",
+            prompt_template_name=f"{style} 道具外观提示词",
             novel_id=novel_id
         )
 
@@ -318,7 +324,8 @@ class LLMService:
         novel_id: str,
         chapter_content: str,
         chapter_title: str = "",
-        prompt_template: str = None
+        prompt_template: str = None,
+        prompt_template_name: str = None
     ) -> Dict[str, Any]:
         """解析场景信息
 
@@ -347,6 +354,7 @@ class LLMService:
             max_tokens=CHAPTER_CONTENT_MAX_LENGTH,
             response_format="json_object",
             task_type="parse_scenes",
+            prompt_template_name=prompt_template_name or ("自定义场景解析提示词" if prompt_template else "默认场景解析提示词"),
             novel_id=novel_id
         )
 
@@ -367,7 +375,8 @@ class LLMService:
     async def parse_props(
         self,
         text: str,
-        prompt_template: str = None
+        prompt_template: str = None,
+        prompt_template_name: str = None
     ) -> Dict[str, Any]:
         """
         解析小说文本中的道具信息
@@ -393,7 +402,8 @@ class LLMService:
             temperature=0.3,
             max_tokens=4000,
             response_format="json_object",
-            task_type="parse_props"
+            task_type="parse_props",
+            prompt_template_name=prompt_template_name or ("自定义道具解析提示词" if prompt_template else "默认道具解析提示词")
         )
 
         if result["success"]:
@@ -439,7 +449,8 @@ class LLMService:
         prop_names: List[str] = None,
         style: str = "anime style, high quality, detailed",
         novel_id: str = None,
-        chapter_id: str = None
+        chapter_id: str = None,
+        prompt_template_name: str = None
     ) -> Dict[str, Any]:
         """使用自定义提示词将章节拆分为分镜数据结构"""
 
@@ -486,6 +497,7 @@ class LLMService:
             max_tokens=CHAPTER_CONTENT_MAX_LENGTH,
             response_format="json_object",
             task_type="split_chapter",
+            prompt_template_name=prompt_template_name or "分镜拆分提示词模板",
             novel_id=novel_id,
             chapter_id=chapter_id
         )

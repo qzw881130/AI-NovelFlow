@@ -83,6 +83,7 @@ class LLMLogRepository:
             LLMLog.created_at,
             LLMLog.provider,
             LLMLog.model,
+            LLMLog.prompt_template_name,
             func.substr(LLMLog.user_prompt, 1, 500).label("user_prompt"),
             LLMLog.status,
             LLMLog.error_message,

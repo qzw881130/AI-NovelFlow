@@ -9,7 +9,25 @@ import type { PromptTemplate } from '../../../types';
 import type { ChapterRange, ConfirmDialogState, ParseType } from '../types';
 
 // 模板类型列表
-const TEMPLATE_TYPES = ['style', 'character_parse', 'scene_parse', 'prop_parse', 'character', 'scene', 'prop', 'chapter_split'] as const;
+const TEMPLATE_TYPES = [
+  'style',
+  'character_parse',
+  'scene_parse',
+  'prop_parse',
+  'character',
+  'scene',
+  'prop',
+  'chapter_split',
+  'keyframe_description',
+  'shot_image_prompt',
+  'video_mode_recommender',
+  'keyframe_planner',
+  'keyframe_image_prompt',
+  'keyframe_transition',
+  'h3_single_frame_prompt',
+  'h3_first_last_frame_prompt',
+  'h3_multi_keyframe_prompt',
+] as const;
 type TemplateType = typeof TEMPLATE_TYPES[number];
 
 export function useNovelsState() {

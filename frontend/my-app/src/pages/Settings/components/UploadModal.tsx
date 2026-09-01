@@ -5,6 +5,8 @@ import { toast } from '../../../stores/toastStore';
 import { workflowApi } from '../../../api/workflows';
 import type { Workflow } from '../types';
 
+type WorkflowType = Workflow['type'];
+
 interface UploadModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -15,13 +17,13 @@ interface UploadModalProps {
 
 export function UploadModal({ isOpen, onClose, onSuccess, extensionConfigs, typeNames }: UploadModalProps) {
   const { t } = useTranslation();
-  const [uploadType, setUploadType] = useState<'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio' | 'keyframe_image' | 'single_image_edit'>('character');
+  const [uploadType, setUploadType] = useState<WorkflowType>('character');
   const [uploadForm, setUploadForm] = useState({ name: '', description: '', file: null as File | null });
   const [uploadExtension, setUploadExtension] = useState<Record<string, string> | null>(null);
   const [uploading, setUploading] = useState(false);
 
   // 当上传类型改变时，重置扩展属性
-  const handleTypeChange = (type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio' | 'keyframe_image' | 'single_image_edit') => {
+  const handleTypeChange = (type: WorkflowType) => {
     setUploadType(type);
     const config = extensionConfigs[type];
     if (config) {
@@ -92,10 +94,16 @@ export function UploadModal({ isOpen, onClose, onSuccess, extensionConfigs, type
             >
               <option value="character">{typeNames.character}</option>
               <option value="scene">{typeNames.scene}</option>
+              <option value="shot_scene">{typeNames.shot_scene}</option>
+              <option value="shot_character_scene">{typeNames.shot_character_scene}</option>
+              <option value="shot_scene_prop">{typeNames.shot_scene_prop}</option>
               <option value="shot">{typeNames.shot}</option>
               <option value="keyframe_image">{typeNames.keyframe_image}</option>
               <option value="single_image_edit">{typeNames.single_image_edit}</option>
               <option value="video">{typeNames.video}</option>
+              <option value="first_last_video">{typeNames.first_last_video}</option>
+              <option value="three_frame_video">{typeNames.three_frame_video}</option>
+              <option value="four_frame_video">{typeNames.four_frame_video}</option>
               <option value="transition">{typeNames.transition}</option>
               <option value="prop">{typeNames.prop}</option>
               <option value="voice_design">{typeNames.voice_design}</option>

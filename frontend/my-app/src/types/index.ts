@@ -79,6 +79,14 @@ export interface Novel {
   propPromptTemplateId?: string;  // 道具生成提示词模板
   chapterSplitPromptTemplateId?: string;  // 分镜拆分提示词模板
   keyframeDescriptionPromptTemplateId?: string;  // 关键帧描述提示词模板
+  shotImagePromptTemplateId?: string;  // 主分镜图提示词模板
+  videoModeRecommenderPromptTemplateId?: string;  // 视频模式推荐提示词模板
+  keyframePlannerPromptTemplateId?: string;  // 关键帧规划提示词模板
+  keyframeImagePromptTemplateId?: string;  // 关键帧生图提示词模板
+  keyframeTransitionPromptTemplateId?: string;  // 关键帧过渡规划提示词模板
+  h3SingleFramePromptTemplateId?: string;  // H3 单帧视频提示词模板
+  h3FirstLastFramePromptTemplateId?: string;  // H3 首尾帧视频提示词模板
+  h3MultiKeyframePromptTemplateId?: string;  // H3 多关键帧视频提示词模板
   aspectRatio?: string;  // 画面比例: 16:9, 9:16, 4:3, 3:4, 1:1
   createdAt: string;
   updatedAt: string;
@@ -115,6 +123,7 @@ export interface ShotData {
   scene: string;
   props: string[];
   duration: number;
+  videoDirectorPlan?: VideoDirectorPlan;
   dialogues?: DialogueData[];
   image_url?: string;
   image_path?: string;
@@ -123,6 +132,25 @@ export interface ShotData {
   keyframes?: KeyframeData[];
   reference_audio_url?: string;
   reference_audio_type?: 'none' | 'merged' | 'uploaded' | 'character';
+}
+
+export type VideoMode = 'SINGLE_FRAME' | 'FIRST_LAST_FRAME' | 'MULTI_KEYFRAME';
+
+export interface VideoDirectorPlan {
+  selected_mode?: VideoMode;
+  recommended_mode?: VideoMode;
+  recommended_label?: string;
+  recommendation_reason?: string;
+  first_last_available?: boolean;
+  notice?: string;
+  workflow_capability?: Record<string, any>;
+  keyframes?: any[];
+  transitions?: any[];
+  clips?: any[];
+  execution_windows?: any[];
+  window_plans?: any[];
+  ai_calls?: any[];
+  validation?: Record<string, any>;
 }
 
 export interface DialogueData {
@@ -280,6 +308,7 @@ export interface LLMLog {
   created_at: string;
   provider: string;
   model: string;
+  prompt_template_name: string | null;
   system_prompt: string | null;
   user_prompt: string;
   request_info?: string | null;

@@ -7,7 +7,7 @@
  * - 右侧：任务状态
  */
 
-import { cloneElement, isValidElement, useRef, useState } from 'react';
+import { cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
 import { useChapterGenerateStore } from '../stores';
 import { Box, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
 import { shotsApi } from '../../../api/shots';
@@ -63,6 +63,9 @@ export function ShotImageGenTab({
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
   const [selectedShotIds, setSelectedShotIds] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
+  const [shotImagePrompts, setShotImagePrompts] = useState<Record<string, string>>({});
+  const [submittingShotIds, setSubmittingShotIds] = useState<Set<string>>(new Set());
+  const [dragSelectionMode, setDragSelectionMode] = useState<'select' | 'deselect' | null>(null);
 
   // 统一使用 shots prop（来自 store.shots）
   const shotsList = shots;
@@ -76,15 +79,27 @@ export function ShotImageGenTab({
 
   const hasImage = !!currentImageUrl;
   // 完全依赖 store 的 generatingShots 状态
-  const isGeneratingCurrent = generatingShots.has(currentShotId);
+  const isGeneratingCurrent = generatingShots.has(currentShotId) || submittingShotIds.has(currentShotId);
+  const currentPromptText = shotImagePrompts[currentShotId] ?? currentShotObj?.shotImagePrompt ?? currentShotData?.shotImagePrompt ?? '';
 
   // 处理单张分镜图生成
   const handleGenerateShot = async () => {
     if (!novelId || !chapterId || !currentShotId) return;
+    if (isGeneratingCurrent) return;
+    setSubmittingShotIds(prev => new Set([...prev, currentShotId]));
     try {
-      await generateShotImage(novelId, chapterId, currentShotId);
+      const promptText = await generateShotImage(novelId, chapterId, currentShotId, currentPromptText);
+      if (promptText) {
+        setShotImagePrompts(prev => ({ ...prev, [currentShotId]: promptText }));
+      }
     } catch (error) {
       console.error(t('chapterGenerate.generateFailed') + ':', error);
+    } finally {
+      setSubmittingShotIds(prev => {
+        const next = new Set(prev);
+        next.delete(currentShotId);
+        return next;
+      });
     }
   };
 
@@ -98,18 +113,37 @@ export function ShotImageGenTab({
     setShowBatchSelectModal(true);
   };
 
-  // 切换分镜选择状态
-  const toggleShotSelection = (shotId: string) => {
+  const applyShotSelection = (shotId: string, mode: 'select' | 'deselect') => {
     setSelectedShotIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(shotId)) {
-        newSet.delete(shotId);
+      const next = new Set(prev);
+      if (mode === 'select') {
+        next.add(shotId);
       } else {
-        newSet.add(shotId);
+        next.delete(shotId);
       }
-      return newSet;
+      return next;
     });
   };
+
+  const handleShotSelectMouseDown = (event: React.MouseEvent, shotId: string, isGenerating: boolean) => {
+    if (event.button !== 0 || isGenerating) return;
+    event.preventDefault();
+    const mode = selectedShotIds.has(shotId) ? 'deselect' : 'select';
+    setDragSelectionMode(mode);
+    applyShotSelection(shotId, mode);
+  };
+
+  const handleShotSelectMouseEnter = (shotId: string, isGenerating: boolean) => {
+    if (!dragSelectionMode || isGenerating) return;
+    applyShotSelection(shotId, dragSelectionMode);
+  };
+
+  useEffect(() => {
+    if (!dragSelectionMode) return;
+    const handleMouseUp = () => setDragSelectionMode(null);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, [dragSelectionMode]);
 
   // 全选/取消全选
   const toggleSelectAll = () => {
@@ -123,17 +157,29 @@ export function ShotImageGenTab({
   // 处理批量分镜图生成
   const handleGenerateAll = async () => {
     if (!novelId || !chapterId) return;
+    const selectedIds = Array.from(selectedShotIds);
+    if (selectedIds.length === 0) return;
+
     setIsGeneratingAll(true);
+    setShowBatchSelectModal(false);
+    useChapterGenerateStore.setState(state => ({
+      generatingShots: new Set([...state.generatingShots, ...selectedIds]),
+      shots: state.shots.map(shot => (
+        selectedIds.includes(shot.id)
+          ? { ...shot, imageStatus: 'generating' as const }
+          : shot
+      )),
+    }));
+
     try {
       // 依次生成选中的分镜
-      for (const shotId of selectedShotIds) {
+      for (const shotId of selectedIds) {
         await generateShotImage(novelId, chapterId, shotId);
       }
     } catch (error) {
       console.error(t('chapterGenerate.batchShotImageGenerateFailed') + ':', error);
     } finally {
       setIsGeneratingAll(false);
-      setShowBatchSelectModal(false);
     }
   };
 
@@ -182,7 +228,10 @@ export function ShotImageGenTab({
       }
 
       // 调用批量更新接口
-      const result = await shotsApi.batchUpdateShots(novelId, chapterId, [currentShotData]);
+      const result = await shotsApi.batchUpdateShots(novelId, chapterId, [{
+        ...currentShotData,
+        shot_image_prompt: currentPromptText,
+      }]);
 
       if (result.success) {
         console.log(t('chapterGenerate.shotSaveSuccess'));
@@ -309,6 +358,20 @@ export function ShotImageGenTab({
 
         {/* 分镜图预览区 - 自适应剩余宽度 */}
         <div className="flex-1 min-w-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
+          <div className="p-3 border-b border-gray-200 bg-white">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-medium text-gray-700">主分镜图 AI 提示词</label>
+              <span className="text-xs text-gray-500">点击生成当前分镜后自动填入，可编辑后再次生成</span>
+            </div>
+            <textarea
+              value={currentPromptText}
+              onChange={(e) => setShotImagePrompts(prev => ({ ...prev, [currentShotId]: e.target.value }))}
+              disabled={!currentShotId || isGeneratingCurrent}
+              rows={5}
+              className="input-field text-sm leading-relaxed"
+              placeholder="点击“生成当前分镜”后，这里会显示由主分镜图提示词模板生成的最终生图提示词。"
+            />
+          </div>
           <div className="p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
             <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.shotPreview')}</h3>
             {/* 上传按钮 */}
@@ -433,9 +496,11 @@ export function ShotImageGenTab({
                   return (
                     <div
                       key={shotId}
-                      onClick={() => !isGenerating && toggleShotSelection(shotId)}
+                      onMouseDown={(event) => handleShotSelectMouseDown(event, shotId, isGenerating)}
+                      onMouseEnter={() => handleShotSelectMouseEnter(shotId, isGenerating)}
                       className={`
                         relative aspect-square rounded-lg border-2 transition-all
+                        select-none
                         ${isGenerating
                           ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
                           : 'cursor-pointer hover:shadow-md'

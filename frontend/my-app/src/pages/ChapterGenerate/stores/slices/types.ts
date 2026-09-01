@@ -5,6 +5,7 @@ import type { Chapter, Novel, Character, DialogueData, KeyframeData } from '../.
 import type { Scene, Prop } from '../../types';
 // 从 API 模块导入 Shot 类型，确保类型统一
 import type { Shot as ApiShot } from '../../../../api/shots';
+import type { VideoMode } from '../../../../api/shots';
 
 // 重新导出 Shot 类型
 export type Shot = ApiShot;
@@ -316,13 +317,13 @@ export interface ChapterGenerateStore
   saveChapterResources: (novelId: string, chapterId: string) => Promise<void>;
 
   // ========== Image Generation Actions ==========
-  generateShotImage: (novelId: string, chapterId: string, shotId: string) => Promise<void>;
+  generateShotImage: (novelId: string, chapterId: string, shotId: string, promptText?: string) => Promise<string | null>;
   generateAllImages: (novelId: string, chapterId: string) => Promise<void>;
   uploadShotImage: (novelId: string, chapterId: string, shotId: string, file: File) => Promise<void>;
   setShotImages: (images: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 
   // ========== Video Generation Actions ==========
-  generateShotVideo: (novelId: string, chapterId: string, shotId: string) => Promise<void>;
+  generateShotVideo: (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode) => Promise<void>;
   generateAllVideos: (novelId: string, chapterId: string) => Promise<void>;
   setShotVideos: (videos: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 

@@ -24,6 +24,7 @@ export default {
     llmProvider: 'LLM 提供商',
     model: '模型',
     taskType: '任务类型',
+    promptTemplateName: '提示词名称',
     all: '全部',
     applyFilter: '应用筛选',
     reset: '重置',

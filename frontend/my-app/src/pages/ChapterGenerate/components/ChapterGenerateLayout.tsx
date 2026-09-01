@@ -9,6 +9,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import type React from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
@@ -22,7 +23,6 @@ import { TabNavigation } from './TabNavigation';
 import { BottomNavigator } from './BottomNavigator';
 import { ResourcePanel } from './ResourcePanel';
 import { ShotForm } from './ShotForm';
-import ComfyUIStatus from '../../../components/ComfyUIStatus';
 
 // Tab 页面组件
 import { ShotSplitTab } from './ShotSplitTab';
@@ -112,6 +112,8 @@ export function ChapterGenerateLayout({
   const markTabComplete = useChapterGenerateStore((state) => state.markTabComplete);
   const loadWorkflowState = useChapterGenerateStore((state) => state.loadWorkflowState);
   const setCurrentShot = useChapterGenerateStore((state) => state.setCurrentShot);
+  const setRightPanelCollapsed = useChapterGenerateStore((state) => state.setRightPanelCollapsed);
+  const setRightPanelWidth = useChapterGenerateStore((state) => state.setRightPanelWidth);
   const storeShots = useChapterGenerateStore((state) => state.shots);
   const storeGeneratingShots = useChapterGenerateStore((state) => state.generatingShots);
   const storePendingShots = useChapterGenerateStore((state) => state.pendingShots);
@@ -139,17 +141,58 @@ export function ChapterGenerateLayout({
 
   // 获取分镜列表（统一使用 store.shots）
   const shots = storeShots;
-  const currentShot = shots[currentShotIndex - 1];
+  const currentShotById = currentShotId ? shots.find((shot) => shot.id === currentShotId) : undefined;
+  const currentShot = currentShotById || shots[currentShotIndex - 1];
   const sortedChapters = [...chapterList].sort((a, b) => a.number - b.number);
   const currentChapterIndex = sortedChapters.findIndex((item) => item.id === cid);
   const previousChapter = currentChapterIndex > 0 ? sortedChapters[currentChapterIndex - 1] : null;
   const nextChapter = currentChapterIndex >= 0 && currentChapterIndex < sortedChapters.length - 1
     ? sortedChapters[currentChapterIndex + 1]
     : null;
+  const estimatedDuration = shots.reduce((total, shot) => total + (Number(shot.duration) || 0), 0);
+  const estimatedMinutes = Math.floor(estimatedDuration / 60).toString().padStart(2, '0');
+  const estimatedSeconds = Math.round(estimatedDuration % 60).toString().padStart(2, '0');
+  const currentShotDuration = Number(currentShot?.duration) || 0;
+  const chapterSummary = `${shots.length} 个导演 Shot · 预计成片 ${estimatedMinutes}:${estimatedSeconds} · 当前 Shot #${currentShotIndex || 1} · 当前时长 ${currentShotDuration}秒`;
 
   const goToChapter = (chapterId?: string) => {
     if (!id || !chapterId) return;
     navigate(`/novels/${id}/chapters/${chapterId}/generate`);
+  };
+
+  const renderChapterContent = () => {
+    const content = chapter?.content || t('common.noContent');
+    const ranges = ((currentShot as any)?.sourceRanges || (currentShot as any)?.source_ranges || []) as { start: number; end: number }[];
+    if (!chapter?.content || !Array.isArray(ranges) || ranges.length === 0) {
+      return <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{content}</div>;
+    }
+
+    const normalizedRanges = ranges
+      .map((range) => ({
+        start: Math.max(0, Math.min(content.length, Number(range.start))),
+        end: Math.max(0, Math.min(content.length, Number(range.end))),
+      }))
+      .filter((range) => range.end > range.start)
+      .sort((a, b) => a.start - b.start);
+
+    if (normalizedRanges.length === 0) {
+      return <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{content}</div>;
+    }
+
+    const parts: React.ReactNode[] = [];
+    let cursor = 0;
+    normalizedRanges.forEach((range, index) => {
+      if (range.start > cursor) parts.push(content.slice(cursor, range.start));
+      parts.push(
+        <mark key={`${range.start}-${range.end}-${index}`} className="bg-yellow-100 text-gray-900 rounded px-0.5">
+          {content.slice(range.start, range.end)}
+        </mark>
+      );
+      cursor = range.end;
+    });
+    if (cursor < content.length) parts.push(content.slice(cursor));
+
+    return <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{parts}</div>;
   };
 
   useEffect(() => {
@@ -166,6 +209,24 @@ export function ChapterGenerateLayout({
       console.error('加载章节列表失败:', error);
     });
   }, [id]);
+
+  useEffect(() => {
+    if (currentTab !== 0) return;
+    setRightPanelCollapsed(false);
+    setRightPanelWidth(760);
+  }, [currentTab, setRightPanelCollapsed, setRightPanelWidth]);
+
+  useEffect(() => {
+    if (shots.length === 0) return;
+    const currentIndex = currentShotId ? shots.findIndex((shot) => shot.id === currentShotId) : -1;
+    if (currentIndex >= 0) {
+      if (currentShotIndex !== currentIndex + 1) {
+        setCurrentShot(shots[currentIndex].id, currentIndex + 1);
+      }
+      return;
+    }
+    setCurrentShot(shots[0].id, 1);
+  }, [shots, currentShotId, currentShotIndex, setCurrentShot]);
 
   const renderChapterSwitch = () => (
     <div className="flex items-center gap-2 flex-shrink-0">
@@ -200,9 +261,7 @@ export function ChapterGenerateLayout({
           <div className="flex flex-col h-full">
             <h3 className="text-sm font-semibold text-gray-700 mb-3 flex-shrink-0">{t('chapterDetail.rawContent')}</h3>
             <div className="flex-1 min-h-0 overflow-y-auto scrollbar-thin">
-              <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
-                {chapter?.content || t('common.noContent')}
-              </div>
+              {renderChapterContent()}
             </div>
           </div>
         );
@@ -289,9 +348,26 @@ export function ChapterGenerateLayout({
 
   // 渲染右侧栏内容
   const renderRightPanel = () => {
-    // 音频生成 Tab 有自己的布局，不显示右侧栏
-    if (currentTab === 2) return null;
-    return <ComfyUIStatus />;
+    if (currentTab === 0) {
+      return (
+        <div className="h-full overflow-y-auto rounded-lg border border-gray-200 bg-white p-4">
+          {currentShot ? (
+            <ShotForm
+              shotIndex={currentShotIndex}
+              shotData={currentShot}
+              showVideoDescription={true}
+              showDuration={true}
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-sm text-gray-500">
+              {t('chapterGenerate.selectShotToEdit')}
+            </div>
+          )}
+        </div>
+      );
+    }
+    // 分镜图、音频和视频生成 Tab 不显示右侧系统状态栏。
+    return null;
   };
 
   if (loading) {
@@ -308,7 +384,7 @@ export function ChapterGenerateLayout({
   // 音频生成 Tab 使用自己的三栏布局
   if (currentTab === 2) {
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full min-h-0 overflow-hidden flex flex-col">
         {/* Header */}
         <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
           <div className="flex items-center justify-between gap-4">
@@ -323,9 +399,7 @@ export function ChapterGenerateLayout({
                 <h1 className="text-xl font-bold text-gray-900 truncate">
                   {chapter?.title || t('chapterGenerate.unnamedChapter')}
                 </h1>
-                <p className="text-sm text-gray-500 mt-1 truncate">
-                  {t('chapterGenerate.shotCount', { count: shots.length })}
-                </p>
+                <p className="text-sm text-gray-500 mt-1 truncate">{chapterSummary}</p>
               </div>
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
@@ -369,13 +443,13 @@ export function ChapterGenerateLayout({
         />
 
         {/* 为底部导航预留空间 */}
-        <div className={bottomNavCollapsed ? 'h-10' : 'h-44'} />
+        <div className={bottomNavCollapsed ? 'h-10' : 'h-48'} />
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full min-h-0 overflow-hidden flex flex-col">
       {/* Header */}
       <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
         <div className="flex items-center justify-between gap-4">
@@ -390,9 +464,7 @@ export function ChapterGenerateLayout({
               <h1 className="text-xl font-bold text-gray-900 truncate">
                 {chapter?.title || t('chapterGenerate.unnamedChapter')}
               </h1>
-              <p className="text-sm text-gray-500 mt-1 truncate">
-                {t('chapterGenerate.shotCount', { count: shots.length })}
-              </p>
+                <p className="text-sm text-gray-500 mt-1 truncate">{chapterSummary}</p>
             </div>
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
@@ -421,6 +493,8 @@ export function ChapterGenerateLayout({
           leftPanel={renderLeftPanel()}
           centerContent={renderCenterContent()}
           rightPanel={renderRightPanel()}
+          minRightWidth={currentTab === 0 ? 740 : 320}
+          maxRightWidth={currentTab === 0 ? 920 : 440}
         />
       </div>
 
@@ -437,7 +511,7 @@ export function ChapterGenerateLayout({
       />
 
       {/* 为底部导航预留空间 */}
-      <div className={bottomNavCollapsed ? 'h-10' : 'h-44'} />
+      <div className={bottomNavCollapsed ? 'h-10' : 'h-48'} />
     </div>
   );
 }
