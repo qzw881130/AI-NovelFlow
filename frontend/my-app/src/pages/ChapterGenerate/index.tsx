@@ -23,7 +23,7 @@ export default function ChapterGenerate() {
   const {
     chapter, novel, parsedData, characters, scenes, props, loading,
     shotImages, shotVideos, transitionVideos, generatingShots, pendingShots,
-    generatingVideos, pendingVideos, generatingTransitions, generatingAudios,
+    generatingVideos, pendingVideos, generatingTransitions, generatingAudios, generatingKeyframes,
     showFullTextModal, showMergedImageModal, showImagePreview,
     previewImageUrl, previewImageIndex, mergedImage, mergedImageLabel, isMerging,
     splitConfirmDialog, audioTasks, audioWarnings,
@@ -41,7 +41,7 @@ export default function ChapterGenerate() {
     generateShotImage, generateAllImages, uploadShotImage, generateShotVideo,
     generateAllVideos, generateTransition, generateAllTransitions, generateShotAudio,
     generateAllAudio, fetchTransitionWorkflows, checkShotTaskStatus, checkVideoTaskStatus,
-    checkTransitionTaskStatus, checkAudioTaskStatus, fetchActiveTasks,
+    checkTransitionTaskStatus, checkAudioTaskStatus, checkKeyframeTaskStatus, fetchActiveTasks,
   } = store;
 
   // UI 方法
@@ -69,7 +69,8 @@ export default function ChapterGenerate() {
     const hasGeneratingTasks = generatingShots.size > 0 ||
                                generatingVideos.size > 0 ||
                                generatingTransitions.size > 0 ||
-                               generatingAudios.size > 0;
+                               generatingAudios.size > 0 ||
+                               generatingKeyframes.size > 0;
 
     if (!hasGeneratingTasks) return;
 
@@ -93,6 +94,9 @@ export default function ChapterGenerate() {
       if (generatingAudios.size > 0) {
         checks.push(checkAudioTaskStatus(cid));
       }
+      if (generatingKeyframes.size > 0) {
+        checks.push(checkKeyframeTaskStatus(cid));
+      }
       if (checks.length > 0) {
         await Promise.allSettled(checks);
       }
@@ -110,7 +114,7 @@ export default function ChapterGenerate() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [cid, id, generatingShots.size, generatingVideos.size, generatingTransitions.size, generatingAudios.size]);
+  }, [cid, id, generatingShots.size, generatingVideos.size, generatingTransitions.size, generatingAudios.size, generatingKeyframes.size]);
 
   // 获取真实章节数据和角色列表
   useEffect(() => {

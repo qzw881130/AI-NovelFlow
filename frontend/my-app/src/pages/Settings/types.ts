@@ -67,6 +67,7 @@ export interface SettingsFormData {
   llmTimeout?: number;
   proxy: ProxyConfig;
   comfyUIHost: string;
+  comfyUITimeout: number;
   systemStatusSource: SystemStatusSource;
 }
 

@@ -7,6 +7,7 @@ import json
 import os
 import uuid
 import httpx
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -449,6 +450,7 @@ class ShotKeyframeService:
 
         # 更新任务状态
         task.status = "running"
+        task.started_at = datetime.utcnow()
         db.commit()
 
         try:
@@ -607,6 +609,7 @@ class ShotKeyframeService:
                     # 更新任务状态
                     task.status = "completed"
                     task.result_url = local_url
+                    task.completed_at = datetime.utcnow()
                     db.commit()
                 else:
                     raise ValueError("下载图片失败")
@@ -616,6 +619,7 @@ class ShotKeyframeService:
         except Exception as e:
             task.status = "failed"
             task.error_message = str(e)
+            task.completed_at = datetime.utcnow()
             db.commit()
             raise
 

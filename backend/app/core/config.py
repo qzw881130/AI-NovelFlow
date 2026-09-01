@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     
     # ComfyUI
     COMFYUI_HOST: str = "http://127.0.0.1:8188"
+    COMFYUI_TIMEOUT: int = 900
     SYSTEM_STATUS_SOURCE: str = "comfyui"
     
     # Output
@@ -104,6 +105,8 @@ def reload_settings_from_db(db_config: dict) -> None:
     
     if db_config.get("comfyui_host"):
         _settings_instance.COMFYUI_HOST = db_config["comfyui_host"]
+    if db_config.get("comfyui_timeout") is not None:
+        _settings_instance.COMFYUI_TIMEOUT = int(db_config["comfyui_timeout"] or 900)
     if db_config.get("system_status_source"):
         _settings_instance.SYSTEM_STATUS_SOURCE = db_config["system_status_source"]
     

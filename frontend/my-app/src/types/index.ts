@@ -36,6 +36,7 @@ export interface SystemConfig {
   
   // ComfyUI 配置
   comfyUIHost: string;
+  comfyUITimeout: number;
   systemStatusSource: SystemStatusSource;
   
   // 输出配置（已废弃，保留兼容）

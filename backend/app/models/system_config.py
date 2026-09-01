@@ -27,6 +27,7 @@ class SystemConfig(Base):
     
     # ComfyUI 配置
     comfyui_host = Column(String, default="http://127.0.0.1:8188")
+    comfyui_timeout = Column(Integer, default=900, nullable=True)  # ComfyUI 任务结果保存超时（秒）
     system_status_source = Column(String, default="comfyui")
     
     # 输出配置

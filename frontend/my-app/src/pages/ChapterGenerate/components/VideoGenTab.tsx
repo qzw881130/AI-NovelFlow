@@ -48,7 +48,20 @@ const formatAiCallValue = (value: any) => {
 const copyText = async (text?: string | null) => {
   if (!text) return;
   try {
-    await navigator.clipboard.writeText(text);
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
     toast.success('已复制');
   } catch {
     toast.error('复制失败');
@@ -56,6 +69,7 @@ const copyText = async (text?: string | null) => {
 };
 
 function VideoAiCallsPanel({ calls = [] }: { calls?: VideoAiCall[] }) {
+  const [panelOpen, setPanelOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [openIndex, setOpenIndex] = useState(Math.max(0, calls.length - 1));
   const latest = calls[calls.length - 1];
@@ -66,8 +80,25 @@ function VideoAiCallsPanel({ calls = [] }: { calls?: VideoAiCall[] }) {
 
   if (!calls.length) {
     return (
-      <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 px-3 py-3 text-sm text-gray-500">
-        暂无 AI 调用结果。重新推荐或生成视频后会显示 #07/#11/#12/#13 的返回。
+      <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between px-3 py-2">
+          <div>
+            <div className="text-sm font-semibold text-gray-800">AI 调用结果</div>
+            <div className="text-xs text-gray-500">暂无 AI 调用结果</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setPanelOpen(!panelOpen)}
+            className="px-2 py-1 text-xs rounded border border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
+          >
+            {panelOpen ? '收起' : '展开'}
+          </button>
+        </div>
+        {panelOpen && (
+          <div className="border-t border-gray-200 px-3 py-3 text-sm text-gray-500">
+            暂无 AI 调用结果。重新推荐或生成视频后会显示 #07/#11/#12/#13 的返回。
+          </div>
+        )}
       </div>
     );
   }
@@ -76,20 +107,31 @@ function VideoAiCallsPanel({ calls = [] }: { calls?: VideoAiCall[] }) {
 
   return (
     <div className="rounded-lg border border-gray-200 bg-gray-50">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
+      <div className={`flex items-center justify-between px-3 py-2 ${panelOpen ? 'border-b border-gray-200' : ''}`}>
         <div>
           <div className="text-sm font-semibold text-gray-800">AI 调用结果</div>
           <div className="text-xs text-gray-500">共 {calls.length} 次，默认显示最近一次</div>
         </div>
-        <button
-          type="button"
-          onClick={() => setExpanded(!expanded)}
-          className="px-2 py-1 text-xs rounded border border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
-        >
-          {expanded ? '只看最近' : '展开全部'}
-        </button>
+        <div className="flex items-center gap-2">
+          {panelOpen && (
+            <button
+              type="button"
+              onClick={() => setExpanded(!expanded)}
+              className="px-2 py-1 text-xs rounded border border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
+            >
+              {expanded ? '只看最近' : '展开全部'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setPanelOpen(!panelOpen)}
+            className="px-2 py-1 text-xs rounded border border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
+          >
+            {panelOpen ? '收起' : '展开'}
+          </button>
+        </div>
       </div>
-      <div className="p-3 space-y-2">
+      {panelOpen && <div className="p-3 space-y-2">
         {visibleCalls.map((call, idx) => {
           const actualIndex = expanded ? idx : calls.length - 1;
           const isOpen = openIndex === actualIndex;
@@ -113,39 +155,37 @@ function VideoAiCallsPanel({ calls = [] }: { calls?: VideoAiCall[] }) {
                 <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
               </button>
               {isOpen && (
-                <div className="px-3 pb-3 space-y-3">
+                <div className="px-3 pb-3">
                   {call.input_summary && <div className="text-xs text-gray-500">{call.input_summary}</div>}
-                  <div>
+                  <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-3">
+                  <div className="min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-medium text-gray-600">返回结果</span>
                       <button type="button" onClick={() => copyText(responseText)} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"><Copy className="w-3 h-3" />复制</button>
                     </div>
                     <pre className="max-h-40 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-100 whitespace-pre-wrap">{responseText}</pre>
                   </div>
-                  {call.parsed_result !== undefined && (
-                    <div>
+                  <div className="min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-medium text-gray-600">解析结果</span>
                         <button type="button" onClick={() => copyText(parsedText)} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"><Copy className="w-3 h-3" />复制</button>
                       </div>
                       <pre className="max-h-32 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-100 whitespace-pre-wrap">{parsedText}</pre>
                     </div>
-                  )}
-                  {call.final_prompt && (
-                    <div>
+                  <div className="min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-medium text-gray-600">最终 Prompt</span>
                         <button type="button" onClick={() => copyText(promptText)} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"><Copy className="w-3 h-3" />复制</button>
                       </div>
                       <pre className="max-h-40 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-100 whitespace-pre-wrap">{promptText}</pre>
                     </div>
-                  )}
+                  </div>
                 </div>
               )}
             </div>
           );
         })}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -158,7 +198,15 @@ interface VideoDirectorPanelProps {
   onRecommend: (force?: boolean) => void;
   onPlanKeyframes: (force?: boolean) => void;
   onGenerateMissingKeyframes: () => void;
+  onGenerateEndKeyframe: () => void;
+  isGeneratingEndKeyframe?: boolean;
   onSelectMode: (mode: VideoMode) => void;
+  onPreviewClip: (clip: any) => void;
+  onRegenerateClip: (clip: any) => void;
+  onMergeClips: () => void;
+  selectedPreviewClipKey?: string | null;
+  regeneratingClipKey?: string | null;
+  isMergingClips?: boolean;
 }
 
 function VideoDirectorPanel({
@@ -169,7 +217,15 @@ function VideoDirectorPanel({
   onRecommend,
   onPlanKeyframes,
   onGenerateMissingKeyframes,
+  onGenerateEndKeyframe,
+  isGeneratingEndKeyframe,
   onSelectMode,
+  onPreviewClip,
+  onRegenerateClip,
+  onMergeClips,
+  selectedPreviewClipKey,
+  regeneratingClipKey,
+  isMergingClips,
 }: VideoDirectorPanelProps) {
   const selectedMode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
   const maxClipDuration = plan.workflow_capability?.max_clip_duration || 15;
@@ -191,16 +247,34 @@ function VideoDirectorPanel({
   const threeFrameClipCount = clips.filter((clip: any) => Number(clip.selected_frame_count || clip.frame_count) === 3).length;
   const fourFrameClipCount = clips.filter((clip: any) => Number(clip.selected_frame_count || clip.frame_count) === 4).length;
   const [selectedKeyframeIndex, setSelectedKeyframeIndex] = useState(0);
+  const [selectedClipKey, setSelectedClipKey] = useState<string | null>(null);
+  const [isEndDescriptionExpanded, setIsEndDescriptionExpanded] = useState(false);
   const selectedKeyframe = keyframes[selectedKeyframeIndex] || keyframes[0];
   const hasNextKeyframe = selectedKeyframeIndex < keyframes.length - 1;
-  const selectedTransition = plan.transitions?.find((transition) => (
-    hasNextKeyframe
-      ? Number(transition.from_keyframe_index) === Number(selectedKeyframe?.index)
-      : Number(transition.to_keyframe_index) === Number(selectedKeyframe?.index)
+  const transitions = plan.transitions || [];
+  const previousTransition = transitions.find((transition) => (
+    Number(transition.to_keyframe_index) === Number(selectedKeyframe?.index)
   ));
+  const nextTransition = transitions.find((transition) => (
+    Number(transition.from_keyframe_index) === Number(selectedKeyframe?.index)
+  ));
+  const getClipKey = (clip: any) => String(clip.clip_index || clip.window_index || `${clip.start_time}-${clip.end_time}`);
+  const clipContainsKeyframe = (clip: any, keyframeIndex: number) => (
+    Array.isArray(clip.keyframe_indexes) && clip.keyframe_indexes.some((item: number) => Number(item) === Number(keyframeIndex))
+  );
+  const defaultSelectedClip = clips.find((clip: any) => clipContainsKeyframe(clip, Number(selectedKeyframe?.index))) || clips[0];
+  const selectedClip = clips.find((clip: any) => getClipKey(clip) === selectedClipKey) || defaultSelectedClip;
+  const selectedClipKeyframes = new Set((selectedClip?.keyframe_indexes || []).map((item: number) => Number(item)));
+  const selectedKeyframeClipCount = clips.filter((clip: any) => clipContainsKeyframe(clip, Number(selectedKeyframe?.index))).length;
+  const startKeyframe = keyframes.find((kf: any) => kf.role === 'START') || { index: 1, time_seconds: 0, role: 'START' };
+  const endKeyframe = keyframes.find((kf: any) => kf.role === 'END') || { index: 2, time_seconds: shot?.duration || 0, role: 'END', description: shot?.video_description || shot?.description || '' };
+  const endKeyframeImageUrl = getKeyframeImageUrl(endKeyframe);
+  const firstLastTransition = transitions.find((transition) => Number(transition.from_keyframe_index) === 1 && Number(transition.to_keyframe_index) === 2) || transitions[0];
 
   useEffect(() => {
     setSelectedKeyframeIndex(0);
+    setSelectedClipKey(null);
+    setIsEndDescriptionExpanded(false);
   }, [shot?.id, selectedMode]);
 
   const renderModeButton = (mode: VideoMode, disabled = false, title = '') => (
@@ -235,6 +309,29 @@ function VideoDirectorPanel({
         return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
+  const getClipStatusLabel = (status?: string) => {
+    switch ((status || 'PENDING').toUpperCase()) {
+      case 'PROMPT_BUILDING': return '构建 H3 提示词';
+      case 'QUEUED': return '等待执行';
+      case 'RUNNING': return '生成视频中';
+      case 'SUCCEEDED': return '已完成';
+      case 'FAILED': return '失败';
+      default: return '待生成';
+    }
+  };
+  const clipHasMergeArtifact = (clip: any) => !!(clip.video_url || clip.local_path);
+  const missingClipArtifacts = selectedMode === 'MULTI_KEYFRAME'
+    ? clips.filter((clip: any) => !clipHasMergeArtifact(clip)).map((clip: any) => `C${clip.window_index || clip.clip_index}`)
+    : [];
+  const allClipsReady = selectedMode === 'MULTI_KEYFRAME' && clips.length > 0 && missingClipArtifacts.length === 0;
+  const parseTime = (value?: string) => {
+    if (!value) return 0;
+    const timestamp = new Date(value).getTime();
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  };
+  const mergedAt = parseTime(plan.merged_at);
+  const latestClipGeneratedAt = Math.max(0, ...clips.map((clip: any) => parseTime(clip.generated_at)));
+  const hasClipChangesToMerge = !allClipsReady || !mergedAt || latestClipGeneratedAt > mergedAt;
 
   return (
     <div className="flex-shrink-0 border border-gray-200 rounded-lg p-4 space-y-4 bg-white">
@@ -331,23 +428,83 @@ function VideoDirectorPanel({
       )}
 
       {selectedMode === 'FIRST_LAST_FRAME' && (
-        <div className="grid grid-cols-[1fr_1fr] gap-4">
-          <div>
-            <div className="text-xs font-semibold text-gray-600 mb-2">START · 0s</div>
-            <div className="aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200">
-              {shotImageUrl ? <img src={shotImageUrl} alt="START" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><Image className="w-8 h-8 text-gray-300" /></div>}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
+            <div className="text-xs text-blue-700">
+              #08 规划 START/END 静态状态；成功后自动调用 #10 规划 START → END Transition。
+            </div>
+            <button
+              type="button"
+              onClick={() => onPlanKeyframes(true)}
+              disabled={isRecommending}
+              className="px-3 py-1.5 rounded-lg border border-blue-200 bg-white text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50 transition-colors whitespace-nowrap"
+            >
+              {isRecommending ? '规划中...' : firstLastTransition ? '重新规划首尾帧' : 'AI规划首尾帧'}
+            </button>
+          </div>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div className="rounded-lg border border-gray-200 bg-white p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-gray-600">START · 0s</div>
+                  <div className="text-[11px] text-gray-500">KF{startKeyframe.index} · Primary Storyboard</div>
+                </div>
+                <span className={`text-xs ${shotImageUrl ? 'text-green-600' : 'text-amber-600'}`}>{shotImageUrl ? '图片已就绪' : '缺少主分镜图'}</span>
+              </div>
+              <div className="aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
+                {shotImageUrl ? <img src={shotImageUrl} alt="START" className="w-full h-full object-cover" /> : <Image className="w-10 h-10 text-gray-300" />}
+              </div>
+            </div>
+            <div className="rounded-lg border border-gray-200 bg-white p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <div>
+                  <div className="text-xs font-semibold text-gray-600">END · {endKeyframe.time_seconds || shot?.duration || 0}s</div>
+                  <div className="text-[11px] text-gray-500">KF{endKeyframe.index} · Generated Keyframe</div>
+                </div>
+                <span className={`text-xs ${endKeyframeImageUrl ? 'text-green-600' : 'text-amber-600'}`}>{endKeyframeImageUrl ? '图片已就绪' : '待生成'}</span>
+              </div>
+              <div className="aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
+                {endKeyframeImageUrl ? <img src={endKeyframeImageUrl} alt="END" className="w-full h-full object-cover" /> : <Image className="w-10 h-10 text-gray-300" />}
+              </div>
+              <div className="mt-2">
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <div className="text-xs font-semibold text-gray-600">Keyframe description</div>
+                  <button
+                    type="button"
+                    onClick={() => setIsEndDescriptionExpanded((expanded) => !expanded)}
+                    className="text-xs text-blue-600 hover:text-blue-700"
+                  >
+                    {isEndDescriptionExpanded ? '隐藏' : '显示'}
+                  </button>
+                </div>
+                {isEndDescriptionExpanded && (
+                  <textarea
+                    readOnly
+                    value={endKeyframe.description || '等待 AI 规划尾帧'}
+                    className="w-full h-40 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm resize-none"
+                  />
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={onGenerateEndKeyframe}
+                disabled={isRecommending || isGeneratingEndKeyframe || !endKeyframe.description}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-blue-200 px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGeneratingEndKeyframe && <Loader2 className="h-3 w-3 animate-spin" />}
+                {isGeneratingEndKeyframe ? 'END 关键帧生成中...' : endKeyframeImageUrl ? '重新生成 END 关键帧' : '生成 END 关键帧'}
+              </button>
             </div>
           </div>
           <div>
-            <div className="text-xs font-semibold text-gray-600 mb-2">END · {shot?.duration || 0}s</div>
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 min-h-[140px] whitespace-pre-wrap">
-              {keyframes.find((kf) => kf.role === 'END')?.description || '等待 AI 规划尾帧'}
+            <div className="mb-1 flex items-center justify-between">
+              <div className="text-xs font-semibold text-gray-600">Transition · KF1 → KF2 · 0-{shot?.duration || 0}s</div>
+              <span className={`text-xs ${firstLastTransition?.transition_description ? 'text-green-600' : endKeyframe.description ? 'text-amber-600' : 'text-gray-500'}`}>
+                {firstLastTransition?.transition_description ? '已规划' : endKeyframe.description ? '未规划' : '等待首尾帧规划'}
+              </span>
             </div>
-          </div>
-          <div className="col-span-2">
-            <div className="text-xs font-semibold text-gray-600 mb-1">Transition</div>
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 min-h-20 whitespace-pre-wrap">
-              {selectedTransition?.transition_description || '等待 AI 规划当前关键帧到下一关键帧的动作和镜头变化'}
+              {firstLastTransition?.transition_description || (endKeyframe.description ? '等待 #10 START → END 过渡规划' : '等待 #08 首尾帧规划')}
             </div>
           </div>
         </div>
@@ -359,34 +516,79 @@ function VideoDirectorPanel({
             <div className="flex items-center justify-between mb-2">
               <div>
                 <div className="text-sm font-semibold text-gray-700">关键帧时间轴</div>
-                <div className="text-xs text-gray-500">{keyframes.length} 条 Keyframe + {Math.max(0, keyframes.length - 1)} 条 Transition（相邻间隔 ≤ {maxClipDuration}s）</div>
+                <div className="text-xs text-gray-500">{keyframes.length} 条 Keyframe + {Math.max(0, keyframes.length - 1)} 条 Transition + {clips.length} Clips（相邻间隔 ≤ {maxClipDuration}s）</div>
               </div>
             </div>
+            {clips.length > 0 && (
+              <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+                {clips.map((clip: any) => {
+                  const clipIndex = clip.clip_index || clip.window_index;
+                  const frameCount = clip.selected_frame_count || clip.frame_count;
+                  const clipStatus = clip.status || 'PENDING';
+                  const isClipSelected = selectedClip && getClipKey(selectedClip) === getClipKey(clip);
+                  return (
+                    <button
+                      key={`range-${getClipKey(clip)}`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedClipKey(getClipKey(clip));
+                        const firstKeyframeIndex = Array.isArray(clip.keyframe_indexes) ? Number(clip.keyframe_indexes[0]) : NaN;
+                        const targetIndex = keyframes.findIndex((kf: any) => Number(kf.index) === firstKeyframeIndex);
+                        if (targetIndex >= 0) setSelectedKeyframeIndex(targetIndex);
+                      }}
+                      className={`min-w-48 rounded-lg border px-3 py-2 text-left text-xs transition-all ${isClipSelected
+                        ? 'border-blue-300 bg-blue-50 text-blue-700 shadow-sm ring-2 ring-blue-100'
+                        : getClipStatusClass(clipStatus)
+                      }`}
+                    >
+                      <div className="font-semibold">C{clipIndex} · {clip.start_time}-{clip.end_time}s · {frameCount || '?'}KF</div>
+                      <div className="mt-0.5 opacity-80">{Array.isArray(clip.keyframe_indexes) ? clip.keyframe_indexes.map((item: number) => `KF${item}`).join(' / ') : '等待关键帧'}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <div className="flex items-start gap-2 overflow-x-auto pb-2">
-              {keyframes.map((kf, idx) => (
-                <button
-                  key={`${kf.index}-${kf.time_seconds}`}
-                  type="button"
-                  onClick={() => setSelectedKeyframeIndex(idx)}
-                  className={`relative min-w-24 rounded-xl px-3 py-2 text-center transition-all ${selectedKeyframeIndex === idx
-                    ? 'border border-blue-300 bg-blue-50 text-blue-700 shadow-sm ring-2 ring-blue-100'
-                    : 'border border-transparent text-gray-700 hover:bg-gray-50 hover:text-blue-600'
-                  }`}
-                >
-                  <div className={`mx-auto mb-1 h-3 w-3 rounded-full border-2 ${selectedKeyframeIndex === idx
-                    ? 'border-blue-600 bg-blue-500 ring-4 ring-blue-100'
-                    : getKeyframeImageUrl(kf)
-                      ? 'border-green-500 bg-green-100'
-                      : 'border-blue-500 bg-white'
-                  }`} />
-                  <div className="text-sm font-semibold">KF{kf.index} · {kf.time_seconds}s</div>
-                  <div className="text-[11px] text-gray-500">{kf.role}</div>
-                  <div className={`text-[11px] ${getKeyframeImageUrl(kf) ? 'text-green-600' : 'text-amber-600'}`}>{getKeyframeImageUrl(kf) ? (kf.role === 'START' ? 'Primary Storyboard' : '已生成') : '缺图'}</div>
-                  {selectedKeyframeIndex === idx && (
-                    <div className="absolute -bottom-1 left-3 right-3 h-1 rounded-full bg-blue-500" />
-                  )}
-                </button>
-              ))}
+              {keyframes.map((kf, idx) => {
+                const isCurrentKeyframe = selectedKeyframeIndex === idx;
+                const isInSelectedClip = selectedClipKeyframes.has(Number(kf.index));
+                const keyframeClipCount = clips.filter((clip: any) => clipContainsKeyframe(clip, Number(kf.index))).length;
+                return (
+                  <button
+                    key={`${kf.index}-${kf.time_seconds}`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedKeyframeIndex(idx);
+                      setSelectedClipKey(null);
+                    }}
+                    className={`relative min-w-28 rounded-xl px-3 py-2 text-center transition-all ${isCurrentKeyframe
+                      ? 'border border-blue-300 bg-blue-50 text-blue-700 shadow-sm ring-2 ring-blue-100'
+                      : isInSelectedClip
+                        ? 'border border-blue-100 bg-blue-50/60 text-blue-700'
+                        : 'border border-transparent text-gray-700 hover:bg-gray-50 hover:text-blue-600'
+                    }`}
+                  >
+                    <div className={`mx-auto mb-1 h-3 w-3 rounded-full border-2 ${isCurrentKeyframe
+                      ? 'border-blue-600 bg-blue-500 ring-4 ring-blue-100'
+                      : getKeyframeImageUrl(kf)
+                        ? 'border-green-500 bg-green-100'
+                        : 'border-blue-500 bg-white'
+                    }`} />
+                    <div className="text-sm font-semibold">KF{kf.index} · {kf.time_seconds}s</div>
+                    <div className="text-[11px] text-gray-500">{kf.role}</div>
+                    <div className={`text-[11px] ${getKeyframeImageUrl(kf) ? 'text-green-600' : 'text-amber-600'}`}>{getKeyframeImageUrl(kf) ? (kf.role === 'START' ? '主分镜图' : '已生成') : '缺图'}</div>
+                    {kf.role !== 'START' && idx > 0 && (
+                      <div className="text-[10px] text-gray-400">来源 KF{keyframes[idx - 1]?.index}</div>
+                    )}
+                    {keyframeClipCount > 1 && (
+                      <div className="mt-0.5 text-[10px] font-medium text-purple-600">共享边界</div>
+                    )}
+                    {isCurrentKeyframe && (
+                      <div className="absolute -bottom-1 left-3 right-3 h-1 rounded-full bg-blue-500" />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -419,13 +621,24 @@ function VideoDirectorPanel({
               </div>
               <div>
                 <div className="text-xs font-semibold text-gray-600 mb-1">
-                  {hasNextKeyframe ? '到下一关键帧 Transition' : '上一关键帧到当前 Transition'}
+                  上一段 Transition{previousTransition ? ` · KF${previousTransition.from_keyframe_index} → KF${previousTransition.to_keyframe_index} · ${previousTransition.start_time ?? ''}-${previousTransition.end_time ?? ''}s` : ''}
                 </div>
                 <textarea
                   readOnly
-                  value={selectedTransition?.transition_description || ''}
-                  placeholder={hasNextKeyframe ? '等待 #10 规划当前关键帧到下一关键帧的过渡' : '最后一个关键帧，将显示上一段进入当前帧的 Transition'}
-                  className="w-full h-24 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm resize-none"
+                  value={previousTransition?.transition_description || ''}
+                  placeholder={selectedKeyframeIndex === 0 ? '第一个关键帧，没有上一段 Transition' : '等待 #10 规划上一关键帧到当前关键帧的过渡'}
+                  className="w-full h-20 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm resize-none"
+                />
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-gray-600 mb-1">
+                  下一段 Transition{nextTransition ? ` · KF${nextTransition.from_keyframe_index} → KF${nextTransition.to_keyframe_index} · ${nextTransition.start_time ?? ''}-${nextTransition.end_time ?? ''}s` : ''}
+                </div>
+                <textarea
+                  readOnly
+                  value={nextTransition?.transition_description || ''}
+                  placeholder={hasNextKeyframe ? '等待 #10 规划当前关键帧到下一关键帧的过渡' : '最后一个关键帧，没有下一段 Transition'}
+                  className="w-full h-20 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm resize-none"
                 />
               </div>
             </div>
@@ -446,20 +659,79 @@ function VideoDirectorPanel({
           </div>
         )}
         {clips.length > 0 ? (
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3">
             {clips.map((clip: any) => {
               const clipIndex = clip.clip_index || clip.window_index;
               const frameCount = clip.selected_frame_count || clip.frame_count;
-              const keyframeLabel = Array.isArray(clip.keyframe_indexes) && clip.keyframe_indexes.length > 0
-                ? ` · ${clip.keyframe_indexes.map((item: number) => `KF${item}`).join('/')}`
-                : '';
               const clipStatus = clip.status || 'PENDING';
+              const clipKey = getClipKey(clip);
+              const isPreviewing = selectedPreviewClipKey === clipKey;
+              const isRegenerating = regeneratingClipKey === clipKey;
               return (
-                <span key={`${clipIndex}-${clip.start_time}-${clip.end_time}`} className={`rounded-md border px-2 py-1 text-xs ${getClipStatusClass(clipStatus)}`}>
-                  C{clipIndex} {clip.start_time}-{clip.end_time}s{frameCount ? ` · ${frameCount}KF` : ''}{keyframeLabel}{clip.workflow_key ? ` · ${clip.workflow_key}` : ''} · {clipStatus}
-                </span>
+                <div key={`${clipIndex}-${clip.start_time}-${clip.end_time}`} className={`rounded-lg border p-3 ${isPreviewing ? 'border-blue-300 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 bg-white'}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-800">C{clipIndex} · {clip.start_time}-{clip.end_time}s · {frameCount || '?'}KF</div>
+                      <div className="mt-1 text-xs text-gray-500">
+                        {Array.isArray(clip.keyframe_indexes) && clip.keyframe_indexes.length > 0 ? clip.keyframe_indexes.map((item: number) => `KF${item}`).join(' / ') : '等待关键帧'}
+                        {clip.workflow_key ? ` · ${clip.workflow_key}` : ''}
+                      </div>
+                    </div>
+                    <span className={`rounded-md border px-2 py-1 text-xs ${getClipStatusClass(clipStatus)}`}>{getClipStatusLabel(clipStatus)}</span>
+                  </div>
+                  {Array.isArray(clip.reference_images) && clip.reference_images.length > 0 && (
+                    <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                      {clip.reference_images.map((image: any, imageIndex: number) => (
+                        <div key={`${clipKey}-ref-${imageIndex}`} className="w-24 flex-shrink-0">
+                          <div className="aspect-video overflow-hidden rounded border border-gray-200 bg-gray-100">
+                            {image.url ? <img src={image.url} alt={image.label || `C${clipIndex}参考图`} className="h-full w-full object-cover" /> : <Image className="m-auto mt-4 h-5 w-5 text-gray-300" />}
+                          </div>
+                          <div className="mt-1 truncate text-[10px] text-gray-500">{image.label || `参考图 ${imageIndex + 1}`}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {clip.error_message && <div className="mt-2 text-xs text-red-600">{clip.error_message}</div>}
+                  {selectedMode === 'MULTI_KEYFRAME' && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => onPreviewClip(clip)}
+                        disabled={!clip.video_url}
+                        title={!clip.video_url ? `C${clipIndex} 缺少可预览的视频记录，请重新生成该 Clip` : `预览 C${clipIndex}`}
+                        className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {clip.video_url ? '预览 Clip' : '缺少视频记录'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRegenerateClip(clip)}
+                        disabled={isRegenerating}
+                        className="rounded-md border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isRegenerating ? '重新生成中...' : '重新生成'}
+                      </button>
+                      {clip.prompt_text && (
+                        <button type="button" onClick={() => copyText(clip.prompt_text)} className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50">
+                          复制 #13 Prompt
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })}
+            {selectedMode === 'MULTI_KEYFRAME' && (
+              <button
+                type="button"
+                onClick={onMergeClips}
+                disabled={!allClipsReady || !hasClipChangesToMerge || isMergingClips}
+                title={!allClipsReady ? `缺少可合并的 Clip 视频：${missingClipArtifacts.join(' / ')}` : !hasClipChangesToMerge ? '没有 Clip 被重新生成，整体视频已是最新' : '使用所有 Clip 视频重新合并整体视频'}
+                className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isMergingClips ? '重新合并中...' : missingClipArtifacts.length > 0 ? `缺少 ${missingClipArtifacts.join(' / ')} 视频记录` : !hasClipChangesToMerge ? '整体视频已是最新' : '重新合并整体视频'}
+              </button>
+            )}
           </div>
         ) : (
           <div className="rounded-md border border-dashed border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
@@ -559,6 +831,7 @@ export function VideoGenTab({
   const storeTransitionVideos = useChapterGenerateStore((state) => state.transitionVideos);
   const storeGeneratingVideos = useChapterGenerateStore((state) => state.generatingVideos);
   const storeGeneratingTransitions = useChapterGenerateStore((state) => state.generatingTransitions);
+  const storeGeneratingKeyframes = useChapterGenerateStore((state) => state.generatingKeyframes);
 
   // 优先使用 store 状态，props 作为备用
   const shotVideos = storeShotVideos;
@@ -566,6 +839,7 @@ export function VideoGenTab({
   const transitionVideos = storeTransitionVideos;
   const generatingVideos = propGeneratingVideos ?? storeGeneratingVideos;
   const generatingTransitions = propGeneratingTransitions ?? storeGeneratingTransitions;
+  const generatingKeyframes = storeGeneratingKeyframes;
 
   const selectedTransitionWorkflowData = transitionWorkflows.find((workflow: any) => (
     selectedTransitionWorkflow ? workflow.id === selectedTransitionWorkflow : workflow.isActive
@@ -604,6 +878,9 @@ export function VideoGenTab({
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
   const [isRefreshingVideo, setIsRefreshingVideo] = useState(false);
+  const [selectedPreviewClipKey, setSelectedPreviewClipKey] = useState<string | null>(null);
+  const [regeneratingClipKey, setRegeneratingClipKey] = useState<string | null>(null);
+  const [isMergingClips, setIsMergingClips] = useState(false);
   const [videoMetadata, setVideoMetadata] = useState<VideoMetadata>({
     duration: null,
     width: null,
@@ -625,6 +902,30 @@ export function VideoGenTab({
   const currentShotVideoUrl = currentShotData?.videoUrl || (currentShotId ? shotVideos[currentShotId] : undefined);
   const currentVideoDirectorPlan: VideoDirectorPlan = currentShotData?.videoDirectorPlan || {};
   const currentSelectedVideoMode = currentVideoDirectorPlan.selected_mode || currentVideoDirectorPlan.recommended_mode || 'SINGLE_FRAME';
+  const currentEndPlanKeyframe = (currentVideoDirectorPlan.keyframes || []).find((keyframe: any) => keyframe.role === 'END');
+  const currentEndLegacyKeyframe = (currentShotData?.keyframes || []).find((keyframe: any) => (
+    Number(keyframe.plan_keyframe_index) === Number(currentEndPlanKeyframe?.index || 2)
+  ));
+  const currentEndFrameIndex = currentEndLegacyKeyframe?.frame_index ?? (currentEndPlanKeyframe ? 0 : undefined);
+  const isGeneratingCurrentEndKeyframe = currentShotId && currentEndFrameIndex !== undefined
+    ? generatingKeyframes.has(`${currentShotId}-${Number(currentEndFrameIndex)}`)
+    : false;
+  const getPlanClipKey = (clip: any) => String(clip?.clip_index || clip?.window_index || `${clip?.start_time}-${clip?.end_time}`);
+  const currentPlanClips: any[] = currentSelectedVideoMode === 'MULTI_KEYFRAME' ? (currentVideoDirectorPlan.window_plans || []) : (currentVideoDirectorPlan.clips || []);
+  const selectedPreviewClip: any | null = selectedPreviewClipKey
+    ? currentPlanClips.find((clip: any) => getPlanClipKey(clip) === selectedPreviewClipKey)
+    : null;
+  const previewVideoUrl = selectedPreviewClip?.video_url || currentShotVideoUrl;
+  const previewVideoLabel = selectedPreviewClip ? `C${selectedPreviewClip.window_index || selectedPreviewClip.clip_index}` : 'Shot';
+  const previewClipMarkers = !selectedPreviewClip && currentSelectedVideoMode === 'MULTI_KEYFRAME'
+    ? currentPlanClips
+      .filter((clip: any) => Number(clip.window_index || clip.clip_index || 0) > 1)
+      .map((clip: any) => ({
+        clipIndex: clip.window_index || clip.clip_index,
+        startTime: Number(clip.start_time || 0),
+      }))
+    : [];
+  const previewTimelineDuration = Number(currentShotData?.duration || videoMetadata.duration || 0);
   const [recommendingShotId, setRecommendingShotId] = useState<string | null>(null);
 
   const hasShotVideo = (shot: any) => {
@@ -633,7 +934,7 @@ export function VideoGenTab({
   };
 
   // 检查当前分镜是否正在生成
-  const isGeneratingCurrent = currentShotId ? generatingVideos.has(currentShotId) : false;
+  const isGeneratingCurrent = currentShotId ? generatingVideos.has(currentShotId) || currentShotData?.videoStatus === 'generating' : false;
 
   // 初始化获取转场工作流
   useEffect(() => {
@@ -745,6 +1046,28 @@ export function VideoGenTab({
     }
   }, [currentShotData, currentShotId, currentVideoDirectorPlan.keyframes, effectiveChapterId, effectiveNovelId, generateKeyframeImage]);
 
+  const handleGenerateEndKeyframe = useCallback(async () => {
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId || !currentShotData) return;
+    const endPlanKeyframe = (currentVideoDirectorPlan.keyframes || []).find((keyframe: any) => keyframe.role === 'END');
+    const legacyKeyframes = currentShotData.keyframes || [];
+    const legacyEndKeyframe = legacyKeyframes.find((keyframe: any) => (
+      Number(keyframe.plan_keyframe_index) === Number(endPlanKeyframe?.index || 2)
+    )) || (endPlanKeyframe ? { frame_index: 0 } : legacyKeyframes[0]);
+
+    if (!legacyEndKeyframe || legacyEndKeyframe.frame_index === undefined) {
+      toast.error('缺少 END 关键帧记录，请重新选择首尾帧模式或重新推荐');
+      return;
+    }
+
+    try {
+      await generateKeyframeImage(effectiveNovelId, effectiveChapterId, currentShotId, Number(legacyEndKeyframe.frame_index));
+      toast.success('已提交 END 关键帧生图任务');
+    } catch (error) {
+      console.error('生成 END 关键帧失败:', error);
+      toast.error('生成 END 关键帧失败');
+    }
+  }, [currentShotData, currentShotId, currentVideoDirectorPlan.keyframes, effectiveChapterId, effectiveNovelId, generateKeyframeImage]);
+
   useEffect(() => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
     if (currentVideoDirectorPlan.recommended_mode || recommendingShotId === currentShotId) return;
@@ -753,10 +1076,10 @@ export function VideoGenTab({
 
   useEffect(() => {
     setVideoMetadata({ duration: null, width: null, height: null, sizeBytes: null });
-    if (!currentShotVideoUrl) return;
+    if (!previewVideoUrl) return;
 
     let cancelled = false;
-    fetch(currentShotVideoUrl, { method: 'HEAD' })
+    fetch(previewVideoUrl, { method: 'HEAD' })
       .then((response) => {
         if (cancelled) return;
         const contentLength = response.headers.get('content-length');
@@ -772,7 +1095,7 @@ export function VideoGenTab({
     return () => {
       cancelled = true;
     };
-  }, [currentShotVideoUrl]);
+  }, [previewVideoUrl]);
 
   useEffect(() => {
     if (!isGeneratingCurrent || !effectiveNovelId || !effectiveChapterId || !currentShotId) return;
@@ -788,6 +1111,9 @@ export function VideoGenTab({
           )));
           if (result.data.videoUrl) {
             setShotVideos((videos: Record<string, string>) => ({ ...videos, [currentShotId]: result.data.videoUrl! }));
+          }
+          if (result.data.videoStatus !== 'generating') {
+            setRegeneratingClipKey(null);
           }
         }
       } catch (error) {
@@ -840,7 +1166,13 @@ export function VideoGenTab({
     }
   };
 
+  useEffect(() => {
+    setSelectedPreviewClipKey(null);
+    setRegeneratingClipKey(null);
+  }, [currentShotId]);
+
   const hasVideo = !!currentShotVideoUrl;
+  const hasPreviewVideo = !!previewVideoUrl;
 
   // 处理单个视频生成
   const handleGenerateVideo = async () => {
@@ -855,6 +1187,83 @@ export function VideoGenTab({
       toast.error(error instanceof Error ? error.message : t('chapterGenerate.videoGenerateFailed'));
     }
   };
+
+  const refreshCurrentShotData = useCallback(async () => {
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return null;
+    const result = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, currentShotId);
+    if (result.success && result.data) {
+      setShots(shotsList.map((shot: any) => (
+        String(shot.id) === currentShotId ? { ...shot, ...result.data } : shot
+      )));
+      if (result.data.videoUrl) {
+        setShotVideos((prev) => ({ ...prev, [currentShotId]: result.data.videoUrl || '' }));
+      }
+      return result.data;
+    }
+    return null;
+  }, [currentShotId, effectiveChapterId, effectiveNovelId, setShotVideos, setShots, shotsList]);
+
+  const handlePreviewClip = useCallback((clip: any) => {
+    setSelectedPreviewClipKey(getPlanClipKey(clip));
+  }, []);
+
+  const handleRegenerateClip = useCallback(async (clip: any) => {
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+    const windowIndex = Number(clip.window_index || clip.clip_index);
+    if (!windowIndex) return;
+    if (clip.video_url && !window.confirm(`确认重新生成 C${windowIndex}？完成后会自动重新合并整体视频。`)) return;
+
+    const clipKey = getPlanClipKey(clip);
+    setRegeneratingClipKey(clipKey);
+    setSelectedPreviewClipKey(clipKey);
+    try {
+      const result = await shotsApi.generateVideoDirectorClip(effectiveNovelId, effectiveChapterId, currentShotId, windowIndex, {
+        use_reference_audio: true,
+        auto_merge: true,
+      });
+      if (result.success) {
+        setShots(shotsList.map((shot: any) => (
+          String(shot.id) === currentShotId ? { ...shot, videoStatus: 'generating', videoTaskId: result.data?.taskId || shot.videoTaskId } : shot
+        )));
+        toast.success(`C${windowIndex} 已提交重新生成，完成后会自动合并`);
+      } else {
+        setRegeneratingClipKey(null);
+        toast.error(result.message || result.detail || 'Clip 重新生成失败');
+      }
+    } catch (error) {
+      setRegeneratingClipKey(null);
+      console.error('Clip 重新生成失败:', error);
+      toast.error('Clip 重新生成失败');
+    }
+  }, [currentShotId, effectiveChapterId, effectiveNovelId, setShots, shotsList]);
+
+  const handleMergeDirectorClips = useCallback(async () => {
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+    setIsMergingClips(true);
+    try {
+      const result = await shotsApi.mergeVideoDirectorClips(effectiveNovelId, effectiveChapterId, currentShotId);
+      if (result.success && result.data) {
+        setSelectedPreviewClipKey(null);
+        setShots(shotsList.map((shot: any) => (
+          String(shot.id) === currentShotId
+            ? { ...shot, videoUrl: result.data?.videoUrl || shot.videoUrl, videoDirectorPlan: result.data?.videoDirectorPlan || shot.videoDirectorPlan, videoStatus: 'completed' }
+            : shot
+        )));
+        if (result.data.videoUrl) {
+          setShotVideos((prev) => ({ ...prev, [currentShotId]: result.data?.videoUrl || '' }));
+        }
+        toast.success(result.data.skipped ? '没有 Clip 被重新生成，已跳过合并' : '整体视频已重新合并');
+      } else {
+        toast.error(result.message || result.detail || '重新合并失败');
+      }
+    } catch (error) {
+      console.error('重新合并失败:', error);
+      toast.error('重新合并失败');
+    } finally {
+      setIsMergingClips(false);
+      refreshCurrentShotData().catch(() => undefined);
+    }
+  }, [currentShotId, effectiveChapterId, effectiveNovelId, refreshCurrentShotData, setShotVideos, setShots, shotsList]);
 
   // 打开批量选择弹窗
   const handleOpenBatchSelect = () => {
@@ -1335,7 +1744,15 @@ export function VideoGenTab({
             onRecommend={handleRecommendVideoMode}
             onPlanKeyframes={handlePlanVideoKeyframes}
             onGenerateMissingKeyframes={handleGenerateMissingKeyframes}
+            onGenerateEndKeyframe={handleGenerateEndKeyframe}
+            isGeneratingEndKeyframe={isGeneratingCurrentEndKeyframe}
             onSelectMode={handleSelectVideoMode}
+            onPreviewClip={handlePreviewClip}
+            onRegenerateClip={handleRegenerateClip}
+            onMergeClips={handleMergeDirectorClips}
+            selectedPreviewClipKey={selectedPreviewClipKey}
+            regeneratingClipKey={regeneratingClipKey}
+            isMergingClips={isMergingClips}
           />
 
         </div>
@@ -1343,7 +1760,10 @@ export function VideoGenTab({
         {/* 右侧：视频预览区 */}
         <div className="video-preview-card flex-shrink-0 lg:w-[360px] xl:w-[420px] min-h-[360px] lg:min-h-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden bg-white">
           <div className="flex-shrink-0 p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
-            <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.videoPreview')}</h3>
+            <div>
+              <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.videoPreview')} · {previewVideoLabel}</h3>
+              {selectedPreviewClip && <div className="text-xs text-gray-500">C{selectedPreviewClip.window_index || selectedPreviewClip.clip_index} · {selectedPreviewClip.start_time}-{selectedPreviewClip.end_time}s</div>}
+            </div>
             <button
               type="button"
               onClick={handleRefreshCurrentVideo}
@@ -1355,15 +1775,64 @@ export function VideoGenTab({
               刷新
             </button>
           </div>
+          {currentPlanClips.length > 0 && currentSelectedVideoMode === 'MULTI_KEYFRAME' && (
+            <div className="flex-shrink-0 border-b border-gray-200 bg-white px-3 py-2">
+              <div className="flex gap-1 overflow-x-auto">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPreviewClipKey(null)}
+                  disabled={!currentShotVideoUrl}
+                  className={`rounded-md border px-2 py-1 text-xs transition-colors ${!selectedPreviewClip ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  Shot 合并视频
+                </button>
+                {currentPlanClips.map((clip: any) => {
+                  const clipKey = getPlanClipKey(clip);
+                  const clipIndex = clip.window_index || clip.clip_index;
+                  return (
+                    <button
+                      key={`preview-tab-${clipKey}`}
+                      type="button"
+                      onClick={() => setSelectedPreviewClipKey(clipKey)}
+                      disabled={!clip.video_url}
+                      title={!clip.video_url ? `C${clipIndex} 缺少可预览的视频记录` : `预览 C${clipIndex}`}
+                      className={`rounded-md border px-2 py-1 text-xs transition-colors ${selectedPreviewClipKey === clipKey ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'} disabled:opacity-50 disabled:cursor-not-allowed`}
+                    >
+                      C{clipIndex}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="video-preview-body flex-1 relative bg-gray-100">
-            {hasVideo ? (
-              <video
-                src={currentShotVideoUrl}
-                className="absolute inset-0 w-full h-full object-contain"
-                controls
-                onLoadedMetadata={handleVideoMetadataLoaded}
-              />
+            {hasPreviewVideo ? (
+              <>
+                <video
+                  src={previewVideoUrl}
+                  className="absolute inset-0 w-full h-full object-contain"
+                  controls
+                  onLoadedMetadata={handleVideoMetadataLoaded}
+                />
+                {previewClipMarkers.length > 0 && previewTimelineDuration > 0 && (
+                  <div className="pointer-events-none absolute bottom-10 left-8 right-8 h-8">
+                    {previewClipMarkers.map((marker: any) => {
+                      const startPercent = Math.max(0, Math.min(100, (marker.startTime / previewTimelineDuration) * 100));
+                      return (
+                        <div key={`preview-marker-${marker.clipIndex}`} className="absolute bottom-0 -translate-x-1/2" style={{ left: `${startPercent}%` }}>
+                          <div
+                            className="mx-auto h-5 w-1 rounded-full bg-red-500 shadow-[0_0_0_2px_rgba(255,255,255,0.85)]"
+                          />
+                          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-medium text-white shadow">
+                            C{marker.clipIndex} · {marker.startTime}s
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             ) : isGeneratingCurrent ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
@@ -1380,7 +1849,7 @@ export function VideoGenTab({
               </div>
             )}
           </div>
-          {hasVideo && (
+          {hasPreviewVideo && (
             <div className="flex-shrink-0 border-t border-gray-200 bg-white px-3 py-2 text-xs text-gray-600 flex flex-wrap items-center gap-x-4 gap-y-1">
               <span>时长：{formatDuration(videoMetadata.duration)}</span>
               <span>分辨率：{videoMetadata.width && videoMetadata.height ? `${videoMetadata.width} x ${videoMetadata.height}` : '-'}</span>

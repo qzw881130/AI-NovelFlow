@@ -8,7 +8,7 @@
  * - BottomNavigator (底部导航)
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -98,6 +98,8 @@ export function ChapterGenerateLayout({
   const navigate = useNavigate();
   const [bottomNavCollapsed, setBottomNavCollapsed] = useState(false);
   const [chapterList, setChapterList] = useState<Chapter[]>([]);
+  const initialShotHashAppliedRef = useRef(false);
+  const pendingShotHashIndexRef = useRef<number | null>(null);
 
   // 使用选择器正确订阅 store 状态
   const storeParsedData = useChapterGenerateStore((state) => state.parsedData);
@@ -160,6 +162,21 @@ export function ChapterGenerateLayout({
     navigate(`/novels/${id}/chapters/${chapterId}/generate`);
   };
 
+  const parseShotHash = () => {
+    const hash = window.location.hash.replace(/^#/, '').trim();
+    const match = hash.match(/^(?:shot-?|s)?(\d+)$/i);
+    if (!match) return null;
+    const index = Number(match[1]);
+    return Number.isFinite(index) && index > 0 ? index : null;
+  };
+
+  const updateShotHash = (index: number) => {
+    if (!index) return;
+    const nextHash = `#shot-${index}`;
+    if (window.location.hash === nextHash) return;
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}${nextHash}`);
+  };
+
   const renderChapterContent = () => {
     const content = chapter?.content || t('common.noContent');
     const ranges = ((currentShot as any)?.sourceRanges || (currentShot as any)?.source_ranges || []) as { start: number; end: number }[];
@@ -217,7 +234,24 @@ export function ChapterGenerateLayout({
   }, [currentTab, setRightPanelCollapsed, setRightPanelWidth]);
 
   useEffect(() => {
+    initialShotHashAppliedRef.current = false;
+    pendingShotHashIndexRef.current = null;
+  }, [cid]);
+
+  useEffect(() => {
     if (shots.length === 0) return;
+    if (!initialShotHashAppliedRef.current) {
+      initialShotHashAppliedRef.current = true;
+      const hashShotIndex = parseShotHash();
+      if (hashShotIndex && hashShotIndex <= shots.length) {
+        const shot = shots[hashShotIndex - 1];
+        if (shot && currentShotIndex !== hashShotIndex) {
+          pendingShotHashIndexRef.current = hashShotIndex;
+          setCurrentShot(shot.id, hashShotIndex);
+        }
+        return;
+      }
+    }
     const currentIndex = currentShotId ? shots.findIndex((shot) => shot.id === currentShotId) : -1;
     if (currentIndex >= 0) {
       if (currentShotIndex !== currentIndex + 1) {
@@ -227,6 +261,28 @@ export function ChapterGenerateLayout({
     }
     setCurrentShot(shots[0].id, 1);
   }, [shots, currentShotId, currentShotIndex, setCurrentShot]);
+
+  useEffect(() => {
+    if (!currentShotIndex || shots.length === 0) return;
+    const pendingShotHashIndex = pendingShotHashIndexRef.current;
+    if (pendingShotHashIndex && currentShotIndex !== pendingShotHashIndex) return;
+    if (pendingShotHashIndex === currentShotIndex) pendingShotHashIndexRef.current = null;
+    updateShotHash(currentShotIndex);
+  }, [currentShotIndex, shots.length]);
+
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hashShotIndex = parseShotHash();
+      if (!hashShotIndex || hashShotIndex > shots.length) return;
+      const shot = shots[hashShotIndex - 1];
+      if (shot) {
+        pendingShotHashIndexRef.current = hashShotIndex;
+        setCurrentShot(shot.id, hashShotIndex);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [shots, setCurrentShot]);
 
   const renderChapterSwitch = () => (
     <div className="flex items-center gap-2 flex-shrink-0">

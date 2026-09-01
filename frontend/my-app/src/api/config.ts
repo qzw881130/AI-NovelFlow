@@ -5,6 +5,8 @@ import { api } from './index';
 
 export interface SystemConfig {
   parseCharactersPrompt?: string;
+  comfyUIHost?: string;
+  comfyUITimeout?: number;
   systemStatusSource?: 'comfyui' | 'windows_gpu_monitor';
 }
 

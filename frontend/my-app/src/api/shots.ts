@@ -113,9 +113,20 @@ export interface VideoDirectorPlan {
     selected_frame_count: 3 | 4;
     workflow_key?: string;
     workflow_type?: string;
+    workflow_name?: string;
     keyframe_indexes: number[];
     status?: string;
+    video_url?: string;
+    local_path?: string;
+    source_video_url?: string;
+    prompt_text?: string;
+    prompt_id?: string;
+    reference_images?: Array<{ label?: string; url?: string }>;
+    error_message?: string | null;
+    generated_at?: string;
   }>;
+  merged_video_url?: string;
+  merged_at?: string;
   ai_calls?: VideoAiCall[];
   validation?: Record<string, any>;
 }
@@ -280,6 +291,47 @@ export const shotsApi = {
       }
     );
     return response.json();
+  },
+
+  generateVideoDirectorClip: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    windowIndex: number,
+    options?: { use_reference_audio?: boolean; auto_merge?: boolean }
+  ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string; detail?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/clips/${windowIndex}/generate`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          use_reference_audio: options?.use_reference_audio ?? true,
+          auto_merge: options?.auto_merge ?? true,
+        }),
+      }
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || 'Clip 重新生成失败', detail: data?.detail };
+    }
+    return data;
+  },
+
+  mergeVideoDirectorClips: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string
+  ): Promise<{ success: boolean; data?: { videoUrl?: string; videoDirectorPlan?: VideoDirectorPlan; skipped?: boolean }; message?: string; detail?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/clips/merge`,
+      { method: 'POST' }
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || '重新合并失败', detail: data?.detail };
+    }
+    return data;
   },
 
   /**

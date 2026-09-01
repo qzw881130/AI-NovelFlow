@@ -46,6 +46,7 @@ export default function Settings() {
               httpsProxy: config.httpsProxy || '',
             } : DEFAULT_CONFIG.proxy,
             comfyUIHost: config.comfyUIHost || DEFAULT_CONFIG.comfyUIHost,
+            comfyUITimeout: config.comfyUITimeout || DEFAULT_CONFIG.comfyUITimeout,
             systemStatusSource: config.systemStatusSource || DEFAULT_CONFIG.systemStatusSource,
           });
         }
@@ -78,7 +79,7 @@ export default function Settings() {
       } else if (activeTab === 'proxy') {
         payload = { proxy: formData.proxy };
       } else if (activeTab === 'comfyui') {
-        payload = { comfyUIHost: formData.comfyUIHost };
+        payload = { comfyUIHost: formData.comfyUIHost, comfyUITimeout: formData.comfyUITimeout };
       } else if (activeTab === 'systemStatus') {
         payload = { systemStatusSource: formData.systemStatusSource };
       }

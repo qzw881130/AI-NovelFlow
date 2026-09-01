@@ -411,6 +411,20 @@ class ComfyUIClient:
         save_image_node_id: str = None
     ) -> Optional[Dict[str, Any]]:
         """解析 ComfyUI 输出结果"""
+        def build_media_url(media_info: Dict[str, Any]) -> str:
+            filename = media_info.get("filename")
+            subfolder = media_info.get("subfolder", "")
+            media_type = media_info.get("type", "output")
+
+            params = f"filename={filename}"
+            if subfolder:
+                params += f"&subfolder={subfolder}"
+            params += f"&type={media_type}"
+            return f"{self.base_url}/view?{params}"
+
+        def is_video_filename(filename: str) -> bool:
+            return str(filename or "").lower().split("?")[0].endswith((".mp4", ".webm", ".mov", ".mkv"))
+
         # 查找工作流中的所有 SaveImage 节点
         saveimage_nodes = set()
         if workflow:
@@ -419,23 +433,37 @@ class ComfyUIClient:
                     saveimage_nodes.add(str(node_id))
             print(f"[ComfyUI] SaveImage nodes in workflow: {saveimage_nodes}")
         
+        # 优先使用配置的保存节点。视频工作流可能同时有高清/低清 SaveVideo，遍历第一个会取错。
+        if save_image_node_id:
+            configured_output = outputs.get(str(save_image_node_id))
+            if configured_output:
+                for output_key, label in (("videos", "SaveVideo"), ("gifs", "VHS_VideoCombine")):
+                    videos = configured_output.get(output_key)
+                    if videos:
+                        video_url = build_media_url(videos[0])
+                        print(f"[ComfyUI] Found configured video ({label}) from node {save_image_node_id}: {video_url}")
+                        return {
+                            "success": True,
+                            "video_url": video_url,
+                            "message": "生成成功"
+                        }
+                images = configured_output.get("images")
+                if images and is_video_filename(images[0].get("filename", "")):
+                    video_url = build_media_url(images[0])
+                    print(f"[ComfyUI] Found configured video file from images output node {save_image_node_id}: {video_url}")
+                    return {
+                        "success": True,
+                        "video_url": video_url,
+                        "message": "生成成功"
+                    }
+
         # 优先检查视频输出（VHS_VideoCombine 输出 gifs，SaveVideo 输出 videos）
         for node_id, node_output in outputs.items():
             # 检查 videos 输出（SaveVideo 节点）
             if "videos" in node_output:
                 videos = node_output["videos"]
                 if videos:
-                    video_info = videos[0]
-                    filename = video_info.get("filename")
-                    subfolder = video_info.get("subfolder", "")
-                    video_type = video_info.get("type", "output")
-
-                    params = f"filename={filename}"
-                    if subfolder:
-                        params += f"&subfolder={subfolder}"
-                    params += f"&type={video_type}"
-
-                    video_url = f"{self.base_url}/view?{params}"
+                    video_url = build_media_url(videos[0])
                     print(f"[ComfyUI] Found video (SaveVideo) from node {node_id}: {video_url}")
 
                     return {
@@ -448,17 +476,7 @@ class ComfyUIClient:
             if "gifs" in node_output:
                 videos = node_output["gifs"]
                 if videos:
-                    video_info = videos[0]
-                    filename = video_info.get("filename")
-                    subfolder = video_info.get("subfolder", "")
-                    video_type = video_info.get("type", "output")
-
-                    params = f"filename={filename}"
-                    if subfolder:
-                        params += f"&subfolder={subfolder}"
-                    params += f"&type={video_type}"
-
-                    video_url = f"{self.base_url}/view?{params}"
+                    video_url = build_media_url(videos[0])
                     print(f"[ComfyUI] Found video (VHS_VideoCombine) from node {node_id}: {video_url}")
 
                     return {
@@ -477,7 +495,15 @@ class ComfyUIClient:
                 if images:
                     img_info = images[0]
                     filename = img_info.get("filename", "")
-                    
+                    if is_video_filename(filename):
+                        video_url = build_media_url(img_info)
+                        print(f"[ComfyUI] Found video file from images output node {node_id}: {video_url}")
+                        return {
+                            "success": True,
+                            "video_url": video_url,
+                            "message": "生成成功"
+                        }
+
                     # 跳过临时文件
                     if "temp" in filename.lower():
                         print(f"[ComfyUI] Skipping temp file from node {node_id}: {filename}")

@@ -36,6 +36,7 @@ const fetchConfigFromBackend = async () => {
           httpsProxy: data.data.httpsProxy || '',
         } : DEFAULT_CONFIG.proxy,
         comfyUIHost: data.data.comfyUIHost || DEFAULT_CONFIG.comfyUIHost,
+        comfyUITimeout: data.data.comfyUITimeout || DEFAULT_CONFIG.comfyUITimeout,
         systemStatusSource: data.data.systemStatusSource || DEFAULT_CONFIG.systemStatusSource,
       };
       console.log('[ConfigStore] Parsed config:', config);
@@ -132,6 +133,7 @@ export const useConfigStore = create<ConfigState>((set, get) => ({
         llmTemperature: get().llmTemperature,
         proxy: get().proxy,
         comfyUIHost: get().comfyUIHost,
+        comfyUITimeout: get().comfyUITimeout,
         systemStatusSource: get().systemStatusSource,
       };
     }

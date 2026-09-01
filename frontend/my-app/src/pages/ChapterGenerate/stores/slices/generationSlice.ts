@@ -930,6 +930,10 @@ export const createGenerationSlice: StateCreator<
                 if (terminalShotIds.has(shot.id)) {
                   nextGeneratingVideos.delete(shot.id);
                 }
+                const task = taskMap[shot.id];
+                if (task?.status === 'failed') {
+                  return { ...shot, ...refreshed, videoStatus: 'failed' as const };
+                }
                 return { ...shot, ...refreshed };
               });
 

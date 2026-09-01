@@ -185,6 +185,13 @@ class GenerateVideoRequest(BaseModel):
     selected_mode: Optional[VideoMode] = Field(None, description="视频导演选择的生成模式")
 
 
+class GenerateVideoDirectorClipRequest(BaseModel):
+    """重新生成单个 Video Director Clip 请求"""
+
+    use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
+    auto_merge: bool = Field(True, description="Clip 生成成功后是否自动重新合并 Shot 视频")
+
+
 class SaveVideoDirectorPlanRequest(BaseModel):
     """保存视频导演规划请求"""
 

@@ -26,6 +26,7 @@ export const DEFAULT_CONFIG: SystemConfig = {
   llmTimeout: 1800,
   proxy: DEFAULT_PROXY,
   comfyUIHost: 'http://127.0.0.1:8188',
+  comfyUITimeout: 900,
   systemStatusSource: 'comfyui',
   outputResolution: '1920x1080',
   outputFrameRate: 24,

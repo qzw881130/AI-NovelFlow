@@ -366,6 +366,13 @@ export function ShotImageGenTab({
             <textarea
               value={currentPromptText}
               onChange={(e) => setShotImagePrompts(prev => ({ ...prev, [currentShotId]: e.target.value }))}
+              onKeyDown={(event) => {
+                if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  handleSaveShot();
+                }
+              }}
               disabled={!currentShotId || isGeneratingCurrent}
               rows={5}
               className="input-field text-sm leading-relaxed"

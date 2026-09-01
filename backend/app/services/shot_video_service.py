@@ -28,15 +28,67 @@ def _filter_transitions_for_keyframe_indexes(transitions: list, keyframe_indexes
     ]
 
 
-def _update_window_plan_status(shot, window_index: int, status: str, db) -> None:
+def _update_window_plan(shot, window_index: int, fields: dict, db) -> None:
     plan = safe_json_dict(shot.video_director_plan)
     window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
     for window_plan in window_plans:
         if isinstance(window_plan, dict) and int(window_plan.get("window_index") or 0) == int(window_index):
-            window_plan["status"] = status
+            window_plan.update(fields)
             break
     shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
     db.commit()
+
+
+def _update_window_plan_status(shot, window_index: int, status: str, db) -> None:
+    _update_window_plan(shot, window_index, {"status": status}, db)
+
+
+def _local_url_from_path(path: str) -> str:
+    relative_path = path.replace(str(file_storage.base_dir), "").replace("\\", "/")
+    return f"/api/files/{relative_path.lstrip('/')}"
+
+
+def _parse_iso_datetime(value: str):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
+    except Exception:
+        return None
+
+
+def _hydrate_plan_keyframes_from_legacy(shot, plan_keyframes: list) -> list:
+    try:
+        legacy_keyframes = json.loads(shot.keyframes) if shot.keyframes else []
+    except Exception:
+        legacy_keyframes = []
+    legacy_by_plan_index = {
+        int(keyframe.get("plan_keyframe_index")): keyframe
+        for keyframe in legacy_keyframes
+        if isinstance(keyframe, dict) and keyframe.get("plan_keyframe_index") is not None
+    }
+    hydrated = []
+    changed = False
+    for keyframe in plan_keyframes:
+        if not isinstance(keyframe, dict):
+            continue
+        next_keyframe = dict(keyframe)
+        plan_index = next_keyframe.get("index")
+        try:
+            legacy_keyframe = legacy_by_plan_index.get(int(plan_index)) if plan_index is not None else None
+        except Exception:
+            legacy_keyframe = None
+        if legacy_keyframe:
+            for field in ("image_url", "image_task_id"):
+                if not next_keyframe.get(field) and legacy_keyframe.get(field):
+                    next_keyframe[field] = legacy_keyframe.get(field)
+                    changed = True
+        hydrated.append(next_keyframe)
+    if changed:
+        plan = safe_json_dict(shot.video_director_plan)
+        plan["keyframes"] = hydrated
+        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+    return hydrated
 
 
 def enqueue_shot_video_task(
@@ -49,6 +101,8 @@ def enqueue_shot_video_task(
     use_keyframes: bool = True,
     use_reference_audio: bool = True,
     selected_mode: str = "SINGLE_FRAME",
+    only_window_index: int | None = None,
+    auto_merge_clips: bool = False,
 ) -> None:
     """Queue shot video generation in its dedicated serial worker."""
     worker_manager.worker("shot_video").enqueue(
@@ -62,6 +116,8 @@ def enqueue_shot_video_task(
             use_keyframes=use_keyframes,
             use_reference_audio=use_reference_audio,
             selected_mode=selected_mode,
+            only_window_index=only_window_index,
+            auto_merge_clips=auto_merge_clips,
         )
     )
 
@@ -76,6 +132,8 @@ async def generate_shot_video_task(
     use_keyframes: bool = True,
     use_reference_audio: bool = True,
     selected_mode: str = "SINGLE_FRAME",
+    only_window_index: int | None = None,
+    auto_merge_clips: bool = False,
 ):
     """
     后台任务：生成分镜视频
@@ -233,6 +291,10 @@ async def generate_shot_video_task(
         # 获取关键帧图片路径。FIRST_LAST/MULTI 使用 Video Director Plan，不再使用旧的 shot.keyframes 间隔模型。
         keyframe_paths = []
         plan_keyframes = video_director_plan.get("keyframes") if isinstance(video_director_plan.get("keyframes"), list) else []
+        plan_keyframes = _hydrate_plan_keyframes_from_legacy(shot, plan_keyframes)
+        if plan_keyframes is not video_director_plan.get("keyframes"):
+            video_director_plan["keyframes"] = plan_keyframes
+            db.commit()
         plan_keyframes_by_index = {
             int(kf.get("index")): kf
             for kf in plan_keyframes
@@ -263,6 +325,8 @@ async def generate_shot_video_task(
                 prop_appearances=prop_appearances,
                 reference_audio_path=reference_audio_path,
                 task_id=task_id,
+                only_window_index=only_window_index,
+                auto_merge_clips=auto_merge_clips,
             )
             return
 
@@ -322,11 +386,12 @@ async def generate_shot_video_task(
         if character_reference_path:
             shot_image_reference_url = local_path_to_url(character_reference_path)
             if shot_image_reference_url:
-                reference_images.append({"label": "分镜图", "url": shot_image_reference_url})
+                reference_images.append({"label": "首帧" if selected_mode == "FIRST_LAST_FRAME" else "分镜图", "url": shot_image_reference_url})
         for idx, keyframe_path in enumerate(keyframe_paths, 1):
             keyframe_url = local_path_to_url(keyframe_path)
             if keyframe_url:
-                reference_images.append({"label": f"关键帧 {idx}", "url": keyframe_url})
+                label = "尾帧" if selected_mode == "FIRST_LAST_FRAME" and idx == 1 else f"关键帧 {idx}"
+                reference_images.append({"label": label, "url": keyframe_url})
         task.reference_images = json.dumps(reference_images, ensure_ascii=False) if reference_images else None
 
         extension = safe_json_dict(workflow.extension)
@@ -484,23 +549,25 @@ async def _generate_multi_clip_video_task(
     prop_appearances: dict,
     reference_audio_path: str,
     task_id: str,
+    only_window_index: int | None = None,
+    auto_merge_clips: bool = False,
 ):
     fps = 25
     clip_video_paths = []
     comfyui_service = ComfyUIService()
     transitions_for_prompt = video_director_plan.get("transitions") if isinstance(video_director_plan.get("transitions"), list) else []
     clip_dialogues = safe_json_list(shot.dialogues)
-
-    def local_url_from_path(path: str) -> str:
-        relative_path = path.replace(str(file_storage.base_dir), "").replace("\\", "/")
-        return f"/api/files/{relative_path.lstrip('/')}"
+    generated_any = False
 
     for clip_position, window_plan in enumerate(window_plans, 1):
+        window_index = int(window_plan.get("window_index") or clip_position)
+        if only_window_index is not None and window_index != int(only_window_index):
+            continue
         frame_count_setting = int(window_plan.get("selected_frame_count") or 0)
         workflow_type = "three_frame_video" if frame_count_setting == 3 else "four_frame_video"
         workflow = db.query(Workflow).filter(Workflow.type == workflow_type, Workflow.is_active == True).first()
         if not workflow:
-            _update_window_plan_status(shot, int(window_plan.get("window_index") or clip_position), "FAILED", db)
+            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": f"未配置 {workflow_type} 视频生成工作流"}, db)
             task.status = "failed"
             task.error_message = f"未配置 {workflow_type} 视频生成工作流"
             task.current_step = "缺少视频工作流"
@@ -517,9 +584,9 @@ async def _generate_multi_clip_video_task(
             start_image_url = start_keyframe.get("image_url") if start_keyframe else None
             start_image_path = url_to_local_path(start_image_url) if start_image_url else None
         if not start_image_path:
-            _update_window_plan_status(shot, int(window_plan.get("window_index") or clip_position), "FAILED", db)
+            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": f"Clip {window_index} 缺少起始关键帧图片"}, db)
             task.status = "failed"
-            task.error_message = f"Clip {window_plan.get('window_index')} 缺少起始关键帧图片"
+            task.error_message = f"Clip {window_index} 缺少起始关键帧图片"
             task.current_step = "缺少关键帧图片"
             shot_repo.update(shot, video_status="failed")
             db.commit()
@@ -531,18 +598,18 @@ async def _generate_multi_clip_video_task(
             image_url = keyframe.get("image_url") if keyframe else None
             keyframe_path = url_to_local_path(image_url) if image_url else None
             if not keyframe_path:
-                _update_window_plan_status(shot, int(window_plan.get("window_index") or clip_position), "FAILED", db)
+                _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": f"Clip {window_index} 缺少 Keyframe {keyframe_index} 图片"}, db)
                 task.status = "failed"
-                task.error_message = f"Clip {window_plan.get('window_index')} 缺少 Keyframe {keyframe_index} 图片"
+                task.error_message = f"Clip {window_index} 缺少 Keyframe {keyframe_index} 图片"
                 task.current_step = "缺少关键帧图片"
                 shot_repo.update(shot, video_status="failed")
                 db.commit()
                 return
             keyframe_paths.append(keyframe_path)
 
-        reference_images = [{"label": "起始帧", "url": start_image_url}]
-        for idx, keyframe_path in enumerate(keyframe_paths, 1):
-            reference_images.append({"label": f"关键帧 {idx}", "url": local_url_from_path(keyframe_path)})
+        reference_images = [{"label": f"C{window_index} · KF{keyframe_indexes[0]}", "url": start_image_url}]
+        for offset, keyframe_path in enumerate(keyframe_paths, 1):
+            reference_images.append({"label": f"C{window_index} · KF{keyframe_indexes[offset]}", "url": _local_url_from_path(keyframe_path)})
 
         extension = safe_json_dict(workflow.extension)
         workflow_capability = {
@@ -551,7 +618,7 @@ async def _generate_multi_clip_video_task(
             "workflow_name": workflow.name,
         }
         clip = {
-            "clip_index": window_plan.get("window_index") or clip_position,
+            "clip_index": window_index,
             "start_time": window_plan.get("start_time") or 0,
             "end_time": window_plan.get("end_time") or 0,
             "selected_frame_count": frame_count_setting,
@@ -568,7 +635,14 @@ async def _generate_multi_clip_video_task(
 
         task.current_step = f"正在构建 Clip {clip_position}/{len(window_plans)} H3 提示词..."
         task.progress = int(10 + ((clip_position - 1) / len(window_plans)) * 70)
-        _update_window_plan_status(shot, int(window_plan.get("window_index") or clip_position), "PROMPT_BUILDING", db)
+        task.reference_images = json.dumps(reference_images, ensure_ascii=False)
+        _update_window_plan(shot, window_index, {
+            "status": "PROMPT_BUILDING",
+            "workflow_type": workflow_type,
+            "workflow_name": workflow.name,
+            "reference_images": reference_images,
+            "error_message": None,
+        }, db)
         db.commit()
         clip_prompt = await build_h3_video_prompt(
             db=db,
@@ -585,6 +659,8 @@ async def _generate_multi_clip_video_task(
             clip_dialogues=clip_dialogues,
             reference_images=reference_images,
         )
+        task.prompt_text = clip_prompt
+        _update_window_plan(shot, window_index, {"prompt_text": clip_prompt}, db)
 
         clip_duration = max(1, float(clip["end_time"]) - float(clip["start_time"]))
         raw_frame_count = int(fps * clip_duration)
@@ -593,12 +669,12 @@ async def _generate_multi_clip_video_task(
 
         def save_prompt_id(prompt_id: str):
             task.comfyui_prompt_id = prompt_id
-            _update_window_plan_status(shot, int(window_plan.get("window_index") or clip_position), "QUEUED", db)
+            _update_window_plan(shot, window_index, {"status": "QUEUED", "prompt_id": prompt_id}, db)
             db.commit()
             print(f"[VideoTask {task_id}] Clip {clip_position} ComfyUI prompt_id: {prompt_id}")
 
         task.current_step = f"正在生成 Clip {clip_position}/{len(window_plans)}..."
-        _update_window_plan_status(shot, int(window_plan.get("window_index") or clip_position), "RUNNING", db)
+        _update_window_plan_status(shot, window_index, "RUNNING", db)
         db.commit()
         result = await comfyui_service.generate_shot_video_with_workflow(
             prompt=clip_prompt,
@@ -618,12 +694,13 @@ async def _generate_multi_clip_video_task(
         )
         if result.get("submitted_workflow"):
             task.workflow_json = json.dumps(result["submitted_workflow"], ensure_ascii=False, indent=2)
+            _update_window_plan(shot, window_index, {"workflow_json": result["submitted_workflow"]}, db)
             db.commit()
         if not result.get("success") or not result.get("video_url"):
             task.status = "failed"
             task.error_message = result.get("message") or "Clip 生成失败"
             task.current_step = f"Clip {clip_position} 生成失败"
-            _update_window_plan_status(shot, int(window_plan.get("window_index") or clip_position), "FAILED", db)
+            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": task.error_message}, db)
             shot_repo.update(shot, video_status="failed")
             db.commit()
             return
@@ -640,12 +717,45 @@ async def _generate_multi_clip_video_task(
             task.status = "failed"
             task.error_message = f"Clip {clip_position} 下载失败"
             task.current_step = "下载失败"
-            _update_window_plan_status(shot, int(window_plan.get("window_index") or clip_position), "FAILED", db)
+            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": task.error_message}, db)
             shot_repo.update(shot, video_status="failed")
             db.commit()
             return
         clip_video_paths.append(local_path)
-        _update_window_plan_status(shot, int(window_plan.get("window_index") or clip_position), "SUCCEEDED", db)
+        generated_any = True
+        _update_window_plan(shot, window_index, {
+            "status": "SUCCEEDED",
+            "video_url": _local_url_from_path(local_path),
+            "local_path": local_path,
+            "source_video_url": result.get("video_url"),
+            "error_message": None,
+            "generated_at": datetime.utcnow().isoformat(),
+        }, db)
+
+    if only_window_index is not None:
+        if not generated_any:
+            task.status = "failed"
+            task.error_message = f"未找到 Clip {only_window_index}"
+            task.current_step = "执行计划无效"
+            shot_repo.update(shot, video_status="failed")
+            db.commit()
+            return
+        if auto_merge_clips:
+            merge_result = await merge_video_director_clip_videos(db, shot, shot_repo, novel_id, chapter_id, shot_index)
+            if not merge_result.get("success"):
+                task.status = "failed"
+                task.error_message = merge_result.get("message") or "多 Clip 拼接失败"
+                task.current_step = "拼接失败"
+                shot_repo.update(shot, video_status="failed")
+                db.commit()
+                return
+            task.result_url = merge_result.get("video_url")
+        task.status = "completed"
+        task.progress = 100
+        task.current_step = "生成完成"
+        task.completed_at = datetime.utcnow()
+        db.commit()
+        return
 
     task.current_step = "正在拼接多 Clip 视频..."
     task.progress = 85
@@ -665,8 +775,11 @@ async def _generate_multi_clip_video_task(
         db.commit()
         return
 
-    relative_path = output_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
-    local_url = f"/api/files/{relative_path.lstrip('/')}"
+    local_url = _local_url_from_path(output_path)
+    plan = safe_json_dict(shot.video_director_plan)
+    plan["merged_video_url"] = local_url
+    plan["merged_at"] = datetime.utcnow().isoformat()
+    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
     shot_repo.update(shot, video_url=local_url, video_status="completed")
     task.status = "completed"
     task.progress = 100
@@ -674,6 +787,55 @@ async def _generate_multi_clip_video_task(
     task.current_step = "生成完成"
     task.completed_at = datetime.utcnow()
     db.commit()
+
+
+async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, novel_id: str, chapter_id: str, shot_index: int) -> dict:
+    plan = safe_json_dict(shot.video_director_plan)
+    window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+    if not window_plans:
+        return {"success": False, "message": "缺少 Clip 执行计划"}
+
+    clip_video_paths = []
+    missing_clips = []
+    for position, window_plan in enumerate(sorted(window_plans, key=lambda item: int(item.get("window_index") or 0)), 1):
+        window_index = int(window_plan.get("window_index") or position)
+        local_path = window_plan.get("local_path")
+        if not local_path and window_plan.get("video_url"):
+            local_path = url_to_local_path(window_plan.get("video_url"))
+        if not local_path:
+            missing_clips.append(f"C{window_index}")
+            continue
+        clip_video_paths.append(local_path)
+
+    if missing_clips:
+        return {"success": False, "message": f"缺少 Clip 视频：{', '.join(missing_clips)}"}
+
+    merged_at = _parse_iso_datetime(plan.get("merged_at"))
+    latest_clip_generated_at = max(
+        (_parse_iso_datetime(window_plan.get("generated_at")) for window_plan in window_plans if isinstance(window_plan, dict)),
+        default=None,
+    )
+    existing_video_url = plan.get("merged_video_url") or shot.video_url
+    if existing_video_url and merged_at and (not latest_clip_generated_at or latest_clip_generated_at <= merged_at):
+        return {"success": True, "video_url": existing_video_url, "plan": plan, "skipped": True}
+
+    story_dir = file_storage._get_story_dir(novel_id)
+    chapter_short = chapter_id[:8] if chapter_id else "unknown"
+    output_dir = story_dir / f"chapter_{chapter_short}" / "videos"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = str(output_dir / f"shot_{shot_index:03d}_{timestamp}.mp4")
+    merge_result = await file_storage.merge_videos(clip_video_paths, output_path)
+    if not merge_result.get("success"):
+        return merge_result
+
+    local_url = _local_url_from_path(output_path)
+    plan["merged_video_url"] = local_url
+    plan["merged_at"] = datetime.utcnow().isoformat()
+    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+    shot_repo.update(shot, video_url=local_url, video_status="completed")
+    db.commit()
+    return {"success": True, "video_url": local_url, "plan": plan}
 
 
 async def _save_generated_video(

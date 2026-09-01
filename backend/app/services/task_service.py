@@ -11,6 +11,7 @@ from typing import Dict, Any, Tuple
 from sqlalchemy.orm import Session
 
 from app.core.database import SessionLocal
+from app.core.config import get_settings
 from app.utils.time_utils import format_datetime
 from app.models.task import Task
 from app.models.novel import Novel
@@ -429,6 +430,11 @@ class TaskService:
                 video_task_id=task.id,
             )
 
+            try:
+                video_director_plan = json.loads(shot.video_director_plan) if shot.video_director_plan else {}
+            except Exception:
+                video_director_plan = {}
+
             enqueue_shot_video_task(
                 task.id,
                 task.novel_id,
@@ -436,6 +442,7 @@ class TaskService:
                 shot.index,
                 task.workflow_id,
                 shot.image_url or "",
+                selected_mode=video_director_plan.get("selected_mode") or "SINGLE_FRAME",
             )
             restarted = True
 
@@ -468,6 +475,7 @@ class TaskService:
 
         queue_info = await self.comfyui_service.get_queue_info()
         now = datetime.utcnow()
+        comfyui_timeout = int(getattr(get_settings(), "COMFYUI_TIMEOUT", 900) or 900)
         updated_count = 0
 
         def task_age_seconds(task: Task) -> float:
@@ -480,6 +488,13 @@ class TaskService:
 
         for task in active_tasks:
             age_seconds = task_age_seconds(task)
+            def mark_related_shot_failed() -> None:
+                if task.type != "shot_video" or not task.shot_id:
+                    return
+                shot = ShotRepository(db).get_by_id(task.shot_id)
+                if shot:
+                    ShotRepository(db).update(shot, video_status="failed")
+
             if task.comfyui_prompt_id:
                 prompt_state = await self.comfyui_service.client.get_prompt_state(
                     task.comfyui_prompt_id,
@@ -493,6 +508,7 @@ class TaskService:
                     task.status = "failed"
                     task.error_message = prompt_state.get("message") or "ComfyUI 执行失败"
                     task.current_step = "生成失败"
+                    mark_related_shot_failed()
                     updated_count += 1
                     continue
 
@@ -500,13 +516,15 @@ class TaskService:
                     task.status = "failed"
                     task.error_message = "ComfyUI 队列和 history 中均找不到该任务，可能已被清理、取消或 ComfyUI 异常退出"
                     task.current_step = "任务异常"
+                    mark_related_shot_failed()
                     updated_count += 1
                     continue
 
-                if state == "completed" and age_seconds > 60 and task.current_step and "ComfyUI" in task.current_step:
+                if state == "completed" and age_seconds > comfyui_timeout and task.current_step and "ComfyUI" in task.current_step:
                     task.status = "failed"
                     task.error_message = "ComfyUI 已完成该任务，但后端未保存结果，可能是输出节点映射错误或后台任务中断"
                     task.current_step = "任务异常"
+                    mark_related_shot_failed()
                     updated_count += 1
                     continue
 
@@ -515,6 +533,7 @@ class TaskService:
                     task.status = "failed"
                     task.error_message = "任务停留在 ComfyUI 调用阶段超过 10 分钟且未保存 prompt_id，可能是旧后台任务已中断"
                     task.current_step = "任务异常"
+                    mark_related_shot_failed()
                     updated_count += 1
 
         if updated_count:

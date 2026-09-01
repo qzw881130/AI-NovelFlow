@@ -24,7 +24,7 @@ from app.services.novel_service import (
     generate_transition_video_task,
 )
 from app.services.shot_image_service import enqueue_shot_image_task
-from app.services.shot_video_service import enqueue_shot_video_task
+from app.services.shot_video_service import enqueue_shot_video_task, merge_video_director_clip_videos
 from app.repositories.shot_repository import ShotRepository
 from app.services.task_service import TaskService
 from app.repositories import (
@@ -51,6 +51,7 @@ from app.schemas.shot import (
     GenerateKeyframeDescriptionsRequest,
     GenerateShotImageRequest,
     GenerateVideoRequest,
+    GenerateVideoDirectorClipRequest,
     RecommendVideoModeRequest,
     PlanVideoKeyframesRequest,
     SaveVideoDirectorPlanRequest,
@@ -596,6 +597,36 @@ def _build_execution_windows(duration: int, max_clip_duration: int) -> list:
     ]
 
 
+def _build_first_last_clip_plan(duration: int) -> list:
+    return [{
+        "clip_index": 1,
+        "start_time": 0,
+        "end_time": duration,
+        "frame_count": 2,
+        "selected_frame_count": 2,
+        "workflow_key": "MINIMAX_H3_FIRST_LAST_FRAME",
+        "workflow_type": "first_last_video",
+        "keyframe_indexes": [1, 2],
+        "status": "PENDING",
+    }]
+
+
+def _build_legacy_keyframes_from_plan(shot, keyframes: list) -> list:
+    return [
+        {
+            "frame_index": position,
+            "plan_keyframe_index": keyframe.get("index"),
+            "time_seconds": keyframe.get("time_seconds"),
+            "description": keyframe.get("description") or shot.description or "",
+            "image_url": keyframe.get("image_url"),
+            "image_task_id": keyframe.get("image_task_id"),
+            "reference_image_url": None,
+            "reference_mode": "auto_select",
+        }
+        for position, keyframe in enumerate([keyframe for keyframe in keyframes if keyframe.get("role") != "START"])
+    ]
+
+
 def _build_minimal_keyframes(shot, mode: str, max_clip_duration: int) -> list:
     duration = shot.duration or 4
     if mode == "SINGLE_FRAME":
@@ -689,6 +720,7 @@ def _get_keyframe_planner_template(novel: Novel, template_repo: PromptTemplateRe
 
 
 def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: dict) -> str:
+    selected_mode = plan.get("selected_mode") or "MULTI_KEYFRAME"
     payload = {
         "shot": {
             "id": shot.id,
@@ -702,17 +734,18 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
             "continuity_mode": shot.continuity_mode or "NORMAL",
             "dialogues": _safe_json_list(shot.dialogues),
         },
-        "selected_mode": plan.get("selected_mode") or "MULTI_KEYFRAME",
+        "selected_mode": selected_mode,
         "execution_windows": plan.get("execution_windows") or [],
         "workflow_capability": strip_media_refs(workflow_capability),
         "existing_keyframes": strip_media_refs(plan.get("keyframes") or []),
         "requirements": {
             "output_top_level_keys": ["validation", "keyframes", "window_plans"],
-            "window_plan_rule": "每个 execution_window 必须对应一个 window_plan，且 selected_frame_count 只能为 3 或 4。",
+            "first_last_rule": "FIRST_LAST_FRAME 只输出 KF1 START 与 KF2 END；window_plans 必须为空数组。",
+            "window_plan_rule": "MULTI_KEYFRAME 每个 execution_window 必须对应一个 window_plan，且 selected_frame_count 只能为 3 或 4。",
             "shared_boundary_rule": "相邻 window 共享边界 Keyframe。",
         },
     }
-    return "请基于以下正式保存的 Shot 与执行窗口，规划多关键帧时间轴。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+    return "请基于以下正式保存的 Shot 与执行窗口，规划视频关键帧时间轴。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
 
 
 def _parse_keyframe_planner_content(content: str) -> dict:
@@ -963,7 +996,11 @@ async def recommend_video_mode(
     max_clip_duration = workflow_capability["max_clip_duration"]
     parsed_result = {"recommended_mode": selected_mode}
     execution_windows = _build_execution_windows(duration, max_clip_duration) if selected_mode == "MULTI_KEYFRAME" else []
-    clips = [] if selected_mode == "MULTI_KEYFRAME" else _build_clip_plan(duration, max_clip_duration)
+    if selected_mode == "FIRST_LAST_FRAME":
+        clips = _build_first_last_clip_plan(duration)
+    else:
+        clips = [] if selected_mode == "MULTI_KEYFRAME" else _build_clip_plan(duration, max_clip_duration)
+    keyframes = _build_minimal_keyframes(shot, selected_mode, max_clip_duration)
     plan = _merge_video_director_plan(shot, {
         "selected_mode": selected_mode,
         "recommended_mode": selected_mode,
@@ -974,7 +1011,7 @@ async def recommend_video_mode(
         "notice": f"V1: {duration}s > {max_clip_duration}s，FIRST_LAST_FRAME 不可执行；请使用多关键帧" if duration > max_clip_duration else "",
         "execution_windows": execution_windows,
         "clips": clips,
-        "keyframes": _build_minimal_keyframes(shot, selected_mode, max_clip_duration),
+        "keyframes": keyframes,
         "window_plans": [],
     })
     shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
@@ -987,7 +1024,10 @@ async def recommend_video_mode(
         "response": result.get("content") or "",
         "parsed_result": parsed_result,
     })
-    shot_repo.update(shot, video_director_plan=plan)
+    updates = {"video_director_plan": plan}
+    if selected_mode == "FIRST_LAST_FRAME":
+        updates["keyframes"] = _build_legacy_keyframes_from_plan(shot, keyframes)
+    shot_repo.update(shot, **updates)
     return {"success": True, "data": plan}
 
 
@@ -1020,21 +1060,31 @@ async def plan_video_keyframes(
 
     plan = _safe_json_dict(shot.video_director_plan)
     selected_mode = plan.get("selected_mode") or plan.get("recommended_mode")
-    if selected_mode != "MULTI_KEYFRAME":
-        raise HTTPException(status_code=400, detail="只有多关键帧模式需要 #08 关键帧时间轴规划。")
-    if plan.get("window_plans") and not request.force:
+    if selected_mode not in {"FIRST_LAST_FRAME", "MULTI_KEYFRAME"}:
+        raise HTTPException(status_code=400, detail="当前模式不需要 #08 关键帧时间轴规划。")
+    if selected_mode == "MULTI_KEYFRAME" and plan.get("window_plans") and not request.force:
+        return {"success": True, "data": plan}
+    if selected_mode == "FIRST_LAST_FRAME" and plan.get("keyframes") and plan.get("transitions") and not request.force:
         return {"success": True, "data": plan}
 
     workflow = workflow_repo.get_active_by_type("video")
     workflow_capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else _get_video_workflow_capability(workflow)
     max_clip_duration = int(workflow_capability.get("max_clip_duration") or 15)
     duration = shot.duration or 4
+    if selected_mode == "FIRST_LAST_FRAME" and duration > max_clip_duration:
+        raise HTTPException(status_code=400, detail=f"当前 Workflow 单次最大 {max_clip_duration}s，本 Shot {duration}s，请使用多关键帧。")
     execution_windows = plan.get("execution_windows") if isinstance(plan.get("execution_windows"), list) else []
-    if not execution_windows:
+    if selected_mode == "FIRST_LAST_FRAME":
+        execution_windows = []
+        plan["execution_windows"] = []
+        plan["window_plans"] = []
+        plan["clips"] = _build_first_last_clip_plan(duration)
+    elif not execution_windows:
         execution_windows = _build_execution_windows(duration, max_clip_duration)
         plan["execution_windows"] = execution_windows
     plan["workflow_capability"] = workflow_capability
-    plan["clips"] = []
+    if selected_mode == "MULTI_KEYFRAME":
+        plan["clips"] = []
 
     template = _get_keyframe_planner_template(novel, template_repo)
     user_content = _build_keyframe_planner_user_content(shot, plan, workflow_capability)
@@ -1078,11 +1128,12 @@ async def plan_video_keyframes(
         raise HTTPException(status_code=400, detail=f"#08 返回格式无效：{exc}")
 
     plan.update({
-        "selected_mode": "MULTI_KEYFRAME",
-        "recommended_label": VIDEO_MODE_LABELS["MULTI_KEYFRAME"],
+        "selected_mode": selected_mode,
+        "recommended_label": VIDEO_MODE_LABELS[selected_mode],
         "keyframes": keyframes,
         "transitions": [],
-        "window_plans": window_plans,
+        "window_plans": [] if selected_mode == "FIRST_LAST_FRAME" else window_plans,
+        "clips": _build_first_last_clip_plan(duration) if selected_mode == "FIRST_LAST_FRAME" else [],
         "validation": validation,
     })
     legacy_keyframes = [
@@ -1104,7 +1155,7 @@ async def plan_video_keyframes(
         "task_type": "keyframe_planner",
         "prompt_template_name": template.name,
         "status": "success",
-        "input_summary": f"Shot {shot.index} · {len(execution_windows)} execution windows",
+        "input_summary": f"Shot {shot.index} · {selected_mode} · {len(execution_windows)} execution windows",
         "response": result.get("content") or "",
         "parsed_result": {"keyframes": keyframes, "window_plans": window_plans, "validation": validation},
     })
@@ -1156,10 +1207,128 @@ async def save_video_director_plan(
             if not plan.get("window_plans"):
                 plan["window_plans"] = []
             plan["clips"] = []
+        elif updates["selected_mode"] == "FIRST_LAST_FRAME":
+            plan["execution_windows"] = []
+            plan["window_plans"] = []
+            plan["clips"] = _build_first_last_clip_plan(duration)
         if updates["selected_mode"] in {"FIRST_LAST_FRAME", "MULTI_KEYFRAME"} and not plan.get("keyframes"):
             plan["keyframes"] = _build_minimal_keyframes(shot, updates["selected_mode"], max_clip_duration)
-    shot_repo.update(shot, video_director_plan=plan)
+    repo_updates = {"video_director_plan": plan}
+    if updates.get("selected_mode") == "FIRST_LAST_FRAME":
+        repo_updates["keyframes"] = _build_legacy_keyframes_from_plan(shot, plan.get("keyframes") or [])
+    shot_repo.update(shot, **repo_updates)
     return {"success": True, "data": plan}
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/video-director/clips/{window_index}/generate",
+    response_model=dict,
+)
+async def generate_video_director_clip(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    window_index: int,
+    request: GenerateVideoDirectorClipRequest = GenerateVideoDirectorClipRequest(),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    task_repo: TaskRepository = Depends(get_task_repo),
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+    if not shot.image_url:
+        raise HTTPException(status_code=400, detail="该分镜尚未生成图片，请先生成分镜图片")
+
+    plan = _safe_json_dict(shot.video_director_plan)
+    valid_plan, plan_error, _ = _validate_multi_keyframe_plan_for_execution(shot, plan)
+    if not valid_plan:
+        raise HTTPException(status_code=400, detail=plan_error)
+    window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+    window_plan = next((item for item in window_plans if isinstance(item, dict) and int(item.get("window_index") or 0) == int(window_index)), None)
+    if not window_plan:
+        raise HTTPException(status_code=404, detail=f"Clip {window_index} 不存在")
+
+    frame_count = int(window_plan.get("selected_frame_count") or 0)
+    workflow_type = "three_frame_video" if frame_count == 3 else "four_frame_video"
+    workflow = workflow_repo.get_active_by_type(workflow_type)
+    if not workflow:
+        raise HTTPException(status_code=400, detail=f"未配置 {workflow_type} 视频生成工作流，请在系统设置中配置")
+    is_valid, error_msg = TaskService.validate_workflow_node_mapping(workflow, workflow_type)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+
+    existing_task = task_repo.get_active_shot_task(novel_id, chapter_id, shot.index, "shot_video")
+    if existing_task:
+        return {
+            "success": True,
+            "message": "已有进行中的视频生成任务",
+            "data": {"taskId": existing_task.id, "status": existing_task.status},
+        }
+
+    task = task_repo.create_shot_video_task(
+        novel_id=novel_id,
+        chapter_id=chapter_id,
+        shot_index=shot.index,
+        shot_duration=shot.duration or 4,
+        chapter_title=chapter.title,
+        workflow_id=workflow.id,
+        workflow_name=workflow.name,
+        shot_id=shot_id,
+    )
+    task.name = f"重新生成视频 Clip: 镜{shot.index} · C{window_index}"
+    task.description = f"为章节 '{chapter.title}' 的分镜 {shot.index} 重新生成 Clip {window_index}"
+    db = shot_repo.db
+    if request.auto_merge:
+        shot_repo.update_video_status(shot, "generating", task_id=task.id)
+    db.commit()
+
+    enqueue_shot_video_task(
+        task.id,
+        novel_id,
+        chapter_id,
+        shot.index,
+        workflow.id,
+        shot.image_url,
+        use_keyframes=True,
+        use_reference_audio=request.use_reference_audio,
+        selected_mode="MULTI_KEYFRAME",
+        only_window_index=window_index,
+        auto_merge_clips=request.auto_merge,
+    )
+    return {"success": True, "message": "Clip 重新生成任务已创建", "data": {"taskId": task.id, "status": "pending"}}
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/video-director/clips/merge",
+    response_model=dict,
+)
+async def merge_video_director_clips(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    result = await merge_video_director_clip_videos(shot_repo.db, shot, shot_repo, novel_id, chapter_id, shot.index)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message") or "多 Clip 拼接失败")
+    return {"success": True, "data": {"videoUrl": result.get("video_url"), "videoDirectorPlan": result.get("plan"), "skipped": result.get("skipped", False)}}
 
 
 
@@ -2690,6 +2859,23 @@ async def generate_keyframe_image(
 
     if shot.chapter_id != chapter_id:
         raise HTTPException(status_code=400, detail="分镜不属于该章节")
+
+    existing_keyframes = _safe_json_list(shot.keyframes)
+    plan = _safe_json_dict(shot.video_director_plan)
+    plan_keyframes = plan.get("keyframes") if isinstance(plan.get("keyframes"), list) else []
+    end_plan_keyframe = next(
+        (keyframe for keyframe in plan_keyframes if isinstance(keyframe, dict) and keyframe.get("role") == "END"),
+        None,
+    )
+    has_end_legacy_keyframe = any(
+        isinstance(keyframe, dict)
+        and end_plan_keyframe
+        and int(keyframe.get("plan_keyframe_index") or -1) == int(end_plan_keyframe.get("index") or -2)
+        for keyframe in existing_keyframes
+    )
+    if end_plan_keyframe and not has_end_legacy_keyframe:
+        shot_repo.update(shot, keyframes=_build_legacy_keyframes_from_plan(shot, plan_keyframes))
+        db.commit()
 
     keyframe_service = ShotKeyframeService()
     success, task_id, message = await keyframe_service.generate_keyframe_image(
