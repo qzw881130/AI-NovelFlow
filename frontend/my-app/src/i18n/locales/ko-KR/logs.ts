@@ -25,6 +25,7 @@ export default {
     actions: '작업',
     llmProvider: 'LLM 제공자',
     model: '모델',
+    category: '분류',
     taskType: '작업 타입',
     all: '전체',
     applyFilter: '필터 적용',

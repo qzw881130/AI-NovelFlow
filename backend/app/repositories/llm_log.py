@@ -60,6 +60,7 @@ class LLMLogRepository:
         provider: Optional[str] = None,
         model: Optional[str] = None,
         task_type: Optional[str] = None,
+        task_types: Optional[List[str]] = None,
         status: Optional[str] = None,
         novel_id: Optional[str] = None
     ) -> tuple[List[Any], int]:
@@ -72,6 +73,8 @@ class LLMLogRepository:
             query = query.filter(LLMLog.model == model)
         if task_type:
             query = query.filter(LLMLog.task_type == task_type)
+        elif task_types:
+            query = query.filter(LLMLog.task_type.in_(task_types))
         if status:
             query = query.filter(LLMLog.status == status)
         if novel_id:

@@ -97,7 +97,7 @@ export function ThreeColumnLayout({
       >
         <div className="h-full overflow-hidden bg-gray-50 border-r border-gray-200">
           {/* 左侧栏内容 */}
-          <div className={`h-full ${leftPanelCollapsed ? 'p-2' : 'p-4'}`}>
+          <div className={`h-full ${leftPanelCollapsed ? 'p-2' : 'px-2 py-4'}`}>
             {!leftPanelCollapsed && leftPanel}
           </div>
         </div>

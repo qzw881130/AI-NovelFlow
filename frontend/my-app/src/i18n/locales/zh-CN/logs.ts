@@ -23,6 +23,7 @@ export default {
     actions: '操作',
     llmProvider: 'LLM 提供商',
     model: '模型',
+    category: '分类',
     taskType: '任务类型',
     promptTemplateName: '提示词名称',
     all: '全部',

@@ -687,6 +687,31 @@ class ShotKeyframeService:
         except Exception as e:
             return False, None, f"上传失败：{str(e)}"
 
+    async def replace_keyframe_image(
+        self,
+        db: Session,
+        shot_id: str,
+        frame_index: int,
+        image_url: str,
+    ) -> Tuple[bool, Optional[str], str]:
+        """用已有本地图片 URL 替换关键帧图片。"""
+        shot_repo = ShotRepository(db)
+        shot = shot_repo.get_by_id(shot_id)
+        if not shot:
+            return False, None, f"分镜 {shot_id} 不存在"
+
+        keyframes = json.loads(shot.keyframes) if shot.keyframes else []
+        if frame_index >= len(keyframes):
+            return False, None, f"关键帧序号 {frame_index} 超出范围"
+
+        try:
+            keyframes[frame_index]["image_url"] = image_url
+            self._sync_video_director_keyframe_image(shot, keyframes[frame_index], image_url)
+            shot_repo.update(shot, keyframes=keyframes)
+            return True, image_url, "关键帧图片已替换"
+        except Exception as e:
+            return False, None, f"替换失败：{str(e)}"
+
     async def upload_reference_image(
         self,
         db: Session,

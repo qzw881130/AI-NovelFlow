@@ -37,6 +37,7 @@ from app.repositories import (
 from app.services.shot_service import ShotService
 from app.services.shot_keyframe_service import ShotKeyframeService
 from app.services.audio_reference_service import AudioReferenceService
+from app.services.single_image_edit_service import SingleImageEditService
 from app.schemas.shot import (
     TransitionVideoRequest,
     BatchTransitionRequest,
@@ -50,6 +51,8 @@ from app.schemas.shot import (
     SetReferenceImageRequest,
     GenerateKeyframeDescriptionsRequest,
     GenerateShotImageRequest,
+    ShotImageEditRequest,
+    ShotImageReplaceRequest,
     GenerateVideoRequest,
     GenerateVideoDirectorClipRequest,
     RecommendVideoModeRequest,
@@ -1726,6 +1729,7 @@ async def download_chapter_materials(
     chapter_id: str,
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
     """下载章节素材 ZIP 包"""
     novel = novel_repo.get_by_id(novel_id)
@@ -1737,7 +1741,8 @@ async def download_chapter_materials(
         raise HTTPException(status_code=404, detail="章节不存在")
 
     # 生成 ZIP 文件
-    zip_path = file_storage.zip_chapter_materials(novel_id, chapter_id)
+    chapter_shots = shot_repo.get_by_chapter(chapter_id)
+    zip_path = file_storage.zip_chapter_materials(novel_id, chapter_id, chapter_shots)
 
     if not zip_path:
         raise HTTPException(status_code=404, detail="章节素材不存在或打包失败")
@@ -1977,6 +1982,75 @@ async def upload_shot_image(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"上传失败：{str(e)}")
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/edit-image",
+    response_model=dict,
+)
+async def edit_shot_image(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    data: ShotImageEditRequest,
+    db: Session = Depends(get_db),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """使用当前激活的单图编辑工作流编辑分镜图片。"""
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+    if not shot.image_url:
+        raise HTTPException(status_code=400, detail="分镜暂无图片，无法编辑")
+
+    result = await SingleImageEditService(db).edit_image(
+        source_image_url=shot.image_url,
+        prompt=data.prompt,
+        novel_id=novel_id,
+        entity_id=shot.id,
+        entity_name=f"镜{shot.index}",
+        entity_type="shot",
+        output_image_type="shot_edit",
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=result.get("status_code", 500), detail=result.get("message", "编辑图片失败"))
+    return {"success": True, "data": {"imageUrl": result["image_url"], "taskId": result.get("task_id")}, "message": "图片编辑成功"}
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/replace-image",
+    response_model=dict,
+)
+async def replace_shot_image(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    data: ShotImageReplaceRequest,
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """用编辑结果替换当前分镜图片。"""
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+    local_path = url_to_local_path(data.image_url)
+    if not local_path:
+        raise HTTPException(status_code=400, detail="图片文件不存在或不是本地图片")
+
+    shot = shot_repo.update(
+        shot,
+        image_url=data.image_url,
+        image_path=str(local_path),
+        image_status="completed",
+    )
+    return {"success": True, "data": shot_repo.to_response(shot), "message": "分镜图片已替换"}
 
 
 # ====================# ==================== 台词音频生成 ====================
@@ -2887,6 +2961,90 @@ async def generate_keyframe_image(
         "data": {"task_id": task_id} if success else None,
         "message": message,
     }
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/keyframes/{frame_index}/edit-image",
+    response_model=dict,
+)
+async def edit_keyframe_image(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    frame_index: int,
+    data: ShotImageEditRequest,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """使用当前激活的单图编辑工作流编辑关键帧图片。"""
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    keyframes = _safe_json_list(shot.keyframes)
+    if frame_index >= len(keyframes):
+        raise HTTPException(status_code=404, detail="关键帧不存在")
+    source_image_url = keyframes[frame_index].get("image_url")
+    if not source_image_url:
+        raise HTTPException(status_code=400, detail="关键帧暂无图片，无法编辑")
+
+    result = await SingleImageEditService(db).edit_image(
+        source_image_url=source_image_url,
+        prompt=data.prompt,
+        novel_id=novel_id,
+        entity_id=shot.id,
+        entity_name=f"镜{shot.index}_KF{frame_index + 1}",
+        entity_type="shot",
+        output_image_type="shot_edit",
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=result.get("status_code", 500), detail=result.get("message", "编辑图片失败"))
+    return {"success": True, "data": {"imageUrl": result["image_url"], "taskId": result.get("task_id")}, "message": "图片编辑成功"}
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/keyframes/{frame_index}/replace-image",
+    response_model=dict,
+)
+async def replace_keyframe_image(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    frame_index: int,
+    data: ShotImageReplaceRequest,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """用编辑结果替换当前关键帧图片。"""
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+    if not url_to_local_path(data.image_url):
+        raise HTTPException(status_code=400, detail="图片文件不存在或不是本地图片")
+
+    keyframe_service = ShotKeyframeService()
+    success, image_url, message = await keyframe_service.replace_keyframe_image(db, shot_id, frame_index, data.image_url)
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    db.commit()
+    updated_shot = shot_repo.get_by_id(shot_id)
+    return {"success": True, "data": shot_repo.to_response(updated_shot), "message": message, "imageUrl": image_url}
 
 
 @router.post(

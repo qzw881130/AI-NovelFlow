@@ -25,6 +25,7 @@ export default {
     actions: '操作',
     llmProvider: 'LLMプロバイダー',
     model: 'モデル',
+    category: 'カテゴリー',
     taskType: 'タスクタイプ',
     all: '全て',
     applyFilter: 'フィルタを適用',

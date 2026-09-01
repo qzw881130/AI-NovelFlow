@@ -82,9 +82,11 @@ export function BottomNavigator({
 
   // 获取分镜状态
   const getShotStatus = (shot: Shot, shotId: string, index: number): ShotThumbnailStatus => {
-    if (generatingShots.has(shotId) || generatingVideos.has(shotId)) {
+    if (generatingShots.has(shotId) || generatingVideos.has(shotId) || shot.imageStatus === 'generating' || shot.videoStatus === 'generating') {
       return 'generating';
     }
+    if (currentTab === 3 && shot.videoStatus === 'failed') return 'failed';
+    if (currentTab === 1 && shot.imageStatus === 'failed') return 'failed';
     if (shotId === currentShotId || (!currentShotId && index === currentShotIndex)) {
       return 'current';
     }

@@ -41,9 +41,32 @@ export interface FilterOptions {
   task_types: string[];
 }
 
+export interface LLMLogFilters {
+  provider: string;
+  model: string;
+  category: string;
+  task_type: string;
+  status: string;
+}
+
+export type LLMLogStatsGroupBy = 'day' | 'hour' | 'minute';
+
+export interface LLMLogStatsItem {
+  key: string;
+  label: string;
+  count: number;
+}
+
+export interface LLMLogStatsResponse {
+  group_by: LLMLogStatsGroupBy;
+  range_value: number;
+  total: number;
+  items: LLMLogStatsItem[];
+}
+
 export const llmLogsApi = {
   /** 获取日志列表 */
-  fetchList: (page: number, pageSize: number, filters: Record<string, string>) => {
+  fetchList: (page: number, pageSize: number, filters: LLMLogFilters) => {
     const params = new URLSearchParams();
     params.append('page', page.toString());
     params.append('page_size', pageSize.toString());
@@ -58,4 +81,15 @@ export const llmLogsApi = {
 
   /** 获取筛选选项 */
   fetchFilterOptions: () => api.get<FilterOptions>('/llm-logs/filters'),
+
+  /** 获取调用统计 */
+  fetchStats: (groupBy: LLMLogStatsGroupBy, rangeValue: number, filters: LLMLogFilters) => {
+    const params = new URLSearchParams();
+    params.append('group_by', groupBy);
+    params.append('range_value', String(rangeValue));
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.append(key, value);
+    });
+    return api.get<LLMLogStatsResponse>(`/llm-logs/stats?${params}`);
+  },
 };

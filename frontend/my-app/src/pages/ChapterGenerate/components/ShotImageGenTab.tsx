@@ -13,6 +13,8 @@ import { Box, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 
 import { shotsApi } from '../../../api/shots';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Shot } from '../../../api/shots';
+import { ImageEditModal } from '../../../components/ImageEditModal';
+import { toast } from '../../../stores/toastStore';
 
 interface ShotImageGenTabProps {
   chapter?: any;
@@ -43,6 +45,8 @@ export function ShotImageGenTab({
   const generateShotImage = useChapterGenerateStore((state) => state.generateShotImage);
   const generateAllImages = useChapterGenerateStore((state) => state.generateAllImages);
   const uploadShotImage = useChapterGenerateStore((state) => state.uploadShotImage);
+  const setShots = useChapterGenerateStore((state) => state.setShots);
+  const setShotImages = useChapterGenerateStore((state) => state.setShotImages);
   const setShowImagePreview = useChapterGenerateStore((state) => state.setShowImagePreview);
   const setShowMergedImageModal = useChapterGenerateStore((state) => state.setShowMergedImageModal);
   const setMergedImage = useChapterGenerateStore((state) => state.setMergedImage);
@@ -66,6 +70,11 @@ export function ShotImageGenTab({
   const [shotImagePrompts, setShotImagePrompts] = useState<Record<string, string>>({});
   const [submittingShotIds, setSubmittingShotIds] = useState<Set<string>>(new Set());
   const [dragSelectionMode, setDragSelectionMode] = useState<'select' | 'deselect' | null>(null);
+  const [isImageEditOpen, setIsImageEditOpen] = useState(false);
+  const [imageEditResultUrl, setImageEditResultUrl] = useState<string | null>(null);
+  const [imageEditResultSize, setImageEditResultSize] = useState<{ width: number; height: number } | null>(null);
+  const [isEditingImage, setIsEditingImage] = useState(false);
+  const [isReplacingImage, setIsReplacingImage] = useState(false);
 
   // 统一使用 shots prop（来自 store.shots）
   const shotsList = shots;
@@ -273,6 +282,68 @@ export function ShotImageGenTab({
     }
   };
 
+  const openImageEdit = () => {
+    if (!currentImageUrl) return;
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+    setIsImageEditOpen(true);
+  };
+
+  const closeImageEdit = () => {
+    if (isEditingImage || isReplacingImage) return;
+    setIsImageEditOpen(false);
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+  };
+
+  const handleEditImage = async (prompt: string) => {
+    if (!novelId || !chapterId || !currentShotId) return;
+    if (!prompt.trim()) {
+      toast.warning('请输入分镜图片编辑提示词');
+      return;
+    }
+    setIsEditingImage(true);
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+    try {
+      const result = await shotsApi.editImage(novelId, chapterId, currentShotId, prompt);
+      if (result.success && result.data?.imageUrl) {
+        setImageEditResultUrl(result.data.imageUrl);
+        toast.success('分镜图片编辑完成');
+      } else {
+        toast.error(result.detail || result.message || '编辑分镜图片失败');
+      }
+    } catch (error) {
+      console.error('编辑分镜图片失败:', error);
+      toast.error('编辑分镜图片失败');
+    } finally {
+      setIsEditingImage(false);
+    }
+  };
+
+  const handleReplaceImage = async () => {
+    if (!novelId || !chapterId || !currentShotId || !imageEditResultUrl) return;
+    setIsReplacingImage(true);
+    try {
+      const result = await shotsApi.replaceImage(novelId, chapterId, currentShotId, imageEditResultUrl);
+      if (result.success && result.data) {
+        setShots(shotsList.map((shot) => (shot.id === currentShotId ? { ...shot, ...result.data } : shot)));
+        setShotImages((images) => ({ ...images, [currentShotId]: result.data!.imageUrl || imageEditResultUrl }));
+        toast.success('已替换分镜图片');
+        setIsImageEditOpen(false);
+        setImageEditResultUrl(null);
+        setImageEditResultSize(null);
+      } else {
+        toast.error(result.detail || result.message || '替换分镜图片失败');
+      }
+    } catch (error) {
+      console.error('替换分镜图片失败:', error);
+      toast.error('替换分镜图片失败');
+    } finally {
+      setIsReplacingImage(false);
+    }
+  };
+
   const childrenWithSaveShortcut = isValidElement(children)
     ? cloneElement(children, { onSave: handleSaveShot } as { onSave: () => Promise<void> })
     : children;
@@ -381,25 +452,36 @@ export function ShotImageGenTab({
           </div>
           <div className="p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
             <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.shotPreview')}</h3>
-            {/* 上传按钮 */}
-            <button
-              onClick={triggerFileSelect}
-              disabled={isUploading}
-              className="px-3 py-1.5 text-xs bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
-              title={t('chapterGenerate.uploadImageFromLocal')}
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                  {t('common.uploading')}
-                </>
-              ) : (
-                <>
-                  <Upload className="w-3 h-3" />
-                  {t('chapterGenerate.uploadImage')}
-                </>
-              )}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={openImageEdit}
+                disabled={!hasImage || isGeneratingCurrent || isUploading}
+                className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                title={!hasImage ? '当前分镜暂无图片' : '编辑当前分镜图片'}
+              >
+                <Image className="w-3 h-3" />
+                编辑分镜图
+              </button>
+              {/* 上传按钮 */}
+              <button
+                onClick={triggerFileSelect}
+                disabled={isUploading}
+                className="px-3 py-1.5 text-xs bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1"
+                title={t('chapterGenerate.uploadImageFromLocal')}
+              >
+                {isUploading ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    {t('common.uploading')}
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-3 h-3" />
+                    {t('chapterGenerate.uploadImage')}
+                  </>
+                )}
+              </button>
+            </div>
             {/* 隐藏的文件输入框 */}
             <input
               ref={fileInputRef}
@@ -590,6 +672,37 @@ export function ShotImageGenTab({
             </div>
           </div>
         </div>
+      )}
+
+      {currentImageUrl && (
+        <ImageEditModal
+          isOpen={isImageEditOpen}
+          itemName={`镜${currentShotIndex}`}
+          imageUrl={currentImageUrl}
+          resultUrl={imageEditResultUrl}
+          isEditing={isEditingImage}
+          isReplacing={isReplacingImage}
+          resultSize={imageEditResultSize}
+          onResultSizeChange={setImageEditResultSize}
+          labels={{
+            title: '编辑分镜图片',
+            optionsTitle: '编辑选项',
+            keepOriginalLayout: '保持原图构图与布局',
+            removeWeapons: '移除不需要的物体或干扰元素',
+            makeFourView: '增强主体一致性与画面细节',
+            other: '其它',
+            otherPlaceholder: '输入额外编辑要求，例如：把人物表情改得更严肃，保持服装不变。',
+            editButton: '编辑图片',
+            editing: '编辑中...',
+            replaceButton: '替换分镜图片',
+            originalImage: '原图',
+            editResult: '编辑结果',
+            emptyResult: '生成后在这里预览',
+          }}
+          onClose={closeImageEdit}
+          onEdit={handleEditImage}
+          onReplace={handleReplaceImage}
+        />
       )}
     </div>
   );

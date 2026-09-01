@@ -55,12 +55,13 @@ class SingleImageEditService:
                 "status_code": 400,
             }
 
-        label_by_type = {"character": "角色", "scene": "场景", "prop": "道具"}
+        label_by_type = {"character": "角色", "scene": "场景", "prop": "道具", "shot": "分镜"}
         entity_label = label_by_type.get(entity_type, "素材")
         task_kwargs = {
             "character": {"character_id": entity_id},
             "scene": {"scene_id": entity_id},
             "prop": {"prop_id": entity_id},
+            "shot": {"shot_id": entity_id},
         }.get(entity_type, {})
 
         task_repo = TaskRepository(self.db)

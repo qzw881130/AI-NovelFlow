@@ -51,6 +51,18 @@ class GenerateShotImageRequest(BaseModel):
     )
 
 
+class ShotImageEditRequest(BaseModel):
+    """编辑分镜图片请求"""
+
+    prompt: str = Field(..., min_length=1, description="单图编辑提示词")
+
+
+class ShotImageReplaceRequest(BaseModel):
+    """替换分镜图片请求"""
+
+    image_url: str = Field(..., description="编辑结果图片URL")
+
+
 class BatchShotAudioRequest(BaseModel):
     """批量章节音频生成请求"""
 

@@ -98,7 +98,7 @@ export function ShotThumbnail({
         relative flex-shrink-0 w-32 h-24 rounded-lg border-2 cursor-pointer
         transition-all duration-200 overflow-hidden
         ${config.color}
-        ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : 'hover:shadow-md'}
+        ${status === 'generating' ? 'ring-2 ring-blue-400 ring-offset-2 shadow-md' : isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : 'hover:shadow-md'}
       `}
     >
       {/* 图片显示 */}
@@ -130,6 +130,13 @@ export function ShotThumbnail({
         </div>
       )}
 
+      {status === 'generating' && thumbnailUrl && !imageError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-950/45 text-white backdrop-blur-[1px]">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span className="mt-1 rounded bg-blue-600/90 px-1.5 py-0.5 text-[11px] font-medium leading-none shadow">处理中</span>
+        </div>
+      )}
+
       {/* 分镜编号 */}
       <div className={`absolute top-1 left-1 px-2 py-0.5 text-white text-xs rounded flex items-center gap-1 ${
         isSelected ? 'bg-blue-500' : 'bg-black/60'
@@ -154,7 +161,7 @@ export function ShotThumbnail({
       )}
 
       {/* 状态指示器（底部） */}
-      <div className={`absolute bottom-0 left-0 right-0 h-1 ${status === 'completed' ? 'bg-green-500' : status === 'generating' ? 'bg-blue-500' : 'bg-gray-300'}`} />
+      <div className={`absolute bottom-0 left-0 right-0 h-1 ${status === 'completed' ? 'bg-green-500' : status === 'generating' ? 'bg-blue-500 animate-pulse' : status === 'failed' ? 'bg-red-500' : 'bg-gray-300'}`} />
     </div>
   );
 }

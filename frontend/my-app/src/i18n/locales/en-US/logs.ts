@@ -23,6 +23,7 @@ export default {
     actions: 'Actions',
     llmProvider: 'LLM Provider',
     model: 'Model',
+    category: 'Category',
     taskType: 'Task Type',
     all: 'All',
     applyFilter: 'Apply Filter',

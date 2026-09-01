@@ -16,6 +16,7 @@ import { useTranslation } from '../../../stores/i18nStore';
 import { useChapterGenerateStore } from '../stores';
 import { novelApi } from '../../../api/novels';
 import type { Chapter } from '../../../types';
+import { toast } from '../../../stores/toastStore';
 
 // 布局组件
 import { ThreeColumnLayout } from './ThreeColumnLayout';
@@ -122,6 +123,7 @@ export function ChapterGenerateLayout({
   const storeGeneratingVideos = useChapterGenerateStore((state) => state.generatingVideos);
   const storeShotImages = useChapterGenerateStore((state) => state.shotImages);
   const storeShotVideos = useChapterGenerateStore((state) => state.shotVideos);
+  const setShots = useChapterGenerateStore((state) => state.setShots);
 
   // 优先从 store 获取最新数据，确保与 ShotSplitTab 等组件同步
   const parsedData = storeParsedData || propParsedData;
@@ -156,6 +158,22 @@ export function ChapterGenerateLayout({
   const estimatedSeconds = Math.round(estimatedDuration % 60).toString().padStart(2, '0');
   const currentShotDuration = Number(currentShot?.duration) || 0;
   const chapterSummary = `${shots.length} 个导演 Shot · 预计成片 ${estimatedMinutes}:${estimatedSeconds} · 当前 Shot #${currentShotIndex || 1} · 当前时长 ${currentShotDuration}秒`;
+
+  const updateCurrentShot = (updates: Record<string, any>) => {
+    if (!currentShot) return;
+    setShots(shots.map((shot) => shot.id === currentShot.id ? { ...shot, ...updates } : shot));
+  };
+
+  const copyCurrentShotVideoDescription = async () => {
+    const content = currentShot?.video_description || '';
+    if (!content) return;
+    try {
+      await navigator.clipboard.writeText(content);
+      toast.success('已复制视频描述');
+    } catch {
+      toast.error('复制视频描述失败');
+    }
+  };
 
   const goToChapter = (chapterId?: string) => {
     if (!id || !chapterId) return;
@@ -338,12 +356,18 @@ export function ChapterGenerateLayout({
         return (
           <ShotImageList
             shots={shots}
+            novelId={id}
+            chapterId={cid}
             currentShotIndex={currentShotIndex}
             shotImages={shotImages}
             onShotClick={(shotId, index) => {
               setCurrentShot(shotId, index);
             }}
             onImageClick={onImageClick}
+            showVideoFields
+            onDurationChange={(duration) => updateCurrentShot({ duration })}
+            onVideoDescriptionChange={(video_description) => updateCurrentShot({ video_description })}
+            onCopyVideoDescription={copyCurrentShotVideoDescription}
           />
         );
       default:

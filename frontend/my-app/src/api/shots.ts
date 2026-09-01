@@ -352,6 +352,92 @@ export const shotsApi = {
     return response.json();
   },
 
+  editImage: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    prompt: string
+  ): Promise<{ success: boolean; data?: { imageUrl: string; taskId?: string }; message?: string; detail?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/edit-image`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      }
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || '编辑分镜图片失败', detail: data?.detail };
+    }
+    return data;
+  },
+
+  replaceImage: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    imageUrl: string
+  ): Promise<{ success: boolean; data?: Shot; message?: string; detail?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/replace-image`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: imageUrl }),
+      }
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || '替换分镜图片失败', detail: data?.detail };
+    }
+    return data;
+  },
+
+  editKeyframeImage: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    frameIndex: number,
+    prompt: string
+  ): Promise<{ success: boolean; data?: { imageUrl: string; taskId?: string }; message?: string; detail?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/keyframes/${frameIndex}/edit-image`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      }
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || '编辑关键帧图片失败', detail: data?.detail };
+    }
+    return data;
+  },
+
+  replaceKeyframeImage: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    frameIndex: number,
+    imageUrl: string
+  ): Promise<{ success: boolean; data?: Shot; message?: string; detail?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/keyframes/${frameIndex}/replace-image`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image_url: imageUrl }),
+      }
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || '替换关键帧图片失败', detail: data?.detail };
+    }
+    return data;
+  },
+
   /**
    * 生成分镜台词音频
    */

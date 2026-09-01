@@ -17,12 +17,19 @@ import { toast } from '../../../stores/toastStore';
 import KeyframesManager from '../../../components/KeyframesManager';
 import AudioReferenceSelector from '../../../components/AudioReferenceSelector';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
+import { ImageEditModal } from '../../../components/ImageEditModal';
 import type { KeyframeData } from '../../../types';
 import type { VideoAiCall, VideoDirectorPlan, VideoMode } from '../../../api/shots';
 
 const VIDEO_TAB_UI_STORAGE_KEY = 'chapterGenerate_videoTab_ui';
 type MergeVideoMode = 'shots_only' | 'shots_with_transitions';
 type BatchSelectionMode = 'all' | 'pending' | null;
+type VideoImageEditTarget = {
+  type: 'shot' | 'keyframe';
+  imageUrl: string;
+  itemName: string;
+  frameIndex?: number;
+};
 
 interface VideoMetadata {
   duration: number | null;
@@ -38,6 +45,7 @@ const VIDEO_MODE_LABELS: Record<VideoMode, string> = {
 };
 
 const getVideoModeLabel = (mode?: VideoMode) => mode ? VIDEO_MODE_LABELS[mode] : '-';
+const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 const formatAiCallValue = (value: any) => {
   if (value === null || value === undefined || value === '') return '-';
@@ -72,6 +80,7 @@ function VideoAiCallsPanel({ calls = [] }: { calls?: VideoAiCall[] }) {
   const [panelOpen, setPanelOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [openIndex, setOpenIndex] = useState(Math.max(0, calls.length - 1));
+  const [viewingData, setViewingData] = useState<{ title: string; content: string } | null>(null);
   const latest = calls[calls.length - 1];
 
   useEffect(() => {
@@ -106,6 +115,7 @@ function VideoAiCallsPanel({ calls = [] }: { calls?: VideoAiCall[] }) {
   const visibleCalls = expanded ? calls : [latest];
 
   return (
+    <>
     <div className="rounded-lg border border-gray-200 bg-gray-50">
       <div className={`flex items-center justify-between px-3 py-2 ${panelOpen ? 'border-b border-gray-200' : ''}`}>
         <div>
@@ -161,21 +171,30 @@ function VideoAiCallsPanel({ calls = [] }: { calls?: VideoAiCall[] }) {
                   <div className="min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-medium text-gray-600">返回结果</span>
-                      <button type="button" onClick={() => copyText(responseText)} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"><Copy className="w-3 h-3" />复制</button>
+                      <div className="flex items-center gap-2">
+                        <button type="button" onClick={() => setViewingData({ title: '返回结果', content: responseText })} className="text-blue-600 hover:text-blue-800" title="查看"><Eye className="w-3 h-3" /></button>
+                        <button type="button" onClick={() => copyText(responseText)} className="text-blue-600 hover:text-blue-800" title="复制"><Copy className="w-3 h-3" /></button>
+                      </div>
                     </div>
                     <pre className="max-h-40 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-100 whitespace-pre-wrap">{responseText}</pre>
                   </div>
                   <div className="min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-medium text-gray-600">解析结果</span>
-                        <button type="button" onClick={() => copyText(parsedText)} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"><Copy className="w-3 h-3" />复制</button>
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={() => setViewingData({ title: '解析结果', content: parsedText })} className="text-blue-600 hover:text-blue-800" title="查看"><Eye className="w-3 h-3" /></button>
+                          <button type="button" onClick={() => copyText(parsedText)} className="text-blue-600 hover:text-blue-800" title="复制"><Copy className="w-3 h-3" /></button>
+                        </div>
                       </div>
                       <pre className="max-h-32 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-100 whitespace-pre-wrap">{parsedText}</pre>
                     </div>
                   <div className="min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-medium text-gray-600">最终 Prompt</span>
-                        <button type="button" onClick={() => copyText(promptText)} className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"><Copy className="w-3 h-3" />复制</button>
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={() => setViewingData({ title: '最终 Prompt', content: promptText })} className="text-blue-600 hover:text-blue-800" title="查看"><Eye className="w-3 h-3" /></button>
+                          <button type="button" onClick={() => copyText(promptText)} className="text-blue-600 hover:text-blue-800" title="复制"><Copy className="w-3 h-3" /></button>
+                        </div>
                       </div>
                       <pre className="max-h-40 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-100 whitespace-pre-wrap">{promptText}</pre>
                     </div>
@@ -187,6 +206,30 @@ function VideoAiCallsPanel({ calls = [] }: { calls?: VideoAiCall[] }) {
         })}
       </div>}
     </div>
+    {viewingData && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingData(null)}>
+        <div className="w-full max-w-5xl max-h-[86vh] overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
+            <div className="min-w-0">
+              <div className="text-base font-semibold text-gray-900 truncate">{viewingData.title}</div>
+              <div className="text-xs text-gray-500">完整数据预览</div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button type="button" onClick={() => copyText(viewingData.content)} className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+                <Copy className="h-4 w-4" />复制
+              </button>
+              <button type="button" onClick={() => setViewingData(null)} className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+          <div className="max-h-[72vh] overflow-auto bg-gray-950 p-4">
+            <pre className="text-sm leading-6 text-gray-100 whitespace-pre-wrap break-words">{viewingData.content}</pre>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
@@ -195,15 +238,20 @@ interface VideoDirectorPanelProps {
   shotImageUrl?: string | null;
   plan: VideoDirectorPlan;
   isRecommending: boolean;
+  isPlanningKeyframes: boolean;
   onRecommend: (force?: boolean) => void;
   onPlanKeyframes: (force?: boolean) => void;
   onGenerateMissingKeyframes: () => void;
   onGenerateEndKeyframe: () => void;
   isGeneratingEndKeyframe?: boolean;
+  isGeneratingMissingKeyframes?: boolean;
+  generatingKeyframes?: Set<string>;
   onSelectMode: (mode: VideoMode) => void;
   onPreviewClip: (clip: any) => void;
   onRegenerateClip: (clip: any) => void;
   onMergeClips: () => void;
+  onPreviewImage: (url: string) => void;
+  onEditImage: (target: VideoImageEditTarget) => void;
   selectedPreviewClipKey?: string | null;
   regeneratingClipKey?: string | null;
   isMergingClips?: boolean;
@@ -214,15 +262,20 @@ function VideoDirectorPanel({
   shotImageUrl,
   plan,
   isRecommending,
+  isPlanningKeyframes,
   onRecommend,
   onPlanKeyframes,
   onGenerateMissingKeyframes,
   onGenerateEndKeyframe,
   isGeneratingEndKeyframe,
+  isGeneratingMissingKeyframes,
+  generatingKeyframes = new Set(),
   onSelectMode,
   onPreviewClip,
   onRegenerateClip,
   onMergeClips,
+  onPreviewImage,
+  onEditImage,
   selectedPreviewClipKey,
   regeneratingClipKey,
   isMergingClips,
@@ -237,13 +290,26 @@ function VideoDirectorPanel({
   const getKeyframeImageUrl = (kf: any) => {
     if (!kf) return null;
     if (kf.role === 'START') return shotImageUrl || null;
-    if (kf.image_url) return kf.image_url;
-    const legacyKeyframe = legacyKeyframes.find((item: any) => Number(item.plan_keyframe_index) === Number(kf.index));
-    return legacyKeyframe?.image_url || null;
+    if (kf.image_url || kf.imageUrl) return kf.image_url || kf.imageUrl;
+    const legacyKeyframe = legacyKeyframes.find((item: any) => Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(kf.index));
+    return legacyKeyframe?.image_url || legacyKeyframe?.imageUrl || null;
+  };
+  const getKeyframeFrameIndex = (kf: any) => {
+    if (!kf || kf.role === 'START') return undefined;
+    const legacyKeyframe = legacyKeyframes.find((item: any) => Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(kf.index));
+    if (legacyKeyframe?.frame_index !== undefined) return Number(legacyKeyframe.frame_index);
+    const nonStartIndex = keyframes.filter((item: any) => item.role !== 'START').findIndex((item: any) => Number(item.index) === Number(kf.index));
+    return nonStartIndex >= 0 ? nonStartIndex : undefined;
+  };
+  const isKeyframeGenerating = (kf: any) => {
+    const shotId = shot?.id ? String(shot.id) : '';
+    const frameIndex = getKeyframeFrameIndex(kf);
+    return !!shotId && frameIndex !== undefined && generatingKeyframes.has(`${shotId}-${frameIndex}`);
   };
   const missingKeyframes = selectedMode === 'MULTI_KEYFRAME'
     ? keyframes.filter((kf: any) => kf.role !== 'START' && !getKeyframeImageUrl(kf))
     : [];
+  const hasGeneratingMissingKeyframes = missingKeyframes.some((kf: any) => isKeyframeGenerating(kf));
   const threeFrameClipCount = clips.filter((clip: any) => Number(clip.selected_frame_count || clip.frame_count) === 3).length;
   const fourFrameClipCount = clips.filter((clip: any) => Number(clip.selected_frame_count || clip.frame_count) === 4).length;
   const [selectedKeyframeIndex, setSelectedKeyframeIndex] = useState(0);
@@ -336,24 +402,24 @@ function VideoDirectorPanel({
   return (
     <div className="flex-shrink-0 border border-gray-200 rounded-lg p-4 space-y-4 bg-white">
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2 min-w-0">
             <Sparkles className="w-4 h-4 text-blue-600" />
             视频导演
+            <span className="truncate text-xs font-normal text-gray-500">
+              AI推荐：{isRecommending ? '推荐中...' : getVideoModeLabel(plan.recommended_mode)}
+              {plan.recommendation_reason ? ` · ${plan.recommendation_reason}` : ''}
+            </span>
           </h3>
-          <p className="mt-1 text-xs text-gray-500">
-            AI推荐：{isRecommending ? '推荐中...' : getVideoModeLabel(plan.recommended_mode)}
-            {plan.recommendation_reason ? ` · ${plan.recommendation_reason}` : ''}
-          </p>
         </div>
         <button
           type="button"
           onClick={() => onRecommend(true)}
           disabled={isRecommending}
-          className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+          className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
         >
           <RefreshCw className={`w-4 h-4 ${isRecommending ? 'animate-spin' : ''}`} />
-          重新推荐
+          重新推荐视频生成模式
         </button>
       </div>
 
@@ -378,31 +444,52 @@ function VideoDirectorPanel({
             <button
               type="button"
               onClick={() => onPlanKeyframes(true)}
-              disabled={isRecommending}
+              disabled={isPlanningKeyframes}
               className="px-3 py-1.5 rounded-lg border border-blue-200 bg-white text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50 transition-colors whitespace-nowrap"
             >
-              {isRecommending ? '规划中...' : hasWindowPlans ? '重新规划关键帧' : 'AI规划关键帧'}
+              {isPlanningKeyframes ? '规划中...' : hasWindowPlans ? '重新规划关键帧' : 'AI规划关键帧'}
             </button>
-            <button
-              type="button"
-              onClick={onGenerateMissingKeyframes}
-              disabled={isRecommending || !hasWindowPlans || missingKeyframes.length === 0}
-              className="px-3 py-1.5 rounded-lg bg-blue-600 text-sm text-white hover:bg-blue-700 disabled:opacity-50 transition-colors whitespace-nowrap"
-              title={!hasWindowPlans ? '请先完成 #08 关键帧规划' : ''}
-            >
-              生成缺失关键帧{missingKeyframes.length > 0 ? ` ${missingKeyframes.length}` : ''}
-            </button>
+              <button
+                type="button"
+                onClick={onGenerateMissingKeyframes}
+              disabled={isPlanningKeyframes || isGeneratingMissingKeyframes || hasGeneratingMissingKeyframes || !hasWindowPlans || missingKeyframes.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-sm text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                title={!hasWindowPlans ? '请先完成 #08 关键帧规划' : ''}
+              >
+              {(isGeneratingMissingKeyframes || hasGeneratingMissingKeyframes) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {isGeneratingMissingKeyframes || hasGeneratingMissingKeyframes ? '关键帧生成中...' : `生成缺失关键帧${missingKeyframes.length > 0 ? ` ${missingKeyframes.length}` : ''}`}
+              </button>
           </div>
         </div>
       )}
 
       {selectedMode === 'SINGLE_FRAME' && (
-        <div className="grid grid-cols-[220px_1fr] gap-4">
+        <div className="grid grid-cols-[minmax(260px,45%)_1fr] gap-4">
           <div>
             <div className="text-xs font-medium text-gray-600 mb-2">起始帧</div>
-            <div className="aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200">
+            <div className="relative aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200">
               {shotImageUrl ? (
-                <img src={shotImageUrl} alt="当前主分镜图" className="w-full h-full object-cover" />
+                <>
+                  <img src={shotImageUrl} alt="当前主分镜图" className="w-full h-full object-cover" />
+                  <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onPreviewImage(shotImageUrl)}
+                      className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300"
+                      title="查看大图"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onEditImage({ type: 'shot', imageUrl: shotImageUrl, itemName: `镜${shot?.index || ''} 起始帧` })}
+                      className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300"
+                      title="编辑图片"
+                    >
+                      <Image className="h-4 w-4" />
+                    </button>
+                  </div>
+                </>
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-gray-400">
                   <Image className="w-8 h-8" />
@@ -436,10 +523,10 @@ function VideoDirectorPanel({
             <button
               type="button"
               onClick={() => onPlanKeyframes(true)}
-              disabled={isRecommending}
+              disabled={isPlanningKeyframes}
               className="px-3 py-1.5 rounded-lg border border-blue-200 bg-white text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50 transition-colors whitespace-nowrap"
             >
-              {isRecommending ? '规划中...' : firstLastTransition ? '重新规划首尾帧' : 'AI规划首尾帧'}
+              {isPlanningKeyframes ? '规划中...' : firstLastTransition ? '重新规划首尾帧' : 'AI规划首尾帧'}
             </button>
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -451,8 +538,16 @@ function VideoDirectorPanel({
                 </div>
                 <span className={`text-xs ${shotImageUrl ? 'text-green-600' : 'text-amber-600'}`}>{shotImageUrl ? '图片已就绪' : '缺少主分镜图'}</span>
               </div>
-              <div className="aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
-                {shotImageUrl ? <img src={shotImageUrl} alt="START" className="w-full h-full object-cover" /> : <Image className="w-10 h-10 text-gray-300" />}
+              <div className="relative aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
+                {shotImageUrl ? (
+                  <>
+                    <img src={shotImageUrl} alt="START" className="w-full h-full object-cover" />
+                    <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                      <button type="button" onClick={() => onPreviewImage(shotImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 hover:bg-black/85 hover:text-blue-300" title="查看大图"><Eye className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onEditImage({ type: 'shot', imageUrl: shotImageUrl, itemName: `镜${shot?.index || ''} START` })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 hover:bg-black/85 hover:text-blue-300" title="编辑图片"><Image className="h-4 w-4" /></button>
+                    </div>
+                  </>
+                ) : <Image className="w-10 h-10 text-gray-300" />}
               </div>
             </div>
             <div className="rounded-lg border border-gray-200 bg-white p-3">
@@ -461,10 +556,27 @@ function VideoDirectorPanel({
                   <div className="text-xs font-semibold text-gray-600">END · {endKeyframe.time_seconds || shot?.duration || 0}s</div>
                   <div className="text-[11px] text-gray-500">KF{endKeyframe.index} · Generated Keyframe</div>
                 </div>
-                <span className={`text-xs ${endKeyframeImageUrl ? 'text-green-600' : 'text-amber-600'}`}>{endKeyframeImageUrl ? '图片已就绪' : '待生成'}</span>
+                <span className={`text-xs ${endKeyframeImageUrl ? 'text-green-600' : isGeneratingEndKeyframe ? 'text-blue-600' : 'text-amber-600'}`}>
+                  {endKeyframeImageUrl ? '图片已就绪' : isGeneratingEndKeyframe ? '生成中' : '待生成'}
+                </span>
               </div>
-              <div className="aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
-                {endKeyframeImageUrl ? <img src={endKeyframeImageUrl} alt="END" className="w-full h-full object-cover" /> : <Image className="w-10 h-10 text-gray-300" />}
+              <div className="relative aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
+                {endKeyframeImageUrl ? (
+                  <>
+                    <img src={endKeyframeImageUrl} alt="END" className="w-full h-full object-cover" />
+                    <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                      <button type="button" onClick={() => onPreviewImage(endKeyframeImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 hover:bg-black/85 hover:text-blue-300" title="查看大图"><Eye className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onEditImage({ type: 'keyframe', imageUrl: endKeyframeImageUrl, itemName: `镜${shot?.index || ''} END`, frameIndex: getKeyframeFrameIndex(endKeyframe) })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 hover:bg-black/85 hover:text-blue-300" title="编辑图片"><Image className="h-4 w-4" /></button>
+                    </div>
+                  </>
+                ) : isGeneratingEndKeyframe ? (
+                  <div className="flex flex-col items-center gap-2 text-blue-600">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                    <div className="text-sm">END 关键帧生成中...</div>
+                  </div>
+                ) : (
+                  <Image className="w-10 h-10 text-gray-300" />
+                )}
               </div>
               <div className="mt-2">
                 <div className="mb-1 flex items-center justify-between gap-2">
@@ -488,7 +600,7 @@ function VideoDirectorPanel({
               <button
                 type="button"
                 onClick={onGenerateEndKeyframe}
-                disabled={isRecommending || isGeneratingEndKeyframe || !endKeyframe.description}
+                disabled={isPlanningKeyframes || isGeneratingEndKeyframe || !endKeyframe.description}
                 className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-blue-200 px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isGeneratingEndKeyframe && <Loader2 className="h-3 w-3 animate-spin" />}
@@ -515,90 +627,102 @@ function VideoDirectorPanel({
           <div>
             <div className="flex items-center justify-between mb-2">
               <div>
-                <div className="text-sm font-semibold text-gray-700">关键帧时间轴</div>
-                <div className="text-xs text-gray-500">{keyframes.length} 条 Keyframe + {Math.max(0, keyframes.length - 1)} 条 Transition + {clips.length} Clips（相邻间隔 ≤ {maxClipDuration}s）</div>
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="text-sm font-semibold text-gray-700">关键帧时间轴</span>
+                  <span className="text-xs font-normal text-gray-500">{keyframes.length} 条 Keyframe + {Math.max(0, keyframes.length - 1)} 条 Transition + {clips.length} Clips（相邻间隔 ≤ {maxClipDuration}s）</span>
+                </div>
               </div>
             </div>
-            {clips.length > 0 && (
-              <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
-                {clips.map((clip: any) => {
-                  const clipIndex = clip.clip_index || clip.window_index;
-                  const frameCount = clip.selected_frame_count || clip.frame_count;
-                  const clipStatus = clip.status || 'PENDING';
-                  const isClipSelected = selectedClip && getClipKey(selectedClip) === getClipKey(clip);
+            <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+              {clips.length > 0 && (
+                <div className="mb-2 flex gap-2 overflow-x-auto pb-1">
+                  {clips.map((clip: any) => {
+                    const clipIndex = clip.clip_index || clip.window_index;
+                    const frameCount = clip.selected_frame_count || clip.frame_count;
+                    const isClipSelected = selectedClip && getClipKey(selectedClip) === getClipKey(clip);
+                    return (
+                      <button
+                        key={`range-${getClipKey(clip)}`}
+                        type="button"
+                        onClick={() => {
+                          setSelectedClipKey(getClipKey(clip));
+                          const firstKeyframeIndex = Array.isArray(clip.keyframe_indexes) ? Number(clip.keyframe_indexes[0]) : NaN;
+                          const targetIndex = keyframes.findIndex((kf: any) => Number(kf.index) === firstKeyframeIndex);
+                          if (targetIndex >= 0) setSelectedKeyframeIndex(targetIndex);
+                        }}
+                        className={`h-8 min-w-40 rounded-md border px-2 text-left text-xs transition-all ${isClipSelected
+                          ? 'border-blue-300 bg-blue-50 text-blue-700 ring-1 ring-blue-100'
+                          : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-blue-200 hover:bg-blue-50/60'
+                        }`}
+                      >
+                        C{clipIndex} · {clip.start_time}-{clip.end_time}s · {frameCount || '?'}KF
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="flex items-start gap-2 overflow-x-auto pb-1">
+                {keyframes.map((kf, idx) => {
+                  const isCurrentKeyframe = selectedKeyframeIndex === idx;
+                  const isInSelectedClip = selectedClipKeyframes.has(Number(kf.index));
+                  const keyframeClipCount = clips.filter((clip: any) => clipContainsKeyframe(clip, Number(kf.index))).length;
+                  const hasImage = !!getKeyframeImageUrl(kf);
+                  const isGenerating = isKeyframeGenerating(kf);
+                  const marker = keyframeClipCount > 1 ? '⇄' : kf.role === 'START' || kf.role === 'END' ? '★' : '◇';
                   return (
                     <button
-                      key={`range-${getClipKey(clip)}`}
+                      key={`${kf.index}-${kf.time_seconds}`}
                       type="button"
                       onClick={() => {
-                        setSelectedClipKey(getClipKey(clip));
-                        const firstKeyframeIndex = Array.isArray(clip.keyframe_indexes) ? Number(clip.keyframe_indexes[0]) : NaN;
-                        const targetIndex = keyframes.findIndex((kf: any) => Number(kf.index) === firstKeyframeIndex);
-                        if (targetIndex >= 0) setSelectedKeyframeIndex(targetIndex);
+                        setSelectedKeyframeIndex(idx);
+                        setSelectedClipKey(null);
                       }}
-                      className={`min-w-48 rounded-lg border px-3 py-2 text-left text-xs transition-all ${isClipSelected
-                        ? 'border-blue-300 bg-blue-50 text-blue-700 shadow-sm ring-2 ring-blue-100'
-                        : getClipStatusClass(clipStatus)
+                      title={`${kf.role}${keyframeClipCount > 1 ? ' · 共享边界' : ''}${isGenerating ? ' · 生成中' : hasImage ? ' · 已生成' : ' · 缺图'}`}
+                      className={`relative h-14 min-w-24 rounded-lg px-2 py-1 text-center transition-all ${isCurrentKeyframe
+                        ? 'border border-blue-300 bg-blue-50 text-blue-700 shadow-sm ring-2 ring-blue-100'
+                        : isInSelectedClip
+                          ? 'border border-blue-100 bg-blue-50/50 text-blue-700'
+                          : 'border border-transparent text-gray-700 hover:bg-gray-50 hover:text-blue-600'
                       }`}
                     >
-                      <div className="font-semibold">C{clipIndex} · {clip.start_time}-{clip.end_time}s · {frameCount || '?'}KF</div>
-                      <div className="mt-0.5 opacity-80">{Array.isArray(clip.keyframe_indexes) ? clip.keyframe_indexes.map((item: number) => `KF${item}`).join(' / ') : '等待关键帧'}</div>
+                      <div className="flex items-center justify-center gap-1 text-[11px] text-gray-500">
+                        {isGenerating ? <Loader2 className="h-3 w-3 animate-spin text-blue-500" /> : <span className={`h-2.5 w-2.5 rounded-full border ${hasImage ? 'border-green-500 bg-green-100' : 'border-gray-400 bg-gray-100'}`} />}
+                        <span>{marker}</span>
+                      </div>
+                      <div className="mt-0.5 text-xs font-semibold">KF{kf.index} · {kf.time_seconds}s</div>
+                      <div className={`text-[11px] ${isGenerating ? 'text-blue-600' : hasImage ? 'text-green-600' : 'text-amber-600'}`}>{isGenerating ? '生成中' : hasImage ? '已生成' : '缺图'}</div>
+                      {isCurrentKeyframe && <div className="absolute -bottom-1 left-2 right-2 h-1 rounded-full bg-blue-500" />}
                     </button>
                   );
                 })}
               </div>
-            )}
-            <div className="flex items-start gap-2 overflow-x-auto pb-2">
-              {keyframes.map((kf, idx) => {
-                const isCurrentKeyframe = selectedKeyframeIndex === idx;
-                const isInSelectedClip = selectedClipKeyframes.has(Number(kf.index));
-                const keyframeClipCount = clips.filter((clip: any) => clipContainsKeyframe(clip, Number(kf.index))).length;
-                return (
-                  <button
-                    key={`${kf.index}-${kf.time_seconds}`}
-                    type="button"
-                    onClick={() => {
-                      setSelectedKeyframeIndex(idx);
-                      setSelectedClipKey(null);
-                    }}
-                    className={`relative min-w-28 rounded-xl px-3 py-2 text-center transition-all ${isCurrentKeyframe
-                      ? 'border border-blue-300 bg-blue-50 text-blue-700 shadow-sm ring-2 ring-blue-100'
-                      : isInSelectedClip
-                        ? 'border border-blue-100 bg-blue-50/60 text-blue-700'
-                        : 'border border-transparent text-gray-700 hover:bg-gray-50 hover:text-blue-600'
-                    }`}
-                  >
-                    <div className={`mx-auto mb-1 h-3 w-3 rounded-full border-2 ${isCurrentKeyframe
-                      ? 'border-blue-600 bg-blue-500 ring-4 ring-blue-100'
-                      : getKeyframeImageUrl(kf)
-                        ? 'border-green-500 bg-green-100'
-                        : 'border-blue-500 bg-white'
-                    }`} />
-                    <div className="text-sm font-semibold">KF{kf.index} · {kf.time_seconds}s</div>
-                    <div className="text-[11px] text-gray-500">{kf.role}</div>
-                    <div className={`text-[11px] ${getKeyframeImageUrl(kf) ? 'text-green-600' : 'text-amber-600'}`}>{getKeyframeImageUrl(kf) ? (kf.role === 'START' ? '主分镜图' : '已生成') : '缺图'}</div>
-                    {kf.role !== 'START' && idx > 0 && (
-                      <div className="text-[10px] text-gray-400">来源 KF{keyframes[idx - 1]?.index}</div>
-                    )}
-                    {keyframeClipCount > 1 && (
-                      <div className="mt-0.5 text-[10px] font-medium text-purple-600">共享边界</div>
-                    )}
-                    {isCurrentKeyframe && (
-                      <div className="absolute -bottom-1 left-3 right-3 h-1 rounded-full bg-blue-500" />
-                    )}
-                  </button>
-                );
-              })}
             </div>
           </div>
 
           <div className="grid grid-cols-[minmax(260px,45%)_1fr] gap-4">
             <div>
-              <div className="aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
-                {getKeyframeImageUrl(selectedKeyframe) ? (
-                  <img src={getKeyframeImageUrl(selectedKeyframe)!} alt={`KF${selectedKeyframe.index}`} className="w-full h-full object-cover" />
+              <div className="relative aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
+                {isKeyframeGenerating(selectedKeyframe) ? (
+                  <div className="flex flex-col items-center gap-2 text-blue-500">
+                    <Loader2 className="w-10 h-10 animate-spin" />
+                    <div className="text-sm">关键帧图片生成中...</div>
+                  </div>
+                ) : getKeyframeImageUrl(selectedKeyframe) ? (
+                  <>
+                    <img src={getKeyframeImageUrl(selectedKeyframe)!} alt={`KF${selectedKeyframe.index}`} className="w-full h-full object-cover" />
+                    <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                      <button type="button" onClick={() => onPreviewImage(getKeyframeImageUrl(selectedKeyframe)!)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title="查看大图"><Eye className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onEditImage({ type: selectedKeyframe?.role === 'START' ? 'shot' : 'keyframe', imageUrl: getKeyframeImageUrl(selectedKeyframe)!, itemName: `镜${shot?.index || ''} KF${selectedKeyframe?.index || ''}`, frameIndex: getKeyframeFrameIndex(selectedKeyframe) })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title="编辑图片"><Image className="h-4 w-4" /></button>
+                    </div>
+                  </>
                 ) : shotImageUrl && selectedKeyframe?.role === 'START' ? (
-                  <img src={shotImageUrl} alt="START" className="w-full h-full object-cover" />
+                  <>
+                    <img src={shotImageUrl} alt="START" className="w-full h-full object-cover" />
+                    <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                      <button type="button" onClick={() => onPreviewImage(shotImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title="查看大图"><Eye className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onEditImage({ type: 'shot', imageUrl: shotImageUrl, itemName: `镜${shot?.index || ''} START` })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title="编辑图片"><Image className="h-4 w-4" /></button>
+                    </div>
+                  </>
                 ) : (
                   <Image className="w-12 h-12 text-gray-300" />
                 )}
@@ -606,7 +730,7 @@ function VideoDirectorPanel({
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">KF{selectedKeyframe?.index || 1} · {selectedKeyframe?.time_seconds || 0}s</span>
                 <span className={`text-xs ${getKeyframeImageUrl(selectedKeyframe) ? 'text-green-600' : 'text-amber-600'}`}>
-                  {getKeyframeImageUrl(selectedKeyframe) ? '图片已就绪' : '等待生成图片'}
+                  {isKeyframeGenerating(selectedKeyframe) ? '正在生成图片' : getKeyframeImageUrl(selectedKeyframe) ? '图片已就绪' : '等待生成图片'}
                 </span>
               </div>
             </div>
@@ -739,8 +863,6 @@ function VideoDirectorPanel({
           </div>
         )}
       </div>
-
-      <VideoAiCallsPanel calls={plan.ai_calls || []} />
     </div>
   );
 }
@@ -822,7 +944,7 @@ export function VideoGenTab({
 }: VideoGenTabProps) {
   const { t } = useTranslation();
   const store = useChapterGenerateStore();
-  const { markTabComplete, setCurrentShot, downloadChapterMaterials, generateShotVideo, generateKeyframeImage, setShots, setShotVideos, checkVideoTaskStatus, generateTransition, transitionWorkflows, selectedTransitionWorkflow, setSelectedTransitionWorkflow, fetchTransitionWorkflows, transitionDuration, setTransitionDuration } = store;
+  const { markTabComplete, setCurrentShot, downloadChapterMaterials, generateShotVideo, generateKeyframeImage, setShots, setShotVideos, setShotImages, checkVideoTaskStatus, generateTransition, transitionWorkflows, selectedTransitionWorkflow, setSelectedTransitionWorkflow, fetchTransitionWorkflows, transitionDuration, setTransitionDuration } = store;
 
   // 直接订阅 store 状态（确保状态更新时组件重新渲染）
   const storeShots = useChapterGenerateStore((state) => state.shots);
@@ -859,6 +981,7 @@ export function VideoGenTab({
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
   const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
   const [batchSelectionMode, setBatchSelectionMode] = useState<BatchSelectionMode>(null);
+  const [autoCompleteDetails, setAutoCompleteDetails] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewTransitionVideo, setPreviewTransitionVideo] = useState<string | null>(null);
 
@@ -881,6 +1004,11 @@ export function VideoGenTab({
   const [selectedPreviewClipKey, setSelectedPreviewClipKey] = useState<string | null>(null);
   const [regeneratingClipKey, setRegeneratingClipKey] = useState<string | null>(null);
   const [isMergingClips, setIsMergingClips] = useState(false);
+  const [imageEditTarget, setImageEditTarget] = useState<VideoImageEditTarget | null>(null);
+  const [imageEditResultUrl, setImageEditResultUrl] = useState<string | null>(null);
+  const [imageEditResultSize, setImageEditResultSize] = useState<{ width: number; height: number } | null>(null);
+  const [isEditingImage, setIsEditingImage] = useState(false);
+  const [isReplacingImage, setIsReplacingImage] = useState(false);
   const [videoMetadata, setVideoMetadata] = useState<VideoMetadata>({
     duration: null,
     width: null,
@@ -927,11 +1055,81 @@ export function VideoGenTab({
     : [];
   const previewTimelineDuration = Number(currentShotData?.duration || videoMetadata.duration || 0);
   const [recommendingShotId, setRecommendingShotId] = useState<string | null>(null);
+  const [planningKeyframesShotId, setPlanningKeyframesShotId] = useState<string | null>(null);
+  const [generatingMissingKeyframesShotId, setGeneratingMissingKeyframesShotId] = useState<string | null>(null);
 
   const hasShotVideo = (shot: any) => {
     const shotId = shot?.id ? String(shot.id) : '';
     return !!(shot?.videoUrl || (shotId && shotVideos[shotId]));
   };
+
+  const getShotImageUrl = useCallback((shot: any) => {
+    const shotId = shot?.id ? String(shot.id) : '';
+    return shot?.imageUrl || shot?.image_url || (shotId ? shotImages[shotId] : null);
+  }, [shotImages]);
+
+  const getVideoDirectorKeyframeImageUrl = useCallback((shot: any, keyframe: any) => {
+    if (!keyframe) return null;
+    if (keyframe.role === 'START') return getShotImageUrl(shot);
+    if (keyframe.image_url || keyframe.imageUrl) return keyframe.image_url || keyframe.imageUrl;
+    const legacyKeyframe = (shot?.keyframes || []).find((item: any) => (
+      Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(keyframe.index)
+    ));
+    return legacyKeyframe?.image_url || legacyKeyframe?.imageUrl || null;
+  }, [getShotImageUrl]);
+
+  const getBatchShotEligibility = useCallback((shot: any, autoCompleteOverride = autoCompleteDetails) => {
+    const shotId = shot?.id ? String(shot.id) : '';
+    if (!shotId) return { selectable: false, reason: '缺少分镜 ID' };
+    if (generatingVideos.has(shotId) || shot?.videoStatus === 'generating') return { selectable: false, reason: '视频生成中' };
+
+    const shotImageUrl = getShotImageUrl(shot);
+    if (autoCompleteOverride) {
+      return shotImageUrl
+        ? { selectable: true, reason: '可自动补齐' }
+        : { selectable: false, reason: '缺少主分镜图' };
+    }
+
+    const plan: VideoDirectorPlan = shot?.videoDirectorPlan || {};
+    const selectedMode = plan.selected_mode || plan.recommended_mode;
+    if (!selectedMode) return { selectable: false, reason: '未确定生成模式' };
+
+    if (!shotImageUrl) return { selectable: false, reason: '缺少主分镜图' };
+
+    if (selectedMode === 'SINGLE_FRAME') return { selectable: true, reason: '可生成' };
+
+    const keyframes = plan.keyframes || [];
+    if (!keyframes.length) return { selectable: false, reason: '未规划关键帧' };
+
+    if (selectedMode === 'FIRST_LAST_FRAME') {
+      const endKeyframe = keyframes.find((keyframe: any) => keyframe.role === 'END');
+      if (!endKeyframe) return { selectable: false, reason: '缺少尾帧规划' };
+      if (!getVideoDirectorKeyframeImageUrl(shot, endKeyframe)) return { selectable: false, reason: '尾帧图片未生成' };
+      return { selectable: true, reason: '可生成' };
+    }
+
+    if (selectedMode === 'MULTI_KEYFRAME') {
+      const clips = plan.window_plans || [];
+      if (!clips.length) return { selectable: false, reason: '未规划关键帧' };
+      const invalidClip = clips.find((clip: any) => ![3, 4].includes((clip.keyframe_indexes || []).length));
+      if (invalidClip) return { selectable: false, reason: '关键帧规划不完整' };
+      const missingClip = clips.find((clip: any) => (clip.keyframe_indexes || []).some((keyframeIndex: number) => {
+        const keyframe = keyframes.find((item: any) => Number(item.index) === Number(keyframeIndex));
+        return !getVideoDirectorKeyframeImageUrl(shot, keyframe);
+      }));
+      if (missingClip) {
+        const clip: any = missingClip;
+        return { selectable: false, reason: `C${clip.window_index || clip.clip_index || ''} 缺关键帧图` };
+      }
+      return { selectable: true, reason: '可生成' };
+    }
+
+    return { selectable: false, reason: '生成模式不支持' };
+  }, [autoCompleteDetails, generatingVideos, getShotImageUrl, getVideoDirectorKeyframeImageUrl]);
+
+  const selectableShotIndexes = useCallback(() => shotsList
+    .map((shot: any, idx: number) => getBatchShotEligibility(shot).selectable ? idx + 1 : null)
+    .filter((index: number | null): index is number => index !== null), [getBatchShotEligibility, shotsList]);
 
   // 检查当前分镜是否正在生成
   const isGeneratingCurrent = currentShotId ? generatingVideos.has(currentShotId) || currentShotData?.videoStatus === 'generating' : false;
@@ -996,7 +1194,7 @@ export function VideoGenTab({
 
   const handlePlanVideoKeyframes = useCallback(async (force = true) => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
-    setRecommendingShotId(currentShotId);
+    setPlanningKeyframesShotId(currentShotId);
     try {
       const result = await shotsApi.planVideoKeyframes(effectiveNovelId, effectiveChapterId, currentShotId, force);
       if (result.success && result.data) {
@@ -1009,7 +1207,7 @@ export function VideoGenTab({
       console.error('关键帧规划失败:', error);
       toast.error('关键帧规划失败');
     } finally {
-      setRecommendingShotId(null);
+      setPlanningKeyframesShotId(null);
     }
   }, [currentShotId, effectiveChapterId, effectiveNovelId, updateCurrentShotVideoDirectorPlan]);
 
@@ -1035,6 +1233,7 @@ export function VideoGenTab({
       return;
     }
 
+    setGeneratingMissingKeyframesShotId(currentShotId);
     try {
       for (const keyframe of missingLegacyKeyframes) {
         await generateKeyframeImage(effectiveNovelId, effectiveChapterId, currentShotId, Number(keyframe.frame_index));
@@ -1043,6 +1242,8 @@ export function VideoGenTab({
     } catch (error) {
       console.error('生成缺失关键帧失败:', error);
       toast.error('生成缺失关键帧失败');
+    } finally {
+      setGeneratingMissingKeyframesShotId(null);
     }
   }, [currentShotData, currentShotId, currentVideoDirectorPlan.keyframes, effectiveChapterId, effectiveNovelId, generateKeyframeImage]);
 
@@ -1265,15 +1466,89 @@ export function VideoGenTab({
     }
   }, [currentShotId, effectiveChapterId, effectiveNovelId, refreshCurrentShotData, setShotVideos, setShots, shotsList]);
 
+  const openVideoImageEdit = useCallback((target: VideoImageEditTarget) => {
+    if (!target.imageUrl) return;
+    if (target.type === 'keyframe' && target.frameIndex === undefined) {
+      toast.error('缺少关键帧序号，无法编辑');
+      return;
+    }
+    setImageEditTarget(target);
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+  }, []);
+
+  const closeVideoImageEdit = useCallback(() => {
+    if (isEditingImage || isReplacingImage) return;
+    setImageEditTarget(null);
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+  }, [isEditingImage, isReplacingImage]);
+
+  const handleEditVideoImage = useCallback(async (prompt: string) => {
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId || !imageEditTarget) return;
+    if (!prompt.trim()) {
+      toast.warning('请输入图片编辑提示词');
+      return;
+    }
+    setIsEditingImage(true);
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+    try {
+      const result = imageEditTarget.type === 'shot'
+        ? await shotsApi.editImage(effectiveNovelId, effectiveChapterId, currentShotId, prompt)
+        : await shotsApi.editKeyframeImage(effectiveNovelId, effectiveChapterId, currentShotId, Number(imageEditTarget.frameIndex), prompt);
+      if (result.success && result.data?.imageUrl) {
+        setImageEditResultUrl(result.data.imageUrl);
+        toast.success('图片编辑完成');
+      } else {
+        toast.error(result.detail || result.message || '编辑图片失败');
+      }
+    } catch (error) {
+      console.error('编辑图片失败:', error);
+      toast.error('编辑图片失败');
+    } finally {
+      setIsEditingImage(false);
+    }
+  }, [currentShotId, effectiveChapterId, effectiveNovelId, imageEditTarget]);
+
+  const handleReplaceVideoImage = useCallback(async () => {
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId || !imageEditTarget || !imageEditResultUrl) return;
+    setIsReplacingImage(true);
+    try {
+      const result = imageEditTarget.type === 'shot'
+        ? await shotsApi.replaceImage(effectiveNovelId, effectiveChapterId, currentShotId, imageEditResultUrl)
+        : await shotsApi.replaceKeyframeImage(effectiveNovelId, effectiveChapterId, currentShotId, Number(imageEditTarget.frameIndex), imageEditResultUrl);
+      if (result.success && result.data) {
+        setShots(shotsList.map((shot: any) => (String(shot.id) === currentShotId ? { ...shot, ...result.data } : shot)));
+        if (imageEditTarget.type === 'shot') {
+          setShotImages((images: Record<string, string>) => ({ ...images, [currentShotId]: result.data?.imageUrl || imageEditResultUrl }));
+        }
+        toast.success(imageEditTarget.type === 'shot' ? '已替换分镜图片' : '已替换关键帧图片');
+        setImageEditTarget(null);
+        setImageEditResultUrl(null);
+        setImageEditResultSize(null);
+      } else {
+        toast.error(result.detail || result.message || '替换图片失败');
+      }
+    } catch (error) {
+      console.error('替换图片失败:', error);
+      toast.error('替换图片失败');
+    } finally {
+      setIsReplacingImage(false);
+    }
+  }, [currentShotId, effectiveChapterId, effectiveNovelId, imageEditResultUrl, imageEditTarget, setShotImages, setShots, shotsList]);
+
   // 打开批量选择弹窗
   const handleOpenBatchSelect = () => {
-    setSelectedShots(new Set(shotsList.map((_: any, idx: number) => idx + 1)));
+    setSelectedShots(new Set(selectableShotIndexes()));
     setBatchSelectionMode('all');
     setShowBatchSelectModal(true);
   };
 
   // 切换分镜选择状态
   const toggleShotSelection = (index: number) => {
+    const shot = shotsList[index - 1];
+    if (!getBatchShotEligibility(shot).selectable) return;
     setSelectedShots(prev => {
       const newSet = new Set(prev);
       if (newSet.has(index)) {
@@ -1292,7 +1567,7 @@ export function VideoGenTab({
       setSelectedShots(new Set());
       setBatchSelectionMode(null);
     } else {
-      setSelectedShots(new Set(shotsList.map((_: any, idx: number) => idx + 1)));
+      setSelectedShots(new Set(selectableShotIndexes()));
       setBatchSelectionMode('all');
     }
   };
@@ -1306,9 +1581,8 @@ export function VideoGenTab({
 
     const pendingShots = shotsList
       .map((shot: any, idx: number) => {
-        const shotId = shot?.id ? String(shot.id) : '';
-        const isGenerating = shotId ? generatingVideos.has(shotId) : false;
-        return !hasShotVideo(shot) && !isGenerating ? idx + 1 : null;
+        const eligibility = getBatchShotEligibility(shot);
+        return !hasShotVideo(shot) && eligibility.selectable ? idx + 1 : null;
       })
       .filter((index: number | null): index is number => index !== null);
 
@@ -1326,33 +1600,234 @@ export function VideoGenTab({
     }));
   };
 
+  const updateShotInStore = useCallback((updatedShot: any) => {
+    setShots(useChapterGenerateStore.getState().shots.map((shot: any) => (
+      String(shot.id) === String(updatedShot.id) ? { ...shot, ...updatedShot } : shot
+    )));
+    if (updatedShot?.imageUrl || updatedShot?.image_url) {
+      setShotImages((images: Record<string, string>) => ({
+        ...images,
+        [String(updatedShot.id)]: updatedShot.imageUrl || updatedShot.image_url,
+      }));
+    }
+  }, [setShotImages, setShots]);
+
+  const refreshBatchShot = useCallback(async (shotId: string) => {
+    if (!effectiveNovelId || !effectiveChapterId) return null;
+    const result = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, shotId);
+    if (result.success && result.data) {
+      updateShotInStore(result.data);
+      return result.data;
+    }
+    return null;
+  }, [effectiveChapterId, effectiveNovelId, updateShotInStore]);
+
+  const getBatchKeyframeFrameIndex = useCallback((shot: any, plan: VideoDirectorPlan, keyframe: any) => {
+    if (!keyframe || keyframe.role === 'START') return undefined;
+    const legacyKeyframes = shot?.keyframes || [];
+    const legacyKeyframe = legacyKeyframes.find((item: any) => Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(keyframe.index));
+    if (legacyKeyframe?.frame_index !== undefined) return Number(legacyKeyframe.frame_index);
+    const nonStartIndex = (plan.keyframes || [])
+      .filter((item: any) => item.role !== 'START')
+      .findIndex((item: any) => Number(item.index) === Number(keyframe.index));
+    return nonStartIndex >= 0 ? nonStartIndex : undefined;
+  }, []);
+
+  const getMissingBatchKeyframes = useCallback((shot: any, mode: VideoMode, plan: VideoDirectorPlan) => {
+    const keyframes = plan.keyframes || [];
+    const requiredKeyframes = mode === 'FIRST_LAST_FRAME'
+      ? keyframes.filter((keyframe: any) => keyframe.role === 'END')
+      : keyframes.filter((keyframe: any) => keyframe.role !== 'START');
+    return requiredKeyframes
+      .filter((keyframe: any) => !getVideoDirectorKeyframeImageUrl(shot, keyframe))
+      .map((keyframe: any) => ({ keyframe, frameIndex: getBatchKeyframeFrameIndex(shot, plan, keyframe) }))
+      .filter((item: any) => item.frameIndex !== undefined);
+  }, [getBatchKeyframeFrameIndex, getVideoDirectorKeyframeImageUrl]);
+
+  const waitForBatchKeyframeImages = useCallback(async (shotId: string, mode: VideoMode) => {
+    for (let attempt = 0; attempt < 180; attempt += 1) {
+      const latestShot = await refreshBatchShot(shotId);
+      const latestPlan: VideoDirectorPlan = latestShot?.videoDirectorPlan || {};
+      if (latestShot && getMissingBatchKeyframes(latestShot, mode, latestPlan).length === 0) {
+        return latestShot;
+      }
+      await sleep(2000);
+    }
+    throw new Error('等待关键帧图片生成超时');
+  }, [getMissingBatchKeyframes, refreshBatchShot]);
+
+  const prepareShotForAutoBatchVideo = useCallback(async (shot: any) => {
+    if (!effectiveNovelId || !effectiveChapterId || !shot?.id) return null;
+    let latestShot = await refreshBatchShot(String(shot.id)) || shot;
+    let plan: VideoDirectorPlan = latestShot.videoDirectorPlan || {};
+
+    if (!getShotImageUrl(latestShot)) {
+      throw new Error('缺少主分镜图');
+    }
+
+    if (!plan.selected_mode && !plan.recommended_mode) {
+      setRecommendingShotId(String(shot.id));
+      const recommendResult = await shotsApi.recommendVideoMode(effectiveNovelId, effectiveChapterId, String(shot.id), false);
+      setRecommendingShotId(null);
+      if (!recommendResult.success || !recommendResult.data) {
+        throw new Error(recommendResult.message || '视频模式推荐失败');
+      }
+      plan = recommendResult.data;
+      latestShot = { ...latestShot, videoDirectorPlan: plan };
+      updateShotInStore(latestShot);
+    }
+
+    let mode = (plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME') as VideoMode;
+    const maxClipDuration = plan.workflow_capability?.max_clip_duration || 15;
+    if (mode === 'FIRST_LAST_FRAME' && Number(latestShot.duration || 0) > maxClipDuration) {
+      mode = 'MULTI_KEYFRAME';
+    }
+    if (plan.selected_mode !== mode) {
+      const saveResult = await shotsApi.saveVideoDirectorPlan(effectiveNovelId, effectiveChapterId, String(shot.id), { selected_mode: mode });
+      if (!saveResult.success || !saveResult.data) {
+        throw new Error(saveResult.message || '保存视频模式失败');
+      }
+      plan = saveResult.data;
+      latestShot = { ...latestShot, videoDirectorPlan: plan };
+      updateShotInStore(latestShot);
+    }
+
+    if (mode !== 'SINGLE_FRAME') {
+      const needsPlan = !(plan.keyframes || []).length || (mode === 'MULTI_KEYFRAME' && !(plan.window_plans || []).length);
+      if (needsPlan) {
+        setPlanningKeyframesShotId(String(shot.id));
+        const planResult = await shotsApi.planVideoKeyframes(effectiveNovelId, effectiveChapterId, String(shot.id), false);
+        setPlanningKeyframesShotId(null);
+        if (!planResult.success || !planResult.data) {
+          throw new Error(planResult.message || '关键帧规划失败');
+        }
+        plan = planResult.data;
+        latestShot = { ...latestShot, videoDirectorPlan: plan };
+        updateShotInStore(latestShot);
+      }
+
+      const missingKeyframes = getMissingBatchKeyframes(latestShot, mode, plan);
+      if (missingKeyframes.length > 0) {
+        setGeneratingMissingKeyframesShotId(String(shot.id));
+        try {
+          for (const item of missingKeyframes) {
+            await generateKeyframeImage(effectiveNovelId, effectiveChapterId, String(shot.id), Number(item.frameIndex));
+          }
+          latestShot = await waitForBatchKeyframeImages(String(shot.id), mode);
+        } finally {
+          setGeneratingMissingKeyframesShotId(null);
+        }
+      }
+    }
+
+    return { shot: latestShot, mode };
+  }, [effectiveChapterId, effectiveNovelId, generateKeyframeImage, getMissingBatchKeyframes, getShotImageUrl, refreshBatchShot, updateShotInStore, waitForBatchKeyframeImages]);
+
+  const submitBatchShotVideo = useCallback(async (shotId: string, mode: VideoMode) => {
+    if (!effectiveNovelId || !effectiveChapterId) return;
+    useChapterGenerateStore.setState((state) => ({
+      generatingVideos: new Set([...state.generatingVideos, shotId]),
+      shotVideos: Object.fromEntries(Object.entries(state.shotVideos).filter(([key]) => key !== shotId)),
+      shots: state.shots.map((shot: any) => (
+        String(shot.id) === shotId
+          ? { ...shot, videoUrl: null, videoStatus: 'generating' as const, videoTaskId: null }
+          : shot
+      )),
+    }));
+
+    try {
+      const result = await shotsApi.generateVideo(effectiveNovelId, effectiveChapterId, shotId, { selected_mode: mode });
+      if (!result.success) {
+        throw new Error(result.message || result.detail || '生成失败');
+      }
+      useChapterGenerateStore.setState((state) => ({
+        generatingVideos: new Set([...state.generatingVideos, shotId]),
+        shots: state.shots.map((shot: any) => (
+          String(shot.id) === shotId
+            ? { ...shot, videoUrl: null, videoStatus: 'generating' as const, videoTaskId: result.data?.taskId || null }
+            : shot
+        )),
+      }));
+      checkVideoTaskStatus(effectiveChapterId);
+
+      let attempts = 0;
+      const pollVideoTask = async () => {
+        if (!useChapterGenerateStore.getState().generatingVideos.has(shotId) || attempts >= 180) return;
+        attempts += 1;
+        await checkVideoTaskStatus(effectiveChapterId);
+        if (useChapterGenerateStore.getState().generatingVideos.has(shotId)) {
+          window.setTimeout(pollVideoTask, 2000);
+        }
+      };
+      window.setTimeout(pollVideoTask, 2000);
+    } catch (error) {
+      useChapterGenerateStore.setState((state) => {
+        const next = new Set(state.generatingVideos);
+        next.delete(shotId);
+        return {
+          generatingVideos: next,
+          shots: state.shots.map((shot: any) => (
+            String(shot.id) === shotId ? { ...shot, videoStatus: 'failed' as const } : shot
+          )),
+        };
+      });
+      throw error;
+    }
+  }, [checkVideoTaskStatus, effectiveChapterId, effectiveNovelId]);
+
   // 处理批量视频生成
   const handleGenerateAll = async () => {
     if (!effectiveNovelId || !effectiveChapterId) return;
     const selectedShotList = Array.from(selectedShots)
       .map(index => shotsList[index - 1])
-      .filter(Boolean);
+      .filter((shot) => shot && getBatchShotEligibility(shot).selectable);
+    if (!selectedShotList.length) {
+      toast.info('没有可生成的视频分镜');
+      return;
+    }
     if (selectedShotList.some(hasShotVideo) && !window.confirm('视频已存在，确认删除旧的吗？')) return;
 
     setIsGeneratingAll(true);
+    setShowBatchSelectModal(false);
+    let successCount = 0;
+    let failedCount = 0;
+    const selectedShotIds = selectedShotList.map((shot: any) => String(shot.id)).filter(Boolean);
+    setShots(useChapterGenerateStore.getState().shots.map((shot: any) => (
+      selectedShotIds.includes(String(shot.id))
+        ? { ...shot, videoStatus: 'generating', videoUrl: null }
+        : shot
+    )));
     try {
       // 依次生成选中的分镜
       for (const shot of selectedShotList) {
-        if (shot?.id) {
-          const plan = shot.videoDirectorPlan || {};
-          await generateShotVideo(
-            effectiveNovelId,
-            effectiveChapterId,
-            shot.id,
-            plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME'
+        if (!shot?.id) continue;
+        try {
+          const prepared = autoCompleteDetails ? await prepareShotForAutoBatchVideo(shot) : null;
+          const effectiveShot = prepared?.shot || shot;
+          const plan = effectiveShot.videoDirectorPlan || {};
+          await submitBatchShotVideo(
+            String(effectiveShot.id),
+            (prepared?.mode || plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME') as VideoMode
           );
+          successCount += 1;
+        } catch (error) {
+          failedCount += 1;
+          console.error(`批量生成分镜 ${shot.index || shot.id} 失败:`, error);
+          toast.error(`镜${shot.index || ''} 自动处理失败：${error instanceof Error ? error.message : '未知错误'}`);
+          setShots(useChapterGenerateStore.getState().shots.map((item: any) => (
+            String(item.id) === String(shot.id) ? { ...item, videoStatus: 'failed' } : item
+          )));
         }
+      }
+      if (successCount > 0) {
+        toast.success(`已提交 ${successCount} 个分镜视频任务${failedCount ? `，${failedCount} 个失败` : ''}`);
+      } else if (failedCount > 0) {
+        toast.error('批量生成视频未提交成功任务');
       }
     } catch (error) {
       console.error(t('chapterGenerate.batchVideoGenerateFailed') + ':', error);
     } finally {
       setIsGeneratingAll(false);
-      setShowBatchSelectModal(false);
     }
   };
 
@@ -1423,38 +1898,6 @@ export function VideoGenTab({
       console.error(t('chapterGenerate.shotSaveFailed') + ':', error);
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleSaveShortcut = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
-      event.preventDefault();
-      event.stopPropagation();
-      handleSaveShot();
-    }
-  };
-
-  const copyVideoDescription = async () => {
-    const content = currentShotData?.video_description || '';
-    if (!content) return;
-    try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(content);
-      } else {
-        const textarea = document.createElement('textarea');
-        textarea.value = content;
-        textarea.style.position = 'fixed';
-        textarea.style.left = '-9999px';
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textarea);
-      }
-      toast.success(t('common.copied'));
-    } catch (error) {
-      console.error('复制视频描述失败:', error);
-      toast.error(t('common.copyFailed'));
     }
   };
 
@@ -1549,8 +1992,8 @@ export function VideoGenTab({
   return (
     <div className="h-full flex flex-col">
       {/* 操作栏 */}
-      <div className="flex-shrink-0 flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
-        <div className="flex items-center gap-4">
+      <div className="flex-shrink-0 flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
+        <div className="ml-8 flex items-center gap-4">
           <button
             onClick={handleGenerateVideo}
             disabled={isGeneratingCurrent || !effectiveChapterId}
@@ -1667,89 +2110,25 @@ export function VideoGenTab({
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 overflow-hidden">
         {/* 中间：视频提示词编辑 + 视频导演 */}
         <div className="video-main-column flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto pr-1">
-          {/* 时长设置 */}
-          <div className="flex-shrink-0 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <label className="text-sm font-medium text-gray-700">{t('chapterGenerate.durationLabel')}</label>
-                <input
-                  type="number"
-                  value={currentShotData?.duration || 5}
-                  onChange={(e) => {
-                    const shotIndex = selectedVideo - 1;
-                    if (shotsList[shotIndex]) {
-                      const updatedShots = shotsList.map((s: any, idx: number) =>
-                        idx === shotIndex
-                          ? { ...s, duration: Math.min(180, Math.max(1, parseInt(e.target.value) || 5)) }
-                          : s
-                      );
-                      setShots(updatedShots);
-                    }
-                  }}
-                  min={1}
-                  max={180}
-                  className="w-20 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <span className="text-sm text-gray-500">{t('common.second')}</span>
-              </div>
-              <span className="text-xs text-gray-400">{t('common.recommended')} 3-10 {t('common.second')}，{t('common.max')} 180 {t('common.second')}</span>
-            </div>
-          </div>
-
-          {/* 视频提示词编辑区 */}
-          <div className="video-description-card flex-shrink-0 border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.videoDescForVideo')}</h3>
-              <button
-                type="button"
-                onClick={copyVideoDescription}
-                disabled={!currentShotData?.video_description}
-                className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
-                title={t('common.copy')}
-                aria-label={t('common.copy')}
-              >
-                <Copy className="h-4 w-4" />
-              </button>
-            </div>
-            <textarea
-              value={currentShotData?.video_description || ''}
-              onKeyDown={handleSaveShortcut}
-              onChange={(e) => {
-                const shotIndex = selectedVideo - 1;
-                if (shotsList[shotIndex]) {
-                  const updatedShots = shotsList.map((s: any, idx: number) =>
-                    idx === shotIndex
-                      ? { ...s, video_description: e.target.value }
-                      : s
-                  );
-                  setShots(updatedShots);
-                }
-              }}
-              placeholder={t('chapterGenerate.videoDescPlaceholder')}
-              className="video-description-textarea w-full h-40 px-3 py-2 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            />
-            <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
-              <span>{t('chapterGenerate.placeholderHint')}</span>
-              <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderStyle')}</span>
-              <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderScene')}</span>
-              <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderCharacters')}</span>
-            </div>
-          </div>
-
           <VideoDirectorPanel
             shot={currentShotData}
             shotImageUrl={currentShotImageUrl}
             plan={currentVideoDirectorPlan}
             isRecommending={recommendingShotId === currentShotId}
+            isPlanningKeyframes={planningKeyframesShotId === currentShotId}
             onRecommend={handleRecommendVideoMode}
             onPlanKeyframes={handlePlanVideoKeyframes}
             onGenerateMissingKeyframes={handleGenerateMissingKeyframes}
             onGenerateEndKeyframe={handleGenerateEndKeyframe}
             isGeneratingEndKeyframe={isGeneratingCurrentEndKeyframe}
+            isGeneratingMissingKeyframes={generatingMissingKeyframesShotId === currentShotId}
+            generatingKeyframes={generatingKeyframes}
             onSelectMode={handleSelectVideoMode}
             onPreviewClip={handlePreviewClip}
             onRegenerateClip={handleRegenerateClip}
             onMergeClips={handleMergeDirectorClips}
+            onPreviewImage={setPreviewImage}
+            onEditImage={openVideoImageEdit}
             selectedPreviewClipKey={selectedPreviewClipKey}
             regeneratingClipKey={regeneratingClipKey}
             isMergingClips={isMergingClips}
@@ -1757,8 +2136,9 @@ export function VideoGenTab({
 
         </div>
 
-        {/* 右侧：视频预览区 */}
-        <div className="video-preview-card flex-shrink-0 lg:w-[360px] xl:w-[420px] min-h-[360px] lg:min-h-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden bg-white">
+        {/* 右侧：视频预览 + AI 调用结果 */}
+        <div className="flex-shrink-0 lg:w-[360px] xl:w-[420px] min-h-0 flex flex-col gap-3 overflow-y-auto">
+        <div className="video-preview-card h-[360px] flex-shrink-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden bg-white">
           <div className="flex-shrink-0 p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
             <div>
               <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.videoPreview')} · {previewVideoLabel}</h3>
@@ -1858,6 +2238,8 @@ export function VideoGenTab({
             </div>
           )}
         </div>
+        <VideoAiCallsPanel calls={currentVideoDirectorPlan.ai_calls || []} />
+        </div>
 
       </div>
 
@@ -1884,7 +2266,7 @@ export function VideoGenTab({
             <div className="flex-1 overflow-y-auto p-4 pb-8">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-gray-600">
-                  {t('chapterGenerate.selectedShots', { selected: selectedShots.size, total: shotsList.length })}
+                  已选择 {selectedShots.size} / 可选 {selectableShotIndexes().length} / 共 {shotsList.length} 个分镜
                 </span>
                 <div className="flex items-center gap-3">
                   <button
@@ -1911,21 +2293,23 @@ export function VideoGenTab({
                   const isSelected = selectedShots.has(shotIndex);
                   const hasVideo = hasShotVideo(shot);
                   const isGenerating = shotId ? generatingVideos.has(shotId) : false;
-                  const isPending = !hasVideo && !isGenerating;
+                  const eligibility = getBatchShotEligibility(shot);
+                  const isSelectable = eligibility.selectable;
 
                   return (
                     <div
                       key={shot.id || `shot-${shotIndex}`}
-                      onClick={() => !isGenerating && toggleShotSelection(shotIndex)}
+                      onClick={() => isSelectable && toggleShotSelection(shotIndex)}
+                      title={isSelectable ? '可生成' : eligibility.reason}
                       className={`
                         relative aspect-video rounded-lg border-2 transition-all
-                        ${isGenerating
-                          ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+                        ${!isSelectable
+                          ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
                           : 'cursor-pointer hover:shadow-md'
                         }
-                        ${!isGenerating && isSelected
+                        ${isSelectable && isSelected
                           ? 'border-blue-500 bg-blue-50'
-                          : !isGenerating && !isSelected
+                          : isSelectable && !isSelected
                             ? hasVideo
                               ? 'border-gray-300 bg-white hover:border-blue-300'
                               : 'border-gray-300 bg-white hover:border-gray-400'
@@ -1938,8 +2322,8 @@ export function VideoGenTab({
                         #{shotIndex}
                       </div>
 
-                      {/* 选择标记 - 所有非生成中的分镜都显示 */}
-                      {!isGenerating && (
+                      {/* 选择标记 - 只有可选分镜显示 */}
+                      {isSelectable && (
                         <div className={`
                           absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center
                           ${isSelected ? 'bg-blue-500' : 'bg-gray-200'}
@@ -1960,8 +2344,8 @@ export function VideoGenTab({
                       </div>
 
                       {/* 状态标签 */}
-                      <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg">
-                        {hasVideo ? t('chapterGenerate.generated') : isGenerating ? t('chapterGenerate.generating') : t('chapterGenerate.pending')}
+                      <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg truncate">
+                        {isSelectable ? (hasVideo ? t('chapterGenerate.generated') : t('chapterGenerate.pending')) : eligibility.reason}
                       </div>
                     </div>
                   );
@@ -1970,30 +2354,55 @@ export function VideoGenTab({
             </div>
 
             {/* 弹窗底部按钮 */}
-            <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200">
-              <button
-                onClick={() => setShowBatchSelectModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={handleGenerateAll}
-                disabled={selectedShots.size === 0 || isGeneratingAll}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-              >
-                {isGeneratingAll ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    {t('chapterGenerate.generating')}
-                  </>
-                ) : (
-                  <>
-                    <Film className="w-4 h-4" />
-                    {t('chapterGenerate.generateShots', { count: selectedShots.size })}
-                  </>
-                )}
-              </button>
+            <div className="flex items-center justify-between gap-3 p-4 border-t border-gray-200">
+              <label className="flex items-center gap-2 text-sm text-gray-700 select-none cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={autoCompleteDetails}
+                  onChange={(event) => {
+                    const checked = event.target.checked;
+                    setAutoCompleteDetails(checked);
+                    const selectableIndexes = shotsList
+                      .map((shot: any, idx: number) => {
+                        const shotId = shot?.id ? String(shot.id) : '';
+                        if (!shotId || generatingVideos.has(shotId) || shot?.videoStatus === 'generating') return null;
+                        if (!getShotImageUrl(shot)) return null;
+                        if (checked) return idx + 1;
+                        return getBatchShotEligibility(shot, checked).selectable ? idx + 1 : null;
+                      })
+                      .filter((index: number | null): index is number => index !== null);
+                    setSelectedShots(new Set(selectableIndexes));
+                    setBatchSelectionMode('all');
+                  }}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                自动完成细节
+              </label>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowBatchSelectModal(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={handleGenerateAll}
+                  disabled={selectedShots.size === 0 || isGeneratingAll}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {isGeneratingAll ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {t('chapterGenerate.generating')}
+                    </>
+                  ) : (
+                    <>
+                      <Film className="w-4 h-4" />
+                      {t('chapterGenerate.generateShots', { count: selectedShots.size })}
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2006,6 +2415,37 @@ export function VideoGenTab({
         onClose={() => setPreviewImage(null)}
         showDownload={true}
       />
+
+      {imageEditTarget && (
+        <ImageEditModal
+          isOpen={!!imageEditTarget}
+          itemName={imageEditTarget.itemName}
+          imageUrl={imageEditTarget.imageUrl}
+          resultUrl={imageEditResultUrl}
+          isEditing={isEditingImage}
+          isReplacing={isReplacingImage}
+          resultSize={imageEditResultSize}
+          onResultSizeChange={setImageEditResultSize}
+          labels={{
+            title: imageEditTarget.type === 'shot' ? '编辑分镜图片' : '编辑关键帧图片',
+            optionsTitle: '编辑选项',
+            keepOriginalLayout: '保持原图构图与布局',
+            removeWeapons: '移除不需要的物体或干扰元素',
+            makeFourView: '增强主体一致性与画面细节',
+            other: '其它',
+            otherPlaceholder: '输入额外编辑要求，例如：修正红框区域，保持人物和构图不变。',
+            editButton: '编辑图片',
+            editing: '编辑中...',
+            replaceButton: imageEditTarget.type === 'shot' ? '替换分镜图片' : '替换关键帧图片',
+            originalImage: '原图',
+            editResult: '编辑结果',
+            emptyResult: '生成后在这里预览',
+          }}
+          onClose={closeVideoImageEdit}
+          onEdit={handleEditVideoImage}
+          onReplace={handleReplaceVideoImage}
+        />
+      )}
 
       {/* 合并视频结果弹窗 */}
       {showMergeModal && mergedVideoUrl && (

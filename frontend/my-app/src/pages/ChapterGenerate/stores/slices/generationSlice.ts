@@ -1082,6 +1082,7 @@ export const createGenerationSlice: StateCreator<
         let keyframeTasksUpdated = false;
         let generatingKeyframesUpdated = false;
         let keyframeImageUrlsUpdated = false;
+        let shotsUpdated = false;
         const newKeyframeTasks = [...keyframeTasks];
         const newGeneratingKeyframes = new Set(generatingKeyframes);
         const newKeyframeImageUrls = { ...keyframeImageUrls };
@@ -1131,7 +1132,8 @@ export const createGenerationSlice: StateCreator<
                     : kf
                 );
                 const legacyKeyframe = updatedKeyframes.find((kf: any) => kf.frame_index === frameIndex);
-                const planKeyframeIndex = legacyKeyframe?.plan_keyframe_index;
+                const nonStartPlanKeyframes = (shot.videoDirectorPlan?.keyframes || []).filter((kf: any) => kf.role !== 'START');
+                const planKeyframeIndex = legacyKeyframe?.plan_keyframe_index ?? nonStartPlanKeyframes[frameIndex]?.index;
                 const videoDirectorPlan = shot.videoDirectorPlan && planKeyframeIndex !== undefined
                   ? {
                     ...shot.videoDirectorPlan,
@@ -1143,6 +1145,7 @@ export const createGenerationSlice: StateCreator<
                   }
                   : shot.videoDirectorPlan;
                 updatedShots[shotIndex] = { ...shot, keyframes: updatedKeyframes, videoDirectorPlan };
+                shotsUpdated = true;
               }
             } else if (task.status === 'failed') {
               // 失败时从生成中集合移除
@@ -1155,7 +1158,7 @@ export const createGenerationSlice: StateCreator<
         });
 
         // 只在数据变化时更新状态
-        if (keyframeTasksUpdated || generatingKeyframesUpdated || keyframeImageUrlsUpdated) {
+        if (keyframeTasksUpdated || generatingKeyframesUpdated || keyframeImageUrlsUpdated || shotsUpdated) {
           set({
             keyframeTasks: newKeyframeTasks,
             generatingKeyframes: newGeneratingKeyframes,

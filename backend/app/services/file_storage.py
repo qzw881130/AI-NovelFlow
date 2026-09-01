@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
+from app.utils.path_utils import url_to_local_path
+
 
 class FileStorageService:
     """文件存储服务"""
@@ -98,6 +100,8 @@ class FileStorageService:
                 # 分镜图片保存到 chapter_{chapter_id}/shots/
                 chapter_short = chapter_id[:8] if chapter_id else "unknown"
                 save_dir = story_dir / f"chapter_{chapter_short}" / "shots"
+            elif image_type == "shot_edit":
+                save_dir = story_dir / "shots" / "edits"
             else:
                 save_dir = story_dir / "images"
 
@@ -567,7 +571,7 @@ class FileStorageService:
             return {"success": False, "message": f"帧提取失败: {str(e)}"}
 
 
-    def zip_chapter_materials(self, novel_id: str, chapter_id: str) -> Optional[str]:
+    def zip_chapter_materials(self, novel_id: str, chapter_id: str, shots: Optional[List[Any]] = None) -> Optional[str]:
         """
         打包章节素材为 ZIP 文件
 
@@ -595,7 +599,8 @@ class FileStorageService:
                 chapter_dir.exists() or
                 characters_dir.exists() or
                 scenes_dir.exists() or
-                voices_dir.exists()
+                voices_dir.exists() or
+                bool(shots)
             )
 
             if not has_materials:
@@ -607,46 +612,183 @@ class FileStorageService:
             zip_path = story_dir / zip_filename
 
             file_count = 0
+            added_files = set()
+
+            def add_file(zipf, source: Optional[str], arcname: str) -> bool:
+                nonlocal file_count
+                if not source:
+                    return False
+                source_path = Path(source)
+                if not source_path.exists() or not source_path.is_file() or arcname in added_files:
+                    return False
+                zipf.write(source_path, arcname)
+                added_files.add(arcname)
+                file_count += 1
+                print(f"[FileStorage] Added to zip: {arcname}")
+                return True
+
+            def resolve_material_path(value: Optional[str]) -> Optional[str]:
+                if not value:
+                    return None
+                local_path = url_to_local_path(value)
+                if local_path:
+                    return local_path
+                path = Path(value)
+                if path.exists():
+                    return str(path)
+                return None
+
+            def parse_json_field(value: Any, default: Any) -> Any:
+                if value is None:
+                    return default
+                if isinstance(value, (list, dict)):
+                    return value
+                if isinstance(value, str):
+                    try:
+                        return json.loads(value)
+                    except json.JSONDecodeError:
+                        return default
+                return default
+
+            def get_attr(obj: Any, *names: str) -> Any:
+                for name in names:
+                    if isinstance(obj, dict) and name in obj:
+                        return obj.get(name)
+                    if hasattr(obj, name):
+                        return getattr(obj, name)
+                return None
+
+            def add_manifest_material(zipf, manifest_items: List[Dict[str, Any]], source: Optional[str], arcname: str, kind: str, label: str) -> Optional[str]:
+                if add_file(zipf, source, arcname):
+                    manifest_items.append({"kind": kind, "label": label, "path": arcname})
+                    return arcname
+                return None
 
             # 打包目录
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                # 1. 遍历章节目录下的所有文件
+                manifest = {
+                    "version": 2,
+                    "novel_id": novel_id,
+                    "chapter_id": chapter_id,
+                    "generated_at": datetime.now().isoformat(),
+                    "shots": [],
+                    "chapter_materials": [],
+                }
+
+                # 1. 按当前数据库 Shot 数据组织新素材结构
+                for shot in shots or []:
+                    shot_index = int(get_attr(shot, "index") or 0)
+                    shot_label = f"shot_{shot_index:03d}" if shot_index else f"shot_{get_attr(shot, 'id') or 'unknown'}"
+                    plan = parse_json_field(get_attr(shot, "video_director_plan", "videoDirectorPlan"), {})
+                    legacy_keyframes = parse_json_field(get_attr(shot, "keyframes"), [])
+                    keyframes = plan.get("keyframes") or []
+                    shot_manifest = {
+                        "shot_id": get_attr(shot, "id"),
+                        "index": shot_index,
+                        "duration": get_attr(shot, "duration"),
+                        "selected_mode": plan.get("selected_mode"),
+                        "recommended_mode": plan.get("recommended_mode"),
+                        "video_description": get_attr(shot, "video_description"),
+                        "description": get_attr(shot, "description"),
+                        "materials": [],
+                        "keyframes": [],
+                        "clips": [],
+                    }
+
+                    primary_path = resolve_material_path(get_attr(shot, "image_url", "imageUrl") or get_attr(shot, "image_path", "imagePath"))
+                    if primary_path:
+                        ext = Path(primary_path).suffix or ".png"
+                        add_manifest_material(zipf, shot_manifest["materials"], primary_path, f"shot_materials/{shot_label}/primary_image{ext}", "primary_image", "主分镜图")
+
+                    video_path = resolve_material_path(get_attr(shot, "video_url", "videoUrl") or get_attr(shot, "video_path", "videoPath"))
+                    if video_path:
+                        ext = Path(video_path).suffix or ".mp4"
+                        add_manifest_material(zipf, shot_manifest["materials"], video_path, f"shot_materials/{shot_label}/videos/shot_video{ext}", "shot_video", "Shot 视频")
+
+                    for keyframe in keyframes:
+                        keyframe_index = keyframe.get("index")
+                        image_value = keyframe.get("image_url") or keyframe.get("imageUrl")
+                        if keyframe.get("role") == "START" and not image_value:
+                            image_value = primary_path
+                        if not image_value:
+                            legacy_keyframe = next((item for item in legacy_keyframes if int(item.get("plan_keyframe_index") or item.get("planKeyframeIndex") or -1) == int(keyframe_index or -2)), None)
+                            if legacy_keyframe:
+                                image_value = legacy_keyframe.get("image_url") or legacy_keyframe.get("imageUrl")
+                        image_path = resolve_material_path(image_value)
+                        keyframe_manifest = {
+                            "index": keyframe_index,
+                            "role": keyframe.get("role"),
+                            "time_seconds": keyframe.get("time_seconds"),
+                            "description": keyframe.get("description"),
+                            "image_path": None,
+                        }
+                        if image_path:
+                            ext = Path(image_path).suffix or ".png"
+                            role = (keyframe.get("role") or "KF").lower()
+                            arcname = f"shot_materials/{shot_label}/keyframes/KF{int(keyframe_index or 0):03d}_{role}{ext}"
+                            if add_file(zipf, image_path, arcname):
+                                keyframe_manifest["image_path"] = arcname
+                        shot_manifest["keyframes"].append(keyframe_manifest)
+
+                    for clip in plan.get("window_plans") or []:
+                        clip_index = int(clip.get("window_index") or clip.get("clip_index") or 0)
+                        clip_path = resolve_material_path(clip.get("video_url") or clip.get("local_path") or clip.get("source_video_url"))
+                        clip_manifest = {
+                            "clip_index": clip_index,
+                            "start_time": clip.get("start_time"),
+                            "end_time": clip.get("end_time"),
+                            "keyframe_indexes": clip.get("keyframe_indexes") or [],
+                            "workflow_type": clip.get("workflow_type"),
+                            "status": clip.get("status"),
+                            "video_path": None,
+                        }
+                        if clip_path:
+                            ext = Path(clip_path).suffix or ".mp4"
+                            arcname = f"shot_materials/{shot_label}/videos/clips/C{clip_index:03d}{ext}"
+                            if add_file(zipf, clip_path, arcname):
+                                clip_manifest["video_path"] = arcname
+                        shot_manifest["clips"].append(clip_manifest)
+
+                    merged_path = resolve_material_path(plan.get("merged_video_url"))
+                    if merged_path:
+                        ext = Path(merged_path).suffix or ".mp4"
+                        add_manifest_material(zipf, shot_manifest["materials"], merged_path, f"shot_materials/{shot_label}/videos/merged_video{ext}", "merged_video", "多 Clip 合并视频")
+
+                    manifest["shots"].append(shot_manifest)
+
+                # 2. 遍历章节目录下的所有文件，保留原始素材目录
                 if chapter_dir.exists():
                     for item in chapter_dir.rglob('*'):
-                        if "merged-videos" in item.relative_to(chapter_dir).parts:
-                            continue
                         if item.is_file():
                             arcname = item.relative_to(story_dir)
-                            zipf.write(item, arcname)
-                            file_count += 1
-                            print(f"[FileStorage] Added to zip: {arcname}")
+                            add_file(zipf, str(item), str(arcname))
 
-                # 2. 添加小说角色图目录
+                # 3. 添加小说角色图目录
                 if characters_dir.exists():
                     for item in characters_dir.rglob('*'):
                         if item.is_file():
                             arcname = item.relative_to(story_dir)
-                            zipf.write(item, arcname)
-                            file_count += 1
-                            print(f"[FileStorage] Added character to zip: {arcname}")
+                            if add_file(zipf, str(item), str(arcname)):
+                                manifest["chapter_materials"].append({"kind": "character", "path": str(arcname)})
 
-                # 3. 添加场景图目录
+                # 4. 添加场景图目录
                 if scenes_dir.exists():
                     for item in scenes_dir.rglob('*'):
                         if item.is_file():
                             arcname = item.relative_to(story_dir)
-                            zipf.write(item, arcname)
-                            file_count += 1
-                            print(f"[FileStorage] Added scene to zip: {arcname}")
+                            if add_file(zipf, str(item), str(arcname)):
+                                manifest["chapter_materials"].append({"kind": "scene", "path": str(arcname)})
 
-                # 4. 添加台词音频目录（voices）
+                # 5. 添加台词音频目录（voices）
                 if voices_dir.exists():
                     for item in voices_dir.rglob('*'):
                         if item.is_file():
                             arcname = item.relative_to(story_dir)
-                            zipf.write(item, arcname)
-                            file_count += 1
-                            print(f"[FileStorage] Added voice audio to zip: {arcname}")
+                            if add_file(zipf, str(item), str(arcname)):
+                                manifest["chapter_materials"].append({"kind": "voice", "path": str(arcname)})
+
+                zipf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+                file_count += 1
 
             if file_count == 0:
                 print(f"[FileStorage] No files to zip for chapter {chapter_id}")

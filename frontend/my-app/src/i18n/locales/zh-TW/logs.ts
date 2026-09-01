@@ -25,6 +25,7 @@ export default {
     actions: '操作',
     llmProvider: 'LLM 提供商',
     model: '模型',
+    category: '分類',
     taskType: '任務類型',
     all: '全部',
     applyFilter: '套用篩選',
