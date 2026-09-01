@@ -10,6 +10,7 @@ from typing import Optional
 from datetime import datetime, timezone, timedelta
 
 from app.core.database import get_db
+from app.core.config import get_settings
 from app.models.llm_log import LLMLog
 from app.repositories import LLMLogRepository
 
@@ -77,6 +78,21 @@ def _apply_log_filters(query, provider=None, model=None, category=None, task_typ
     return query
 
 
+def reconcile_stale_pending_llm_logs(db: Session) -> int:
+    timeout = int(getattr(get_settings(), "LLM_TIMEOUT", 300) or 300)
+    cutoff = datetime.utcnow() - timedelta(seconds=timeout + 60)
+    stale_logs = db.query(LLMLog).filter(
+        LLMLog.status == "pending",
+        LLMLog.created_at < cutoff,
+    ).all()
+    for log in stale_logs:
+        log.status = "error"
+        log.error_message = "LLM 调用超过配置超时时间仍未完成，可能是请求中断或后台进程已退出"
+    if stale_logs:
+        db.commit()
+    return len(stale_logs)
+
+
 @router.get("/")
 def get_llm_logs(
     page: int = Query(1, ge=1, description="页码"),
@@ -87,9 +103,11 @@ def get_llm_logs(
     task_type: Optional[str] = Query(None, description="任务类型筛选"),
     status: Optional[str] = Query(None, description="状态筛选: pending/success/error"),
     novel_id: Optional[str] = Query(None, description="小说ID筛选"),
-    llmlog_repo: LLMLogRepository = Depends(get_llmlog_repo)
+    llmlog_repo: LLMLogRepository = Depends(get_llmlog_repo),
+    db: Session = Depends(get_db),
 ):
     """获取LLM调用日志列表"""
+    reconcile_stale_pending_llm_logs(db)
     logs, total = llmlog_repo.list_paginated_summaries(
         page=page,
         page_size=page_size,

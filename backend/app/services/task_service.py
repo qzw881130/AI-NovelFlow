@@ -6,6 +6,7 @@
 import json
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, Any, Tuple
 
 from sqlalchemy.orm import Session
@@ -16,6 +17,7 @@ from app.utils.time_utils import format_datetime
 from app.models.task import Task
 from app.models.novel import Novel
 from app.models.workflow import Workflow
+from app.models.llm_log import LLMLog
 from app.repositories import TaskRepository, WorkflowRepository
 from app.repositories.shot_repository import ShotRepository
 from app.repositories.character_repository import CharacterRepository
@@ -23,6 +25,7 @@ from app.repositories.scene_repository import SceneRepository
 from app.repositories.prop_repository import PropRepository
 from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.comfyui import ComfyUIService
+from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import (
     build_character_prompt,
@@ -63,6 +66,10 @@ class TaskService:
                 node_mapping = json.loads(workflow.node_mapping)
             except Exception:
                 return False, f"工作流 '{workflow.name}' 的节点映射配置格式无效"
+        if node_mapping.get("output_node_id") and not node_mapping.get("save_image_node_id"):
+            node_mapping["save_image_node_id"] = node_mapping.get("output_node_id")
+        if node_mapping.get("video_output_node_id") and not node_mapping.get("video_save_node_id"):
+            node_mapping["video_save_node_id"] = node_mapping.get("video_output_node_id")
 
         # 根据任务类型检查必需的字段
         required_fields = {
@@ -81,6 +88,10 @@ class TaskService:
         }
 
         fields = required_fields.get(task_type)
+        if task_type == "shot" and node_mapping.get("output_node_id"):
+            fields = ["prompt_node_id", "save_image_node_id"]
+        if task_type == "video" and node_mapping.get("video_output_node_id"):
+            fields = ["prompt_node_id", "video_save_node_id"]
         if not fields:
             return True, ""
 
@@ -113,7 +124,7 @@ class TaskService:
         if missing_fields:
             return False, f"工作流 '{workflow.name}' 的映射配置不完整，缺少以下必需字段：{', '.join(missing_fields)}。请在【系统配置-ComfyUI工作流】中配置完整后再试。"
 
-        if task_type in {"video", "three_frame_video", "four_frame_video"}:
+        if task_type in {"video", "three_frame_video", "four_frame_video"} and not node_mapping.get("video_output_node_id"):
             has_max_side = bool(node_mapping.get("max_side_node_id"))
             has_megapixels = bool(node_mapping.get("megapixels_node_id"))
             if has_max_side == has_megapixels:
@@ -146,6 +157,74 @@ class TaskService:
             prop = PropRepository(db).get_by_id(task.prop_id)
             if prop and prop.prop_task_id == task.id:
                 prop.generating_status = "failed"
+        elif task.type == "shot_video" and task.shot_id:
+            shot = ShotRepository(db).get_by_id(task.shot_id)
+            if shot and shot.video_task_id == task.id:
+                shot.video_status = "failed"
+
+    @staticmethod
+    def _cleanup_cancelled_video_task(task: Task, db: Session) -> None:
+        if task.type != "shot_video" or not task.shot_id:
+            return
+        shot_repo = ShotRepository(db)
+        shot = shot_repo.get_by_id(task.shot_id)
+        if not shot:
+            return
+        plan = json.loads(shot.video_director_plan or "{}") if shot.video_director_plan else {}
+        if not isinstance(plan, dict):
+            return
+        window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+        changed = False
+        for window_plan in window_plans:
+            if not isinstance(window_plan, dict):
+                continue
+            is_current_task_clip = window_plan.get("generated_by_task_id") == task.id
+            is_active_clip = str(window_plan.get("status") or "").upper() in {"PROMPT_BUILDING", "QUEUED", "RUNNING"}
+            if not is_current_task_clip and not is_active_clip:
+                continue
+            if is_current_task_clip:
+                local_path = window_plan.get("local_path") or url_to_local_path(window_plan.get("video_url"))
+                if local_path:
+                    try:
+                        path = Path(local_path)
+                        if path.exists() and path.is_file():
+                            path.unlink()
+                    except Exception as exc:
+                        print(f"[TaskCancel] Failed to delete clip video {local_path}: {exc}")
+                for key in ["video_url", "local_path", "source_video_url", "generated_at", "generated_by_task_id"]:
+                    window_plan.pop(key, None)
+            window_plan["status"] = "CANCELLED"
+            window_plan["error_message"] = "任务已取消"
+            changed = True
+        if changed:
+            shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+            task.video_director_clips = json.dumps(window_plans, ensure_ascii=False)
+        if shot.video_task_id == task.id:
+            shot.video_status = "failed"
+        db.commit()
+
+    @staticmethod
+    def _mark_pending_video_llm_logs_cancelled(task: Task, db: Session) -> None:
+        if task.type != "shot_video" or not task.chapter_id:
+            return
+        h3_task_types = [
+            "h3_single_frame_prompt",
+            "h3_first_last_frame_prompt",
+            "h3_multi_keyframe_prompt",
+        ]
+        query = db.query(LLMLog).filter(
+            LLMLog.chapter_id == task.chapter_id,
+            LLMLog.task_type.in_(h3_task_types),
+            LLMLog.status == "pending",
+        )
+        if task.novel_id:
+            query = query.filter(LLMLog.novel_id == task.novel_id)
+        if task.created_at:
+            query = query.filter(LLMLog.created_at >= task.created_at)
+
+        for log in query.all():
+            log.status = "error"
+            log.error_message = "任务被用户取消，LLM 响应已忽略"
 
     async def cancel_task(self, task_id: str, db: Session = None) -> Dict[str, Any]:
         """取消单个任务对应的 ComfyUI 执行。"""
@@ -164,27 +243,14 @@ class TaskService:
                 "details": {"skipped": True},
             }
 
-        if not task.comfyui_prompt_id:
-            return {
-                "success": False,
-                "message": "任务缺少 ComfyUI prompt_id，无法安全终止对应执行",
-                "status_code": 409,
-            }
-
-        cancel_result = await self.comfyui_service.cancel_all_matching_tasks([task.comfyui_prompt_id])
+        cancel_result = {"skipped_comfyui": True}
+        if task.comfyui_prompt_id:
+            cancel_result = await self.comfyui_service.cancel_all_matching_tasks([task.comfyui_prompt_id])
         deleted_from_queue = cancel_result.get("deleted_from_queue", [])
         interrupted = cancel_result.get("interrupted", False)
         not_found = cancel_result.get("not_found", [])
 
-        if task.comfyui_prompt_id in not_found:
-            return {
-                "success": False,
-                "message": "ComfyUI 中未找到对应任务，已阻止删除以避免残留状态不一致",
-                "status_code": 409,
-                "details": cancel_result,
-            }
-
-        if not deleted_from_queue and not interrupted:
+        if task.comfyui_prompt_id and task.comfyui_prompt_id not in not_found and not deleted_from_queue and not interrupted:
             return {
                 "success": False,
                 "message": "终止 ComfyUI 任务失败，已阻止删除",
@@ -192,15 +258,17 @@ class TaskService:
                 "details": cancel_result,
             }
 
-        task.status = "failed"
-        task.error_message = "任务被用户删除并终止"
+        task.status = "cancelled"
+        task.error_message = "任务被用户取消"
         task.current_step = "已终止"
+        self._mark_pending_video_llm_logs_cancelled(task, db)
         self._mark_related_task_failed(task, db)
+        self._cleanup_cancelled_video_task(task, db)
         db.commit()
 
         return {
             "success": True,
-            "message": "已终止对应 ComfyUI 任务",
+            "message": "任务已取消",
             "task": task,
             "details": cancel_result,
         }
@@ -476,6 +544,7 @@ class TaskService:
         queue_info = await self.comfyui_service.get_queue_info()
         now = datetime.utcnow()
         comfyui_timeout = int(getattr(get_settings(), "COMFYUI_TIMEOUT", 900) or 900)
+        llm_timeout = int(getattr(get_settings(), "LLM_TIMEOUT", 300) or 300)
         updated_count = 0
 
         def task_age_seconds(task: Task) -> float:
@@ -486,6 +555,14 @@ class TaskService:
                 started_at = started_at.astimezone(timezone.utc).replace(tzinfo=None)
             return (now - started_at).total_seconds()
 
+        def inactive_seconds(task: Task) -> float:
+            updated_at = task.updated_at or task.started_at or task.created_at
+            if not updated_at:
+                return 0
+            if updated_at.tzinfo is not None:
+                updated_at = updated_at.astimezone(timezone.utc).replace(tzinfo=None)
+            return (now - updated_at).total_seconds()
+
         for task in active_tasks:
             age_seconds = task_age_seconds(task)
             def mark_related_shot_failed() -> None:
@@ -495,6 +572,14 @@ class TaskService:
                 if shot:
                     ShotRepository(db).update(shot, video_status="failed")
 
+            pending_start_timeout = 600 if task.type == "keyframe_image" else 1800
+            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout:
+                task.status = "failed"
+                task.error_message = "任务长期未启动，后台内存队列可能已因服务重启或热更新丢失，请重新提交"
+                task.current_step = "任务未启动"
+                updated_count += 1
+                continue
+
             if task.comfyui_prompt_id:
                 prompt_state = await self.comfyui_service.client.get_prompt_state(
                     task.comfyui_prompt_id,
@@ -502,6 +587,36 @@ class TaskService:
                 )
                 state = prompt_state.get("state")
                 if state in ["queued", "history", "unknown"]:
+                    continue
+
+                if state == "completed":
+                    if task.type == "keyframe_image" and inactive_seconds(task) > 60:
+                        recovered = await self._recover_completed_keyframe_prompt(task, prompt_state.get("history"), db)
+                        if recovered:
+                            updated_count += 1
+                            continue
+                    if task.type == "shot_video" and inactive_seconds(task) > 60:
+                        clip_state = self._shot_video_clip_state_for_prompt(task, task.comfyui_prompt_id)
+                        if clip_state.get("has_prompt_building_clip"):
+                            if inactive_seconds(task) > llm_timeout + 60:
+                                task.status = "failed"
+                                task.error_message = "任务停留在 H3 提示词构建阶段过久，可能是 LLM 调用中断或后台任务已退出"
+                                task.current_step = "任务异常"
+                                mark_related_shot_failed()
+                                updated_count += 1
+                            continue
+                        if clip_state.get("status") == "SUCCEEDED" and clip_state.get("video_url"):
+                            continue
+                        recovered = await self._recover_completed_shot_video_prompt(task, prompt_state.get("history"), db)
+                        if recovered:
+                            updated_count += 1
+                            continue
+                    if age_seconds > comfyui_timeout:
+                        task.status = "failed"
+                        task.error_message = "ComfyUI 已完成该任务，但后端未保存结果，可能是输出节点映射错误或后台任务中断"
+                        task.current_step = "任务异常"
+                        mark_related_shot_failed()
+                        updated_count += 1
                     continue
 
                 if state == "error":
@@ -520,16 +635,16 @@ class TaskService:
                     updated_count += 1
                     continue
 
-                if state == "completed" and age_seconds > comfyui_timeout and task.current_step and "ComfyUI" in task.current_step:
+            elif task.status == "running":
+                clip_state = self._shot_video_clip_state_for_prompt(task, None) if task.type == "shot_video" else {}
+                if clip_state.get("has_prompt_building_clip") and inactive_seconds(task) > llm_timeout + 60:
                     task.status = "failed"
-                    task.error_message = "ComfyUI 已完成该任务，但后端未保存结果，可能是输出节点映射错误或后台任务中断"
+                    task.error_message = "任务停留在 H3 提示词构建阶段过久，可能是 LLM 调用中断或后台任务已退出"
                     task.current_step = "任务异常"
                     mark_related_shot_failed()
                     updated_count += 1
                     continue
-
-            elif task.status == "running" and task.current_step and "ComfyUI" in task.current_step:
-                if age_seconds > 600:
+                if task.current_step and "ComfyUI" in task.current_step and age_seconds > 600:
                     task.status = "failed"
                     task.error_message = "任务停留在 ComfyUI 调用阶段超过 10 分钟且未保存 prompt_id，可能是旧后台任务已中断"
                     task.current_step = "任务异常"
@@ -540,8 +655,257 @@ class TaskService:
             db.commit()
         return updated_count
 
+    async def _recover_completed_keyframe_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
+        """Recover a completed keyframe ComfyUI prompt when the worker missed persistence."""
+        if task.type != "keyframe_image" or not task.shot_id or not prompt_history:
+            return False
+
+        outputs = prompt_history.get("outputs") or {}
+        if not outputs:
+            return False
+
+        shot_repo = ShotRepository(db)
+        shot = shot_repo.get_by_id(task.shot_id)
+        if not shot:
+            return False
+
+        frame_index = self._keyframe_frame_index_from_task(task)
+        if frame_index is None:
+            return False
+
+        try:
+            keyframes = json.loads(shot.keyframes or "[]")
+            if not isinstance(keyframes, list) or frame_index >= len(keyframes):
+                return False
+        except Exception:
+            return False
+
+        node_mapping = {}
+        if task.workflow_id:
+            workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
+            if workflow and workflow.node_mapping:
+                try:
+                    node_mapping = json.loads(workflow.node_mapping)
+                except Exception:
+                    node_mapping = {}
+
+        prompt_workflow = None
+        prompt_payload = prompt_history.get("prompt") or []
+        if isinstance(prompt_payload, list) and len(prompt_payload) > 2 and isinstance(prompt_payload[2], dict):
+            prompt_workflow = prompt_payload[2]
+
+        save_image_node_id = node_mapping.get("save_image_node_id") or node_mapping.get("output_node_id")
+        result = self.comfyui_service.client._parse_outputs(outputs, prompt_workflow, save_image_node_id)
+        if not result or not result.get("success") or not result.get("image_url"):
+            return False
+
+        local_path = await file_storage.download_image(
+            url=result["image_url"],
+            novel_id=task.novel_id,
+            character_name=f"keyframe_{frame_index}",
+            image_type="keyframe",
+            chapter_id=task.chapter_id,
+        )
+        if not local_path:
+            return False
+
+        local_url = local_path_to_url(local_path)
+        keyframes[frame_index]["image_url"] = local_url
+        keyframes[frame_index]["image_task_id"] = task.id
+
+        plan_changed = False
+        try:
+            plan_keyframe_index = keyframes[frame_index].get("plan_keyframe_index")
+            if plan_keyframe_index is not None and shot.video_director_plan:
+                plan = json.loads(shot.video_director_plan or "{}")
+                if isinstance(plan, dict) and isinstance(plan.get("keyframes"), list):
+                    for plan_keyframe in plan["keyframes"]:
+                        if isinstance(plan_keyframe, dict) and int(plan_keyframe.get("index") or -1) == int(plan_keyframe_index):
+                            plan_keyframe["image_url"] = local_url
+                            plan_keyframe["image_task_id"] = task.id
+                            plan_changed = True
+                            break
+                    if plan_changed:
+                        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+        except Exception:
+            pass
+
+        shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
+        task.status = "completed"
+        task.result_url = local_url
+        task.error_message = None
+        task.current_step = "生成完成"
+        task.completed_at = datetime.utcnow()
+        db.commit()
+        return True
+
     @staticmethod
-    def format_task_list(tasks: list, novels: dict, chapters: dict, workflows: dict) -> list:
+    def _keyframe_frame_index_from_task(task: Task) -> int | None:
+        match = re.search(r"-(\d+)\s*$", task.name or "")
+        if not match:
+            return None
+        try:
+            return int(match.group(1))
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _shot_video_clip_state_for_prompt(task: Task, prompt_id: str) -> dict:
+        try:
+            window_plans = json.loads(task.video_director_clips or "[]")
+            if not isinstance(window_plans, list):
+                window_plans = []
+        except Exception:
+            window_plans = []
+
+        result = {
+            "status": None,
+            "video_url": None,
+            "has_prompt_building_clip": False,
+        }
+        for window in window_plans:
+            if not isinstance(window, dict):
+                continue
+            status = str(window.get("status") or "").upper()
+            if status == "PROMPT_BUILDING":
+                result["has_prompt_building_clip"] = True
+            if prompt_id and window.get("prompt_id") == prompt_id:
+                result["status"] = status
+                result["video_url"] = window.get("video_url")
+        return result
+
+    async def _recover_completed_shot_video_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
+        """Recover a completed ComfyUI video prompt when the original worker missed persistence."""
+        if not task.shot_id or not prompt_history:
+            return False
+
+        outputs = prompt_history.get("outputs") or {}
+        if not outputs:
+            return False
+
+        shot_repo = ShotRepository(db)
+        shot = shot_repo.get_by_id(task.shot_id)
+        if not shot:
+            return False
+
+        try:
+            window_plans = json.loads(task.video_director_clips or "[]")
+            if not isinstance(window_plans, list):
+                window_plans = []
+        except Exception:
+            window_plans = []
+
+        active_index = None
+        for index, window in enumerate(window_plans):
+            if isinstance(window, dict) and window.get("prompt_id") == task.comfyui_prompt_id:
+                active_index = index
+                break
+        if active_index is None:
+            for index, window in enumerate(window_plans):
+                status = str((window or {}).get("status") or "").upper()
+                if status in {"PROMPT_BUILDING", "QUEUED", "RUNNING"}:
+                    active_index = index
+                    break
+        if active_index is None:
+            return False
+
+        existing_window = window_plans[active_index]
+        if str(existing_window.get("status") or "").upper() == "SUCCEEDED" and existing_window.get("video_url"):
+            return False
+
+        prompt_workflow = None
+        prompt_payload = prompt_history.get("prompt") or []
+        if isinstance(prompt_payload, list) and len(prompt_payload) > 2 and isinstance(prompt_payload[2], dict):
+            prompt_workflow = prompt_payload[2]
+
+        node_mapping = {}
+        if task.workflow_id:
+            workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
+            if workflow and workflow.node_mapping:
+                try:
+                    node_mapping = json.loads(workflow.node_mapping)
+                except Exception:
+                    node_mapping = {}
+
+        video_save_node_id = node_mapping.get("video_save_node_id") or "150"
+        result = self.comfyui_service.client._parse_outputs(outputs, prompt_workflow, video_save_node_id)
+        if not result or not result.get("success") or not result.get("video_url"):
+            return False
+
+        window = window_plans[active_index]
+        window_index = int(window.get("window_index") or window.get("clip_index") or active_index + 1)
+        local_path = await file_storage.download_video(
+            url=result["video_url"],
+            novel_id=task.novel_id,
+            chapter_id=task.chapter_id,
+            shot_number=(int(shot.index or 0) * 1000) + window_index,
+        )
+        if not local_path:
+            return False
+
+        video_url = local_path_to_url(local_path)
+        window.update({
+            "status": "SUCCEEDED",
+            "video_url": video_url,
+            "local_path": local_path,
+            "source_video_url": result.get("video_url"),
+            "error_message": None,
+            "generated_at": datetime.utcnow().isoformat(),
+            "generated_by_task_id": task.id,
+        })
+        task.video_director_clips = json.dumps(window_plans, ensure_ascii=False)
+
+        try:
+            plan = json.loads(shot.video_director_plan or "{}")
+            if isinstance(plan.get("window_plans"), list):
+                for plan_window in plan["window_plans"]:
+                    if int(plan_window.get("window_index") or plan_window.get("clip_index") or -1) == window_index:
+                        plan_window.update(window)
+                        break
+                shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+        except Exception:
+            pass
+
+        all_succeeded = bool(window_plans) and all(
+            str((window or {}).get("status") or "").upper() == "SUCCEEDED" and (window or {}).get("video_url")
+            for window in window_plans
+        )
+        if all_succeeded:
+            try:
+                from app.services.shot_video_service import merge_video_director_clip_videos
+                merge_result = await merge_video_director_clip_videos(db, shot, shot_repo, task.novel_id, task.chapter_id, int(shot.index or 0))
+            except Exception as exc:
+                merge_result = {"success": False, "message": str(exc)}
+
+            if merge_result.get("success"):
+                task.status = "completed"
+                task.progress = 100
+                task.current_step = "生成完成"
+                task.result_url = merge_result.get("video_url")
+                task.error_message = None
+                task.completed_at = datetime.utcnow()
+                shot_repo.update(shot, video_status="completed", video_url=merge_result.get("video_url"), video_task_id=task.id)
+            else:
+                task.status = "failed"
+                task.current_step = "拼接失败"
+                task.error_message = merge_result.get("message") or "多 Clip 拼接失败"
+                shot_repo.update(shot, video_status="failed")
+        else:
+            task.status = "failed"
+            task.current_step = "任务异常"
+            task.error_message = "ComfyUI 已完成当前 Clip，但后端后台任务已中断；已保存完成的 Clip，请重新生成剩余 Clip"
+            try:
+                plan = json.loads(shot.video_director_plan or "{}")
+                plan["task_error_message"] = task.error_message
+                shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+            except Exception:
+                pass
+            shot_repo.update(shot, video_status="failed")
+
+        return True
+
+    @staticmethod
+    def format_task_list(tasks: list, novels: dict, chapters: dict, workflows: dict, shots: dict = None) -> list:
         """
         格式化任务列表响应
         
@@ -556,6 +920,8 @@ class TaskService:
         """
         import json
 
+        shots = shots or {}
+
         def parse_reference_images(value: str):
             if not value:
                 return []
@@ -564,6 +930,54 @@ class TaskService:
                 return parsed if isinstance(parsed, list) else []
             except Exception:
                 return []
+
+        def format_video_director_clips(task: Task):
+            if task.type != "shot_video":
+                return []
+            window_plans = []
+            if task.video_director_clips:
+                try:
+                    parsed = json.loads(task.video_director_clips)
+                    window_plans = parsed if isinstance(parsed, list) else []
+                except Exception:
+                    window_plans = []
+            if not window_plans:
+                shot = shots.get(task.shot_id) if task.shot_id else None
+                if not shot or not shot.video_director_plan:
+                    return []
+                try:
+                    plan = json.loads(shot.video_director_plan)
+                except Exception:
+                    return []
+                if plan.get("selected_mode") != "MULTI_KEYFRAME":
+                    return []
+                window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+            clips = []
+            for window in window_plans:
+                if not isinstance(window, dict):
+                    continue
+                video_url = window.get("video_url")
+                status = window.get("status")
+                if task.status != "running" and str(status or "").upper() in {"PROMPT_BUILDING", "QUEUED", "RUNNING"}:
+                    status = "SUCCEEDED" if video_url else None
+                clips.append({
+                    "windowIndex": window.get("window_index"),
+                    "status": status,
+                    "startTime": window.get("start_time"),
+                    "endTime": window.get("end_time"),
+                    "workflowType": window.get("workflow_type"),
+                    "workflowName": window.get("workflow_name"),
+                    "promptId": window.get("prompt_id"),
+                    "promptText": window.get("prompt_text"),
+                    "hasWorkflowJson": window.get("workflow_json") is not None,
+                    "referenceImages": window.get("reference_images") if isinstance(window.get("reference_images"), list) else [],
+                    "videoUrl": video_url,
+                    "sourceVideoUrl": window.get("source_video_url"),
+                    "errorMessage": window.get("error_message"),
+                    "generatedAt": window.get("generated_at"),
+                    "dialogueCount": len(window.get("clip_dialogues") or []) if isinstance(window.get("clip_dialogues"), list) else None,
+                })
+            return clips
 
         return [
             {
@@ -583,6 +997,7 @@ class TaskService:
                 "hasWorkflowJson": t.workflow_json is not None,
                 "hasPromptText": t.prompt_text is not None,
                 "referenceImages": parse_reference_images(t.reference_images),
+                "videoDirectorClips": format_video_director_clips(t),
                 "novelId": t.novel_id,
                 "novelName": novels.get(t.novel_id).title if t.novel_id and t.novel_id in novels else None,
                 "chapterId": t.chapter_id,

@@ -6,10 +6,13 @@ import json
 import asyncio
 import os
 import uuid
+import zipfile
+from io import BytesIO
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -17,6 +20,7 @@ from app.core.database import get_db
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.task import Task
 from app.models.workflow import Workflow
+from app.models.llm_log import LLMLog
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.novel_service import (
@@ -24,7 +28,10 @@ from app.services.novel_service import (
     generate_transition_video_task,
 )
 from app.services.shot_image_service import enqueue_shot_image_task
-from app.services.shot_video_service import enqueue_shot_video_task, merge_video_director_clip_videos
+from app.services.shot_video_service import enqueue_shot_video_task, merge_video_director_clip_videos, _clip_dialogues_for_prompt
+
+generate_shot_task = enqueue_shot_image_task
+generate_shot_video_task = enqueue_shot_video_task
 from app.repositories.shot_repository import ShotRepository
 from app.services.task_service import TaskService
 from app.repositories import (
@@ -78,6 +85,102 @@ from app.services.video_director_ai import append_video_ai_call, strip_media_ref
 router = APIRouter()
 comfyui_service = ComfyUIService()
 merge_video_locks = {}
+
+
+def _safe_filename_part(value: str) -> str:
+    value = str(value or "").strip()
+    return "".join(ch if ch.isalnum() or ch in "-_" else "_" for ch in value).strip("_") or "item"
+
+
+def _parse_call_datetime(value: str):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).replace(tzinfo=None)
+    except Exception:
+        return None
+
+
+def _format_shanghai_filename_time(value) -> str:
+    if not value:
+        return "unknown_time"
+    dt = value
+    if isinstance(dt, str):
+        dt = _parse_call_datetime(dt)
+    if not dt:
+        return "unknown_time"
+    # Stored datetimes are UTC-naive in SQLite; filenames use local Shanghai time.
+    return (dt + timedelta(hours=8)).strftime("%Y%m%d_%H%M%S")
+
+
+def _format_llm_log_text(call: dict, log: Optional[LLMLog]) -> str:
+    created_at = log.created_at if log else _parse_call_datetime(call.get("created_at"))
+    request_info = log.request_info if log else None
+    response = log.response if log else call.get("response") or ""
+    system_prompt = log.system_prompt if log else ""
+    user_prompt = log.user_prompt if log else ""
+    error_message = log.error_message if log else ""
+    lines = [
+        "LLM 调用数据",
+        "= " * 30,
+        f"调用时间: {_format_shanghai_filename_time(created_at)}",
+        f"步骤: #{call.get('step') or '-'} {call.get('title') or ''}".strip(),
+        f"任务类型: {(log.task_type if log else call.get('task_type')) or '-'}",
+        f"模板名称: {(log.prompt_template_name if log else call.get('prompt_template_name')) or '-'}",
+        f"Provider: {(log.provider if log else '-')}",
+        f"Model: {(log.model if log else '-')}",
+        f"Status: {(log.status if log else call.get('status')) or '-'}",
+        f"Used Proxy: {(log.used_proxy if log else '-')}",
+        f"Duration: {(str(log.duration) + 's') if log and log.duration is not None else '-'}",
+        f"Clip: {call.get('clip_index') or '-'}",
+        f"Workflow Type: {call.get('workflow_type') or '-'}",
+        f"Workflow Name: {call.get('workflow_name') or '-'}",
+        f"匹配完整日志: {'yes' if log else 'no'}",
+        "",
+        "LLM参数",
+        "-" * 40,
+        request_info or "未找到完整 LLM 参数；该条仅来自当前分镜 video_director_plan.ai_calls 快照。",
+        "",
+        "System Prompt",
+        "-" * 40,
+        system_prompt or "-",
+        "",
+        "User Prompt",
+        "-" * 40,
+        user_prompt or "-",
+        "",
+        "LLM响应",
+        "-" * 40,
+        response or "-",
+    ]
+    if call.get("final_prompt"):
+        lines.extend(["", "最终 Prompt", "-" * 40, call.get("final_prompt") or "-"])
+    if error_message:
+        lines.extend(["", "错误信息", "-" * 40, error_message])
+    return "\n".join(lines) + "\n"
+
+
+def _match_full_llm_log(db: Session, novel_id: str, chapter_id: str, call: dict, used_log_ids: set) -> Optional[LLMLog]:
+    task_type = call.get("task_type")
+    query = db.query(LLMLog).filter(LLMLog.novel_id == novel_id, LLMLog.chapter_id == chapter_id)
+    if task_type:
+        query = query.filter(LLMLog.task_type == task_type)
+    if call.get("prompt_template_name"):
+        query = query.filter(LLMLog.prompt_template_name == call.get("prompt_template_name"))
+    candidates = query.order_by(LLMLog.created_at.asc()).all()
+    candidates = [log for log in candidates if log.id not in used_log_ids]
+    if not candidates:
+        return None
+
+    call_dt = _parse_call_datetime(call.get("created_at"))
+    call_response = (call.get("response") or "").strip()
+    if call_response:
+        exact_matches = [log for log in candidates if (log.response or "").strip() == call_response]
+        if exact_matches:
+            candidates = exact_matches
+    if call_dt:
+        candidates.sort(key=lambda log: abs(((log.created_at or call_dt) - call_dt).total_seconds()))
+    return candidates[0]
 shot_image_generation_locks = {}
 
 
@@ -287,6 +390,8 @@ async def _resolve_shot_image_prompt_text(
         return prompt_text.strip(), "用户编辑的主分镜图提示词"
 
     template = _get_shot_image_prompt_template(novel, template_repo)
+    fallback_prompt = shot.description or "主分镜图"
+    template_name = template.name
     user_content = _build_shot_image_prompt_input(db, novel, shot, template.template)
     result = await llm_service.chat_completion(
         system_prompt=template.template,
@@ -299,13 +404,12 @@ async def _resolve_shot_image_prompt_text(
         chapter_id=shot.chapter_id,
     )
     if not result.get("success"):
-        raise HTTPException(
-            status_code=500, detail=result.get("error") or "主分镜图提示词生成失败"
-        )
+        print(f"[GenerateShot] Prompt builder failed, fallback to shot description: {result.get('error') or result.get('message')}")
+        return fallback_prompt, f"{template_name}（fallback）"
     final_prompt = (result.get("content") or "").strip()
     if not final_prompt:
-        raise HTTPException(status_code=500, detail="主分镜图提示词生成结果为空")
-    return final_prompt, template.name
+        return fallback_prompt, f"{template_name}（fallback）"
+    return final_prompt, template_name
 
 
 @router.post(
@@ -371,20 +475,27 @@ async def _generate_shot_image_locked(
 
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
+    chapter_title = chapter.title
 
     # 获取小说
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
 
-    # 从 shots 表查询分镜
-    shot = shot_repo.get_by_id(shot_id)
+    if not chapter.parsed_data and str(shot_id).isdigit():
+        raise HTTPException(status_code=400, detail="章节未拆分分镜，请先完成章节拆分")
 
-    if not shot or shot.chapter_id != chapter_id:
+    # 从 shots 表查询分镜；兼容旧 API 按分镜序号传参。
+    shot = _resolve_shot_by_id_or_index(shot_repo, chapter_id, shot_id)
+
+    if not shot:
+        if str(shot_id).isdigit():
+            raise HTTPException(status_code=400, detail=f"分镜索引 {shot_id} 超出范围")
         raise HTTPException(status_code=404, detail=f"分镜 {shot_id} 不存在")
 
     shot_index = shot.index
     shot_description = shot.description
+    resolved_shot_id = shot.id
 
     # 检查是否已有进行中的任务
     existing_task = task_repo.get_active_shot_task(
@@ -418,9 +529,10 @@ async def _generate_shot_image_locked(
         llm_service,
         request.prompt_text if request else None,
     )
+    shot = db.merge(shot)
 
     # 清除旧的图片数据和文件
-    file_storage.delete_shot_image(novel_id, chapter_id, shot_index, shot_id=shot.id)
+    file_storage.delete_shot_image(novel_id, chapter_id, shot_index, shot_id=resolved_shot_id)
 
     # 更新分镜图片状态为 generating，并清除旧图片数据
     shot.image_url = None
@@ -435,20 +547,20 @@ async def _generate_shot_image_locked(
         novel_id=novel_id,
         chapter_id=chapter_id,
         shot_index=shot_index,
-        chapter_title=chapter.title,
+        chapter_title=chapter_title,
         workflow_id=workflow.id,
         workflow_name=workflow.name,
-        shot_id=shot_id,
+            shot_id=resolved_shot_id,
     )
     task.prompt_text = final_prompt
     task.description = f"{task.description}；提示词模板：{prompt_template_name}"
     shot.shot_image_prompt = final_prompt
     db.commit()
 
-    print(f"[GenerateShot] Created task {task.id} for shot {shot_id}")
+    print(f"[GenerateShot] Created task {task.id} for shot {resolved_shot_id}")
 
     # 加入分镜图片专用 worker，避免批量生成时并发打 ComfyUI。
-    enqueue_shot_image_task(
+    generate_shot_task(
         task.id,
         novel_id,
         chapter_id,
@@ -484,6 +596,17 @@ def _safe_json_dict(value):
         return parsed if isinstance(parsed, dict) else {}
     except Exception:
         return {}
+
+
+def _resolve_shot_by_id_or_index(shot_repo: ShotRepository, chapter_id: str, shot_id_or_index: str):
+    shot = shot_repo.get_by_id(shot_id_or_index)
+    if shot and shot.chapter_id == chapter_id:
+        return shot
+    try:
+        shot_index = int(shot_id_or_index)
+    except (TypeError, ValueError):
+        return None
+    return shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
 
 
 def _get_video_workflow_capability(workflow: Optional[Workflow]) -> dict:
@@ -849,21 +972,38 @@ def _transition_keyframe_payload(shot, keyframe: dict) -> dict:
     })
 
 
+def _build_segment_dialogue_state(shot, from_keyframe: dict, to_keyframe: dict) -> dict:
+    segment = {
+        "start_time": from_keyframe.get("time_seconds") or 0,
+        "end_time": to_keyframe.get("time_seconds") or shot.duration or 0,
+    }
+    segment_dialogues = _clip_dialogues_for_prompt(_safe_json_list(shot.dialogues), segment, float(shot.duration or 0))
+    return {
+        "start_time": segment["start_time"],
+        "end_time": segment["end_time"],
+        "has_dialogue": bool(segment_dialogues),
+        "segment_dialogues": segment_dialogues,
+        "speech_rule": "仅 segment_dialogues 中的人物可发声。" if segment_dialogues else "本 segment 所有人物保持沉默，不说话、不低语、不发出人物语音。",
+    }
+
+
 def _build_keyframe_transition_user_content(shot, from_keyframe: dict, to_keyframe: dict, segment_index: int) -> str:
+    dialogue_state = _build_segment_dialogue_state(shot, from_keyframe, to_keyframe)
     payload = {
         "shot": {
             "id": shot.id,
             "index": shot.index,
             "description": shot.description or "",
-            "video_description": shot.video_description or "",
+            "video_description": "",
             "characters": _safe_json_list(shot.characters),
             "scene": shot.scene or "",
             "props": _safe_json_list(shot.props),
             "duration": shot.duration or 4,
             "continuity_mode": shot.continuity_mode or "NORMAL",
-            "dialogues": _safe_json_list(shot.dialogues),
+            "dialogues": dialogue_state["segment_dialogues"],
         },
         "segment_index": segment_index,
+        "segment_dialogue_state": dialogue_state,
         "from_keyframe": _transition_keyframe_payload(shot, from_keyframe),
         "to_keyframe": _transition_keyframe_payload(shot, to_keyframe),
     }
@@ -1139,6 +1279,8 @@ async def plan_video_keyframes(
         "clips": _build_first_last_clip_plan(duration) if selected_mode == "FIRST_LAST_FRAME" else [],
         "validation": validation,
     })
+    plan.pop("merged_video_url", None)
+    plan.pop("merged_at", None)
     legacy_keyframes = [
         {
             "frame_index": position,
@@ -1162,7 +1304,14 @@ async def plan_video_keyframes(
         "response": result.get("content") or "",
         "parsed_result": {"keyframes": keyframes, "window_plans": window_plans, "validation": validation},
     })
-    shot_repo.update(shot, video_director_plan=plan, keyframes=legacy_keyframes)
+    shot_repo.update(
+        shot,
+        video_director_plan=plan,
+        keyframes=legacy_keyframes,
+        video_url=None,
+        video_status="pending",
+        video_task_id=None,
+    )
 
     transitions = await _plan_keyframe_transitions(
         db=db,
@@ -1285,7 +1434,7 @@ async def generate_video_director_clip(
         chapter_title=chapter.title,
         workflow_id=workflow.id,
         workflow_name=workflow.name,
-        shot_id=shot_id,
+        shot_id=shot.id,
     )
     task.name = f"重新生成视频 Clip: 镜{shot.index} · C{window_index}"
     task.description = f"为章节 '{chapter.title}' 的分镜 {shot.index} 重新生成 Clip {window_index}"
@@ -1294,7 +1443,7 @@ async def generate_video_director_clip(
         shot_repo.update_video_status(shot, "generating", task_id=task.id)
     db.commit()
 
-    enqueue_shot_video_task(
+    generate_shot_video_task(
         task.id,
         novel_id,
         chapter_id,
@@ -1370,10 +1519,10 @@ async def generate_shot_video(
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
 
-    # 从 Shot 表获取分镜数据
-    shot = shot_repo.get_by_id(shot_id)
+    # 从 Shot 表获取分镜数据；兼容旧 API 按分镜序号传参。
+    shot = _resolve_shot_by_id_or_index(shot_repo, chapter_id, shot_id)
 
-    if not shot or shot.chapter_id != chapter_id:
+    if not shot:
         raise HTTPException(status_code=400, detail=f"分镜 {shot_id} 不存在")
 
     shot_index = shot.index
@@ -1473,10 +1622,10 @@ async def generate_shot_video(
         chapter_title=chapter.title,
         workflow_id=workflow.id,
         workflow_name=workflow.name,
-        shot_id=shot_id,
+        shot_id=shot.id,
     )
 
-    print(f"[GenerateVideo] Created task {task.id} for shot {shot_id}")
+    print(f"[GenerateVideo] Created task {task.id} for shot {shot.id}")
     task.description = f"{task.description}；视频模式：{VIDEO_MODE_LABELS.get(selected_mode, selected_mode)}"
     db = shot_repo.db
     db.commit()
@@ -1485,7 +1634,7 @@ async def generate_shot_video(
     # 更新 Shot 表任务 ID
     shot_repo.update_video_status(shot, "generating", task_id=task.id)
 
-    enqueue_shot_video_task(
+    generate_shot_video_task(
         task.id,
         novel_id,
         chapter_id,
@@ -2466,6 +2615,7 @@ async def get_shots(
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
+    db: Session = Depends(get_db),
 ):
     """
     获取章节的所有分镜列表
@@ -2480,6 +2630,15 @@ async def get_shots(
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
+
+    active_video_tasks = db.query(Task).filter(
+        Task.chapter_id == chapter_id,
+        Task.type == "shot_video",
+        Task.status.in_(["pending", "running"]),
+    ).all()
+    if active_video_tasks:
+        await TaskService(db).reconcile_active_tasks(active_video_tasks, db=db)
+        db.expire_all()
 
     shots = shot_repo.get_by_chapter(chapter_id)
     shots_data = [shot_repo.to_response(shot) for shot in shots]
@@ -2549,6 +2708,57 @@ async def batch_update_shots(
     }
 
 
+@router.get("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/download-llm-data", response_model=None)
+async def download_shot_llm_data(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    db: Session = Depends(get_db),
+):
+    """下载当前分镜 Video Director 相关 LLM 调用完整数据。"""
+    chapter = db.query(Chapter).filter(Chapter.id == chapter_id, Chapter.novel_id == novel_id).first()
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    shot_repo = ShotRepository(db)
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    try:
+        plan = json.loads(shot.video_director_plan) if shot.video_director_plan else {}
+    except Exception:
+        plan = {}
+    calls = plan.get("ai_calls") if isinstance(plan.get("ai_calls"), list) else []
+
+    zip_buffer = BytesIO()
+    used_log_ids = set()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        if not calls:
+            zip_file.writestr("README.txt", "当前分镜没有 Video Director LLM 调用记录。\n")
+        for index, call in enumerate(calls, 1):
+            if not isinstance(call, dict):
+                continue
+            log = _match_full_llm_log(db, novel_id, chapter_id, call, used_log_ids)
+            if log:
+                used_log_ids.add(log.id)
+            created_at = log.created_at if log else call.get("created_at")
+            time_part = _format_shanghai_filename_time(created_at)
+            step_part = _safe_filename_part(f"step_{call.get('step') or 'unknown'}")
+            title_part = _safe_filename_part(call.get("title") or call.get("task_type") or "llm_call")[:60]
+            clip_part = f"_clip_{call.get('clip_index')}" if call.get("clip_index") else ""
+            filename = f"{index:02d}_{time_part}_{step_part}{clip_part}_{title_part}.txt"
+            zip_file.writestr(filename, _format_llm_log_text(call, log))
+
+    zip_buffer.seek(0)
+    zip_filename = f"shot_{shot.index}_llm_data.zip"
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{zip_filename}"'},
+    )
+
+
 @router.get("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}", response_model=dict)
 async def get_shot(
     novel_id: str,
@@ -2557,6 +2767,7 @@ async def get_shot(
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
+    db: Session = Depends(get_db),
 ):
     """
     获取单个分镜详情
@@ -2581,6 +2792,16 @@ async def get_shot(
 
     if shot.chapter_id != chapter_id:
         raise HTTPException(status_code=400, detail="分镜不属于该章节")
+
+    active_video_tasks = db.query(Task).filter(
+        Task.shot_id == shot_id,
+        Task.type == "shot_video",
+        Task.status.in_(["pending", "running"]),
+    ).all()
+    if active_video_tasks:
+        await TaskService(db).reconcile_active_tasks(active_video_tasks, db=db)
+        db.expire_all()
+        shot = shot_repo.get_by_id(shot_id)
 
     return {
         "success": True,

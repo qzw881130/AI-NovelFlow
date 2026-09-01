@@ -237,12 +237,30 @@ export interface Shot {
   videoUrl?: string;
 }
 
+export interface VideoDirectorTaskClip {
+  windowIndex?: number;
+  status?: string;
+  startTime?: number;
+  endTime?: number;
+  workflowType?: string;
+  workflowName?: string;
+  promptId?: string;
+  promptText?: string;
+  hasWorkflowJson?: boolean;
+  referenceImages?: Array<{ label?: string; url: string }>;
+  videoUrl?: string;
+  sourceVideoUrl?: string;
+  errorMessage?: string;
+  generatedAt?: string;
+  dialogueCount?: number | null;
+}
+
 export interface Task {
   id: string;
   type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'chapter_video' | 'transition_video' | 'prop_image';
   name: string;
   description?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   currentStep?: string;
   resultUrl?: string;
@@ -253,6 +271,7 @@ export interface Task {
   hasWorkflowJson?: boolean;
   hasPromptText?: boolean;
   referenceImages?: Array<{ label?: string; url: string }>;
+  videoDirectorClips?: VideoDirectorTaskClip[];
   novelId?: string;
   novelName?: string;
   chapterId?: string;

@@ -83,7 +83,17 @@ async def check_file(path: str):
         if not requested_path.exists() or not requested_path.is_file():
             raise HTTPException(status_code=404, detail="File not found")
         
-        return {"exists": True, "size": requested_path.stat().st_size}
+        content_type, _ = mimetypes.guess_type(str(requested_path))
+        if content_type is None:
+            content_type = "application/octet-stream"
+        return Response(
+            status_code=200,
+            media_type=content_type,
+            headers={
+                "Content-Length": str(requested_path.stat().st_size),
+                "Accept-Ranges": "bytes",
+            },
+        )
         
     except HTTPException:
         raise

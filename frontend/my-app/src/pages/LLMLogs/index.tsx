@@ -44,7 +44,7 @@ function StatsModal({ state }: { state: ReturnType<typeof useLLMLogsState> }) {
               <select
                 value={state.statsRangeValue}
                 onChange={(event) => state.changeStatsRangeValue(Number(event.target.value))}
-                className="input-field h-9 w-36 text-sm"
+                className="h-9 w-32 rounded-lg border border-gray-300 bg-white px-3 py-0 text-sm leading-9 text-gray-700 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
               >
                 {rangeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
@@ -67,15 +67,20 @@ function StatsModal({ state }: { state: ReturnType<typeof useLLMLogsState> }) {
               <div className="flex h-80 items-center justify-center text-gray-500">暂无统计数据</div>
             ) : (
               <div className="h-80">
-                <div className="flex h-64 items-end gap-1 border-b border-gray-300 px-1">
+                <div className="flex h-64 items-end gap-1 border-b border-gray-300 px-1 pt-6">
                   {state.statsData.items.map((item, index) => (
                     <div key={item.key} className="group relative flex min-w-0 flex-1 flex-col items-center justify-end">
                       <div className="absolute bottom-full mb-2 hidden rounded bg-gray-900 px-2 py-1 text-xs text-white shadow group-hover:block whitespace-nowrap">
                         {item.key} · {item.count} 次
                       </div>
+                      {item.count > 0 && (
+                        <div className="mb-1 text-[10px] font-medium leading-none text-gray-600">
+                          {item.count}
+                        </div>
+                      )}
                       <div
                         className={`w-full max-w-8 rounded-t ${item.count > 0 ? 'bg-orange-500' : 'bg-gray-200'}`}
-                        style={{ height: `${Math.max(item.count > 0 ? 8 : 2, (item.count / maxCount) * 220)}px` }}
+                        style={{ height: `${Math.max(item.count > 0 ? 8 : 2, (item.count / maxCount) * 196)}px` }}
                       />
                     </div>
                   ))}

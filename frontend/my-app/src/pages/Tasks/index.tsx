@@ -33,6 +33,7 @@ export default function Tasks() {
     handleCancelAll,
     toggleErrorDetail,
     handleViewWorkflow,
+    handleViewClipWorkflow,
     handleRetry,
     fetchImageInfo,
     openImagePreview,
@@ -137,6 +138,7 @@ export default function Tasks() {
     switch (status) {
       case 'completed': return <CheckCircle className="h-5 w-5 text-green-600" />;
       case 'failed': return <XCircle className="h-5 w-5 text-red-600" />;
+      case 'cancelled': return <XCircle className="h-5 w-5 text-gray-500" />;
       case 'running': return <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />;
       case 'pending': return <Clock className="h-5 w-5 text-yellow-600" />;
       default: return <AlertCircle className="h-5 w-5 text-gray-400" />;
@@ -147,6 +149,7 @@ export default function Tasks() {
     const texts: Record<string, string> = {
       'pending': t('tasks.pending'), 'running': t('tasks.running'),
       'completed': t('tasks.completed'), 'failed': t('tasks.failed'),
+      'cancelled': t('tasks.cancelled'),
     };
     return texts[status] || status;
   };
@@ -155,6 +158,7 @@ export default function Tasks() {
     switch (status) {
       case 'completed': return 'bg-green-50 text-green-700 border-green-200';
       case 'failed': return 'bg-red-50 text-red-700 border-red-200';
+      case 'cancelled': return 'bg-gray-50 text-gray-600 border-gray-200';
       case 'running': return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'pending': return 'bg-yellow-50 text-yellow-700 border-yellow-200';
       default: return 'bg-gray-50 text-gray-700 border-gray-200';
@@ -197,6 +201,7 @@ export default function Tasks() {
           { key: 'running', label: t('tasks.running'), color: 'bg-blue-100 text-blue-800' },
           { key: 'completed', label: t('tasks.completed'), color: 'bg-green-100 text-green-800' },
           { key: 'failed', label: t('tasks.failed'), color: 'bg-red-100 text-red-800' },
+          { key: 'cancelled', label: t('tasks.cancelled'), color: 'bg-gray-100 text-gray-700' },
         ].map((stat) => (
           <button
             key={stat.key}
@@ -251,6 +256,7 @@ export default function Tasks() {
                   onDelete={handleDelete}
                   onRetry={handleRetry}
                   onViewWorkflow={handleViewWorkflow}
+                  onViewClipWorkflow={handleViewClipWorkflow}
                   onToggleError={toggleErrorDetail}
                   onPreviewImage={openImagePreview}
                   onPreviewImages={openImageGallery}

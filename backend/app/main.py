@@ -2,10 +2,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from sqlalchemy import text
+import asyncio
 
 from app.api import characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props
 from app.api import novels, chapters, shots
 from app.core.database import engine, Base
+from app.services.comfyui_monitor import init_monitor
 # 导入所有模型以确保创建表
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.task import Task
@@ -52,6 +54,8 @@ def ensure_schema_updates():
             task_columns = [row[1] for row in result.fetchall()]
             if "reference_images" not in task_columns:
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN reference_images TEXT"))
+            if "video_director_clips" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN video_director_clips TEXT"))
 
             result = conn.execute(text("PRAGMA table_info(llm_logs)"))
             llm_log_columns = [row[1] for row in result.fetchall()]
@@ -62,6 +66,30 @@ def ensure_schema_updates():
             conn.commit()
         except Exception as exc:
             print(f"[Startup] Failed to ensure schema updates: {exc}")
+
+
+async def reconcile_active_tasks_loop():
+    """Periodically reconcile active tasks so stale ComfyUI states are corrected after restarts."""
+    from app.core.database import SessionLocal
+    from app.repositories import TaskRepository
+    from app.services.task_service import TaskService
+
+    while True:
+        db = SessionLocal()
+        try:
+            task_repo = TaskRepository(db)
+            active_tasks = task_repo.list_active_tasks()
+            if active_tasks:
+                updated_count = await TaskService(db).reconcile_active_tasks(active_tasks, db=db)
+                if updated_count:
+                    print(f"[TaskReconcile] Updated {updated_count} stale active task(s)")
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            print(f"[TaskReconcile] Failed to reconcile active tasks: {exc}")
+        finally:
+            db.close()
+        await asyncio.sleep(30)
 
 
 @asynccontextmanager
@@ -85,16 +113,22 @@ async def lifespan(app: FastAPI):
         db.close()
     
     # 启动 ComfyUI 监控器
-    from app.services.comfyui_monitor import init_monitor
     from app.core.config import get_settings
     settings = get_settings()
     
     monitor = init_monitor(settings.COMFYUI_HOST)
     await monitor.start()
+    task_reconcile_task = asyncio.create_task(reconcile_active_tasks_loop())
+    app.state.task_reconcile_task = task_reconcile_task
     
     yield
     
     # Shutdown
+    task_reconcile_task.cancel()
+    try:
+        await task_reconcile_task
+    except asyncio.CancelledError:
+        pass
     await monitor.stop()
 
 

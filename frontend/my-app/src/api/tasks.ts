@@ -29,11 +29,17 @@ export const taskApi = {
   /** 删除任务 */
   delete: (id: string) => api.delete(`/tasks/${id}/`),
 
+  /** 取消任务 */
+  cancel: (id: string) => api.post(`/tasks/${id}/cancel`),
+
   /** 取消所有任务 */
   cancelAll: () => api.post('/tasks/cancel-all/'),
 
   /** 获取任务工作流 */
   fetchWorkflow: (id: string) => api.get(`/tasks/${id}/workflow/`),
+
+  /** 获取多 Clip 任务中单个 Clip 的实际工作流 */
+  fetchClipWorkflow: (id: string, windowIndex: number) => api.get(`/tasks/${id}/clips/${windowIndex}/workflow/`),
 
   /** 重试任务 */
   retry: (id: string) => api.post(`/tasks/${id}/retry/`),

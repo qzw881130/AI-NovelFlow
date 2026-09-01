@@ -9,6 +9,7 @@ from typing import Optional
 
 from app.core.database import get_db
 from app.models.novel import Novel, Chapter
+from app.models.shot import Shot
 from app.models.workflow import Workflow
 from app.repositories import TaskRepository
 from app.services.task_service import TaskService
@@ -62,15 +63,17 @@ async def list_tasks(
     novel_ids = {t.novel_id for t in tasks if t.novel_id}
     chapter_ids = {t.chapter_id for t in tasks if t.chapter_id}
     workflow_ids = {t.workflow_id for t in tasks if t.workflow_id}
+    shot_ids = {t.shot_id for t in tasks if t.type == "shot_video" and t.shot_id}
 
     novels = {n.id: n for n in db.query(Novel).filter(Novel.id.in_(novel_ids)).all()} if novel_ids else {}
     chapters = {c.id: c for c in db.query(Chapter).filter(Chapter.id.in_(chapter_ids)).all()} if chapter_ids else {}
     workflows = {w.id: w for w in
                  db.query(Workflow).filter(Workflow.id.in_(workflow_ids)).all()} if workflow_ids else {}
+    shots = {s.id: s for s in db.query(Shot).filter(Shot.id.in_(shot_ids)).all()} if shot_ids else {}
 
     return {
         "success": True,
-        "data": TaskService.format_task_list(tasks, novels, chapters, workflows)
+        "data": TaskService.format_task_list(tasks, novels, chapters, workflows, shots=shots)
     }
 
 
@@ -88,6 +91,22 @@ async def get_task(task_id: str, task_repo: TaskRepository = Depends(get_task_re
 
 
 # ==================== 任务操作 ====================
+
+@router.post("/{task_id}/cancel", response_model=dict)
+async def cancel_task(
+    task_id: str,
+    task_service: TaskService = Depends(get_task_service),
+):
+    """取消任务但保留任务记录。"""
+    cancel_result = await task_service.cancel_task(task_id)
+    if cancel_result.get("status_code"):
+        raise HTTPException(status_code=cancel_result["status_code"], detail=cancel_result.get("message"))
+    return {
+        "success": True,
+        "message": cancel_result.get("message") or "任务已取消",
+        "details": cancel_result.get("details"),
+    }
+
 
 @router.delete("/{task_id}")
 async def delete_task(
@@ -180,5 +199,78 @@ async def get_task_workflow(
             "workflow": None,
             "prompt": task.prompt_text or "未保存提示词",
             "note": "工作流尚未提交到ComfyUI或执行未完成，请稍后查看"
+        }
+    }
+
+
+@router.get("/{task_id}/clips/{window_index}/workflow", response_model=dict)
+async def get_task_clip_workflow(
+    task_id: str,
+    window_index: int,
+    db: Session = Depends(get_db),
+    task_repo: TaskRepository = Depends(get_task_repo),
+):
+    """获取多 Clip 视频任务中单个 Clip 实际提交的工作流JSON。"""
+    import json
+
+    task = task_repo.get_by_id(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    if task.type != "shot_video" or not task.shot_id:
+        raise HTTPException(status_code=400, detail="该任务不是分镜视频任务")
+
+    window_plans = []
+    if task.video_director_clips:
+        try:
+            parsed = json.loads(task.video_director_clips)
+            window_plans = parsed if isinstance(parsed, list) else []
+        except Exception:
+            raise HTTPException(status_code=400, detail="任务 Clip 快照格式无效")
+    if not window_plans:
+        shot = db.query(Shot).filter(Shot.id == task.shot_id).first()
+        if not shot or not shot.video_director_plan:
+            raise HTTPException(status_code=404, detail="未找到分镜视频导演计划")
+
+        try:
+            plan = json.loads(shot.video_director_plan)
+        except Exception:
+            raise HTTPException(status_code=400, detail="分镜视频导演计划格式无效")
+
+        window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+    clip = next((window for window in window_plans if isinstance(window, dict) and int(window.get("window_index") or 0) == window_index), None)
+    if not clip:
+        raise HTTPException(status_code=404, detail="Clip 不存在")
+
+    workflow_json = clip.get("workflow_json")
+    if not workflow_json and clip.get("prompt_id"):
+        prompt_state = await TaskService(db).comfyui_service.client.get_prompt_state(str(clip.get("prompt_id")))
+        prompt_history = prompt_state.get("history") if prompt_state.get("state") in {"history", "completed"} else None
+        prompt_payload = prompt_history.get("prompt") if isinstance(prompt_history, dict) else None
+        if isinstance(prompt_payload, list) and len(prompt_payload) > 2 and isinstance(prompt_payload[2], dict):
+            workflow_json = prompt_payload[2]
+            clip["workflow_json"] = workflow_json
+            task.video_director_clips = json.dumps(window_plans, ensure_ascii=False)
+
+            shot = db.query(Shot).filter(Shot.id == task.shot_id).first()
+            if shot and shot.video_director_plan:
+                try:
+                    plan = json.loads(shot.video_director_plan)
+                    plan_windows = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+                    for plan_window in plan_windows:
+                        if isinstance(plan_window, dict) and int(plan_window.get("window_index") or 0) == window_index:
+                            plan_window["workflow_json"] = workflow_json
+                            break
+                    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+                except Exception:
+                    pass
+            db.commit()
+
+    return {
+        "success": True,
+        "data": {
+            "workflow": workflow_json,
+            "prompt": clip.get("prompt_text") or "未保存提示词",
+            "referenceImages": clip.get("reference_images") if isinstance(clip.get("reference_images"), list) else [],
+            "note": None if clip.get("workflow_json") else "该 Clip 尚未保存实际提交的工作流 JSON",
         }
     }

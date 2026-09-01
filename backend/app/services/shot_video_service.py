@@ -5,6 +5,7 @@
 """
 import json
 from datetime import datetime
+from pathlib import Path
 
 from app.models.novel import Novel, Chapter
 from app.models.task import Task
@@ -28,7 +29,82 @@ def _filter_transitions_for_keyframe_indexes(transitions: list, keyframe_indexes
     ]
 
 
-def _update_window_plan(shot, window_index: int, fields: dict, db) -> None:
+def _to_float_or_none(value):
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _dialogue_time_range(dialogue: dict):
+    if not isinstance(dialogue, dict):
+        return None, None
+    start = None
+    end = None
+    for key in ("start_time", "start", "begin_time", "time", "time_seconds", "timestamp"):
+        start = _to_float_or_none(dialogue.get(key))
+        if start is not None:
+            break
+    for key in ("end_time", "end", "finish_time"):
+        end = _to_float_or_none(dialogue.get(key))
+        if end is not None:
+            break
+    if start is None and end is None:
+        return None, None
+    if end is None:
+        end = start
+    if start is None:
+        start = end
+    return start, end
+
+
+def _clip_dialogues_for_prompt(dialogues: list, clip: dict, shot_duration: float) -> list:
+    if not dialogues:
+        return []
+    clip_start = _to_float_or_none(clip.get("start_time")) or 0
+    clip_end = _to_float_or_none(clip.get("end_time")) or shot_duration or clip_start
+    if clip_end <= clip_start:
+        return dialogues
+
+    timed_dialogues = []
+    has_timed_dialogue = False
+    for dialogue in dialogues:
+        start, end = _dialogue_time_range(dialogue)
+        if start is None and end is None:
+            continue
+        has_timed_dialogue = True
+        if start < clip_end and end >= clip_start:
+            timed_dialogues.append(dialogue)
+    if has_timed_dialogue:
+        return timed_dialogues
+
+    ordered_dialogues = sorted(
+        enumerate(dialogues),
+        key=lambda item: (
+            (_to_float_or_none(item[1].get("order")) if isinstance(item[1], dict) else None) is None,
+            _to_float_or_none(item[1].get("order")) if isinstance(item[1], dict) else None,
+            item[0],
+        ),
+    )
+    ordered_dialogues = [dialogue for _, dialogue in ordered_dialogues]
+    duration = max(float(shot_duration or clip_end), clip_end, 1)
+    selected = []
+    total = len(ordered_dialogues)
+    for index, dialogue in enumerate(ordered_dialogues):
+        position = (index / max(total, 1)) * duration
+        if clip_start <= position < clip_end or (index == total - 1 and clip_start <= position <= clip_end):
+            selected.append(dialogue)
+    return selected
+
+
+def _sync_task_video_director_clips(task, window_plans: list) -> None:
+    if task is not None:
+        task.video_director_clips = json.dumps(window_plans, ensure_ascii=False)
+
+
+def _update_window_plan(shot, window_index: int, fields: dict, db, task=None) -> None:
     plan = safe_json_dict(shot.video_director_plan)
     window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
     for window_plan in window_plans:
@@ -36,11 +112,75 @@ def _update_window_plan(shot, window_index: int, fields: dict, db) -> None:
             window_plan.update(fields)
             break
     shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+    _sync_task_video_director_clips(task, window_plans)
     db.commit()
 
 
-def _update_window_plan_status(shot, window_index: int, status: str, db) -> None:
-    _update_window_plan(shot, window_index, {"status": status}, db)
+def _update_window_plan_status(shot, window_index: int, status: str, db, task=None) -> None:
+    _update_window_plan(shot, window_index, {"status": status}, db, task=task)
+
+
+def _is_task_cancelled(db, task) -> bool:
+    db.refresh(task)
+    return task.status == "cancelled"
+
+
+def _cleanup_task_generated_clip_videos(db, task, shot) -> None:
+    plan = safe_json_dict(shot.video_director_plan)
+    window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+    changed = False
+    for window_plan in window_plans:
+        if not isinstance(window_plan, dict) or window_plan.get("generated_by_task_id") != task.id:
+            continue
+        local_path = window_plan.get("local_path") or url_to_local_path(window_plan.get("video_url"))
+        if local_path:
+            try:
+                path = Path(local_path)
+                if path.exists() and path.is_file():
+                    path.unlink()
+            except Exception as exc:
+                print(f"[VideoTask {task.id}] Failed to delete cancelled clip video {local_path}: {exc}")
+        for key in ["video_url", "local_path", "source_video_url", "generated_at", "generated_by_task_id"]:
+            window_plan.pop(key, None)
+        window_plan["status"] = "CANCELLED"
+        window_plan["error_message"] = "任务已取消，已清理本任务生成的 Clip 视频"
+        changed = True
+    if changed:
+        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+        _sync_task_video_director_clips(task, window_plans)
+        db.commit()
+
+
+def _reset_multi_clip_window_plans_for_task(db, task, shot, only_window_index: int | None = None) -> list:
+    plan = safe_json_dict(shot.video_director_plan)
+    window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+    reset_keys = [
+        "prompt_id",
+        "prompt_text",
+        "workflow_json",
+        "video_url",
+        "local_path",
+        "source_video_url",
+        "generated_at",
+        "generated_by_task_id",
+        "error_message",
+    ]
+    for window_plan in window_plans:
+        if not isinstance(window_plan, dict):
+            continue
+        window_index = int(window_plan.get("window_index") or 0)
+        if only_window_index is not None and window_index != int(only_window_index):
+            continue
+        for key in reset_keys:
+            window_plan.pop(key, None)
+        window_plan["status"] = "PENDING"
+    if only_window_index is None:
+        plan.pop("merged_video_url", None)
+        plan.pop("merged_at", None)
+    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+    _sync_task_video_director_clips(task, window_plans)
+    db.commit()
+    return window_plans
 
 
 def _local_url_from_path(path: str) -> str:
@@ -152,6 +292,8 @@ async def generate_shot_video_task(
     try:
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task:
+            return
+        if task.status == "cancelled":
             return
 
         task.status = "running"
@@ -305,6 +447,8 @@ async def generate_shot_video_task(
 
         window_plans = video_director_plan.get("window_plans") if isinstance(video_director_plan.get("window_plans"), list) else []
         if selected_mode == "MULTI_KEYFRAME" and len(window_plans) > 1:
+            window_plans = _reset_multi_clip_window_plans_for_task(db, task, shot, only_window_index=only_window_index)
+            video_director_plan = safe_json_dict(shot.video_director_plan)
             await _generate_multi_clip_video_task(
                 db=db,
                 task=task,
@@ -424,11 +568,11 @@ async def generate_shot_video_task(
         transitions_for_prompt = video_director_plan.get("transitions") if isinstance(video_director_plan.get("transitions"), list) else []
         if selected_mode == "MULTI_KEYFRAME" and clip.get("keyframe_indexes"):
             transitions_for_prompt = _filter_transitions_for_keyframe_indexes(transitions_for_prompt, clip.get("keyframe_indexes") or [])
-        clip_dialogues = safe_json_list(shot.dialogues)
+        clip_dialogues = _clip_dialogues_for_prompt(safe_json_list(shot.dialogues), clip, duration)
 
         task.current_step = "正在构建 H3 视频提示词..."
         if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
-            _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "PROMPT_BUILDING", db)
+            _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "PROMPT_BUILDING", db, task=task)
         db.commit()
         shot_prompt = await build_h3_video_prompt(
             db=db,
@@ -444,22 +588,33 @@ async def generate_shot_video_task(
             transitions=transitions_for_prompt,
             clip_dialogues=clip_dialogues,
             reference_images=reference_images,
+            character_appearances=character_appearances,
         )
+        if _is_task_cancelled(db, task):
+            _cleanup_task_generated_clip_videos(db, task, shot)
+            shot_repo.update(shot, video_status="failed")
+            db.commit()
+            return
         task.prompt_text = shot_prompt
         db.commit()
 
         task.current_step = "正在调用 ComfyUI 生成视频..."
         task.progress = 30
         if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
-            _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "RUNNING", db)
+            _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "RUNNING", db, task=task)
         db.commit()
 
         comfyui_service = ComfyUIService()
 
-        def save_prompt_id(prompt_id: str):
+        def save_prompt_id(prompt_id: str, submitted_workflow: dict = None):
             task.comfyui_prompt_id = prompt_id
+            if submitted_workflow:
+                task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
             if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
-                _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "QUEUED", db)
+                fields = {"status": "RUNNING", "prompt_id": prompt_id}
+                if submitted_workflow:
+                    fields["workflow_json"] = submitted_workflow
+                _update_window_plan(shot, int(clip.get("clip_index") or 1), fields, db, task=task)
             db.commit()
             print(f"[VideoTask {task_id}] Saved ComfyUI prompt_id: {prompt_id}")
 
@@ -484,6 +639,11 @@ async def generate_shot_video_task(
             keyframe_paths=keyframe_paths,
             on_prompt_queued=save_prompt_id
         )
+        if _is_task_cancelled(db, task):
+            _cleanup_task_generated_clip_videos(db, task, shot)
+            shot_repo.update(shot, video_status="failed")
+            db.commit()
+            return
 
         print(f"[VideoTask {task_id}] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
@@ -501,7 +661,7 @@ async def generate_shot_video_task(
             task.error_message = result.get("message", "生成失败")
             task.current_step = "生成失败"
             if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
-                _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "FAILED", db)
+                _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "FAILED", db, task=task)
             shot_repo.update(shot, video_status="failed")
             db.commit()
             return
@@ -509,7 +669,7 @@ async def generate_shot_video_task(
         # 下载并保存视频
         await _save_generated_video(result, task, novel_id, chapter_id, shot_index, db, task_id, shot_repo)
         if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
-            _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "SUCCEEDED", db)
+            _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "SUCCEEDED", db, task=task)
 
     except Exception as e:
         print(f"[VideoTask {task_id}] Error: {e}")
@@ -556,10 +716,15 @@ async def _generate_multi_clip_video_task(
     clip_video_paths = []
     comfyui_service = ComfyUIService()
     transitions_for_prompt = video_director_plan.get("transitions") if isinstance(video_director_plan.get("transitions"), list) else []
-    clip_dialogues = safe_json_list(shot.dialogues)
+    all_dialogues = safe_json_list(shot.dialogues)
     generated_any = False
 
     for clip_position, window_plan in enumerate(window_plans, 1):
+        if _is_task_cancelled(db, task):
+            _cleanup_task_generated_clip_videos(db, task, shot)
+            shot_repo.update(shot, video_status="failed")
+            db.commit()
+            return
         window_index = int(window_plan.get("window_index") or clip_position)
         if only_window_index is not None and window_index != int(only_window_index):
             continue
@@ -567,7 +732,7 @@ async def _generate_multi_clip_video_task(
         workflow_type = "three_frame_video" if frame_count_setting == 3 else "four_frame_video"
         workflow = db.query(Workflow).filter(Workflow.type == workflow_type, Workflow.is_active == True).first()
         if not workflow:
-            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": f"未配置 {workflow_type} 视频生成工作流"}, db)
+            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": f"未配置 {workflow_type} 视频生成工作流"}, db, task=task)
             task.status = "failed"
             task.error_message = f"未配置 {workflow_type} 视频生成工作流"
             task.current_step = "缺少视频工作流"
@@ -584,7 +749,7 @@ async def _generate_multi_clip_video_task(
             start_image_url = start_keyframe.get("image_url") if start_keyframe else None
             start_image_path = url_to_local_path(start_image_url) if start_image_url else None
         if not start_image_path:
-            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": f"Clip {window_index} 缺少起始关键帧图片"}, db)
+            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": f"Clip {window_index} 缺少起始关键帧图片"}, db, task=task)
             task.status = "failed"
             task.error_message = f"Clip {window_index} 缺少起始关键帧图片"
             task.current_step = "缺少关键帧图片"
@@ -598,7 +763,7 @@ async def _generate_multi_clip_video_task(
             image_url = keyframe.get("image_url") if keyframe else None
             keyframe_path = url_to_local_path(image_url) if image_url else None
             if not keyframe_path:
-                _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": f"Clip {window_index} 缺少 Keyframe {keyframe_index} 图片"}, db)
+                _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": f"Clip {window_index} 缺少 Keyframe {keyframe_index} 图片"}, db, task=task)
                 task.status = "failed"
                 task.error_message = f"Clip {window_index} 缺少 Keyframe {keyframe_index} 图片"
                 task.current_step = "缺少关键帧图片"
@@ -632,6 +797,7 @@ async def _generate_multi_clip_video_task(
             if isinstance(keyframe, dict) and int(keyframe.get("index") or -1) in selected_indexes
         ]
         clip_transitions_for_prompt = _filter_transitions_for_keyframe_indexes(transitions_for_prompt, keyframe_indexes)
+        clip_dialogues = _clip_dialogues_for_prompt(all_dialogues, clip, float(shot.duration or 0))
 
         task.current_step = f"正在构建 Clip {clip_position}/{len(window_plans)} H3 提示词..."
         task.progress = int(10 + ((clip_position - 1) / len(window_plans)) * 70)
@@ -641,8 +807,9 @@ async def _generate_multi_clip_video_task(
             "workflow_type": workflow_type,
             "workflow_name": workflow.name,
             "reference_images": reference_images,
+            "clip_dialogues": clip_dialogues,
             "error_message": None,
-        }, db)
+        }, db, task=task)
         db.commit()
         clip_prompt = await build_h3_video_prompt(
             db=db,
@@ -658,23 +825,33 @@ async def _generate_multi_clip_video_task(
             transitions=clip_transitions_for_prompt,
             clip_dialogues=clip_dialogues,
             reference_images=reference_images,
+            character_appearances=character_appearances,
         )
+        if _is_task_cancelled(db, task):
+            _cleanup_task_generated_clip_videos(db, task, shot)
+            shot_repo.update(shot, video_status="failed")
+            db.commit()
+            return
         task.prompt_text = clip_prompt
-        _update_window_plan(shot, window_index, {"prompt_text": clip_prompt}, db)
+        _update_window_plan(shot, window_index, {"prompt_text": clip_prompt}, db, task=task)
 
         clip_duration = max(1, float(clip["end_time"]) - float(clip["start_time"]))
         raw_frame_count = int(fps * clip_duration)
         clip_frame_count = ((raw_frame_count // 8) * 8) + 1
         node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
 
-        def save_prompt_id(prompt_id: str):
+        def save_prompt_id(prompt_id: str, submitted_workflow: dict = None):
             task.comfyui_prompt_id = prompt_id
-            _update_window_plan(shot, window_index, {"status": "QUEUED", "prompt_id": prompt_id}, db)
+            fields = {"status": "RUNNING", "prompt_id": prompt_id}
+            if submitted_workflow:
+                task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+                fields["workflow_json"] = submitted_workflow
+            _update_window_plan(shot, window_index, fields, db, task=task)
             db.commit()
             print(f"[VideoTask {task_id}] Clip {clip_position} ComfyUI prompt_id: {prompt_id}")
 
         task.current_step = f"正在生成 Clip {clip_position}/{len(window_plans)}..."
-        _update_window_plan_status(shot, window_index, "RUNNING", db)
+        _update_window_plan_status(shot, window_index, "RUNNING", db, task=task)
         db.commit()
         result = await comfyui_service.generate_shot_video_with_workflow(
             prompt=clip_prompt,
@@ -692,15 +869,20 @@ async def _generate_multi_clip_video_task(
             keyframe_paths=keyframe_paths,
             on_prompt_queued=save_prompt_id,
         )
+        if _is_task_cancelled(db, task):
+            _cleanup_task_generated_clip_videos(db, task, shot)
+            shot_repo.update(shot, video_status="failed")
+            db.commit()
+            return
         if result.get("submitted_workflow"):
             task.workflow_json = json.dumps(result["submitted_workflow"], ensure_ascii=False, indent=2)
-            _update_window_plan(shot, window_index, {"workflow_json": result["submitted_workflow"]}, db)
+            _update_window_plan(shot, window_index, {"workflow_json": result["submitted_workflow"]}, db, task=task)
             db.commit()
         if not result.get("success") or not result.get("video_url"):
             task.status = "failed"
             task.error_message = result.get("message") or "Clip 生成失败"
             task.current_step = f"Clip {clip_position} 生成失败"
-            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": task.error_message}, db)
+            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": task.error_message}, db, task=task)
             shot_repo.update(shot, video_status="failed")
             db.commit()
             return
@@ -713,11 +895,23 @@ async def _generate_multi_clip_video_task(
             chapter_id=chapter_id,
             shot_number=(shot_index * 1000) + clip_position,
         )
+        if _is_task_cancelled(db, task):
+            if local_path:
+                try:
+                    path = Path(local_path)
+                    if path.exists() and path.is_file():
+                        path.unlink()
+                except Exception as exc:
+                    print(f"[VideoTask {task_id}] Failed to delete cancelled downloaded clip {local_path}: {exc}")
+            _cleanup_task_generated_clip_videos(db, task, shot)
+            shot_repo.update(shot, video_status="failed")
+            db.commit()
+            return
         if not local_path:
             task.status = "failed"
             task.error_message = f"Clip {clip_position} 下载失败"
             task.current_step = "下载失败"
-            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": task.error_message}, db)
+            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": task.error_message}, db, task=task)
             shot_repo.update(shot, video_status="failed")
             db.commit()
             return
@@ -730,7 +924,8 @@ async def _generate_multi_clip_video_task(
             "source_video_url": result.get("video_url"),
             "error_message": None,
             "generated_at": datetime.utcnow().isoformat(),
-        }, db)
+            "generated_by_task_id": task.id,
+        }, db, task=task)
 
     if only_window_index is not None:
         if not generated_any:
@@ -750,6 +945,7 @@ async def _generate_multi_clip_video_task(
                 db.commit()
                 return
             task.result_url = merge_result.get("video_url")
+            shot_repo.update(shot, video_url=merge_result.get("video_url"), video_status="completed", video_task_id=task.id)
         task.status = "completed"
         task.progress = 100
         task.current_step = "生成完成"
@@ -760,6 +956,11 @@ async def _generate_multi_clip_video_task(
     task.current_step = "正在拼接多 Clip 视频..."
     task.progress = 85
     db.commit()
+    if _is_task_cancelled(db, task):
+        _cleanup_task_generated_clip_videos(db, task, shot)
+        shot_repo.update(shot, video_status="failed")
+        db.commit()
+        return
     story_dir = file_storage._get_story_dir(novel_id)
     chapter_short = chapter_id[:8] if chapter_id else "unknown"
     output_dir = story_dir / f"chapter_{chapter_short}" / "videos"
@@ -767,6 +968,17 @@ async def _generate_multi_clip_video_task(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = str(output_dir / f"shot_{shot_index:03d}_{timestamp}.mp4")
     merge_result = await file_storage.merge_videos(clip_video_paths, output_path)
+    if _is_task_cancelled(db, task):
+        try:
+            output_file = Path(output_path)
+            if output_file.exists() and output_file.is_file():
+                output_file.unlink()
+        except Exception as exc:
+            print(f"[VideoTask {task_id}] Failed to delete cancelled merged video {output_path}: {exc}")
+        _cleanup_task_generated_clip_videos(db, task, shot)
+        shot_repo.update(shot, video_status="failed")
+        db.commit()
+        return
     if not merge_result.get("success"):
         task.status = "failed"
         task.error_message = merge_result.get("message") or "多 Clip 拼接失败"
@@ -864,6 +1076,20 @@ async def _save_generated_video(
         chapter_id=chapter_id,
         shot_number=shot_index
     )
+    db.refresh(task)
+    if task.status == "cancelled":
+        if local_path:
+            try:
+                path = Path(local_path)
+                if path.exists() and path.is_file():
+                    path.unlink()
+            except Exception as exc:
+                print(f"[VideoTask {task_id}] Failed to delete cancelled downloaded video {local_path}: {exc}")
+        shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+        if shot:
+            shot_repo.update(shot, video_status="failed")
+        db.commit()
+        return
 
     if local_path:
         relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")

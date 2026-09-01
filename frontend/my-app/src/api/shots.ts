@@ -171,6 +171,24 @@ export const shotsApi = {
     return response.json();
   },
 
+  downloadShotLlmData: async (novelId: string, chapterId: string, shotId: string): Promise<void> => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/download-llm-data`);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.detail || data.message || '下载 LLM 数据失败');
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('content-disposition') || '';
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = filenameMatch?.[1] || 'shot_llm_data.zip';
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  },
+
   /**
    * 更新分镜信息
    */

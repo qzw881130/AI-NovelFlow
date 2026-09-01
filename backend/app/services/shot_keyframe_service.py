@@ -399,6 +399,19 @@ class ShotKeyframeService:
         # 获取 novel_id
         novel_id = self._get_novel_id(db, shot)
 
+        existing_task = db.query(Task).filter(
+            Task.type == "keyframe_image",
+            Task.shot_id == shot_id,
+            Task.name == f"生成关键帧图片: {shot_id}-{frame_index}",
+            Task.status.in_(["pending", "running"]),
+        ).order_by(Task.created_at.desc()).first()
+        if existing_task:
+            if not keyframe.get("image_task_id"):
+                keyframe["image_task_id"] = existing_task.id
+                shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
+                db.commit()
+            return True, existing_task.id, "该关键帧已有生成任务，已复用现有任务"
+
         # 创建任务
         task = Task(
             id=str(uuid.uuid4()),
@@ -570,6 +583,7 @@ class ShotKeyframeService:
             task.comfyui_prompt_id = prompt_id
             task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
             task.prompt_text = prompt
+            task.current_step = "ComfyUI 关键帧生成中"
             reference_url = local_path_to_url(reference_path) if reference_path else None
             task.reference_images = json.dumps(
                 [{"label": reference_label, "url": reference_url}], ensure_ascii=False
@@ -609,6 +623,7 @@ class ShotKeyframeService:
                     # 更新任务状态
                     task.status = "completed"
                     task.result_url = local_url
+                    task.current_step = "生成完成"
                     task.completed_at = datetime.utcnow()
                     db.commit()
                 else:
@@ -619,6 +634,7 @@ class ShotKeyframeService:
         except Exception as e:
             task.status = "failed"
             task.error_message = str(e)
+            task.current_step = "生成失败"
             task.completed_at = datetime.utcnow()
             db.commit()
             raise

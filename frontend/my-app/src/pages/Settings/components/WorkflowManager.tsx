@@ -1,7 +1,7 @@
 // 工作流管理组件
 
 import { useState, useEffect } from 'react';
-import { Plus, User, Image as ImageIcon, Film, Mountain, Box, Mic, Music, Clapperboard } from 'lucide-react';
+import { Plus, User, Image as ImageIcon, Film, Mountain, Box, Mic, Music, Clapperboard, Download } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import { getWorkflowDisplayName, getTypeNames } from '../utils';
@@ -43,6 +43,7 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
   // 工作流列表
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [loadingWorkflows, setLoadingWorkflows] = useState(true);
+  const [exportingWorkflows, setExportingWorkflows] = useState(false);
   
   // 弹窗状态
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -134,6 +135,19 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
     }
   };
 
+  const handleExportActiveWorkflows = async () => {
+    setExportingWorkflows(true);
+    try {
+      await workflowApi.exportActive();
+      toast.success('工作流已打包下载');
+    } catch (error) {
+      console.error('打包下载工作流失败:', error);
+      toast.error(error instanceof Error ? error.message : '打包下载工作流失败');
+    } finally {
+      setExportingWorkflows(false);
+    }
+  };
+
   const getWorkflowsByType = (type: Workflow['type']) => {
     return workflows.filter(w => w.type === type);
   };
@@ -145,7 +159,16 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
   return (
     <div className="space-y-6">
       {/* 上传按钮 */}
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={handleExportActiveWorkflows}
+          disabled={exportingWorkflows}
+          className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <Download className="h-4 w-4" />
+          {exportingWorkflows ? '打包中...' : '打包下载所有工作流'}
+        </button>
         <button
           type="button"
           onClick={() => setShowUploadModal(true)}

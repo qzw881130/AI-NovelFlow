@@ -1,9 +1,9 @@
 import {
   CheckCircle, XCircle, Loader2, Clock, AlertCircle,
-  Terminal, ChevronUp, ChevronDown, Play, Code, Trash2, Film, Image as ImageIcon, User, ListTodo, Music
+  Terminal, ChevronUp, ChevronDown, Play, Code, Trash2, Film, Image as ImageIcon, User, ListTodo, Music, Copy
 } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
-import type { Task } from '../../../types';
+import type { Task, VideoDirectorTaskClip } from '../../../types';
 import type { ImageInfo } from '../types';
 
 interface TaskCardProps {
@@ -13,6 +13,7 @@ interface TaskCardProps {
   onDelete: (id: string) => void;
   onRetry: (id: string) => void;
   onViewWorkflow: (task: Task) => void;
+  onViewClipWorkflow: (task: Task, clip: VideoDirectorTaskClip) => void;
   onToggleError: (id: string) => void;
   onPreviewImage: (url: string) => void;
   onPreviewImages: (images: Array<{ label?: string; url: string }>, index: number) => void;
@@ -35,6 +36,7 @@ export function TaskCard({
   onDelete,
   onRetry,
   onViewWorkflow,
+  onViewClipWorkflow,
   onToggleError,
   onPreviewImage,
   onPreviewImages,
@@ -79,6 +81,36 @@ export function TaskCard({
   };
 
   const elapsedSeconds = getElapsedSeconds();
+  const videoDirectorClips = task.videoDirectorClips || [];
+  const hasMultiClipDetails = videoDirectorClips.length > 0;
+  const copyTaskId = async () => {
+    try {
+      await navigator.clipboard.writeText(task.id);
+    } catch {
+      // Ignore clipboard failures; the full ID is visible for manual selection.
+    }
+  };
+  const getClipStatusText = (status?: string) => {
+    switch ((status || 'PENDING').toUpperCase()) {
+      case 'PROMPT_BUILDING': return t('tasks.clipStatuses.promptBuilding');
+      case 'QUEUED': return t('tasks.clipStatuses.queued');
+      case 'RUNNING': return t('tasks.clipStatuses.running');
+      case 'SUCCEEDED': return t('tasks.clipStatuses.succeeded');
+      case 'FAILED': return t('tasks.clipStatuses.failed');
+      case 'CANCELLED': return t('tasks.clipStatuses.cancelled');
+      default: return t('tasks.clipStatuses.pending');
+    }
+  };
+  const clipStatusClass = (status?: string) => {
+    switch ((status || '').toUpperCase()) {
+      case 'SUCCEEDED': return 'bg-green-100 text-green-700';
+      case 'FAILED': return 'bg-red-100 text-red-700';
+      case 'RUNNING':
+      case 'QUEUED':
+      case 'PROMPT_BUILDING': return 'bg-blue-100 text-blue-700';
+      default: return 'bg-gray-100 text-gray-600';
+    }
+  };
 
   return (
     <div className={`p-4 rounded-lg border ${getStatusColor(task.status)} transition-all hover:shadow-md`}>
@@ -93,6 +125,18 @@ export function TaskCard({
                 📋 {getWorkflowDisplayName(task)}
               </span>
             )}
+          </div>
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+            <span>{t('tasks.taskId')}:</span>
+            <code className="select-all rounded bg-white/70 px-1.5 py-0.5 font-mono text-[11px] text-gray-600">{task.id}</code>
+            <button
+              type="button"
+              onClick={copyTaskId}
+              className="rounded p-1 text-gray-400 hover:bg-white hover:text-blue-600"
+              title="复制 Task ID"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
           </div>
           {task.description && <p className="text-sm mt-1 opacity-80">{getTaskDisplayDescription(task)}</p>}
           {task.novelName && (
@@ -166,6 +210,62 @@ export function TaskCard({
                     )}
                     <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
                   </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {hasMultiClipDetails && (
+            <div className="mt-3 rounded-lg border border-blue-100 bg-white/70 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="text-xs font-medium text-blue-900">{t('tasks.multiClipDetails')}</div>
+                <div className="text-[11px] text-blue-700">{t('tasks.clipCount', { count: videoDirectorClips.length })}</div>
+              </div>
+              <div className="space-y-2">
+                {videoDirectorClips.map((clip, clipIndex) => (
+                  <div key={`${task.id}-clip-${clip.windowIndex || clipIndex}`} className="rounded-md border border-gray-200 bg-white p-2 text-xs text-gray-700">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-gray-900">Clip {clip.windowIndex || clipIndex + 1}</span>
+                        <span className={`rounded-full px-2 py-0.5 ${clipStatusClass(clip.status)}`}>{getClipStatusText(clip.status)}</span>
+                        <span>{clip.startTime ?? '-'}s - {clip.endTime ?? '-'}s</span>
+                        {clip.workflowName && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">{clip.workflowName}</span>}
+                        {clip.promptId && <span className="text-gray-500">{t('tasks.promptId', { id: clip.promptId })}</span>}
+                        {clip.dialogueCount !== undefined && clip.dialogueCount !== null && <span className="text-gray-500">{t('tasks.dialogueCount', { count: clip.dialogueCount })}</span>}
+                      </div>
+                      {(clip.hasWorkflowJson || clip.promptText) && (
+                        <button
+                          type="button"
+                          onClick={() => onViewClipWorkflow(task, clip)}
+                          className="shrink-0 rounded p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600"
+                          title={t('tasks.viewClipWorkflow')}
+                        >
+                          <Code className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                    {clip.errorMessage && <div className="mt-1 text-red-600">{clip.errorMessage}</div>}
+                    {clip.promptText && <div className="mt-1 line-clamp-2 text-gray-500" title={clip.promptText}>Prompt: {clip.promptText}</div>}
+                    {!!clip.referenceImages?.length && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {clip.referenceImages.map((image, index) => (
+                          <button
+                            key={`${image.url}-${index}`}
+                            type="button"
+                            onClick={() => onPreviewImages(clip.referenceImages || [], index)}
+                            className="h-12 w-16 overflow-hidden rounded border border-gray-200 bg-gray-50"
+                            title={image.label || t('tasks.referenceImage')}
+                          >
+                            <img src={image.url} alt={image.label || t('tasks.referenceImage')} className="h-full w-full object-cover" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {clip.videoUrl && (
+                      <button onClick={() => onPreviewVideo(clip.videoUrl!)} className="mt-2 inline-flex items-center gap-1 text-green-600 hover:text-green-700 underline">
+                        <Play className="h-3 w-3" />{t('tasks.viewClipVideo')}
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -260,7 +360,7 @@ export function TaskCard({
               <Play className="h-4 w-4" />
             </button>
           )}
-          {(task.hasWorkflowJson || task.hasPromptText) && (
+          {!hasMultiClipDetails && (task.hasWorkflowJson || task.hasPromptText) && (
             <button onClick={() => onViewWorkflow(task)} className="p-2 text-gray-400 hover:text-blue-600 transition-colors" title={t('tasks.viewWorkflow')}>
               <Code className="h-4 w-4" />
             </button>

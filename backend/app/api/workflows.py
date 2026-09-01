@@ -3,7 +3,13 @@
 
 只负责请求/响应处理，业务逻辑委托给 WorkflowService
 """
+import json
+import zipfile
+from io import BytesIO
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import Optional
 
@@ -14,6 +20,19 @@ from app.constants.workflow import WORKFLOW_TYPES
 from app.api.deps import get_workflow_repo
 
 router = APIRouter()
+
+
+def _safe_filename_part(value: str) -> str:
+    invalid_chars = '<>:"/\\|?*\n\r\t'
+    result = ''.join('_' if ch in invalid_chars else ch for ch in str(value or '').strip())
+    return result.strip(' ._') or 'workflow'
+
+
+def _pretty_workflow_json(value: str) -> str:
+    try:
+        return json.dumps(json.loads(value), ensure_ascii=False, indent=2)
+    except Exception:
+        return value or '{}'
 
 
 def get_workflow_service(db: Session = Depends(get_db)) -> WorkflowService:
@@ -43,6 +62,56 @@ async def list_workflows(
         "success": True,
         "data": WorkflowService.format_workflow_list(workflows)
     }
+
+
+@router.get("/export-active", response_model=None)
+async def export_active_workflows(
+    workflow_service: WorkflowService = Depends(get_workflow_service),
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
+):
+    """打包下载所有类别的当前工作流 JSON。"""
+    workflow_service.load_default_workflows()
+
+    zip_buffer = BytesIO()
+    exported = []
+    used_filenames = set()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for workflow_type, type_label in WORKFLOW_TYPES.items():
+            workflow = workflow_repo.get_active_by_type(workflow_type)
+            if not workflow:
+                workflow = workflow_repo.get_first_system_by_type(workflow_type)
+            if not workflow:
+                continue
+
+            base_name = f"{_safe_filename_part(type_label)}：{_safe_filename_part(workflow.name)}"
+            filename = f"{base_name}.json"
+            duplicate_index = 2
+            while filename in used_filenames:
+                filename = f"{base_name}_{duplicate_index}.json"
+                duplicate_index += 1
+            used_filenames.add(filename)
+
+            zip_file.writestr(filename, _pretty_workflow_json(workflow.workflow_json))
+            exported.append({
+                "type": workflow_type,
+                "type_label": type_label,
+                "workflow_id": workflow.id,
+                "workflow_name": workflow.name,
+                "is_system": workflow.is_system,
+                "is_active": workflow.is_active,
+                "filename": filename,
+            })
+
+        zip_file.writestr("manifest.json", json.dumps(exported, ensure_ascii=False, indent=2))
+
+    zip_buffer.seek(0)
+    filename = "comfyui_active_workflows.zip"
+    encoded_filename = quote(filename)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f"attachment; filename=workflows.zip; filename*=UTF-8''{encoded_filename}"},
+    )
 
 
 @router.get("/{workflow_id}/", response_model=dict)

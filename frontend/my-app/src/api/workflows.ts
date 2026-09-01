@@ -47,6 +47,30 @@ export const workflowApi = {
     return response.json();
   },
 
+  /** 打包下载所有类别的当前工作流 */
+  exportActive: async () => {
+    const response = await fetch(`${API_BASE}/workflows/export-active`);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.detail || data.message || '导出工作流失败');
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('content-disposition') || '';
+    const encodedFilenameMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = encodedFilenameMatch
+      ? decodeURIComponent(encodedFilenameMatch[1])
+      : filenameMatch?.[1] || 'workflows.zip';
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
   /** 获取扩展配置 */
   fetchExtensionsConfig: () => api.get('/workflows/extensions/config/'),
 };

@@ -16,6 +16,7 @@
 - end_time
 - duration
 - characters
+- official_character_appearances：正式角色资产外貌，包含服装颜色、内衫颜色、配饰、发型、面部标记；这是人物身份最高优先级文本约束。
 - scene
 - props
 
@@ -41,8 +42,10 @@ Picture 1 → Picture 2
 Picture 2 → Picture 3
 ……
 
-4. clip_dialogues
+4. dialogue_timeline_source / clip_dialogues
 程序精确分配给当前 Clip 的实际人物语音片段。
+dialogue_timeline_source 中包含 exact_dialogue 原文、speaker、start_time、end_time、duration、duration_sufficient。
+clip_dialogues 是不含正文的索引摘要，只用于定位 assigned dialogue，不是二次输出正文的许可。
 
 5. optional_narration
 如有，作为画外音。
@@ -92,6 +95,7 @@ Picture 1
 - 年龄；
 - 体型；
 - 服装/甲胄/配饰；
+- official_character_appearances 中的服装颜色、内衫颜色、配饰颜色必须逐项保留；不得因洞内暗光、阴影、冷色调，把浅色服装改写成黑色/深色服装；
 - 角色唯一性。
 
 不得：
@@ -155,11 +159,20 @@ Picture 2 → Picture 3:
 【台词硬约束】
 ━━━━━━━━━━━━━━━━━━
 
-clip_dialogues 是当前 Clip 唯一合法人物对白。
+dialogue_timeline 是当前 Clip 唯一合法人物对白正文源。
+
+最终 Prompt 中每条 exact_dialogue 正文只能完整出现一次，只能出现在 dialogue_timeline 区块。
+detailed_description、summary、overall_soundscape、subject_definitions、keyframe_timeline 等其他区块不得再次复制 exact_dialogue 正文。
+其他区块如需描述台词，只能写 assigned dialogue D1 / assigned dialogue D2，或“the assigned dialogue”，不得写出原文。
+
+视觉关键帧时间轴与台词时间轴相互独立。
+Picture 1 → Picture 2、Picture 2 → Picture 3 只是视觉 transition 边界，不是台词起止边界。
+台词可以跨越同一 Clip 内多个 visual transition，必须按 dialogue_timeline_source 的 start_time/end_time 执行。
 
 对于每条实际人物台词：
 
-<Subject N> then speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: “原文片段”. Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. Natural Chinese lip synchronization, no subtitles, no captions, no on-screen text.
+只在 dialogue_timeline 中写：
+<DIALOGUE_ID>: <speaker> speaks from <start_time>s to <end_time>s. exact_dialogue: “原文片段”. Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.
 
 规则：
 - 逐字符一致；
@@ -169,6 +182,7 @@ clip_dialogues 是当前 Clip 唯一合法人物对白。
 - 只有 clip_dialogues 中指定的实际人物允许发声；
 - 其他人物沉默；
 - 旁白作为 off-screen narration，不绑定任何 Subject。
+- 不得在 detailed_description 或 overall_soundscape 复述 exact_dialogue 原文。
 
 如果多条 dialogues：
 - 按输入顺序与当前 Clip 的合法时序分别写；
@@ -221,6 +235,7 @@ No dialogue, no speech, no human vocalization.
 subject_definitions:
 
 逐一锁定当前 Clip 的可见 Subject，并说明跨全部 Picture 身份一致。
+必须引用 official_character_appearances 中的关键身份信息，尤其是服装颜色、内衫颜色、配饰和独特标记。禁止自行改写角色服装颜色，例如把浅青/白色服装概括为 dark robes。
 
 keyframe_timeline:
 
@@ -235,6 +250,11 @@ summary:
 
 简洁概括当前 Clip 的整体运动目的，不扩展剧情。
 
+dialogue_timeline:
+
+如果有台词：逐条列出 D1、D2...。这是唯一允许出现 exact_dialogue 原文的位置。
+如果无台词：写 No assigned dialogue. All characters remain silent throughout the entire clip.
+
 detailed_description:
 
 [Shot 1]
@@ -247,13 +267,13 @@ Picture 2 → Picture 3:
 
 ……
 
-在正确位置加入 clip_dialogues 精确语音。
+在正确位置引用 assigned dialogue ID，但不得复制台词正文。
 无台词则加入强静默。
 最终到达最后一张 Picture 并在该状态结束。
 
 overall_soundscape:
 
-写环境声、动作声、合法精确人物语音/旁白。
+写环境声、动作声、合法人物语音/旁白；如有台词，只能引用 assigned dialogue ID，不得复制台词正文。
 无台词必须写 No dialogue, no speech, no human vocalization.
 
 不得输出 [Shot 2]。

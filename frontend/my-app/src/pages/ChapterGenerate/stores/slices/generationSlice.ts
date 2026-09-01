@@ -273,6 +273,12 @@ export const createGenerationSlice: StateCreator<
   // ========== 视频生成方法 ==========
 
   generateShotVideo: async (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode) => {
+    const refreshed = await shotsApi.getShot(novelId, chapterId, shotId);
+    if (refreshed.success && refreshed.data) {
+      set(state => ({
+        shots: state.shots.map(s => s.id === shotId ? { ...s, ...refreshed.data } : s),
+      }));
+    }
     const shot = get().shots.find(s => s.id === shotId);
     if (!shot) return;
 
@@ -846,10 +852,10 @@ export const createGenerationSlice: StateCreator<
         const newGeneratingVideos = new Set(generatingVideos);
 
         const updatedShots = shots.map(shot => {
-          const task = taskMap[shot.id];
-          if (task) {
-            const isCompleted = task.status === 'completed';
-            const isFailed = task.status === 'failed';
+            const task = taskMap[shot.id];
+            if (task) {
+              const isCompleted = task.status === 'completed';
+              const isFailed = task.status === 'failed' || task.status === 'cancelled';
             const isRunning = task.status === 'running' || task.status === 'pending';
             const videoStatus = isCompleted ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : shot.videoStatus;
 
@@ -931,7 +937,7 @@ export const createGenerationSlice: StateCreator<
                   nextGeneratingVideos.delete(shot.id);
                 }
                 const task = taskMap[shot.id];
-                if (task?.status === 'failed') {
+                if (task?.status === 'failed' || task?.status === 'cancelled') {
                   return { ...shot, ...refreshed, videoStatus: 'failed' as const };
                 }
                 return { ...shot, ...refreshed };
@@ -1101,16 +1107,29 @@ export const createGenerationSlice: StateCreator<
           }
           if (shotId && Number.isFinite(frameIndex)) {
             const keyframeKey = `${shotId}-${frameIndex}`;
+            const shotIndex = updatedShots.findIndex(s => s.id === shotId);
+            const currentShot = shotIndex >= 0 ? updatedShots[shotIndex] : undefined;
+            const legacyKeyframe = currentShot?.keyframes?.find((kf: any) => kf.frame_index === frameIndex);
+            const taskBelongsToCurrentKeyframe = legacyKeyframe?.image_task_id === task.id || (legacyKeyframe as any)?.imageTaskId === task.id;
 
             // 更新任务状态
             const taskIndex = newKeyframeTasks.findIndex(t => t.taskId === task.id);
             if (taskIndex >= 0) {
               newKeyframeTasks[taskIndex] = { ...newKeyframeTasks[taskIndex], status: task.status };
               keyframeTasksUpdated = true;
+            } else if (task.status === 'pending' || task.status === 'running') {
+              newKeyframeTasks.push({
+                shotId,
+                frameIndex,
+                taskId: task.id,
+                status: task.status,
+              });
+              keyframeTasksUpdated = true;
             }
 
             // 如果完成，更新图片URL
             if (task.status === 'completed' && task.resultUrl) {
+              if (taskIndex < 0 && !taskBelongsToCurrentKeyframe) return;
               if (newKeyframeImageUrls[keyframeKey] !== task.resultUrl) {
                 newKeyframeImageUrls[keyframeKey] = task.resultUrl;
                 keyframeImageUrlsUpdated = true;
@@ -1123,31 +1142,30 @@ export const createGenerationSlice: StateCreator<
               }
 
               // 更新 shot 的 keyframes
-              const shotIndex = updatedShots.findIndex(s => s.id === shotId);
-              if (shotIndex >= 0) {
-                const shot = updatedShots[shotIndex];
-                const updatedKeyframes = (shot.keyframes || []).map((kf: any) =>
+              if (shotIndex >= 0 && currentShot) {
+                const updatedKeyframes = (currentShot.keyframes || []).map((kf: any) =>
                   kf.frame_index === frameIndex
                     ? { ...kf, image_url: task.resultUrl, image_task_id: task.id }
                     : kf
                 );
-                const legacyKeyframe = updatedKeyframes.find((kf: any) => kf.frame_index === frameIndex);
-                const nonStartPlanKeyframes = (shot.videoDirectorPlan?.keyframes || []).filter((kf: any) => kf.role !== 'START');
-                const planKeyframeIndex = legacyKeyframe?.plan_keyframe_index ?? nonStartPlanKeyframes[frameIndex]?.index;
-                const videoDirectorPlan = shot.videoDirectorPlan && planKeyframeIndex !== undefined
+                const updatedLegacyKeyframe = updatedKeyframes.find((kf: any) => kf.frame_index === frameIndex);
+                const nonStartPlanKeyframes = (currentShot.videoDirectorPlan?.keyframes || []).filter((kf: any) => kf.role !== 'START');
+                const planKeyframeIndex = updatedLegacyKeyframe?.plan_keyframe_index ?? nonStartPlanKeyframes[frameIndex]?.index;
+                const videoDirectorPlan = currentShot.videoDirectorPlan && planKeyframeIndex !== undefined
                   ? {
-                    ...shot.videoDirectorPlan,
-                    keyframes: (shot.videoDirectorPlan.keyframes || []).map((kf: any) => (
+                    ...currentShot.videoDirectorPlan,
+                    keyframes: (currentShot.videoDirectorPlan.keyframes || []).map((kf: any) => (
                       Number(kf.index) === Number(planKeyframeIndex)
                         ? { ...kf, image_url: task.resultUrl, image_task_id: task.id }
                         : kf
                     )),
                   }
-                  : shot.videoDirectorPlan;
-                updatedShots[shotIndex] = { ...shot, keyframes: updatedKeyframes, videoDirectorPlan };
+                  : currentShot.videoDirectorPlan;
+                updatedShots[shotIndex] = { ...currentShot, keyframes: updatedKeyframes, videoDirectorPlan };
                 shotsUpdated = true;
               }
             } else if (task.status === 'failed') {
+              if (taskIndex < 0 && !taskBelongsToCurrentKeyframe) return;
               // 失败时从生成中集合移除
               if (newGeneratingKeyframes.has(keyframeKey)) {
                 newGeneratingKeyframes.delete(keyframeKey);

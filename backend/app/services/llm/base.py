@@ -108,14 +108,15 @@ def update_llm_log(
 
         db = SessionLocal()
         try:
-            updated = db.query(LLMLog).filter(LLMLog.id == log_id).update({
-                "response": response,
-                "status": status,
-                "error_message": error_message[:LOG_ERROR_MESSAGE_MAX_LENGTH] if error_message else None,
-                "duration": duration,
-            })
-            if not updated:
+            log = db.query(LLMLog).filter(LLMLog.id == log_id).first()
+            if not log:
                 raise RuntimeError(f"日志不存在: {log_id}")
+            if log.status == "error" and log.error_message == "任务被用户取消，LLM 响应已忽略":
+                return
+            log.response = response
+            log.status = status
+            log.error_message = error_message[:LOG_ERROR_MESSAGE_MAX_LENGTH] if error_message else None
+            log.duration = duration
             db.commit()
         except Exception:
             db.rollback()

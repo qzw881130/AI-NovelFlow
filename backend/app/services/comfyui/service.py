@@ -3,6 +3,7 @@ ComfyUI 服务
 
 高级业务方法，组合客户端和工作流构建器
 """
+import inspect
 from typing import Dict, Any, Optional, List
 
 from .client import ComfyUIClient
@@ -19,6 +20,24 @@ class ComfyUIService:
     def __init__(self, base_url: str = None):
         self.client = ComfyUIClient()
         self.builder = WorkflowBuilder()
+
+    @staticmethod
+    def _notify_prompt_queued(callback, prompt_id: str, workflow: Dict[str, Any]) -> None:
+        if not callback or not prompt_id:
+            return
+        try:
+            signature = inspect.signature(callback)
+            positional_params = [
+                param for param in signature.parameters.values()
+                if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD)
+            ]
+            has_varargs = any(param.kind == param.VAR_POSITIONAL for param in signature.parameters.values())
+            if has_varargs or len(positional_params) >= 2:
+                callback(prompt_id, workflow)
+            else:
+                callback(prompt_id)
+        except (TypeError, ValueError):
+            callback(prompt_id)
     
     @property
     def base_url(self) -> str:
@@ -145,8 +164,7 @@ class ComfyUIService:
                 return {"success": False, "message": queue_result.get("error", "提交任务失败")}
 
             prompt_id = queue_result.get("prompt_id")
-            if on_prompt_queued and prompt_id:
-                on_prompt_queued(prompt_id, workflow)
+            self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
 
             result = await self.client.wait_for_result(
                 prompt_id,
@@ -226,8 +244,7 @@ class ComfyUIService:
                 return {"success": False, "message": queue_result.get("error", "提交任务失败")}
             
             prompt_id = queue_result.get("prompt_id")
-            if on_prompt_queued and prompt_id:
-                on_prompt_queued(prompt_id)
+            self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
             
             result = await self.client.wait_for_result(
                 prompt_id, workflow, save_image_node_id, timeout=7200
@@ -384,8 +401,7 @@ class ComfyUIService:
                 return {"success": False, "message": queue_result.get("error", "提交任务失败")}
             
             prompt_id = queue_result.get("prompt_id")
-            if on_prompt_queued and prompt_id:
-                on_prompt_queued(prompt_id)
+            self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
             video_save_node_id = node_mapping.get("video_save_node_id", "1")
             
             result = await self.client.wait_for_result(
@@ -466,8 +482,7 @@ class ComfyUIService:
                 return {"success": False, "message": queue_result.get("error", "提交任务失败")}
             
             prompt_id = queue_result.get("prompt_id")
-            if on_prompt_queued and prompt_id:
-                on_prompt_queued(prompt_id)
+            self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
             
             result = await self.client.wait_for_result(
                 prompt_id, workflow, video_save_node_id, timeout=7200
