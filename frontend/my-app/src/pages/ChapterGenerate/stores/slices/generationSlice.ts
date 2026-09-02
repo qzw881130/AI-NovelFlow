@@ -202,7 +202,12 @@ export const createGenerationSlice: StateCreator<
       set(state => {
         const newSet = new Set(state.generatingShots);
         newSet.delete(shotId);
-        return { generatingShots: newSet };
+        return {
+          generatingShots: newSet,
+          shots: state.shots.map(s => (
+            s.id === shotId ? { ...s, imageUrl: null, imagePath: null, imageStatus: 'failed' as const, imageTaskId: null } : s
+          )),
+        };
       });
       return null;
     }
@@ -737,7 +742,7 @@ export const createGenerationSlice: StateCreator<
               new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
             );
             const latestTask = sortedTasks[0];
-            const completedTask = sortedTasks.find(t => t.status === 'completed' && t.resultUrl) || null;
+            const latestCompletedUrl = latestTask.status === 'completed' && latestTask.resultUrl ? latestTask.resultUrl : null;
 
             // 检查是否有任何任务正在运行
             const hasRunningTask = shotTasks.some(t => t.status === 'running' || t.status === 'pending');
@@ -754,9 +759,9 @@ export const createGenerationSlice: StateCreator<
               generatingShotsUpdated = true;
             }
 
-            if (completedTask) {
-              if (newShotImages[shot.id] !== completedTask.resultUrl) {
-                newShotImages[shot.id] = completedTask.resultUrl;
+            if (latestCompletedUrl) {
+              if (newShotImages[shot.id] !== latestCompletedUrl) {
+                newShotImages[shot.id] = latestCompletedUrl;
                 shotImagesUpdated = true;
               }
             } else if (hasRunningTask && newShotImages[shot.id]) {
@@ -767,7 +772,7 @@ export const createGenerationSlice: StateCreator<
             return {
               ...shot,
               imageStatus: latestTask.status,
-              imageUrl: completedTask?.resultUrl || (hasRunningTask ? null : shot.imageUrl),
+              imageUrl: latestCompletedUrl || (hasRunningTask ? null : shot.imageUrl),
               imageTaskId: latestTask.id || shot.imageTaskId,
             };
           }

@@ -9,7 +9,7 @@
 
 import { cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
 import { useChapterGenerateStore } from '../stores';
-import { Box, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
+import { Box, Download, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
 import { shotsApi } from '../../../api/shots';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Shot } from '../../../api/shots';
@@ -44,6 +44,7 @@ export function ShotImageGenTab({
   // 使用选择器正确订阅 store 状态，确保状态更新时组件重新渲染
   const generateShotImage = useChapterGenerateStore((state) => state.generateShotImage);
   const generateAllImages = useChapterGenerateStore((state) => state.generateAllImages);
+  const checkShotTaskStatus = useChapterGenerateStore((state) => state.checkShotTaskStatus);
   const uploadShotImage = useChapterGenerateStore((state) => state.uploadShotImage);
   const setShots = useChapterGenerateStore((state) => state.setShots);
   const setShotImages = useChapterGenerateStore((state) => state.setShotImages);
@@ -67,6 +68,7 @@ export function ShotImageGenTab({
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
   const [selectedShotIds, setSelectedShotIds] = useState<Set<string>>(new Set());
   const [isSaving, setIsSaving] = useState(false);
+  const [isDownloadingShotImageData, setIsDownloadingShotImageData] = useState(false);
   const [shotImagePrompts, setShotImagePrompts] = useState<Record<string, string>>({});
   const [submittingShotIds, setSubmittingShotIds] = useState<Set<string>>(new Set());
   const [dragSelectionMode, setDragSelectionMode] = useState<'select' | 'deselect' | null>(null);
@@ -147,6 +149,17 @@ export function ShotImageGenTab({
     applyShotSelection(shotId, dragSelectionMode);
   };
 
+  const waitForShotImageCompletion = async (shotId: string) => {
+    for (let attempt = 0; attempt < 360; attempt += 1) {
+      await checkShotTaskStatus(chapterId!);
+      const shot = useChapterGenerateStore.getState().shots.find(item => item.id === shotId);
+      if (shot?.imageStatus === 'completed') return;
+      if (shot?.imageStatus === 'failed') return;
+      await new Promise(resolve => window.setTimeout(resolve, 2000));
+    }
+    toast.error('等待分镜图生成完成超时');
+  };
+
   useEffect(() => {
     if (!dragSelectionMode) return;
     const handleMouseUp = () => setDragSelectionMode(null);
@@ -173,9 +186,10 @@ export function ShotImageGenTab({
     setShowBatchSelectModal(false);
     useChapterGenerateStore.setState(state => ({
       generatingShots: new Set([...state.generatingShots, ...selectedIds]),
+      shotImages: Object.fromEntries(Object.entries(state.shotImages).filter(([key]) => !selectedIds.includes(key))),
       shots: state.shots.map(shot => (
         selectedIds.includes(shot.id)
-          ? { ...shot, imageStatus: 'generating' as const }
+          ? { ...shot, imageUrl: null, imagePath: null, imageStatus: 'generating' as const, imageTaskId: null }
           : shot
       )),
     }));
@@ -184,6 +198,7 @@ export function ShotImageGenTab({
       // 依次生成选中的分镜
       for (const shotId of selectedIds) {
         await generateShotImage(novelId, chapterId, shotId);
+        await waitForShotImageCompletion(shotId);
       }
     } catch (error) {
       console.error(t('chapterGenerate.batchShotImageGenerateFailed') + ':', error);
@@ -344,6 +359,22 @@ export function ShotImageGenTab({
     }
   };
 
+  const handleDownloadShotImageData = async () => {
+    if (!novelId || !chapterId) {
+      toast.error('缺少章节信息，无法打包分镜图数据');
+      return;
+    }
+    setIsDownloadingShotImageData(true);
+    try {
+      await shotsApi.downloadShotImageDataPackage(novelId, chapterId);
+      toast.success('分镜图数据已打包下载');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '打包分镜图数据失败');
+    } finally {
+      setIsDownloadingShotImageData(false);
+    }
+  };
+
   const childrenWithSaveShortcut = isValidElement(children)
     ? cloneElement(children, { onSave: handleSaveShot } as { onSave: () => Promise<void> })
     : children;
@@ -396,6 +427,18 @@ export function ShotImageGenTab({
           </button>
         </div>
         <div className="flex items-center gap-4">
+          <button
+            onClick={handleDownloadShotImageData}
+            disabled={isDownloadingShotImageData || !chapterId}
+            className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            {isDownloadingShotImageData ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            打包分镜图数据
+          </button>
           <button
             onClick={handleViewMergedImage}
             disabled={!shotsList[currentShotIndex - 1]?.mergedCharacterImage}

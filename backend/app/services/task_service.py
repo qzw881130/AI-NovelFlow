@@ -566,11 +566,15 @@ class TaskService:
         for task in active_tasks:
             age_seconds = task_age_seconds(task)
             def mark_related_shot_failed() -> None:
-                if task.type != "shot_video" or not task.shot_id:
+                if not task.shot_id:
                     return
                 shot = ShotRepository(db).get_by_id(task.shot_id)
-                if shot:
+                if not shot:
+                    return
+                if task.type == "shot_video":
                     ShotRepository(db).update(shot, video_status="failed")
+                elif task.type == "shot_image":
+                    ShotRepository(db).update(shot, image_status="failed")
 
             pending_start_timeout = 600 if task.type == "keyframe_image" else 1800
             if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout:
@@ -590,6 +594,11 @@ class TaskService:
                     continue
 
                 if state == "completed":
+                    if task.type == "shot_image" and inactive_seconds(task) > 60:
+                        recovered = await self._recover_completed_shot_image_prompt(task, prompt_state.get("history"), db)
+                        if recovered:
+                            updated_count += 1
+                            continue
                     if task.type == "keyframe_image" and inactive_seconds(task) > 60:
                         recovered = await self._recover_completed_keyframe_prompt(task, prompt_state.get("history"), db)
                         if recovered:
@@ -666,6 +675,60 @@ class TaskService:
         if updated_count:
             db.commit()
         return updated_count
+
+    async def _recover_completed_shot_image_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
+        """Recover a completed shot image prompt when the worker missed persistence."""
+        if task.type != "shot_image" or not task.shot_id or not prompt_history:
+            return False
+
+        outputs = prompt_history.get("outputs") or {}
+        if not outputs:
+            return False
+
+        shot_repo = ShotRepository(db)
+        shot = shot_repo.get_by_id(task.shot_id)
+        if not shot:
+            return False
+
+        node_mapping = {}
+        if task.workflow_id:
+            workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
+            if workflow and workflow.node_mapping:
+                try:
+                    node_mapping = json.loads(workflow.node_mapping)
+                except Exception:
+                    node_mapping = {}
+
+        prompt_workflow = None
+        prompt_payload = prompt_history.get("prompt") or []
+        if isinstance(prompt_payload, list) and len(prompt_payload) > 2 and isinstance(prompt_payload[2], dict):
+            prompt_workflow = prompt_payload[2]
+
+        save_image_node_id = node_mapping.get("save_image_node_id") or node_mapping.get("output_node_id")
+        result = self.comfyui_service.client._parse_outputs(outputs, prompt_workflow, save_image_node_id)
+        if not result or not result.get("success") or not result.get("image_url"):
+            return False
+
+        local_path = await file_storage.download_image(
+            url=result["image_url"],
+            novel_id=task.novel_id,
+            character_name=f"shot_{shot.id[:8]}",
+            image_type="shot",
+            chapter_id=task.chapter_id,
+        )
+        if not local_path:
+            return False
+
+        local_url = local_path_to_url(local_path)
+        shot_repo.update(shot, image_url=local_url, image_path=str(local_path), image_status="completed", image_task_id=task.id)
+        task.status = "completed"
+        task.progress = 100
+        task.result_url = local_url
+        task.error_message = None
+        task.current_step = "生成完成"
+        task.completed_at = datetime.utcnow()
+        db.commit()
+        return True
 
     async def _recover_completed_keyframe_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
         """Recover a completed keyframe ComfyUI prompt when the worker missed persistence."""

@@ -1967,6 +1967,117 @@ async def download_chapter_materials(
     return FileResponse(zip_path, media_type="application/zip", filename=filename)
 
 
+@router.get("/{novel_id}/chapters/{chapter_id}/download-shot-image-data")
+async def download_shot_image_data_package(
+    novel_id: str,
+    chapter_id: str,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """打包当前章回所有分镜图生成数据。"""
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    shots = shot_repo.get_by_chapter(chapter_id)
+    if not shots:
+        raise HTTPException(status_code=404, detail="章节分镜不存在")
+
+    def resolve_path(value: Optional[str]) -> Optional[Path]:
+        if not value:
+            return None
+        local = url_to_local_path(value)
+        path = Path(local or value)
+        return path if path.exists() and path.is_file() else None
+
+    def safe_json(value, default):
+        if not value:
+            return default
+        if isinstance(value, (dict, list)):
+            return value
+        try:
+            return json.loads(value)
+        except Exception:
+            return default
+
+    def add_file(zip_file: zipfile.ZipFile, source: Optional[str], arcname: str, manifest_items: list, label: str) -> None:
+        path = resolve_path(source)
+        if not path:
+            return
+        zip_file.write(path, arcname)
+        manifest_items.append({"label": label, "path": arcname})
+
+    zip_buffer = BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        parsed_data = safe_json(chapter.parsed_data, {})
+        zip_file.writestr("ai_split_result.json", json.dumps(parsed_data, ensure_ascii=False, indent=2))
+
+        manifest = {
+            "version": 1,
+            "novel_id": novel_id,
+            "chapter_id": chapter_id,
+            "generated_at": datetime.utcnow().isoformat(),
+            "shots": [],
+        }
+
+        for shot in shots:
+            shot_dir = f"shot{int(shot.index):03d}"
+            latest_task = (
+                db.query(Task)
+                .filter(Task.shot_id == shot.id, Task.type == "shot_image")
+                .order_by(Task.created_at.desc())
+                .first()
+            )
+            scene = None
+            if shot.scene:
+                scene = (
+                    db.query(Scene)
+                    .filter(Scene.novel_id == novel_id, Scene.name == shot.scene)
+                    .first()
+                )
+
+            shot_manifest = {
+                "shot_id": shot.id,
+                "index": shot.index,
+                "materials": [],
+            }
+            add_file(zip_file, shot.merged_character_image, f"{shot_dir}/合并角色图{Path(resolve_path(shot.merged_character_image) or '').suffix or '.png'}", shot_manifest["materials"], "合并角色图")
+            if scene:
+                add_file(zip_file, scene.image_url, f"{shot_dir}/场景图{Path(resolve_path(scene.image_url) or '').suffix or '.png'}", shot_manifest["materials"], "场景图")
+            add_file(zip_file, shot.merged_prop_image, f"{shot_dir}/合并道具图{Path(resolve_path(shot.merged_prop_image) or '').suffix or '.png'}", shot_manifest["materials"], "合并道具图")
+            add_file(zip_file, shot.image_url or shot.image_path, f"{shot_dir}/生成的分镜图{Path(resolve_path(shot.image_url or shot.image_path) or '').suffix or '.png'}", shot_manifest["materials"], "生成的分镜图")
+
+            prompt_text = latest_task.prompt_text if latest_task and latest_task.prompt_text else shot.shot_image_prompt or ""
+            zip_file.writestr(f"{shot_dir}/主分镜图AI提示词.txt", prompt_text)
+            shot_manifest["materials"].append({"label": "主分镜图AI提示词", "path": f"{shot_dir}/主分镜图AI提示词.txt"})
+
+            workflow_json = latest_task.workflow_json if latest_task and latest_task.workflow_json else ""
+            if workflow_json:
+                workflow_obj = safe_json(workflow_json, workflow_json)
+                workflow_content = json.dumps(workflow_obj, ensure_ascii=False, indent=2) if not isinstance(workflow_obj, str) else workflow_obj
+                zip_file.writestr(f"{shot_dir}/生成图真实工作流.json", workflow_content)
+                shot_manifest["materials"].append({"label": "生成图真实工作流", "path": f"{shot_dir}/生成图真实工作流.json"})
+
+            manifest["shots"].append(shot_manifest)
+
+        zip_file.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+
+    zip_buffer.seek(0)
+    chapter_short = chapter_id[:8] if chapter_id else "unknown"
+    filename = f"chapter_{chapter_short}_shot_image_data.zip"
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("/{novel_id}/chapters/{chapter_id}/merge-videos", response_model=dict)
 async def merge_chapter_videos(
     novel_id: str,

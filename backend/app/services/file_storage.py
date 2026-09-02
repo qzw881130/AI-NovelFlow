@@ -658,6 +658,12 @@ class FileStorageService:
                         return getattr(obj, name)
                 return None
 
+            def first_present(*values: Any) -> Any:
+                for value in values:
+                    if value:
+                        return value
+                return None
+
             def add_manifest_material(zipf, manifest_items: List[Dict[str, Any]], source: Optional[str], arcname: str, kind: str, label: str) -> Optional[str]:
                 if add_file(zipf, source, arcname):
                     manifest_items.append({"kind": kind, "label": label, "path": arcname})
@@ -707,13 +713,29 @@ class FileStorageService:
 
                     for keyframe in keyframes:
                         keyframe_index = keyframe.get("index")
-                        image_value = keyframe.get("image_url") or keyframe.get("imageUrl")
+                        image_value = first_present(
+                            keyframe.get("image_url"),
+                            keyframe.get("imageUrl"),
+                            keyframe.get("image_path"),
+                            keyframe.get("imagePath"),
+                            keyframe.get("local_path"),
+                            keyframe.get("localPath"),
+                            keyframe.get("generated_image_url"),
+                            keyframe.get("generatedImageUrl"),
+                        )
                         if keyframe.get("role") == "START" and not image_value:
                             image_value = primary_path
                         if not image_value:
                             legacy_keyframe = next((item for item in legacy_keyframes if int(item.get("plan_keyframe_index") or item.get("planKeyframeIndex") or -1) == int(keyframe_index or -2)), None)
                             if legacy_keyframe:
-                                image_value = legacy_keyframe.get("image_url") or legacy_keyframe.get("imageUrl")
+                                image_value = first_present(
+                                    legacy_keyframe.get("image_url"),
+                                    legacy_keyframe.get("imageUrl"),
+                                    legacy_keyframe.get("image_path"),
+                                    legacy_keyframe.get("imagePath"),
+                                    legacy_keyframe.get("local_path"),
+                                    legacy_keyframe.get("localPath"),
+                                )
                         image_path = resolve_material_path(image_value)
                         keyframe_manifest = {
                             "index": keyframe_index,
@@ -730,9 +752,21 @@ class FileStorageService:
                                 keyframe_manifest["image_path"] = arcname
                         shot_manifest["keyframes"].append(keyframe_manifest)
 
-                    for clip in plan.get("window_plans") or []:
+                    seen_clip_keys = set()
+                    for clip in (plan.get("window_plans") or []) + (plan.get("clips") or []):
                         clip_index = int(clip.get("window_index") or clip.get("clip_index") or 0)
-                        clip_path = resolve_material_path(clip.get("video_url") or clip.get("local_path") or clip.get("source_video_url"))
+                        clip_key = clip.get("window_index") or clip.get("clip_index") or clip_index
+                        if clip_key in seen_clip_keys:
+                            continue
+                        seen_clip_keys.add(clip_key)
+                        clip_path = resolve_material_path(first_present(
+                            clip.get("video_url"),
+                            clip.get("videoUrl"),
+                            clip.get("local_path"),
+                            clip.get("localPath"),
+                            clip.get("source_video_url"),
+                            clip.get("sourceVideoUrl"),
+                        ))
                         clip_manifest = {
                             "clip_index": clip_index,
                             "start_time": clip.get("start_time"),
@@ -747,6 +781,14 @@ class FileStorageService:
                             arcname = f"shot_materials/{shot_label}/videos/clips/C{clip_index:03d}{ext}"
                             if add_file(zipf, clip_path, arcname):
                                 clip_manifest["video_path"] = arcname
+                        for ref_index, reference in enumerate(clip.get("reference_images") or clip.get("referenceImages") or [], 1):
+                            ref_value = reference.get("url") if isinstance(reference, dict) else reference
+                            ref_path = resolve_material_path(ref_value)
+                            if ref_path:
+                                ext = Path(ref_path).suffix or ".png"
+                                ref_arcname = f"shot_materials/{shot_label}/videos/clips/C{clip_index:03d}_reference_{ref_index:02d}{ext}"
+                                if add_file(zipf, ref_path, ref_arcname):
+                                    clip_manifest.setdefault("reference_image_paths", []).append(ref_arcname)
                         shot_manifest["clips"].append(clip_manifest)
 
                     merged_path = resolve_material_path(plan.get("merged_video_url"))
