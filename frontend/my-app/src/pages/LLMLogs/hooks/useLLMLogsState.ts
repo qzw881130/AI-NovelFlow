@@ -70,7 +70,7 @@ export function useLLMLogsState() {
   useEffect(() => { fetchLogs(); fetchFilterOptions(); }, [fetchLogs]);
 
   useEffect(() => {
-    if (!logs.some(log => log.status === 'pending')) return;
+    if (!logs.some(log => log.status === 'pending' || (log.status === 'error' && typeof log.duration !== 'number'))) return;
     const intervalId = window.setInterval(() => setDurationNow(Date.now()), 1000);
     return () => window.clearInterval(intervalId);
   }, [logs]);
@@ -161,12 +161,11 @@ export function useLLMLogsState() {
 
   const getDisplayDuration = (log: LLMLog) => {
     if (typeof log.duration === 'number') return `${log.duration.toFixed(2)}s`;
-    if (log.status === 'error') return '-';
-    if (log.status !== 'pending' || !log.created_at) return '-';
+    if (!['pending', 'error'].includes(log.status) || !log.created_at) return '-';
     const createdAt = new Date(log.created_at).getTime();
     if (Number.isNaN(createdAt)) return '-';
     const seconds = Math.max(0, (durationNow - createdAt) / 1000);
-    if (seconds > 600) return '-';
+    if (log.status === 'pending' && seconds > 600) return '-';
     return `${seconds.toFixed(0)}s`;
   };
 

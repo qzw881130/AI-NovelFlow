@@ -21,7 +21,7 @@ class LLMConfig(BaseModel):
     """LLM 配置"""
     provider: str
     model: str
-    apiKey: str
+    apiKey: Optional[str] = None
     apiUrl: str
     maxTokens: Optional[int] = None  # 最大token数
     temperature: Optional[str] = None  # 温度参数（字符串类型，支持范围0.0-2.0）
@@ -157,15 +157,12 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
             updates["llm_temperature"] = config.llm.temperature
             updates["llm_timeout"] = config.llm.timeout
             
-            # 允许显式清空已保存的 API Key，避免界面清空后后端仍使用旧值
-            if config.llm.apiKey is not None:
-                if config.llm.apiKey:
-                    encrypted_key = encrypt_value(config.llm.apiKey)
-                    db_config.llm_api_key = encrypted_key
-                    updates["llm_api_key"] = config.llm.apiKey
-                else:
-                    db_config.llm_api_key = None
-                    updates["llm_api_key"] = ""
+            # 前端不会回显已保存的 API Key；空值表示不修改现有密钥。
+            if config.llm.apiKey is not None and config.llm.apiKey.strip():
+                api_key = config.llm.apiKey.strip()
+                encrypted_key = encrypt_value(api_key)
+                db_config.llm_api_key = encrypted_key
+                updates["llm_api_key"] = api_key
         
         if config.proxy:
             db_config.proxy_enabled = config.proxy.enabled

@@ -53,6 +53,7 @@ export interface VideoAiCall {
   task_type?: string;
   prompt_template_name?: string;
   status?: string;
+  error_message?: string;
   input_summary?: string;
   response?: string;
   parsed_result?: any;

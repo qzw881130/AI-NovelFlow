@@ -15,6 +15,7 @@ import type {
 import type { VideoMode } from '../../../../api/shots';
 import { shotsApi } from '../../../../api/shots';
 import { chapterApi } from '../../../../api/chapters';
+import { formatUserFacingError } from '../../../../utils';
 
 const TRANSITION_SETTINGS_STORAGE_KEY = 'chapterGenerate_transitionSettings';
 
@@ -333,17 +334,28 @@ export const createGenerationSlice: StateCreator<
       }
     } catch (error) {
       console.error('生成分镜视频失败:', error);
+      const errorMessage = formatUserFacingError(error instanceof Error ? error.message : '生成失败') || '生成失败';
       set(state => {
         const newSet = new Set(state.generatingVideos);
         newSet.delete(shotId);
         return {
           generatingVideos: newSet,
           shots: state.shots.map(s =>
-            s.id === shotId ? { ...s, videoStatus: 'failed' as const } : s
+            s.id === shotId
+              ? {
+                  ...s,
+                  videoStatus: 'failed' as const,
+                  videoDirectorPlan: {
+                    ...(s.videoDirectorPlan || {}),
+                    task_error_message: errorMessage,
+                    error_message: errorMessage,
+                  },
+                }
+              : s
           )
         };
       });
-      throw error;
+      throw new Error(errorMessage);
     }
   },
 
@@ -909,6 +921,17 @@ export const createGenerationSlice: StateCreator<
             const isPending = task.status === 'pending';
             const isActive = isRunning || isPending;
             const videoStatus = isCompleted ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : shot.videoStatus;
+            const taskErrorMessage = formatUserFacingError(task.errorMessage || task.error_message || task.error) || (task.status === 'cancelled' ? '视频任务已取消' : '');
+            const videoDirectorPlan = isFailed && taskErrorMessage
+              ? { ...(shot.videoDirectorPlan || {}), task_error_message: taskErrorMessage, error_message: taskErrorMessage }
+              : isCompleted
+                ? (() => {
+                    const nextPlan = { ...(shot.videoDirectorPlan || {}) } as any;
+                    delete nextPlan.task_error_message;
+                    delete nextPlan.error_message;
+                    return nextPlan;
+                  })()
+                : shot.videoDirectorPlan;
 
             // 如果任务正在运行，确保在 generatingVideos 中
             if (isRunning && !newGeneratingVideos.has(shot.id)) {
@@ -953,6 +976,7 @@ export const createGenerationSlice: StateCreator<
               videoStatus,
               videoUrl: isCompleted && task.resultUrl ? task.resultUrl : (isActive ? null : shot.videoUrl),
               videoTaskId: task.id || shot.videoTaskId,
+              videoDirectorPlan,
             };
           }
           return shot;
@@ -993,7 +1017,11 @@ export const createGenerationSlice: StateCreator<
                 }
                 const task = taskMap[shot.id];
                 if (task?.status === 'failed' || task?.status === 'cancelled') {
-                  return { ...shot, ...refreshed, videoStatus: 'failed' as const };
+                  const taskErrorMessage = formatUserFacingError(task.errorMessage || task.error_message || task.error) || (task.status === 'cancelled' ? '视频任务已取消' : '');
+                  const videoDirectorPlan = taskErrorMessage
+                    ? { ...(refreshed.videoDirectorPlan || {}), task_error_message: taskErrorMessage, error_message: taskErrorMessage }
+                    : refreshed.videoDirectorPlan;
+                  return { ...shot, ...refreshed, videoStatus: 'failed' as const, videoDirectorPlan };
                 }
                 return { ...shot, ...refreshed };
               });

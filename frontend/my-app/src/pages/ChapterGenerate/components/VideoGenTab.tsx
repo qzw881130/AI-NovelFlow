@@ -21,6 +21,7 @@ import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { ImageEditModal } from '../../../components/ImageEditModal';
 import type { KeyframeData } from '../../../types';
 import type { VideoAiCall, VideoDirectorPlan, VideoMode } from '../../../api/shots';
+import { formatUserFacingError } from '../../../utils';
 
 const VIDEO_TAB_UI_STORAGE_KEY = 'chapterGenerate_videoTab_ui';
 type MergeVideoMode = 'shots_only' | 'shots_with_transitions';
@@ -1086,7 +1087,7 @@ function VideoDirectorPanel({
                       ))}
                     </div>
                   )}
-                  {clip.error_message && <div className="mt-2 text-xs text-red-600">{clip.error_message}</div>}
+                  {clip.error_message && <div className="mt-2 text-xs text-red-600">{formatUserFacingError(clip.error_message)}</div>}
                   {selectedMode === 'MULTI_KEYFRAME' && (
                     <div className="mt-3 flex flex-wrap items-center gap-2">
                       <button
@@ -1449,8 +1450,11 @@ export function VideoGenTab({
 
   // 检查当前分镜是否正在生成
   const isGeneratingCurrent = currentShotId ? generatingVideos.has(currentShotId) || currentShotData?.videoStatus === 'generating' : false;
+  const latestFailedAiCallError = currentVideoDirectorPlan?.ai_calls
+    ? [...currentVideoDirectorPlan.ai_calls].reverse().find((call: any) => String(call?.status || '').toLowerCase() !== 'success' && String(call?.error_message || '').trim())?.error_message
+    : '';
   const currentVideoErrorMessage = currentShotData?.videoStatus === 'failed'
-    ? (currentVideoDirectorPlan as any).task_error_message || (currentVideoDirectorPlan as any).error_message || '当前 Shot 视频任务失败；如果已有部分 Clip 完成，可以重新生成缺失 Clip 或重新生成当前 Shot 视频。'
+    ? formatUserFacingError((currentVideoDirectorPlan as any).task_error_message || (currentVideoDirectorPlan as any).error_message || latestFailedAiCallError) || '当前 Shot 视频任务失败；如果已有部分 Clip 完成，可以重新生成缺失 Clip 或重新生成当前 Shot 视频。'
     : null;
 
   // 初始化获取转场工作流
@@ -2312,13 +2316,24 @@ export function VideoGenTab({
       checkVideoTaskStatus(effectiveChapterId);
       return result.data?.taskId || null;
     } catch (error) {
+      const errorMessage = formatUserFacingError(error instanceof Error ? error.message : '生成失败');
       useChapterGenerateStore.setState((state) => {
         const next = new Set(state.generatingVideos);
         next.delete(shotId);
         return {
           generatingVideos: next,
           shots: state.shots.map((shot: any) => (
-            String(shot.id) === shotId ? { ...shot, videoStatus: 'failed' as const } : shot
+            String(shot.id) === shotId
+              ? {
+                  ...shot,
+                  videoStatus: 'failed' as const,
+                  videoDirectorPlan: {
+                    ...(shot.videoDirectorPlan || {}),
+                    task_error_message: errorMessage,
+                    error_message: errorMessage,
+                  },
+                }
+              : shot
           )),
         };
       });
@@ -2339,7 +2354,7 @@ export function VideoGenTab({
       }
       if (status === 'failed' || status === 'cancelled') {
         await refreshBatchShot(shotId);
-        throw new Error(task?.errorMessage || task?.error_message || (status === 'cancelled' ? '视频任务已取消' : '视频任务失败'));
+        throw new Error(formatUserFacingError(task?.errorMessage || task?.error_message) || (status === 'cancelled' ? '视频任务已取消' : '视频任务失败'));
       }
       await sleep(2000);
     }
@@ -2384,7 +2399,7 @@ export function VideoGenTab({
           successCount += 1;
         } catch (error) {
           failedCount += 1;
-          const errorMessage = error instanceof Error ? error.message : '未知错误';
+          const errorMessage = formatUserFacingError(error instanceof Error ? error.message : '未知错误') || '未知错误';
           console.error(`批量生成分镜 ${shot.index || shot.id} 失败:`, error);
           toast.error(`镜${shot.index || ''} 自动处理失败：${errorMessage}`);
           const refreshedShot = await refreshBatchShot(String(shot.id));
@@ -2397,7 +2412,7 @@ export function VideoGenTab({
                   videoDirectorPlan: {
                     ...(item.videoDirectorPlan || {}),
                     ...((refreshedShot as any)?.videoDirectorPlan || {}),
-                    task_error_message: ((refreshedShot as any)?.videoDirectorPlan as any)?.task_error_message || errorMessage,
+                    task_error_message: formatUserFacingError(((refreshedShot as any)?.videoDirectorPlan as any)?.task_error_message) || errorMessage,
                   },
                 }
               : item
@@ -2612,7 +2627,7 @@ export function VideoGenTab({
       {currentVideoErrorMessage && (
         <div className="mx-8 mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           <div className="font-medium">视频生成失败</div>
-          <div className="mt-1">{currentVideoErrorMessage}</div>
+          <div className="mt-1 whitespace-pre-wrap break-words">{currentVideoErrorMessage}</div>
         </div>
       )}
       {/* 操作栏 */}

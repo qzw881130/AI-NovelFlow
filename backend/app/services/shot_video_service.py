@@ -179,6 +179,20 @@ def _update_clip_result(shot, clip: dict, fields: dict, db) -> None:
     db.commit()
 
 
+def _mark_shot_video_failed(shot, shot_repo: ShotRepository, message: str):
+    plan = safe_json_dict(shot.video_director_plan)
+    plan["task_error_message"] = message
+    plan["error_message"] = message
+    return shot_repo.update(shot, video_status="failed", video_director_plan=plan)
+
+
+def _clear_shot_video_error(shot, shot_repo: ShotRepository, **fields):
+    plan = safe_json_dict(shot.video_director_plan)
+    plan.pop("task_error_message", None)
+    plan.pop("error_message", None)
+    return shot_repo.update(shot, video_director_plan=plan, **fields)
+
+
 def _is_task_cancelled(db, task) -> bool:
     db.refresh(task)
     return task.status == "cancelled"
@@ -561,7 +575,7 @@ async def generate_shot_video_task(
                 task.status = "failed"
                 task.error_message = "首尾帧模式需要 END 关键帧图片，请先生成尾帧。"
                 task.current_step = "缺少 END 关键帧"
-                shot_repo.update(shot, video_status="failed")
+                _mark_shot_video_failed(shot, shot_repo, task.error_message)
                 db.commit()
                 return
             keyframe_paths = [end_keyframe_path]
@@ -570,14 +584,14 @@ async def generate_shot_video_task(
                 task.status = "failed"
                 task.error_message = "多关键帧模式缺少 window_plans，请先完成 #08 关键帧时间轴规划。"
                 task.current_step = "缺少执行计划"
-                shot_repo.update(shot, video_status="failed")
+                _mark_shot_video_failed(shot, shot_repo, task.error_message)
                 db.commit()
                 return
             if len(window_plans) > 1:
                 task.status = "failed"
                 task.error_message = "多关键帧多 Clip 执行器尚未接入，不能用单次 H3 调用替代。"
                 task.current_step = "多 Clip 执行器未接入"
-                shot_repo.update(shot, video_status="failed")
+                _mark_shot_video_failed(shot, shot_repo, task.error_message)
                 db.commit()
                 return
             keyframe_indexes = window_plans[0].get("keyframe_indexes") if isinstance(window_plans[0].get("keyframe_indexes"), list) else []
@@ -586,7 +600,7 @@ async def generate_shot_video_task(
                 task.status = "failed"
                 task.error_message = "多关键帧单 Clip 必须配置 3 或 4 个 keyframe_indexes。"
                 task.current_step = "执行计划无效"
-                shot_repo.update(shot, video_status="failed")
+                _mark_shot_video_failed(shot, shot_repo, task.error_message)
                 db.commit()
                 return
             keyframe_paths = []
@@ -598,7 +612,7 @@ async def generate_shot_video_task(
                     task.status = "failed"
                     task.error_message = f"Keyframe {keyframe_index} 尚未生成图片，请先生成缺失关键帧图。"
                     task.current_step = "缺少关键帧图片"
-                    shot_repo.update(shot, video_status="failed")
+                    _mark_shot_video_failed(shot, shot_repo, task.error_message)
                     db.commit()
                     return
                 keyframe_paths.append(keyframe_path)
@@ -652,7 +666,7 @@ async def generate_shot_video_task(
             task.status = "failed"
             task.error_message = "当前 Shot 没有可复用的视频最终 Prompt，请先使用 LLM+生成当前Shot视频。"
             task.current_step = "缺少视频最终 Prompt"
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
             return
         if reusable_prompt:
@@ -682,7 +696,7 @@ async def generate_shot_video_task(
             )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
             db.commit()
             return
         task.prompt_text = shot_prompt
@@ -733,7 +747,7 @@ async def generate_shot_video_task(
         )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
             db.commit()
             return
 
@@ -754,7 +768,7 @@ async def generate_shot_video_task(
             task.current_step = "生成失败"
             if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
                 _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "FAILED", db, task=task)
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
             return
 
@@ -773,7 +787,7 @@ async def generate_shot_video_task(
             task.error_message = str(e)
             task.current_step = "任务异常"
             if 'shot' in locals() and shot:
-                shot_repo.update(shot, video_status="failed")
+                _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
         except Exception:
             pass
@@ -815,7 +829,7 @@ async def _generate_multi_clip_video_task(
     for clip_position, window_plan in enumerate(window_plans, 1):
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
             db.commit()
             return
         window_index = int(window_plan.get("window_index") or clip_position)
@@ -829,7 +843,7 @@ async def _generate_multi_clip_video_task(
             task.status = "failed"
             task.error_message = f"未配置 {workflow_type} 视频生成工作流"
             task.current_step = "缺少视频工作流"
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
             return
 
@@ -846,7 +860,7 @@ async def _generate_multi_clip_video_task(
             task.status = "failed"
             task.error_message = f"Clip {window_index} 缺少起始关键帧图片"
             task.current_step = "缺少关键帧图片"
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
             return
 
@@ -860,7 +874,7 @@ async def _generate_multi_clip_video_task(
                 task.status = "failed"
                 task.error_message = f"Clip {window_index} 缺少 Keyframe {keyframe_index} 图片"
                 task.current_step = "缺少关键帧图片"
-                shot_repo.update(shot, video_status="failed")
+                _mark_shot_video_failed(shot, shot_repo, task.error_message)
                 db.commit()
                 return
             keyframe_paths.append(keyframe_path)
@@ -898,7 +912,7 @@ async def _generate_multi_clip_video_task(
             task.status = "failed"
             task.error_message = f"Clip {window_index} 没有可复用的视频最终 Prompt，请先使用 LLM+生成当前Shot视频。"
             task.current_step = "缺少视频最终 Prompt"
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
             return
 
@@ -935,7 +949,7 @@ async def _generate_multi_clip_video_task(
             )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
             db.commit()
             return
         task.prompt_text = clip_prompt
@@ -977,7 +991,7 @@ async def _generate_multi_clip_video_task(
         )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
             db.commit()
             return
         if result.get("submitted_workflow"):
@@ -989,7 +1003,7 @@ async def _generate_multi_clip_video_task(
             task.error_message = result.get("message") or "Clip 生成失败"
             task.current_step = f"Clip {clip_position} 生成失败"
             _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": task.error_message}, db, task=task)
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
             return
 
@@ -1010,7 +1024,7 @@ async def _generate_multi_clip_video_task(
                 except Exception as exc:
                     print(f"[VideoTask {task_id}] Failed to delete cancelled downloaded clip {local_path}: {exc}")
             _cleanup_task_generated_clip_videos(db, task, shot)
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
             db.commit()
             return
         if not local_path:
@@ -1018,7 +1032,7 @@ async def _generate_multi_clip_video_task(
             task.error_message = f"Clip {clip_position} 下载失败"
             task.current_step = "下载失败"
             _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": task.error_message}, db, task=task)
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
             return
         clip_video_paths.append(local_path)
@@ -1038,7 +1052,7 @@ async def _generate_multi_clip_video_task(
             task.status = "failed"
             task.error_message = f"未找到 Clip {only_window_index}"
             task.current_step = "执行计划无效"
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
             return
         if auto_merge_clips:
@@ -1047,11 +1061,11 @@ async def _generate_multi_clip_video_task(
                 task.status = "failed"
                 task.error_message = merge_result.get("message") or "多 Clip 拼接失败"
                 task.current_step = "拼接失败"
-                shot_repo.update(shot, video_status="failed")
+                _mark_shot_video_failed(shot, shot_repo, task.error_message)
                 db.commit()
                 return
             task.result_url = merge_result.get("video_url")
-            shot_repo.update(shot, video_url=merge_result.get("video_url"), video_status="completed", video_task_id=task.id)
+            _clear_shot_video_error(shot, shot_repo, video_url=merge_result.get("video_url"), video_status="completed", video_task_id=task.id)
         task.status = "completed"
         task.progress = 100
         task.current_step = "生成完成"
@@ -1064,7 +1078,7 @@ async def _generate_multi_clip_video_task(
     db.commit()
     if _is_task_cancelled(db, task):
         _cleanup_task_generated_clip_videos(db, task, shot)
-        shot_repo.update(shot, video_status="failed")
+        _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
         db.commit()
         return
     story_dir = file_storage._get_story_dir(novel_id)
@@ -1082,14 +1096,14 @@ async def _generate_multi_clip_video_task(
         except Exception as exc:
             print(f"[VideoTask {task_id}] Failed to delete cancelled merged video {output_path}: {exc}")
         _cleanup_task_generated_clip_videos(db, task, shot)
-        shot_repo.update(shot, video_status="failed")
+        _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
         db.commit()
         return
     if not merge_result.get("success"):
         task.status = "failed"
         task.error_message = merge_result.get("message") or "多 Clip 拼接失败"
         task.current_step = "拼接失败"
-        shot_repo.update(shot, video_status="failed")
+        _mark_shot_video_failed(shot, shot_repo, task.error_message)
         db.commit()
         return
 
@@ -1098,7 +1112,7 @@ async def _generate_multi_clip_video_task(
     plan["merged_video_url"] = local_url
     plan["merged_at"] = datetime.utcnow().isoformat()
     shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-    shot_repo.update(shot, video_url=local_url, video_status="completed")
+    _clear_shot_video_error(shot, shot_repo, video_url=local_url, video_status="completed")
     task.status = "completed"
     task.progress = 100
     task.result_url = local_url
@@ -1151,7 +1165,7 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
     plan["merged_video_url"] = local_url
     plan["merged_at"] = datetime.utcnow().isoformat()
     shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-    shot_repo.update(shot, video_url=local_url, video_status="completed")
+    _clear_shot_video_error(shot, shot_repo, video_url=local_url, video_status="completed")
     db.commit()
     return {"success": True, "video_url": local_url, "plan": plan}
 
@@ -1172,7 +1186,7 @@ async def _save_generated_video(
         task.current_step = "生成失败"
         shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
         if shot:
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, task.error_message)
         db.commit()
         return
 
@@ -1193,7 +1207,7 @@ async def _save_generated_video(
                 print(f"[VideoTask {task_id}] Failed to delete cancelled downloaded video {local_path}: {exc}")
         shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
         if shot:
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
         db.commit()
         return
 
@@ -1212,7 +1226,7 @@ async def _save_generated_video(
                 "generated_at": datetime.utcnow().isoformat(),
                 "generated_by_task_id": task.id,
             }, db)
-            shot_repo.update(shot, video_url=local_url, video_status="completed")
+            _clear_shot_video_error(shot, shot_repo, video_url=local_url, video_status="completed")
             print(f"[VideoTask {task_id}] Shot video updated: {local_url}")
 
         task.status = "completed"
@@ -1229,5 +1243,5 @@ async def _save_generated_video(
         task.current_step = "下载失败"
         shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
         if shot:
-            shot_repo.update(shot, video_status="failed")
+            _mark_shot_video_failed(shot, shot_repo, task.error_message)
         db.commit()
