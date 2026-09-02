@@ -150,6 +150,35 @@ def _update_clip_prompt(shot, clip: dict, prompt_text: str, db) -> None:
     db.commit()
 
 
+def _update_clip_result(shot, clip: dict, fields: dict, db) -> None:
+    plan = safe_json_dict(shot.video_director_plan)
+    clips = plan.get("clips") if isinstance(plan.get("clips"), list) else []
+    clip_index = int((clip or {}).get("clip_index") or 1)
+    clip_start = (clip or {}).get("start_time", 0)
+    clip_end = (clip or {}).get("end_time")
+    updated = False
+
+    for index, existing_clip in enumerate(clips):
+        if not isinstance(existing_clip, dict):
+            continue
+        if int(existing_clip.get("clip_index") or index + 1) == clip_index:
+            existing_clip.update(fields)
+            updated = True
+            break
+
+    if not updated:
+        clips.append({
+            "clip_index": clip_index,
+            "start_time": clip_start,
+            "end_time": clip_end,
+            **fields,
+        })
+
+    plan["clips"] = clips
+    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+    db.commit()
+
+
 def _is_task_cancelled(db, task) -> bool:
     db.refresh(task)
     return task.status == "cancelled"
@@ -730,7 +759,7 @@ async def generate_shot_video_task(
             return
 
         # 下载并保存视频
-        await _save_generated_video(result, task, novel_id, chapter_id, shot_index, db, task_id, shot_repo)
+        await _save_generated_video(result, task, novel_id, chapter_id, shot_index, db, task_id, shot_repo, clip=clip)
         if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
             _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "SUCCEEDED", db, task=task)
 
@@ -1129,7 +1158,7 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
 
 async def _save_generated_video(
     result: dict, task, novel_id: str, chapter_id: str,
-    shot_index: int, db, task_id: str, shot_repo: ShotRepository
+    shot_index: int, db, task_id: str, shot_repo: ShotRepository, clip: dict | None = None
 ):
     """下载并保存生成的视频"""
     task.current_step = "正在下载生成的视频..."
@@ -1175,6 +1204,14 @@ async def _save_generated_video(
         # 更新 Shot 记录中的视频数据
         shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
         if shot:
+            _update_clip_result(shot, clip or {}, {
+                "status": "SUCCEEDED",
+                "video_url": local_url,
+                "local_path": local_path,
+                "source_video_url": video_url,
+                "generated_at": datetime.utcnow().isoformat(),
+                "generated_by_task_id": task.id,
+            }, db)
             shot_repo.update(shot, video_url=local_url, video_status="completed")
             print(f"[VideoTask {task_id}] Shot video updated: {local_url}")
 

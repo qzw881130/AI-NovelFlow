@@ -170,6 +170,13 @@ class GenerateKeyframeDescriptionsRequest(BaseModel):
     count: int = Field(3, ge=1, le=10, description="要生成的关键帧数量")
 
 
+class GenerateKeyframeImageRequest(BaseModel):
+    """生成关键帧图片请求"""
+
+    workflow_id: Optional[str] = Field(None, description="指定工作流ID")
+    skip_llm_when_prompt_exists: bool = Field(False, description="已有关键帧生图提示词时跳过 LLM，直接提交工作流")
+
+
 class SetReferenceImageRequest(BaseModel):
     """设置参考图请求"""
 

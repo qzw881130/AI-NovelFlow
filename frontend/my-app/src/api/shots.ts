@@ -84,6 +84,7 @@ export interface VideoDirectorPlan {
     role: 'START' | 'INTERMEDIATE' | 'END';
     description?: string | null;
     image_url?: string;
+    prompt_text?: string;
   }>;
   transitions?: Array<{
     segment_index?: number;
@@ -681,10 +682,14 @@ export const shotsApi = {
     chapterId: string,
     shotId: string,
     frameIndex: number,
-    workflowId?: string
-  ): Promise<{ success: boolean; data?: { task_id: string }; message?: string }> => {
+    workflowId?: string,
+    options?: { skip_llm_when_prompt_exists?: boolean }
+  ): Promise<{ success: boolean; data?: { task_id: string }; message?: string; detail?: string }> => {
     const body: any = {};
     if (workflowId) body.workflow_id = workflowId;
+    if (options?.skip_llm_when_prompt_exists !== undefined) {
+      body.skip_llm_when_prompt_exists = options.skip_llm_when_prompt_exists;
+    }
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/keyframes/${frameIndex}/generate-image`,
       {

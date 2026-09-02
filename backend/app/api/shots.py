@@ -58,6 +58,7 @@ from app.schemas.shot import (
     SetReferenceAudioRequest,
     SetReferenceImageRequest,
     GenerateKeyframeDescriptionsRequest,
+    GenerateKeyframeImageRequest,
     GenerateShotImageRequest,
     ShotImageEditRequest,
     ShotImageReplaceRequest,
@@ -1086,6 +1087,32 @@ def _build_legacy_keyframes_from_plan(shot, keyframes: list) -> list:
     ]
 
 
+def _get_video_director_keyframe_image_url(shot, keyframe: dict) -> Optional[str]:
+    if not isinstance(keyframe, dict):
+        return None
+    if keyframe.get("role") == "START":
+        return shot.image_url
+    if keyframe.get("image_url"):
+        return keyframe.get("image_url")
+
+    try:
+        legacy_keyframes = json.loads(shot.keyframes) if shot.keyframes else []
+    except Exception:
+        legacy_keyframes = []
+    for legacy_keyframe in legacy_keyframes:
+        if not isinstance(legacy_keyframe, dict):
+            continue
+        plan_keyframe_index = legacy_keyframe.get("plan_keyframe_index")
+        if plan_keyframe_index is None:
+            continue
+        try:
+            if int(plan_keyframe_index) == int(keyframe.get("index") or -1):
+                return legacy_keyframe.get("image_url")
+        except Exception:
+            continue
+    return None
+
+
 def _build_minimal_keyframes(shot, mode: str, max_clip_duration: int) -> list:
     duration = shot.duration or 4
     if mode == "SINGLE_FRAME":
@@ -1968,6 +1995,11 @@ async def generate_shot_video(
         max_clip_duration = _get_video_workflow_capability(workflow)["max_clip_duration"]
         if shot_duration > max_clip_duration:
             raise HTTPException(status_code=400, detail=f"首尾帧模式当前仅支持不超过 {max_clip_duration}s 的 Shot；请改用多关键帧模式。")
+        keyframes = video_director_plan.get("keyframes") if isinstance(video_director_plan.get("keyframes"), list) else []
+        end_keyframe = next((keyframe for keyframe in keyframes if isinstance(keyframe, dict) and keyframe.get("role") == "END"), None)
+        end_image_url = _get_video_director_keyframe_image_url(shot, end_keyframe)
+        if not end_image_url or not url_to_local_path(end_image_url):
+            raise HTTPException(status_code=400, detail="首尾帧模式需要先生成 END 关键帧图片。")
 
     # 验证工作流节点映射配置
     is_valid, error_msg = TaskService.validate_workflow_node_mapping(workflow, expected_workflow_type)
@@ -3639,7 +3671,7 @@ async def generate_keyframe_image(
     chapter_id: str,
     shot_id: str,
     frame_index: int,
-    workflow_id: Optional[str] = None,
+    request: GenerateKeyframeImageRequest = GenerateKeyframeImageRequest(),
     db: Session = Depends(get_db),
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
@@ -3694,7 +3726,11 @@ async def generate_keyframe_image(
 
     keyframe_service = ShotKeyframeService()
     success, task_id, message = await keyframe_service.generate_keyframe_image(
-        db, shot_id, frame_index, workflow_id
+        db,
+        shot_id,
+        frame_index,
+        request.workflow_id,
+        skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
     )
 
     return {

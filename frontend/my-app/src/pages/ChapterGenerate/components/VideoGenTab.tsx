@@ -90,14 +90,19 @@ function VideoAiCallsPanel({
   novelId,
   chapterId,
   shotId,
+  onRefresh,
+  isRefreshing = false,
 }: {
   calls?: VideoAiCall[];
   novelId?: string;
   chapterId?: string;
   shotId?: string;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }) {
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const { t } = useTranslation();
+  const [panelOpen, setPanelOpen] = useState(true);
+  const [expanded, setExpanded] = useState(true);
   const [openIndex, setOpenIndex] = useState(Math.max(0, calls.length - 1));
   const [viewingData, setViewingData] = useState<{ title: string; content: string } | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -105,15 +110,15 @@ function VideoAiCallsPanel({
 
   const handleDownloadLlmData = async () => {
     if (!novelId || !chapterId || !shotId) {
-      toast.error('缺少分镜信息，无法下载 LLM 数据');
+      toast.error(t('chapterGenerate.missingShotInfoForLlmDownload'));
       return;
     }
     setIsDownloading(true);
     try {
       await shotsApi.downloadShotLlmData(novelId, chapterId, shotId);
-      toast.success('LLM 数据已下载');
+      toast.success(t('chapterGenerate.llmDataDownloaded'));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '下载 LLM 数据失败');
+      toast.error(error instanceof Error ? error.message : t('chapterGenerate.downloadLlmDataFailed'));
     } finally {
       setIsDownloading(false);
     }
@@ -129,29 +134,40 @@ function VideoAiCallsPanel({
         <div className="flex items-center justify-between px-3 py-2">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-              AI 调用结果
+              {t('chapterGenerate.aiCallResults')}
               <button
                 type="button"
                 onClick={handleDownloadLlmData}
                 disabled={isDownloading}
                 className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-0.5 text-xs font-normal text-gray-700 hover:bg-gray-100 disabled:opacity-50"
               >
-                <Download className="h-3 w-3" />{isDownloading ? '下载中...' : '下载LLM数据'}
+                <Download className="h-3 w-3" />{isDownloading ? t('chapterGenerate.downloading') : t('chapterGenerate.downloadLlmData')}
               </button>
             </div>
-            <div className="text-xs text-gray-500">暂无 AI 调用结果</div>
+            <div className="text-xs text-gray-500">{t('chapterGenerate.noAiCallResults')}</div>
           </div>
-          <button
-            type="button"
-            onClick={() => setPanelOpen(!panelOpen)}
-            className="px-2 py-1 text-xs rounded border border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
-          >
-            {panelOpen ? '收起' : '展开'}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isRefreshing || !onRefresh}
+              className="p-1.5 text-gray-500 hover:text-blue-700 disabled:opacity-50"
+              title={t('common.refresh')}
+            >
+              <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setPanelOpen(!panelOpen)}
+              className="px-2 py-1 text-xs rounded border border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
+            >
+              {panelOpen ? t('common.collapse') : t('common.expand')}
+            </button>
+          </div>
         </div>
         {panelOpen && (
           <div className="border-t border-gray-200 px-3 py-3 text-sm text-gray-500">
-            暂无 AI 调用结果。重新推荐或生成视频后会显示 #07/#11/#12/#13 的返回。
+            {t('chapterGenerate.noAiCallResultsHint')}
           </div>
         )}
       </div>
@@ -166,26 +182,35 @@ function VideoAiCallsPanel({
       <div className={`flex items-center justify-between px-3 py-2 ${panelOpen ? 'border-b border-gray-200' : ''}`}>
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-            AI 调用结果
+            {t('chapterGenerate.aiCallResults')}
             <button
               type="button"
               onClick={handleDownloadLlmData}
               disabled={isDownloading}
               className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-0.5 text-xs font-normal text-gray-700 hover:bg-gray-100 disabled:opacity-50"
             >
-              <Download className="h-3 w-3" />{isDownloading ? '下载中...' : '下载LLM数据'}
+              <Download className="h-3 w-3" />{isDownloading ? t('chapterGenerate.downloading') : t('chapterGenerate.downloadLlmData')}
             </button>
           </div>
-          <div className="text-xs text-gray-500">共 {calls.length} 次，默认显示最近一次</div>
+          <div className="text-xs text-gray-500">{t('chapterGenerate.aiCallCountHint', { count: calls.length })}</div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isRefreshing || !onRefresh}
+            className="p-1.5 text-gray-500 hover:text-blue-700 disabled:opacity-50"
+            title={t('common.refresh')}
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
           {panelOpen && (
             <button
               type="button"
               onClick={() => setExpanded(!expanded)}
               className="px-2 py-1 text-xs rounded border border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
             >
-              {expanded ? '只看最近' : '展开全部'}
+              {expanded ? t('chapterGenerate.showLatestOnly') : t('chapterGenerate.expandAllAiCalls')}
             </button>
           )}
           <button
@@ -193,7 +218,7 @@ function VideoAiCallsPanel({
             onClick={() => setPanelOpen(!panelOpen)}
             className="px-2 py-1 text-xs rounded border border-gray-200 bg-white text-gray-700 hover:bg-gray-100"
           >
-            {panelOpen ? '收起' : '展开'}
+            {panelOpen ? t('common.collapse') : t('common.expand')}
           </button>
         </div>
       </div>
@@ -211,7 +236,7 @@ function VideoAiCallsPanel({
                 className="w-full px-3 py-2 flex items-center justify-between gap-3 text-left hover:bg-gray-50"
               >
                 <div>
-                  <div className="text-sm font-medium text-gray-800">#{call.step || '--'} {call.title || call.task_type || 'AI 调用'}</div>
+                  <div className="text-sm font-medium text-gray-800">#{call.step || '--'} {call.title || call.task_type || t('chapterGenerate.aiCall')}</div>
                   <div className="text-xs text-gray-500">
                     {call.prompt_template_name || '-'} · {call.status || '-'} · {call.created_at ? new Date(call.created_at).toLocaleString() : '-'}
                     {call.clip_index ? ` · Clip ${call.clip_index}` : ''}
@@ -225,20 +250,20 @@ function VideoAiCallsPanel({
                   <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
                   <div className="min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-gray-600">返回结果</span>
+                      <span className="text-xs font-medium text-gray-600">{t('chapterGenerate.returnResult')}</span>
                       <div className="flex items-center gap-2">
-                        <button type="button" onClick={() => setViewingData({ title: '返回结果', content: responseText })} className="text-blue-600 hover:text-blue-800" title="查看"><Eye className="w-3 h-3" /></button>
-                        <button type="button" onClick={() => copyText(responseText)} className="text-blue-600 hover:text-blue-800" title="复制"><Copy className="w-3 h-3" /></button>
+                        <button type="button" onClick={() => setViewingData({ title: t('chapterGenerate.returnResult'), content: responseText })} className="text-blue-600 hover:text-blue-800" title={t('common.view')}><Eye className="w-3 h-3" /></button>
+                        <button type="button" onClick={() => copyText(responseText)} className="text-blue-600 hover:text-blue-800" title={t('common.copy')}><Copy className="w-3 h-3" /></button>
                       </div>
                     </div>
                     <pre className="max-h-40 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-100 whitespace-pre-wrap">{responseText}</pre>
                   </div>
                   <div className="min-w-0">
                       <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-medium text-gray-600">最终 Prompt</span>
+                        <span className="text-xs font-medium text-gray-600">{t('chapterGenerate.finalPrompt')}</span>
                         <div className="flex items-center gap-2">
-                          <button type="button" onClick={() => setViewingData({ title: '最终 Prompt', content: promptText })} className="text-blue-600 hover:text-blue-800" title="查看"><Eye className="w-3 h-3" /></button>
-                          <button type="button" onClick={() => copyText(promptText)} className="text-blue-600 hover:text-blue-800" title="复制"><Copy className="w-3 h-3" /></button>
+                          <button type="button" onClick={() => setViewingData({ title: t('chapterGenerate.finalPrompt'), content: promptText })} className="text-blue-600 hover:text-blue-800" title={t('common.view')}><Eye className="w-3 h-3" /></button>
+                          <button type="button" onClick={() => copyText(promptText)} className="text-blue-600 hover:text-blue-800" title={t('common.copy')}><Copy className="w-3 h-3" /></button>
                         </div>
                       </div>
                       <pre className="max-h-40 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-100 whitespace-pre-wrap">{promptText}</pre>
@@ -257,11 +282,11 @@ function VideoAiCallsPanel({
           <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
             <div className="min-w-0">
               <div className="text-base font-semibold text-gray-900 truncate">{viewingData.title}</div>
-              <div className="text-xs text-gray-500">完整数据预览</div>
+              <div className="text-xs text-gray-500">{t('chapterGenerate.fullDataPreview')}</div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <button type="button" onClick={() => copyText(viewingData.content)} className="inline-flex items-center gap-1 rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
-                <Copy className="h-4 w-4" />复制
+                <Copy className="h-4 w-4" />{t('common.copy')}
               </button>
               <button type="button" onClick={() => setViewingData(null)} className="rounded-md p-1.5 text-gray-500 hover:bg-gray-100 hover:text-gray-700">
                 <X className="h-5 w-5" />
@@ -375,7 +400,7 @@ interface VideoDirectorPanelProps {
   onRecommend: (force?: boolean) => void;
   onPlanKeyframes: (force?: boolean) => void;
   onGenerateMissingKeyframes: () => void;
-  onGenerateEndKeyframe: () => void;
+  onGenerateEndKeyframe: (mode?: 'llm' | 'image_only') => void;
   isGeneratingEndKeyframe?: boolean;
   isGeneratingMissingKeyframes?: boolean;
   generatingKeyframes?: Set<string>;
@@ -418,6 +443,7 @@ function VideoDirectorPanel({
   isMergingClips,
 }: VideoDirectorPanelProps) {
   const { t } = useTranslation();
+  const [showEndKeyframeMenu, setShowEndKeyframeMenu] = useState(false);
   const selectedMode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
   const maxClipDuration = plan.workflow_capability?.max_clip_duration || 15;
   const firstLastAvailable = plan.first_last_available ?? ((shot?.duration || 0) <= maxClipDuration);
@@ -484,9 +510,17 @@ function VideoDirectorPanel({
   const selectedClipKeyframes = new Set((selectedClip?.keyframe_indexes || []).map((item: number) => Number(item)));
   const selectedKeyframeClipCount = clips.filter((clip: any) => clipContainsKeyframe(clip, Number(selectedKeyframe?.index))).length;
   const startKeyframe = keyframes.find((kf: any) => kf.role === 'START') || { index: 1, time_seconds: 0, role: 'START' };
-  const endKeyframe = keyframes.find((kf: any) => kf.role === 'END') || { index: 2, time_seconds: shot?.duration || 0, role: 'END', description: shot?.video_description || shot?.description || '' };
+  const endKeyframe: any = keyframes.find((kf: any) => kf.role === 'END') || { index: 2, time_seconds: shot?.duration || 0, role: 'END', description: shot?.video_description || shot?.description || '' };
   const endKeyframeImageUrl = getKeyframeImageUrl(endKeyframe);
+  const hasReusableEndKeyframePrompt = !!String(endKeyframe?.prompt_text || '').trim();
   const firstLastTransition = transitions.find((transition) => Number(transition.from_keyframe_index) === 1 && Number(transition.to_keyframe_index) === 2) || transitions[0];
+
+  useEffect(() => {
+    if (!showEndKeyframeMenu) return;
+    const handleClick = () => setShowEndKeyframeMenu(false);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [showEndKeyframeMenu]);
 
   useEffect(() => {
     setSelectedKeyframeIndex(0);
@@ -693,7 +727,7 @@ function VideoDirectorPanel({
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
             <div className="text-xs text-blue-700">
-              #08 规划 START/END 静态状态；成功后自动调用 #10 规划 START → END Transition。
+              {t('chapterGenerate.firstLastPlanNotice')}
             </div>
             <button
               type="button"
@@ -701,7 +735,7 @@ function VideoDirectorPanel({
               disabled={isPlanningKeyframes}
               className="px-3 py-1.5 rounded-lg border border-blue-200 bg-white text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50 transition-colors whitespace-nowrap"
             >
-              {isPlanningKeyframes ? '规划中...' : firstLastTransition ? '重新规划首尾帧' : 'AI规划首尾帧'}
+              {isPlanningKeyframes ? t('chapterGenerate.planning') : firstLastTransition ? t('chapterGenerate.replanFirstLastFrame') : t('chapterGenerate.aiPlanFirstLastFrame')}
             </button>
           </div>
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -709,17 +743,17 @@ function VideoDirectorPanel({
               <div className="mb-2 flex items-center justify-between">
                 <div>
                   <div className="text-xs font-semibold text-gray-600">START · 0s</div>
-                  <div className="text-[11px] text-gray-500">KF{startKeyframe.index} · Primary Storyboard</div>
+                  <div className="text-[11px] text-gray-500">KF{startKeyframe.index} · {t('chapterGenerate.primaryStoryboard')}</div>
                 </div>
-                <span className={`text-xs ${shotImageUrl ? 'text-green-600' : 'text-amber-600'}`}>{shotImageUrl ? '图片已就绪' : '缺少主分镜图'}</span>
+                <span className={`text-xs ${shotImageUrl ? 'text-green-600' : 'text-amber-600'}`}>{shotImageUrl ? t('chapterGenerate.imageReady') : t('chapterGenerate.missingPrimaryStoryboard')}</span>
               </div>
               <div className="relative aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
                 {shotImageUrl ? (
                   <>
                     <img src={shotImageUrl} alt="START" className="w-full h-full object-cover" />
                     <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
-                      <button type="button" onClick={() => onPreviewImage(shotImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 hover:bg-black/85 hover:text-blue-300" title="查看大图"><Eye className="h-4 w-4" /></button>
-                      <button type="button" onClick={() => onEditImage({ type: 'shot', imageUrl: shotImageUrl, itemName: `镜${shot?.index || ''} START` })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 hover:bg-black/85 hover:text-blue-300" title="编辑图片"><Image className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onPreviewImage(shotImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.viewLargeImage')}><Eye className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onEditImage({ type: 'shot', imageUrl: shotImageUrl, itemName: `${t('chapterGenerate.shot')}${shot?.index || ''} START` })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.editImage')}><Image className="h-4 w-4" /></button>
                     </div>
                   </>
                 ) : <Image className="w-10 h-10 text-gray-300" />}
@@ -729,10 +763,10 @@ function VideoDirectorPanel({
               <div className="mb-2 flex items-center justify-between">
                 <div>
                   <div className="text-xs font-semibold text-gray-600">END · {endKeyframe.time_seconds || shot?.duration || 0}s</div>
-                  <div className="text-[11px] text-gray-500">KF{endKeyframe.index} · Generated Keyframe</div>
+                  <div className="text-[11px] text-gray-500">KF{endKeyframe.index} · {t('chapterGenerate.generatedKeyframe')}</div>
                 </div>
                 <span className={`text-xs ${endKeyframeImageUrl ? 'text-green-600' : isGeneratingEndKeyframe ? 'text-blue-600' : 'text-amber-600'}`}>
-                  {endKeyframeImageUrl ? '图片已就绪' : isGeneratingEndKeyframe ? '生成中' : '待生成'}
+                  {endKeyframeImageUrl ? t('chapterGenerate.imageReady') : isGeneratingEndKeyframe ? t('chapterGenerate.generatingShort') : t('chapterGenerate.pending')}
                 </span>
               </div>
               <div className="relative aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
@@ -740,14 +774,14 @@ function VideoDirectorPanel({
                   <>
                     <img src={endKeyframeImageUrl} alt="END" className="w-full h-full object-cover" />
                     <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
-                      <button type="button" onClick={() => onPreviewImage(endKeyframeImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 hover:bg-black/85 hover:text-blue-300" title="查看大图"><Eye className="h-4 w-4" /></button>
-                      <button type="button" onClick={() => onEditImage({ type: 'keyframe', imageUrl: endKeyframeImageUrl, itemName: `镜${shot?.index || ''} END`, frameIndex: getKeyframeFrameIndex(endKeyframe) })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 hover:bg-black/85 hover:text-blue-300" title="编辑图片"><Image className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onPreviewImage(endKeyframeImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.viewLargeImage')}><Eye className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onEditImage({ type: 'keyframe', imageUrl: endKeyframeImageUrl, itemName: `${t('chapterGenerate.shot')}${shot?.index || ''} END`, frameIndex: getKeyframeFrameIndex(endKeyframe) })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.editImage')}><Image className="h-4 w-4" /></button>
                     </div>
                   </>
                 ) : isGeneratingEndKeyframe ? (
                   <div className="flex flex-col items-center gap-2 text-blue-600">
                     <Loader2 className="h-8 w-8 animate-spin" />
-                    <div className="text-sm">END 关键帧生成中...</div>
+                    <div className="text-sm">{t('chapterGenerate.endKeyframeGenerating')}</div>
                   </div>
                 ) : (
                   <Image className="w-10 h-10 text-gray-300" />
@@ -755,43 +789,83 @@ function VideoDirectorPanel({
               </div>
               <div className="mt-2">
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <div className="text-xs font-semibold text-gray-600">Keyframe description</div>
+                  <div className="text-xs font-semibold text-gray-600">{t('chapterGenerate.keyframeDescription')}</div>
                   <button
                     type="button"
                     onClick={() => setIsEndDescriptionExpanded((expanded) => !expanded)}
                     className="text-xs text-blue-600 hover:text-blue-700"
                   >
-                    {isEndDescriptionExpanded ? '隐藏' : '显示'}
+                    {isEndDescriptionExpanded ? t('chapterGenerate.hide') : t('chapterGenerate.show')}
                   </button>
                 </div>
                 {isEndDescriptionExpanded && (
                   <textarea
                     readOnly
-                    value={endKeyframe.description || '等待 AI 规划尾帧'}
+                    value={endKeyframe.description || t('chapterGenerate.waitingAiEndFramePlan')}
                     className="w-full h-40 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm resize-none"
                   />
                 )}
               </div>
-              <button
-                type="button"
-                onClick={onGenerateEndKeyframe}
-                disabled={isPlanningKeyframes || isGeneratingEndKeyframe || !endKeyframe.description}
-                className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-blue-200 px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isGeneratingEndKeyframe && <Loader2 className="h-3 w-3 animate-spin" />}
-                {isGeneratingEndKeyframe ? 'END 关键帧生成中...' : endKeyframeImageUrl ? '重新生成 END 关键帧' : '生成 END 关键帧'}
-              </button>
+              <div className="relative mt-2 inline-flex">
+                <button
+                  type="button"
+                  onClick={() => onGenerateEndKeyframe('llm')}
+                  disabled={isPlanningKeyframes || isGeneratingEndKeyframe || !endKeyframe.description}
+                  className="inline-flex items-center gap-1.5 rounded-l-md border border-blue-200 px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isGeneratingEndKeyframe && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {isGeneratingEndKeyframe ? t('chapterGenerate.endKeyframeGenerating') : endKeyframeImageUrl ? t('chapterGenerate.llmRegenerateEndKeyframe') : t('chapterGenerate.llmGenerateEndKeyframe')}
+                </button>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setShowEndKeyframeMenu(prev => !prev);
+                  }}
+                  disabled={isPlanningKeyframes || isGeneratingEndKeyframe || !endKeyframe.description}
+                  className="inline-flex items-center rounded-r-md border border-l-0 border-blue-200 px-2 py-1.5 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label={t('chapterGenerate.selectEndKeyframeGenerateMode')}
+                >
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+                {showEndKeyframeMenu && (
+                  <div className="absolute left-0 top-full z-20 mt-1 w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEndKeyframeMenu(false);
+                        onGenerateEndKeyframe('llm');
+                      }}
+                      className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50"
+                    >
+                      {t('chapterGenerate.llmRegenerateEndKeyframe')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowEndKeyframeMenu(false);
+                        onGenerateEndKeyframe('image_only');
+                      }}
+                      disabled={!hasReusableEndKeyframePrompt}
+                      title={!hasReusableEndKeyframePrompt ? t('chapterGenerate.noReusableEndKeyframePrompt') : undefined}
+                      className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-white"
+                    >
+                      {t('chapterGenerate.regenerateEndKeyframeOnly')}
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div>
             <div className="mb-1 flex items-center justify-between">
-              <div className="text-xs font-semibold text-gray-600">Transition · KF1 → KF2 · 0-{shot?.duration || 0}s</div>
+              <div className="text-xs font-semibold text-gray-600">{t('chapterGenerate.transitionLabel')} · KF1 → KF2 · 0-{shot?.duration || 0}s</div>
               <span className={`text-xs ${firstLastTransition?.transition_description ? 'text-green-600' : endKeyframe.description ? 'text-amber-600' : 'text-gray-500'}`}>
-                {firstLastTransition?.transition_description ? '已规划' : endKeyframe.description ? '未规划' : '等待首尾帧规划'}
+                {firstLastTransition?.transition_description ? t('chapterGenerate.planned') : endKeyframe.description ? t('chapterGenerate.notPlanned') : t('chapterGenerate.waitingFirstLastPlan')}
               </span>
             </div>
             <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 min-h-20 whitespace-pre-wrap">
-              {firstLastTransition?.transition_description || (endKeyframe.description ? '等待 #10 START → END 过渡规划' : '等待 #08 首尾帧规划')}
+              {firstLastTransition?.transition_description || (endKeyframe.description ? t('chapterGenerate.waitingStartEndTransitionPlan') : t('chapterGenerate.waitingFirstLastPlanStep'))}
             </div>
           </div>
         </div>
@@ -803,8 +877,8 @@ function VideoDirectorPanel({
             <div className="flex items-center justify-between mb-2">
               <div>
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <span className="text-sm font-semibold text-gray-700">关键帧时间轴</span>
-                  <span className="text-xs font-normal text-gray-500">{keyframes.length} 条 Keyframe + {Math.max(0, keyframes.length - 1)} 条 Transition + {clips.length} Clips（相邻间隔 ≤ {maxClipDuration}s）</span>
+                  <span className="text-sm font-semibold text-gray-700">{t('chapterGenerate.keyframeTimeline')}</span>
+                  <span className="text-xs font-normal text-gray-500">{t('chapterGenerate.keyframeTimelineSummary', { keyframes: keyframes.length, transitions: Math.max(0, keyframes.length - 1), clips: clips.length, maxClipDuration })}</span>
                 </div>
               </div>
             </div>
@@ -852,7 +926,7 @@ function VideoDirectorPanel({
                         setSelectedKeyframeIndex(idx);
                         setSelectedClipKey(null);
                       }}
-                      title={`${kf.role}${keyframeClipCount > 1 ? ' · 共享边界' : ''}${isGenerating ? ' · 生成中' : hasImage ? ' · 已生成' : ' · 缺图'}`}
+                      title={`${kf.role}${keyframeClipCount > 1 ? ` · ${t('chapterGenerate.sharedBoundary')}` : ''}${isGenerating ? ` · ${t('chapterGenerate.generatingShort')}` : hasImage ? ` · ${t('chapterGenerate.generated')}` : ` · ${t('chapterGenerate.missingImage')}`}`}
                       className={`relative h-14 min-w-24 rounded-lg px-2 py-1 text-center transition-all ${isCurrentKeyframe
                         ? 'border border-blue-300 bg-blue-50 text-blue-700 shadow-sm ring-2 ring-blue-100'
                         : isInSelectedClip
@@ -865,7 +939,7 @@ function VideoDirectorPanel({
                         <span>{marker}</span>
                       </div>
                       <div className="mt-0.5 text-xs font-semibold">KF{kf.index} · {kf.time_seconds}s</div>
-                      <div className={`text-[11px] ${isGenerating ? 'text-blue-600' : hasImage ? 'text-green-600' : 'text-amber-600'}`}>{isGenerating ? '生成中' : hasImage ? '已生成' : '缺图'}</div>
+                      <div className={`text-[11px] ${isGenerating ? 'text-blue-600' : hasImage ? 'text-green-600' : 'text-amber-600'}`}>{isGenerating ? t('chapterGenerate.generatingShort') : hasImage ? t('chapterGenerate.generated') : t('chapterGenerate.missingImage')}</div>
                       {isCurrentKeyframe && <div className="absolute -bottom-1 left-2 right-2 h-1 rounded-full bg-blue-500" />}
                     </button>
                   );
@@ -880,22 +954,22 @@ function VideoDirectorPanel({
                 {isKeyframeGenerating(selectedKeyframe) ? (
                   <div className="flex flex-col items-center gap-2 text-blue-500">
                     <Loader2 className="w-10 h-10 animate-spin" />
-                    <div className="text-sm">关键帧图片生成中...</div>
+                    <div className="text-sm">{t('chapterGenerate.keyframeImageGenerating')}</div>
                   </div>
                 ) : getKeyframeImageUrl(selectedKeyframe) ? (
                   <>
                     <img src={getKeyframeImageUrl(selectedKeyframe)!} alt={`KF${selectedKeyframe.index}`} className="w-full h-full object-cover" />
                     <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
-                      <button type="button" onClick={() => onPreviewImage(getKeyframeImageUrl(selectedKeyframe)!)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title="查看大图"><Eye className="h-4 w-4" /></button>
-                      <button type="button" onClick={() => onEditImage({ type: selectedKeyframe?.role === 'START' ? 'shot' : 'keyframe', imageUrl: getKeyframeImageUrl(selectedKeyframe)!, itemName: `镜${shot?.index || ''} KF${selectedKeyframe?.index || ''}`, frameIndex: getKeyframeFrameIndex(selectedKeyframe) })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title="编辑图片"><Image className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onPreviewImage(getKeyframeImageUrl(selectedKeyframe)!)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.viewLargeImage')}><Eye className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onEditImage({ type: selectedKeyframe?.role === 'START' ? 'shot' : 'keyframe', imageUrl: getKeyframeImageUrl(selectedKeyframe)!, itemName: `${t('chapterGenerate.shot')}${shot?.index || ''} KF${selectedKeyframe?.index || ''}`, frameIndex: getKeyframeFrameIndex(selectedKeyframe) })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.editImage')}><Image className="h-4 w-4" /></button>
                     </div>
                   </>
                 ) : shotImageUrl && selectedKeyframe?.role === 'START' ? (
                   <>
                     <img src={shotImageUrl} alt="START" className="w-full h-full object-cover" />
                     <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
-                      <button type="button" onClick={() => onPreviewImage(shotImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title="查看大图"><Eye className="h-4 w-4" /></button>
-                      <button type="button" onClick={() => onEditImage({ type: 'shot', imageUrl: shotImageUrl, itemName: `镜${shot?.index || ''} START` })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title="编辑图片"><Image className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onPreviewImage(shotImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.viewLargeImage')}><Eye className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onEditImage({ type: 'shot', imageUrl: shotImageUrl, itemName: `${t('chapterGenerate.shot')}${shot?.index || ''} START` })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.editImage')}><Image className="h-4 w-4" /></button>
                     </div>
                   </>
                 ) : (
@@ -905,13 +979,13 @@ function VideoDirectorPanel({
               <div className="mt-2 flex items-center justify-between">
                 <span className="text-sm font-medium text-gray-700">KF{selectedKeyframe?.index || 1} · {selectedKeyframe?.time_seconds || 0}s</span>
                 <span className={`text-xs ${getKeyframeImageUrl(selectedKeyframe) ? 'text-green-600' : 'text-amber-600'}`}>
-                  {isKeyframeGenerating(selectedKeyframe) ? '正在生成图片' : getKeyframeImageUrl(selectedKeyframe) ? '图片已就绪' : '等待生成图片'}
+                  {isKeyframeGenerating(selectedKeyframe) ? t('chapterGenerate.imageGenerating') : getKeyframeImageUrl(selectedKeyframe) ? t('chapterGenerate.imageReady') : t('chapterGenerate.waitingImageGeneration')}
                 </span>
               </div>
             </div>
             <div className="space-y-3">
               <div>
-                <div className="text-xs font-semibold text-gray-600 mb-1">Keyframe description</div>
+                <div className="text-xs font-semibold text-gray-600 mb-1">{t('chapterGenerate.keyframeDescription')}</div>
                 <textarea
                   readOnly
                   value={selectedKeyframe?.role === 'START' ? (shot?.description || '') : (selectedKeyframe?.description || '')}
@@ -920,23 +994,23 @@ function VideoDirectorPanel({
               </div>
               <div>
                 <div className="text-xs font-semibold text-gray-600 mb-1">
-                  上一段 Transition{previousTransition ? ` · KF${previousTransition.from_keyframe_index} → KF${previousTransition.to_keyframe_index} · ${previousTransition.start_time ?? ''}-${previousTransition.end_time ?? ''}s` : ''}
+                  {t('chapterGenerate.previousTransition')}{previousTransition ? ` · KF${previousTransition.from_keyframe_index} → KF${previousTransition.to_keyframe_index} · ${previousTransition.start_time ?? ''}-${previousTransition.end_time ?? ''}s` : ''}
                 </div>
                 <textarea
                   readOnly
                   value={previousTransition?.transition_description || ''}
-                  placeholder={selectedKeyframeIndex === 0 ? '第一个关键帧，没有上一段 Transition' : '等待 #10 规划上一关键帧到当前关键帧的过渡'}
+                  placeholder={selectedKeyframeIndex === 0 ? t('chapterGenerate.noPreviousTransition') : t('chapterGenerate.waitingPreviousTransitionPlan')}
                   className="w-full h-20 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm resize-none"
                 />
               </div>
               <div>
                 <div className="text-xs font-semibold text-gray-600 mb-1">
-                  下一段 Transition{nextTransition ? ` · KF${nextTransition.from_keyframe_index} → KF${nextTransition.to_keyframe_index} · ${nextTransition.start_time ?? ''}-${nextTransition.end_time ?? ''}s` : ''}
+                  {t('chapterGenerate.nextTransition')}{nextTransition ? ` · KF${nextTransition.from_keyframe_index} → KF${nextTransition.to_keyframe_index} · ${nextTransition.start_time ?? ''}-${nextTransition.end_time ?? ''}s` : ''}
                 </div>
                 <textarea
                   readOnly
                   value={nextTransition?.transition_description || ''}
-                  placeholder={hasNextKeyframe ? '等待 #10 规划当前关键帧到下一关键帧的过渡' : '最后一个关键帧，没有下一段 Transition'}
+                  placeholder={hasNextKeyframe ? t('chapterGenerate.waitingNextTransitionPlan') : t('chapterGenerate.noNextTransition')}
                   className="w-full h-20 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm resize-none"
                 />
               </div>
@@ -948,13 +1022,13 @@ function VideoDirectorPanel({
 
       <div className="rounded-lg border border-gray-200 bg-white p-3">
         <div className="flex items-center justify-between gap-3 mb-2">
-          <div className="text-sm font-semibold text-gray-700">执行计划 · {clips.length} Clips</div>
-          <div className="text-xs text-gray-500">预计 H3 任务 {clips.length}</div>
+          <div className="text-sm font-semibold text-gray-700">{t('chapterGenerate.executionPlan')} · {clips.length} {t('chapterGenerate.clips')}</div>
+          <div className="text-xs text-gray-500">{t('chapterGenerate.estimatedH3Tasks', { count: clips.length })}</div>
         </div>
         {selectedMode === 'MULTI_KEYFRAME' && (
           <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-            <div className="rounded-lg border border-gray-200 px-3 py-2 flex items-center justify-between">3帧 Clips <span className="font-semibold text-gray-800">{threeFrameClipCount}</span></div>
-            <div className="rounded-lg border border-gray-200 px-3 py-2 flex items-center justify-between">4帧 Clips <span className="font-semibold text-gray-800">{fourFrameClipCount}</span></div>
+            <div className="rounded-lg border border-gray-200 px-3 py-2 flex items-center justify-between">{t('chapterGenerate.threeFrameClips')} <span className="font-semibold text-gray-800">{threeFrameClipCount}</span></div>
+            <div className="rounded-lg border border-gray-200 px-3 py-2 flex items-center justify-between">{t('chapterGenerate.fourFrameClips')} <span className="font-semibold text-gray-800">{fourFrameClipCount}</span></div>
           </div>
         )}
         {clips.length > 0 ? (
@@ -962,10 +1036,23 @@ function VideoDirectorPanel({
             {clips.map((clip: any) => {
               const clipIndex = clip.clip_index || clip.window_index;
               const frameCount = clip.selected_frame_count || clip.frame_count;
-              const clipStatus = clip.status || 'PENDING';
+              const clipHasVideo = !!(clip.video_url || clip.local_path || (selectedMode !== 'MULTI_KEYFRAME' && shot?.videoUrl));
+              const clipStatus = clip.status || (clipHasVideo ? 'SUCCEEDED' : 'PENDING');
               const clipKey = getClipKey(clip);
               const isPreviewing = selectedPreviewClipKey === clipKey;
               const isRegenerating = regeneratingClipKey === clipKey;
+              const clipFrameLabel = selectedMode === 'SINGLE_FRAME'
+                ? t('chapterGenerate.primaryStoryboard')
+                : selectedMode === 'FIRST_LAST_FRAME'
+                  ? t('chapterGenerate.firstLastFrame')
+                  : Array.isArray(clip.keyframe_indexes) && clip.keyframe_indexes.length > 0
+                    ? clip.keyframe_indexes.map((item: number) => `KF${item}`).join(' / ')
+                    : t('chapterGenerate.waitingKeyframes');
+              const clipTitleFrameLabel = selectedMode === 'SINGLE_FRAME'
+                ? t('chapterGenerate.singleFrame')
+                : selectedMode === 'FIRST_LAST_FRAME'
+                  ? t('chapterGenerate.firstLastFrame')
+                  : `${frameCount || '?'}KF`;
               const clipReferenceImages = Array.isArray(clip.reference_images) && clip.reference_images.length > 0
                 ? clip.reference_images
                 : (Array.isArray(clip.keyframe_indexes) ? clip.keyframe_indexes : [])
@@ -979,9 +1066,9 @@ function VideoDirectorPanel({
                 <div key={`${clipIndex}-${clip.start_time}-${clip.end_time}`} className={`rounded-lg border p-3 ${isPreviewing ? 'border-blue-300 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 bg-white'}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="text-sm font-semibold text-gray-800">C{clipIndex} · {clip.start_time}-{clip.end_time}s · {frameCount || '?'}KF</div>
+                      <div className="text-sm font-semibold text-gray-800">C{clipIndex} · {clip.start_time}-{clip.end_time}s · {clipTitleFrameLabel}</div>
                       <div className="mt-1 text-xs text-gray-500">
-                        {Array.isArray(clip.keyframe_indexes) && clip.keyframe_indexes.length > 0 ? clip.keyframe_indexes.map((item: number) => `KF${item}`).join(' / ') : '等待关键帧'}
+                        {clipFrameLabel}
                         {clip.workflow_key ? ` · ${clip.workflow_key}` : ''}
                       </div>
                     </div>
@@ -1196,6 +1283,7 @@ export function VideoGenTab({
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
   const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
   const [batchSelectionMode, setBatchSelectionMode] = useState<BatchSelectionMode>(null);
+  const [dragSelectionMode, setDragSelectionMode] = useState<'select' | 'deselect' | null>(null);
   const [autoCompleteDetails, setAutoCompleteDetails] = useState(true);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewTransitionVideo, setPreviewTransitionVideo] = useState<string | null>(null);
@@ -1220,6 +1308,7 @@ export function VideoGenTab({
   const [regeneratingClipKey, setRegeneratingClipKey] = useState<string | null>(null);
   const [isMergingClips, setIsMergingClips] = useState(false);
   const [isCancellingVideo, setIsCancellingVideo] = useState(false);
+  const [isRefreshingAiCalls, setIsRefreshingAiCalls] = useState(false);
   const [showGenerateVideoMenu, setShowGenerateVideoMenu] = useState(false);
   const [isVideoPromptModalOpen, setIsVideoPromptModalOpen] = useState(false);
   const [videoPromptDrafts, setVideoPromptDrafts] = useState<VideoPromptDraft[]>([]);
@@ -1301,6 +1390,9 @@ export function VideoGenTab({
     ));
     return legacyKeyframe?.image_url || legacyKeyframe?.imageUrl || null;
   }, [getShotImageUrl]);
+  const currentEndKeyframeImageUrl = currentEndPlanKeyframe
+    ? getVideoDirectorKeyframeImageUrl(currentShotData, currentEndPlanKeyframe)
+    : null;
 
   const getBatchShotEligibility = useCallback((shot: any, autoCompleteOverride = autoCompleteDetails) => {
     const shotId = shot?.id ? String(shot.id) : '';
@@ -1611,7 +1703,7 @@ export function VideoGenTab({
     }
   }, [currentShotData, currentShotId, currentVideoDirectorPlan, effectiveChapterId, effectiveNovelId, generateKeyframeImage, setShots, shotsList]);
 
-  const handleGenerateEndKeyframe = useCallback(async () => {
+  const handleGenerateEndKeyframe = useCallback(async (mode: 'llm' | 'image_only' = 'llm') => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId || !currentShotData) return;
     const endPlanKeyframe = (currentVideoDirectorPlan.keyframes || []).find((keyframe: any) => keyframe.role === 'END');
     const legacyKeyframes = currentShotData.keyframes || [];
@@ -1624,8 +1716,20 @@ export function VideoGenTab({
       return;
     }
 
+    if (mode === 'image_only' && !String(endPlanKeyframe?.prompt_text || legacyEndKeyframe?.prompt_text || '').trim()) {
+      toast.error('当前 END 关键帧没有可复用的 AI 生图提示词，请先使用 LLM+重新生成。');
+      return;
+    }
+
     try {
-      await generateKeyframeImage(effectiveNovelId, effectiveChapterId, currentShotId, Number(legacyEndKeyframe.frame_index));
+      await generateKeyframeImage(
+        effectiveNovelId,
+        effectiveChapterId,
+        currentShotId,
+        Number(legacyEndKeyframe.frame_index),
+        undefined,
+        { skipLlmWhenPromptExists: mode === 'image_only' }
+      );
       toast.success('已提交 END 关键帧生图任务');
     } catch (error) {
       console.error('生成 END 关键帧失败:', error);
@@ -1759,6 +1863,10 @@ export function VideoGenTab({
   const handleGenerateVideo = async (mode: 'llm' | 'video_only' = 'llm') => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
     if (mode === 'video_only' && !hasReusableVideoPrompt) return;
+    if (currentSelectedVideoMode === 'FIRST_LAST_FRAME' && !currentEndKeyframeImageUrl) {
+      toast.error('首尾帧模式需要先生成 END 关键帧图片。');
+      return;
+    }
     if (hasVideo && !window.confirm(t('chapterGenerate.videoExistsConfirmDelete'))) return;
     setShowGenerateVideoMenu(false);
 
@@ -1787,6 +1895,22 @@ export function VideoGenTab({
     }
     return null;
   }, [currentShotId, effectiveChapterId, effectiveNovelId, setShotVideos, setShots, shotsList]);
+
+  const handleRefreshAiCalls = useCallback(async () => {
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+    setIsRefreshingAiCalls(true);
+    try {
+      const refreshed = await refreshCurrentShotData();
+      if (refreshed) {
+        toast.success(t('chapterGenerate.aiCallResultsRefreshed'));
+      }
+    } catch (error) {
+      console.error('刷新 AI 调用结果失败:', error);
+      toast.error(t('chapterGenerate.refreshAiCallResultsFailed'));
+    } finally {
+      setIsRefreshingAiCalls(false);
+    }
+  }, [currentShotId, effectiveChapterId, effectiveNovelId, refreshCurrentShotData, t]);
 
   const handleCancelCurrentVideo = useCallback(async () => {
     if (!currentShotId || !currentShotData?.videoTaskId) {
@@ -1963,20 +2087,32 @@ export function VideoGenTab({
     setShowBatchSelectModal(true);
   };
 
-  // 切换分镜选择状态
-  const toggleShotSelection = (index: number) => {
+  const applyBatchShotSelection = (index: number, mode: 'select' | 'deselect') => {
     const shot = shotsList[index - 1];
     if (!getBatchShotEligibility(shot).selectable) return;
     setSelectedShots(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(index)) {
-        newSet.delete(index);
+      const next = new Set(prev);
+      if (mode === 'select') {
+        next.add(index);
       } else {
-        newSet.add(index);
+        next.delete(index);
       }
-      setBatchSelectionMode(null);
-      return newSet;
+      return next;
     });
+    setBatchSelectionMode(null);
+  };
+
+  const handleBatchShotMouseDown = (event: React.MouseEvent, index: number, isSelectable: boolean) => {
+    if (event.button !== 0 || !isSelectable) return;
+    event.preventDefault();
+    const mode = selectedShots.has(index) ? 'deselect' : 'select';
+    setDragSelectionMode(mode);
+    applyBatchShotSelection(index, mode);
+  };
+
+  const handleBatchShotMouseEnter = (index: number, isSelectable: boolean) => {
+    if (!dragSelectionMode || !isSelectable) return;
+    applyBatchShotSelection(index, dragSelectionMode);
   };
 
   // 全选/取消全选
@@ -2007,6 +2143,13 @@ export function VideoGenTab({
     setSelectedShots(new Set(pendingShots));
     setBatchSelectionMode('pending');
   };
+
+  useEffect(() => {
+    if (!dragSelectionMode) return;
+    const handleMouseUp = () => setDragSelectionMode(null);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, [dragSelectionMode]);
 
   const handleVideoMetadataLoaded = (event: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = event.currentTarget;
@@ -2775,6 +2918,8 @@ export function VideoGenTab({
           novelId={effectiveNovelId}
           chapterId={effectiveChapterId}
           shotId={currentShotId}
+          onRefresh={handleRefreshAiCalls}
+          isRefreshing={isRefreshingAiCalls}
         />
         </div>
 
@@ -2836,10 +2981,12 @@ export function VideoGenTab({
                   return (
                     <div
                       key={shot.id || `shot-${shotIndex}`}
-                      onClick={() => isSelectable && toggleShotSelection(shotIndex)}
+                      onMouseDown={(event) => handleBatchShotMouseDown(event, shotIndex, isSelectable)}
+                      onMouseEnter={() => handleBatchShotMouseEnter(shotIndex, isSelectable)}
                       title={isSelectable ? '可生成' : eligibility.reason}
                       className={`
                         relative aspect-video rounded-lg border-2 transition-all
+                        select-none
                         ${!isSelectable
                           ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
                           : 'cursor-pointer hover:shadow-md'

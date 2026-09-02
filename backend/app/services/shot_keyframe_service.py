@@ -58,6 +58,35 @@ class ShotKeyframeService:
                 shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
                 return
 
+    def _sync_video_director_keyframe_fields(self, shot: Shot, keyframe: dict, fields: dict) -> None:
+        plan_keyframe_index = keyframe.get("plan_keyframe_index")
+        if plan_keyframe_index is None or not shot.video_director_plan:
+            return
+        try:
+            plan = json.loads(shot.video_director_plan) if isinstance(shot.video_director_plan, str) else shot.video_director_plan
+        except Exception:
+            return
+        if not isinstance(plan, dict) or not isinstance(plan.get("keyframes"), list):
+            return
+        for plan_keyframe in plan["keyframes"]:
+            if isinstance(plan_keyframe, dict) and int(plan_keyframe.get("index") or -1) == int(plan_keyframe_index):
+                plan_keyframe.update(fields)
+                shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+                return
+
+    def _get_reusable_keyframe_prompt(self, db: Session, shot_id: str, frame_index: int, keyframe: dict) -> str:
+        prompt = keyframe.get("prompt_text")
+        if isinstance(prompt, str) and prompt.strip():
+            return prompt.strip()
+
+        latest_task = db.query(Task).filter(
+            Task.type == "keyframe_image",
+            Task.shot_id == shot_id,
+            Task.name == f"生成关键帧图片: {shot_id}-{frame_index}",
+            Task.prompt_text.isnot(None),
+        ).order_by(Task.created_at.desc()).first()
+        return (latest_task.prompt_text or "").strip() if latest_task else ""
+
     def _get_keyframe_image_prompt_template(self, db: Session, novel: Optional[Novel]) -> Optional[PromptTemplate]:
         template = None
         if novel and novel.keyframe_image_prompt_template_id:
@@ -368,7 +397,8 @@ class ShotKeyframeService:
         db: Session,
         shot_id: str,
         frame_index: int,
-        workflow_id: Optional[str] = None
+        workflow_id: Optional[str] = None,
+        skip_llm_when_prompt_exists: bool = False,
     ) -> Tuple[bool, Optional[str], str]:
         """生成关键帧图片
 
@@ -433,7 +463,7 @@ class ShotKeyframeService:
         async def run_background_task():
             db_bg = SessionLocal()
             try:
-                await self._generate_keyframe_image_task(db_bg, task.id, shot_id, frame_index, workflow_id)
+                await self._generate_keyframe_image_task(db_bg, task.id, shot_id, frame_index, workflow_id, skip_llm_when_prompt_exists)
             except Exception as e:
                 # 更新任务状态为失败
                 task_bg = db_bg.query(Task).filter(Task.id == task.id).first()
@@ -454,7 +484,8 @@ class ShotKeyframeService:
         task_id: str,
         shot_id: str,
         frame_index: int,
-        workflow_id: Optional[str] = None
+        workflow_id: Optional[str] = None,
+        skip_llm_when_prompt_exists: bool = False,
     ):
         """关键帧图片生成后台任务"""
         task = db.query(Task).filter(Task.id == task_id).first()
@@ -530,7 +561,19 @@ class ShotKeyframeService:
                 db.commit()
 
             # 先调用 #09 Prompt Builder，再用其输出提交 Qwen-Edit Workflow。
-            prompt = await self._build_qwen_keyframe_prompt(db, novel, shot, keyframe, previous_keyframe, task)
+            reusable_prompt = self._get_reusable_keyframe_prompt(db, shot_id, frame_index, keyframe) if skip_llm_when_prompt_exists else ""
+            if skip_llm_when_prompt_exists and not reusable_prompt:
+                raise ValueError("当前关键帧没有可复用的 AI 生图提示词，请先使用 LLM+重新生成。")
+            if reusable_prompt:
+                task.current_step = "复用已有关键帧生图提示词..."
+                prompt = reusable_prompt
+                db.commit()
+            else:
+                prompt = await self._build_qwen_keyframe_prompt(db, novel, shot, keyframe, previous_keyframe, task)
+            keyframe["prompt_text"] = prompt
+            self._sync_video_director_keyframe_fields(shot, keyframe, {"prompt_text": prompt})
+            shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
+            db.commit()
 
             # 解析工作流 JSON
             workflow_data = json.loads(workflow.workflow_json) if isinstance(workflow.workflow_json, str) else workflow.workflow_json

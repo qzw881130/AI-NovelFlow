@@ -39,7 +39,7 @@ NovelFlow is an AI platform that automatically converts novels into videos.
 8. **Edit Chapter / AI Split Shots** - Edit chapter content, AI automatically splits into shots
 9. **Generate Shot Images** - Generate scene images based on shot descriptions
 10. **Generate Audio** - Generate voiceover/sound effects for shots (optional)
-11. **Generate Video** - Generate shot videos, transition videos and merge into complete video
+11. **Generate Video** - Use Video Director to generate single-frame, first-last-frame, or multi-keyframe shot videos, then merge them into a complete video
 
 **Key Features:**
 - Support for chapter-style novel parsing
@@ -72,7 +72,7 @@ NovelFlow is an AI platform that automatically converts novels into videos.
 - **State Management**: Zustand (global state + i18n/timezone state)
 - **Backend**: FastAPI + SQLAlchemy + SQLite
 - **AI**: DeepSeek API / OpenAI API / Gemini API + ComfyUI
-- **Video Generation**: LTX-2 video generation model
+- **Video Generation**: MiniMax H3 image-to-video, first-last-frame video, and multi-keyframe video
 - **i18n**: Custom i18n implementation (5 languages supported)
 
 ## Main Features
@@ -80,9 +80,9 @@ NovelFlow is an AI platform that automatically converts novels into videos.
 - **Novel Management**: Support creating, editing, deleting novels, automatic chapter parsing
 - **Character Library**: AI auto-parse characters, support character image generation and consistency
 - **Scene Library**: AI auto-parse scenes, support scene reference image generation and environment settings
-- **Shot Generation**: AI auto-split chapters into shots, support batch image and video generation
-- **Transition Videos**: Support camera transitions, lighting transitions, occlusion transitions
-- **Video Composition**: Support merging shot videos into complete chapter videos, auto-insert transitions
+- **Shot Generation**: AI auto-split chapters into shots, with batch image generation, structured editing, and state recovery
+- **Video Director**: Supports single-frame, first-last-frame, three-keyframe, and four-keyframe video planning, while preserving AI call logs and final prompts
+- **Video Composition**: Merge shot videos and multi-clip outputs into a complete chapter video
 - **Workflow Management**: Support custom ComfyUI workflows, node mapping configuration
 - **Task Queue**: Background async task processing, real-time task status monitoring
 - **Preset Test Cases**: Built-in test cases like "The Little Horse Crosses the River", "Little Red Riding Hood", "The Emperor's New Clothes"
@@ -105,8 +105,8 @@ AI-NovelFlow/
 │   ├── migrations/      # Database Migration Scripts
 │   ├── prompt_templates/ # Prompt Template Files
 │   ├── workflows/       # ComfyUI Workflow Configs
-│   ├── user_story/      # Generated images/videos storage
 │   ├── user_workflows/  # User Custom Workflows
+│   ├── user_story/      # Generated images/videos storage
 │   └── main.py
 ├── frontend/            # React Frontend
 │   └── my-app/
@@ -121,6 +121,7 @@ AI-NovelFlow/
 │   ├── gpu_monitor.py   # GPU Monitor Service
 │   ├── requirements.txt # Dependencies
 │   └── start.bat        # Windows Startup Script
+├── debug/workflows/     # Debug workflow samples, not loaded as system defaults
 └── README.md
 ```
 
@@ -170,8 +171,12 @@ Set API Key and proxy (if needed) in the [System Settings] page.
   - Character Generation: Prompt node + Image save node
   - Scene Generation: Prompt node + Image save node + Width/Height node
   - Shot Image: Prompt node + Image save node + Width/Height node
-  - Shot Video: Prompt node + Video save node + Reference image node
-  - Transition Video: First frame node + Last frame node + Video save node
+  - Single-frame Video: Prompt node + Video save node + Reference image node + Duration node
+  - First-last-frame Video: Prompt node + First image node + Last image node + Video save node + Duration node
+  - Three/Four-keyframe Video: Prompt node + Start reference node + Keyframe nodes + Video save node + Duration node
+  - Keyframe Image: Prompt node + Image save node + Reference image node
+
+System workflows are stored in `backend/workflows/` and registered through `backend/app/constants/workflow.py`. User-uploaded workflows are stored in `backend/user_workflows/`. `debug/workflows/MiniMax H3/` is only for debugging and workflow comparison; it is not loaded as system defaults.
 
 #### 2.1 Model Files
 
@@ -179,24 +184,29 @@ Directory is based on `ComfyUI/models/...`; if you use ComfyUI-Manager, it gener
 
 | Model Filename | Type | Main Purpose | Workflows Used | Recommended Directory |
 |---------------|------|-------------|----------------|---------------------|
-| `ltx-2-19b-dev-fp8.safetensors` | checkpoint / main model | LTX2 transition (occlusion/lighting/camera) video generation | LTX2 Occlusion Transition / Lighting Transition / Camera Transition | `models/checkpoints/` |
-| `ltx-2-19b-distilled-fp8.safetensors` | checkpoint / main model | LTX2 video generation (direct/expanded) | LTX2 Video Generation - Direct / Expanded | `models/checkpoints/` |
-| `gemma_3_12B_it_fp8_e4m3fn.safetensors` | text encoder (LTX text encoder) | LTX2 text encoding | All LTX2 workflows (transition/video generation) | `models/text_encoders/` |
-| `ltx-2-19b-distilled-lora-384.safetensors` | LoRA | LTX2 distilled LoRA (enhance/match distillation process) | Mainly in transition workflows | `models/loras/` |
-| `ltx-2-19b-lora-camera-control-dolly-left.safetensors` | LoRA | LTX2 camera control (dolly-left) | Mainly in transition workflows | `models/loras/` |
-| `ltx-2-spatial-upscaler-x2-1.0.safetensors` | upscale model (latent upscaler) | LTX2 latent spatial upscale x2 | Mainly in transition workflows | `models/upscale_models/` |
+| `minimax_h3_ref2va_bf16.safetensors` | diffusion model | MiniMax H3 reference-to-video model | Single-frame, first-last-frame, three-keyframe, and four-keyframe video workflows | `models/diffusion_models/` |
+| `qwen3vl_32b_minimax_h3_int8_convrot.safetensors` | text encoder | MiniMax H3 text/vision encoding | MiniMax H3 video workflows | `models/text_encoders/` |
+| `minimax_h3_video_vae_fp16.safetensors` | video VAE | MiniMax H3 video VAE | MiniMax H3 video workflows | `models/vae/` |
+| `minimax_h3_audio_vae_fp32.safetensors` | audio VAE | MiniMax H3 audio VAE | MiniMax H3 video workflows | `models/vae/` |
+| `minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors` | LoRA | MiniMax H3 acceleration LoRA | MiniMax H3 fast workflows | `models/loras/` |
 | `ae.safetensors` | VAE / AE | Used as VAE/AE in Z-image-turbo and some default character workflows | Z-image-turbo Single Image / System Default - Character | `models/vae/` |
-| `flux-2-klein-9b.safetensors` | UNet | Flux2-Klein shot image generation UNet | Flux2-Klein-9B Shot Image / System Default - Character | `models/unet/` |
-| `flux2-vae.safetensors` | VAE | Flux2 VAE | Flux2-Klein-9B Shot Image / System Default - Character | `models/vae/` |
-| `qwen_3_8b.safetensors` | text encoder | Flux2 text encoding | Flux2-Klein-9B Shot Image / System Default - Character | `models/clip/` |
+| `flux-2-klein-9b.safetensors` | UNet | Flux2-Klein image edit and shot image generation | Shot image, keyframe image, default character workflows | `models/unet/` |
+| `flux2-vae.safetensors` | VAE | Flux2 VAE | Flux2-Klein image edit and shot image workflows | `models/vae/` |
+| `qwen_3_8b.safetensors` / `qwen_3_8b_fp8mixed.safetensors` | text encoder | Flux2 text encoding | Flux2-Klein image edit and shot image workflows | `models/clip/` |
+| `qwen_image_edit_2511_fp8mixed.safetensors` | diffusion model | Qwen-Edit-2511 image editing | Qwen-Edit-2511 shot reference workflows | `models/diffusion_models/` |
+| `Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors` | LoRA | Qwen-Edit-2511 4-step acceleration | Qwen-Edit-2511 shot reference workflows | `models/loras/` |
+| `qwen_image_vae.safetensors` | VAE | Qwen Image VAE | Qwen-Edit-2511 shot reference workflows | `models/vae/` |
+| `qwen_2.5_vl_7b_fp8_scaled.safetensors` | text encoder | Qwen-Edit-2511 text/vision encoding | Qwen-Edit-2511 shot reference workflows | `models/clip/` |
 | `z_image_turbo_bf16.safetensors` | UNet | Z-image-turbo single image generation UNet | Z-image-turbo Single Image / System Default - Character | `models/unet/` |
 | `qwen_3_4b.safetensors` | text encoder | Z-image-turbo text encoding | Z-image-turbo Single Image / System Default - Character | `models/clip/` |
+| `Qwen3.8-27B-Q4_K_M.gguf` / `mmproj-F16.gguf` | LLM / projector | Local LLM prompt expansion in debug workflows | `debug/workflows/MiniMax H3/` LLM debug workflows | `models/LLM/` |
 
 #### 2.2 Third-Party Node Packages
 
 | Third-Party Node Package | GitHub Repository | Node class_type in Workflows |
 |-------------------------|------------------|------------------------------|
-| **LTXVideo / LTXV** | [Lightricks/ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo) | `LTXAVTextEncoderLoader`, `LTXVScheduler`, `LTXV*`, `LTXAV*`, `Painter*` |
+| **MiniMax H3** | ComfyUI MiniMax H3 nodes | `MiniMaxH3ReferenceToVideo`, `MiniMaxH3SigmaShift`, `MiniMaxH3MemoryEfficientSageAttentionPatch`, `MiniMaxH3PromptEnhancerT8` |
+| **Flux2 / Qwen Image Edit** | Flux2 and Qwen-Edit ComfyUI nodes | `Flux2Scheduler`, `EmptyFlux2LatentImage`, `TextEncodeQwenImageEditPlusAdvance_lrzjason` |
 | **VideoHelperSuite / VHS** | [Kosinkadink/ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) | `VHS_VideoCombine` |
 | **Easy-Use** | [yolain/ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) | `easy int`, `easy cleanGpuUsed`, `easy showAnything` |
 | **LayerStyle / LayerUtility** | [chflame163/ComfyUI_LayerStyle](https://github.com/chflame163/ComfyUI_LayerStyle) | `LayerUtility: ImageScaleByAspectRatio V2` |
@@ -271,7 +281,9 @@ Configure in [System Settings] → [Language & Timezone] page.
 - [x] Preset Test Cases
 - [x] Multi-language Support (CN/EN/JP/KR/TW)
 - [x] Timezone Support
-- [x] Video Composition (support shot video merging, transition insertion)
+- [x] Video Director (single-frame, first-last-frame, three/four-keyframe, multi-clip serial generation)
+- [x] Persistent batch shot image queue (service restart recovery and batch cancellation)
+- [x] Video Composition (shot video and multi-clip merging)
 
 ## Usage Instructions
 
@@ -295,15 +307,18 @@ Configure in [System Settings] → [Language & Timezone] page.
 - Enter [Chapter Edit] page to edit chapter content, supports incremental parsing of characters, scenes and props during editing
 
 ### 5. Generate Shot Images
-- Click [Generate All Shot Images]
+- Click [Generate All Shot Images] to create a persistent batch task
+- You can select only missing shots, or reuse existing AI prompts to skip LLM calls
 
 ### 6. Generate Audio (Optional)
 - Click [Generate All Audio] to generate voiceover/sound effects for shots
 
 ### 7. Generate Video
-- Click [Generate All Shot Videos] to generate shot videos
-- Click [Generate All Transition Videos] to generate transition videos (optional)
-- Click [Merge Video] to combine all clips into complete video
+- Use Video Director in [Video Generation] to plan the video mode
+- Single-frame mode reuses the primary storyboard image
+- First-last-frame mode reuses the primary storyboard as START and requires generating the END keyframe first
+- Multi-keyframe mode splits execution windows by max clip duration; each clip uses 3 or 4 keyframes and runs serially
+- Click [Merge Video] to combine all clips into a complete video
 
 ## Contributing
 

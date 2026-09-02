@@ -38,7 +38,7 @@ NovelFlow는 소설을 자동으로 동영상으로 변환하는 AI 플랫폼입
 8. **장 편집 / AI 샷 분할** - 장 내용 편집, AI가 자동으로 샷으로 분할
 9. **샷 이미지 생성** - 샷 설명에 따라 장면 이미지 생성
 10. **오디오 생성** - 샷의 내레이션/효과음 생성 (선택사항)
-11. **동영상 생성** - 샷 동영상, 전환 동영상 생성 및 완전한 동영상으로 합성
+11. **동영상 생성** - Video Director로 단일 프레임, 시작/끝 프레임 또는 다중 키프레임 샷 동영상을 생성하고 완전한 동영상으로 합성
 
 **주요 특징:**
 - 장회체 소설 파싱 지원
@@ -71,7 +71,7 @@ NovelFlow는 소설을 자동으로 동영상으로 변환하는 AI 플랫폼입
 - **상태 관리**: Zustand (전역 상태 + 국제화/타임존 상태)
 - **백엔드**: FastAPI + SQLAlchemy + SQLite
 - **AI**: DeepSeek API / OpenAI API / Gemini API + ComfyUI
-- **동영상 생성**: LTX-2 동영상 생성 모델
+- **동영상 생성**: MiniMax H3 이미지-동영상, 시작/끝 프레임 동영상, 다중 키프레임 동영상
 - **국제화**: 커스텀 i18n 구현 (5개 언어 지원)
 
 ## 주요 기능
@@ -79,9 +79,9 @@ NovelFlow는 소설을 자동으로 동영상으로 변환하는 AI 플랫폼입
 - **소설 관리**: 신규 생성, 편집, 삭제 지원, 자동 장회체 파싱
 - **캐릭터 도감**: AI 자동 캐릭터 파싱, 캐릭터 이미지 생성 및 일관성 유지
 - **장면 도감**: AI 자동 장면 파싱, 장면 참조 이미지 생성 및 환경 설정 지원
-- **샷 생성**: AI 자동 장 분할, 일괄 이미지 및 동영상 생성 지원
-- **전환 동영상**: 칵메라 전환, 라이팅 전환, 오클루전 전환 지원
-- **동영상 합성**: 샷 동영상을 장 동영상으로 합성, 자동 전환 삽입
+- **샷 생성**: AI 자동 장 분할, 일괄 이미지 생성, 구조화 편집, 상태 복구 지원
+- **Video Director**: 단일 프레임, 시작/끝 프레임, 3키프레임, 4키프레임 동영상 계획을 지원하고 AI 호출 결과와 최종 Prompt를 보존
+- **동영상 합성**: 샷 동영상과 다중 Clip 출력을 완전한 장 동영상으로 합성
 - **워크플로우 관리**: 커스텀 ComfyUI 워크플로우, 노드 매핑 설정
 - **작업 큐**: 백그라운드 비동기 작업 처리, 실시간 작업 모니터링
 - **프리셋 테스트 케이스**: 「어린 말의 강 걷기」「빨간 모자」「벌거벗은 임금님」등 테스트 케이스 내장
@@ -104,8 +104,8 @@ AI-NovelFlow/
 │   ├── migrations/      # 데이터베이스 마이그레이션 스크립트
 │   ├── prompt_templates/ # 프롬프트 템플릿 파일
 │   ├── workflows/       # ComfyUI 워크플로우 설정
-│   ├── user_story/      # 생성된 이미지/동영상 저장 디렉토리
 │   ├── user_workflows/  # 사용자 커스텀 워크플로우
+│   ├── user_story/      # 생성된 이미지/동영상 저장 디렉토리
 │   └── main.py
 ├── frontend/            # React 프론트엔드
 │   └── my-app/
@@ -120,6 +120,7 @@ AI-NovelFlow/
 │   ├── gpu_monitor.py   # GPU 모니터링 서비스
 │   ├── requirements.txt # 의존성
 │   └── start.bat        # Windows 시작 스크립트
+├── debug/workflows/     # 디버그용 워크플로우 예시, 시스템 기본값으로 로드하지 않음
 └── README.md
 ```
 
@@ -169,8 +170,12 @@ npm run dev
   - 캐릭터 생성: 프롬프트 노드 + 이미지 저장 노드
   - 장면 생성: 프롬프트 노드 + 이미지 저장 노드 + 너비/높이 노드
   - 샷 이미지: 프롬프트 노드 + 이미지 저장 노드 + 너비/높이 노드
-  - 샷 동영상: 프롬프트 노드 + 동영상 저장 노드 + 참조 이미지 노드
-  - 전환 동영상: 첫 프레임 노드 + 마지막 프레임 노드 + 동영상 저장 노드
+  - 단일 프레임 동영상: 프롬프트 노드 + 동영상 저장 노드 + 참조 이미지 노드 + 길이 노드
+  - 시작/끝 프레임 동영상: 프롬프트 노드 + 첫 이미지 노드 + 마지막 이미지 노드 + 동영상 저장 노드 + 길이 노드
+  - 3/4키프레임 동영상: 프롬프트 노드 + 시작 참조 노드 + 키프레임 노드 + 동영상 저장 노드 + 길이 노드
+  - 키프레임 이미지: 프롬프트 노드 + 이미지 저장 노드 + 참조 이미지 노드
+
+시스템 워크플로우는 `backend/workflows/`에 저장되며 `backend/app/constants/workflow.py`에서 등록하고 기본값을 선택합니다. 사용자가 업로드한 워크플로우는 `backend/user_workflows/`에 저장됩니다. `debug/workflows/MiniMax H3/`는 디버그와 워크플로우 비교 전용이며 시스템 기본 워크플로우로 로드되지 않습니다.
 
 #### 2.1 모델 파일
 
@@ -178,24 +183,29 @@ npm run dev
 
 | 모델 파일명 | 타입 | 주요 용도 | 사용되는 워크플로우 | 권장 디렉토리 |
 |-----------|------|---------|------------------|-------------|
-| `ltx-2-19b-dev-fp8.safetensors` | checkpoint / 메인 모델 | LTX2 전환(가림/조명/카메라) 동영상 생성 | LTX2 가림 전환 / 조명 전환 / 카메라 전환 | `models/checkpoints/` |
-| `ltx-2-19b-distilled-fp8.safetensors` | checkpoint / 메인 모델 | LTX2 동영상 생성(직접/확장) | LTX2 동영상 생성-직접 / 확장 | `models/checkpoints/` |
-| `gemma_3_12B_it_fp8_e4m3fn.safetensors` | text encoder (LTX 텍스트 인코더) | LTX2 텍스트 인코딩 | 모든 LTX2 워크플로우(전환/동영상 생성) | `models/text_encoders/` |
-| `ltx-2-19b-distilled-lora-384.safetensors` | LoRA | LTX2 증류 LoRA(향상/증류 프로세스 매칭) | 주로 전환 워크플로우 | `models/loras/` |
-| `ltx-2-19b-lora-camera-control-dolly-left.safetensors` | LoRA | LTX2 카메라 제어 (dolly-left) | 주로 전환 워크플로우 | `models/loras/` |
-| `ltx-2-spatial-upscaler-x2-1.0.safetensors` | upscale model (latent upscaler) | LTX2 latent 공간 업스케일 x2 | 주로 전환 워크플로우 | `models/upscale_models/` |
+| `minimax_h3_ref2va_bf16.safetensors` | diffusion model | MiniMax H3 참조 이미지-동영상 메인 모델 | 단일 프레임, 시작/끝 프레임, 3키프레임, 4키프레임 동영상 워크플로우 | `models/diffusion_models/` |
+| `qwen3vl_32b_minimax_h3_int8_convrot.safetensors` | text encoder | MiniMax H3 텍스트/비전 인코딩 | MiniMax H3 동영상 워크플로우 | `models/text_encoders/` |
+| `minimax_h3_video_vae_fp16.safetensors` | video VAE | MiniMax H3 동영상 VAE | MiniMax H3 동영상 워크플로우 | `models/vae/` |
+| `minimax_h3_audio_vae_fp32.safetensors` | audio VAE | MiniMax H3 오디오 VAE | MiniMax H3 동영상 워크플로우 | `models/vae/` |
+| `minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors` | LoRA | MiniMax H3 가속 LoRA | MiniMax H3 가속 워크플로우 | `models/loras/` |
 | `ae.safetensors` | VAE / AE | Z-image-turbo 및 일부 기본 캐릭터 워크플로우에서 VAE/AE로 사용 | Z-image-turbo 단일 생성 / 시스템 기본-캐릭터 생성 | `models/vae/` |
-| `flux-2-klein-9b.safetensors` | UNet | Flux2-Klein 샷 이미지 생성 UNet | Flux2-Klein-9B 샷 이미지 / 시스템 기본-캐릭터 생성 | `models/unet/` |
-| `flux2-vae.safetensors` | VAE | Flux2의 VAE | Flux2-Klein-9B 샷 이미지 / 시스템 기본-캐릭터 생성 | `models/vae/` |
-| `qwen_3_8b.safetensors` | text encoder | Flux2 텍스트 인코딩 | Flux2-Klein-9B 샷 이미지 / 시스템 기본-캐릭터 생성 | `models/clip/` |
+| `flux-2-klein-9b.safetensors` | UNet | Flux2-Klein 이미지 편집/샷 이미지 생성 | 샷 이미지, 키프레임 이미지, 기본 캐릭터 워크플로우 | `models/unet/` |
+| `flux2-vae.safetensors` | VAE | Flux2 VAE | Flux2-Klein 이미지 편집/샷 이미지 워크플로우 | `models/vae/` |
+| `qwen_3_8b.safetensors` / `qwen_3_8b_fp8mixed.safetensors` | text encoder | Flux2 텍스트 인코딩 | Flux2-Klein 이미지 편집/샷 이미지 워크플로우 | `models/clip/` |
+| `qwen_image_edit_2511_fp8mixed.safetensors` | diffusion model | Qwen-Edit-2511 이미지 편집 | Qwen-Edit-2511 샷 참조 워크플로우 | `models/diffusion_models/` |
+| `Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors` | LoRA | Qwen-Edit-2511 4단계 가속 | Qwen-Edit-2511 샷 참조 워크플로우 | `models/loras/` |
+| `qwen_image_vae.safetensors` | VAE | Qwen Image VAE | Qwen-Edit-2511 샷 참조 워크플로우 | `models/vae/` |
+| `qwen_2.5_vl_7b_fp8_scaled.safetensors` | text encoder | Qwen-Edit-2511 텍스트/비전 인코딩 | Qwen-Edit-2511 샷 참조 워크플로우 | `models/clip/` |
 | `z_image_turbo_bf16.safetensors` | UNet | Z-image-turbo 단일 생성 UNet | Z-image-turbo 단일 생성 / 시스템 기본-캐릭터 생성 | `models/unet/` |
 | `qwen_3_4b.safetensors` | text encoder | Z-image-turbo 텍스트 인코딩 | Z-image-turbo 단일 생성 / 시스템 기본-캐릭터 생성 | `models/clip/` |
+| `Qwen3.8-27B-Q4_K_M.gguf` / `mmproj-F16.gguf` | LLM / projector | 디버그 워크플로우의 로컬 LLM Prompt 확장 | `debug/workflows/MiniMax H3/` LLM 디버그 워크플로우 | `models/LLM/` |
 
 #### 2.2 서드파티 노드 패키지
 
 | 서드파티 노드 패키지 | GitHub 저장소 | 워크플로우의 노드 class_type |
 |-------------------|--------------|---------------------------|
-| **LTXVideo / LTXV** | [Lightricks/ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo) | `LTXAVTextEncoderLoader`, `LTXVScheduler`, `LTXV*`, `LTXAV*`, `Painter*` |
+| **MiniMax H3** | ComfyUI MiniMax H3 노드 | `MiniMaxH3ReferenceToVideo`, `MiniMaxH3SigmaShift`, `MiniMaxH3MemoryEfficientSageAttentionPatch`, `MiniMaxH3PromptEnhancerT8` |
+| **Flux2 / Qwen Image Edit** | Flux2, Qwen-Edit 대응 ComfyUI 노드 | `Flux2Scheduler`, `EmptyFlux2LatentImage`, `TextEncodeQwenImageEditPlusAdvance_lrzjason` |
 | **VideoHelperSuite / VHS** | [Kosinkadink/ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) | `VHS_VideoCombine` |
 | **Easy-Use** | [yolain/ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) | `easy int`, `easy cleanGpuUsed`, `easy showAnything` |
 | **LayerStyle / LayerUtility** | [chflame163/ComfyUI_LayerStyle](https://github.com/chflame163/ComfyUI_LayerStyle) | `LayerUtility: ImageScaleByAspectRatio V2` |
@@ -270,7 +280,9 @@ start.bat
 - [x] 프리셋 테스트 케이스
 - [x] 다국어 지원 (중/영/일/한/번체)
 - [x] 타임존 지원
-- [x] 동영상 합성 기능 (샷 동영상 병합, 전환 삽입 지원)
+- [x] Video Director (단일 프레임, 시작/끝 프레임, 3/4키프레임, 다중 Clip 순차 생성)
+- [x] 영속화된 샷 이미지 일괄 큐 (서비스 재시작 복구 및 일괄 취소 지원)
+- [x] 동영상 합성 기능 (샷 동영상, 다중 Clip 병합 지원)
 
 ## 사용 설명
 
@@ -294,14 +306,17 @@ start.bat
 - 【장 편집】페이지로 들어가 장 내용 편집; 편집 중 캐릭터, 장면, 소품의 증분 파싱 지원
 
 ### 5. 샷 이미지 생성
-- 【모든 샷 이미지 생성】을 클릭
+- 【모든 샷 이미지 생성】을 클릭해 영속화된 일괄 작업 생성
+- 미생성 샷만 선택하거나 기존 AI Prompt를 재사용해 LLM 호출을 건너뛸 수 있음
 
 ### 6. 오디오 생성 (선택사항)
 - 【모든 오디오 생성】을 클릭하여 샷의 내레이션/효과음 생성
 
 ### 7. 동영상 생성
-- 【모든 샷 동영상 생성】을 클릭하여 샷 동영상 생성
-- 【모든 전환 동영상 생성】을 클릭하여 전환 동영상 생성 (선택사항)
+- 【동영상 생성】에서 Video Director로 동영상 모드를 계획
+- 단일 프레임 모드는 기본 스토리보드 이미지를 재사용
+- 시작/끝 프레임 모드는 기본 스토리보드를 START로 재사용하고 먼저 END 키프레임 이미지를 생성
+- 다중 키프레임 모드는 최대 Clip 길이에 따라 execution windows를 나누며 각 Clip은 3개 또는 4개 키프레임으로 순차 생성
 - 【동영상 병합】을 클릭하여 모든 클립을 완전한 동영상으로 합성
 
 ## 기여하기

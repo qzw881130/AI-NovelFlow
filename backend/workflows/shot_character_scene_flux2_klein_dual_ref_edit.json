@@ -1,0 +1,379 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "Flux2-Klein",
+      "images": [
+        "101",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "#9 Save Image"
+    }
+  },
+  "76": {
+    "inputs": {
+      "image": "合并角色图 (1).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#76 Load Image 1（主图/参考图1）"
+    }
+  },
+  "99": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "#99 KSamplerSelect"
+    }
+  },
+  "100": {
+    "inputs": {
+      "noise": [
+        "102",
+        0
+      ],
+      "guider": [
+        "108",
+        0
+      ],
+      "sampler": [
+        "99",
+        0
+      ],
+      "sigmas": [
+        "109",
+        0
+      ],
+      "latent_image": [
+        "106",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#100 SamplerCustomAdvanced"
+    }
+  },
+  "101": {
+    "inputs": {
+      "samples": [
+        "100",
+        0
+      ],
+      "vae": [
+        "105",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#101 VAE Decode"
+    }
+  },
+  "102": {
+    "inputs": {
+      "noise_seed": 383378936891400
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#102 RandomNoise"
+    }
+  },
+  "103": {
+    "inputs": {
+      "unet_name": "flux-2-klein-9b.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#103 Load Diffusion Model"
+    }
+  },
+  "104": {
+    "inputs": {
+      "clip_name": "qwen_3_8b.safetensors",
+      "type": "flux2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#104 Load CLIP"
+    }
+  },
+  "105": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#105 Load VAE"
+    }
+  },
+  "106": {
+    "inputs": {
+      "width": [
+        "123",
+        0
+      ],
+      "height": [
+        "125",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "#106 Empty Flux 2 Latent"
+    }
+  },
+  "107": {
+    "inputs": {
+      "upscale_method": "bicubic",
+      "megapixels": 1,
+      "resolution_steps": 1,
+      "image": [
+        "76",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "#107 Scale Image to Total Pixels"
+    }
+  },
+  "108": {
+    "inputs": {
+      "cfg": 1,
+      "model": [
+        "103",
+        0
+      ],
+      "positive": [
+        "130",
+        0
+      ],
+      "negative": [
+        "131",
+        0
+      ]
+    },
+    "class_type": "CFGGuider",
+    "_meta": {
+      "title": "#108 CFG Guider"
+    }
+  },
+  "109": {
+    "inputs": {
+      "steps": 8,
+      "width": [
+        "123",
+        0
+      ],
+      "height": [
+        "125",
+        0
+      ]
+    },
+    "class_type": "Flux2Scheduler",
+    "_meta": {
+      "title": "#109 Flux2Scheduler"
+    }
+  },
+  "110": {
+    "inputs": {
+      "text": [
+        "117",
+        0
+      ],
+      "clip": [
+        "104",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "#110 CLIP Text Encode (Prompt)"
+    }
+  },
+  "111": {
+    "inputs": {
+      "conditioning": [
+        "110",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "#111 Conditioning Zero Out"
+    }
+  },
+  "114": {
+    "inputs": {
+      "conditioning": [
+        "111",
+        0
+      ],
+      "latent": [
+        "115",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "#114 Set Reference Latent"
+    }
+  },
+  "115": {
+    "inputs": {
+      "pixels": [
+        "107",
+        0
+      ],
+      "vae": [
+        "105",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "#115 VAE Encode"
+    }
+  },
+  "116": {
+    "inputs": {
+      "conditioning": [
+        "110",
+        0
+      ],
+      "latent": [
+        "115",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "#116 Set Reference Latent"
+    }
+  },
+  "117": {
+    "inputs": {
+      "text": "<Picture 1> 是当前 Shot 的角色合并参考图，其中包含小马、母马的正式身份与稳定外观参考。请分别保持小马、母马各自对应的面部特征、毛色、体型比例、鬃毛质感、年龄感和可爱 Q 版造型，不要交换身份。该合并图只用于角色外观与身份锁定，不得照搬其中的展示站位、合成排版、姿态或背景构图。\n<Picture 2> 是当前 Shot 中“草原与农场”的正式场景参考图，只用于环境结构、农场院子草地、草原地貌、远处树林与小河、清晨光线和总体空间氛围的参考；不要从该场景参考图中引入人物、其他动物或额外剧情道具。\n\n请在此基础上生成一张明亮的静态彩色主分镜插画：\n\n清晨，柔和温暖的阳光斜照在一片开阔的草原牧场上。近处是农场院子范围内的草地，小马与母马站在这片草地中央偏左偏右并排的位置；远景是起伏的草原、疏朗树林和一条平静小河，背景天际线保持开阔通透，整体环境以 <Picture 2> 的草原农场空间与清晨光影为基准。\n\n画面中只出现“小马”和“母马”两个可见角色，不允许出现第三人、其他动物、剪影背影、远景人影或任何无名字的旁观生命。\n\n小马是全身棕色的 Q 版幼马，体型圆润、四肢短而有力、鬃毛蓬松，位于画面中央偏左的位置，体态正对镜头并稍微朝向右前方，头部小角度转向画面右前方，圆亮的眼睛好奇地望向远处树林与小河方向；母马是浅棕毛色、体型明显更大的成年 Q 版马，站在小马右侧并排，身体略侧向画面左前方，脖颈自然向下弯低，头部低到接近小马身高的高度，目光温柔地落在小马身上。\n\n请保持 <Picture 1> 中两个角色的身份差异：小马为棕色幼马，毛发带着小马的轻盈蓬松感；母马为浅棕色成马，轮廓更稳重、体量更大；两者不得共用或交换毛色、鬃毛、脸型与造型细节。\n\n两匹马都处于安静的静态站立瞬间：四蹄着地，身体稳定并排，小马好奇地张望前方，母马低头注视小马；整体只允许表现风吹过草地、鬃毛与草叶轻微飘动的单帧效果，不可出现奔跑、跳跃、甩尾、转身、镜头拉远、马匹移动或连续动作过程。由于没有任何台词，两匹马都保持自然安静的口鼻状态，不表现为张嘴说话或夸张叫喊。\n\n整体风格为 chibi style、cute cartoon style、kawaii、colorful style，明亮、温暖、色彩丰富，画面干净清透，角色轮廓圆润可爱，草地与远景有柔和层次和景深，毛发、草叶和清晨光感都要细致刻画，最终成品须为高质量、细节丰富、完整无裁切的可爱风格全幅插画。\n\n禁止出现任何文字、字幕、logo、水印、对话框、UI、边框、参考排版、白边拼贴或角色设定图结构；禁止给两匹马添加缰绳、鞍具、水桶、草料堆等额外剧情道具；画面中不得出现人类，也不得出现鸟、狗、牛、人影、模糊轮廓或远处动物；不要保留参考图里可能存在的展示台、摆放层或注释元素。"
+    },
+    "class_type": "CR Text",
+    "_meta": {
+      "title": "#117 🔤 CR Text"
+    }
+  },
+  "123": {
+    "inputs": {
+      "value": [
+        "126",
+        0
+      ]
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#123 Width"
+    }
+  },
+  "125": {
+    "inputs": {
+      "value": [
+        "126",
+        1
+      ]
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#125 Height"
+    }
+  },
+  "126": {
+    "inputs": {
+      "image": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "#126 #-1 Get Image Size"
+    }
+  },
+  "127": {
+    "inputs": {
+      "image": "场景图.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#127 Load Image 2（参考图2）"
+    }
+  },
+  "128": {
+    "inputs": {
+      "upscale_method": "bicubic",
+      "megapixels": 1,
+      "resolution_steps": 1,
+      "image": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "#128 Scale Reference Image 2"
+    }
+  },
+  "129": {
+    "inputs": {
+      "pixels": [
+        "128",
+        0
+      ],
+      "vae": [
+        "105",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "#129 VAE Encode Reference 2"
+    }
+  },
+  "130": {
+    "inputs": {
+      "conditioning": [
+        "116",
+        0
+      ],
+      "latent": [
+        "129",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "#130 Set Positive Reference 2"
+    }
+  },
+  "131": {
+    "inputs": {
+      "conditioning": [
+        "114",
+        0
+      ],
+      "latent": [
+        "129",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "#131 Set Negative Reference 2"
+    }
+  }
+}

@@ -80,7 +80,7 @@ export interface GenerationSlice extends GenerationSliceState {
 
   // ========== 关键帧生成 ==========
   generateKeyframeDescriptions: (novelId: string, chapterId: string, shotId: string, count?: number) => Promise<void>;
-  generateKeyframeImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, workflowId?: string) => Promise<void>;
+  generateKeyframeImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, workflowId?: string, options?: { skipLlmWhenPromptExists?: boolean }) => Promise<void>;
   uploadKeyframeImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, file: File) => Promise<void>;
   uploadKeyframeReferenceImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, file: File) => Promise<void>;
   setKeyframeReferenceImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, mode: 'auto_select' | 'custom' | 'none', referenceUrl?: string) => Promise<void>;
@@ -1314,14 +1314,16 @@ export const createGenerationSlice: StateCreator<
     }
   },
 
-  generateKeyframeImage: async (novelId, chapterId, shotId, frameIndex, workflowId) => {
+  generateKeyframeImage: async (novelId, chapterId, shotId, frameIndex, workflowId, options) => {
     const keyframeKey = `${shotId}-${frameIndex}`;
     set(state => ({
       generatingKeyframes: new Set([...state.generatingKeyframes, keyframeKey])
     }));
 
     try {
-      const result = await shotsApi.generateKeyframeImage(novelId, chapterId, shotId, frameIndex, workflowId);
+      const result = await shotsApi.generateKeyframeImage(novelId, chapterId, shotId, frameIndex, workflowId, {
+        skip_llm_when_prompt_exists: options?.skipLlmWhenPromptExists ?? false,
+      });
 
       if (result.success && result.data?.task_id) {
         // 添加到 keyframeTasks
@@ -1349,7 +1351,7 @@ export const createGenerationSlice: StateCreator<
         });
         set({ shots: updatedShots });
       } else {
-        throw new Error(result.message || '生成关键帧图片失败');
+        throw new Error(result.message || result.detail || '生成关键帧图片失败');
       }
     } catch (error) {
       console.error('生成关键帧图片失败:', error);

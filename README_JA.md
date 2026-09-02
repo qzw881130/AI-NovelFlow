@@ -38,7 +38,7 @@ NovelFlowは、小説を自動的に動画に変換するAIプラットフォー
 8. **章編集 / AIショット分割** - 章内容を編集、AIが自動的にショットに分割
 9. **ショット画像生成** - ショット説明に基づいてシーン画像を生成
 10. **音声生成** - ショットのナレーション/効果音を生成（オプション）
-11. **動画生成** - ショット動画、トランジション動画を生成し、完全な動画に統合
+11. **動画生成** - Video Director で単一フレーム、始端/終端フレーム、またはマルチキーフレームのショット動画を生成し、完全な動画に統合
 
 **主な特徴：**
 - 章回体小説の解析をサポート
@@ -71,7 +71,7 @@ NovelFlowは、小説を自動的に動画に変換するAIプラットフォー
 - **状態管理**: Zustand（グローバル状態 + 国際化/タイムゾーン状態）
 - **バックエンド**: FastAPI + SQLAlchemy + SQLite
 - **AI**: DeepSeek API / OpenAI API / Gemini API + ComfyUI
-- **動画生成**: LTX-2 動画生成モデル
+- **動画生成**: MiniMax H3 画像-to-動画、始端/終端フレーム動画、マルチキーフレーム動画
 - **国際化**: カスタム i18n 実装（5言語対応）
 
 ## 主な機能
@@ -79,9 +79,9 @@ NovelFlowは、小説を自動的に動画に変換するAIプラットフォー
 - **小説管理**: 新規作成、編集、削除をサポート、自動章回体解析
 - **キャラクター図鑑**: AI自動キャラクター解析、キャラクター画像生成と一貫性保持
 - **シーン図鑑**: AI自動シーン解析、シーン参照画像生成と環境設定をサポート
-- **ショット生成**: AI自動章分割、一括画像・動画生成をサポート
-- **トランジション動画**: カメラトランジション、ライティングトランジション、オクルージョントランジションをサポート
-- **動画合成**: ショット動画を章動画に統合、自動トランジション挿入
+- **ショット生成**: AI自動章分割、一括画像生成、構造化編集、状態復旧をサポート
+- **Video Director**: 単一フレーム、始端/終端フレーム、3キーフレーム、4キーフレームの動画計画に対応し、AI呼び出し結果と最終Promptを保持
+- **動画合成**: ショット動画とマルチClip出力を完全な章動画に統合
 - **ワークフロー管理**: カスタムComfyUIワークフロー、ノードマッピング設定
 - **タスクキュー**: バックグラウンド非同期タスク処理、リアルタイムタスク監視
 - **プリセットテストケース**: 「子馬の川渡り」「赤ずきん」「裸の王様」などのテストケースを内蔵
@@ -104,8 +104,8 @@ AI-NovelFlow/
 │   ├── migrations/      # データベース移行スクリプト
 │   ├── prompt_templates/ # プロンプトテンプレートファイル
 │   ├── workflows/       # ComfyUI ワークフロー設定
-│   ├── user_story/      # 生成画像/動画保存ディレクトリ
 │   ├── user_workflows/  # ユーザーカスタムワークフロー
+│   ├── user_story/      # 生成画像/動画保存ディレクトリ
 │   └── main.py
 ├── frontend/            # React フロントエンド
 │   └── my-app/
@@ -120,6 +120,7 @@ AI-NovelFlow/
 │   ├── gpu_monitor.py   # GPU監視サービス
 │   ├── requirements.txt # 依存関係
 │   └── start.bat        # Windows 起動スクリプト
+├── debug/workflows/     # デバッグ用ワークフロー例、システム既定としては読み込まない
 └── README.md
 ```
 
@@ -169,8 +170,12 @@ npm run dev
   - キャラクター生成: プロンプトノード + 画像保存ノード
   - シーン生成: プロンプトノード + 画像保存ノード + 幅/高さノード
   - ショット画像: プロンプトノード + 画像保存ノード + 幅/高さノード
-  - ショット動画: プロンプトノード + 動画保存ノード + 参照画像ノード
-  - トランジション動画: 先頭フレームノード + 末尾フレームノード + 動画保存ノード
+  - 単一フレーム動画: プロンプトノード + 動画保存ノード + 参照画像ノード + 長さノード
+  - 始端/終端フレーム動画: プロンプトノード + 先頭画像ノード + 末尾画像ノード + 動画保存ノード + 長さノード
+  - 3/4キーフレーム動画: プロンプトノード + 開始参照ノード + キーフレームノード + 動画保存ノード + 長さノード
+  - キーフレーム画像: プロンプトノード + 画像保存ノード + 参照画像ノード
+
+システムワークフローは `backend/workflows/` に保存され、`backend/app/constants/workflow.py` によって登録および既定選択されます。ユーザーアップロードのワークフローは `backend/user_workflows/` に保存されます。`debug/workflows/MiniMax H3/` はデバッグとワークフロー比較専用で、システム既定としては読み込まれません。
 
 #### 2.1 モデルファイル
 
@@ -178,24 +183,29 @@ npm run dev
 
 | モデルファイル名 | タイプ | 主な用途 | 使用されるワークフロー | 推奨ディレクトリ |
 |----------------|--------|---------|---------------------|----------------|
-| `ltx-2-19b-dev-fp8.safetensors` | checkpoint / メインモデル | LTX2 トランジション（オクルージョン/ライティング/カメラ）動画生成 | LTX2 オクルージョントランジション / ライティングトランジション / カメラトランジション | `models/checkpoints/` |
-| `ltx-2-19b-distilled-fp8.safetensors` | checkpoint / メインモデル | LTX2 動画生成（ダイレクト/拡張版） | LTX2 動画生成-ダイレクト / 拡張版 | `models/checkpoints/` |
-| `gemma_3_12B_it_fp8_e4m3fn.safetensors` | text encoder (LTX テキストエンコーダー) | LTX2 テキストエンコーディング | すべての LTX2 ワークフロー（トランジション/動画生成） | `models/text_encoders/` |
-| `ltx-2-19b-distilled-lora-384.safetensors` | LoRA | LTX2 蒸留 LoRA（強化/蒸留プロセスのマッチング） | 主にトランジションワークフロー | `models/loras/` |
-| `ltx-2-19b-lora-camera-control-dolly-left.safetensors` | LoRA | LTX2 カメラ制御 (dolly-left) | 主にトランジションワークフロー | `models/loras/` |
-| `ltx-2-spatial-upscaler-x2-1.0.safetensors` | upscale model (latent upscaler) | LTX2 latent 空間アップスケール x2 | 主にトランジションワークフロー | `models/upscale_models/` |
+| `minimax_h3_ref2va_bf16.safetensors` | diffusion model | MiniMax H3 参照画像-to-動画メインモデル | 単一フレーム、始端/終端フレーム、3キーフレーム、4キーフレーム動画ワークフロー | `models/diffusion_models/` |
+| `qwen3vl_32b_minimax_h3_int8_convrot.safetensors` | text encoder | MiniMax H3 テキスト/ビジョンエンコード | MiniMax H3 動画ワークフロー | `models/text_encoders/` |
+| `minimax_h3_video_vae_fp16.safetensors` | video VAE | MiniMax H3 動画 VAE | MiniMax H3 動画ワークフロー | `models/vae/` |
+| `minimax_h3_audio_vae_fp32.safetensors` | audio VAE | MiniMax H3 音声 VAE | MiniMax H3 動画ワークフロー | `models/vae/` |
+| `minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors` | LoRA | MiniMax H3 高速化 LoRA | MiniMax H3 高速ワークフロー | `models/loras/` |
 | `ae.safetensors` | VAE / AE | Z-image-turbo および一部のデフォルトキャラクターワークフローで VAE/AE として使用 | Z-image-turbo 単体生成 / システム既定-キャラ生成 | `models/vae/` |
-| `flux-2-klein-9b.safetensors` | UNet | Flux2-Klein ショット画像生成 UNet | Flux2-Klein-9B ショット画像 / システム既定-キャラ生成 | `models/unet/` |
-| `flux2-vae.safetensors` | VAE | Flux2 の VAE | Flux2-Klein-9B ショット画像 / システム既定-キャラ生成 | `models/vae/` |
-| `qwen_3_8b.safetensors` | text encoder | Flux2 テキストエンコーディング | Flux2-Klein-9B ショット画像 / システム既定-キャラ生成 | `models/clip/` |
+| `flux-2-klein-9b.safetensors` | UNet | Flux2-Klein 画像編集/ショット画像生成 | ショット画像、キーフレーム画像、既定キャラクターワークフロー | `models/unet/` |
+| `flux2-vae.safetensors` | VAE | Flux2 VAE | Flux2-Klein 画像編集/ショット画像ワークフロー | `models/vae/` |
+| `qwen_3_8b.safetensors` / `qwen_3_8b_fp8mixed.safetensors` | text encoder | Flux2 テキストエンコード | Flux2-Klein 画像編集/ショット画像ワークフロー | `models/clip/` |
+| `qwen_image_edit_2511_fp8mixed.safetensors` | diffusion model | Qwen-Edit-2511 画像編集 | Qwen-Edit-2511 ショット参照ワークフロー | `models/diffusion_models/` |
+| `Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors` | LoRA | Qwen-Edit-2511 4ステップ高速化 | Qwen-Edit-2511 ショット参照ワークフロー | `models/loras/` |
+| `qwen_image_vae.safetensors` | VAE | Qwen Image VAE | Qwen-Edit-2511 ショット参照ワークフロー | `models/vae/` |
+| `qwen_2.5_vl_7b_fp8_scaled.safetensors` | text encoder | Qwen-Edit-2511 テキスト/ビジョンエンコード | Qwen-Edit-2511 ショット参照ワークフロー | `models/clip/` |
 | `z_image_turbo_bf16.safetensors` | UNet | Z-image-turbo 単体生成 UNet | Z-image-turbo 単体生成 / システム既定-キャラ生成 | `models/unet/` |
 | `qwen_3_4b.safetensors` | text encoder | Z-image-turbo テキストエンコーディング | Z-image-turbo 単体生成 / システム既定-キャラ生成 | `models/clip/` |
+| `Qwen3.8-27B-Q4_K_M.gguf` / `mmproj-F16.gguf` | LLM / projector | デバッグワークフローでのローカル LLM Prompt 拡張 | `debug/workflows/MiniMax H3/` LLM デバッグワークフロー | `models/LLM/` |
 
 #### 2.2 サードパーティノードパッケージ
 
 | サードパーティノードパッケージ | GitHub リポジトリ | ワークフロー内のノード class_type |
 |---------------------------|------------------|--------------------------------|
-| **LTXVideo / LTXV** | [Lightricks/ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo) | `LTXAVTextEncoderLoader`, `LTXVScheduler`, `LTXV*`, `LTXAV*`, `Painter*` |
+| **MiniMax H3** | ComfyUI MiniMax H3 ノード | `MiniMaxH3ReferenceToVideo`, `MiniMaxH3SigmaShift`, `MiniMaxH3MemoryEfficientSageAttentionPatch`, `MiniMaxH3PromptEnhancerT8` |
+| **Flux2 / Qwen Image Edit** | Flux2、Qwen-Edit 対応 ComfyUI ノード | `Flux2Scheduler`, `EmptyFlux2LatentImage`, `TextEncodeQwenImageEditPlusAdvance_lrzjason` |
 | **VideoHelperSuite / VHS** | [Kosinkadink/ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) | `VHS_VideoCombine` |
 | **Easy-Use** | [yolain/ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) | `easy int`, `easy cleanGpuUsed`, `easy showAnything` |
 | **LayerStyle / LayerUtility** | [chflame163/ComfyUI_LayerStyle](https://github.com/chflame163/ComfyUI_LayerStyle) | `LayerUtility: ImageScaleByAspectRatio V2` |
@@ -270,7 +280,9 @@ start.bat
 - [x] プリセットテストケース
 - [x] 多言語サポート（中/英/日/韓/繁中）
 - [x] タイムゾーンサポート
-- [x] 動画合成功能（ショット動画統合、トランジション挿入をサポート）
+- [x] Video Director（単一フレーム、始端/終端フレーム、3/4キーフレーム、マルチClip逐次生成）
+- [x] 永続化されたショット画像一括キュー（サービス再起動復旧と一括キャンセル対応）
+- [x] 動画合成功能（ショット動画、マルチClip統合をサポート）
 
 ## 使用説明
 
@@ -294,14 +306,17 @@ start.bat
 - 【章編集】ページに入り、章内容を編集；編集中にキャラクター、シーン、小道具の増分解析をサポート
 
 ### 5. ショット画像を生成
-- 【すべてのショット画像を生成】をクリック
+- 【すべてのショット画像を生成】をクリックして永続化一括タスクを作成
+- 未生成ショットのみを選択、または既存AI Promptを再利用してLLM呼び出しをスキップ可能
 
 ### 6. 音声を生成（オプション）
 - 【すべての音声を生成】をクリックしてショットのナレーション/効果音を生成
 
 ### 7. 動画を生成
-- 【すべてのショット動画を生成】をクリックしてショット動画を生成
-- 【すべてのトランジション動画を生成】をクリックしてトランジション動画を生成（オプション）
+- 【動画生成】で Video Director を使って動画モードを計画
+- 単一フレームモードはメインストーリーボード画像を再利用
+- 始端/終端フレームモードはメインストーリーボードを START として再利用し、先に END キーフレーム画像を生成
+- マルチキーフレームモードは最大Clip長で execution windows を分割し、各Clipは3または4枚のキーフレームで逐次生成
 - 【動画統合】をクリックしてすべてのクリップを完全な動画に合成
 
 ## コントリビューション
