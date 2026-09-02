@@ -69,6 +69,8 @@ export interface VideoDirectorPlan {
   recommended_mode?: VideoMode;
   recommended_label?: string;
   recommendation_reason?: string;
+  task_error_message?: string;
+  error_message?: string;
   first_last_available?: boolean;
   notice?: string;
   workflow_capability?: {
@@ -299,7 +301,7 @@ export const shotsApi = {
     chapterId: string,
     shotId: string,
     force = false
-  ): Promise<{ success: boolean; data?: VideoDirectorPlan; message?: string }> => {
+  ): Promise<{ success: boolean; data?: VideoDirectorPlan; message?: string; detail?: string }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/plan-keyframes`,
       {
@@ -308,7 +310,11 @@ export const shotsApi = {
         body: JSON.stringify({ force }),
       }
     );
-    return response.json();
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || '关键帧规划失败', detail: data?.detail };
+    }
+    return data;
   },
 
   generateVideoDirectorClip: async (

@@ -1088,7 +1088,7 @@ export function VideoGenTab({
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
   const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
   const [batchSelectionMode, setBatchSelectionMode] = useState<BatchSelectionMode>(null);
-  const [autoCompleteDetails, setAutoCompleteDetails] = useState(false);
+  const [autoCompleteDetails, setAutoCompleteDetails] = useState(true);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewTransitionVideo, setPreviewTransitionVideo] = useState<string | null>(null);
 
@@ -1892,7 +1892,7 @@ export function VideoGenTab({
         const planResult = await shotsApi.planVideoKeyframes(effectiveNovelId, effectiveChapterId, String(shot.id), false);
         setPlanningKeyframesShotId(null);
         if (!planResult.success || !planResult.data) {
-          throw new Error(planResult.message || '关键帧规划失败');
+          throw new Error(planResult.message || planResult.detail || '关键帧规划失败');
         }
         plan = planResult.data;
         latestShot = { ...latestShot, videoDirectorPlan: plan };
@@ -2016,10 +2016,23 @@ export function VideoGenTab({
           successCount += 1;
         } catch (error) {
           failedCount += 1;
+          const errorMessage = error instanceof Error ? error.message : '未知错误';
           console.error(`批量生成分镜 ${shot.index || shot.id} 失败:`, error);
-          toast.error(`镜${shot.index || ''} 自动处理失败：${error instanceof Error ? error.message : '未知错误'}`);
+          toast.error(`镜${shot.index || ''} 自动处理失败：${errorMessage}`);
+          const refreshedShot = await refreshBatchShot(String(shot.id));
           setShots(useChapterGenerateStore.getState().shots.map((item: any) => (
-            String(item.id) === String(shot.id) ? { ...item, videoStatus: 'failed' } : item
+            String(item.id) === String(shot.id)
+              ? {
+                  ...item,
+                  ...(refreshedShot || {}),
+                  videoStatus: 'failed',
+                  videoDirectorPlan: {
+                    ...(item.videoDirectorPlan || {}),
+                    ...((refreshedShot as any)?.videoDirectorPlan || {}),
+                    task_error_message: ((refreshedShot as any)?.videoDirectorPlan as any)?.task_error_message || errorMessage,
+                  },
+                }
+              : item
           )));
         }
       }
@@ -2624,7 +2637,7 @@ export function VideoGenTab({
                   }}
                   className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                自动完成细节
+                自动完成细节（注意LLM可能会消耗大量的token）
               </label>
               <div className="flex items-center justify-end gap-3">
                 <button

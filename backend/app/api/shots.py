@@ -874,7 +874,7 @@ def _get_keyframe_planner_template(novel: Novel, template_repo: PromptTemplateRe
     return template
 
 
-def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: dict) -> str:
+def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: dict, previous_failures: list = None) -> str:
     selected_mode = plan.get("selected_mode") or "MULTI_KEYFRAME"
     payload = {
         "shot": {
@@ -901,7 +901,16 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
             "shared_boundary_rule": "相邻 window 共享边界 Keyframe。",
         },
     }
+    if previous_failures:
+        payload["previous_failed_attempts"] = previous_failures
+        payload["retry_instruction"] = "上一次 #08 输出未通过程序校验。请重新规划完整 JSON，必须修正 previous_failed_attempts 中的错误；尤其保证每个 window_plan.keyframe_indexes 数量严格等于 selected_frame_count，且每个 window 至少包含起点、中间点、终点三个关键帧。"
     return "请基于以下正式保存的 Shot 与执行窗口，规划视频关键帧时间轴。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def _mark_video_director_planning_failed(shot, shot_repo: ShotRepository, plan: dict, message: str) -> None:
+    plan["task_error_message"] = message
+    plan["error_message"] = message
+    shot_repo.update(shot, video_director_plan=plan, video_status="failed", video_task_id=None)
 
 
 def _parse_keyframe_planner_content(content: str) -> dict:
@@ -1261,45 +1270,66 @@ async def plan_video_keyframes(
         plan["clips"] = []
 
     template = _get_keyframe_planner_template(novel, template_repo)
-    user_content = _build_keyframe_planner_user_content(shot, plan, workflow_capability)
-    result = await llm_service.chat_completion(
-        system_prompt=template.template,
-        user_content=user_content,
-        temperature=0.3,
-        max_tokens=2500,
-        response_format="json_object",
-        task_type="keyframe_planner",
-        prompt_template_name=template.name,
-        novel_id=novel.id,
-        chapter_id=chapter.id,
-    )
-    if not result.get("success"):
-        plan = append_video_ai_call(shot, {
-            "step": "08",
-            "task_type": "keyframe_planner",
-            "prompt_template_name": template.name,
-            "status": "error",
-            "input_summary": f"Shot {shot.index} · {len(execution_windows)} execution windows",
-            "response": result.get("error") or "",
-        })
-        shot_repo.update(shot, video_director_plan=plan)
-        raise HTTPException(status_code=500, detail=result.get("error") or "关键帧时间轴规划失败")
+    previous_failures = []
+    result = None
+    keyframes = []
+    window_plans = []
+    validation = {}
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        user_content = _build_keyframe_planner_user_content(shot, plan, workflow_capability, previous_failures)
+        result = await llm_service.chat_completion(
+            system_prompt=template.template,
+            user_content=user_content,
+            temperature=0.3,
+            max_tokens=2500,
+            response_format="json_object",
+            task_type="keyframe_planner",
+            prompt_template_name=template.name,
+            novel_id=novel.id,
+            chapter_id=chapter.id,
+        )
+        input_summary = f"Shot {shot.index} · {len(execution_windows)} execution windows · attempt {attempt}/{max_attempts}"
+        if not result.get("success"):
+            error = result.get("error") or "关键帧时间轴规划失败"
+            plan = append_video_ai_call(shot, {
+                "step": "08",
+                "task_type": "keyframe_planner",
+                "prompt_template_name": template.name,
+                "status": "error",
+                "input_summary": input_summary,
+                "response": error,
+                "parsed_result": {"error": error, "attempt": attempt},
+            })
+            shot_repo.update(shot, video_director_plan=plan)
+            previous_failures.append({"attempt": attempt, "error": error})
+            if attempt == max_attempts:
+                final_error = f"关键帧规划调用失败：{error}"
+                _mark_video_director_planning_failed(shot, shot_repo, plan, final_error)
+                raise HTTPException(status_code=500, detail=final_error)
+            continue
 
-    try:
-        parsed = _parse_keyframe_planner_content(result.get("content") or "{}")
-        keyframes, window_plans, validation = _normalize_keyframe_planner_result(parsed, execution_windows, duration)
-    except Exception as exc:
-        plan = append_video_ai_call(shot, {
-            "step": "08",
-            "task_type": "keyframe_planner",
-            "prompt_template_name": template.name,
-            "status": "error",
-            "input_summary": f"Shot {shot.index} · {len(execution_windows)} execution windows",
-            "response": result.get("content") or "",
-            "parsed_result": {"error": str(exc)},
-        })
-        shot_repo.update(shot, video_director_plan=plan)
-        raise HTTPException(status_code=400, detail=f"#08 返回格式无效：{exc}")
+        try:
+            parsed = _parse_keyframe_planner_content(result.get("content") or "{}")
+            keyframes, window_plans, validation = _normalize_keyframe_planner_result(parsed, execution_windows, duration)
+            break
+        except Exception as exc:
+            error = str(exc)
+            plan = append_video_ai_call(shot, {
+                "step": "08",
+                "task_type": "keyframe_planner",
+                "prompt_template_name": template.name,
+                "status": "error",
+                "input_summary": input_summary,
+                "response": result.get("content") or "",
+                "parsed_result": {"error": error, "attempt": attempt},
+            })
+            shot_repo.update(shot, video_director_plan=plan)
+            previous_failures.append({"attempt": attempt, "error": error, "response": result.get("content") or ""})
+            if attempt == max_attempts:
+                final_error = f"关键帧规划不符合要求：{error}"
+                _mark_video_director_planning_failed(shot, shot_repo, plan, final_error)
+                raise HTTPException(status_code=400, detail=final_error)
 
     plan.update({
         "selected_mode": selected_mode,
@@ -1310,6 +1340,8 @@ async def plan_video_keyframes(
         "clips": _build_first_last_clip_plan(duration) if selected_mode == "FIRST_LAST_FRAME" else [],
         "validation": validation,
     })
+    plan.pop("task_error_message", None)
+    plan.pop("error_message", None)
     plan.pop("merged_video_url", None)
     plan.pop("merged_at", None)
     legacy_keyframes = [
@@ -1598,7 +1630,9 @@ async def generate_shot_video(
     elif selected_mode == "MULTI_KEYFRAME":
         valid_plan, plan_error, first_frame_count = _validate_multi_keyframe_plan_for_execution(shot, video_director_plan)
         if not valid_plan:
-            raise HTTPException(status_code=400, detail=plan_error)
+            final_error = f"视频生成前置检查失败：{plan_error}"
+            _mark_video_director_planning_failed(shot, shot_repo, video_director_plan, final_error)
+            raise HTTPException(status_code=400, detail=final_error)
         window_plans = video_director_plan.get("window_plans") if isinstance(video_director_plan.get("window_plans"), list) else []
         needed_workflow_types = {
             "three_frame_video" if int(window_plan.get("selected_frame_count") or 0) == 3 else "four_frame_video"
