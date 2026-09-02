@@ -195,6 +195,7 @@ class GenerateVideoRequest(BaseModel):
     use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
     workflow_id: Optional[str] = Field(None, description="指定工作流ID")
     selected_mode: Optional[VideoMode] = Field(None, description="视频导演选择的生成模式")
+    skip_llm_when_prompt_exists: bool = Field(False, description="已有最终视频提示词时跳过 LLM，直接提交工作流")
 
 
 class GenerateVideoDirectorClipRequest(BaseModel):

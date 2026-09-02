@@ -255,21 +255,6 @@ def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_c
     }
 
 
-def _render_character_identity_lock(characters: list, character_appearances: dict) -> str:
-    lines = []
-    for character in characters or []:
-        appearance = character_appearances.get(character) if isinstance(character_appearances, dict) else None
-        if appearance:
-            lines.append(f"- {character}: {appearance}")
-    if not lines:
-        return ""
-    return (
-        "official_character_identity_lock:\n"
-        "The following official character appearance is mandatory. Preserve exact face, age, hair, beard, clothing colors, robes, accessories, and identity across every Picture and every frame. Do not reinterpret dark lighting as dark clothing. Do not change robe color.\n"
-        + "\n".join(lines)
-    )
-
-
 def _render_continuity_lock(shot, selected_mode: str, clip: dict | None) -> str:
     if (shot.continuity_mode or "NORMAL") != "CONTINUOUS_TAKE":
         return ""
@@ -401,9 +386,6 @@ async def build_h3_video_prompt(
     continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
     if continuity_lock:
         final_prompt = f"{continuity_lock}\n\n{final_prompt}"
-    identity_lock = _render_character_identity_lock(shot_characters, character_appearances)
-    if identity_lock:
-        final_prompt = f"{identity_lock}\n\n{final_prompt}"
     dialogue_audit = None
     if is_multi_clip:
         timeline_block = _render_dialogue_timeline_block(assigned_dialogues, silent_characters)

@@ -691,7 +691,7 @@ async def _save_generated_image(
         db.commit()
 
         # 更新 Shot 记录
-        _update_shot_image(db, chapter_id, shot_index, local_path, local_url, shot_repo)
+        _update_shot_image(db, chapter_id, shot_index, local_path, local_url, shot_repo, task_id=task.id)
 
         print(f"[ShotTask {task_id}] Completed, image saved: {local_path}")
     else:
@@ -705,7 +705,7 @@ async def _save_generated_image(
         db.commit()
 
         # 更新 Shot 记录（使用远程URL）
-        _update_shot_image(db, chapter_id, shot_index, None, image_url, shot_repo)
+        _update_shot_image(db, chapter_id, shot_index, None, image_url, shot_repo, task_id=task.id)
 
 
 def _update_shot_image(
@@ -715,6 +715,7 @@ def _update_shot_image(
     local_path: Optional[str],
     image_url: str,
     shot_repo: ShotRepository = None,
+    task_id: Optional[str] = None,
 ):
     """更新 Shot 记录中的分镜图片数据"""
     if shot_repo is None:
@@ -729,6 +730,8 @@ def _update_shot_image(
         "image_url": image_url,
         "image_status": "completed",
     }
+    if task_id:
+        update_data["image_task_id"] = task_id
     if local_path:
         update_data["image_path"] = str(local_path)
 

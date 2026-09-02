@@ -80,6 +80,7 @@ export function ShotImageGenTab({
   const [isDownloadingCurrentShotImageData, setIsDownloadingCurrentShotImageData] = useState(false);
   const [shotImagePrompts, setShotImagePrompts] = useState<Record<string, string>>({});
   const [submittingShotIds, setSubmittingShotIds] = useState<Set<string>>(new Set());
+  const [submittingShotLabels, setSubmittingShotLabels] = useState<Record<string, string>>({});
   const [dragSelectionMode, setDragSelectionMode] = useState<'select' | 'deselect' | null>(null);
   const [isImageEditOpen, setIsImageEditOpen] = useState(false);
   const [imageEditResultUrl, setImageEditResultUrl] = useState<string | null>(null);
@@ -99,8 +100,15 @@ export function ShotImageGenTab({
   const currentImageUrl = currentShotObj?.imageUrl || currentShotData?.imageUrl || shotImages[currentShotId];
 
   const hasImage = !!currentImageUrl;
+  const hasCompletedCurrentImage = hasImage && currentShotObj?.imageStatus === 'completed';
   // 完全依赖 store 的 generatingShots 状态
-  const isGeneratingCurrent = generatingShots.has(currentShotId) || submittingShotIds.has(currentShotId);
+  const isGeneratingCurrent = submittingShotIds.has(currentShotId) || (generatingShots.has(currentShotId) && !hasCompletedCurrentImage);
+  const isSubmittingCurrent = submittingShotIds.has(currentShotId);
+  const currentGenerationText = isSubmittingCurrent
+    ? submittingShotLabels[currentShotId] || '处理中...'
+    : generatingShots.has(currentShotId)
+      ? '分镜图生成中...'
+      : '';
   const currentPromptText = shotImagePrompts[currentShotId] ?? currentShotObj?.shotImagePrompt ?? currentShotData?.shotImagePrompt ?? '';
   const hasCurrentPromptText = currentPromptText.trim().length > 0;
   const isShotQueuedOrGenerating = (shotId: string) => generatingShots.has(shotId) || pendingShots.has(shotId);
@@ -116,6 +124,10 @@ export function ShotImageGenTab({
     if (mode === 'image_only' && !hasCurrentPromptText) return;
     setShowGenerateMenu(false);
     setSubmittingShotIds(prev => new Set([...prev, currentShotId]));
+    setSubmittingShotLabels(prev => ({
+      ...prev,
+      [currentShotId]: mode === 'image_only' ? '正在提交工作流...' : '正在生成提示词...',
+    }));
     try {
       const promptText = await generateShotImage(
         novelId,
@@ -127,12 +139,18 @@ export function ShotImageGenTab({
       if (promptText) {
         setShotImagePrompts(prev => ({ ...prev, [currentShotId]: promptText }));
       }
+      await checkShotTaskStatus(chapterId);
     } catch (error) {
       console.error(t('chapterGenerate.generateFailed') + ':', error);
     } finally {
       setSubmittingShotIds(prev => {
         const next = new Set(prev);
         next.delete(currentShotId);
+        return next;
+      });
+      setSubmittingShotLabels(prev => {
+        const next = { ...prev };
+        delete next[currentShotId];
         return next;
       });
     }
@@ -523,7 +541,7 @@ export function ShotImageGenTab({
               {isGeneratingCurrent ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  {t('chapterGenerate.generating')}
+                  {isSubmittingCurrent ? '处理中' : t('chapterGenerate.generating')}
                 </>
               ) : (
                 <>
@@ -743,6 +761,14 @@ export function ShotImageGenTab({
                     {previewImageSize ? `图片尺寸：${previewImageSize.width} × ${previewImageSize.height}` : '图片尺寸：读取中...'}
                   </div>
                 </div>
+                {isGeneratingCurrent && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-950/35 text-white backdrop-blur-[1px]">
+                    <Loader2 className="h-8 w-8 animate-spin" />
+                    <div className="mt-3 rounded-full bg-blue-600/95 px-4 py-1.5 text-sm font-medium shadow">
+                      {currentGenerationText || '处理中...'}
+                    </div>
+                  </div>
+                )}
                 {/* 查看大图按钮 */}
                 <button
                   onClick={(e) => {
@@ -758,7 +784,7 @@ export function ShotImageGenTab({
             ) : isGeneratingCurrent ? (
               <div className="text-center">
                 <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
-                <p className="text-gray-600">{t('chapterGenerate.generatingShotImage')}</p>
+                <p className="text-gray-600">{currentGenerationText || t('chapterGenerate.generatingShotImage')}</p>
               </div>
             ) : (
               <div className="text-center text-gray-500">

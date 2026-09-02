@@ -32,6 +32,14 @@ type VideoImageEditTarget = {
   frameIndex?: number;
 };
 
+type VideoPromptDraft = {
+  key: string;
+  label: string;
+  prompt: string;
+  source: 'window_plan' | 'clip' | 'ai_call';
+  index?: number;
+};
+
 interface VideoMetadata {
   duration: number | null;
   width: number | null;
@@ -270,6 +278,94 @@ function VideoAiCallsPanel({
   );
 }
 
+function VideoPromptModal({
+  isOpen,
+  drafts,
+  selectedMode,
+  isSaving,
+  onChange,
+  onClose,
+  onSave,
+}: {
+  isOpen: boolean;
+  drafts: VideoPromptDraft[];
+  selectedMode: VideoMode;
+  isSaving: boolean;
+  onChange: (key: string, prompt: string) => void;
+  onClose: () => void;
+  onSave: () => void;
+}) {
+  if (!isOpen) return null;
+
+  const hasDrafts = drafts.length > 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+      <div className="flex max-h-[86vh] w-full max-w-5xl flex-col rounded-xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">AI提示词</h3>
+            <p className="mt-1 text-sm text-gray-500">
+              {hasDrafts ? `当前模式：${getVideoModeLabel(selectedMode)}，共 ${drafts.length} 条可编辑 Prompt。` : '当前 Shot 暂无可编辑的视频生成 AI 提示词。'}
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {!hasDrafts ? (
+            <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-center text-sm text-gray-600">
+              <div className="font-medium text-gray-800">还没有可编辑的 Clip Prompt</div>
+              <div className="mt-2">请先执行视频模式推荐、关键帧/Clip 规划，或使用“LLM+生成当前Shot视频”生成一次 H3 视频提示词。</div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {drafts.map((draft) => (
+                <div key={draft.key} className="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-800">{draft.label}</div>
+                      <div className="text-xs text-gray-500">
+                        {draft.source === 'ai_call' ? '未规划 Clip：保存后会写入 C1 Prompt' : draft.source === 'window_plan' ? '来源：window_plan.prompt_text' : '来源：clip.prompt_text'}
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => copyText(draft.prompt)} className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 hover:bg-gray-100">
+                      <Copy className="h-3.5 w-3.5" />复制
+                    </button>
+                  </div>
+                  <textarea
+                    value={draft.prompt}
+                    onChange={(event) => onChange(draft.key, event.target.value)}
+                    className="min-h-[220px] w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-xs leading-5 text-gray-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    placeholder="这里填写当前 Clip 的最终视频生成 AI 提示词"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-5 py-4">
+          <button type="button" onClick={onClose} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={!hasDrafts || isSaving}
+            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface VideoDirectorPanelProps {
   shot: any;
   shotImageUrl?: string | null;
@@ -290,6 +386,7 @@ interface VideoDirectorPanelProps {
   onMergeClips: () => void;
   onPreviewImage: (url: string) => void;
   onEditImage: (target: VideoImageEditTarget) => void;
+  onOpenPromptModal: () => void;
   selectedPreviewClipKey?: string | null;
   regeneratingClipKey?: string | null;
   isMergingClips?: boolean;
@@ -315,6 +412,7 @@ function VideoDirectorPanel({
   onMergeClips,
   onPreviewImage,
   onEditImage,
+  onOpenPromptModal,
   selectedPreviewClipKey,
   regeneratingClipKey,
   isMergingClips,
@@ -479,15 +577,25 @@ function VideoDirectorPanel({
             </span>
           </h3>
         </div>
-        <button
-          type="button"
-          onClick={() => onRecommend(true)}
-          disabled={isRecommending}
-          className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
-        >
-          <RefreshCw className={`w-4 h-4 ${isRecommending ? 'animate-spin' : ''}`} />
-          重新推荐视频生成模式
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenPromptModal}
+            className="px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+          >
+            <Copy className="w-4 h-4" />
+            AI提示词
+          </button>
+          <button
+            type="button"
+            onClick={() => onRecommend(true)}
+            disabled={isRecommending}
+            className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRecommending ? 'animate-spin' : ''}`} />
+            重新推荐视频生成模式
+          </button>
+        </div>
       </div>
 
       {plan.notice && (
@@ -1112,6 +1220,10 @@ export function VideoGenTab({
   const [regeneratingClipKey, setRegeneratingClipKey] = useState<string | null>(null);
   const [isMergingClips, setIsMergingClips] = useState(false);
   const [isCancellingVideo, setIsCancellingVideo] = useState(false);
+  const [showGenerateVideoMenu, setShowGenerateVideoMenu] = useState(false);
+  const [isVideoPromptModalOpen, setIsVideoPromptModalOpen] = useState(false);
+  const [videoPromptDrafts, setVideoPromptDrafts] = useState<VideoPromptDraft[]>([]);
+  const [isSavingVideoPrompts, setIsSavingVideoPrompts] = useState(false);
   const [imageEditTarget, setImageEditTarget] = useState<VideoImageEditTarget | null>(null);
   const [imageEditResultUrl, setImageEditResultUrl] = useState<string | null>(null);
   const [imageEditResultSize, setImageEditResultSize] = useState<{ width: number; height: number } | null>(null);
@@ -1139,6 +1251,9 @@ export function VideoGenTab({
   const currentShotVideoUrl = currentShotData?.videoUrl || (currentShotId ? shotVideos[currentShotId] : undefined);
   const currentVideoDirectorPlan: VideoDirectorPlan = currentShotData?.videoDirectorPlan || {};
   const currentSelectedVideoMode = currentVideoDirectorPlan.selected_mode || currentVideoDirectorPlan.recommended_mode || 'SINGLE_FRAME';
+  const hasReusableVideoPrompt = currentSelectedVideoMode === 'MULTI_KEYFRAME'
+    ? !!currentVideoDirectorPlan.window_plans?.length && currentVideoDirectorPlan.window_plans.every((windowPlan: any) => String(windowPlan?.prompt_text || '').trim().length > 0)
+    : [...(currentVideoDirectorPlan.ai_calls || [])].reverse().some((call: any) => String(call?.final_prompt || '').trim().length > 0);
   const currentEndPlanKeyframe = (currentVideoDirectorPlan.keyframes || []).find((keyframe: any) => keyframe.role === 'END');
   const currentEndLegacyKeyframe = (currentShotData?.keyframes || []).find((keyframe: any) => (
     Number(keyframe.plan_keyframe_index) === Number(currentEndPlanKeyframe?.index || 2)
@@ -1263,6 +1378,105 @@ export function VideoGenTab({
       String(shot.id) === currentShotId ? { ...shot, videoDirectorPlan: plan } : shot
     )));
   }, [currentShotId, setShots, shotsList]);
+
+  const buildVideoPromptDrafts = useCallback((plan: VideoDirectorPlan): VideoPromptDraft[] => {
+    const selectedMode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
+    const latestPromptCall = [...(plan.ai_calls || [])].reverse().find((call: any) => String(call?.final_prompt || '').trim().length > 0);
+    const latestFinalPrompt = String(latestPromptCall?.final_prompt || '');
+    if (selectedMode === 'MULTI_KEYFRAME' && plan.window_plans?.length) {
+      return plan.window_plans.map((clip: any, index: number) => ({
+        key: `window-${clip.window_index || index + 1}`,
+        label: `C${clip.window_index || index + 1} · ${clip.start_time ?? 0}-${clip.end_time ?? currentShotData?.duration ?? 0}s`,
+        prompt: String(clip.prompt_text || ''),
+        source: 'window_plan' as const,
+        index,
+      }));
+    }
+
+    if (plan.clips?.length) {
+      return plan.clips.map((clip: any, index: number) => ({
+        key: `clip-${clip.clip_index || index + 1}`,
+        label: `C${clip.clip_index || index + 1} · ${clip.start_time ?? 0}-${clip.end_time ?? currentShotData?.duration ?? 0}s`,
+        prompt: String(clip.prompt_text || (index === 0 ? latestFinalPrompt : '')),
+        source: 'clip' as const,
+        index,
+      }));
+    }
+
+    if (latestFinalPrompt) {
+      return [{
+        key: 'ai-call-latest',
+        label: `C1 · 未规划 Clip · ${getVideoModeLabel(selectedMode)}`,
+        prompt: latestFinalPrompt,
+        source: 'ai_call' as const,
+      }];
+    }
+
+    return [];
+  }, [currentShotData?.duration]);
+
+  const handleOpenVideoPromptModal = useCallback(() => {
+    setVideoPromptDrafts(buildVideoPromptDrafts(currentVideoDirectorPlan));
+    setIsVideoPromptModalOpen(true);
+  }, [buildVideoPromptDrafts, currentVideoDirectorPlan]);
+
+  const handleChangeVideoPromptDraft = useCallback((key: string, prompt: string) => {
+    setVideoPromptDrafts((drafts) => drafts.map((draft) => (
+      draft.key === key ? { ...draft, prompt } : draft
+    )));
+  }, []);
+
+  const handleSaveVideoPrompts = useCallback(async () => {
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotData?.id || videoPromptDrafts.length === 0) return;
+
+    const nextPlan: VideoDirectorPlan = JSON.parse(JSON.stringify(currentVideoDirectorPlan || {}));
+    const selectedMode = nextPlan.selected_mode || nextPlan.recommended_mode || 'SINGLE_FRAME';
+
+    videoPromptDrafts.forEach((draft) => {
+      if (draft.source === 'window_plan' && draft.index !== undefined && nextPlan.window_plans?.[draft.index]) {
+        nextPlan.window_plans[draft.index] = { ...nextPlan.window_plans[draft.index], prompt_text: draft.prompt };
+      } else if (draft.source === 'clip' && draft.index !== undefined && nextPlan.clips?.[draft.index]) {
+        nextPlan.clips[draft.index] = { ...nextPlan.clips[draft.index], prompt_text: draft.prompt };
+      } else if (draft.source === 'ai_call') {
+        const duration = Number(currentShotData?.duration || 0);
+        nextPlan.clips = [{
+          clip_index: 1,
+          start_time: 0,
+          end_time: duration,
+          status: 'PENDING',
+          prompt_text: draft.prompt,
+        }];
+      }
+    });
+
+    if (selectedMode !== 'MULTI_KEYFRAME' && nextPlan.ai_calls?.length) {
+      for (let index = nextPlan.ai_calls.length - 1; index >= 0; index -= 1) {
+        if (nextPlan.ai_calls[index]?.final_prompt !== undefined) {
+          nextPlan.ai_calls[index] = { ...nextPlan.ai_calls[index], final_prompt: videoPromptDrafts[videoPromptDrafts.length - 1].prompt };
+          break;
+        }
+      }
+    }
+
+    setIsSavingVideoPrompts(true);
+    try {
+      const result = await shotsApi.batchUpdateShots(effectiveNovelId, effectiveChapterId, [{
+        id: currentShotData.id,
+        video_director_plan: nextPlan,
+      }]);
+      if (!result.success) {
+        throw new Error(result.message || '保存 AI 提示词失败');
+      }
+      updateCurrentShotVideoDirectorPlan(nextPlan);
+      setIsVideoPromptModalOpen(false);
+      toast.success('AI 提示词已保存');
+    } catch (error) {
+      console.error('保存视频 AI 提示词失败:', error);
+      toast.error(error instanceof Error ? error.message : '保存 AI 提示词失败');
+    } finally {
+      setIsSavingVideoPrompts(false);
+    }
+  }, [currentShotData, currentVideoDirectorPlan, effectiveChapterId, effectiveNovelId, updateCurrentShotVideoDirectorPlan, videoPromptDrafts]);
 
   const handleRecommendVideoMode = useCallback(async (force = false) => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
@@ -1535,12 +1749,23 @@ export function VideoGenTab({
   const hasPreviewVideo = !!previewVideoUrl;
 
   // 处理单个视频生成
-  const handleGenerateVideo = async () => {
+  useEffect(() => {
+    if (!showGenerateVideoMenu) return;
+    const handleClick = () => setShowGenerateVideoMenu(false);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [showGenerateVideoMenu]);
+
+  const handleGenerateVideo = async (mode: 'llm' | 'video_only' = 'llm') => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+    if (mode === 'video_only' && !hasReusableVideoPrompt) return;
     if (hasVideo && !window.confirm(t('chapterGenerate.videoExistsConfirmDelete'))) return;
+    setShowGenerateVideoMenu(false);
 
     try {
-      await generateShotVideo(effectiveNovelId, effectiveChapterId, currentShotId, currentSelectedVideoMode);
+      await generateShotVideo(effectiveNovelId, effectiveChapterId, currentShotId, currentSelectedVideoMode, {
+        skipLlmWhenPromptExists: mode === 'video_only',
+      });
       markTabComplete(3);
     } catch (error) {
       console.error(t('chapterGenerate.videoGenerateFailed') + ':', error);
@@ -2250,23 +2475,59 @@ export function VideoGenTab({
       {/* 操作栏 */}
       <div className="flex-shrink-0 flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
         <div className="ml-8 flex items-center gap-4">
-          <button
-            onClick={isGeneratingCurrent ? handleCancelCurrentVideo : handleGenerateVideo}
-            disabled={isCancellingVideo || !effectiveChapterId}
-            className={`px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 ${isGeneratingCurrent ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
-          >
-            {isGeneratingCurrent ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {isCancellingVideo ? t('chapterGenerate.cancellingVideo') : t('chapterGenerate.cancelVideoGeneration')}
-              </>
-            ) : (
-              <>
+          {isGeneratingCurrent ? (
+            <button
+              onClick={handleCancelCurrentVideo}
+              disabled={isCancellingVideo || !effectiveChapterId}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              <Loader2 className="w-4 h-4 animate-spin" />
+              {isCancellingVideo ? t('chapterGenerate.cancellingVideo') : t('chapterGenerate.cancelVideoGeneration')}
+            </button>
+          ) : (
+            <div className="relative inline-flex">
+              <button
+                onClick={() => handleGenerateVideo('llm')}
+                disabled={!effectiveChapterId || !currentShotId}
+                className="px-4 py-2 bg-blue-600 text-white rounded-l-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              >
                 <Film className="w-4 h-4" />
-                {t('chapterGenerate.generateCurrentShotVideo')}
-              </>
-            )}
-          </button>
+                LLM+生成当前Shot视频
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setShowGenerateVideoMenu(prev => !prev);
+                }}
+                disabled={!effectiveChapterId || !currentShotId}
+                className="px-2 py-2 bg-blue-600 text-white border-l border-blue-500 rounded-r-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+                aria-label="选择视频生成方式"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
+              {showGenerateVideoMenu && (
+                <div className="absolute left-0 top-full z-20 mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateVideo('llm')}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50"
+                  >
+                    LLM+生成当前Shot视频
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleGenerateVideo('video_only')}
+                    disabled={!hasReusableVideoPrompt}
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50 disabled:text-gray-400 disabled:hover:bg-white disabled:cursor-not-allowed"
+                    title={!hasReusableVideoPrompt ? '当前 Shot 没有可复用的视频最终 Prompt' : undefined}
+                  >
+                    只生成当前Shot视频
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           <button
             onClick={handleOpenBatchSelect}
             disabled={isGeneratingAll || !effectiveChapterId}
@@ -2386,6 +2647,7 @@ export function VideoGenTab({
             onMergeClips={handleMergeDirectorClips}
             onPreviewImage={setPreviewImage}
             onEditImage={openVideoImageEdit}
+            onOpenPromptModal={handleOpenVideoPromptModal}
             selectedPreviewClipKey={selectedPreviewClipKey}
             regeneratingClipKey={regeneratingClipKey}
             isMergingClips={isMergingClips}
@@ -2689,6 +2951,16 @@ export function VideoGenTab({
         url={previewImage}
         onClose={() => setPreviewImage(null)}
         showDownload={true}
+      />
+
+      <VideoPromptModal
+        isOpen={isVideoPromptModalOpen}
+        drafts={videoPromptDrafts}
+        selectedMode={currentSelectedVideoMode}
+        isSaving={isSavingVideoPrompts}
+        onChange={handleChangeVideoPromptDraft}
+        onClose={() => setIsVideoPromptModalOpen(false)}
+        onSave={handleSaveVideoPrompts}
       />
 
       {imageEditTarget && (

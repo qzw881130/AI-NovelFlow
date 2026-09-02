@@ -16,7 +16,7 @@
 - end_time
 - duration
 - characters
-- official_character_appearances：正式角色资产外貌，包含服装颜色、内衫颜色、配饰、发型、面部标记；这是人物身份最高优先级文本约束。
+- official_character_appearances：官方角色外观描述。它用于防止角色漂移、补充 Picture 中因遮挡/角度/距离/光照不可见或不清晰的身份细节；不得覆盖 Picture 中清楚可见的当前视觉身份。
 - scene
 - props
 
@@ -56,7 +56,7 @@ clip_dialogues 是不含正文的索引摘要，只用于定位 assigned dialogu
 【关键帧时间语义】
 ━━━━━━━━━━━━━━━━━━
 
-每张 Picture 都是一个“时间状态锚点”，不是平级参考图。
+每张 Picture 都是一个 Temporal State Anchor，不是平级参考图，也不是整个视频永久锁定的构图模板。
 
 必须明确：
 
@@ -65,6 +65,8 @@ clip_dialogues 是不含正文的索引摘要，只用于定位 assigned dialogu
 <Picture 3> defines the following required chronological visual state.
 ...
 The final Picture defines the required ending state of this clip.
+
+Picture 的位置、姿势、视线、朝向、动作状态和 camera framing 只锚定对应时间点；相邻 Picture 之间必须允许角色和镜头状态按 transition segments 自然演化。
 
 视频必须严格：
 Picture 1
@@ -81,7 +83,8 @@ Picture 1
 - 同时混合多个关键帧状态；
 - 把后面的 Picture 提前出现；
 - 到达最终 Picture 后继续新剧情；
-- 把多关键帧理解成多参考身份图。
+- 把多关键帧理解成多参考身份图；
+- 把每张 Picture 理解为整个视频永久锁定的构图、站位或姿态。
 
 ━━━━━━━━━━━━━━━━━━
 【人物身份连续性】
@@ -89,13 +92,28 @@ Picture 1
 
 同一角色跨所有 Picture 必须保持同一 Subject 身份。
 
+最终 Prompt 必须输出 official_character_identity_lock 区块。该区块必须表达：
+
+The referenced Pictures are the primary visual authority for the character's currently established visual identity at their chronological time anchors.
+The official character descriptions are identity-preservation constraints used to prevent character drift across frames. They supplement the referenced Pictures but must not override clearly visible identity features established by the Pictures.
+
+For every character:
+- Preserve the same face, age, body proportions, hair/mane, beard, fur/skin color, permanent markings, clothing colors, costume, accessories, and overall identity throughout the clip.
+- Do not redesign, reinterpret, beautify, age, de-age, recolor, or replace the character.
+- Do not reinterpret shadows, dark lighting, color grading, distance, motion blur, or environmental illumination as changes to fur, skin, hair, clothing, or costume color.
+- Temporary pose, expression, gaze direction, body orientation, spatial position, and physically natural motion may change according to the transition segments.
+- If an official character detail is not clearly visible in the referenced Pictures because of pose, occlusion, distance, or lighting, preserve that official detail when it becomes visible.
+- If a textual character description directly conflicts with a clearly visible identity feature in the referenced Pictures, follow the referenced Pictures for the current visual identity.
+
 保持：
 - 面部；
-- 发型/胡须；
+- 发型/鬃毛/胡须；
 - 年龄；
-- 体型；
-- 服装/甲胄/配饰；
-- official_character_appearances 中的服装颜色、内衫颜色、配饰颜色必须逐项保留；不得因洞内暗光、阴影、冷色调，把浅色服装改写成黑色/深色服装；
+- 体型比例；
+- 毛色/肤色；
+- 永久标记；
+- 服装颜色、服装/甲胄/配饰；
+- official_character_appearances 中不可见或不清晰的身份细节在重新可见时必须恢复/保持；不得因暗光、阴影、冷色调、距离或运动模糊，把浅色服装/毛色/发色改写成黑色/深色；
 - 角色唯一性。
 
 不得：
@@ -133,6 +151,8 @@ Picture 2 → Picture 3:
 - 保持自然物理连续；
 - 只发生该 segment 需要的变化；
 - 精确到达后一 Picture 状态。
+
+每段允许角色位置、姿势、视线、身体朝向和镜头 framing 在相邻 Picture 之间自然变化；不得把前一 Picture 的站位永久锁死到后一 Picture。
 
 摄影机：
 - 遵守各关键帧构图和 transition；
@@ -247,7 +267,11 @@ No dialogue, no speech, no human vocalization.
 subject_definitions:
 
 逐一锁定当前 Clip 的可见 Subject，并说明跨全部 Picture 身份一致。
-必须引用 official_character_appearances 中的关键身份信息，尤其是服装颜色、内衫颜色、配饰和独特标记。禁止自行改写角色服装颜色，例如把浅青/白色服装概括为 dark robes。
+必须引用 official_character_appearances 中用于防漂移的关键身份信息，尤其是脸、年龄、体型比例、发型/鬃毛、毛色/肤色、服装颜色、配饰和独特标记；但不得覆盖 Picture 中清楚可见的当前视觉身份。禁止自行改写角色固有颜色，例如把浅色服装或浅色毛发概括为 dark robes / dark fur。
+
+official_character_identity_lock:
+
+写明 referenced Pictures 优先作为各自时间锚点中当前可见视觉身份依据，official_character_appearances 仅作为防漂移和补充不可见细节的身份约束；明确阴影/暗光/调色/距离/运动模糊不得改变服装、毛色、发色等固有颜色；明确位置、姿势、视线、朝向、表情和自然动作可以按 transition segments 改变。
 
 keyframe_timeline:
 
@@ -256,7 +280,10 @@ keyframe_timeline:
 ...
 <Picture N> = required END state at t=...
 
-The pictures are chronological keyframes, not interchangeable references. Preserve their order exactly.
+The pictures are chronological temporal state anchors, not interchangeable references and not permanent composition locks. Preserve their order exactly.
+The video must transition continuously Picture 1 -> Picture 2 -> Picture 3 -> ... -> Picture N.
+Character positions, poses, gaze directions, body orientations, action states, and framing may evolve naturally between adjacent Pictures only as required by the corresponding transition segment.
+Character identity, body proportions, fur/skin colors, permanent markings, costume colors, accessories, and overall visual design must remain consistent across all Pictures and all frames.
 
 summary:
 

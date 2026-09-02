@@ -38,7 +38,20 @@ SYSTEM_STYLE_TEMPLATES: List[Dict] = [
     {
         "name": "写实风格",
         "description": "适用于写实风格的图片生成",
-        "template": "realistic style, photorealistic, highly detailed, professional photography",
+        "template": """photorealistic historical cinematic aesthetic,
+live-action Three Kingdoms period drama,
+historically grounded late Eastern Han dynasty visual design,
+authentic period materials, craftsmanship and architecture,
+realistic fabric, leather, wood, stone, bronze and metal textures,
+natural physically plausible lighting,
+cinematic but restrained presentation,
+subtle restrained color grading,
+historically grounded proportions and construction,
+highly detailed realistic surfaces,
+no illustration, no anime, no cartoon,
+no painterly rendering, no stylized game aesthetic,
+no fantasy elements, no modern elements,
+consistent photorealistic visual universe""",
         "type": "style"
     },
     {
@@ -99,18 +112,6 @@ SYSTEM_CHAPTER_SPLIT_TEMPLATES: List[Dict] = [
         "name": "章节分镜导演解析",
         "description": "根据章节正文和角色/场景/道具白名单规划导演 Shot 数据",
         "template": load_template("05_NovelFlow_VideoDirector_ShotDirector_V1.txt"),
-        "type": "chapter_split"
-    },
-    {
-        "name": "标准分镜拆分",
-        "description": "适用于大多数小说的标准分镜拆分",
-        "template": load_template("standard_chapter_split.txt"),
-        "type": "chapter_split"
-    },
-    {
-        "name": "电影风格分镜",
-        "description": "电影级分镜拆分，强调画面构图和镜头语言",
-        "template": load_template("cinema_style.txt"),
         "type": "chapter_split"
     }
 ]

@@ -323,7 +323,7 @@ export interface ChapterGenerateStore
   setShotImages: (images: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 
   // ========== Video Generation Actions ==========
-  generateShotVideo: (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode) => Promise<void>;
+  generateShotVideo: (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode, options?: { skipLlmWhenPromptExists?: boolean }) => Promise<void>;
   generateAllVideos: (novelId: string, chapterId: string) => Promise<void>;
   setShotVideos: (videos: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 

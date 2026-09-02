@@ -102,6 +102,7 @@ export interface VideoDirectorPlan {
     workflow_type?: string;
     keyframe_indexes?: number[];
     status?: string;
+    prompt_text?: string;
   }>;
   execution_windows?: Array<{
     window_index: number;
@@ -295,6 +296,7 @@ export const shotsApi = {
       use_reference_audio?: boolean;
       workflow_id?: string;
       selected_mode?: VideoMode;
+      skip_llm_when_prompt_exists?: boolean;
     }
   ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string; detail?: string }> => {
     const response = await fetch(
@@ -307,6 +309,7 @@ export const shotsApi = {
           use_reference_audio: options?.use_reference_audio ?? true,
           workflow_id: options?.workflow_id,
           selected_mode: options?.selected_mode,
+          skip_llm_when_prompt_exists: options?.skip_llm_when_prompt_exists ?? false,
         }),
       }
     );

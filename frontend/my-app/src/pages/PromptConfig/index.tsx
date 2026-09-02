@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Loader2, Plus, FileText, BookOpen, Palette, Users, MapPin, Image, Package, Box, Film, SlidersHorizontal, Route, Video } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import type { PromptTemplate } from '../../types';
@@ -59,6 +60,45 @@ const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: Templa
   video_director: { nameKey: 'promptConfig.categories.videoDirector', types: ['video_mode_recommender', 'keyframe_planner', 'keyframe_transition'] },
   keyframe_image: { nameKey: 'promptConfig.categories.keyframeImage', types: ['keyframe_image_prompt'] },
   video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt'] },
+};
+
+const CATEGORIES: TemplateCategory[] = ['style_design', 'asset_parse', 'asset_generation', 'shot_planning', 'shot_image', 'video_director', 'keyframe_image', 'video_generation'];
+const DEFAULT_ACTIVE_CATEGORY: TemplateCategory = 'asset_parse';
+const DEFAULT_TAB_BY_CATEGORY: Record<TemplateCategory, TemplateType> = {
+  style_design: 'style',
+  asset_parse: 'character_parse',
+  asset_generation: 'character',
+  shot_planning: 'chapter_split',
+  shot_image: 'shot_image_prompt',
+  video_director: 'video_mode_recommender',
+  keyframe_image: 'keyframe_image_prompt',
+  video_generation: 'h3_single_frame_prompt',
+};
+
+const isTemplateCategory = (value: string | null): value is TemplateCategory => (
+  !!value && CATEGORIES.includes(value as TemplateCategory)
+);
+
+const isTemplateType = (value: string | null): value is TemplateType => (
+  !!value && Object.prototype.hasOwnProperty.call(TEMPLATE_TYPE_CONFIG, value)
+);
+
+const getCategoryForType = (type: TemplateType): TemplateCategory => (
+  CATEGORIES.find(category => CATEGORY_CONFIG[category].types.includes(type)) || DEFAULT_ACTIVE_CATEGORY
+);
+
+const getCategoryFromParams = (params: URLSearchParams): TemplateCategory => {
+  const category = params.get('category');
+  if (isTemplateCategory(category)) return category;
+  const type = params.get('type');
+  if (isTemplateType(type)) return getCategoryForType(type);
+  return DEFAULT_ACTIVE_CATEGORY;
+};
+
+const getTypeFromParams = (params: URLSearchParams, category: TemplateCategory): TemplateType => {
+  const type = params.get('type');
+  if (isTemplateType(type) && CATEGORY_CONFIG[category].types.includes(type)) return type;
+  return DEFAULT_TAB_BY_CATEGORY[category];
 };
 
 // 获取模板显示名称
@@ -143,27 +183,51 @@ function TemplateSection({
 
 export default function PromptConfig() {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const state = usePromptConfigState();
   const displayName = (tp: PromptTemplate) => getTemplateDisplayName(tp, t);
   const displayDesc = (tp: PromptTemplate) => getTemplateDisplayDescription(tp, t);
 
-  const [activeCategory, setActiveCategory] = useState<TemplateCategory>('asset_parse');
+  const initialCategory = getCategoryFromParams(searchParams);
+  const [activeCategory, setActiveCategory] = useState<TemplateCategory>(initialCategory);
   const [activeTabByCategory, setActiveTabByCategory] = useState<Record<TemplateCategory, TemplateType>>({
-    style_design: 'style',
-    asset_parse: 'character_parse',
-    asset_generation: 'character',
-    shot_planning: 'chapter_split',
-    shot_image: 'shot_image_prompt',
-    video_director: 'video_mode_recommender',
-    keyframe_image: 'keyframe_image_prompt',
-    video_generation: 'h3_single_frame_prompt',
+    ...DEFAULT_TAB_BY_CATEGORY,
+    [initialCategory]: getTypeFromParams(searchParams, initialCategory),
   });
 
-  const categories: TemplateCategory[] = ['style_design', 'asset_parse', 'asset_generation', 'shot_planning', 'shot_image', 'video_director', 'keyframe_image', 'video_generation'];
   const templateTypes = CATEGORY_CONFIG[activeCategory].types;
   const activeTab = activeTabByCategory[activeCategory];
+
+  useEffect(() => {
+    const category = getCategoryFromParams(searchParams);
+    const type = getTypeFromParams(searchParams, category);
+    if (searchParams.get('category') !== category || searchParams.get('type') !== type) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set('category', category);
+      nextParams.set('type', type);
+      setSearchParams(nextParams, { replace: true });
+      return;
+    }
+    setActiveCategory(category);
+    setActiveTabByCategory(prev => ({ ...prev, [category]: type }));
+  }, [searchParams, setSearchParams]);
+
+  const updateUrl = (category: TemplateCategory, type: TemplateType) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('category', category);
+    nextParams.set('type', type);
+    setSearchParams(nextParams);
+  };
+
+  const setActiveCategoryFromClick = (category: TemplateCategory) => {
+    const type = activeTabByCategory[category] || DEFAULT_TAB_BY_CATEGORY[category];
+    setActiveCategory(category);
+    updateUrl(category, type);
+  };
+
   const setActiveTab = (type: TemplateType) => {
     setActiveTabByCategory(prev => ({ ...prev, [activeCategory]: type }));
+    updateUrl(activeCategory, type);
   };
 
   return (
@@ -175,12 +239,12 @@ export default function PromptConfig() {
 
       {/* 一级分类 */}
       <div className="flex flex-wrap gap-2">
-        {categories.map(category => {
+        {CATEGORIES.map(category => {
           const isActive = activeCategory === category;
           return (
             <button
               key={category}
-              onClick={() => setActiveCategory(category)}
+              onClick={() => setActiveCategoryFromClick(category)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-primary-600 text-white shadow-sm'

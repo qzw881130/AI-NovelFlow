@@ -85,6 +85,17 @@ export function BottomNavigator({
 
   // 获取分镜状态
   const getShotStatus = (shot: Shot, shotId: string, index: number): ShotThumbnailStatus => {
+    const isCurrentShot = shotId === currentShotId || (!currentShotId && index === currentShotIndex);
+    const hasImageResult = !!(shot.imageUrl || shotImages[shotId]);
+    const hasVideoResult = !!(shot.videoUrl || shotVideos[shotId]);
+    const imageIsGenerating = generatingShots.has(shotId) || shot.imageStatus === 'generating';
+    const videoIsGenerating = generatingVideos.has(shotId) || shot.videoStatus === 'generating';
+
+    if (currentTab === 1 && imageIsGenerating && !hasImageResult) return 'generating';
+    if (currentTab === 3 && videoIsGenerating && !hasVideoResult) return 'generating';
+    if (isCurrentShot) return 'current';
+    if (currentTab === 1 && hasImageResult) return 'completed';
+    if (currentTab === 3 && hasVideoResult) return 'completed';
     if (generatingShots.has(shotId) || generatingVideos.has(shotId) || shot.imageStatus === 'generating' || shot.videoStatus === 'generating') {
       return 'generating';
     }
@@ -93,9 +104,6 @@ export function BottomNavigator({
     }
     if (currentTab === 3 && shot.videoStatus === 'failed') return 'failed';
     if (currentTab === 1 && shot.imageStatus === 'failed') return 'failed';
-    if (shotId === currentShotId || (!currentShotId && index === currentShotIndex)) {
-      return 'current';
-    }
     if (currentTab === 3) {
       return (shot.videoUrl || shotVideos[shotId]) ? 'completed' : 'pending';
     }

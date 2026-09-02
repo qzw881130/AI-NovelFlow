@@ -120,6 +120,36 @@ def _update_window_plan_status(shot, window_index: int, status: str, db, task=No
     _update_window_plan(shot, window_index, {"status": status}, db, task=task)
 
 
+def _update_clip_prompt(shot, clip: dict, prompt_text: str, db) -> None:
+    plan = safe_json_dict(shot.video_director_plan)
+    clips = plan.get("clips") if isinstance(plan.get("clips"), list) else []
+    clip_index = int((clip or {}).get("clip_index") or 1)
+    clip_start = (clip or {}).get("start_time", 0)
+    clip_end = (clip or {}).get("end_time")
+    updated = False
+
+    for index, existing_clip in enumerate(clips):
+        if not isinstance(existing_clip, dict):
+            continue
+        if int(existing_clip.get("clip_index") or index + 1) == clip_index:
+            existing_clip["prompt_text"] = prompt_text
+            updated = True
+            break
+
+    if not updated:
+        clips.append({
+            "clip_index": clip_index,
+            "start_time": clip_start,
+            "end_time": clip_end,
+            "status": (clip or {}).get("status") or "PENDING",
+            "prompt_text": prompt_text,
+        })
+
+    plan["clips"] = clips
+    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+    db.commit()
+
+
 def _is_task_cancelled(db, task) -> bool:
     db.refresh(task)
     return task.status == "cancelled"
@@ -231,6 +261,20 @@ def _hydrate_plan_keyframes_from_legacy(shot, plan_keyframes: list) -> list:
     return hydrated
 
 
+def _get_reusable_video_prompt(video_director_plan: dict) -> str:
+    clips = video_director_plan.get("clips") if isinstance(video_director_plan.get("clips"), list) else []
+    for clip in clips:
+        prompt = (clip or {}).get("prompt_text")
+        if isinstance(prompt, str) and prompt.strip():
+            return prompt.strip()
+    ai_calls = video_director_plan.get("ai_calls") if isinstance(video_director_plan.get("ai_calls"), list) else []
+    for call in reversed(ai_calls):
+        prompt = (call or {}).get("final_prompt")
+        if isinstance(prompt, str) and prompt.strip():
+            return prompt.strip()
+    return ""
+
+
 def enqueue_shot_video_task(
     task_id: str,
     novel_id: str,
@@ -243,6 +287,7 @@ def enqueue_shot_video_task(
     selected_mode: str = "SINGLE_FRAME",
     only_window_index: int | None = None,
     auto_merge_clips: bool = False,
+    skip_llm_when_prompt_exists: bool = False,
 ) -> None:
     """Queue shot video generation in its dedicated serial worker."""
     worker_manager.worker("shot_video").enqueue(
@@ -258,6 +303,7 @@ def enqueue_shot_video_task(
             selected_mode=selected_mode,
             only_window_index=only_window_index,
             auto_merge_clips=auto_merge_clips,
+            skip_llm_when_prompt_exists=skip_llm_when_prompt_exists,
         )
     )
 
@@ -274,6 +320,7 @@ async def generate_shot_video_task(
     selected_mode: str = "SINGLE_FRAME",
     only_window_index: int | None = None,
     auto_merge_clips: bool = False,
+    skip_llm_when_prompt_exists: bool = False,
 ):
     """
     后台任务：生成分镜视频
@@ -471,6 +518,7 @@ async def generate_shot_video_task(
                 task_id=task_id,
                 only_window_index=only_window_index,
                 auto_merge_clips=auto_merge_clips,
+                skip_llm_when_prompt_exists=skip_llm_when_prompt_exists,
             )
             return
 
@@ -570,32 +618,47 @@ async def generate_shot_video_task(
             transitions_for_prompt = _filter_transitions_for_keyframe_indexes(transitions_for_prompt, clip.get("keyframe_indexes") or [])
         clip_dialogues = _clip_dialogues_for_prompt(safe_json_list(shot.dialogues), clip, duration)
 
-        task.current_step = "正在构建 H3 视频提示词..."
-        if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
-            _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "PROMPT_BUILDING", db, task=task)
-        db.commit()
-        shot_prompt = await build_h3_video_prompt(
-            db=db,
-            novel=novel,
-            shot=shot,
-            selected_mode=selected_mode,
-            clip=clip,
-            workflow_capability=workflow_capability,
-            workflow_type=workflow.type,
-            workflow_name=workflow.name,
-            start_image_url=shot_image_url,
-            keyframes=keyframes_for_prompt,
-            transitions=transitions_for_prompt,
-            clip_dialogues=clip_dialogues,
-            reference_images=reference_images,
-            character_appearances=character_appearances,
-        )
+        reusable_prompt = _get_reusable_video_prompt(video_director_plan) if skip_llm_when_prompt_exists else ""
+        if skip_llm_when_prompt_exists and not reusable_prompt:
+            task.status = "failed"
+            task.error_message = "当前 Shot 没有可复用的视频最终 Prompt，请先使用 LLM+生成当前Shot视频。"
+            task.current_step = "缺少视频最终 Prompt"
+            shot_repo.update(shot, video_status="failed")
+            db.commit()
+            return
+        if reusable_prompt:
+            task.current_step = "复用已有 H3 视频提示词..."
+            shot_prompt = reusable_prompt
+            db.commit()
+        else:
+            task.current_step = "正在构建 H3 视频提示词..."
+            if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
+                _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "PROMPT_BUILDING", db, task=task)
+            db.commit()
+            shot_prompt = await build_h3_video_prompt(
+                db=db,
+                novel=novel,
+                shot=shot,
+                selected_mode=selected_mode,
+                clip=clip,
+                workflow_capability=workflow_capability,
+                workflow_type=workflow.type,
+                workflow_name=workflow.name,
+                start_image_url=shot_image_url,
+                keyframes=keyframes_for_prompt,
+                transitions=transitions_for_prompt,
+                clip_dialogues=clip_dialogues,
+                reference_images=reference_images,
+                character_appearances=character_appearances,
+            )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
             shot_repo.update(shot, video_status="failed")
             db.commit()
             return
         task.prompt_text = shot_prompt
+        if selected_mode != "MULTI_KEYFRAME":
+            _update_clip_prompt(shot, clip, shot_prompt, db)
         db.commit()
 
         task.current_step = "正在调用 ComfyUI 生成视频..."
@@ -711,6 +774,7 @@ async def _generate_multi_clip_video_task(
     task_id: str,
     only_window_index: int | None = None,
     auto_merge_clips: bool = False,
+    skip_llm_when_prompt_exists: bool = False,
 ):
     fps = 25
     clip_video_paths = []
@@ -799,11 +863,21 @@ async def _generate_multi_clip_video_task(
         clip_transitions_for_prompt = _filter_transitions_for_keyframe_indexes(transitions_for_prompt, keyframe_indexes)
         clip_dialogues = _clip_dialogues_for_prompt(all_dialogues, clip, float(shot.duration or 0))
 
-        task.current_step = f"正在构建 Clip {clip_position}/{len(window_plans)} H3 提示词..."
+        reusable_clip_prompt = (window_plan.get("prompt_text") or "").strip() if skip_llm_when_prompt_exists else ""
+        if skip_llm_when_prompt_exists and not reusable_clip_prompt:
+            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": "缺少可复用的 Clip 视频最终 Prompt"}, db, task=task)
+            task.status = "failed"
+            task.error_message = f"Clip {window_index} 没有可复用的视频最终 Prompt，请先使用 LLM+生成当前Shot视频。"
+            task.current_step = "缺少视频最终 Prompt"
+            shot_repo.update(shot, video_status="failed")
+            db.commit()
+            return
+
+        task.current_step = f"{'复用已有' if reusable_clip_prompt else '正在构建'} Clip {clip_position}/{len(window_plans)} H3 提示词..."
         task.progress = int(10 + ((clip_position - 1) / len(window_plans)) * 70)
         task.reference_images = json.dumps(reference_images, ensure_ascii=False)
         _update_window_plan(shot, window_index, {
-            "status": "PROMPT_BUILDING",
+            "status": "RUNNING" if reusable_clip_prompt else "PROMPT_BUILDING",
             "workflow_type": workflow_type,
             "workflow_name": workflow.name,
             "reference_images": reference_images,
@@ -811,22 +885,25 @@ async def _generate_multi_clip_video_task(
             "error_message": None,
         }, db, task=task)
         db.commit()
-        clip_prompt = await build_h3_video_prompt(
-            db=db,
-            novel=novel,
-            shot=shot,
-            selected_mode="MULTI_KEYFRAME",
-            clip=clip,
-            workflow_capability=workflow_capability,
-            workflow_type=workflow_type,
-            workflow_name=workflow.name,
-            start_image_url=start_image_url,
-            keyframes=keyframes_for_prompt,
-            transitions=clip_transitions_for_prompt,
-            clip_dialogues=clip_dialogues,
-            reference_images=reference_images,
-            character_appearances=character_appearances,
-        )
+        if reusable_clip_prompt:
+            clip_prompt = reusable_clip_prompt
+        else:
+            clip_prompt = await build_h3_video_prompt(
+                db=db,
+                novel=novel,
+                shot=shot,
+                selected_mode="MULTI_KEYFRAME",
+                clip=clip,
+                workflow_capability=workflow_capability,
+                workflow_type=workflow_type,
+                workflow_name=workflow.name,
+                start_image_url=start_image_url,
+                keyframes=keyframes_for_prompt,
+                transitions=clip_transitions_for_prompt,
+                clip_dialogues=clip_dialogues,
+                reference_images=reference_images,
+                character_appearances=character_appearances,
+            )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
             shot_repo.update(shot, video_status="failed")

@@ -703,6 +703,11 @@ async def run_shot_image_batch_task(batch_task_id: str) -> None:
             if child_task.status == "pending":
                 shot = db.query(Shot).filter(Shot.id == child_task.shot_id).first()
                 prompt_text = (shot.shot_image_prompt or "").strip() if shot and skip_llm_when_prompt_exists else None
+                child_task.status = "running"
+                child_task.started_at = child_task.started_at or datetime.utcnow()
+                child_task.current_step = "准备提交分镜图工作流" if prompt_text else "正在生成分镜图提示词"
+                batch_task.current_step = f"正在处理 {index}/{total}：{child_task.current_step}"
+                db.commit()
                 await _prepare_and_enqueue_shot_image_generation(
                     novel_id=child_task.novel_id,
                     chapter_id=child_task.chapter_id,
@@ -2008,6 +2013,7 @@ async def generate_shot_video(
         use_keyframes=request.use_keyframes,
         use_reference_audio=request.use_reference_audio,
         selected_mode=selected_mode,
+        skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
     )
 
     return {
