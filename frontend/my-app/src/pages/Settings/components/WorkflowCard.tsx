@@ -5,7 +5,7 @@ import { getWorkflowDisplayName, getWorkflowDisplayDescription, checkWorkflowMap
 import type { Workflow } from '../types';
 import { workflowApi } from '../../../api/workflows';
 
-const typeIcons = {
+const typeIcons: Record<string, typeof User> = {
   character: User,
   scene: Mountain,
   shot_scene: ImageIcon,
@@ -24,7 +24,7 @@ const typeIcons = {
   single_image_edit: ImageIcon
 };
 
-const typeColors = {
+const typeColors: Record<string, string> = {
   character: 'bg-blue-100 text-blue-600',
   scene: 'bg-green-100 text-green-600',
   shot_scene: 'bg-emerald-100 text-emerald-600',
@@ -64,8 +64,8 @@ export function WorkflowCard({
 }: WorkflowCardProps) {
   const { t } = useTranslation();
   const isMappingComplete = checkWorkflowMappingComplete(workflow);
-  const TypeIcon = typeIcons[workflow.type];
-  const typeColor = typeColors[workflow.type];
+  const TypeIcon = typeIcons[workflow.type] || Clapperboard;
+  const typeColor = typeColors[workflow.type] || 'bg-gray-100 text-gray-600';
 
   return (
     <div 

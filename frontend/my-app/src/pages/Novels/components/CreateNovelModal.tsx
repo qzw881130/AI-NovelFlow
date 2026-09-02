@@ -1,28 +1,39 @@
 import { useState } from 'react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { ASPECT_RATIO_OPTIONS } from '../../../utils';
-import type { PromptTemplate } from '../../../types';
+import type { Novel, PromptTemplate } from '../../../types';
 import type { NovelFormData } from '../types';
 
 // 模板类型配置
 const TEMPLATE_FIELDS = [
-  { key: 'stylePromptTemplateId', labelKey: 'novels.stylePromptLabel', hintKey: 'novels.stylePromptHint', templateType: 'style' },
-  { key: 'characterParsePromptTemplateId', labelKey: 'novels.characterParsePromptLabel', hintKey: 'novels.characterParsePromptHint', templateType: 'character_parse' },
-  { key: 'sceneParsePromptTemplateId', labelKey: 'novels.sceneParsePromptLabel', hintKey: 'novels.sceneParsePromptHint', templateType: 'scene_parse' },
-  { key: 'propParsePromptTemplateId', labelKey: 'novels.propParsePromptLabel', hintKey: 'novels.propParsePromptHint', templateType: 'prop_parse' },
-  { key: 'promptTemplateId', labelKey: 'novels.characterPromptLabel', hintKey: 'novels.characterPromptHint', templateType: 'character' },
-  { key: 'scenePromptTemplateId', labelKey: 'novels.scenePromptLabel', hintKey: 'novels.scenePromptHint', templateType: 'scene' },
-  { key: 'propPromptTemplateId', labelKey: 'novels.propPromptLabel', hintKey: 'novels.propPromptHint', templateType: 'prop' },
-  { key: 'chapterSplitPromptTemplateId', labelKey: 'novels.splitPromptLabel', hintKey: 'novels.splitPromptHint', templateType: 'chapter_split' },
-  { key: 'keyframeDescriptionPromptTemplateId', labelKey: 'novels.keyframeDescriptionPromptLabel', hintKey: 'novels.keyframeDescriptionPromptHint', templateType: 'keyframe_description' },
-  { key: 'shotImagePromptTemplateId', labelKey: 'novels.shotImagePromptLabel', hintKey: 'novels.shotImagePromptHint', templateType: 'shot_image_prompt' },
-  { key: 'videoModeRecommenderPromptTemplateId', labelKey: 'novels.videoModeRecommenderPromptLabel', hintKey: 'novels.videoModeRecommenderPromptHint', templateType: 'video_mode_recommender' },
-  { key: 'keyframePlannerPromptTemplateId', labelKey: 'novels.keyframePlannerPromptLabel', hintKey: 'novels.keyframePlannerPromptHint', templateType: 'keyframe_planner' },
-  { key: 'keyframeImagePromptTemplateId', labelKey: 'novels.keyframeImagePromptLabel', hintKey: 'novels.keyframeImagePromptHint', templateType: 'keyframe_image_prompt' },
-  { key: 'keyframeTransitionPromptTemplateId', labelKey: 'novels.keyframeTransitionPromptLabel', hintKey: 'novels.keyframeTransitionPromptHint', templateType: 'keyframe_transition' },
-  { key: 'h3SingleFramePromptTemplateId', labelKey: 'novels.h3SingleFramePromptLabel', hintKey: 'novels.h3SingleFramePromptHint', templateType: 'h3_single_frame_prompt' },
-  { key: 'h3FirstLastFramePromptTemplateId', labelKey: 'novels.h3FirstLastFramePromptLabel', hintKey: 'novels.h3FirstLastFramePromptHint', templateType: 'h3_first_last_frame_prompt' },
-  { key: 'h3MultiKeyframePromptTemplateId', labelKey: 'novels.h3MultiKeyframePromptLabel', hintKey: 'novels.h3MultiKeyframePromptHint', templateType: 'h3_multi_keyframe_prompt' },
+  { key: 'stylePromptTemplateId', labelKey: 'novels.stylePromptLabel', hintKey: 'novels.stylePromptHint', templateType: 'style', category: 'style_design' },
+  { key: 'characterParsePromptTemplateId', labelKey: 'novels.characterParsePromptLabel', hintKey: 'novels.characterParsePromptHint', templateType: 'character_parse', category: 'asset_parse' },
+  { key: 'sceneParsePromptTemplateId', labelKey: 'novels.sceneParsePromptLabel', hintKey: 'novels.sceneParsePromptHint', templateType: 'scene_parse', category: 'asset_parse' },
+  { key: 'propParsePromptTemplateId', labelKey: 'novels.propParsePromptLabel', hintKey: 'novels.propParsePromptHint', templateType: 'prop_parse', category: 'asset_parse' },
+  { key: 'promptTemplateId', labelKey: 'novels.characterPromptLabel', hintKey: 'novels.characterPromptHint', templateType: 'character', category: 'asset_generation' },
+  { key: 'scenePromptTemplateId', labelKey: 'novels.scenePromptLabel', hintKey: 'novels.scenePromptHint', templateType: 'scene', category: 'asset_generation' },
+  { key: 'propPromptTemplateId', labelKey: 'novels.propPromptLabel', hintKey: 'novels.propPromptHint', templateType: 'prop', category: 'asset_generation' },
+  { key: 'chapterSplitPromptTemplateId', labelKey: 'novels.splitPromptLabel', hintKey: 'novels.splitPromptHint', templateType: 'chapter_split', category: 'shot_planning' },
+  { key: 'keyframeDescriptionPromptTemplateId', labelKey: 'novels.keyframeDescriptionPromptLabel', hintKey: 'novels.keyframeDescriptionPromptHint', templateType: 'keyframe_description', category: 'shot_planning' },
+  { key: 'shotImagePromptTemplateId', labelKey: 'novels.shotImagePromptLabel', hintKey: 'novels.shotImagePromptHint', templateType: 'shot_image_prompt', category: 'shot_image' },
+  { key: 'videoModeRecommenderPromptTemplateId', labelKey: 'novels.videoModeRecommenderPromptLabel', hintKey: 'novels.videoModeRecommenderPromptHint', templateType: 'video_mode_recommender', category: 'video_director' },
+  { key: 'keyframePlannerPromptTemplateId', labelKey: 'novels.keyframePlannerPromptLabel', hintKey: 'novels.keyframePlannerPromptHint', templateType: 'keyframe_planner', category: 'video_director' },
+  { key: 'keyframeTransitionPromptTemplateId', labelKey: 'novels.keyframeTransitionPromptLabel', hintKey: 'novels.keyframeTransitionPromptHint', templateType: 'keyframe_transition', category: 'video_director' },
+  { key: 'keyframeImagePromptTemplateId', labelKey: 'novels.keyframeImagePromptLabel', hintKey: 'novels.keyframeImagePromptHint', templateType: 'keyframe_image_prompt', category: 'keyframe_image' },
+  { key: 'h3SingleFramePromptTemplateId', labelKey: 'novels.h3SingleFramePromptLabel', hintKey: 'novels.h3SingleFramePromptHint', templateType: 'h3_single_frame_prompt', category: 'video_generation' },
+  { key: 'h3FirstLastFramePromptTemplateId', labelKey: 'novels.h3FirstLastFramePromptLabel', hintKey: 'novels.h3FirstLastFramePromptHint', templateType: 'h3_first_last_frame_prompt', category: 'video_generation' },
+  { key: 'h3MultiKeyframePromptTemplateId', labelKey: 'novels.h3MultiKeyframePromptLabel', hintKey: 'novels.h3MultiKeyframePromptHint', templateType: 'h3_multi_keyframe_prompt', category: 'video_generation' },
+] as const;
+
+const TEMPLATE_CATEGORIES = [
+  { key: 'style_design', labelKey: 'promptConfig.categories.styleDesign' },
+  { key: 'asset_parse', labelKey: 'promptConfig.categories.assetParse' },
+  { key: 'asset_generation', labelKey: 'promptConfig.categories.assetGeneration' },
+  { key: 'shot_planning', labelKey: 'promptConfig.categories.shotPlanning' },
+  { key: 'shot_image', labelKey: 'promptConfig.categories.shotImage' },
+  { key: 'video_director', labelKey: 'promptConfig.categories.videoDirector' },
+  { key: 'keyframe_image', labelKey: 'promptConfig.categories.keyframeImage' },
+  { key: 'video_generation', labelKey: 'promptConfig.categories.videoGeneration' },
 ] as const;
 
 interface CreateNovelModalProps {
@@ -33,6 +44,7 @@ interface CreateNovelModalProps {
   setFormData: React.Dispatch<React.SetStateAction<NovelFormData>>;
   templatesByType: Record<string, PromptTemplate[]>;
   getTemplateDisplayName: (template: PromptTemplate | undefined) => string;
+  referenceNovels?: Novel[];
 }
 
 export function CreateNovelModal({
@@ -43,6 +55,7 @@ export function CreateNovelModal({
   setFormData,
   templatesByType,
   getTemplateDisplayName,
+  referenceNovels = [],
 }: CreateNovelModalProps) {
   const { t } = useTranslation();
   const [showDescription, setShowDescription] = useState(false);
@@ -54,6 +67,15 @@ export function CreateNovelModal({
   }));
 
   if (!isOpen) return null;
+
+  const applyReferenceNovel = (novelId: string) => {
+    const referenceNovel = referenceNovels.find((novel) => novel.id === novelId);
+    if (!referenceNovel) return;
+    setFormData({
+      ...formData,
+      ...Object.fromEntries(TEMPLATE_FIELDS.map((field) => [field.key, (referenceNovel as any)[field.key] || ''])),
+    });
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -130,27 +152,56 @@ export function CreateNovelModal({
           <section className="rounded-xl border border-gray-200 bg-white p-4">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-gray-800">{t('novels.promptTemplatesSection')}</h3>
-              <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700">{TEMPLATE_FIELDS.length} 项</span>
-            </div>
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {TEMPLATE_FIELDS.map(field => (
-                <div key={field.key} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                  <label className="block text-sm font-medium text-gray-800">{t(field.labelKey)}</label>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-sm text-gray-600">
+                  <span className="whitespace-nowrap">快速参考</span>
                   <select
-                    value={formData[field.key]}
-                    onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
-                    className="input-field mt-1"
+                    value=""
+                    onChange={(e) => applyReferenceNovel(e.target.value)}
+                    className="input-field h-9 min-w-[220px] py-1 text-sm"
                   >
-                    <option value="">{t('novels.defaultTemplate')}</option>
-                    {(templatesByType[field.templateType] || []).map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {getTemplateDisplayName(template)} {template.isSystem ? t('novels.systemTemplate') : t('novels.customTemplate')}
-                      </option>
+                    <option value="">选择其他小说...</option>
+                    {referenceNovels.map((novel) => (
+                      <option key={novel.id} value={novel.id}>{novel.title}</option>
                     ))}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">{t(field.hintKey)}</p>
-                </div>
-              ))}
+                </label>
+                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700">{TEMPLATE_FIELDS.length} 项</span>
+              </div>
+            </div>
+            <div className="space-y-4">
+              {TEMPLATE_CATEGORIES.map(category => {
+                const fields = TEMPLATE_FIELDS.filter(field => field.category === category.key);
+                if (!fields.length) return null;
+                return (
+                  <div key={category.key} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+                    <div className="mb-3 flex items-center justify-between gap-2">
+                      <h4 className="text-sm font-semibold text-gray-800">{t(category.labelKey)}</h4>
+                      <span className="text-xs text-gray-400">{fields.length} 项</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      {fields.map(field => (
+                        <div key={field.key} className="rounded-lg border border-gray-100 bg-white p-3">
+                          <label className="block text-sm font-medium text-gray-800">{t(field.labelKey)}</label>
+                          <select
+                            value={formData[field.key]}
+                            onChange={(e) => setFormData({ ...formData, [field.key]: e.target.value })}
+                            className="input-field mt-1"
+                          >
+                            <option value="">{t('novels.defaultTemplate')}</option>
+                            {(templatesByType[field.templateType] || []).map((template) => (
+                              <option key={template.id} value={template.id}>
+                                {getTemplateDisplayName(template)} {template.isSystem ? t('novels.systemTemplate') : t('novels.customTemplate')}
+                              </option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">{t(field.hintKey)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </section>
           </div>

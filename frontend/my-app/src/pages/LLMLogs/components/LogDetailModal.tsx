@@ -11,10 +11,11 @@ interface LogDetailModalProps {
   onClose: () => void;
   formatDate: (date: string) => string;
   getTaskTypeLabel: (type: string | null) => string;
+  getDisplayDuration: (log: LLMLog) => string;
   getStatusBadgeConfig: (status: string) => { bg: string; text: string; label: string };
 }
 
-export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDate, getTaskTypeLabel, getStatusBadgeConfig }: LogDetailModalProps) {
+export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDate, getTaskTypeLabel, getDisplayDuration, getStatusBadgeConfig }: LogDetailModalProps) {
   const { t } = useTranslation();
 
   const getRequestInfo = () => {
@@ -117,7 +118,7 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
             <span className={`px-2 py-1 text-xs ${getStatusBadgeConfig(log.status).bg} ${getStatusBadgeConfig(log.status).text} rounded-full`}>{getStatusBadgeConfig(log.status).label}</span>
             <span className="text-gray-500">{t('llmLogs.proxy')}:</span><span className="font-medium">{log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}</span>
             <span className="text-gray-500">{t('llmLogs.duration')}:</span>
-            <span className="font-medium">{log.duration ? `${log.duration.toFixed(2)}s` : '-'}</span>
+            <span className="font-medium">{getDisplayDuration(log)}</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-500">{t('llmLogs.promptTemplateName')}:</span>

@@ -278,7 +278,8 @@ export default function LLMLogs() {
 
       {state.selectedLog && (
         <LogDetailModal log={state.selectedLog} activeTab={state.activePromptTab} onTabChange={state.setActivePromptTab}
-          onClose={state.closeModal} formatDate={state.formatDate} getTaskTypeLabel={state.getTaskTypeLabel} getStatusBadgeConfig={state.getStatusBadgeConfig} />
+          onClose={state.closeModal} formatDate={state.formatDate} getTaskTypeLabel={state.getTaskTypeLabel}
+          getDisplayDuration={state.getDisplayDuration} getStatusBadgeConfig={state.getStatusBadgeConfig} />
       )}
       {state.showStatsModal && <StatsModal state={state} />}
     </div>
