@@ -243,6 +243,31 @@ class TaskService:
                 "details": {"skipped": True},
             }
 
+        if task.type == "shot_image_batch":
+            child_tasks = db.query(Task).filter(Task.parent_task_id == task.id).all()
+            details = {"children_cancelled": 0, "children_requested": len(child_tasks)}
+            for child in child_tasks:
+                if child.status == "pending":
+                    child.status = "cancelled"
+                    child.error_message = "批量任务被用户取消"
+                    child.current_step = "已终止"
+                    details["children_cancelled"] += 1
+                    self._mark_related_task_failed(child, db)
+                elif child.status == "running":
+                    cancel_result = {"skipped_comfyui": True}
+                    if child.comfyui_prompt_id:
+                        cancel_result = await self.comfyui_service.cancel_all_matching_tasks([child.comfyui_prompt_id])
+                    child.status = "cancelled"
+                    child.error_message = "批量任务被用户取消"
+                    child.current_step = "已终止"
+                    details.setdefault("running_children", []).append({"task_id": child.id, "cancel_result": cancel_result})
+                    self._mark_related_task_failed(child, db)
+            task.status = "cancelled"
+            task.error_message = "任务被用户取消"
+            task.current_step = "已终止"
+            db.commit()
+            return {"success": True, "message": "批量任务已取消", "task": task, "details": details}
+
         cancel_result = {"skipped_comfyui": True}
         if task.comfyui_prompt_id:
             cancel_result = await self.comfyui_service.cancel_all_matching_tasks([task.comfyui_prompt_id])
@@ -577,7 +602,8 @@ class TaskService:
                     ShotRepository(db).update(shot, image_status="failed")
 
             pending_start_timeout = 600 if task.type == "keyframe_image" else 1800
-            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout:
+            is_batch_waiting_child = bool(getattr(task, "parent_task_id", None))
+            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type != "shot_image_batch" and not is_batch_waiting_child:
                 task.status = "failed"
                 task.error_message = "任务长期未启动，后台内存队列可能已因服务重启或热更新丢失，请重新提交"
                 task.current_step = "任务未启动"
@@ -1139,6 +1165,8 @@ class TaskService:
                 "characterId": t.character_id,
                 "sceneId": t.scene_id,
                 "shotId": t.shot_id,
+                "parentTaskId": getattr(t, "parent_task_id", None),
+                "batchOrder": getattr(t, "batch_order", None),
                 "createdAt": format_datetime(t.created_at),
                 "startedAt": format_datetime(t.started_at),
                 "completedAt": format_datetime(t.completed_at),
@@ -1184,6 +1212,8 @@ class TaskService:
             "characterId": task.character_id,
             "sceneId": task.scene_id,
             "shotId": task.shot_id,
+            "parentTaskId": getattr(task, "parent_task_id", None),
+            "batchOrder": getattr(task, "batch_order", None),
             "comfyuiPromptId": task.comfyui_prompt_id,
             "createdAt": format_datetime(task.created_at),
             "startedAt": format_datetime(task.started_at),

@@ -264,6 +264,25 @@ export const shotsApi = {
     return response.json();
   },
 
+  generateImagesBatch: async (
+    novelId: string,
+    chapterId: string,
+    options: { shot_ids: string[]; skip_llm_when_prompt_exists?: boolean }
+  ): Promise<{ success: boolean; data?: { batchTaskId: string; tasks: Array<{ taskId: string; shotId: string; status: string }> }; message?: string; detail?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shot-images/batch`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shot_ids: options.shot_ids,
+          skip_llm_when_prompt_exists: options.skip_llm_when_prompt_exists ?? true,
+        }),
+      }
+    );
+    return response.json();
+  },
+
   /**
    * 生成分镜视频
    */

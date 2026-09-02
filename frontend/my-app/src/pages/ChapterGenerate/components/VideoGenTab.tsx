@@ -2118,6 +2118,20 @@ export function VideoGenTab({
     }
   };
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 's') return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!isSaving) {
+        handleSaveShot();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [effectiveNovelId, effectiveChapterId, currentShotData, isSaving]);
+
   const handleRefreshCurrentVideo = async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
 

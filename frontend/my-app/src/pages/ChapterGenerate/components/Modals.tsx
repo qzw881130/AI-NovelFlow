@@ -142,6 +142,7 @@ export function ImagePreviewModal({
   shotImages
 }: ImagePreviewModalProps) {
   const { t } = useTranslation();
+  const [previewImageSize, setPreviewImageSize] = useState<{ width: number; height: number } | null>(null);
 
   // 计算有图片的分镜数量
   const imagesWithShots = parsedDataShots?.filter((shot: any, idx: number) => (
@@ -155,6 +156,10 @@ export function ImagePreviewModal({
   });
   const previewShotNumber = previewShot?.index || (previewImageIndex >= 0 ? previewImageIndex + 1 : currentShot);
   const previewShotDescription = previewShot?.description || '';
+
+  useEffect(() => {
+    if (isOpen) setPreviewImageSize(null);
+  }, [isOpen, previewImageUrl]);
 
   useEffect(() => {
     if (!isOpen || !canNavigate) return;
@@ -213,11 +218,24 @@ export function ImagePreviewModal({
           <img
             src={previewImageUrl}
             alt={t('chapterGenerate.shotPreview')}
+            onLoad={(event) => {
+              setPreviewImageSize({
+                width: event.currentTarget.naturalWidth,
+                height: event.currentTarget.naturalHeight,
+              });
+            }}
             className="max-w-full h-auto object-contain rounded-lg mx-auto"
           />
 
           <div className="mt-3 mx-auto w-full max-w-5xl rounded-lg bg-black/45 text-white px-4 py-3 backdrop-blur-sm">
-            <div className="text-sm font-semibold mb-1">#{previewShotNumber}</div>
+            <div className="mb-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-semibold">
+              <span>#{previewShotNumber}</span>
+              {previewImageSize && (
+                <span className="font-normal text-gray-300">
+                  图片尺寸：{previewImageSize.width} × {previewImageSize.height}
+                </span>
+              )}
+            </div>
             {previewShotDescription && (
               <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
                 {previewShotDescription}

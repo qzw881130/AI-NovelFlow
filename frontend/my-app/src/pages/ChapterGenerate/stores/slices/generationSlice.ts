@@ -713,7 +713,7 @@ export const createGenerationSlice: StateCreator<
             tasksByShotId[task.shotId].push(task);
           } else {
             // 兼容旧逻辑：从 task.name 中提取镜号，然后查找对应的 shot
-            const match = task.name?.match(/镜\s*(\d+)/);
+            const match = task.name?.match(/(?:镜|Shot)\s*(\d+)/i);
             if (match) {
               const shotIndex = parseInt(match[1], 10);
               const shot = get().shots.find(s => s.index === shotIndex);
@@ -730,24 +730,41 @@ export const createGenerationSlice: StateCreator<
         console.log('[checkShotTaskStatus] tasksByShotId keys:', Object.keys(tasksByShotId));
 
         // 更新 shots 状态和 shotImages 映射
-        const { shots, shotImages, generatingShots } = get();
+        const { shots, shotImages, generatingShots, pendingShots } = get();
         let shotImagesUpdated = false;
         let generatingShotsUpdated = false;
+        let pendingShotsUpdated = false;
         const newShotImages = { ...shotImages };
         const newGeneratingShots = new Set(generatingShots);
+        const newPendingShots = new Set(pendingShots);
+
+        const taskTime = (task: any) => {
+          const value = task.completedAt || task.startedAt || task.createdAt;
+          const time = value ? new Date(value).getTime() : 0;
+          return Number.isFinite(time) ? time : 0;
+        };
 
         const updatedShots = shots.map((shot) => {
           const shotTasks = tasksByShotId[shot.id];
           if (shotTasks && shotTasks.length > 0) {
-            // 找到最新的任务（按创建时间排序，取最新的）
+            // 找到最新的任务；批量子任务常同秒创建，完成/开始时间比创建时间更可靠。
             const sortedTasks = [...shotTasks].sort((a, b) =>
-              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              taskTime(b) - taskTime(a)
             );
             const latestTask = sortedTasks[0];
-            const latestCompletedUrl = latestTask.status === 'completed' && latestTask.resultUrl ? latestTask.resultUrl : null;
+            const trackedTask = shot.imageTaskId ? sortedTasks.find(t => t.id === shot.imageTaskId) : null;
+            const trackedStatus = String(trackedTask?.status || '').toLowerCase();
+            const trackedCompletedTask = trackedStatus === 'completed' && trackedTask?.resultUrl ? trackedTask : null;
+            const trackedActiveTask = ['pending', 'queued', 'running'].includes(trackedStatus) ? trackedTask : null;
+            const latestCompletedTask = trackedCompletedTask || sortedTasks.find(t => t.status === 'completed' && t.resultUrl);
+            const latestActiveTask = trackedActiveTask || sortedTasks.find(t => ['pending', 'queued', 'running'].includes(String(t.status || '').toLowerCase()));
+            const completedIsCurrent = !!trackedCompletedTask || (latestCompletedTask && (!latestActiveTask || taskTime(latestCompletedTask) >= taskTime(latestActiveTask)));
+            const activeIsCurrent = !trackedCompletedTask && latestActiveTask && !completedIsCurrent;
+            const latestCompletedUrl = completedIsCurrent ? latestCompletedTask.resultUrl : null;
 
-            // 检查是否有任何任务正在运行
-            const hasRunningTask = shotTasks.some(t => t.status === 'running' || t.status === 'pending');
+            // 检查是否有任何任务正在运行或等待批量处理
+            const hasRunningTask = activeIsCurrent && ['running', 'queued'].includes(String(latestActiveTask.status || '').toLowerCase());
+            const hasPendingTask = activeIsCurrent && String(latestActiveTask.status || '').toLowerCase() === 'pending';
 
             // 如果有任务正在运行，确保在 generatingShots 中
             if (hasRunningTask && !newGeneratingShots.has(shot.id)) {
@@ -761,6 +778,16 @@ export const createGenerationSlice: StateCreator<
               generatingShotsUpdated = true;
             }
 
+            if (hasPendingTask && !newPendingShots.has(shot.id)) {
+              newPendingShots.add(shot.id);
+              pendingShotsUpdated = true;
+            }
+
+            if (!hasPendingTask && newPendingShots.has(shot.id)) {
+              newPendingShots.delete(shot.id);
+              pendingShotsUpdated = true;
+            }
+
             if (latestCompletedUrl) {
               if (newShotImages[shot.id] !== latestCompletedUrl) {
                 newShotImages[shot.id] = latestCompletedUrl;
@@ -771,24 +798,33 @@ export const createGenerationSlice: StateCreator<
               shotImagesUpdated = true;
             }
 
+            const imageStatus: Shot['imageStatus'] = hasRunningTask
+              ? 'generating'
+              : completedIsCurrent
+                ? 'completed'
+                : latestTask.status === 'failed'
+                  ? 'failed'
+                  : 'pending';
+
             return {
               ...shot,
-              imageStatus: latestTask.status,
-              imageUrl: latestCompletedUrl || (hasRunningTask ? null : shot.imageUrl),
-              imageTaskId: latestTask.id || shot.imageTaskId,
+              imageStatus,
+              imageUrl: latestCompletedUrl || (hasRunningTask || hasPendingTask ? null : shot.imageUrl),
+              imageTaskId: (completedIsCurrent ? latestCompletedTask.id : latestTask.id) || shot.imageTaskId,
             };
           }
           return shot;
         });
 
         // 只有当数据真正变化时才更新状态
-        console.log('[checkShotTaskStatus] shotImagesUpdated:', shotImagesUpdated, 'generatingShotsUpdated:', generatingShotsUpdated);
+        console.log('[checkShotTaskStatus] shotImagesUpdated:', shotImagesUpdated, 'generatingShotsUpdated:', generatingShotsUpdated, 'pendingShotsUpdated:', pendingShotsUpdated);
         console.log('[checkShotTaskStatus] newGeneratingShots:', [...newGeneratingShots]);
-        if (shotImagesUpdated || generatingShotsUpdated) {
+        if (shotImagesUpdated || generatingShotsUpdated || pendingShotsUpdated) {
           set({
             shots: updatedShots,
             shotImages: newShotImages,
-            generatingShots: newGeneratingShots
+            generatingShots: newGeneratingShots,
+            pendingShots: newPendingShots
           });
           console.log('[checkShotTaskStatus] State updated with newGeneratingShots');
         } else {
@@ -807,6 +843,12 @@ export const createGenerationSlice: StateCreator<
       const result = await response.json();
 
       if (result.success && result.data) {
+        const taskTime = (task: any) => {
+          const value = task.completedAt || task.startedAt || task.createdAt;
+          const time = value ? new Date(value).getTime() : 0;
+          return Number.isFinite(time) ? time : 0;
+        };
+
         // 构建 shotId -> tasks 列表的映射（一个 shotId 可能有多个任务）
         const shotTasksMap: Record<string, any[]> = {};
         result.data.forEach((task: any) => {
@@ -831,39 +873,38 @@ export const createGenerationSlice: StateCreator<
           }
         });
 
-        // 为每个 shotId 选择最合适的任务
-        // 优先级：running > pending > completed（最新的）> failed
+        // 为每个 shotId 选择最合适的任务：完成/开始时间优先，避免旧 pending 覆盖新 completed。
         const taskMap: Record<string, any> = {};
         for (const [shotId, tasks] of Object.entries(shotTasksMap)) {
-          // 按创建时间排序（最新的在前）
           const sortedTasks = (tasks as any[]).sort((a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            taskTime(b) - taskTime(a)
           );
 
-          // 优先选择正在运行或等待中的任务
-          const runningTask = sortedTasks.find(t => t.status === 'running' || t.status === 'pending');
-          if (runningTask) {
-            taskMap[shotId] = runningTask;
-          } else {
-            // 否则选择最新的任务（无论是完成还是失败）
-            taskMap[shotId] = sortedTasks[0];
-          }
+          const latestCompletedTask = sortedTasks.find(t => t.status === 'completed' && t.resultUrl);
+          const latestActiveTask = sortedTasks.find(t => ['pending', 'queued', 'running'].includes(String(t.status || '').toLowerCase()));
+          taskMap[shotId] = latestCompletedTask && (!latestActiveTask || taskTime(latestCompletedTask) >= taskTime(latestActiveTask))
+            ? latestCompletedTask
+            : (latestActiveTask || sortedTasks[0]);
         }
 
-        const { shots, shotVideos, generatingVideos } = get();
+        const { shots, shotVideos, generatingVideos, pendingVideos } = get();
         let shotVideosUpdated = false;
         let generatingVideosUpdated = false;
+        let pendingVideosUpdated = false;
         const terminalShotIds = new Set<string>();
         const activeShotIds = new Set<string>();
         const newShotVideos = { ...shotVideos };
         const newGeneratingVideos = new Set(generatingVideos);
+        const newPendingVideos = new Set(pendingVideos);
 
         const updatedShots = shots.map(shot => {
             const task = taskMap[shot.id];
             if (task) {
               const isCompleted = task.status === 'completed';
               const isFailed = task.status === 'failed' || task.status === 'cancelled';
-            const isRunning = task.status === 'running' || task.status === 'pending';
+            const isRunning = task.status === 'running' || task.status === 'queued';
+            const isPending = task.status === 'pending';
+            const isActive = isRunning || isPending;
             const videoStatus = isCompleted ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : shot.videoStatus;
 
             // 如果任务正在运行，确保在 generatingVideos 中
@@ -871,34 +912,35 @@ export const createGenerationSlice: StateCreator<
               newGeneratingVideos.add(shot.id);
               generatingVideosUpdated = true;
             }
-            if (isRunning) {
+            if (!isRunning && newGeneratingVideos.has(shot.id)) {
+              newGeneratingVideos.delete(shot.id);
+              generatingVideosUpdated = true;
+            }
+            if (isPending && !newPendingVideos.has(shot.id)) {
+              newPendingVideos.add(shot.id);
+              pendingVideosUpdated = true;
+            }
+            if (!isPending && newPendingVideos.has(shot.id)) {
+              newPendingVideos.delete(shot.id);
+              pendingVideosUpdated = true;
+            }
+            if (isActive) {
               activeShotIds.add(shot.id);
             }
 
             if (isCompleted) {
-              const wasGenerating = newGeneratingVideos.has(shot.id);
               if (task.resultUrl && newShotVideos[shot.id] !== task.resultUrl) {
                 newShotVideos[shot.id] = task.resultUrl;
                 shotVideosUpdated = true;
               }
-              // 从生成中集合移除（使用 shotId）
-              if (wasGenerating) {
-                newGeneratingVideos.delete(shot.id);
-                generatingVideosUpdated = true;
-              }
-              if (wasGenerating || (task.resultUrl && shot.videoUrl !== task.resultUrl) || !task.resultUrl) {
+              if ((task.resultUrl && shot.videoUrl !== task.resultUrl) || !task.resultUrl) {
                 terminalShotIds.add(shot.id);
               }
-            } else if (isRunning && newShotVideos[shot.id]) {
+            } else if (isActive && newShotVideos[shot.id]) {
               delete newShotVideos[shot.id];
               shotVideosUpdated = true;
             } else if (isFailed) {
-              const wasGenerating = newGeneratingVideos.has(shot.id);
-              if (wasGenerating) {
-                newGeneratingVideos.delete(shot.id);
-                generatingVideosUpdated = true;
-              }
-              if (wasGenerating || shot.videoStatus !== 'failed') {
+              if (shot.videoStatus !== 'failed') {
                 terminalShotIds.add(shot.id);
               }
             }
@@ -906,18 +948,19 @@ export const createGenerationSlice: StateCreator<
             return {
               ...shot,
               videoStatus,
-              videoUrl: isCompleted && task.resultUrl ? task.resultUrl : (isRunning ? null : shot.videoUrl),
+              videoUrl: isCompleted && task.resultUrl ? task.resultUrl : (isActive ? null : shot.videoUrl),
               videoTaskId: task.id || shot.videoTaskId,
             };
           }
           return shot;
         });
 
-        if (shotVideosUpdated || generatingVideosUpdated) {
+        if (shotVideosUpdated || generatingVideosUpdated || pendingVideosUpdated) {
           set({
             shots: updatedShots,
             shotVideos: newShotVideos,
-            generatingVideos: newGeneratingVideos
+            generatingVideos: newGeneratingVideos,
+            pendingVideos: newPendingVideos
           });
         } else {
           set({ shots: updatedShots });
@@ -934,6 +977,7 @@ export const createGenerationSlice: StateCreator<
             set(state => {
               const nextShotVideos = { ...state.shotVideos };
               const nextGeneratingVideos = new Set(state.generatingVideos);
+              const nextPendingVideos = new Set(state.pendingVideos);
               const nextShots = state.shots.map(shot => {
                 const refreshed = refreshedShots.find(result => result.success && result.data?.id === shot.id)?.data;
                 if (!refreshed) return shot;
@@ -942,6 +986,7 @@ export const createGenerationSlice: StateCreator<
                 }
                 if (terminalShotIds.has(shot.id)) {
                   nextGeneratingVideos.delete(shot.id);
+                  nextPendingVideos.delete(shot.id);
                 }
                 const task = taskMap[shot.id];
                 if (task?.status === 'failed' || task?.status === 'cancelled') {
@@ -954,6 +999,7 @@ export const createGenerationSlice: StateCreator<
                 shots: nextShots,
                 shotVideos: nextShotVideos,
                 generatingVideos: nextGeneratingVideos,
+                pendingVideos: nextPendingVideos,
               };
             });
           }
@@ -970,14 +1016,28 @@ export const createGenerationSlice: StateCreator<
       const result = await response.json();
 
       if (result.success && result.data) {
+        const taskTime = (task: any) => {
+          const value = task.completedAt || task.startedAt || task.createdAt;
+          const time = value ? new Date(value).getTime() : 0;
+          return Number.isFinite(time) ? time : 0;
+        };
         // 更新转场视频状态
         const newTransitionVideos = { ...get().transitionVideos };
         const newGeneratingTransitions = new Set(get().generatingTransitions);
+        const latestTasksByTransition: Record<string, any> = {};
+
         result.data.forEach((task: any) => {
           const match = task.name?.match(/镜\s*(\d+)\s*[→\-]\s*镜\s*(\d+)/) || task.name?.match(/(\d+)-(\d+)/);
           if (!match) return;
 
           const transitionKey = `${match[1]}-${match[2]}`;
+          const current = latestTasksByTransition[transitionKey];
+          if (!current || taskTime(task) > taskTime(current)) {
+            latestTasksByTransition[transitionKey] = task;
+          }
+        });
+
+        Object.entries(latestTasksByTransition).forEach(([transitionKey, task]) => {
 
           if (task.resultUrl) {
             newTransitionVideos[transitionKey] = task.resultUrl;
@@ -1013,6 +1073,11 @@ export const createGenerationSlice: StateCreator<
       ];
 
       if (allTasks.length > 0) {
+        const taskTime = (task: any) => {
+          const value = task.completedAt || task.startedAt || task.createdAt;
+          const time = value ? new Date(value).getTime() : 0;
+          return Number.isFinite(time) ? time : 0;
+        };
         // 更新音频任务状态
         const updatedTasks = get().audioTasks.map(task => {
           const taskStatus = allTasks.find((t: any) => t.id === task.taskId);
@@ -1026,6 +1091,7 @@ export const createGenerationSlice: StateCreator<
         // 更新音频 URL 和清除完成的 generating 状态
         const newAudioUrls = { ...get().audioUrls };
         const completedKeys: string[] = [];
+        const latestTasksByAudioKey: Record<string, any> = {};
 
         allTasks.forEach((task: any) => {
           // 从任务名称提取角色名
@@ -1045,15 +1111,22 @@ export const createGenerationSlice: StateCreator<
           }
 
           if (key) {
-            // 更新音频 URL
-            if (task.resultUrl) {
-              newAudioUrls[key] = task.resultUrl;
+            const current = latestTasksByAudioKey[key];
+            if (!current || taskTime(task) > taskTime(current)) {
+              latestTasksByAudioKey[key] = task;
             }
+          }
+        });
 
-            // 任务完成或失败时清除 generating 状态
-            if (task.status === 'completed' || task.status === 'failed') {
-              completedKeys.push(key);
-            }
+        Object.entries(latestTasksByAudioKey).forEach(([key, task]) => {
+          // 更新音频 URL
+          if (task.resultUrl) {
+            newAudioUrls[key] = task.resultUrl;
+          }
+
+          // 任务完成或失败时清除 generating 状态
+          if (task.status === 'completed' || task.status === 'failed') {
+            completedKeys.push(key);
           }
         });
         set({ audioUrls: newAudioUrls });
@@ -1132,6 +1205,11 @@ export const createGenerationSlice: StateCreator<
                 status: task.status,
               });
               keyframeTasksUpdated = true;
+            }
+
+            if ((task.status === 'pending' || task.status === 'running') && !newGeneratingKeyframes.has(keyframeKey)) {
+              newGeneratingKeyframes.add(keyframeKey);
+              generatingKeyframesUpdated = true;
             }
 
             // 如果完成，更新图片URL

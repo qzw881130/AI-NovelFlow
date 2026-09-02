@@ -57,6 +57,8 @@ interface ChapterGenerateLayoutProps {
   pendingShots?: Set<string>;
   /** 生成中的视频 */
   generatingVideos?: Set<string>;
+  /** 待生成的视频 */
+  pendingVideos?: Set<string>;
   /** 生成中的转场 */
   generatingTransitions?: Set<string>;
   /** 加载状态 */
@@ -86,6 +88,7 @@ export function ChapterGenerateLayout({
   generatingShots: propGeneratingShots = new Set(),
   pendingShots: propPendingShots = new Set(),
   generatingVideos: propGeneratingVideos = new Set(),
+  pendingVideos: propPendingVideos = new Set(),
   generatingTransitions = new Set(),
   loading = false,
   getCharacterImage,
@@ -121,6 +124,7 @@ export function ChapterGenerateLayout({
   const storeGeneratingShots = useChapterGenerateStore((state) => state.generatingShots);
   const storePendingShots = useChapterGenerateStore((state) => state.pendingShots);
   const storeGeneratingVideos = useChapterGenerateStore((state) => state.generatingVideos);
+  const storePendingVideos = useChapterGenerateStore((state) => state.pendingVideos);
   const storeShotImages = useChapterGenerateStore((state) => state.shotImages);
   const storeShotVideos = useChapterGenerateStore((state) => state.shotVideos);
   const setShots = useChapterGenerateStore((state) => state.setShots);
@@ -138,6 +142,7 @@ export function ChapterGenerateLayout({
   const generatingShots = storeGeneratingShots;
   const pendingShots = storePendingShots;
   const generatingVideos = storeGeneratingVideos;
+  const pendingVideos = storePendingVideos;
   const shotImages = storeShotImages;
   const shotVideos = storeShotVideos;
 
@@ -159,6 +164,20 @@ export function ChapterGenerateLayout({
   const currentShotDuration = Number(currentShot?.duration) || 0;
   const chapterWordCount = (chapter?.content || '').replace(/\s/g, '').length;
   const chapterSummary = `${chapterWordCount.toLocaleString()} 字 · ${shots.length} 个导演 Shot · 预计成片 ${estimatedMinutes}:${estimatedSeconds} · 当前 Shot #${currentShotIndex || 1} · 当前时长 ${currentShotDuration}秒`;
+  const hasQueueStats = pendingShots.size > 0 || pendingVideos.size > 0;
+  const renderQueueStats = () => {
+    if (!hasQueueStats) return null;
+    return (
+      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+        <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-blue-700">
+          生成分镜图：待处理 {pendingShots.size} 个
+        </span>
+        <span className="rounded-full border border-purple-100 bg-purple-50 px-2.5 py-1 text-purple-700">
+          生成视频：待处理 {pendingVideos.size} 个
+        </span>
+      </div>
+    );
+  };
 
   const updateCurrentShot = (updates: Record<string, any>) => {
     if (!currentShot) return;
@@ -500,7 +519,12 @@ export function ChapterGenerateLayout({
 
         {/* TabNavigation */}
         <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
-          <TabNavigation />
+          <div className="relative">
+            <TabNavigation />
+            <div className="absolute right-0 top-1">
+              {renderQueueStats()}
+            </div>
+          </div>
         </div>
 
         {/* AudioGenTab 完全接管 */}
@@ -519,6 +543,7 @@ export function ChapterGenerateLayout({
           pendingShots={pendingShots}
           shotVideos={shotVideos}
           generatingVideos={generatingVideos}
+          pendingVideos={pendingVideos}
           collapsed={bottomNavCollapsed}
           onCollapsedChange={setBottomNavCollapsed}
         />
@@ -565,7 +590,12 @@ export function ChapterGenerateLayout({
 
       {/* TabNavigation */}
       <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
-        <TabNavigation />
+        <div className="relative">
+          <TabNavigation />
+          <div className="absolute right-0 top-1">
+            {renderQueueStats()}
+          </div>
+        </div>
       </div>
 
       {/* 三栏布局 */}
@@ -587,6 +617,7 @@ export function ChapterGenerateLayout({
         pendingShots={pendingShots}
         shotVideos={shotVideos}
         generatingVideos={generatingVideos}
+        pendingVideos={pendingVideos}
         collapsed={bottomNavCollapsed}
         onCollapsedChange={setBottomNavCollapsed}
       />

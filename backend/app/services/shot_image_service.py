@@ -22,6 +22,11 @@ from app.services.background_workers import worker_manager
 from app.utils.workflow_disconnect import disconnect_reference_chain
 
 
+def _is_task_cancelled(db, task) -> bool:
+    db.refresh(task)
+    return task.status == "cancelled"
+
+
 def enqueue_shot_image_task(
     task_id: str,
     novel_id: str,
@@ -67,6 +72,8 @@ async def generate_shot_image_task(
         # 获取任务
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task:
+            return
+        if task.status == "cancelled":
             return
 
         # 更新任务状态为运行中
@@ -222,6 +229,8 @@ async def generate_shot_image_task(
         )
 
         # 调用 ComfyUI 生成图片
+        if _is_task_cancelled(db, task):
+            return
         task.current_step = "正在调用 ComfyUI 生成图片..."
         task.progress = 30
         db.commit()
@@ -244,6 +253,9 @@ async def generate_shot_image_task(
         )
 
         print(f"[ShotTask {task_id}] Generation result: {json.dumps(result, ensure_ascii=True)}")
+
+        if _is_task_cancelled(db, task):
+            return
 
         if result.get("prompt_id"):
             task.comfyui_prompt_id = result["prompt_id"]
@@ -639,6 +651,8 @@ async def _save_generated_image(
     shot_repo: ShotRepository = None,
 ):
     """下载并保存生成的图片"""
+    if _is_task_cancelled(db, task):
+        return
     task.current_step = "正在下载生成的图片..."
     task.progress = 80
     db.commit()
@@ -662,6 +676,8 @@ async def _save_generated_image(
     )
 
     if local_path:
+        if _is_task_cancelled(db, task):
+            return
         relative_path = local_path.replace(str(file_storage.base_dir), "").replace(
             "\\", "/"
         )
@@ -679,6 +695,8 @@ async def _save_generated_image(
 
         print(f"[ShotTask {task_id}] Completed, image saved: {local_path}")
     else:
+        if _is_task_cancelled(db, task):
+            return
         task.status = "completed"
         task.progress = 100
         task.result_url = image_url

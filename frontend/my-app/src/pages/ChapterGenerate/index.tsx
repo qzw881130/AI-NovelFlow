@@ -67,7 +67,9 @@ export default function ChapterGenerate() {
 
     // 如果有生成中的任务，开始轮询
     const hasGeneratingTasks = generatingShots.size > 0 ||
+                               pendingShots.size > 0 ||
                                generatingVideos.size > 0 ||
+                               pendingVideos.size > 0 ||
                                generatingTransitions.size > 0 ||
                                generatingAudios.size > 0 ||
                                generatingKeyframes.size > 0;
@@ -82,10 +84,10 @@ export default function ChapterGenerate() {
       if (cancelled) return;
 
       const checks = [];
-      if (generatingShots.size > 0) {
+      if (generatingShots.size > 0 || pendingShots.size > 0) {
         checks.push(checkShotTaskStatus(cid));
       }
-      if (generatingVideos.size > 0) {
+      if (generatingVideos.size > 0 || pendingVideos.size > 0) {
         checks.push(checkVideoTaskStatus(cid));
       }
       if (generatingTransitions.size > 0) {
@@ -114,7 +116,7 @@ export default function ChapterGenerate() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [cid, id, generatingShots.size, generatingVideos.size, generatingTransitions.size, generatingAudios.size, generatingKeyframes.size]);
+  }, [cid, id, generatingShots.size, pendingShots.size, generatingVideos.size, pendingVideos.size, generatingTransitions.size, generatingAudios.size, generatingKeyframes.size]);
 
   // 获取真实章节数据和角色列表
   useEffect(() => {

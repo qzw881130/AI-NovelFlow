@@ -30,6 +30,8 @@ interface BottomNavigatorProps {
   shotVideos?: Record<string, string>;
   /** 生成中的视频 ID 集合 */
   generatingVideos?: Set<string>;
+  /** 待生成的视频 ID 集合 */
+  pendingVideos?: Set<string>;
   /** 是否收起 */
   collapsed?: boolean;
   /** 收起状态变化回调 */
@@ -43,6 +45,7 @@ export function BottomNavigator({
   pendingShots = new Set(),
   shotVideos = {},
   generatingVideos = new Set(),
+  pendingVideos = new Set(),
   collapsed = false,
   onCollapsedChange,
 }: BottomNavigatorProps) {
@@ -84,6 +87,9 @@ export function BottomNavigator({
   const getShotStatus = (shot: Shot, shotId: string, index: number): ShotThumbnailStatus => {
     if (generatingShots.has(shotId) || generatingVideos.has(shotId) || shot.imageStatus === 'generating' || shot.videoStatus === 'generating') {
       return 'generating';
+    }
+    if (pendingShots.has(shotId) || pendingVideos.has(shotId)) {
+      return 'queued';
     }
     if (currentTab === 3 && shot.videoStatus === 'failed') return 'failed';
     if (currentTab === 1 && shot.imageStatus === 'failed') return 'failed';

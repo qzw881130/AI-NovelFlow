@@ -10,7 +10,7 @@
 import { useState } from 'react';
 import { Film, Loader2, AlertCircle, CheckCircle, Eye, Box } from 'lucide-react';
 
-export type ShotStatus = 'pending' | 'generating' | 'completed' | 'failed' | 'current';
+export type ShotStatus = 'pending' | 'queued' | 'generating' | 'completed' | 'failed' | 'current';
 
 export interface ShotThumbnailProps {
   /** 分镜 ID */
@@ -59,6 +59,11 @@ export function ShotThumbnail({
       icon: <Film className="w-6 h-6 text-gray-400" />,
       label: '待生成',
     },
+    queued: {
+      color: 'border-blue-300 bg-blue-50',
+      icon: <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />,
+      label: '等待处理',
+    },
     generating: {
       color: 'border-blue-400 bg-blue-50',
       icon: <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />,
@@ -98,9 +103,13 @@ export function ShotThumbnail({
         relative flex-shrink-0 w-32 h-24 rounded-lg border-2 cursor-pointer
         transition-all duration-200 overflow-hidden
         ${config.color}
-        ${status === 'generating' ? 'ring-2 ring-inset ring-blue-400 shadow-md' : isSelected ? 'ring-2 ring-inset ring-blue-500' : 'hover:shadow-md'}
+        ${status === 'generating' || status === 'queued' ? 'ring-2 ring-inset ring-blue-400 shadow-md' : isSelected ? 'ring-2 ring-inset ring-blue-500' : 'hover:shadow-md'}
       `}
     >
+      {status === 'queued' && (
+        <div className="absolute inset-0 bg-blue-200/25 animate-pulse" />
+      )}
+
       {/* 图片显示 */}
       {thumbnailUrl && !imageError ? (
         <>
@@ -137,6 +146,13 @@ export function ShotThumbnail({
         </div>
       )}
 
+      {status === 'queued' && thumbnailUrl && !imageError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-950/35 text-white backdrop-blur-[1px]">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span className="mt-1 rounded bg-blue-600/90 px-1.5 py-0.5 text-[11px] font-medium leading-none shadow">等待中</span>
+        </div>
+      )}
+
       {/* 分镜编号 */}
       <div className={`absolute top-1 left-1 px-2 py-0.5 text-white text-xs rounded flex items-center gap-1 ${
         isSelected ? 'bg-blue-500' : 'bg-black/60'
@@ -161,7 +177,7 @@ export function ShotThumbnail({
       )}
 
       {/* 状态指示器（底部） */}
-      <div className={`absolute bottom-0 left-0 right-0 h-1 ${status === 'completed' ? 'bg-green-500' : status === 'generating' ? 'bg-blue-500 animate-pulse' : status === 'failed' ? 'bg-red-500' : 'bg-gray-300'}`} />
+      <div className={`absolute bottom-0 left-0 right-0 h-1 ${status === 'completed' ? 'bg-green-500' : status === 'generating' ? 'bg-blue-500 animate-pulse' : status === 'queued' ? 'bg-blue-400 animate-pulse' : status === 'failed' ? 'bg-red-500' : 'bg-gray-300'}`} />
     </div>
   );
 }

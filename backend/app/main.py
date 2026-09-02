@@ -56,6 +56,12 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN reference_images TEXT"))
             if "video_director_clips" not in task_columns:
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN video_director_clips TEXT"))
+            if "parent_task_id" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN parent_task_id VARCHAR"))
+            if "batch_order" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN batch_order INTEGER"))
+            if "metadata_json" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN metadata_json TEXT"))
 
             result = conn.execute(text("PRAGMA table_info(llm_logs)"))
             llm_log_columns = [row[1] for row in result.fetchall()]
@@ -118,6 +124,8 @@ async def lifespan(app: FastAPI):
     
     monitor = init_monitor(settings.COMFYUI_HOST)
     await monitor.start()
+    from app.api.shots import resume_active_shot_image_batches
+    resume_active_shot_image_batches()
     task_reconcile_task = asyncio.create_task(reconcile_active_tasks_loop())
     app.state.task_reconcile_task = task_reconcile_task
     

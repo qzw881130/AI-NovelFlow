@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
+from app.models.shot import Shot
 from app.models.task import Task
 from app.models.workflow import Workflow
 from app.models.llm_log import LLMLog
@@ -81,10 +82,18 @@ from app.services.prompt_builder import get_style
 from app.services.llm_service import LLMService
 from app.repositories import PromptTemplateRepository
 from app.services.video_director_ai import append_video_ai_call, strip_media_refs
+from app.core.database import SessionLocal
+from app.services.background_workers import worker_manager
 
 router = APIRouter()
 comfyui_service = ComfyUIService()
 merge_video_locks = {}
+shot_image_batch_locks = set()
+
+
+class BatchShotImageRequest(BaseModel):
+    shot_ids: list[str]
+    skip_llm_when_prompt_exists: bool = True
 
 
 def _safe_filename_part(value: str) -> str:
@@ -470,6 +479,37 @@ async def _generate_shot_image_locked(
     template_repo: PromptTemplateRepository,
     llm_service: LLMService,
 ):
+    return await _prepare_and_enqueue_shot_image_generation(
+        novel_id=novel_id,
+        chapter_id=chapter_id,
+        shot_id=shot_id,
+        request=request,
+        db=db,
+        novel_repo=novel_repo,
+        chapter_repo=chapter_repo,
+        task_repo=task_repo,
+        workflow_repo=workflow_repo,
+        shot_repo=shot_repo,
+        template_repo=template_repo,
+        llm_service=llm_service,
+    )
+
+
+async def _prepare_and_enqueue_shot_image_generation(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    request: Optional[GenerateShotImageRequest],
+    db: Session,
+    novel_repo: NovelRepository,
+    chapter_repo: ChapterRepository,
+    task_repo: TaskRepository,
+    workflow_repo: WorkflowRepository,
+    shot_repo: ShotRepository,
+    template_repo: PromptTemplateRepository,
+    llm_service: LLMService,
+    existing_task: Optional[Task] = None,
+):
     # 获取章节
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
 
@@ -498,15 +538,12 @@ async def _generate_shot_image_locked(
     resolved_shot_id = shot.id
 
     # 检查是否已有进行中的任务
-    existing_task = task_repo.get_active_shot_task(
-        novel_id, chapter_id, shot_index, "shot_image"
-    )
-
-    if existing_task:
+    active_task = task_repo.get_active_shot_task(novel_id, chapter_id, shot_index, "shot_image")
+    if active_task and (not existing_task or active_task.id != existing_task.id):
         return {
             "success": True,
             "message": "已有进行中的生成任务",
-            "data": {"taskId": existing_task.id, "status": existing_task.status, "promptText": existing_task.prompt_text},
+            "data": {"taskId": active_task.id, "status": active_task.status, "promptText": active_task.prompt_text},
         }
 
     # 获取激活的分镜生图工作流
@@ -542,16 +579,22 @@ async def _generate_shot_image_locked(
 
     db.commit()
 
-    # 使用 Repository 创建任务记录
-    task = task_repo.create_shot_image_task(
+    # 使用 Repository 创建任务记录，或启动批量预创建的子任务。
+    task = existing_task or task_repo.create_shot_image_task(
         novel_id=novel_id,
         chapter_id=chapter_id,
         shot_index=shot_index,
         chapter_title=chapter_title,
         workflow_id=workflow.id,
         workflow_name=workflow.name,
-            shot_id=resolved_shot_id,
+        shot_id=resolved_shot_id,
     )
+    task.status = "pending"
+    task.progress = 0
+    task.current_step = "等待处理"
+    task.workflow_id = workflow.id
+    task.workflow_name = workflow.name
+    task.shot_id = resolved_shot_id
     task.prompt_text = final_prompt
     task.description = f"{task.description}；提示词模板：{prompt_template_name}"
     shot.shot_image_prompt = final_prompt
@@ -573,6 +616,262 @@ async def _generate_shot_image_locked(
         "success": True,
         "message": "分镜图生成任务已创建",
         "data": {"taskId": task.id, "status": "pending", "promptText": final_prompt},
+    }
+
+
+def enqueue_shot_image_batch_task(batch_task_id: str) -> None:
+    if batch_task_id in shot_image_batch_locks:
+        return
+    shot_image_batch_locks.add(batch_task_id)
+    worker_manager.worker("shot_image_batch").enqueue(lambda: run_shot_image_batch_task(batch_task_id))
+
+
+async def _wait_for_shot_image_child_task(db: Session, child_task_id: str) -> str:
+    for _ in range(720):
+        db.expire_all()
+        task = db.query(Task).filter(Task.id == child_task_id).first()
+        if not task:
+            return "failed"
+        if task.status in {"completed", "failed", "cancelled"}:
+            return task.status
+        await asyncio.sleep(5)
+    task = db.query(Task).filter(Task.id == child_task_id).first()
+    if task and task.status in {"pending", "running"}:
+        task.status = "failed"
+        task.error_message = "等待分镜图生成完成超时"
+        task.current_step = "任务超时"
+        db.commit()
+    return "failed"
+
+
+async def run_shot_image_batch_task(batch_task_id: str) -> None:
+    db = SessionLocal()
+    try:
+        batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
+        if not batch_task or batch_task.status == "cancelled":
+            return
+
+        metadata = _safe_json_dict(batch_task.metadata_json)
+        skip_llm_when_prompt_exists = bool(metadata.get("skip_llm_when_prompt_exists", True))
+
+        batch_task.status = "running"
+        batch_task.started_at = batch_task.started_at or datetime.utcnow()
+        batch_task.current_step = "批量分镜图生成中"
+        db.commit()
+
+        child_tasks = (
+            db.query(Task)
+            .filter(Task.parent_task_id == batch_task.id, Task.type == "shot_image")
+            .order_by(Task.batch_order.asc(), Task.created_at.asc())
+            .all()
+        )
+        total = len(child_tasks)
+        completed = 0
+        failed = 0
+        cancelled = 0
+
+        for index, child_task in enumerate(child_tasks, start=1):
+            db.expire_all()
+            batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
+            child_task = db.query(Task).filter(Task.id == child_task.id).first()
+            if not batch_task or batch_task.status == "cancelled":
+                remaining = db.query(Task).filter(
+                    Task.parent_task_id == batch_task_id,
+                    Task.type == "shot_image",
+                    Task.status == "pending",
+                ).all()
+                for task in remaining:
+                    task.status = "cancelled"
+                    task.current_step = "批量任务已取消"
+                    task.error_message = "批量任务已取消"
+                db.commit()
+                return
+            if not child_task or child_task.status in {"completed", "cancelled"}:
+                if child_task and child_task.status == "completed":
+                    completed += 1
+                elif child_task and child_task.status == "cancelled":
+                    cancelled += 1
+                continue
+            if child_task.status == "failed":
+                failed += 1
+                continue
+            if child_task.status == "running" and not child_task.comfyui_prompt_id:
+                child_task.status = "pending"
+                child_task.started_at = None
+                child_task.current_step = "等待重新处理"
+                db.commit()
+            if child_task.status == "pending":
+                shot = db.query(Shot).filter(Shot.id == child_task.shot_id).first()
+                prompt_text = (shot.shot_image_prompt or "").strip() if shot and skip_llm_when_prompt_exists else None
+                await _prepare_and_enqueue_shot_image_generation(
+                    novel_id=child_task.novel_id,
+                    chapter_id=child_task.chapter_id,
+                    shot_id=child_task.shot_id,
+                    request=GenerateShotImageRequest(prompt_text=prompt_text) if prompt_text else None,
+                    db=db,
+                    novel_repo=NovelRepository(db),
+                    chapter_repo=ChapterRepository(db),
+                    task_repo=TaskRepository(db),
+                    workflow_repo=WorkflowRepository(db),
+                    shot_repo=ShotRepository(db),
+                    template_repo=PromptTemplateRepository(db),
+                    llm_service=LLMService(),
+                    existing_task=child_task,
+                )
+
+            status = await _wait_for_shot_image_child_task(db, child_task.id)
+            if status == "completed":
+                completed += 1
+            elif status == "cancelled":
+                cancelled += 1
+            else:
+                failed += 1
+            batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
+            if batch_task:
+                batch_task.progress = int(index / total * 100) if total else 100
+                batch_task.current_step = f"已处理 {index}/{total} 个分镜"
+                db.commit()
+
+        batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
+        if batch_task:
+            batch_task.status = "completed" if failed == 0 and cancelled == 0 else "failed"
+            batch_task.progress = 100
+            batch_task.completed_at = datetime.utcnow()
+            batch_task.current_step = f"完成：成功 {completed}，失败 {failed}，取消 {cancelled}"
+            batch_task.error_message = None if failed == 0 and cancelled == 0 else batch_task.current_step
+            db.commit()
+    except Exception as exc:
+        batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
+        if batch_task:
+            batch_task.status = "failed"
+            batch_task.error_message = str(exc)
+            batch_task.current_step = "批量生成失败"
+            batch_task.completed_at = datetime.utcnow()
+            db.commit()
+        print(f"[ShotImageBatch] task {batch_task_id} failed: {exc}")
+    finally:
+        shot_image_batch_locks.discard(batch_task_id)
+        db.close()
+
+
+def resume_active_shot_image_batches() -> None:
+    db = SessionLocal()
+    try:
+        active_batches = db.query(Task).filter(
+            Task.type == "shot_image_batch",
+            Task.status.in_(["pending", "running"]),
+        ).all()
+        for batch_task in active_batches:
+            enqueue_shot_image_batch_task(batch_task.id)
+    finally:
+        db.close()
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/shot-images/batch", response_model=dict)
+async def generate_shot_images_batch(
+    novel_id: str,
+    chapter_id: str,
+    data: BatchShotImageRequest,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    task_repo: TaskRepository = Depends(get_task_repo),
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """创建可在页面关闭后继续执行的分镜图批量生成任务。"""
+    if not data.shot_ids:
+        raise HTTPException(status_code=400, detail="请选择要生成的分镜")
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    validated_items = []
+    for order, shot_id in enumerate(data.shot_ids, start=1):
+        shot = shot_repo.get_by_id(shot_id)
+        if not shot or shot.chapter_id != chapter_id:
+            raise HTTPException(status_code=404, detail=f"分镜不存在：{shot_id}")
+
+        existing_task = task_repo.get_active_shot_task(novel_id, chapter_id, shot.index, "shot_image")
+        if existing_task and existing_task.parent_task_id:
+            raise HTTPException(status_code=400, detail=f"分镜 {shot.index} 已在批量生成队列中")
+
+        workflow = None
+        if not existing_task:
+            shot_workflow_type = _resolve_shot_image_workflow_type(db, novel, shot)
+            workflow = workflow_repo.get_active_by_type(shot_workflow_type)
+            if not workflow:
+                raise HTTPException(status_code=400, detail=f"未配置{shot_workflow_type}分镜生图工作流")
+            is_valid, error_msg = TaskService.validate_workflow_node_mapping(workflow, shot_workflow_type)
+            if not is_valid:
+                raise HTTPException(status_code=400, detail=error_msg)
+
+        validated_items.append({
+            "order": order,
+            "shot": shot,
+            "existing_task": existing_task,
+            "workflow": workflow,
+        })
+
+    batch_task = Task(
+        type="shot_image_batch",
+        status="pending",
+        name="批量生成分镜图",
+        description=f"为章节 '{chapter.title}' 批量生成 {len(data.shot_ids)} 个分镜图",
+        novel_id=novel_id,
+        chapter_id=chapter_id,
+        progress=0,
+        current_step="等待处理",
+        metadata_json=json.dumps({
+            "shot_ids": data.shot_ids,
+            "skip_llm_when_prompt_exists": data.skip_llm_when_prompt_exists,
+        }, ensure_ascii=False),
+    )
+    db.add(batch_task)
+    db.flush()
+
+    child_tasks = []
+    for item in validated_items:
+        order = item["order"]
+        shot = item["shot"]
+        existing_task = item["existing_task"]
+        if existing_task:
+            existing_task.parent_task_id = batch_task.id
+            existing_task.batch_order = order
+            child_tasks.append(existing_task)
+            continue
+
+        workflow = item["workflow"]
+        task = Task(
+            type="shot_image",
+            name=f"生成分镜图: 镜{shot.index}",
+            description=f"为章节 '{chapter.title}' 的分镜 {shot.index} 生成图片",
+            novel_id=novel_id,
+            chapter_id=chapter_id,
+            shot_id=shot.id,
+            status="pending",
+            workflow_id=workflow.id,
+            workflow_name=workflow.name,
+            parent_task_id=batch_task.id,
+            batch_order=order,
+            current_step="等待批量处理",
+        )
+        db.add(task)
+        child_tasks.append(task)
+
+    db.flush()
+    db.commit()
+    enqueue_shot_image_batch_task(batch_task.id)
+    return {
+        "success": True,
+        "message": f"已创建 {len(child_tasks)} 个分镜图生成任务",
+        "data": {
+            "batchTaskId": batch_task.id,
+            "tasks": [{"taskId": task.id, "shotId": task.shot_id, "status": task.status} for task in child_tasks],
+        },
     }
 
 

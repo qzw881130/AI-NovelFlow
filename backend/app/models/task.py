@@ -23,6 +23,8 @@ class Task(Base):
     character_id = Column(String, nullable=True, index=True)
     scene_id = Column(String, nullable=True, index=True)
     prop_id = Column(String, nullable=True, index=True)
+    parent_task_id = Column(String, nullable=True, index=True)
+    batch_order = Column(Integer, nullable=True)
 
     # 任务详情
     name = Column(String, nullable=False)
@@ -46,6 +48,7 @@ class Task(Base):
     prompt_text = Column(Text, nullable=True)
     reference_images = Column(Text, nullable=True)
     video_director_clips = Column(Text, nullable=True)
+    metadata_json = Column(Text, nullable=True)
 
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now())
