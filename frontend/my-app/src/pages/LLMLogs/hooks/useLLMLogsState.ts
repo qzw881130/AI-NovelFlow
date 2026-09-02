@@ -42,6 +42,7 @@ export function useLLMLogsState() {
   const [statsRangeValue, setStatsRangeValue] = useState(1);
   const [statsData, setStatsData] = useState<LLMLogStatsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [durationNow, setDurationNow] = useState(() => Date.now());
   const isFetchingLogsRef = useRef(false);
 
   useEffect(() => {
@@ -67,6 +68,12 @@ export function useLLMLogsState() {
   }, [pagination.page, pagination.page_size, filters]);
 
   useEffect(() => { fetchLogs(); fetchFilterOptions(); }, [fetchLogs]);
+
+  useEffect(() => {
+    if (!logs.some(log => log.status === 'pending')) return;
+    const intervalId = window.setInterval(() => setDurationNow(Date.now()), 1000);
+    return () => window.clearInterval(intervalId);
+  }, [logs]);
 
   useEffect(() => {
     if (!autoRefreshInterval) return;
@@ -150,6 +157,15 @@ export function useLLMLogsState() {
     if (!text) return '-';
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
+  };
+
+  const getDisplayDuration = (log: LLMLog) => {
+    if (typeof log.duration === 'number') return `${log.duration.toFixed(2)}s`;
+    if (log.status !== 'pending' || !log.created_at) return '-';
+    const createdAt = new Date(log.created_at).getTime();
+    if (Number.isNaN(createdAt)) return '-';
+    const seconds = Math.max(0, (durationNow - createdAt) / 1000);
+    return `${seconds.toFixed(0)}s`;
   };
 
   const getTaskTypeCategoryLabel = (type: string | null) => {
@@ -246,7 +262,7 @@ export function useLLMLogsState() {
   return {
     logs, pagination, loading, filters, filterOptions, taskCategoryOptions: TASK_CATEGORY_OPTIONS, taskTypeOptions, selectedLog, activePromptTab, autoRefreshInterval,
     setPagination, setSelectedLog, setActivePromptTab, handleFilterChange, applyFilters, resetFilters, openLogDetail,
-    setAutoRefreshInterval, fetchLogs, formatDate, truncateText, getTaskTypeLabel, getTaskTypeNameLabel, getTaskTypeCategoryLabel, getStatusBadgeConfig, closeModal,
+    setAutoRefreshInterval, fetchLogs, formatDate, truncateText, getDisplayDuration, getTaskTypeLabel, getTaskTypeNameLabel, getTaskTypeCategoryLabel, getStatusBadgeConfig, closeModal,
     showStatsModal, statsGroupBy, statsRangeValue, statsData, statsLoading, openStatsModal, closeStatsModal, changeStatsGroupBy, changeStatsRangeValue, fetchStats,
   };
 }

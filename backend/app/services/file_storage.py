@@ -954,20 +954,28 @@ class FileStorageService:
                         escaped_path = video_path.replace("'", "'\\''")
                         f.write(f"file '{escaped_path}'\n")
             
-                # 使用 ffmpeg 合并视频
-                # -f concat: 使用 concat 协议
-                # -safe 0: 允许不安全的文件路径
-                # 所有片段已先标准化为统一编码参数，此处安全拼接
-                cmd = [
-                    'ffmpeg',
-                    '-f', 'concat',
-                    '-safe', '0',
-                    '-i', concat_file,
-                    '-c', 'copy',
+                # 使用 concat filter 重新编码输出。MP4/H.264 即使参数一致，直接 -c copy
+                # 拼接仍可能产生浏览器无法解码的 NAL 边界问题。
+                cmd = ['ffmpeg']
+                for video_path in normalized_paths:
+                    cmd.extend(['-i', video_path])
+                concat_inputs = ''.join(f'[{index}:v:0][{index}:a:0]' for index in range(len(normalized_paths)))
+                filter_complex = f'{concat_inputs}concat=n={len(normalized_paths)}:v=1:a=1[v][a]'
+                cmd.extend([
+                    '-filter_complex', filter_complex,
+                    '-map', '[v]',
+                    '-map', '[a]',
+                    '-c:v', 'libx264',
+                    '-preset', 'medium',
+                    '-crf', '18',
+                    '-pix_fmt', 'yuv420p',
+                    '-c:a', 'aac',
+                    '-ar', '48000',
+                    '-ac', '2',
                     '-movflags', '+faststart',
                     '-y',  # 覆盖输出文件
-                    output_path
-                ]
+                    output_path,
+                ])
                 
                 print(f"[FileStorage] Running ffmpeg: {' '.join(cmd)}")
                 

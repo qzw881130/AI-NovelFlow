@@ -107,6 +107,14 @@ transition_description 是中间动态最高权威导演意图。
 - 只允许自然微表情、有限身体重心变化、自然呼吸和必要缓慢运镜；
 - 不制造无关动作。
 
+如果 shot.continuity_mode == "CONTINUOUS_TAKE"：
+- 这是 Shot 级剪辑方式约束，不是视频生成模式；FIRST_LAST_FRAME 仍可用于一镜到底的短 Shot。
+- Picture 1 → Picture 2 必须表现为一个 uninterrupted continuous take。
+- No cuts, no hidden edits, no jump cuts, no shot/reverse-shot grammar, no abrupt camera repositioning.
+- 摄影机必须从 Picture 1 的机位、方向、景别和运动趋势自然连续移动或稳定保持到 Picture 2。
+- 人物位置、视线、动作状态、道具状态、光照和环境必须连续演进。
+- 不得用剪辑语言解释两帧差异。
+
 ━━━━━━━━━━━━━━━━━━
 【台词硬约束】
 ━━━━━━━━━━━━━━━━━━

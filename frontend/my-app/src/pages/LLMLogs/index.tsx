@@ -101,9 +101,10 @@ function StatsModal({ state }: { state: ReturnType<typeof useLLMLogsState> }) {
   );
 }
 
-function LogTableRow({ log, onView, formatDate, truncateText, getTaskTypeLabel, getStatusBadgeConfig }: {
+function LogTableRow({ log, onView, formatDate, truncateText, getTaskTypeLabel, getDisplayDuration, getStatusBadgeConfig }: {
   log: LLMLog; onView: () => void; formatDate: (d: string) => string;
   truncateText: (t: string, m?: number) => string; getTaskTypeLabel: (t: string | null) => string;
+  getDisplayDuration: (log: LLMLog) => string;
   getStatusBadgeConfig: (s: string) => { bg: string; text: string; label: string };
 }) {
   const { t } = useTranslation();
@@ -119,7 +120,7 @@ function LogTableRow({ log, onView, formatDate, truncateText, getTaskTypeLabel, 
       </td>
       <td className="px-4 py-3 whitespace-nowrap"><span className={`px-2 py-1 text-xs ${badge.bg} ${badge.text} rounded-full`}>{badge.label}</span></td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}</td>
-      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.duration ? `${log.duration.toFixed(2)}s` : '-'}</td>
+      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{getDisplayDuration(log)}</td>
       <td className="px-4 py-3 text-sm text-gray-600 max-w-[150px]">
         <div className="truncate" title={log.user_prompt}>{truncateText(log.user_prompt, 50)}</div>
       </td>
@@ -247,6 +248,7 @@ export default function LLMLogs() {
                 {state.logs.map((log) => (
                   <LogTableRow key={log.id} log={log} onView={() => state.openLogDetail(log)}
                     formatDate={state.formatDate} truncateText={state.truncateText}
+                    getDisplayDuration={state.getDisplayDuration}
                     getTaskTypeLabel={state.getTaskTypeLabel} getStatusBadgeConfig={state.getStatusBadgeConfig} />
                 ))}
               </tbody>

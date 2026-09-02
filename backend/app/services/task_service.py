@@ -602,12 +602,24 @@ class TaskService:
                                 task.status = "failed"
                                 task.error_message = "任务停留在 H3 提示词构建阶段过久，可能是 LLM 调用中断或后台任务已退出"
                                 task.current_step = "任务异常"
+                                task.completed_at = datetime.utcnow()
                                 mark_related_shot_failed()
                                 updated_count += 1
                             continue
                         if clip_state.get("status") == "SUCCEEDED" and clip_state.get("video_url"):
+                            if inactive_seconds(task) > comfyui_timeout:
+                                task.status = "failed"
+                                task.error_message = "ComfyUI 已完成当前 Clip，但后端后台任务长时间未继续；已保存完成的 Clip，请重新生成剩余 Clip"
+                                task.current_step = "任务异常"
+                                task.completed_at = datetime.utcnow()
+                                mark_related_shot_failed()
+                                updated_count += 1
                             continue
                         recovered = await self._recover_completed_shot_video_prompt(task, prompt_state.get("history"), db)
+                        if recovered:
+                            updated_count += 1
+                            continue
+                        recovered = await self._recover_completed_single_shot_video_prompt(task, prompt_state.get("history"), db)
                         if recovered:
                             updated_count += 1
                             continue
@@ -891,17 +903,76 @@ class TaskService:
                 task.error_message = merge_result.get("message") or "多 Clip 拼接失败"
                 shot_repo.update(shot, video_status="failed")
         else:
-            task.status = "failed"
-            task.current_step = "任务异常"
-            task.error_message = "ComfyUI 已完成当前 Clip，但后端后台任务已中断；已保存完成的 Clip，请重新生成剩余 Clip"
+            task.status = "running"
+            task.current_step = "已恢复完成 Clip，等待后续 Clip..."
+            task.error_message = None
             try:
                 plan = json.loads(shot.video_director_plan or "{}")
-                plan["task_error_message"] = task.error_message
+                plan.pop("task_error_message", None)
                 shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
             except Exception:
                 pass
-            shot_repo.update(shot, video_status="failed")
+            shot_repo.update(shot, video_status="generating")
 
+        return True
+
+    async def _recover_completed_single_shot_video_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
+        """Recover a completed single-clip shot video prompt when the worker missed persistence."""
+        if task.type != "shot_video" or not task.shot_id or not prompt_history:
+            return False
+        try:
+            window_plans = json.loads(task.video_director_clips or "[]")
+            if isinstance(window_plans, list) and window_plans:
+                return False
+        except Exception:
+            pass
+
+        outputs = prompt_history.get("outputs") or {}
+        if not outputs:
+            return False
+
+        shot_repo = ShotRepository(db)
+        shot = shot_repo.get_by_id(task.shot_id)
+        if not shot:
+            return False
+
+        prompt_workflow = None
+        prompt_payload = prompt_history.get("prompt") or []
+        if isinstance(prompt_payload, list) and len(prompt_payload) > 2 and isinstance(prompt_payload[2], dict):
+            prompt_workflow = prompt_payload[2]
+
+        node_mapping = {}
+        if task.workflow_id:
+            workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
+            if workflow and workflow.node_mapping:
+                try:
+                    node_mapping = json.loads(workflow.node_mapping)
+                except Exception:
+                    node_mapping = {}
+
+        video_save_node_id = node_mapping.get("video_save_node_id") or node_mapping.get("video_output_node_id") or "150"
+        result = self.comfyui_service.client._parse_outputs(outputs, prompt_workflow, video_save_node_id)
+        if not result or not result.get("success") or not result.get("video_url"):
+            return False
+
+        local_path = await file_storage.download_video(
+            url=result["video_url"],
+            novel_id=task.novel_id,
+            chapter_id=task.chapter_id,
+            shot_number=int(shot.index or 0),
+        )
+        if not local_path:
+            return False
+
+        local_url = local_path_to_url(local_path)
+        shot_repo.update(shot, video_url=local_url, video_status="completed", video_task_id=task.id)
+        task.status = "completed"
+        task.progress = 100
+        task.result_url = local_url
+        task.error_message = None
+        task.current_step = "生成完成"
+        task.completed_at = datetime.utcnow()
+        db.commit()
         return True
 
     @staticmethod

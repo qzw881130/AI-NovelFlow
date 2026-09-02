@@ -650,6 +650,7 @@ def _get_video_mode_template(novel: Novel, template_repo: PromptTemplateReposito
 
 
 def _build_video_mode_user_content(shot, workflow_capability: dict) -> str:
+    continuity_requirements = _build_continuity_requirements(shot)
     payload = {
         "shot": {
             "id": shot.id,
@@ -664,8 +665,36 @@ def _build_video_mode_user_content(shot, workflow_capability: dict) -> str:
             "dialogues": _safe_json_list(shot.dialogues),
         },
         "workflow_capability": workflow_capability,
+        "continuity_requirements": continuity_requirements,
     }
     return "请根据以下正式保存的 Shot 与 Workflow 能力推荐视频生成模式。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+
+
+def _build_continuity_requirements(shot) -> dict:
+    is_continuous_take = (shot.continuity_mode or "NORMAL") == "CONTINUOUS_TAKE"
+    if is_continuous_take:
+        return {
+            "mode": "CONTINUOUS_TAKE",
+            "label": "一镜到底（禁止切镜）",
+            "meaning": "This is a shot-level editing constraint, not a video generation mode.",
+            "requirements": [
+                "The entire Shot must read as one uninterrupted continuous take.",
+                "No cuts, no hidden edits, no abrupt camera repositioning, no jump cuts, no shot/reverse-shot grammar.",
+                "Camera movement, subject blocking, eyelines, light, environment, and action state must remain physically continuous.",
+                "If the Shot is split into multiple generation clips, each Clip boundary must preserve the previous Clip ending state as the next Clip starting state.",
+                "Keyframes must be states along one continuous camera path, not independent compositions.",
+                "Transitions must describe physically plausible movement from one keyframe to the next.",
+            ],
+        }
+    return {
+        "mode": "NORMAL",
+        "label": "普通镜头（允许切镜）",
+        "meaning": "Cuts or composition changes are allowed when they serve the Shot, but identity, space, and story continuity still matter.",
+        "requirements": [
+            "Visible changes may use normal cinematic shot grammar when justified by the Shot.",
+            "Do not confuse NORMAL with permission to break character identity, geography, props, or dialogue continuity.",
+        ],
+    }
 
 
 def _parse_recommended_mode(content: str, duration: int, workflow_capability: dict) -> str:
@@ -864,6 +893,7 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
         "execution_windows": plan.get("execution_windows") or [],
         "workflow_capability": strip_media_refs(workflow_capability),
         "existing_keyframes": strip_media_refs(plan.get("keyframes") or []),
+        "continuity_requirements": _build_continuity_requirements(shot),
         "requirements": {
             "output_top_level_keys": ["validation", "keyframes", "window_plans"],
             "first_last_rule": "FIRST_LAST_FRAME 只输出 KF1 START 与 KF2 END；window_plans 必须为空数组。",
@@ -1004,6 +1034,7 @@ def _build_keyframe_transition_user_content(shot, from_keyframe: dict, to_keyfra
         },
         "segment_index": segment_index,
         "segment_dialogue_state": dialogue_state,
+        "continuity_requirements": _build_continuity_requirements(shot),
         "from_keyframe": _transition_keyframe_payload(shot, from_keyframe),
         "to_keyframe": _transition_keyframe_payload(shot, to_keyframe),
     }

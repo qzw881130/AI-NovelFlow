@@ -96,6 +96,9 @@ FIRST_LAST_FRAME 第一版硬约束：
 - 多人物身份/位置在中间过程需要稳定约束。
 
 注意：
+- continuity_mode 是 Shot 级剪辑方式约束，不是第四种视频生成模式。
+- continuity_mode == "CONTINUOUS_TAKE" 不等于 SINGLE_FRAME；一镜到底仍然可以推荐 FIRST_LAST_FRAME 或 MULTI_KEYFRAME。
+- 一镜到底只表示禁止切镜、隐性剪辑和突然机位重置；关键帧数量仍由 Shot 时长、动作复杂度和 workflow 能力决定。
 - duration 超过 max_clip_duration 不代表必须拆成多个导演 Shot。
 - 长 Shot 会由程序在后续拆成底层 Clip。
 - 本 Prompt 不规划 Clip。

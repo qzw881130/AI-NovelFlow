@@ -1917,7 +1917,7 @@ export function VideoGenTab({
   }, [effectiveChapterId, effectiveNovelId, generateKeyframeImage, getMissingBatchKeyframes, getShotImageUrl, refreshBatchShot, updateShotInStore, waitForBatchKeyframeImages]);
 
   const submitBatchShotVideo = useCallback(async (shotId: string, mode: VideoMode) => {
-    if (!effectiveNovelId || !effectiveChapterId) return;
+    if (!effectiveNovelId || !effectiveChapterId) return null;
     useChapterGenerateStore.setState((state) => ({
       generatingVideos: new Set([...state.generatingVideos, shotId]),
       shotVideos: Object.fromEntries(Object.entries(state.shotVideos).filter(([key]) => key !== shotId)),
@@ -1942,17 +1942,7 @@ export function VideoGenTab({
         )),
       }));
       checkVideoTaskStatus(effectiveChapterId);
-
-      let attempts = 0;
-      const pollVideoTask = async () => {
-        if (!useChapterGenerateStore.getState().generatingVideos.has(shotId) || attempts >= 180) return;
-        attempts += 1;
-        await checkVideoTaskStatus(effectiveChapterId);
-        if (useChapterGenerateStore.getState().generatingVideos.has(shotId)) {
-          window.setTimeout(pollVideoTask, 2000);
-        }
-      };
-      window.setTimeout(pollVideoTask, 2000);
+      return result.data?.taskId || null;
     } catch (error) {
       useChapterGenerateStore.setState((state) => {
         const next = new Set(state.generatingVideos);
@@ -1967,6 +1957,26 @@ export function VideoGenTab({
       throw error;
     }
   }, [checkVideoTaskStatus, effectiveChapterId, effectiveNovelId]);
+
+  const waitForBatchShotVideoCompletion = useCallback(async (shotId: string, taskId: string | null) => {
+    if (!effectiveChapterId || !taskId) return;
+    for (let attempt = 0; attempt < 360; attempt += 1) {
+      await checkVideoTaskStatus(effectiveChapterId);
+      const result = await taskApi.fetch(taskId);
+      const task = result.success ? (result.data as any) : null;
+      const status = task?.status;
+      if (status === 'completed') {
+        await refreshBatchShot(shotId);
+        return;
+      }
+      if (status === 'failed' || status === 'cancelled') {
+        await refreshBatchShot(shotId);
+        throw new Error(task?.errorMessage || task?.error_message || (status === 'cancelled' ? '视频任务已取消' : '视频任务失败'));
+      }
+      await sleep(2000);
+    }
+    throw new Error('等待视频生成完成超时');
+  }, [checkVideoTaskStatus, effectiveChapterId, refreshBatchShot]);
 
   // 处理批量视频生成
   const handleGenerateAll = async () => {
@@ -1998,10 +2008,11 @@ export function VideoGenTab({
           const prepared = autoCompleteDetails ? await prepareShotForAutoBatchVideo(shot) : null;
           const effectiveShot = prepared?.shot || shot;
           const plan = effectiveShot.videoDirectorPlan || {};
-          await submitBatchShotVideo(
+          const taskId = await submitBatchShotVideo(
             String(effectiveShot.id),
             (prepared?.mode || plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME') as VideoMode
           );
+          await waitForBatchShotVideoCompletion(String(effectiveShot.id), taskId);
           successCount += 1;
         } catch (error) {
           failedCount += 1;

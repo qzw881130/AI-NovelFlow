@@ -554,7 +554,7 @@ export function ShotForm({
       {showDuration && (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            连续模式
+            镜头连续性
           </label>
           <select
             value={continuityMode}
@@ -562,10 +562,10 @@ export function ShotForm({
             disabled={readOnly}
             className="input-field"
           >
-            <option value="NORMAL">普通分镜</option>
-            <option value="CONTINUOUS_TAKE">一镜到底</option>
+            <option value="NORMAL">普通镜头（允许切镜）</option>
+            <option value="CONTINUOUS_TAKE">一镜到底（禁止切镜）</option>
           </select>
-          <p className="text-xs text-gray-500 mt-1">用于视频导演链路判断是否按连续镜头处理。</p>
+          <p className="text-xs text-gray-500 mt-1">Shot 级剪辑方式约束，不是 Single / First-Last / Multi-Keyframe 生成模式。</p>
         </div>
       )}
 

@@ -108,6 +108,13 @@ motion_directive 必须由程序从正式 Shot/Segment 数据构建，不允许 
 - 摄影机运动服务动作；
 - 在当前 Clip 结束时形成稳定可见状态。
 
+如果 shot.continuity_mode == "CONTINUOUS_TAKE"：
+- 这是 Shot 级剪辑方式约束，不是视频生成模式；不要把它理解为只能使用 SINGLE_FRAME。
+- 当前 Clip 必须表现为一镜到底的一部分。
+- No cuts, no hidden edits, no jump cuts, no shot/reverse-shot grammar, no abrupt camera repositioning.
+- 摄影机必须连续运动或稳定保持，不能突然切换机位、景别、方向或镜头焦段。
+- 保持人物位置、视线、动作状态、空间方向、光照和环境连续。
+
 不得：
 - 引入未来 Clip 才发生的事件；
 - 把整个长 Shot 的全部动作塞进本 Clip；

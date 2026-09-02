@@ -270,6 +270,26 @@ def _render_character_identity_lock(characters: list, character_appearances: dic
     )
 
 
+def _render_continuity_lock(shot, selected_mode: str, clip: dict | None) -> str:
+    if (shot.continuity_mode or "NORMAL") != "CONTINUOUS_TAKE":
+        return ""
+    clip = clip or {}
+    clip_label = ""
+    if clip.get("clip_index") is not None:
+        clip_label = f" Clip {clip.get('clip_index')} ({clip.get('start_time', 0)}s-{clip.get('end_time', shot.duration or 0)}s)."
+    return "\n".join([
+        "shot_continuity_lock:",
+        "continuity_mode = CONTINUOUS_TAKE. This is a shot-level editing constraint, not a video generation mode.",
+        f"Generate this as part of one uninterrupted continuous take.{clip_label}",
+        "No cuts, no hidden edits, no jump cuts, no shot/reverse-shot grammar, no abrupt camera teleport, no sudden lens/framing reset.",
+        "All camera movement must be physically continuous and motivated by the previous visual state.",
+        "Preserve spatial geography, screen direction, subject blocking, eyelines, action state, lighting continuity, and environment continuity.",
+        "If this Shot is split into multiple generation clips, the start of this clip must visually inherit the previous clip ending state and continue the same camera path.",
+        "Keyframes are chronological states along one continuous camera trajectory, not separate edited shots.",
+        f"selected_video_generation_mode = {selected_mode}; do not treat CONTINUOUS_TAKE as SINGLE_FRAME.",
+    ])
+
+
 async def build_h3_video_prompt(
     db: Session,
     novel: Novel,
@@ -344,6 +364,11 @@ async def build_h3_video_prompt(
         "workflow_capability": strip_media_refs(workflow_capability),
         "workflow_type": workflow_type,
         "workflow_name": workflow_name,
+        "continuity_requirements": {
+            "mode": shot.continuity_mode or "NORMAL",
+            "is_continuous_take": (shot.continuity_mode or "NORMAL") == "CONTINUOUS_TAKE",
+            "rule": "CONTINUOUS_TAKE forbids cuts and hidden edits while still allowing SINGLE_FRAME, FIRST_LAST_FRAME, or MULTI_KEYFRAME according to selected_mode.",
+        },
     }
     user_content = "请基于以下 Video Director 规划数据，生成可直接用于 MiniMax H3 的最终视频提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
     result = await LLMService().chat_completion(
@@ -373,6 +398,9 @@ async def build_h3_video_prompt(
         raise RuntimeError(result.get("error") or "H3 视频提示词生成失败")
 
     final_prompt = (result.get("content") or "").strip()
+    continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
+    if continuity_lock:
+        final_prompt = f"{continuity_lock}\n\n{final_prompt}"
     identity_lock = _render_character_identity_lock(shot_characters, character_appearances)
     if identity_lock:
         final_prompt = f"{identity_lock}\n\n{final_prompt}"

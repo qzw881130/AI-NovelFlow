@@ -216,6 +216,17 @@ selected_mode == "MULTI_KEYFRAME"：
 6. 全 Shot 第一个窗口起点必须是 START=0。
 7. 全 Shot 最后一个窗口终点必须是 END=shot.duration。
 
+continuity_mode == "CONTINUOUS_TAKE" 时：
+- 这是 Shot 级剪辑方式约束，不是第四种视频生成模式，也不等于 SINGLE_FRAME。
+- 所有 Keyframe 必须是同一个连续镜头中沿同一条物理摄影机轨迹到达的状态。
+- 禁止把 Keyframe 规划成互不相关的独立构图、正反打、跳轴、突然特写、突然换机位或隐性剪辑后的画面。
+- 相邻 execution_window 共享的边界 Keyframe 必须同时作为前一 Clip 的结束状态和后一 Clip 的起始状态。
+- 每个后续 window 的第一个 Keyframe 必须继承上一 window 结束时的摄影机位置、运动方向、人物位置、动作状态、视线、光照和环境。
+- 可以使用 MULTI_KEYFRAME 来约束一镜到底；关键帧越多不代表发生剪辑。
+
+continuity_mode == "NORMAL" 时：
+- 可在 Shot 内使用普通电影语法的构图变化或镜头转换，但仍必须保持角色身份、场景、道具和叙事连续。
+
 ━━━━━━━━━━━━━━━━━━
 【3帧还是4帧：选择规则】
 ━━━━━━━━━━━━━━━━━━

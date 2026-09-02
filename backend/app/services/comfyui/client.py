@@ -22,13 +22,17 @@ class ComfyUIClient:
         """动态获取当前的 ComfyUI 主机地址"""
         from app.core.config import get_settings
         return get_settings().COMFYUI_HOST
+
+    def _client(self) -> httpx.AsyncClient:
+        # ComfyUI runs on the local network; bypass env proxies to avoid proxy 502s.
+        return httpx.AsyncClient(trust_env=False)
     
     # ==================== 健康检查 ====================
     
     async def check_health(self) -> bool:
         """检查 ComfyUI 服务状态"""
         try:
-            async with httpx.AsyncClient() as client:
+            async with self._client() as client:
                 response = await client.get(
                     f"{self.base_url}/system_stats",
                     timeout=5.0
@@ -65,7 +69,7 @@ class ComfyUIClient:
 
             filename = os.path.basename(image_path)
 
-            async with httpx.AsyncClient() as client:
+            async with self._client() as client:
                 with open(image_path, 'rb') as f:
                     files = {'image': (filename, f, 'image/png')}
                     data = {'type': 'input', 'overwrite': 'true'}
@@ -134,7 +138,7 @@ class ComfyUIClient:
             }
             mime_type = mime_types.get(ext, 'audio/flac')
 
-            async with httpx.AsyncClient() as client:
+            async with self._client() as client:
                 with open(audio_path, 'rb') as f:
                     # ComfyUI 使用 /upload/image 端点上传所有文件类型
                     files = {'image': (filename, f, mime_type)}
@@ -171,7 +175,7 @@ class ComfyUIClient:
     async def queue_prompt(self, workflow: Dict[str, Any]) -> Dict[str, Any]:
         """提交任务到 ComfyUI"""
         try:
-            async with httpx.AsyncClient() as client:
+            async with self._client() as client:
                 response = await client.post(
                     f"{self.base_url}/prompt",
                     json={
@@ -241,7 +245,7 @@ class ComfyUIClient:
                 }
 
             try:
-                async with httpx.AsyncClient() as client:
+                async with self._client() as client:
                     response = await client.get(
                         f"{self.base_url}/history/{prompt_id}",
                         timeout=10.0
@@ -337,7 +341,7 @@ class ComfyUIClient:
                 }
 
             try:
-                async with httpx.AsyncClient() as client:
+                async with self._client() as client:
                     response = await client.get(
                         f"{self.base_url}/history/{prompt_id}",
                         timeout=10.0
@@ -647,7 +651,7 @@ class ComfyUIClient:
     async def get_queue_info(self) -> Dict[str, Any]:
         """获取 ComfyUI 队列信息"""
         try:
-            async with httpx.AsyncClient() as client:
+            async with self._client() as client:
                 response = await client.get(
                     f"{self.base_url}/queue",
                     timeout=10.0
@@ -668,7 +672,7 @@ class ComfyUIClient:
             return {"state": "queued"}
 
         try:
-            async with httpx.AsyncClient() as client:
+            async with self._client() as client:
                 response = await client.get(
                     f"{self.base_url}/history/{prompt_id}",
                     timeout=10.0
@@ -696,7 +700,7 @@ class ComfyUIClient:
         
         for attempt in range(1, max_retries + 1):
             try:
-                async with httpx.AsyncClient() as client:
+                async with self._client() as client:
                     print(f"[ComfyUI] Clearing queue (attempt {attempt}/{max_retries})")
                     response = await client.post(
                         f"{self.base_url}/queue",
@@ -729,7 +733,7 @@ class ComfyUIClient:
     async def delete_from_queue(self, prompt_id: str) -> Dict[str, Any]:
         """从队列中删除等待执行的任务"""
         try:
-            async with httpx.AsyncClient() as client:
+            async with self._client() as client:
                 print(f"[ComfyUI] Deleting prompt {prompt_id} from queue")
                 response = await client.post(
                     f"{self.base_url}/queue",
@@ -750,7 +754,7 @@ class ComfyUIClient:
         
         for attempt in range(1, max_retries + 1):
             try:
-                async with httpx.AsyncClient() as client:
+                async with self._client() as client:
                     response = await client.post(
                         f"{self.base_url}/interrupt",
                         timeout=10.0

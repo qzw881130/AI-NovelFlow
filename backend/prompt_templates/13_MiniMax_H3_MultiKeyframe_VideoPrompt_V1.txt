@@ -139,6 +139,18 @@ Picture 2 → Picture 3:
 - 平滑连续；
 - 禁止无理由跳轴、瞬移、突然变焦。
 
+如果 shot.continuity_mode == "CONTINUOUS_TAKE"：
+- 这是 Shot 级剪辑方式约束，不是第四种视频生成模式；不要把一镜到底等同于 SINGLE_FRAME。
+- 当前 Clip 必须表现为一个长连续镜头的一部分，即使 selected_mode == "MULTI_KEYFRAME"。
+- No cuts, no hidden edits, no jump cuts, no shot/reverse-shot grammar, no abrupt camera teleport, no sudden lens/framing reset.
+- 每张 Picture 都必须解释为同一条连续摄影机轨迹上的时间状态，而不是独立剪辑镜头。
+- 每个 transition 必须是物理连续的摄影机移动或稳定保持，不能用剪辑语言跳到下一构图。
+- 必须持续保持空间方向、人物站位、动作状态、视线、光照、环境和台词进度连续。
+- 如果整个 Shot 被拆成多个 generation clips，当前 Clip 的开头必须继承上一 Clip 的结束状态，当前 Clip 的结尾必须为下一 Clip 留出连续衔接状态。
+
+如果 shot.continuity_mode == "NORMAL"：
+- 可使用普通镜头语言，但仍要服从 Picture 顺序、人物身份和空间连续性。
+
 ━━━━━━━━━━━━━━━━━━
 【长 Shot / 多 Clip】
 ━━━━━━━━━━━━━━━━━━
