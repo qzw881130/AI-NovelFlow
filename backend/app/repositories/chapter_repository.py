@@ -105,6 +105,7 @@ class ChapterRepository:
             "id": chapter.id,
             "number": chapter.number,
             "title": chapter.title,
+            "contentLength": len(''.join((chapter.content or '').split())),
             "status": chapter.status,
             "progress": chapter.progress,
             "createdAt": chapter.created_at.isoformat() if chapter.created_at else None,

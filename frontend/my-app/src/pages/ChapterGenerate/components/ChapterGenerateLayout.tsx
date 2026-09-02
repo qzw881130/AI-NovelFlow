@@ -157,7 +157,8 @@ export function ChapterGenerateLayout({
   const estimatedMinutes = Math.floor(estimatedDuration / 60).toString().padStart(2, '0');
   const estimatedSeconds = Math.round(estimatedDuration % 60).toString().padStart(2, '0');
   const currentShotDuration = Number(currentShot?.duration) || 0;
-  const chapterSummary = `${shots.length} 个导演 Shot · 预计成片 ${estimatedMinutes}:${estimatedSeconds} · 当前 Shot #${currentShotIndex || 1} · 当前时长 ${currentShotDuration}秒`;
+  const chapterWordCount = (chapter?.content || '').replace(/\s/g, '').length;
+  const chapterSummary = `${chapterWordCount.toLocaleString()} 字 · ${shots.length} 个导演 Shot · 预计成片 ${estimatedMinutes}:${estimatedSeconds} · 当前 Shot #${currentShotIndex || 1} · 当前时长 ${currentShotDuration}秒`;
 
   const updateCurrentShot = (updates: Record<string, any>) => {
     if (!currentShot) return;

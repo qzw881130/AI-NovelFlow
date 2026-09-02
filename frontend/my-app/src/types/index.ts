@@ -99,6 +99,7 @@ export interface Chapter {
   number: number;
   title: string;
   content?: string;
+  contentLength?: number;
   status: 'pending' | 'parsing' | 'generating_characters' | 'generating_shots' | 'generating_videos' | 'compositing' | 'completed' | 'failed';
   progress: number;
   parsedData?: ParsedData;

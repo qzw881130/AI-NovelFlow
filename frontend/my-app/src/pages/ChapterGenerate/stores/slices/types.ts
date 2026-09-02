@@ -317,7 +317,7 @@ export interface ChapterGenerateStore
   saveChapterResources: (novelId: string, chapterId: string) => Promise<void>;
 
   // ========== Image Generation Actions ==========
-  generateShotImage: (novelId: string, chapterId: string, shotId: string, promptText?: string) => Promise<string | null>;
+  generateShotImage: (novelId: string, chapterId: string, shotId: string, promptText?: string, options?: { useExistingPrompt?: boolean }) => Promise<string | null>;
   generateAllImages: (novelId: string, chapterId: string) => Promise<void>;
   uploadShotImage: (novelId: string, chapterId: string, shotId: string, file: File) => Promise<void>;
   setShotImages: (images: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;

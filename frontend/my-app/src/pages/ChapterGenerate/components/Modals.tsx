@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
+import { API_BASE } from '../../../api';
 
 interface FullTextModalProps {
   isOpen: boolean;
@@ -59,6 +60,19 @@ interface MergedImageModalProps {
 
 export function MergedImageModal({ isOpen, onClose, mergedImage, imageLabel, currentShot }: MergedImageModalProps) {
   const { t } = useTranslation();
+  const [imageLoadFailed, setImageLoadFailed] = useState(false);
+
+  const resolveImageUrl = (url: string) => {
+    if (/^https?:\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) return url;
+    if (url.startsWith('/api/')) return `${API_BASE.replace(/\/api\/?$/, '')}${url}`;
+    return url;
+  };
+
+  const imageUrl = mergedImage ? resolveImageUrl(mergedImage) : '';
+
+  useEffect(() => {
+    if (isOpen) setImageLoadFailed(false);
+  }, [isOpen, mergedImage]);
 
   if (!isOpen || !mergedImage) return null;
 
@@ -71,17 +85,24 @@ export function MergedImageModal({ isOpen, onClose, mergedImage, imageLabel, cur
         >
           <X className="h-6 w-6" />
         </button>
-        <img 
-          src={mergedImage} 
-          alt={imageLabel || t('chapterGenerate.mergedImage')}
-          className="max-w-full max-h-[80vh] object-contain rounded-lg"
-        />
+        {imageLoadFailed ? (
+          <div className="rounded-lg bg-white p-6 text-center text-sm text-red-600 shadow">
+            图片加载失败，请尝试下载图片或重新生成当前分镜。
+          </div>
+        ) : (
+          <img
+            src={imageUrl}
+            alt={imageLabel || t('chapterGenerate.mergedImage')}
+            className="max-w-full max-h-[80vh] object-contain rounded-lg"
+            onError={() => setImageLoadFailed(true)}
+          />
+        )}
         <div className="mt-4 text-center">
           <button
             onClick={() => {
               const link = document.createElement('a');
               link.download = `${imageLabel || t('chapterGenerate.mergedImage')}_${t('chapterGenerate.shot')}${currentShot}.png`;
-              link.href = mergedImage;
+              link.href = imageUrl;
               link.click();
             }}
             className="btn-primary text-sm"

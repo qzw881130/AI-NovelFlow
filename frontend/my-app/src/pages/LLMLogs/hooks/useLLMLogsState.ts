@@ -36,7 +36,7 @@ export function useLLMLogsState() {
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({ providers: [], models: [], task_types: [] });
   const [selectedLog, setSelectedLog] = useState<LLMLog | null>(null);
   const [activePromptTab, setActivePromptTab] = useState<PromptTab>('user');
-  const [autoRefreshInterval, setAutoRefreshInterval] = useState(0);
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState(5000);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [statsGroupBy, setStatsGroupBy] = useState<LLMLogStatsGroupBy>('hour');
   const [statsRangeValue, setStatsRangeValue] = useState(1);

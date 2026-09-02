@@ -20,6 +20,9 @@ function ChapterRow({ chapter, index, novelId, onDelete, getStatusIcon, getStatu
 }) {
   const { t } = useTranslation();
   const iconInfo = getStatusIcon(chapter.status);
+  const contentLength = typeof chapter.contentLength === 'number'
+    ? chapter.contentLength
+    : (chapter.content || '').replace(/\s/g, '').length;
   return (
     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
       <div className="flex items-center gap-4">
@@ -27,7 +30,7 @@ function ChapterRow({ chapter, index, novelId, onDelete, getStatusIcon, getStatu
         <StatusIcon status={chapter.status} iconInfo={iconInfo} />
         <div>
           <h3 className="font-medium text-gray-900">{chapter.title}</h3>
-          <p className="text-xs text-gray-500">{getStatusText(chapter.status)}{chapter.progress > 0 && ` · ${chapter.progress}%`}</p>
+          <p className="text-xs text-gray-500">{contentLength.toLocaleString()} 字 · {getStatusText(chapter.status)}{chapter.progress > 0 && ` · ${chapter.progress}%`}</p>
         </div>
       </div>
       <div className="flex gap-2">

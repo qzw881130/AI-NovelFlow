@@ -1967,28 +1967,14 @@ async def download_chapter_materials(
     return FileResponse(zip_path, media_type="application/zip", filename=filename)
 
 
-@router.get("/{novel_id}/chapters/{chapter_id}/download-shot-image-data")
-async def download_shot_image_data_package(
+def _build_shot_image_data_response(
+    db: Session,
     novel_id: str,
     chapter_id: str,
-    db: Session = Depends(get_db),
-    novel_repo: NovelRepository = Depends(get_novel_repo),
-    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
-    shot_repo: ShotRepository = Depends(get_shot_repo),
+    chapter,
+    shots,
+    filename: str,
 ):
-    """打包当前章回所有分镜图生成数据。"""
-    novel = novel_repo.get_by_id(novel_id)
-    if not novel:
-        raise HTTPException(status_code=404, detail="小说不存在")
-
-    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
-    if not chapter:
-        raise HTTPException(status_code=404, detail="章节不存在")
-
-    shots = shot_repo.get_by_chapter(chapter_id)
-    if not shots:
-        raise HTTPException(status_code=404, detail="章节分镜不存在")
-
     def resolve_path(value: Optional[str]) -> Optional[Path]:
         if not value:
             return None
@@ -2069,13 +2055,66 @@ async def download_shot_image_data_package(
         zip_file.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
 
     zip_buffer.seek(0)
-    chapter_short = chapter_id[:8] if chapter_id else "unknown"
-    filename = f"chapter_{chapter_short}_shot_image_data.zip"
     return StreamingResponse(
         zip_buffer,
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+@router.get("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/download-shot-image-data")
+async def download_current_shot_image_data_package(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """打包当前分镜图生成数据。"""
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    chapter_short = chapter_id[:8] if chapter_id else "unknown"
+    filename = f"chapter_{chapter_short}_shot_{int(shot.index):03d}_shot_image_data.zip"
+    return _build_shot_image_data_response(db, novel_id, chapter_id, chapter, [shot], filename)
+
+
+@router.get("/{novel_id}/chapters/{chapter_id}/download-shot-image-data")
+async def download_shot_image_data_package(
+    novel_id: str,
+    chapter_id: str,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """打包当前章回所有分镜图生成数据。"""
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+
+    shots = shot_repo.get_by_chapter(chapter_id)
+    if not shots:
+        raise HTTPException(status_code=404, detail="章节分镜不存在")
+
+    chapter_short = chapter_id[:8] if chapter_id else "unknown"
+    filename = f"chapter_{chapter_short}_shot_image_data.zip"
+    return _build_shot_image_data_response(db, novel_id, chapter_id, chapter, shots, filename)
 
 
 @router.post("/{novel_id}/chapters/{chapter_id}/merge-videos", response_model=dict)

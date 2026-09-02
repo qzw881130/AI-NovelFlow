@@ -40,7 +40,7 @@ const savedTransitionSettings = getSavedTransitionSettings();
 
 export interface GenerationSlice extends GenerationSliceState {
   // ========== 图片生成 ==========
-  generateShotImage: (novelId: string, chapterId: string, shotId: string, promptText?: string) => Promise<string | null>;
+  generateShotImage: (novelId: string, chapterId: string, shotId: string, promptText?: string, options?: { useExistingPrompt?: boolean }) => Promise<string | null>;
   generateAllImages: (novelId: string, chapterId: string) => Promise<void>;
   uploadShotImage: (novelId: string, chapterId: string, shotId: string, file: File) => Promise<void>;
   setShotImages: (images: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
@@ -149,7 +149,7 @@ export const createGenerationSlice: StateCreator<
 
   // ========== 图片生成方法 ==========
 
-  generateShotImage: async (novelId: string, chapterId: string, shotId: string, promptText?: string) => {
+  generateShotImage: async (novelId: string, chapterId: string, shotId: string, promptText?: string, options?: { useExistingPrompt?: boolean }) => {
     const shot = get().shots.find(s => s.id === shotId);
     if (!shot) {
       console.error('[generateShotImage] Shot not found:', shotId);
@@ -172,7 +172,9 @@ export const createGenerationSlice: StateCreator<
     console.log('[generateShotImage] generatingShots after update:', [...get().generatingShots]);
 
     try {
-      const result = await shotsApi.generateImage(novelId, chapterId, shotId, { prompt_text: promptText });
+      const result = await shotsApi.generateImage(novelId, chapterId, shotId, {
+        prompt_text: options?.useExistingPrompt ? promptText : undefined,
+      });
       console.log('[generateShotImage] API result:', result);
 
       if (result.success) {

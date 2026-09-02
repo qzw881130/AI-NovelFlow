@@ -209,6 +209,24 @@ export const shotsApi = {
     URL.revokeObjectURL(url);
   },
 
+  downloadCurrentShotImageDataPackage: async (novelId: string, chapterId: string, shotId: string): Promise<void> => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/download-shot-image-data`);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.detail || data.message || '打包当前分镜图数据失败');
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('content-disposition') || '';
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = filenameMatch?.[1] || 'current_shot_image_data.zip';
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  },
+
   /**
    * 更新分镜信息
    */

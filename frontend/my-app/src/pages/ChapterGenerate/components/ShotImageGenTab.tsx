@@ -9,8 +9,9 @@
 
 import { cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
 import { useChapterGenerateStore } from '../stores';
-import { Box, Download, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
+import { Box, ChevronDown, Download, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
 import { shotsApi } from '../../../api/shots';
+import { taskApi } from '../../../api/tasks';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Shot } from '../../../api/shots';
 import { ImageEditModal } from '../../../components/ImageEditModal';
@@ -62,13 +63,19 @@ export function ShotImageGenTab({
   const generatingShots = storeGeneratingShots;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const batchCancelRequestedRef = useRef(false);
+  const batchShotIdsRef = useRef<string[]>([]);
 
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
+  const [isCancellingAll, setIsCancellingAll] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
+  const [showGenerateMenu, setShowGenerateMenu] = useState(false);
   const [selectedShotIds, setSelectedShotIds] = useState<Set<string>>(new Set());
+  const [skipBatchLlmWhenPromptExists, setSkipBatchLlmWhenPromptExists] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloadingShotImageData, setIsDownloadingShotImageData] = useState(false);
+  const [isDownloadingCurrentShotImageData, setIsDownloadingCurrentShotImageData] = useState(false);
   const [shotImagePrompts, setShotImagePrompts] = useState<Record<string, string>>({});
   const [submittingShotIds, setSubmittingShotIds] = useState<Set<string>>(new Set());
   const [dragSelectionMode, setDragSelectionMode] = useState<'select' | 'deselect' | null>(null);
@@ -92,14 +99,23 @@ export function ShotImageGenTab({
   // 完全依赖 store 的 generatingShots 状态
   const isGeneratingCurrent = generatingShots.has(currentShotId) || submittingShotIds.has(currentShotId);
   const currentPromptText = shotImagePrompts[currentShotId] ?? currentShotObj?.shotImagePrompt ?? currentShotData?.shotImagePrompt ?? '';
+  const hasCurrentPromptText = currentPromptText.trim().length > 0;
 
   // 处理单张分镜图生成
-  const handleGenerateShot = async () => {
+  const handleGenerateShot = async (mode: 'llm' | 'image_only' = 'llm') => {
     if (!novelId || !chapterId || !currentShotId) return;
     if (isGeneratingCurrent) return;
+    if (mode === 'image_only' && !hasCurrentPromptText) return;
+    setShowGenerateMenu(false);
     setSubmittingShotIds(prev => new Set([...prev, currentShotId]));
     try {
-      const promptText = await generateShotImage(novelId, chapterId, currentShotId, currentPromptText);
+      const promptText = await generateShotImage(
+        novelId,
+        chapterId,
+        currentShotId,
+        mode === 'image_only' ? currentPromptText.trim() : undefined,
+        { useExistingPrompt: mode === 'image_only' }
+      );
       if (promptText) {
         setShotImagePrompts(prev => ({ ...prev, [currentShotId]: promptText }));
       }
@@ -151,6 +167,7 @@ export function ShotImageGenTab({
 
   const waitForShotImageCompletion = async (shotId: string) => {
     for (let attempt = 0; attempt < 360; attempt += 1) {
+      if (batchCancelRequestedRef.current) return;
       await checkShotTaskStatus(chapterId!);
       const shot = useChapterGenerateStore.getState().shots.find(item => item.id === shotId);
       if (shot?.imageStatus === 'completed') return;
@@ -160,12 +177,30 @@ export function ShotImageGenTab({
     toast.error('等待分镜图生成完成超时');
   };
 
+  const cancelUnfinishedShotImageTasks = async (shotIds?: Set<string>) => {
+    if (!chapterId) return [];
+    const response = await fetch(`/api/tasks/?type=shot_image&chapter_id=${chapterId}`);
+    const result = await response.json();
+    const activeTasks = (result.success && Array.isArray(result.data) ? result.data : [])
+      .filter((task: any) => ['pending', 'queued', 'running'].includes(String(task.status || '').toLowerCase()))
+      .filter((task: any) => !shotIds || shotIds.has(String(task.shotId || '')));
+    await Promise.allSettled(activeTasks.map((task: any) => taskApi.cancel(task.id)));
+    return activeTasks;
+  };
+
   useEffect(() => {
     if (!dragSelectionMode) return;
     const handleMouseUp = () => setDragSelectionMode(null);
     window.addEventListener('mouseup', handleMouseUp);
     return () => window.removeEventListener('mouseup', handleMouseUp);
   }, [dragSelectionMode]);
+
+  useEffect(() => {
+    if (!showGenerateMenu) return;
+    const handleClick = () => setShowGenerateMenu(false);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [showGenerateMenu]);
 
   // 全选/取消全选
   const toggleSelectAll = () => {
@@ -183,6 +218,8 @@ export function ShotImageGenTab({
     if (selectedIds.length === 0) return;
 
     setIsGeneratingAll(true);
+    batchCancelRequestedRef.current = false;
+    batchShotIdsRef.current = selectedIds;
     setShowBatchSelectModal(false);
     useChapterGenerateStore.setState(state => ({
       generatingShots: new Set([...state.generatingShots, ...selectedIds]),
@@ -197,13 +234,62 @@ export function ShotImageGenTab({
     try {
       // 依次生成选中的分镜
       for (const shotId of selectedIds) {
-        await generateShotImage(novelId, chapterId, shotId);
+        if (batchCancelRequestedRef.current) break;
+        const shot = useChapterGenerateStore.getState().shots.find(item => item.id === shotId);
+        const promptText = (shotImagePrompts[shotId] ?? shot?.shotImagePrompt ?? '').trim();
+        await generateShotImage(
+          novelId,
+          chapterId,
+          shotId,
+          skipBatchLlmWhenPromptExists && promptText ? promptText : undefined,
+          { useExistingPrompt: skipBatchLlmWhenPromptExists && !!promptText }
+        );
+        if (batchCancelRequestedRef.current) {
+          await cancelUnfinishedShotImageTasks(new Set([shotId]));
+          break;
+        }
         await waitForShotImageCompletion(shotId);
       }
     } catch (error) {
       console.error(t('chapterGenerate.batchShotImageGenerateFailed') + ':', error);
     } finally {
       setIsGeneratingAll(false);
+      batchShotIdsRef.current = [];
+    }
+  };
+
+  const handleCancelGenerateAll = async () => {
+    if (!chapterId || (!isGeneratingAll && generatingShots.size === 0)) return;
+    if (!window.confirm('确认取消所有未完成的分镜图生成任务吗？')) return;
+
+    batchCancelRequestedRef.current = true;
+    setIsCancellingAll(true);
+    try {
+      const activeTasks = await cancelUnfinishedShotImageTasks();
+
+      const batchShotIds = new Set(batchShotIdsRef.current);
+      const activeShotIds = new Set<string>(activeTasks.map((task: any) => String(task.shotId || '')).filter(Boolean));
+      useChapterGenerateStore.setState(state => {
+        const nextGeneratingShots = new Set(state.generatingShots);
+        [...batchShotIds, ...activeShotIds].forEach(shotId => nextGeneratingShots.delete(shotId));
+        return {
+          generatingShots: nextGeneratingShots,
+          shots: state.shots.map(shot => {
+            if (!batchShotIds.has(shot.id) && !activeShotIds.has(shot.id)) return shot;
+            if (shot.imageUrl) return { ...shot, imageStatus: 'completed' as const, imageTaskId: null };
+            return { ...shot, imageStatus: activeShotIds.has(shot.id) ? 'failed' as const : 'pending' as const, imageTaskId: null };
+          }),
+        };
+      });
+      await checkShotTaskStatus(chapterId);
+      toast.success('已取消未完成的分镜图生成任务');
+    } catch (error) {
+      console.error('取消批量分镜图生成失败:', error);
+      toast.error(error instanceof Error ? error.message : '取消批量分镜图生成失败');
+    } finally {
+      setIsGeneratingAll(false);
+      setIsCancellingAll(false);
+      batchShotIdsRef.current = [];
     }
   };
 
@@ -375,6 +461,22 @@ export function ShotImageGenTab({
     }
   };
 
+  const handleDownloadCurrentShotImageData = async () => {
+    if (!novelId || !chapterId || !currentShotId) {
+      toast.error('缺少当前分镜信息，无法打包当前分镜图数据');
+      return;
+    }
+    setIsDownloadingCurrentShotImageData(true);
+    try {
+      await shotsApi.downloadCurrentShotImageDataPackage(novelId, chapterId, currentShotId);
+      toast.success('当前分镜图数据已打包下载');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '打包当前分镜图数据失败');
+    } finally {
+      setIsDownloadingCurrentShotImageData(false);
+    }
+  };
+
   const childrenWithSaveShortcut = isValidElement(children)
     ? cloneElement(children, { onSave: handleSaveShot } as { onSave: () => Promise<void> })
     : children;
@@ -384,23 +486,57 @@ export function ShotImageGenTab({
       {/* 操作栏 */}
       <div className="flex-shrink-0 flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
         <div className="flex items-center gap-4">
-          <button
-            onClick={handleGenerateShot}
-            disabled={isGeneratingCurrent || !chapterId}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            {isGeneratingCurrent ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {t('chapterGenerate.generating')}
-              </>
-            ) : (
-              <>
-                <Image className="w-4 h-4" />
-                {t('chapterGenerate.generateCurrentShot')}
-              </>
+          <div className="relative inline-flex">
+            <button
+              onClick={() => handleGenerateShot('llm')}
+              disabled={isGeneratingCurrent || !chapterId || !currentShotId}
+              className="px-4 py-2 bg-blue-600 text-white rounded-l-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              {isGeneratingCurrent ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {t('chapterGenerate.generating')}
+                </>
+              ) : (
+                <>
+                  <Image className="w-4 h-4" />
+                  LLM+生成分镜
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                setShowGenerateMenu(prev => !prev);
+              }}
+              disabled={isGeneratingCurrent || !chapterId || !currentShotId}
+              className="px-2 py-2 bg-blue-600 text-white border-l border-blue-500 rounded-r-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+              aria-label="选择分镜生成方式"
+            >
+              <ChevronDown className="w-4 h-4" />
+            </button>
+            {showGenerateMenu && (
+              <div className="absolute left-0 top-full z-20 mt-1 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                <button
+                  type="button"
+                  onClick={() => handleGenerateShot('llm')}
+                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50"
+                >
+                  LLM+生成分镜
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleGenerateShot('image_only')}
+                  disabled={!hasCurrentPromptText}
+                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50 disabled:text-gray-400 disabled:hover:bg-white disabled:cursor-not-allowed"
+                  title={!hasCurrentPromptText ? '当前分镜没有主分镜图 AI 提示词' : undefined}
+                >
+                  只生成分镜
+                </button>
+              </div>
             )}
-          </button>
+          </div>
           <button
             onClick={handleOpenBatchSelect}
             disabled={isGeneratingAll || !chapterId}
@@ -408,6 +544,16 @@ export function ShotImageGenTab({
           >
             {t('chapterGenerate.batchGenerate')}
           </button>
+          {isGeneratingAll && (
+            <button
+              onClick={handleCancelGenerateAll}
+              disabled={isCancellingAll}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            >
+              {isCancellingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
+              取消批量
+            </button>
+          )}
           <button
             onClick={handleSaveShot}
             disabled={isSaving || !chapterId}
@@ -427,6 +573,18 @@ export function ShotImageGenTab({
           </button>
         </div>
         <div className="flex items-center gap-4">
+          <button
+            onClick={handleDownloadCurrentShotImageData}
+            disabled={isDownloadingCurrentShotImageData || !chapterId || !currentShotId}
+            className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            {isDownloadingCurrentShotImageData ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4" />
+            )}
+            打包当前分镜图数据
+          </button>
           <button
             onClick={handleDownloadShotImageData}
             disabled={isDownloadingShotImageData || !chapterId}
@@ -688,30 +846,41 @@ export function ShotImageGenTab({
             </div>
 
             {/* 弹窗底部按钮 */}
-            <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200">
-              <button
-                onClick={() => setShowBatchSelectModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={handleGenerateAll}
-                disabled={selectedShotIds.size === 0 || isGeneratingAll}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-              >
-                {isGeneratingAll ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    {t('chapterGenerate.generating')}
-                  </>
-                ) : (
-                  <>
-                    <Image className="w-4 h-4" />
-                    {t('chapterGenerate.generateShots', { count: selectedShotIds.size })}
-                  </>
-                )}
-              </button>
+            <div className="flex items-center justify-between gap-3 p-4 border-t border-gray-200">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={skipBatchLlmWhenPromptExists}
+                  onChange={(event) => setSkipBatchLlmWhenPromptExists(event.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                主分镜图 AI 提示词存在时，不重新生成
+              </label>
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  onClick={() => setShowBatchSelectModal(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={handleGenerateAll}
+                  disabled={selectedShotIds.size === 0 || isGeneratingAll}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {isGeneratingAll ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {t('chapterGenerate.generating')}
+                    </>
+                  ) : (
+                    <>
+                      <Image className="w-4 h-4" />
+                      {t('chapterGenerate.generateShots', { count: selectedShotIds.size })}
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
