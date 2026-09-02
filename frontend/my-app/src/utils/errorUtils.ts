@@ -12,5 +12,9 @@ export const formatUserFacingError = (message?: unknown): string => {
     return 'LLM 认证失败，请检查系统设置中的 API Key 是否正确或已过期。';
   }
 
+  if (rawMessage.includes('DIALOGUE_DURATION_INSUFFICIENT')) {
+    return 'Clip 台词时长不足：当前 Clip 时长不足以容纳分配到的台词，请缩短台词、延长 Clip，或重新规划关键帧时间轴。';
+  }
+
   return rawMessage;
 };

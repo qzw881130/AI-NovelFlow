@@ -210,6 +210,7 @@ class GenerateVideoDirectorClipRequest(BaseModel):
 
     use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
     auto_merge: bool = Field(True, description="Clip 生成成功后是否自动重新合并 Shot 视频")
+    skip_llm_when_prompt_exists: bool = Field(False, description="已有 Clip 最终视频提示词时跳过 LLM，直接提交工作流")
 
 
 class SaveVideoDirectorPlanRequest(BaseModel):

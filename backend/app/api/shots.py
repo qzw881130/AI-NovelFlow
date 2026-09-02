@@ -1849,6 +1849,7 @@ async def generate_video_director_clip(
         selected_mode="MULTI_KEYFRAME",
         only_window_index=window_index,
         auto_merge_clips=request.auto_merge,
+        skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
     )
     return {"success": True, "message": "Clip 重新生成任务已创建", "data": {"taskId": task.id, "status": "pending"}}
 

@@ -5,6 +5,7 @@ import {
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Task, VideoDirectorTaskClip } from '../../../types';
 import type { ImageInfo } from '../types';
+import { formatUserFacingError } from '../../../utils';
 
 interface TaskCardProps {
   task: Task;
@@ -83,6 +84,7 @@ export function TaskCard({
   const elapsedSeconds = getElapsedSeconds();
   const videoDirectorClips = task.videoDirectorClips || [];
   const hasMultiClipDetails = videoDirectorClips.length > 0;
+  const displayErrorMessage = formatUserFacingError(task.errorMessage) || task.errorMessage;
   const copyTaskId = async () => {
     try {
       await navigator.clipboard.writeText(task.id);
@@ -155,7 +157,7 @@ export function TaskCard({
               </div>
             </div>
           )}
-          {task.status === 'failed' && task.errorMessage && (
+          {task.status === 'failed' && displayErrorMessage && (
             <div className="mt-2">
               <div
                 className="p-2 bg-red-100 rounded text-xs text-red-700 flex items-start gap-2 cursor-pointer hover:bg-red-200 transition-colors"
@@ -164,21 +166,21 @@ export function TaskCard({
                 <Terminal className="h-4 w-4 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium">{t('tasks.error')}: {task.errorMessage.slice(0, 100)}{task.errorMessage.length > 100 ? '...' : ''}</span>
-                    {task.errorMessage.length > 100 && (
+                    <span className="font-medium">{t('tasks.error')}: {displayErrorMessage.slice(0, 100)}{displayErrorMessage.length > 100 ? '...' : ''}</span>
+                    {displayErrorMessage.length > 100 && (
                       <span className="text-red-500 ml-2 flex-shrink-0">
                         {expandedErrors.has(task.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                       </span>
                     )}
                   </div>
-                  {expandedErrors.has(task.id) && task.errorMessage.length > 100 && (
+                  {expandedErrors.has(task.id) && displayErrorMessage.length > 100 && (
                     <div className="mt-2 p-2 bg-red-50 rounded border border-red-200 font-mono whitespace-pre-wrap break-all">
-                      {task.errorMessage}
+                      {displayErrorMessage}
                     </div>
                   )}
                 </div>
               </div>
-              {task.errorMessage.includes('ComfyUI') && (
+              {displayErrorMessage.includes('ComfyUI') && (
                 <p className="text-xs text-red-600 mt-1 ml-6">{t('tasks.comfyuiHint')}</p>
               )}
             </div>
@@ -243,7 +245,7 @@ export function TaskCard({
                         </button>
                       )}
                     </div>
-                    {clip.errorMessage && <div className="mt-1 text-red-600">{clip.errorMessage}</div>}
+                    {clip.errorMessage && <div className="mt-1 text-red-600">{formatUserFacingError(clip.errorMessage)}</div>}
                     {clip.promptText && <div className="mt-1 line-clamp-2 text-gray-500" title={clip.promptText}>Prompt: {clip.promptText}</div>}
                     {!!clip.referenceImages?.length && (
                       <div className="mt-2 flex flex-wrap gap-1.5">

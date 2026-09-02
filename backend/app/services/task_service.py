@@ -642,6 +642,11 @@ class TaskService:
                                 updated_count += 1
                             continue
                         if clip_state.get("status") == "SUCCEEDED" and clip_state.get("video_url"):
+                            next_window_index = self._next_unfinished_shot_video_window_index(task)
+                            if next_window_index is not None:
+                                self._enqueue_remaining_shot_video_clip(task, next_window_index, db)
+                                updated_count += 1
+                                continue
                             if inactive_seconds(task) > comfyui_timeout:
                                 task.status = "failed"
                                 task.error_message = "ComfyUI 已完成当前 Clip，但后端后台任务长时间未继续；已保存完成的 Clip，请重新生成剩余 Clip"
@@ -874,6 +879,61 @@ class TaskService:
                 result["status"] = status
                 result["video_url"] = window.get("video_url")
         return result
+
+    @staticmethod
+    def _next_unfinished_shot_video_window_index(task: Task) -> int | None:
+        try:
+            window_plans = json.loads(task.video_director_clips or "[]")
+            if not isinstance(window_plans, list):
+                return None
+        except Exception:
+            return None
+
+        for window in sorted(
+            [item for item in window_plans if isinstance(item, dict)],
+            key=lambda item: int(item.get("window_index") or item.get("clip_index") or 0),
+        ):
+            status = str(window.get("status") or "").upper()
+            has_video = bool(window.get("video_url") or window.get("local_path"))
+            if status != "SUCCEEDED" or not has_video:
+                window_index = window.get("window_index") or window.get("clip_index")
+                try:
+                    return int(window_index)
+                except (TypeError, ValueError):
+                    return None
+        return None
+
+    def _enqueue_remaining_shot_video_clip(self, task: Task, window_index: int, db: Session) -> None:
+        if not task.novel_id or not task.chapter_id or not task.shot_id or not task.workflow_id:
+            return
+        shot = ShotRepository(db).get_by_id(task.shot_id)
+        if not shot:
+            return
+
+        shot_image_url = shot.image_url or ""
+        task.comfyui_prompt_id = None
+        task.status = "running"
+        task.current_step = f"已重新入队，准备继续生成 Clip {window_index}..."
+        task.error_message = None
+        task.updated_at = datetime.utcnow()
+        ShotRepository(db).update(shot, video_status="generating", video_task_id=task.id)
+        db.commit()
+
+        from app.services.shot_video_service import enqueue_shot_video_task
+        enqueue_shot_video_task(
+            task_id=task.id,
+            novel_id=task.novel_id,
+            chapter_id=task.chapter_id,
+            shot_index=int(shot.index or 0),
+            workflow_id=task.workflow_id,
+            shot_image_url=shot_image_url,
+            use_keyframes=True,
+            use_reference_audio=True,
+            selected_mode="MULTI_KEYFRAME",
+            only_window_index=window_index,
+            auto_merge_clips=True,
+            skip_llm_when_prompt_exists=False,
+        )
 
     async def _recover_completed_shot_video_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
         """Recover a completed ComfyUI video prompt when the original worker missed persistence."""
@@ -1119,7 +1179,7 @@ class TaskService:
                 video_url = window.get("video_url")
                 status = window.get("status")
                 if task.status != "running" and str(status or "").upper() in {"PROMPT_BUILDING", "QUEUED", "RUNNING"}:
-                    status = "SUCCEEDED" if video_url else None
+                    status = "SUCCEEDED" if video_url else ("FAILED" if task.status == "failed" else None)
                 clips.append({
                     "windowIndex": window.get("window_index"),
                     "status": status,
@@ -1133,7 +1193,7 @@ class TaskService:
                     "referenceImages": window.get("reference_images") if isinstance(window.get("reference_images"), list) else [],
                     "videoUrl": video_url,
                     "sourceVideoUrl": window.get("source_video_url"),
-                    "errorMessage": window.get("error_message"),
+                    "errorMessage": window.get("error_message") or (task.error_message if task.status == "failed" and status == "FAILED" else None),
                     "generatedAt": window.get("generated_at"),
                     "dialogueCount": len(window.get("clip_dialogues") or []) if isinstance(window.get("clip_dialogues"), list) else None,
                 })

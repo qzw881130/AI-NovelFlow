@@ -224,12 +224,11 @@ def _cleanup_task_generated_clip_videos(db, task, shot) -> None:
         db.commit()
 
 
-def _reset_multi_clip_window_plans_for_task(db, task, shot, only_window_index: int | None = None) -> list:
+def _reset_multi_clip_window_plans_for_task(db, task, shot, only_window_index: int | None = None, preserve_prompt_text: bool = False) -> list:
     plan = safe_json_dict(shot.video_director_plan)
     window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
     reset_keys = [
         "prompt_id",
-        "prompt_text",
         "workflow_json",
         "video_url",
         "local_path",
@@ -238,6 +237,8 @@ def _reset_multi_clip_window_plans_for_task(db, task, shot, only_window_index: i
         "generated_by_task_id",
         "error_message",
     ]
+    if not preserve_prompt_text:
+        reset_keys.insert(1, "prompt_text")
     for window_plan in window_plans:
         if not isinstance(window_plan, dict):
             continue
@@ -537,7 +538,13 @@ async def generate_shot_video_task(
 
         window_plans = video_director_plan.get("window_plans") if isinstance(video_director_plan.get("window_plans"), list) else []
         if selected_mode == "MULTI_KEYFRAME" and len(window_plans) > 1:
-            window_plans = _reset_multi_clip_window_plans_for_task(db, task, shot, only_window_index=only_window_index)
+            window_plans = _reset_multi_clip_window_plans_for_task(
+                db,
+                task,
+                shot,
+                only_window_index=only_window_index,
+                preserve_prompt_text=skip_llm_when_prompt_exists,
+            )
             video_director_plan = safe_json_dict(shot.video_director_plan)
             await _generate_multi_clip_video_task(
                 db=db,
@@ -931,22 +938,31 @@ async def _generate_multi_clip_video_task(
         if reusable_clip_prompt:
             clip_prompt = reusable_clip_prompt
         else:
-            clip_prompt = await build_h3_video_prompt(
-                db=db,
-                novel=novel,
-                shot=shot,
-                selected_mode="MULTI_KEYFRAME",
-                clip=clip,
-                workflow_capability=workflow_capability,
-                workflow_type=workflow_type,
-                workflow_name=workflow.name,
-                start_image_url=start_image_url,
-                keyframes=keyframes_for_prompt,
-                transitions=clip_transitions_for_prompt,
-                clip_dialogues=clip_dialogues,
-                reference_images=reference_images,
-                character_appearances=character_appearances,
-            )
+            try:
+                clip_prompt = await build_h3_video_prompt(
+                    db=db,
+                    novel=novel,
+                    shot=shot,
+                    selected_mode="MULTI_KEYFRAME",
+                    clip=clip,
+                    workflow_capability=workflow_capability,
+                    workflow_type=workflow_type,
+                    workflow_name=workflow.name,
+                    start_image_url=start_image_url,
+                    keyframes=keyframes_for_prompt,
+                    transitions=clip_transitions_for_prompt,
+                    clip_dialogues=clip_dialogues,
+                    reference_images=reference_images,
+                    character_appearances=character_appearances,
+                )
+            except Exception as exc:
+                task.status = "failed"
+                task.error_message = str(exc) or "Clip H3 提示词构建失败"
+                task.current_step = f"Clip {clip_position} H3 提示词构建失败"
+                _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": task.error_message}, db, task=task)
+                _mark_shot_video_failed(shot, shot_repo, task.error_message)
+                db.commit()
+                return
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
             _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")

@@ -382,7 +382,7 @@ export const shotsApi = {
     chapterId: string,
     shotId: string,
     windowIndex: number,
-    options?: { use_reference_audio?: boolean; auto_merge?: boolean }
+    options?: { use_reference_audio?: boolean; auto_merge?: boolean; skip_llm_when_prompt_exists?: boolean }
   ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string; detail?: string }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/clips/${windowIndex}/generate`,
@@ -392,6 +392,7 @@ export const shotsApi = {
         body: JSON.stringify({
           use_reference_audio: options?.use_reference_audio ?? true,
           auto_merge: options?.auto_merge ?? true,
+          skip_llm_when_prompt_exists: options?.skip_llm_when_prompt_exists ?? false,
         }),
       }
     );

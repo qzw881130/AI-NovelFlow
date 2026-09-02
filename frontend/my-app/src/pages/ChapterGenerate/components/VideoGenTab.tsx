@@ -408,7 +408,7 @@ interface VideoDirectorPanelProps {
   keyframeTasks?: any[];
   onSelectMode: (mode: VideoMode) => void;
   onPreviewClip: (clip: any) => void;
-  onRegenerateClip: (clip: any) => void;
+  onRegenerateClip: (clip: any, mode?: 'llm' | 'video_only') => void;
   onMergeClips: () => void;
   onPreviewImage: (url: string) => void;
   onEditImage: (target: VideoImageEditTarget) => void;
@@ -445,6 +445,7 @@ function VideoDirectorPanel({
 }: VideoDirectorPanelProps) {
   const { t } = useTranslation();
   const [showEndKeyframeMenu, setShowEndKeyframeMenu] = useState(false);
+  const [openClipGenerateMenuKey, setOpenClipGenerateMenuKey] = useState<string | null>(null);
   const selectedMode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
   const maxClipDuration = plan.workflow_capability?.max_clip_duration || 15;
   const firstLastAvailable = plan.first_last_available ?? ((shot?.duration || 0) <= maxClipDuration);
@@ -1099,15 +1100,55 @@ function VideoDirectorPanel({
                       >
                         {clip.video_url ? '预览 Clip' : '缺少视频记录'}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => onRegenerateClip(clip)}
-                        disabled={isRegenerating}
-                        className="inline-flex items-center gap-1 rounded-md border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {isRegenerating && <Loader2 className="h-3 w-3 animate-spin" />}
-                        {isRegenerating ? '构建 H3 提示词中...' : clip.prompt_text ? '重新生成' : '构建 H3 提示词'}
-                      </button>
+                      <div className="relative inline-flex">
+                        <button
+                          type="button"
+                          onClick={() => onRegenerateClip(clip, 'llm')}
+                          disabled={isRegenerating}
+                          className="inline-flex items-center gap-1 rounded-l-md border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isRegenerating && <Loader2 className="h-3 w-3 animate-spin" />}
+                          {isRegenerating ? '生成中...' : 'LLM+生成Clip视频'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setOpenClipGenerateMenuKey(openClipGenerateMenuKey === clipKey ? null : clipKey);
+                          }}
+                          disabled={isRegenerating}
+                          className="inline-flex items-center rounded-r-md border border-l-0 border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label="选择 Clip 视频生成模式"
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                        {openClipGenerateMenuKey === clipKey && (
+                          <div className="absolute left-0 top-full z-20 mt-1 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenClipGenerateMenuKey(null);
+                                onRegenerateClip(clip, 'llm');
+                              }}
+                              className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50"
+                            >
+                              LLM+生成Clip视频
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenClipGenerateMenuKey(null);
+                                onRegenerateClip(clip, 'video_only');
+                              }}
+                              disabled={!clip.prompt_text}
+                              title={!clip.prompt_text ? '缺少可复用的 Clip 视频最终 Prompt，请先使用 LLM+生成Clip视频' : undefined}
+                              className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-white"
+                            >
+                              仅生成Clip视频
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       {clip.prompt_text && (
                         <button type="button" onClick={() => setViewingPromptClip(clip)} className="rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50">
                           查看Prompt
@@ -1954,10 +1995,15 @@ export function VideoGenTab({
     setSelectedPreviewClipKey(getPlanClipKey(clip));
   }, []);
 
-  const handleRegenerateClip = useCallback(async (clip: any) => {
+  const handleRegenerateClip = useCallback(async (clip: any, mode: 'llm' | 'video_only' = 'llm') => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
     const windowIndex = Number(clip.window_index || clip.clip_index);
     if (!windowIndex) return;
+    const useExistingPrompt = mode === 'video_only';
+    if (useExistingPrompt && !String(clip.prompt_text || '').trim()) {
+      toast.info(`C${windowIndex} 缺少可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频。`);
+      return;
+    }
     if (clip.video_url && !window.confirm(`确认重新生成 C${windowIndex}？完成后会自动重新合并整体视频。`)) return;
 
     const clipKey = getPlanClipKey(clip);
@@ -1967,12 +2013,13 @@ export function VideoGenTab({
       const result = await shotsApi.generateVideoDirectorClip(effectiveNovelId, effectiveChapterId, currentShotId, windowIndex, {
         use_reference_audio: true,
         auto_merge: true,
+        skip_llm_when_prompt_exists: useExistingPrompt,
       });
       if (result.success) {
         setShots(shotsList.map((shot: any) => (
           String(shot.id) === currentShotId ? { ...shot, videoStatus: 'generating', videoTaskId: result.data?.taskId || shot.videoTaskId } : shot
         )));
-        toast.success(`C${windowIndex} 已提交重新生成，完成后会自动合并`);
+        toast.success(`C${windowIndex} 已提交${useExistingPrompt ? '仅生成视频' : 'LLM+生成视频'}，完成后会自动合并`);
       } else {
         setRegeneratingClipKey(null);
         toast.error(result.message || result.detail || 'Clip 重新生成失败');

@@ -89,9 +89,6 @@ def reconcile_stale_pending_llm_logs(db: Session) -> int:
     for log in stale_logs:
         log.status = "error"
         log.error_message = "LLM 调用超过配置超时时间仍未完成，可能是请求中断或后台进程已退出"
-        if log.duration is None and log.created_at:
-            created_at = log.created_at.replace(tzinfo=None) if log.created_at.tzinfo else log.created_at
-            log.duration = max(0, (now - created_at).total_seconds())
     if stale_logs:
         db.commit()
     return len(stale_logs)
