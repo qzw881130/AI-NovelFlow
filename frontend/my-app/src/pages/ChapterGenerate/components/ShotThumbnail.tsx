@@ -98,7 +98,7 @@ export function ShotThumbnail({
         relative flex-shrink-0 w-32 h-24 rounded-lg border-2 cursor-pointer
         transition-all duration-200 overflow-hidden
         ${config.color}
-        ${status === 'generating' ? 'ring-2 ring-blue-400 ring-offset-2 shadow-md' : isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : 'hover:shadow-md'}
+        ${status === 'generating' ? 'ring-2 ring-inset ring-blue-400 shadow-md' : isSelected ? 'ring-2 ring-inset ring-blue-500' : 'hover:shadow-md'}
       `}
     >
       {/* 图片显示 */}
