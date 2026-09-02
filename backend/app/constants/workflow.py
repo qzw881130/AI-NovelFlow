@@ -35,13 +35,13 @@ WORKFLOW_TYPES = {
 # 默认工作流文件名映射 (每个类型的默认工作流)
 DEFAULT_WORKFLOWS = {
     "character": "character_default.json",
-    "scene": "scene_default.json",
+    "scene": "scene_flux2_klein_20260831_api.json",
     "shot_scene": "shot_scene_flux2_klein_single_ref_edit.json",
     "shot_character_scene": "shot_character_scene_flux2_klein_dual_ref_edit.json",
     "shot_scene_prop": "shot_scene_prop_flux2_klein_dual_ref_edit.json",
     "shot": "shot_flux2_klein_three_ref_edit.json",
     "video": "video_minimax_h3_ref2va_fast.json",
-    "prop": "prop_default.json",
+    "prop": "prop_flux2_klein_20260831_api.json",
     "voice_design": "Qwen3-TTS-Voice-Design.json",  # 实际是音色设计工作流
     "audio": "Qwen3-TTS-Voice-Clone.json",  # 音频生成工作流（带参考音频的语音克隆）
     "keyframe_image": "keyframe_flux2_klein.json",
@@ -179,6 +179,24 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "nameKey": f"{NAME_KEY_PREFIX}.Z-image-turbo 单图生成",
         "description": "Z-image-turbo【非三视图】",
         "descriptionKey": f"{DESC_KEY_PREFIX}.Z-image-turbo【非三视图】",
+    },
+    {
+        "filename": "scene_flux2_klein_20260831_api.json",
+        "type": "scene",
+        "name": "Flux2-Klein-9B-生成场景图 20260831 API",
+        "nameKey": f"{NAME_KEY_PREFIX}.Flux2-Klein-9B-生成场景图 20260831 API",
+        "description": "提示词：不要人物",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.提示词：不要人物",
+        "node_mapping": {"prompt_node_id": "110", "save_image_node_id": "58"},
+    },
+    {
+        "filename": "prop_flux2_klein_20260831_api.json",
+        "type": "prop",
+        "name": "Flux2-Klein-9B-生成道具图 20260831 API",
+        "nameKey": f"{NAME_KEY_PREFIX}.Flux2-Klein-9B-生成道具图 20260831 API",
+        "description": "用户上传的道具生成工作流",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.用户上传的道具生成工作流",
+        "node_mapping": {"prompt_node_id": "110", "save_image_node_id": "58"},
     },
     {
         "filename": "shot_scene_flux2_klein_single_ref_edit.json",
