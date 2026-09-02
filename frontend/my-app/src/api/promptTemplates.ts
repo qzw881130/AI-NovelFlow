@@ -1,7 +1,7 @@
 /**
  * 提示词模板相关 API
  */
-import { api } from './index';
+import { api, API_BASE } from './index';
 import type { PromptTemplate } from '../types';
 
 // 提示词模板类型
@@ -42,4 +42,30 @@ export const promptTemplateApi = {
 
   /** 复制模板 */
   copy: (id: string) => api.post<PromptTemplate>(`/prompt-templates/${id}/copy`),
+
+  /** 打包下载所有提示词模板 */
+  downloadAll: async (): Promise<void> => {
+    const response = await fetch(`${API_BASE}/prompt-templates/export-all`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || '下载失败');
+    }
+
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const encodedFilename = disposition.match(/filename\*=UTF-8''([^;]+)/)?.[1];
+    const fallbackFilename = disposition.match(/filename="?([^";]+)"?/)?.[1];
+    const filename = encodedFilename
+      ? decodeURIComponent(encodedFilename)
+      : fallbackFilename || 'prompt_templates.zip';
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
 };

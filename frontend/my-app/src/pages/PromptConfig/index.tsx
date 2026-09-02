@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Loader2, Plus, FileText, BookOpen, Palette, Users, MapPin, Image, Package, Box, Film, SlidersHorizontal, Route, Video } from 'lucide-react';
+import { Loader2, Plus, FileText, BookOpen, Palette, Users, MapPin, Image, Package, Box, Film, SlidersHorizontal, Route, Video, Download } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import type { PromptTemplate } from '../../types';
 import type { TemplateCategory, TemplateType } from './types';
@@ -8,6 +8,8 @@ import { usePromptConfigState, TEMPLATE_TYPE_CONFIG } from './hooks/usePromptCon
 import { TemplateCard } from './components/TemplateCard';
 import { EditModal } from './components/EditModal';
 import { ViewModal } from './components/ViewModal';
+import { promptTemplateApi } from '../../api/promptTemplates';
+import { toast } from '../../stores/toastStore';
 
 // 图标映射
 const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
@@ -187,6 +189,7 @@ export default function PromptConfig() {
   const state = usePromptConfigState();
   const displayName = (tp: PromptTemplate) => getTemplateDisplayName(tp, t);
   const displayDesc = (tp: PromptTemplate) => getTemplateDisplayDescription(tp, t);
+  const [isExportingAll, setIsExportingAll] = useState(false);
 
   const initialCategory = getCategoryFromParams(searchParams);
   const [activeCategory, setActiveCategory] = useState<TemplateCategory>(initialCategory);
@@ -230,11 +233,35 @@ export default function PromptConfig() {
     updateUrl(activeCategory, type);
   };
 
+  const handleExportAllPrompts = async () => {
+    setIsExportingAll(true);
+    try {
+      await promptTemplateApi.downloadAll();
+      toast.success(t('promptConfig.exportAllSuccess'));
+    } catch (error) {
+      console.error('打包下载所有提示词失败:', error);
+      toast.error(error instanceof Error ? error.message : t('promptConfig.exportAllFailed'));
+    } finally {
+      setIsExportingAll(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{t('promptConfig.title')}</h1>
-        <p className="mt-1 text-sm text-gray-500">{t('promptConfig.subtitle')}</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{t('promptConfig.title')}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t('promptConfig.subtitle')}</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleExportAllPrompts}
+          disabled={isExportingAll}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isExportingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {isExportingAll ? t('promptConfig.exportingAll') : t('promptConfig.exportAllPrompts')}
+        </button>
       </div>
 
       {/* 一级分类 */}
