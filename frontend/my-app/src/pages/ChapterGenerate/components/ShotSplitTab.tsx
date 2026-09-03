@@ -13,6 +13,7 @@ import { useChapterGenerateStore, useDataSlice } from '../stores';
 import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
 import { useTranslation } from '../../../stores/i18nStore';
+import { getDialogueDurationWarningStats, getShotDialogueDurationWarning } from '../../../utils';
 import type { Shot } from '../../../api/shots';
 
 interface ShotSplitTabProps {
@@ -40,6 +41,7 @@ export function ShotSplitTab({
   const saveChapterResources = useChapterGenerateStore((state) => state.saveChapterResources);
   const splitChapter = useChapterGenerateStore((state) => state.splitChapter);
   const storeShots = useChapterGenerateStore((state) => state.shots);
+  const setShots = useChapterGenerateStore((state) => state.setShots);
 
   // 使用 useDataSlice 获取方法
   const { initChapterResources, fetchShots } = useDataSlice();
@@ -67,6 +69,7 @@ export function ShotSplitTab({
 
   // 统一使用 store.shots 作为分镜数据源
   const shots = storeShots;
+  const dialogueWarningStats = getDialogueDurationWarningStats(shots);
 
   // 显示拆分确认对话框
   const handleSplit = () => {
@@ -95,8 +98,7 @@ export function ShotSplitTab({
     }
   };
 
-  // 保存分镜数据
-  const handleSave = async () => {
+  const saveShotsData = async (shotsToSave: Shot[], successMessage = t('chapterGenerate.shotSaveSuccess')) => {
     if (!novelId || !chapterId) return;
     setIsSaving(true);
     try {
@@ -104,11 +106,11 @@ export function ShotSplitTab({
       await saveChapterResources(novelId, chapterId);
 
       // 2. 批量保存分镜数据到 Shot 表
-      if (shots.length > 0) {
+      if (shotsToSave.length > 0) {
         const result = await shotsApi.batchUpdateShots(
           novelId,
           chapterId,
-          shots.map((shot) => ({
+          shotsToSave.map((shot) => ({
             id: shot.id,
             description: shot.description,
             video_description: shot.video_description,
@@ -125,7 +127,7 @@ export function ShotSplitTab({
           const resultData = result.data as any;
           console.log(t('chapterGenerate.shotsSaved', { count: resultData?.updated_count }));
           markTabComplete(0);
-          toast.success(t('chapterGenerate.shotSaveSuccess'));
+          toast.success(successMessage);
         } else {
           console.error(t('chapterGenerate.shotSaveFailed', { message: result.message || t('common.unknownError') }));
           toast.error(t('chapterGenerate.shotSaveFailed', { message: result.message || t('common.unknownError') }));
@@ -140,6 +142,33 @@ export function ShotSplitTab({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // 保存分镜数据
+  const handleSave = async () => {
+    await saveShotsData(shots);
+  };
+
+  const handleAutoFixCriticalDurations = async () => {
+    const fixes = shots
+      .map((shot) => ({ shot, warning: getShotDialogueDurationWarning(shot) }))
+      .filter(({ warning }) => warning.level === 'critical');
+
+    if (fixes.length === 0) {
+      toast.info('没有严重时长异常需要修正');
+      return;
+    }
+
+    const fixedDurationById = new Map(
+      fixes.map(({ shot, warning }) => [String(shot.id), Math.min(180, warning.suggestedDuration + 1)])
+    );
+    const fixedShots = shots.map((shot) => {
+      const fixedDuration = fixedDurationById.get(String(shot.id));
+      return fixedDuration ? { ...shot, duration: fixedDuration } : shot;
+    });
+
+    setShots(fixedShots);
+    await saveShotsData(fixedShots, `已修正并保存 ${fixes.length} 个严重时长异常`);
   };
 
   // 处理分镜列表项点击
@@ -557,6 +586,14 @@ export function ShotSplitTab({
           >
             {isImporting ? t('chapterGenerate.importing') : t('chapterGenerate.importShots')}
           </button>
+          <button
+            type="button"
+            onClick={handleAutoFixCriticalDurations}
+            disabled={isSaving || dialogueWarningStats.stats.critical === 0}
+            className="btn-secondary border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            自动修正异常时长
+          </button>
         </div>
         <div className="text-sm text-gray-500">
           {t('chapterGenerate.totalShots', { count: shots.length })}
@@ -575,6 +612,7 @@ export function ShotSplitTab({
             const scene = shot.scene;
             const props = shot.props || [];
             const dialogues = shot.dialogues || [];
+            const dialogueWarning = getShotDialogueDurationWarning(shot);
 
             const dialogueCharacters = Array.from(
               new Set(dialogues.map((d) => d.character_name))
@@ -592,7 +630,10 @@ export function ShotSplitTab({
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <span className="text-sm font-bold text-gray-900">{t('chapterGenerate.shotNumberLabel', { number: shotNum })}</span>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{shot.duration}{t('common.second')}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${dialogueWarning.style.badgeClassName}`}>
+                      {shot.duration}{t('common.second')}
+                      {dialogues.length > 0 && dialogueWarning.level !== 'normal' && ` · ${dialogueWarning.style.shortLabel}`}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button

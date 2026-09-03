@@ -21,7 +21,7 @@ import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { ImageEditModal } from '../../../components/ImageEditModal';
 import type { KeyframeData } from '../../../types';
 import type { VideoAiCall, VideoDirectorPlan, VideoMode } from '../../../api/shots';
-import { formatUserFacingError } from '../../../utils';
+import { dialogueEmotion, dialogueSpeaker, dialogueText, estimateDialogueSeconds, formatUserFacingError, getClipDialoguesForDisplay, numberOrNull } from '../../../utils';
 
 const VIDEO_TAB_UI_STORAGE_KEY = 'chapterGenerate_videoTab_ui';
 type MergeVideoMode = 'shots_only' | 'shots_with_transitions';
@@ -1064,6 +1064,22 @@ function VideoDirectorPanel({
                     return url ? { url, label: `C${clipIndex} · KF${keyframeIndex}` } : null;
                   })
                   .filter(Boolean);
+              const clipDialogues = getClipDialoguesForDisplay(shot, clip)
+                .map((dialogue: any, dialogueIndex: number) => {
+                  const text = dialogueText(dialogue);
+                  const emotion = dialogueEmotion(dialogue);
+                  return {
+                    key: `${clipKey}-dialogue-${dialogueIndex}`,
+                    speaker: dialogueSpeaker(dialogue) || '旁白',
+                    text,
+                    emotion,
+                    minRequiredSeconds: estimateDialogueSeconds(text, emotion),
+                  };
+                })
+                .filter((dialogue: any) => dialogue.text);
+              const clipDuration = Math.max(0, (numberOrNull(clip.end_time) ?? numberOrNull(shot?.duration) ?? 0) - (numberOrNull(clip.start_time) ?? 0));
+              const totalMinDialogueSeconds = clipDialogues.reduce((sum: number, dialogue: any) => sum + dialogue.minRequiredSeconds, 0);
+              const dialogueDurationInsufficient = clipDialogues.length > 0 && clipDuration > 0 && totalMinDialogueSeconds > clipDuration + 0.05;
               return (
                 <div key={`${clipIndex}-${clip.start_time}-${clip.end_time}`} className={`rounded-lg border p-3 ${isPreviewing ? 'border-blue-300 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 bg-white'}`}>
                   <div className="flex items-start justify-between gap-3">
@@ -1088,6 +1104,30 @@ function VideoDirectorPanel({
                       ))}
                     </div>
                   )}
+                  <div className={`mt-3 rounded-lg border px-3 py-2 text-xs ${dialogueDurationInsufficient ? 'border-red-200 bg-red-50 text-red-700' : 'border-gray-200 bg-gray-50 text-gray-700'}`}>
+                    <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                      <span className="font-medium">Clip 台词</span>
+                      <span className={dialogueDurationInsufficient ? 'text-red-700' : 'text-gray-500'}>
+                        最低所需 {totalMinDialogueSeconds.toFixed(2)}s / Clip {clipDuration ? `${clipDuration.toFixed(2)}s` : '-'}
+                      </span>
+                    </div>
+                    {clipDialogues.length > 0 ? (
+                      <div className="space-y-1">
+                        {clipDialogues.map((dialogue: any) => (
+                          <div key={dialogue.key} className="rounded border border-white/70 bg-white/70 px-2 py-1">
+                            <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
+                              <span className="font-medium text-gray-700">{dialogue.speaker}</span>
+                              {dialogue.emotion && <span>情绪：{dialogue.emotion}</span>}
+                              <span>最低 {dialogue.minRequiredSeconds.toFixed(2)}s</span>
+                            </div>
+                            <div className="mt-0.5 text-gray-700">{dialogue.text}</div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-gray-500">无分配台词；该 Clip 只保留环境声和动作声。</div>
+                    )}
+                  </div>
                   {clip.error_message && <div className="mt-2 text-xs text-red-600">{formatUserFacingError(clip.error_message)}</div>}
                   {selectedMode === 'MULTI_KEYFRAME' && (
                     <div className="mt-3 flex flex-wrap items-center gap-2">

@@ -1057,6 +1057,22 @@ def _build_execution_windows(duration: int, max_clip_duration: int) -> list:
     ]
 
 
+def _execution_windows_match_duration(execution_windows: list, duration: int, max_clip_duration: int) -> bool:
+    if not execution_windows:
+        return False
+    expected_windows = _build_execution_windows(duration, max_clip_duration)
+    if len(execution_windows) != len(expected_windows):
+        return False
+    for current, expected in zip(execution_windows, expected_windows):
+        if int(current.get("window_index") or 0) != int(expected.get("window_index") or 0):
+            return False
+        if float(current.get("start_time") or 0) != float(expected.get("start_time") or 0):
+            return False
+        if float(current.get("end_time") or 0) != float(expected.get("end_time") or 0):
+            return False
+    return True
+
+
 def _build_first_last_clip_plan(duration: int) -> list:
     return [{
         "clip_index": 1,
@@ -1593,9 +1609,11 @@ async def plan_video_keyframes(
         plan["execution_windows"] = []
         plan["window_plans"] = []
         plan["clips"] = _build_first_last_clip_plan(duration)
-    elif not execution_windows:
+    elif request.force or not _execution_windows_match_duration(execution_windows, duration, max_clip_duration):
         execution_windows = _build_execution_windows(duration, max_clip_duration)
         plan["execution_windows"] = execution_windows
+        plan["window_plans"] = []
+        plan["keyframes"] = _build_minimal_keyframes(shot, selected_mode, max_clip_duration)
     plan["workflow_capability"] = workflow_capability
     if selected_mode == "MULTI_KEYFRAME":
         plan["clips"] = []

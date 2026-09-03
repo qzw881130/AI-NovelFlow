@@ -15,6 +15,7 @@ import { Copy } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { useChapterGenerateStore } from '../stores';
 import { toast } from '../../../stores/toastStore';
+import { dialogueEmotion, dialogueText, estimateDialogueSeconds, getDialogueDurationWarning } from '../../../utils';
 import type { DialogueData } from '../types';
 import type { Shot } from '../../../api/shots';
 
@@ -226,14 +227,6 @@ export function ShotForm({
     setDialogues(newDialogues);
   };
 
-  const handleSaveShortcut = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
-      event.preventDefault();
-      event.stopPropagation();
-      onSave?.();
-    }
-  };
-
   const copyText = async (content: string) => {
     if (!content) return;
     try {
@@ -260,6 +253,23 @@ export function ShotForm({
   // 台词编辑区域展开/收起状态
   const [dialoguesExpanded, setDialoguesExpanded] = useState(false);
 
+  useEffect(() => {
+    if (!onSave) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        onSave();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onSave]);
+
+  const dialogueDurationTotal = dialogues.reduce((total, dialogue) => (
+    total + estimateDialogueSeconds(dialogueText(dialogue), dialogueEmotion(dialogue))
+  ), 0);
+  const dialogueWarning = getDialogueDurationWarning(duration, dialogueDurationTotal);
+
   return (
     <div className="shot-form space-y-4">
       {/* 分镜描述 */}
@@ -282,19 +292,11 @@ export function ShotForm({
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          onKeyDown={handleSaveShortcut}
           disabled={readOnly}
-          rows={6}
+          rows={4}
           className="shot-description-textarea input-field"
           placeholder={t('chapterGenerate.shotDescPlaceholder')}
         />
-        <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 flex-wrap">
-          <span>{t('chapterGenerate.placeholderHint')}</span>
-          <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderStyle')}</span>
-          <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderScene')}</span>
-          <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderCharacters')}</span>
-          <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderProps')}</span>
-        </div>
       </div>
 
       {/* 视频描述 */}
@@ -318,23 +320,16 @@ export function ShotForm({
           <textarea
             value={videoDescription}
             onChange={(e) => setVideoDescription(e.target.value)}
-            onKeyDown={handleSaveShortcut}
             disabled={readOnly}
-            rows={6}
+            rows={4}
             className="input-field"
             placeholder={t('chapterGenerate.videoDescPlaceholder')}
           />
-          <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 flex-wrap">
-            <span>{t('chapterGenerate.placeholderHint')}</span>
-            <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderStyle')}</span>
-            <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderScene')}</span>
-            <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderCharacters')}</span>
-            <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderProps')}</span>
-          </div>
         </div>
       )}
 
-      <div className={showDuration ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : 'space-y-4'}>
+      <div className={showDialogues ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 items-start' : 'space-y-4'}>
+      <div className="space-y-4 min-w-0">
       {/* 角色选择 */}
       <div className="min-w-0">
         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -536,7 +531,6 @@ export function ShotForm({
           <label className="block text-sm font-medium text-gray-700 mb-2">
             {t('chapterGenerate.durationLabel')}
           </label>
-          <div className="min-h-7 mb-2" />
           <input
             type="number"
             value={duration}
@@ -549,7 +543,6 @@ export function ShotForm({
           <p className="text-xs text-gray-500 mt-1">{t('common.recommended')} 3-10 {t('common.second')}，{t('common.max')} 180 {t('common.second')}</p>
         </div>
       )}
-      </div>
 
       {showDuration && (
         <div>
@@ -568,12 +561,21 @@ export function ShotForm({
           <p className="text-xs text-gray-500 mt-1">Shot 级剪辑方式约束，不是 Single / First-Last / Multi-Keyframe 生成模式。</p>
         </div>
       )}
+      </div>
 
       {/* 角色台词 */}
       {showDialogues && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-gray-700">{t('chapterGenerate.dialogues')}</label>
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <span>{t('chapterGenerate.dialogues')}</span>
+              {dialogues.length > 0 && (
+                <span className={`rounded-full border px-2 py-0.5 text-xs font-normal ${dialogueWarning.style.className}`}>
+                  {dialogueWarning.style.label} · 最低 {dialogueDurationTotal.toFixed(2)}s / 当前 {dialogueWarning.duration.toFixed(0)}s
+                  {dialogueWarning.level !== 'normal' && ` · 建议至少 ${dialogueWarning.suggestedDuration}s`}
+                </span>
+              )}
+            </label>
             <button
               onClick={() => setDialoguesExpanded(!dialoguesExpanded)}
               className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
@@ -592,6 +594,9 @@ export function ShotForm({
                 <div key={idx} className="text-xs p-2 bg-gray-50 rounded border border-gray-200 flex items-start gap-2">
                   <span className="font-medium text-blue-600">{d.character_name || t('chapterGenerate.selectCharacter')}</span>
                   <span className="text-gray-600 flex-1">{d.text}</span>
+                  <span className="text-gray-500 whitespace-nowrap">
+                    最低所需 {estimateDialogueSeconds(dialogueText(d), dialogueEmotion(d)).toFixed(2)}s
+                  </span>
                 </div>
               ))}
             </div>
@@ -603,7 +608,12 @@ export function ShotForm({
               {dialogues.map((dialogue, idx) => (
                 <div key={idx} className="border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-gray-500">{t('chapterGenerate.dialogues')} {idx + 1}</span>
+                    <span className="text-xs font-medium text-gray-500">
+                      {t('chapterGenerate.dialogues')} {idx + 1}
+                      <span className="ml-2 font-normal">
+                        最低所需 {estimateDialogueSeconds(dialogueText(dialogue), dialogueEmotion(dialogue)).toFixed(2)}s
+                      </span>
+                    </span>
                     <button
                       onClick={() => removeDialogue(idx)}
                       className="text-xs text-red-600 hover:text-red-800"
@@ -670,6 +680,7 @@ export function ShotForm({
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

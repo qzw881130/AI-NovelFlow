@@ -15,8 +15,10 @@ import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { useChapterGenerateStore } from '../stores';
 import { novelApi } from '../../../api/novels';
+import { shotsApi } from '../../../api/shots';
 import type { Chapter } from '../../../types';
 import { toast } from '../../../stores/toastStore';
+import { DIALOGUE_WARNING_STYLES, getDialogueDurationWarningStats } from '../../../utils';
 
 // 布局组件
 import { ThreeColumnLayout } from './ThreeColumnLayout';
@@ -102,6 +104,7 @@ export function ChapterGenerateLayout({
   const navigate = useNavigate();
   const [bottomNavCollapsed, setBottomNavCollapsed] = useState(false);
   const [chapterList, setChapterList] = useState<Chapter[]>([]);
+  const [isSavingShots, setIsSavingShots] = useState(false);
   const initialShotHashAppliedRef = useRef(false);
   const pendingShotHashIndexRef = useRef<number | null>(null);
 
@@ -120,6 +123,7 @@ export function ChapterGenerateLayout({
   const setCurrentShot = useChapterGenerateStore((state) => state.setCurrentShot);
   const setRightPanelCollapsed = useChapterGenerateStore((state) => state.setRightPanelCollapsed);
   const setRightPanelWidth = useChapterGenerateStore((state) => state.setRightPanelWidth);
+  const saveChapterResources = useChapterGenerateStore((state) => state.saveChapterResources);
   const storeShots = useChapterGenerateStore((state) => state.shots);
   const storeGeneratingShots = useChapterGenerateStore((state) => state.generatingShots);
   const storePendingShots = useChapterGenerateStore((state) => state.pendingShots);
@@ -165,6 +169,7 @@ export function ChapterGenerateLayout({
   const chapterWordCount = (chapter?.content || '').replace(/\s/g, '').length;
   const chapterSummary = `${chapterWordCount.toLocaleString()} 字 · ${shots.length} 个导演 Shot · 预计成片 ${estimatedMinutes}:${estimatedSeconds} · 当前 Shot #${currentShotIndex || 1} · 当前时长 ${currentShotDuration}秒`;
   const hasQueueStats = pendingShots.size > 0 || pendingVideos.size > 0;
+  const dialogueWarningStats = getDialogueDurationWarningStats(shots);
   const renderQueueStats = () => {
     if (!hasQueueStats) return null;
     return (
@@ -178,10 +183,65 @@ export function ChapterGenerateLayout({
       </div>
     );
   };
+  const renderDialogueWarningStats = () => {
+    if (currentTab !== 0 || dialogueWarningStats.checkedCount === 0) return null;
+    const items = [
+      ['normal', '正常'],
+      ['notice', '提醒'],
+      ['warning', '警告'],
+      ['critical', '严重'],
+    ] as const;
+
+    return (
+      <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs shadow-sm">
+        <span className="font-medium text-gray-700">台词时长预警</span>
+        {items.map(([level, label]) => (
+          <span key={level} className={`rounded-full px-2 py-0.5 ${DIALOGUE_WARNING_STYLES[level].badgeClassName}`}>
+            {label} {dialogueWarningStats.stats[level]}
+          </span>
+        ))}
+      </div>
+    );
+  };
 
   const updateCurrentShot = (updates: Record<string, any>) => {
     if (!currentShot) return;
     setShots(shots.map((shot) => shot.id === currentShot.id ? { ...shot, ...updates } : shot));
+  };
+
+  const saveShotSplitData = async (shotsToSave = shots, successMessage = t('chapterGenerate.shotSaveSuccess')) => {
+    if (!id || !cid || isSavingShots) return;
+    setIsSavingShots(true);
+    try {
+      await saveChapterResources(id, cid);
+      if (shotsToSave.length > 0) {
+        const result = await shotsApi.batchUpdateShots(
+          id,
+          cid,
+          shotsToSave.map((shot) => ({
+            id: shot.id,
+            description: shot.description,
+            video_description: shot.video_description,
+            characters: shot.characters,
+            scene: shot.scene,
+            props: shot.props,
+            duration: shot.duration,
+            continuity_mode: shot.continuity_mode || 'NORMAL',
+            dialogues: shot.dialogues,
+          }))
+        );
+        if (!result.success) {
+          throw new Error(result.message || t('common.unknownError'));
+        }
+      }
+      markTabComplete(0);
+      toast.success(successMessage);
+    } catch (error) {
+      console.error(t('chapterGenerate.saveFailed') + ':', error);
+      toast.error(t('chapterGenerate.saveFailedRetry'));
+    } finally {
+      setIsSavingShots(false);
+    }
   };
 
   const copyCurrentShotVideoDescription = async () => {
@@ -457,6 +517,7 @@ export function ChapterGenerateLayout({
               shotData={currentShot}
               showVideoDescription={true}
               showDuration={true}
+              onSave={saveShotSplitData}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-gray-500">
@@ -592,6 +653,9 @@ export function ChapterGenerateLayout({
       <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
         <div className="relative">
           <TabNavigation />
+          <div className="absolute left-1/2 top-1 -translate-x-1/2">
+            {renderDialogueWarningStats()}
+          </div>
           <div className="absolute right-0 top-1">
             {renderQueueStats()}
           </div>
