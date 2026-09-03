@@ -1128,7 +1128,7 @@ async def _generate_multi_clip_video_task(
     plan["merged_video_url"] = local_url
     plan["merged_at"] = datetime.utcnow().isoformat()
     shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-    _clear_shot_video_error(shot, shot_repo, video_url=local_url, video_status="completed")
+    _clear_shot_video_error(shot, shot_repo, video_url=local_url, video_status="completed", video_task_id=task.id)
     task.status = "completed"
     task.progress = 100
     task.result_url = local_url
@@ -1181,7 +1181,7 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
     plan["merged_video_url"] = local_url
     plan["merged_at"] = datetime.utcnow().isoformat()
     shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-    _clear_shot_video_error(shot, shot_repo, video_url=local_url, video_status="completed")
+    _clear_shot_video_error(shot, shot_repo, video_url=local_url, video_status="completed", video_task_id=None)
     db.commit()
     return {"success": True, "video_url": local_url, "plan": plan}
 

@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useChapterGenerateStore } from '../stores';
 import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info, ChevronLeft, ChevronRight, RefreshCw, Sparkles, PictureInPicture } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
@@ -1437,7 +1438,10 @@ export function VideoGenTab({
 
   // 合并视频相关状态
   const [mergingMode, setMergingMode] = useState<MergeVideoMode | null>(null);
-  const [showMergeMenu, setShowMergeMenu] = useState(false);
+  const [showMergeSelectModal, setShowMergeSelectModal] = useState(false);
+  const [selectedMergeShotIds, setSelectedMergeShotIds] = useState<Set<string>>(new Set());
+  const [mergeSelectionMode, setMergeSelectionMode] = useState<'select' | 'deselect' | null>(null);
+  const [mergeIncludeTransitions, setMergeIncludeTransitions] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
   const [isRefreshingVideo, setIsRefreshingVideo] = useState(false);
@@ -1590,7 +1594,7 @@ export function VideoGenTab({
   const latestFailedAiCallError = currentVideoDirectorPlan?.ai_calls
     ? [...currentVideoDirectorPlan.ai_calls].reverse().find((call: any) => String(call?.status || '').toLowerCase() !== 'success' && String(call?.error_message || '').trim())?.error_message
     : '';
-  const currentVideoErrorMessage = currentShotData?.videoStatus === 'failed'
+  const currentVideoErrorMessage = currentShotData?.videoStatus === 'failed' && !currentShotVideoUrl && !currentVideoDirectorPlan.merged_video_url
     ? formatUserFacingError((currentVideoDirectorPlan as any).task_error_message || (currentVideoDirectorPlan as any).error_message || latestFailedAiCallError) || '当前 Shot 视频任务失败；如果已有部分 Clip 完成，可以重新生成缺失 Clip 或重新生成当前 Shot 视频。'
     : null;
   const getCurrentShotVideoResult = () => {
@@ -1628,19 +1632,19 @@ export function VideoGenTab({
       };
     }
 
-    if (currentShotData?.videoStatus === 'failed') {
-      return {
-        label: '失败',
-        className: 'border-red-100 bg-red-50 text-red-700',
-        detail: currentVideoErrorMessage || (clipCount > 0 ? `Clip ${completedClipCount}/${clipCount}` : '视频任务失败'),
-      };
-    }
-
     if (hasVideo) {
       return {
         label: '已完成',
         className: 'border-green-100 bg-green-50 text-green-700',
         detail: clipCount > 0 ? `Shot 视频已生成，Clip ${completedClipCount}/${clipCount}` : 'Shot 视频已生成',
+      };
+    }
+
+    if (currentShotData?.videoStatus === 'failed') {
+      return {
+        label: '失败',
+        className: 'border-red-100 bg-red-50 text-red-700',
+        detail: currentVideoErrorMessage || (clipCount > 0 ? `Clip ${completedClipCount}/${clipCount}` : '视频任务失败'),
       };
     }
 
@@ -2814,17 +2818,61 @@ export function VideoGenTab({
     }
   };
 
+  const getMergeShotVideoUrl = (shot: any) => {
+    const shotId = shot?.id ? String(shot.id) : '';
+    return shot?.videoUrl || (shotId ? shotVideos[shotId] : undefined) || shot?.videoDirectorPlan?.merged_video_url;
+  };
+
+  const mergeReadyShotIds = () => shotsList
+    .filter((shot: any) => !!shot?.id && !!getMergeShotVideoUrl(shot))
+    .map((shot: any) => String(shot.id));
+
+  const handleOpenMergeSelect = () => {
+    setSelectedMergeShotIds(new Set(mergeReadyShotIds()));
+    setMergeIncludeTransitions(false);
+    setShowMergeSelectModal(true);
+  };
+
+  const toggleMergeSelectAll = () => {
+    const readyIds = mergeReadyShotIds();
+    setSelectedMergeShotIds(selectedMergeShotIds.size === readyIds.length ? new Set() : new Set(readyIds));
+  };
+
+  const applyMergeShotSelection = (shotId: string, mode: 'select' | 'deselect') => {
+    const shot = shotsList.find((item: any) => String(item.id) === shotId);
+    if (!shot || !getMergeShotVideoUrl(shot)) return;
+    setSelectedMergeShotIds(prev => {
+      const next = new Set(prev);
+      if (mode === 'select') next.add(shotId);
+      else next.delete(shotId);
+      return next;
+    });
+  };
+
+  const handleMergeShotMouseDown = (event: React.MouseEvent, shotId: string, selectable: boolean) => {
+    if (event.button !== 0 || !selectable) return;
+    event.preventDefault();
+    const mode = selectedMergeShotIds.has(shotId) ? 'deselect' : 'select';
+    setMergeSelectionMode(mode);
+    applyMergeShotSelection(shotId, mode);
+  };
+
+  const handleMergeShotMouseEnter = (shotId: string, selectable: boolean) => {
+    if (!mergeSelectionMode || !selectable) return;
+    applyMergeShotSelection(shotId, mergeSelectionMode);
+  };
+
+  useEffect(() => {
+    if (!mergeSelectionMode) return;
+    const handleMouseUp = () => setMergeSelectionMode(null);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => window.removeEventListener('mouseup', handleMouseUp);
+  }, [mergeSelectionMode]);
+
   // 处理合并视频
-  const handleMergeVideos = async (mode: MergeVideoMode) => {
+  const handleMergeVideos = async (mode: MergeVideoMode, shotIds = Array.from(selectedMergeShotIds)) => {
     if (!effectiveNovelId || !effectiveChapterId) return;
-
-    // 从 shots 数据中获取所有视频 URL
-    const videoList = shotsList
-      .filter((shot: any) => shot.videoUrl || shotVideos[shot.id])
-      .map((shot: any) => shot.videoUrl || shotVideos[shot.id])
-      .filter(Boolean);
-
-    if (videoList.length === 0) {
+    if (shotIds.length === 0) {
       toast.error(t('chapterGenerate.noVideosToMerge'));
       return;
     }
@@ -2836,16 +2884,15 @@ export function VideoGenTab({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode })
+          body: JSON.stringify({ mode, shot_ids: shotIds })
         }
       );
 
       const data = await response.json();
 
       if (response.ok && data.success) {
-        setMergedVideoUrl(data.video_url);
-        setShowMergeModal(true);
-        toast.success(t(data.cache_hit ? 'chapterGenerate.mergeCacheHit' : 'chapterGenerate.mergeSuccess'));
+        setShowMergeSelectModal(false);
+        toast.info(`已提交 ${shotIds.length} 个视频的章节合并任务，可在任务列表查看进度。`);
       } else {
         toast.error(data.message || t('chapterGenerate.mergeFailed'));
       }
@@ -2965,54 +3012,14 @@ export function VideoGenTab({
               </>
             )}
           </button>
-          <div
-            className="relative"
-            onBlur={(event) => {
-              if (!event.relatedTarget || !event.currentTarget.contains(event.relatedTarget as Node)) {
-                setShowMergeMenu(false);
-              }
-            }}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') setShowMergeMenu(false);
-            }}
+          <button
+            onClick={handleOpenMergeSelect}
+            disabled={mergingMode !== null || !effectiveChapterId || videoCount === 0}
+            className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
-            <button
-              onClick={() => setShowMergeMenu((visible) => !visible)}
-              disabled={mergingMode !== null || !effectiveChapterId || videoCount === 0}
-              className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-              aria-haspopup="menu"
-              aria-expanded={showMergeMenu}
-            >
-              {mergingMode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Combine className="w-4 h-4" />}
-              {mergingMode ? t('chapterGenerate.merging') : t('chapterGenerate.mergeVideo')}
-              {!mergingMode && <ChevronDown className={`w-4 h-4 transition-transform ${showMergeMenu ? 'rotate-180' : ''}`} />}
-            </button>
-            {showMergeMenu && !mergingMode && (
-              <div className="absolute right-0 top-full mt-2 min-w-56 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg z-[80]" role="menu">
-                <button
-                  onClick={() => {
-                    setShowMergeMenu(false);
-                    handleMergeVideos('shots_only');
-                  }}
-                  className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-pink-50 hover:text-pink-700 transition-colors"
-                  role="menuitem"
-                >
-                  {t('chapterGenerate.mergeShotsOnly')}
-                </button>
-                <button
-                  onClick={() => {
-                    setShowMergeMenu(false);
-                    handleMergeVideos('shots_with_transitions');
-                  }}
-                  disabled={Object.keys(transitionVideos).length === 0}
-                  className="w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-pink-50 hover:text-pink-700 disabled:text-gray-300 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors"
-                  role="menuitem"
-                >
-                  {t('chapterGenerate.mergeShotsAndTransitions')}
-                </button>
-              </div>
-            )}
-          </div>
+            {mergingMode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Combine className="w-4 h-4" />}
+            {mergingMode ? '提交任务中...' : t('chapterGenerate.mergeVideo')}
+          </button>
         </div>
         <div className="mr-8 flex min-w-[220px] max-w-[360px] flex-col items-end gap-1 text-right">
           <div className="text-sm text-gray-500">
@@ -3191,8 +3198,8 @@ export function VideoGenTab({
       </div>
 
       {/* 批量选择分镜弹窗 */}
-      {showBatchSelectModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      {showBatchSelectModal && createPortal((
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             {/* 弹窗头部 */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -3355,7 +3362,126 @@ export function VideoGenTab({
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
+
+      {/* 合并视频选择弹窗 */}
+      {showMergeSelectModal && createPortal((
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-800">选择要合并的分镜视频</h3>
+                <p className="text-xs text-gray-500 mt-1">同一组分镜视频未变化时会复用缓存；选择不同分镜组合会生成不同章节视频。</p>
+              </div>
+              <button
+                onClick={() => setShowMergeSelectModal(false)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                title={t('common.close')}
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 pb-8">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                <span className="text-sm text-gray-600">
+                  已选择 {selectedMergeShotIds.size} / 可合并 {mergeReadyShotIds().length} / 共 {shotsList.length} 个分镜
+                </span>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 select-none cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={mergeIncludeTransitions}
+                      onChange={(event) => setMergeIncludeTransitions(event.target.checked)}
+                      disabled={Object.keys(transitionVideos).length === 0}
+                      className="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500 disabled:opacity-50"
+                    />
+                    包含转场视频
+                  </label>
+                  <button
+                    onClick={toggleMergeSelectAll}
+                    className="text-sm flex items-center gap-1 text-gray-600 hover:text-pink-700 transition-colors"
+                  >
+                    {selectedMergeShotIds.size === mergeReadyShotIds().length && selectedMergeShotIds.size > 0 ? <Check className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+                    {selectedMergeShotIds.size === mergeReadyShotIds().length && selectedMergeShotIds.size > 0 ? '取消全选' : t('common.selectAll')}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-3">
+                {shotsList.map((shot: any, idx: number) => {
+                  const shotId = shot?.id ? String(shot.id) : '';
+                  const shotIndex = shot.index || idx + 1;
+                  const videoUrl = getMergeShotVideoUrl(shot);
+                  const isSelected = shotId ? selectedMergeShotIds.has(shotId) : false;
+                  const isGenerating = shotId ? generatingVideos.has(shotId) || storePendingVideos.has(shotId) : false;
+                  const isFailed = shot?.videoStatus === 'failed';
+                  const isSelectable = !!shotId && !!videoUrl;
+                  const statusLabel = videoUrl ? '已生成' : isGenerating ? '生成中' : isFailed ? '失败' : '未生成';
+
+                  return (
+                    <div
+                      key={shotId || `merge-shot-${shotIndex}`}
+                      onMouseDown={(event) => handleMergeShotMouseDown(event, shotId, isSelectable)}
+                      onMouseEnter={() => handleMergeShotMouseEnter(shotId, isSelectable)}
+                      title={isSelectable ? `镜${shotIndex} 可合并` : `镜${shotIndex} ${statusLabel}`}
+                      className={`
+                        relative aspect-video rounded-lg border-2 transition-all
+                        select-none
+                        ${!isSelectable
+                          ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
+                          : 'cursor-pointer hover:shadow-md'
+                        }
+                        ${isSelectable && isSelected
+                          ? 'border-blue-500 bg-blue-50'
+                          : isSelectable && !isSelected
+                            ? 'border-gray-300 bg-white hover:border-blue-300'
+                            : ''
+                        }
+                      `}
+                    >
+                      <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-xs rounded">#{shotIndex}</div>
+                      {isSelectable && (
+                        <div className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center ${isSelected ? 'bg-blue-500' : 'bg-gray-200'}`}>
+                          {isSelected && <Check className="w-3 h-3 text-white" />}
+                        </div>
+                      )}
+                      <div className="w-full h-full flex items-center justify-center">
+                        {videoUrl ? <Film className="w-8 h-8 text-green-600" /> : isGenerating ? <Loader2 className="w-8 h-8 text-blue-500 animate-spin" /> : <Film className="w-8 h-8 text-gray-300" />}
+                      </div>
+                      <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg truncate">
+                        {statusLabel} · {Number(shot.duration || 0)}s
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 p-4 border-t border-gray-200">
+              <div className="text-xs text-gray-500">
+                将按分镜编号顺序合并所选视频{mergeIncludeTransitions ? '，并在相邻已选分镜之间插入已有转场' : ''}。
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowMergeSelectModal(false)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  onClick={() => handleMergeVideos(mergeIncludeTransitions ? 'shots_with_transitions' : 'shots_only')}
+                  disabled={selectedMergeShotIds.size === 0 || mergingMode !== null}
+                  className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                >
+                  {mergingMode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Combine className="w-4 h-4" />}
+                  {mergingMode ? '提交任务中...' : `合并 ${selectedMergeShotIds.size} 个视频`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), document.body)}
 
       {/* 图片预览弹窗 */}
       <ImagePreviewModal
@@ -3408,7 +3534,7 @@ export function VideoGenTab({
 
       {/* 合并视频结果弹窗 */}
       {showMergeModal && mergedVideoUrl && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             {/* 弹窗头部 */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">

@@ -12,14 +12,17 @@ export function useNovelDetailState() {
   const [novel, setNovel] = useState<Novel | null>(null);
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showBatchImportModal, setShowBatchImportModal] = useState(false);
   const [newChapter, setNewChapter] = useState({ title: '', content: '', number: 1 });
 
   useEffect(() => { if (id) fetchData(); }, [id]);
 
-  const fetchData = async () => {
-    setIsLoading(true);
+  const fetchData = async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
+    else setIsRefreshing(true);
     try {
       const novelData = await novelApi.fetch(id!);
       if (novelData.success && novelData.data) setNovel(novelData.data);
@@ -31,7 +34,8 @@ export function useNovelDetailState() {
     } catch (error) {
       console.error('获取数据失败:', error);
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
+      else setIsRefreshing(false);
     }
   };
 
@@ -61,6 +65,26 @@ export function useNovelDetailState() {
     }
   };
 
+  const handleDeleteChapters = async (chapterIds: string[]) => {
+    if (chapterIds.length === 0) return;
+    if (!confirm(`确认删除选中的 ${chapterIds.length} 个章回？`)) return;
+
+    setIsDeleting(true);
+    try {
+      for (const chapterId of chapterIds) {
+        await chapterApi.delete(id!, chapterId);
+      }
+      setChapters(prev => prev.filter(c => !chapterIds.includes(c.id)));
+      toast.success(`已删除 ${chapterIds.length} 个章回`);
+    } catch (error) {
+      console.error('删除失败:', error);
+      toast.error(t('common.deleteFailed'));
+      await fetchData(false);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleBatchImportComplete = async () => {
     await fetchData();
   };
@@ -77,7 +101,7 @@ export function useNovelDetailState() {
   const getStatusText = (status: Chapter['status']) => t(`chapterStatus.${status}`, { defaultValue: status });
 
   return {
-    id, novel, chapters, isLoading, showCreateModal, setShowCreateModal, showBatchImportModal, setShowBatchImportModal, newChapter, setNewChapter,
-    handleCreateChapter, handleDeleteChapter, handleBatchImportComplete, getStatusIcon, getStatusText
+    id, novel, chapters, isLoading, isRefreshing, isDeleting, showCreateModal, setShowCreateModal, showBatchImportModal, setShowBatchImportModal, newChapter, setNewChapter,
+    fetchData, handleCreateChapter, handleDeleteChapter, handleDeleteChapters, handleBatchImportComplete, getStatusIcon, getStatusText
   };
 }

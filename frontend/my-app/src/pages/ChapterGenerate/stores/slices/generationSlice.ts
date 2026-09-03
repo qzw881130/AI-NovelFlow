@@ -915,16 +915,18 @@ export const createGenerationSlice: StateCreator<
         const updatedShots = shots.map(shot => {
             const task = taskMap[shot.id];
             if (task) {
+              const hasExistingVideo = !!(shot.videoUrl || newShotVideos[shot.id] || (shot.videoDirectorPlan as any)?.merged_video_url);
               const isCompleted = task.status === 'completed';
-              const isFailed = task.status === 'failed' || task.status === 'cancelled';
+              const isStaleFailedTask = (task.status === 'failed' || task.status === 'cancelled') && hasExistingVideo;
+              const isFailed = (task.status === 'failed' || task.status === 'cancelled') && !isStaleFailedTask;
             const isRunning = task.status === 'running' || task.status === 'queued';
             const isPending = task.status === 'pending';
             const isActive = isRunning || isPending;
-            const videoStatus = isCompleted ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : shot.videoStatus;
+            const videoStatus = isCompleted || isStaleFailedTask ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : shot.videoStatus;
             const taskErrorMessage = formatUserFacingError(task.errorMessage || task.error_message || task.error) || (task.status === 'cancelled' ? '视频任务已取消' : '');
             const videoDirectorPlan = isFailed && taskErrorMessage
               ? { ...(shot.videoDirectorPlan || {}), task_error_message: taskErrorMessage, error_message: taskErrorMessage }
-              : isCompleted
+              : isCompleted || isStaleFailedTask
                 ? (() => {
                     const nextPlan = { ...(shot.videoDirectorPlan || {}) } as any;
                     delete nextPlan.task_error_message;
@@ -975,7 +977,7 @@ export const createGenerationSlice: StateCreator<
               ...shot,
               videoStatus,
               videoUrl: isCompleted && task.resultUrl ? task.resultUrl : (isActive ? null : shot.videoUrl),
-              videoTaskId: task.id || shot.videoTaskId,
+              videoTaskId: isStaleFailedTask ? null : (task.id || shot.videoTaskId),
               videoDirectorPlan,
             };
           }

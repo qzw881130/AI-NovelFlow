@@ -94,6 +94,7 @@ class MergeVideosRequest(BaseModel):
         None, description="合并模式"
     )
     include_transitions: bool = Field(False, description="是否包含转场视频（兼容旧请求）")
+    shot_ids: Optional[List[str]] = Field(None, description="要参与合并的分镜 ID 列表；为空时合并所有已有视频的分镜")
 
 
 class ShotUpdate(BaseModel):

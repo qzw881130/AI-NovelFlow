@@ -5,6 +5,7 @@
 import json
 import asyncio
 import os
+import subprocess
 import uuid
 import zipfile
 from io import BytesIO
@@ -87,9 +88,179 @@ from app.core.database import SessionLocal
 from app.services.background_workers import worker_manager
 
 router = APIRouter()
+
+
+def _probe_video_duration(video_path: Path) -> Optional[float]:
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(video_path),
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            return None
+        return float(result.stdout.strip())
+    except Exception:
+        return None
 comfyui_service = ComfyUIService()
 merge_video_locks = {}
 shot_image_batch_locks = set()
+
+
+async def run_chapter_video_merge_task(task_id: str) -> None:
+    db = SessionLocal()
+    try:
+        task = db.query(Task).filter(Task.id == task_id).first()
+        if not task:
+            return
+
+        task.status = "running"
+        task.progress = 5
+        task.current_step = "准备合并章节视频..."
+        task.started_at = datetime.utcnow()
+        db.commit()
+
+        try:
+            metadata = json.loads(task.metadata_json or "{}")
+        except Exception:
+            metadata = {}
+
+        novel_id = task.novel_id
+        chapter_id = task.chapter_id
+        mode = metadata.get("mode") or "shots_only"
+        include_transitions = mode == "shots_with_transitions"
+        selected_shot_ids = set(metadata.get("shot_ids") or [])
+
+        chapter = db.query(Chapter).filter(Chapter.id == chapter_id, Chapter.novel_id == novel_id).first()
+        if not chapter:
+            raise RuntimeError("章节不存在")
+
+        shots = ShotRepository(db).get_by_chapter(chapter_id)
+        if selected_shot_ids:
+            selected_chapter_shot_ids = {shot.id for shot in shots}
+            invalid_shot_ids = selected_shot_ids - selected_chapter_shot_ids
+            if invalid_shot_ids:
+                raise RuntimeError("选择的分镜不属于当前章节")
+
+        generated_shots = [
+            (shot.index, shot.video_url)
+            for shot in shots
+            if shot.video_url and (not selected_shot_ids or shot.id in selected_shot_ids)
+        ]
+        if not generated_shots:
+            raise RuntimeError("没有选中的分镜视频可以合并" if selected_shot_ids else "没有分镜视频可以合并")
+
+        parsed_data = json.loads(chapter.parsed_data) if chapter.parsed_data else {}
+        transition_videos = parsed_data.get("transition_videos") or {}
+        valid_shots = []
+        for shot_index, video_url in generated_shots:
+            if video_url and video_url.startswith("/api/files/"):
+                full_path = url_to_local_path(video_url)
+                if full_path and Path(full_path).is_file():
+                    valid_shots.append((shot_index, full_path))
+
+        if not valid_shots:
+            raise RuntimeError("视频文件不存在")
+
+        task.progress = 20
+        task.current_step = f"已找到 {len(valid_shots)} 个分镜视频，正在计算缓存签名..."
+        db.commit()
+
+        video_paths = [path for _, path in valid_shots]
+        segments = []
+        trans_paths = []
+        for i, (shot_index, shot_path) in enumerate(valid_shots):
+            segments.append({"kind": "shot", "key": str(shot_index), "path": shot_path})
+            if include_transitions and i < len(valid_shots) - 1:
+                from_index = shot_index
+                to_index = valid_shots[i + 1][0]
+                key = f"{from_index}-{to_index}"
+                trans_url = transition_videos.get(key)
+                trans_path = None
+                if trans_url and trans_url.startswith("/api/files/"):
+                    full_path = url_to_local_path(trans_url)
+                    if full_path and Path(full_path).is_file():
+                        trans_path = full_path
+                        segments.append({"kind": "transition", "key": key, "path": full_path})
+                trans_paths.append(trans_path)
+
+        signature = await asyncio.to_thread(file_storage.get_video_merge_signature, mode, segments)
+        story_dir = file_storage._get_story_dir(novel_id)
+        chapter_short = chapter_id[:8] if chapter_id else "unknown"
+        output_dir = story_dir / f"chapter_{chapter_short}" / "merged-videos"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        output_path = output_dir / f"{mode}-{signature}.mp4"
+
+        lock = merge_video_locks.setdefault(str(output_path), asyncio.Lock())
+        async with lock:
+            if output_path.is_file() and output_path.stat().st_size > 0:
+                result = {"success": True, "message": f"使用上次合并结果，共 {len(segments)} 个视频片段"}
+                cache_hit = True
+            else:
+                task.progress = 35
+                task.current_step = f"正在合并 {len(segments)} 个视频片段..."
+                db.commit()
+                temp_path = output_dir / f".{mode}-{uuid.uuid4().hex}.tmp.mp4"
+                try:
+                    result = await file_storage.merge_videos(
+                        video_paths,
+                        str(temp_path),
+                        trans_paths if include_transitions else None,
+                    )
+                    if result.get("success"):
+                        os.replace(temp_path, output_path)
+                finally:
+                    if temp_path.exists():
+                        temp_path.unlink()
+                cache_hit = False
+
+        if not result.get("success"):
+            raise RuntimeError(result.get("message", "合并失败"))
+
+        relative_path = str(output_path).replace(str(file_storage.base_dir), "").replace("\\", "/")
+        video_url = f"/api/files/{relative_path.lstrip('/')}"
+        all_shot_ids = {shot.id for shot in shots}
+        valid_shot_ids = {shot.id for shot in shots if shot.video_url and (not selected_shot_ids or shot.id in selected_shot_ids)}
+        is_final_video = bool(all_shot_ids) and valid_shot_ids == all_shot_ids and len(valid_shots) == len(all_shot_ids)
+        metadata.update({
+            "cache_hit": cache_hit,
+            "mode": mode,
+            "video_url": video_url,
+            "segments_count": len(segments),
+            "shots_count": len(valid_shots),
+            "total_shots_count": len(all_shot_ids),
+            "is_final_video": is_final_video,
+            "file_size": output_path.stat().st_size if output_path.exists() else None,
+            "duration": _probe_video_duration(output_path),
+        })
+        if is_final_video:
+            chapter.final_video = video_url
+        task.status = "completed"
+        task.progress = 100
+        task.result_url = video_url
+        task.error_message = None
+        task.current_step = "合并完成（使用缓存）" if cache_hit else "合并完成"
+        task.completed_at = datetime.utcnow()
+        task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+        db.commit()
+    except Exception as exc:
+        print(f"[ChapterVideoMergeTask {task_id}] Error: {exc}")
+        task = db.query(Task).filter(Task.id == task_id).first()
+        if task:
+            task.status = "failed"
+            task.error_message = str(exc)
+            task.current_step = "合并失败"
+            task.completed_at = datetime.utcnow()
+            db.commit()
+    finally:
+        db.close()
 
 
 class BatchShotImageRequest(BaseModel):
@@ -2486,8 +2657,9 @@ async def merge_chapter_videos(
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
+    db: Session = Depends(get_db),
 ):
-    """合并章节视频"""
+    """创建章节视频合并任务。"""
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -2497,95 +2669,40 @@ async def merge_chapter_videos(
         raise HTTPException(status_code=404, detail="章节不存在")
 
     mode = data.mode or ("shots_with_transitions" if data.include_transitions else "shots_only")
-    include_transitions = mode == "shots_with_transitions"
 
-    # 从 Shot 表获取分镜视频列表（保留分镜 index，便于正确匹配转场）
     shots = shot_repo.get_by_chapter(chapter_id)
-    generated_shots = [(shot.index, shot.video_url) for shot in shots if shot.video_url]
+    selected_shot_ids = set(data.shot_ids or [])
+    if selected_shot_ids:
+        selected_chapter_shot_ids = {shot.id for shot in shots}
+        invalid_shot_ids = selected_shot_ids - selected_chapter_shot_ids
+        if invalid_shot_ids:
+            return {"success": False, "message": "选择的分镜不属于当前章节"}
 
-    # 从 parsed_data 获取转场视频
-    parsed_data = json.loads(chapter.parsed_data) if chapter.parsed_data else {}
-    transition_videos = parsed_data.get("transition_videos") or {}
-
-    if not generated_shots or len(generated_shots) == 0:
+    selected_count = len(selected_shot_ids) or len([shot for shot in shots if shot.video_url])
+    if selected_count == 0:
         return {"success": False, "message": "没有分镜视频可以合并"}
 
-    # 转换 URL 为本地路径，并仅使用确实存在的分镜视频。
-    valid_shots = []
-    for shot_index, video_url in generated_shots:
-        if video_url and video_url.startswith("/api/files/"):
-            full_path = url_to_local_path(video_url)
-            if full_path and Path(full_path).is_file():
-                valid_shots.append((shot_index, full_path))
-
-    if len(valid_shots) == 0:
-        return {"success": False, "message": "视频文件不存在"}
-
-    video_paths = [path for _, path in valid_shots]
-    segments = []
-    trans_paths = []
-    for i, (shot_index, shot_path) in enumerate(valid_shots):
-        segments.append({"kind": "shot", "key": str(shot_index), "path": shot_path})
-        if include_transitions and i < len(valid_shots) - 1:
-            from_index = shot_index
-            to_index = valid_shots[i + 1][0]
-            key = f"{from_index}-{to_index}"
-            trans_url = transition_videos.get(key)
-            trans_path = None
-            if trans_url and trans_url.startswith("/api/files/"):
-                full_path = url_to_local_path(trans_url)
-                if full_path and Path(full_path).is_file():
-                    trans_path = full_path
-                    segments.append({"kind": "transition", "key": key, "path": full_path})
-            trans_paths.append(trans_path)
-
-    signature = await asyncio.to_thread(
-        file_storage.get_video_merge_signature, mode, segments
+    task = Task(
+        type="chapter_video",
+        status="pending",
+        novel_id=novel_id,
+        chapter_id=chapter_id,
+        name=f"合并章节视频: {chapter.title or chapter.number}",
+        description=f"合并章节 '{chapter.title or chapter.number}' 的 {selected_count} 个分镜视频",
+        progress=0,
+        current_step="等待合并章节视频...",
+        metadata_json=json.dumps({"mode": mode, "shot_ids": list(selected_shot_ids)}, ensure_ascii=False),
     )
-    story_dir = file_storage._get_story_dir(novel_id)
-    chapter_short = chapter_id[:8] if chapter_id else "unknown"
-    output_dir = story_dir / f"chapter_{chapter_short}" / "merged-videos"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{mode}-{signature}.mp4"
+    db.add(task)
+    db.commit()
+    db.refresh(task)
+    worker_manager.worker("chapter_video").enqueue(lambda: run_chapter_video_merge_task(task.id))
 
-    lock = merge_video_locks.setdefault(str(output_path), asyncio.Lock())
-    async with lock:
-        if output_path.is_file() and output_path.stat().st_size > 0:
-            result = {
-                "success": True,
-                "message": f"使用上次合并结果，共 {len(segments)} 个视频片段",
-            }
-            cache_hit = True
-        else:
-            temp_path = output_dir / f".{mode}-{uuid.uuid4().hex}.tmp.mp4"
-            try:
-                result = await file_storage.merge_videos(
-                    video_paths,
-                    str(temp_path),
-                    trans_paths if include_transitions else None,
-                )
-                if result.get("success"):
-                    os.replace(temp_path, output_path)
-            finally:
-                if temp_path.exists():
-                    temp_path.unlink()
-            cache_hit = False
-
-    if result.get("success"):
-        relative_path = str(output_path).replace(str(file_storage.base_dir), "").replace(
-            "\\", "/"
-        )
-        video_url = f"/api/files/{relative_path.lstrip('/')}"
-
-        return {
-            "success": True,
-            "video_url": video_url,
-            "message": result.get("message", "合并成功"),
-            "cache_hit": cache_hit,
-            "mode": mode,
-        }
-    else:
-        return {"success": False, "message": result.get("message", "合并失败")}
+    return {
+        "success": True,
+        "data": {"taskId": task.id, "status": task.status, "mode": mode},
+        "message": "章节视频合并任务已提交，可在任务列表查看进度。",
+    }
 
 
 # ==================== 资源管理 ====================

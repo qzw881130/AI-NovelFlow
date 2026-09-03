@@ -105,6 +105,7 @@ export function ChapterGenerateLayout({
   const [bottomNavCollapsed, setBottomNavCollapsed] = useState(false);
   const [chapterList, setChapterList] = useState<Chapter[]>([]);
   const [isSavingShots, setIsSavingShots] = useState(false);
+  const [openVideoStatsKey, setOpenVideoStatsKey] = useState<string | null>(null);
   const initialShotHashAppliedRef = useRef(false);
   const pendingShotHashIndexRef = useRef<number | null>(null);
 
@@ -188,30 +189,62 @@ export function ChapterGenerateLayout({
     const mergedAt = parsePlanTime(plan.merged_at);
     const needsMerge = mode === 'MULTI_KEYFRAME' && allClipsReady && (!hasShotVideo || !mergedAt || latestClipGeneratedAt > mergedAt);
 
-    if (isGenerating) stats.generating += 1;
-    else if (needsMerge) stats.needsMerge += 1;
-    else if (isFailed) stats.failed += 1;
-    else if (hasShotVideo) stats.completed += 1;
-    else stats.incomplete += 1;
+    if (isGenerating) stats.generating.push(shot);
+    else if (needsMerge) stats.needsMerge.push(shot);
+    else if (hasShotVideo) stats.completed.push(shot);
+    else if (isFailed) stats.failed.push(shot);
+    else stats.incomplete.push(shot);
     return stats;
-  }, { completed: 0, generating: 0, failed: 0, needsMerge: 0, incomplete: 0 });
+  }, { completed: [] as any[], generating: [] as any[], failed: [] as any[], needsMerge: [] as any[], incomplete: [] as any[] });
 
   const renderVideoGenerationStats = () => {
     if (currentTab !== 3 || shots.length === 0) return null;
     const items = [
-      ['已完成', videoStats.completed, 'border-green-100 bg-green-50 text-green-700'],
-      ['生成中', videoStats.generating, 'border-blue-100 bg-blue-50 text-blue-700'],
-      ['待合并', videoStats.needsMerge, 'border-amber-100 bg-amber-50 text-amber-700'],
-      ['失败', videoStats.failed, 'border-red-100 bg-red-50 text-red-700'],
-      ['未完成', videoStats.incomplete, 'border-gray-200 bg-gray-50 text-gray-600'],
+      ['completed', '已完成', videoStats.completed, 'border-green-100 bg-green-50 text-green-700'],
+      ['generating', '生成中', videoStats.generating, 'border-blue-100 bg-blue-50 text-blue-700'],
+      ['needsMerge', '待合并', videoStats.needsMerge, 'border-amber-100 bg-amber-50 text-amber-700'],
+      ['failed', '失败', videoStats.failed, 'border-red-100 bg-red-50 text-red-700'],
+      ['incomplete', '未完成', videoStats.incomplete, 'border-gray-200 bg-gray-50 text-gray-600'],
     ] as const;
 
     return (
       <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs shadow-sm">
         <span className="font-medium text-gray-700">视频生成结果</span>
-        {items.map(([label, count, className]) => (
-          <span key={label} className={`rounded-full border px-2 py-0.5 ${className}`}>
-            {label} {count}
+        {items.map(([key, label, shotItems, className]) => (
+          <span key={key} className="relative inline-flex">
+            <button
+              type="button"
+              onClick={() => setOpenVideoStatsKey(openVideoStatsKey === key ? null : key)}
+              className={`rounded-full border px-2 py-0.5 ${className}`}
+            >
+              {label} {shotItems.length}
+            </button>
+            {openVideoStatsKey === key && (
+            <span className="absolute left-1/2 top-full z-[90] w-64 -translate-x-1/2 pt-2">
+              <span className="block rounded-lg border border-gray-200 bg-white p-2 text-left shadow-xl">
+                <span className="mb-2 block text-xs font-medium text-gray-700">{label}分镜编号</span>
+                {shotItems.length > 0 ? (
+                  <span className="block max-h-72 overflow-y-auto">
+                    {shotItems.map((shot: any) => (
+                      <button
+                        key={shot.id || shot.index}
+                        type="button"
+                        onClick={() => {
+                          setCurrentShot(String(shot.id), Number(shot.index || 1));
+                          setOpenVideoStatsKey(null);
+                        }}
+                        className="mr-1 mb-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                      >
+                        镜{shot.index || '-'}
+                      </button>
+                    ))}
+                  </span>
+                ) : (
+                  <span className="block text-xs text-gray-400">暂无分镜</span>
+                )}
+              </span>
+            </span>
+            )}
           </span>
         ))}
       </div>
@@ -697,10 +730,10 @@ export function ChapterGenerateLayout({
       </div>
 
       {/* TabNavigation */}
-      <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
+      <div className="relative z-[120] flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
           <div className="relative">
             <TabNavigation />
-            <div className="absolute left-1/2 top-1 -translate-x-1/2">
+            <div className="absolute left-1/2 top-1 z-[130] -translate-x-1/2">
             {renderDialogueWarningStats() || renderVideoGenerationStats()}
             </div>
             <div className="absolute right-0 top-1">

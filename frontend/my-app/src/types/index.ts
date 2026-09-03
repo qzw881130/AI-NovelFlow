@@ -108,6 +108,12 @@ export interface Chapter {
   shotVideos?: string[];
   transitionVideos?: Record<string, string>;  // {"1-2": url, "2-3": url}
   finalVideo?: string;
+  chapterVideoUrl?: string;
+  chapterVideoDuration?: number | null;
+  chapterVideoSize?: number | null;
+  chapterVideoShotCount?: number | null;
+  chapterVideoTaskId?: string;
+  chapterVideoCompletedAt?: string | null;
 }
 
 export interface ParsedData {

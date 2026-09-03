@@ -40,10 +40,12 @@ export default function MergeVideosCard({
       );
 
       const data = await response.json();
-      
+
       if (data.success) {
-        setMergedVideoUrl(data.video_url);
-        toast.success(t('chapterGenerate.mergeSuccess'));
+        if (data.video_url) {
+          setMergedVideoUrl(data.video_url);
+        }
+        toast.info(`已提交 ${videoList.length} 个视频的章节合并任务，可在任务列表查看进度。`);
       } else {
         toast.error(data.message || t('chapterGenerate.mergeFailed'));
       }
@@ -107,7 +109,7 @@ export default function MergeVideosCard({
               {isMerging ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  {t('chapterGenerate.merging')}
+                  提交任务中...
                 </>
               ) : (
                 <>

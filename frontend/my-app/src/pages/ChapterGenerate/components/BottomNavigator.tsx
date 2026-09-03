@@ -102,7 +102,7 @@ export function BottomNavigator({
     if (pendingShots.has(shotId) || pendingVideos.has(shotId)) {
       return 'queued';
     }
-    if (currentTab === 3 && shot.videoStatus === 'failed') return 'failed';
+    if (currentTab === 3 && shot.videoStatus === 'failed' && !hasVideoResult) return 'failed';
     if (currentTab === 1 && shot.imageStatus === 'failed') return 'failed';
     if (currentTab === 3) {
       return (shot.videoUrl || shotVideos[shotId]) ? 'completed' : 'pending';
