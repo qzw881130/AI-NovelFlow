@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import { taskApi } from '../../../api/tasks';
-import type { Task } from '../../../types';
+import type { Task, VideoDirectorTaskClip } from '../../../types';
 import type { TaskFilter, ImageInfo, WorkflowData, TaskStats } from '../types';
 
 export function useTasksState() {
@@ -16,8 +16,40 @@ export function useTasksState() {
   const [workflowData, setWorkflowData] = useState<WorkflowData | null>(null);
   const [loadingWorkflow, setLoadingWorkflow] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewImages, setPreviewImages] = useState<Array<{ label?: string; url: string }>>([]);
+  const [previewImageIndex, setPreviewImageIndex] = useState(0);
   const [imageInfo, setImageInfo] = useState<Record<string, ImageInfo>>({});
   const [previewVideo, setPreviewVideo] = useState<string | null>(null);
+
+  const openImagePreview = (url: string) => {
+    setPreviewImages([{ url }]);
+    setPreviewImageIndex(0);
+    setPreviewImage(url);
+  };
+
+  const openImageGallery = (images: Array<{ label?: string; url: string }>, index: number) => {
+    const validImages = images.filter(image => image.url);
+    if (!validImages.length) return;
+    const safeIndex = Math.max(0, Math.min(index, validImages.length - 1));
+    setPreviewImages(validImages);
+    setPreviewImageIndex(safeIndex);
+    setPreviewImage(validImages[safeIndex].url);
+  };
+
+  const navigatePreviewImage = (direction: 'prev' | 'next') => {
+    if (previewImages.length <= 1) return;
+    const nextIndex = direction === 'prev'
+      ? (previewImageIndex === 0 ? previewImages.length - 1 : previewImageIndex - 1)
+      : (previewImageIndex === previewImages.length - 1 ? 0 : previewImageIndex + 1);
+    setPreviewImageIndex(nextIndex);
+    setPreviewImage(previewImages[nextIndex].url);
+  };
+
+  const closeImagePreview = () => {
+    setPreviewImage(null);
+    setPreviewImages([]);
+    setPreviewImageIndex(0);
+  };
 
   const fetchImageInfo = async (url: string, taskId: string) => {
     try {
@@ -140,6 +172,39 @@ export function useTasksState() {
     }
   };
 
+  const handleViewClipWorkflow = async (task: Task, clip: VideoDirectorTaskClip) => {
+    if (!clip.windowIndex) {
+      toast.info(t('tasks.noWorkflowInfo'));
+      return;
+    }
+    if (!clip.hasWorkflowJson && !clip.promptText) {
+      toast.info(t('tasks.noWorkflowInfo'));
+      return;
+    }
+    setViewingWorkflow({
+      ...task,
+      name: `${task.name} · Clip ${clip.windowIndex}`,
+      workflowName: clip.workflowName || task.workflowName,
+      hasWorkflowJson: clip.hasWorkflowJson,
+      hasPromptText: Boolean(clip.promptText),
+      referenceImages: clip.referenceImages || [],
+    });
+    setLoadingWorkflow(true);
+    try {
+      const data = await taskApi.fetchClipWorkflow(task.id, clip.windowIndex);
+      if (data.success) {
+        setWorkflowData(data.data as WorkflowData);
+      } else {
+        toast.error(data.message || t('tasks.failedToGetWorkflow'));
+      }
+    } catch (error) {
+      console.error('获取 Clip 工作流失败:', error);
+      toast.error(t('tasks.failedToGetWorkflow'));
+    } finally {
+      setLoadingWorkflow(false);
+    }
+  };
+
   const handleRetry = async (taskId: string) => {
     try {
       const data = await taskApi.retry(taskId);
@@ -158,6 +223,7 @@ export function useTasksState() {
     running: tasks.filter(t => t.status === 'running').length,
     completed: tasks.filter(t => t.status === 'completed').length,
     failed: tasks.filter(t => t.status === 'failed').length,
+    cancelled: tasks.filter(t => t.status === 'cancelled').length,
   };
 
   const filteredTasks = filter === 'all' ? tasks : tasks.filter(t => t.status === filter);
@@ -174,6 +240,8 @@ export function useTasksState() {
     workflowData,
     loadingWorkflow,
     previewImage,
+    previewImages,
+    previewImageIndex,
     previewVideo,
     imageInfo,
     stats,
@@ -185,8 +253,13 @@ export function useTasksState() {
     handleCancelAll,
     toggleErrorDetail,
     handleViewWorkflow,
+    handleViewClipWorkflow,
     handleRetry,
     fetchImageInfo,
+    openImagePreview,
+    openImageGallery,
+    navigatePreviewImage,
+    closeImagePreview,
     setPreviewImage,
     setPreviewVideo,
     setViewingWorkflow,

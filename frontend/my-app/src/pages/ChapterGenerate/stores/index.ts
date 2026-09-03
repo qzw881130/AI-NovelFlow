@@ -232,6 +232,7 @@ export function useUiSlice(): UiSlice {
     previewImageIndex: state.previewImageIndex,
     // Merge Image State
     mergedImage: state.mergedImage,
+    mergedImageLabel: state.mergedImageLabel,
     isMerging: state.isMerging,
     // Confirm Dialog State
     splitConfirmDialog: state.splitConfirmDialog,

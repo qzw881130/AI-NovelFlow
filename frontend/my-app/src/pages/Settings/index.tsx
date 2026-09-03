@@ -39,12 +39,14 @@ export default function Settings() {
             llmApiUrl: config.llmApiUrl || 'https://api.deepseek.com',
             llmMaxTokens: config.llmMaxTokens || DEFAULT_CONFIG.llmMaxTokens,
             llmTemperature: config.llmTemperature,
+            llmTimeout: config.llmTimeout || DEFAULT_CONFIG.llmTimeout,
             proxy: config.proxyEnabled !== undefined ? {
               enabled: config.proxyEnabled,
               httpProxy: config.httpProxy || '',
               httpsProxy: config.httpsProxy || '',
             } : DEFAULT_CONFIG.proxy,
             comfyUIHost: config.comfyUIHost || DEFAULT_CONFIG.comfyUIHost,
+            comfyUITimeout: config.comfyUITimeout || DEFAULT_CONFIG.comfyUITimeout,
             systemStatusSource: config.systemStatusSource || DEFAULT_CONFIG.systemStatusSource,
           });
         }
@@ -71,12 +73,13 @@ export default function Settings() {
             apiUrl: formData.llmApiUrl,
             maxTokens: formData.llmMaxTokens,
             temperature: formData.llmTemperature,
+            timeout: formData.llmTimeout,
           },
         };
       } else if (activeTab === 'proxy') {
         payload = { proxy: formData.proxy };
       } else if (activeTab === 'comfyui') {
-        payload = { comfyUIHost: formData.comfyUIHost };
+        payload = { comfyUIHost: formData.comfyUIHost, comfyUITimeout: formData.comfyUITimeout };
       } else if (activeTab === 'systemStatus') {
         payload = { systemStatusSource: formData.systemStatusSource };
       }

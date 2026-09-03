@@ -56,8 +56,45 @@ export const createChapterActionsSlice: StateCreator<
 
   splitChapter: async (novelId: string, chapterId: string) => {
     const t = useI18nStore.getState().t;
+    const emptyParsedData = {
+      chapter: get().chapter?.title,
+      characters: [],
+      scenes: [],
+      props: [],
+    };
 
-    set({ splitConfirmDialog: { isOpen: false, hasResources: false } });
+    set({
+      splitConfirmDialog: { isOpen: false, hasResources: false },
+      isSplitting: true,
+      shots: [],
+      parsedData: emptyParsedData,
+      editableJson: JSON.stringify(emptyParsedData, null, 2),
+      shotImages: {},
+      shotVideos: {},
+      transitionVideos: {},
+      mergedImage: null,
+      currentShotId: null,
+      currentShotIndex: 1,
+      selectedShotIds: [],
+      bulkMode: false,
+      generatingShots: new Set<string>(),
+      pendingShots: new Set<string>(),
+      generatingVideos: new Set<string>(),
+      pendingVideos: new Set<string>(),
+      generatingTransitions: new Set<string>(),
+      generatingAudios: new Set<string>(),
+      audioWarnings: [],
+      audioTasks: [],
+      audioUrls: {},
+      audioSources: {},
+      uploadingAudios: new Set<string>(),
+      generatingKeyframes: new Set<string>(),
+      keyframeTasks: [],
+      keyframeImageUrls: {},
+      mergingReferenceAudios: new Set<string>(),
+      uploadingReferenceAudios: new Set<string>(),
+      referenceAudioMergeTasks: [],
+    });
 
     // 清除旧资源
     try {
@@ -68,7 +105,6 @@ export const createChapterActionsSlice: StateCreator<
       console.error('清除资源请求失败:', error);
     }
 
-    set({ isSplitting: true });
     try {
       const res = await fetch(`${API_BASE}/novels/${novelId}/chapters/${chapterId}/split/`, {
         method: 'POST',

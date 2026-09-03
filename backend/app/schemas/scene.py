@@ -24,6 +24,18 @@ class SceneUpdate(BaseModel):
     setting: Optional[str] = Field(None, description="环境设置")
 
 
+class SceneImageEditRequest(BaseModel):
+    """编辑场景图片请求"""
+    prompt: str = Field(..., min_length=1, description="图像编辑提示词")
+
+
+class SceneImageReplaceRequest(BaseModel):
+    """替换场景图片请求"""
+    image_url: str = Field(..., alias="imageUrl", description="新的场景图片 URL")
+
+    model_config = {"populate_by_name": True}
+
+
 class SceneResponse(SceneBase):
     """场景响应"""
     id: str

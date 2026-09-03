@@ -1,0 +1,220 @@
+{
+  "57": {
+    "inputs": {
+      "samples": [
+        "60",
+        0
+      ],
+      "vae": [
+        "62",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#57 VAE Decode"
+    }
+  },
+  "58": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "57",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "#58 Save Image"
+    }
+  },
+  "60": {
+    "inputs": {
+      "seed": 697314346315435,
+      "steps": 6,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "72",
+        0
+      ],
+      "positive": [
+        "64",
+        0
+      ],
+      "negative": [
+        "63",
+        0
+      ],
+      "latent_image": [
+        "69",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "#60 KSampler"
+    }
+  },
+  "61": {
+    "inputs": {
+      "unet_name": "flux-2-klein-9b.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#61 Load Diffusion Model"
+    }
+  },
+  "62": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#62 Load VAE"
+    }
+  },
+  "63": {
+    "inputs": {
+      "conditioning": [
+        "64",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "#63 Conditioning Zero Out"
+    }
+  },
+  "64": {
+    "inputs": {
+      "text": [
+        "112",
+        0
+      ],
+      "clip": [
+        "65",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "#64 CLIP Text Encode (Prompt)"
+    }
+  },
+  "65": {
+    "inputs": {
+      "clip_name": "qwen_3_8b.safetensors",
+      "type": "flux2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#65 Load CLIP"
+    }
+  },
+  "69": {
+    "inputs": {
+      "width": 1536,
+      "height": 864,
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "#69 Empty Flux 2 Latent"
+    }
+  },
+  "70": {
+    "inputs": {
+      "purge_cache": false,
+      "purge_models": false,
+      "anything": [
+        "57",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: PurgeVRAM",
+    "_meta": {
+      "title": "#70 LayerUtility: Purge VRAM"
+    }
+  },
+  "71": {
+    "inputs": {
+      "sage_attention": "auto",
+      "allow_compile": false,
+      "model": [
+        "61",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "#71 Patch Sage Attention KJ"
+    }
+  },
+  "72": {
+    "inputs": {
+      "enable_fp16_accumulation": true,
+      "model": [
+        "71",
+        0
+      ]
+    },
+    "class_type": "ModelPatchTorchSettings",
+    "_meta": {
+      "title": "#72 Model Patch Torch Settings"
+    }
+  },
+  "110": {
+    "inputs": {
+      "prompt": "photorealistic historical cinematic aesthetic,live-action Three Kingdoms period drama,historically grounded late Eastern Han dynasty visual design,authentic period materials, craftsmanship and architecture,realistic fabric, leather, wood, stone, bronze and metal textures,natural physically plausible lighting,cinematic but restrained presentation,subtle restrained color grading,historically grounded proportions and construction,highly detailed realistic surfaces,no illustration, no anime, no cartoon,no painterly rendering, no stylized game aesthetic,no fantasy elements, no modern elements,consistent photorealistic visual universe, 汉式直身长剑，双刃笔直，青铜或铁制剑身经过抛磨，剑格端正，柄部缠黑红丝线，配饰铜件的黑漆剑鞘，悬挂于革带一侧，整体庄严威武。, high quality, detailed, clean background, professional lighting, masterpiece"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#110 #-1 ⚙️ CR Prompt Text(提示词输入节点)"
+    }
+  },
+  "111": {
+    "inputs": {
+      "prompt": "no people, no person, no human, no human body, no hands, no arms, no body parts, no mannequin, no model, no wearing, no holding, no character interaction, show only the prop itself, standalone complete object, fully visible object, centered product photography composition, clean neutral background"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#111 #-1 ⚙️ CR Prompt Text（固定，不要改）"
+    }
+  },
+  "112": {
+    "inputs": {
+      "text1": [
+        "110",
+        0
+      ],
+      "text2": [
+        "111",
+        0
+      ],
+      "separator": ",",
+      "text3": ""
+    },
+    "class_type": "ConcatTextOfUtils",
+    "_meta": {
+      "title": "#112 #-1 Concat Text"
+    }
+  },
+  "113": {
+    "inputs": {
+      "text_0": "photorealistic historical cinematic character design, live-action Three Kingdoms period costume drama aesthetic, real human skin texture and natural facial anatomy, historically grounded late Eastern Han dynasty clothing and armor, consistent realistic costume materials, cinematic but neutral studio character photography, natural physically plausible lighting, realistic fabric, leather and metal textures, subtle restrained color grading, no illustration, no anime, no cartoon, no painterly rendering, no stylized game character, no fantasy armor, no modern clothing, consistent visual universe across all characters, item design, prop design, product photography, 汉式直身长剑，双刃笔直，青铜或铁制剑身经过抛磨，剑格端正，柄部缠黑红丝线，配饰铜件的黑漆剑鞘，悬挂于革带一侧，整体庄严威武。, high quality, detailed, clean background, professional lighting, masterpiece,不要人物",
+      "text": [
+        "112",
+        0
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "#113 #-1 Show Text 🐍"
+    }
+  }
+}

@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     LLM_API_KEY: str = ""
     LLM_MAX_TOKENS: Optional[int] = 393216  # 最大token数
     LLM_TEMPERATURE: Optional[str] = None  # 温度参数
+    LLM_TIMEOUT: Optional[int] = 1800  # 请求超时（秒），默认 30 分钟
     
     # Proxy Configuration (代理配置)
     PROXY_ENABLED: bool = False
@@ -34,6 +35,7 @@ class Settings(BaseSettings):
     
     # ComfyUI
     COMFYUI_HOST: str = "http://127.0.0.1:8188"
+    COMFYUI_TIMEOUT: int = 900
     SYSTEM_STATUS_SOURCE: str = "comfyui"
     
     # Output
@@ -78,16 +80,21 @@ def reload_settings_from_db(db_config: dict) -> None:
         _settings_instance.LLM_PROVIDER = db_config["llm_provider"]
     if db_config.get("llm_model"):
         _settings_instance.LLM_MODEL = db_config["llm_model"]
+    provider = db_config.get("llm_provider")
     if db_config.get("llm_api_url"):
         _settings_instance.LLM_API_URL = db_config["llm_api_url"]
-        _settings_instance.DEEPSEEK_API_URL = db_config["llm_api_url"]
+        if provider == "deepseek":
+            _settings_instance.DEEPSEEK_API_URL = db_config["llm_api_url"]
     if db_config.get("llm_api_key"):
         _settings_instance.LLM_API_KEY = db_config["llm_api_key"]
-        _settings_instance.DEEPSEEK_API_KEY = db_config["llm_api_key"]
+        if provider == "deepseek":
+            _settings_instance.DEEPSEEK_API_KEY = db_config["llm_api_key"]
     if "llm_max_tokens" in db_config:
         _settings_instance.LLM_MAX_TOKENS = db_config["llm_max_tokens"]
     if "llm_temperature" in db_config:
         _settings_instance.LLM_TEMPERATURE = db_config["llm_temperature"]
+    if db_config.get("llm_timeout") is not None:
+        _settings_instance.LLM_TIMEOUT = db_config["llm_timeout"]
     
     if db_config.get("proxy_enabled") is not None:
         _settings_instance.PROXY_ENABLED = db_config["proxy_enabled"]
@@ -98,6 +105,8 @@ def reload_settings_from_db(db_config: dict) -> None:
     
     if db_config.get("comfyui_host"):
         _settings_instance.COMFYUI_HOST = db_config["comfyui_host"]
+    if db_config.get("comfyui_timeout") is not None:
+        _settings_instance.COMFYUI_TIMEOUT = int(db_config["comfyui_timeout"] or 900)
     if db_config.get("system_status_source"):
         _settings_instance.SYSTEM_STATUS_SOURCE = db_config["system_status_source"]
     

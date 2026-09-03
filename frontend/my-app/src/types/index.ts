@@ -25,6 +25,7 @@ export interface SystemConfig {
   llmApiUrl: string;
   llmMaxTokens?: number;  // 最大token数
   llmTemperature?: string;  // 温度参数
+  llmTimeout?: number;  // 请求超时（秒）
   
   // 代理配置
   proxy: ProxyConfig;
@@ -35,6 +36,7 @@ export interface SystemConfig {
   
   // ComfyUI 配置
   comfyUIHost: string;
+  comfyUITimeout: number;
   systemStatusSource: SystemStatusSource;
   
   // 输出配置（已废弃，保留兼容）
@@ -78,6 +80,14 @@ export interface Novel {
   propPromptTemplateId?: string;  // 道具生成提示词模板
   chapterSplitPromptTemplateId?: string;  // 分镜拆分提示词模板
   keyframeDescriptionPromptTemplateId?: string;  // 关键帧描述提示词模板
+  shotImagePromptTemplateId?: string;  // 主分镜图提示词模板
+  videoModeRecommenderPromptTemplateId?: string;  // 视频模式推荐提示词模板
+  keyframePlannerPromptTemplateId?: string;  // 关键帧规划提示词模板
+  keyframeImagePromptTemplateId?: string;  // 关键帧生图提示词模板
+  keyframeTransitionPromptTemplateId?: string;  // 关键帧过渡规划提示词模板
+  h3SingleFramePromptTemplateId?: string;  // H3 单帧视频提示词模板
+  h3FirstLastFramePromptTemplateId?: string;  // H3 首尾帧视频提示词模板
+  h3MultiKeyframePromptTemplateId?: string;  // H3 多关键帧视频提示词模板
   aspectRatio?: string;  // 画面比例: 16:9, 9:16, 4:3, 3:4, 1:1
   createdAt: string;
   updatedAt: string;
@@ -89,6 +99,7 @@ export interface Chapter {
   number: number;
   title: string;
   content?: string;
+  contentLength?: number;
   status: 'pending' | 'parsing' | 'generating_characters' | 'generating_shots' | 'generating_videos' | 'compositing' | 'completed' | 'failed';
   progress: number;
   parsedData?: ParsedData;
@@ -97,6 +108,12 @@ export interface Chapter {
   shotVideos?: string[];
   transitionVideos?: Record<string, string>;  // {"1-2": url, "2-3": url}
   finalVideo?: string;
+  chapterVideoUrl?: string;
+  chapterVideoDuration?: number | null;
+  chapterVideoSize?: number | null;
+  chapterVideoShotCount?: number | null;
+  chapterVideoTaskId?: string;
+  chapterVideoCompletedAt?: string | null;
 }
 
 export interface ParsedData {
@@ -114,6 +131,7 @@ export interface ShotData {
   scene: string;
   props: string[];
   duration: number;
+  videoDirectorPlan?: VideoDirectorPlan;
   dialogues?: DialogueData[];
   image_url?: string;
   image_path?: string;
@@ -122,6 +140,25 @@ export interface ShotData {
   keyframes?: KeyframeData[];
   reference_audio_url?: string;
   reference_audio_type?: 'none' | 'merged' | 'uploaded' | 'character';
+}
+
+export type VideoMode = 'SINGLE_FRAME' | 'FIRST_LAST_FRAME' | 'MULTI_KEYFRAME';
+
+export interface VideoDirectorPlan {
+  selected_mode?: VideoMode;
+  recommended_mode?: VideoMode;
+  recommended_label?: string;
+  recommendation_reason?: string;
+  first_last_available?: boolean;
+  notice?: string;
+  workflow_capability?: Record<string, any>;
+  keyframes?: any[];
+  transitions?: any[];
+  clips?: any[];
+  execution_windows?: any[];
+  window_plans?: any[];
+  ai_calls?: any[];
+  validation?: Record<string, any>;
 }
 
 export interface DialogueData {
@@ -157,6 +194,7 @@ export interface Character {
   novelId: string;
   novelName?: string;
   isNarrator?: boolean;
+  updatedAt?: string;
 }
 
 export interface Scene {
@@ -206,12 +244,30 @@ export interface Shot {
   videoUrl?: string;
 }
 
+export interface VideoDirectorTaskClip {
+  windowIndex?: number;
+  status?: string;
+  startTime?: number;
+  endTime?: number;
+  workflowType?: string;
+  workflowName?: string;
+  promptId?: string;
+  promptText?: string;
+  hasWorkflowJson?: boolean;
+  referenceImages?: Array<{ label?: string; url: string }>;
+  videoUrl?: string;
+  sourceVideoUrl?: string;
+  errorMessage?: string;
+  generatedAt?: string;
+  dialogueCount?: number | null;
+}
+
 export interface Task {
   id: string;
-  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'keyframe_image' | 'shot_video' | 'chapter_video' | 'transition_video' | 'prop_image';
+  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'chapter_video' | 'transition_video' | 'prop_image';
   name: string;
   description?: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
   progress: number;
   currentStep?: string;
   resultUrl?: string;
@@ -221,6 +277,8 @@ export interface Task {
   workflowIsSystem?: boolean;
   hasWorkflowJson?: boolean;
   hasPromptText?: boolean;
+  referenceImages?: Array<{ label?: string; url: string }>;
+  videoDirectorClips?: VideoDirectorTaskClip[];
   novelId?: string;
   novelName?: string;
   chapterId?: string;
@@ -277,15 +335,17 @@ export interface LLMLog {
   created_at: string;
   provider: string;
   model: string;
-  system_prompt: string;
+  prompt_template_name: string | null;
+  system_prompt: string | null;
   user_prompt: string;
-  response: string;
-  status: string;
-  error_message: string;
-  task_type: string;
-  novel_id: string;
-  chapter_id: string;
-  character_id: string;
+  request_info?: string | null;
+  response: string | null;
+  status: 'pending' | 'success' | 'error';
+  error_message: string | null;
+  task_type: string | null;
+  novel_id: string | null;
+  chapter_id: string | null;
+  character_id: string | null;
   used_proxy: boolean;
-  duration: number;  // 请求耗时，单位秒
+  duration: number | null;  // 请求耗时，单位秒
 }

@@ -92,3 +92,70 @@
 .bottom-nav-scroll::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, #6b7280, #4b5563);
 }
+
+/* 视频生成页：中间列变窄时，提高描述编辑区，预览按 16:9 内容高度显示，避免撑出大块空白。 */
+.video-main-column {
+  container-type: inline-size;
+}
+
+@container (max-width: 720px) {
+  .video-main-column {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .video-description-card {
+    display: flex;
+    flex: 1 1 0;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .video-description-textarea {
+    height: auto;
+    min-height: 18rem;
+    flex: 1 1 auto;
+  }
+
+  .video-preview-card {
+    flex: 0 0 auto;
+    margin-top: auto;
+  }
+
+  .video-preview-body {
+    aspect-ratio: 16 / 9;
+    flex: 0 0 auto;
+  }
+}
+
+@container (max-width: 560px) {
+  .video-description-textarea {
+    height: 22rem;
+  }
+}
+
+/* 分镜图生成页：表单列较窄时，让分镜描述尽量占满资源选择项之外的剩余高度。 */
+.shot-image-form-panel {
+  container-type: inline-size;
+}
+
+@container (max-width: 640px) {
+  .shot-image-form-panel .shot-form {
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+  }
+
+  .shot-image-form-panel .shot-description-field {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  .shot-image-form-panel .shot-description-textarea {
+    flex: 1 1 auto;
+    min-height: 18rem;
+    resize: none;
+  }
+}

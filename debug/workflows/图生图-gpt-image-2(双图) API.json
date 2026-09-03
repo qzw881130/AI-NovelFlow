@@ -41,7 +41,7 @@
   "27": {
     "inputs": {
       "api_base": "ip",
-      "apikey": "sk-uGYpHHOyZsfJ1A92x4A5AP723NTZHT3Pg92NcXktwJBmc8MC",
+      "apikey": "YOUR_API_KEY_HERE",
       "custom_ip": "https://ai.t8star.cn"
     },
     "class_type": "Comfly_api_set",

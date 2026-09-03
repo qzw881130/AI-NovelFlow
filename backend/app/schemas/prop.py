@@ -24,6 +24,18 @@ class PropUpdate(BaseModel):
     appearance: Optional[str] = Field(None, description="道具外观描述")
 
 
+class PropImageEditRequest(BaseModel):
+    """编辑道具图片请求"""
+    prompt: str = Field(..., min_length=1, description="图像编辑提示词")
+
+
+class PropImageReplaceRequest(BaseModel):
+    """替换道具图片请求"""
+    image_url: str = Field(..., alias="imageUrl", description="新的道具图片 URL")
+
+    model_config = {"populate_by_name": True}
+
+
 class PropResponse(PropBase):
     """道具响应"""
     id: str

@@ -6,26 +6,46 @@
 
 import json
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
-from app.models.shot import Shot
-from app.models.prompt_template import PromptTemplate
 from app.models.task import Task
 from app.models.workflow import Workflow
 from app.core.database import SessionLocal
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import get_style
-from app.utils.path_utils import url_to_local_path
-from app.utils.image_utils import merge_character_images
+from app.utils.path_utils import local_path_to_url, url_to_local_path
+from app.utils.image_utils import merge_character_images, merge_prop_images
 from app.repositories.shot_repository import ShotRepository
-from app.utils.workflow_disconnect import (
-    disconnect_reference_chain,
-    disconnect_unuploaded_reference_nodes,
-    disconnect_all_reference_nodes,
-    clear_unset_reference_nodes,
-)
+from app.services.background_workers import worker_manager
+from app.utils.workflow_disconnect import disconnect_reference_chain
+
+
+def _is_task_cancelled(db, task) -> bool:
+    db.refresh(task)
+    return task.status == "cancelled"
+
+
+def enqueue_shot_image_task(
+    task_id: str,
+    novel_id: str,
+    chapter_id: str,
+    shot_index: int,
+    shot_description: str,
+    workflow_id: str,
+) -> None:
+    """Queue shot image generation in its dedicated serial worker."""
+    worker_manager.worker("shot_image").enqueue(
+        lambda: generate_shot_image_task(
+            task_id,
+            novel_id,
+            chapter_id,
+            shot_index,
+            shot_description,
+            workflow_id,
+        )
+    )
 
 
 async def generate_shot_image_task(
@@ -52,6 +72,8 @@ async def generate_shot_image_task(
         # 获取任务
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task:
+            return
+        if task.status == "cancelled":
             return
 
         # 更新任务状态为运行中
@@ -116,10 +138,6 @@ async def generate_shot_image_task(
         )
         print(f"[ShotTask {task_id}] Node mapping: {node_mapping}")
 
-        # 先保存提示词
-        task.prompt_text = shot_description
-        db.commit()
-
         # 获取风格提示词
         style, _ = get_style(db, novel, "character")
         print(f"[ShotTask {task_id}] Using style: {style}")
@@ -138,8 +156,12 @@ async def generate_shot_image_task(
 
         # 处理道具图
         prop_reference_paths = await _process_prop_references(
-            db, task, novel_id, shot_props, task_id
+            db, task, novel_id, chapter_id, shot_index, shot_props, task_id, shot_repo
         )
+
+        effective_prompt = shot_description
+        task.prompt_text = effective_prompt
+        db.commit()
 
         # ========== 查询角色/场景/道具的描述信息（用于占位符替换） ==========
         # 查询角色外貌描述
@@ -183,7 +205,7 @@ async def generate_shot_image_task(
         db.commit()
 
         submitted_workflow = comfyui_service.builder.build_shot_workflow(
-            prompt=shot_description,
+            prompt=effective_prompt,
             workflow_json=workflow.workflow_json,
             node_mapping=node_mapping,
             aspect_ratio=novel.aspect_ratio or "16:9",
@@ -207,12 +229,19 @@ async def generate_shot_image_task(
         )
 
         # 调用 ComfyUI 生成图片
+        if _is_task_cancelled(db, task):
+            return
         task.current_step = "正在调用 ComfyUI 生成图片..."
         task.progress = 30
         db.commit()
 
+        def save_prompt_id(prompt_id: str):
+            task.comfyui_prompt_id = prompt_id
+            db.commit()
+            print(f"[ShotTask {task_id}] Saved ComfyUI prompt_id: {prompt_id}")
+
         result = await comfyui_service.generate_shot_image_with_workflow(
-            prompt=shot_description,
+            prompt=effective_prompt,
             workflow_json=workflow.workflow_json,
             node_mapping=node_mapping,
             aspect_ratio=novel.aspect_ratio or "16:9",
@@ -220,9 +249,13 @@ async def generate_shot_image_task(
             scene_reference_path=None,
             workflow=submitted_workflow,
             style=style,
+            on_prompt_queued=save_prompt_id,
         )
 
         print(f"[ShotTask {task_id}] Generation result: {json.dumps(result, ensure_ascii=True)}")
+
+        if _is_task_cancelled(db, task):
+            return
 
         if result.get("prompt_id"):
             task.comfyui_prompt_id = result["prompt_id"]
@@ -383,7 +416,14 @@ async def _process_scene_reference(
 
 
 async def _process_prop_references(
-    db, task, novel_id: str, shot_props: list, task_id: str
+    db,
+    task,
+    novel_id: str,
+    chapter_id: str,
+    shot_index: int,
+    shot_props: list,
+    task_id: str,
+    shot_repo: ShotRepository = None,
 ) -> Optional[Dict[str, str]]:
     """
     处理道具参考图片
@@ -396,7 +436,7 @@ async def _process_prop_references(
         task_id: 任务 ID
 
     Returns:
-        道具名称到图片路径的映射字典 {道具名称: 图片路径}
+        道具名称到图片路径的映射字典。多个道具时返回合并道具图。
     """
     if not shot_props:
         return None
@@ -404,7 +444,7 @@ async def _process_prop_references(
     task.current_step = f"查找道具图: {', '.join(shot_props)}"
     db.commit()
 
-    prop_reference_paths = {}
+    prop_images = []
     print(f"[ShotTask {task_id}] Looking for {len(shot_props)} props: {shot_props}")
 
     for prop_name in shot_props:
@@ -421,18 +461,55 @@ async def _process_prop_references(
         if prop and prop.image_url:
             full_path = url_to_local_path(prop.image_url)
             if full_path:
-                prop_reference_paths[prop_name] = full_path
+                prop_images.append((prop_name, full_path))
                 print(
                     f"[ShotTask {task_id}] Found prop image: {prop_name} -> {full_path}"
                 )
 
-    print(f"[ShotTask {task_id}] Total prop images found: {len(prop_reference_paths)}")
+    print(f"[ShotTask {task_id}] Total prop images found: {len(prop_images)}")
 
-    if prop_reference_paths:
-        task.current_step = f"已找到 {len(prop_reference_paths)} 个道具图片"
+    if not prop_images:
+        return None
+
+    if len(prop_images) == 1:
+        task.current_step = "已找到 1 个道具图片"
         db.commit()
+        return {prop_images[0][0]: prop_images[0][1]}
 
-    return prop_reference_paths if prop_reference_paths else None
+    task.current_step = f"合并道具图片: {', '.join(name for name, _ in prop_images)}"
+    db.commit()
+
+    merged_path = merge_prop_images(novel_id, chapter_id, shot_index, prop_images, file_storage)
+    if merged_path:
+        _update_shot_merged_prop_url(db, chapter_id, shot_index, merged_path, shot_repo)
+        print(f"[ShotTask {task_id}] Merged prop image saved: {merged_path}")
+        task.current_step = f"已合并 {len(prop_images)} 个道具图片"
+        db.commit()
+        return {"合并道具图": merged_path}
+
+    print(f"[ShotTask {task_id}] Failed to merge prop images")
+    task.current_step = "道具图片合并失败，继续使用首个道具图..."
+    db.commit()
+    return {prop_images[0][0]: prop_images[0][1]}
+
+
+def _update_shot_merged_prop_url(
+    db, chapter_id: str, shot_index: int, merged_path: str, shot_repo: ShotRepository = None
+):
+    """更新 Shot 记录中合并道具图的 URL"""
+    if shot_repo is None:
+        shot_repo = ShotRepository(db)
+
+    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+    if not shot:
+        return
+
+    merged_relative_path = (
+        str(merged_path).replace(str(file_storage.base_dir), "").replace("\\", "/")
+    )
+    merged_url = f"/api/files/{merged_relative_path.lstrip('/')}"
+
+    shot_repo.update(shot, merged_prop_image=merged_url)
 
 
 async def _upload_references_and_update_workflow(
@@ -460,142 +537,105 @@ async def _upload_references_and_update_workflow(
         task_id: 任务 ID
         prop_reference_paths: 道具参考图路径字典 {道具名称: 图片路径}
     """
-    # 收集所有需要上传的参考图
-    has_any_reference = (
-        character_reference_path or scene_reference_path or prop_reference_paths
-    )
-
-    if not has_any_reference:
-        # 没有任何参考图，断开所有参考图节点的下游连接
-        disconnect_all_reference_nodes(submitted_workflow, node_mapping)
-        task.workflow_json = json.dumps(
-            submitted_workflow, ensure_ascii=False, indent=2
-        )
-        db.commit()
-        return
-
     task.current_step = "上传参考图..."
     db.commit()
-    print(f"[ShotTask {task_id}] Uploading reference images before submission")
+    print(f"[ShotTask {task_id}] Uploading compact reference images before submission")
 
-    # 上传角色参考图
-    character_uploaded_filename = None
+    reference_items_by_key = {}
     if character_reference_path:
-        upload_result = await comfyui_service.client.upload_image(
-            character_reference_path
-        )
-        if upload_result.get("success"):
-            character_uploaded_filename = upload_result.get("filename")
-            print(
-                f"[ShotTask {task_id}] Character image uploaded successfully: {character_uploaded_filename}"
-            )
-        else:
-            print(
-                f"[ShotTask {task_id}] Failed to upload character image: {upload_result.get('message')}"
-            )
-
-    # 上传场景参考图
-    scene_uploaded_filename = None
+        character_url = local_path_to_url(character_reference_path)
+        if character_url:
+            reference_items_by_key["character_reference_image_node_id"] = {"label": "角色合并图", "url": character_url, "path": character_reference_path}
     if scene_reference_path:
-        upload_result = await comfyui_service.client.upload_image(scene_reference_path)
-        if upload_result.get("success"):
-            scene_uploaded_filename = upload_result.get("filename")
-            print(
-                f"[ShotTask {task_id}] Scene image uploaded successfully: {scene_uploaded_filename}"
-            )
-        else:
-            print(
-                f"[ShotTask {task_id}] Failed to upload scene image: {upload_result.get('message')}"
-            )
-
-    # 上传道具参考图
-    prop_uploaded_filenames = {}  # {道具名称: 上传后的文件名}
+        scene_url = local_path_to_url(scene_reference_path)
+        if scene_url:
+            reference_items_by_key["scene_reference_image_node_id"] = {"label": "场景图", "url": scene_url, "path": scene_reference_path}
     if prop_reference_paths:
-        for prop_name, prop_path in prop_reference_paths.items():
-            if prop_path:
-                upload_result = await comfyui_service.client.upload_image(prop_path)
-                if upload_result.get("success"):
-                    prop_uploaded_filenames[prop_name] = upload_result.get("filename")
-                    print(
-                        f"[ShotTask {task_id}] Prop '{prop_name}' image uploaded successfully: {upload_result.get('filename')}"
-                    )
-                else:
-                    print(
-                        f"[ShotTask {task_id}] Failed to upload prop '{prop_name}' image: {upload_result.get('message')}"
-                    )
+        prop_label = "、".join(prop_reference_paths.keys())
+        prop_path = next((path for path in prop_reference_paths.values() if path), None)
+        prop_url = local_path_to_url(prop_path) if prop_path else None
+        if prop_path and prop_url:
+            prop_item = {"label": f"道具合并图: {prop_label}", "url": prop_url, "path": prop_path}
+            reference_items_by_key["prop_reference_image_node_id"] = prop_item
+            first_custom_key = _get_first_custom_reference_node_key(node_mapping)
+            if first_custom_key:
+                reference_items_by_key[first_custom_key] = prop_item
 
-    # 设置工作流节点中的图片
-    character_node_id = node_mapping.get("character_reference_image_node_id")
-    scene_node_id = node_mapping.get("scene_reference_image_node_id")
+    reference_node_keys = _get_compact_reference_node_keys(node_mapping)
+    reference_items = [reference_items_by_key.get(key) for key in reference_node_keys]
+    visible_reference_items = [item for item in reference_items if item]
 
-    print(
-        f"[ShotTask {task_id}] Node mapping - character_node: {character_node_id}, scene_node: {scene_node_id}"
+    task.reference_images = (
+        json.dumps(
+            [{"label": item["label"], "url": item["url"]} for item in visible_reference_items],
+            ensure_ascii=False,
+        )
+        if visible_reference_items
+        else None
     )
+    db.commit()
 
-    # 设置角色参考图
-    if character_uploaded_filename and character_node_id:
-        node_id_str = str(character_node_id)
-        if node_id_str in submitted_workflow:
-            submitted_workflow[node_id_str]["inputs"]["image"] = (
-                character_uploaded_filename
-            )
+    uploaded_filenames = []
+    for item in reference_items:
+        if not item:
+            uploaded_filenames.append(None)
+            continue
+        upload_result = await comfyui_service.client.upload_image(item["path"])
+        if upload_result.get("success"):
+            uploaded_filenames.append(upload_result.get("filename"))
             print(
-                f"[ShotTask {task_id}] Set LoadImage node {node_id_str} to character image: {character_uploaded_filename}"
+                f"[ShotTask {task_id}] {item['label']} uploaded successfully: "
+                f"{upload_result.get('filename')}"
             )
         else:
+            uploaded_filenames.append(None)
             print(
-                f"[ShotTask {task_id}] Warning: character_reference_image_node_id '{node_id_str}' not found in workflow"
+                f"[ShotTask {task_id}] Failed to upload {item['label']}: "
+                f"{upload_result.get('message')}"
             )
 
-    # 设置场景参考图
-    if scene_uploaded_filename and scene_node_id:
-        node_id_str = str(scene_node_id)
-        if node_id_str in submitted_workflow:
-            submitted_workflow[node_id_str]["inputs"]["image"] = scene_uploaded_filename
+    for index, ref_key in enumerate(reference_node_keys):
+        node_id = node_mapping.get(ref_key)
+        node_id_str = str(node_id) if node_id else ""
+        if not node_id_str or node_id_str not in submitted_workflow:
+            continue
+        uploaded_filename = uploaded_filenames[index] if index < len(uploaded_filenames) else None
+        if uploaded_filename:
+            submitted_workflow[node_id_str]["inputs"]["image"] = uploaded_filename
             print(
-                f"[ShotTask {task_id}] Set LoadImage node {node_id_str} to scene image: {scene_uploaded_filename}"
+                f"[ShotTask {task_id}] Set <Picture {index + 1}> node "
+                f"{node_id_str} to {uploaded_filename}"
             )
         else:
-            print(
-                f"[ShotTask {task_id}] Warning: scene_reference_image_node_id '{node_id_str}' not found in workflow"
-            )
-
-    # 设置道具参考图
-    # 道具节点映射格式: custom_reference_image_node_<索引>
-    if prop_uploaded_filenames:
-        index = 1
-        for prop_name, uploaded_filename in prop_uploaded_filenames.items():
-            prop_node_id = node_mapping.get(f"custom_reference_image_node_{index}")
-            if prop_node_id:
-                node_id_str = str(prop_node_id)
-                if node_id_str in submitted_workflow:
-                    submitted_workflow[node_id_str]["inputs"]["image"] = (
-                        uploaded_filename
-                    )
-                    print(
-                        f"[ShotTask {task_id}] Set LoadImage node {node_id_str} to prop '{prop_name}' image: {uploaded_filename}"
-                    )
-                else:
-                    print(
-                        f"[ShotTask {task_id}] Warning: prop_reference_image_node_id '{node_id_str}' not found in workflow"
-                    )
-            index += 1
-
-    # 清空未设置参考图的节点（工作流中可能有默认图片，需要清除才能正确断开下游）
-    clear_unset_reference_nodes(
-        submitted_workflow,
-        node_mapping,
-        character_reference_path,
-        scene_reference_path,
-        prop_reference_paths,
-    )
-
-    # 检测并断开未上传图片的参考图节点的下游连接
-    disconnect_unuploaded_reference_nodes(submitted_workflow, node_mapping)
+            submitted_workflow[node_id_str]["inputs"]["image"] = ""
+            disconnect_reference_chain(submitted_workflow, node_id_str)
+            print(f"[ShotTask {task_id}] Disconnected unused reference node {node_id_str}")
 
     task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
     db.commit()
     print(f"[ShotTask {task_id}] Saved workflow with reference images to task")
+
+
+def _get_compact_reference_node_keys(node_mapping: dict):
+    keys = []
+    if node_mapping.get("character_reference_image_node_id"):
+        keys.append("character_reference_image_node_id")
+    if node_mapping.get("scene_reference_image_node_id"):
+        keys.append("scene_reference_image_node_id")
+    if node_mapping.get("prop_reference_image_node_id"):
+        keys.append("prop_reference_image_node_id")
+    index = 1
+    while node_mapping.get(f"custom_reference_image_node_{index}"):
+        keys.append(f"custom_reference_image_node_{index}")
+        index += 1
+    return keys
+
+
+def _get_first_custom_reference_node_key(node_mapping: dict) -> Optional[str]:
+    index = 1
+    while node_mapping.get(f"custom_reference_image_node_{index}"):
+        return f"custom_reference_image_node_{index}"
+    return None
 
 
 async def _save_generated_image(
@@ -611,6 +651,8 @@ async def _save_generated_image(
     shot_repo: ShotRepository = None,
 ):
     """下载并保存生成的图片"""
+    if _is_task_cancelled(db, task):
+        return
     task.current_step = "正在下载生成的图片..."
     task.progress = 80
     db.commit()
@@ -634,6 +676,8 @@ async def _save_generated_image(
     )
 
     if local_path:
+        if _is_task_cancelled(db, task):
+            return
         relative_path = local_path.replace(str(file_storage.base_dir), "").replace(
             "\\", "/"
         )
@@ -647,10 +691,12 @@ async def _save_generated_image(
         db.commit()
 
         # 更新 Shot 记录
-        _update_shot_image(db, chapter_id, shot_index, local_path, local_url, shot_repo)
+        _update_shot_image(db, chapter_id, shot_index, local_path, local_url, shot_repo, task_id=task.id)
 
         print(f"[ShotTask {task_id}] Completed, image saved: {local_path}")
     else:
+        if _is_task_cancelled(db, task):
+            return
         task.status = "completed"
         task.progress = 100
         task.result_url = image_url
@@ -659,7 +705,7 @@ async def _save_generated_image(
         db.commit()
 
         # 更新 Shot 记录（使用远程URL）
-        _update_shot_image(db, chapter_id, shot_index, None, image_url, shot_repo)
+        _update_shot_image(db, chapter_id, shot_index, None, image_url, shot_repo, task_id=task.id)
 
 
 def _update_shot_image(
@@ -669,6 +715,7 @@ def _update_shot_image(
     local_path: Optional[str],
     image_url: str,
     shot_repo: ShotRepository = None,
+    task_id: Optional[str] = None,
 ):
     """更新 Shot 记录中的分镜图片数据"""
     if shot_repo is None:
@@ -683,6 +730,8 @@ def _update_shot_image(
         "image_url": image_url,
         "image_status": "completed",
     }
+    if task_id:
+        update_data["image_task_id"] = task_id
     if local_path:
         update_data["image_path"] = str(local_path)
 

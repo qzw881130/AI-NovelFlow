@@ -11,8 +11,11 @@
  */
 
 import { useState, useMemo, useEffect } from 'react';
+import { Copy } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { useChapterGenerateStore } from '../stores';
+import { toast } from '../../../stores/toastStore';
+import { dialogueEmotion, dialogueText, estimateDialogueSeconds, getDialogueDurationWarning } from '../../../utils';
 import type { DialogueData } from '../types';
 import type { Shot } from '../../../api/shots';
 
@@ -37,6 +40,8 @@ interface ShotFormProps {
   showVideoDescription?: boolean;
   /** 是否显示时长编辑（默认 false） */
   showDuration?: boolean;
+  /** 保存快捷键回调 */
+  onSave?: () => void | Promise<void>;
 }
 
 export function ShotForm({
@@ -50,6 +55,7 @@ export function ShotForm({
   showDialogues = true,
   showVideoDescription = false,
   showDuration = false,
+  onSave,
 }: ShotFormProps) {
   const { t } = useTranslation();
   const currentShotIndex = useChapterGenerateStore((state) => state.currentShotIndex);
@@ -60,15 +66,23 @@ export function ShotForm({
   const chapterCharacters = useChapterGenerateStore((state) => state.chapterCharacters);
   const chapterScenes = useChapterGenerateStore((state) => state.chapterScenes);
   const chapterProps = useChapterGenerateStore((state) => state.chapterProps);
+  const libraryCharacters = useChapterGenerateStore((state) => state.characters);
+  const libraryScenes = useChapterGenerateStore((state) => state.scenes);
+  const libraryProps = useChapterGenerateStore((state) => state.props);
 
   // 优先使用 props 中的 shotIndex 和 shotData，否则从 store 获取
   const shotIndex = propShotIndex || currentShotIndex;
   const shotData = propShotData || storeShots[shotIndex - 1];
 
-  // 可用资源：优先使用 props，其次使用章节级资源
-  const availableCharacters = propAvailableCharacters || chapterCharacters;
-  const availableScenes = propAvailableScenes || chapterScenes;
-  const availableProps = propAvailableProps || chapterProps;
+  const mergeNames = (primary: string[], library: any[]) => {
+    const names = library.map((item) => item?.name).filter(Boolean);
+    return Array.from(new Set([...primary, ...names]));
+  };
+
+  // 可用资源：章节资源 + 小说资源库，避免手动创建的资源无法在分镜里选择。
+  const availableCharacters = propAvailableCharacters || mergeNames(chapterCharacters, libraryCharacters);
+  const availableScenes = propAvailableScenes || mergeNames(chapterScenes, libraryScenes);
+  const availableProps = propAvailableProps || mergeNames(chapterProps, libraryProps);
 
   // 本地状态
   const [description, setDescription] = useState(shotData?.description || '');
@@ -77,6 +91,7 @@ export function ShotForm({
   const [selectedScene, setSelectedScene] = useState(shotData?.scene || '');
   const [selectedProps, setSelectedProps] = useState<string[]>(shotData?.props || []);
   const [duration, setDuration] = useState(shotData?.duration || 5);
+  const [continuityMode, setContinuityMode] = useState(shotData?.continuity_mode || 'NORMAL');
   const [dialogues, setDialogues] = useState<DialogueData[]>(shotData?.dialogues || []);
 
   // 当 shotIndex 或 shotData 变化时，同步本地状态
@@ -88,6 +103,7 @@ export function ShotForm({
       setSelectedScene(shotData.scene || '');
       setSelectedProps(shotData.props || []);
       setDuration(shotData.duration || 5);
+      setContinuityMode(shotData.continuity_mode || 'NORMAL');
       setDialogues(shotData.dialogues || []);
     }
   }, [shotIndex, shotData]);
@@ -130,6 +146,7 @@ export function ShotForm({
       scene: selectedScene,
       props: selectedProps,
       duration,
+      continuity_mode: continuityMode,
       dialogues,
     };
     onChange?.(newShotData);
@@ -148,6 +165,7 @@ export function ShotForm({
               scene: selectedScene,
               props: selectedProps,
               duration,
+              continuity_mode: continuityMode,
               dialogues,
             }
           : shot
@@ -160,7 +178,7 @@ export function ShotForm({
   useEffect(() => {
     handleChange();
     syncToStore();
-  }, [description, videoDescription, selectedCharacters, selectedScene, selectedProps, duration, dialogues]);
+  }, [description, videoDescription, selectedCharacters, selectedScene, selectedProps, duration, continuityMode, dialogues]);
 
   // 处理角色选择切换
   const toggleCharacter = (charName: string) => {
@@ -209,64 +227,117 @@ export function ShotForm({
     setDialogues(newDialogues);
   };
 
+  const copyText = async (content: string) => {
+    if (!content) return;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = content;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      toast.success(t('common.copied'));
+    } catch (error) {
+      console.error('复制分镜文本失败:', error);
+      toast.error(t('common.copyFailed'));
+    }
+  };
+
   // 台词编辑区域展开/收起状态
   const [dialoguesExpanded, setDialoguesExpanded] = useState(false);
 
+  useEffect(() => {
+    if (!onSave) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        onSave();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onSave]);
+
+  const dialogueDurationTotal = dialogues.reduce((total, dialogue) => (
+    total + estimateDialogueSeconds(dialogueText(dialogue), dialogueEmotion(dialogue))
+  ), 0);
+  const dialogueWarning = getDialogueDurationWarning(duration, dialogueDurationTotal);
+
   return (
-    <div className="space-y-4">
+    <div className="shot-form space-y-4">
       {/* 分镜描述 */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          {t('chapterGenerate.shotDescForImage')}
-        </label>
+      <div className="shot-description-field">
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium text-gray-700">
+            {t('chapterGenerate.shotDescForImage')}
+          </label>
+          <button
+            type="button"
+            onClick={() => copyText(description)}
+            disabled={!description}
+            className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            title={t('common.copy')}
+            aria-label={t('common.copy')}
+          >
+            <Copy className="h-4 w-4" />
+          </button>
+        </div>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           disabled={readOnly}
-          rows={6}
-          className="input-field"
+          rows={4}
+          className="shot-description-textarea input-field"
           placeholder={t('chapterGenerate.shotDescPlaceholder')}
         />
-        <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 flex-wrap">
-          <span>{t('chapterGenerate.placeholderHint')}</span>
-          <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderStyle')}</span>
-          <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderScene')}</span>
-          <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderCharacters')}</span>
-          <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderProps')}</span>
-        </div>
       </div>
 
       {/* 视频描述 */}
       {showVideoDescription && (
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t('chapterGenerate.videoDescForVideo')}
-          </label>
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              {t('chapterGenerate.videoDescForVideo')}
+            </label>
+            <button
+              type="button"
+              onClick={() => copyText(videoDescription)}
+              disabled={!videoDescription}
+              className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50 disabled:opacity-40 disabled:cursor-not-allowed"
+              title={t('common.copy')}
+              aria-label={t('common.copy')}
+            >
+              <Copy className="h-4 w-4" />
+            </button>
+          </div>
           <textarea
             value={videoDescription}
             onChange={(e) => setVideoDescription(e.target.value)}
             disabled={readOnly}
-            rows={6}
+            rows={4}
             className="input-field"
             placeholder={t('chapterGenerate.videoDescPlaceholder')}
           />
-          <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 flex-wrap">
-            <span>{t('chapterGenerate.placeholderHint')}</span>
-            <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderStyle')}</span>
-            <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderScene')}</span>
-            <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderCharacters')}</span>
-            <span className="px-1.5 py-0.5 bg-gray-100 rounded">{t('chapterGenerate.placeholderProps')}</span>
-          </div>
         </div>
       )}
 
+      <div className={showDialogues ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 items-start' : 'space-y-4'}>
+      <div className="space-y-4 min-w-0">
       {/* 角色选择 */}
-      <div>
+      <div className="min-w-0">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {t('chapterGenerate.appearingCharacters')}
         </label>
-        {selectedCharacters.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
+        <div className="min-h-7 mb-2 flex flex-wrap gap-1 items-start">
+          {selectedCharacters.length > 0 && (
+            <>
             {selectedCharacters.map((charName) => (
               <span
                 key={charName}
@@ -281,8 +352,9 @@ export function ShotForm({
                 </button>
               </span>
             ))}
-          </div>
-        )}
+            </>
+          )}
+        </div>
         <button
           onClick={() => setCharacterExpanded(!characterExpanded)}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 flex items-center justify-between mb-2 input-field"
@@ -326,12 +398,12 @@ export function ShotForm({
       </div>
 
       {/* 场景选择 */}
-      <div>
+      <div className="min-w-0">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {t('chapterGenerate.scene')}
         </label>
-        {selectedScene && (
-          <div className="mb-2">
+        <div className="min-h-7 mb-2 flex flex-wrap gap-1 items-start">
+          {selectedScene && (
             <span className="inline-flex items-center px-2 py-1 bg-green-100 text-green-700 rounded text-xs">
               {selectedScene}
               <button
@@ -341,8 +413,8 @@ export function ShotForm({
                 ×
               </button>
             </span>
-          </div>
-        )}
+          )}
+        </div>
         <button
           onClick={() => setSceneExpanded(!sceneExpanded)}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 flex items-center justify-between mb-2 input-field"
@@ -387,12 +459,13 @@ export function ShotForm({
       </div>
 
       {/* 道具选择 */}
-      <div>
+      <div className="min-w-0">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {t('chapterGenerate.props')}
         </label>
-        {selectedProps.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-2">
+        <div className="min-h-7 mb-2 flex flex-wrap gap-1 items-start">
+          {selectedProps.length > 0 && (
+            <>
             {selectedProps.map((propName) => (
               <span
                 key={propName}
@@ -407,8 +480,9 @@ export function ShotForm({
                 </button>
               </span>
             ))}
-          </div>
-        )}
+            </>
+          )}
+        </div>
         <button
           onClick={() => setPropExpanded(!propExpanded)}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-600 hover:bg-gray-50 flex items-center justify-between mb-2 input-field"
@@ -453,28 +527,55 @@ export function ShotForm({
 
       {/* 时长设置 */}
       {showDuration && (
-        <div>
+        <div className="min-w-0">
           <label className="block text-sm font-medium text-gray-700 mb-2">
             {t('chapterGenerate.durationLabel')}
           </label>
           <input
             type="number"
             value={duration}
-            onChange={(e) => setDuration(Math.min(60, Math.max(1, parseInt(e.target.value) || 5)))}
+            onChange={(e) => setDuration(Math.min(180, Math.max(1, parseInt(e.target.value) || 5)))}
             disabled={readOnly}
             min={1}
-            max={60}
+            max={180}
             className="input-field"
           />
-          <p className="text-xs text-gray-500 mt-1">{t('common.recommended')} 3-10 {t('common.second')}，{t('common.max')} 60 {t('common.second')}</p>
+          <p className="text-xs text-gray-500 mt-1">{t('common.recommended')} 3-10 {t('common.second')}，{t('common.max')} 180 {t('common.second')}</p>
         </div>
       )}
+
+      {showDuration && (
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            镜头连续性
+          </label>
+          <select
+            value={continuityMode}
+            onChange={(e) => setContinuityMode(e.target.value)}
+            disabled={readOnly}
+            className="input-field"
+          >
+            <option value="NORMAL">普通镜头（允许切镜）</option>
+            <option value="CONTINUOUS_TAKE">一镜到底（禁止切镜）</option>
+          </select>
+          <p className="text-xs text-gray-500 mt-1">Shot 级剪辑方式约束，不是 Single / First-Last / Multi-Keyframe 生成模式。</p>
+        </div>
+      )}
+      </div>
 
       {/* 角色台词 */}
       {showDialogues && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-gray-700">{t('chapterGenerate.dialogues')}</label>
+            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+              <span>{t('chapterGenerate.dialogues')}</span>
+              {dialogues.length > 0 && (
+                <span className={`rounded-full border px-2 py-0.5 text-xs font-normal ${dialogueWarning.style.className}`}>
+                  {dialogueWarning.style.label} · 最低 {dialogueDurationTotal.toFixed(2)}s / 当前 {dialogueWarning.duration.toFixed(0)}s
+                  {dialogueWarning.level !== 'normal' && ` · 建议至少 ${dialogueWarning.suggestedDuration}s`}
+                </span>
+              )}
+            </label>
             <button
               onClick={() => setDialoguesExpanded(!dialoguesExpanded)}
               className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1"
@@ -493,6 +594,9 @@ export function ShotForm({
                 <div key={idx} className="text-xs p-2 bg-gray-50 rounded border border-gray-200 flex items-start gap-2">
                   <span className="font-medium text-blue-600">{d.character_name || t('chapterGenerate.selectCharacter')}</span>
                   <span className="text-gray-600 flex-1">{d.text}</span>
+                  <span className="text-gray-500 whitespace-nowrap">
+                    最低所需 {estimateDialogueSeconds(dialogueText(d), dialogueEmotion(d)).toFixed(2)}s
+                  </span>
                 </div>
               ))}
             </div>
@@ -504,7 +608,12 @@ export function ShotForm({
               {dialogues.map((dialogue, idx) => (
                 <div key={idx} className="border border-gray-200 rounded-lg p-3 space-y-2 bg-gray-50">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-gray-500">{t('chapterGenerate.dialogues')} {idx + 1}</span>
+                    <span className="text-xs font-medium text-gray-500">
+                      {t('chapterGenerate.dialogues')} {idx + 1}
+                      <span className="ml-2 font-normal">
+                        最低所需 {estimateDialogueSeconds(dialogueText(dialogue), dialogueEmotion(dialogue)).toFixed(2)}s
+                      </span>
+                    </span>
                     <button
                       onClick={() => removeDialogue(idx)}
                       className="text-xs text-red-600 hover:text-red-800"
@@ -571,6 +680,7 @@ export function ShotForm({
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

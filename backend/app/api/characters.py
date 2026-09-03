@@ -1,6 +1,10 @@
 """
 角色路由 - 角色 CRUD 和图像生成相关接口
 """
+import json
+from pathlib import Path
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.orm import Session
 
@@ -11,9 +15,11 @@ from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import build_character_prompt, get_style
 from app.services.character_service import CharacterService
-from app.repositories import NovelRepository, CharacterRepository, PromptTemplateRepository, TaskRepository
-from app.schemas.character import CharacterCreate, CharacterUpdate
+from app.repositories import NovelRepository, CharacterRepository, PromptTemplateRepository, TaskRepository, WorkflowRepository
+from app.models.task import Task
+from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterImageEditRequest, CharacterImageReplaceRequest
 from app.api.deps import get_novel_repo, get_character_repo, get_prompt_template_repo, get_llm_service, get_task_repo
+from app.utils.path_utils import url_to_local_path
 
 router = APIRouter()
 settings = get_settings()
@@ -24,7 +30,8 @@ comfyui_service = ComfyUIService()
 async def list_characters(
     novel_id: str = None, 
     novel_repo: NovelRepository = Depends(get_novel_repo), 
-    character_repo: CharacterRepository = Depends(get_character_repo)
+    character_repo: CharacterRepository = Depends(get_character_repo),
+    task_repo: TaskRepository = Depends(get_task_repo),
 ):
     """获取角色列表"""
     if novel_id:
@@ -41,7 +48,14 @@ async def list_characters(
             novels_map[nid] = novel
     
     result = []
+    fixed_stale_status = False
     for c in characters:
+        if c.generating_status == "running" and c.portrait_task_id:
+            task = task_repo.get_by_id(c.portrait_task_id)
+            if not task or task.status not in ["pending", "running"]:
+                c.generating_status = "completed" if c.image_url and task and task.status == "completed" else "failed"
+                fixed_stale_status = True
+
         novel = novels_map.get(c.novel_id)
         result.append({
             "id": c.id,
@@ -64,8 +78,21 @@ async def list_characters(
             "createdAt": format_datetime(c.created_at),
             "updatedAt": format_datetime(c.updated_at),
         })
+
+    if fixed_stale_status:
+        character_repo.db.commit()
     
     return {"success": True, "data": result}
+
+
+@router.post("/generate-missing-portraits", response_model=dict)
+async def generate_missing_character_portraits(
+    novel_id: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Queue portrait tasks for characters without images or with failed generation."""
+    character_service = CharacterService(db)
+    return character_service.create_missing_character_portrait_tasks(novel_id)
 
 
 @router.get("/{character_id}", response_model=dict)
@@ -394,6 +421,149 @@ async def upload_character_image(
         raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
 
 
+@router.post("/{character_id}/edit-image", response_model=dict)
+async def edit_character_image(
+    character_id: str,
+    data: CharacterImageEditRequest,
+    db: Session = Depends(get_db),
+    character_repo: CharacterRepository = Depends(get_character_repo),
+):
+    """使用当前激活的单图编辑工作流编辑角色图片。"""
+    character = character_repo.get_by_id(character_id)
+    if not character:
+        raise HTTPException(status_code=404, detail="角色不存在")
+    if not character.image_url:
+        raise HTTPException(status_code=400, detail="角色暂无图片，无法编辑")
+
+    image_path = url_to_local_path(character.image_url)
+    if not image_path:
+        raise HTTPException(status_code=400, detail="角色图片文件不存在或不是本地图片")
+
+    workflow = WorkflowRepository(db).get_active_by_type("single_image_edit")
+    if not workflow:
+        raise HTTPException(status_code=400, detail="未配置单图编辑工作流")
+
+    try:
+        node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
+    except Exception:
+        node_mapping = {}
+
+    missing_fields = [
+        field for field in ["load_image_node_id", "prompt_node_id", "save_image_node_id"]
+        if not node_mapping.get(field)
+    ]
+    if missing_fields:
+        raise HTTPException(status_code=400, detail=f"单图编辑工作流节点映射不完整: {', '.join(missing_fields)}")
+
+    task_repo = TaskRepository(db)
+    task = task_repo.create(Task(
+        type="single_image_edit",
+        name=f"编辑角色图片: {character.name}",
+        description=f"为角色 '{character.name}' 编辑图片",
+        novel_id=character.novel_id,
+        character_id=character.id,
+        status="running",
+        progress=10,
+        current_step="提交 ComfyUI 单图编辑任务",
+        workflow_id=workflow.id,
+        workflow_name=workflow.name,
+        prompt_text=data.prompt,
+        reference_images=json.dumps([{"label": "原图", "url": character.image_url}], ensure_ascii=False),
+        started_at=datetime.now(timezone.utc),
+    ))
+
+    def on_prompt_queued(prompt_id: str, submitted_workflow: dict):
+        task.comfyui_prompt_id = prompt_id
+        task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False)
+        task.progress = 30
+        task.current_step = "ComfyUI 正在编辑图片"
+        db.commit()
+
+    result = await comfyui_service.edit_image_with_workflow(
+        image_path=image_path,
+        prompt=data.prompt,
+        workflow_json=workflow.workflow_json,
+        node_mapping=node_mapping,
+        on_prompt_queued=on_prompt_queued,
+    )
+    if not result.get("success") or not result.get("image_url"):
+        task.status = "failed"
+        task.progress = 100
+        task.current_step = "编辑失败"
+        task.error_message = result.get("message", "编辑图片失败")
+        task.completed_at = datetime.now(timezone.utc)
+        db.commit()
+        raise HTTPException(status_code=500, detail=result.get("message", "编辑图片失败"))
+
+    task.progress = 80
+    task.current_step = "保存编辑结果"
+    db.commit()
+
+    local_path = await file_storage.download_image(
+        result["image_url"],
+        character.novel_id,
+        f"{character.name}_edit",
+        image_type="character_edit",
+    )
+    if not local_path:
+        task.status = "failed"
+        task.progress = 100
+        task.current_step = "保存失败"
+        task.error_message = "保存编辑结果失败"
+        task.completed_at = datetime.now(timezone.utc)
+        db.commit()
+        raise HTTPException(status_code=500, detail="保存编辑结果失败")
+
+    relative_path = Path(local_path).relative_to(file_storage.base_dir)
+    relative_url = str(relative_path).replace("\\", "/")
+    image_url = f"/api/files/{relative_url}"
+    task.status = "completed"
+    task.progress = 100
+    task.current_step = "编辑完成"
+    task.result_url = image_url
+    task.completed_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"success": True, "data": {"imageUrl": image_url, "taskId": task.id}, "message": "图片编辑成功"}
+
+
+@router.post("/{character_id}/replace-image", response_model=dict)
+async def replace_character_image(
+    character_id: str,
+    data: CharacterImageReplaceRequest,
+    character_repo: CharacterRepository = Depends(get_character_repo),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+):
+    """用编辑结果替换角色图片。"""
+    character = character_repo.get_by_id(character_id)
+    if not character:
+        raise HTTPException(status_code=404, detail="角色不存在")
+
+    if not url_to_local_path(data.image_url):
+        raise HTTPException(status_code=400, detail="图片文件不存在或不是本地图片")
+
+    character_repo.update_image(character, data.image_url)
+    novel = novel_repo.get_by_id(character.novel_id)
+
+    return {
+        "success": True,
+        "data": {
+            "id": character.id,
+            "novelId": character.novel_id,
+            "name": character.name,
+            "description": character.description,
+            "appearance": character.appearance,
+            "voicePrompt": character.voice_prompt,
+            "referenceAudioUrl": character.reference_audio_url,
+            "imageUrl": character.image_url,
+            "generatingStatus": character.generating_status,
+            "portraitTaskId": character.portrait_task_id,
+            "novelName": novel.title if novel else None,
+            "updatedAt": format_datetime(character.updated_at),
+        },
+        "message": "角色图片已替换",
+    }
+
+
 @router.post("/{character_id}/upload-audio", response_model=dict)
 async def upload_character_audio(
     character_id: str,
@@ -530,4 +700,3 @@ async def get_voice_generation_status(
             "referenceAudioUrl": character.reference_audio_url
         }
     }
-

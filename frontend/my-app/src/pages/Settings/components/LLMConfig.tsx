@@ -293,6 +293,32 @@ export default function LLMConfig({ formData, onFormDataChange, onUserModified }
           {t('systemSettings.temperatureDesc')}
         </p>
       </div>
+
+      {/* 请求超时配置 */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          {t('systemSettings.timeout')}
+        </label>
+        <select
+          value={formData.llmTimeout ?? 1800}
+          onChange={(e) => {
+            onUserModified();
+            onFormDataChange({ ...formData, llmTimeout: parseInt(e.target.value, 10) });
+          }}
+          className="input-field"
+        >
+          <option value={120}>2 {t('systemSettings.timeoutUnit')}</option>
+          <option value={180}>3 {t('systemSettings.timeoutUnit')}</option>
+          <option value={300}>5 {t('systemSettings.timeoutUnit')}</option>
+          <option value={600}>10 {t('systemSettings.timeoutUnit')}</option>
+          <option value={900}>15 {t('systemSettings.timeoutUnit')}</option>
+          <option value={1800}>30 {t('systemSettings.timeoutUnit')}</option>
+          <option value={3600}>60 {t('systemSettings.timeoutUnit')}</option>
+        </select>
+        <p className="mt-1 text-xs text-gray-500">
+          {t('systemSettings.timeoutDesc')}
+        </p>
+      </div>
     </div>
   );
 }

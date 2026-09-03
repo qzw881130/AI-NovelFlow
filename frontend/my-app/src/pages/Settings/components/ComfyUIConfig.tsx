@@ -109,6 +109,24 @@ export default function ComfyUIConfig({ formData, onFormDataChange, onUserModifi
           </div>
         )}
       </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          ComfyUI 超时时间
+        </label>
+        <select
+          value={formData.comfyUITimeout || 900}
+          onChange={(e) => { onUserModified(); onFormDataChange({ ...formData, comfyUITimeout: Number(e.target.value) }); }}
+          className="input-field max-w-xs"
+        >
+          <option value={900}>15 分钟</option>
+          <option value={1200}>20 分钟</option>
+          <option value={1800}>30 分钟</option>
+        </select>
+        <p className="mt-1 text-xs text-gray-500">
+          用于视频等长任务完成后，等待后端保存结果的超时阈值。
+        </p>
+      </div>
     </div>
   );
 }

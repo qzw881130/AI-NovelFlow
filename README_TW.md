@@ -35,7 +35,7 @@ NovelFlow 是一個將小說自動轉換為視訊的 AI 平台。
 8. **編輯章節 / AI拆分分鏡** - 編輯章節內容，AI自動拆分為分鏡
 9. **生成分鏡圖片** - 根據分鏡描述生成場景圖片
 10. **生成音訊** - 為分鏡生成配音/音效（可選）
-11. **生成視訊** - 生成分鏡視訊、轉場視訊並合併為完整視訊
+11. **生成視訊** - 使用 Video Director 生成單幀、首尾幀或多關鍵幀分鏡視訊，並合併為完整視訊
 
 **主要特性：**
 - 支持章回體小說解析
@@ -68,7 +68,7 @@ NovelFlow 是一個將小說自動轉換為視訊的 AI 平台。
 - **狀態管理**: Zustand（全局狀態 + 國際化/時區狀態）
 - **後端**: FastAPI + SQLAlchemy + SQLite
 - **AI**: DeepSeek API / OpenAI API / Gemini API + ComfyUI
-- **視訊生成**: LTX-2 視訊生成模型
+- **視訊生成**: MiniMax H3 圖生視訊、首尾幀視訊、多關鍵幀視訊
 - **國際化**: 自定義 i18n 實現（5 語言支持）
 
 ## 主要功能
@@ -76,9 +76,9 @@ NovelFlow 是一個將小說自動轉換為視訊的 AI 平台。
 - **小說管理**: 支持新建、編輯、刪除小說，自動章回體解析
 - **角色庫**: AI 自動解析角色，支持角色形象生成和一致性保持
 - **場景庫**: AI 自動解析場景，支持場景參考圖生成和環境設定
-- **分鏡生成**: AI 自動拆分章節為分鏡，支持批量生成圖片和視訊
-- **轉場視訊**: 支持生成鏡頭轉場、光線轉場、遮擋轉場視訊
-- **視訊合成**: 支持將分鏡視訊合併為完整章節視訊，自動插入轉場
+- **分鏡生成**: AI 自動拆分章節為分鏡，支持批量生成圖片、結構化編輯和狀態恢復
+- **Video Director**: 支持單幀、首尾幀、三關鍵幀、四關鍵幀視訊規劃，保留每次 AI 調用結果和最終 Prompt
+- **視訊合成**: 支持將分鏡視訊和多 Clip 片段合併為完整章節視訊
 - **工作流管理**: 支持自定義 ComfyUI 工作流，節點映射配置
 - **任務隊列**: 後台異步任務處理，支持任務狀態實時監控
 - **預設測試用例**: 內置《小馬過河》《小紅帽》《皇帝的新裝》等測試用例
@@ -101,8 +101,8 @@ AI-NovelFlow/
 │   ├── migrations/      # 數據庫遷移腳本
 │   ├── prompt_templates/ # 提示詞模板文件
 │   ├── workflows/       # ComfyUI 工作流配置
-│   ├── user_story/      # 生成的圖片/視訊存儲目錄
 │   ├── user_workflows/  # 用戶自定義工作流
+│   ├── user_story/      # 生成的圖片/視訊存儲目錄
 │   └── main.py
 ├── frontend/            # React 前端
 │   └── my-app/
@@ -117,6 +117,7 @@ AI-NovelFlow/
 │   ├── gpu_monitor.py   # GPU 監控服務
 │   ├── requirements.txt # 依賴
 │   └── start.bat        # Windows 啟動腳本
+├── debug/workflows/     # 調試用工作流樣例，不作為系統預設載入
 └── README.md
 ```
 
@@ -166,8 +167,12 @@ npm run dev
   - 人設生成: 提示詞節點 + 圖片保存節點
   - 場景生成: 提示詞節點 + 圖片保存節點 + 寬高節點
   - 分鏡生圖: 提示詞節點 + 圖片保存節點 + 寬高節點
-  - 分鏡生視訊: 提示詞節點 + 視訊保存節點 + 參考圖節點
-  - 轉場視訊: 首幀圖節點 + 尾幀圖節點 + 視訊保存節點
+  - 單幀生視訊: 提示詞節點 + 視訊保存節點 + 參考圖節點 + 時長節點
+  - 首尾幀生視訊: 提示詞節點 + 首幀圖節點 + 尾幀圖節點 + 視訊保存節點 + 時長節點
+  - 三/四關鍵幀生視訊: 提示詞節點 + 起始參考圖節點 + 關鍵幀節點 + 視訊保存節點 + 時長節點
+  - 關鍵幀生圖: 提示詞節點 + 圖片保存節點 + 參考圖節點
+
+系統工作流位於 `backend/workflows/`，應用啟動時按 `backend/app/constants/workflow.py` 註冊和選擇預設工作流。`backend/user_workflows/` 存放用戶上傳工作流。`debug/workflows/MiniMax H3/` 僅用於調試和工作流對照，不作為系統預設工作流載入。
 
 #### 2.1 模型文件
 
@@ -175,24 +180,29 @@ npm run dev
 
 | 模型文件名 | 類型 | 主要用途 | 出現的工作流 | 建議目錄 |
 |-----------|------|---------|-------------|---------|
-| `ltx-2-19b-dev-fp8.safetensors` | checkpoint / 主模型 | LTX2 轉場（遮擋/光線/鏡頭）視訊生成 | LTX2 遮擋轉場視訊 / 光線轉場視訊 / 鏡頭轉場視訊 | `models/checkpoints/` |
-| `ltx-2-19b-distilled-fp8.safetensors` | checkpoint / 主模型 | LTX2 視訊生成（直接版/擴寫版） | LTX2 視訊生成-直接版 / 擴寫版 | `models/checkpoints/` |
-| `gemma_3_12B_it_fp8_e4m3fn.safetensors` | text encoder (LTX 文本編碼器) | LTX2 文本編碼 | 所有 LTX2 類工作流都會用（轉場/視訊生成） | `models/text_encoders/` |
-| `ltx-2-19b-distilled-lora-384.safetensors` | LoRA | LTX2 蒸餾 LoRA（提升/匹配蒸餾流程） | 主要在轉場類工作流出現 | `models/loras/` |
-| `ltx-2-19b-lora-camera-control-dolly-left.safetensors` | LoRA | LTX2 鏡頭控制 (dolly-left) | 主要在轉場類工作流出現 | `models/loras/` |
-| `ltx-2-spatial-upscaler-x2-1.0.safetensors` | upscale model (latent upscaler) | LTX2 latent 空間放大 x2 | 主要在轉場類工作流出現 | `models/upscale_models/` |
+| `minimax_h3_ref2va_bf16.safetensors` | diffusion model | MiniMax H3 參考圖生視訊主模型 | 單幀、首尾幀、三關鍵幀、四關鍵幀視訊工作流 | `models/diffusion_models/` |
+| `qwen3vl_32b_minimax_h3_int8_convrot.safetensors` | text encoder | MiniMax H3 文本/視覺編碼 | MiniMax H3 視訊工作流 | `models/text_encoders/` |
+| `minimax_h3_video_vae_fp16.safetensors` | video VAE | MiniMax H3 視訊 VAE | MiniMax H3 視訊工作流 | `models/vae/` |
+| `minimax_h3_audio_vae_fp32.safetensors` | audio VAE | MiniMax H3 音訊 VAE | MiniMax H3 視訊工作流 | `models/vae/` |
+| `minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors` | LoRA | MiniMax H3 加速 LoRA | MiniMax H3 加速工作流 | `models/loras/` |
 | `ae.safetensors` | VAE / AE | 在 Z-image-turbo 及部分預設人設流程裡作為 VAE/AE | Z-image-turbo 單圖生成 / 系統預設-人設生成 | `models/vae/` |
-| `flux-2-klein-9b.safetensors` | UNet | Flux2-Klein 分鏡生圖 UNet | Flux2-Klein-9B 分鏡生圖 / 系統預設-人設生成 | `models/unet/` |
-| `flux2-vae.safetensors` | VAE | Flux2 的 VAE | Flux2-Klein-9B 分鏡生圖 / 系統預設-人設生成 | `models/vae/` |
-| `qwen_3_8b.safetensors` | text encoder | Flux2 文本編碼 | Flux2-Klein-9B 分鏡生圖 / 系統預設-人設生成 | `models/clip/` |
+| `flux-2-klein-9b.safetensors` | UNet | Flux2-Klein 圖像編輯/分鏡生圖 UNet | 分鏡圖、關鍵幀圖、人設預設流程 | `models/unet/` |
+| `flux2-vae.safetensors` | VAE | Flux2 的 VAE | Flux2-Klein 圖像編輯/分鏡生圖工作流 | `models/vae/` |
+| `qwen_3_8b.safetensors` / `qwen_3_8b_fp8mixed.safetensors` | text encoder | Flux2 文本編碼 | Flux2-Klein 圖像編輯/分鏡生圖工作流 | `models/clip/` |
+| `qwen_image_edit_2511_fp8mixed.safetensors` | diffusion model | Qwen-Edit-2511 圖像編輯 | Qwen-Edit-2511 分鏡參考圖工作流 | `models/diffusion_models/` |
+| `Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors` | LoRA | Qwen-Edit-2511 4 步加速 | Qwen-Edit-2511 分鏡參考圖工作流 | `models/loras/` |
+| `qwen_image_vae.safetensors` | VAE | Qwen Image VAE | Qwen-Edit-2511 分鏡參考圖工作流 | `models/vae/` |
+| `qwen_2.5_vl_7b_fp8_scaled.safetensors` | text encoder | Qwen-Edit-2511 文本/視覺編碼 | Qwen-Edit-2511 分鏡參考圖工作流 | `models/clip/` |
 | `z_image_turbo_bf16.safetensors` | UNet | Z-image-turbo 單圖生成 UNet | Z-image-turbo 單圖生成 / 系統預設-人設生成 | `models/unet/` |
 | `qwen_3_4b.safetensors` | text encoder | Z-image-turbo 文本編碼 | Z-image-turbo 單圖生成 / 系統預設-人設生成 | `models/clip/` |
+| `Qwen3.8-27B-Q4_K_M.gguf` / `mmproj-F16.gguf` | LLM / projector | 調試工作流中的本地 LLM Prompt 擴寫 | `debug/workflows/MiniMax H3/` LLM 調試工作流 | `models/LLM/` |
 
 #### 2.2 第三方節點包
 
 | 第三方節點包 | GitHub 倉庫 | 工作流中命中的節點 class_type |
 |-------------|------------|------------------------------|
-| **LTXVideo / LTXV** | [Lightricks/ComfyUI-LTXVideo](https://github.com/Lightricks/ComfyUI-LTXVideo) | `LTXAVTextEncoderLoader`, `LTXVScheduler`, `LTXV*`, `LTXAV*`, `Painter*` |
+| **MiniMax H3** | ComfyUI MiniMax H3 節點 | `MiniMaxH3ReferenceToVideo`, `MiniMaxH3SigmaShift`, `MiniMaxH3MemoryEfficientSageAttentionPatch`, `MiniMaxH3PromptEnhancerT8` |
+| **Flux2 / Qwen Image Edit** | 對應 Flux2、Qwen-Edit ComfyUI 節點 | `Flux2Scheduler`, `EmptyFlux2LatentImage`, `TextEncodeQwenImageEditPlusAdvance_lrzjason` |
 | **VideoHelperSuite / VHS** | [Kosinkadink/ComfyUI-VideoHelperSuite](https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite) | `VHS_VideoCombine` |
 | **Easy-Use** | [yolain/ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) | `easy int`, `easy cleanGpuUsed`, `easy showAnything` |
 | **LayerStyle / LayerUtility** | [chflame163/ComfyUI_LayerStyle](https://github.com/chflame163/ComfyUI_LayerStyle) | `LayerUtility: ImageScaleByAspectRatio V2` |
@@ -267,7 +277,9 @@ start.bat
 - [x] 預設測試用例
 - [x] 多語言支持（中/英/日/韓/繁中）
 - [x] 時區支持
-- [x] 視訊合成功能（支持分鏡視訊合併、轉場視訊插入）
+- [x] Video Director（支持單幀、首尾幀、三/四關鍵幀、多 Clip 串行生成）
+- [x] 持久化分鏡圖批量隊列（支持服務重啟恢復和批量取消）
+- [x] 視訊合成功能（支持分鏡視訊、多 Clip 片段合併）
 
 ## 使用說明
 
@@ -291,14 +303,17 @@ start.bat
 - 進入【章節編輯】頁面編輯章節內容，且編輯時支援增量更新解析角色、場景和道具
 
 ### 5. 生成分鏡圖片
-- 點擊【生成全部分鏡圖】
+- 點擊【生成全部分鏡圖】創建持久化批量任務
+- 可選擇只生成待生成分鏡，或復用已有 AI 提示詞跳過 LLM
 
 ### 6. 生成音訊（可選）
 - 點擊【生成全部音訊】為分鏡生成配音/音效
 
 ### 7. 生成視訊
-- 點擊【生成全部分鏡視訊】生成分鏡視訊
-- 點擊【生成全部轉場視訊】生成轉場過渡視訊（可選）
+- 在【視訊生成】中使用 Video Director 規劃視訊模式
+- 單幀模式復用主分鏡圖生成視訊
+- 首尾幀模式復用主分鏡圖作為 START，並先生成 END 關鍵幀圖
+- 多關鍵幀模式按最大片段時長拆分 execution windows，每個 Clip 使用 3 或 4 個關鍵幀串行生成
 - 點擊【合併視訊】將所有片段合成為完整視訊
 
 ## 貢獻指南

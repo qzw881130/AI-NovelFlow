@@ -8,7 +8,7 @@ import os
 import re
 import time
 from typing import Dict, Any, Optional, List
-from ..base import BaseLLMProvider, LLMConfig, LLMResponse, save_llm_log
+from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
 
 
 class OllamaProvider(BaseLLMProvider):
@@ -80,6 +80,7 @@ class OllamaProvider(BaseLLMProvider):
         max_tokens: int = 4000,
         response_format: Optional[str] = None,
         task_type: str = None,
+        prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
         character_id: str = None
@@ -115,16 +116,41 @@ class OllamaProvider(BaseLLMProvider):
         old_https_proxy_lower = os.environ.pop('https_proxy', None)
 
         transport = httpx.AsyncHTTPTransport(proxy=None)
-        client = httpx.AsyncClient(transport=transport, timeout=300.0)
         used_proxy = False
+        timeout = self.config.timeout or 300.0
+        client = httpx.AsyncClient(transport=transport, timeout=timeout)
+        request_info = build_llm_request_info(
+            provider=self.config.provider,
+            base_url=self.config.api_url,
+            endpoint=endpoint,
+            model=self.config.model,
+            headers=headers,
+            payload=body,
+            proxy_url=None,
+            timeout_seconds=timeout,
+        )
 
+        log_id = None
         try:
             async with client:
+                log_id = create_llm_log(
+                    provider=self.config.provider,
+                    model=self.config.model,
+                    system_prompt=system_prompt,
+                    user_prompt=user_content,
+                    prompt_template_name=prompt_template_name,
+                    task_type=task_type,
+                    novel_id=novel_id,
+                    chapter_id=chapter_id,
+                    character_id=character_id,
+                    used_proxy=used_proxy,
+                    request_info=request_info,
+                )
                 response = await client.post(
                     endpoint,
                     headers=headers,
                     json=body,
-                    timeout=300.0
+                    timeout=timeout
                 )
 
             # 恢复环境变量
@@ -143,19 +169,11 @@ class OllamaProvider(BaseLLMProvider):
                 data = response.json()
                 content = self._parse_response(data)
 
-                save_llm_log(
-                    provider=self.config.provider,
-                    model=self.config.model,
-                    system_prompt=system_prompt,
-                    user_prompt=user_content,
+                update_llm_log(
+                    log_id=log_id,
                     response=content,
                     status="success",
-                    task_type=task_type,
-                    novel_id=novel_id,
-                    chapter_id=chapter_id,
-                    character_id=character_id,
-                    used_proxy=used_proxy,
-                    duration=duration
+                    duration=duration,
                 )
 
                 return LLMResponse(
@@ -166,19 +184,11 @@ class OllamaProvider(BaseLLMProvider):
                 )
             else:
                 error_msg = f"API 错误 ({response.status_code}): {response.text}"
-                save_llm_log(
-                    provider=self.config.provider,
-                    model=self.config.model,
-                    system_prompt=system_prompt,
-                    user_prompt=user_content,
+                update_llm_log(
+                    log_id=log_id,
                     status="error",
                     error_message=error_msg,
-                    task_type=task_type,
-                    novel_id=novel_id,
-                    chapter_id=chapter_id,
-                    character_id=character_id,
-                    used_proxy=used_proxy,
-                    duration=duration
+                    duration=duration,
                 )
 
                 return LLMResponse(
@@ -205,19 +215,11 @@ class OllamaProvider(BaseLLMProvider):
                 os.environ['https_proxy'] = old_https_proxy_lower
 
             duration = time.time() - start_time
-            save_llm_log(
-                provider=self.config.provider,
-                model=self.config.model,
-                system_prompt=system_prompt,
-                user_prompt=user_content,
+            update_llm_log(
+                log_id=log_id,
                 status="error",
                 error_message=error_msg,
-                task_type=task_type,
-                novel_id=novel_id,
-                chapter_id=chapter_id,
-                character_id=character_id,
-                used_proxy=used_proxy,
-                duration=duration
+                duration=duration,
             )
 
             return LLMResponse(

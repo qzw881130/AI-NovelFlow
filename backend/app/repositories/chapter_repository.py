@@ -4,10 +4,15 @@
 封装章节相关的数据库查询逻辑
 """
 import json
+import os
+import subprocess
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.novel import Chapter
+from app.models.shot import Shot
+from app.models.task import Task
+from app.utils.path_utils import url_to_local_path
 
 
 class ChapterRepository:
@@ -101,14 +106,105 @@ class ChapterRepository:
         Returns:
             响应字典
         """
-        return {
+        response = {
             "id": chapter.id,
             "number": chapter.number,
             "title": chapter.title,
+            "contentLength": len(''.join((chapter.content or '').split())),
             "status": chapter.status,
             "progress": chapter.progress,
             "createdAt": chapter.created_at.isoformat() if chapter.created_at else None,
         }
+        chapter_video = self.get_final_chapter_video_info(chapter)
+        if chapter_video:
+            response.update(chapter_video)
+        return response
+
+    def get_final_chapter_video_info(self, chapter: Chapter) -> Optional[dict]:
+        """获取章节最终视频信息；只有全分镜合并才算最终视频。"""
+        total_shots = self.db.query(Shot).filter(Shot.chapter_id == chapter.id).count()
+        tasks = self.db.query(Task).filter(
+            Task.chapter_id == chapter.id,
+            Task.type == "chapter_video",
+            Task.status == "completed",
+        ).order_by(Task.completed_at.desc(), Task.created_at.desc()).all()
+
+        final_video_url = chapter.final_video
+        final_task = None
+        final_metadata = {}
+        generated_shots_count = self.db.query(Shot).filter(
+            Shot.chapter_id == chapter.id,
+            Shot.video_url.isnot(None),
+        ).count()
+        for task in tasks:
+            try:
+                metadata = json.loads(task.metadata_json or "{}")
+            except Exception:
+                metadata = {}
+            task_video_url = task.result_url or metadata.get("video_url")
+            is_final_task = bool(metadata.get("is_final_video"))
+            if not is_final_task and total_shots > 0:
+                shot_count = metadata.get("shots_count") or len(metadata.get("shot_ids") or [])
+                is_final_task = shot_count >= total_shots
+            if not is_final_task and total_shots > 0 and generated_shots_count >= total_shots:
+                # 兼容旧的全章合并任务：旧任务没有 shot_ids/shots_count，但空 shot_ids 表示按当时全部分镜合并。
+                is_final_task = not metadata.get("shot_ids") and bool(task_video_url)
+            if final_video_url and task_video_url == final_video_url:
+                final_task = task
+                final_metadata = metadata
+                break
+            if not final_video_url and is_final_task and task_video_url:
+                final_video_url = task_video_url
+                final_task = task
+                final_metadata = metadata
+                break
+
+        if not final_video_url:
+            return None
+
+        video_path = url_to_local_path(final_video_url) if final_video_url.startswith("/api/files/") else None
+        if final_video_url.startswith("/api/files/") and not (video_path and os.path.isfile(video_path)):
+            return None
+        file_size = final_metadata.get("file_size")
+        duration = final_metadata.get("duration")
+        if video_path and os.path.isfile(video_path):
+            if file_size is None:
+                file_size = os.path.getsize(video_path)
+            if duration is None:
+                duration = self._probe_video_duration(video_path)
+
+        shot_count = final_metadata.get("shots_count") or total_shots
+
+        return {
+            "finalVideo": final_video_url,
+            "chapterVideoUrl": final_video_url,
+            "chapterVideoDuration": duration,
+            "chapterVideoSize": file_size,
+            "chapterVideoShotCount": shot_count,
+            "chapterVideoTaskId": final_task.id if final_task else None,
+            "chapterVideoCompletedAt": final_task.completed_at.isoformat() if final_task and final_task.completed_at else None,
+        }
+
+    @staticmethod
+    def _probe_video_duration(video_path: str) -> Optional[float]:
+        try:
+            result = subprocess.run(
+                [
+                    "ffprobe",
+                    "-v", "error",
+                    "-show_entries", "format=duration",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    video_path,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode != 0:
+                return None
+            return float(result.stdout.strip())
+        except Exception:
+            return None
 
     def to_detail_response(self, chapter: Chapter, include_shots: bool = True) -> dict:
         """

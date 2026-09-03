@@ -13,9 +13,11 @@ from app.services.novel_service import NovelService
 from app.services.prompt_builder import build_scene_prompt, get_style
 from app.services.file_storage import file_storage
 from app.services.scene_service import SceneService
-from app.repositories import NovelRepository, SceneRepository, ChapterRepository, PromptTemplateRepository
-from app.schemas.scene import SceneCreate, SceneUpdate, ParseScenesRequest
-from app.api.deps import get_novel_repo, get_scene_repo, get_chapter_repo, get_prompt_template_repo, get_llm_service
+from app.repositories import NovelRepository, SceneRepository, ChapterRepository, PromptTemplateRepository, TaskRepository
+from app.schemas.scene import SceneCreate, SceneUpdate, ParseScenesRequest, SceneImageEditRequest, SceneImageReplaceRequest
+from app.services.single_image_edit_service import SingleImageEditService
+from app.utils.path_utils import url_to_local_path
+from app.api.deps import get_novel_repo, get_scene_repo, get_chapter_repo, get_prompt_template_repo, get_llm_service, get_task_repo
 from app.utils.time_utils import format_datetime
 
 router = APIRouter()
@@ -27,7 +29,8 @@ comfyui_service = ComfyUIService()
 async def list_scenes(
     novel_id: str = None, 
     novel_repo: NovelRepository = Depends(get_novel_repo), 
-    scene_repo: SceneRepository = Depends(get_scene_repo)
+    scene_repo: SceneRepository = Depends(get_scene_repo),
+    task_repo: TaskRepository = Depends(get_task_repo),
 ):
     """获取场景列表"""
     if novel_id:
@@ -44,7 +47,14 @@ async def list_scenes(
             novels_map[nid] = novel
 
     result = []
+    fixed_stale_status = False
     for s in scenes:
+        if s.generating_status == "running" and s.scene_task_id:
+            task = task_repo.get_by_id(s.scene_task_id)
+            if not task or task.status not in ["pending", "running"]:
+                s.generating_status = "completed" if s.image_url and task and task.status == "completed" else "failed"
+                fixed_stale_status = True
+
         novel = novels_map.get(s.novel_id)
         result.append({
             "id": s.id,
@@ -65,7 +75,20 @@ async def list_scenes(
             "updatedAt": format_datetime(s.updated_at),
         })
 
+    if fixed_stale_status:
+        scene_repo.db.commit()
+
     return {"success": True, "data": result}
+
+
+@router.post("/generate-missing-images", response_model=dict)
+async def generate_missing_scene_images(
+    novel_id: str = Query(...),
+    db: Session = Depends(get_db)
+):
+    """Queue image tasks for scenes without images or with failed generation."""
+    scene_service = SceneService(db)
+    return scene_service.create_missing_scene_image_tasks(novel_id)
 
 
 @router.get("/{scene_id}", response_model=dict)
@@ -440,3 +463,66 @@ async def upload_scene_image(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
+
+
+@router.post("/{scene_id}/edit-image", response_model=dict)
+async def edit_scene_image(
+    scene_id: str,
+    data: SceneImageEditRequest,
+    db: Session = Depends(get_db),
+    scene_repo: SceneRepository = Depends(get_scene_repo),
+):
+    """使用当前激活的单图编辑工作流编辑场景图片。"""
+    scene = scene_repo.get_by_id(scene_id)
+    if not scene:
+        raise HTTPException(status_code=404, detail="场景不存在")
+    if not scene.image_url:
+        raise HTTPException(status_code=400, detail="场景暂无图片，无法编辑")
+
+    result = await SingleImageEditService(db).edit_image(
+        source_image_url=scene.image_url,
+        prompt=data.prompt,
+        novel_id=scene.novel_id,
+        entity_id=scene.id,
+        entity_name=scene.name,
+        entity_type="scene",
+        output_image_type="scene_edit",
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=result.get("status_code", 500), detail=result.get("message", "编辑图片失败"))
+
+    return {"success": True, "data": {"imageUrl": result["image_url"], "taskId": result.get("task_id")}, "message": "图片编辑成功"}
+
+
+@router.post("/{scene_id}/replace-image", response_model=dict)
+async def replace_scene_image(
+    scene_id: str,
+    data: SceneImageReplaceRequest,
+    scene_repo: SceneRepository = Depends(get_scene_repo),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+):
+    """用编辑结果替换场景图片。"""
+    scene = scene_repo.get_by_id(scene_id)
+    if not scene:
+        raise HTTPException(status_code=404, detail="场景不存在")
+    if not url_to_local_path(data.image_url):
+        raise HTTPException(status_code=400, detail="图片文件不存在或不是本地图片")
+
+    scene_repo.update_image(scene, data.image_url)
+    novel = novel_repo.get_by_id(scene.novel_id)
+    return {
+        "success": True,
+        "data": {
+            "id": scene.id,
+            "novelId": scene.novel_id,
+            "name": scene.name,
+            "description": scene.description,
+            "setting": scene.setting,
+            "imageUrl": scene.image_url,
+            "generatingStatus": scene.generating_status,
+            "sceneTaskId": scene.scene_task_id,
+            "novelName": novel.title if novel else None,
+            "updatedAt": format_datetime(scene.updated_at),
+        },
+        "message": "场景图片已替换",
+    }

@@ -11,8 +11,10 @@ import { sceneApi } from '../../api/scenes';
 import { promptTemplateApi } from '../../api/promptTemplates';
 import { api } from '../../api';
 import { ImagePreviewModal, SceneCard } from './components';
+import { ImageEditModal } from '../../components/ImageEditModal';
 import { ALLOWED_IMAGE_TYPES, POLL_CONFIG } from './constants';
 import type { ScenePrompt, PreviewImageState, DeleteAllConfirmDialog } from './types';
+import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
 
 export default function Scenes() {
   const { t } = useTranslation();
@@ -21,9 +23,9 @@ export default function Scenes() {
   const [novels, setNovels] = useState<Novel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const novelIdFromUrl = searchParams.get('novel') || '';
+  const novelIdFromUrl = searchParams.get('novel') || searchParams.get('novel_id') || '';
   const highlightId = searchParams.get('highlight');
-  const [selectedNovel, setSelectedNovel] = useState<string>(novelIdFromUrl);
+  const [selectedNovel, setSelectedNovel] = useState<string>(novelIdFromUrl || getLastSelectedNovelId());
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingScene, setEditingScene] = useState<Scene | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
@@ -31,7 +33,14 @@ export default function Scenes() {
   
   const [deleteAllConfirmDialog, setDeleteAllConfirmDialog] = useState<DeleteAllConfirmDialog>({ isOpen: false });
   const [previewImage, setPreviewImage] = useState<PreviewImageState>({ isOpen: false, url: null, name: '', sceneId: null });
+  const [imageEditScene, setImageEditScene] = useState<Scene | null>(null);
+  const [imageEditResultUrl, setImageEditResultUrl] = useState<string | null>(null);
+  const [imageEditResultSize, setImageEditResultSize] = useState<{ width: number; height: number } | null>(null);
+  const [editingImageId, setEditingImageId] = useState<string | null>(null);
+  const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
   const [generatingAll, setGeneratingAll] = useState(false);
+  const [generatingMissing, setGeneratingMissing] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'generated' | 'notGenerated' | 'running' | 'pending'>('all');
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [currentUploadSceneId, setCurrentUploadSceneId] = useState<string | null>(null);
@@ -45,6 +54,15 @@ export default function Scenes() {
     setting: '',
     novelId: '',
   });
+
+  const syncSelectedNovel = (novelId: string, replace = false) => {
+    if (!novelId) return;
+    setLastSelectedNovelId(novelId);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('novel', novelId);
+    nextParams.delete('novel_id');
+    setSearchParams(nextParams, { replace });
+  };
 
   useEffect(() => {
     fetchScenes();
@@ -111,11 +129,17 @@ export default function Scenes() {
       if (data.success) {
         const novelsList = data.data || [];
         setNovels(novelsList);
-        
-        if (!selectedNovel && novelsList.length > 0) {
-          const firstNovelId = novelsList[0].id;
-          setSelectedNovel(firstNovelId);
-          setSearchParams({ novel: firstNovelId });
+
+        if (novelsList.length > 0) {
+          const selectedExists = novelsList.some(novel => novel.id === selectedNovel);
+          const savedNovelId = getLastSelectedNovelId();
+          const savedExists = novelsList.some(novel => novel.id === savedNovelId);
+          const nextNovelId = selectedExists ? selectedNovel : savedExists ? savedNovelId : novelsList[0].id;
+
+          if (nextNovelId !== selectedNovel) {
+            setSelectedNovel(nextNovelId);
+          }
+          syncSelectedNovel(nextNovelId, true);
         }
       }
     } catch (error) {
@@ -240,7 +264,7 @@ export default function Scenes() {
   };
 
   const generateSceneImage = async (scene: Scene) => {
-    if (scene.generatingStatus === 'running') {
+    if (scene.generatingStatus === 'pending' || scene.generatingStatus === 'running') {
       toast.info(t('scenes.generatingStatus'));
       return;
     }
@@ -250,7 +274,7 @@ export default function Scenes() {
       const data = await sceneApi.generateImage(scene.id);
       if (data.success) {
         setScenes(prev => prev.map(s => 
-          s.id === scene.id ? { ...s, generatingStatus: 'running' } : s
+          s.id === scene.id ? { ...s, generatingStatus: 'pending' } : s
         ));
         toast.success(t('scenes.generatingStatus'));
         pollSceneStatus(scene.id);
@@ -304,7 +328,7 @@ export default function Scenes() {
       return;
     }
     
-    const scenesToGenerate = filteredScenes.filter(s => s.generatingStatus !== 'running');
+    const scenesToGenerate = filteredScenes.filter(s => s.generatingStatus !== 'pending' && s.generatingStatus !== 'running');
     
     if (scenesToGenerate.length === 0) {
       toast.info(t('scenes.generatingStatus'));
@@ -342,7 +366,7 @@ export default function Scenes() {
         if (data.success) {
           successCount++;
           setScenes(prev => prev.map(s => 
-            s.id === scene.id ? { ...s, generatingStatus: 'running' } : s
+            s.id === scene.id ? { ...s, generatingStatus: 'pending' } : s
           ));
         } else {
           failCount++;
@@ -366,6 +390,39 @@ export default function Scenes() {
     setGeneratingAll(false);
   };
 
+  const generateMissingSceneImages = async () => {
+    if (!selectedNovel) return;
+    const scenesToGenerate = scenes.filter(scene => (
+      (!scene.imageUrl || scene.generatingStatus === 'failed') &&
+      scene.generatingStatus !== 'pending' &&
+      scene.generatingStatus !== 'running'
+    ));
+    if (scenesToGenerate.length === 0) {
+      toast.info(t('scenes.noRemainingImages'));
+      return;
+    }
+    if (!window.confirm(t('scenes.confirmGenerateRemaining', { count: scenesToGenerate.length }))) return;
+
+    setGeneratingMissing(true);
+    try {
+      const data = await sceneApi.generateMissingImages(selectedNovel);
+      if (data.success) {
+        const queuedCount = data.data?.queuedCount || 0;
+        const queuedIds = new Set(scenesToGenerate.map(scene => scene.id));
+        setScenes(prev => prev.map(scene => queuedIds.has(scene.id) ? { ...scene, generatingStatus: 'pending' } : scene));
+        toast.success(t('scenes.remainingQueued', { count: queuedCount }));
+        if (queuedCount > 0) pollAllScenesStatus();
+      } else {
+        toast.error(data.message || t('common.error'));
+      }
+    } catch (error) {
+      console.error('生成剩余场景图失败:', error);
+      toast.error(t('common.error'));
+    } finally {
+      setGeneratingMissing(false);
+    }
+  };
+
   const pollAllScenesStatus = () => {
     if (!selectedNovel) return;
     
@@ -376,7 +433,7 @@ export default function Scenes() {
           const sceneList = data.data || [];
           setScenes(sceneList);
           
-          const generatingSceneList = sceneList.filter((s: Scene) => s.generatingStatus === 'running');
+          const generatingSceneList = sceneList.filter((s: Scene) => s.generatingStatus === 'pending' || s.generatingStatus === 'running');
           
           if (generatingSceneList.length === 0) {
             clearInterval(interval);
@@ -437,6 +494,67 @@ export default function Scenes() {
     setPreviewImage({ isOpen: false, url: null, name: '', sceneId: null });
   };
 
+  const openImageEdit = (scene: Scene) => {
+    setImageEditScene(scene);
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+  };
+
+  const closeImageEdit = () => {
+    if (editingImageId || replacingImageId) return;
+    setImageEditScene(null);
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+  };
+
+  const handleEditImage = async (prompt: string) => {
+    if (!imageEditScene) return;
+    if (!prompt) {
+      toast.warning(t('scenes.editImagePromptRequired'));
+      return;
+    }
+
+    setEditingImageId(imageEditScene.id);
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+    try {
+      const data = await sceneApi.editImage(imageEditScene.id, prompt);
+      if (data.success && data.data?.imageUrl) {
+        setImageEditResultUrl(data.data.imageUrl);
+        toast.success(t('scenes.editImageSuccess'));
+      } else {
+        toast.error((data as any).detail || data.message || t('scenes.editImageFailed'));
+      }
+    } catch (error) {
+      console.error('编辑场景图片失败:', error);
+      toast.error(t('scenes.editImageFailed'));
+    } finally {
+      setEditingImageId(null);
+    }
+  };
+
+  const handleReplaceImage = async () => {
+    if (!imageEditScene || !imageEditResultUrl) return;
+    setReplacingImageId(imageEditScene.id);
+    try {
+      const data = await sceneApi.replaceImage(imageEditScene.id, imageEditResultUrl);
+      if (data.success && data.data) {
+        setScenes(prev => prev.map(scene => scene.id === imageEditScene.id ? { ...scene, ...data.data! } : scene));
+        toast.success(t('scenes.replaceImageSuccess'));
+        setImageEditScene(null);
+        setImageEditResultUrl(null);
+        setImageEditResultSize(null);
+      } else {
+        toast.error((data as any).detail || data.message || t('common.error'));
+      }
+    } catch (error) {
+      console.error('替换场景图片失败:', error);
+      toast.error(t('common.error'));
+    } finally {
+      setReplacingImageId(null);
+    }
+  };
+
   const navigatePreview = (direction: 'prev' | 'next') => {
     if (!previewImage.sceneId) return;
     
@@ -461,10 +579,32 @@ export default function Scenes() {
     });
   };
 
-  const filteredScenes = scenes.filter(s => 
+  const matchesStatusFilter = (scene: Scene) => {
+    if (statusFilter === 'all') return true;
+    if (statusFilter === 'pending') return scene.generatingStatus === 'pending';
+    if (statusFilter === 'running') return scene.generatingStatus === 'running';
+    if (statusFilter === 'generated') return Boolean(scene.imageUrl) && scene.generatingStatus !== 'failed';
+    return (!scene.imageUrl || scene.generatingStatus === 'failed')
+      && scene.generatingStatus !== 'pending'
+      && scene.generatingStatus !== 'running';
+  };
+
+  const filteredScenes = scenes.filter(s => (
     s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     s.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ) && matchesStatusFilter(s));
+
+  const sceneStats = scenes.reduce((stats, scene) => {
+    stats.total += 1;
+    if (scene.generatingStatus === 'pending') stats.pending += 1;
+    else if (scene.generatingStatus === 'running') stats.running += 1;
+    else if (scene.imageUrl && scene.generatingStatus !== 'failed') stats.generated += 1;
+    else stats.notGenerated += 1;
+    return stats;
+  }, { total: 0, generated: 0, notGenerated: 0, running: 0, pending: 0 });
+
+  const statCardClass = (filter: typeof statusFilter, className: string) =>
+    `rounded-lg border px-4 py-3 text-left transition hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${className} ${statusFilter === filter ? 'ring-2 ring-primary-500 shadow-sm' : ''}`;
 
   return (
     <div className="space-y-6">
@@ -478,7 +618,7 @@ export default function Scenes() {
           {filteredScenes.length > 0 && (
             <button
               onClick={generateAllSceneImages}
-              disabled={generatingAll}
+              disabled={generatingAll || generatingMissing}
               className="btn-secondary text-green-600 border-green-200 hover:bg-green-50 disabled:opacity-50"
             >
               {generatingAll ? (
@@ -487,6 +627,16 @@ export default function Scenes() {
                 <Image className="mr-2 h-4 w-4" />
               )}
               {t('scenes.generateAllImages')}
+            </button>
+          )}
+          {scenes.length > 0 && (
+            <button
+              onClick={generateMissingSceneImages}
+              disabled={generatingAll || generatingMissing}
+              className="btn-secondary text-blue-600 border-blue-200 hover:bg-blue-50 disabled:opacity-50"
+            >
+              {generatingMissing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Image className="mr-2 h-4 w-4" />}
+              {t('scenes.generateRemainingImages')}
             </button>
           )}
           {selectedNovel && scenes.length > 0 && (
@@ -526,8 +676,9 @@ export default function Scenes() {
         <select
           value={selectedNovel}
           onChange={(e) => {
-            setSelectedNovel(e.target.value);
-            setSearchParams({ novel: e.target.value });
+            const novelId = e.target.value;
+            setSelectedNovel(novelId);
+            syncSelectedNovel(novelId);
           }}
           className="input-field flex-1"
         >
@@ -535,6 +686,14 @@ export default function Scenes() {
             <option key={novel.id} value={novel.id}>{novel.title}</option>
           ))}
         </select>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <button type="button" onClick={() => setStatusFilter('all')} className={statCardClass('all', 'border-gray-200 bg-white')}><p className="text-xs text-gray-500">{t('scenes.totalCount')}</p><p className="mt-1 text-xl font-semibold text-gray-900">{sceneStats.total}</p></button>
+        <button type="button" onClick={() => setStatusFilter('generated')} className={statCardClass('generated', 'border-green-100 bg-green-50')}><p className="text-xs text-green-700">{t('scenes.generatedCount')}</p><p className="mt-1 text-xl font-semibold text-green-700">{sceneStats.generated}</p></button>
+        <button type="button" onClick={() => setStatusFilter('notGenerated')} className={statCardClass('notGenerated', 'border-gray-200 bg-gray-50')}><p className="text-xs text-gray-600">{t('scenes.notGeneratedCount')}</p><p className="mt-1 text-xl font-semibold text-gray-700">{sceneStats.notGenerated}</p></button>
+        <button type="button" onClick={() => setStatusFilter('running')} className={statCardClass('running', 'border-blue-100 bg-blue-50')}><p className="text-xs text-blue-700">{t('scenes.runningCount')}</p><p className="mt-1 text-xl font-semibold text-blue-700">{sceneStats.running}</p></button>
+        <button type="button" onClick={() => setStatusFilter('pending')} className={statCardClass('pending', 'border-amber-100 bg-amber-50')}><p className="text-xs text-amber-700">{t('scenes.pendingCount')}</p><p className="mt-1 text-xl font-semibold text-amber-700">{sceneStats.pending}</p></button>
       </div>
 
       {/* Scenes Grid */}
@@ -569,6 +728,7 @@ export default function Scenes() {
                 onGenerateImage={generateSceneImage}
                 onGenerateSetting={generateSetting}
                 onUploadImage={triggerFileUpload}
+                onEditImage={openImageEdit}
                 onImageClick={openImagePreview}
               />
             );
@@ -590,12 +750,44 @@ export default function Scenes() {
         isOpen={previewImage.isOpen}
         url={previewImage.url}
         name={previewImage.name}
+        showDownload={true}
         onClose={closeImagePreview}
         showNavigation={true}
         totalCount={filteredScenes.filter(s => s.imageUrl).length}
         onPrev={() => navigatePreview('prev')}
         onNext={() => navigatePreview('next')}
       />
+
+      {imageEditScene?.imageUrl && (
+        <ImageEditModal
+          isOpen={Boolean(imageEditScene)}
+          itemName={imageEditScene.name}
+          imageUrl={imageEditScene.imageUrl}
+          resultUrl={imageEditResultUrl}
+          resultSize={imageEditResultSize}
+          isEditing={editingImageId === imageEditScene.id}
+          isReplacing={replacingImageId === imageEditScene.id}
+          labels={{
+            title: t('scenes.editImageTitle'),
+            optionsTitle: t('scenes.editImageOptions'),
+            keepOriginalLayout: t('scenes.keepOriginalLayout'),
+            removeWeapons: t('scenes.removeWeapons'),
+            makeFourView: t('scenes.makeFourView'),
+            other: t('scenes.otherEdit'),
+            otherPlaceholder: t('scenes.otherEditPlaceholder'),
+            editButton: t('scenes.editImage'),
+            editing: t('scenes.editingImage'),
+            replaceButton: t('scenes.replaceImage'),
+            originalImage: '原图',
+            editResult: '编辑结果',
+            emptyResult: '生成后在这里预览',
+          }}
+          onClose={closeImageEdit}
+          onEdit={handleEditImage}
+          onReplace={handleReplaceImage}
+          onResultSizeChange={setImageEditResultSize}
+        />
+      )}
 
       {/* Create Modal */}
       {showCreateModal && (

@@ -44,18 +44,17 @@ class LLMService:
         self.api_key = current_settings.LLM_API_KEY
         self.max_tokens = getattr(current_settings, 'LLM_MAX_TOKENS', None)  # 从配置中获取 max_tokens
         self.temperature = getattr(current_settings, 'LLM_TEMPERATURE', None)  # 从配置中获取 temperature
+        self.timeout = getattr(current_settings, 'LLM_TIMEOUT', None)  # 从配置中获取请求超时（秒）
 
         # 代理配置
         self.proxy_enabled = current_settings.PROXY_ENABLED
         self.http_proxy = current_settings.HTTP_PROXY
         self.https_proxy = current_settings.HTTPS_PROXY
 
-        # 仅对历史 DeepSeek 配置做兼容回退。
-        # custom / ollama 可以不填 API Key，不能错误回退到 deepseek。
-        if not self.api_key and self.provider not in ("ollama", "custom"):
+        # 仅 DeepSeek 自身允许读取历史 DeepSeek Key，不能把 OpenAI 等厂商改成 deepseek。
+        if self.provider == "deepseek" and not self.api_key:
             self.api_key = current_settings.DEEPSEEK_API_KEY
             self.api_url = current_settings.DEEPSEEK_API_URL
-            self.provider = "deepseek"
 
         # 初始化 API Key 轮询机制
         self.api_keys = []
@@ -77,6 +76,7 @@ class LLMService:
             api_key=self.api_key,
             max_tokens=self.max_tokens,
             temperature=float(self.temperature) if self.temperature else None,
+            timeout=self.timeout,
             proxy_enabled=self.proxy_enabled,
             http_proxy=self.http_proxy,
             https_proxy=self.https_proxy,
@@ -101,6 +101,7 @@ class LLMService:
         max_tokens: Optional[int] = None,
         response_format: Optional[str] = None,
         task_type: str = None,
+        prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
         character_id: str = None
@@ -117,9 +118,9 @@ class LLMService:
                 "error": str (optional)
             }
         """
-        # 使用配置的参数，如果提供了则覆盖默认值
+        # 系统设置是所有 LLM 请求的统一输出上限；仅在未配置时使用调用方默认值。
         final_temperature = float(self.temperature) if self.temperature else temperature
-        final_max_tokens = max_tokens if max_tokens is not None else self.max_tokens
+        final_max_tokens = self.max_tokens if self.max_tokens is not None else max_tokens
         if final_max_tokens is None:
             final_max_tokens = DEFAULT_MAX_TOKENS
         final_max_tokens = self._normalize_max_tokens(final_max_tokens)
@@ -133,6 +134,7 @@ class LLMService:
             max_tokens=final_max_tokens,
             response_format=response_format,
             task_type=task_type,
+            prompt_template_name=prompt_template_name,
             novel_id=novel_id,
             chapter_id=chapter_id,
             character_id=character_id
@@ -140,10 +142,6 @@ class LLMService:
 
     async def check_health(self) -> bool:
         """检查 LLM API 状态"""
-        # Ollama / Custom 通常不强制需要 API Key
-        if not self.api_key and self.provider not in ("ollama", "custom"):
-            return False
-
         try:
             # 简单测试请求
             result = await self.chat_completion(
@@ -172,11 +170,12 @@ class LLMService:
 
         result = await self.chat_completion(
             system_prompt=system_prompt,
-            user_content=f"请解析以下小说文本：\n\n{text[:NOVEL_TEXT_MAX_LENGTH]}",
+            user_content=f"请解析以下小说文本：\n\n{text}",
             temperature=DEFAULT_TEMPERATURE,
             max_tokens=NOVEL_TEXT_MAX_LENGTH,
             response_format="json_object",
             task_type="parse_characters",
+            prompt_template_name="系统配置角色解析提示词",
             novel_id=novel_id
         )
 
@@ -220,6 +219,7 @@ class LLMService:
             temperature=0.8,
             max_tokens=1000,
             task_type="generate_character_appearance",
+            prompt_template_name=f"{style} 角色外貌描述提示词",
             novel_id=novel_id,
             character_id=character_id
         )
@@ -274,6 +274,7 @@ class LLMService:
             temperature=0.8,
             max_tokens=1000,
             task_type="generate_scene_setting",
+            prompt_template_name=f"{style} 场景设定提示词",
             novel_id=novel_id
         )
 
@@ -308,6 +309,7 @@ class LLMService:
             temperature=0.8,
             max_tokens=1000,
             task_type="generate_prop_appearance",
+            prompt_template_name=f"{style} 道具外观提示词",
             novel_id=novel_id
         )
 
@@ -322,7 +324,8 @@ class LLMService:
         novel_id: str,
         chapter_content: str,
         chapter_title: str = "",
-        prompt_template: str = None
+        prompt_template: str = None,
+        prompt_template_name: str = None
     ) -> Dict[str, Any]:
         """解析场景信息
 
@@ -351,6 +354,7 @@ class LLMService:
             max_tokens=CHAPTER_CONTENT_MAX_LENGTH,
             response_format="json_object",
             task_type="parse_scenes",
+            prompt_template_name=prompt_template_name or ("自定义场景解析提示词" if prompt_template else "默认场景解析提示词"),
             novel_id=novel_id
         )
 
@@ -371,7 +375,8 @@ class LLMService:
     async def parse_props(
         self,
         text: str,
-        prompt_template: str = None
+        prompt_template: str = None,
+        prompt_template_name: str = None
     ) -> Dict[str, Any]:
         """
         解析小说文本中的道具信息
@@ -397,7 +402,8 @@ class LLMService:
             temperature=0.3,
             max_tokens=4000,
             response_format="json_object",
-            task_type="parse_props"
+            task_type="parse_props",
+            prompt_template_name=prompt_template_name or ("自定义道具解析提示词" if prompt_template else "默认道具解析提示词")
         )
 
         if result["success"]:
@@ -443,7 +449,8 @@ class LLMService:
         prop_names: List[str] = None,
         style: str = "anime style, high quality, detailed",
         novel_id: str = None,
-        chapter_id: str = None
+        chapter_id: str = None,
+        prompt_template_name: str = None
     ) -> Dict[str, Any]:
         """使用自定义提示词将章节拆分为分镜数据结构"""
 
@@ -490,6 +497,7 @@ class LLMService:
             max_tokens=CHAPTER_CONTENT_MAX_LENGTH,
             response_format="json_object",
             task_type="split_chapter",
+            prompt_template_name=prompt_template_name or "分镜拆分提示词模板",
             novel_id=novel_id,
             chapter_id=chapter_id
         )

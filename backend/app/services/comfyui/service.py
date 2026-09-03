@@ -3,6 +3,7 @@ ComfyUI 服务
 
 高级业务方法，组合客户端和工作流构建器
 """
+import inspect
 from typing import Dict, Any, Optional, List
 
 from .client import ComfyUIClient
@@ -19,6 +20,24 @@ class ComfyUIService:
     def __init__(self, base_url: str = None):
         self.client = ComfyUIClient()
         self.builder = WorkflowBuilder()
+
+    @staticmethod
+    def _notify_prompt_queued(callback, prompt_id: str, workflow: Dict[str, Any]) -> None:
+        if not callback or not prompt_id:
+            return
+        try:
+            signature = inspect.signature(callback)
+            positional_params = [
+                param for param in signature.parameters.values()
+                if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD)
+            ]
+            has_varargs = any(param.kind == param.VAR_POSITIONAL for param in signature.parameters.values())
+            if has_varargs or len(positional_params) >= 2:
+                callback(prompt_id, workflow)
+            else:
+                callback(prompt_id)
+        except (TypeError, ValueError):
+            callback(prompt_id)
     
     @property
     def base_url(self) -> str:
@@ -108,6 +127,62 @@ class ComfyUIService:
             node_mapping=node_mapping,
             **kwargs
         )
+
+    async def edit_image_with_workflow(
+        self,
+        image_path: str,
+        prompt: str,
+        workflow_json: str,
+        node_mapping: Dict[str, str],
+        on_prompt_queued=None,
+    ) -> Dict[str, Any]:
+        """使用单图编辑工作流编辑图片。"""
+        try:
+            import json
+
+            workflow = json.loads(workflow_json)
+            load_image_node_id = str(node_mapping.get("load_image_node_id", ""))
+            prompt_node_id = str(node_mapping.get("prompt_node_id", ""))
+            save_image_node_id = str(node_mapping.get("save_image_node_id", ""))
+
+            if not load_image_node_id or load_image_node_id not in workflow:
+                return {"success": False, "message": "单图编辑工作流缺少 Load Image 节点映射"}
+            if not prompt_node_id or prompt_node_id not in workflow:
+                return {"success": False, "message": "单图编辑工作流缺少提示词节点映射"}
+            if not save_image_node_id or save_image_node_id not in workflow:
+                return {"success": False, "message": "单图编辑工作流缺少 Save Image 节点映射"}
+
+            upload_result = await self.client.upload_image(image_path)
+            if not upload_result.get("success"):
+                return {"success": False, "message": upload_result.get("message", "图片上传失败")}
+
+            workflow[load_image_node_id].setdefault("inputs", {})["image"] = upload_result.get("filename")
+            self.builder._set_prompt(workflow, prompt_node_id, prompt)
+
+            queue_result = await self.client.queue_prompt(workflow)
+            if not queue_result.get("success"):
+                return {"success": False, "message": queue_result.get("error", "提交任务失败")}
+
+            prompt_id = queue_result.get("prompt_id")
+            self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
+
+            result = await self.client.wait_for_result(
+                prompt_id,
+                workflow,
+                save_image_node_id,
+                timeout=7200,
+            )
+
+            return {
+                "success": result.get("success") if result else False,
+                "image_url": result.get("image_url") if result else None,
+                "message": str(result.get("message", "编辑成功" if (result and result.get("success")) else "编辑失败")) if result else "编辑失败",
+                "submitted_workflow": workflow,
+                "prompt_id": prompt_id,
+            }
+        except Exception as e:
+            print(f"[ComfyUI] Edit image failed: {e}")
+            return {"success": False, "message": f"编辑失败: {str(e)}"}
     
     async def generate_shot_image_with_workflow(
         self,
@@ -119,7 +194,8 @@ class ComfyUIService:
         scene_reference_path: Optional[str] = None,
         seed: Optional[int] = None,
         workflow: Dict[str, Any] = None,
-        style: str = "anime style, high quality, detailed"
+        style: str = "anime style, high quality, detailed",
+        on_prompt_queued=None
     ) -> Dict[str, Any]:
         """使用指定工作流生成分镜图片"""
         try:
@@ -168,6 +244,7 @@ class ComfyUIService:
                 return {"success": False, "message": queue_result.get("error", "提交任务失败")}
             
             prompt_id = queue_result.get("prompt_id")
+            self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
             
             result = await self.client.wait_for_result(
                 prompt_id, workflow, save_image_node_id, timeout=7200
@@ -202,7 +279,8 @@ class ComfyUIService:
         scene_setting: Optional[str] = None,
         prop_appearances: Optional[Dict[str, str]] = None,
         reference_audio_path: Optional[str] = None,
-        keyframe_paths: Optional[List[str]] = None
+        keyframe_paths: Optional[List[str]] = None,
+        on_prompt_queued=None
     ) -> Dict[str, Any]:
         """使用指定工作流生成分镜视频 (LTX2)
 
@@ -323,6 +401,7 @@ class ComfyUIService:
                 return {"success": False, "message": queue_result.get("error", "提交任务失败")}
             
             prompt_id = queue_result.get("prompt_id")
+            self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
             video_save_node_id = node_mapping.get("video_save_node_id", "1")
             
             result = await self.client.wait_for_result(
@@ -348,7 +427,9 @@ class ComfyUIService:
         first_image_path: str,
         last_image_path: str,
         aspect_ratio: str = "16:9",
-        frame_count: Optional[int] = None
+        duration_seconds: Optional[float] = None,
+        frame_count: Optional[int] = None,
+        on_prompt_queued=None
     ) -> Dict[str, Any]:
         """生成转场视频 (首帧+尾帧)"""
         try:
@@ -359,6 +440,9 @@ class ComfyUIService:
             last_image_node_id = node_mapping.get("last_image_node_id", "106")
             video_save_node_id = node_mapping.get("video_save_node_id", "105")
             frame_count_node_id = node_mapping.get("frame_count_node_id", "174")
+            duration_seconds_node_id = node_mapping.get("duration_seconds_node_id", "")
+            megapixels_node_id = node_mapping.get("megapixels_node_id", "")
+            megapixels_value = node_mapping.get("megapixels_value", 0.4)
             
             # 上传首帧图片
             first_upload = await self.client.upload_image(first_image_path)
@@ -377,8 +461,14 @@ class ComfyUIService:
             if last_image_node_id in workflow:
                 workflow[last_image_node_id]["inputs"]["image"] = last_upload.get("filename")
             
-            # 设置总帧数节点，兼容 easy int / JWInteger / INTConstant 等数值节点
-            if frame_count and frame_count_node_id:
+            # Megapixels 是转场工作流的可选尺寸控制节点。
+            if megapixels_node_id:
+                self.builder._set_value(workflow, megapixels_node_id, float(megapixels_value))
+
+            # 时长秒数节点和总帧数节点由映射配置二选一。
+            if duration_seconds and duration_seconds_node_id:
+                self.builder._set_value(workflow, duration_seconds_node_id, duration_seconds)
+            elif frame_count and frame_count_node_id:
                 self.builder._set_value(workflow, frame_count_node_id, frame_count)
             
             # 设置随机种子
@@ -392,6 +482,7 @@ class ComfyUIService:
                 return {"success": False, "message": queue_result.get("error", "提交任务失败")}
             
             prompt_id = queue_result.get("prompt_id")
+            self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
             
             result = await self.client.wait_for_result(
                 prompt_id, workflow, video_save_node_id, timeout=7200

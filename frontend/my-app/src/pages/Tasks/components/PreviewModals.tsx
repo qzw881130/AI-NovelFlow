@@ -1,15 +1,20 @@
 import { useState, useEffect } from 'react';
-import { X, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Download } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 
 interface ImagePreviewModalProps {
   imageUrl: string;
+  images?: Array<{ label?: string; url: string }>;
+  currentIndex?: number;
+  onNavigate?: (direction: 'prev' | 'next') => void;
   onClose: () => void;
 }
 
-export function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps) {
+export function ImagePreviewModal({ imageUrl, images = [], currentIndex = 0, onNavigate, onClose }: ImagePreviewModalProps) {
   const { t } = useTranslation();
   const [info, setInfo] = useState<{ width: number; height: number; size?: string } | null>(null);
+  const canNavigate = images.length > 1 && !!onNavigate;
+  const currentImage = images[currentIndex];
 
   useEffect(() => {
     const img = new Image();
@@ -32,6 +37,27 @@ export function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps)
       .catch(() => {});
   }, [imageUrl]);
 
+  useEffect(() => {
+    if (!canNavigate) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        onNavigate?.('prev');
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        onNavigate?.('next');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [canNavigate, onNavigate]);
+
   const handleDownload = async () => {
     try {
       const response = await fetch(imageUrl);
@@ -51,7 +77,23 @@ export function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps)
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4" onClick={onClose}>
+      {canNavigate && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onNavigate?.('prev'); }}
+          className="fixed left-6 top-1/2 -translate-y-1/2 p-3 text-white bg-black/30 hover:bg-white/15 rounded-full transition-all z-10"
+          title="上一个参考图 (←)"
+          aria-label="上一个参考图"
+        >
+          <ChevronLeft className="h-10 w-10" />
+        </button>
+      )}
       <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">
+        {currentImage?.label && (
+          <div className="mb-3 rounded bg-black/45 px-3 py-1 text-sm text-white">
+            {currentImage.label} · {currentIndex + 1}/{images.length}
+          </div>
+        )}
         <img
           src={imageUrl}
           alt={t('tasks.preview')}
@@ -77,6 +119,17 @@ export function ImagePreviewModal({ imageUrl, onClose }: ImagePreviewModalProps)
           <Download className="h-6 w-6" />
         </button>
       </div>
+      {canNavigate && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onNavigate?.('next'); }}
+          className="fixed right-6 top-1/2 -translate-y-1/2 p-3 text-white bg-black/30 hover:bg-white/15 rounded-full transition-all z-10"
+          title="下一个参考图 (→)"
+          aria-label="下一个参考图"
+        >
+          <ChevronRight className="h-10 w-10" />
+        </button>
+      )}
     </div>
   );
 }

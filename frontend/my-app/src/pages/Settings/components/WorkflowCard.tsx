@@ -5,28 +5,42 @@ import { getWorkflowDisplayName, getWorkflowDisplayDescription, checkWorkflowMap
 import type { Workflow } from '../types';
 import { workflowApi } from '../../../api/workflows';
 
-const typeIcons = {
+const typeIcons: Record<string, typeof User> = {
   character: User,
   scene: Mountain,
+  shot_scene: ImageIcon,
+  shot_character_scene: ImageIcon,
+  shot_scene_prop: ImageIcon,
   shot: ImageIcon,
   video: Film,
+  first_last_video: Film,
+  three_frame_video: Film,
+  four_frame_video: Film,
   transition: Film,
   prop: Box,
   voice_design: Mic,
   audio: Music,
-  keyframe_image: Clapperboard
+  keyframe_image: Clapperboard,
+  single_image_edit: ImageIcon
 };
 
-const typeColors = {
+const typeColors: Record<string, string> = {
   character: 'bg-blue-100 text-blue-600',
   scene: 'bg-green-100 text-green-600',
+  shot_scene: 'bg-emerald-100 text-emerald-600',
+  shot_character_scene: 'bg-yellow-100 text-yellow-600',
+  shot_scene_prop: 'bg-lime-100 text-lime-600',
   shot: 'bg-amber-100 text-amber-600',
   video: 'bg-pink-100 text-pink-600',
+  first_last_video: 'bg-rose-100 text-rose-600',
+  three_frame_video: 'bg-fuchsia-100 text-fuchsia-600',
+  four_frame_video: 'bg-purple-100 text-purple-600',
   transition: 'bg-purple-100 text-purple-600',
   prop: 'bg-orange-100 text-orange-600',
   voice_design: 'bg-cyan-100 text-cyan-600',
   audio: 'bg-indigo-100 text-indigo-600',
-  keyframe_image: 'bg-teal-100 text-teal-600'
+  keyframe_image: 'bg-teal-100 text-teal-600',
+  single_image_edit: 'bg-violet-100 text-violet-600'
 };
 
 interface WorkflowCardProps {
@@ -50,8 +64,8 @@ export function WorkflowCard({
 }: WorkflowCardProps) {
   const { t } = useTranslation();
   const isMappingComplete = checkWorkflowMappingComplete(workflow);
-  const TypeIcon = typeIcons[workflow.type];
-  const typeColor = typeColors[workflow.type];
+  const TypeIcon = typeIcons[workflow.type] || Clapperboard;
+  const typeColor = typeColors[workflow.type] || 'bg-gray-100 text-gray-600';
 
   return (
     <div 

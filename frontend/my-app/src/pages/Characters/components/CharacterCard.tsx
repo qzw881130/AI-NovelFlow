@@ -1,7 +1,7 @@
 /**
  * 角色卡片组件
  */
-import { Loader2, User, Trash2, Edit2, Upload, Wand2, Sparkles, Mic, Play, Square, Music, BookOpen } from 'lucide-react';
+import { Loader2, User, Trash2, Edit2, Upload, Wand2, Sparkles, Mic, Play, Square, Music, BookOpen, ImagePlus } from 'lucide-react';
 import { useState, useRef } from 'react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Character } from '../../../types';
@@ -23,6 +23,7 @@ interface CharacterCardProps {
   onGeneratePortrait: (character: Character) => void;
   onGenerateAppearance: (character: Character) => void;
   onUploadImage: (characterId: string) => void;
+  onEditImage: (character: Character) => void;
   onImageClick: (url: string, name: string, characterId: string) => void;
   onGenerateVoice: (character: Character) => void;
   onUploadAudio: (characterId: string) => void;
@@ -43,6 +44,7 @@ export function CharacterCard({
   onGeneratePortrait,
   onGenerateAppearance,
   onUploadImage,
+  onEditImage,
   onImageClick,
   onGenerateVoice,
   onUploadAudio,
@@ -83,7 +85,7 @@ export function CharacterCard({
       <div className={`${aspectClass} bg-gray-100 relative w-full`}>
         {character.imageUrl ? (
           <img
-            src={character.imageUrl}
+            src={`${character.imageUrl}${character.updatedAt ? `${character.imageUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(character.updatedAt)}` : ''}`}
             alt={character.name}
             className="w-full h-full object-cover cursor-pointer"
             onClick={() => onImageClick(character.imageUrl!, character.name, character.id)}
@@ -96,6 +98,16 @@ export function CharacterCard({
               <User className="h-20 w-20 text-gray-300" />
             )}
           </div>
+        )}
+
+        {character.imageUrl && !character.isNarrator && (
+          <button
+            onClick={() => onEditImage(character)}
+            className="absolute top-2 left-2 p-2 bg-white/90 rounded-lg text-gray-500 hover:text-primary-600 hover:bg-primary-50 transition-colors opacity-0 group-hover:opacity-100"
+            title={t('characters.editImage')}
+          >
+            <ImagePlus className="h-4 w-4" />
+          </button>
         )}
 
         {/* Narrator Badge */}
@@ -111,6 +123,12 @@ export function CharacterCard({
           <div className={`absolute top-2 left-2 px-2 py-1 bg-blue-500 text-white text-xs rounded-full flex items-center gap-1 ${character.isNarrator ? 'left-24' : ''}`}>
             <Loader2 className="h-3 w-3 animate-spin" />
             {t('characters.generating')}
+          </div>
+        )}
+        {character.generatingStatus === 'pending' && !character.isNarrator && (
+          <div className={`absolute top-2 left-2 px-2 py-1 bg-amber-500 text-white text-xs rounded-full flex items-center gap-1 ${character.isNarrator ? 'left-24' : ''}`}>
+            <Loader2 className="h-3 w-3 animate-spin" />
+            {t('characters.pendingGeneration')}
           </div>
         )}
         {character.generatingStatus === 'failed' && (
@@ -172,11 +190,11 @@ export function CharacterCard({
           {/* AI生成形象 Button */}
           <button
             onClick={() => onGeneratePortrait(character)}
-            disabled={generatingId === character.id || character.generatingStatus === 'running'}
+            disabled={generatingId === character.id || character.generatingStatus === 'pending' || character.generatingStatus === 'running'}
             className="flex items-center gap-1 px-2 py-1.5 bg-purple-600/90 hover:bg-purple-700 text-white rounded-lg transition-colors disabled:opacity-70 text-xs"
-            title={character.generatingStatus === 'running' ? t('characters.generatingStatus') : (character.imageUrl ? t('characters.regenerate') : t('characters.generatePortrait'))}
+            title={character.generatingStatus === 'pending' || character.generatingStatus === 'running' ? t('characters.generatingStatus') : (character.imageUrl ? t('characters.regenerate') : t('characters.generatePortrait'))}
           >
-            {character.generatingStatus === 'running' || generatingId === character.id ? (
+            {character.generatingStatus === 'pending' || character.generatingStatus === 'running' || generatingId === character.id ? (
               <Loader2 className="h-3 w-3 animate-spin" />
             ) : (
               <Wand2 className="h-3 w-3" />

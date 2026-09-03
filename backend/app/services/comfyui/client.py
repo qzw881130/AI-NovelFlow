@@ -22,13 +22,17 @@ class ComfyUIClient:
         """动态获取当前的 ComfyUI 主机地址"""
         from app.core.config import get_settings
         return get_settings().COMFYUI_HOST
+
+    def _client(self) -> httpx.AsyncClient:
+        # ComfyUI runs on the local network; bypass env proxies to avoid proxy 502s.
+        return httpx.AsyncClient(trust_env=False)
     
     # ==================== 健康检查 ====================
     
     async def check_health(self) -> bool:
         """检查 ComfyUI 服务状态"""
         try:
-            async with httpx.AsyncClient() as client:
+            async with self._client() as client:
                 response = await client.get(
                     f"{self.base_url}/system_stats",
                     timeout=5.0
@@ -65,7 +69,7 @@ class ComfyUIClient:
 
             filename = os.path.basename(image_path)
 
-            async with httpx.AsyncClient() as client:
+            async with self._client() as client:
                 with open(image_path, 'rb') as f:
                     files = {'image': (filename, f, 'image/png')}
                     data = {'type': 'input', 'overwrite': 'true'}
@@ -134,7 +138,7 @@ class ComfyUIClient:
             }
             mime_type = mime_types.get(ext, 'audio/flac')
 
-            async with httpx.AsyncClient() as client:
+            async with self._client() as client:
                 with open(audio_path, 'rb') as f:
                     # ComfyUI 使用 /upload/image 端点上传所有文件类型
                     files = {'image': (filename, f, mime_type)}
@@ -171,7 +175,7 @@ class ComfyUIClient:
     async def queue_prompt(self, workflow: Dict[str, Any]) -> Dict[str, Any]:
         """提交任务到 ComfyUI"""
         try:
-            async with httpx.AsyncClient() as client:
+            async with self._client() as client:
                 response = await client.post(
                     f"{self.base_url}/prompt",
                     json={
@@ -230,6 +234,7 @@ class ComfyUIClient:
         """
         print(f"ComfyUI Waiting for result: prompt_id={prompt_id}, workflow_json:\n{json.dumps(workflow, indent=2, ensure_ascii=True)}")
         start_time = asyncio.get_event_loop().time()
+        missing_from_queue_since = None
 
         while True:
             elapsed = asyncio.get_event_loop().time() - start_time
@@ -240,7 +245,7 @@ class ComfyUIClient:
                 }
 
             try:
-                async with httpx.AsyncClient() as client:
+                async with self._client() as client:
                     response = await client.get(
                         f"{self.base_url}/history/{prompt_id}",
                         timeout=10.0
@@ -250,8 +255,10 @@ class ComfyUIClient:
                         history = response.json()
 
                         if prompt_id in history:
+                            missing_from_queue_since = None
                             prompt_history = history[prompt_id]
                             outputs = prompt_history.get("outputs", {})
+                            status = prompt_history.get("status", {})
 
                             if outputs:
                                 result = self._parse_outputs(
@@ -260,8 +267,13 @@ class ComfyUIClient:
                                 if result:
                                     return result
 
+                                if self._is_completed_status(status):
+                                    return {
+                                        "success": False,
+                                        "message": "ComfyUI 任务已完成，但未找到可保存的图片或视频输出。请检查保存节点映射和工作流输出。"
+                                    }
+
                             # 检查是否有错误
-                            status = prompt_history.get("status", {})
                             if status.get("status_str") == "error":
                                 error_msg = "未知错误"
                                 messages = status.get("messages")
@@ -275,6 +287,24 @@ class ComfyUIClient:
                                     "success": False,
                                     "message": error_msg
                                 }
+
+                            if self._is_completed_status(status):
+                                return {
+                                    "success": False,
+                                    "message": "ComfyUI 任务已完成，但 history 中没有输出结果。请检查工作流保存节点。"
+                                }
+                        else:
+                            queue_info = await self.get_queue_info()
+                            if self._queue_contains_prompt(queue_info, prompt_id):
+                                missing_from_queue_since = None
+                            else:
+                                if missing_from_queue_since is None:
+                                    missing_from_queue_since = elapsed
+                                elif elapsed - missing_from_queue_since >= 30:
+                                    return {
+                                        "success": False,
+                                        "message": "ComfyUI 中已找不到该任务，且未产生 history 结果。任务可能被清理、取消或 ComfyUI 异常退出。"
+                                    }
 
                     await asyncio.sleep(poll_interval)
 
@@ -300,6 +330,7 @@ class ComfyUIClient:
             poll_interval: 轮询间隔（秒）
         """
         start_time = asyncio.get_event_loop().time()
+        missing_from_queue_since = None
 
         while True:
             elapsed = asyncio.get_event_loop().time() - start_time
@@ -310,7 +341,7 @@ class ComfyUIClient:
                 }
 
             try:
-                async with httpx.AsyncClient() as client:
+                async with self._client() as client:
                     response = await client.get(
                         f"{self.base_url}/history/{prompt_id}",
                         timeout=10.0
@@ -320,8 +351,10 @@ class ComfyUIClient:
                         history = response.json()
 
                         if prompt_id in history:
+                            missing_from_queue_since = None
                             prompt_history = history[prompt_id]
                             outputs = prompt_history.get("outputs", {})
+                            status = prompt_history.get("status", {})
 
                             if outputs:
                                 result = self._parse_audio_outputs(
@@ -330,8 +363,13 @@ class ComfyUIClient:
                                 if result:
                                     return result
 
+                                if self._is_completed_status(status):
+                                    return {
+                                        "success": False,
+                                        "message": "ComfyUI 音频任务已完成，但未找到可保存的音频输出。请检查保存节点映射和工作流输出。"
+                                    }
+
                             # 检查是否有错误
-                            status = prompt_history.get("status", {})
                             if status.get("status_str") == "error":
                                 error_msg = "未知错误"
                                 messages = status.get("messages")
@@ -346,6 +384,24 @@ class ComfyUIClient:
                                     "message": error_msg
                                 }
 
+                            if self._is_completed_status(status):
+                                return {
+                                    "success": False,
+                                    "message": "ComfyUI 音频任务已完成，但 history 中没有输出结果。请检查工作流保存节点。"
+                                }
+                        else:
+                            queue_info = await self.get_queue_info()
+                            if self._queue_contains_prompt(queue_info, prompt_id):
+                                missing_from_queue_since = None
+                            else:
+                                if missing_from_queue_since is None:
+                                    missing_from_queue_since = elapsed
+                                elif elapsed - missing_from_queue_since >= 30:
+                                    return {
+                                        "success": False,
+                                        "message": "ComfyUI 中已找不到该音频任务，且未产生 history 结果。任务可能被清理、取消或 ComfyUI 异常退出。"
+                                    }
+
                     await asyncio.sleep(poll_interval)
 
             except Exception as e:
@@ -359,6 +415,20 @@ class ComfyUIClient:
         save_image_node_id: str = None
     ) -> Optional[Dict[str, Any]]:
         """解析 ComfyUI 输出结果"""
+        def build_media_url(media_info: Dict[str, Any]) -> str:
+            filename = media_info.get("filename")
+            subfolder = media_info.get("subfolder", "")
+            media_type = media_info.get("type", "output")
+
+            params = f"filename={filename}"
+            if subfolder:
+                params += f"&subfolder={subfolder}"
+            params += f"&type={media_type}"
+            return f"{self.base_url}/view?{params}"
+
+        def is_video_filename(filename: str) -> bool:
+            return str(filename or "").lower().split("?")[0].endswith((".mp4", ".webm", ".mov", ".mkv"))
+
         # 查找工作流中的所有 SaveImage 节点
         saveimage_nodes = set()
         if workflow:
@@ -367,23 +437,37 @@ class ComfyUIClient:
                     saveimage_nodes.add(str(node_id))
             print(f"[ComfyUI] SaveImage nodes in workflow: {saveimage_nodes}")
         
+        # 优先使用配置的保存节点。视频工作流可能同时有高清/低清 SaveVideo，遍历第一个会取错。
+        if save_image_node_id:
+            configured_output = outputs.get(str(save_image_node_id))
+            if configured_output:
+                for output_key, label in (("videos", "SaveVideo"), ("gifs", "VHS_VideoCombine")):
+                    videos = configured_output.get(output_key)
+                    if videos:
+                        video_url = build_media_url(videos[0])
+                        print(f"[ComfyUI] Found configured video ({label}) from node {save_image_node_id}: {video_url}")
+                        return {
+                            "success": True,
+                            "video_url": video_url,
+                            "message": "生成成功"
+                        }
+                images = configured_output.get("images")
+                if images and is_video_filename(images[0].get("filename", "")):
+                    video_url = build_media_url(images[0])
+                    print(f"[ComfyUI] Found configured video file from images output node {save_image_node_id}: {video_url}")
+                    return {
+                        "success": True,
+                        "video_url": video_url,
+                        "message": "生成成功"
+                    }
+
         # 优先检查视频输出（VHS_VideoCombine 输出 gifs，SaveVideo 输出 videos）
         for node_id, node_output in outputs.items():
             # 检查 videos 输出（SaveVideo 节点）
             if "videos" in node_output:
                 videos = node_output["videos"]
                 if videos:
-                    video_info = videos[0]
-                    filename = video_info.get("filename")
-                    subfolder = video_info.get("subfolder", "")
-                    video_type = video_info.get("type", "output")
-
-                    params = f"filename={filename}"
-                    if subfolder:
-                        params += f"&subfolder={subfolder}"
-                    params += f"&type={video_type}"
-
-                    video_url = f"{self.base_url}/view?{params}"
+                    video_url = build_media_url(videos[0])
                     print(f"[ComfyUI] Found video (SaveVideo) from node {node_id}: {video_url}")
 
                     return {
@@ -396,17 +480,7 @@ class ComfyUIClient:
             if "gifs" in node_output:
                 videos = node_output["gifs"]
                 if videos:
-                    video_info = videos[0]
-                    filename = video_info.get("filename")
-                    subfolder = video_info.get("subfolder", "")
-                    video_type = video_info.get("type", "output")
-
-                    params = f"filename={filename}"
-                    if subfolder:
-                        params += f"&subfolder={subfolder}"
-                    params += f"&type={video_type}"
-
-                    video_url = f"{self.base_url}/view?{params}"
+                    video_url = build_media_url(videos[0])
                     print(f"[ComfyUI] Found video (VHS_VideoCombine) from node {node_id}: {video_url}")
 
                     return {
@@ -425,7 +499,15 @@ class ComfyUIClient:
                 if images:
                     img_info = images[0]
                     filename = img_info.get("filename", "")
-                    
+                    if is_video_filename(filename):
+                        video_url = build_media_url(img_info)
+                        print(f"[ComfyUI] Found video file from images output node {node_id}: {video_url}")
+                        return {
+                            "success": True,
+                            "video_url": video_url,
+                            "message": "生成成功"
+                        }
+
                     # 跳过临时文件
                     if "temp" in filename.lower():
                         print(f"[ComfyUI] Skipping temp file from node {node_id}: {filename}")
@@ -470,6 +552,33 @@ class ComfyUIClient:
             }
         
         return None
+
+    def _is_completed_status(self, status: Dict[str, Any]) -> bool:
+        """判断 ComfyUI history 状态是否已经结束。"""
+        return bool(status.get("completed")) or status.get("status_str") in {"success", "completed"}
+
+    def _extract_status_error(self, status: Dict[str, Any]) -> str:
+        """提取 ComfyUI history status 中的错误信息。"""
+        messages = status.get("messages")
+        if messages and len(messages) > 0:
+            msg_item = messages[0]
+            if isinstance(msg_item, (list, tuple)) and len(msg_item) > 1:
+                return str(msg_item[1])
+            return str(msg_item)
+        return "未知错误"
+
+    def _queue_contains_prompt(self, queue_info: Dict[str, Any], prompt_id: str) -> bool:
+        """ComfyUI queue item 结构随版本变化，递归查找 prompt_id 更稳妥。"""
+        def contains(value: Any) -> bool:
+            if isinstance(value, str):
+                return value == prompt_id
+            if isinstance(value, dict):
+                return any(contains(v) for v in value.values())
+            if isinstance(value, (list, tuple)):
+                return any(contains(v) for v in value)
+            return False
+
+        return contains(queue_info.get("queue_running", [])) or contains(queue_info.get("queue_pending", []))
 
     def _parse_audio_outputs(
         self,
@@ -542,7 +651,7 @@ class ComfyUIClient:
     async def get_queue_info(self) -> Dict[str, Any]:
         """获取 ComfyUI 队列信息"""
         try:
-            async with httpx.AsyncClient() as client:
+            async with self._client() as client:
                 response = await client.get(
                     f"{self.base_url}/queue",
                     timeout=10.0
@@ -555,6 +664,35 @@ class ComfyUIClient:
         except Exception as e:
             print(f"[ComfyUI] Get queue error: {e}")
             return {"queue_running": [], "queue_pending": []}
+
+    async def get_prompt_state(self, prompt_id: str, queue_info: Dict[str, Any] = None) -> Dict[str, Any]:
+        """查询 prompt 当前在 ComfyUI 的状态。"""
+        queue_info = queue_info if queue_info is not None else await self.get_queue_info()
+        if self._queue_contains_prompt(queue_info, prompt_id):
+            return {"state": "queued"}
+
+        try:
+            async with self._client() as client:
+                response = await client.get(
+                    f"{self.base_url}/history/{prompt_id}",
+                    timeout=10.0
+                )
+            if response.status_code != 200:
+                return {"state": "unknown", "message": f"history HTTP {response.status_code}"}
+
+            history = response.json()
+            prompt_history = history.get(prompt_id)
+            if not prompt_history:
+                return {"state": "missing"}
+
+            status = prompt_history.get("status", {})
+            if status.get("status_str") == "error":
+                return {"state": "error", "message": self._extract_status_error(status)}
+            if self._is_completed_status(status):
+                return {"state": "completed", "history": prompt_history}
+            return {"state": "history", "history": prompt_history}
+        except Exception as e:
+            return {"state": "unknown", "message": str(e)}
     
     async def clear_queue(self, max_retries: int = 3) -> Dict[str, Any]:
         """清空 ComfyUI 队列中的所有等待任务"""
@@ -562,7 +700,7 @@ class ComfyUIClient:
         
         for attempt in range(1, max_retries + 1):
             try:
-                async with httpx.AsyncClient() as client:
+                async with self._client() as client:
                     print(f"[ComfyUI] Clearing queue (attempt {attempt}/{max_retries})")
                     response = await client.post(
                         f"{self.base_url}/queue",
@@ -595,7 +733,7 @@ class ComfyUIClient:
     async def delete_from_queue(self, prompt_id: str) -> Dict[str, Any]:
         """从队列中删除等待执行的任务"""
         try:
-            async with httpx.AsyncClient() as client:
+            async with self._client() as client:
                 print(f"[ComfyUI] Deleting prompt {prompt_id} from queue")
                 response = await client.post(
                     f"{self.base_url}/queue",
@@ -616,7 +754,7 @@ class ComfyUIClient:
         
         for attempt in range(1, max_retries + 1):
             try:
-                async with httpx.AsyncClient() as client:
+                async with self._client() as client:
                     response = await client.post(
                         f"{self.base_url}/interrupt",
                         timeout=10.0

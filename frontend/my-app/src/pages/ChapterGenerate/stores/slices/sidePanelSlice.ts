@@ -54,7 +54,7 @@ export type SidePanelSlice = SidePanelSliceState & SidePanelSliceActions;
 const MIN_LEFT_WIDTH = 200;
 const MAX_LEFT_WIDTH = 400;
 const MIN_RIGHT_WIDTH = 320;
-const MAX_RIGHT_WIDTH = 440;
+const MAX_RIGHT_WIDTH = 920;
 const COLLAPSED_WIDTH = 48;
 
 // ========== Initial State ==========

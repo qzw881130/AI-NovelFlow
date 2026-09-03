@@ -20,12 +20,16 @@ class LLMLog(Base):
     # 提示词
     system_prompt = Column(Text, nullable=True)
     user_prompt = Column(Text, nullable=False)
+    prompt_template_name = Column(String, nullable=True)  # 调用时使用的提示词模板名称
     
     # LLM响应
     response = Column(Text, nullable=True)
+
+    # 请求参数（已脱敏的 JSON 字符串）
+    request_info = Column(Text, nullable=True)
     
     # 状态
-    status = Column(String, default="success")  # success, error
+    status = Column(String, default="pending")  # pending, success, error
     error_message = Column(Text, nullable=True)
     
     # 任务类型

@@ -35,12 +35,24 @@ export const sceneApi = {
   generateImage: (sceneId: string) => 
     api.post(`/scenes/${sceneId}/generate-image`),
 
+  /** 为未生成或失败的场景生成图片任务 */
+  generateMissingImages: (novelId: string) =>
+    api.post<{ queuedCount: number; failedCount: number; failedItems: Array<{ id: string; name: string; message: string }> }>(`/scenes/generate-missing-images?novel_id=${novelId}`),
+
   /** 上传场景图片 */
   uploadImage: async (sceneId: string, file: File) => {
     const formData = new FormData();
     formData.append('file', file);
     return api.upload<Scene>(`/scenes/${sceneId}/upload-image`, formData);
   },
+
+  /** 使用单图编辑工作流编辑场景图片 */
+  editImage: (sceneId: string, prompt: string) =>
+    api.post<{ imageUrl: string; taskId?: string }>(`/scenes/${sceneId}/edit-image`, { prompt }),
+
+  /** 用编辑结果替换场景图片 */
+  replaceImage: (sceneId: string, imageUrl: string) =>
+    api.post<Scene>(`/scenes/${sceneId}/replace-image`, { imageUrl }),
 
   /** 清空场景图片目录 */
   clearImagesDir: (novelId: string) => 

@@ -1,0 +1,168 @@
+{
+  "17": {
+    "inputs": {
+      "unet_name": "qwen_image_edit_2511_fp8mixed.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": { "title": "#17 Load Diffusion Model" }
+  },
+  "18": {
+    "inputs": {
+      "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": { "title": "#18 Load CLIP" }
+  },
+  "19": {
+    "inputs": { "vae_name": "qwen_image_vae.safetensors" },
+    "class_type": "VAELoader",
+    "_meta": { "title": "#19 Load VAE" }
+  },
+  "33": {
+    "inputs": {
+      "lora_name": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-fp32.safetensors",
+      "strength_model": 1,
+      "model": ["17", 0]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": { "title": "#33 Load LoRA" }
+  },
+  "64": {
+    "inputs": {
+      "shift": 3.0000000000000004,
+      "model": ["33", 0]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": { "title": "#64 ModelSamplingAuraFlow" }
+  },
+  "65": {
+    "inputs": {
+      "strength": 1,
+      "pre_cfg": false,
+      "model": ["64", 0]
+    },
+    "class_type": "CFGNorm",
+    "_meta": { "title": "#65 CFGNorm" }
+  },
+  "152": {
+    "inputs": { "conditioning": ["165", 0] },
+    "class_type": "ConditioningZeroOut",
+    "_meta": { "title": "#152 ConditioningZeroOut" }
+  },
+  "160": {
+    "inputs": {
+      "width": ["182", 0],
+      "height": ["183", 0],
+      "upscale_method": "nearest-exact",
+      "keep_proportion": "pad_edge_pixel",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu",
+      "image": ["170", 0]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": { "title": "#160 Resize Image v2" }
+  },
+  "161": {
+    "inputs": {
+      "pixels": ["160", 0],
+      "vae": ["19", 0]
+    },
+    "class_type": "VAEEncode",
+    "_meta": { "title": "#161 VAE Encode" }
+  },
+  "163": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": ["164", 0]
+    },
+    "class_type": "SaveImage",
+    "_meta": { "title": "#163 Save Image" }
+  },
+  "164": {
+    "inputs": {
+      "samples": ["169", 0],
+      "vae": ["19", 0]
+    },
+    "class_type": "VAEDecode",
+    "_meta": { "title": "#164 VAE Decode" }
+  },
+  "165": {
+    "inputs": {
+      "prompt": ["186", 0],
+      "target_size": 1536,
+      "target_vl_size": 384,
+      "upscale_method": "lanczos",
+      "crop_method": "pad",
+      "instruction": "Describe the key features of the input image (color, shape, size, texture, objects, background), then explain how the user's text instruction should alter or modify the image. Generate a new image that meets the user's requirements while maintaining consistency with the original input where appropriate.",
+      "clip": ["18", 0],
+      "vae": ["19", 0],
+      "vl_resize_image1": ["160", 0],
+      "vl_resize_image2": ["171", 0]
+    },
+    "class_type": "TextEncodeQwenImageEditPlusAdvance_lrzjason",
+    "_meta": { "title": "#165 TextEncodeQwenImageEditPlusAdvance lrzjason" }
+  },
+  "169": {
+    "inputs": {
+      "seed": 918559552092127,
+      "steps": 4,
+      "cfg": 1,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "FlowMatchEulerDiscreteScheduler",
+      "denoise": 1,
+      "model": ["65", 0],
+      "positive": ["165", 0],
+      "negative": ["152", 0],
+      "latent_image": ["161", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": { "title": "#169 KSampler" }
+  },
+  "170": {
+    "inputs": { "image": "" },
+    "class_type": "LoadImage",
+    "_meta": { "title": "#170 角色参考图节点" }
+  },
+  "171": {
+    "inputs": { "image": "" },
+    "class_type": "LoadImage",
+    "_meta": { "title": "#171 场景参考图节点" }
+  },
+  "182": {
+    "inputs": { "value": 1536 },
+    "class_type": "easy int",
+    "_meta": { "title": "#182 width" }
+  },
+  "183": {
+    "inputs": { "value": 864 },
+    "class_type": "easy int",
+    "_meta": { "title": "#183 height" }
+  },
+  "184": {
+    "inputs": { "prompt": "" },
+    "class_type": "CR Prompt Text",
+    "_meta": { "title": "#184 生成场景提示词" }
+  },
+  "185": {
+    "inputs": {
+      "prompt": "Reference image usage rules:\n\nPicture 1 is a CHARACTER REFERENCE SHEET only. Use Picture 1 only to identify and preserve the appearance, face, hairstyle, age, body proportions and costume of the named characters. Do not copy the reference-sheet layout, isolated portraits, floating heads, duplicated character views, white background, labels or character-sheet composition into the final image.\n\nPicture 2 is the SCENE REFERENCE and the primary environmental/base composition reference. Preserve its environment, architecture, terrain, atmosphere and overall visual identity, while placing the required characters into the scene according to the Scene / Characters / Action instructions below.\n\nGenerate one coherent cinematic scene, not a collage, not a reference sheet, and not an image montage. All visible characters must have complete anatomically connected bodies unless naturally occluded by the camera framing.\n\n"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": { "title": "#185 参考图使用规则" }
+  },
+  "186": {
+    "inputs": {
+      "text1": ["185", 0],
+      "text2": ["184", 0],
+      "separator": "",
+      "text3": ""
+    },
+    "class_type": "ConcatTextOfUtils",
+    "_meta": { "title": "#186 Concat Text" }
+  }
+}

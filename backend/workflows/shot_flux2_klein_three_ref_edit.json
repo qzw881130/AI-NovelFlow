@@ -1,0 +1,451 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "Flux2-Klein",
+      "images": [
+        "101",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "#9 Save Image"
+    }
+  },
+  "76": {
+    "inputs": {
+      "image": "合并角色图.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#76 Load Image 1（主图/参考图1）"
+    }
+  },
+  "99": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "#99 KSamplerSelect"
+    }
+  },
+  "100": {
+    "inputs": {
+      "noise": [
+        "102",
+        0
+      ],
+      "guider": [
+        "108",
+        0
+      ],
+      "sampler": [
+        "99",
+        0
+      ],
+      "sigmas": [
+        "109",
+        0
+      ],
+      "latent_image": [
+        "106",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#100 SamplerCustomAdvanced"
+    }
+  },
+  "101": {
+    "inputs": {
+      "samples": [
+        "100",
+        0
+      ],
+      "vae": [
+        "105",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#101 VAE Decode"
+    }
+  },
+  "102": {
+    "inputs": {
+      "noise_seed": 224074321823456
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#102 RandomNoise"
+    }
+  },
+  "103": {
+    "inputs": {
+      "unet_name": "flux-2-klein-9b.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#103 Load Diffusion Model"
+    }
+  },
+  "104": {
+    "inputs": {
+      "clip_name": "qwen_3_8b.safetensors",
+      "type": "flux2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#104 Load CLIP"
+    }
+  },
+  "105": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#105 Load VAE"
+    }
+  },
+  "106": {
+    "inputs": {
+      "width": [
+        "123",
+        0
+      ],
+      "height": [
+        "125",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "#106 Empty Flux 2 Latent"
+    }
+  },
+  "107": {
+    "inputs": {
+      "upscale_method": "bicubic",
+      "megapixels": 1,
+      "resolution_steps": 1,
+      "image": [
+        "76",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "#107 Scale Image to Total Pixels"
+    }
+  },
+  "108": {
+    "inputs": {
+      "cfg": 1,
+      "model": [
+        "103",
+        0
+      ],
+      "positive": [
+        "135",
+        0
+      ],
+      "negative": [
+        "136",
+        0
+      ]
+    },
+    "class_type": "CFGGuider",
+    "_meta": {
+      "title": "#108 CFG Guider"
+    }
+  },
+  "109": {
+    "inputs": {
+      "steps": 8,
+      "width": [
+        "123",
+        0
+      ],
+      "height": [
+        "125",
+        0
+      ]
+    },
+    "class_type": "Flux2Scheduler",
+    "_meta": {
+      "title": "#109 Flux2Scheduler"
+    }
+  },
+  "110": {
+    "inputs": {
+      "text": [
+        "117",
+        0
+      ],
+      "clip": [
+        "104",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "#110 CLIP Text Encode (Prompt)"
+    }
+  },
+  "111": {
+    "inputs": {
+      "conditioning": [
+        "110",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "#111 Conditioning Zero Out"
+    }
+  },
+  "114": {
+    "inputs": {
+      "conditioning": [
+        "111",
+        0
+      ],
+      "latent": [
+        "115",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "#114 Set Reference Latent"
+    }
+  },
+  "115": {
+    "inputs": {
+      "pixels": [
+        "107",
+        0
+      ],
+      "vae": [
+        "105",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "#115 VAE Encode"
+    }
+  },
+  "116": {
+    "inputs": {
+      "conditioning": [
+        "110",
+        0
+      ],
+      "latent": [
+        "115",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "#116 Set Reference Latent"
+    }
+  },
+  "117": {
+    "inputs": {
+      "text": "<Picture 1> 是当前 Shot 的角色合并参考图，其中包含“母马”“小马”的正式身份与稳定外观参考：请分别继承母马与小马各自对应的面部特征、毛色花纹、鬃毛与尾巴形态、年龄感、体型比例等身份特征；母马为成年母马、体型较大，小马为幼驹、体型娇小；严禁交换二者的身份、毛色或特征。该合并图仅用于锁定角色外观，不作为最终画面的站位、姿态、背景或构图模板。\n\n<Picture 2> 是“草原与农场”的正式场景参考图，仅用于环境结构、草原地貌、农场院子空间、栅栏、农舍、地面材质与总体视觉参考；不得将场景参考图中可能出现的其他动物、人物或额外剧情道具带入最终画面。\n\n<Picture 3> 是当前 Shot 的道具合并参考图，其中包含“麦袋”“绳子”，仅用于麦袋和绳子的外观、材质与形制参考；不得引入合并图中的背景、展示排版、展示台或任何未列物体。\n\n最终构图目标：把画面定格为一个静态首帧——在草原与农场的院子里，母马站在小马身侧，正用嘴将麦袋放到安静站立的小马背上，同时用绳子绕背固定；小马背部驮着麦袋，四足站立不动。只表现这一瞬间，禁止把视频中后续的过程或动作叠加到同一画面。\n\n人物数量闭包：画面中只允许出现“母马”和“小马”这两名可见角色，共 2 名；禁止出现第 3 个角色、其他马匹、牲畜、家禽、人群、路人、远处人影、人物剪影、镜中或画中生物等任何未列对象。\n\n逐角色身份与位置：小马位于画面中央偏右侧的院子地面上，身体微侧朝向镜头，四足自然安静站立，头自然抬起，背上驮着麦袋；母马位于小马身侧的左侧，紧贴小马，身体朝向右前方，头颈弯向小马背部上方，正在用嘴把麦袋摆放到位，并用嘴牵引绳子绕着小马背部完成固定动作；母马体型明显大于小马，两者比例与外观严格参考 <Picture 1> 中各自身份，不互换。\n\n场景与道具：场景保持正式场景“草原与农场”：远处为绿色草原与起伏草坡，院内可见木质栅栏、农舍与围栏等环境元素，具体结构与画风以 <Picture 2> 为参考，并按当前构图布置空间。道具只允许出现“麦袋”和“绳子”，并继承 <Picture 3> 中两者的外观、材质与形制：麦袋为鼓胀的编织粮袋形态，放在小马背上，绳子缠绕并固定在小马背部与麦袋上；不得额外添加农具、水桶、饲料槽、推车、武器、鞍具或任何未列出的剧情关键道具。\n\n静态动作：画面停格在“母马的嘴正将麦袋安置到小马背上、并正在用绳子固定”的这一单帧，小马保持安静站立；不要表现 video_description 中后续的母马抬头开口说话、小马点头、随后出发沿路前行等内容；母马在此静态瞬间嘴部处于叼放麦袋或牵引绳子的工作状态，不做夸张说话口型，也不把任何台词文字画入画面。\n\n风格与质量：整体严格执行正式视觉风格：chibi style，cute cartoon style，kawaii，colorful style；同时保持 high quality、detailed、电影级构图、正确透视、自然遮挡与合理景深；角色造型圆润可爱、画风高度统一，以 <Picture 1> 的人物外观为一致性基准。\n\n禁止项：禁止出现文字、字幕、台词文本、对话气泡、logo、水印、UI、边框、拼贴画、角色设定四视图；禁止把 <Picture 1>、<Picture 3> 的合并排版、展示栏、展示台或背景复制进最终画面；禁止交换母马与小马身份；禁止出现第 3 名角色或任何额外动物人物；禁止出现现代物品；禁止在同一画面叠加多个时间状态；禁止产生多余肢体、畸形身体结构、重复角色或融合脸。"
+    },
+    "class_type": "CR Text",
+    "_meta": {
+      "title": "#117 🔤 CR Text"
+    }
+  },
+  "123": {
+    "inputs": {
+      "value": [
+        "126",
+        0
+      ]
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#123 Width"
+    }
+  },
+  "125": {
+    "inputs": {
+      "value": [
+        "126",
+        1
+      ]
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "#125 Height"
+    }
+  },
+  "126": {
+    "inputs": {
+      "image": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "#126 #-1 Get Image Size"
+    }
+  },
+  "127": {
+    "inputs": {
+      "image": "场景图.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#127 Load Image 2（参考图2）"
+    }
+  },
+  "128": {
+    "inputs": {
+      "upscale_method": "bicubic",
+      "megapixels": 1,
+      "resolution_steps": 1,
+      "image": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "#128 Scale Reference Image 2"
+    }
+  },
+  "129": {
+    "inputs": {
+      "pixels": [
+        "128",
+        0
+      ],
+      "vae": [
+        "105",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "#129 VAE Encode Reference 2"
+    }
+  },
+  "130": {
+    "inputs": {
+      "conditioning": [
+        "116",
+        0
+      ],
+      "latent": [
+        "129",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "#130 Set Positive Reference 2"
+    }
+  },
+  "131": {
+    "inputs": {
+      "conditioning": [
+        "114",
+        0
+      ],
+      "latent": [
+        "129",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "#131 Set Negative Reference 2"
+    }
+  },
+  "132": {
+    "inputs": {
+      "image": "合并道具图.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#132 Load Image 3（参考图3）"
+    }
+  },
+  "133": {
+    "inputs": {
+      "upscale_method": "bicubic",
+      "megapixels": 1,
+      "resolution_steps": 1,
+      "image": [
+        "132",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "#133 Scale Reference Image 3"
+    }
+  },
+  "134": {
+    "inputs": {
+      "pixels": [
+        "133",
+        0
+      ],
+      "vae": [
+        "105",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "#134 VAE Encode Reference 3"
+    }
+  },
+  "135": {
+    "inputs": {
+      "conditioning": [
+        "130",
+        0
+      ],
+      "latent": [
+        "134",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "#135 Set Positive Reference 3"
+    }
+  },
+  "136": {
+    "inputs": {
+      "conditioning": [
+        "131",
+        0
+      ],
+      "latent": [
+        "134",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "#136 Set Negative Reference 3"
+    }
+  }
+}

@@ -29,6 +29,22 @@ class PromptTemplateType:
     CHAPTER_SPLIT = "chapter_split"
     # 关键帧描述提示词 - 用于生成分镜关键帧描述
     KEYFRAME_DESCRIPTION = "keyframe_description"
+    # 分镜图提示词 - 用于构建主分镜图最终提示词
+    SHOT_IMAGE_PROMPT = "shot_image_prompt"
+    # 视频生成模式推荐提示词
+    VIDEO_MODE_RECOMMENDER = "video_mode_recommender"
+    # 关键帧规划提示词
+    KEYFRAME_PLANNER = "keyframe_planner"
+    # 关键帧生图提示词
+    KEYFRAME_IMAGE_PROMPT = "keyframe_image_prompt"
+    # 关键帧过渡规划提示词
+    KEYFRAME_TRANSITION = "keyframe_transition"
+    # MiniMax H3 单帧视频提示词
+    H3_SINGLE_FRAME_PROMPT = "h3_single_frame_prompt"
+    # MiniMax H3 首尾帧视频提示词
+    H3_FIRST_LAST_FRAME_PROMPT = "h3_first_last_frame_prompt"
+    # MiniMax H3 多关键帧视频提示词
+    H3_MULTI_KEYFRAME_PROMPT = "h3_multi_keyframe_prompt"
 
 
 # 所有提示词模板类型列表（按使用顺序排列）
@@ -41,7 +57,15 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.SCENE,
     PromptTemplateType.PROP,
     PromptTemplateType.CHAPTER_SPLIT,
+    PromptTemplateType.SHOT_IMAGE_PROMPT,
+    PromptTemplateType.VIDEO_MODE_RECOMMENDER,
     PromptTemplateType.KEYFRAME_DESCRIPTION,
+    PromptTemplateType.KEYFRAME_PLANNER,
+    PromptTemplateType.KEYFRAME_IMAGE_PROMPT,
+    PromptTemplateType.KEYFRAME_TRANSITION,
+    PromptTemplateType.H3_SINGLE_FRAME_PROMPT,
+    PromptTemplateType.H3_FIRST_LAST_FRAME_PROMPT,
+    PromptTemplateType.H3_MULTI_KEYFRAME_PROMPT,
 ]
 
 
@@ -100,6 +124,54 @@ PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
         "desc_key": "promptConfig.types.keyframeDescriptionDesc",
         "icon": "Film",
         "color": "indigo",
+    },
+    PromptTemplateType.SHOT_IMAGE_PROMPT: {
+        "name_key": "promptConfig.types.shotImagePrompt",
+        "desc_key": "promptConfig.types.shotImagePromptDesc",
+        "icon": "Image",
+        "color": "cyan",
+    },
+    PromptTemplateType.VIDEO_MODE_RECOMMENDER: {
+        "name_key": "promptConfig.types.videoModeRecommender",
+        "desc_key": "promptConfig.types.videoModeRecommenderDesc",
+        "icon": "SlidersHorizontal",
+        "color": "violet",
+    },
+    PromptTemplateType.KEYFRAME_PLANNER: {
+        "name_key": "promptConfig.types.keyframePlanner",
+        "desc_key": "promptConfig.types.keyframePlannerDesc",
+        "icon": "Film",
+        "color": "indigo",
+    },
+    PromptTemplateType.KEYFRAME_IMAGE_PROMPT: {
+        "name_key": "promptConfig.types.keyframeImagePrompt",
+        "desc_key": "promptConfig.types.keyframeImagePromptDesc",
+        "icon": "Images",
+        "color": "emerald",
+    },
+    PromptTemplateType.KEYFRAME_TRANSITION: {
+        "name_key": "promptConfig.types.keyframeTransition",
+        "desc_key": "promptConfig.types.keyframeTransitionDesc",
+        "icon": "Route",
+        "color": "violet",
+    },
+    PromptTemplateType.H3_SINGLE_FRAME_PROMPT: {
+        "name_key": "promptConfig.types.h3SingleFramePrompt",
+        "desc_key": "promptConfig.types.h3SingleFramePromptDesc",
+        "icon": "Video",
+        "color": "rose",
+    },
+    PromptTemplateType.H3_FIRST_LAST_FRAME_PROMPT: {
+        "name_key": "promptConfig.types.h3FirstLastFramePrompt",
+        "desc_key": "promptConfig.types.h3FirstLastFramePromptDesc",
+        "icon": "Video",
+        "color": "rose",
+    },
+    PromptTemplateType.H3_MULTI_KEYFRAME_PROMPT: {
+        "name_key": "promptConfig.types.h3MultiKeyframePrompt",
+        "desc_key": "promptConfig.types.h3MultiKeyframePromptDesc",
+        "icon": "Video",
+        "color": "rose",
     },
 }
 

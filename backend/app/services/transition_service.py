@@ -14,7 +14,7 @@ from app.models.workflow import Workflow
 from app.core.database import SessionLocal
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
-from app.utils.path_utils import url_to_local_path
+from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.repositories.shot_repository import ShotRepository
 
 
@@ -25,6 +25,7 @@ async def generate_transition_video_task(
     from_index: int,
     to_index: int,
     workflow_id: str,
+    duration_seconds: float | None = None,
     frame_count: int = 49
 ):
     """
@@ -37,6 +38,7 @@ async def generate_transition_video_task(
         from_index: 起始分镜索引
         to_index: 结束分镜索引
         workflow_id: 工作流ID
+        duration_seconds: 时长秒数
         frame_count: 帧数
     """
     db = SessionLocal()
@@ -104,6 +106,15 @@ async def generate_transition_video_task(
         last_frame_path = first_frames["last"]
         first_frame_path = second_frames["first"]
 
+        reference_images = []
+        last_frame_url = local_path_to_url(last_frame_path)
+        if last_frame_url:
+            reference_images.append({"label": f"分镜 {from_index} 尾帧", "url": last_frame_url})
+        first_frame_url = local_path_to_url(first_frame_path)
+        if first_frame_url:
+            reference_images.append({"label": f"分镜 {to_index} 首帧", "url": first_frame_url})
+        task.reference_images = json.dumps(reference_images, ensure_ascii=False) if reference_images else None
+
         task.current_step = "正在调用 ComfyUI 生成转场视频..."
         task.progress = 40
         db.commit()
@@ -120,12 +131,20 @@ async def generate_transition_video_task(
                 pass
 
         comfyui_service = ComfyUIService()
+
+        def save_prompt_id(prompt_id: str):
+            task.comfyui_prompt_id = prompt_id
+            db.commit()
+            print(f"[TransitionTask] Saved ComfyUI prompt_id: {prompt_id}")
+
         result = await comfyui_service.generate_transition_video_with_workflow(
             workflow_json=workflow.workflow_json,
             node_mapping=node_mapping,
             first_image_path=last_frame_path,
             last_image_path=first_frame_path,
-            frame_count=frame_count
+            duration_seconds=duration_seconds,
+            frame_count=frame_count,
+            on_prompt_queued=save_prompt_id
         )
 
         if result.get("prompt_id"):

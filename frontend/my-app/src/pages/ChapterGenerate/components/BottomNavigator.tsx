@@ -30,6 +30,8 @@ interface BottomNavigatorProps {
   shotVideos?: Record<string, string>;
   /** 生成中的视频 ID 集合 */
   generatingVideos?: Set<string>;
+  /** 待生成的视频 ID 集合 */
+  pendingVideos?: Set<string>;
   /** 是否收起 */
   collapsed?: boolean;
   /** 收起状态变化回调 */
@@ -43,6 +45,7 @@ export function BottomNavigator({
   pendingShots = new Set(),
   shotVideos = {},
   generatingVideos = new Set(),
+  pendingVideos = new Set(),
   collapsed = false,
   onCollapsedChange,
 }: BottomNavigatorProps) {
@@ -58,13 +61,22 @@ export function BottomNavigator({
   // 从 store 获取状态和方法
   const currentShotIndex = useChapterGenerateStore((state) => state.currentShotIndex);
   const currentShotId = useChapterGenerateStore((state) => state.currentShotId);
+  const currentTab = useChapterGenerateStore((state) => state.currentTab);
   const selectedShotIds = useChapterGenerateStore((state) => state.selectedShotIds);
   const bulkMode = useChapterGenerateStore((state) => state.bulkMode);
   const setCurrentShot = useChapterGenerateStore((state) => state.setCurrentShot);
   const toggleShotSelection = useChapterGenerateStore((state) => state.toggleShotSelection);
-  const previousShot = useChapterGenerateStore((state) => state.previousShot);
-  const nextShot = useChapterGenerateStore((state) => state.nextShot);
   const setShowImagePreview = useChapterGenerateStore((state) => state.setShowImagePreview);
+  const showImagePreview = useChapterGenerateStore((state) => state.showImagePreview);
+
+  const goToShot = (index: number) => {
+    if (index < 1 || index > shots.length) return;
+    const shot = shots[index - 1];
+    setCurrentShot(String(shot?.id || index), index);
+  };
+
+  const goToPreviousShot = () => goToShot(currentShotIndex - 1);
+  const goToNextShot = () => goToShot(currentShotIndex + 1);
 
   const handleToggleCollapsed = () => {
     const newCollapsed = !collapsed;
@@ -72,14 +84,33 @@ export function BottomNavigator({
   };
 
   // 获取分镜状态
-  const getShotStatus = (shotId: string, index: number): ShotThumbnailStatus => {
-    if (generatingShots.has(shotId) || generatingVideos.has(shotId)) {
+  const getShotStatus = (shot: Shot, shotId: string, index: number): ShotThumbnailStatus => {
+    const isCurrentShot = shotId === currentShotId || (!currentShotId && index === currentShotIndex);
+    const hasImageResult = !!(shot.imageUrl || shotImages[shotId]);
+    const hasVideoResult = !!(shot.videoUrl || shotVideos[shotId]);
+    const imageIsGenerating = generatingShots.has(shotId) || shot.imageStatus === 'generating';
+    const videoIsGenerating = generatingVideos.has(shotId) || shot.videoStatus === 'generating';
+
+    if (currentTab === 1 && imageIsGenerating && !hasImageResult) return 'generating';
+    if (currentTab === 3 && videoIsGenerating && !hasVideoResult) return 'generating';
+    if (isCurrentShot) return 'current';
+    if (currentTab === 1 && hasImageResult) return 'completed';
+    if (currentTab === 3 && hasVideoResult) return 'completed';
+    if (generatingShots.has(shotId) || generatingVideos.has(shotId) || shot.imageStatus === 'generating' || shot.videoStatus === 'generating') {
       return 'generating';
     }
-    if (shotId === currentShotId || (!currentShotId && index === currentShotIndex)) {
-      return 'current';
+    if (pendingShots.has(shotId) || pendingVideos.has(shotId)) {
+      return 'queued';
     }
-    if (shotImages[index] || shotVideos[index]) {
+    if (currentTab === 3 && shot.videoStatus === 'failed' && !hasVideoResult) return 'failed';
+    if (currentTab === 1 && shot.imageStatus === 'failed') return 'failed';
+    if (currentTab === 3) {
+      return (shot.videoUrl || shotVideos[shotId]) ? 'completed' : 'pending';
+    }
+    if (currentTab === 1) {
+      return (shot.imageUrl || shotImages[shotId]) ? 'completed' : 'pending';
+    }
+    if (shotImages[shotId] || shotVideos[shotId]) {
       return 'completed';
     }
     return 'pending';
@@ -88,22 +119,25 @@ export function BottomNavigator({
   // 键盘导航
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (showImagePreview) {
+        return;
+      }
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
 
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        previousShot(shots.length);
+        goToPreviousShot();
       } else if (e.key === 'ArrowRight') {
         e.preventDefault();
-        nextShot(shots.length);
+        goToNextShot();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [shots.length, previousShot, nextShot]);
+  }, [currentShotIndex, shots, showImagePreview]);
 
   // 滚动到当前分镜
   useEffect(() => {
@@ -137,7 +171,7 @@ export function BottomNavigator({
 
   // 处理双击（大图预览）
   const handleShotDoubleClick = (shot: Shot) => {
-    const imageUrl = shot.imageUrl;
+    const imageUrl = shot.imageUrl || shotImages[String(shot.id)];
     if (imageUrl) {
       setShowImagePreview(true, imageUrl, shot.index - 1);
     }
@@ -145,7 +179,7 @@ export function BottomNavigator({
 
   // 处理查看大图（眼睛图标点击）
   const handleViewLarge = (shot: Shot) => {
-    const imageUrl = shot.imageUrl;
+    const imageUrl = shot.imageUrl || shotImages[String(shot.id)];
     if (imageUrl) {
       setShowImagePreview(true, imageUrl, shot.index - 1);
     }
@@ -174,7 +208,7 @@ export function BottomNavigator({
   return (
     <div
       className={`fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-lg transition-all duration-300 ease-in-out ${
-        collapsed ? 'h-10' : 'h-44'
+        collapsed ? 'h-10' : 'h-48'
       }`}
       style={{
         left: `${sidebarWidth}px`,
@@ -198,14 +232,14 @@ export function BottomNavigator({
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => previousShot(shots.length)}
+                onClick={goToPreviousShot}
                 disabled={currentShotIndex <= 1}
                 className="min-w-[104px] px-4 py-2 text-sm whitespace-nowrap border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {t('chapterGenerate.previousShot')}
               </button>
               <button
-                onClick={() => nextShot(shots.length)}
+                onClick={goToNextShot}
                 disabled={currentShotIndex >= shots.length}
                 className="min-w-[104px] px-4 py-2 text-sm whitespace-nowrap border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
@@ -224,15 +258,16 @@ export function BottomNavigator({
           </div>
 
           {/* 缩略图滚动区 - 为滚动条预留空间 */}
-          <div className="flex-1 overflow-hidden py-2">
+          <div className="flex-1 overflow-hidden py-3">
             <div
               ref={scrollRef}
-              className="flex gap-2 overflow-x-auto h-full px-4 bottom-nav-scroll"
+              className="flex h-full items-center gap-2 overflow-x-auto overflow-y-hidden px-4 bottom-nav-scroll"
               style={{ scrollBehavior: 'smooth' }}
             >
               {shots.map((shot: Shot, index: number) => {
                 const shotNum = index + 1;
                 const shotIdStr = String(shot.id || shotNum);
+                const thumbnailUrl = shot.imageUrl || shotImages[shotIdStr];
                 const isCurrentShot = shot.id ? shot.id === currentShotId : shotNum === currentShotIndex;
                 const isSelected = bulkMode ? selectedShotIds.includes(shotIdStr) : isCurrentShot;
                 return (
@@ -240,9 +275,11 @@ export function BottomNavigator({
                     key={shot.id || `shot-${index}`}
                     shotId={shotIdStr}
                     index={shotNum}
-                    thumbnailUrl={shot.imageUrl}
-                    status={getShotStatus(shotIdStr, shotNum)}
+                    thumbnailUrl={thumbnailUrl}
+                    status={getShotStatus(shot, shotIdStr, shotNum)}
                     isSelected={isSelected}
+                    hasProps={Array.isArray(shot.props) && shot.props.length > 0}
+                    duration={shot.duration}
                     onClick={() => handleShotClick(shotIdStr, shotNum)}
                     onDoubleClick={() => handleShotDoubleClick(shot)}
                     onContextMenu={() => handleShotContextMenu(shotIdStr, shotNum)}

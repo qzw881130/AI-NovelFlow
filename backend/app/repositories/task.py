@@ -95,7 +95,7 @@ class TaskRepository:
             Task.novel_id == novel_id,
             Task.chapter_id == chapter_id,
             Task.type == "shot_image",
-            Task.name.like(f"%镜{shot_index}%"),
+            Task.name == f"生成分镜图: 镜{shot_index}",
             Task.status.in_(["pending", "running"])
         ).first()
     
@@ -191,11 +191,12 @@ class TaskRepository:
         task_type: str = "shot_image"
     ) -> Optional[Task]:
         """获取分镜进行中的任务"""
+        expected_name = f"生成分镜图: 镜{shot_index}" if task_type == "shot_image" else f"生成视频: 镜{shot_index}"
         return self.db.query(Task).filter(
             Task.novel_id == novel_id,
             Task.chapter_id == chapter_id,
             Task.type == task_type,
-            Task.name.like(f"%镜{shot_index}%"),
+            Task.name == expected_name,
             Task.status.in_(["pending", "running"])
         ).first()
     

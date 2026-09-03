@@ -1,6 +1,6 @@
 import type { Task } from '../../types';
 
-export type TaskFilter = 'all' | 'pending' | 'running' | 'completed' | 'failed';
+export type TaskFilter = 'all' | 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export type TaskType = Task['type'];
 
@@ -23,4 +23,5 @@ export interface TaskStats {
   running: number;
   completed: number;
   failed: number;
+  cancelled: number;
 }

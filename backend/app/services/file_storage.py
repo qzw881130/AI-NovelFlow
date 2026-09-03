@@ -2,11 +2,15 @@
 文件存储服务 - 管理小说相关的所有资源文件
 """
 import os
+import hashlib
+import json
 import httpx
 import shutil
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+
+from app.utils.path_utils import url_to_local_path
 
 
 class FileStorageService:
@@ -41,6 +45,27 @@ class FileStorageService:
         for char in invalid_chars:
             name = name.replace(char, '_')
         return name.strip()
+
+    def get_video_merge_signature(self, mode: str, segments: List[Dict[str, str]]) -> str:
+        """根据实际参与合并的视频内容和顺序生成缓存签名。"""
+        manifest = []
+        for segment in segments:
+            content_hash = hashlib.sha256()
+            with open(segment["path"], "rb") as source:
+                for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                    content_hash.update(chunk)
+            manifest.append({
+                "kind": segment["kind"],
+                "key": segment["key"],
+                "sha256": content_hash.hexdigest(),
+            })
+
+        payload = json.dumps(
+            {"version": 1, "mode": mode, "segments": manifest},
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
     
     async def download_image(self, url: str, novel_id: str, character_name: str,
                             image_type: str = "character", chapter_id: str = None) -> Optional[str]:
@@ -63,12 +88,20 @@ class FileStorageService:
             # 创建子目录
             if image_type == "character":
                 save_dir = story_dir / "characters"
+            elif image_type == "character_edit":
+                save_dir = story_dir / "characters" / "edits"
             elif image_type == "scene":
                 save_dir = story_dir / "scenes"
+            elif image_type == "scene_edit":
+                save_dir = story_dir / "scenes" / "edits"
+            elif image_type == "prop_edit":
+                save_dir = story_dir / "props" / "edits"
             elif image_type == "shot":
                 # 分镜图片保存到 chapter_{chapter_id}/shots/
                 chapter_short = chapter_id[:8] if chapter_id else "unknown"
                 save_dir = story_dir / f"chapter_{chapter_short}" / "shots"
+            elif image_type == "shot_edit":
+                save_dir = story_dir / "shots" / "edits"
             else:
                 save_dir = story_dir / "images"
 
@@ -190,6 +223,29 @@ class FileStorageService:
         except Exception as e:
             print(f"[FileStorage] Failed to download video: {e}")
             return None
+
+    def delete_shot_video(self, novel_id: str, chapter_id: str, shot_number: int) -> bool:
+        """删除指定分镜的旧视频文件"""
+        try:
+            story_dir = self._get_story_dir(novel_id)
+            chapter_short = chapter_id[:8] if chapter_id else "unknown"
+            videos_dir = story_dir / f"chapter_{chapter_short}" / "videos"
+
+            if not videos_dir.exists():
+                return True
+
+            old_files = list(videos_dir.glob(f"shot_{shot_number:03d}_*.mp4"))
+            for old_file in old_files:
+                try:
+                    old_file.unlink()
+                    print(f"[FileStorage] Deleted old shot video: {old_file}")
+                except Exception as e:
+                    print(f"[FileStorage] Failed to delete {old_file}: {e}")
+
+            return True
+        except Exception as e:
+            print(f"[FileStorage] Failed to delete shot video: {e}")
+            return False
     
     def get_character_image_path(self, novel_id: str, character_name: str) -> Path:
         """获取角色图片保存路径（用于生成前）"""
@@ -357,6 +413,27 @@ class FileStorageService:
         
         return save_dir / filename
 
+    def get_merged_props_path(self, novel_id: str, chapter_id: str,
+                              shot_number: int, prop_names: list = None) -> Path:
+        """获取合并道具图保存路径"""
+        import hashlib
+
+        story_dir = self._get_story_dir(novel_id)
+        chapter_short = chapter_id[:8] if chapter_id else "unknown"
+        save_dir = story_dir / f"chapter_{chapter_short}" / "merged_props"
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        if prop_names and len(prop_names) > 0:
+            sorted_names = sorted(prop_names)
+            names_str = "_".join(sorted_names)
+            name_hash = hashlib.md5(names_str.encode('utf-8')).hexdigest()[:8]
+            filename = f"shot_{shot_number:03d}_{name_hash}_props.png"
+        else:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"shot_{shot_number:03d}_{timestamp}_props.png"
+
+        return save_dir / filename
+
 
     def get_transition_video_path(self, novel_id: str, chapter_id: str,
                                   first_video_filename: str, second_video_filename: str) -> Path:
@@ -494,7 +571,7 @@ class FileStorageService:
             return {"success": False, "message": f"帧提取失败: {str(e)}"}
 
 
-    def zip_chapter_materials(self, novel_id: str, chapter_id: str) -> Optional[str]:
+    def zip_chapter_materials(self, novel_id: str, chapter_id: str, shots: Optional[List[Any]] = None) -> Optional[str]:
         """
         打包章节素材为 ZIP 文件
 
@@ -522,7 +599,8 @@ class FileStorageService:
                 chapter_dir.exists() or
                 characters_dir.exists() or
                 scenes_dir.exists() or
-                voices_dir.exists()
+                voices_dir.exists() or
+                bool(shots)
             )
 
             if not has_materials:
@@ -534,44 +612,225 @@ class FileStorageService:
             zip_path = story_dir / zip_filename
 
             file_count = 0
+            added_files = set()
+
+            def add_file(zipf, source: Optional[str], arcname: str) -> bool:
+                nonlocal file_count
+                if not source:
+                    return False
+                source_path = Path(source)
+                if not source_path.exists() or not source_path.is_file() or arcname in added_files:
+                    return False
+                zipf.write(source_path, arcname)
+                added_files.add(arcname)
+                file_count += 1
+                print(f"[FileStorage] Added to zip: {arcname}")
+                return True
+
+            def resolve_material_path(value: Optional[str]) -> Optional[str]:
+                if not value:
+                    return None
+                local_path = url_to_local_path(value)
+                if local_path:
+                    return local_path
+                path = Path(value)
+                if path.exists():
+                    return str(path)
+                return None
+
+            def parse_json_field(value: Any, default: Any) -> Any:
+                if value is None:
+                    return default
+                if isinstance(value, (list, dict)):
+                    return value
+                if isinstance(value, str):
+                    try:
+                        return json.loads(value)
+                    except json.JSONDecodeError:
+                        return default
+                return default
+
+            def get_attr(obj: Any, *names: str) -> Any:
+                for name in names:
+                    if isinstance(obj, dict) and name in obj:
+                        return obj.get(name)
+                    if hasattr(obj, name):
+                        return getattr(obj, name)
+                return None
+
+            def first_present(*values: Any) -> Any:
+                for value in values:
+                    if value:
+                        return value
+                return None
+
+            def add_manifest_material(zipf, manifest_items: List[Dict[str, Any]], source: Optional[str], arcname: str, kind: str, label: str) -> Optional[str]:
+                if add_file(zipf, source, arcname):
+                    manifest_items.append({"kind": kind, "label": label, "path": arcname})
+                    return arcname
+                return None
 
             # 打包目录
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                # 1. 遍历章节目录下的所有文件
+                manifest = {
+                    "version": 2,
+                    "novel_id": novel_id,
+                    "chapter_id": chapter_id,
+                    "generated_at": datetime.now().isoformat(),
+                    "shots": [],
+                    "chapter_materials": [],
+                }
+
+                # 1. 按当前数据库 Shot 数据组织新素材结构
+                for shot in shots or []:
+                    shot_index = int(get_attr(shot, "index") or 0)
+                    shot_label = f"shot_{shot_index:03d}" if shot_index else f"shot_{get_attr(shot, 'id') or 'unknown'}"
+                    plan = parse_json_field(get_attr(shot, "video_director_plan", "videoDirectorPlan"), {})
+                    legacy_keyframes = parse_json_field(get_attr(shot, "keyframes"), [])
+                    keyframes = plan.get("keyframes") or []
+                    shot_manifest = {
+                        "shot_id": get_attr(shot, "id"),
+                        "index": shot_index,
+                        "duration": get_attr(shot, "duration"),
+                        "selected_mode": plan.get("selected_mode"),
+                        "recommended_mode": plan.get("recommended_mode"),
+                        "video_description": get_attr(shot, "video_description"),
+                        "description": get_attr(shot, "description"),
+                        "materials": [],
+                        "keyframes": [],
+                        "clips": [],
+                    }
+
+                    primary_path = resolve_material_path(get_attr(shot, "image_url", "imageUrl") or get_attr(shot, "image_path", "imagePath"))
+                    if primary_path:
+                        ext = Path(primary_path).suffix or ".png"
+                        add_manifest_material(zipf, shot_manifest["materials"], primary_path, f"shot_materials/{shot_label}/primary_image{ext}", "primary_image", "主分镜图")
+
+                    video_path = resolve_material_path(get_attr(shot, "video_url", "videoUrl") or get_attr(shot, "video_path", "videoPath"))
+                    if video_path:
+                        ext = Path(video_path).suffix or ".mp4"
+                        add_manifest_material(zipf, shot_manifest["materials"], video_path, f"shot_materials/{shot_label}/videos/shot_video{ext}", "shot_video", "Shot 视频")
+
+                    for keyframe in keyframes:
+                        keyframe_index = keyframe.get("index")
+                        image_value = first_present(
+                            keyframe.get("image_url"),
+                            keyframe.get("imageUrl"),
+                            keyframe.get("image_path"),
+                            keyframe.get("imagePath"),
+                            keyframe.get("local_path"),
+                            keyframe.get("localPath"),
+                            keyframe.get("generated_image_url"),
+                            keyframe.get("generatedImageUrl"),
+                        )
+                        if keyframe.get("role") == "START" and not image_value:
+                            image_value = primary_path
+                        if not image_value:
+                            legacy_keyframe = next((item for item in legacy_keyframes if int(item.get("plan_keyframe_index") or item.get("planKeyframeIndex") or -1) == int(keyframe_index or -2)), None)
+                            if legacy_keyframe:
+                                image_value = first_present(
+                                    legacy_keyframe.get("image_url"),
+                                    legacy_keyframe.get("imageUrl"),
+                                    legacy_keyframe.get("image_path"),
+                                    legacy_keyframe.get("imagePath"),
+                                    legacy_keyframe.get("local_path"),
+                                    legacy_keyframe.get("localPath"),
+                                )
+                        image_path = resolve_material_path(image_value)
+                        keyframe_manifest = {
+                            "index": keyframe_index,
+                            "role": keyframe.get("role"),
+                            "time_seconds": keyframe.get("time_seconds"),
+                            "description": keyframe.get("description"),
+                            "image_path": None,
+                        }
+                        if image_path:
+                            ext = Path(image_path).suffix or ".png"
+                            role = (keyframe.get("role") or "KF").lower()
+                            arcname = f"shot_materials/{shot_label}/keyframes/KF{int(keyframe_index or 0):03d}_{role}{ext}"
+                            if add_file(zipf, image_path, arcname):
+                                keyframe_manifest["image_path"] = arcname
+                        shot_manifest["keyframes"].append(keyframe_manifest)
+
+                    seen_clip_keys = set()
+                    for clip in (plan.get("window_plans") or []) + (plan.get("clips") or []):
+                        clip_index = int(clip.get("window_index") or clip.get("clip_index") or 0)
+                        clip_key = clip.get("window_index") or clip.get("clip_index") or clip_index
+                        if clip_key in seen_clip_keys:
+                            continue
+                        seen_clip_keys.add(clip_key)
+                        clip_path = resolve_material_path(first_present(
+                            clip.get("video_url"),
+                            clip.get("videoUrl"),
+                            clip.get("local_path"),
+                            clip.get("localPath"),
+                            clip.get("source_video_url"),
+                            clip.get("sourceVideoUrl"),
+                        ))
+                        clip_manifest = {
+                            "clip_index": clip_index,
+                            "start_time": clip.get("start_time"),
+                            "end_time": clip.get("end_time"),
+                            "keyframe_indexes": clip.get("keyframe_indexes") or [],
+                            "workflow_type": clip.get("workflow_type"),
+                            "status": clip.get("status"),
+                            "video_path": None,
+                        }
+                        if clip_path:
+                            ext = Path(clip_path).suffix or ".mp4"
+                            arcname = f"shot_materials/{shot_label}/videos/clips/C{clip_index:03d}{ext}"
+                            if add_file(zipf, clip_path, arcname):
+                                clip_manifest["video_path"] = arcname
+                        for ref_index, reference in enumerate(clip.get("reference_images") or clip.get("referenceImages") or [], 1):
+                            ref_value = reference.get("url") if isinstance(reference, dict) else reference
+                            ref_path = resolve_material_path(ref_value)
+                            if ref_path:
+                                ext = Path(ref_path).suffix or ".png"
+                                ref_arcname = f"shot_materials/{shot_label}/videos/clips/C{clip_index:03d}_reference_{ref_index:02d}{ext}"
+                                if add_file(zipf, ref_path, ref_arcname):
+                                    clip_manifest.setdefault("reference_image_paths", []).append(ref_arcname)
+                        shot_manifest["clips"].append(clip_manifest)
+
+                    merged_path = resolve_material_path(plan.get("merged_video_url"))
+                    if merged_path:
+                        ext = Path(merged_path).suffix or ".mp4"
+                        add_manifest_material(zipf, shot_manifest["materials"], merged_path, f"shot_materials/{shot_label}/videos/merged_video{ext}", "merged_video", "多 Clip 合并视频")
+
+                    manifest["shots"].append(shot_manifest)
+
+                # 2. 遍历章节目录下的所有文件，保留原始素材目录
                 if chapter_dir.exists():
                     for item in chapter_dir.rglob('*'):
                         if item.is_file():
                             arcname = item.relative_to(story_dir)
-                            zipf.write(item, arcname)
-                            file_count += 1
-                            print(f"[FileStorage] Added to zip: {arcname}")
+                            add_file(zipf, str(item), str(arcname))
 
-                # 2. 添加小说角色图目录
+                # 3. 添加小说角色图目录
                 if characters_dir.exists():
                     for item in characters_dir.rglob('*'):
                         if item.is_file():
                             arcname = item.relative_to(story_dir)
-                            zipf.write(item, arcname)
-                            file_count += 1
-                            print(f"[FileStorage] Added character to zip: {arcname}")
+                            if add_file(zipf, str(item), str(arcname)):
+                                manifest["chapter_materials"].append({"kind": "character", "path": str(arcname)})
 
-                # 3. 添加场景图目录
+                # 4. 添加场景图目录
                 if scenes_dir.exists():
                     for item in scenes_dir.rglob('*'):
                         if item.is_file():
                             arcname = item.relative_to(story_dir)
-                            zipf.write(item, arcname)
-                            file_count += 1
-                            print(f"[FileStorage] Added scene to zip: {arcname}")
+                            if add_file(zipf, str(item), str(arcname)):
+                                manifest["chapter_materials"].append({"kind": "scene", "path": str(arcname)})
 
-                # 4. 添加台词音频目录（voices）
+                # 5. 添加台词音频目录（voices）
                 if voices_dir.exists():
                     for item in voices_dir.rglob('*'):
                         if item.is_file():
                             arcname = item.relative_to(story_dir)
-                            zipf.write(item, arcname)
-                            file_count += 1
-                            print(f"[FileStorage] Added voice audio to zip: {arcname}")
+                            if add_file(zipf, str(item), str(arcname)):
+                                manifest["chapter_materials"].append({"kind": "voice", "path": str(arcname)})
+
+                zipf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+                file_count += 1
 
             if file_count == 0:
                 print(f"[FileStorage] No files to zip for chapter {chapter_id}")
@@ -668,6 +927,58 @@ class FileStorageService:
                     'has_audio': any(stream.get('codec_type') == 'audio' for stream in streams),
                 }
 
+            async def _validate_video_decode(video_path: str):
+                loop = asyncio.get_event_loop()
+
+                def _run_validate():
+                    return subprocess.run(
+                        ['ffmpeg', '-v', 'error', '-i', video_path, '-f', 'null', '-'],
+                        capture_output=True,
+                        text=True,
+                    )
+
+                result = await loop.run_in_executor(None, _run_validate)
+                if result.returncode != 0:
+                    raise RuntimeError(f"视频输出解码校验失败: {(result.stderr or '').strip()[:300]}")
+
+            async def _run_direct_filter_merge():
+                loop = asyncio.get_event_loop()
+                cmd = ['ffmpeg']
+                for video_path in final_video_list:
+                    cmd.extend(['-i', video_path])
+
+                stream_filters = []
+                for index in range(len(final_video_list)):
+                    stream_filters.append(
+                        f'[{index}:v:0]scale={target_width}:{target_height}:force_original_aspect_ratio=decrease,'
+                        f'pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2:black,'
+                        f'fps=24,format=yuv420p,setpts=PTS-STARTPTS[v{index}]'
+                    )
+                    stream_filters.append(f'[{index}:a:0]aresample=48000,asetpts=PTS-STARTPTS[a{index}]')
+                concat_inputs = ''.join(f'[v{index}][a{index}]' for index in range(len(final_video_list)))
+                filter_complex = ';'.join(stream_filters + [f'{concat_inputs}concat=n={len(final_video_list)}:v=1:a=1[v][a]'])
+                cmd.extend([
+                    '-filter_complex', filter_complex,
+                    '-map', '[v]',
+                    '-map', '[a]',
+                    '-c:v', 'libx264',
+                    '-preset', 'medium',
+                    '-crf', '18',
+                    '-pix_fmt', 'yuv420p',
+                    '-c:a', 'aac',
+                    '-ar', '48000',
+                    '-ac', '2',
+                    '-movflags', '+faststart',
+                    '-y',
+                    output_path,
+                ])
+                print(f"[FileStorage] Running direct fallback ffmpeg: {' '.join(cmd)}")
+
+                def _run_direct_fallback():
+                    return subprocess.run(cmd, capture_output=True, text=True)
+
+                return await loop.run_in_executor(None, _run_direct_fallback)
+
             target_info = await _get_video_info(final_video_list[0])
             target_width = target_info['width']
             target_height = target_info['height']
@@ -731,26 +1042,47 @@ class FileStorageService:
 
                     normalized_paths.append(normalized_path)
 
+                if len(normalized_paths) == 1:
+                    shutil.copy2(normalized_paths[0], output_path)
+                    await _validate_video_decode(output_path)
+                    return {
+                        "success": True,
+                        "output_path": output_path,
+                        "message": "合并完成，共 1 个视频片段"
+                    }
+
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
                     concat_file = f.name
                     for video_path in normalized_paths:
                         escaped_path = video_path.replace("'", "'\\''")
                         f.write(f"file '{escaped_path}'\n")
             
-                # 使用 ffmpeg 合并视频
-                # -f concat: 使用 concat 协议
-                # -safe 0: 允许不安全的文件路径
-                # 所有片段已先标准化为统一编码参数，此处安全拼接
-                cmd = [
-                    'ffmpeg',
-                    '-f', 'concat',
-                    '-safe', '0',
-                    '-i', concat_file,
-                    '-c', 'copy',
+                # 使用 concat filter 重新编码输出。MP4/H.264 即使参数一致，直接 -c copy
+                # 拼接仍可能产生浏览器无法解码的 NAL 边界问题。
+                cmd = ['ffmpeg']
+                for video_path in normalized_paths:
+                    cmd.extend(['-i', video_path])
+                normalized_streams = []
+                for index in range(len(normalized_paths)):
+                    normalized_streams.append(f'[{index}:v:0]setpts=PTS-STARTPTS[v{index}]')
+                    normalized_streams.append(f'[{index}:a:0]asetpts=PTS-STARTPTS[a{index}]')
+                concat_inputs = ''.join(f'[v{index}][a{index}]' for index in range(len(normalized_paths)))
+                filter_complex = ';'.join(normalized_streams + [f'{concat_inputs}concat=n={len(normalized_paths)}:v=1:a=1[v][a]'])
+                cmd.extend([
+                    '-filter_complex', filter_complex,
+                    '-map', '[v]',
+                    '-map', '[a]',
+                    '-c:v', 'libx264',
+                    '-preset', 'medium',
+                    '-crf', '18',
+                    '-pix_fmt', 'yuv420p',
+                    '-c:a', 'aac',
+                    '-ar', '48000',
+                    '-ac', '2',
                     '-movflags', '+faststart',
                     '-y',  # 覆盖输出文件
-                    output_path
-                ]
+                    output_path,
+                ])
                 
                 print(f"[FileStorage] Running ffmpeg: {' '.join(cmd)}")
                 
@@ -766,7 +1098,7 @@ class FileStorageService:
                     return result
                 
                 result = await loop.run_in_executor(None, _run_ffmpeg)
-                
+
                 if result.returncode != 0:
                     print(f"[FileStorage] FFmpeg error: {result.stderr}")
                     return {
@@ -780,7 +1112,66 @@ class FileStorageService:
                         "success": False,
                         "message": "输出文件未生成"
                     }
-                
+
+                try:
+                    await _validate_video_decode(output_path)
+                except Exception as validation_error:
+                    print(f"[FileStorage] Merged video validation failed, retrying fallback merge: {validation_error}")
+                    if Path(output_path).exists():
+                        Path(output_path).unlink()
+                    fallback_cmd = [
+                        'ffmpeg',
+                        '-f', 'concat',
+                        '-safe', '0',
+                        '-i', concat_file,
+                        '-c:v', 'libx264',
+                        '-preset', 'medium',
+                        '-crf', '18',
+                        '-pix_fmt', 'yuv420p',
+                        '-c:a', 'aac',
+                        '-ar', '48000',
+                        '-ac', '2',
+                        '-movflags', '+faststart',
+                        '-y',
+                        output_path,
+                    ]
+                    print(f"[FileStorage] Running fallback ffmpeg: {' '.join(fallback_cmd)}")
+
+                    def _run_fallback_ffmpeg():
+                        return subprocess.run(fallback_cmd, capture_output=True, text=True)
+
+                    fallback_result = await loop.run_in_executor(None, _run_fallback_ffmpeg)
+                    if fallback_result.returncode != 0:
+                        print(f"[FileStorage] Fallback FFmpeg error: {fallback_result.stderr}")
+                        return {
+                            "success": False,
+                            "message": f"视频合并自动修复失败: {fallback_result.stderr[:200]}"
+                        }
+                    if not Path(output_path).exists():
+                        return {
+                            "success": False,
+                            "message": "视频合并自动修复失败: 输出文件未生成"
+                        }
+                    try:
+                        await _validate_video_decode(output_path)
+                    except Exception as fallback_validation_error:
+                        print(f"[FileStorage] Fallback merged video validation failed, retrying direct merge: {fallback_validation_error}")
+                        if Path(output_path).exists():
+                            Path(output_path).unlink()
+                        direct_result = await _run_direct_filter_merge()
+                        if direct_result.returncode != 0:
+                            print(f"[FileStorage] Direct fallback FFmpeg error: {direct_result.stderr}")
+                            return {
+                                "success": False,
+                                "message": f"视频合并自动修复失败: {direct_result.stderr[:200]}"
+                            }
+                        if not Path(output_path).exists():
+                            return {
+                                "success": False,
+                                "message": "视频合并自动修复失败: 输出文件未生成"
+                            }
+                        await _validate_video_decode(output_path)
+
                 print(f"[FileStorage] Video merged successfully: {output_path}")
                 return {
                     "success": True,

@@ -5,6 +5,7 @@ import type { Chapter, Novel, Character, DialogueData, KeyframeData } from '../.
 import type { Scene, Prop } from '../../types';
 // 从 API 模块导入 Shot 类型，确保类型统一
 import type { Shot as ApiShot } from '../../../../api/shots';
+import type { VideoMode } from '../../../../api/shots';
 
 // 重新导出 Shot 类型
 export type Shot = ApiShot;
@@ -23,6 +24,7 @@ export interface ShotDataFromParsed {
   image_url?: string;
   image_path?: string;
   merged_character_image?: string;
+  merged_prop_image?: string;
   video_url?: string;
   keyframes?: KeyframeData[];
   reference_audio_url?: string;
@@ -91,6 +93,8 @@ export interface ShotWorkflow {
 export interface TransitionWorkflow {
   id: string;
   name: string;
+  description?: string;
+  descriptionKey?: string;
   isActive: boolean;
 }
 
@@ -192,6 +196,7 @@ export interface UiSliceState {
 
   // 合并图片
   mergedImage: string | null;
+  mergedImageLabel: string;
   isMerging: boolean;
 
   // 确认对话框
@@ -312,13 +317,13 @@ export interface ChapterGenerateStore
   saveChapterResources: (novelId: string, chapterId: string) => Promise<void>;
 
   // ========== Image Generation Actions ==========
-  generateShotImage: (novelId: string, chapterId: string, shotId: string) => Promise<void>;
+  generateShotImage: (novelId: string, chapterId: string, shotId: string, promptText?: string, options?: { useExistingPrompt?: boolean }) => Promise<string | null>;
   generateAllImages: (novelId: string, chapterId: string) => Promise<void>;
   uploadShotImage: (novelId: string, chapterId: string, shotId: string, file: File) => Promise<void>;
   setShotImages: (images: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 
   // ========== Video Generation Actions ==========
-  generateShotVideo: (novelId: string, chapterId: string, shotId: string) => Promise<void>;
+  generateShotVideo: (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode, options?: { skipLlmWhenPromptExists?: boolean }) => Promise<void>;
   generateAllVideos: (novelId: string, chapterId: string) => Promise<void>;
   setShotVideos: (videos: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 
@@ -344,7 +349,7 @@ export interface ChapterGenerateStore
 
   // ========== Keyframe Actions ==========
   generateKeyframeDescriptions: (novelId: string, chapterId: string, shotId: string, count?: number) => Promise<void>;
-  generateKeyframeImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, workflowId?: string) => Promise<void>;
+  generateKeyframeImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, workflowId?: string, options?: { skipLlmWhenPromptExists?: boolean }) => Promise<void>;
   uploadKeyframeImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, file: File) => Promise<void>;
   uploadKeyframeReferenceImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, file: File) => Promise<void>;
   setKeyframeReferenceImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, mode: 'auto_select' | 'custom' | 'none', referenceUrl?: string) => Promise<void>;
@@ -378,7 +383,7 @@ export interface ChapterGenerateStore
   setShowFullTextModal: (show: boolean) => void;
   setShowMergedImageModal: (show: boolean) => void;
   setShowImagePreview: (show: boolean, url?: string | null, index?: number) => void;
-  setMergedImage: (image: string | null) => void;
+  setMergedImage: (image: string | null, label?: string) => void;
   setIsMerging: (merging: boolean) => void;
   setSplitConfirmDialog: (dialog: UiSliceState['splitConfirmDialog']) => void;
   setShowTransitionConfig: (show: boolean) => void;

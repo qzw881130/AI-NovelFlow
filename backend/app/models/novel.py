@@ -32,6 +32,14 @@ class Novel(Base):
     prop_prompt_template_id = Column(String, nullable=True)  # 道具生成提示词模板
     chapter_split_prompt_template_id = Column(String, nullable=True)  # 分镜拆分提示词模板
     keyframe_description_prompt_template_id = Column(String, nullable=True)  # 关键帧描述提示词模板
+    shot_image_prompt_template_id = Column(String, nullable=True)  # 主分镜图提示词模板
+    video_mode_recommender_prompt_template_id = Column(String, nullable=True)  # 视频模式推荐提示词模板
+    keyframe_planner_prompt_template_id = Column(String, nullable=True)  # 关键帧规划提示词模板
+    keyframe_image_prompt_template_id = Column(String, nullable=True)  # 关键帧生图提示词模板
+    keyframe_transition_prompt_template_id = Column(String, nullable=True)  # 关键帧过渡规划提示词模板
+    h3_single_frame_prompt_template_id = Column(String, nullable=True)  # H3 单帧视频提示词模板
+    h3_first_last_frame_prompt_template_id = Column(String, nullable=True)  # H3 首尾帧视频提示词模板
+    h3_multi_keyframe_prompt_template_id = Column(String, nullable=True)  # H3 多关键帧视频提示词模板
     
     aspect_ratio = Column(String, default="16:9")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

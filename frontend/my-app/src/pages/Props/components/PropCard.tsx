@@ -1,7 +1,7 @@
 /**
  * 道具卡片组件
  */
-import { Loader2, Package, Trash2, Edit2, Upload, Wand2, Sparkles } from 'lucide-react';
+import { Loader2, Package, Trash2, Edit2, Upload, Wand2, Sparkles, ImagePlus } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Prop } from '../../../types';
 import type { PropPrompt } from '../types';
@@ -21,6 +21,7 @@ interface PropCardProps {
   onGenerateImage: (prop: Prop) => void;
   onGenerateAppearance: (prop: Prop) => void;
   onUploadImage: (propId: string) => void;
+  onEditImage: (prop: Prop) => void;
   onImageClick: (url: string, name: string, propId: string) => void;
 }
 
@@ -38,6 +39,7 @@ export function PropCard({
   onGenerateImage,
   onGenerateAppearance,
   onUploadImage,
+  onEditImage,
   onImageClick,
 }: PropCardProps) {
   const { t } = useTranslation();
@@ -65,6 +67,16 @@ export function PropCard({
           <div className="absolute inset-0 flex items-center justify-center">
             <Package className="h-20 w-20 text-gray-300" />
           </div>
+        )}
+
+        {prop.imageUrl && (
+          <button
+            onClick={() => onEditImage(prop)}
+            className="absolute top-2 left-2 p-2 bg-white/90 rounded-lg text-gray-500 hover:text-primary-600 hover:bg-primary-50 transition-colors opacity-0 group-hover:opacity-100"
+            title={t('props.editImage')}
+          >
+            <ImagePlus className="h-4 w-4" />
+          </button>
         )}
 
         {/* Status Badge */}
@@ -115,14 +127,14 @@ export function PropCard({
         {/* AI生成道具图 Button */}
         <button
           onClick={() => onGenerateImage(prop)}
-          disabled={generatingId === prop.id || prop.generatingStatus === 'running'}
+          disabled={generatingId === prop.id || prop.generatingStatus === 'pending' || prop.generatingStatus === 'running'}
           className="absolute bottom-2 right-2 flex items-center gap-1 px-3 py-1.5 bg-amber-600/90 hover:bg-amber-700 text-white rounded-lg transition-colors disabled:opacity-70 opacity-0 group-hover:opacity-100 text-xs"
-          title={prop.generatingStatus === 'running' ? t('props.generatingStatus') : (prop.imageUrl ? t('props.regenerate') : t('props.generateImage'))}
+          title={prop.generatingStatus === 'pending' || prop.generatingStatus === 'running' ? t('props.generatingStatus') : (prop.imageUrl ? t('props.regenerate') : t('props.generateImage'))}
         >
-          {prop.generatingStatus === 'running' || generatingId === prop.id ? (
+          {prop.generatingStatus === 'pending' || prop.generatingStatus === 'running' || generatingId === prop.id ? (
             <>
               <Loader2 className="h-3 w-3 animate-spin" />
-              <span>{t('props.generatingStatus')}</span>
+              <span>{prop.generatingStatus === 'pending' ? t('props.pendingGeneration') : t('props.generatingStatus')}</span>
             </>
           ) : (
             <>

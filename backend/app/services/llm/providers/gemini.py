@@ -6,7 +6,7 @@ Google Gemini 提供商
 import httpx
 import time
 from typing import Dict, Any, Optional
-from ..base import BaseLLMProvider, LLMConfig, LLMResponse, save_llm_log
+from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
 
 
 class GeminiProvider(BaseLLMProvider):
@@ -68,6 +68,7 @@ class GeminiProvider(BaseLLMProvider):
         max_tokens: int = 4000,
         response_format: Optional[str] = None,
         task_type: str = None,
+        prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
         character_id: str = None
@@ -99,16 +100,41 @@ class GeminiProvider(BaseLLMProvider):
         # 获取代理配置
         proxy = self._get_proxy_config()
         used_proxy = proxy is not None
+        timeout = self.config.timeout or 300.0
+        request_info = build_llm_request_info(
+            provider=self.config.provider,
+            base_url=self.config.api_url,
+            endpoint=endpoint,
+            model=self.config.model,
+            headers=headers,
+            payload=body,
+            proxy_url=proxy,
+            timeout_seconds=timeout,
+        )
 
-        client = httpx.AsyncClient(proxy=proxy, timeout=600.0)
+        client = httpx.AsyncClient(proxy=proxy, timeout=timeout)
 
+        log_id = None
         try:
             async with client:
+                log_id = create_llm_log(
+                    provider=self.config.provider,
+                    model=self.config.model,
+                    system_prompt=system_prompt,
+                    user_prompt=user_content,
+                    prompt_template_name=prompt_template_name,
+                    task_type=task_type,
+                    novel_id=novel_id,
+                    chapter_id=chapter_id,
+                    character_id=character_id,
+                    used_proxy=used_proxy,
+                    request_info=request_info,
+                )
                 response = await client.post(
                     endpoint,
                     headers=headers,
                     json=body,
-                    timeout=300.0
+                    timeout=timeout
                 )
 
             duration = time.time() - start_time
@@ -117,19 +143,11 @@ class GeminiProvider(BaseLLMProvider):
                 data = response.json()
                 content = self._parse_response(data)
 
-                save_llm_log(
-                    provider=self.config.provider,
-                    model=self.config.model,
-                    system_prompt=system_prompt,
-                    user_prompt=user_content,
+                update_llm_log(
+                    log_id=log_id,
                     response=content,
                     status="success",
-                    task_type=task_type,
-                    novel_id=novel_id,
-                    chapter_id=chapter_id,
-                    character_id=character_id,
-                    used_proxy=used_proxy,
-                    duration=duration
+                    duration=duration,
                 )
 
                 return LLMResponse(
@@ -140,19 +158,11 @@ class GeminiProvider(BaseLLMProvider):
                 )
             else:
                 error_msg = f"API 错误 ({response.status_code}): {response.text}"
-                save_llm_log(
-                    provider=self.config.provider,
-                    model=self.config.model,
-                    system_prompt=system_prompt,
-                    user_prompt=user_content,
+                update_llm_log(
+                    log_id=log_id,
                     status="error",
                     error_message=error_msg,
-                    task_type=task_type,
-                    novel_id=novel_id,
-                    chapter_id=chapter_id,
-                    character_id=character_id,
-                    used_proxy=used_proxy,
-                    duration=duration
+                    duration=duration,
                 )
 
                 return LLMResponse(
@@ -169,19 +179,11 @@ class GeminiProvider(BaseLLMProvider):
             traceback.print_exc()
 
             duration = time.time() - start_time
-            save_llm_log(
-                provider=self.config.provider,
-                model=self.config.model,
-                system_prompt=system_prompt,
-                user_prompt=user_content,
+            update_llm_log(
+                log_id=log_id,
                 status="error",
                 error_message=error_msg,
-                task_type=task_type,
-                novel_id=novel_id,
-                chapter_id=chapter_id,
-                character_id=character_id,
-                used_proxy=used_proxy,
-                duration=duration
+                duration=duration,
             )
 
             return LLMResponse(

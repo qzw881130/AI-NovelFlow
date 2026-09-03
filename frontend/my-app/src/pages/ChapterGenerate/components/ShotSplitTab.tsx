@@ -3,19 +3,17 @@
  *
  * 功能：
  * - 左侧：原文内容
- * - 中间：AI 拆分结果预览 + 分镜编辑
- * - 右侧：ComfyUI 状态
+ * - 中间：AI 拆分结果预览
  *
  * 数据源统一使用 store.shots（从后端 Shot 表获取）
  */
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useChapterGenerateStore, useDataSlice } from '../stores';
-import { ShotForm } from './ShotForm';
-import { chapterApi } from '../../../api/chapters';
 import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
 import { useTranslation } from '../../../stores/i18nStore';
+import { getDialogueDurationWarningStats, getShotDialogueDurationWarning } from '../../../utils';
 import type { Shot } from '../../../api/shots';
 
 interface ShotSplitTabProps {
@@ -41,7 +39,9 @@ export function ShotSplitTab({
   const parsedDataFromStore = useChapterGenerateStore((state) => state.parsedData);
   const setParsedData = useChapterGenerateStore((state) => state.setParsedData);
   const saveChapterResources = useChapterGenerateStore((state) => state.saveChapterResources);
+  const splitChapter = useChapterGenerateStore((state) => state.splitChapter);
   const storeShots = useChapterGenerateStore((state) => state.shots);
+  const setShots = useChapterGenerateStore((state) => state.setShots);
 
   // 使用 useDataSlice 获取方法
   const { initChapterResources, fetchShots } = useDataSlice();
@@ -58,9 +58,18 @@ export function ShotSplitTab({
   const [isDeletingShot, setIsDeletingShot] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteShotInfo, setDeleteShotInfo] = useState<{ shotId: string; shotIndex: number } | null>(null);
+  const [showStructureEditor, setShowStructureEditor] = useState(false);
+  const [structureJson, setStructureJson] = useState('');
+  const [structureFindText, setStructureFindText] = useState('');
+  const [structureReplaceText, setStructureReplaceText] = useState('');
+  const [structureError, setStructureError] = useState('');
+  const [isSavingStructure, setIsSavingStructure] = useState(false);
+  const [structureCurrentMatchIndex, setStructureCurrentMatchIndex] = useState(-1);
+  const structureTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // 统一使用 store.shots 作为分镜数据源
   const shots = storeShots;
+  const dialogueWarningStats = getDialogueDurationWarningStats(shots);
 
   // 显示拆分确认对话框
   const handleSplit = () => {
@@ -74,29 +83,12 @@ export function ShotSplitTab({
     setShowSplitConfirm(false);
     setIsSplitting(true);
     try {
-      const result = await chapterApi.split(novelId, chapterId);
-      if (result.success && result.data) {
-        // 拆分成功后更新 store 中的 parsedData（仅包含章节资源，不含 shots）
-        const data = result.data as any;
-        const newParsedData = {
-          chapter: data.chapter || '',
-          characters: data.characters || [],
-          scenes: data.scenes || [],
-          props: data.props || [],
-        };
-        setParsedData(newParsedData);
+      await splitChapter(novelId, chapterId);
 
-        // 调用 fetchShots 同步更新 store.shots
-        await fetchShots(novelId, chapterId);
-
-        // 初始化章节资源
+      if (useChapterGenerateStore.getState().shots.length > 0) {
         initChapterResources();
         console.log('AI 拆分成功');
         markTabComplete(0);
-        toast.success(t('chapterGenerate.aiSplitSuccess'));
-      } else {
-        console.error('AI 拆分失败:', result.message);
-        toast.error(t('chapterGenerate.aiSplitFailed', { message: result.message || t('common.unknownError') }));
       }
     } catch (error) {
       console.error('AI 拆分失败:', error);
@@ -106,8 +98,7 @@ export function ShotSplitTab({
     }
   };
 
-  // 保存分镜数据
-  const handleSave = async () => {
+  const saveShotsData = async (shotsToSave: Shot[], successMessage = t('chapterGenerate.shotSaveSuccess')) => {
     if (!novelId || !chapterId) return;
     setIsSaving(true);
     try {
@@ -115,17 +106,19 @@ export function ShotSplitTab({
       await saveChapterResources(novelId, chapterId);
 
       // 2. 批量保存分镜数据到 Shot 表
-      if (shots.length > 0) {
+      if (shotsToSave.length > 0) {
         const result = await shotsApi.batchUpdateShots(
           novelId,
           chapterId,
-          shots.map((shot) => ({
+          shotsToSave.map((shot) => ({
             id: shot.id,
             description: shot.description,
+            video_description: shot.video_description,
             characters: shot.characters,
             scene: shot.scene,
             props: shot.props,
             duration: shot.duration,
+            continuity_mode: shot.continuity_mode || 'NORMAL',
             dialogues: shot.dialogues,
           }))
         );
@@ -134,7 +127,7 @@ export function ShotSplitTab({
           const resultData = result.data as any;
           console.log(t('chapterGenerate.shotsSaved', { count: resultData?.updated_count }));
           markTabComplete(0);
-          toast.success(t('chapterGenerate.shotSaveSuccess'));
+          toast.success(successMessage);
         } else {
           console.error(t('chapterGenerate.shotSaveFailed', { message: result.message || t('common.unknownError') }));
           toast.error(t('chapterGenerate.shotSaveFailed', { message: result.message || t('common.unknownError') }));
@@ -149,6 +142,33 @@ export function ShotSplitTab({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // 保存分镜数据
+  const handleSave = async () => {
+    await saveShotsData(shots);
+  };
+
+  const handleAutoFixCriticalDurations = async () => {
+    const fixes = shots
+      .map((shot) => ({ shot, warning: getShotDialogueDurationWarning(shot) }))
+      .filter(({ warning }) => warning.level === 'critical');
+
+    if (fixes.length === 0) {
+      toast.info('没有严重时长异常需要修正');
+      return;
+    }
+
+    const fixedDurationById = new Map(
+      fixes.map(({ shot, warning }) => [String(shot.id), Math.min(180, warning.suggestedDuration + 1)])
+    );
+    const fixedShots = shots.map((shot) => {
+      const fixedDuration = fixedDurationById.get(String(shot.id));
+      return fixedDuration ? { ...shot, duration: fixedDuration } : shot;
+    });
+
+    setShots(fixedShots);
+    await saveShotsData(fixedShots, `已修正并保存 ${fixes.length} 个严重时长异常`);
   };
 
   // 处理分镜列表项点击
@@ -168,6 +188,7 @@ export function ShotSplitTab({
         scene: '',
         props: [],
         dialogues: [],
+        continuity_mode: 'NORMAL',
       });
 
       if (result.success) {
@@ -197,6 +218,7 @@ export function ShotSplitTab({
         scene: '',
         props: [],
         dialogues: [],
+        continuity_mode: 'NORMAL',
         insert_index: beforeIndex,
       });
 
@@ -268,6 +290,162 @@ export function ShotSplitTab({
     }
   };
 
+  const buildStructuredShotData = () => ({
+    chapter: parsedDataFromStore?.chapter || chapter?.title || '',
+    characters: parsedDataFromStore?.characters || [],
+    scenes: parsedDataFromStore?.scenes || [],
+    props: parsedDataFromStore?.props || [],
+    shots: shots.map((shot, idx) => ({
+      id: shot.id,
+      index: shot.index || (idx + 1),
+      description: shot.description || '',
+      video_description: shot.video_description || '',
+      characters: shot.characters || [],
+      scene: shot.scene || '',
+      props: shot.props || [],
+      duration: shot.duration || 5,
+      continuity_mode: shot.continuity_mode || 'NORMAL',
+      dialogues: shot.dialogues || [],
+    }))
+  });
+
+  const applyStructuredShotData = async (structuredData: any) => {
+    if (!novelId || !chapterId) return;
+    if (!structuredData || !Array.isArray(structuredData.shots)) {
+      throw new Error(t('chapterGenerate.invalidJsonFormat'));
+    }
+
+    const shotsList = structuredData.shots.map((shot: any) => ({
+      id: shot.id,
+      description: shot.description || '',
+      video_description: shot.video_description || '',
+      characters: Array.isArray(shot.characters) ? shot.characters : [],
+      scene: shot.scene || '',
+      props: Array.isArray(shot.props) ? shot.props : [],
+      duration: Number(shot.duration) || 5,
+      continuity_mode: shot.continuity_mode || 'NORMAL',
+      dialogues: Array.isArray(shot.dialogues) ? shot.dialogues : [],
+    }));
+
+    const result = await shotsApi.batchUpdateShots(novelId, chapterId, shotsList);
+    if (!result.success) {
+      throw new Error(result.message || '保存失败');
+    }
+
+    if (structuredData.characters || structuredData.scenes || structuredData.props) {
+      setParsedData({
+        chapter: structuredData.chapter || '',
+        characters: Array.isArray(structuredData.characters) ? structuredData.characters : [],
+        scenes: Array.isArray(structuredData.scenes) ? structuredData.scenes : [],
+        props: Array.isArray(structuredData.props) ? structuredData.props : [],
+      });
+      await saveChapterResources(novelId, chapterId);
+    }
+
+    await fetchShots(novelId, chapterId);
+    initChapterResources();
+    markTabComplete(0);
+  };
+
+  const openStructureEditor = () => {
+    setStructureJson(JSON.stringify(buildStructuredShotData(), null, 2));
+    setStructureFindText('');
+    setStructureReplaceText('');
+    setStructureCurrentMatchIndex(-1);
+    setStructureError('');
+    setShowStructureEditor(true);
+  };
+
+  const getStructureMatchIndexes = () => {
+    if (!structureFindText) return [];
+    const indexes: number[] = [];
+    let index = structureJson.indexOf(structureFindText);
+    while (index >= 0) {
+      indexes.push(index);
+      index = structureJson.indexOf(structureFindText, index + structureFindText.length);
+    }
+    return indexes;
+  };
+
+  const selectStructureMatch = (matchIndexes: number[], matchIndex: number) => {
+    const index = matchIndexes[matchIndex];
+    if (index === undefined) return;
+    const textarea = structureTextareaRef.current;
+    if (textarea) {
+      textarea.focus();
+      requestAnimationFrame(() => {
+        textarea.setSelectionRange(index, index + structureFindText.length);
+        const lineNumber = structureJson.slice(0, index).split('\n').length - 1;
+        const lineHeight = Number.parseFloat(window.getComputedStyle(textarea).lineHeight) || 22;
+        textarea.scrollTop = Math.max(0, lineNumber * lineHeight - textarea.clientHeight / 2);
+      });
+    }
+    setStructureCurrentMatchIndex(matchIndex);
+  };
+
+  const handleStructureReplace = () => {
+    if (!structureFindText) return;
+    const index = structureJson.indexOf(structureFindText);
+    if (index < 0) {
+      toast.warning('未找到匹配内容');
+      return;
+    }
+    setStructureJson(`${structureJson.slice(0, index)}${structureReplaceText}${structureJson.slice(index + structureFindText.length)}`);
+  };
+
+  const handleStructureFind = () => {
+    if (!structureFindText) return;
+    const matchIndexes = getStructureMatchIndexes();
+    if (matchIndexes.length === 0) {
+      toast.warning('未找到匹配内容');
+      setStructureCurrentMatchIndex(-1);
+      return;
+    }
+    selectStructureMatch(matchIndexes, 0);
+  };
+
+  const handleStructureFindNext = () => {
+    if (!structureFindText) return;
+    const matchIndexes = getStructureMatchIndexes();
+    if (matchIndexes.length === 0) {
+      toast.warning('未找到匹配内容');
+      setStructureCurrentMatchIndex(-1);
+      return;
+    }
+    const nextIndex = structureCurrentMatchIndex >= 0
+      ? (structureCurrentMatchIndex + 1) % matchIndexes.length
+      : 0;
+    selectStructureMatch(matchIndexes, nextIndex);
+  };
+
+  const handleStructureReplaceAll = () => {
+    if (!structureFindText) return;
+    const nextJson = structureJson.split(structureFindText).join(structureReplaceText);
+    if (nextJson === structureJson) {
+      toast.warning('未找到匹配内容');
+      return;
+    }
+    setStructureJson(nextJson);
+  };
+
+  const handleSaveStructureJson = async () => {
+    if (!novelId || !chapterId) return;
+    setStructureError('');
+    setIsSavingStructure(true);
+    try {
+      const parsed = JSON.parse(structureJson);
+      await applyStructuredShotData(parsed);
+      setShowStructureEditor(false);
+      toast.success('结构数据已保存');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'JSON 格式错误或保存失败';
+      setStructureError(message);
+      toast.error(message);
+    } finally {
+      setIsSavingStructure(false);
+    }
+  };
+
   // 导出分镜数据为 JSON
   const handleExport = () => {
     if (shots.length === 0) {
@@ -277,23 +455,7 @@ export function ShotSplitTab({
 
     setIsExporting(true);
     try {
-      const exportData = {
-        chapter: parsedDataFromStore?.chapter || chapter?.title || '',
-        characters: parsedDataFromStore?.characters || [],
-        scenes: parsedDataFromStore?.scenes || [],
-        props: parsedDataFromStore?.props || [],
-        shots: shots.map((shot, idx) => ({
-          id: shot.id,
-          index: shot.index || (idx + 1),
-          description: shot.description || '',
-          video_description: shot.video_description || '',
-          characters: shot.characters || [],
-          scene: shot.scene || '',
-          props: shot.props || [],
-          duration: shot.duration || 5,
-          dialogues: shot.dialogues || [],
-        }))
-      };
+      const exportData = buildStructuredShotData();
 
       const jsonString = JSON.stringify(exportData, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
@@ -344,45 +506,9 @@ export function ShotSplitTab({
           const content = readEvent.target?.result as string;
           const importedData = JSON.parse(content);
 
-          if (!importedData || !Array.isArray(importedData.shots)) {
-            throw new Error(t('chapterGenerate.invalidJsonFormat'));
-          }
-
-          const shotsList = importedData.shots.map((shot: any) => ({
-            id: shot.id,
-            description: shot.description || '',
-            video_description: shot.video_description || '',
-            characters: shot.characters || [],
-            scene: shot.scene || '',
-            props: shot.props || [],
-            duration: shot.duration || 5,
-            dialogues: shot.dialogues || [],
-          }));
-
-          // 批量保存分镜数据到数据库
-          const result = await shotsApi.batchUpdateShots(novelId, chapterId, shotsList);
-
-          if (!result.success) {
-            throw new Error(result.message || '保存失败');
-          }
-
-          // 更新章节资源
-          if (importedData.characters || importedData.scenes || importedData.props) {
-            setParsedData({
-              chapter: importedData.chapter || '',
-              characters: importedData.characters || [],
-              scenes: importedData.scenes || [],
-              props: importedData.props || [],
-            });
-            await saveChapterResources(novelId, chapterId);
-          }
-
-          // 刷新分镜数据
-          await fetchShots(novelId, chapterId);
-          initChapterResources();
+          await applyStructuredShotData(importedData);
 
           console.log(t('chapterGenerate.shotDataImported'));
-          markTabComplete(0);
           toast.success(t('chapterGenerate.shotDataImported'));
         } catch (parseError) {
           console.error(t('chapterGenerate.importFailedJsonError') + ':', parseError);
@@ -402,6 +528,16 @@ export function ShotSplitTab({
   };
 
   const shotIndex = currentShot ?? currentShotIndex ?? 1;
+  const structureMatchIndexes = getStructureMatchIndexes();
+  const structureMatchCount = structureMatchIndexes.length;
+  const structureMatchLabel = structureFindText
+    ? structureMatchCount > 0 && structureCurrentMatchIndex >= 0
+      ? `第 ${structureCurrentMatchIndex + 1} / ${structureMatchCount} 处`
+      : `找到 ${structureMatchCount} 处`
+    : '';
+  const truncateText = (value: string, maxLength = 42) => (
+    value.length > maxLength ? `${value.slice(0, maxLength)}...` : value
+  );
 
   return (
     <div className="h-full flex flex-col">
@@ -430,6 +566,13 @@ export function ShotSplitTab({
             {isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}
           </button>
           <button
+            onClick={openStructureEditor}
+            disabled={!chapterId}
+            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            编辑结构数据
+          </button>
+          <button
             onClick={handleExport}
             disabled={isExporting || shots.length === 0}
             className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
@@ -443,24 +586,33 @@ export function ShotSplitTab({
           >
             {isImporting ? t('chapterGenerate.importing') : t('chapterGenerate.importShots')}
           </button>
+          <button
+            type="button"
+            onClick={handleAutoFixCriticalDurations}
+            disabled={isSaving || dialogueWarningStats.stats.critical === 0}
+            className="btn-secondary border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            自动修正异常时长
+          </button>
         </div>
         <div className="text-sm text-gray-500">
           {t('chapterGenerate.totalShots', { count: shots.length })}
         </div>
       </div>
 
-      {/* 分镜列表和编辑区 */}
-      <div className="flex-1 min-h-0 flex gap-4 overflow-hidden">
+      {/* 分镜列表 */}
+      <div className="flex-1 min-h-0 overflow-hidden">
         {/* 分镜列表 */}
-        <div className="w-72 flex-shrink-0 overflow-y-auto border border-gray-200 rounded-lg">
+        <div className="h-full overflow-y-auto border border-gray-200 rounded-lg bg-white">
           {shots.map((shot: Shot, idx: number) => {
             const shotNum = idx + 1;
             const shotId = shot.id;
-            const isSelected = shot.id === currentShotId;
+            const isSelected = shot.id === currentShotId || (!currentShotId && shotNum === shotIndex);
             const characters = shot.characters || [];
             const scene = shot.scene;
             const props = shot.props || [];
             const dialogues = shot.dialogues || [];
+            const dialogueWarning = getShotDialogueDurationWarning(shot);
 
             const dialogueCharacters = Array.from(
               new Set(dialogues.map((d) => d.character_name))
@@ -478,7 +630,10 @@ export function ShotSplitTab({
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <span className="text-sm font-bold text-gray-900">{t('chapterGenerate.shotNumberLabel', { number: shotNum })}</span>
-                    <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">{shot.duration}{t('common.second')}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${dialogueWarning.style.badgeClassName}`}>
+                      {shot.duration}{t('common.second')}
+                      {dialogues.length > 0 && dialogueWarning.level !== 'normal' && ` · ${dialogueWarning.style.shortLabel}`}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button
@@ -511,7 +666,9 @@ export function ShotSplitTab({
                 </div>
 
                 {/* 分镜描述 */}
-                <p className="text-xs text-gray-600 line-clamp-2 mb-2 leading-relaxed">{shot.description}</p>
+                <p className="text-xs text-gray-600 truncate mb-2 leading-relaxed" title={shot.description}>
+                  {truncateText(shot.description || '', 160)}
+                </p>
 
                 {/* 角色、场景、道具信息 */}
                 <div className="space-y-1">
@@ -557,10 +714,13 @@ export function ShotSplitTab({
 
                   {/* 场景 */}
                   {scene && (
-                    <div className="flex items-center gap-1 flex-wrap">
+                    <div className="flex items-center gap-1 min-w-0">
                       <span className="text-xs text-gray-500 flex-shrink-0">{t('chapterGenerate.sceneColon')}</span>
-                      <span className="inline-flex items-center px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs">
-                        {scene}
+                      <span
+                        className="inline-flex items-center max-w-full px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs truncate"
+                        title={scene}
+                      >
+                        {truncateText(scene, 24)}
                       </span>
                     </div>
                   )}
@@ -591,22 +751,6 @@ export function ShotSplitTab({
           {shots.length === 0 && (
             <div className="p-8 text-center text-gray-500 text-sm">
               {t('chapterGenerate.clickAiSplitHint')}
-            </div>
-          )}
-        </div>
-
-        {/* 分镜编辑区 */}
-        <div className="flex-1 overflow-y-auto border border-gray-200 rounded-lg p-4">
-          {shots.length > 0 && shotIndex >= 1 && shotIndex <= shots.length ? (
-            <ShotForm
-              shotIndex={shotIndex}
-              shotData={shots[shotIndex - 1]}
-              showVideoDescription={true}
-              showDuration={true}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-500">
-              {t('chapterGenerate.selectShotToEdit')}
             </div>
           )}
         </div>
@@ -676,6 +820,123 @@ export function ShotSplitTab({
                 className="btn-primary bg-amber-600 hover:bg-amber-700"
               >
                 {t('chapterGenerate.confirmImport')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 结构数据编辑弹窗 */}
+      {showStructureEditor && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">编辑结构数据</h3>
+                <p className="text-sm text-gray-500 mt-1">可直接编辑解析后的 JSON；保存前会检查 JSON 格式。</p>
+              </div>
+              <button
+                onClick={() => setShowStructureEditor(false)}
+                disabled={isSavingStructure}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
+                title={t('common.close')}
+              >
+                <span className="text-xl leading-none text-gray-500">×</span>
+              </button>
+            </div>
+
+            <div className="px-6 py-3 border-b border-gray-200 bg-gray-50">
+              <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_auto_auto_auto_auto] gap-2">
+                <input
+                  value={structureFindText}
+                  onChange={(event) => {
+                    setStructureFindText(event.target.value);
+                    setStructureCurrentMatchIndex(-1);
+                  }}
+                  className="input-field"
+                  placeholder="查找内容"
+                />
+                <input
+                  value={structureReplaceText}
+                  onChange={(event) => setStructureReplaceText(event.target.value)}
+                  className="input-field"
+                  placeholder="替换为"
+                />
+                <button
+                  type="button"
+                  onClick={handleStructureFind}
+                  disabled={!structureFindText}
+                  className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  查找
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStructureFindNext}
+                  disabled={!structureFindText || structureMatchCount === 0}
+                  className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  下一处
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStructureReplace}
+                  disabled={!structureFindText}
+                  className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  替换
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStructureReplaceAll}
+                  disabled={!structureFindText}
+                  className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  替换全部
+                </button>
+              </div>
+              {structureMatchLabel && (
+                <div className={`mt-2 text-sm ${structureMatchCount > 0 ? 'text-gray-600' : 'text-red-600'}`}>
+                  {structureMatchLabel}
+                </div>
+              )}
+              {structureError && (
+                <div className="mt-2 text-sm text-red-600 bg-red-50 border border-red-100 rounded px-3 py-2">
+                  {structureError}
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 min-h-0 p-6 overflow-hidden">
+              <textarea
+                ref={structureTextareaRef}
+                value={structureJson}
+                onChange={(event) => {
+                  setStructureJson(event.target.value);
+                  setStructureCurrentMatchIndex(-1);
+                  if (structureError) setStructureError('');
+                }}
+                spellCheck={false}
+                className="w-full h-full min-h-[520px] font-mono text-sm leading-relaxed border border-gray-300 rounded-lg p-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => setShowStructureEditor(false)}
+                disabled={isSavingStructure}
+                className="btn-secondary disabled:opacity-50"
+              >
+                {t('common.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveStructureJson}
+                disabled={isSavingStructure}
+                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSavingStructure ? t('common.saving') : '保存'}
               </button>
             </div>
           </div>

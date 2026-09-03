@@ -8,7 +8,7 @@ export interface Workflow {
   nameKey?: string;
   description?: string;
   descriptionKey?: string;
-  type: 'character' | 'scene' | 'shot' | 'video' | 'transition' | 'prop' | 'voice_design' | 'audio' | 'keyframe_image';
+  type: string;
   typeName: string;
   isSystem: boolean;
   isActive: boolean;
@@ -19,12 +19,17 @@ export interface Workflow {
     height_node_id?: string;
     video_save_node_id?: string;
     max_side_node_id?: string;
+    megapixels_node_id?: string;
+    megapixels_value?: string;
     reference_image_node_id?: string;
+    load_image_node_id?: string;
     frame_count_node_id?: string;
+    duration_seconds_node_id?: string;
     first_image_node_id?: string;
     last_image_node_id?: string;
     character_reference_image_node_id?: string;
     scene_reference_image_node_id?: string;
+    prop_reference_image_node_id?: string;
     // 音色设计相关节点
     voice_prompt_node_id?: string;
     ref_text_node_id?: string;
@@ -59,8 +64,10 @@ export interface SettingsFormData {
   llmApiUrl: string;
   llmMaxTokens?: number;
   llmTemperature?: string;
+  llmTimeout?: number;
   proxy: ProxyConfig;
   comfyUIHost: string;
+  comfyUITimeout: number;
   systemStatusSource: SystemStatusSource;
 }
 
@@ -71,12 +78,15 @@ export interface MappingForm {
   heightNodeId: string;
   videoSaveNodeId: string;
   maxSideNodeId: string;
+  megapixelsNodeId: string;
+  megapixelsValue: string;
   referenceImageNodeId: string;
   frameCountNodeId: string;
   firstImageNodeId: string;
   lastImageNodeId: string;
   characterReferenceImageNodeId: string;
   sceneReferenceImageNodeId: string;
+  propReferenceImageNodeId: string;
   // 音色设计相关节点
   voicePromptNodeId: string;
   refTextNodeId: string;
@@ -91,6 +101,7 @@ export interface AvailableNodes {
   clipTextEncode: string[];
   saveImage: string[];
   easyInt: string[];
+  easyFloat: string[];
   crPromptText: string[];
   vhsVideoCombine: string[];
   saveVideo: string[];

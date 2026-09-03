@@ -11,8 +11,10 @@ import { propApi } from '../../api/props';
 import { promptTemplateApi } from '../../api/promptTemplates';
 import { api } from '../../api';
 import { ImagePreviewModal, PropCard } from './components';
+import { ImageEditModal } from '../../components/ImageEditModal';
 import { ALLOWED_IMAGE_TYPES, POLL_CONFIG, ASPECT_RATIO_CLASSES } from './constants';
 import type { PreviewImageState, DeleteAllConfirmDialog, PropPrompt } from './types';
+import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
 
 export default function Props() {
   const { t } = useTranslation();
@@ -21,9 +23,9 @@ export default function Props() {
   const [novels, setNovels] = useState<Novel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const novelIdFromUrl = searchParams.get('novel') || '';
+  const novelIdFromUrl = searchParams.get('novel') || searchParams.get('novel_id') || '';
   const highlightId = searchParams.get('highlight');
-  const [selectedNovel, setSelectedNovel] = useState<string>(novelIdFromUrl);
+  const [selectedNovel, setSelectedNovel] = useState<string>(novelIdFromUrl || getLastSelectedNovelId());
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingProp, setEditingProp] = useState<Prop | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
@@ -31,7 +33,14 @@ export default function Props() {
 
   const [deleteAllConfirmDialog, setDeleteAllConfirmDialog] = useState<DeleteAllConfirmDialog>({ isOpen: false });
   const [previewImage, setPreviewImage] = useState<PreviewImageState>({ isOpen: false, url: null, name: '', propId: null });
+  const [imageEditProp, setImageEditProp] = useState<Prop | null>(null);
+  const [imageEditResultUrl, setImageEditResultUrl] = useState<string | null>(null);
+  const [imageEditResultSize, setImageEditResultSize] = useState<{ width: number; height: number } | null>(null);
+  const [editingImageId, setEditingImageId] = useState<string | null>(null);
+  const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
   const [generatingAll, setGeneratingAll] = useState(false);
+  const [generatingMissing, setGeneratingMissing] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'generated' | 'notGenerated' | 'running' | 'pending'>('all');
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [currentUploadPropId, setCurrentUploadPropId] = useState<string | null>(null);
@@ -45,6 +54,15 @@ export default function Props() {
     appearance: '',
     novelId: '',
   });
+
+  const syncSelectedNovel = (novelId: string, replace = false) => {
+    if (!novelId) return;
+    setLastSelectedNovelId(novelId);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('novel', novelId);
+    nextParams.delete('novel_id');
+    setSearchParams(nextParams, { replace });
+  };
 
   useEffect(() => {
     fetchProps();
@@ -131,10 +149,16 @@ export default function Props() {
         const novelsList = data.data || [];
         setNovels(novelsList);
 
-        if (!selectedNovel && novelsList.length > 0) {
-          const firstNovelId = novelsList[0].id;
-          setSelectedNovel(firstNovelId);
-          setSearchParams({ novel: firstNovelId });
+        if (novelsList.length > 0) {
+          const selectedExists = novelsList.some(novel => novel.id === selectedNovel);
+          const savedNovelId = getLastSelectedNovelId();
+          const savedExists = novelsList.some(novel => novel.id === savedNovelId);
+          const nextNovelId = selectedExists ? selectedNovel : savedExists ? savedNovelId : novelsList[0].id;
+
+          if (nextNovelId !== selectedNovel) {
+            setSelectedNovel(nextNovelId);
+          }
+          syncSelectedNovel(nextNovelId, true);
         }
       }
     } catch (error) {
@@ -240,7 +264,7 @@ export default function Props() {
   };
 
   const generatePropImage = async (prop: Prop) => {
-    if (prop.generatingStatus === 'running') {
+    if (prop.generatingStatus === 'pending' || prop.generatingStatus === 'running') {
       toast.info(t('props.generatingStatus'));
       return;
     }
@@ -251,7 +275,7 @@ export default function Props() {
       const data = await propApi.generateImage(prop.id);
       if (data.success) {
         setProps(prev => prev.map(p =>
-          p.id === prop.id ? { ...p, generatingStatus: 'running' } : p
+          p.id === prop.id ? { ...p, generatingStatus: 'pending' } : p
         ));
         toast.success(t('props.generatingStatus'));
         pollPropStatus(prop.id);
@@ -305,7 +329,7 @@ export default function Props() {
       return;
     }
 
-    const propsToGenerate = filteredProps.filter(p => p.generatingStatus !== 'running');
+    const propsToGenerate = filteredProps.filter(p => p.generatingStatus !== 'pending' && p.generatingStatus !== 'running');
 
     if (propsToGenerate.length === 0) {
       toast.info(t('props.generatingStatus'));
@@ -337,7 +361,7 @@ export default function Props() {
         if (data.success) {
           successCount++;
           setProps(prev => prev.map(p =>
-            p.id === prop.id ? { ...p, generatingStatus: 'running' } : p
+            p.id === prop.id ? { ...p, generatingStatus: 'pending' } : p
           ));
         } else {
           failCount++;
@@ -359,6 +383,39 @@ export default function Props() {
     }
   };
 
+  const generateMissingPropImages = async () => {
+    if (!selectedNovel) return;
+    const propsToGenerate = props.filter(prop => (
+      (!prop.imageUrl || prop.generatingStatus === 'failed') &&
+      prop.generatingStatus !== 'pending' &&
+      prop.generatingStatus !== 'running'
+    ));
+    if (propsToGenerate.length === 0) {
+      toast.info(t('props.noRemainingImages'));
+      return;
+    }
+    if (!window.confirm(t('props.confirmGenerateRemaining', { count: propsToGenerate.length }))) return;
+
+    setGeneratingMissing(true);
+    try {
+      const data = await propApi.generateMissingImages(selectedNovel);
+      if (data.success) {
+        const queuedCount = data.data?.queuedCount || 0;
+        const queuedIds = new Set(propsToGenerate.map(prop => prop.id));
+        setProps(prev => prev.map(prop => queuedIds.has(prop.id) ? { ...prop, generatingStatus: 'pending' } : prop));
+        toast.success(t('props.remainingQueued', { count: queuedCount }));
+        if (queuedCount > 0) pollAllPropsStatus();
+      } else {
+        toast.error(data.message || t('common.error'));
+      }
+    } catch (error) {
+      console.error('生成剩余道具图失败:', error);
+      toast.error(t('common.error'));
+    } finally {
+      setGeneratingMissing(false);
+    }
+  };
+
   const pollAllPropsStatus = () => {
     if (!selectedNovel) return;
 
@@ -369,7 +426,7 @@ export default function Props() {
           const propList = data.data || [];
           setProps(propList);
 
-          const generatingPropList = propList.filter((p: Prop) => p.generatingStatus === 'running');
+          const generatingPropList = propList.filter((p: Prop) => p.generatingStatus === 'pending' || p.generatingStatus === 'running');
 
           if (generatingPropList.length === 0) {
             clearInterval(interval);
@@ -430,6 +487,67 @@ export default function Props() {
     setPreviewImage({ isOpen: false, url: null, name: '', propId: null });
   };
 
+  const openImageEdit = (prop: Prop) => {
+    setImageEditProp(prop);
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+  };
+
+  const closeImageEdit = () => {
+    if (editingImageId || replacingImageId) return;
+    setImageEditProp(null);
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+  };
+
+  const handleEditImage = async (prompt: string) => {
+    if (!imageEditProp) return;
+    if (!prompt) {
+      toast.warning(t('props.editImagePromptRequired'));
+      return;
+    }
+
+    setEditingImageId(imageEditProp.id);
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+    try {
+      const data = await propApi.editImage(imageEditProp.id, prompt);
+      if (data.success && data.data?.imageUrl) {
+        setImageEditResultUrl(data.data.imageUrl);
+        toast.success(t('props.editImageSuccess'));
+      } else {
+        toast.error((data as any).detail || data.message || t('props.editImageFailed'));
+      }
+    } catch (error) {
+      console.error('编辑道具图片失败:', error);
+      toast.error(t('props.editImageFailed'));
+    } finally {
+      setEditingImageId(null);
+    }
+  };
+
+  const handleReplaceImage = async () => {
+    if (!imageEditProp || !imageEditResultUrl) return;
+    setReplacingImageId(imageEditProp.id);
+    try {
+      const data = await propApi.replaceImage(imageEditProp.id, imageEditResultUrl);
+      if (data.success && data.data) {
+        setProps(prev => prev.map(prop => prop.id === imageEditProp.id ? { ...prop, ...data.data! } : prop));
+        toast.success(t('props.replaceImageSuccess'));
+        setImageEditProp(null);
+        setImageEditResultUrl(null);
+        setImageEditResultSize(null);
+      } else {
+        toast.error((data as any).detail || data.message || t('common.error'));
+      }
+    } catch (error) {
+      console.error('替换道具图片失败:', error);
+      toast.error(t('common.error'));
+    } finally {
+      setReplacingImageId(null);
+    }
+  };
+
   const navigatePreview = (direction: 'prev' | 'next') => {
     if (!previewImage.propId) return;
 
@@ -454,10 +572,32 @@ export default function Props() {
     });
   };
 
-  const filteredProps = props.filter(p =>
+  const matchesStatusFilter = (prop: Prop) => {
+    if (statusFilter === 'all') return true;
+    if (statusFilter === 'pending') return prop.generatingStatus === 'pending';
+    if (statusFilter === 'running') return prop.generatingStatus === 'running';
+    if (statusFilter === 'generated') return Boolean(prop.imageUrl) && prop.generatingStatus !== 'failed';
+    return (!prop.imageUrl || prop.generatingStatus === 'failed')
+      && prop.generatingStatus !== 'pending'
+      && prop.generatingStatus !== 'running';
+  };
+
+  const filteredProps = props.filter(p => (
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ) && matchesStatusFilter(p));
+
+  const propStats = props.reduce((stats, prop) => {
+    stats.total += 1;
+    if (prop.generatingStatus === 'pending') stats.pending += 1;
+    else if (prop.generatingStatus === 'running') stats.running += 1;
+    else if (prop.imageUrl && prop.generatingStatus !== 'failed') stats.generated += 1;
+    else stats.notGenerated += 1;
+    return stats;
+  }, { total: 0, generated: 0, notGenerated: 0, running: 0, pending: 0 });
+
+  const statCardClass = (filter: typeof statusFilter, className: string) =>
+    `rounded-lg border px-4 py-3 text-left transition hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${className} ${statusFilter === filter ? 'ring-2 ring-primary-500 shadow-sm' : ''}`;
 
   const getNovelAspectRatio = (novelId: string): string => {
     const novel = novels.find(n => n.id === novelId);
@@ -476,7 +616,7 @@ export default function Props() {
           {filteredProps.length > 0 && (
             <button
               onClick={generateAllPropImages}
-              disabled={generatingAll}
+              disabled={generatingAll || generatingMissing}
               className="btn-secondary text-amber-600 border-amber-200 hover:bg-amber-50 disabled:opacity-50"
             >
               {generatingAll ? (
@@ -485,6 +625,16 @@ export default function Props() {
                 <Image className="mr-2 h-4 w-4" />
               )}
               {t('props.generateAllImages')}
+            </button>
+          )}
+          {props.length > 0 && (
+            <button
+              onClick={generateMissingPropImages}
+              disabled={generatingAll || generatingMissing}
+              className="btn-secondary text-blue-600 border-blue-200 hover:bg-blue-50 disabled:opacity-50"
+            >
+              {generatingMissing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Image className="mr-2 h-4 w-4" />}
+              {t('props.generateRemainingImages')}
             </button>
           )}
           {selectedNovel && props.length > 0 && (
@@ -524,8 +674,9 @@ export default function Props() {
         <select
           value={selectedNovel}
           onChange={(e) => {
-            setSelectedNovel(e.target.value);
-            setSearchParams({ novel: e.target.value });
+            const novelId = e.target.value;
+            setSelectedNovel(novelId);
+            syncSelectedNovel(novelId);
           }}
           className="input-field flex-1"
         >
@@ -533,6 +684,14 @@ export default function Props() {
             <option key={novel.id} value={novel.id}>{novel.title}</option>
           ))}
         </select>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <button type="button" onClick={() => setStatusFilter('all')} className={statCardClass('all', 'border-gray-200 bg-white')}><p className="text-xs text-gray-500">{t('props.totalCount')}</p><p className="mt-1 text-xl font-semibold text-gray-900">{propStats.total}</p></button>
+        <button type="button" onClick={() => setStatusFilter('generated')} className={statCardClass('generated', 'border-green-100 bg-green-50')}><p className="text-xs text-green-700">{t('props.generatedCount')}</p><p className="mt-1 text-xl font-semibold text-green-700">{propStats.generated}</p></button>
+        <button type="button" onClick={() => setStatusFilter('notGenerated')} className={statCardClass('notGenerated', 'border-gray-200 bg-gray-50')}><p className="text-xs text-gray-600">{t('props.notGeneratedCount')}</p><p className="mt-1 text-xl font-semibold text-gray-700">{propStats.notGenerated}</p></button>
+        <button type="button" onClick={() => setStatusFilter('running')} className={statCardClass('running', 'border-blue-100 bg-blue-50')}><p className="text-xs text-blue-700">{t('props.runningCount')}</p><p className="mt-1 text-xl font-semibold text-blue-700">{propStats.running}</p></button>
+        <button type="button" onClick={() => setStatusFilter('pending')} className={statCardClass('pending', 'border-amber-100 bg-amber-50')}><p className="text-xs text-amber-700">{t('props.pendingCount')}</p><p className="mt-1 text-xl font-semibold text-amber-700">{propStats.pending}</p></button>
       </div>
 
       {/* Props Grid */}
@@ -568,6 +727,7 @@ export default function Props() {
                 onGenerateImage={generatePropImage}
                 onGenerateAppearance={generateAppearance}
                 onUploadImage={triggerFileUpload}
+                onEditImage={openImageEdit}
                 onImageClick={openImagePreview}
               />
             );
@@ -589,12 +749,44 @@ export default function Props() {
         isOpen={previewImage.isOpen}
         url={previewImage.url}
         name={previewImage.name}
+        showDownload={true}
         onClose={closeImagePreview}
         showNavigation={true}
         totalCount={filteredProps.filter(p => p.imageUrl).length}
         onPrev={() => navigatePreview('prev')}
         onNext={() => navigatePreview('next')}
       />
+
+      {imageEditProp?.imageUrl && (
+        <ImageEditModal
+          isOpen={Boolean(imageEditProp)}
+          itemName={imageEditProp.name}
+          imageUrl={imageEditProp.imageUrl}
+          resultUrl={imageEditResultUrl}
+          resultSize={imageEditResultSize}
+          isEditing={editingImageId === imageEditProp.id}
+          isReplacing={replacingImageId === imageEditProp.id}
+          labels={{
+            title: t('props.editImageTitle'),
+            optionsTitle: t('props.editImageOptions'),
+            keepOriginalLayout: t('props.keepOriginalLayout'),
+            removeWeapons: t('props.removeWeapons'),
+            makeFourView: t('props.makeFourView'),
+            other: t('props.otherEdit'),
+            otherPlaceholder: t('props.otherEditPlaceholder'),
+            editButton: t('props.editImage'),
+            editing: t('props.editingImage'),
+            replaceButton: t('props.replaceImage'),
+            originalImage: '原图',
+            editResult: '编辑结果',
+            emptyResult: '生成后在这里预览',
+          }}
+          onClose={closeImageEdit}
+          onEdit={handleEditImage}
+          onReplace={handleReplaceImage}
+          onResultSizeChange={setImageEditResultSize}
+        />
+      )}
 
       {/* Create Modal */}
       {showCreateModal && (

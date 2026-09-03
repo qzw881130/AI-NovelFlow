@@ -6,8 +6,9 @@ OpenAI 兼容的 LLM 提供商
 import httpx
 import os
 import time
+import json
 from typing import Dict, Any, Optional
-from ..base import BaseLLMProvider, LLMConfig, LLMResponse, save_llm_log
+from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
 
 
 class OpenAICompatibleProvider(BaseLLMProvider):
@@ -26,13 +27,16 @@ class OpenAICompatibleProvider(BaseLLMProvider):
 
     def _get_headers(self) -> Dict[str, str]:
         """获取请求头"""
-        return {
+        headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self._get_current_api_key()}",
             "HTTP-Referer": "https://opencode.ai/",
             "X-Title": "opencode",
             "User-Agent": "Anthropic/JS 0.73.0"
         }
+        api_key = self._get_current_api_key()
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        return headers
 
     def _build_request_body(
         self,
@@ -50,10 +54,21 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 {"role": "user", "content": user_content}
             ],
             "temperature": temperature,
-            "max_tokens": max_tokens
+            "max_tokens": max_tokens,
+            "stream": False,
         }
+
+        is_deepseek_v4 = self.config.provider == "deepseek" and self.config.model in {
+            "deepseek-v4-flash",
+            "deepseek-v4-pro",
+        }
+
         if response_format == "json_object" and ("Doubao-Seed" not in self.config.model):
             body["response_format"] = {"type": "json_object"}
+            if is_deepseek_v4:
+                # DeepSeek V4 defaults to thinking mode. Structured JSON tasks do not need
+                # reasoning output, and disabling it reduces length truncation risk.
+                body["thinking"] = {"type": "disabled"}
         return body
 
     def _parse_response(self, response_data: Dict[str, Any]) -> str:
@@ -64,8 +79,15 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             # 某些模型可能返回空的 content 但有 reasoning
             if not content and "reasoning" in message:
                 content = message["reasoning"]
+            if not content and "reasoning_content" in message:
+                content = message["reasoning_content"]
             return content
         return response_data.get("content", "")
+
+    def _get_finish_reason(self, response_data: Dict[str, Any]) -> Optional[str]:
+        if "choices" in response_data and response_data["choices"]:
+            return response_data["choices"][0].get("finish_reason")
+        return None
 
     async def chat_completion(
         self,
@@ -75,6 +97,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         max_tokens: int = 4000,
         response_format: Optional[str] = None,
         task_type: str = None,
+        prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
         character_id: str = None
@@ -107,7 +130,17 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         proxy = self._get_proxy_config()
         used_proxy = proxy is not None
 
-        timeout = 600
+        timeout = self.config.timeout or 600
+        request_info = build_llm_request_info(
+            provider=self.config.provider,
+            base_url=self.config.api_url,
+            endpoint=endpoint,
+            model=self.config.model,
+            headers=headers,
+            payload=body,
+            proxy_url=proxy,
+            timeout_seconds=timeout,
+        )
         # Ollama 和 custom 不需要代理
         if self.config.provider in ("ollama", "custom"):
             old_http_proxy = os.environ.pop('HTTP_PROXY', None)
@@ -121,9 +154,23 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             client = httpx.AsyncClient(proxy=proxy, timeout=timeout)
             old_http_proxy = old_https_proxy = old_http_proxy_lower = old_https_proxy_lower = None
 
+        log_id = None
         try:
             async with client:
                 print(f"[openai chat_completion] endpoint:{endpoint}, headers:{headers}, timeout:{timeout}")
+                log_id = create_llm_log(
+                    provider=self.config.provider,
+                    model=self.config.model,
+                    system_prompt=system_prompt,
+                    user_prompt=user_content,
+                    prompt_template_name=prompt_template_name,
+                    task_type=task_type,
+                    novel_id=novel_id,
+                    chapter_id=chapter_id,
+                    character_id=character_id,
+                    used_proxy=used_proxy,
+                    request_info=request_info,
+                )
                 response = await client.post(
                     endpoint,
                     headers=headers,
@@ -146,20 +193,51 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             if response.status_code == 200:
                 data = response.json()
                 content = self._parse_response(data)
+                finish_reason = self._get_finish_reason(data)
 
-                save_llm_log(
-                    provider=self.config.provider,
-                    model=self.config.model,
-                    system_prompt=system_prompt,
-                    user_prompt=user_content,
+                if not content:
+                    raw_response = json.dumps(data, ensure_ascii=False)
+                    error_msg = "API 返回成功状态，但响应内容为空"
+
+                    update_llm_log(
+                        log_id=log_id,
+                        response=raw_response,
+                        status="error",
+                        error_message=error_msg,
+                        duration=duration,
+                    )
+
+                    return LLMResponse(
+                        success=False,
+                        error=error_msg,
+                        raw_response=data,
+                        duration=duration
+                    )
+
+                if finish_reason == "length":
+                    error_msg = "API 响应因长度限制被截断，请提高最大 token 数或缩短输入后重试"
+
+                    update_llm_log(
+                        log_id=log_id,
+                        response=content,
+                        status="error",
+                        error_message=error_msg,
+                        duration=duration,
+                    )
+
+                    return LLMResponse(
+                        success=False,
+                        error=error_msg,
+                        content=content,
+                        raw_response=data,
+                        duration=duration
+                    )
+
+                update_llm_log(
+                    log_id=log_id,
                     response=content,
                     status="success",
-                    task_type=task_type,
-                    novel_id=novel_id,
-                    chapter_id=chapter_id,
-                    character_id=character_id,
-                    used_proxy=used_proxy,
-                    duration=duration
+                    duration=duration,
                 )
 
                 return LLMResponse(
@@ -170,19 +248,11 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 )
             else:
                 error_msg = f"API 错误 ({response.status_code}): {response.text}"
-                save_llm_log(
-                    provider=self.config.provider,
-                    model=self.config.model,
-                    system_prompt=system_prompt,
-                    user_prompt=user_content,
+                update_llm_log(
+                    log_id=log_id,
                     status="error",
                     error_message=error_msg,
-                    task_type=task_type,
-                    novel_id=novel_id,
-                    chapter_id=chapter_id,
-                    character_id=character_id,
-                    used_proxy=used_proxy,
-                    duration=duration
+                    duration=duration,
                 )
 
                 return LLMResponse(
@@ -199,19 +269,11 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             traceback.print_exc()
 
             duration = time.time() - start_time
-            save_llm_log(
-                provider=self.config.provider,
-                model=self.config.model,
-                system_prompt=system_prompt,
-                user_prompt=user_content,
+            update_llm_log(
+                log_id=log_id,
                 status="error",
                 error_message=error_msg,
-                task_type=task_type,
-                novel_id=novel_id,
-                chapter_id=chapter_id,
-                character_id=character_id,
-                used_proxy=used_proxy,
-                duration=duration
+                duration=duration,
             )
 
             return LLMResponse(

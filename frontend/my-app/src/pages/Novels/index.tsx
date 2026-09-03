@@ -11,6 +11,7 @@ import type { NovelFormData } from './types';
 export default function Novels() {
   const { t } = useTranslation();
   const {
+    novels,
     isLoading,
     searchQuery,
     setSearchQuery,
@@ -49,6 +50,15 @@ export default function Novels() {
     scenePromptTemplateId: '',
     propPromptTemplateId: '',
     chapterSplitPromptTemplateId: '',
+    keyframeDescriptionPromptTemplateId: '',
+    shotImagePromptTemplateId: '',
+    videoModeRecommenderPromptTemplateId: '',
+    keyframePlannerPromptTemplateId: '',
+    keyframeImagePromptTemplateId: '',
+    keyframeTransitionPromptTemplateId: '',
+    h3SingleFramePromptTemplateId: '',
+    h3FirstLastFramePromptTemplateId: '',
+    h3MultiKeyframePromptTemplateId: '',
     aspectRatio: '16:9'
   });
 
@@ -68,6 +78,15 @@ export default function Novels() {
       scenePromptTemplateId: '',
       propPromptTemplateId: '',
       chapterSplitPromptTemplateId: '',
+      keyframeDescriptionPromptTemplateId: '',
+      shotImagePromptTemplateId: '',
+      videoModeRecommenderPromptTemplateId: '',
+      keyframePlannerPromptTemplateId: '',
+      keyframeImagePromptTemplateId: '',
+      keyframeTransitionPromptTemplateId: '',
+      h3SingleFramePromptTemplateId: '',
+      h3FirstLastFramePromptTemplateId: '',
+      h3MultiKeyframePromptTemplateId: '',
       aspectRatio: '16:9'
     });
   };
@@ -87,9 +106,29 @@ export default function Novels() {
       scenePromptTemplateId: editingNovel.scenePromptTemplateId,
       propPromptTemplateId: editingNovel.propPromptTemplateId,
       chapterSplitPromptTemplateId: editingNovel.chapterSplitPromptTemplateId,
+      keyframeDescriptionPromptTemplateId: editingNovel.keyframeDescriptionPromptTemplateId,
+      shotImagePromptTemplateId: editingNovel.shotImagePromptTemplateId,
+      videoModeRecommenderPromptTemplateId: editingNovel.videoModeRecommenderPromptTemplateId,
+      keyframePlannerPromptTemplateId: editingNovel.keyframePlannerPromptTemplateId,
+      keyframeImagePromptTemplateId: editingNovel.keyframeImagePromptTemplateId,
+      keyframeTransitionPromptTemplateId: editingNovel.keyframeTransitionPromptTemplateId,
+      h3SingleFramePromptTemplateId: editingNovel.h3SingleFramePromptTemplateId,
+      h3FirstLastFramePromptTemplateId: editingNovel.h3FirstLastFramePromptTemplateId,
+      h3MultiKeyframePromptTemplateId: editingNovel.h3MultiKeyframePromptTemplateId,
       aspectRatio: editingNovel.aspectRatio,
     });
     setEditingNovel(null);
+  };
+
+  const handleDeleteNovel = async (novelId: string) => {
+    const novel = filteredNovels.find((item) => item.id === novelId);
+    const title = novel?.title || '当前小说';
+    const chapterCount = novel?.chapterCount ?? 0;
+    const confirmed = window.confirm(
+      `确认删除《${title}》吗？\n\n该操作会删除小说及其 ${chapterCount} 个章节相关数据，且不可撤销。`
+    );
+    if (!confirmed) return;
+    await deleteNovel(novelId);
   };
 
   return (
@@ -140,7 +179,7 @@ export default function Novels() {
               parsingNovelId={parsingNovelId}
               parsingScenesNovelId={parsingScenesNovelId}
               parsingPropsNovelId={parsingPropsNovelId}
-              onDelete={deleteNovel}
+              onDelete={handleDeleteNovel}
               onEdit={setEditingNovel}
               onParseConfirm={openParseConfirm}
               getTemplateDisplayName={getTemplateDisplayName}
@@ -158,6 +197,7 @@ export default function Novels() {
         setFormData={setNewNovel}
         templatesByType={templatesByType}
         getTemplateDisplayName={getTemplateDisplayName}
+        referenceNovels={novels}
       />
 
       {/* Edit Modal */}
@@ -168,6 +208,7 @@ export default function Novels() {
         setNovel={setEditingNovel}
         templatesByType={templatesByType}
         getTemplateDisplayName={getTemplateDisplayName}
+        referenceNovels={novels}
       />
 
       {/* Parse Confirm Dialog */}

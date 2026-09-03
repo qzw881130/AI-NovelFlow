@@ -13,6 +13,15 @@ export interface NovelFormData {
   scenePromptTemplateId: string;
   propPromptTemplateId: string;
   chapterSplitPromptTemplateId: string;
+  keyframeDescriptionPromptTemplateId: string;
+  shotImagePromptTemplateId: string;
+  videoModeRecommenderPromptTemplateId: string;
+  keyframePlannerPromptTemplateId: string;
+  keyframeImagePromptTemplateId: string;
+  keyframeTransitionPromptTemplateId: string;
+  h3SingleFramePromptTemplateId: string;
+  h3FirstLastFramePromptTemplateId: string;
+  h3MultiKeyframePromptTemplateId: string;
   aspectRatio: string;
 }
 

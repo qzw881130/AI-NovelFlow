@@ -25,10 +25,13 @@ class Shot(Base):
     scene = Column(String, default="")
     props = Column(Text, default="[]")  # JSON array: ["道具 1"]
     duration = Column(Integer, default=4)  # 时长（秒）
+    continuity_mode = Column(String, default="NORMAL")  # NORMAL/CONTINUOUS_TAKE
+    video_director_plan = Column(Text, default="{}")  # 视频导演模式推荐、关键帧、转场和 Clips
 
     # 图片资源
     image_url = Column(String, nullable=True)
     image_path = Column(String, nullable=True)
+    shot_image_prompt = Column(Text, default="")  # 主分镜图最终生图提示词
     image_status = Column(String, default="pending", index=True)  # pending/generating/completed/failed
     image_task_id = Column(String, nullable=True)
 
@@ -39,6 +42,8 @@ class Shot(Base):
 
     # 角色图
     merged_character_image = Column(String, nullable=True)
+    # 道具图
+    merged_prop_image = Column(String, nullable=True)
 
     # 台词音频 (JSON array)
     # 结构：[{"character_name": "角色 1", "text": "台词内容", "audio_url": "...", "audio_source": "generated", "audio_task_id": "..."}]

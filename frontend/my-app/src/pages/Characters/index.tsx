@@ -2,7 +2,7 @@
  * 角色管理页面
  */
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Trash2, Loader2, User, Image } from 'lucide-react';
+import { Plus, Search, Trash2, Loader2, User, Image, X } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import type { Character, Novel, PromptTemplate } from '../../types';
 import { toast } from '../../stores/toastStore';
@@ -13,6 +13,7 @@ import { api } from '../../api';
 import { ImagePreviewModal, CharacterCard } from './components';
 import { ASPECT_RATIO_CLASSES, ALLOWED_IMAGE_TYPES, ALLOWED_AUDIO_TYPES, MAX_AUDIO_SIZE, POLL_CONFIG } from './constants';
 import type { CharacterPrompt, PreviewImageState, DeleteAllConfirmDialog } from './types';
+import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
 
 export default function Characters() {
   const { t } = useTranslation();
@@ -23,7 +24,7 @@ export default function Characters() {
   const [searchQuery, setSearchQuery] = useState('');
   const novelIdFromUrl = searchParams.get('novel') || searchParams.get('novel_id') || '';
   const highlightId = searchParams.get('highlight');
-  const [selectedNovel, setSelectedNovel] = useState<string>(novelIdFromUrl);
+  const [selectedNovel, setSelectedNovel] = useState<string>(novelIdFromUrl || getLastSelectedNovelId());
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
@@ -34,10 +35,19 @@ export default function Characters() {
   
   const [deleteAllConfirmDialog, setDeleteAllConfirmDialog] = useState<DeleteAllConfirmDialog>({ isOpen: false });
   const [previewImage, setPreviewImage] = useState<PreviewImageState>({ isOpen: false, url: null, name: '', characterId: null });
+  const [imageEditCharacter, setImageEditCharacter] = useState<Character | null>(null);
+  const [imageEditOptions, setImageEditOptions] = useState<string[]>([]);
+  const [imageEditOther, setImageEditOther] = useState('');
+  const [imageEditResultUrl, setImageEditResultUrl] = useState<string | null>(null);
+  const [imageEditResultSize, setImageEditResultSize] = useState<{ width: number; height: number } | null>(null);
+  const [editingImageId, setEditingImageId] = useState<string | null>(null);
+  const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
   const [generatingAll, setGeneratingAll] = useState(false);
+  const [generatingMissing, setGeneratingMissing] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [generatingVoiceId, setGeneratingVoiceId] = useState<string | null>(null);
   const [uploadingAudioId, setUploadingAudioId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'generated' | 'notGenerated' | 'running' | 'pending'>('all');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const audioFileInputRef = useRef<HTMLInputElement | null>(null);
   const [currentUploadCharacterId, setCurrentUploadCharacterId] = useState<string | null>(null);
@@ -49,6 +59,15 @@ export default function Characters() {
     appearance: '',
     novelId: '',
   });
+
+  const syncSelectedNovel = (novelId: string, replace = false) => {
+    if (!novelId) return;
+    setLastSelectedNovelId(novelId);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('novel', novelId);
+    nextParams.delete('novel_id');
+    setSearchParams(nextParams, { replace });
+  };
 
   // 加载角色和小说数据
   useEffect(() => {
@@ -116,11 +135,17 @@ export default function Characters() {
       if (data.success) {
         const novelsList = data.data || [];
         setNovels(novelsList);
-        
-        if (!selectedNovel && novelsList.length > 0) {
-          const firstNovelId = novelsList[0].id;
-          setSelectedNovel(firstNovelId);
-          setSearchParams({ novel: firstNovelId });
+
+        if (novelsList.length > 0) {
+          const selectedExists = novelsList.some(novel => novel.id === selectedNovel);
+          const savedNovelId = getLastSelectedNovelId();
+          const savedExists = novelsList.some(novel => novel.id === savedNovelId);
+          const nextNovelId = selectedExists ? selectedNovel : savedExists ? savedNovelId : novelsList[0].id;
+
+          if (nextNovelId !== selectedNovel) {
+            setSelectedNovel(nextNovelId);
+          }
+          syncSelectedNovel(nextNovelId, true);
         }
       }
     } catch (error) {
@@ -225,7 +250,7 @@ export default function Characters() {
   };
 
   const generatePortrait = async (character: Character) => {
-    if (character.generatingStatus === 'running') {
+    if (character.generatingStatus === 'pending' || character.generatingStatus === 'running') {
       toast.info(t('characters.generatingStatus'));
       return;
     }
@@ -235,7 +260,7 @@ export default function Characters() {
       const data = await characterApi.generatePortrait(character.id);
       if (data.success) {
         setCharacters(prev => prev.map(c => 
-          c.id === character.id ? { ...c, generatingStatus: 'running' } : c
+          c.id === character.id ? { ...c, generatingStatus: 'pending' } : c
         ));
         toast.success(t('characters.generatingStatus'));
         pollCharacterStatus(character.id);
@@ -374,7 +399,7 @@ export default function Characters() {
       return;
     }
     
-    const charactersToGenerate = filteredCharacters.filter(c => c.generatingStatus !== 'running');
+    const charactersToGenerate = filteredCharacters.filter(c => c.generatingStatus !== 'pending' && c.generatingStatus !== 'running');
     
     if (charactersToGenerate.length === 0) {
       toast.info(t('characters.generatingStatus'));
@@ -396,6 +421,13 @@ export default function Characters() {
     if (!window.confirm(confirmMessage)) return;
     
     setGeneratingAll(true);
+
+    const regeneratingIds = new Set(charactersToGenerate.map(character => character.id));
+    setCharacters(prev => prev.map(character => (
+      regeneratingIds.has(character.id)
+        ? { ...character, imageUrl: undefined, generatingStatus: 'pending' }
+        : character
+    )));
     
     try {
       await characterApi.clearImagesDir(selectedNovel);
@@ -412,7 +444,7 @@ export default function Characters() {
         if (data.success) {
           successCount++;
           setCharacters(prev => prev.map(c =>
-            c.id === character.id ? { ...c, generatingStatus: 'running' } : c
+            c.id === character.id ? { ...c, imageUrl: undefined, generatingStatus: 'pending' } : c
           ));
         } else {
           failCount++;
@@ -436,6 +468,48 @@ export default function Characters() {
     }
   };
 
+  const generateMissingPortraits = async () => {
+    if (!selectedNovel) return;
+
+    const charactersToGenerate = characters.filter(character => (
+      (!character.imageUrl || character.generatingStatus === 'failed') &&
+      character.generatingStatus !== 'pending' &&
+      character.generatingStatus !== 'running'
+    ));
+
+    if (charactersToGenerate.length === 0) {
+      toast.info(t('characters.noRemainingPortraits'));
+      return;
+    }
+
+    if (!window.confirm(t('characters.confirmGenerateRemaining', { count: charactersToGenerate.length }))) return;
+
+    setGeneratingMissing(true);
+    try {
+      const data = await characterApi.generateMissingPortraits(selectedNovel);
+      if (data.success) {
+        const queuedCount = data.data?.queuedCount || 0;
+        const queuedIds = new Set(charactersToGenerate.map(character => character.id));
+        setCharacters(prev => prev.map(character => (
+          queuedIds.has(character.id)
+            ? { ...character, generatingStatus: 'pending' }
+            : character
+        )));
+        toast.success(t('characters.remainingQueued', { count: queuedCount }));
+        if (queuedCount > 0) {
+          pollAllCharactersStatus();
+        }
+      } else {
+        toast.error(data.message || t('common.error'));
+      }
+    } catch (error) {
+      console.error('生成剩余角色形象失败:', error);
+      toast.error(t('common.error'));
+    } finally {
+      setGeneratingMissing(false);
+    }
+  };
+
   const pollAllCharactersStatus = () => {
     if (!selectedNovel) return;
     
@@ -446,7 +520,7 @@ export default function Characters() {
           const chars = data.data || [];
           setCharacters(chars);
           
-          const generatingChars = chars.filter((c: Character) => c.generatingStatus === 'running');
+          const generatingChars = chars.filter((c: Character) => c.generatingStatus === 'pending' || c.generatingStatus === 'running');
           
           if (generatingChars.length === 0) {
             clearInterval(interval);
@@ -465,6 +539,94 @@ export default function Characters() {
 
   const closeImagePreview = () => {
     setPreviewImage({ isOpen: false, url: null, name: '', characterId: null });
+  };
+
+  const openImageEdit = (character: Character) => {
+    setImageEditCharacter(character);
+    setImageEditOptions([]);
+    setImageEditOther('');
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+  };
+
+  const closeImageEdit = () => {
+    if (editingImageId || replacingImageId) return;
+    setImageEditCharacter(null);
+    setImageEditOptions([]);
+    setImageEditOther('');
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+  };
+
+  const toggleImageEditOption = (option: string) => {
+    setImageEditOptions(prev => (
+      prev.includes(option)
+        ? prev.filter(item => item !== option)
+        : [...prev, option]
+    ));
+  };
+
+  const buildImageEditPrompt = () => {
+    const selectedPrompts = imageEditOptions
+      .filter(option => option !== 'other')
+      .map(option => {
+        if (option === 'removeWeapons') return '去除武器';
+        if (option === 'makeFourView') return '修改成四视图';
+        return '保持原图布局';
+      });
+    const otherPrompt = imageEditOptions.includes('other') ? imageEditOther.trim() : '';
+    return [...selectedPrompts, otherPrompt].filter(Boolean).join('\n');
+  };
+
+  const handleEditImage = async () => {
+    if (!imageEditCharacter) return;
+    const prompt = buildImageEditPrompt();
+    if (!prompt) {
+      toast.warning(t('characters.editImagePromptRequired'));
+      return;
+    }
+
+    setEditingImageId(imageEditCharacter.id);
+    setImageEditResultUrl(null);
+    setImageEditResultSize(null);
+    try {
+      const data = await characterApi.editImage(imageEditCharacter.id, prompt);
+      if (data.success && data.data?.imageUrl) {
+        setImageEditResultUrl(data.data.imageUrl);
+        toast.success(t('characters.editImageSuccess'));
+      } else {
+        toast.error((data as any).detail || data.message || t('characters.editImageFailed'));
+      }
+    } catch (error) {
+      console.error('编辑角色图片失败:', error);
+      toast.error(t('characters.editImageFailed'));
+    } finally {
+      setEditingImageId(null);
+    }
+  };
+
+  const handleReplaceImage = async () => {
+    if (!imageEditCharacter || !imageEditResultUrl) return;
+    setReplacingImageId(imageEditCharacter.id);
+    try {
+      const data = await characterApi.replaceImage(imageEditCharacter.id, imageEditResultUrl);
+      if (data.success && data.data) {
+        setCharacters(prev => prev.map(c => c.id === imageEditCharacter.id ? { ...c, ...data.data! } : c));
+        toast.success(t('characters.replaceImageSuccess'));
+        setImageEditCharacter(null);
+        setImageEditOptions([]);
+        setImageEditOther('');
+        setImageEditResultUrl(null);
+        setImageEditResultSize(null);
+      } else {
+        toast.error((data as any).detail || data.message || t('common.error'));
+      }
+    } catch (error) {
+      console.error('替换角色图片失败:', error);
+      toast.error(t('common.error'));
+    } finally {
+      setReplacingImageId(null);
+    }
   };
 
   const navigatePreview = (direction: 'prev' | 'next') => {
@@ -550,10 +712,42 @@ export default function Characters() {
     }, 2000);
   };
 
-  const filteredCharacters = characters.filter(c => 
+  const matchesStatusFilter = (character: Character) => {
+    if (statusFilter === 'all') return true;
+    if (statusFilter === 'pending') return character.generatingStatus === 'pending';
+    if (statusFilter === 'running') return character.generatingStatus === 'running';
+    if (statusFilter === 'generated') return Boolean(character.imageUrl) && character.generatingStatus !== 'failed';
+    return (!character.imageUrl || character.generatingStatus === 'failed')
+      && character.generatingStatus !== 'pending'
+      && character.generatingStatus !== 'running';
+  };
+
+  const filteredCharacters = characters.filter(c => (
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.description.toLowerCase().includes(searchQuery.toLowerCase())
+  ) && matchesStatusFilter(c));
+
+  const characterStats = characters.reduce(
+    (stats, character) => {
+      stats.total += 1;
+      if (character.generatingStatus === 'pending') {
+        stats.pending += 1;
+      } else if (character.generatingStatus === 'running') {
+        stats.running += 1;
+      } else if (character.imageUrl && character.generatingStatus !== 'failed') {
+        stats.generated += 1;
+      } else {
+        stats.notGenerated += 1;
+      }
+      return stats;
+    },
+    { total: 0, generated: 0, notGenerated: 0, running: 0, pending: 0 }
   );
+
+  const statCardClass = (filter: typeof statusFilter, className: string) =>
+    `rounded-lg border px-4 py-3 text-left transition hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${className} ${
+      statusFilter === filter ? 'ring-2 ring-primary-500 shadow-sm' : ''
+    }`;
 
   const getNovelAspectRatio = (novelId: string): string => {
     const novel = novels.find(n => n.id === novelId);
@@ -572,7 +766,7 @@ export default function Characters() {
           {filteredCharacters.length > 0 && (
             <button
               onClick={generateAllPortraits}
-              disabled={generatingAll}
+              disabled={generatingAll || generatingMissing}
               className="btn-secondary text-purple-600 border-purple-200 hover:bg-purple-50 disabled:opacity-50"
             >
               {generatingAll ? (
@@ -581,6 +775,20 @@ export default function Characters() {
                 <Image className="mr-2 h-4 w-4" />
               )}
               {t('characters.generateAllPortraits')}
+            </button>
+          )}
+          {characters.length > 0 && (
+            <button
+              onClick={generateMissingPortraits}
+              disabled={generatingAll || generatingMissing}
+              className="btn-secondary text-blue-600 border-blue-200 hover:bg-blue-50 disabled:opacity-50"
+            >
+              {generatingMissing ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Image className="mr-2 h-4 w-4" />
+              )}
+              {t('characters.generateRemainingPortraits')}
             </button>
           )}
           {selectedNovel && characters.length > 0 && (
@@ -620,8 +828,9 @@ export default function Characters() {
         <select
           value={selectedNovel}
           onChange={(e) => {
-            setSelectedNovel(e.target.value);
-            setSearchParams({ novel: e.target.value });
+            const novelId = e.target.value;
+            setSelectedNovel(novelId);
+            syncSelectedNovel(novelId);
           }}
           className="input-field flex-1"
         >
@@ -629,6 +838,49 @@ export default function Characters() {
             <option key={novel.id} value={novel.id}>{novel.title}</option>
           ))}
         </select>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <button
+          type="button"
+          onClick={() => setStatusFilter('all')}
+          className={statCardClass('all', 'border-gray-200 bg-white')}
+        >
+          <p className="text-xs text-gray-500">{t('characters.totalCount')}</p>
+          <p className="mt-1 text-xl font-semibold text-gray-900">{characterStats.total}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter('generated')}
+          className={statCardClass('generated', 'border-green-100 bg-green-50')}
+        >
+          <p className="text-xs text-green-700">{t('characters.generatedCount')}</p>
+          <p className="mt-1 text-xl font-semibold text-green-700">{characterStats.generated}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter('notGenerated')}
+          className={statCardClass('notGenerated', 'border-gray-200 bg-gray-50')}
+        >
+          <p className="text-xs text-gray-600">{t('characters.notGeneratedCount')}</p>
+          <p className="mt-1 text-xl font-semibold text-gray-700">{characterStats.notGenerated}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter('running')}
+          className={statCardClass('running', 'border-blue-100 bg-blue-50')}
+        >
+          <p className="text-xs text-blue-700">{t('characters.runningCount')}</p>
+          <p className="mt-1 text-xl font-semibold text-blue-700">{characterStats.running}</p>
+        </button>
+        <button
+          type="button"
+          onClick={() => setStatusFilter('pending')}
+          className={statCardClass('pending', 'border-amber-100 bg-amber-50')}
+        >
+          <p className="text-xs text-amber-700">{t('characters.pendingCount')}</p>
+          <p className="mt-1 text-xl font-semibold text-amber-700">{characterStats.pending}</p>
+        </button>
       </div>
 
       {/* Characters Grid */}
@@ -661,6 +913,7 @@ export default function Characters() {
               onGeneratePortrait={generatePortrait}
               onGenerateAppearance={generateAppearance}
               onUploadImage={triggerFileUpload}
+              onEditImage={openImageEdit}
               onImageClick={openImagePreview}
               onGenerateVoice={generateVoice}
               onUploadAudio={triggerAudioUpload}
@@ -692,12 +945,130 @@ export default function Characters() {
         isOpen={previewImage.isOpen}
         url={previewImage.url}
         name={previewImage.name}
+        showDownload={true}
         onClose={closeImagePreview}
         showNavigation={true}
         totalCount={filteredCharacters.filter(c => c.imageUrl).length}
         onPrev={() => navigatePreview('prev')}
         onNext={() => navigatePreview('next')}
       />
+
+      {/* Image Edit Modal */}
+      {imageEditCharacter && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">{t('characters.editImageTitle')}</h2>
+                <p className="mt-1 text-sm text-gray-500">{imageEditCharacter.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeImageEdit}
+                disabled={Boolean(editingImageId || replacingImageId)}
+                className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="grid gap-6 p-6 lg:grid-cols-[280px_1fr]">
+              <div className="space-y-4">
+                <div>
+                  <p className="mb-2 text-sm font-medium text-gray-700">{t('characters.editImageOptions')}</p>
+                  <div className="space-y-2">
+                    {[
+                      { key: 'keepOriginalLayout', label: t('characters.keepOriginalLayout') },
+                      { key: 'removeWeapons', label: t('characters.removeWeapons') },
+                      { key: 'makeFourView', label: t('characters.makeFourView') },
+                      { key: 'other', label: t('characters.otherEdit') },
+                    ].map(option => (
+                      <label key={option.key} className="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          checked={imageEditOptions.includes(option.key)}
+                          onChange={() => toggleImageEditOption(option.key)}
+                          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        {option.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                {imageEditOptions.includes('other') && (
+                  <textarea
+                    rows={4}
+                    value={imageEditOther}
+                    onChange={(event) => setImageEditOther(event.target.value)}
+                    className="input-field"
+                    placeholder={t('characters.otherEditPlaceholder')}
+                  />
+                )}
+                <button
+                  type="button"
+                  onClick={handleEditImage}
+                  disabled={editingImageId === imageEditCharacter.id}
+                  className="btn-primary w-full justify-center disabled:opacity-70"
+                >
+                  {editingImageId === imageEditCharacter.id ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Image className="mr-2 h-4 w-4" />
+                  )}
+                  {editingImageId === imageEditCharacter.id ? t('characters.editingImage') : t('characters.editImage')}
+                </button>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <p className="mb-2 text-sm font-medium text-gray-700">原图</p>
+                  <div className="aspect-square overflow-hidden rounded-lg bg-gray-100">
+                    <img src={imageEditCharacter.imageUrl} alt={imageEditCharacter.name} className="h-full w-full object-contain" />
+                  </div>
+                </div>
+                <div>
+                  <p className="mb-2 text-sm font-medium text-gray-700">编辑结果</p>
+                  <div className="aspect-square overflow-hidden rounded-lg bg-gray-100 flex items-center justify-center">
+                    {editingImageId === imageEditCharacter.id ? (
+                      <div className="text-center text-sm text-gray-500">
+                        <Loader2 className="mx-auto mb-2 h-8 w-8 animate-spin text-primary-600" />
+                        {t('characters.editingImage')}
+                      </div>
+                    ) : imageEditResultUrl ? (
+                      <img
+                        src={imageEditResultUrl}
+                        alt={`${imageEditCharacter.name} edited`}
+                        className="h-full w-full object-contain"
+                        onLoad={(event) => setImageEditResultSize({
+                          width: event.currentTarget.naturalWidth,
+                          height: event.currentTarget.naturalHeight,
+                        })}
+                      />
+                    ) : (
+                      <span className="text-sm text-gray-400">生成后在这里预览</span>
+                    )}
+                  </div>
+                  {imageEditResultUrl && (
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                      <span className="text-sm text-gray-500">
+                        {imageEditResultSize ? `${imageEditResultSize.width} x ${imageEditResultSize.height} px` : ''}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleReplaceImage}
+                        disabled={replacingImageId === imageEditCharacter.id}
+                        className="btn-primary disabled:opacity-70"
+                      >
+                        {replacingImageId === imageEditCharacter.id && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {t('characters.replaceImage')}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Modal */}
       {showCreateModal && (

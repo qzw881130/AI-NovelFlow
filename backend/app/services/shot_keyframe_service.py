@@ -7,6 +7,7 @@ import json
 import os
 import uuid
 import httpx
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -15,13 +16,17 @@ from sqlalchemy.orm import Session
 from app.models.shot import Shot
 from app.models.task import Task
 from app.models.workflow import Workflow
-from app.models.novel import Novel, Chapter
+from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.prompt_template import PromptTemplate
 from app.repositories.shot_repository import ShotRepository
+from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.comfyui import ComfyUIService
 from app.services.llm_service import LLMService
 from app.services.file_storage import file_storage
-from app.utils.path_utils import url_to_local_path
+from app.services.background_workers import worker_manager
+from app.services.prompt_builder import get_style
+from app.services.video_director_ai import append_video_ai_call, strip_media_refs
+from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.workflow_disconnect import (
     disconnect_reference_chain,
     disconnect_unuploaded_reference_nodes,
@@ -34,6 +39,190 @@ class ShotKeyframeService:
 
     def __init__(self):
         self.llm_service = LLMService()
+
+    def _sync_video_director_keyframe_image(self, shot: Shot, keyframe: dict, image_url: str, task_id: Optional[str] = None) -> None:
+        plan_keyframe_index = keyframe.get("plan_keyframe_index")
+        if plan_keyframe_index is None or not shot.video_director_plan:
+            return
+        try:
+            plan = json.loads(shot.video_director_plan) if isinstance(shot.video_director_plan, str) else shot.video_director_plan
+        except Exception:
+            return
+        if not isinstance(plan, dict) or not isinstance(plan.get("keyframes"), list):
+            return
+        for plan_keyframe in plan["keyframes"]:
+            if isinstance(plan_keyframe, dict) and int(plan_keyframe.get("index") or -1) == int(plan_keyframe_index):
+                plan_keyframe["image_url"] = image_url
+                if task_id:
+                    plan_keyframe["image_task_id"] = task_id
+                shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+                return
+
+    def _sync_video_director_keyframe_fields(self, shot: Shot, keyframe: dict, fields: dict) -> None:
+        plan_keyframe_index = keyframe.get("plan_keyframe_index")
+        if plan_keyframe_index is None or not shot.video_director_plan:
+            return
+        try:
+            plan = json.loads(shot.video_director_plan) if isinstance(shot.video_director_plan, str) else shot.video_director_plan
+        except Exception:
+            return
+        if not isinstance(plan, dict) or not isinstance(plan.get("keyframes"), list):
+            return
+        for plan_keyframe in plan["keyframes"]:
+            if isinstance(plan_keyframe, dict) and int(plan_keyframe.get("index") or -1) == int(plan_keyframe_index):
+                plan_keyframe.update(fields)
+                shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+                return
+
+    def _get_reusable_keyframe_prompt(self, db: Session, shot_id: str, frame_index: int, keyframe: dict) -> str:
+        prompt = keyframe.get("prompt_text")
+        if isinstance(prompt, str) and prompt.strip():
+            return prompt.strip()
+
+        latest_task = db.query(Task).filter(
+            Task.type == "keyframe_image",
+            Task.shot_id == shot_id,
+            Task.name == f"生成关键帧图片: {shot_id}-{frame_index}",
+            Task.prompt_text.isnot(None),
+        ).order_by(Task.created_at.desc()).first()
+        return (latest_task.prompt_text or "").strip() if latest_task else ""
+
+    def _get_keyframe_image_prompt_template(self, db: Session, novel: Optional[Novel]) -> Optional[PromptTemplate]:
+        template = None
+        if novel and novel.keyframe_image_prompt_template_id:
+            template = db.query(PromptTemplate).filter(
+                PromptTemplate.id == novel.keyframe_image_prompt_template_id
+            ).first()
+        if not template:
+            template = PromptTemplateRepository(db).get_default_system_template("keyframe_image_prompt")
+        return template
+
+    def _extract_keyframe_image_prompt(self, content: str) -> str:
+        text = (content or "").strip()
+        if not text:
+            return ""
+        try:
+            parsed = json.loads(text)
+        except Exception:
+            return text
+        if not isinstance(parsed, dict):
+            return text
+        for key in ("final_prompt", "prompt", "promptText", "prompt_text"):
+            value = parsed.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        return text
+
+    def _build_keyframe_reference_manifest(self, db: Session, novel: Novel, shot: Shot, previous_keyframe: Optional[dict]) -> list:
+        manifest = []
+        picture_index = 1
+        if previous_keyframe:
+            manifest.append({
+                "picture_index": picture_index,
+                "type": "PREVIOUS_KEYFRAME",
+                "keyframe_index": previous_keyframe.get("plan_keyframe_index") or previous_keyframe.get("frame_index"),
+                "role": previous_keyframe.get("role"),
+            })
+            picture_index += 1
+        elif shot.image_url:
+            manifest.append({"picture_index": picture_index, "type": "PRIMARY_STORYBOARD", "role": "START"})
+            picture_index += 1
+
+        character_names = json.loads(shot.characters) if shot.characters else []
+        character_members = []
+        for name in character_names:
+            character = db.query(Character).filter(Character.novel_id == novel.id, Character.name == name).first()
+            if character and character.image_url:
+                character_members.append(name)
+        if character_members:
+            manifest.append({"picture_index": picture_index, "type": "MERGED_CHARACTER", "members": character_members})
+            picture_index += 1
+
+        if shot.scene:
+            scene = db.query(Scene).filter(Scene.novel_id == novel.id, Scene.name == shot.scene).first()
+            if scene and scene.image_url:
+                manifest.append({"picture_index": picture_index, "type": "SCENE", "name": shot.scene})
+                picture_index += 1
+
+        prop_names = json.loads(shot.props) if shot.props else []
+        prop_members = []
+        for name in prop_names:
+            prop = db.query(Prop).filter(Prop.novel_id == novel.id, Prop.name == name).first()
+            if prop and prop.image_url:
+                prop_members.append(name)
+        if prop_members:
+            manifest.append({"picture_index": picture_index, "type": "MERGED_PROP", "members": prop_members})
+        return manifest
+
+    async def _build_qwen_keyframe_prompt(
+        self,
+        db: Session,
+        novel: Novel,
+        shot: Shot,
+        keyframe: dict,
+        previous_keyframe: Optional[dict],
+        task: Task,
+    ) -> str:
+        template = self._get_keyframe_image_prompt_template(db, novel)
+        if not template:
+            return keyframe.get("description") or shot.description or ""
+
+        visual_style, _ = get_style(db, novel, "character")
+        payload = {
+            "shot": {
+                "id": shot.id,
+                "index": shot.index,
+                "description": shot.description or "",
+                "video_description": shot.video_description or "",
+                "characters": json.loads(shot.characters) if shot.characters else [],
+                "scene": shot.scene or "",
+                "props": json.loads(shot.props) if shot.props else [],
+                "duration": shot.duration or 4,
+                "continuity_mode": shot.continuity_mode or "NORMAL",
+                "dialogues": json.loads(shot.dialogues) if shot.dialogues else [],
+            },
+            "current_keyframe": strip_media_refs(keyframe),
+            "previous_keyframe": strip_media_refs(previous_keyframe) if previous_keyframe else None,
+            "reference_image_manifest": self._build_keyframe_reference_manifest(db, novel, shot, previous_keyframe),
+            "visual_style": visual_style,
+        }
+        user_content = "请基于以下关键帧规划与参考图语义清单，生成 Qwen-Image-Edit-2511 的最终编辑提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+        task.current_step = "正在调用 #09 关键帧生图提示词构建..."
+        db.commit()
+        result = await self.llm_service.chat_completion(
+            system_prompt=template.template,
+            user_content=user_content,
+            temperature=0.3,
+            max_tokens=2500,
+            task_type="keyframe_image_prompt",
+            prompt_template_name=template.name,
+            novel_id=novel.id,
+            chapter_id=shot.chapter_id,
+        )
+        if not result.get("success"):
+            append_video_ai_call(shot, {
+                "step": "09",
+                "task_type": "keyframe_image_prompt",
+                "prompt_template_name": template.name,
+                "status": "error",
+                "input_summary": f"Shot {shot.index} KF {keyframe.get('plan_keyframe_index') or keyframe.get('frame_index')}",
+                "response": result.get("error") or "",
+            })
+            db.commit()
+            raise RuntimeError(result.get("error") or "#09 关键帧生图提示词构建失败")
+
+        final_prompt = self._extract_keyframe_image_prompt(result.get("content") or "")
+        append_video_ai_call(shot, {
+            "step": "09",
+            "task_type": "keyframe_image_prompt",
+            "prompt_template_name": template.name,
+            "status": "success",
+            "input_summary": f"Shot {shot.index} KF {keyframe.get('plan_keyframe_index') or keyframe.get('frame_index')}",
+            "response": result.get("content") or "",
+            "final_prompt": final_prompt,
+        })
+        db.commit()
+        return final_prompt
 
     def _get_novel_id(self, db: Session, shot: Shot) -> Optional[str]:
         """通过分镜获取小说ID
@@ -78,7 +267,8 @@ class ShotKeyframeService:
         novel = db.query(Novel).filter(Novel.id == novel_id).first() if novel_id else None
 
         # 构建提示词
-        prompt = self._build_keyframe_prompt(db, shot, count, novel)
+        template = self._get_keyframe_template(db, novel)
+        prompt = self._build_keyframe_prompt(db, shot, count, novel, template)
 
         try:
             # 调用 LLM 生成
@@ -86,7 +276,11 @@ class ShotKeyframeService:
                 system_prompt="你是一个专业的视频分镜师，擅长分析镜头并拆分关键帧。请根据镜头描述生成关键帧的详细描述。",
                 user_content=prompt,
                 temperature=0.7,
-                response_format="json_object"
+                response_format="json_object",
+                task_type="keyframe_description",
+                prompt_template_name=template.name if template else "默认关键帧描述提示词",
+                novel_id=novel_id,
+                chapter_id=shot.chapter_id
             )
 
             content = response.get("content", "")
@@ -122,12 +316,28 @@ class ShotKeyframeService:
         except Exception as e:
             return False, [], f"生成关键帧描述失败：{str(e)}"
 
+    def _get_keyframe_template(self, db: Session, novel: Optional[Novel]) -> Optional[PromptTemplate]:
+        template = None
+        if novel and novel.keyframe_description_prompt_template_id:
+            template = db.query(PromptTemplate).filter(
+                PromptTemplate.id == novel.keyframe_description_prompt_template_id
+            ).first()
+
+        if not template:
+            template = db.query(PromptTemplate).filter(
+                PromptTemplate.type == "keyframe_description",
+                PromptTemplate.is_system == True,
+                PromptTemplate.is_active == True
+            ).first()
+        return template
+
     def _build_keyframe_prompt(
         self,
         db: Session,
         shot: Shot,
         count: int,
-        novel: Optional[Novel]
+        novel: Optional[Novel],
+        template: Optional[PromptTemplate] = None
     ) -> str:
         """构建关键帧描述生成提示词
 
@@ -142,20 +352,8 @@ class ShotKeyframeService:
         Returns:
             构建好的提示词
         """
-        # 尝试获取小说配置的关键帧描述模板
-        template = None
-        if novel and novel.keyframe_description_prompt_template_id:
-            template = db.query(PromptTemplate).filter(
-                PromptTemplate.id == novel.keyframe_description_prompt_template_id
-            ).first()
-
-        # 如果没有配置模板，使用默认模板
         if not template:
-            template = db.query(PromptTemplate).filter(
-                PromptTemplate.type == "keyframe_description",
-                PromptTemplate.is_system == True,
-                PromptTemplate.is_active == True
-            ).first()
+            template = self._get_keyframe_template(db, novel)
 
         # 构建视频描述部分
         video_description = f"视频描述：{shot.video_description}" if shot.video_description else ""
@@ -199,7 +397,8 @@ class ShotKeyframeService:
         db: Session,
         shot_id: str,
         frame_index: int,
-        workflow_id: Optional[str] = None
+        workflow_id: Optional[str] = None,
+        skip_llm_when_prompt_exists: bool = False,
     ) -> Tuple[bool, Optional[str], str]:
         """生成关键帧图片
 
@@ -230,11 +429,24 @@ class ShotKeyframeService:
         # 获取 novel_id
         novel_id = self._get_novel_id(db, shot)
 
+        existing_task = db.query(Task).filter(
+            Task.type == "keyframe_image",
+            Task.shot_id == shot_id,
+            Task.name == f"生成关键帧图片: {shot_id}-{frame_index}",
+            Task.status.in_(["pending", "running"]),
+        ).order_by(Task.created_at.desc()).first()
+        if existing_task:
+            if not keyframe.get("image_task_id"):
+                keyframe["image_task_id"] = existing_task.id
+                shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
+                db.commit()
+            return True, existing_task.id, "该关键帧已有生成任务，已复用现有任务"
+
         # 创建任务
         task = Task(
             id=str(uuid.uuid4()),
             type="keyframe_image",
-            name=f"生成关键帧图片: 分镜{shot.index}-帧{frame_index}",
+            name=f"生成关键帧图片: {shot_id}-{frame_index}",
             description=f"为分镜 {shot.index} 的第 {frame_index} 帧生成图片",
             status="pending",
             shot_id=shot_id,
@@ -245,16 +457,13 @@ class ShotKeyframeService:
         db.add(task)
         db.commit()
 
-        # 启动后台任务
+        # 加入关键帧图片专用串行 worker，避免多个关键帧同时占用 ComfyUI。
         from app.core.database import SessionLocal
-        import asyncio
 
         async def run_background_task():
             db_bg = SessionLocal()
             try:
-                await self._generate_keyframe_image_task(
-                    db_bg, task.id, shot_id, frame_index, keyframe, workflow_id
-                )
+                await self._generate_keyframe_image_task(db_bg, task.id, shot_id, frame_index, workflow_id, skip_llm_when_prompt_exists)
             except Exception as e:
                 # 更新任务状态为失败
                 task_bg = db_bg.query(Task).filter(Task.id == task.id).first()
@@ -265,7 +474,7 @@ class ShotKeyframeService:
             finally:
                 db_bg.close()
 
-        asyncio.create_task(run_background_task())
+        worker_manager.worker("keyframe_image").enqueue(run_background_task)
 
         return True, task.id, f"关键帧图片生成任务已创建"
 
@@ -275,8 +484,8 @@ class ShotKeyframeService:
         task_id: str,
         shot_id: str,
         frame_index: int,
-        keyframe: dict,
-        workflow_id: Optional[str] = None
+        workflow_id: Optional[str] = None,
+        skip_llm_when_prompt_exists: bool = False,
     ):
         """关键帧图片生成后台任务"""
         task = db.query(Task).filter(Task.id == task_id).first()
@@ -285,6 +494,7 @@ class ShotKeyframeService:
 
         # 更新任务状态
         task.status = "running"
+        task.started_at = datetime.utcnow()
         db.commit()
 
         try:
@@ -293,6 +503,12 @@ class ShotKeyframeService:
 
             if not shot:
                 raise ValueError(f"分镜 {shot_id} 不存在")
+
+            keyframes = json.loads(shot.keyframes) if shot.keyframes else []
+            if frame_index >= len(keyframes):
+                raise ValueError(f"关键帧序号 {frame_index} 超出范围")
+            keyframe = keyframes[frame_index]
+            previous_keyframe = keyframes[frame_index - 1] if frame_index > 0 else None
 
             # 获取小说信息
             novel_id = self._get_novel_id(db, shot)
@@ -326,17 +542,38 @@ class ShotKeyframeService:
 
             comfyui_service = ComfyUIService()
 
-            # 获取参考图模式和URL
+            # 获取参考图模式和URL。auto_select 在 worker 执行时重新选择，确保 KF3 能使用刚生成的 KF2。
             reference_mode = keyframe.get("reference_mode", "auto_select")
             reference_image_url = keyframe.get("reference_image_url")
+            reference_label = "参考图"
             reference_path = None
+            if reference_mode == "auto_select" and not reference_image_url:
+                reference_image_url, reference_label = self._get_auto_reference_image_with_label(shot, keyframes, frame_index)
+            elif reference_mode == "custom" and reference_image_url:
+                reference_label = "自定义参考图"
 
             # 只有在非 "none" 模式且有参考图URL时才获取本地路径
             if reference_mode != "none" and reference_image_url:
                 reference_path = url_to_local_path(reference_image_url)
+                task.reference_images = json.dumps(
+                    [{"label": reference_label, "url": reference_image_url}], ensure_ascii=False
+                )
+                db.commit()
 
-            # 获取关键帧描述作为提示词
-            prompt = keyframe.get("description", shot.description)
+            # 先调用 #09 Prompt Builder，再用其输出提交 Qwen-Edit Workflow。
+            reusable_prompt = self._get_reusable_keyframe_prompt(db, shot_id, frame_index, keyframe) if skip_llm_when_prompt_exists else ""
+            if skip_llm_when_prompt_exists and not reusable_prompt:
+                raise ValueError("当前关键帧没有可复用的 AI 生图提示词，请先使用 LLM+重新生成。")
+            if reusable_prompt:
+                task.current_step = "复用已有关键帧生图提示词..."
+                prompt = reusable_prompt
+                db.commit()
+            else:
+                prompt = await self._build_qwen_keyframe_prompt(db, novel, shot, keyframe, previous_keyframe, task)
+            keyframe["prompt_text"] = prompt
+            self._sync_video_director_keyframe_fields(shot, keyframe, {"prompt_text": prompt})
+            shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
+            db.commit()
 
             # 解析工作流 JSON
             workflow_data = json.loads(workflow.workflow_json) if isinstance(workflow.workflow_json, str) else workflow.workflow_json
@@ -389,6 +626,11 @@ class ShotKeyframeService:
             task.comfyui_prompt_id = prompt_id
             task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
             task.prompt_text = prompt
+            task.current_step = "ComfyUI 关键帧生成中"
+            reference_url = local_path_to_url(reference_path) if reference_path else None
+            task.reference_images = json.dumps(
+                [{"label": reference_label, "url": reference_url}], ensure_ascii=False
+            ) if reference_url else None
             db.commit()
 
             # 等待结果
@@ -418,11 +660,14 @@ class ShotKeyframeService:
                     if frame_index < len(keyframes):
                         keyframes[frame_index]["image_url"] = local_url
                         keyframes[frame_index]["image_task_id"] = task_id
+                        self._sync_video_director_keyframe_image(shot, keyframes[frame_index], local_url, task_id)
                         shot_repo.update(shot, keyframes=keyframes)
 
                     # 更新任务状态
                     task.status = "completed"
                     task.result_url = local_url
+                    task.current_step = "生成完成"
+                    task.completed_at = datetime.utcnow()
                     db.commit()
                 else:
                     raise ValueError("下载图片失败")
@@ -432,6 +677,8 @@ class ShotKeyframeService:
         except Exception as e:
             task.status = "failed"
             task.error_message = str(e)
+            task.current_step = "生成失败"
+            task.completed_at = datetime.utcnow()
             db.commit()
             raise
 
@@ -491,12 +738,38 @@ class ShotKeyframeService:
 
             # 更新关键帧数据
             keyframes[frame_index]["image_url"] = image_url
+            self._sync_video_director_keyframe_image(shot, keyframes[frame_index], image_url)
             shot_repo.update(shot, keyframes=keyframes)
 
             return True, image_url, "关键帧图片上传成功"
 
         except Exception as e:
             return False, None, f"上传失败：{str(e)}"
+
+    async def replace_keyframe_image(
+        self,
+        db: Session,
+        shot_id: str,
+        frame_index: int,
+        image_url: str,
+    ) -> Tuple[bool, Optional[str], str]:
+        """用已有本地图片 URL 替换关键帧图片。"""
+        shot_repo = ShotRepository(db)
+        shot = shot_repo.get_by_id(shot_id)
+        if not shot:
+            return False, None, f"分镜 {shot_id} 不存在"
+
+        keyframes = json.loads(shot.keyframes) if shot.keyframes else []
+        if frame_index >= len(keyframes):
+            return False, None, f"关键帧序号 {frame_index} 超出范围"
+
+        try:
+            keyframes[frame_index]["image_url"] = image_url
+            self._sync_video_director_keyframe_image(shot, keyframes[frame_index], image_url)
+            shot_repo.update(shot, keyframes=keyframes)
+            return True, image_url, "关键帧图片已替换"
+        except Exception as e:
+            return False, None, f"替换失败：{str(e)}"
 
     async def upload_reference_image(
         self,
@@ -648,6 +921,21 @@ class ShotKeyframeService:
             return shot.image_url
 
         return None
+
+    def _get_auto_reference_image_with_label(
+        self,
+        shot: Shot,
+        keyframes: List[dict],
+        frame_index: int,
+    ) -> Tuple[Optional[str], Optional[str]]:
+        if frame_index > 0:
+            prev_keyframe = keyframes[frame_index - 1]
+            prev_image_url = prev_keyframe.get("image_url")
+            if prev_image_url:
+                return prev_image_url, f"上一关键帧 KF{prev_keyframe.get('plan_keyframe_index') or frame_index}"
+        if shot.image_url:
+            return shot.image_url, "主分镜图"
+        return None, None
 
     async def add_keyframe(
         self,

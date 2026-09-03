@@ -1,7 +1,7 @@
 /**
  * 场景卡片组件
  */
-import { Loader2, MapPin, Trash2, Edit2, Upload, Wand2, Sparkles } from 'lucide-react';
+import { Loader2, MapPin, Trash2, Edit2, Upload, Wand2, Sparkles, ImagePlus } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Scene, PromptTemplate } from '../../../types';
 import type { ScenePrompt } from '../types';
@@ -19,6 +19,7 @@ interface SceneCardProps {
   onGenerateImage: (scene: Scene) => void;
   onGenerateSetting: (scene: Scene) => void;
   onUploadImage: (sceneId: string) => void;
+  onEditImage: (scene: Scene) => void;
   onImageClick: (url: string, name: string, sceneId: string) => void;
 }
 
@@ -35,6 +36,7 @@ export function SceneCard({
   onGenerateImage,
   onGenerateSetting,
   onUploadImage,
+  onEditImage,
   onImageClick,
 }: SceneCardProps) {
   const { t } = useTranslation();
@@ -61,6 +63,16 @@ export function SceneCard({
           <div className="absolute inset-0 flex items-center justify-center">
             <MapPin className="h-20 w-20 text-gray-300" />
           </div>
+        )}
+
+        {scene.imageUrl && (
+          <button
+            onClick={() => onEditImage(scene)}
+            className="absolute top-2 left-2 p-2 bg-white/90 rounded-lg text-gray-500 hover:text-primary-600 hover:bg-primary-50 transition-colors opacity-0 group-hover:opacity-100"
+            title={t('scenes.editImage')}
+          >
+            <ImagePlus className="h-4 w-4" />
+          </button>
         )}
         
         {/* Status Badge */}
@@ -111,14 +123,14 @@ export function SceneCard({
         {/* AI生成场景图 Button */}
         <button
           onClick={() => onGenerateImage(scene)}
-          disabled={generatingId === scene.id || scene.generatingStatus === 'running'}
+          disabled={generatingId === scene.id || scene.generatingStatus === 'pending' || scene.generatingStatus === 'running'}
           className="absolute bottom-2 right-2 flex items-center gap-1 px-3 py-1.5 bg-green-600/90 hover:bg-green-700 text-white rounded-lg transition-colors disabled:opacity-70 opacity-0 group-hover:opacity-100 text-xs"
-          title={scene.generatingStatus === 'running' ? t('scenes.generatingStatus') : (scene.imageUrl ? t('scenes.regenerate') : t('scenes.generateImage'))}
+          title={scene.generatingStatus === 'pending' || scene.generatingStatus === 'running' ? t('scenes.generatingStatus') : (scene.imageUrl ? t('scenes.regenerate') : t('scenes.generateImage'))}
         >
-          {scene.generatingStatus === 'running' || generatingId === scene.id ? (
+          {scene.generatingStatus === 'pending' || scene.generatingStatus === 'running' || generatingId === scene.id ? (
             <>
               <Loader2 className="h-3 w-3 animate-spin" />
-              <span>{t('scenes.generatingStatus')}</span>
+              <span>{scene.generatingStatus === 'pending' ? t('scenes.pendingGeneration') : t('scenes.generatingStatus')}</span>
             </>
           ) : (
             <>

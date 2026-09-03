@@ -1,12 +1,15 @@
-import { useState } from 'react';
-import { Loader2, Plus, FileText, BookOpen, Palette, Users, MapPin, Image, Package, Box, Film } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Loader2, Plus, FileText, BookOpen, Palette, Users, MapPin, Image, Package, Box, Film, SlidersHorizontal, Route, Video, Download } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import type { PromptTemplate } from '../../types';
-import type { TemplateType } from './types';
+import type { TemplateCategory, TemplateType } from './types';
 import { usePromptConfigState, TEMPLATE_TYPE_CONFIG } from './hooks/usePromptConfigState';
 import { TemplateCard } from './components/TemplateCard';
 import { EditModal } from './components/EditModal';
 import { ViewModal } from './components/ViewModal';
+import { promptTemplateApi } from '../../api/promptTemplates';
+import { toast } from '../../stores/toastStore';
 
 // 图标映射
 const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
@@ -18,7 +21,15 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
   scene: <Image className="h-4 w-4" />,
   prop: <Box className="h-4 w-4" />,
   chapter_split: <BookOpen className="h-4 w-4" />,
+  shot_image_prompt: <Image className="h-4 w-4" />,
+  video_mode_recommender: <SlidersHorizontal className="h-4 w-4" />,
   keyframe_description: <Film className="h-4 w-4" />,
+  keyframe_planner: <Film className="h-4 w-4" />,
+  keyframe_image_prompt: <Image className="h-4 w-4" />,
+  keyframe_transition: <Route className="h-4 w-4" />,
+  h3_single_frame_prompt: <Video className="h-4 w-4" />,
+  h3_first_last_frame_prompt: <Video className="h-4 w-4" />,
+  h3_multi_keyframe_prompt: <Video className="h-4 w-4" />,
 };
 
 // Tab 标签页颜色映射
@@ -31,7 +42,65 @@ const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; borde
   scene: { active: 'text-orange-600 bg-orange-50 border-orange-200', inactive: 'text-gray-500 hover:text-orange-600', border: 'border-orange-200' },
   prop: { active: 'text-amber-600 bg-amber-50 border-amber-200', inactive: 'text-gray-500 hover:text-amber-600', border: 'border-amber-200' },
   chapter_split: { active: 'text-cyan-600 bg-cyan-50 border-cyan-200', inactive: 'text-gray-500 hover:text-cyan-600', border: 'border-cyan-200' },
+  shot_image_prompt: { active: 'text-sky-600 bg-sky-50 border-sky-200', inactive: 'text-gray-500 hover:text-sky-600', border: 'border-sky-200' },
+  video_mode_recommender: { active: 'text-violet-600 bg-violet-50 border-violet-200', inactive: 'text-gray-500 hover:text-violet-600', border: 'border-violet-200' },
   keyframe_description: { active: 'text-indigo-600 bg-indigo-50 border-indigo-200', inactive: 'text-gray-500 hover:text-indigo-600', border: 'border-indigo-200' },
+  keyframe_planner: { active: 'text-indigo-600 bg-indigo-50 border-indigo-200', inactive: 'text-gray-500 hover:text-indigo-600', border: 'border-indigo-200' },
+  keyframe_image_prompt: { active: 'text-emerald-600 bg-emerald-50 border-emerald-200', inactive: 'text-gray-500 hover:text-emerald-600', border: 'border-emerald-200' },
+  keyframe_transition: { active: 'text-violet-600 bg-violet-50 border-violet-200', inactive: 'text-gray-500 hover:text-violet-600', border: 'border-violet-200' },
+  h3_single_frame_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
+  h3_first_last_frame_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
+  h3_multi_keyframe_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
+};
+
+const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: TemplateType[] }> = {
+  style_design: { nameKey: 'promptConfig.categories.styleDesign', types: ['style'] },
+  asset_parse: { nameKey: 'promptConfig.categories.assetParse', types: ['character_parse', 'scene_parse', 'prop_parse'] },
+  asset_generation: { nameKey: 'promptConfig.categories.assetGeneration', types: ['character', 'scene', 'prop'] },
+  shot_planning: { nameKey: 'promptConfig.categories.shotPlanning', types: ['chapter_split'] },
+  shot_image: { nameKey: 'promptConfig.categories.shotImage', types: ['shot_image_prompt'] },
+  video_director: { nameKey: 'promptConfig.categories.videoDirector', types: ['video_mode_recommender', 'keyframe_planner', 'keyframe_transition'] },
+  keyframe_image: { nameKey: 'promptConfig.categories.keyframeImage', types: ['keyframe_image_prompt'] },
+  video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt'] },
+};
+
+const CATEGORIES: TemplateCategory[] = ['style_design', 'asset_parse', 'asset_generation', 'shot_planning', 'shot_image', 'video_director', 'keyframe_image', 'video_generation'];
+const DEFAULT_ACTIVE_CATEGORY: TemplateCategory = 'asset_parse';
+const DEFAULT_TAB_BY_CATEGORY: Record<TemplateCategory, TemplateType> = {
+  style_design: 'style',
+  asset_parse: 'character_parse',
+  asset_generation: 'character',
+  shot_planning: 'chapter_split',
+  shot_image: 'shot_image_prompt',
+  video_director: 'video_mode_recommender',
+  keyframe_image: 'keyframe_image_prompt',
+  video_generation: 'h3_single_frame_prompt',
+};
+
+const isTemplateCategory = (value: string | null): value is TemplateCategory => (
+  !!value && CATEGORIES.includes(value as TemplateCategory)
+);
+
+const isTemplateType = (value: string | null): value is TemplateType => (
+  !!value && Object.prototype.hasOwnProperty.call(TEMPLATE_TYPE_CONFIG, value)
+);
+
+const getCategoryForType = (type: TemplateType): TemplateCategory => (
+  CATEGORIES.find(category => CATEGORY_CONFIG[category].types.includes(type)) || DEFAULT_ACTIVE_CATEGORY
+);
+
+const getCategoryFromParams = (params: URLSearchParams): TemplateCategory => {
+  const category = params.get('category');
+  if (isTemplateCategory(category)) return category;
+  const type = params.get('type');
+  if (isTemplateType(type)) return getCategoryForType(type);
+  return DEFAULT_ACTIVE_CATEGORY;
+};
+
+const getTypeFromParams = (params: URLSearchParams, category: TemplateCategory): TemplateType => {
+  const type = params.get('type');
+  if (isTemplateType(type) && CATEGORY_CONFIG[category].types.includes(type)) return type;
+  return DEFAULT_TAB_BY_CATEGORY[category];
 };
 
 // 获取模板显示名称
@@ -116,24 +185,106 @@ function TemplateSection({
 
 export default function PromptConfig() {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const state = usePromptConfigState();
   const displayName = (tp: PromptTemplate) => getTemplateDisplayName(tp, t);
   const displayDesc = (tp: PromptTemplate) => getTemplateDisplayDescription(tp, t);
+  const [isExportingAll, setIsExportingAll] = useState(false);
 
-  // 当前选中的 Tab
-  const [activeTab, setActiveTab] = useState<TemplateType>('character');
+  const initialCategory = getCategoryFromParams(searchParams);
+  const [activeCategory, setActiveCategory] = useState<TemplateCategory>(initialCategory);
+  const [activeTabByCategory, setActiveTabByCategory] = useState<Record<TemplateCategory, TemplateType>>({
+    ...DEFAULT_TAB_BY_CATEGORY,
+    [initialCategory]: getTypeFromParams(searchParams, initialCategory),
+  });
 
-  // 模板类型顺序
-  const templateTypes: TemplateType[] = ['style', 'character_parse', 'scene_parse', 'prop_parse', 'character', 'scene', 'prop', 'chapter_split', 'keyframe_description'];
+  const templateTypes = CATEGORY_CONFIG[activeCategory].types;
+  const activeTab = activeTabByCategory[activeCategory];
+
+  useEffect(() => {
+    const category = getCategoryFromParams(searchParams);
+    const type = getTypeFromParams(searchParams, category);
+    if (searchParams.get('category') !== category || searchParams.get('type') !== type) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.set('category', category);
+      nextParams.set('type', type);
+      setSearchParams(nextParams, { replace: true });
+      return;
+    }
+    setActiveCategory(category);
+    setActiveTabByCategory(prev => ({ ...prev, [category]: type }));
+  }, [searchParams, setSearchParams]);
+
+  const updateUrl = (category: TemplateCategory, type: TemplateType) => {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set('category', category);
+    nextParams.set('type', type);
+    setSearchParams(nextParams);
+  };
+
+  const setActiveCategoryFromClick = (category: TemplateCategory) => {
+    const type = activeTabByCategory[category] || DEFAULT_TAB_BY_CATEGORY[category];
+    setActiveCategory(category);
+    updateUrl(category, type);
+  };
+
+  const setActiveTab = (type: TemplateType) => {
+    setActiveTabByCategory(prev => ({ ...prev, [activeCategory]: type }));
+    updateUrl(activeCategory, type);
+  };
+
+  const handleExportAllPrompts = async () => {
+    setIsExportingAll(true);
+    try {
+      await promptTemplateApi.downloadAll();
+      toast.success(t('promptConfig.exportAllSuccess'));
+    } catch (error) {
+      console.error('打包下载所有提示词失败:', error);
+      toast.error(error instanceof Error ? error.message : t('promptConfig.exportAllFailed'));
+    } finally {
+      setIsExportingAll(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">{t('promptConfig.title')}</h1>
-        <p className="mt-1 text-sm text-gray-500">{t('promptConfig.subtitle')}</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">{t('promptConfig.title')}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t('promptConfig.subtitle')}</p>
+        </div>
+        <button
+          type="button"
+          onClick={handleExportAllPrompts}
+          disabled={isExportingAll}
+          className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-primary-200 hover:bg-primary-50 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isExportingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          {isExportingAll ? t('promptConfig.exportingAll') : t('promptConfig.exportAllPrompts')}
+        </button>
       </div>
 
-      {/* Tab 标签页 */}
+      {/* 一级分类 */}
+      <div className="flex flex-wrap gap-2">
+        {CATEGORIES.map(category => {
+          const isActive = activeCategory === category;
+          return (
+            <button
+              key={category}
+              onClick={() => setActiveCategoryFromClick(category)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? 'bg-primary-600 text-white shadow-sm'
+                  : 'bg-white text-gray-600 border border-gray-200 hover:border-primary-200 hover:text-primary-600'
+              }`}
+            >
+              {t(CATEGORY_CONFIG[category].nameKey)}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* 二级提示词类型 Tab */}
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-1 overflow-x-auto" role="tablist">
           {templateTypes.map(type => {

@@ -84,11 +84,14 @@ class NovelService:
             # 创建角色记录
             created_characters = []
             updated_characters = []
-            
+            deleted_count = 0
+            parsed_names = set()
+
             for char_data in characters_data:
                 name = char_data.get("name", "").strip()
                 if not name:
                     continue
+                parsed_names.add(name)
                 
                 # 检查是否已存在
                 existing = character_repo.get_by_name(novel_id, name)
@@ -133,7 +136,19 @@ class NovelService:
                     )
                     self.db.add(character)
                     created_characters.append(character)
-            
+
+            # 全书非增量解析应以本次 LLM 返回结果为准，删除未再出现的旧角色。
+            # 章节范围解析不删除，避免误删范围外章节的角色；旁白角色始终保留。
+            should_delete_missing = not is_incremental and start_chapter is None and end_chapter is None
+            if should_delete_missing:
+                existing_characters = character_repo.list_by_novel(novel_id)
+                for character in existing_characters:
+                    if character.is_narrator:
+                        continue
+                    if character.name not in parsed_names:
+                        self.db.delete(character)
+                        deleted_count += 1
+
             self.db.commit()
             
             # 刷新对象以获取 ID
@@ -146,6 +161,8 @@ class NovelService:
                 message_parts.append(f"新增 {len(created_characters)} 个角色")
             if updated_characters:
                 message_parts.append(f"更新 {len(updated_characters)} 个角色")
+            if deleted_count:
+                message_parts.append(f"删除 {deleted_count} 个旧角色")
 
             # 自动创建旁白角色
             from app.repositories import CharacterRepository
@@ -176,6 +193,7 @@ class NovelService:
                 "statistics": {
                     "created": len(created_characters),
                     "updated": len(updated_characters),
+                    "deleted": deleted_count,
                     "total": len(created_characters) + len(updated_characters)
                 }
             }
@@ -244,7 +262,8 @@ class NovelService:
             # 调用 LLM 解析文本提取道具
             result = await self.get_llm_service().parse_props(
                 text=full_text[:150000],  # 限制长度
-                prompt_template=prompt_template
+                prompt_template=prompt_template,
+                prompt_template_name=template.name if template else "默认道具解析提示词"
             )
 
             if result.get("error"):
@@ -384,9 +403,12 @@ class NovelService:
         
         # 获取场景解析提示词模板
         prompt_template = None
+        prompt_template_name = None
         if prompt_template_repo:
             templates = prompt_template_repo.list_by_type('scene_parse')
-            prompt_template = templates[0].template if templates else None
+            if templates:
+                prompt_template = templates[0].template
+                prompt_template_name = templates[0].name
         
         try:
             # 调用 LLM 解析场景
@@ -394,7 +416,8 @@ class NovelService:
                 novel_id=novel_id,
                 chapter_content=combined_content[:150000],  # 限制长度
                 chapter_title=source_range,
-                prompt_template=prompt_template
+                prompt_template=prompt_template,
+                prompt_template_name=prompt_template_name
             )
             
             if result.get("error"):
@@ -519,7 +542,8 @@ class NovelService:
                 novel_id=novel_id,
                 chapter_content=chapter.content[:20000],  # 限制长度
                 chapter_title=source_range,
-                prompt_template=prompt_template
+                prompt_template=prompt_template,
+                prompt_template_name=template.name if template else "默认场景解析提示词"
             )
             
             if result.get("error"):
@@ -683,6 +707,17 @@ class NovelService:
         
         if not prompt_template:
             return {"success": False, "message": "未找到章节拆分提示词模板"}
+
+        # 重新拆分代表旧分镜及其生成资源已失效，先清空，避免失败或长耗时期间继续展示旧数据。
+        shot_repo = ShotRepository(self.db)
+        file_storage.delete_chapter_directory(novel.id, chapter.id)
+        shot_repo.delete_by_chapter(chapter.id)
+        chapter.parsed_data = None
+        chapter.shot_images = None
+        chapter.shot_videos = None
+        chapter.transition_videos = None
+        chapter.merged_image = None
+        self.db.commit()
         
         # 获取风格提示词
         style, style_template = get_style(self.db, novel, "character")
@@ -697,7 +732,10 @@ class NovelService:
             character_names=character_names,
             scene_names=scene_names,
             prop_names=prop_names,
-            style=style
+            style=style,
+            novel_id=novel.id,
+            chapter_id=chapter.id,
+            prompt_template_name=prompt_template.name
         )
 
         # 检查是否有错误
@@ -709,12 +747,6 @@ class NovelService:
             }
 
         shots_data = result.get("shots", [])
-
-        # 使用 ShotRepository 管理分镜数据
-        shot_repo = ShotRepository(self.db)
-
-        # 删除章节的现有分镜记录（重新拆分时）
-        shot_repo.delete_by_chapter(chapter.id)
 
         # 创建 Shot 记录
         created_shots = []
@@ -739,16 +771,6 @@ class NovelService:
             "scenes": result.get("scenes", []),
             "props": result.get("props", []),
         }
-        # 保留 transition_videos（如果存在）
-        existing_parsed = {}
-        if chapter.parsed_data:
-            try:
-                existing_parsed = json.loads(chapter.parsed_data)
-            except:
-                pass
-        if existing_parsed.get("transition_videos"):
-            parsed_data_for_storage["transition_videos"] = existing_parsed["transition_videos"]
-
         chapter.parsed_data = json.dumps(parsed_data_for_storage, ensure_ascii=False)
         self.db.commit()
 

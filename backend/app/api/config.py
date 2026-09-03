@@ -6,6 +6,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
+from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -20,10 +21,11 @@ class LLMConfig(BaseModel):
     """LLM 配置"""
     provider: str
     model: str
-    apiKey: str
+    apiKey: Optional[str] = None
     apiUrl: str
     maxTokens: Optional[int] = None  # 最大token数
     temperature: Optional[str] = None  # 温度参数（字符串类型，支持范围0.0-2.0）
+    timeout: Optional[int] = None  # 请求超时（秒）
 
 
 class ProxyConfig(BaseModel):
@@ -38,6 +40,7 @@ class SystemConfigUpdate(BaseModel):
     llm: Optional[LLMConfig] = None
     proxy: Optional[ProxyConfig] = None
     comfyUIHost: Optional[str] = None
+    comfyUITimeout: Optional[int] = None
     systemStatusSource: Optional[str] = None
     outputResolution: Optional[str] = None
     outputFrameRate: Optional[int] = None
@@ -48,6 +51,13 @@ class SystemConfigUpdate(BaseModel):
 
 def get_or_create_config(db: Session) -> SystemConfigModel:
     """获取或创建系统配置记录"""
+    inspector = inspect(db.bind)
+    if "system_configs" in inspector.get_table_names():
+        columns = {column["name"] for column in inspector.get_columns("system_configs")}
+        if "comfyui_timeout" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN comfyui_timeout INTEGER DEFAULT 900"))
+            db.commit()
+
     config = db.query(SystemConfigModel).filter_by(id="default").first()
     if not config:
         config = SystemConfigModel(id="default")
@@ -71,12 +81,14 @@ async def get_config(db: Session = Depends(get_db)):
             "llmApiUrl": config.llm_api_url,
             "llmMaxTokens": config.llm_max_tokens,
             "llmTemperature": config.llm_temperature,
+            "llmTimeout": config.llm_timeout,
             # 代理配置
             "proxyEnabled": config.proxy_enabled,
             "httpProxy": config.http_proxy,
             "httpsProxy": config.https_proxy,
             # ComfyUI 配置
             "comfyUIHost": config.comfyui_host,
+            "comfyUITimeout": config.comfyui_timeout or 900,
             "systemStatusSource": config.system_status_source or "comfyui",
             # 输出配置
             "outputResolution": config.output_resolution,
@@ -107,10 +119,12 @@ async def get_full_config(db: Session = Depends(get_db)):
             "llm_api_key": api_key,
             "llm_max_tokens": config.llm_max_tokens,
             "llm_temperature": config.llm_temperature,
+            "llm_timeout": config.llm_timeout,
             "proxy_enabled": config.proxy_enabled,
             "http_proxy": config.http_proxy,
             "https_proxy": config.https_proxy,
             "comfyui_host": config.comfyui_host,
+            "comfyui_timeout": config.comfyui_timeout or 900,
             "system_status_source": config.system_status_source or "comfyui",
             "output_resolution": config.output_resolution,
             "output_frame_rate": config.output_frame_rate,
@@ -134,22 +148,21 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
             db_config.llm_api_url = config.llm.apiUrl
             db_config.llm_max_tokens = config.llm.maxTokens
             db_config.llm_temperature = config.llm.temperature
+            db_config.llm_timeout = config.llm.timeout
             
             updates["llm_provider"] = config.llm.provider
             updates["llm_model"] = config.llm.model
             updates["llm_api_url"] = config.llm.apiUrl
             updates["llm_max_tokens"] = config.llm.maxTokens
             updates["llm_temperature"] = config.llm.temperature
+            updates["llm_timeout"] = config.llm.timeout
             
-            # 允许显式清空已保存的 API Key，避免界面清空后后端仍使用旧值
-            if config.llm.apiKey is not None:
-                if config.llm.apiKey:
-                    encrypted_key = encrypt_value(config.llm.apiKey)
-                    db_config.llm_api_key = encrypted_key
-                    updates["llm_api_key"] = config.llm.apiKey
-                else:
-                    db_config.llm_api_key = None
-                    updates["llm_api_key"] = ""
+            # 前端不会回显已保存的 API Key；空值表示不修改现有密钥。
+            if config.llm.apiKey is not None and config.llm.apiKey.strip():
+                api_key = config.llm.apiKey.strip()
+                encrypted_key = encrypt_value(api_key)
+                db_config.llm_api_key = encrypted_key
+                updates["llm_api_key"] = api_key
         
         if config.proxy:
             db_config.proxy_enabled = config.proxy.enabled
@@ -163,6 +176,12 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
         if config.comfyUIHost:
             db_config.comfyui_host = config.comfyUIHost
             updates["comfyui_host"] = config.comfyUIHost
+
+        if config.comfyUITimeout is not None:
+            if config.comfyUITimeout not in {900, 1200, 1800}:
+                raise HTTPException(status_code=400, detail="ComfyUI 超时时间必须是 15、20 或 30 分钟")
+            db_config.comfyui_timeout = config.comfyUITimeout
+            updates["comfyui_timeout"] = config.comfyUITimeout
 
         if config.systemStatusSource is not None:
             db_config.system_status_source = config.systemStatusSource
@@ -343,10 +362,12 @@ def init_system_config(db: Session) -> None:
         "llm_api_key": api_key,
         "llm_max_tokens": config.llm_max_tokens,
         "llm_temperature": config.llm_temperature,
+        "llm_timeout": config.llm_timeout,
         "proxy_enabled": config.proxy_enabled,
         "http_proxy": config.http_proxy,
         "https_proxy": config.https_proxy,
         "comfyui_host": config.comfyui_host,
+        "comfyui_timeout": config.comfyui_timeout or 900,
         "system_status_source": config.system_status_source or "comfyui",
         "output_resolution": config.output_resolution,
         "output_frame_rate": config.output_frame_rate,

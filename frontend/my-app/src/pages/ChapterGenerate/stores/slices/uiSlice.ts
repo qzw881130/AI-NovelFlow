@@ -22,7 +22,7 @@ export interface UiSlice extends UiSliceState {
   setShowImagePreview: (show: boolean, url?: string | null, index?: number) => void;
 
   // ========== 合并图片 ==========
-  setMergedImage: (image: string | null) => void;
+  setMergedImage: (image: string | null, label?: string) => void;
   setIsMerging: (merging: boolean) => void;
 
   // ========== 确认对话框 ==========
@@ -64,6 +64,7 @@ export const createUiSlice: StateCreator<
 
   // 合并图片
   mergedImage: null,
+  mergedImageLabel: '',
   isMerging: false,
 
   // 确认对话框
@@ -123,8 +124,8 @@ export const createUiSlice: StateCreator<
 
   // ========== 合并图片方法 ==========
 
-  setMergedImage: (image) => {
-    set({ mergedImage: image });
+  setMergedImage: (image, label = '') => {
+    set({ mergedImage: image, mergedImageLabel: label });
   },
 
   setIsMerging: (merging) => {

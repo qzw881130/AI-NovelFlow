@@ -71,6 +71,9 @@ output/
 downloads/
 uploads/
 
+# Local docs
+v2-doc/
+
 # Runtime files
 uvicorn.log
 uvicorn.pid

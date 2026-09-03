@@ -12,8 +12,10 @@ import type {
   KeyframeTask,
   ReferenceAudioMergeTask,
 } from './types';
+import type { VideoMode } from '../../../../api/shots';
 import { shotsApi } from '../../../../api/shots';
 import { chapterApi } from '../../../../api/chapters';
+import { formatUserFacingError } from '../../../../utils';
 
 const TRANSITION_SETTINGS_STORAGE_KEY = 'chapterGenerate_transitionSettings';
 
@@ -39,13 +41,13 @@ const savedTransitionSettings = getSavedTransitionSettings();
 
 export interface GenerationSlice extends GenerationSliceState {
   // ========== 图片生成 ==========
-  generateShotImage: (novelId: string, chapterId: string, shotId: string) => Promise<void>;
+  generateShotImage: (novelId: string, chapterId: string, shotId: string, promptText?: string, options?: { useExistingPrompt?: boolean }) => Promise<string | null>;
   generateAllImages: (novelId: string, chapterId: string) => Promise<void>;
   uploadShotImage: (novelId: string, chapterId: string, shotId: string, file: File) => Promise<void>;
   setShotImages: (images: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 
   // ========== 视频生成 ==========
-  generateShotVideo: (novelId: string, chapterId: string, shotId: string) => Promise<void>;
+  generateShotVideo: (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode) => Promise<void>;
   generateAllVideos: (novelId: string, chapterId: string) => Promise<void>;
   setShotVideos: (videos: Record<string, string> | ((prev: Record<string, string>) => Record<string, string>)) => void;
 
@@ -79,7 +81,7 @@ export interface GenerationSlice extends GenerationSliceState {
 
   // ========== 关键帧生成 ==========
   generateKeyframeDescriptions: (novelId: string, chapterId: string, shotId: string, count?: number) => Promise<void>;
-  generateKeyframeImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, workflowId?: string) => Promise<void>;
+  generateKeyframeImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, workflowId?: string, options?: { skipLlmWhenPromptExists?: boolean }) => Promise<void>;
   uploadKeyframeImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, file: File) => Promise<void>;
   uploadKeyframeReferenceImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, file: File) => Promise<void>;
   setKeyframeReferenceImage: (novelId: string, chapterId: string, shotId: string, frameIndex: number, mode: 'auto_select' | 'custom' | 'none', referenceUrl?: string) => Promise<void>;
@@ -148,34 +150,52 @@ export const createGenerationSlice: StateCreator<
 
   // ========== 图片生成方法 ==========
 
-  generateShotImage: async (novelId: string, chapterId: string, shotId: string) => {
+  generateShotImage: async (novelId: string, chapterId: string, shotId: string, promptText?: string, options?: { useExistingPrompt?: boolean }) => {
     const shot = get().shots.find(s => s.id === shotId);
     if (!shot) {
       console.error('[generateShotImage] Shot not found:', shotId);
-      return;
+      return null;
     }
 
     // 添加到生成中集合
     console.log('[generateShotImage] Adding to generatingShots:', shotId);
     set(state => ({
-      generatingShots: new Set([...state.generatingShots, shotId])
+      generatingShots: new Set([...state.generatingShots, shotId]),
+      shotImages: Object.fromEntries(Object.entries(state.shotImages).filter(([key]) => key !== shotId)),
+      shots: state.shots.map(s =>
+        s.id === shotId
+          ? { ...s, imageUrl: null, imagePath: null, imageStatus: 'generating' as const, imageTaskId: null }
+          : s
+      )
     }));
 
     // 验证状态已更新
     console.log('[generateShotImage] generatingShots after update:', [...get().generatingShots]);
 
     try {
-      const result = await shotsApi.generateImage(novelId, chapterId, shotId);
+      const result = await shotsApi.generateImage(novelId, chapterId, shotId, {
+        prompt_text: options?.useExistingPrompt ? promptText : undefined,
+      });
       console.log('[generateShotImage] API result:', result);
 
       if (result.success) {
+        const resolvedPromptText = result.data?.promptText || promptText || '';
+        if (!result.data?.taskId) {
+          set(state => {
+            const newSet = new Set(state.generatingShots);
+            newSet.delete(shotId);
+            return { generatingShots: newSet };
+          });
+          return resolvedPromptText || null;
+        }
         // 更新 shot 的 imageStatus
         const updatedShots = get().shots.map(s =>
           s.id === shotId
-            ? { ...s, imageStatus: 'generating' as const, imageTaskId: result.data?.taskId || null }
+            ? { ...s, imageUrl: null, imagePath: null, imageStatus: 'generating' as const, imageTaskId: result.data?.taskId || null, shotImagePrompt: resolvedPromptText }
             : s
         );
         set({ shots: updatedShots });
+        return resolvedPromptText || null;
       } else {
         throw new Error(result.message || '生成失败');
       }
@@ -185,8 +205,14 @@ export const createGenerationSlice: StateCreator<
       set(state => {
         const newSet = new Set(state.generatingShots);
         newSet.delete(shotId);
-        return { generatingShots: newSet };
+        return {
+          generatingShots: newSet,
+          shots: state.shots.map(s => (
+            s.id === shotId ? { ...s, imageUrl: null, imagePath: null, imageStatus: 'failed' as const, imageTaskId: null } : s
+          )),
+        };
       });
+      return null;
     }
   },
 
@@ -254,34 +280,82 @@ export const createGenerationSlice: StateCreator<
 
   // ========== 视频生成方法 ==========
 
-  generateShotVideo: async (novelId: string, chapterId: string, shotId: string) => {
+  generateShotVideo: async (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode, options?: { skipLlmWhenPromptExists?: boolean }) => {
+    const refreshed = await shotsApi.getShot(novelId, chapterId, shotId);
+    if (refreshed.success && refreshed.data) {
+      set(state => ({
+        shots: state.shots.map(s => s.id === shotId ? { ...s, ...refreshed.data } : s),
+      }));
+    }
     const shot = get().shots.find(s => s.id === shotId);
     if (!shot) return;
 
     set(state => ({
-      generatingVideos: new Set([...state.generatingVideos, shotId])
+      generatingVideos: new Set([...state.generatingVideos, shotId]),
+      shotVideos: Object.fromEntries(Object.entries(state.shotVideos).filter(([key]) => key !== shotId)),
+      shots: state.shots.map(s =>
+        s.id === shotId
+          ? { ...s, videoUrl: null, videoStatus: 'generating' as const, videoTaskId: null }
+          : s
+      )
     }));
 
     try {
-      const result = await shotsApi.generateVideo(novelId, chapterId, shotId);
+      const result = await shotsApi.generateVideo(novelId, chapterId, shotId, {
+        selected_mode: selectedMode,
+        skip_llm_when_prompt_exists: options?.skipLlmWhenPromptExists ?? false,
+      });
 
       if (result.success) {
         const updatedShots = get().shots.map(s =>
           s.id === shotId
-            ? { ...s, videoStatus: 'generating' as const, videoTaskId: result.data?.taskId || null }
+            ? { ...s, videoUrl: null, videoStatus: 'generating' as const, videoTaskId: result.data?.taskId || null }
             : s
         );
-        set({ shots: updatedShots });
+        set(state => ({
+          shots: updatedShots,
+          generatingVideos: new Set([...state.generatingVideos, shotId]),
+        }));
+
+        get().checkVideoTaskStatus(chapterId);
+
+        let attempts = 0;
+        const pollVideoTask = async () => {
+          if (!get().generatingVideos.has(shotId) || attempts >= 180) return;
+          attempts += 1;
+          await get().checkVideoTaskStatus(chapterId);
+          if (get().generatingVideos.has(shotId)) {
+            window.setTimeout(pollVideoTask, 2000);
+          }
+        };
+        window.setTimeout(pollVideoTask, 2000);
       } else {
-        throw new Error(result.message || '生成失败');
+        throw new Error(result.message || (result as any).detail || '生成失败');
       }
     } catch (error) {
       console.error('生成分镜视频失败:', error);
+      const errorMessage = formatUserFacingError(error instanceof Error ? error.message : '生成失败') || '生成失败';
       set(state => {
         const newSet = new Set(state.generatingVideos);
         newSet.delete(shotId);
-        return { generatingVideos: newSet };
+        return {
+          generatingVideos: newSet,
+          shots: state.shots.map(s =>
+            s.id === shotId
+              ? {
+                  ...s,
+                  videoStatus: 'failed' as const,
+                  videoDirectorPlan: {
+                    ...(s.videoDirectorPlan || {}),
+                    task_error_message: errorMessage,
+                    error_message: errorMessage,
+                  },
+                }
+              : s
+          )
+        };
       });
+      throw new Error(errorMessage);
     }
   },
 
@@ -299,7 +373,13 @@ export const createGenerationSlice: StateCreator<
     }));
 
     for (const shot of pendingVideos) {
-      await get().generateShotVideo(novelId, chapterId, shot.id);
+      const plan = shot.videoDirectorPlan || {};
+      await get().generateShotVideo(
+        novelId,
+        chapterId,
+        shot.id,
+        plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME'
+      );
     }
   },
 
@@ -334,6 +414,7 @@ export const createGenerationSlice: StateCreator<
           body: JSON.stringify({
             from_index: fromIndex,
             to_index: toIndex,
+            duration_seconds: transitionDuration,
             frame_count: frameCount,
             workflow_id: selectedTransitionWorkflow || undefined,
           }),
@@ -378,7 +459,9 @@ export const createGenerationSlice: StateCreator<
           transitionWorkflows: result.data.map((w: any) => ({
             id: w.id,
             name: w.name,
-            isActive: w.is_active,
+            description: w.description,
+            descriptionKey: w.descriptionKey,
+            isActive: w.isActive ?? w.is_active,
           })),
         });
       }
@@ -645,7 +728,7 @@ export const createGenerationSlice: StateCreator<
             tasksByShotId[task.shotId].push(task);
           } else {
             // 兼容旧逻辑：从 task.name 中提取镜号，然后查找对应的 shot
-            const match = task.name?.match(/镜\s*(\d+)/);
+            const match = task.name?.match(/(?:镜|Shot)\s*(\d+)/i);
             if (match) {
               const shotIndex = parseInt(match[1], 10);
               const shot = get().shots.find(s => s.index === shotIndex);
@@ -662,23 +745,41 @@ export const createGenerationSlice: StateCreator<
         console.log('[checkShotTaskStatus] tasksByShotId keys:', Object.keys(tasksByShotId));
 
         // 更新 shots 状态和 shotImages 映射
-        const { shots, shotImages, generatingShots } = get();
+        const { shots, shotImages, generatingShots, pendingShots } = get();
         let shotImagesUpdated = false;
         let generatingShotsUpdated = false;
+        let pendingShotsUpdated = false;
         const newShotImages = { ...shotImages };
         const newGeneratingShots = new Set(generatingShots);
+        const newPendingShots = new Set(pendingShots);
+
+        const taskTime = (task: any) => {
+          const value = task.completedAt || task.startedAt || task.createdAt;
+          const time = value ? new Date(value).getTime() : 0;
+          return Number.isFinite(time) ? time : 0;
+        };
 
         const updatedShots = shots.map((shot) => {
           const shotTasks = tasksByShotId[shot.id];
           if (shotTasks && shotTasks.length > 0) {
-            // 找到最新的任务（按创建时间排序，取最新的）
+            // 找到最新的任务；批量子任务常同秒创建，完成/开始时间比创建时间更可靠。
             const sortedTasks = [...shotTasks].sort((a, b) =>
-              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+              taskTime(b) - taskTime(a)
             );
             const latestTask = sortedTasks[0];
+            const trackedTask = shot.imageTaskId ? sortedTasks.find(t => t.id === shot.imageTaskId) : null;
+            const trackedStatus = String(trackedTask?.status || '').toLowerCase();
+            const trackedCompletedTask = trackedStatus === 'completed' && trackedTask?.resultUrl ? trackedTask : null;
+            const trackedActiveTask = ['pending', 'queued', 'running'].includes(trackedStatus) ? trackedTask : null;
+            const latestCompletedTask = trackedCompletedTask || sortedTasks.find(t => t.status === 'completed' && t.resultUrl);
+            const latestActiveTask = trackedActiveTask || sortedTasks.find(t => ['pending', 'queued', 'running'].includes(String(t.status || '').toLowerCase()));
+            const completedIsCurrent = !!trackedCompletedTask || (latestCompletedTask && (!latestActiveTask || taskTime(latestCompletedTask) >= taskTime(latestActiveTask)));
+            const activeIsCurrent = !trackedCompletedTask && latestActiveTask && !completedIsCurrent;
+            const latestCompletedUrl = completedIsCurrent ? latestCompletedTask.resultUrl : null;
 
-            // 检查是否有任何任务正在运行
-            const hasRunningTask = shotTasks.some(t => t.status === 'running' || t.status === 'pending');
+            // 检查是否有任何任务正在运行或等待批量处理
+            const hasRunningTask = activeIsCurrent && ['running', 'queued'].includes(String(latestActiveTask.status || '').toLowerCase());
+            const hasPendingTask = activeIsCurrent && String(latestActiveTask.status || '').toLowerCase() === 'pending';
 
             // 如果有任务正在运行，确保在 generatingShots 中
             if (hasRunningTask && !newGeneratingShots.has(shot.id)) {
@@ -692,33 +793,53 @@ export const createGenerationSlice: StateCreator<
               generatingShotsUpdated = true;
             }
 
-            // 使用最新任务的结果 URL（优先使用已完成的任务）
-            const completedTask = sortedTasks.find(t => t.status === 'completed' && t.resultUrl);
-            if (completedTask && completedTask.resultUrl) {
-              if (newShotImages[shot.id] !== completedTask.resultUrl) {
-                newShotImages[shot.id] = completedTask.resultUrl;
+            if (hasPendingTask && !newPendingShots.has(shot.id)) {
+              newPendingShots.add(shot.id);
+              pendingShotsUpdated = true;
+            }
+
+            if (!hasPendingTask && newPendingShots.has(shot.id)) {
+              newPendingShots.delete(shot.id);
+              pendingShotsUpdated = true;
+            }
+
+            if (latestCompletedUrl) {
+              if (newShotImages[shot.id] !== latestCompletedUrl) {
+                newShotImages[shot.id] = latestCompletedUrl;
                 shotImagesUpdated = true;
               }
+            } else if (hasRunningTask && newShotImages[shot.id]) {
+              delete newShotImages[shot.id];
+              shotImagesUpdated = true;
             }
+
+            const imageStatus: Shot['imageStatus'] = hasRunningTask
+              ? 'generating'
+              : completedIsCurrent
+                ? 'completed'
+                : latestTask.status === 'failed'
+                  ? 'failed'
+                  : 'pending';
 
             return {
               ...shot,
-              imageStatus: latestTask.status,
-              imageUrl: completedTask?.resultUrl || shot.imageUrl,
-              imageTaskId: latestTask.id || shot.imageTaskId,
+              imageStatus,
+              imageUrl: latestCompletedUrl || (hasRunningTask || hasPendingTask ? null : shot.imageUrl),
+              imageTaskId: (completedIsCurrent ? latestCompletedTask.id : latestTask.id) || shot.imageTaskId,
             };
           }
           return shot;
         });
 
         // 只有当数据真正变化时才更新状态
-        console.log('[checkShotTaskStatus] shotImagesUpdated:', shotImagesUpdated, 'generatingShotsUpdated:', generatingShotsUpdated);
+        console.log('[checkShotTaskStatus] shotImagesUpdated:', shotImagesUpdated, 'generatingShotsUpdated:', generatingShotsUpdated, 'pendingShotsUpdated:', pendingShotsUpdated);
         console.log('[checkShotTaskStatus] newGeneratingShots:', [...newGeneratingShots]);
-        if (shotImagesUpdated || generatingShotsUpdated) {
+        if (shotImagesUpdated || generatingShotsUpdated || pendingShotsUpdated) {
           set({
             shots: updatedShots,
             shotImages: newShotImages,
-            generatingShots: newGeneratingShots
+            generatingShots: newGeneratingShots,
+            pendingShots: newPendingShots
           });
           console.log('[checkShotTaskStatus] State updated with newGeneratingShots');
         } else {
@@ -737,6 +858,12 @@ export const createGenerationSlice: StateCreator<
       const result = await response.json();
 
       if (result.success && result.data) {
+        const taskTime = (task: any) => {
+          const value = task.completedAt || task.startedAt || task.createdAt;
+          const time = value ? new Date(value).getTime() : 0;
+          return Number.isFinite(time) ? time : 0;
+        };
+
         // 构建 shotId -> tasks 列表的映射（一个 shotId 可能有多个任务）
         const shotTasksMap: Record<string, any[]> = {};
         result.data.forEach((task: any) => {
@@ -761,79 +888,154 @@ export const createGenerationSlice: StateCreator<
           }
         });
 
-        // 为每个 shotId 选择最合适的任务
-        // 优先级：running > pending > completed（最新的）> failed
+        // 为每个 shotId 选择最合适的任务：完成/开始时间优先，避免旧 pending 覆盖新 completed。
         const taskMap: Record<string, any> = {};
         for (const [shotId, tasks] of Object.entries(shotTasksMap)) {
-          // 按创建时间排序（最新的在前）
           const sortedTasks = (tasks as any[]).sort((a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            taskTime(b) - taskTime(a)
           );
 
-          // 优先选择正在运行或等待中的任务
-          const runningTask = sortedTasks.find(t => t.status === 'running' || t.status === 'pending');
-          if (runningTask) {
-            taskMap[shotId] = runningTask;
-          } else {
-            // 否则选择最新的任务（无论是完成还是失败）
-            taskMap[shotId] = sortedTasks[0];
-          }
+          const latestCompletedTask = sortedTasks.find(t => t.status === 'completed' && t.resultUrl);
+          const latestActiveTask = sortedTasks.find(t => ['pending', 'queued', 'running'].includes(String(t.status || '').toLowerCase()));
+          taskMap[shotId] = latestCompletedTask && (!latestActiveTask || taskTime(latestCompletedTask) >= taskTime(latestActiveTask))
+            ? latestCompletedTask
+            : (latestActiveTask || sortedTasks[0]);
         }
 
-        const { shots, shotVideos, generatingVideos } = get();
+        const { shots, shotVideos, generatingVideos, pendingVideos } = get();
         let shotVideosUpdated = false;
         let generatingVideosUpdated = false;
+        let pendingVideosUpdated = false;
+        const terminalShotIds = new Set<string>();
+        const activeShotIds = new Set<string>();
         const newShotVideos = { ...shotVideos };
         const newGeneratingVideos = new Set(generatingVideos);
+        const newPendingVideos = new Set(pendingVideos);
 
         const updatedShots = shots.map(shot => {
-          const task = taskMap[shot.id];
-          if (task) {
-            const isCompleted = task.status === 'completed';
-            const isFailed = task.status === 'failed';
-            const isRunning = task.status === 'running' || task.status === 'pending';
+            const task = taskMap[shot.id];
+            if (task) {
+              const hasExistingVideo = !!(shot.videoUrl || newShotVideos[shot.id] || (shot.videoDirectorPlan as any)?.merged_video_url);
+              const isCompleted = task.status === 'completed';
+              const isStaleFailedTask = (task.status === 'failed' || task.status === 'cancelled') && hasExistingVideo;
+              const isFailed = (task.status === 'failed' || task.status === 'cancelled') && !isStaleFailedTask;
+            const isRunning = task.status === 'running' || task.status === 'queued';
+            const isPending = task.status === 'pending';
+            const isActive = isRunning || isPending;
+            const videoStatus = isCompleted || isStaleFailedTask ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : shot.videoStatus;
+            const taskErrorMessage = formatUserFacingError(task.errorMessage || task.error_message || task.error) || (task.status === 'cancelled' ? '视频任务已取消' : '');
+            const videoDirectorPlan = isFailed && taskErrorMessage
+              ? { ...(shot.videoDirectorPlan || {}), task_error_message: taskErrorMessage, error_message: taskErrorMessage }
+              : isCompleted || isStaleFailedTask
+                ? (() => {
+                    const nextPlan = { ...(shot.videoDirectorPlan || {}) } as any;
+                    delete nextPlan.task_error_message;
+                    delete nextPlan.error_message;
+                    return nextPlan;
+                  })()
+                : shot.videoDirectorPlan;
 
             // 如果任务正在运行，确保在 generatingVideos 中
             if (isRunning && !newGeneratingVideos.has(shot.id)) {
               newGeneratingVideos.add(shot.id);
               generatingVideosUpdated = true;
             }
+            if (!isRunning && newGeneratingVideos.has(shot.id)) {
+              newGeneratingVideos.delete(shot.id);
+              generatingVideosUpdated = true;
+            }
+            if (isPending && !newPendingVideos.has(shot.id)) {
+              newPendingVideos.add(shot.id);
+              pendingVideosUpdated = true;
+            }
+            if (!isPending && newPendingVideos.has(shot.id)) {
+              newPendingVideos.delete(shot.id);
+              pendingVideosUpdated = true;
+            }
+            if (isActive) {
+              activeShotIds.add(shot.id);
+            }
 
-            if (isCompleted && task.resultUrl) {
-              if (newShotVideos[shot.id] !== task.resultUrl) {
+            if (isCompleted) {
+              if (task.resultUrl && newShotVideos[shot.id] !== task.resultUrl) {
                 newShotVideos[shot.id] = task.resultUrl;
                 shotVideosUpdated = true;
               }
-              // 从生成中集合移除（使用 shotId）
-              if (newGeneratingVideos.has(shot.id)) {
-                newGeneratingVideos.delete(shot.id);
-                generatingVideosUpdated = true;
+              if ((task.resultUrl && shot.videoUrl !== task.resultUrl) || !task.resultUrl) {
+                terminalShotIds.add(shot.id);
               }
+            } else if (isActive && newShotVideos[shot.id]) {
+              delete newShotVideos[shot.id];
+              shotVideosUpdated = true;
             } else if (isFailed) {
-              if (newGeneratingVideos.has(shot.id)) {
-                newGeneratingVideos.delete(shot.id);
-                generatingVideosUpdated = true;
+              if (shot.videoStatus !== 'failed') {
+                terminalShotIds.add(shot.id);
               }
             }
 
             return {
               ...shot,
-              videoStatus: task.status,
-              videoUrl: task.resultUrl || shot.videoUrl,
-              videoTaskId: task.id || shot.videoTaskId,
+              videoStatus,
+              videoUrl: isCompleted && task.resultUrl ? task.resultUrl : (isActive ? null : shot.videoUrl),
+              videoTaskId: isStaleFailedTask ? null : (task.id || shot.videoTaskId),
+              videoDirectorPlan,
             };
           }
           return shot;
         });
 
-        if (shotVideosUpdated || generatingVideosUpdated) {
+        if (shotVideosUpdated || generatingVideosUpdated || pendingVideosUpdated) {
           set({
             shots: updatedShots,
             shotVideos: newShotVideos,
-            generatingVideos: newGeneratingVideos
+            generatingVideos: newGeneratingVideos,
+            pendingVideos: newPendingVideos
           });
         } else {
           set({ shots: updatedShots });
+        }
+
+        const refreshShotIds = new Set([...terminalShotIds, ...activeShotIds]);
+        if (refreshShotIds.size > 0) {
+          const novelId = get().chapter?.novelId || get().novel?.id;
+          if (novelId) {
+            const refreshedShots = await Promise.all(
+              Array.from(refreshShotIds).map((shotId) => shotsApi.getShot(novelId, chapterId, shotId))
+            );
+
+            set(state => {
+              const nextShotVideos = { ...state.shotVideos };
+              const nextGeneratingVideos = new Set(state.generatingVideos);
+              const nextPendingVideos = new Set(state.pendingVideos);
+              const nextShots = state.shots.map(shot => {
+                const refreshed = refreshedShots.find(result => result.success && result.data?.id === shot.id)?.data;
+                if (!refreshed) return shot;
+                if (refreshed.videoUrl) {
+                  nextShotVideos[shot.id] = refreshed.videoUrl;
+                }
+                if (terminalShotIds.has(shot.id)) {
+                  nextGeneratingVideos.delete(shot.id);
+                  nextPendingVideos.delete(shot.id);
+                }
+                const task = taskMap[shot.id];
+                if (task?.status === 'failed' || task?.status === 'cancelled') {
+                  const taskErrorMessage = formatUserFacingError(task.errorMessage || task.error_message || task.error) || (task.status === 'cancelled' ? '视频任务已取消' : '');
+                  const videoDirectorPlan = taskErrorMessage
+                    ? { ...(refreshed.videoDirectorPlan || {}), task_error_message: taskErrorMessage, error_message: taskErrorMessage }
+                    : refreshed.videoDirectorPlan;
+                  return { ...shot, ...refreshed, videoStatus: 'failed' as const, videoDirectorPlan };
+                }
+                return { ...shot, ...refreshed };
+              });
+
+              return {
+                shots: nextShots,
+                shotVideos: nextShotVideos,
+                generatingVideos: nextGeneratingVideos,
+                pendingVideos: nextPendingVideos,
+              };
+            });
+          }
         }
       }
     } catch (error) {
@@ -847,14 +1049,28 @@ export const createGenerationSlice: StateCreator<
       const result = await response.json();
 
       if (result.success && result.data) {
+        const taskTime = (task: any) => {
+          const value = task.completedAt || task.startedAt || task.createdAt;
+          const time = value ? new Date(value).getTime() : 0;
+          return Number.isFinite(time) ? time : 0;
+        };
         // 更新转场视频状态
         const newTransitionVideos = { ...get().transitionVideos };
         const newGeneratingTransitions = new Set(get().generatingTransitions);
+        const latestTasksByTransition: Record<string, any> = {};
+
         result.data.forEach((task: any) => {
           const match = task.name?.match(/镜\s*(\d+)\s*[→\-]\s*镜\s*(\d+)/) || task.name?.match(/(\d+)-(\d+)/);
           if (!match) return;
 
           const transitionKey = `${match[1]}-${match[2]}`;
+          const current = latestTasksByTransition[transitionKey];
+          if (!current || taskTime(task) > taskTime(current)) {
+            latestTasksByTransition[transitionKey] = task;
+          }
+        });
+
+        Object.entries(latestTasksByTransition).forEach(([transitionKey, task]) => {
 
           if (task.resultUrl) {
             newTransitionVideos[transitionKey] = task.resultUrl;
@@ -890,6 +1106,11 @@ export const createGenerationSlice: StateCreator<
       ];
 
       if (allTasks.length > 0) {
+        const taskTime = (task: any) => {
+          const value = task.completedAt || task.startedAt || task.createdAt;
+          const time = value ? new Date(value).getTime() : 0;
+          return Number.isFinite(time) ? time : 0;
+        };
         // 更新音频任务状态
         const updatedTasks = get().audioTasks.map(task => {
           const taskStatus = allTasks.find((t: any) => t.id === task.taskId);
@@ -903,6 +1124,7 @@ export const createGenerationSlice: StateCreator<
         // 更新音频 URL 和清除完成的 generating 状态
         const newAudioUrls = { ...get().audioUrls };
         const completedKeys: string[] = [];
+        const latestTasksByAudioKey: Record<string, any> = {};
 
         allTasks.forEach((task: any) => {
           // 从任务名称提取角色名
@@ -922,15 +1144,22 @@ export const createGenerationSlice: StateCreator<
           }
 
           if (key) {
-            // 更新音频 URL
-            if (task.resultUrl) {
-              newAudioUrls[key] = task.resultUrl;
+            const current = latestTasksByAudioKey[key];
+            if (!current || taskTime(task) > taskTime(current)) {
+              latestTasksByAudioKey[key] = task;
             }
+          }
+        });
 
-            // 任务完成或失败时清除 generating 状态
-            if (task.status === 'completed' || task.status === 'failed') {
-              completedKeys.push(key);
-            }
+        Object.entries(latestTasksByAudioKey).forEach(([key, task]) => {
+          // 更新音频 URL
+          if (task.resultUrl) {
+            newAudioUrls[key] = task.resultUrl;
+          }
+
+          // 任务完成或失败时清除 generating 状态
+          if (task.status === 'completed' || task.status === 'failed') {
+            completedKeys.push(key);
           }
         });
         set({ audioUrls: newAudioUrls });
@@ -952,7 +1181,7 @@ export const createGenerationSlice: StateCreator<
 
   fetchActiveTasks: async (chapterId: string) => {
     // 获取所有活跃任务
-    await Promise.all([
+    await Promise.allSettled([
       get().checkShotTaskStatus(chapterId),
       get().checkVideoTaskStatus(chapterId),
       get().checkTransitionTaskStatus(chapterId),
@@ -972,29 +1201,53 @@ export const createGenerationSlice: StateCreator<
         let keyframeTasksUpdated = false;
         let generatingKeyframesUpdated = false;
         let keyframeImageUrlsUpdated = false;
+        let shotsUpdated = false;
         const newKeyframeTasks = [...keyframeTasks];
         const newGeneratingKeyframes = new Set(generatingKeyframes);
         const newKeyframeImageUrls = { ...keyframeImageUrls };
         const updatedShots = [...shots];
 
         result.data.forEach((task: any) => {
-          // 从 task.name 中提取 shotId 和 frameIndex
-          // 格式类似 "关键帧图片: shotId-frameIndex"
-          const match = task.name?.match(/关键帧.*?([a-f0-9-]{36})-(\d+)/i);
-          if (match) {
-            const shotId = match[1];
-            const frameIndex = parseInt(match[2], 10);
+          const nameMatch = task.name?.match(/关键帧.*?([a-f0-9-]{36})-(\d+)/i);
+          const fallbackMatch = task.name?.match(/分镜\s*(\d+)\s*-\s*帧\s*(\d+)/);
+          let shotId = task.shotId || nameMatch?.[1];
+          let frameIndex = nameMatch ? parseInt(nameMatch[2], 10) : NaN;
+          if (!shotId && fallbackMatch) {
+            const shotIndex = parseInt(fallbackMatch[1], 10);
+            const shot = updatedShots.find(s => s.index === shotIndex);
+            shotId = shot?.id;
+            frameIndex = parseInt(fallbackMatch[2], 10);
+          }
+          if (shotId && Number.isFinite(frameIndex)) {
             const keyframeKey = `${shotId}-${frameIndex}`;
+            const shotIndex = updatedShots.findIndex(s => s.id === shotId);
+            const currentShot = shotIndex >= 0 ? updatedShots[shotIndex] : undefined;
+            const legacyKeyframe = currentShot?.keyframes?.find((kf: any) => kf.frame_index === frameIndex);
+            const taskBelongsToCurrentKeyframe = legacyKeyframe?.image_task_id === task.id || (legacyKeyframe as any)?.imageTaskId === task.id;
 
             // 更新任务状态
             const taskIndex = newKeyframeTasks.findIndex(t => t.taskId === task.id);
             if (taskIndex >= 0) {
               newKeyframeTasks[taskIndex] = { ...newKeyframeTasks[taskIndex], status: task.status };
               keyframeTasksUpdated = true;
+            } else if (task.status === 'pending' || task.status === 'running') {
+              newKeyframeTasks.push({
+                shotId,
+                frameIndex,
+                taskId: task.id,
+                status: task.status,
+              });
+              keyframeTasksUpdated = true;
+            }
+
+            if ((task.status === 'pending' || task.status === 'running') && !newGeneratingKeyframes.has(keyframeKey)) {
+              newGeneratingKeyframes.add(keyframeKey);
+              generatingKeyframesUpdated = true;
             }
 
             // 如果完成，更新图片URL
             if (task.status === 'completed' && task.resultUrl) {
+              if (taskIndex < 0 && !taskBelongsToCurrentKeyframe) return;
               if (newKeyframeImageUrls[keyframeKey] !== task.resultUrl) {
                 newKeyframeImageUrls[keyframeKey] = task.resultUrl;
                 keyframeImageUrlsUpdated = true;
@@ -1007,17 +1260,30 @@ export const createGenerationSlice: StateCreator<
               }
 
               // 更新 shot 的 keyframes
-              const shotIndex = updatedShots.findIndex(s => s.id === shotId);
-              if (shotIndex >= 0) {
-                const shot = updatedShots[shotIndex];
-                const updatedKeyframes = (shot.keyframes || []).map((kf: any) =>
+              if (shotIndex >= 0 && currentShot) {
+                const updatedKeyframes = (currentShot.keyframes || []).map((kf: any) =>
                   kf.frame_index === frameIndex
                     ? { ...kf, image_url: task.resultUrl, image_task_id: task.id }
                     : kf
                 );
-                updatedShots[shotIndex] = { ...shot, keyframes: updatedKeyframes };
+                const updatedLegacyKeyframe = updatedKeyframes.find((kf: any) => kf.frame_index === frameIndex);
+                const nonStartPlanKeyframes = (currentShot.videoDirectorPlan?.keyframes || []).filter((kf: any) => kf.role !== 'START');
+                const planKeyframeIndex = updatedLegacyKeyframe?.plan_keyframe_index ?? nonStartPlanKeyframes[frameIndex]?.index;
+                const videoDirectorPlan = currentShot.videoDirectorPlan && planKeyframeIndex !== undefined
+                  ? {
+                    ...currentShot.videoDirectorPlan,
+                    keyframes: (currentShot.videoDirectorPlan.keyframes || []).map((kf: any) => (
+                      Number(kf.index) === Number(planKeyframeIndex)
+                        ? { ...kf, image_url: task.resultUrl, image_task_id: task.id }
+                        : kf
+                    )),
+                  }
+                  : currentShot.videoDirectorPlan;
+                updatedShots[shotIndex] = { ...currentShot, keyframes: updatedKeyframes, videoDirectorPlan };
+                shotsUpdated = true;
               }
             } else if (task.status === 'failed') {
+              if (taskIndex < 0 && !taskBelongsToCurrentKeyframe) return;
               // 失败时从生成中集合移除
               if (newGeneratingKeyframes.has(keyframeKey)) {
                 newGeneratingKeyframes.delete(keyframeKey);
@@ -1028,7 +1294,7 @@ export const createGenerationSlice: StateCreator<
         });
 
         // 只在数据变化时更新状态
-        if (keyframeTasksUpdated || generatingKeyframesUpdated || keyframeImageUrlsUpdated) {
+        if (keyframeTasksUpdated || generatingKeyframesUpdated || keyframeImageUrlsUpdated || shotsUpdated) {
           set({
             keyframeTasks: newKeyframeTasks,
             generatingKeyframes: newGeneratingKeyframes,
@@ -1078,14 +1344,16 @@ export const createGenerationSlice: StateCreator<
     }
   },
 
-  generateKeyframeImage: async (novelId, chapterId, shotId, frameIndex, workflowId) => {
+  generateKeyframeImage: async (novelId, chapterId, shotId, frameIndex, workflowId, options) => {
     const keyframeKey = `${shotId}-${frameIndex}`;
     set(state => ({
       generatingKeyframes: new Set([...state.generatingKeyframes, keyframeKey])
     }));
 
     try {
-      const result = await shotsApi.generateKeyframeImage(novelId, chapterId, shotId, frameIndex, workflowId);
+      const result = await shotsApi.generateKeyframeImage(novelId, chapterId, shotId, frameIndex, workflowId, {
+        skip_llm_when_prompt_exists: options?.skipLlmWhenPromptExists ?? false,
+      });
 
       if (result.success && result.data?.task_id) {
         // 添加到 keyframeTasks
@@ -1113,7 +1381,7 @@ export const createGenerationSlice: StateCreator<
         });
         set({ shots: updatedShots });
       } else {
-        throw new Error(result.message || '生成关键帧图片失败');
+        throw new Error(result.message || result.detail || '生成关键帧图片失败');
       }
     } catch (error) {
       console.error('生成关键帧图片失败:', error);

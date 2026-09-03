@@ -5,12 +5,10 @@
  * - 左 1：章节角色列表（显示当前章节有台词的所有角色，可收缩）
  * - 左 2：分镜角色列表（显示当前分镜有台词的角色）
  * - 右侧：编辑区域（编辑台词、情感提示词，播放/上传音频）
- * - 最右：ComfyUI 状态
  */
 
 import { useState, useRef } from 'react';
 import { useChapterGenerateStore, useShotNavigatorSlice } from '../stores';
-import { useResizable } from '../../../hooks/useResizable';
 import { useTranslation } from '../../../stores/i18nStore';
 import {
   Mic,
@@ -33,7 +31,6 @@ import { shotsApi } from '../../../api/shots';
 import { characterApi } from '../../../api/characters';
 import type { Character as CharacterType } from '../types';
 import type { DialogueData, Shot } from '../stores/slices/types';
-import ComfyUIStatus from '../../../components/ComfyUIStatus';
 
 interface AudioGenTabProps {
   novelId: string;
@@ -265,23 +262,11 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
   const [editingDialogues, setEditingDialogues] = useState<Record<string, DialogueData>>({});
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
-  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
   const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showWarnings, setShowWarnings] = useState(false);
-
-  // 右侧栏可拖动调整宽度
-  const rightResizable = useResizable({
-    initialWidth: 288,
-    minWidth: 200,
-    maxWidth: 400,
-    collapsedWidth: 48,
-    collapsed: rightPanelCollapsed,
-    storageKey: 'audioGenerate_rightPanelWidth',
-    direction: 'left', // 右侧栏：向左拖动增加宽度
-  });
 
   // 获取当前分镜数据
   const currentShotData: Shot | undefined = shots.find(s => s.index === currentShotIndex);
@@ -1040,47 +1025,6 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
               {renderEditPanel()}
             </div>
           </div>
-        </div>
-      </div>
-
-      {/* 最右：ComfyUI 状态（可收缩、可拖拽调整宽度） */}
-      <div
-        className="relative flex-shrink-0 transition-all duration-200 ease-in-out"
-        style={{
-          width: rightPanelCollapsed ? 48 : rightResizable.width,
-        }}
-      >
-        {/* 拖动把手 */}
-        {!rightPanelCollapsed && (
-          <div
-            onMouseDown={rightResizable.handleMouseDown}
-            className="absolute top-0 left-0 w-1 h-full cursor-col-resize hover:bg-blue-200 hover:opacity-50 transition-colors z-20"
-          />
-        )}
-
-        {/* 收起/展开按钮 */}
-        <button
-          onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
-          className="absolute -left-3 top-4 z-30 w-6 h-6 bg-white border border-gray-200 rounded-full shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors"
-          title={rightPanelCollapsed ? t('common.expand') : t('common.collapse')}
-        >
-          {rightPanelCollapsed ? (
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          ) : (
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          )}
-        </button>
-
-        <div className="h-full border-l border-gray-200 flex flex-col bg-gray-50">
-          {!rightPanelCollapsed && (
-            <div className="flex-1 overflow-y-auto p-4">
-              <ComfyUIStatus />
-            </div>
-          )}
         </div>
       </div>
 

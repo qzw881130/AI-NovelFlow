@@ -17,6 +17,26 @@ from app.repositories import TaskRepository, WorkflowRepository, CharacterReposi
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import build_character_prompt, get_style
+from app.services.background_workers import worker_manager
+
+
+def enqueue_character_portrait_task(
+    task_id: str,
+    character_id: str,
+    name: str,
+    appearance: str,
+    description: str
+) -> None:
+    """Queue character portrait generation in its dedicated serial worker."""
+    worker_manager.worker("character_portrait").enqueue(
+        lambda: CharacterService()._generate_portrait_task(
+            task_id,
+            character_id,
+            name,
+            appearance,
+            description,
+        )
+    )
 
 
 class CharacterService:
@@ -309,19 +329,16 @@ class CharacterService:
         task_repo.create(task)
         
         # 更新角色生成状态
-        character.generating_status = "running"
+        character.generating_status = "pending"
         character.portrait_task_id = task.id
         db.commit()
         
-        # 启动后台任务
-        asyncio.create_task(
-            self._generate_portrait_task(
-                task.id,
-                character_id,
-                character.name,
-                character.appearance,
-                character.description
-            )
+        enqueue_character_portrait_task(
+            task.id,
+            character_id,
+            character.name,
+            character.appearance,
+            character.description,
         )
         
         return {
@@ -362,6 +379,9 @@ class CharacterService:
             task = task_repo.get_by_id(task_id)
             if not task:
                 return
+            if task.status not in ["pending", "running"]:
+                print(f"[Task] Skip portrait task {task_id}, status={task.status}")
+                return
 
             # 获取当前激活的 character 工作流
             workflow = workflow_repo.get_active_by_type("character")
@@ -377,6 +397,9 @@ class CharacterService:
             # 更新任务状态为运行中
             task.status = "running"
             task.started_at = datetime.utcnow()
+            character = character_repo.get_by_id(character_id)
+            if character:
+                character.generating_status = "running"
             db.commit()
 
             # 获取角色所属小说
@@ -432,7 +455,8 @@ class CharacterService:
                 character_name=name,
                 aspect_ratio=novel.aspect_ratio if novel else None,
                 node_mapping=node_mapping,
-                style=style
+                style=style,
+                character_appearance=appearance
             )
 
             # 保存构建后的完整工作流到任务，让用户可以立即查看
@@ -520,6 +544,52 @@ class CharacterService:
             db.commit()
         finally:
             db.close()
+
+    def create_missing_character_portrait_tasks(
+        self,
+        novel_id: str,
+        db: Session = None
+    ) -> Dict[str, Any]:
+        """Queue portrait tasks for characters without images or with failed generation."""
+        db = db or self.db
+        character_repo = CharacterRepository(db)
+        task_repo = TaskRepository(db)
+
+        characters = character_repo.list_by_novel(novel_id)
+        targets = [
+            character for character in characters
+            if (not character.image_url or character.generating_status == "failed")
+            and not task_repo.get_active_by_character(character.id)
+        ]
+
+        queued_count = 0
+        failed_items = []
+        for character in targets:
+            if character.generating_status == "running" and character.portrait_task_id:
+                task = task_repo.get_by_id(character.portrait_task_id)
+                if not task or task.status not in ["pending", "running"]:
+                    character.generating_status = "failed"
+                    db.commit()
+
+            result = self.create_character_portrait_task(character.id, db=db)
+            if result.get("success"):
+                queued_count += 1
+            else:
+                failed_items.append({
+                    "id": character.id,
+                    "name": character.name,
+                    "message": result.get("message", "创建任务失败"),
+                })
+
+        return {
+            "success": True,
+            "message": f"已加入 {queued_count} 个角色形象生成任务",
+            "data": {
+                "queuedCount": queued_count,
+                "failedCount": len(failed_items),
+                "failedItems": failed_items,
+            }
+        }
     
     def _validate_workflow_node_mapping(self, workflow: Workflow, task_type: str) -> tuple[bool, str]:
         """
