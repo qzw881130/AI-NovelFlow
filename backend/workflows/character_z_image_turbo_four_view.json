@@ -1,0 +1,191 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "jpm/Han_Daoguo",
+      "images": [
+        "125",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "#9 Save Image"
+    }
+  },
+  "121": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#121 Load CLIP"
+    }
+  },
+  "122": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#122 Load VAE"
+    }
+  },
+  "124": {
+    "inputs": {
+      "conditioning": [
+        "133",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "#124 Conditioning Zero Out"
+    }
+  },
+  "125": {
+    "inputs": {
+      "samples": [
+        "129",
+        0
+      ],
+      "vae": [
+        "122",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#125 VAE Decode"
+    }
+  },
+  "126": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "128",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "#126 ModelSamplingAuraFlow"
+    }
+  },
+  "128": {
+    "inputs": {
+      "unet_name": "z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#128 Load Diffusion Model"
+    }
+  },
+  "129": {
+    "inputs": {
+      "seed": 125539865656362,
+      "steps": 9,
+      "cfg": 1,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "126",
+        0
+      ],
+      "positive": [
+        "133",
+        0
+      ],
+      "negative": [
+        "124",
+        0
+      ],
+      "latent_image": [
+        "132",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "#129 KSampler"
+    }
+  },
+  "132": {
+    "inputs": {
+      "width": 1920,
+      "height": 1088,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "#132 EmptySD3LatentImage"
+    }
+  },
+  "133": {
+    "inputs": {
+      "text": [
+        "139",
+        0
+      ],
+      "clip": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "#133 CLIP Text Encode (Prompt)"
+    }
+  },
+  "135": {
+    "inputs": {
+      "prompt": "生成一张单人物角色设定参考图（character reference sheet / character turnaround）。\n\n画面只包含同一个角色的 4个视图，严格四栏布局。\n\n从左到右只有以下四栏：\n\n第1栏：正面全身（front full-body view）。\n人物正对镜头，从头顶到脚底完整可见。\n\n第2栏：90度侧面全身（90-degree side full-body view）。\n人物严格侧对镜头，从头顶到脚底完整可见。\n\n第3栏：180度背面全身（180-degree back full-body view）。\n人物完全背对镜头，从头顶到脚底完整可见。后脑勺正对镜头，脸部完全不可见，不回头，不出现眼睛、鼻子、嘴巴等任何五官。清楚展示后脑、头饰背面、后颈、衣服背面、腰部背面、裤子背面、腿后侧和脚后跟。\n\n第4栏：大型正面头部特写（large front head portrait / head close-up）。\n\n角色头部正面面对镜头，只展示完整头部以及必要的少量颈部区域。\n\n头部必须明显放大，作为第四栏的主要视觉主体，重点清晰展示角色最具有辨识度的头部特征，例如脸型或头部轮廓、眼睛、眉毛、鼻子、嘴巴、口鼻部、耳朵、毛发、发型、头饰、触须、鳞片、羽毛以及其他实际存在的头部特征。\n\n画面在颈部附近自然截断，不展示肩膀、胸部、躯干、腰部、手臂、腿部或脚部。\n\n对于非人类角色，严格按照该物种真实或设定中的头部结构表现，不强行套用人类脸型和五官结构。\n\n第四栏只能是一个大型正面头部特写，不得生成半身像、上半身像或全身像。\n\n画面空间固定为：\n左侧约60%区域 = 三个等高的全身视图；\n右侧约40%区域 = 一个明显放大的正面半身肖像。\n\n左侧三个全身人物保持相同身高、相同头身比例和相同地面基准线。\n\n右侧半身肖像的头部尺寸约为左侧全身人物头部的2至3倍。\n\n整张图片总共只出现4个人物形象：\n3个完整全身 + 1个放大的半身。\n\n不要生成文字、标题、标签、编号或说明文字。\n\n四个视图必须是完全相同的角色，保持年龄、脸型、五官、肤色、发型、头饰、服装、配饰、体型和身体比例一致。\n\n白色或纯净浅色背景，专业角色设定参考图，横向宽画幅，四栏之间留有清晰间距，人物互不遮挡。"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#135 四视图"
+    }
+  },
+  "136": {
+    "inputs": {
+      "prompt": "\n\n##STYLE##\n\n"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#136 STYLE"
+    }
+  },
+  "137": {
+    "inputs": {
+      "prompt": "一位约三十岁的人类男性村民，中等身材，身高约一米七，头身比约1:6。他脸型圆润，肤色健康偏小麦色，颧骨微红，下颌宽厚。眼睛中等大小，眼型略圆，虹膜为棕色，眼神友善温和，单眼皮。鼻梁适中，鼻翼略宽，鼻孔大小普通。嘴唇厚实，嘴角带着憨厚的笑容，不露齿。黑色短发，寸头，戴着一块灰布头巾，在脑后打结。他穿着褐色粗布短上衣，下穿深灰色长裤，裤脚卷起，脚穿草鞋，露出脚趾。腰间别着一根旱烟袋，手里拎着一只竹篮，篮中放着几个果子。全身比例协调，四肢完整，独特标记为灰布头巾和竹篮，保持面部特征一致。"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#137 CR Prompt Text（选这个，人物形象）"
+    }
+  },
+  "139": {
+    "inputs": {
+      "text1": [
+        "135",
+        0
+      ],
+      "text2": [
+        "136",
+        0
+      ],
+      "separator": "",
+      "text3": [
+        "137",
+        0
+      ]
+    },
+    "class_type": "ConcatTextOfUtils",
+    "_meta": {
+      "title": "#139 #-1 Concat Text"
+    }
+  }
+}

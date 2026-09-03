@@ -181,6 +181,15 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "descriptionKey": f"{DESC_KEY_PREFIX}.Z-image-turbo【非三视图】",
     },
     {
+        "filename": "character_z_image_turbo_four_view.json",
+        "type": "character",
+        "name": "Z-image-turbo【四视图】",
+        "nameKey": f"{NAME_KEY_PREFIX}.Z-image-turbo【四视图】",
+        "description": "正面、侧面、背面、人物头像",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.正面、侧面、背面、人物头像",
+        "node_mapping": {"prompt_node_id": "137", "save_image_node_id": "9"},
+    },
+    {
         "filename": "scene_flux2_klein_20260831_api.json",
         "type": "scene",
         "name": "Flux2-Klein-9B-生成场景图 20260831 API",
