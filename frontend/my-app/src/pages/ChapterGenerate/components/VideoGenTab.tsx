@@ -63,6 +63,26 @@ const formatAiCallValue = (value: any) => {
   return JSON.stringify(value, null, 2);
 };
 
+const videoPlanWindowsMatchDuration = (plan: VideoDirectorPlan, duration: number, maxClipDuration: number) => {
+  const windows = Array.isArray(plan.execution_windows) ? plan.execution_windows : [];
+  const expectedWindows: { window_index: number; start_time: number; end_time: number }[] = [];
+  let start = 0;
+  let index = 1;
+  while (start < duration) {
+    const end = Math.min(duration, start + maxClipDuration);
+    expectedWindows.push({ window_index: index, start_time: start, end_time: end });
+    start = end;
+    index += 1;
+  }
+  if (windows.length !== expectedWindows.length) return false;
+  return windows.every((window: any, idx: number) => {
+    const expected = expectedWindows[idx];
+    return Number(window?.window_index || 0) === expected.window_index
+      && Number(window?.start_time || 0) === expected.start_time
+      && Number(window?.end_time || 0) === expected.end_time;
+  });
+};
+
 const copyText = async (text?: string | null) => {
   if (!text) return;
   try {
@@ -107,7 +127,12 @@ function VideoAiCallsPanel({
   const [openIndex, setOpenIndex] = useState(Math.max(0, calls.length - 1));
   const [viewingData, setViewingData] = useState<{ title: string; content: string } | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
-  const latest = calls[calls.length - 1];
+  const sortedCalls = [...calls].sort((a, b) => {
+    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return aTime - bTime;
+  });
+  const latest = sortedCalls[sortedCalls.length - 1];
 
   const handleDownloadLlmData = async () => {
     if (!novelId || !chapterId || !shotId) {
@@ -175,11 +200,11 @@ function VideoAiCallsPanel({
     );
   }
 
-  const visibleCalls = expanded ? calls : [latest];
+  const visibleCalls = expanded ? sortedCalls : [latest];
 
   return (
     <>
-    <div className="rounded-lg border border-gray-200 bg-gray-50">
+    <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-gray-200 bg-gray-50">
       <div className={`flex items-center justify-between px-3 py-2 ${panelOpen ? 'border-b border-gray-200' : ''}`}>
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
@@ -223,9 +248,9 @@ function VideoAiCallsPanel({
           </button>
         </div>
       </div>
-      {panelOpen && <div className="p-3 space-y-2">
+      {panelOpen && <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
         {visibleCalls.map((call, idx) => {
-          const actualIndex = expanded ? idx : calls.length - 1;
+          const actualIndex = expanded ? idx : sortedCalls.length - 1;
           const isOpen = openIndex === actualIndex;
           const responseText = formatAiCallValue(call.response);
           const promptText = formatAiCallValue(call.final_prompt);
@@ -2345,10 +2370,12 @@ export function VideoGenTab({
     }
 
     if (mode !== 'SINGLE_FRAME') {
-      const needsPlan = !(plan.keyframes || []).length || (mode === 'MULTI_KEYFRAME' && !(plan.window_plans || []).length);
+      const duration = Number(latestShot.duration || 0);
+      const planWindowsMismatch = mode === 'MULTI_KEYFRAME' && !videoPlanWindowsMatchDuration(plan, duration, maxClipDuration);
+      const needsPlan = !(plan.keyframes || []).length || (mode === 'MULTI_KEYFRAME' && (!(plan.window_plans || []).length || planWindowsMismatch));
       if (needsPlan) {
         setPlanningKeyframesShotId(String(shot.id));
-        const planResult = await shotsApi.planVideoKeyframes(effectiveNovelId, effectiveChapterId, String(shot.id), false);
+        const planResult = await shotsApi.planVideoKeyframes(effectiveNovelId, effectiveChapterId, String(shot.id), planWindowsMismatch);
         setPlanningKeyframesShotId(null);
         if (!planResult.success || !planResult.data) {
           throw new Error(planResult.message || planResult.detail || '关键帧规划失败');
@@ -2901,7 +2928,7 @@ export function VideoGenTab({
         </div>
 
         {/* 右侧：视频预览 + AI 调用结果 */}
-        <div className="flex-shrink-0 lg:w-[360px] xl:w-[420px] min-h-0 flex flex-col gap-3 overflow-y-auto">
+        <div className="flex-shrink-0 lg:w-[360px] xl:w-[420px] min-h-0 flex flex-col gap-3 overflow-hidden">
         <div className="video-preview-card h-[360px] flex-shrink-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden bg-white">
           <div className="flex-shrink-0 p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
             <div>

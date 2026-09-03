@@ -1169,6 +1169,9 @@ def _validate_multi_keyframe_plan_for_execution(shot, plan: dict) -> tuple[bool,
     window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
     execution_windows = plan.get("execution_windows") if isinstance(plan.get("execution_windows"), list) else []
     keyframes = plan.get("keyframes") if isinstance(plan.get("keyframes"), list) else []
+    workflow_capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else {}
+    max_clip_duration = int(workflow_capability.get("max_clip_duration") or 15)
+    duration = int(shot.duration or 4)
 
     if not execution_windows:
         return False, "多关键帧模式缺少 execution_windows，请先完成 #08 关键帧时间轴规划。", None
@@ -1176,6 +1179,8 @@ def _validate_multi_keyframe_plan_for_execution(shot, plan: dict) -> tuple[bool,
         return False, "多关键帧模式缺少 window_plans，请先完成 #08 关键帧时间轴规划。", None
     if len(window_plans) != len(execution_windows):
         return False, "window_plans 数量与 execution_windows 不一致，请重新规划关键帧时间轴。", None
+    if not _execution_windows_match_duration(execution_windows, duration, max_clip_duration):
+        return False, f"execution_windows 与当前 Shot 时长 {duration}s 不一致，请重新规划关键帧时间轴。", None
 
     keyframes_by_index = {
         int(kf.get("index")): kf
