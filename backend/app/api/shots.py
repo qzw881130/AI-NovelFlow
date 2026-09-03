@@ -3210,7 +3210,7 @@ async def get_shots(
     active_video_tasks = db.query(Task).filter(
         Task.chapter_id == chapter_id,
         Task.type == "shot_video",
-        Task.status.in_(["pending", "running"]),
+        Task.status.in_(["pending", "queued", "running"]),
     ).all()
     if active_video_tasks:
         await TaskService(db).reconcile_active_tasks(active_video_tasks, db=db)
@@ -3372,7 +3372,7 @@ async def get_shot(
     active_video_tasks = db.query(Task).filter(
         Task.shot_id == shot_id,
         Task.type == "shot_video",
-        Task.status.in_(["pending", "running"]),
+        Task.status.in_(["pending", "queued", "running"]),
     ).all()
     if active_video_tasks:
         await TaskService(db).reconcile_active_tasks(active_video_tasks, db=db)

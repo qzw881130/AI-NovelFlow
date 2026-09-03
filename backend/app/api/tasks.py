@@ -47,7 +47,7 @@ async def list_tasks(
     else:
         tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
 
-    if any(t.status in ["pending", "running"] for t in tasks):
+    if any(t.status in ["pending", "queued", "running"] for t in tasks):
         updated_count = await task_service.reconcile_active_tasks(tasks, db=db)
         if updated_count:
             if chapter_id:
@@ -119,7 +119,7 @@ async def delete_task(
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
 
-    if task.status in ["pending", "running"]:
+    if task.status in ["pending", "queued", "running"]:
         cancel_result = await task_service.cancel_task(task_id)
         if cancel_result.get("status_code"):
             raise HTTPException(status_code=cancel_result["status_code"], detail=cancel_result.get("message"))

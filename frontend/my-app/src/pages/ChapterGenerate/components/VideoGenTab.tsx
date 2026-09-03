@@ -879,7 +879,7 @@ function VideoDirectorPanel({
                   <ChevronDown className="h-3.5 w-3.5" />
                 </button>
                 {showEndKeyframeMenu && (
-                  <div className="absolute left-0 top-full z-20 mt-1 w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                    <div className="absolute left-0 top-full z-[80] mt-1 w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
                     <button
                       type="button"
                       onClick={() => {
@@ -1217,7 +1217,7 @@ function VideoDirectorPanel({
                           <ChevronDown className="h-3.5 w-3.5" />
                         </button>
                         {openClipGenerateMenuKey === clipKey && (
-                          <div className="absolute left-0 top-full z-20 mt-1 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                          <div className="absolute bottom-full left-0 z-[80] mb-1 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
                             <button
                               type="button"
                               onClick={() => {
@@ -1586,6 +1586,7 @@ export function VideoGenTab({
 
   // 检查当前分镜是否正在生成
   const isGeneratingCurrent = currentShotId ? generatingVideos.has(currentShotId) || currentShotData?.videoStatus === 'generating' : false;
+  const isCurrentVideoPending = currentShotId ? storePendingVideos.has(currentShotId) || currentShotData?.videoStatus === 'pending' : false;
   const latestFailedAiCallError = currentVideoDirectorPlan?.ai_calls
     ? [...currentVideoDirectorPlan.ai_calls].reverse().find((call: any) => String(call?.status || '').toLowerCase() !== 'success' && String(call?.error_message || '').trim())?.error_message
     : '';
@@ -1607,14 +1608,13 @@ export function VideoGenTab({
     const latestClipGeneratedAt = Math.max(0, ...clips.map((clip: any) => parsePlanTime(clip.generated_at)));
     const mergedAt = parsePlanTime(currentVideoDirectorPlan.merged_at);
     const hasVideo = !!(currentShotVideoUrl || currentVideoDirectorPlan.merged_video_url);
-    const isPending = currentShotId ? storePendingVideos.has(currentShotId) : false;
     const needsMerge = currentSelectedVideoMode === 'MULTI_KEYFRAME'
       && allClipsReady
       && (!hasVideo || !mergedAt || latestClipGeneratedAt > mergedAt);
 
-    if (isGeneratingCurrent || isPending || currentShotData?.videoStatus === 'pending') {
+    if (isGeneratingCurrent || isCurrentVideoPending) {
       return {
-        label: isPending || currentShotData?.videoStatus === 'pending' ? '排队中' : '生成中',
+        label: isCurrentVideoPending ? '排队中' : '生成中',
         className: 'border-blue-100 bg-blue-50 text-blue-700',
         detail: clipCount > 0 ? `Clip ${completedClipCount}/${clipCount}` : '正在生成当前 Shot 视频',
       };
@@ -2094,6 +2094,27 @@ export function VideoGenTab({
     }
     return null;
   }, [currentShotId, effectiveChapterId, effectiveNovelId, setShotVideos, setShots, shotsList]);
+
+  useEffect(() => {
+    if (!effectiveChapterId || !currentShotId || (!isGeneratingCurrent && !isCurrentVideoPending)) return;
+    let cancelled = false;
+    let timeoutId: ReturnType<typeof window.setTimeout> | null = null;
+
+    const refreshActiveShot = async () => {
+      if (cancelled) return;
+      await checkVideoTaskStatus(effectiveChapterId);
+      await refreshCurrentShotData();
+      if (!cancelled) {
+        timeoutId = window.setTimeout(refreshActiveShot, 2000);
+      }
+    };
+
+    timeoutId = window.setTimeout(refreshActiveShot, 1000);
+    return () => {
+      cancelled = true;
+      if (timeoutId) window.clearTimeout(timeoutId);
+    };
+  }, [checkVideoTaskStatus, currentShotId, effectiveChapterId, isCurrentVideoPending, isGeneratingCurrent, refreshCurrentShotData]);
 
   const handleRefreshAiCalls = useCallback(async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
@@ -2882,7 +2903,7 @@ export function VideoGenTab({
                 <ChevronDown className="w-4 h-4" />
               </button>
               {showGenerateVideoMenu && (
-                <div className="absolute left-0 top-full z-20 mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                <div className="absolute left-0 top-full z-[80] mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
                   <button
                     type="button"
                     onClick={() => handleGenerateVideo('llm')}
@@ -2967,7 +2988,7 @@ export function VideoGenTab({
               {!mergingMode && <ChevronDown className={`w-4 h-4 transition-transform ${showMergeMenu ? 'rotate-180' : ''}`} />}
             </button>
             {showMergeMenu && !mergingMode && (
-              <div className="absolute right-0 top-full mt-2 min-w-56 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg z-30" role="menu">
+              <div className="absolute right-0 top-full mt-2 min-w-56 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-lg z-[80]" role="menu">
                 <button
                   onClick={() => {
                     setShowMergeMenu(false);
