@@ -1389,6 +1389,7 @@ export function VideoGenTab({
   const storeShotImages = useChapterGenerateStore((state) => state.shotImages);
   const storeTransitionVideos = useChapterGenerateStore((state) => state.transitionVideos);
   const storeGeneratingVideos = useChapterGenerateStore((state) => state.generatingVideos);
+  const storePendingVideos = useChapterGenerateStore((state) => state.pendingVideos);
   const storeGeneratingTransitions = useChapterGenerateStore((state) => state.generatingTransitions);
   const storeGeneratingKeyframes = useChapterGenerateStore((state) => state.generatingKeyframes);
   const storeKeyframeTasks = useChapterGenerateStore((state) => state.keyframeTasks);
@@ -1591,6 +1592,65 @@ export function VideoGenTab({
   const currentVideoErrorMessage = currentShotData?.videoStatus === 'failed'
     ? formatUserFacingError((currentVideoDirectorPlan as any).task_error_message || (currentVideoDirectorPlan as any).error_message || latestFailedAiCallError) || '当前 Shot 视频任务失败；如果已有部分 Clip 完成，可以重新生成缺失 Clip 或重新生成当前 Shot 视频。'
     : null;
+  const getCurrentShotVideoResult = () => {
+    const clips = currentSelectedVideoMode === 'MULTI_KEYFRAME' && Array.isArray(currentVideoDirectorPlan.window_plans)
+      ? currentVideoDirectorPlan.window_plans
+      : [];
+    const clipCount = clips.length;
+    const completedClipCount = clips.filter((clip: any) => !!(clip.video_url || clip.local_path)).length;
+    const allClipsReady = clipCount > 0 && completedClipCount === clipCount;
+    const parsePlanTime = (value?: string | null) => {
+      if (!value) return 0;
+      const time = new Date(value).getTime();
+      return Number.isFinite(time) ? time : 0;
+    };
+    const latestClipGeneratedAt = Math.max(0, ...clips.map((clip: any) => parsePlanTime(clip.generated_at)));
+    const mergedAt = parsePlanTime(currentVideoDirectorPlan.merged_at);
+    const hasVideo = !!(currentShotVideoUrl || currentVideoDirectorPlan.merged_video_url);
+    const isPending = currentShotId ? storePendingVideos.has(currentShotId) : false;
+    const needsMerge = currentSelectedVideoMode === 'MULTI_KEYFRAME'
+      && allClipsReady
+      && (!hasVideo || !mergedAt || latestClipGeneratedAt > mergedAt);
+
+    if (isGeneratingCurrent || isPending || currentShotData?.videoStatus === 'pending') {
+      return {
+        label: isPending || currentShotData?.videoStatus === 'pending' ? '排队中' : '生成中',
+        className: 'border-blue-100 bg-blue-50 text-blue-700',
+        detail: clipCount > 0 ? `Clip ${completedClipCount}/${clipCount}` : '正在生成当前 Shot 视频',
+      };
+    }
+
+    if (needsMerge) {
+      return {
+        label: '待合并',
+        className: 'border-amber-100 bg-amber-50 text-amber-700',
+        detail: `Clip ${completedClipCount}/${clipCount} 已完成，需重新合并 Shot 视频`,
+      };
+    }
+
+    if (currentShotData?.videoStatus === 'failed') {
+      return {
+        label: '失败',
+        className: 'border-red-100 bg-red-50 text-red-700',
+        detail: currentVideoErrorMessage || (clipCount > 0 ? `Clip ${completedClipCount}/${clipCount}` : '视频任务失败'),
+      };
+    }
+
+    if (hasVideo) {
+      return {
+        label: '已完成',
+        className: 'border-green-100 bg-green-50 text-green-700',
+        detail: clipCount > 0 ? `Shot 视频已生成，Clip ${completedClipCount}/${clipCount}` : 'Shot 视频已生成',
+      };
+    }
+
+    return {
+      label: '未完成',
+      className: 'border-gray-200 bg-gray-50 text-gray-600',
+      detail: clipCount > 0 ? `Clip ${completedClipCount}/${clipCount}` : '还没有生成当前 Shot 视频',
+    };
+  };
+  const currentShotVideoResult = getCurrentShotVideoResult();
 
   // 初始化获取转场工作流
   useEffect(() => {
@@ -2933,8 +2993,19 @@ export function VideoGenTab({
             )}
           </div>
         </div>
-        <div className="text-sm text-gray-500">
-          {t('chapterGenerate.shotId', { id: selectedVideo || 0, total: shotsList.length })}
+        <div className="mr-8 flex min-w-[220px] max-w-[360px] flex-col items-end gap-1 text-right">
+          <div className="text-sm text-gray-500">
+            {t('chapterGenerate.shotId', { id: selectedVideo || 0, total: shotsList.length })}
+          </div>
+          <div className={`max-w-full rounded-lg border px-3 py-1.5 text-xs shadow-sm ${currentShotVideoResult.className}`}>
+            <div className="flex items-center justify-end gap-2 font-medium">
+              <Film className="h-3.5 w-3.5" />
+              当前分镜：{currentShotVideoResult.label}
+            </div>
+            <div className="mt-0.5 truncate opacity-90" title={currentShotVideoResult.detail}>
+              {currentShotVideoResult.detail}
+            </div>
+          </div>
         </div>
       </div>
 

@@ -43,7 +43,7 @@ export function useLLMLogsState() {
   const [statsData, setStatsData] = useState<LLMLogStatsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [durationNow, setDurationNow] = useState(() => Date.now());
-  const isFetchingLogsRef = useRef(false);
+  const fetchLogsRequestRef = useRef(0);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape' && selectedLog) setSelectedLog(null); };
@@ -52,18 +52,24 @@ export function useLLMLogsState() {
   }, [selectedLog]);
 
   const fetchLogs = useCallback(async (options?: { silent?: boolean }) => {
-    if (isFetchingLogsRef.current) return;
-    isFetchingLogsRef.current = true;
+    const requestId = fetchLogsRequestRef.current + 1;
+    fetchLogsRequestRef.current = requestId;
     if (!options?.silent) setLoading(true);
     try {
       const data = await llmLogsApi.fetchList(pagination.page, pagination.page_size, filters);
-      if (data.success && data.data) { setLogs(data.data.items); setPagination(data.data.pagination); }
+      if (requestId === fetchLogsRequestRef.current && data.success && data.data) {
+        setLogs(data.data.items);
+        setPagination(data.data.pagination);
+      }
     } catch (error) {
       console.error('加载日志失败:', error);
-      toast.error('加载日志失败');
+      if (requestId === fetchLogsRequestRef.current) {
+        toast.error('加载日志失败');
+      }
     } finally {
-      isFetchingLogsRef.current = false;
-      if (!options?.silent) setLoading(false);
+      if (requestId === fetchLogsRequestRef.current && !options?.silent) {
+        setLoading(false);
+      }
     }
   }, [pagination.page, pagination.page_size, filters]);
 
@@ -115,7 +121,6 @@ export function useLLMLogsState() {
   const resetFilters = () => {
     setFilters({ provider: '', model: '', category: '', task_type: '', status: '' });
     setPagination(prev => ({ ...prev, page: 1 }));
-    setTimeout(fetchLogs, 0);
   };
 
   const taskTypeOptions = filters.category

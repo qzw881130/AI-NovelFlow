@@ -170,6 +170,53 @@ export function ChapterGenerateLayout({
   const chapterSummary = `${chapterWordCount.toLocaleString()} 字 · ${shots.length} 个导演 Shot · 预计成片 ${estimatedMinutes}:${estimatedSeconds} · 当前 Shot #${currentShotIndex || 1} · 当前时长 ${currentShotDuration}秒`;
   const hasQueueStats = pendingShots.size > 0 || pendingVideos.size > 0;
   const dialogueWarningStats = getDialogueDurationWarningStats(shots);
+  const parsePlanTime = (value?: string | null) => {
+    if (!value) return 0;
+    const time = new Date(value).getTime();
+    return Number.isFinite(time) ? time : 0;
+  };
+  const videoStats = shots.reduce((stats, shot) => {
+    const shotId = String(shot.id || '');
+    const plan: any = shot.videoDirectorPlan || {};
+    const mode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
+    const clips = mode === 'MULTI_KEYFRAME' && Array.isArray(plan.window_plans) ? plan.window_plans : [];
+    const hasShotVideo = !!(shot.videoUrl || shotVideos[shotId] || plan.merged_video_url);
+    const isGenerating = generatingVideos.has(shotId) || pendingVideos.has(shotId) || shot.videoStatus === 'generating' || shot.videoStatus === 'pending';
+    const isFailed = shot.videoStatus === 'failed';
+    const allClipsReady = clips.length > 0 && clips.every((clip: any) => !!(clip.video_url || clip.local_path));
+    const latestClipGeneratedAt = Math.max(0, ...clips.map((clip: any) => parsePlanTime(clip.generated_at)));
+    const mergedAt = parsePlanTime(plan.merged_at);
+    const needsMerge = mode === 'MULTI_KEYFRAME' && allClipsReady && (!hasShotVideo || !mergedAt || latestClipGeneratedAt > mergedAt);
+
+    if (isGenerating) stats.generating += 1;
+    else if (needsMerge) stats.needsMerge += 1;
+    else if (isFailed) stats.failed += 1;
+    else if (hasShotVideo) stats.completed += 1;
+    else stats.incomplete += 1;
+    return stats;
+  }, { completed: 0, generating: 0, failed: 0, needsMerge: 0, incomplete: 0 });
+
+  const renderVideoGenerationStats = () => {
+    if (currentTab !== 3 || shots.length === 0) return null;
+    const items = [
+      ['已完成', videoStats.completed, 'border-green-100 bg-green-50 text-green-700'],
+      ['生成中', videoStats.generating, 'border-blue-100 bg-blue-50 text-blue-700'],
+      ['待合并', videoStats.needsMerge, 'border-amber-100 bg-amber-50 text-amber-700'],
+      ['失败', videoStats.failed, 'border-red-100 bg-red-50 text-red-700'],
+      ['未完成', videoStats.incomplete, 'border-gray-200 bg-gray-50 text-gray-600'],
+    ] as const;
+
+    return (
+      <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs shadow-sm">
+        <span className="font-medium text-gray-700">视频生成结果</span>
+        {items.map(([label, count, className]) => (
+          <span key={label} className={`rounded-full border px-2 py-0.5 ${className}`}>
+            {label} {count}
+          </span>
+        ))}
+      </div>
+    );
+  };
   const renderQueueStats = () => {
     if (!hasQueueStats) return null;
     return (
@@ -651,13 +698,13 @@ export function ChapterGenerateLayout({
 
       {/* TabNavigation */}
       <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
-        <div className="relative">
-          <TabNavigation />
-          <div className="absolute left-1/2 top-1 -translate-x-1/2">
-            {renderDialogueWarningStats()}
-          </div>
-          <div className="absolute right-0 top-1">
-            {renderQueueStats()}
+          <div className="relative">
+            <TabNavigation />
+            <div className="absolute left-1/2 top-1 -translate-x-1/2">
+            {renderDialogueWarningStats() || renderVideoGenerationStats()}
+            </div>
+            <div className="absolute right-0 top-1">
+              {renderQueueStats()}
           </div>
         </div>
       </div>
