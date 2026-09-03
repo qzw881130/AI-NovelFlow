@@ -248,11 +248,13 @@ def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_c
     for character in silent_characters:
         if character and character not in final_prompt:
             issues.append("SILENT_CHARACTER_CONSTRAINT_MISSING")
+    blocking_issues = [issue for issue in sorted(set(issues)) if issue != "DIALOGUE_DURATION_INSUFFICIENT"]
     return {
         "source_dialogue_count": len(assigned_dialogues),
         "assigned_dialogue_count": len(assigned_dialogues),
         "issues": sorted(set(issues)),
-        "passed": not issues,
+        "blocking_issues": blocking_issues,
+        "passed": not blocking_issues,
     }
 
 

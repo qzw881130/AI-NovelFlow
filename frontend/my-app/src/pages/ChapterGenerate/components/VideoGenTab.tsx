@@ -471,6 +471,12 @@ function VideoDirectorPanel({
   const { t } = useTranslation();
   const [showEndKeyframeMenu, setShowEndKeyframeMenu] = useState(false);
   const [openClipGenerateMenuKey, setOpenClipGenerateMenuKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (regeneratingClipKey && openClipGenerateMenuKey === regeneratingClipKey) {
+      setOpenClipGenerateMenuKey(null);
+    }
+  }, [openClipGenerateMenuKey, regeneratingClipKey]);
   const selectedMode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
   const maxClipDuration = plan.workflow_capability?.max_clip_duration || 15;
   const firstLastAvailable = plan.first_last_available ?? ((shot?.duration || 0) <= maxClipDuration);
@@ -1168,7 +1174,10 @@ function VideoDirectorPanel({
                       <div className="relative inline-flex">
                         <button
                           type="button"
-                          onClick={() => onRegenerateClip(clip, 'llm')}
+                          onClick={() => {
+                            setOpenClipGenerateMenuKey(null);
+                            onRegenerateClip(clip, 'llm');
+                          }}
                           disabled={isRegenerating}
                           className="inline-flex items-center gap-1 rounded-l-md border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
@@ -2198,8 +2207,8 @@ export function VideoGenTab({
 
   // 打开批量选择弹窗
   const handleOpenBatchSelect = () => {
-    setSelectedShots(new Set(selectableShotIndexes()));
-    setBatchSelectionMode('all');
+    setSelectedShots(new Set());
+    setBatchSelectionMode(null);
     setShowBatchSelectModal(true);
   };
 
@@ -2492,11 +2501,15 @@ export function VideoGenTab({
     let successCount = 0;
     let failedCount = 0;
     const selectedShotIds = selectedShotList.map((shot: any) => String(shot.id)).filter(Boolean);
-    setShots(useChapterGenerateStore.getState().shots.map((shot: any) => (
-      selectedShotIds.includes(String(shot.id))
-        ? { ...shot, videoStatus: 'generating', videoUrl: null }
-        : shot
-    )));
+    useChapterGenerateStore.setState((state) => ({
+      generatingVideos: new Set([...state.generatingVideos, ...selectedShotIds]),
+      shotVideos: Object.fromEntries(Object.entries(state.shotVideos).filter(([key]) => !selectedShotIds.includes(key))),
+      shots: state.shots.map((shot: any) => (
+        selectedShotIds.includes(String(shot.id))
+          ? { ...shot, videoStatus: 'generating' as const, videoUrl: null }
+          : shot
+      )),
+    }));
     try {
       // 依次生成选中的分镜
       for (const shot of selectedShotList) {
@@ -2517,20 +2530,30 @@ export function VideoGenTab({
           console.error(`批量生成分镜 ${shot.index || shot.id} 失败:`, error);
           toast.error(`镜${shot.index || ''} 自动处理失败：${errorMessage}`);
           const refreshedShot = await refreshBatchShot(String(shot.id));
-          setShots(useChapterGenerateStore.getState().shots.map((item: any) => (
-            String(item.id) === String(shot.id)
-              ? {
-                  ...item,
-                  ...(refreshedShot || {}),
-                  videoStatus: 'failed',
-                  videoDirectorPlan: {
-                    ...(item.videoDirectorPlan || {}),
-                    ...((refreshedShot as any)?.videoDirectorPlan || {}),
-                    task_error_message: formatUserFacingError(((refreshedShot as any)?.videoDirectorPlan as any)?.task_error_message) || errorMessage,
-                  },
-                }
-              : item
-          )));
+          useChapterGenerateStore.setState((state) => {
+            const nextGeneratingVideos = new Set(state.generatingVideos);
+            const nextPendingVideos = new Set(state.pendingVideos);
+            nextGeneratingVideos.delete(String(shot.id));
+            nextPendingVideos.delete(String(shot.id));
+            return {
+              generatingVideos: nextGeneratingVideos,
+              pendingVideos: nextPendingVideos,
+              shots: state.shots.map((item: any) => (
+                String(item.id) === String(shot.id)
+                  ? {
+                      ...item,
+                      ...(refreshedShot || {}),
+                      videoStatus: 'failed' as const,
+                      videoDirectorPlan: {
+                        ...(item.videoDirectorPlan || {}),
+                        ...((refreshedShot as any)?.videoDirectorPlan || {}),
+                        task_error_message: formatUserFacingError(((refreshedShot as any)?.videoDirectorPlan as any)?.task_error_message) || errorMessage,
+                      },
+                    }
+                  : item
+              )),
+            };
+          });
         }
       }
       if (successCount > 0) {

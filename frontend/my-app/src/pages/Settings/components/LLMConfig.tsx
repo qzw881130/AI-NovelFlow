@@ -307,6 +307,8 @@ export default function LLMConfig({ formData, onFormDataChange, onUserModified }
           }}
           className="input-field"
         >
+          <option value={120}>2 {t('systemSettings.timeoutUnit')}</option>
+          <option value={180}>3 {t('systemSettings.timeoutUnit')}</option>
           <option value={300}>5 {t('systemSettings.timeoutUnit')}</option>
           <option value={600}>10 {t('systemSettings.timeoutUnit')}</option>
           <option value={900}>15 {t('systemSettings.timeoutUnit')}</option>

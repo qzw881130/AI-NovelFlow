@@ -990,6 +990,16 @@ class FileStorageService:
 
                     normalized_paths.append(normalized_path)
 
+                if len(normalized_paths) == 1:
+                    shutil.copy2(normalized_paths[0], output_path)
+                    video_url = f"/api/files/story_{novel_id[:8]}/chapter_{chapter_id[:8]}/videos/{output_filename}"
+                    return {
+                        "success": True,
+                        "video_url": video_url,
+                        "local_path": output_path,
+                        "filename": output_filename
+                    }
+
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
                     concat_file = f.name
                     for video_path in normalized_paths:
@@ -1001,8 +1011,12 @@ class FileStorageService:
                 cmd = ['ffmpeg']
                 for video_path in normalized_paths:
                     cmd.extend(['-i', video_path])
-                concat_inputs = ''.join(f'[{index}:v:0][{index}:a:0]' for index in range(len(normalized_paths)))
-                filter_complex = f'{concat_inputs}concat=n={len(normalized_paths)}:v=1:a=1[v][a]'
+                normalized_streams = []
+                for index in range(len(normalized_paths)):
+                    normalized_streams.append(f'[{index}:v:0]setpts=PTS-STARTPTS[v{index}]')
+                    normalized_streams.append(f'[{index}:a:0]asetpts=PTS-STARTPTS[a{index}]')
+                concat_inputs = ''.join(f'[v{index}][a{index}]' for index in range(len(normalized_paths)))
+                filter_complex = ';'.join(normalized_streams + [f'{concat_inputs}concat=n={len(normalized_paths)}:v=1:a=1[v][a]'])
                 cmd.extend([
                     '-filter_complex', filter_complex,
                     '-map', '[v]',
