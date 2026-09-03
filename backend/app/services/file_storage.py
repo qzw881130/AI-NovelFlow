@@ -927,6 +927,20 @@ class FileStorageService:
                     'has_audio': any(stream.get('codec_type') == 'audio' for stream in streams),
                 }
 
+            async def _validate_video_decode(video_path: str):
+                loop = asyncio.get_event_loop()
+
+                def _run_validate():
+                    return subprocess.run(
+                        ['ffmpeg', '-v', 'error', '-i', video_path, '-f', 'null', '-'],
+                        capture_output=True,
+                        text=True,
+                    )
+
+                result = await loop.run_in_executor(None, _run_validate)
+                if result.returncode != 0:
+                    raise RuntimeError(f"视频输出解码校验失败: {(result.stderr or '').strip()[:300]}")
+
             target_info = await _get_video_info(final_video_list[0])
             target_width = target_info['width']
             target_height = target_info['height']
@@ -992,6 +1006,7 @@ class FileStorageService:
 
                 if len(normalized_paths) == 1:
                     shutil.copy2(normalized_paths[0], output_path)
+                    await _validate_video_decode(output_path)
                     video_url = f"/api/files/story_{novel_id[:8]}/chapter_{chapter_id[:8]}/videos/{output_filename}"
                     return {
                         "success": True,
@@ -1047,7 +1062,7 @@ class FileStorageService:
                     return result
                 
                 result = await loop.run_in_executor(None, _run_ffmpeg)
-                
+
                 if result.returncode != 0:
                     print(f"[FileStorage] FFmpeg error: {result.stderr}")
                     return {
@@ -1061,7 +1076,48 @@ class FileStorageService:
                         "success": False,
                         "message": "输出文件未生成"
                     }
-                
+
+                try:
+                    await _validate_video_decode(output_path)
+                except Exception as validation_error:
+                    print(f"[FileStorage] Merged video validation failed, retrying fallback merge: {validation_error}")
+                    if Path(output_path).exists():
+                        Path(output_path).unlink()
+                    fallback_cmd = [
+                        'ffmpeg',
+                        '-f', 'concat',
+                        '-safe', '0',
+                        '-i', concat_file,
+                        '-c:v', 'libx264',
+                        '-preset', 'medium',
+                        '-crf', '18',
+                        '-pix_fmt', 'yuv420p',
+                        '-c:a', 'aac',
+                        '-ar', '48000',
+                        '-ac', '2',
+                        '-movflags', '+faststart',
+                        '-y',
+                        output_path,
+                    ]
+                    print(f"[FileStorage] Running fallback ffmpeg: {' '.join(fallback_cmd)}")
+
+                    def _run_fallback_ffmpeg():
+                        return subprocess.run(fallback_cmd, capture_output=True, text=True)
+
+                    fallback_result = await loop.run_in_executor(None, _run_fallback_ffmpeg)
+                    if fallback_result.returncode != 0:
+                        print(f"[FileStorage] Fallback FFmpeg error: {fallback_result.stderr}")
+                        return {
+                            "success": False,
+                            "message": f"视频合并自动修复失败: {fallback_result.stderr[:200]}"
+                        }
+                    if not Path(output_path).exists():
+                        return {
+                            "success": False,
+                            "message": "视频合并自动修复失败: 输出文件未生成"
+                        }
+                    await _validate_video_decode(output_path)
+
                 print(f"[FileStorage] Video merged successfully: {output_path}")
                 return {
                     "success": True,

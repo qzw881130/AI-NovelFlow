@@ -441,6 +441,7 @@ interface VideoDirectorPanelProps {
   selectedPreviewClipKey?: string | null;
   regeneratingClipKey?: string | null;
   isMergingClips?: boolean;
+  isShotVideoGenerating?: boolean;
 }
 
 function VideoDirectorPanel({
@@ -467,6 +468,7 @@ function VideoDirectorPanel({
   selectedPreviewClipKey,
   regeneratingClipKey,
   isMergingClips,
+  isShotVideoGenerating,
 }: VideoDirectorPanelProps) {
   const { t } = useTranslation();
   const [showEndKeyframeMenu, setShowEndKeyframeMenu] = useState(false);
@@ -477,6 +479,13 @@ function VideoDirectorPanel({
       setOpenClipGenerateMenuKey(null);
     }
   }, [openClipGenerateMenuKey, regeneratingClipKey]);
+
+  useEffect(() => {
+    if (isShotVideoGenerating) {
+      setOpenClipGenerateMenuKey(null);
+      setShowEndKeyframeMenu(false);
+    }
+  }, [isShotVideoGenerating]);
   const selectedMode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
   const maxClipDuration = plan.workflow_capability?.max_clip_duration || 15;
   const firstLastAvailable = plan.first_last_available ?? ((shot?.duration || 0) <= maxClipDuration);
@@ -561,21 +570,25 @@ function VideoDirectorPanel({
     setIsEndDescriptionExpanded(false);
   }, [shot?.id, selectedMode]);
 
-  const renderModeButton = (mode: VideoMode, disabled = false, title = '') => (
+  const renderModeButton = (mode: VideoMode, disabled = false, title = '') => {
+    const effectiveDisabled = disabled || !!isShotVideoGenerating;
+    const effectiveTitle = isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再切换生成模式' : title;
+    return (
     <button
       type="button"
-      onClick={() => !disabled && onSelectMode(mode)}
-      disabled={disabled}
-      title={title}
+      onClick={() => !effectiveDisabled && onSelectMode(mode)}
+      disabled={effectiveDisabled}
+      title={effectiveTitle}
       className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
         selectedMode === mode
           ? 'border-blue-500 bg-blue-50 text-blue-700'
           : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
-      } ${disabled ? 'cursor-not-allowed bg-gray-50 text-gray-400 hover:border-gray-200 hover:bg-gray-50' : ''}`}
+      } ${effectiveDisabled ? 'cursor-not-allowed bg-gray-50 text-gray-400 hover:border-gray-200 hover:bg-gray-50' : ''}`}
     >
       {getVideoModeLabel(mode)}{plan.recommended_mode === mode ? ' ★' : ''}{disabled ? '（当前不可用）' : ''}
     </button>
-  );
+    );
+  };
 
   const getClipStatusClass = (status?: string) => {
     switch ((status || 'PENDING').toUpperCase()) {
@@ -656,7 +669,8 @@ function VideoDirectorPanel({
           <button
             type="button"
             onClick={() => onRecommend(true)}
-            disabled={isRecommending}
+            disabled={isRecommending || !!isShotVideoGenerating}
+            title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再重新推荐' : undefined}
             className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
           >
             <RefreshCw className={`w-4 h-4 ${isRecommending ? 'animate-spin' : ''}`} />
@@ -686,7 +700,8 @@ function VideoDirectorPanel({
             <button
               type="button"
               onClick={() => onPlanKeyframes(true)}
-              disabled={isPlanningKeyframes}
+              disabled={isPlanningKeyframes || !!isShotVideoGenerating}
+              title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再重新规划关键帧' : undefined}
               className="px-3 py-1.5 rounded-lg border border-blue-200 bg-white text-sm text-blue-700 hover:bg-blue-50 disabled:opacity-50 transition-colors whitespace-nowrap"
             >
               {isPlanningKeyframes ? '规划中...' : hasWindowPlans ? '重新规划关键帧' : 'AI规划关键帧'}
@@ -694,9 +709,9 @@ function VideoDirectorPanel({
               <button
                 type="button"
                 onClick={onGenerateMissingKeyframes}
-              disabled={isPlanningKeyframes || isGeneratingMissingKeyframes || hasGeneratingMissingKeyframes || !hasWindowPlans || missingKeyframes.length === 0}
+              disabled={isPlanningKeyframes || isGeneratingMissingKeyframes || hasGeneratingMissingKeyframes || !hasWindowPlans || missingKeyframes.length === 0 || !!isShotVideoGenerating}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-sm text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                title={!hasWindowPlans ? '请先完成 #08 关键帧规划' : ''}
+                title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再生成关键帧' : !hasWindowPlans ? '请先完成 #08 关键帧规划' : ''}
               >
               {(isGeneratingMissingKeyframes || hasGeneratingMissingKeyframes) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {isGeneratingMissingKeyframes ? '正在提交关键帧任务...' : missingKeyframeButtonLabel}
@@ -843,7 +858,8 @@ function VideoDirectorPanel({
                 <button
                   type="button"
                   onClick={() => onGenerateEndKeyframe('llm')}
-                  disabled={isPlanningKeyframes || isGeneratingEndKeyframe || !endKeyframe.description}
+                  disabled={isPlanningKeyframes || isGeneratingEndKeyframe || !endKeyframe.description || !!isShotVideoGenerating}
+                  title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再生成 END 关键帧' : undefined}
                   className="inline-flex items-center gap-1.5 rounded-l-md border border-blue-200 px-3 py-1.5 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isGeneratingEndKeyframe && <Loader2 className="h-3 w-3 animate-spin" />}
@@ -855,7 +871,8 @@ function VideoDirectorPanel({
                     event.stopPropagation();
                     setShowEndKeyframeMenu(prev => !prev);
                   }}
-                  disabled={isPlanningKeyframes || isGeneratingEndKeyframe || !endKeyframe.description}
+                  disabled={isPlanningKeyframes || isGeneratingEndKeyframe || !endKeyframe.description || !!isShotVideoGenerating}
+                  title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再选择 END 关键帧生成模式' : undefined}
                   className="inline-flex items-center rounded-r-md border border-l-0 border-blue-200 px-2 py-1.5 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label={t('chapterGenerate.selectEndKeyframeGenerateMode')}
                 >
@@ -879,8 +896,8 @@ function VideoDirectorPanel({
                         setShowEndKeyframeMenu(false);
                         onGenerateEndKeyframe('image_only');
                       }}
-                      disabled={!hasReusableEndKeyframePrompt}
-                      title={!hasReusableEndKeyframePrompt ? t('chapterGenerate.noReusableEndKeyframePrompt') : undefined}
+                      disabled={!hasReusableEndKeyframePrompt || !!isShotVideoGenerating}
+                      title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再生成 END 关键帧' : !hasReusableEndKeyframePrompt ? t('chapterGenerate.noReusableEndKeyframePrompt') : undefined}
                       className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-white"
                     >
                       {t('chapterGenerate.regenerateEndKeyframeOnly')}
@@ -1074,6 +1091,7 @@ function VideoDirectorPanel({
               const clipKey = getClipKey(clip);
               const isPreviewing = selectedPreviewClipKey === clipKey;
               const isRegenerating = regeneratingClipKey === clipKey;
+              const clipGenerationDisabled = isRegenerating || !!isShotVideoGenerating;
               const clipFrameLabel = selectedMode === 'SINGLE_FRAME'
                 ? t('chapterGenerate.primaryStoryboard')
                 : selectedMode === 'FIRST_LAST_FRAME'
@@ -1178,7 +1196,8 @@ function VideoDirectorPanel({
                             setOpenClipGenerateMenuKey(null);
                             onRegenerateClip(clip, 'llm');
                           }}
-                          disabled={isRegenerating}
+                          disabled={clipGenerationDisabled}
+                          title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再操作 Clip' : undefined}
                           className="inline-flex items-center gap-1 rounded-l-md border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isRegenerating && <Loader2 className="h-3 w-3 animate-spin" />}
@@ -1190,7 +1209,8 @@ function VideoDirectorPanel({
                             event.stopPropagation();
                             setOpenClipGenerateMenuKey(openClipGenerateMenuKey === clipKey ? null : clipKey);
                           }}
-                          disabled={isRegenerating}
+                          disabled={clipGenerationDisabled}
+                          title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再选择生成模式' : undefined}
                           className="inline-flex items-center rounded-r-md border border-l-0 border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
                           aria-label="选择 Clip 视频生成模式"
                         >
@@ -1214,8 +1234,8 @@ function VideoDirectorPanel({
                                 setOpenClipGenerateMenuKey(null);
                                 onRegenerateClip(clip, 'video_only');
                               }}
-                              disabled={!clip.prompt_text}
-                              title={!clip.prompt_text ? '缺少可复用的 Clip 视频最终 Prompt，请先使用 LLM+生成Clip视频' : undefined}
+                              disabled={!clip.prompt_text || !!isShotVideoGenerating}
+                              title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再操作 Clip' : !clip.prompt_text ? '缺少可复用的 Clip 视频最终 Prompt，请先使用 LLM+生成Clip视频' : undefined}
                               className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-white"
                             >
                               仅生成Clip视频
@@ -1237,8 +1257,8 @@ function VideoDirectorPanel({
               <button
                 type="button"
                 onClick={onMergeClips}
-                disabled={!allClipsReady || !hasClipChangesToMerge || isMergingClips}
-                title={!allClipsReady ? `缺少可合并的 Clip 视频：${missingClipArtifacts.join(' / ')}` : !hasClipChangesToMerge ? '没有 Clip 被重新生成，整体视频已是最新' : '使用所有 Clip 视频重新合并整体视频'}
+                disabled={!allClipsReady || !hasClipChangesToMerge || isMergingClips || !!isShotVideoGenerating}
+                title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再重新合并' : !allClipsReady ? `缺少可合并的 Clip 视频：${missingClipArtifacts.join(' / ')}` : !hasClipChangesToMerge ? '没有 Clip 被重新生成，整体视频已是最新' : '使用所有 Clip 视频重新合并整体视频'}
                 className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm font-medium text-green-700 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isMergingClips ? '重新合并中...' : missingClipArtifacts.length > 0 ? `缺少 ${missingClipArtifacts.join(' / ')} 视频记录` : !hasClipChangesToMerge ? '整体视频已是最新' : '重新合并整体视频'}
@@ -2946,6 +2966,7 @@ export function VideoGenTab({
             selectedPreviewClipKey={selectedPreviewClipKey}
             regeneratingClipKey={regeneratingClipKey}
             isMergingClips={isMergingClips}
+            isShotVideoGenerating={isGeneratingCurrent}
           />
 
         </div>
