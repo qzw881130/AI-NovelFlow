@@ -36,6 +36,8 @@ export interface Workflow {
     save_audio_node_id?: string;
     // 音频生成相关节点
     reference_audio_node_id?: string;
+    drive_audio_node_id?: string;
+    final_audio_node_id?: string;
     text_node_id?: string;
     emotion_prompt_node_id?: string;
   };
@@ -93,6 +95,8 @@ export interface MappingForm {
   saveAudioNodeId: string;
   // 音频生成相关节点
   referenceAudioNodeId: string;
+  driveAudioNodeId: string;
+  finalAudioNodeId: string;
   textNodeId: string;
   emotionPromptNodeId: string;
 }

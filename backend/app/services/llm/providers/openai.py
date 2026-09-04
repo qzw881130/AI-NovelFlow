@@ -4,6 +4,7 @@ OpenAI 兼容的 LLM 提供商
 支持 OpenAI、DeepSeek、Azure 等使用 OpenAI 兼容格式的 LLM 服务。
 """
 import httpx
+import asyncio
 import os
 import time
 import json
@@ -177,17 +178,6 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     json=body,
                     timeout=timeout
                 )
-            # 恢复环境变量
-            if self.config.provider in ("ollama", "custom"):
-                if old_http_proxy:
-                    os.environ['HTTP_PROXY'] = old_http_proxy
-                if old_https_proxy:
-                    os.environ['HTTPS_PROXY'] = old_https_proxy
-                if old_http_proxy_lower:
-                    os.environ['http_proxy'] = old_http_proxy_lower
-                if old_https_proxy_lower:
-                    os.environ['https_proxy'] = old_https_proxy_lower
-
             duration = time.time() - start_time
 
             if response.status_code == 200:
@@ -260,6 +250,15 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     error=error_msg,
                     duration=duration
                 )
+        except asyncio.CancelledError:
+            duration = time.time() - start_time
+            update_llm_log(
+                log_id=log_id,
+                status="error",
+                error_message="请求被取消或超时，调用方已停止等待",
+                duration=duration,
+            )
+            raise
         except Exception as e:
             import traceback
             error_type = type(e).__name__
@@ -281,3 +280,14 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 error=error_msg,
                 duration=duration
             )
+        finally:
+            # 恢复环境变量
+            if self.config.provider in ("ollama", "custom"):
+                if old_http_proxy:
+                    os.environ['HTTP_PROXY'] = old_http_proxy
+                if old_https_proxy:
+                    os.environ['HTTPS_PROXY'] = old_https_proxy
+                if old_http_proxy_lower:
+                    os.environ['http_proxy'] = old_http_proxy_lower
+                if old_https_proxy_lower:
+                    os.environ['https_proxy'] = old_https_proxy_lower

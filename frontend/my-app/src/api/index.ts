@@ -10,40 +10,60 @@ export const API_BASE = import.meta.env.VITE_API_URL
 /**
  * 通用请求封装
  */
+type ApiResponse<T> = { success: boolean; data?: T; message?: string };
+
+async function parseResponse<T>(res: Response): Promise<ApiResponse<T>> {
+  const data = await res.json().catch(() => ({}));
+  if (res.ok) return data;
+  return {
+    success: false,
+    message: data?.message || data?.detail || data?.error || `请求失败 (${res.status})`,
+  };
+}
+
 export const api = {
-  get: async <T>(url: string): Promise<{ success: boolean; data?: T; message?: string }> => {
+  get: async <T>(url: string): Promise<ApiResponse<T>> => {
     const res = await fetch(`${API_BASE}${url}`);
-    return res.json();
+    return parseResponse<T>(res);
   },
 
-  post: async <T>(url: string, body?: unknown): Promise<{ success: boolean; data?: T; message?: string }> => {
+  post: async <T>(url: string, body?: unknown): Promise<ApiResponse<T>> => {
     const res = await fetch(`${API_BASE}${url}`, {
       method: 'POST',
       headers: body ? { 'Content-Type': 'application/json' } : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
-    return res.json();
+    return parseResponse<T>(res);
   },
 
-  put: async <T>(url: string, body: unknown): Promise<{ success: boolean; data?: T; message?: string }> => {
+  put: async <T>(url: string, body: unknown): Promise<ApiResponse<T>> => {
     const res = await fetch(`${API_BASE}${url}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    return res.json();
+    return parseResponse<T>(res);
   },
 
-  delete: async <T>(url: string): Promise<{ success: boolean; data?: T; message?: string }> => {
+  patch: async <T>(url: string, body: unknown): Promise<ApiResponse<T>> => {
+    const res = await fetch(`${API_BASE}${url}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    return parseResponse<T>(res);
+  },
+
+  delete: async <T>(url: string): Promise<ApiResponse<T>> => {
     const res = await fetch(`${API_BASE}${url}`, { method: 'DELETE' });
-    return res.json();
+    return parseResponse<T>(res);
   },
 
-  upload: async <T>(url: string, formData: FormData): Promise<{ success: boolean; data?: T; message?: string }> => {
+  upload: async <T>(url: string, formData: FormData): Promise<ApiResponse<T>> => {
     const res = await fetch(`${API_BASE}${url}`, {
       method: 'POST',
       body: formData,
     });
-    return res.json();
+    return parseResponse<T>(res);
   },
 };

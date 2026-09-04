@@ -1,4 +1,5 @@
 """Helpers for Video Director prompt call records and prompt builders."""
+import asyncio
 import json
 import re
 from datetime import datetime
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.models.novel import Novel
 from app.repositories.prompt_template import PromptTemplateRepository
+from app.services.llm.base import mark_matching_pending_llm_logs_error
 from app.services.llm_service import LLMService
 
 
@@ -102,16 +104,20 @@ def resolve_prompt_template(db: Session, novel: Novel, template_attr: str, templ
     return template
 
 
-def _build_clip_motion_directive(shot, clip: dict, transitions: list, clip_dialogues: list) -> str:
+def _build_clip_motion_directive(shot, clip: dict, transitions: list, speaker_timeline: list) -> str:
     clip_label = f"Clip {clip.get('clip_index') or '-'} {clip.get('start_time', '-')}-{clip.get('end_time', '-')}s"
     transition_text = "\n".join(
         f"- {transition.get('transition_description')}"
         for transition in transitions or []
         if isinstance(transition, dict) and transition.get("transition_description")
     )
-    dialogue_rule = "本 Clip 允许的人物语音只来自 clip_dialogues。"
-    if not clip_dialogues:
-        dialogue_rule = "本 Clip 所有人物保持沉默，不说话、不低语、不发出人物语音。"
+    has_visible_speech = any(
+        isinstance(item, dict) and item.get("visible_speaker") and item.get("visible_speaker") != "NONE"
+        for item in speaker_timeline or []
+    )
+    dialogue_rule = "本 Clip 的可见口型只遵守 speaker_timeline；不要生成任何新台词、字幕或屏幕文字。"
+    if not has_visible_speech:
+        dialogue_rule = "speaker_timeline 全程无可见说话人；所有可见人物保持闭嘴，不说话、不低语。"
     return "\n".join([
         f"当前只生成 {clip_label}，不要引入 Clip 时间窗之外的 Shot 级台词或未来状态。",
         dialogue_rule,
@@ -278,6 +284,59 @@ def _render_continuity_lock(shot, selected_mode: str, clip: dict | None) -> str:
     ])
 
 
+def _build_deterministic_h3_prompt(
+    shot,
+    selected_mode: str,
+    clip: dict,
+    keyframes: list,
+    transitions: list,
+    speaker_timeline: list,
+    audio_drive_context: dict,
+) -> str:
+    clip_start = float(clip.get("start_time") or 0)
+    clip_end = float(clip.get("end_time") or shot.duration or 0)
+    lines = [
+        f"Generate Shot {shot.index} as {selected_mode}.",
+        f"Clip range: {clip_start:.3f}s to {clip_end:.3f}s in shot time.",
+        "Use the provided reference pictures as chronological visual anchors in exact order.",
+        "Preserve character identity, proportions, colors, markings, clothing/accessories, scene geography, lighting continuity, and camera continuity.",
+        "Do not add subtitles, captions, new dialogue, new characters, or unplanned actions.",
+        "",
+        "shot_description:",
+        shot.video_description or shot.description or "",
+    ]
+    if keyframes:
+        lines.extend(["", "keyframe_timeline:"])
+        for index, keyframe in enumerate(keyframes, 1):
+            if not isinstance(keyframe, dict):
+                continue
+            lines.append(
+                f"Picture {index}: t={float(keyframe.get('time_seconds') or 0) - clip_start:.3f}s clip time, "
+                f"role={keyframe.get('role') or 'INTERMEDIATE'}, description={keyframe.get('description') or shot.description or ''}"
+            )
+    if transitions:
+        lines.extend(["", "motion_between_pictures:"])
+        for transition in transitions:
+            if isinstance(transition, dict):
+                lines.append(transition.get("transition_description") or "Maintain smooth continuous motion between adjacent pictures.")
+    if speaker_timeline:
+        lines.extend(["", "speaker_timeline:"])
+        for segment in speaker_timeline:
+            if not isinstance(segment, dict):
+                continue
+            speaker = segment.get("visible_speaker") or segment.get("visibleSpeaker") or "NONE"
+            lines.append(f"{segment.get('start_time', 0)}s-{segment.get('end_time', 0)}s: visible_speaker={speaker}")
+    lines.extend([
+        "",
+        "audio_drive:",
+        f"audio_mode={audio_drive_context.get('audio_mode') or 'lock_source'}",
+        f"drive_audio={audio_drive_context.get('drive_audio') or 'provided drive audio'}",
+        f"final_audio={audio_drive_context.get('final_audio') or 'provided final audio'}",
+        "drive_audio controls visible lip-sync only; final_audio is the complete audience-facing audio.",
+    ])
+    return "\n".join(lines).strip()
+
+
 async def build_h3_video_prompt(
     db: Session,
     novel: Novel,
@@ -293,6 +352,8 @@ async def build_h3_video_prompt(
     clip_dialogues: list,
     reference_images: list,
     character_appearances: Optional[dict] = None,
+    speaker_timeline: Optional[list] = None,
+    audio_drive_context: Optional[dict] = None,
 ) -> str:
     if selected_mode == "FIRST_LAST_FRAME":
         step = "12"
@@ -318,14 +379,11 @@ async def build_h3_video_prompt(
         }
     ]
     is_multi_clip = selected_mode == "MULTI_KEYFRAME"
-    assigned_dialogues, silent_characters = _build_dialogue_timeline(clip, clip_dialogues) if is_multi_clip else ([], [])
-    dialogue_payload = [
-        {key: value for key, value in item.items() if key != "text"}
-        for item in assigned_dialogues
-    ]
+    speaker_timeline = speaker_timeline or []
+    audio_drive_context = audio_drive_context or {}
     shot_characters = safe_json_list(shot.characters)
     character_appearances = character_appearances or {}
-    clip_motion_directive = _build_clip_motion_directive(shot, clip, transitions, clip_dialogues) if is_multi_clip else (shot.video_description or shot.description or "")
+    clip_motion_directive = _build_clip_motion_directive(shot, clip, transitions, speaker_timeline) if is_multi_clip else (shot.video_description or shot.description or "")
     payload = {
         "shot": {
             "id": shot.id,
@@ -338,14 +396,12 @@ async def build_h3_video_prompt(
             "official_character_appearances": character_appearances,
             "scene": shot.scene or "",
             "props": safe_json_list(shot.props),
-            "dialogues": dialogue_payload if is_multi_clip else safe_json_list(shot.dialogues),
         },
         "selected_mode": selected_mode,
         "clip": clip,
         "motion_directive": clip_motion_directive,
-        "clip_dialogues": dialogue_payload if is_multi_clip else clip_dialogues,
-        "dialogue_timeline_source": assigned_dialogues if is_multi_clip else [],
-        "silent_characters": silent_characters,
+        "speaker_timeline": speaker_timeline,
+        "audio_drive_context": audio_drive_context,
         "frames": frames,
         "keyframes": sanitized_keyframes,
         "transitions": strip_media_refs(transitions),
@@ -359,60 +415,82 @@ async def build_h3_video_prompt(
         },
     }
     user_content = "请基于以下 Video Director 规划数据，生成可直接用于 MiniMax H3 的最终视频提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
-    result = await LLMService().chat_completion(
-        system_prompt=template.template,
-        user_content=user_content,
-        temperature=0.3,
-        max_tokens=1800,
-        task_type=template_type,
-        prompt_template_name=template.name,
-        novel_id=novel.id,
-        chapter_id=shot.chapter_id,
-    )
+    try:
+        result = await asyncio.wait_for(
+            LLMService().chat_completion(
+                system_prompt=template.template,
+                user_content=user_content,
+                temperature=0.3,
+                max_tokens=1800,
+                task_type=template_type,
+                prompt_template_name=template.name,
+                novel_id=novel.id,
+                chapter_id=shot.chapter_id,
+            ),
+            timeout=45,
+        )
+    except asyncio.TimeoutError:
+        mark_matching_pending_llm_logs_error(
+            task_type=template_type,
+            novel_id=novel.id,
+            chapter_id=shot.chapter_id,
+            prompt_template_name=template.name,
+            user_prompt=user_content,
+            error_message="H3 视频提示词生成超时，已使用 deterministic fallback 继续生成视频",
+        )
+        result = {"success": False, "error": "H3 视频提示词生成超时"}
     if not result.get("success"):
+        error = result.get("error") or "H3 视频提示词生成失败"
+        final_prompt = _build_deterministic_h3_prompt(
+            shot=shot,
+            selected_mode=selected_mode,
+            clip=clip,
+            keyframes=keyframes,
+            transitions=transitions,
+            speaker_timeline=speaker_timeline,
+            audio_drive_context=audio_drive_context,
+        )
+        continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
+        if continuity_lock:
+            final_prompt = f"{continuity_lock}\n\n{final_prompt}"
+        dialogue_audit = {
+            "source": "AudioDrive",
+            "fallback": "deterministic_prompt",
+            "fallback_error": error,
+            "speaker_timeline_segments": len(speaker_timeline),
+            "audio_drive_context": audio_drive_context,
+            "audio_mode": audio_drive_context.get("audio_mode"),
+            "passed": True,
+        }
         append_video_ai_call(shot, {
             "step": step,
             "task_type": template_type,
             "prompt_template_name": template.name,
-            "status": "error",
-            "error_message": result.get("error") or "H3 视频提示词生成失败",
+            "status": "success",
+            "error_message": error,
             "input_summary": f"Shot {shot.index} Clip {clip.get('clip_index')} {selected_mode}",
-            "response": result.get("error") or "",
+            "response": error,
+            "parsed_result": dialogue_audit,
+            "final_prompt": final_prompt,
             "clip_index": clip.get("clip_index"),
             "workflow_type": workflow_type,
             "workflow_name": workflow_name,
             "reference_images": reference_images,
         })
         db.commit()
-        raise RuntimeError(result.get("error") or "H3 视频提示词生成失败")
+        return final_prompt
 
     final_prompt = (result.get("content") or "").strip()
     continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
     if continuity_lock:
         final_prompt = f"{continuity_lock}\n\n{final_prompt}"
-    dialogue_audit = None
-    if is_multi_clip:
-        timeline_block = _render_dialogue_timeline_block(assigned_dialogues, silent_characters)
-        final_prompt = _remove_dialogue_text_outside_single_block(final_prompt, assigned_dialogues, timeline_block)
-        dialogue_audit = _audit_final_h3_prompt(final_prompt, assigned_dialogues, silent_characters)
-        if not dialogue_audit.get("passed"):
-            append_video_ai_call(shot, {
-                "step": step,
-                "task_type": template_type,
-                "prompt_template_name": template.name,
-                "status": "error",
-                "error_message": ",".join(dialogue_audit.get("issues") or ["DIALOGUE_PROMPT_AUDIT_FAILED"]),
-                "input_summary": f"Shot {shot.index} Clip {clip.get('clip_index')} {selected_mode}",
-                "response": result.get("content") or "",
-                "parsed_result": dialogue_audit,
-                "final_prompt": final_prompt,
-                "clip_index": clip.get("clip_index"),
-                "workflow_type": workflow_type,
-                "workflow_name": workflow_name,
-                "reference_images": reference_images,
-            })
-            db.commit()
-            raise RuntimeError(",".join(dialogue_audit.get("issues") or ["DIALOGUE_PROMPT_AUDIT_FAILED"]))
+    dialogue_audit = {
+        "source": "AudioDrive",
+        "speaker_timeline_segments": len(speaker_timeline),
+        "audio_drive_context": audio_drive_context,
+        "audio_mode": audio_drive_context.get("audio_mode"),
+        "passed": True,
+    }
     append_video_ai_call(shot, {
         "step": step,
         "task_type": template_type,

@@ -1,6 +1,6 @@
 """角色相关的 Pydantic Schema 定义"""
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import List, Optional
 from datetime import datetime
 
 
@@ -36,6 +36,14 @@ class CharacterImageEditRequest(BaseModel):
 class CharacterImageReplaceRequest(BaseModel):
     """替换角色图片请求"""
     image_url: str = Field(..., alias="imageUrl", description="新的角色图片 URL")
+
+    model_config = {"populate_by_name": True}
+
+
+class CharacterVoiceBatchRequest(BaseModel):
+    """批量生成角色音色请求"""
+
+    character_ids: List[str] = Field(default_factory=list, alias="characterIds", description="要生成音色的角色 ID 列表")
 
     model_config = {"populate_by_name": True}
 

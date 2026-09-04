@@ -262,6 +262,54 @@ def _local_url_from_path(path: str) -> str:
     return f"/api/files/{relative_path.lstrip('/')}"
 
 
+def _find_window_plan_for_clip(video_director_plan: dict, clip: dict) -> dict | None:
+    window_index = int((clip or {}).get("clip_index") or 1)
+    for key in ("window_plans", "execution_windows", "clips"):
+        windows = video_director_plan.get(key) if isinstance(video_director_plan.get(key), list) else []
+        for window_plan in windows:
+            if not isinstance(window_plan, dict):
+                continue
+            plan_index = int(window_plan.get("window_index") or window_plan.get("clip_index") or 0)
+            if plan_index == window_index:
+                return window_plan
+    return None
+
+
+def _resolve_audio_drive_for_h3(video_director_plan: dict, clip: dict, node_mapping: dict) -> dict:
+    requires_audio_drive = bool(node_mapping.get("drive_audio_node_id") or node_mapping.get("final_audio_node_id"))
+    if not requires_audio_drive:
+        return {"enabled": False, "speaker_timeline": [], "audio_drive_context": {}}
+
+    window_plan = _find_window_plan_for_clip(video_director_plan, clip)
+    if not window_plan:
+        raise RuntimeError("当前 Clip 缺少 AudioDrive window_plan，请先构建 Execution Windows 和 Clip Audio。")
+    if str(window_plan.get("audio_status") or window_plan.get("audioStatus") or "").upper() != "READY":
+        raise RuntimeError(f"Clip {window_plan.get('window_index')} Audio 未 READY，请先在音频生成页构建 Clip Audio。")
+
+    drive_audio_path = window_plan.get("drive_audio_path") or window_plan.get("driveAudioPath") or url_to_local_path(window_plan.get("drive_audio_url") or window_plan.get("driveAudioUrl") or "")
+    final_audio_path = window_plan.get("final_audio_path") or window_plan.get("finalAudioPath") or url_to_local_path(window_plan.get("final_audio_url") or window_plan.get("finalAudioUrl") or "")
+    if not drive_audio_path or not Path(drive_audio_path).is_file():
+        raise RuntimeError(f"Clip {window_plan.get('window_index')} drive_audio 文件不存在，请重建 Clip Audio。")
+    if not final_audio_path or not Path(final_audio_path).is_file():
+        raise RuntimeError(f"Clip {window_plan.get('window_index')} final_audio 文件不存在，请重建 Clip Audio。")
+
+    clip_duration = float(window_plan.get("clip_audio_duration") or window_plan.get("clipAudioDuration") or max(0.0, float((clip or {}).get("end_time") or 0) - float((clip or {}).get("start_time") or 0)))
+    speaker_timeline = window_plan.get("speaker_timeline") if isinstance(window_plan.get("speaker_timeline"), list) else window_plan.get("speakerTimeline") if isinstance(window_plan.get("speakerTimeline"), list) else []
+    return {
+        "enabled": True,
+        "drive_audio_path": drive_audio_path,
+        "final_audio_path": final_audio_path,
+        "speaker_timeline": speaker_timeline,
+        "audio_drive_context": {
+            "audio_mode": "lock_source",
+            "drive_audio": Path(drive_audio_path).name,
+            "final_audio": Path(final_audio_path).name,
+            "duration": round(clip_duration, 3),
+            "rule": "drive_audio controls visible lipsync; final_audio is the complete audience-facing audio. Do not invent dialogue or subtitles.",
+        },
+    }
+
+
 def _parse_iso_datetime(value: str):
     if not value:
         return None
@@ -656,6 +704,19 @@ async def generate_shot_video_task(
             }
         if not clip:
             clip = {"clip_index": 1, "start_time": 0, "end_time": duration, "status": "PENDING"}
+        effective_node_mapping = dict(node_mapping)
+        if workflow.type == "first_last_video":
+            effective_node_mapping["reference_image_node_id"] = node_mapping.get("first_image_node_id")
+            effective_node_mapping["keyframe_node_1"] = node_mapping.get("last_image_node_id")
+        try:
+            audio_drive = _resolve_audio_drive_for_h3(video_director_plan, clip, effective_node_mapping)
+        except RuntimeError as exc:
+            task.status = "failed"
+            task.error_message = str(exc)
+            task.current_step = "Clip Audio 未 READY"
+            _mark_shot_video_failed(shot, shot_repo, task.error_message)
+            db.commit()
+            return
         keyframes_for_prompt = video_director_plan.get("keyframes") if isinstance(video_director_plan.get("keyframes"), list) else []
         if selected_mode == "MULTI_KEYFRAME" and clip.get("keyframe_indexes"):
             selected_indexes = {int(index) for index in clip.get("keyframe_indexes") or []}
@@ -666,8 +727,6 @@ async def generate_shot_video_task(
         transitions_for_prompt = video_director_plan.get("transitions") if isinstance(video_director_plan.get("transitions"), list) else []
         if selected_mode == "MULTI_KEYFRAME" and clip.get("keyframe_indexes"):
             transitions_for_prompt = _filter_transitions_for_keyframe_indexes(transitions_for_prompt, clip.get("keyframe_indexes") or [])
-        clip_dialogues = _clip_dialogues_for_prompt(safe_json_list(shot.dialogues), clip, duration)
-
         reusable_prompt = _get_reusable_video_prompt(video_director_plan) if skip_llm_when_prompt_exists else ""
         if skip_llm_when_prompt_exists and not reusable_prompt:
             task.status = "failed"
@@ -697,9 +756,11 @@ async def generate_shot_video_task(
                 start_image_url=shot_image_url,
                 keyframes=keyframes_for_prompt,
                 transitions=transitions_for_prompt,
-                clip_dialogues=clip_dialogues,
+                clip_dialogues=[],
                 reference_images=reference_images,
                 character_appearances=character_appearances,
+                speaker_timeline=audio_drive.get("speaker_timeline") or [],
+                audio_drive_context=audio_drive.get("audio_drive_context") or {},
             )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
@@ -731,11 +792,6 @@ async def generate_shot_video_task(
             db.commit()
             print(f"[VideoTask {task_id}] Saved ComfyUI prompt_id: {prompt_id}")
 
-        effective_node_mapping = dict(node_mapping)
-        if workflow.type == "first_last_video":
-            effective_node_mapping["reference_image_node_id"] = node_mapping.get("first_image_node_id")
-            effective_node_mapping["keyframe_node_1"] = node_mapping.get("last_image_node_id")
-
         result = await comfyui_service.generate_shot_video_with_workflow(
             prompt=shot_prompt,
             workflow_json=workflow.workflow_json,
@@ -748,7 +804,9 @@ async def generate_shot_video_task(
             character_appearances=character_appearances,
             scene_setting=scene_setting,
             prop_appearances=prop_appearances,
-            reference_audio_path=reference_audio_path,
+            reference_audio_path=None if audio_drive.get("enabled") else reference_audio_path,
+            drive_audio_path=audio_drive.get("drive_audio_path"),
+            final_audio_path=audio_drive.get("final_audio_path"),
             keyframe_paths=keyframe_paths,
             on_prompt_queued=save_prompt_id
         )
@@ -830,7 +888,6 @@ async def _generate_multi_clip_video_task(
     clip_video_paths = []
     comfyui_service = ComfyUIService()
     transitions_for_prompt = video_director_plan.get("transitions") if isinstance(video_director_plan.get("transitions"), list) else []
-    all_dialogues = safe_json_list(shot.dialogues)
     generated_any = False
 
     for clip_position, window_plan in enumerate(window_plans, 1):
@@ -911,7 +968,17 @@ async def _generate_multi_clip_video_task(
             if isinstance(keyframe, dict) and int(keyframe.get("index") or -1) in selected_indexes
         ]
         clip_transitions_for_prompt = _filter_transitions_for_keyframe_indexes(transitions_for_prompt, keyframe_indexes)
-        clip_dialogues = _clip_dialogues_for_prompt(all_dialogues, clip, float(shot.duration or 0))
+        node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
+        try:
+            audio_drive = _resolve_audio_drive_for_h3(safe_json_dict(shot.video_director_plan), clip, node_mapping)
+        except RuntimeError as exc:
+            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": str(exc)}, db, task=task)
+            task.status = "failed"
+            task.error_message = str(exc)
+            task.current_step = f"Clip {clip_position} Audio 未 READY"
+            _mark_shot_video_failed(shot, shot_repo, task.error_message)
+            db.commit()
+            return
 
         reusable_clip_prompt = (window_plan.get("prompt_text") or "").strip() if skip_llm_when_prompt_exists else ""
         if skip_llm_when_prompt_exists and not reusable_clip_prompt:
@@ -931,7 +998,8 @@ async def _generate_multi_clip_video_task(
             "workflow_type": workflow_type,
             "workflow_name": workflow.name,
             "reference_images": reference_images,
-            "clip_dialogues": clip_dialogues,
+            "speaker_timeline": audio_drive.get("speaker_timeline") or [],
+            "audio_drive_context": audio_drive.get("audio_drive_context") or {},
             "error_message": None,
         }, db, task=task)
         db.commit()
@@ -951,9 +1019,11 @@ async def _generate_multi_clip_video_task(
                     start_image_url=start_image_url,
                     keyframes=keyframes_for_prompt,
                     transitions=clip_transitions_for_prompt,
-                    clip_dialogues=clip_dialogues,
+                    clip_dialogues=[],
                     reference_images=reference_images,
                     character_appearances=character_appearances,
+                    speaker_timeline=audio_drive.get("speaker_timeline") or [],
+                    audio_drive_context=audio_drive.get("audio_drive_context") or {},
                 )
             except Exception as exc:
                 task.status = "failed"
@@ -974,7 +1044,6 @@ async def _generate_multi_clip_video_task(
         clip_duration = max(1, float(clip["end_time"]) - float(clip["start_time"]))
         raw_frame_count = int(fps * clip_duration)
         clip_frame_count = ((raw_frame_count // 8) * 8) + 1
-        node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
 
         def save_prompt_id(prompt_id: str, submitted_workflow: dict = None):
             task.comfyui_prompt_id = prompt_id
@@ -1001,7 +1070,9 @@ async def _generate_multi_clip_video_task(
             character_appearances=character_appearances,
             scene_setting=scene_setting,
             prop_appearances=prop_appearances,
-            reference_audio_path=reference_audio_path,
+            reference_audio_path=None if audio_drive.get("enabled") else reference_audio_path,
+            drive_audio_path=audio_drive.get("drive_audio_path"),
+            final_audio_path=audio_drive.get("final_audio_path"),
             keyframe_paths=keyframe_paths,
             on_prompt_queued=save_prompt_id,
         )

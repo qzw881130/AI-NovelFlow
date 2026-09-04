@@ -61,6 +61,8 @@ export function TaskCard({
       case 'shot_image': return <ImageIcon className="h-5 w-5" />;
       case 'keyframe_image': return <ImageIcon className="h-5 w-5" />;
       case 'single_image_edit': return <ImageIcon className="h-5 w-5" />;
+      case 'character_voice':
+      case 'audio_event_tts':
       case 'character_audio':
       case 'narrator_audio': return <Music className="h-5 w-5" />;
       case 'shot_video':
@@ -84,6 +86,7 @@ export function TaskCard({
   const elapsedSeconds = getElapsedSeconds();
   const videoDirectorClips = task.videoDirectorClips || [];
   const hasMultiClipDetails = videoDirectorClips.length > 0;
+  const isAudioResultTask = task.type === 'character_voice' || task.type === 'audio_event_tts' || task.type === 'character_audio' || task.type === 'narrator_audio';
   const displayErrorMessage = formatUserFacingError(task.errorMessage) || task.errorMessage;
   const copyTaskId = async () => {
     try {
@@ -216,6 +219,20 @@ export function TaskCard({
               </div>
             </div>
           )}
+          {isAudioResultTask && task.status !== 'completed' && (
+            <div className="mt-3 max-w-2xl rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <div className="flex items-center gap-2 font-medium">
+                {task.status === 'running' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
+                <span>{task.status === 'running' ? 'TTS 生成中' : 'TTS 等待中'}</span>
+                <span className="rounded-full bg-white/80 px-2 py-0.5">{task.currentStep || (task.status === 'running' ? '处理中' : '等待 worker 消费')}</span>
+              </div>
+              {task.status === 'running' && (
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
+                  <div className="h-full bg-amber-500 transition-all duration-500" style={{ width: `${Math.max(5, task.progress || 0)}%` }} />
+                </div>
+              )}
+            </div>
+          )}
           {hasMultiClipDetails && (
             <div className="mt-3 rounded-lg border border-blue-100 bg-white/70 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
@@ -247,6 +264,28 @@ export function TaskCard({
                     </div>
                     {clip.errorMessage && <div className="mt-1 text-red-600">{formatUserFacingError(clip.errorMessage)}</div>}
                     {clip.promptText && <div className="mt-1 line-clamp-2 text-gray-500" title={clip.promptText}>Prompt: {clip.promptText}</div>}
+                    {(clip.driveAudioUrl || clip.finalAudioUrl) && (
+                      <div className="mt-2 grid grid-cols-1 gap-2 lg:grid-cols-2">
+                        {clip.driveAudioUrl && (
+                          <div className="rounded-md border border-cyan-100 bg-cyan-50/60 px-2 py-1.5">
+                            <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-cyan-700">
+                              <span className="font-medium">Drive 音频</span>
+                              {clip.audioStatus && <span>{clip.audioStatus}</span>}
+                            </div>
+                            <audio src={clip.driveAudioUrl} controls className="h-8 w-full" preload="metadata" />
+                          </div>
+                        )}
+                        {clip.finalAudioUrl && (
+                          <div className="rounded-md border border-purple-100 bg-purple-50/60 px-2 py-1.5">
+                            <div className="mb-1 flex items-center justify-between gap-2 text-[11px] text-purple-700">
+                              <span className="font-medium">Final 音频</span>
+                              {clip.clipAudioDuration !== undefined && <span>{clip.clipAudioDuration}s</span>}
+                            </div>
+                            <audio src={clip.finalAudioUrl} controls className="h-8 w-full" preload="metadata" />
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {!!clip.referenceImages?.length && (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {clip.referenceImages.map((image, index) => (
@@ -320,25 +359,17 @@ export function TaskCard({
                     </button>
                   </div>
                 </div>
-              ) : task.type === 'character_audio' || task.type === 'narrator_audio' ? (
+              ) : isAudioResultTask ? (
                 <div>
-                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                      <Music className="h-5 w-5 text-purple-600" />
-                    </div>
+                  <div className="max-w-2xl rounded-md border border-gray-200 bg-gray-50 px-2 py-1.5">
                     <div className="flex-1">
                       <audio
                         src={task.resultUrl}
                         controls
-                        className="w-full h-8"
+                        className="h-8 w-full max-w-xl"
                         preload="metadata"
                       />
                     </div>
-                  </div>
-                  <div className="mt-1 text-xs text-gray-500">
-                    <a href={task.resultUrl} download className="text-purple-600 hover:text-purple-700 underline inline-flex items-center gap-1">
-                      {t('common.download')}
-                    </a>
                   </div>
                 </div>
               ) : (

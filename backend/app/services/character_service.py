@@ -4,7 +4,6 @@
 封装角色相关的业务逻辑
 """
 import json
-import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -35,6 +34,23 @@ def enqueue_character_portrait_task(
             name,
             appearance,
             description,
+        )
+    )
+
+
+def enqueue_character_voice_task(
+    task_id: str,
+    character_id: str,
+    character_name: str,
+    voice_prompt: str,
+) -> None:
+    """Queue character voice generation in its dedicated serial worker."""
+    worker_manager.worker("character_voice").enqueue(
+        lambda: CharacterService()._generate_voice_task(
+            task_id,
+            character_id,
+            character_name,
+            voice_prompt,
         )
     )
 
@@ -107,15 +123,7 @@ class CharacterService:
 
         db.commit()
 
-        # 启动后台任务
-        asyncio.create_task(
-            self._generate_voice_task(
-                task.id,
-                character_id,
-                character.name,
-                character.voice_prompt
-            )
-        )
+        enqueue_character_voice_task(task.id, character_id, character.name, character.voice_prompt)
 
         return {
             "success": True,
@@ -124,6 +132,66 @@ class CharacterService:
                 "taskId": task.id,
                 "status": "pending"
             }
+        }
+
+    def create_character_voice_batch_tasks(
+        self,
+        novel_id: str,
+        character_ids: list[str],
+        db: Session = None,
+    ) -> Dict[str, Any]:
+        """Create and queue character voice tasks in the serial voice worker."""
+        db = db or self.db
+        character_repo = CharacterRepository(db)
+        task_repo = TaskRepository(db)
+        characters = character_repo.list_by_novel(novel_id)
+        selected_ids = set(character_ids or [])
+        targets = [character for character in characters if character.id in selected_ids]
+
+        queued_count = 0
+        skipped_items = []
+        task_items = []
+        for character in targets:
+            if not character.voice_prompt:
+                skipped_items.append({"id": character.id, "name": character.name, "message": "缺少音色提示词"})
+                continue
+
+            existing_task = task_repo.get_active_by_character_and_type(character.id, "character_voice")
+            if existing_task:
+                task_items.append({
+                    "id": character.id,
+                    "name": character.name,
+                    "taskId": existing_task.id,
+                    "status": existing_task.status,
+                    "message": "已有进行中的音色生成任务",
+                })
+                continue
+
+            result = self.create_character_voice_task(character.id, db=db)
+            if result.get("success"):
+                queued_count += 1
+                task_items.append({
+                    "id": character.id,
+                    "name": character.name,
+                    "taskId": result.get("data", {}).get("taskId"),
+                    "status": result.get("data", {}).get("status") or "pending",
+                })
+            else:
+                skipped_items.append({
+                    "id": character.id,
+                    "name": character.name,
+                    "message": result.get("message") or "创建任务失败",
+                })
+
+        return {
+            "success": True,
+            "message": f"已加入 {queued_count} 个角色音色生成任务",
+            "data": {
+                "queuedCount": queued_count,
+                "skippedCount": len(skipped_items),
+                "tasks": task_items,
+                "skippedItems": skipped_items,
+            },
         }
 
     async def _generate_voice_task(

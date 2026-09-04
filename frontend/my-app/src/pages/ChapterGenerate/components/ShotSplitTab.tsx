@@ -117,9 +117,11 @@ export function ShotSplitTab({
             characters: shot.characters,
             scene: shot.scene,
             props: shot.props,
+            estimated_duration: shot.estimatedDuration || shot.duration,
             duration: shot.duration,
             continuity_mode: shot.continuity_mode || 'NORMAL',
             dialogues: shot.dialogues,
+            audio_events: shot.audioEvents || [],
           }))
         );
 
@@ -164,7 +166,7 @@ export function ShotSplitTab({
     );
     const fixedShots = shots.map((shot) => {
       const fixedDuration = fixedDurationById.get(String(shot.id));
-      return fixedDuration ? { ...shot, duration: fixedDuration } : shot;
+      return fixedDuration ? { ...shot, estimatedDuration: fixedDuration } : shot;
     });
 
     setShots(fixedShots);
@@ -303,9 +305,11 @@ export function ShotSplitTab({
       characters: shot.characters || [],
       scene: shot.scene || '',
       props: shot.props || [],
+      estimated_duration: shot.estimatedDuration || shot.duration || 5,
       duration: shot.duration || 5,
       continuity_mode: shot.continuity_mode || 'NORMAL',
       dialogues: shot.dialogues || [],
+      audio_events: shot.audioEvents || [],
     }))
   });
 
@@ -322,9 +326,11 @@ export function ShotSplitTab({
       characters: Array.isArray(shot.characters) ? shot.characters : [],
       scene: shot.scene || '',
       props: Array.isArray(shot.props) ? shot.props : [],
+      estimated_duration: Number(shot.estimated_duration || shot.estimatedDuration || shot.duration) || 5,
       duration: Number(shot.duration) || 5,
       continuity_mode: shot.continuity_mode || 'NORMAL',
       dialogues: Array.isArray(shot.dialogues) ? shot.dialogues : [],
+      audio_events: Array.isArray(shot.audio_events) ? shot.audio_events : Array.isArray(shot.audioEvents) ? shot.audioEvents : [],
     }));
 
     const result = await shotsApi.batchUpdateShots(novelId, chapterId, shotsList);
@@ -612,6 +618,8 @@ export function ShotSplitTab({
             const scene = shot.scene;
             const props = shot.props || [];
             const dialogues = shot.dialogues || [];
+            const audioSummary = shot.audioEventsSummary;
+            const audioEvents = shot.audioEvents || [];
             const dialogueWarning = getShotDialogueDurationWarning(shot);
 
             const dialogueCharacters = Array.from(
@@ -711,6 +719,24 @@ export function ShotSplitTab({
                       </div>
                     </div>
                   )}
+
+                  {/* 场景 */}
+                  <div className="flex flex-wrap gap-1">
+                    <span className="text-xs text-gray-500 flex-shrink-0">声音:</span>
+                    {audioSummary && audioSummary.eventCount > 0 ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 bg-cyan-100 text-cyan-700 rounded text-xs">
+                        {audioSummary.eventCount} events · {audioSummary.visibleLipsyncCount} 口型 · {audioSummary.narrationCount} 旁白
+                      </span>
+                    ) : audioEvents.length > 0 ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 bg-cyan-100 text-cyan-700 rounded text-xs">
+                        {audioEvents.length} events
+                      </span>
+                    ) : dialogues.length > 0 ? (
+                      <span className="inline-flex items-center px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-xs">旧台词兼容</span>
+                    ) : (
+                      <span className="inline-flex items-center px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-xs">无声音事件</span>
+                    )}
+                  </div>
 
                   {/* 场景 */}
                   {scene && (

@@ -2,6 +2,7 @@
  * 分镜相关 API
  */
 import { api } from './index';
+import type { AudioDriveEvent } from './audioDrive';
 
 // 分镜台词数据
 export interface DialogueData {
@@ -25,7 +26,19 @@ export interface Shot {
   characters: string[];
   scene: string;
   props: string[];
+  estimatedDuration?: number | null;
   duration: number;
+  audioStatus?: string;
+  audioEvents?: AudioDriveEvent[];
+  audioEventsSummary?: {
+    eventCount: number;
+    visibleLipsyncCount: number;
+    narrationCount: number;
+    innerMonologueCount: number;
+    ttsReadyCount: number;
+    ttsStaleCount: number;
+    ttsFailedCount: number;
+  };
   continuity_mode?: string;
   videoDirectorPlan?: VideoDirectorPlan;
   imageUrl: string | null;
@@ -154,9 +167,13 @@ export interface ShotUpdateRequest {
   characters?: string[];
   scene?: string;
   props?: string[];
+  estimated_duration?: number | null;
+  estimatedDuration?: number | null;
   duration?: number;
   continuity_mode?: string;
   dialogues?: DialogueData[];
+  audio_events?: AudioDriveEvent[];
+  audioEvents?: AudioDriveEvent[];
 }
 
 export const shotsApi = {
@@ -315,9 +332,39 @@ export const shotsApi = {
         }),
       }
     );
-    const data = await response.json();
+    const data = await response.json().catch(async () => ({ detail: await response.text().catch(() => '') }));
     if (!response.ok) {
-      return { success: false, message: data?.message || data?.detail || '生成失败', detail: data?.detail };
+      return { success: false, message: data?.message || data?.detail || `生成失败 (${response.status})`, detail: data?.detail };
+    }
+    return data;
+  },
+
+  generateVideosBatch: async (
+    novelId: string,
+    chapterId: string,
+    options: {
+      shot_ids: string[];
+      selected_modes?: Record<string, VideoMode>;
+      auto_complete?: boolean;
+      skip_llm_when_prompt_exists?: boolean;
+    }
+  ): Promise<{ success: boolean; data?: { taskId: string; status: string; shotIds?: string[] }; message?: string; detail?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/videos/generate-batch`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shot_ids: options.shot_ids,
+          selected_modes: options.selected_modes || {},
+          auto_complete: options.auto_complete ?? false,
+          skip_llm_when_prompt_exists: options.skip_llm_when_prompt_exists ?? false,
+        }),
+      }
+    );
+    const data = await response.json().catch(async () => ({ detail: await response.text().catch(() => '') }));
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || `批量生成失败 (${response.status})`, detail: data?.detail };
     }
     return data;
   },
@@ -370,7 +417,7 @@ export const shotsApi = {
         body: JSON.stringify({ force }),
       }
     );
-    const data = await response.json();
+    const data = await response.json().catch(async () => ({ detail: await response.text().catch(() => '') }));
     if (!response.ok) {
       return { success: false, message: data?.message || data?.detail || '关键帧规划失败', detail: data?.detail };
     }

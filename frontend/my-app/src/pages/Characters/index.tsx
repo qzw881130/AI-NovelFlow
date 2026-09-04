@@ -2,7 +2,7 @@
  * 角色管理页面
  */
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Trash2, Loader2, User, Image, X } from 'lucide-react';
+import { Plus, Search, Trash2, Loader2, User, Image, X, Mic, Check, Upload, Play } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import type { Character, Novel, PromptTemplate } from '../../types';
 import { toast } from '../../stores/toastStore';
@@ -47,9 +47,13 @@ export default function Characters() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [generatingVoiceId, setGeneratingVoiceId] = useState<string | null>(null);
   const [uploadingAudioId, setUploadingAudioId] = useState<string | null>(null);
+  const [showVoiceBatchModal, setShowVoiceBatchModal] = useState(false);
+  const [selectedVoiceIds, setSelectedVoiceIds] = useState<Set<string>>(new Set());
+  const [submittingVoiceBatch, setSubmittingVoiceBatch] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'generated' | 'notGenerated' | 'running' | 'pending'>('all');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const audioFileInputRef = useRef<HTMLInputElement | null>(null);
+  const voicePollRef = useRef<number | null>(null);
   const [currentUploadCharacterId, setCurrentUploadCharacterId] = useState<string | null>(null);
   const [currentAudioUploadCharacterId, setCurrentAudioUploadCharacterId] = useState<string | null>(null);
   
@@ -85,6 +89,12 @@ export default function Characters() {
       }
     }
   }, [highlightedId, characters]);
+
+  useEffect(() => {
+    return () => {
+      if (voicePollRef.current) window.clearInterval(voicePollRef.current);
+    };
+  }, []);
 
   const fetchCharacters = async () => {
     if (!selectedNovel) {
@@ -375,7 +385,7 @@ export default function Characters() {
       const data = await characterApi.uploadAudio(currentAudioUploadCharacterId, file);
       if (data.success) {
         setCharacters(prev => prev.map(c =>
-          c.id === currentAudioUploadCharacterId ? { ...c, referenceAudioUrl: data.data!.referenceAudioUrl } : c
+          c.id === currentAudioUploadCharacterId ? { ...c, referenceAudioUrl: data.data!.referenceAudioUrl, voiceTaskStatus: 'completed' } : c
         ));
         toast.success(t('characters.uploadAudioSuccess'));
       } else {
@@ -663,8 +673,11 @@ export default function Characters() {
     try {
       const data = await characterApi.generateVoice(character.id);
       if (data.success) {
+        setCharacters(prev => prev.map(c =>
+          c.id === character.id ? { ...c, voiceTaskStatus: 'pending', voiceTaskId: (data.data as any)?.taskId || c.voiceTaskId } : c
+        ));
         toast.success(t('characters.generatingVoice'));
-        pollVoiceStatus(character.id);
+        pollAllVoiceStatus();
       } else {
         toast.error(data.message || t('common.error'));
         setGeneratingVoiceId(null);
@@ -673,6 +686,84 @@ export default function Characters() {
       console.error('生成音色失败:', error);
       toast.error(t('common.error'));
       setGeneratingVoiceId(null);
+    }
+  };
+
+  const pollAllVoiceStatus = () => {
+    if (!selectedNovel) return;
+    if (voicePollRef.current) window.clearInterval(voicePollRef.current);
+
+    voicePollRef.current = window.setInterval(async () => {
+      try {
+        const data = await characterApi.fetchList(selectedNovel);
+        if (!data.success) return;
+        const chars = data.data || [];
+        setCharacters(chars);
+        const hasActiveVoiceTask = chars.some((char: Character) =>
+          char.voiceTaskStatus === 'pending' || char.voiceTaskStatus === 'running'
+        );
+        if (!hasActiveVoiceTask && voicePollRef.current) {
+          window.clearInterval(voicePollRef.current);
+          voicePollRef.current = null;
+          setGeneratingVoiceId(null);
+        }
+      } catch (error) {
+        console.error('轮询角色音色状态失败:', error);
+      }
+    }, 2000);
+  };
+
+  const openVoiceBatchModal = () => {
+    const missingVoiceIds = characters
+      .filter(character => !character.referenceAudioUrl && character.voicePrompt)
+      .map(character => character.id);
+    setSelectedVoiceIds(new Set(missingVoiceIds));
+    setShowVoiceBatchModal(true);
+  };
+
+  const toggleVoiceSelection = (characterId: string) => {
+    setSelectedVoiceIds(prev => {
+      const next = new Set(prev);
+      if (next.has(characterId)) next.delete(characterId);
+      else next.add(characterId);
+      return next;
+    });
+  };
+
+  const selectAllVoices = () => {
+    setSelectedVoiceIds(new Set(characters.filter(character => character.voicePrompt).map(character => character.id)));
+  };
+
+  const selectMissingVoices = () => {
+    setSelectedVoiceIds(new Set(
+      characters
+        .filter(character => !character.referenceAudioUrl && character.voicePrompt)
+        .map(character => character.id)
+    ));
+  };
+
+  const submitVoiceBatch = async () => {
+    if (!selectedNovel || selectedVoiceIds.size === 0) return;
+    setSubmittingVoiceBatch(true);
+    try {
+      const data = await characterApi.generateVoiceBatch(selectedNovel, Array.from(selectedVoiceIds));
+      if (data.success) {
+        const queuedIds = new Set((data.data?.tasks || []).map(item => item.id));
+        setCharacters(prev => prev.map(character => (
+          queuedIds.has(character.id)
+            ? { ...character, voiceTaskStatus: 'pending' }
+            : character
+        )));
+        toast.success(`已提交 ${data.data?.queuedCount || 0} 个角色音色任务`);
+        pollAllVoiceStatus();
+      } else {
+        toast.error(data.message || t('common.error'));
+      }
+    } catch (error) {
+      console.error('批量生成角色音色失败:', error);
+      toast.error(t('common.error'));
+    } finally {
+      setSubmittingVoiceBatch(false);
     }
   };
 
@@ -722,10 +813,16 @@ export default function Characters() {
       && character.generatingStatus !== 'running';
   };
 
-  const filteredCharacters = characters.filter(c => (
+  const sortNarratorFirst = (items: Character[]) => [...items].sort((a, b) => {
+    if (a.isNarrator === b.isNarrator) return 0;
+    return a.isNarrator ? -1 : 1;
+  });
+
+  const sortedCharacters = sortNarratorFirst(characters);
+  const filteredCharacters = sortNarratorFirst(characters.filter(c => (
     c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     c.description.toLowerCase().includes(searchQuery.toLowerCase())
-  ) && matchesStatusFilter(c));
+  ) && matchesStatusFilter(c)));
 
   const characterStats = characters.reduce(
     (stats, character) => {
@@ -763,6 +860,15 @@ export default function Characters() {
           <p className="mt-1 text-sm text-gray-500">{t('characters.subtitle')}</p>
         </div>
         <div className="flex gap-3">
+          {selectedNovel && characters.length > 0 && (
+            <button
+              onClick={openVoiceBatchModal}
+              className="btn-secondary text-pink-600 border-pink-200 hover:bg-pink-50"
+            >
+              <Mic className="mr-2 h-4 w-4" />
+              生成角色音色
+            </button>
+          )}
           {filteredCharacters.length > 0 && (
             <button
               onClick={generateAllPortraits}
@@ -939,6 +1045,144 @@ export default function Characters() {
         className="hidden"
         onChange={handleUploadAudio}
       />
+
+      {showVoiceBatchModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-6xl max-h-[88vh] flex flex-col">
+            <div className="flex items-center justify-between border-b px-5 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">生成角色音色</h2>
+                <p className="text-sm text-gray-500">选择角色后通过串行 worker 批量生成音色，可上传音频替代生成。</p>
+              </div>
+              <button
+                onClick={() => setShowVoiceBatchModal(false)}
+                className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 border-b px-5 py-3">
+              <button onClick={selectAllVoices} className="btn-secondary text-sm">
+                <Check className="mr-2 h-4 w-4" />全选
+              </button>
+              <button onClick={selectMissingVoices} className="btn-secondary text-sm">
+                选择未生成的
+              </button>
+              <button
+                onClick={() => setSelectedVoiceIds(new Set())}
+                className="btn-secondary text-sm"
+              >
+                清空选择
+              </button>
+              <div className="text-sm text-gray-500">已选择 {selectedVoiceIds.size} / {characters.length}</div>
+              <button
+                onClick={submitVoiceBatch}
+                disabled={selectedVoiceIds.size === 0 || submittingVoiceBatch}
+                className="btn-primary ml-auto disabled:opacity-50"
+              >
+                {submittingVoiceBatch ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Mic className="mr-2 h-4 w-4" />}
+                批量生成音色
+              </button>
+            </div>
+
+            <div className="overflow-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="sticky top-0 bg-gray-50 z-10">
+                  <tr>
+                    <th className="w-12 px-4 py-3"></th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">角色图</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">角色名</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">音色提示词</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">音色播放</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">状态</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">操作</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white">
+                  {sortedCharacters.map(character => {
+                    const activeVoice = character.voiceTaskStatus === 'pending' || character.voiceTaskStatus === 'running';
+                    return (
+                      <tr key={character.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 align-top">
+                          <input
+                            type="checkbox"
+                            checked={selectedVoiceIds.has(character.id)}
+                            disabled={!character.voicePrompt || activeVoice}
+                            onChange={() => toggleVoiceSelection(character.id)}
+                            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                          />
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          {character.imageUrl ? (
+                            <div className="aspect-video w-28 overflow-hidden rounded bg-gray-100">
+                              <img src={character.imageUrl} alt={character.name} className="h-full w-full object-cover" />
+                            </div>
+                          ) : (
+                            <div className="aspect-video w-28 rounded bg-gray-100 flex items-center justify-center text-gray-300">
+                              <User className="h-7 w-7" />
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <div className="font-medium text-gray-900">{character.name}</div>
+                          {character.isNarrator && <div className="mt-1 text-xs text-purple-600">旁白</div>}
+                        </td>
+                        <td className="px-4 py-3 align-top max-w-md">
+                          <p className="text-sm text-gray-700 line-clamp-3">{character.voicePrompt || '未设置音色提示词'}</p>
+                        </td>
+                        <td className="px-4 py-3 align-top min-w-64">
+                          {character.referenceAudioUrl ? (
+                            <audio controls src={character.referenceAudioUrl} className="h-9 w-64" />
+                          ) : (
+                            <span className="text-sm text-gray-400">未生成音色</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          {activeVoice ? (
+                            <div className="flex items-center gap-2 text-sm text-blue-600">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              {character.voiceTaskStatus === 'pending' ? '待生成' : `生成中 ${character.voiceTaskProgress || 0}%`}
+                            </div>
+                          ) : character.referenceAudioUrl ? (
+                            <span className="text-sm text-green-600">已生成</span>
+                          ) : character.voiceTaskStatus === 'failed' ? (
+                            <span className="text-sm text-red-600" title={character.voiceTaskMessage || ''}>生成失败</span>
+                          ) : character.voicePrompt ? (
+                            <span className="text-sm text-amber-600">未生成</span>
+                          ) : (
+                            <span className="text-sm text-gray-400">缺少提示词</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              onClick={() => generateVoice(character)}
+                              disabled={!character.voicePrompt || activeVoice}
+                              className="btn-secondary text-xs text-pink-600 border-pink-200 hover:bg-pink-50 disabled:opacity-50"
+                            >
+                              {activeVoice ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Play className="mr-1 h-3 w-3" />}
+                              {character.referenceAudioUrl ? '重新生成' : '生成'}
+                            </button>
+                            <button
+                              onClick={() => triggerAudioUpload(character.id)}
+                              disabled={uploadingAudioId === character.id}
+                              className="btn-secondary text-xs text-blue-600 border-blue-200 hover:bg-blue-50 disabled:opacity-50"
+                            >
+                              {uploadingAudioId === character.id ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Upload className="mr-1 h-3 w-3" />}
+                              上传音频
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Image Preview Modal */}
       <ImagePreviewModal

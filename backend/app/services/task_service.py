@@ -243,7 +243,7 @@ class TaskService:
                 "details": {"skipped": True},
             }
 
-        if task.type == "shot_image_batch":
+        if task.type in {"shot_image_batch", "shot_video_batch"}:
             child_tasks = db.query(Task).filter(Task.parent_task_id == task.id).all()
             details = {"children_cancelled": 0, "children_requested": len(child_tasks)}
             for child in child_tasks:
@@ -252,7 +252,9 @@ class TaskService:
                     child.error_message = "批量任务被用户取消"
                     child.current_step = "已终止"
                     details["children_cancelled"] += 1
+                    self._mark_pending_video_llm_logs_cancelled(child, db)
                     self._mark_related_task_failed(child, db)
+                    self._cleanup_cancelled_video_task(child, db)
                 elif child.status == "running":
                     cancel_result = {"skipped_comfyui": True}
                     if child.comfyui_prompt_id:
@@ -261,7 +263,9 @@ class TaskService:
                     child.error_message = "批量任务被用户取消"
                     child.current_step = "已终止"
                     details.setdefault("running_children", []).append({"task_id": child.id, "cancel_result": cancel_result})
+                    self._mark_pending_video_llm_logs_cancelled(child, db)
                     self._mark_related_task_failed(child, db)
+                    self._cleanup_cancelled_video_task(child, db)
             task.status = "cancelled"
             task.error_message = "任务被用户取消"
             task.current_step = "已终止"
@@ -603,7 +607,8 @@ class TaskService:
 
             pending_start_timeout = 600 if task.type == "keyframe_image" else 1800
             is_batch_waiting_child = bool(getattr(task, "parent_task_id", None))
-            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type != "shot_image_batch" and not is_batch_waiting_child:
+            db_backed_task = task.type in {"audio_event_tts", "audio_prepare", "shot_video_batch"}
+            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type != "shot_image_batch" and not is_batch_waiting_child and not db_backed_task:
                 task.status = "failed"
                 task.error_message = "任务长期未启动，后台内存队列可能已因服务重启或热更新丢失，请重新提交"
                 task.current_step = "任务未启动"
@@ -688,6 +693,8 @@ class TaskService:
                     continue
 
             elif task.status == "running":
+                if db_backed_task:
+                    continue
                 clip_state = self._shot_video_clip_state_for_prompt(task, None) if task.type == "shot_video" else {}
                 if clip_state.get("has_prompt_building_clip") and inactive_seconds(task) > llm_timeout + 60:
                     task.status = "failed"
@@ -1151,6 +1158,15 @@ class TaskService:
             except Exception:
                 return []
 
+        def parse_metadata(value: str):
+            if not value:
+                return {}
+            try:
+                parsed = json.loads(value)
+                return parsed if isinstance(parsed, dict) else {}
+            except Exception:
+                return {}
+
         def format_video_director_clips(task: Task):
             if task.type != "shot_video":
                 return []
@@ -1168,8 +1184,6 @@ class TaskService:
                 try:
                     plan = json.loads(shot.video_director_plan)
                 except Exception:
-                    return []
-                if plan.get("selected_mode") != "MULTI_KEYFRAME":
                     return []
                 window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
             clips = []
@@ -1193,6 +1207,11 @@ class TaskService:
                     "referenceImages": window.get("reference_images") if isinstance(window.get("reference_images"), list) else [],
                     "videoUrl": video_url,
                     "sourceVideoUrl": window.get("source_video_url"),
+                    "audioStatus": window.get("audio_status"),
+                    "audioMessage": window.get("audio_message"),
+                    "driveAudioUrl": window.get("drive_audio_url"),
+                    "finalAudioUrl": window.get("final_audio_url"),
+                    "clipAudioDuration": window.get("clip_audio_duration"),
                     "errorMessage": window.get("error_message") or (task.error_message if task.status == "failed" and status == "FAILED" else None),
                     "generatedAt": window.get("generated_at"),
                     "dialogueCount": len(window.get("clip_dialogues") or []) if isinstance(window.get("clip_dialogues"), list) else None,
@@ -1227,6 +1246,7 @@ class TaskService:
                 "shotId": t.shot_id,
                 "parentTaskId": getattr(t, "parent_task_id", None),
                 "batchOrder": getattr(t, "batch_order", None),
+                "metadata": parse_metadata(getattr(t, "metadata_json", None)) if t.type == "shot_video_batch" else {},
                 "createdAt": format_datetime(t.created_at),
                 "startedAt": format_datetime(t.started_at),
                 "completedAt": format_datetime(t.completed_at),
@@ -1251,6 +1271,10 @@ class TaskService:
             reference_images = json.loads(task.reference_images) if task.reference_images else []
         except Exception:
             reference_images = []
+        try:
+            metadata = json.loads(task.metadata_json) if task.metadata_json else {}
+        except Exception:
+            metadata = {}
 
         return {
             "id": task.id,
@@ -1267,6 +1291,7 @@ class TaskService:
             "workflowJson": task.workflow_json,
             "promptText": task.prompt_text,
             "referenceImages": reference_images,
+            "metadata": metadata,
             "novelId": task.novel_id,
             "chapterId": task.chapter_id,
             "characterId": task.character_id,

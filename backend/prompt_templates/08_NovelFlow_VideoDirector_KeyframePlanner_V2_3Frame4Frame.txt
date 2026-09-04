@@ -65,7 +65,17 @@ MULTI_KEYFRAME 相关能力至少可能包含：
 4. execution_windows
 仅 MULTI_KEYFRAME 必须提供。
 
-execution_windows 由程序根据 shot.duration 与 workflow_capability.multi_keyframe.max_clip_duration 确定性计算。
+execution_windows 由程序在本 Prompt 之前确定性计算。
+程序必须综合 shot.duration、workflow max_clip_duration，以及已存在时的 Audio Timeline / 自然视觉边界；不得再机械假设固定 0–15、15–30 等分。
+每个 window 仍必须 <= max_clip_duration，并优先落在完整 Audio Event 之间、自然静音/换气/句子边界或自然视觉状态边界。
+本 Prompt 只把 execution_windows 当作不可修改的事实输入。
+
+execution_windows 程序构建优先级（这是上游程序契约，本 Prompt 只校验，不执行）：
+1. 每个 window.duration <= workflow max_clip_duration；
+2. 优先在完整 Audio Event 之间的边界或静音区间结束；
+3. 其次选择自然句子/呼吸边界与稳定视觉状态边界；
+4. 避免切断 requires_visible_lipsync=true 的连续发声区间；
+5. 单个 Audio Event 本身超过 max_clip_duration 时，必须由更上游先完成安全 speech segmentation，不允许 Keyframe Planner 用关键帧掩盖超长音频问题。
 
 本 Prompt：
 - 不得改变 execution_windows 的 start/end；
@@ -85,7 +95,10 @@ execution_windows 由程序根据 shot.duration 与 workflow_capability.multi_ke
   {"window_index": 8, "start_time": 105, "end_time": 120}
 ]
 
-5. planning_limits（若系统提供）
+5. audio_timeline_summary（若系统提供）
+由程序从真实 TTS / Audio Timeline 派生，可能包含当前 window 内的 visible speaker switch、dialogue start/end、silent visual regions。仅用于辅助选择视觉锚点，不得改写其时间，不得把每次 speaker switch 都机械变成 Keyframe。
+
+6. planning_limits（若系统提供）
 可能包含：
 - max_total_keyframes
 - min_keyframe_spacing
@@ -265,6 +278,7 @@ START/BOUNDARY
 - 所有窗口一律 4 帧；
 - 通过新增不存在的动作来填第 4 帧；
 - 只因为台词长就机械使用 4 帧。
+- Speaker Switch 不是强制 Keyframe；只有同时对应真实稳定视觉状态变化时才可优先靠近该时间点。
 
 当 3 和 4 都可表达时，优先 3 帧，减少关键帧生图数量和执行复杂度。
 

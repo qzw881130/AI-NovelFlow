@@ -101,9 +101,18 @@ export default function Tasks() {
   const getTaskTypeName = (type: Task['type']) => {
     const names: Record<string, string> = {
       'character_portrait': t('tasks.types.characterPortrait'),
+      'character_voice': t('tasks.types.characterVoice'),
+      'audio_event_tts': 'Audio Event TTS',
+      'audio_prepare': 'AudioDrive 音频准备',
+      'character_audio': t('tasks.types.characterAudio'),
+      'narrator_audio': t('tasks.types.narratorAudio'),
       'shot_image': t('tasks.types.shotImage'),
+      'scene_image': t('tasks.types.sceneImage'),
+      'prop_image': t('tasks.types.propImage'),
+      'keyframe_image': t('tasks.types.keyframeImage'),
       'single_image_edit': t('tasks.types.singleImageEdit'),
       'shot_video': t('tasks.types.shotVideo'),
+      'shot_video_batch': '批量分镜视频',
       'chapter_video': t('tasks.types.chapterVideo'),
       'transition_video': t('tasks.types.transitionVideo'),
     };

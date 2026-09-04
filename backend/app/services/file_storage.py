@@ -774,13 +774,42 @@ class FileStorageService:
                             "keyframe_indexes": clip.get("keyframe_indexes") or [],
                             "workflow_type": clip.get("workflow_type"),
                             "status": clip.get("status"),
+                            "audio_status": clip.get("audio_status") or clip.get("audioStatus"),
+                            "audio_timeline_id": clip.get("audio_timeline_id") or clip.get("audioTimelineId"),
+                            "clip_audio_duration": clip.get("clip_audio_duration") or clip.get("clipAudioDuration"),
+                            "speaker_timeline": clip.get("speaker_timeline") or clip.get("speakerTimeline") or [],
                             "video_path": None,
+                            "drive_audio_path": None,
+                            "final_audio_path": None,
+                            "clip_audio_manifest_path": None,
                         }
                         if clip_path:
                             ext = Path(clip_path).suffix or ".mp4"
                             arcname = f"shot_materials/{shot_label}/videos/clips/C{clip_index:03d}{ext}"
                             if add_file(zipf, clip_path, arcname):
                                 clip_manifest["video_path"] = arcname
+                        drive_audio_path = resolve_material_path(first_present(clip.get("drive_audio_path"), clip.get("driveAudioPath"), clip.get("drive_audio_url"), clip.get("driveAudioUrl")))
+                        if drive_audio_path:
+                            ext = Path(drive_audio_path).suffix or ".wav"
+                            arcname = f"shot_materials/{shot_label}/audio/clips/C{clip_index:03d}_drive_audio{ext}"
+                            if add_file(zipf, drive_audio_path, arcname):
+                                clip_manifest["drive_audio_path"] = arcname
+                        final_audio_path = resolve_material_path(first_present(clip.get("final_audio_path"), clip.get("finalAudioPath"), clip.get("final_audio_url"), clip.get("finalAudioUrl")))
+                        if final_audio_path:
+                            ext = Path(final_audio_path).suffix or ".wav"
+                            arcname = f"shot_materials/{shot_label}/audio/clips/C{clip_index:03d}_final_audio{ext}"
+                            if add_file(zipf, final_audio_path, arcname):
+                                clip_manifest["final_audio_path"] = arcname
+                        clip_audio_manifest_path = resolve_material_path(first_present(clip.get("clip_audio_manifest_path"), clip.get("clipAudioManifestPath")))
+                        if clip_audio_manifest_path:
+                            arcname = f"shot_materials/{shot_label}/audio/clips/C{clip_index:03d}_clip_audio_manifest.json"
+                            if add_file(zipf, clip_audio_manifest_path, arcname):
+                                clip_manifest["clip_audio_manifest_path"] = arcname
+                        if clip_manifest["speaker_timeline"]:
+                            speaker_arcname = f"shot_materials/{shot_label}/audio/clips/C{clip_index:03d}_speaker_timeline.json"
+                            zipf.writestr(speaker_arcname, json.dumps(clip_manifest["speaker_timeline"], ensure_ascii=False, indent=2))
+                            clip_manifest["speaker_timeline_path"] = speaker_arcname
+                            file_count += 1
                         for ref_index, reference in enumerate(clip.get("reference_images") or clip.get("referenceImages") or [], 1):
                             ref_value = reference.get("url") if isinstance(reference, dict) else reference
                             ref_path = resolve_material_path(ref_value)
@@ -938,8 +967,9 @@ class FileStorageService:
                     )
 
                 result = await loop.run_in_executor(None, _run_validate)
-                if result.returncode != 0:
-                    raise RuntimeError(f"视频输出解码校验失败: {(result.stderr or '').strip()[:300]}")
+                stderr = (result.stderr or '').strip()
+                if result.returncode != 0 or stderr:
+                    raise RuntimeError(f"视频输出解码校验失败: {stderr[:300] or f'ffmpeg exit {result.returncode}'}")
 
             async def _run_direct_filter_merge():
                 loop = asyncio.get_event_loop()
@@ -1496,6 +1526,54 @@ class FileStorageService:
 
         print(f"[FileStorage] Uploaded audio saved: {file_path}")
         return file_path
+
+    def get_audio_event_tts_path(
+        self,
+        novel_id: str,
+        chapter_id: str,
+        shot_id: str,
+        audio_event_id: str,
+        event_order: int,
+        revision: int,
+        ext: str = ".wav",
+    ) -> Path:
+        """获取 AudioDrive 单条 Audio Event TTS 资产路径。"""
+        story_dir = self._get_story_dir(novel_id)
+        chapter_short = chapter_id[:8] if chapter_id else "unknown"
+        save_dir = story_dir / f"chapter_{chapter_short}" / "audio_events" / f"shot_{shot_id[:8]}"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        return save_dir / f"event_{event_order:03d}_{audio_event_id[:8]}_rev_{revision}{ext}"
+
+    def get_audio_timeline_manifest_path(
+        self,
+        novel_id: str,
+        chapter_id: str,
+        shot_id: str,
+        revision: int,
+    ) -> Path:
+        """获取 AudioDrive Timeline manifest 路径。"""
+        story_dir = self._get_story_dir(novel_id)
+        chapter_short = chapter_id[:8] if chapter_id else "unknown"
+        save_dir = story_dir / f"chapter_{chapter_short}" / "audio_timeline" / f"shot_{shot_id[:8]}"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        return save_dir / f"timeline_rev_{revision}.json"
+
+    def get_clip_audio_path(
+        self,
+        novel_id: str,
+        chapter_id: str,
+        shot_id: str,
+        window_index: int,
+        kind: str,
+        ext: str = ".wav",
+    ) -> Path:
+        """获取 AudioDrive Clip 级 drive/final 音频或 manifest 路径。"""
+        story_dir = self._get_story_dir(novel_id)
+        chapter_short = chapter_id[:8] if chapter_id else "unknown"
+        save_dir = story_dir / f"chapter_{chapter_short}" / "clip_audio" / f"shot_{shot_id[:8]}"
+        save_dir.mkdir(parents=True, exist_ok=True)
+        safe_kind = self._sanitize_filename(kind)
+        return save_dir / f"clip_{window_index:03d}_{safe_kind}{ext}"
 
 
 # 全局实例

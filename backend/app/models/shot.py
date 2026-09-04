@@ -24,7 +24,9 @@ class Shot(Base):
     characters = Column(Text, default="[]")  # JSON array: ["角色 1", "角色 2"]
     scene = Column(String, default="")
     props = Column(Text, default="[]")  # JSON array: ["道具 1"]
+    estimated_duration = Column(Integer, nullable=True)  # AudioDrive: TTS 前导演估算时长
     duration = Column(Integer, default=4)  # 时长（秒）
+    audio_status = Column(String, default="NOT_READY", index=True)  # AudioDrive: NOT_READY/READY/STALE/FAILED
     continuity_mode = Column(String, default="NORMAL")  # NORMAL/CONTINUOUS_TAKE
     video_director_plan = Column(Text, default="{}")  # 视频导演模式推荐、关键帧、转场和 Clips
 

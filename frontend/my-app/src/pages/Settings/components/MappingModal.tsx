@@ -27,6 +27,8 @@ interface MappingForm {
   saveAudioNodeId: string;
   // 音频生成相关节点
   referenceAudioNodeId: string;
+  driveAudioNodeId: string;
+  finalAudioNodeId: string;
   textNodeId: string;
   emotionPromptNodeId: string;
   // 关键帧节点（视频生成工作流）
@@ -60,6 +62,7 @@ const MEGAPIXEL_OPTIONS = [
 
 const isSingleFrameVideoType = (type?: string) => ['video', 'three_frame_video', 'four_frame_video'].includes(type || '');
 const isFirstLastVideoType = (type?: string) => ['transition', 'first_last_video'].includes(type || '');
+const isAudioDriveVideoType = (type?: string) => ['video', 'first_last_video', 'three_frame_video', 'four_frame_video'].includes(type || '');
 const isShotImageType = (type?: string) => ['shot', 'shot_scene', 'shot_character_scene', 'shot_scene_prop'].includes(type || '');
 const getRequiredKeyframeCount = (type?: string) => {
   if (type === 'three_frame_video') return 2;
@@ -91,6 +94,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     refTextNodeId: '',
     saveAudioNodeId: '',
     referenceAudioNodeId: '',
+    driveAudioNodeId: '',
+    finalAudioNodeId: '',
     textNodeId: '',
     emotionPromptNodeId: '',
     keyframeNodes: [],
@@ -224,6 +229,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 refTextNodeId: '',
                 saveAudioNodeId: '',
                 referenceAudioNodeId: mapping.reference_audio_node_id || '',
+                driveAudioNodeId: mapping.drive_audio_node_id || '',
+                finalAudioNodeId: mapping.final_audio_node_id || '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
                 keyframeNodes,
@@ -251,6 +258,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 refTextNodeId: '',
                 saveAudioNodeId: '',
                 referenceAudioNodeId: '',
+                driveAudioNodeId: mapping.drive_audio_node_id || '',
+                finalAudioNodeId: mapping.final_audio_node_id || '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
                 keyframeNodes: [],
@@ -278,6 +287,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 refTextNodeId: '',
                 saveAudioNodeId: '',
                 referenceAudioNodeId: '',
+                driveAudioNodeId: '',
+                finalAudioNodeId: '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
                 keyframeNodes: [],
@@ -305,6 +316,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 refTextNodeId: mapping.ref_text_node_id || '',
                 saveAudioNodeId: mapping.save_audio_node_id || '',
                 referenceAudioNodeId: '',
+                driveAudioNodeId: '',
+                finalAudioNodeId: '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
                 keyframeNodes: [],
@@ -332,6 +345,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 refTextNodeId: '',
                 saveAudioNodeId: mapping.save_audio_node_id || '',
                 referenceAudioNodeId: mapping.reference_audio_node_id || '',
+                driveAudioNodeId: '',
+                finalAudioNodeId: '',
                 textNodeId: mapping.text_node_id || '',
                 emotionPromptNodeId: mapping.emotion_prompt_node_id || '',
                 keyframeNodes: [],
@@ -360,6 +375,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 refTextNodeId: '',
                 saveAudioNodeId: '',
                 referenceAudioNodeId: '',
+                driveAudioNodeId: '',
+                finalAudioNodeId: '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
                 keyframeNodes: [],
@@ -387,6 +404,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 refTextNodeId: '',
                 saveAudioNodeId: '',
                 referenceAudioNodeId: '',
+                driveAudioNodeId: '',
+                finalAudioNodeId: '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
                 keyframeNodes: [],
@@ -414,6 +433,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 refTextNodeId: '',
                 saveAudioNodeId: '',
                 referenceAudioNodeId: '',
+                driveAudioNodeId: '',
+                finalAudioNodeId: '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
                 keyframeNodes: [],
@@ -464,6 +485,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           reference_image_node_id: mappingForm.referenceImageNodeId || null,
           frame_count_node_id: mappingForm.frameCountNodeId || null,
           reference_audio_node_id: mappingForm.referenceAudioNodeId || null,
+          drive_audio_node_id: mappingForm.driveAudioNodeId || null,
+          final_audio_node_id: mappingForm.finalAudioNodeId || null,
           duration_seconds_node_id: mappingForm.durationSecondsNodeId || null
         };
         // 添加关键帧节点
@@ -489,6 +512,10 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           megapixels_value: mappingForm.megapixelsNodeId ? mappingForm.megapixelsValue : null,
           video_save_node_id: mappingForm.videoSaveNodeId || null
         };
+        if (workflow.type === 'first_last_video') {
+          nodeMapping.drive_audio_node_id = mappingForm.driveAudioNodeId || null;
+          nodeMapping.final_audio_node_id = mappingForm.finalAudioNodeId || null;
+        }
       } else if (isShotImageType(workflow.type)) {
         nodeMapping = {
           prompt_node_id: mappingForm.promptNodeId || null,
@@ -942,6 +969,28 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onFocus={handleNodeFocus}
                     t={t}
                   />
+                  {isAudioDriveVideoType(workflow.type) && (
+                    <>
+                      <NodeSelectField
+                        label="驱动音频节点 (LoadAudio)"
+                        nodeTypeHint="LoadAudio"
+                        value={mappingForm.driveAudioNodeId}
+                        options={availableNodes.loadAudio}
+                        onChange={(v) => handleNodeSelect(v, 'driveAudioNodeId')}
+                        onFocus={handleNodeFocus}
+                        t={t}
+                      />
+                      <NodeSelectField
+                        label="Final音频节点 (LoadAudio)"
+                        nodeTypeHint="LoadAudio"
+                        value={mappingForm.finalAudioNodeId}
+                        options={availableNodes.loadAudio}
+                        onChange={(v) => handleNodeSelect(v, 'finalAudioNodeId')}
+                        onFocus={handleNodeFocus}
+                        t={t}
+                      />
+                    </>
+                  )}
 
                   {/* 额外关键帧节点配置 */}
                   {workflow.type === 'video' && <div className="mt-4">
@@ -1071,6 +1120,28 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     t={t}
                   />
                   <p className="text-xs text-amber-600">总帧数节点和时长秒数节点只能配置其中一个，且必须配置一个。</p>
+                  {isAudioDriveVideoType(workflow.type) && (
+                    <>
+                      <NodeSelectField
+                        label="驱动音频节点 (LoadAudio)"
+                        nodeTypeHint="LoadAudio"
+                        value={mappingForm.driveAudioNodeId}
+                        options={availableNodes.loadAudio}
+                        onChange={(v) => handleNodeSelect(v, 'driveAudioNodeId')}
+                        onFocus={handleNodeFocus}
+                        t={t}
+                      />
+                      <NodeSelectField
+                        label="Final音频节点 (LoadAudio)"
+                        nodeTypeHint="LoadAudio"
+                        value={mappingForm.finalAudioNodeId}
+                        options={availableNodes.loadAudio}
+                        onChange={(v) => handleNodeSelect(v, 'finalAudioNodeId')}
+                        onFocus={handleNodeFocus}
+                        t={t}
+                      />
+                    </>
+                  )}
                 </>
               )}
 

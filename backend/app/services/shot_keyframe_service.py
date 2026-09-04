@@ -399,6 +399,8 @@ class ShotKeyframeService:
         frame_index: int,
         workflow_id: Optional[str] = None,
         skip_llm_when_prompt_exists: bool = False,
+        parent_task_id: Optional[str] = None,
+        batch_order: Optional[int] = None,
     ) -> Tuple[bool, Optional[str], str]:
         """生成关键帧图片
 
@@ -452,7 +454,9 @@ class ShotKeyframeService:
             shot_id=shot_id,
             novel_id=novel_id,
             chapter_id=shot.chapter_id,
-            workflow_id=workflow_id
+            workflow_id=workflow_id,
+            parent_task_id=parent_task_id,
+            batch_order=batch_order,
         )
         db.add(task)
         db.commit()
@@ -562,7 +566,7 @@ class ShotKeyframeService:
 
             # 先调用 #09 Prompt Builder，再用其输出提交 Qwen-Edit Workflow。
             reusable_prompt = self._get_reusable_keyframe_prompt(db, shot_id, frame_index, keyframe) if skip_llm_when_prompt_exists else ""
-            if skip_llm_when_prompt_exists and not reusable_prompt:
+            if skip_llm_when_prompt_exists and not reusable_prompt and not task.parent_task_id:
                 raise ValueError("当前关键帧没有可复用的 AI 生图提示词，请先使用 LLM+重新生成。")
             if reusable_prompt:
                 task.current_step = "复用已有关键帧生图提示词..."

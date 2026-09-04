@@ -1,6 +1,6 @@
 """分镜相关的 Pydantic Schema 定义"""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Literal
 
 
@@ -199,19 +199,23 @@ class SetReferenceAudioRequest(BaseModel):
 class GenerateVideoRequest(BaseModel):
     """生成视频请求"""
 
-    use_keyframes: bool = Field(True, description="是否使用关键帧（如果存在）")
-    use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
-    workflow_id: Optional[str] = Field(None, description="指定工作流ID")
-    selected_mode: Optional[VideoMode] = Field(None, description="视频导演选择的生成模式")
-    skip_llm_when_prompt_exists: bool = Field(False, description="已有最终视频提示词时跳过 LLM，直接提交工作流")
+    model_config = ConfigDict(populate_by_name=True)
+
+    use_keyframes: bool = Field(True, alias="useKeyframes", description="是否使用关键帧（如果存在）")
+    use_reference_audio: bool = Field(True, alias="useReferenceAudio", description="是否使用参考音频（如果存在）")
+    workflow_id: Optional[str] = Field(None, alias="workflowId", description="指定工作流ID")
+    selected_mode: Optional[VideoMode] = Field(None, alias="selectedMode", description="视频导演选择的生成模式")
+    skip_llm_when_prompt_exists: bool = Field(False, alias="skipLlmWhenPromptExists", description="已有最终视频提示词时跳过 LLM，直接提交工作流")
 
 
 class GenerateVideoDirectorClipRequest(BaseModel):
     """重新生成单个 Video Director Clip 请求"""
 
-    use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
-    auto_merge: bool = Field(True, description="Clip 生成成功后是否自动重新合并 Shot 视频")
-    skip_llm_when_prompt_exists: bool = Field(False, description="已有 Clip 最终视频提示词时跳过 LLM，直接提交工作流")
+    model_config = ConfigDict(populate_by_name=True)
+
+    use_reference_audio: bool = Field(True, alias="useReferenceAudio", description="是否使用参考音频（如果存在）")
+    auto_merge: bool = Field(True, alias="autoMerge", description="Clip 生成成功后是否自动重新合并 Shot 视频")
+    skip_llm_when_prompt_exists: bool = Field(False, alias="skipLlmWhenPromptExists", description="已有 Clip 最终视频提示词时跳过 LLM，直接提交工作流")
 
 
 class SaveVideoDirectorPlanRequest(BaseModel):

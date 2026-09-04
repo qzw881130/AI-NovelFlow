@@ -21,6 +21,7 @@ from app.services.prompt_builder import get_style
 from app.utils.path_utils import url_to_local_path
 from app.utils.image_utils import load_chinese_font, merge_character_images
 from app.repositories.shot_repository import ShotRepository
+from app.repositories.audio_drive import AudioDriveRepository
 
 
 class NovelService:
@@ -750,7 +751,9 @@ class NovelService:
 
         # 创建 Shot 记录
         created_shots = []
+        audio_drive_repo = AudioDriveRepository(self.db)
         for idx, shot_data in enumerate(shots_data, 1):
+            estimated_duration = shot_data.get("duration", 4)
             shot = shot_repo.create(
                 chapter_id=chapter.id,
                 index=idx,
@@ -759,9 +762,14 @@ class NovelService:
                 characters=shot_data.get("characters", []),
                 scene=shot_data.get("scene", ""),
                 props=shot_data.get("props", []),
-                duration=shot_data.get("duration", 4),
+                estimated_duration=estimated_duration,
+                duration=estimated_duration,
+                continuity_mode=shot_data.get("continuity_mode", "NORMAL"),
                 dialogues=shot_data.get("dialogues", []),
             )
+            audio_events = shot_data.get("audio_events") or []
+            if audio_events:
+                audio_drive_repo.replace_events(shot.id, audio_events)
             created_shots.append(shot)
 
         # 更新 parsed_data，移除 shots 数组（已迁移到 Shot 表）

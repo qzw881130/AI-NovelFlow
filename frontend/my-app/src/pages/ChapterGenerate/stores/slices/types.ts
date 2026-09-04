@@ -160,6 +160,8 @@ export interface GenerationSliceState {
   audioUrls: Record<string, string>;
   audioSources: Record<string, string>;
   uploadingAudios: Set<string>;
+  preparingAudioShots: Set<string>;
+  pendingAudioPrepareShots: Set<string>;
 
   // 关键帧生成
   generatingKeyframes: Set<string>;  // 格式: "shotId-frameIndex"
@@ -346,6 +348,8 @@ export interface ChapterGenerateStore
   isAudioUploading: (shotId: string, characterName: string) => boolean;
   getShotAudioTasks: (shotId: string) => AudioTask[];
   initAudioFromShots: (shots: Shot[]) => void;
+  setAudioPrepareStatus: (pendingShotIds: string[], runningShotId?: string | null) => void;
+  clearAudioPrepareStatus: () => void;
 
   // ========== Keyframe Actions ==========
   generateKeyframeDescriptions: (novelId: string, chapterId: string, shotId: string, count?: number) => Promise<void>;

@@ -279,6 +279,8 @@ class ComfyUIService:
         scene_setting: Optional[str] = None,
         prop_appearances: Optional[Dict[str, str]] = None,
         reference_audio_path: Optional[str] = None,
+        drive_audio_path: Optional[str] = None,
+        final_audio_path: Optional[str] = None,
         keyframe_paths: Optional[List[str]] = None,
         on_prompt_queued=None
     ) -> Dict[str, Any]:
@@ -324,7 +326,25 @@ class ComfyUIService:
                 else:
                     return {"success": False, "message": f"图片上传失败: {upload_result.get('message')}"}
 
-            # 上传参考音频并注入工作流
+            # 上传 AudioDrive 音频并注入工作流。H3 V2.1 使用 drive/final 两路 LoadAudio。
+            audio_inputs = []
+            if drive_audio_path:
+                audio_inputs.append(("drive_audio_node_id", drive_audio_path, "drive_audio"))
+            if final_audio_path:
+                audio_inputs.append(("final_audio_node_id", final_audio_path, "final_audio"))
+            for mapping_key, audio_path, label in audio_inputs:
+                audio_upload_result = await self.client.upload_audio(audio_path)
+                if not audio_upload_result.get("success"):
+                    return {"success": False, "message": f"{label} 上传失败: {audio_upload_result.get('message')}"}
+                uploaded_audio_filename = audio_upload_result.get("filename")
+                audio_node_id = node_mapping.get(mapping_key)
+                if audio_node_id and audio_node_id in workflow:
+                    workflow[audio_node_id]["inputs"]["audio"] = uploaded_audio_filename
+                    print(f"[ComfyUI] Set {label} to node {audio_node_id}")
+                else:
+                    return {"success": False, "message": f"工作流未配置有效的 {mapping_key}"}
+
+            # 上传旧参考音频并注入工作流。仅在未使用 AudioDrive 双音轨时作为兼容路径。
             if reference_audio_path:
                 audio_upload_result = await self.client.upload_audio(reference_audio_path)
 

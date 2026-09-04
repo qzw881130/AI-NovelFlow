@@ -21,7 +21,7 @@
 - props
 - duration
 - continuity_mode
-- dialogues
+- audio_summary（若系统提供，仅包含是否存在可见对白/说话者切换等事实；不含正文）
 
 2. from_keyframe
 - index
@@ -136,28 +136,18 @@ continuity_mode == "NORMAL" 时：
 - 可以使用普通分镜中的合理构图变化，但仍不得破坏人物身份、空间方向和剧情连续。
 
 ━━━━━━━━━━━━━━━━━━
-【台词处理】
+【说话状态处理】
 ━━━━━━━━━━━━━━━━━━
 
-本 Prompt 不负责把完整 dialogues[].text 写入 transition_description。
-完整台词将在后续由程序按 Clip 分配，并由 H3 Prompt Builder 精确加入。
+本 Prompt 不负责台词正文，也不负责精确嘴型时间轴。
+完整声音正文由外部 TTS / Audio Event 资产负责；精确可见说话者由下游程序生成 Speaker Timeline。
 
 因此：
-- 不得复述或改写台词正文。
-- 不得发明任何对白。
-
-当 shot.dialogues == []：
-transition_description 必须明确：
-“所有人物在该过渡全过程保持沉默，不说话、不低语、不发出人物语音；只保留必要的环境声和动作声。”
-
-当 shot.dialogues 非空：
-- 可以描述与讲话相容的自然可见动作，例如说话者保持面对目标、听者保持注视；
-- 但不得写具体台词正文；
-- 不得新增谁说了什么；
-- 具体发声由下游 clip_dialogues 决定。
-
-旁白：
-- 不绑定任何可见人物口型。
+- transition_description 不得复述、改写或发明任何台词正文。
+- 若 audio_summary 表明当前区间存在可见人物对白，可以描述“说话者的自然非精确表演状态”和听者反应，但不得自行决定精确 start/end。
+- 若当前区间只有旁白、心理活动或画外对白，则不得把这些声音转成任何可见人物开口。
+- 精确的 visible_speaker / NONE 区间全部交由下游 speaker_timeline。
+- 旁白与心理活动永远不绑定可见人物口型。
 
 ━━━━━━━━━━━━━━━━━━
 【长 Shot】

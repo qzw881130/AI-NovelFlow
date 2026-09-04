@@ -18,6 +18,7 @@ import { toast } from '../../../stores/toastStore';
 import { dialogueEmotion, dialogueText, estimateDialogueSeconds, getDialogueDurationWarning } from '../../../utils';
 import type { DialogueData } from '../types';
 import type { Shot } from '../../../api/shots';
+import type { AudioDriveEvent, AudioEventType } from '../../../api/audioDrive';
 
 interface ShotFormProps {
   /** 当前分镜索引 */
@@ -43,6 +44,13 @@ interface ShotFormProps {
   /** 保存快捷键回调 */
   onSave?: () => void | Promise<void>;
 }
+
+const pauseAfterOptions: Array<{ value: AudioDriveEvent['pauseAfter']; label: string }> = [
+  { value: 'NONE', label: 'NONE · 0.0s' },
+  { value: 'SHORT', label: 'SHORT · 0.3s' },
+  { value: 'MEDIUM', label: 'MEDIUM · 0.6s' },
+  { value: 'LONG', label: 'LONG · 1.2s' },
+];
 
 export function ShotForm({
   shotIndex: propShotIndex,
@@ -90,9 +98,11 @@ export function ShotForm({
   const [selectedCharacters, setSelectedCharacters] = useState<string[]>(shotData?.characters || []);
   const [selectedScene, setSelectedScene] = useState(shotData?.scene || '');
   const [selectedProps, setSelectedProps] = useState<string[]>(shotData?.props || []);
+  const [estimatedDuration, setEstimatedDuration] = useState(shotData?.estimatedDuration || shotData?.duration || 5);
   const [duration, setDuration] = useState(shotData?.duration || 5);
   const [continuityMode, setContinuityMode] = useState(shotData?.continuity_mode || 'NORMAL');
   const [dialogues, setDialogues] = useState<DialogueData[]>(shotData?.dialogues || []);
+  const [audioEvents, setAudioEvents] = useState<AudioDriveEvent[]>(shotData?.audioEvents || []);
 
   // 当 shotIndex 或 shotData 变化时，同步本地状态
   useEffect(() => {
@@ -102,9 +112,11 @@ export function ShotForm({
       setSelectedCharacters(shotData.characters || []);
       setSelectedScene(shotData.scene || '');
       setSelectedProps(shotData.props || []);
+      setEstimatedDuration(shotData.estimatedDuration || shotData.duration || 5);
       setDuration(shotData.duration || 5);
       setContinuityMode(shotData.continuity_mode || 'NORMAL');
       setDialogues(shotData.dialogues || []);
+      setAudioEvents(shotData.audioEvents || []);
     }
   }, [shotIndex, shotData]);
 
@@ -145,9 +157,11 @@ export function ShotForm({
       characters: selectedCharacters,
       scene: selectedScene,
       props: selectedProps,
+      estimatedDuration,
       duration,
       continuity_mode: continuityMode,
       dialogues,
+      audioEvents,
     };
     onChange?.(newShotData);
   };
@@ -164,9 +178,11 @@ export function ShotForm({
               characters: selectedCharacters,
               scene: selectedScene,
               props: selectedProps,
+              estimatedDuration,
               duration,
               continuity_mode: continuityMode,
               dialogues,
+              audioEvents,
             }
           : shot
       );
@@ -178,7 +194,7 @@ export function ShotForm({
   useEffect(() => {
     handleChange();
     syncToStore();
-  }, [description, videoDescription, selectedCharacters, selectedScene, selectedProps, duration, continuityMode, dialogues]);
+  }, [description, videoDescription, selectedCharacters, selectedScene, selectedProps, estimatedDuration, duration, continuityMode, dialogues, audioEvents]);
 
   // 处理角色选择切换
   const toggleCharacter = (charName: string) => {
@@ -227,6 +243,42 @@ export function ShotForm({
     setDialogues(newDialogues);
   };
 
+  const addAudioEvent = (type: AudioEventType = 'DIALOGUE') => {
+    const isNarration = type === 'NARRATION';
+    const newEvent: AudioDriveEvent = {
+      id: `local-${Date.now()}-${audioEvents.length}`,
+      shotId: shotData?.id || '',
+      order: audioEvents.length,
+      type,
+      voiceOwnerName: isNarration ? '旁白' : '',
+      visibleSpeakerName: isNarration ? null : '',
+      requiresVisibleLipsync: type === 'DIALOGUE',
+      text: '',
+      emotionPrompt: '',
+      pauseAfter: 'NONE',
+      ttsStatus: 'NOT_GENERATED',
+    };
+    setAudioEvents([...audioEvents, newEvent]);
+  };
+
+  const removeAudioEvent = (index: number) => {
+    setAudioEvents(audioEvents.filter((_, i) => i !== index).map((event, order) => ({ ...event, order })));
+  };
+
+  const updateAudioEvent = (index: number, field: keyof AudioDriveEvent, value: string | boolean) => {
+    const nextEvents = [...audioEvents];
+    nextEvents[index] = { ...nextEvents[index], [field]: value };
+    if (field === 'type') {
+      const type = value as AudioEventType;
+      nextEvents[index].requiresVisibleLipsync = type === 'DIALOGUE';
+      if (type === 'NARRATION') {
+        nextEvents[index].voiceOwnerName = nextEvents[index].voiceOwnerName || '旁白';
+        nextEvents[index].visibleSpeakerName = null;
+      }
+    }
+    setAudioEvents(nextEvents);
+  };
+
   const copyText = async (content: string) => {
     if (!content) return;
     try {
@@ -268,7 +320,15 @@ export function ShotForm({
   const dialogueDurationTotal = dialogues.reduce((total, dialogue) => (
     total + estimateDialogueSeconds(dialogueText(dialogue), dialogueEmotion(dialogue))
   ), 0);
-  const dialogueWarning = getDialogueDurationWarning(duration, dialogueDurationTotal);
+  const dialogueWarning = getDialogueDurationWarning(estimatedDuration, dialogueDurationTotal);
+  const audioEventCounts = audioEvents.reduce(
+    (stats, event) => ({
+      eventCount: stats.eventCount + 1,
+      visibleLipsyncCount: stats.visibleLipsyncCount + (event.requiresVisibleLipsync ? 1 : 0),
+      narrationCount: stats.narrationCount + (event.type === 'NARRATION' ? 1 : 0),
+    }),
+    { eventCount: 0, visibleLipsyncCount: 0, narrationCount: 0 }
+  );
 
   return (
     <div className="shot-form space-y-4">
@@ -529,18 +589,19 @@ export function ShotForm({
       {showDuration && (
         <div className="min-w-0">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t('chapterGenerate.durationLabel')}
+            预计时长
           </label>
           <input
             type="number"
-            value={duration}
-            onChange={(e) => setDuration(Math.min(180, Math.max(1, parseInt(e.target.value) || 5)))}
+            value={estimatedDuration}
+            onChange={(e) => setEstimatedDuration(Math.min(180, Math.max(1, parseInt(e.target.value) || 5)))}
             disabled={readOnly}
             min={1}
             max={180}
             className="input-field"
           />
-          <p className="text-xs text-gray-500 mt-1">{t('common.recommended')} 3-10 {t('common.second')}，{t('common.max')} 180 {t('common.second')}</p>
+          <p className="text-xs text-gray-500 mt-1">Shot Director 预估值，Audio Timeline READY 后以 resolved duration 为准。</p>
+          <p className="text-xs text-gray-500 mt-1">当前 resolved duration: {duration}{t('common.second')}</p>
         </div>
       )}
 
@@ -566,9 +627,150 @@ export function ShotForm({
       {/* 角色台词 */}
       {showDialogues && (
         <div>
+          <div className="mb-4 rounded-lg border border-cyan-100 bg-cyan-50/40 p-3">
+            <div className="flex items-center justify-between gap-3 mb-3">
+              <div>
+                <label className="text-sm font-medium text-gray-700">Audio Events</label>
+                <p className="text-xs text-gray-500 mt-1">
+                  声音语义源：{audioEventCounts.eventCount} events · {audioEventCounts.visibleLipsyncCount} 口型 · {audioEventCounts.narrationCount} 旁白
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => addAudioEvent('DIALOGUE')}
+                  disabled={readOnly}
+                  className="px-2 py-1 text-xs rounded bg-cyan-600 text-white hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  + 对白
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addAudioEvent('NARRATION')}
+                  disabled={readOnly}
+                  className="px-2 py-1 text-xs rounded bg-gray-700 text-white hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  + 旁白
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {audioEvents.map((event, idx) => (
+                <div key={event.id || idx} className="rounded-lg border border-gray-200 bg-white p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-gray-500">Event {idx + 1} · {event.ttsStatus || 'NOT_GENERATED'}</span>
+                    <button
+                      type="button"
+                      onClick={() => removeAudioEvent(idx)}
+                      disabled={readOnly}
+                      className="text-xs text-red-600 hover:text-red-800 disabled:opacity-50"
+                    >
+                      {t('common.delete')}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">类型</label>
+                      <select
+                        value={event.type}
+                        onChange={(e) => updateAudioEvent(idx, 'type', e.target.value as AudioEventType)}
+                        disabled={readOnly}
+                        className="input-field text-sm"
+                      >
+                        <option value="DIALOGUE">对白</option>
+                        <option value="NARRATION">旁白</option>
+                        <option value="INNER_MONOLOGUE">内心独白</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Voice Owner</label>
+                      <select
+                        value={event.voiceOwnerName || ''}
+                        onChange={(e) => updateAudioEvent(idx, 'voiceOwnerName', e.target.value)}
+                        disabled={readOnly}
+                        className="input-field text-sm"
+                      >
+                        <option value="">选择音色角色</option>
+                        <option value="旁白">旁白</option>
+                        {availableCharacters.map((charName) => (
+                          <option key={charName} value={charName}>{charName}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Visible Speaker</label>
+                      <select
+                        value={event.visibleSpeakerName || ''}
+                        onChange={(e) => updateAudioEvent(idx, 'visibleSpeakerName', e.target.value)}
+                        disabled={readOnly || event.type === 'NARRATION'}
+                        className="input-field text-sm"
+                      >
+                        <option value="">无可见说话人</option>
+                        {availableCharacters.map((charName) => (
+                          <option key={charName} value={charName}>{charName}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-500 mb-1">Pause After</label>
+                      <select
+                        value={event.pauseAfter || 'NONE'}
+                        onChange={(e) => updateAudioEvent(idx, 'pauseAfter', e.target.value)}
+                        disabled={readOnly}
+                        className="input-field text-sm"
+                      >
+                        {pauseAfterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <label className="inline-flex items-center gap-2 text-xs text-gray-600">
+                    <input
+                      type="checkbox"
+                      checked={event.requiresVisibleLipsync}
+                      onChange={(e) => updateAudioEvent(idx, 'requiresVisibleLipsync', e.target.checked)}
+                      disabled={readOnly || event.type === 'NARRATION'}
+                      className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
+                    />
+                    requires visible lipsync
+                  </label>
+
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">文本</label>
+                    <textarea
+                      value={event.text || ''}
+                      onChange={(e) => updateAudioEvent(idx, 'text', e.target.value)}
+                      disabled={readOnly}
+                      rows={2}
+                      className="input-field text-sm"
+                      placeholder="输入对白、旁白或内心独白文本"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-500 mb-1">情绪提示</label>
+                    <input
+                      type="text"
+                      value={event.emotionPrompt || ''}
+                      onChange={(e) => updateAudioEvent(idx, 'emotionPrompt', e.target.value)}
+                      disabled={readOnly}
+                      className="input-field text-sm"
+                      placeholder="例如：压低声音、迟疑、克制愤怒"
+                    />
+                  </div>
+                </div>
+              ))}
+
+              {audioEvents.length === 0 && (
+                <p className="text-xs text-gray-500 text-center py-4 bg-white rounded border border-dashed border-gray-200">暂无 Audio Events。旧章节可继续使用下方兼容台词，或新增声音事件。</p>
+              )}
+            </div>
+          </div>
+
           <div className="flex items-center justify-between mb-2">
             <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-              <span>{t('chapterGenerate.dialogues')}</span>
+              <span>{t('chapterGenerate.dialogues')}（兼容旧数据）</span>
               {dialogues.length > 0 && (
                 <span className={`rounded-full border px-2 py-0.5 text-xs font-normal ${dialogueWarning.style.className}`}>
                   {dialogueWarning.style.label} · 最低 {dialogueDurationTotal.toFixed(2)}s / 当前 {dialogueWarning.duration.toFixed(0)}s

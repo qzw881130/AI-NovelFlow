@@ -127,6 +127,51 @@ def update_llm_log(
         print(f"[LLM Log] 更新日志失败：{e}")
 
 
+def mark_matching_pending_llm_logs_error(
+    task_type: str,
+    novel_id: str = None,
+    chapter_id: str = None,
+    prompt_template_name: str = None,
+    user_prompt: str = None,
+    error_message: str = "LLM 调用已由调用方超时中断",
+) -> int:
+    """Mark pending logs for a timed-out call when cancellation did not reach provider cleanup."""
+    try:
+        from app.core.database import SessionLocal
+        from app.models.llm_log import LLMLog
+        from app.constants import LOG_ERROR_MESSAGE_MAX_LENGTH
+
+        db = SessionLocal()
+        try:
+            query = db.query(LLMLog).filter(LLMLog.status == "pending")
+            if task_type:
+                query = query.filter(LLMLog.task_type == task_type)
+            if novel_id:
+                query = query.filter(LLMLog.novel_id == novel_id)
+            if chapter_id:
+                query = query.filter(LLMLog.chapter_id == chapter_id)
+            if prompt_template_name:
+                query = query.filter(LLMLog.prompt_template_name == prompt_template_name)
+            if user_prompt:
+                query = query.filter(LLMLog.user_prompt == user_prompt)
+
+            logs = query.all()
+            for log in logs:
+                log.status = "error"
+                log.error_message = error_message[:LOG_ERROR_MESSAGE_MAX_LENGTH]
+            if logs:
+                db.commit()
+            return len(logs)
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[LLM Log] 标记超时日志失败：{e}")
+        return 0
+
+
 @dataclass
 class LLMConfig:
     """LLM 配置数据类"""

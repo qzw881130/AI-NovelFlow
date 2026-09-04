@@ -186,7 +186,7 @@ export function ImagePreviewModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-90 z-50 overflow-y-auto"
+      className="fixed inset-0 isolate z-[300] overflow-y-auto bg-black/90"
       onClick={onClose}
     >
       <div className="min-h-full flex items-center justify-center p-4 py-14">

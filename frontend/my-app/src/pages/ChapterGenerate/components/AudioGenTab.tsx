@@ -1,1169 +1,943 @@
-/**
- * AudioGenTab - 音频生成 Tab
- *
- * 四栏布局：
- * - 左 1：章节角色列表（显示当前章节有台词的所有角色，可收缩）
- * - 左 2：分镜角色列表（显示当前分镜有台词的角色）
- * - 右侧：编辑区域（编辑台词、情感提示词，播放/上传音频）
- */
-
-import { useState, useRef } from 'react';
-import { useChapterGenerateStore, useShotNavigatorSlice } from '../stores';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Check, Clock, Image, Loader2, Mic, RefreshCw, Save, Square, Volume2, Wand2, X } from 'lucide-react';
+import { audioDriveApi, type AudioDriveEvent, type AudioDriveExecutionWindow, type AudioTimeline } from '../../../api/audioDrive';
+import { taskApi } from '../../../api/tasks';
 import { useTranslation } from '../../../stores/i18nStore';
-import {
-  Mic,
-  Play,
-  Pause,
-  Upload,
-  Trash2,
-  UserPlus,
-  Volume2,
-  VolumeX,
-  Loader2,
-  ChevronRight,
-  Check,
-  Plus,
-  X,
-  Square,
-  Save,
-} from 'lucide-react';
-import { shotsApi } from '../../../api/shots';
-import { characterApi } from '../../../api/characters';
-import type { Character as CharacterType } from '../types';
-import type { DialogueData, Shot } from '../stores/slices/types';
+import { useChapterGenerateStore, useShotNavigatorSlice } from '../stores';
 
 interface AudioGenTabProps {
   novelId: string;
   chapterId: string;
 }
 
-// 角色卡片组件 - 章节角色列表
-interface ChapterCharacterCardProps {
-  character: CharacterType;
-  isSelected: boolean;
-  isInCurrentShot: boolean;
-  isAdding: boolean;
-  onSelect: (charId: string, charName: string) => void;
-  onAddToShot: (charName: string, e: React.MouseEvent) => void;
-  onPlayVoice: (charId: string, e: React.MouseEvent) => void;
-  isPlaying: boolean;
-  t: (key: string) => string;
+const statusClass: Record<string, string> = {
+  READY: 'bg-green-100 text-green-700',
+  GENERATING: 'bg-blue-100 text-blue-700',
+  STALE: 'bg-amber-100 text-amber-700',
+  FAILED: 'bg-red-100 text-red-700',
+  NOT_GENERATED: 'bg-gray-100 text-gray-600',
+  NOT_READY: 'bg-gray-100 text-gray-600',
+};
+
+const typeLabel: Record<string, string> = {
+  DIALOGUE: '对白',
+  NARRATION: '旁白',
+  INNER_MONOLOGUE: '心理',
+};
+
+const typeClass: Record<string, string> = {
+  DIALOGUE: 'bg-blue-50 text-blue-700 border-blue-200',
+  NARRATION: 'bg-purple-50 text-purple-700 border-purple-200',
+  INNER_MONOLOGUE: 'bg-amber-50 text-amber-700 border-amber-200',
+};
+
+const pauseAfterOptions: Array<{ value: AudioDriveEvent['pauseAfter']; label: string }> = [
+  { value: 'NONE', label: 'NONE · 0.0s' },
+  { value: 'SHORT', label: 'SHORT · 0.3s' },
+  { value: 'MEDIUM', label: 'MEDIUM · 0.6s' },
+  { value: 'LONG', label: 'LONG · 1.2s' },
+];
+
+function StatusBadge({ status }: { status?: string }) {
+  const value = status || 'NOT_READY';
+  return <span className={`rounded-full px-2 py-0.5 text-xs ${statusClass[value] || 'bg-gray-100 text-gray-600'}`}>{value}</span>;
 }
 
-function ChapterCharacterCard({
-  character,
-  isSelected,
-  isInCurrentShot,
-  isAdding,
-  onSelect,
-  onAddToShot,
-  onPlayVoice,
-  isPlaying,
-  t,
-}: ChapterCharacterCardProps) {
-  return (
-    <div
-      onClick={() => onSelect(character.id, character.name)}
-      className={`p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-all ${
-        isSelected ? 'bg-blue-50 border-blue-300' : ''
-      } ${isInCurrentShot ? 'border-l-4 border-l-green-500' : ''}`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-medium text-gray-900 truncate">
-              {character.name}
-            </p>
-            {isInCurrentShot && (
-              <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
-            )}
-          </div>
-          {character.voicePrompt && (
-            <p className="text-xs text-gray-500 mt-1 line-clamp-2" title={character.voicePrompt}>
-              {character.voicePrompt}
-            </p>
-          )}
-          {character.referenceAudioUrl && (
-            <button
-              onClick={(e) => onPlayVoice(character.id, e)}
-              className="mt-1.5 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
-            >
-              {isPlaying ? (
-                <>
-                  <Volume2 className="w-3 h-3 animate-pulse" />
-                  {t('chapterGenerate.playingVoice')}
-                </>
-              ) : (
-                <>
-                  <VolumeX className="w-3 h-3" />
-                  {t('chapterGenerate.previewVoice')}
-                </>
-              )}
-            </button>
-          )}
-        </div>
-        {!isInCurrentShot && (
-          <button
-            onClick={(e) => onAddToShot(character.name, e)}
-            disabled={isAdding}
-            className="p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors flex-shrink-0"
-            title={t('chapterGenerate.addToCurrentShot')}
-          >
-            {isAdding ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Plus className="w-4 h-4" />
-            )}
-          </button>
-        )}
-      </div>
-    </div>
-  );
+function sortNarratorFirst<T extends { isNarrator?: boolean; name?: string }>(items: T[]) {
+  return [...items].sort((a, b) => Number(Boolean(b.isNarrator || b.name === '旁白')) - Number(Boolean(a.isNarrator || a.name === '旁白')));
 }
 
-// 角色卡片组件 - 分镜角色列表
-interface ShotCharacterCardProps {
-  charName: string;
-  isSelected: boolean;
-  dialogue?: DialogueData;
-  hasAudio: boolean;
-  isRemoving: boolean;
-  isNarrator?: boolean;
-  onSelect: (charName: string) => void;
-  onRemove: (charName: string, e: React.MouseEvent) => void;
-  t: (key: string) => string;
-}
-
-function ShotCharacterCard({
-  charName,
-  isSelected,
-  dialogue,
-  hasAudio,
-  isRemoving,
-  isNarrator,
-  onSelect,
-  onRemove,
-  t,
-}: ShotCharacterCardProps) {
-  return (
-    <div
-      onClick={() => onSelect(charName)}
-      className={`p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50 transition-all ${
-        isSelected ? (isNarrator ? 'bg-purple-50 border-purple-300' : 'bg-blue-50 border-blue-300') : ''
-      } ${isNarrator ? 'border-l-4 border-l-purple-400' : ''}`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 flex-1 min-w-0">
-          <ChevronRight className={`w-4 h-4 flex-shrink-0 ${isSelected ? (isNarrator ? 'text-purple-500' : 'text-blue-500') : 'text-gray-400'}`} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-medium text-gray-900 truncate">{charName}</p>
-              {isNarrator && (
-                <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded">{t('chapterGenerate.narration')}</span>
-              )}
-            </div>
-            {dialogue?.text && (
-              <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{dialogue.text}</p>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-1">
-          {hasAudio && (
-            <div className="w-2 h-2 bg-green-500 rounded-full" title={t('chapterGenerate.hasAudio')}></div>
-          )}
-          {!isNarrator && (
-            <button
-              onClick={(e) => onRemove(charName, e)}
-              disabled={isRemoving}
-              className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-              title={t('chapterGenerate.removeFromShot')}
-            >
-              {isRemoving ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <X className="w-3.5 h-3.5" />
-              )}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// 音频播放器组件
-interface AudioPlayerProps {
-  audioUrl: string;
-  characterName: string;
-  t: (key: string) => string;
-}
-
-function AudioPlayer({ audioUrl, characterName, t }: AudioPlayerProps) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-
-  const handlePlay = () => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio(audioUrl);
-      audioRef.current.onended = () => setIsPlaying(false);
-      audioRef.current.play();
-    } else if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.play();
-      setIsPlaying(true);
-    }
+function normalizeWindow(window: AudioDriveExecutionWindow): AudioDriveExecutionWindow {
+  return {
+    ...window,
+    windowIndex: window.windowIndex ?? window.window_index,
+    startTime: window.startTime ?? window.start_time,
+    endTime: window.endTime ?? window.end_time,
+    audioStatus: window.audioStatus ?? window.audio_status,
+    audioMessage: window.audioMessage ?? window.audio_message,
+    driveAudioUrl: window.driveAudioUrl ?? window.drive_audio_url,
+    finalAudioUrl: window.finalAudioUrl ?? window.final_audio_url,
+    clipAudioDuration: window.clipAudioDuration ?? window.clip_audio_duration,
+    speakerTimeline: window.speakerTimeline ?? window.speaker_timeline,
   };
+}
+
+function isShotAudioReady(shot: any) {
+  const plan = shot?.videoDirectorPlan || {};
+  const windows = Array.isArray(plan.window_plans) && plan.window_plans.length > 0
+    ? plan.window_plans
+    : Array.isArray(plan.execution_windows)
+      ? plan.execution_windows
+      : Array.isArray(plan.clips)
+        ? plan.clips
+        : [];
+  return String(shot?.audioStatus || '').toUpperCase() === 'READY'
+    && windows.length > 0
+    && windows.every((window: any) => (
+      String(window.audio_status || window.audioStatus || '').toUpperCase() === 'READY'
+      && Boolean(window.drive_audio_url || window.driveAudioUrl)
+      && Boolean(window.final_audio_url || window.finalAudioUrl)
+    ));
+}
+
+const timelinePct = (value: number, total: number) => `${Math.max(0, Math.min(100, total > 0 ? (value / total) * 100 : 0))}%`;
+
+function AudioTimelineChart({ timeline }: { timeline: AudioTimeline }) {
+  const duration = Math.max(Number(timeline.totalDuration || 0), 0.001);
+  const eventsBySpeaker = timeline.events.reduce((groups: Record<string, typeof timeline.events>, event) => {
+    const speaker = event.voiceOwnerName || '声音';
+    groups[speaker] = groups[speaker] || [];
+    groups[speaker].push(event);
+    return groups;
+  }, {});
+  const driveEvents = timeline.events.filter((event) => event.requiresVisibleLipsync && event.visibleSpeakerName);
+  const ticks = [0, duration / 2, duration];
 
   return (
-    <div className="flex items-center gap-2">
-      <button
-        onClick={handlePlay}
-        className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-        title={isPlaying ? t('common.pause') : t('common.play')}
-      >
-        {isPlaying ? (
-          <Pause className="w-4 h-4" />
-        ) : (
-          <Play className="w-4 h-4" />
-        )}
-      </button>
-      <span className="text-xs text-gray-500">
-        {characterName} - {isPlaying ? t('chapterGenerate.playingVoice') : t('chapterGenerate.audioGenerated')}
-      </span>
+    <div className="rounded-lg border border-blue-100 bg-white p-3">
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="text-sm font-semibold text-gray-900">Audio Timeline</div>
+        <div className="text-xs text-gray-500">总时长：{timeline.totalDuration}s</div>
+      </div>
+      <div className="mb-2 grid grid-cols-[72px_minmax(0,1fr)] gap-2 text-[10px] text-gray-400">
+        <div />
+        <div className="relative h-4 border-t border-gray-200">
+          {ticks.map((tick) => (
+            <span key={tick} className="absolute top-0 -translate-x-1/2 border-l border-gray-200 pl-1" style={{ left: timelinePct(tick, duration) }}>{tick.toFixed(tick === 0 ? 0 : 1)}s</span>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-2">
+        {Object.entries(eventsBySpeaker).map(([speaker, speakerEvents]) => (
+          <div key={speaker} className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+            <div className="truncate text-xs font-medium text-gray-700" title={speaker}>{speaker}</div>
+            <div className="relative h-9 rounded border border-gray-200 bg-gray-50">
+              {speakerEvents.map((event) => (
+                <div
+                  key={event.audioEventId}
+                  className="absolute top-1 h-7 overflow-hidden rounded bg-blue-100 px-2 text-[11px] leading-7 text-blue-800"
+                  style={{ left: timelinePct(event.startTime, duration), width: timelinePct(event.endTime - event.startTime, duration) }}
+                  title={`${event.startTime}s-${event.endTime}s · ${typeLabel[event.type] || event.type}`}
+                >
+                  {event.startTime}s-{event.endTime}s
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 border-t border-gray-100 pt-2">
+          <div className="text-xs font-medium text-cyan-700">Drive</div>
+          <div className="relative h-8 rounded border border-cyan-100 bg-cyan-50/60">
+            {driveEvents.map((event) => (
+              <div
+                key={`drive-${event.audioEventId}`}
+                className="absolute top-1 h-6 overflow-hidden rounded bg-cyan-200 px-2 text-[11px] leading-6 text-cyan-900"
+                style={{ left: timelinePct(event.startTime, duration), width: timelinePct(event.endTime - event.startTime, duration) }}
+                title={`${event.startTime}s-${event.endTime}s · ${event.visibleSpeakerName}`}
+              >
+                {event.visibleSpeakerName}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+          <div className="text-xs font-medium text-purple-700">Final</div>
+          <div className="relative h-8 rounded border border-purple-100 bg-purple-50/60">
+            {timeline.events.map((event) => (
+              <div
+                key={`final-${event.audioEventId}`}
+                className="absolute top-1 h-6 overflow-hidden rounded bg-purple-200 px-2 text-[11px] leading-6 text-purple-900"
+                style={{ left: timelinePct(event.startTime, duration), width: timelinePct(event.endTime - event.startTime, duration) }}
+                title={`${event.startTime}s-${event.endTime}s · ${event.voiceOwnerName}`}
+              >
+                {event.voiceOwnerName}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
 export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
   const { t } = useTranslation();
-  const store = useChapterGenerateStore();
   const { currentShotIndex } = useShotNavigatorSlice();
+  const { characters, shots, fetchShots, setAudioPrepareStatus, clearAudioPrepareStatus } = useChapterGenerateStore();
 
-  const {
-    characters,
-    chapterCharacters,
-    shots,
-    audioUrls,
-    audioSources,
-    generatingAudios,
-    uploadingAudios,
-    audioWarnings,
-    generateShotAudio,
-    uploadDialogueAudio,
-    deleteDialogueAudio,
-    updateShot,
-  } = store;
+  const currentShot = shots.find((shot) => shot.index === currentShotIndex);
+  const [events, setEvents] = useState<AudioDriveEvent[]>([]);
+  const [timeline, setTimeline] = useState<AudioTimeline | null>(null);
+  const [audioStatus, setAudioStatus] = useState('NOT_READY');
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [editingEvent, setEditingEvent] = useState<AudioDriveEvent | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [buildingTimeline, setBuildingTimeline] = useState(false);
+  const [buildingWindows, setBuildingWindows] = useState(false);
+  const [buildingClipAudio, setBuildingClipAudio] = useState<number | 'all' | null>(null);
+  const [preparingAudio, setPreparingAudio] = useState(false);
+  const [activePrepareTaskId, setActivePrepareTaskId] = useState<string | null>(null);
+  const [showBatchAudioModal, setShowBatchAudioModal] = useState(false);
+  const [selectedBatchShotIds, setSelectedBatchShotIds] = useState<Set<string>>(new Set());
+  const [batchPreparing, setBatchPreparing] = useState(false);
+  const [batchProgress, setBatchProgress] = useState('');
+  const [maxClipDuration, setMaxClipDuration] = useState(15);
+  const [clipWindows, setClipWindows] = useState<AudioDriveExecutionWindow[]>([]);
+  const [message, setMessage] = useState<string>('');
+  const batchDragRef = useRef<{ active: boolean; shouldSelect: boolean; touched: Set<string> }>({
+    active: false,
+    shouldSelect: true,
+    touched: new Set(),
+  });
 
-  const [selectedChapterChar, setSelectedChapterChar] = useState<string | null>(null);
-  const [selectedShotChar, setSelectedShotChar] = useState<string | null>(null);
-  const [addingChars, setAddingChars] = useState<Set<string>>(new Set());
-  const [editingDialogues, setEditingDialogues] = useState<Record<string, DialogueData>>({});
-  const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
-  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(false);
-  const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
-  const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
-  const [isGeneratingAll, setIsGeneratingAll] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showWarnings, setShowWarnings] = useState(false);
+  const selectedEvent = useMemo(
+    () => events.find((event) => event.id === selectedEventId) || null,
+    [events, selectedEventId],
+  );
 
-  // 获取当前分镜数据
-  const currentShotData: Shot | undefined = shots.find(s => s.index === currentShotIndex);
-  const currentShotId = currentShotData?.id || '';
-  const currentShotCharacters = currentShotData?.characters || [];
-  const currentShotDialogues = currentShotData?.dialogues || [];
+  const sortedCharacters = useMemo(() => sortNarratorFirst(characters), [characters]);
+  const readyTtsCount = events.filter((event) => event.ttsStatus === 'READY').length;
+  const staleCount = events.filter((event) => event.ttsStatus === 'STALE').length;
+  const failedCount = events.filter((event) => event.ttsStatus === 'FAILED').length;
+  const generatingCount = events.filter((event) => event.ttsStatus === 'GENERATING').length;
+  const visibleSpeakerSelectValue = editingEvent?.visibleSpeakerCharacterId || (editingEvent?.visibleSpeakerName ? `name:${editingEvent.visibleSpeakerName}` : '');
+  const audioReadyShotIds = useMemo(() => new Set(shots.filter(isShotAudioReady).map((shot: any) => String(shot.id))), [shots]);
+  const selectableBatchShots = useMemo(() => shots.filter((shot: any) => Boolean(shot.id)), [shots]);
+  const selectedBatchShots = useMemo(() => selectableBatchShots.filter((shot: any) => selectedBatchShotIds.has(String(shot.id))), [selectableBatchShots, selectedBatchShotIds]);
 
-  // 获取当前分镜中的旁白角色（从 dialogues 中提取 type='narration' 的）
-  const narrationCharacters = currentShotDialogues
-    .filter(d => d.type === 'narration')
-    .map(d => d.character_name || t('chapterGenerate.narration'));
-
-  // 章节角色列表 - 有台词的角色 + 旁白角色（去重）
-  const narratorCharacter = characters.find(c => c.isNarrator);
-  const chapterCharactersWithDialogues = [
-    ...characters.filter(char => chapterCharacters.includes(char.name)),
-    ...(narratorCharacter && chapterCharacters.some(name =>
-      shots.some(s => s.dialogues?.some(d => d.type === 'narration'))
-    ) && !chapterCharacters.includes(narratorCharacter.name) ? [narratorCharacter] : []),
-  ];
-
-  // 分镜角色列表 - 当前分镜有台词的角色 + 旁白角色（去重）
-  const shotCharacters = [...new Set([...currentShotCharacters, ...narrationCharacters])];
-
-  // 获取角色的台词数据
-  const getDialogueForCharacter = (charName: string): DialogueData | undefined => {
-    // 检查是否是旁白角色
-    const narratorName = t('chapterGenerate.narration');
-    if (charName === narratorName || narrationCharacters.includes(charName)) {
-      // 对于旁白，查找 type='narration' 的台词
-      return currentShotDialogues.find(d => d.type === 'narration');
-    }
-    return currentShotDialogues.find(d => d.character_name === charName && d.type !== 'narration');
+  const getRunningPrepareShotId = (step: string) => {
+    const match = String(step || '').match(/镜\s*(\d+)/);
+    if (!match) return null;
+    const shotIndex = Number(match[1]);
+    const shot = shots.find((item: any) => Number(item.index) === shotIndex);
+    return shot?.id ? String(shot.id) : null;
   };
 
-  // 检查是否是旁白角色
-  const isNarratorCharacter = (charName: string): boolean => {
-    const narratorName = t('chapterGenerate.narration');
-    return charName === narratorName || narrationCharacters.includes(charName);
+  const loadClipWindowsFromShot = () => {
+    const plan = currentShot?.videoDirectorPlan as any;
+    const windows = Array.isArray(plan?.window_plans)
+      ? plan.window_plans
+      : Array.isArray(plan?.execution_windows)
+        ? plan.execution_windows
+        : [];
+    setClipWindows(windows.map(normalizeWindow));
   };
 
-  // 检查是否有音频
-  const hasAudio = (charName: string): boolean => {
-    const key = `${currentShotId}-${charName}`;
-    return !!audioUrls[key];
-  };
-
-  // 获取音频 URL
-  const getAudioUrl = (charName: string): string | undefined => {
-    const key = `${currentShotId}-${charName}`;
-    return audioUrls[key];
-  };
-
-  // 检查是否正在生成
-  const isGenerating = (charName: string): boolean => {
-    const key = `${currentShotId}-${charName}`;
-    return generatingAudios.has(key);
-  };
-
-  // 检查是否正在上传
-  const isUploading = (charName: string): boolean => {
-    const key = `${currentShotId}-${charName}`;
-    return uploadingAudios.has(key);
-  };
-
-  // 处理章节角色选择
-  const handleChapterCharacterSelect = (charId: string, charName: string) => {
-    setSelectedChapterChar(charId);
-    // 如果该角色不在当前分镜，点击添加到分镜
-    if (!currentShotCharacters.includes(charName)) {
-      handleAddToShot(charName);
-    }
-  };
-
-  // 添加角色到当前分镜
-  const handleAddToShot = async (charName: string) => {
-    if (!currentShotData || currentShotCharacters.includes(charName)) return;
-
-    setAddingChars(prev => new Set(prev).add(charName));
+  const loadAudioDrive = async () => {
+    if (!currentShot?.id) return;
+    setLoading(true);
     try {
-      const updatedCharacters = [...currentShotCharacters, charName];
-      await updateShot(currentShotData.id, { characters: updatedCharacters });
-
-      // 同时添加默认台词
-      const newDialogue: DialogueData = {
-        character_name: charName,
-        text: '',
-        emotion_prompt: '',
-      };
-      const updatedDialogues = [...currentShotDialogues, newDialogue];
-      await updateShot(currentShotData.id, { dialogues: updatedDialogues });
-
-      setSelectedShotChar(charName);
+      const [eventsRes, timelineRes] = await Promise.all([
+        audioDriveApi.fetchEvents(currentShot.id),
+        audioDriveApi.fetchTimeline(currentShot.id),
+      ]);
+      const nextEvents = eventsRes.data?.events || [];
+      setEvents(nextEvents);
+      setAudioStatus(eventsRes.data?.audioStatus || 'NOT_READY');
+      setTimeline(timelineRes.data || null);
+      loadClipWindowsFromShot();
+      setSelectedEventId((prev) => (
+        prev && nextEvents.some((event) => event.id === prev)
+          ? prev
+          : nextEvents[0]?.id || null
+      ));
     } catch (error) {
-      console.error('添加角色到分镜失败:', error);
+      console.error('加载 AudioDrive 数据失败:', error);
+      setMessage('加载 AudioDrive 数据失败');
     } finally {
-      setAddingChars(prev => {
-        const next = new Set(prev);
-        next.delete(charName);
-        return next;
-      });
+      setLoading(false);
     }
   };
 
-  // 从分镜移除角色
-  const handleRemoveFromShot = async (charName: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!currentShotData) return;
+  useEffect(() => {
+    setSelectedEventId(null);
+    setEditingEvent(null);
+    setMessage('');
+    loadAudioDrive();
+  }, [currentShot?.id]);
 
+  useEffect(() => {
+    loadClipWindowsFromShot();
+  }, [currentShot?.id, currentShot?.videoDirectorPlan]);
+
+  useEffect(() => {
+    setEditingEvent(selectedEvent ? { ...selectedEvent } : null);
+  }, [selectedEvent?.id]);
+
+  useEffect(() => {
+    if (!currentShot?.id || generatingCount === 0) return;
+    const timer = window.setInterval(loadAudioDrive, 3000);
+    return () => window.clearInterval(timer);
+  }, [currentShot?.id, generatingCount]);
+
+  const saveEvent = async () => {
+    if (!editingEvent) return;
+    setSaving(true);
+    setMessage('');
     try {
-      const updatedCharacters = currentShotCharacters.filter(c => c !== charName);
-      const updatedDialogues = currentShotDialogues.filter(d => d.character_name !== charName);
-
-      await updateShot(currentShotData.id, {
-        characters: updatedCharacters,
-        dialogues: updatedDialogues,
+      const res = await audioDriveApi.updateEvent(editingEvent.id, {
+        voiceOwnerCharacterId: editingEvent.voiceOwnerCharacterId,
+        voiceOwnerName: editingEvent.voiceOwnerName,
+        visibleSpeakerCharacterId: editingEvent.visibleSpeakerCharacterId,
+        visibleSpeakerName: editingEvent.visibleSpeakerName,
+        requiresVisibleLipsync: editingEvent.requiresVisibleLipsync,
+        text: editingEvent.text,
+        emotionPrompt: editingEvent.emotionPrompt,
+        pauseAfter: editingEvent.pauseAfter,
       });
+      if (!res.success) throw new Error(res.message || '保存失败');
+      await loadAudioDrive();
+      setMessage('Audio Event 已保存，下游状态已按规则标记');
+    } catch (error) {
+      setMessage((error as Error).message || '保存失败');
+    } finally {
+      setSaving(false);
+    }
+  };
 
-      if (selectedShotChar === charName) {
-        setSelectedShotChar(null);
+  const generateSelectedTts = async (force = false) => {
+    if (!selectedEventId) return;
+    setGenerating(true);
+    setMessage('');
+    try {
+      const res = await audioDriveApi.generateEventTts(selectedEventId, force);
+      if (!res.success) throw new Error(res.message || '提交 TTS 任务失败');
+      setMessage('TTS 任务已提交到串行 worker');
+      await loadAudioDrive();
+    } catch (error) {
+      setMessage((error as Error).message || '提交 TTS 任务失败');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const generateShotTts = async (force = false) => {
+    if (!currentShot?.id) return;
+    setGenerating(true);
+    setMessage('');
+    try {
+      const res = await audioDriveApi.generateShotTts(currentShot.id, { onlyStale: !force, force });
+      if (!res.success) throw new Error(res.message || '提交批量 TTS 任务失败');
+      setMessage(`批量 TTS 已提交到串行 worker，共 ${res.data?.tasks?.length || 0} 个任务`);
+      await loadAudioDrive();
+    } catch (error) {
+      setMessage((error as Error).message || '提交批量 TTS 任务失败');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const buildTimeline = async (force = false) => {
+    if (!currentShot?.id) return;
+    setBuildingTimeline(true);
+    setMessage('');
+    try {
+      const res = force ? await audioDriveApi.rebuildTimeline(currentShot.id) : await audioDriveApi.buildTimeline(currentShot.id);
+      if (!res.success) throw new Error(res.message || '构建 Timeline 失败');
+      setTimeline(res.data || null);
+      setAudioStatus('READY');
+      setMessage('Audio Timeline 已构建，resolved_duration 已写回 Shot duration');
+      await loadAudioDrive();
+      await fetchShots(novelId, chapterId);
+    } catch (error) {
+      setMessage((error as Error).message || '构建 Timeline 失败');
+    } finally {
+      setBuildingTimeline(false);
+    }
+  };
+
+  const buildExecutionWindows = async () => {
+    if (!currentShot?.id) return;
+    setBuildingWindows(true);
+    setMessage('');
+    try {
+      const res = await audioDriveApi.buildExecutionWindows(currentShot.id, maxClipDuration);
+      if (!res.success) throw new Error(res.message || '构建执行窗口失败');
+      const windows = (res.data?.executionWindows || []).map(normalizeWindow);
+      setClipWindows(windows);
+      setMessage(`已构建 ${windows.length} 个执行窗口`);
+      await fetchShots(novelId, chapterId);
+    } catch (error) {
+      setMessage((error as Error).message || '构建执行窗口失败');
+    } finally {
+      setBuildingWindows(false);
+    }
+  };
+
+  const mergeClipAudioResult = (windowIndex: number, data: any) => {
+    setClipWindows((prev) => prev.map((window) => (
+      Number(window.windowIndex) === Number(windowIndex)
+        ? normalizeWindow({
+            ...window,
+            audioStatus: data.audioStatus,
+            audioMessage: data.message,
+            driveAudioUrl: data.driveAudioUrl,
+            finalAudioUrl: data.finalAudioUrl,
+            speakerTimeline: data.speakerTimeline,
+          })
+        : window
+    )));
+  };
+
+  const buildClipAudio = async (windowIndex: number, force = false) => {
+    if (!currentShot?.id) return;
+    setBuildingClipAudio(windowIndex);
+    setMessage('');
+    try {
+      const res = await audioDriveApi.buildClipAudio(currentShot.id, windowIndex, force);
+      if (!res.success) throw new Error(res.message || '构建 Clip Audio 失败');
+      mergeClipAudioResult(windowIndex, res.data);
+      setMessage(`Clip ${windowIndex} Audio 已构建`);
+      await fetchShots(novelId, chapterId);
+    } catch (error) {
+      setMessage((error as Error).message || '构建 Clip Audio 失败');
+    } finally {
+      setBuildingClipAudio(null);
+    }
+  };
+
+  const buildAllClipAudio = async (force = false) => {
+    if (!currentShot?.id) return;
+    let windows = clipWindows;
+    setBuildingClipAudio('all');
+    setMessage('');
+    try {
+      if (windows.length === 0) {
+        const windowsRes = await audioDriveApi.buildExecutionWindows(currentShot.id, maxClipDuration);
+        if (!windowsRes.success) throw new Error(windowsRes.message || '构建执行窗口失败');
+        windows = (windowsRes.data?.executionWindows || []).map(normalizeWindow);
+        setClipWindows(windows);
       }
-    } catch (error) {
-      console.error('从分镜移除角色失败:', error);
-    }
-  };
-
-  // 添加旁白到当前分镜
-  const handleAddNarratorToShot = async () => {
-    if (!currentShotData) return;
-
-    const narratorName = t('chapterGenerate.narration');
-    const newDialogue: DialogueData = {
-      type: 'narration',
-      order: currentShotDialogues.length,
-      character_name: narratorName,
-      text: '',
-      emotion_prompt: '',
-    };
-
-    try {
-      const updatedDialogues = [...currentShotDialogues, newDialogue];
-      await updateShot(currentShotData.id, { dialogues: updatedDialogues });
-      setSelectedShotChar(narratorName);
-    } catch (error) {
-      console.error('添加旁白失败:', error);
-    }
-  };
-
-  // 处理分镜角色选择
-  const handleShotCharacterSelect = (charName: string) => {
-    setSelectedShotChar(charName);
-  };
-
-  // 播放角色音色
-  const handlePlayVoice = async (charId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-
-    if (playingVoiceId === charId) {
-      setPlayingVoiceId(null);
-      return;
-    }
-
-    try {
-      const char = characters.find(c => c.id === charId);
-      if (char?.referenceAudioUrl) {
-        setPlayingVoiceId(charId);
-        const audio = new Audio(char.referenceAudioUrl);
-        audio.onended = () => setPlayingVoiceId(null);
-        audio.play();
+      for (const window of windows) {
+        const windowIndex = Number(window.windowIndex || window.window_index || 0);
+        if (!windowIndex) continue;
+        const res = await audioDriveApi.buildClipAudio(currentShot.id, windowIndex, force);
+        if (!res.success) throw new Error(res.message || `Clip ${windowIndex} Audio 构建失败`);
+        mergeClipAudioResult(windowIndex, res.data);
       }
+      setMessage(`已构建 ${windows.length} 个 Clip Audio`);
+      await fetchShots(novelId, chapterId);
     } catch (error) {
-      console.error('播放音色失败:', error);
-      setPlayingVoiceId(null);
+      setMessage((error as Error).message || '构建全部 Clip Audio 失败');
+    } finally {
+      setBuildingClipAudio(null);
     }
   };
 
-  // 更新台词
-  const handleDialogueChange = (charName: string, field: keyof DialogueData, value: string) => {
-    const isNarrator = isNarratorCharacter(charName);
-    const currentDialogue = getDialogueForCharacter(charName);
-    const updated: DialogueData = {
-      ...currentDialogue,
-      type: isNarrator ? 'narration' : 'character',
-      character_name: charName,
-      text: field === 'text' ? value : currentDialogue?.text || '',
-      emotion_prompt: field === 'emotion_prompt' ? value : currentDialogue?.emotion_prompt || '',
-    };
-    setEditingDialogues(prev => ({ ...prev, [charName]: updated }));
-  };
-
-  // 保存台词
-  const handleSaveDialogue = async (charName: string) => {
-    if (!currentShotData || !editingDialogues[charName]) return;
-
+  const prepareCurrentShotAudio = async () => {
+    if (!currentShot?.id) return;
+    setPreparingAudio(true);
+    setBuildingClipAudio('all');
     try {
-      const isNarrator = isNarratorCharacter(charName);
-      const updatedDialogues = currentShotDialogues.map(d => {
-        // 对于旁白，按 type 匹配；对于普通角色，按 character_name 匹配
-        if (isNarrator && d.type === 'narration') {
-          return editingDialogues[charName]!;
-        }
-        if (!isNarrator && d.character_name === charName && d.type !== 'narration') {
-          return editingDialogues[charName]!;
-        }
-        return d;
+      const res = await audioDriveApi.prepareShotAudio(currentShot.id, {
+        maxClipDuration,
+        forceTts: false,
+        forceClipAudio: true,
       });
-      await updateShot(currentShotData.id, { dialogues: updatedDialogues });
-      setEditingDialogues(prev => {
-        const next = { ...prev };
-        delete next[charName];
-        return next;
-      });
+      if (!res.success) throw new Error(res.message || '提交音频准备任务失败');
+      const taskId = res.data?.taskId || '';
+      setAudioPrepareStatus([String(currentShot.id)], String(currentShot.id));
+      setActivePrepareTaskId(taskId || null);
+      setMessage(`已提交持久化音频准备任务：${taskId}`);
+      await fetchShots(novelId, chapterId);
+      await loadAudioDrive();
     } catch (error) {
-      console.error('保存台词失败:', error);
+      setMessage((error as Error).message || '提交一键准备音频失败');
+    } finally {
+      setPreparingAudio(false);
+      setBuildingClipAudio(null);
     }
   };
 
-  // 生成音频
-  const handleGenerateAudio = async (charName: string) => {
-    if (!currentShotData) {
-      console.error('当前分镜数据不存在');
-      return;
-    }
-
-    const dialogue = editingDialogues[charName] || getDialogueForCharacter(charName);
-    if (!dialogue || !dialogue.text) {
-      alert('请输入台词文本');
-      return;
-    }
-
-    const isNarrator = isNarratorCharacter(charName);
-
-    // 只传递必要的字段给后端
-    const dialogueData: DialogueData = {
-      type: isNarrator ? 'narration' : 'character',
-      character_name: charName,
-      text: dialogue.text,
-      emotion_prompt: dialogue.emotion_prompt || '',
-    };
-
-    console.log('生成音频请求:', {
-      novelId,
-      chapterId,
-      shotIndex: currentShotIndex,
-      dialogues: [dialogueData],
-    });
-
-    try {
-      await generateShotAudio(novelId, chapterId, currentShotData.id, [dialogueData]);
-      console.log('音频生成任务已提交');
-    } catch (error) {
-      console.error('生成音频失败:', error);
-      alert('生成失败：' + (error as Error).message);
-    }
+  const openBatchAudioModal = () => {
+    setSelectedBatchShotIds(new Set(selectableBatchShots.filter((shot: any) => !isShotAudioReady(shot)).map((shot: any) => String(shot.id))));
+    setBatchProgress('');
+    setShowBatchAudioModal(true);
   };
 
-  // 上传音频
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const handleUploadAudio = (charName: string) => {
-    fileInputRef.current?.click();
-    // 存储当前选中的角色名供后续使用
-    (fileInputRef.current as any).dataset.charName = charName;
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    const charName = (e.target as any).dataset.charName;
-
-    if (!file || !charName || !currentShotData) return;
-
-    try {
-      await uploadDialogueAudio(novelId, chapterId, currentShotData.id, charName, file);
-    } catch (error) {
-      console.error('上传音频失败:', error);
-    }
-
-    e.target.value = '';
-  };
-
-  // 删除音频
-  const handleDeleteAudio = async (charName: string) => {
-    if (!currentShotData) return;
-
-    try {
-      await deleteDialogueAudio(novelId, chapterId, currentShotData.id, charName);
-    } catch (error) {
-      console.error('删除音频失败:', error);
-    }
-  };
-
-  // ========== 批量生成音频功能 ==========
-
-  // 打开批量选择弹窗
-  const handleOpenBatchSelect = () => {
-    // 初始化选择：默认选中所有有对话的分镜
-    const shotsWithDialogues = shots.filter(s => s.dialogues && s.dialogues.length > 0).map(s => s.index);
-    setSelectedShots(new Set(shotsWithDialogues));
-    setShowBatchSelectModal(true);
-  };
-
-  // 切换分镜选择状态
-  const toggleShotSelection = (index: number) => {
-    // 检查该分镜是否有对话
-    const shot = shots.find(s => s.index === index);
-    const hasDialogues = shot?.dialogues && shot.dialogues.length > 0;
-    if (!hasDialogues) return; // 没有对话的分镜不能被选择
-
-    setSelectedShots(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(index)) {
-        newSet.delete(index);
-      } else {
-        newSet.add(index);
-      }
-      return newSet;
+  const toggleBatchShot = (shotId: string) => {
+    setSelectedBatchShotIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(shotId)) next.delete(shotId);
+      else next.add(shotId);
+      return next;
     });
   };
 
-  // 全选/取消全选
-  const toggleSelectAll = () => {
-    // 只选择有对话的分镜
-    const shotsWithDialogues = shots.filter(s => s.dialogues && s.dialogues.length > 0).map(s => s.index);
-    const allSelected = shotsWithDialogues.every(index => selectedShots.has(index));
+  const applyBatchShotSelection = (shotId: string, shouldSelect: boolean) => {
+    setSelectedBatchShotIds((prev) => {
+      const next = new Set(prev);
+      if (shouldSelect) next.add(shotId);
+      else next.delete(shotId);
+      return next;
+    });
+  };
 
-    if (allSelected) {
-      setSelectedShots(new Set());
+  const startBatchShotDrag = (shotId: string, isSelected: boolean, event: any) => {
+    if (batchPreparing) return;
+    event.preventDefault();
+    const shouldSelect = !isSelected;
+    batchDragRef.current = { active: true, shouldSelect, touched: new Set([shotId]) };
+    applyBatchShotSelection(shotId, shouldSelect);
+  };
+
+  const enterBatchShotDrag = (shotId: string) => {
+    const drag = batchDragRef.current;
+    if (!drag.active || drag.touched.has(shotId) || batchPreparing) return;
+    drag.touched.add(shotId);
+    applyBatchShotSelection(shotId, drag.shouldSelect);
+  };
+
+  const endBatchShotDrag = () => {
+    batchDragRef.current = { active: false, shouldSelect: true, touched: new Set() };
+  };
+
+  useEffect(() => {
+    if (!showBatchAudioModal) return;
+    window.addEventListener('pointerup', endBatchShotDrag);
+    return () => window.removeEventListener('pointerup', endBatchShotDrag);
+  }, [showBatchAudioModal]);
+
+  useEffect(() => {
+    if (!activePrepareTaskId) return;
+    let cancelled = false;
+    const refreshWhenDone = async () => {
+      try {
+        const res = await taskApi.fetch(activePrepareTaskId);
+        const task = res.data as any;
+        if (!task || cancelled) return;
+        const status = String(task.status || '').toLowerCase();
+        const step = task.currentStep || task.current_step || '';
+        const metadata = task.metadata || task.metadataJson || task.metadata_json || {};
+        const pendingShotIds = Array.isArray(metadata.shot_ids) ? metadata.shot_ids.map(String) : [];
+        if (status === 'pending' || status === 'running' || status === 'queued') {
+          setAudioPrepareStatus(pendingShotIds, getRunningPrepareShotId(step));
+          setMessage(`音频准备任务执行中：${task.progress || 0}%${step ? ` · ${step}` : ''}`);
+          return;
+        }
+        await fetchShots(novelId, chapterId);
+        await loadAudioDrive();
+        clearAudioPrepareStatus();
+        if (status === 'completed') {
+          setMessage('音频准备任务已完成，页面数据已刷新');
+        } else {
+          setMessage(task.errorMessage || task.error_message || '音频准备任务失败，页面数据已刷新');
+        }
+        setActivePrepareTaskId(null);
+      } catch (error) {
+        if (!cancelled) setMessage((error as Error).message || '查询音频准备任务失败');
+      }
+    };
+    refreshWhenDone();
+    const timer = window.setInterval(refreshWhenDone, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activePrepareTaskId, chapterId, novelId, shots]);
+
+  const selectPendingAudioShots = () => {
+    setSelectedBatchShotIds(new Set(selectableBatchShots.filter((shot: any) => !isShotAudioReady(shot)).map((shot: any) => String(shot.id))));
+  };
+
+  const toggleSelectAllAudioShots = () => {
+    if (selectedBatchShotIds.size === selectableBatchShots.length) {
+      setSelectedBatchShotIds(new Set());
     } else {
-      setSelectedShots(new Set(shotsWithDialogues));
+      setSelectedBatchShotIds(new Set(selectableBatchShots.map((shot: any) => String(shot.id))));
     }
   };
 
-  // 处理批量生成音频
-  const handleGenerateAllAudio = async () => {
-    if (!novelId || !chapterId) return;
-    setIsGeneratingAll(true);
+  const prepareBatchAudio = async () => {
+    if (selectedBatchShots.length === 0) return;
+    setBatchPreparing(true);
     try {
-      console.log('开始批量生成音频，选中的分镜:', Array.from(selectedShots));
-
-      // 依次生成选中的分镜音频
-      for (const shotIndex of selectedShots) {
-        const shot = shots.find(s => s.index === shotIndex);
-        console.log(`分镜 ${shotIndex}:`, shot);
-
-        if (shot?.dialogues && shot.dialogues.length > 0) {
-          // 过滤出必要的字段，包含 type
-          const dialoguesData: DialogueData[] = shot.dialogues.map(d => ({
-            type: d.type || 'character',
-            character_name: d.character_name,
-            text: d.text,
-            emotion_prompt: d.emotion_prompt || '',
-          }));
-
-          console.log(`生成分镜 ${shotIndex} 的音频，dialogues:`, dialoguesData);
-
-          const result = await generateShotAudio(novelId, chapterId, shot.id, dialoguesData);
-          console.log(`分镜 ${shotIndex} 生成结果:`, result);
-        }
-      }
+      setBatchProgress(`正在提交 ${selectedBatchShots.length} 个分镜的持久化音频准备任务...`);
+      const res = await audioDriveApi.prepareBatchAudio({
+        shotIds: selectedBatchShots.map((shot: any) => String(shot.id)),
+        maxClipDuration,
+        forceTts: false,
+        forceClipAudio: true,
+      });
+      if (!res.success) throw new Error(res.message || '提交批量音频准备任务失败');
+      const taskId = res.data?.taskId || '';
+      setAudioPrepareStatus(selectedBatchShots.map((shot: any) => String(shot.id)), null);
+      setActivePrepareTaskId(taskId || null);
+      await fetchShots(novelId, chapterId);
+      await loadAudioDrive();
+      setBatchProgress(`已提交持久化任务：${taskId}，可关闭或刷新页面，后端会继续执行。`);
+      setMessage(`已提交批量音频准备任务：${selectedBatchShots.length} 个分镜`);
+      setShowBatchAudioModal(false);
     } catch (error) {
-      console.error('批量生成音频失败:', error);
-      alert('批量生成失败：' + (error as Error).message);
+      setBatchProgress((error as Error).message || '提交批量音频准备任务失败');
     } finally {
-      setIsGeneratingAll(false);
-      setShowBatchSelectModal(false);
+      setBatchPreparing(false);
+      setBuildingClipAudio(null);
     }
   };
 
-  // ========== 保存分镜信息功能 ==========
-
-  // 保存当前分镜信息
-  const handleSaveShot = async () => {
-    if (!currentShotData || !novelId || !chapterId) return;
-
-    setIsSaving(true);
-    try {
-      // 调用批量更新接口保存当前分镜
-      const result = await shotsApi.batchUpdateShots(novelId, chapterId, [currentShotData]);
-
-      if (result.success) {
-        console.log('分镜保存成功');
-      } else {
-        console.error('分镜保存失败:', result.message);
-      }
-    } catch (error) {
-      console.error('分镜保存失败:', error);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  // 渲染编辑区域
-  const renderEditPanel = () => {
-    const dialogue = selectedShotChar ? (editingDialogues[selectedShotChar] || getDialogueForCharacter(selectedShotChar)) : null;
-    const audioKey = selectedShotChar ? `${currentShotId}-${selectedShotChar}` : '';
-    const hasGeneratedAudio = selectedShotChar ? !!audioUrls[audioKey] : false;
-    const isGen = selectedShotChar ? isGenerating(selectedShotChar) : false;
-    const isUpload = selectedShotChar ? isUploading(selectedShotChar) : false;
-    const isNarrator = selectedShotChar ? isNarratorCharacter(selectedShotChar) : false;
-
-    if (!selectedShotChar) {
-      return (
-        <div className="flex items-center justify-center h-full text-gray-500 text-sm">
-          {t('chapterGenerate.selectCharacterToEdit')}
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        {/* 角色信息 */}
-        <div className="pb-3 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-gray-900">{selectedShotChar}</h3>
-            {isNarrator && (
-              <span className="text-xs px-2 py-1 bg-purple-100 text-purple-600 rounded">{t('chapterGenerate.narration')}</span>
-            )}
-          </div>
-        </div>
-
-        {/* 台词文本 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            {isNarrator ? t('chapterGenerate.narration') : t('chapterGenerate.dialogueText')}
-          </label>
-          <textarea
-            value={dialogue?.text || ''}
-            onChange={(e) => handleDialogueChange(selectedShotChar, 'text', e.target.value)}
-            placeholder={t('chapterGenerate.dialogueTextPlaceholder')}
-            rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-          />
-        </div>
-
-        {/* 情感提示词 */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            {t('chapterGenerate.emotionPrompt')}
-          </label>
-          <input
-            type="text"
-            value={dialogue?.emotion_prompt || ''}
-            onChange={(e) => handleDialogueChange(selectedShotChar, 'emotion_prompt', e.target.value)}
-            placeholder={t('chapterGenerate.emotionPromptExample')}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-          />
-        </div>
-
-        {/* 编辑保存按钮 */}
-        {editingDialogues[selectedShotChar] && (
-          <button
-            onClick={() => handleSaveDialogue(selectedShotChar)}
-            className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
-          >
-            {t('common.saveChanges')}
-          </button>
-        )}
-
-        {/* 音频区域 */}
-        <div className="pt-3 border-t border-gray-200">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            {t('chapterGenerate.audio')}
-          </label>
-
-          {hasGeneratedAudio ? (
-            <div className="space-y-2">
-              {/* 播放已有音频 */}
-              <AudioPlayer
-                audioUrl={audioUrls[audioKey]}
-                characterName={selectedShotChar}
-                t={t}
-              />
-
-              {/* 操作按钮 */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleGenerateAudio(selectedShotChar)}
-                  disabled={isGen}
-                  className="flex-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm flex items-center justify-center gap-1"
-                >
-                  {isGen ? (
-                    <>
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      {t('chapterGenerate.generating')}
-                    </>
-                  ) : (
-                    <>
-                      <Mic className="w-3.5 h-3.5" />
-                      {t('chapterGenerate.regenerate')}
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={() => handleDeleteAudio(selectedShotChar)}
-                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                  title={t('common.delete')}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <button
-                onClick={() => handleGenerateAudio(selectedShotChar)}
-                disabled={isGen || !(dialogue?.text)}
-                className="w-full px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 text-sm flex items-center justify-center gap-1"
-              >
-                {isGen ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    {t('chapterGenerate.generating')}
-                  </>
-                ) : (
-                  <>
-                    <Mic className="w-3.5 h-3.5" />
-                    {t('chapterGenerate.generateAudio')}
-                  </>
-                )}
-              </button>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-gray-400 text-xs">{t('common.or')}</span>
-                </div>
-                <div className="border-t border-gray-200"></div>
-              </div>
-
-              <button
-                onClick={() => handleUploadAudio(selectedShotChar)}
-                disabled={isUpload}
-                className="w-full px-3 py-1.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 text-sm flex items-center justify-center gap-1"
-              >
-                {isUpload ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    {t('chapterGenerate.uploading')}
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-3.5 h-3.5" />
-                    {t('chapterGenerate.uploadFromLocal')}
-                  </>
-                )}
-              </button>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="audio/*"
-                onChange={handleFileChange}
-                className="hidden"
-                data-char-name=""
-              />
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  };
+  if (!currentShot) {
+    return <div className="flex h-full items-center justify-center text-sm text-gray-500">请选择分镜</div>;
+  }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* 隐藏的文件输入 */}
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,audio/flac,audio/x-flac"
-        onChange={handleFileChange}
-        className="hidden"
-      />
-
-      {/* 主体内容区 */}
-      <div className="flex-1 min-h-0 flex overflow-hidden">
-        {/* 左 1：章节角色列表（可收缩） */}
-      <div
-        className={`relative flex-shrink-0 transition-all duration-200 ease-in-out ${
-          leftPanelCollapsed ? 'w-12' : 'w-64'
-        }`}
-      >
-        <div className="h-full border-r border-gray-200 flex flex-col bg-gray-50">
-          {!leftPanelCollapsed && (
-            <>
-              <div className="p-3 border-b border-gray-200 bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.chapterCharacters')}</h3>
-                    <p className="text-xs text-gray-500 mt-0.5">{t('chapterGenerate.clickToAddToShot')}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2 space-y-2">
-                {chapterCharactersWithDialogues.map((char) => (
-                  <ChapterCharacterCard
-                    key={char.id}
-                    character={char}
-                    isSelected={selectedChapterChar === char.id}
-                    isInCurrentShot={currentShotCharacters.includes(char.name)}
-                    isAdding={addingChars.has(char.name)}
-                    onSelect={handleChapterCharacterSelect}
-                    onAddToShot={(name, e) => {
-                      e.stopPropagation();
-                      handleAddToShot(name);
-                    }}
-                    onPlayVoice={handlePlayVoice}
-                    isPlaying={playingVoiceId === char.id}
-                    t={t}
-                  />
-                ))}
-                {/* 添加旁白按钮 */}
-                {narrationCharacters.length === 0 && (
-                  <button
-                    onClick={() => handleAddNarratorToShot()}
-                    className="w-full p-3 border-2 border-dashed border-purple-300 rounded-lg text-sm text-purple-600 hover:border-purple-500 hover:bg-purple-50 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" />
-                    {t('chapterGenerate.addNarration')}
-                  </button>
-                )}
-                {chapterCharactersWithDialogues.length === 0 && narrationCharacters.length > 0 && (
-                  <div className="p-4 text-center text-gray-500 text-sm">
-                    {t('chapterGenerate.noCharactersInChapter')}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+    <div className="flex h-full flex-col bg-white">
+      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900">AudioDrive 工作区</h3>
+            <StatusBadge status={audioStatus} />
+          </div>
+          <p className="mt-0.5 text-xs text-gray-500">分镜图生成和音频生成可并行；视频生成前会检查 Audio Timeline / resolved_duration。</p>
         </div>
-
-        {/* 收起/展开按钮 */}
-        <button
-          onClick={() => setLeftPanelCollapsed(!leftPanelCollapsed)}
-          className={`absolute top-4 z-10 w-6 h-6 bg-white border border-gray-200 rounded-full shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors ${
-            leftPanelCollapsed ? '-right-3' : '-right-3'
-          }`}
-          title={leftPanelCollapsed ? t('common.expand') : t('common.collapse')}
-        >
-          {leftPanelCollapsed ? (
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          ) : (
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={prepareCurrentShotAudio} disabled={preparingAudio || events.length === 0} className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-2 text-sm text-white hover:bg-purple-700 disabled:opacity-50">
+            {preparingAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+            一键准备音频
+          </button>
+          <button onClick={openBatchAudioModal} disabled={batchPreparing || shots.length === 0} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50">
+            {batchPreparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+            批量准备音频
+          </button>
+          <button onClick={() => generateShotTts(false)} disabled={generating || events.length === 0} className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-3 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50">
+            {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+            批量生成 TTS
+          </button>
+          <button onClick={() => buildTimeline(false)} disabled={buildingTimeline || events.length === 0} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+            {buildingTimeline ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+            构建 Timeline
+          </button>
+          <button onClick={() => buildAllClipAudio(false)} disabled={buildingClipAudio !== null || timeline?.status !== 'READY'} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-3 py-2 text-sm text-white hover:bg-cyan-700 disabled:opacity-50">
+            {buildingClipAudio === 'all' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+            构建全部 Clip Audio
+          </button>
+          <button onClick={loadAudioDrive} disabled={loading} className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
-      {/* 左 2：分镜角色列表和编辑区域容器 */}
-      <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-        {/* 顶部操作栏 - 跨越分镜角色列表和编辑区域 */}
-        <div className="flex-shrink-0 flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-white">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={handleOpenBatchSelect}
-              disabled={isGeneratingAll || !chapterId}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 whitespace-nowrap"
-            >
-              {isGeneratingAll ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {t('chapterGenerate.generating')}
-                </>
-              ) : (
-                <>
-                  <Mic className="w-4 h-4" />
-                  {t('chapterGenerate.batchGenerate')}
-                </>
-              )}
-            </button>
-            <button
-              onClick={handleSaveShot}
-              disabled={isSaving || !chapterId}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 whitespace-nowrap"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {t('chapterGenerate.saving')}
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  {t('chapterGenerate.saveShot')}
-                </>
-              )}
-            </button>
-          </div>
-          <div className="text-sm text-gray-500">
-            {t('chapterGenerate.shot', { number: currentShotIndex })} / {shots.length}
-          </div>
-        </div>
+      {message && <div className="mx-4 mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">{message}</div>}
 
-        {/* 警告信息显示 */}
-        {audioWarnings.length > 0 && (
-          <div className="mx-4 mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start gap-2">
-                <span className="text-yellow-600 text-sm font-medium">⚠️ {t('chapterGenerate.audioWarnings', { count: audioWarnings.length })}</span>
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <aside className="w-64 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-3">
+          <h4 className="text-sm font-medium text-gray-800">Voice Profile</h4>
+          <p className="mb-3 text-xs text-gray-500">角色库音色，可与分镜图生成并行准备</p>
+          <div className="space-y-2">
+            {sortedCharacters.map((character) => (
+              <div key={character.id} className={`rounded-lg border bg-white p-3 ${character.isNarrator ? 'border-purple-200' : 'border-gray-200'}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-gray-900">{character.name}</div>
+                    <div className="mt-0.5 text-xs text-gray-500">{character.isNarrator ? '旁白 Voice' : '角色 Voice'}</div>
+                  </div>
+                  {character.referenceAudioUrl ? <Check className="h-4 w-4 text-green-600" /> : <Clock className="h-4 w-4 text-gray-400" />}
+                </div>
+                {character.referenceAudioUrl ? (
+                  <audio src={character.referenceAudioUrl} controls preload="metadata" className="mt-2 h-8 w-full" />
+                ) : (
+                  <div className="mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-700">未生成音色</div>
+                )}
               </div>
-              <button
-                onClick={() => setShowWarnings(!showWarnings)}
-                className="text-xs text-yellow-700 hover:text-yellow-900"
-              >
-                {showWarnings ? t('common.collapse') : t('common.expand')}
-              </button>
+            ))}
+          </div>
+        </aside>
+
+        <aside className="w-72 shrink-0 overflow-y-auto border-r border-gray-200 p-3">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <h4 className="text-sm font-medium text-gray-800">Audio Events</h4>
+              <p className="text-xs text-gray-500">镜 {currentShotIndex} · {events.length} 个声音事件</p>
             </div>
-            {showWarnings && (
-              <ul className="mt-2 space-y-1">
-                {audioWarnings.map((warning, idx) => (
-                  <li key={idx} className="text-xs text-yellow-700">
-                    • {warning.character_name}: {warning.reason}
-                  </li>
-                ))}
-              </ul>
+          </div>
+          <div className="space-y-2">
+            {events.map((event) => (
+              <button
+                key={event.id}
+                onClick={() => setSelectedEventId(event.id)}
+                className={`w-full rounded-lg border p-3 text-left transition-colors hover:bg-blue-50 ${selectedEventId === event.id ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white'}`}
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500">#{event.order}</span>
+                  <span className={`rounded border px-1.5 py-0.5 text-xs ${typeClass[event.type] || typeClass.DIALOGUE}`}>{typeLabel[event.type] || event.type}</span>
+                  <StatusBadge status={event.ttsStatus} />
+                </div>
+                <div className="text-sm font-medium text-gray-900">{event.voiceOwnerName || '未知声音'}</div>
+                <div className="mt-1 line-clamp-2 text-xs text-gray-500">{event.text || '无文本'}</div>
+                <div className="mt-2 text-xs text-gray-500">visible: {event.requiresVisibleLipsync ? event.visibleSpeakerName || '未指定' : 'NONE'}</div>
+              </button>
+            ))}
+            {events.length === 0 && (
+              <div className="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500">
+                当前 Shot 尚无 Audio Events。请先使用 V2.1 分镜拆分模板重新拆分，旧 dialogues 暂作为兼容数据保留。
+              </div>
             )}
           </div>
-        )}
+        </aside>
 
-        {/* 分镜角色列表和编辑区域 */}
-        <div className="flex-1 min-w-0 flex overflow-hidden">
-          {/* 左侧：分镜角色列表 */}
-          <div className="w-56 flex-shrink-0 border-r border-gray-200 flex flex-col">
-            <div className="p-3 border-b border-gray-200 bg-gray-50">
-              <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.shotCharacters')}</h3>
-              <p className="text-xs text-gray-500 mt-0.5">{t('chapterGenerate.shotNumber', { number: currentShotIndex })}</p>
-            </div>
-            <div className="flex-1 overflow-y-auto p-2 space-y-2">
-              {shotCharacters.map((charName) => (
-                <ShotCharacterCard
-                  key={charName}
-                  charName={charName}
-                  isSelected={selectedShotChar === charName}
-                  dialogue={getDialogueForCharacter(charName)}
-                  hasAudio={hasAudio(charName)}
-                  isRemoving={addingChars.has(charName)}
-                  isNarrator={isNarratorCharacter(charName)}
-                  onSelect={handleShotCharacterSelect}
-                  onRemove={handleRemoveFromShot}
-                  t={t}
-                />
-              ))}
-              {shotCharacters.length === 0 && (
-                <div className="p-4 text-center text-gray-500 text-sm">
-                  {t('chapterGenerate.noCharactersInCurrentShot')}
+        <main className="min-w-0 flex-1 overflow-y-auto p-5">
+          {!editingEvent ? (
+            <div className="flex h-full items-center justify-center text-sm text-gray-500">请选择一个 Audio Event</div>
+          ) : (
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <section className="space-y-4">
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="mb-4 flex items-center justify-between">
+                    <div>
+                      <h4 className="text-base font-semibold text-gray-900">编辑 Audio Event #{editingEvent.order}</h4>
+                      <p className="text-xs text-gray-500">Audio Events 是 TTS 的唯一业务输入，dialogues 仅兼容。</p>
+                    </div>
+                    <StatusBadge status={editingEvent.ttsStatus} />
+                  </div>
+                  <div className="space-y-4">
+                    <label className="block">
+                      <span className="mb-1 block text-sm font-medium text-gray-700">文本</span>
+                      <textarea value={editingEvent.text || ''} onChange={(e) => setEditingEvent({ ...editingEvent, text: e.target.value })} rows={4} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500" />
+                    </label>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-gray-700">情绪</span>
+                        <input value={editingEvent.emotionPrompt || ''} onChange={(e) => setEditingEvent({ ...editingEvent, emotionPrompt: e.target.value })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-gray-700">停顿</span>
+                        <select value={editingEvent.pauseAfter} onChange={(e) => setEditingEvent({ ...editingEvent, pauseAfter: e.target.value as AudioDriveEvent['pauseAfter'] })} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                          {pauseAfterOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-gray-700">Voice Owner</span>
+                        <select value={editingEvent.voiceOwnerCharacterId || ''} onChange={(e) => {
+                          const character = characters.find((item) => item.id === e.target.value);
+                          setEditingEvent({ ...editingEvent, voiceOwnerCharacterId: character?.id || null, voiceOwnerName: character?.name || editingEvent.voiceOwnerName });
+                        }} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                          <option value="">按名称：{editingEvent.voiceOwnerName}</option>
+                          {sortedCharacters.map((character) => <option key={character.id} value={character.id}>{character.name}</option>)}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-sm font-medium text-gray-700">Visible Speaker</span>
+                        <select value={visibleSpeakerSelectValue} onChange={(e) => {
+                          if (!e.target.value) {
+                            setEditingEvent({ ...editingEvent, visibleSpeakerCharacterId: null, visibleSpeakerName: null, requiresVisibleLipsync: false });
+                            return;
+                          }
+                          const character = characters.find((item) => item.id === e.target.value);
+                          if (character) {
+                            setEditingEvent({ ...editingEvent, visibleSpeakerCharacterId: character.id, visibleSpeakerName: character.name, requiresVisibleLipsync: true });
+                          }
+                        }} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                          <option value="">NONE</option>
+                          {editingEvent.visibleSpeakerName && !editingEvent.visibleSpeakerCharacterId && (
+                            <option value={`name:${editingEvent.visibleSpeakerName}`}>按名称：{editingEvent.visibleSpeakerName}</option>
+                          )}
+                          {sortedCharacters.filter((character) => !character.isNarrator).map((character) => <option key={character.id} value={character.id}>{character.name}</option>)}
+                        </select>
+                      </label>
+                    </div>
+                    <label className="flex items-center gap-2 text-sm text-gray-700">
+                      <input type="checkbox" checked={editingEvent.requiresVisibleLipsync} onChange={(e) => setEditingEvent({ ...editingEvent, requiresVisibleLipsync: e.target.checked })} />
+                      需要可见口型驱动
+                    </label>
+                    <div className="flex gap-2">
+                      <button onClick={saveEvent} disabled={saving} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        保存事件
+                      </button>
+                      <button onClick={() => generateSelectedTts(editingEvent.ttsStatus === 'READY')} disabled={generating || !editingEvent.text} className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50">
+                        {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
+                        {editingEvent.ttsStatus === 'READY' ? '重新生成 TTS' : '生成 TTS'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              )}
-            </div>
-          </div>
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900"><Volume2 className="h-4 w-4" />TTS 结果</div>
+                  {editingEvent.currentTtsAsset?.audioUrl ? (
+                    <div className="space-y-2">
+                      <audio src={editingEvent.currentTtsAsset.audioUrl} controls preload="metadata" className="h-8 w-full max-w-xl" />
+                      <div className="text-xs text-gray-500">实际时长：{editingEvent.currentTtsAsset.durationSeconds ?? '-'}s · revision {editingEvent.currentTtsAsset.revision ?? '-'}</div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500">尚未生成 TTS。</div>
+                  )}
+                </div>
+              </section>
 
-          {/* 右侧：编辑区域 */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-            {/* 编辑内容区 */}
-            <div className="flex-1 overflow-y-auto p-6">
-              {renderEditPanel()}
+              <aside className="space-y-4">
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <h4 className="text-sm font-semibold text-gray-900">前置准备</h4>
+                  <div className="mt-3 space-y-2 text-sm">
+                    <div className="flex justify-between"><span>Audio Events</span><span>{events.length}</span></div>
+                    <div className="flex justify-between"><span>TTS READY</span><span>{readyTtsCount}/{events.length}</span></div>
+                    <div className="flex justify-between"><span>STALE</span><span>{staleCount}</span></div>
+                    <div className="flex justify-between"><span>FAILED</span><span>{failedCount}</span></div>
+                    <div className="flex justify-between"><span>estimated_duration</span><span>{currentShot.estimatedDuration ?? currentShot.duration}s</span></div>
+                    <div className="flex justify-between"><span>resolved_duration</span><span>{timeline?.totalDuration ?? '-'}s</span></div>
+                  </div>
+                  <button onClick={() => buildTimeline(true)} disabled={buildingTimeline || events.length === 0} className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">重建 Timeline</button>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-gray-900">Clip Audio</h4>
+                    <StatusBadge status={clipWindows.length > 0 && clipWindows.every((window) => window.audioStatus === 'READY') ? 'READY' : 'NOT_READY'} />
+                  </div>
+                  <div className="mb-3 grid grid-cols-[1fr_auto] gap-2">
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-gray-500">Max Clip Duration</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={60}
+                        value={maxClipDuration}
+                        onChange={(e) => setMaxClipDuration(Math.max(1, Math.min(60, Number(e.target.value) || 15)))}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      />
+                    </label>
+                    <button onClick={buildExecutionWindows} disabled={buildingWindows || timeline?.status !== 'READY'} className="self-end rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+                      {buildingWindows ? '构建中' : '构建窗口'}
+                    </button>
+                  </div>
+                  <button onClick={() => buildAllClipAudio(true)} disabled={buildingClipAudio !== null || timeline?.status !== 'READY'} className="mb-3 w-full rounded-lg bg-cyan-600 px-3 py-2 text-sm text-white hover:bg-cyan-700 disabled:opacity-50">
+                    {buildingClipAudio === 'all' ? '构建中...' : '重建全部 Clip Audio'}
+                  </button>
+                  <div className="space-y-3">
+                    {clipWindows.map((window) => {
+                      const windowIndex = Number(window.windowIndex || window.window_index || 0);
+                      return (
+                        <div key={`clip-audio-${windowIndex}`} className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700">
+                          <div className="mb-2 flex items-center justify-between gap-2">
+                            <div className="font-medium text-gray-900">Clip {windowIndex} · {window.startTime ?? window.start_time ?? '-'}s - {window.endTime ?? window.end_time ?? '-'}s</div>
+                            <StatusBadge status={window.audioStatus} />
+                          </div>
+                          <div className="mb-2 flex gap-2">
+                            <button onClick={() => buildClipAudio(windowIndex, false)} disabled={buildingClipAudio !== null || timeline?.status !== 'READY'} className="rounded border border-gray-300 bg-white px-2 py-1 hover:bg-gray-50 disabled:opacity-50">
+                              {buildingClipAudio === windowIndex ? '构建中...' : '构建'}
+                            </button>
+                            <button onClick={() => buildClipAudio(windowIndex, true)} disabled={buildingClipAudio !== null || timeline?.status !== 'READY'} className="rounded border border-gray-300 bg-white px-2 py-1 hover:bg-gray-50 disabled:opacity-50">重建</button>
+                            {window.clipAudioDuration !== undefined && <span className="self-center text-gray-500">{window.clipAudioDuration}s</span>}
+                          </div>
+                          {window.driveAudioUrl && (
+                            <div className="mb-2 rounded-md border border-cyan-100 bg-white p-2">
+                              <div className="mb-1 font-medium text-cyan-700">Drive 音频</div>
+                              <audio src={window.driveAudioUrl} controls preload="metadata" className="h-8 w-full" />
+                            </div>
+                          )}
+                          {window.finalAudioUrl && (
+                            <div className="rounded-md border border-purple-100 bg-white p-2">
+                              <div className="mb-1 font-medium text-purple-700">Final 音频</div>
+                              <audio src={window.finalAudioUrl} controls preload="metadata" className="h-8 w-full" />
+                            </div>
+                          )}
+                          {!window.driveAudioUrl && !window.finalAudioUrl && (
+                            <div className="text-gray-500">尚未构建 drive/final 音频。</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {clipWindows.length === 0 && (
+                      <div className="rounded-lg border border-dashed border-gray-300 p-3 text-sm text-gray-500">Timeline READY 后先构建执行窗口。</div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-gray-900">Audio Timeline</h4>
+                    <StatusBadge status={timeline?.status} />
+                  </div>
+                  {timeline ? (
+                    <AudioTimelineChart timeline={timeline} />
+                  ) : (
+                    <div className="text-sm text-gray-500">Timeline 尚未构建。TTS READY 后点击“构建 Timeline”。</div>
+                  )}
+                </div>
+              </aside>
             </div>
-          </div>
-        </div>
+          )}
+        </main>
       </div>
-
-      {/* 批量选择分镜弹窗 */}
-      {showBatchSelectModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-            {/* 弹窗头部 */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+      {showBatchAudioModal && createPortal((
+        <div className="fixed inset-0 isolate z-[300] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
+          <div className="flex max-h-[84vh] w-full max-w-4xl flex-col rounded-xl bg-white shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-800">{t('chapterGenerate.selectShotsForAudio')}</h3>
-                <p className="text-xs text-gray-500 mt-1">{t('chapterGenerate.selectShotsHint')}</p>
+                <h3 className="text-lg font-semibold text-gray-900">选择要准备音频的分镜</h3>
+                <p className="mt-1 text-sm text-gray-500">按分镜顺序串行执行：TTS → Timeline → Clip Audio。已 READY 的分镜也可以重新选择准备。</p>
               </div>
-              <button
-                onClick={() => setShowBatchSelectModal(false)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                title={t('common.close')}
-              >
-                <X className="w-5 h-5 text-gray-500" />
+              <button onClick={() => setShowBatchAudioModal(false)} disabled={batchPreparing} className="rounded-full p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50">
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            {/* 弹窗内容 - 分镜列表 */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-600">
-                  {t('chapterGenerate.selectedShotsWithDialogue', { selected: selectedShots.size, total: shots.filter(s => s.dialogues && s.dialogues.length > 0).length })}
-                </span>
-                <button
-                  onClick={toggleSelectAll}
-                  disabled={shots.filter(s => s.dialogues && s.dialogues.length > 0).length === 0}
-                  className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {selectedShots.size === shots.filter(s => s.dialogues && s.dialogues.length > 0).length ? (
-                    <>
-                      <Square className="w-4 h-4" />
-                      {t('common.deselectAll')}
-                    </>
-                  ) : (
-                    <>
-                      <Check className="w-4 h-4" />
-                      {t('common.selectAll')}
-                    </>
-                  )}
-                </button>
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm text-gray-600">已选择 {selectedBatchShotIds.size} / {selectableBatchShots.length} 个分镜</span>
+                <div className="flex items-center gap-3">
+                  <button onClick={selectPendingAudioShots} disabled={batchPreparing} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50">
+                    <Check className="h-4 w-4" />只选择待准备
+                  </button>
+                  <button onClick={toggleSelectAllAudioShots} disabled={batchPreparing} className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50">
+                    {selectedBatchShotIds.size === selectableBatchShots.length && selectableBatchShots.length > 0 ? <Square className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                    {selectedBatchShotIds.size === selectableBatchShots.length && selectableBatchShots.length > 0 ? '取消全选' : '全选'}
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-3">
-                {shots.map((shot) => {
-                  const shotIndex = shot.index;
-                  const isSelected = selectedShots.has(shotIndex);
-                  const hasDialogues = shot.dialogues && shot.dialogues.length > 0;
-                  const hasAudio = shot.dialogues?.some(d => d.audio_url);
-                  const isDisabled = !hasDialogues;
-
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {selectableBatchShots.map((shot: any) => {
+                  const shotId = String(shot.id);
+                  const isSelected = selectedBatchShotIds.has(shotId);
+                  const isReady = audioReadyShotIds.has(shotId);
+                  const imageUrl = shot.imageUrl || shot.image_url;
                   return (
-                    <div
-                      key={shot.id}
-                      onClick={() => !isDisabled && toggleShotSelection(shotIndex)}
-                      className={`
-                        relative aspect-square rounded-lg border-2 transition-all
-                        ${isDisabled
-                          ? 'border-gray-200 bg-gray-100 cursor-not-allowed'
-                          : isSelected
-                            ? 'border-blue-500 bg-blue-50 hover:border-blue-400 cursor-pointer'
-                            : 'border-gray-300 bg-white hover:border-blue-300 cursor-pointer'
+                    <button
+                      key={shotId}
+                      type="button"
+                      onClick={(event) => event.preventDefault()}
+                      onPointerDown={(event) => startBatchShotDrag(shotId, isSelected, event)}
+                      onPointerEnter={() => enterBatchShotDrag(shotId)}
+                      onPointerUp={endBatchShotDrag}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          toggleBatchShot(shotId);
                         }
-                      `}
+                      }}
+                      disabled={batchPreparing}
+                      className={`relative aspect-video select-none overflow-hidden rounded-lg border-2 text-left transition-all disabled:cursor-not-allowed disabled:opacity-70 ${isSelected ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 bg-gray-50 hover:border-blue-300'}`}
                     >
-                      {/* 分镜编号 */}
-                      <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-xs rounded">
-                        #{shotIndex}
+                      {imageUrl ? <img src={imageUrl} alt={`镜${shot.index}`} draggable={false} className="h-full w-full object-cover" /> : <Image className="m-auto mt-10 h-8 w-8 text-gray-300" />}
+                      <div className="absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-xs font-medium text-white">#{shot.index}</div>
+                      <div className={`absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full ${isSelected ? 'bg-blue-500 text-white' : 'bg-white/85 text-gray-300'}`}>
+                        {isSelected && <Check className="h-3.5 w-3.5" />}
                       </div>
-
-                      {/* 选择标记 - 只有有对话的分镜显示 */}
-                      {!isDisabled && (
-                        <div className={`
-                          absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center
-                          ${isSelected ? 'bg-blue-500' : 'bg-gray-200'}
-                        `}>
-                          {isSelected && <Check className="w-3 h-3 text-white" />}
-                        </div>
-                      )}
-
-                      {/* 内容区域 */}
-                      <div className="w-full h-full flex flex-col items-center justify-center p-2">
-                        {hasDialogues ? (
-                          <>
-                            <Mic className={`w-6 h-6 mb-1 ${hasAudio ? 'text-green-500' : 'text-gray-400'}`} />
-                            <span className="text-xs text-gray-600 text-center">
-                              {t('chapterGenerate.characterCount', { count: shot.dialogues.length })}
-                            </span>
-                            {hasAudio && (
-                              <span className="text-xs text-green-600 mt-0.5">{t('chapterGenerate.hasAudio')}</span>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <Mic className="w-6 h-6 text-gray-300 mb-1" />
-                            <span className="text-xs text-gray-400 text-center">{t('chapterGenerate.noDialogue')}</span>
-                          </>
-                        )}
+                      <div className={`absolute bottom-0 left-0 right-0 px-2 py-1 text-center text-xs text-white ${isReady ? 'bg-green-600/85' : 'bg-black/60'}`}>
+                        {isReady ? '音频 READY' : '待准备'}
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
             </div>
 
-            {/* 弹窗底部按钮 */}
-            <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200">
-              <button
-                onClick={() => setShowBatchSelectModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={handleGenerateAllAudio}
-                disabled={selectedShots.size === 0 || isGeneratingAll}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-              >
-                {isGeneratingAll ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    {t('chapterGenerate.generating')}
-                  </>
-                ) : (
-                  <>
-                    <Mic className="w-4 h-4" />
-                    {t('chapterGenerate.generateAudioForShots', { count: selectedShots.size })}
-                  </>
-                )}
-              </button>
+            <div className="flex items-center justify-between gap-3 border-t border-gray-200 px-5 py-4">
+              <div className="min-w-0 text-sm text-gray-500">{batchProgress || '会跳过已 READY 的 TTS，但会重建 Timeline 和 Clip Audio，保证下游状态一致。'}</div>
+              <div className="flex shrink-0 items-center gap-3">
+                <button onClick={() => setShowBatchAudioModal(false)} disabled={batchPreparing} className="rounded-lg bg-gray-100 px-4 py-2 text-sm text-gray-700 hover:bg-gray-200 disabled:opacity-50">取消</button>
+                <button onClick={prepareBatchAudio} disabled={batchPreparing || selectedBatchShotIds.size === 0} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50">
+                  {batchPreparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+                  准备 {selectedBatchShotIds.size} 个分镜音频
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      )}
-    </div>
+      ), document.body)}
     </div>
   );
 }

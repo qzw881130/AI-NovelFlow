@@ -89,6 +89,9 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
         "duration_seconds_node_id": "",
         # 参考音频节点 (LoadAudio) - 用于口型同步
         "reference_audio_node_id": "",
+        # AudioDrive 输入节点 (LoadAudio)
+        "drive_audio_node_id": "",
+        "final_audio_node_id": "",
     },
     "keyframe_image": {
         # 提示词节点
@@ -139,6 +142,8 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
         "frame_count_node_id": "",
         "duration_seconds_node_id": "132",
         "reference_audio_node_id": "",
+        "drive_audio_node_id": "",
+        "final_audio_node_id": "",
     },
     "three_frame_video": {
         "prompt_node_id": "138",
@@ -151,6 +156,8 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
         "frame_count_node_id": "",
         "duration_seconds_node_id": "132",
         "reference_audio_node_id": "",
+        "drive_audio_node_id": "",
+        "final_audio_node_id": "",
     },
     "four_frame_video": {
         "prompt_node_id": "138",
@@ -164,6 +171,8 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
         "frame_count_node_id": "",
         "duration_seconds_node_id": "132",
         "reference_audio_node_id": "",
+        "drive_audio_node_id": "",
+        "final_audio_node_id": "",
     },
 }
 

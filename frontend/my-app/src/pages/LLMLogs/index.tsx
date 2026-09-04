@@ -165,36 +165,36 @@ export default function LLMLogs() {
             </select>
           </div>
         </div>
-        <div className="flex flex-nowrap gap-4 overflow-x-auto pb-2">
-          <div className="min-w-[220px] flex-shrink-0">
+        <div className="flex flex-wrap items-end gap-4 pb-2">
+          <div className="w-[150px] flex-shrink-0">
             <label className="block text-xs text-gray-500 mb-1">{t('llmLogs.llmProvider')}</label>
             <select value={state.filters.provider} onChange={(e) => state.handleFilterChange('provider', e.target.value)} className="input-field text-sm w-full truncate whitespace-nowrap">
               <option value="">{t('llmLogs.all')}</option>
               {state.filterOptions.providers.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
-          <div className="min-w-[260px] flex-shrink-0">
+          <div className="w-[240px] flex-shrink-0">
             <label className="block text-xs text-gray-500 mb-1">{t('llmLogs.model')}</label>
             <select value={state.filters.model} onChange={(e) => state.handleFilterChange('model', e.target.value)} className="input-field text-sm w-full truncate whitespace-nowrap">
               <option value="">{t('llmLogs.all')}</option>
               {state.filterOptions.models.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           </div>
-          <div className="min-w-[220px] flex-shrink-0">
+          <div className="w-[150px] flex-shrink-0">
             <label className="block text-xs text-gray-500 mb-1">{t('llmLogs.category')}</label>
             <select value={state.filters.category} onChange={(e) => state.handleFilterChange('category', e.target.value)} className="input-field text-sm w-full truncate whitespace-nowrap">
               <option value="">{t('llmLogs.all')}</option>
               {state.taskCategoryOptions.map(o => <option key={o.value} value={o.value}>{t(o.labelKey)}</option>)}
             </select>
           </div>
-          <div className="min-w-[300px] flex-shrink-0">
+          <div className="w-[240px] flex-shrink-0">
             <label className="block text-xs text-gray-500 mb-1">{t('llmLogs.taskType')}</label>
             <select value={state.filters.task_type} onChange={(e) => state.handleFilterChange('task_type', e.target.value)} className="input-field text-sm w-full truncate whitespace-nowrap">
               <option value="">{t('llmLogs.all')}</option>
               {state.taskTypeOptions.map(o => <option key={o} value={o}>{state.getTaskTypeNameLabel(o)}</option>)}
             </select>
           </div>
-          <div className="min-w-[180px] flex-shrink-0">
+          <div className="w-[120px] flex-shrink-0">
             <label className="block text-xs text-gray-500 mb-1">{t('common.status')}</label>
             <select value={state.filters.status} onChange={(e) => state.handleFilterChange('status', e.target.value)} className="input-field text-sm w-full truncate whitespace-nowrap">
               <option value="">{t('llmLogs.all')}</option>

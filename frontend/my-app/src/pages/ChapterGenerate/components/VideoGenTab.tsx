@@ -84,6 +84,237 @@ const videoPlanWindowsMatchDuration = (plan: VideoDirectorPlan, duration: number
   });
 };
 
+const getAudioDriveReadiness = (shot: any) => {
+  const plan: any = shot?.videoDirectorPlan || {};
+  const windows = Array.isArray(plan.window_plans) && plan.window_plans.length > 0
+    ? plan.window_plans
+    : Array.isArray(plan.execution_windows)
+      ? plan.execution_windows
+      : Array.isArray(plan.clips)
+        ? plan.clips
+        : [];
+  const timelineReady = String(shot?.audioStatus || '').toUpperCase() === 'READY';
+  const clipCount = windows.length;
+  const readyClipCount = windows.filter((window: any) => (
+    String(window?.audio_status || window?.audioStatus || '').toUpperCase() === 'READY'
+    && Boolean(window?.drive_audio_url || window?.driveAudioUrl)
+    && Boolean(window?.final_audio_url || window?.finalAudioUrl)
+  )).length;
+  const clipAudioReady = clipCount > 0 && readyClipCount === clipCount;
+  const missingClips = windows
+    .filter((window: any) => !(String(window?.audio_status || window?.audioStatus || '').toUpperCase() === 'READY' && (window?.drive_audio_url || window?.driveAudioUrl) && (window?.final_audio_url || window?.finalAudioUrl)))
+    .map((window: any, index: number) => `C${window?.window_index || window?.windowIndex || index + 1}`);
+  let reason = '';
+  if (!timelineReady) reason = 'Audio Timeline 未 READY，请先到音频生成页生成 TTS 并构建 Timeline。';
+  else if (!clipCount) reason = '尚未构建 Clip Audio 执行窗口，请先到音频生成页构建窗口和 Clip Audio。';
+  else if (!clipAudioReady) reason = `Clip Audio 未 READY：${missingClips.join(' / ')}，请先到音频生成页构建 drive/final 音频。`;
+  return { timelineReady, clipAudioReady, clipCount, readyClipCount, missingClips, ready: timelineReady && clipAudioReady, reason };
+};
+
+const mergeClipAudioWindows = (plan: any, selectedMode: string) => {
+  const windowPlans = Array.isArray(plan?.window_plans) ? plan.window_plans : [];
+  const executionWindows = Array.isArray(plan?.execution_windows) ? plan.execution_windows : [];
+  if (selectedMode === 'MULTI_KEYFRAME') return windowPlans.length > 0 ? windowPlans : executionWindows;
+  const baseClips = Array.isArray(plan?.clips) ? plan.clips : [];
+  const audioWindows = windowPlans.length > 0 ? windowPlans : executionWindows;
+  if (baseClips.length === 0) return audioWindows;
+  return baseClips.map((clip: any, index: number) => {
+    const clipIndex = Number(clip?.window_index || clip?.windowIndex || clip?.clip_index || clip?.clipIndex || index + 1);
+    const audioWindow = audioWindows.find((window: any, windowIndex: number) => (
+      Number(window?.window_index || window?.windowIndex || window?.clip_index || window?.clipIndex || windowIndex + 1) === clipIndex
+    ));
+    return audioWindow ? { ...clip, ...audioWindow } : clip;
+  });
+};
+
+const pauseSecondsByType: Record<string, number> = {
+  NONE: 0,
+  SHORT: 0.3,
+  MEDIUM: 0.6,
+  LONG: 1.2,
+};
+
+const countTextChars = (text?: string) => String(text || '').replace(/\s/g, '').length;
+
+const getClipAudioEventTexts = (shot: any, clip: any, driveOnly = false) => {
+  const plan = shot?.videoDirectorPlan || shot?.video_director_plan || {};
+  const audioEvents = Array.isArray(shot?.audioEvents)
+    ? shot.audioEvents
+    : Array.isArray(shot?.audio_events)
+      ? shot.audio_events
+      : [];
+  const audioEventsById = new Map(audioEvents.map((event: any) => [String(event.id || event.audioEventId || event.audio_event_id), event]));
+  const audioEventsByOrder = new Map(audioEvents.map((event: any) => [Number(event.order ?? event.event_order ?? 0), event]));
+
+  const clipStart = numberOrNull(clip?.start_time ?? clip?.startTime) ?? 0;
+  const clipEnd = numberOrNull(clip?.end_time ?? clip?.endTime) ?? numberOrNull(shot?.duration) ?? clipStart;
+  const timeline = plan.audio_timeline || plan.audioTimeline || {};
+  const timelineEvents = Array.isArray(timeline.events) ? timeline.events : [];
+
+  if (timelineEvents.length > 0) {
+    return timelineEvents
+      .map((event: any) => {
+        const order = Number(event.order ?? event.event_order ?? 0);
+        const sourceEvent: any = audioEventsById.get(String(event.audioEventId || event.audio_event_id || event.id)) || audioEventsByOrder.get(order) || {};
+        return {
+          key: event.audioEventId || event.audio_event_id || event.id || order,
+          start: Number(event.startTime ?? event.start_time ?? 0),
+          end: Number(event.endTime ?? event.end_time ?? 0),
+          type: event.type || event.event_type,
+          voiceOwnerName: event.voiceOwnerName || event.voice_owner_name || sourceEvent?.voiceOwnerName || sourceEvent?.voice_owner_name,
+          visibleSpeakerName: event.visibleSpeakerName || event.visible_speaker_name || sourceEvent?.visibleSpeakerName || sourceEvent?.visible_speaker_name,
+          requiresVisibleLipsync: Boolean(event.requiresVisibleLipsync ?? event.requires_visible_lipsync ?? sourceEvent?.requiresVisibleLipsync ?? sourceEvent?.requires_visible_lipsync),
+          text: String(event.text || sourceEvent?.text || '').trim(),
+        };
+      })
+      .filter((event: any) => {
+        if (driveOnly && !event.requiresVisibleLipsync) return false;
+        return event.end > clipStart && event.start < clipEnd;
+      })
+      .map((event: any) => ({
+        key: event.key,
+        start: Math.max(event.start, clipStart) - clipStart,
+        end: Math.min(event.end, clipEnd) - clipStart,
+        speaker: driveOnly
+          ? (event.visibleSpeakerName || event.voiceOwnerName || '可见角色')
+          : (event.voiceOwnerName || event.visibleSpeakerName || '声音'),
+        text: event.text,
+        charCount: countTextChars(event.text),
+      }))
+      .filter((item: any) => item.text);
+  }
+
+  if (!audioEvents.length) return [];
+
+  const speakerTimeline = Array.isArray(clip?.speaker_timeline) ? clip.speaker_timeline : Array.isArray(clip?.speakerTimeline) ? clip.speakerTimeline : [];
+  const visibleSegments = speakerTimeline.filter((segment: any) => String(segment.visible_speaker || segment.visibleSpeaker || 'NONE') !== 'NONE');
+  const orderedEvents = [...audioEvents].sort((a: any, b: any) => Number(a.order ?? a.event_order ?? 0) - Number(b.order ?? b.event_order ?? 0));
+  const hasEventDurations = orderedEvents.some((event: any) => Number(event.currentTtsAsset?.durationSeconds ?? event.current_tts_asset?.duration_seconds ?? event.durationSeconds ?? 0) > 0);
+
+  if (!hasEventDurations) {
+    return orderedEvents
+      .filter((event: any) => !driveOnly || Boolean(event.requiresVisibleLipsync ?? event.requires_visible_lipsync))
+      .map((event: any, index: number) => {
+        const segment = visibleSegments[index] || speakerTimeline[index];
+        const start = Number(segment?.start_time ?? segment?.startTime ?? clipStart) - clipStart;
+        const end = Number(segment?.end_time ?? segment?.endTime ?? clipEnd) - clipStart;
+        const text = String(event.text || '').trim();
+        return {
+          key: event.id || `${index}-${text}`,
+          start: Math.max(0, start),
+          end: Math.max(Math.max(0, start), Math.min(clipEnd - clipStart, end || clipEnd - clipStart)),
+          speaker: driveOnly
+            ? (event.visibleSpeakerName || event.visible_speaker_name || event.voiceOwnerName || event.voice_owner_name || '可见角色')
+            : (event.voiceOwnerName || event.voice_owner_name || event.visibleSpeakerName || event.visible_speaker_name || '声音'),
+          text,
+          charCount: countTextChars(text),
+        };
+      })
+      .filter((item: any) => item.text);
+  }
+
+  let cursor = 0;
+  return orderedEvents
+    .map((event: any) => {
+      const duration = Number(event.currentTtsAsset?.durationSeconds ?? event.current_tts_asset?.duration_seconds ?? event.durationSeconds ?? 0) || 0;
+      const start = cursor;
+      const end = start + duration;
+      cursor = end + (pauseSecondsByType[String(event.pauseAfter || event.pause_after || 'NONE').toUpperCase()] ?? 0);
+      return { event, start, end };
+    })
+    .filter(({ event, start, end }: any) => {
+      if (driveOnly && !Boolean(event.requiresVisibleLipsync ?? event.requires_visible_lipsync)) return false;
+      return end > clipStart && start < clipEnd;
+    })
+    .map(({ event, start, end }: any) => {
+      const text = String(event.text || '').trim();
+      return {
+        key: event.id || `${start}-${end}-${text}`,
+        start: Math.max(start, clipStart) - clipStart,
+        end: Math.min(end, clipEnd) - clipStart,
+        speaker: driveOnly
+          ? (event.visibleSpeakerName || event.visible_speaker_name || event.voiceOwnerName || event.voice_owner_name || '可见角色')
+          : (event.voiceOwnerName || event.voice_owner_name || event.visibleSpeakerName || event.visible_speaker_name || '声音'),
+        text,
+        charCount: countTextChars(text),
+      };
+    })
+    .filter((item: any) => item.text);
+};
+
+const pct = (value: number, total: number) => `${Math.max(0, Math.min(100, total > 0 ? (value / total) * 100 : 0))}%`;
+
+function ClipAudioTimeline({
+  clipDuration,
+  speakerTimeline,
+  driveTextEvents,
+  finalTextEvents,
+}: {
+  clipDuration: number;
+  speakerTimeline: any[];
+  driveTextEvents: any[];
+  finalTextEvents: any[];
+}) {
+  const duration = Math.max(clipDuration, 0.001);
+  const driveBlocks = driveTextEvents.length > 0
+    ? driveTextEvents
+    : speakerTimeline
+      .filter((segment: any) => String(segment.visible_speaker || segment.visibleSpeaker || 'NONE') !== 'NONE')
+      .map((segment: any, index: number) => ({
+        key: `speaker-${index}`,
+        start: Number(segment.start_time ?? segment.startTime ?? 0),
+        end: Number(segment.end_time ?? segment.endTime ?? 0),
+        speaker: segment.visible_speaker || segment.visibleSpeaker || '可见角色',
+        text: '',
+        charCount: 0,
+      }));
+  const finalBlocks = finalTextEvents.length > 0 ? finalTextEvents : driveBlocks;
+  const ticks = [0, duration / 2, duration];
+
+  const renderTrack = (label: string, blocks: any[], className: string) => (
+    <div className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2">
+      <div className="text-[11px] font-medium text-gray-600">{label}</div>
+      <div className="relative h-9 rounded border border-gray-200 bg-white">
+        {blocks.map((block: any) => {
+          const start = Number(block.start || 0);
+          const end = Math.max(start, Number(block.end || start));
+          return (
+            <div
+              key={`${label}-${block.key}-${start}-${end}`}
+              className={`absolute top-1 h-7 overflow-hidden rounded px-2 text-[11px] leading-7 ${className}`}
+              style={{ left: pct(start, duration), width: pct(end - start, duration) }}
+              title={`${start.toFixed(3)}s-${end.toFixed(3)}s · ${block.speaker}${block.charCount ? ` · ${block.charCount}字` : ''}${block.text ? ` · ${block.text}` : ''}`}
+            >
+              <span className="truncate">{start.toFixed(2)}-{end.toFixed(2)}s · {block.speaker}{block.charCount ? ` · ${block.charCount}字` : ''}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="rounded border border-white/70 bg-white/70 px-2 py-2">
+      <div className="mb-2 flex items-center justify-between text-[11px] text-gray-500">
+        <span className="font-medium text-gray-700">Audio Timeline</span>
+        <span>总时长 {clipDuration.toFixed(3)}s</span>
+      </div>
+      <div className="mb-1 grid grid-cols-[72px_minmax(0,1fr)] gap-2 text-[10px] text-gray-400">
+        <div />
+        <div className="relative h-4 border-t border-gray-200">
+          {ticks.map((tick) => (
+            <span key={tick} className="absolute top-0 -translate-x-1/2 border-l border-gray-200 pl-1" style={{ left: pct(tick, duration) }}>{tick.toFixed(tick === 0 ? 0 : 1)}s</span>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-2">
+        {renderTrack('Drive', driveBlocks, 'bg-cyan-100 text-cyan-800')}
+        {renderTrack('Final', finalBlocks, 'bg-purple-100 text-purple-800')}
+      </div>
+    </div>
+  );
+}
+
 const copyText = async (text?: string | null) => {
   if (!text) return;
   try {
@@ -134,6 +365,21 @@ function VideoAiCallsPanel({
     return aTime - bTime;
   });
   const latest = sortedCalls[sortedCalls.length - 1];
+  const getAudioDebugSummary = (call: VideoAiCall) => {
+    const parsed: any = call.parsed_result || {};
+    const audioTimeline = parsed.audio_timeline || parsed.audioTimeline;
+    const audioDrive = parsed.audio_drive_context || parsed.audioDriveContext;
+    if (audioTimeline?.resolved_duration !== undefined) {
+      return `Audio Timeline rev ${audioTimeline.revision ?? '-'} · resolved ${audioTimeline.resolved_duration}s`;
+    }
+    if (audioDrive?.audio_mode) {
+      return `AudioDrive ${audioDrive.audio_mode} · duration ${audioDrive.duration ?? '-'}s`;
+    }
+    if (parsed.source === 'AudioDrive') {
+      return `AudioDrive · speaker_timeline ${parsed.speaker_timeline_segments ?? 0} segments`;
+    }
+    return '';
+  };
 
   const handleDownloadLlmData = async () => {
     if (!novelId || !chapterId || !shotId) {
@@ -255,6 +501,7 @@ function VideoAiCallsPanel({
           const isOpen = openIndex === actualIndex;
           const responseText = formatAiCallValue(call.response);
           const promptText = formatAiCallValue(call.final_prompt);
+          const audioDebugSummary = getAudioDebugSummary(call);
           return (
             <div key={`${call.step}-${call.created_at}-${actualIndex}`} className="rounded-lg border border-gray-200 bg-white overflow-hidden">
               <button
@@ -268,12 +515,14 @@ function VideoAiCallsPanel({
                     {call.prompt_template_name || '-'} · {call.status || '-'} · {call.created_at ? new Date(call.created_at).toLocaleString() : '-'}
                     {call.clip_index ? ` · Clip ${call.clip_index}` : ''}
                   </div>
+                  {audioDebugSummary && <div className="mt-0.5 text-xs text-cyan-700">{audioDebugSummary}</div>}
                 </div>
                 <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
               </button>
               {isOpen && (
                 <div className="px-3 pb-3">
                   {call.input_summary && <div className="text-xs text-gray-500">{call.input_summary}</div>}
+                  {audioDebugSummary && <div className="mt-1 rounded border border-cyan-100 bg-cyan-50 px-2 py-1 text-xs text-cyan-700">{audioDebugSummary}</div>}
                   <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
                   <div className="min-w-0">
                     <div className="flex items-center justify-between mb-1">
@@ -304,7 +553,7 @@ function VideoAiCallsPanel({
       </div>}
     </div>
     {viewingData && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingData(null)}>
+      <div className="fixed inset-0 isolate z-[300] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]" onClick={() => setViewingData(null)}>
         <div className="w-full max-w-5xl max-h-[86vh] overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
             <div className="min-w-0">
@@ -352,7 +601,7 @@ function VideoPromptModal({
   const hasDrafts = drafts.length > 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+    <div className="fixed inset-0 isolate z-[300] flex items-center justify-center bg-black/60 px-4 backdrop-blur-[1px]">
       <div className="flex max-h-[86vh] w-full max-w-5xl flex-col rounded-xl bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4">
           <div>
@@ -491,7 +740,7 @@ function VideoDirectorPanel({
   const maxClipDuration = plan.workflow_capability?.max_clip_duration || 15;
   const firstLastAvailable = plan.first_last_available ?? ((shot?.duration || 0) <= maxClipDuration);
   const keyframes = plan.keyframes || [];
-  const clips = selectedMode === 'MULTI_KEYFRAME' ? (plan.window_plans || []) : (plan.clips || []);
+  const clips = mergeClipAudioWindows(plan, selectedMode);
   const hasWindowPlans = selectedMode === 'MULTI_KEYFRAME' && clips.length > 0;
   const legacyKeyframes = shot?.keyframes || [];
   const getKeyframeImageUrl = (kf: any) => {
@@ -592,7 +841,7 @@ function VideoDirectorPanel({
   };
 
   const getClipStatusClass = (status?: string) => {
-    switch ((status || 'PENDING').toUpperCase()) {
+    switch ((status || 'NOT_STARTED').toUpperCase()) {
       case 'PROMPT_BUILDING':
         return 'bg-blue-50 text-blue-700 border-blue-200';
       case 'QUEUED':
@@ -615,6 +864,7 @@ function VideoDirectorPanel({
       case 'SUCCEEDED': return t('tasks.clipStatuses.succeeded');
       case 'FAILED': return t('tasks.clipStatuses.failed');
       case 'CANCELLED': return t('tasks.clipStatuses.cancelled');
+      case 'NOT_STARTED': return '未生成';
       default: return t('tasks.clipStatuses.pending');
     }
   };
@@ -1088,11 +1338,18 @@ function VideoDirectorPanel({
               const clipIndex = clip.clip_index || clip.window_index;
               const frameCount = clip.selected_frame_count || clip.frame_count;
               const clipHasVideo = !!(clip.video_url || clip.local_path || (selectedMode !== 'MULTI_KEYFRAME' && shot?.videoUrl));
-              const clipStatus = clip.status || (clipHasVideo ? 'SUCCEEDED' : 'PENDING');
+              const clipStatus = clip.status || (clipHasVideo ? 'SUCCEEDED' : 'NOT_STARTED');
               const clipKey = getClipKey(clip);
               const isPreviewing = selectedPreviewClipKey === clipKey;
               const isRegenerating = regeneratingClipKey === clipKey;
-              const clipGenerationDisabled = isRegenerating || !!isShotVideoGenerating;
+              const clipAudioStatus = String(clip.audio_status || clip.audioStatus || '').toUpperCase() || 'NOT_READY';
+              const clipDriveAudioUrl = clip.drive_audio_url || clip.driveAudioUrl;
+              const clipFinalAudioUrl = clip.final_audio_url || clip.finalAudioUrl;
+              const clipSpeakerTimeline = Array.isArray(clip.speaker_timeline) ? clip.speaker_timeline : Array.isArray(clip.speakerTimeline) ? clip.speakerTimeline : [];
+              const clipAudioReady = clipAudioStatus === 'READY' && !!clipDriveAudioUrl && !!clipFinalAudioUrl;
+              const driveTextEvents = getClipAudioEventTexts(shot, clip, true);
+              const finalTextEvents = getClipAudioEventTexts(shot, clip, false);
+              const clipGenerationDisabled = isRegenerating || !!isShotVideoGenerating || !clipAudioReady;
               const clipFrameLabel = selectedMode === 'SINGLE_FRAME'
                 ? t('chapterGenerate.primaryStoryboard')
                 : selectedMode === 'FIRST_LAST_FRAME'
@@ -1156,27 +1413,61 @@ function VideoDirectorPanel({
                   )}
                   <div className={`mt-3 rounded-lg border px-3 py-2 text-xs ${dialogueDurationInsufficient ? 'border-red-200 bg-red-50 text-red-700' : 'border-gray-200 bg-gray-50 text-gray-700'}`}>
                     <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-medium">Clip 台词</span>
+                      <span className="font-medium">AudioDrive Clip 音频</span>
                       <span className={dialogueDurationInsufficient ? 'text-red-700' : 'text-gray-500'}>
-                        最低所需 {totalMinDialogueSeconds.toFixed(2)}s / Clip {clipDuration ? `${clipDuration.toFixed(2)}s` : '-'}
+                        {clipAudioReady ? 'READY' : clipAudioStatus} · Clip {clipDuration ? `${clipDuration.toFixed(2)}s` : '-'}
                       </span>
                     </div>
-                    {clipDialogues.length > 0 ? (
-                      <div className="space-y-1">
-                        {clipDialogues.map((dialogue: any) => (
-                          <div key={dialogue.key} className="rounded border border-white/70 bg-white/70 px-2 py-1">
-                            <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
-                              <span className="font-medium text-gray-700">{dialogue.speaker}</span>
-                              {dialogue.emotion && <span>情绪：{dialogue.emotion}</span>}
-                              <span>最低 {dialogue.minRequiredSeconds.toFixed(2)}s</span>
+                    <div className="space-y-2">
+                      {(clipDriveAudioUrl || clipFinalAudioUrl) ? (
+                        <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+                          {clipDriveAudioUrl && (
+                            <div className="rounded border border-cyan-100 bg-white px-2 py-1.5">
+                              <div className="mb-1 font-medium text-cyan-700">Drive 音频 · 可见口型</div>
+                              <audio src={clipDriveAudioUrl} controls preload="metadata" className="h-8 w-full" />
+                              <div className="mt-2 space-y-1 rounded bg-cyan-50/70 px-2 py-1 text-[11px] text-cyan-800">
+                                <div className="font-medium">Drive 台词 · {driveTextEvents.reduce((sum: number, item: any) => sum + item.charCount, 0)} 字</div>
+                                {driveTextEvents.length > 0 ? driveTextEvents.map((item: any) => (
+                                  <div key={`${clipKey}-drive-text-${item.key}`} className="leading-5">
+                                    <span className="font-mono text-cyan-600">{item.start.toFixed(3)}s-{item.end.toFixed(3)}s</span>
+                                    <span> · {item.speaker} · {item.charCount}字 · {item.text}</span>
+                                  </div>
+                                )) : <div className="text-cyan-600">无可见口型台词。</div>}
+                              </div>
                             </div>
-                            <div className="mt-0.5 text-gray-700">{dialogue.text}</div>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-gray-500">无分配台词；该 Clip 只保留环境声和动作声。</div>
-                    )}
+                          )}
+                          {clipFinalAudioUrl && (
+                            <div className="rounded border border-purple-100 bg-white px-2 py-1.5">
+                              <div className="mb-1 font-medium text-purple-700">Final 音频 · 最终听感</div>
+                              <audio src={clipFinalAudioUrl} controls preload="metadata" className="h-8 w-full" />
+                              <div className="mt-2 space-y-1 rounded bg-purple-50/70 px-2 py-1 text-[11px] text-purple-800">
+                                <div className="font-medium">Final 文本 · {finalTextEvents.reduce((sum: number, item: any) => sum + item.charCount, 0)} 字</div>
+                                {finalTextEvents.length > 0 ? finalTextEvents.map((item: any) => (
+                                  <div key={`${clipKey}-final-text-${item.key}`} className="leading-5">
+                                    <span className="font-mono text-purple-600">{item.start.toFixed(3)}s-{item.end.toFixed(3)}s</span>
+                                    <span> · {item.speaker} · {item.charCount}字 · {item.text}</span>
+                                  </div>
+                                )) : <div className="text-purple-600">无最终听感文本。</div>}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="rounded border border-dashed border-amber-200 bg-amber-50 px-2 py-1 text-amber-700">尚未构建 drive/final 音频，请到音频生成页构建 Clip Audio。</div>
+                      )}
+                      <ClipAudioTimeline
+                        clipDuration={clipDuration}
+                        speakerTimeline={clipSpeakerTimeline}
+                        driveTextEvents={driveTextEvents}
+                        finalTextEvents={finalTextEvents}
+                      />
+                      {clipDialogues.length > 0 && (
+                        <div className="rounded border border-amber-100 bg-amber-50 px-2 py-1 text-amber-700">
+                          <div className="font-medium">兼容旧台词参考 · 非 H3 控制源</div>
+                          <div className="mt-0.5">最低所需 {totalMinDialogueSeconds.toFixed(2)}s，AudioDrive 以 drive/final 音频和 speaker_timeline 为准。</div>
+                        </div>
+                      )}
+                    </div>
                   </div>
                   {clip.error_message && <div className="mt-2 text-xs text-red-600">{formatUserFacingError(clip.error_message)}</div>}
                   {selectedMode === 'MULTI_KEYFRAME' && (
@@ -1198,7 +1489,7 @@ function VideoDirectorPanel({
                             onRegenerateClip(clip, 'llm');
                           }}
                           disabled={clipGenerationDisabled}
-                          title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再操作 Clip' : undefined}
+                          title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再操作 Clip' : !clipAudioReady ? 'Clip Audio 未 READY，请先到音频生成页构建 drive/final 音频' : undefined}
                           className="inline-flex items-center gap-1 rounded-l-md border border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isRegenerating && <Loader2 className="h-3 w-3 animate-spin" />}
@@ -1211,7 +1502,7 @@ function VideoDirectorPanel({
                             setOpenClipGenerateMenuKey(openClipGenerateMenuKey === clipKey ? null : clipKey);
                           }}
                           disabled={clipGenerationDisabled}
-                          title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再选择生成模式' : undefined}
+                          title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再选择生成模式' : !clipAudioReady ? 'Clip Audio 未 READY，请先到音频生成页构建 drive/final 音频' : undefined}
                           className="inline-flex items-center rounded-r-md border border-l-0 border-blue-200 px-2 py-1 text-xs text-blue-700 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
                           aria-label="选择 Clip 视频生成模式"
                         >
@@ -1235,8 +1526,8 @@ function VideoDirectorPanel({
                                 setOpenClipGenerateMenuKey(null);
                                 onRegenerateClip(clip, 'video_only');
                               }}
-                              disabled={!clip.prompt_text || !!isShotVideoGenerating}
-                              title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再操作 Clip' : !clip.prompt_text ? '缺少可复用的 Clip 视频最终 Prompt，请先使用 LLM+生成Clip视频' : undefined}
+                              disabled={!clip.prompt_text || !!isShotVideoGenerating || !clipAudioReady}
+                              title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再操作 Clip' : !clipAudioReady ? 'Clip Audio 未 READY，请先到音频生成页构建 drive/final 音频' : !clip.prompt_text ? '缺少可复用的 Clip 视频最终 Prompt，请先使用 LLM+生成Clip视频' : undefined}
                               className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-white"
                             >
                               仅生成Clip视频
@@ -1274,7 +1565,7 @@ function VideoDirectorPanel({
       </div>
     </div>
     {viewingPromptClip?.prompt_text && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingPromptClip(null)}>
+      <div className="fixed inset-0 isolate z-[300] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]" onClick={() => setViewingPromptClip(null)}>
         <div className="flex max-h-[86vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-5 py-4">
             <div className="min-w-0">
@@ -1419,7 +1710,7 @@ export function VideoGenTab({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
-  const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
+  const [selectedShotIds, setSelectedShotIds] = useState<Set<string>>(new Set());
   const [batchSelectionMode, setBatchSelectionMode] = useState<BatchSelectionMode>(null);
   const [dragSelectionMode, setDragSelectionMode] = useState<'select' | 'deselect' | null>(null);
   const [autoCompleteDetails, setAutoCompleteDetails] = useState(true);
@@ -1493,10 +1784,22 @@ export function VideoGenTab({
     ? generatingKeyframes.has(`${currentShotId}-${Number(currentEndFrameIndex)}`)
     : false;
   const getPlanClipKey = (clip: any) => String(clip?.clip_index || clip?.window_index || `${clip?.start_time}-${clip?.end_time}`);
-  const currentPlanClips: any[] = currentSelectedVideoMode === 'MULTI_KEYFRAME' ? (currentVideoDirectorPlan.window_plans || []) : (currentVideoDirectorPlan.clips || []);
+  const currentPlanClips: any[] = mergeClipAudioWindows(currentVideoDirectorPlan, currentSelectedVideoMode);
+  const currentMultiKeyframePlanReady = currentSelectedVideoMode !== 'MULTI_KEYFRAME' || (
+    Array.isArray(currentVideoDirectorPlan.window_plans)
+    && currentVideoDirectorPlan.window_plans.length > 0
+    && currentVideoDirectorPlan.window_plans.every((windowPlan: any) => {
+      const frameCount = Number(windowPlan?.selected_frame_count || windowPlan?.selectedFrameCount || 0);
+      const keyframeIndexes = Array.isArray(windowPlan?.keyframe_indexes) ? windowPlan.keyframe_indexes : Array.isArray(windowPlan?.keyframeIndexes) ? windowPlan.keyframeIndexes : [];
+      return [3, 4].includes(frameCount) && keyframeIndexes.length === frameCount;
+    })
+  );
   const selectedPreviewClip: any | null = selectedPreviewClipKey
     ? currentPlanClips.find((clip: any) => getPlanClipKey(clip) === selectedPreviewClipKey)
     : null;
+  const previewAudioClip = selectedPreviewClip || currentPlanClips.find((clip: any) => clip.drive_audio_url || clip.driveAudioUrl || clip.final_audio_url || clip.finalAudioUrl) || null;
+  const previewDriveAudioUrl = previewAudioClip?.drive_audio_url || previewAudioClip?.driveAudioUrl;
+  const previewFinalAudioUrl = previewAudioClip?.final_audio_url || previewAudioClip?.finalAudioUrl;
   const previewVideoUrl = selectedPreviewClip?.video_url || currentShotVideoUrl;
   const previewVideoLabel = selectedPreviewClip ? `C${selectedPreviewClip.window_index || selectedPreviewClip.clip_index}` : 'Shot';
   const previewClipMarkers = !selectedPreviewClip && currentSelectedVideoMode === 'MULTI_KEYFRAME'
@@ -1539,13 +1842,17 @@ export function VideoGenTab({
     const shotId = shot?.id ? String(shot.id) : '';
     if (!shotId) return { selectable: false, reason: '缺少分镜 ID' };
     if (generatingVideos.has(shotId) || shot?.videoStatus === 'generating') return { selectable: false, reason: '视频生成中' };
+    if (storePendingVideos.has(shotId) || (!!shot?.videoTaskId && shot?.videoStatus === 'pending')) return { selectable: false, reason: '视频等待生成中' };
 
     const shotImageUrl = getShotImageUrl(shot);
     if (autoCompleteOverride) {
-      return shotImageUrl
-        ? { selectable: true, reason: '可自动补齐' }
-        : { selectable: false, reason: '缺少主分镜图' };
+      if (!shotImageUrl) return { selectable: false, reason: '缺少主分镜图' };
+      const audioReadiness = getAudioDriveReadiness(shot);
+      return audioReadiness.ready ? { selectable: true, reason: '可自动补齐' } : { selectable: false, reason: audioReadiness.reason };
     }
+
+    const audioReadiness = getAudioDriveReadiness(shot);
+    if (!audioReadiness.ready) return { selectable: false, reason: audioReadiness.reason };
 
     const plan: VideoDirectorPlan = shot?.videoDirectorPlan || {};
     const selectedMode = plan.selected_mode || plan.recommended_mode;
@@ -1582,21 +1889,26 @@ export function VideoGenTab({
     }
 
     return { selectable: false, reason: '生成模式不支持' };
-  }, [autoCompleteDetails, generatingVideos, getShotImageUrl, getVideoDirectorKeyframeImageUrl]);
+  }, [autoCompleteDetails, generatingVideos, getShotImageUrl, getVideoDirectorKeyframeImageUrl, storePendingVideos]);
 
-  const selectableShotIndexes = useCallback(() => shotsList
-    .map((shot: any, idx: number) => getBatchShotEligibility(shot).selectable ? idx + 1 : null)
-    .filter((index: number | null): index is number => index !== null), [getBatchShotEligibility, shotsList]);
+  const selectableShotIds = useCallback(() => shotsList
+    .map((shot: any) => shot?.id && getBatchShotEligibility(shot).selectable ? String(shot.id) : null)
+    .filter((shotId: string | null): shotId is string => shotId !== null), [getBatchShotEligibility, shotsList]);
 
   // 检查当前分镜是否正在生成
   const isGeneratingCurrent = currentShotId ? generatingVideos.has(currentShotId) || currentShotData?.videoStatus === 'generating' : false;
-  const isCurrentVideoPending = currentShotId ? storePendingVideos.has(currentShotId) || currentShotData?.videoStatus === 'pending' : false;
+  const isCurrentVideoPending = currentShotId ? storePendingVideos.has(currentShotId) || (!!currentShotData?.videoTaskId && currentShotData?.videoStatus === 'pending') : false;
   const latestFailedAiCallError = currentVideoDirectorPlan?.ai_calls
     ? [...currentVideoDirectorPlan.ai_calls].reverse().find((call: any) => String(call?.status || '').toLowerCase() !== 'success' && String(call?.error_message || '').trim())?.error_message
     : '';
   const currentVideoErrorMessage = currentShotData?.videoStatus === 'failed' && !currentShotVideoUrl && !currentVideoDirectorPlan.merged_video_url
     ? formatUserFacingError((currentVideoDirectorPlan as any).task_error_message || (currentVideoDirectorPlan as any).error_message || latestFailedAiCallError) || '当前 Shot 视频任务失败；如果已有部分 Clip 完成，可以重新生成缺失 Clip 或重新生成当前 Shot 视频。'
     : null;
+  const currentAudioDriveReadiness = getAudioDriveReadiness(currentShotData);
+  const currentVideoGenerateDisabledReason = !currentAudioDriveReadiness.ready
+    ? currentAudioDriveReadiness.reason
+    : '';
+  const currentNeedsKeyframeReplan = currentAudioDriveReadiness.ready && !currentMultiKeyframePlanReady;
   const getCurrentShotVideoResult = () => {
     const clips = currentSelectedVideoMode === 'MULTI_KEYFRAME' && Array.isArray(currentVideoDirectorPlan.window_plans)
       ? currentVideoDirectorPlan.window_plans
@@ -1775,6 +2087,11 @@ export function VideoGenTab({
 
   const handleRecommendVideoMode = useCallback(async (force = false) => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+    const audioReadiness = getAudioDriveReadiness(currentShotData);
+    if (!audioReadiness.ready) {
+      if (force) toast.error(audioReadiness.reason || 'AudioDrive 未 READY，请先到音频生成页完成音频准备。');
+      return;
+    }
     setRecommendingShotId(currentShotId);
     try {
       const result = await shotsApi.recommendVideoMode(effectiveNovelId, effectiveChapterId, currentShotId, force);
@@ -1789,7 +2106,7 @@ export function VideoGenTab({
     } finally {
       setRecommendingShotId(null);
     }
-  }, [currentShotId, effectiveChapterId, effectiveNovelId, updateCurrentShotVideoDirectorPlan]);
+  }, [currentShotData, currentShotId, effectiveChapterId, effectiveNovelId, updateCurrentShotVideoDirectorPlan]);
 
   const handleSelectVideoMode = useCallback(async (mode: VideoMode) => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
@@ -1814,7 +2131,7 @@ export function VideoGenTab({
   }, [currentShotData?.duration, currentShotId, currentVideoDirectorPlan, effectiveChapterId, effectiveNovelId, updateCurrentShotVideoDirectorPlan]);
 
   const handlePlanVideoKeyframes = useCallback(async (force = true) => {
-    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return false;
     setPlanningKeyframesShotId(currentShotId);
     try {
       const result = await shotsApi.planVideoKeyframes(effectiveNovelId, effectiveChapterId, currentShotId, force);
@@ -1835,12 +2152,15 @@ export function VideoGenTab({
           updateCurrentShotVideoDirectorPlan(result.data);
         }
         toast.success('关键帧规划已生成');
+        return true;
       } else {
         toast.error(result.message || (result as any).detail || '关键帧规划失败');
+        return false;
       }
     } catch (error) {
       console.error('关键帧规划失败:', error);
       toast.error('关键帧规划失败');
+      return false;
     } finally {
       setPlanningKeyframesShotId(null);
     }
@@ -1943,8 +2263,9 @@ export function VideoGenTab({
   useEffect(() => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
     if (currentVideoDirectorPlan.recommended_mode || recommendingShotId === currentShotId) return;
+    if (!currentAudioDriveReadiness.ready) return;
     handleRecommendVideoMode(false);
-  }, [currentShotId, currentVideoDirectorPlan.recommended_mode, effectiveChapterId, effectiveNovelId, handleRecommendVideoMode, recommendingShotId]);
+  }, [currentAudioDriveReadiness.ready, currentShotId, currentVideoDirectorPlan.recommended_mode, effectiveChapterId, effectiveNovelId, handleRecommendVideoMode, recommendingShotId]);
 
   useEffect(() => {
     setVideoMetadata({ duration: null, width: null, height: null, sizeBytes: null });
@@ -2066,6 +2387,10 @@ export function VideoGenTab({
   const handleGenerateVideo = async (mode: 'llm' | 'video_only' = 'llm') => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
     if (mode === 'video_only' && !hasReusableVideoPrompt) return;
+    if (!currentAudioDriveReadiness.ready) {
+      toast.error(currentAudioDriveReadiness.reason || 'AudioDrive 未 READY，请先到音频生成页完成音频准备。');
+      return;
+    }
     if (currentSelectedVideoMode === 'FIRST_LAST_FRAME' && !currentEndKeyframeImageUrl) {
       toast.error('首尾帧模式需要先生成 END 关键帧图片。');
       return;
@@ -2074,6 +2399,11 @@ export function VideoGenTab({
     setShowGenerateVideoMenu(false);
 
     try {
+      if (!currentMultiKeyframePlanReady) {
+        toast.info('AudioDrive 窗口已变化，先自动重新规划关键帧。');
+        const planned = await handlePlanVideoKeyframes(true);
+        if (!planned) return;
+      }
       await generateShotVideo(effectiveNovelId, effectiveChapterId, currentShotId, currentSelectedVideoMode, {
         skipLlmWhenPromptExists: mode === 'video_only',
       });
@@ -2178,6 +2508,11 @@ export function VideoGenTab({
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
     const windowIndex = Number(clip.window_index || clip.clip_index);
     if (!windowIndex) return;
+    const audioReadiness = getAudioDriveReadiness(currentShotData);
+    if (!audioReadiness.ready) {
+      toast.error(audioReadiness.reason || 'AudioDrive 未 READY，请先到音频生成页完成音频准备。');
+      return;
+    }
     const useExistingPrompt = mode === 'video_only';
     if (useExistingPrompt && !String(clip.prompt_text || '').trim()) {
       toast.info(`C${windowIndex} 缺少可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频。`);
@@ -2312,65 +2647,65 @@ export function VideoGenTab({
 
   // 打开批量选择弹窗
   const handleOpenBatchSelect = () => {
-    setSelectedShots(new Set());
+    setSelectedShotIds(new Set());
     setBatchSelectionMode(null);
     setShowBatchSelectModal(true);
   };
 
-  const applyBatchShotSelection = (index: number, mode: 'select' | 'deselect') => {
-    const shot = shotsList[index - 1];
+  const applyBatchShotSelection = (shotId: string, mode: 'select' | 'deselect') => {
+    const shot = shotsList.find((item: any) => String(item?.id) === shotId);
     if (!getBatchShotEligibility(shot).selectable) return;
-    setSelectedShots(prev => {
+    setSelectedShotIds(prev => {
       const next = new Set(prev);
       if (mode === 'select') {
-        next.add(index);
+        next.add(shotId);
       } else {
-        next.delete(index);
+        next.delete(shotId);
       }
       return next;
     });
     setBatchSelectionMode(null);
   };
 
-  const handleBatchShotMouseDown = (event: React.MouseEvent, index: number, isSelectable: boolean) => {
+  const handleBatchShotMouseDown = (event: React.MouseEvent, shotId: string, isSelectable: boolean) => {
     if (event.button !== 0 || !isSelectable) return;
     event.preventDefault();
-    const mode = selectedShots.has(index) ? 'deselect' : 'select';
+    const mode = selectedShotIds.has(shotId) ? 'deselect' : 'select';
     setDragSelectionMode(mode);
-    applyBatchShotSelection(index, mode);
+    applyBatchShotSelection(shotId, mode);
   };
 
-  const handleBatchShotMouseEnter = (index: number, isSelectable: boolean) => {
+  const handleBatchShotMouseEnter = (shotId: string, isSelectable: boolean) => {
     if (!dragSelectionMode || !isSelectable) return;
-    applyBatchShotSelection(index, dragSelectionMode);
+    applyBatchShotSelection(shotId, dragSelectionMode);
   };
 
   // 全选/取消全选
   const toggleSelectAll = () => {
     if (batchSelectionMode === 'all') {
-      setSelectedShots(new Set());
+      setSelectedShotIds(new Set());
       setBatchSelectionMode(null);
     } else {
-      setSelectedShots(new Set(selectableShotIndexes()));
+      setSelectedShotIds(new Set(selectableShotIds()));
       setBatchSelectionMode('all');
     }
   };
 
   const toggleSelectPendingVideos = () => {
     if (batchSelectionMode === 'pending') {
-      setSelectedShots(new Set());
+      setSelectedShotIds(new Set());
       setBatchSelectionMode(null);
       return;
     }
 
     const pendingShots = shotsList
-      .map((shot: any, idx: number) => {
+      .map((shot: any) => {
         const eligibility = getBatchShotEligibility(shot);
-        return !hasShotVideo(shot) && eligibility.selectable ? idx + 1 : null;
+        return shot?.id && !hasShotVideo(shot) && eligibility.selectable ? String(shot.id) : null;
       })
-      .filter((index: number | null): index is number => index !== null);
+      .filter((shotId: string | null): shotId is string => shotId !== null);
 
-    setSelectedShots(new Set(pendingShots));
+    setSelectedShotIds(new Set(pendingShots));
     setBatchSelectionMode('pending');
   };
 
@@ -2391,283 +2726,80 @@ export function VideoGenTab({
     }));
   };
 
-  const updateShotInStore = useCallback((updatedShot: any) => {
-    setShots(useChapterGenerateStore.getState().shots.map((shot: any) => (
-      String(shot.id) === String(updatedShot.id) ? { ...shot, ...updatedShot } : shot
-    )));
-    if (updatedShot?.imageUrl || updatedShot?.image_url) {
-      setShotImages((images: Record<string, string>) => ({
-        ...images,
-        [String(updatedShot.id)]: updatedShot.imageUrl || updatedShot.image_url,
-      }));
-    }
-  }, [setShotImages, setShots]);
-
-  const refreshBatchShot = useCallback(async (shotId: string) => {
-    if (!effectiveNovelId || !effectiveChapterId) return null;
-    const result = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, shotId);
-    if (result.success && result.data) {
-      updateShotInStore(result.data);
-      return result.data;
-    }
-    return null;
-  }, [effectiveChapterId, effectiveNovelId, updateShotInStore]);
-
-  const getBatchKeyframeFrameIndex = useCallback((shot: any, plan: VideoDirectorPlan, keyframe: any) => {
-    if (!keyframe || keyframe.role === 'START') return undefined;
-    const legacyKeyframes = shot?.keyframes || [];
-    const legacyKeyframe = legacyKeyframes.find((item: any) => Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(keyframe.index));
-    if (legacyKeyframe?.frame_index !== undefined) return Number(legacyKeyframe.frame_index);
-    const nonStartIndex = (plan.keyframes || [])
-      .filter((item: any) => item.role !== 'START')
-      .findIndex((item: any) => Number(item.index) === Number(keyframe.index));
-    return nonStartIndex >= 0 ? nonStartIndex : undefined;
-  }, []);
-
-  const getMissingBatchKeyframes = useCallback((shot: any, mode: VideoMode, plan: VideoDirectorPlan) => {
-    const keyframes = plan.keyframes || [];
-    const requiredKeyframes = mode === 'FIRST_LAST_FRAME'
-      ? keyframes.filter((keyframe: any) => keyframe.role === 'END')
-      : keyframes.filter((keyframe: any) => keyframe.role !== 'START');
-    return requiredKeyframes
-      .filter((keyframe: any) => !getVideoDirectorKeyframeImageUrl(shot, keyframe))
-      .map((keyframe: any) => ({ keyframe, frameIndex: getBatchKeyframeFrameIndex(shot, plan, keyframe) }))
-      .filter((item: any) => item.frameIndex !== undefined);
-  }, [getBatchKeyframeFrameIndex, getVideoDirectorKeyframeImageUrl]);
-
-  const waitForBatchKeyframeImages = useCallback(async (shotId: string, mode: VideoMode) => {
-    for (let attempt = 0; attempt < 180; attempt += 1) {
-      const latestShot = await refreshBatchShot(shotId);
-      const latestPlan: VideoDirectorPlan = latestShot?.videoDirectorPlan || {};
-      if (latestShot && getMissingBatchKeyframes(latestShot, mode, latestPlan).length === 0) {
-        return latestShot;
-      }
-      await sleep(2000);
-    }
-    throw new Error('等待关键帧图片生成超时');
-  }, [getMissingBatchKeyframes, refreshBatchShot]);
-
-  const prepareShotForAutoBatchVideo = useCallback(async (shot: any) => {
-    if (!effectiveNovelId || !effectiveChapterId || !shot?.id) return null;
-    let latestShot = await refreshBatchShot(String(shot.id)) || shot;
-    let plan: VideoDirectorPlan = latestShot.videoDirectorPlan || {};
-
-    if (!getShotImageUrl(latestShot)) {
-      throw new Error('缺少主分镜图');
-    }
-
-    if (!plan.selected_mode && !plan.recommended_mode) {
-      setRecommendingShotId(String(shot.id));
-      const recommendResult = await shotsApi.recommendVideoMode(effectiveNovelId, effectiveChapterId, String(shot.id), false);
-      setRecommendingShotId(null);
-      if (!recommendResult.success || !recommendResult.data) {
-        throw new Error(recommendResult.message || '视频模式推荐失败');
-      }
-      plan = recommendResult.data;
-      latestShot = { ...latestShot, videoDirectorPlan: plan };
-      updateShotInStore(latestShot);
-    }
-
-    let mode = (plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME') as VideoMode;
-    const maxClipDuration = plan.workflow_capability?.max_clip_duration || 15;
-    if (mode === 'FIRST_LAST_FRAME' && Number(latestShot.duration || 0) > maxClipDuration) {
-      mode = 'MULTI_KEYFRAME';
-    }
-    if (plan.selected_mode !== mode) {
-      const saveResult = await shotsApi.saveVideoDirectorPlan(effectiveNovelId, effectiveChapterId, String(shot.id), { selected_mode: mode });
-      if (!saveResult.success || !saveResult.data) {
-        throw new Error(saveResult.message || '保存视频模式失败');
-      }
-      plan = saveResult.data;
-      latestShot = { ...latestShot, videoDirectorPlan: plan };
-      updateShotInStore(latestShot);
-    }
-
-    if (mode !== 'SINGLE_FRAME') {
-      const duration = Number(latestShot.duration || 0);
-      const planWindowsMismatch = mode === 'MULTI_KEYFRAME' && !videoPlanWindowsMatchDuration(plan, duration, maxClipDuration);
-      const needsPlan = !(plan.keyframes || []).length || (mode === 'MULTI_KEYFRAME' && (!(plan.window_plans || []).length || planWindowsMismatch));
-      if (needsPlan) {
-        setPlanningKeyframesShotId(String(shot.id));
-        const planResult = await shotsApi.planVideoKeyframes(effectiveNovelId, effectiveChapterId, String(shot.id), planWindowsMismatch);
-        setPlanningKeyframesShotId(null);
-        if (!planResult.success || !planResult.data) {
-          throw new Error(planResult.message || planResult.detail || '关键帧规划失败');
-        }
-        plan = planResult.data;
-        latestShot = { ...latestShot, videoDirectorPlan: plan };
-        updateShotInStore(latestShot);
-      }
-
-      const missingKeyframes = getMissingBatchKeyframes(latestShot, mode, plan);
-      if (missingKeyframes.length > 0) {
-        setGeneratingMissingKeyframesShotId(String(shot.id));
-        try {
-          for (const item of missingKeyframes) {
-            await generateKeyframeImage(effectiveNovelId, effectiveChapterId, String(shot.id), Number(item.frameIndex));
-          }
-          latestShot = await waitForBatchKeyframeImages(String(shot.id), mode);
-        } finally {
-          setGeneratingMissingKeyframesShotId(null);
-        }
-      }
-    }
-
-    return { shot: latestShot, mode };
-  }, [effectiveChapterId, effectiveNovelId, generateKeyframeImage, getMissingBatchKeyframes, getShotImageUrl, refreshBatchShot, updateShotInStore, waitForBatchKeyframeImages]);
-
-  const submitBatchShotVideo = useCallback(async (shotId: string, mode: VideoMode) => {
-    if (!effectiveNovelId || !effectiveChapterId) return null;
-    useChapterGenerateStore.setState((state) => ({
-      generatingVideos: new Set([...state.generatingVideos, shotId]),
-      shotVideos: Object.fromEntries(Object.entries(state.shotVideos).filter(([key]) => key !== shotId)),
-      shots: state.shots.map((shot: any) => (
-        String(shot.id) === shotId
-          ? { ...shot, videoUrl: null, videoStatus: 'generating' as const, videoTaskId: null }
-          : shot
-      )),
-    }));
-
-    try {
-      const result = await shotsApi.generateVideo(effectiveNovelId, effectiveChapterId, shotId, { selected_mode: mode });
-      if (!result.success) {
-        throw new Error(result.message || result.detail || '生成失败');
-      }
-      useChapterGenerateStore.setState((state) => ({
-        generatingVideos: new Set([...state.generatingVideos, shotId]),
-        shots: state.shots.map((shot: any) => (
-          String(shot.id) === shotId
-            ? { ...shot, videoUrl: null, videoStatus: 'generating' as const, videoTaskId: result.data?.taskId || null }
-            : shot
-        )),
-      }));
-      checkVideoTaskStatus(effectiveChapterId);
-      return result.data?.taskId || null;
-    } catch (error) {
-      const errorMessage = formatUserFacingError(error instanceof Error ? error.message : '生成失败');
-      useChapterGenerateStore.setState((state) => {
-        const next = new Set(state.generatingVideos);
-        next.delete(shotId);
-        return {
-          generatingVideos: next,
-          shots: state.shots.map((shot: any) => (
-            String(shot.id) === shotId
-              ? {
-                  ...shot,
-                  videoStatus: 'failed' as const,
-                  videoDirectorPlan: {
-                    ...(shot.videoDirectorPlan || {}),
-                    task_error_message: errorMessage,
-                    error_message: errorMessage,
-                  },
-                }
-              : shot
-          )),
-        };
-      });
-      throw error;
-    }
-  }, [checkVideoTaskStatus, effectiveChapterId, effectiveNovelId]);
-
-  const waitForBatchShotVideoCompletion = useCallback(async (shotId: string, taskId: string | null) => {
-    if (!effectiveChapterId || !taskId) return;
-    for (let attempt = 0; attempt < 360; attempt += 1) {
-      await checkVideoTaskStatus(effectiveChapterId);
-      const result = await taskApi.fetch(taskId);
-      const task = result.success ? (result.data as any) : null;
-      const status = task?.status;
-      if (status === 'completed') {
-        await refreshBatchShot(shotId);
-        return;
-      }
-      if (status === 'failed' || status === 'cancelled') {
-        await refreshBatchShot(shotId);
-        throw new Error(formatUserFacingError(task?.errorMessage || task?.error_message) || (status === 'cancelled' ? '视频任务已取消' : '视频任务失败'));
-      }
-      await sleep(2000);
-    }
-    throw new Error('等待视频生成完成超时');
-  }, [checkVideoTaskStatus, effectiveChapterId, refreshBatchShot]);
-
   // 处理批量视频生成
   const handleGenerateAll = async () => {
     if (!effectiveNovelId || !effectiveChapterId) return;
-    const selectedShotList = Array.from(selectedShots)
-      .map(index => shotsList[index - 1])
+    const selectedShotList = shotsList
+      .filter((shot: any) => shot?.id && selectedShotIds.has(String(shot.id)))
       .filter((shot) => shot && getBatchShotEligibility(shot).selectable);
     if (!selectedShotList.length) {
       toast.info('没有可生成的视频分镜');
       return;
     }
-    if (selectedShotList.some(hasShotVideo) && !window.confirm('视频已存在，确认删除旧的吗？')) return;
+    if (selectedShotList.some(hasShotVideo) && !window.confirm('视频已存在，确认重新生成并在成功后替换旧视频吗？')) return;
 
     setIsGeneratingAll(true);
     setShowBatchSelectModal(false);
     let successCount = 0;
     let failedCount = 0;
-    const selectedShotIds = selectedShotList.map((shot: any) => String(shot.id)).filter(Boolean);
+    const batchShotIds = selectedShotList.map((shot: any) => String(shot.id)).filter(Boolean);
+    const previousVideoStatuses = new Map(
+      selectedShotList.map((shot: any) => [String(shot.id), shot.videoStatus])
+    );
     useChapterGenerateStore.setState((state) => ({
-      generatingVideos: new Set([...state.generatingVideos, ...selectedShotIds]),
-      shotVideos: Object.fromEntries(Object.entries(state.shotVideos).filter(([key]) => !selectedShotIds.includes(key))),
+      pendingVideos: new Set([...state.pendingVideos, ...batchShotIds]),
       shots: state.shots.map((shot: any) => (
-        selectedShotIds.includes(String(shot.id))
-          ? { ...shot, videoStatus: 'generating' as const, videoUrl: null }
+        batchShotIds.includes(String(shot.id))
+          ? { ...shot, videoStatus: 'pending' as const }
           : shot
       )),
     }));
     try {
-      // 依次生成选中的分镜
-      for (const shot of selectedShotList) {
-        if (!shot?.id) continue;
-        try {
-          const prepared = autoCompleteDetails ? await prepareShotForAutoBatchVideo(shot) : null;
-          const effectiveShot = prepared?.shot || shot;
-          const plan = effectiveShot.videoDirectorPlan || {};
-          const taskId = await submitBatchShotVideo(
-            String(effectiveShot.id),
-            (prepared?.mode || plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME') as VideoMode
-          );
-          await waitForBatchShotVideoCompletion(String(effectiveShot.id), taskId);
-          successCount += 1;
-        } catch (error) {
-          failedCount += 1;
-          const errorMessage = formatUserFacingError(error instanceof Error ? error.message : '未知错误') || '未知错误';
-          console.error(`批量生成分镜 ${shot.index || shot.id} 失败:`, error);
-          toast.error(`镜${shot.index || ''} 自动处理失败：${errorMessage}`);
-          const refreshedShot = await refreshBatchShot(String(shot.id));
-          useChapterGenerateStore.setState((state) => {
-            const nextGeneratingVideos = new Set(state.generatingVideos);
-            const nextPendingVideos = new Set(state.pendingVideos);
-            nextGeneratingVideos.delete(String(shot.id));
-            nextPendingVideos.delete(String(shot.id));
-            return {
-              generatingVideos: nextGeneratingVideos,
-              pendingVideos: nextPendingVideos,
-              shots: state.shots.map((item: any) => (
-                String(item.id) === String(shot.id)
-                  ? {
-                      ...item,
-                      ...(refreshedShot || {}),
-                      videoStatus: 'failed' as const,
-                      videoDirectorPlan: {
-                        ...(item.videoDirectorPlan || {}),
-                        ...((refreshedShot as any)?.videoDirectorPlan || {}),
-                        task_error_message: formatUserFacingError(((refreshedShot as any)?.videoDirectorPlan as any)?.task_error_message) || errorMessage,
-                      },
-                    }
-                  : item
-              )),
-            };
-          });
-        }
+      const selectedModes: Record<string, VideoMode> = {};
+      selectedShotList.forEach((shot: any) => {
+        const plan = shot.videoDirectorPlan || {};
+        const mode = plan.selected_mode || plan.recommended_mode;
+        if (mode) selectedModes[String(shot.id)] = mode as VideoMode;
+      });
+      const result = await shotsApi.generateVideosBatch(effectiveNovelId, effectiveChapterId, {
+        shot_ids: batchShotIds,
+        selected_modes: selectedModes,
+        auto_complete: autoCompleteDetails,
+      });
+      if (!result.success) {
+        throw new Error(result.message || result.detail || '批量视频任务提交失败');
       }
+      const batchTaskId = result.data?.taskId;
+      if (batchTaskId) {
+        useChapterGenerateStore.setState((state) => ({
+          shots: state.shots.map((shot: any) => (
+            batchShotIds.includes(String(shot.id))
+              ? { ...shot, videoTaskId: batchTaskId }
+              : shot
+          )),
+        }));
+      }
+      successCount = batchShotIds.length;
+      checkVideoTaskStatus(effectiveChapterId);
+
       if (successCount > 0) {
-        toast.success(`已提交 ${successCount} 个分镜视频任务${failedCount ? `，${failedCount} 个失败` : ''}`);
+        toast.success(`已提交批量视频任务：${successCount} 个分镜`);
       } else if (failedCount > 0) {
         toast.error('批量生成视频未提交成功任务');
       }
     } catch (error) {
       console.error(t('chapterGenerate.batchVideoGenerateFailed') + ':', error);
+      const message = error instanceof Error ? error.message : '批量视频任务提交失败';
+      toast.error(message);
+      useChapterGenerateStore.setState((state) => ({
+        generatingVideos: new Set([...state.generatingVideos].filter((shotId) => !batchShotIds.includes(String(shotId)))),
+        pendingVideos: new Set([...state.pendingVideos].filter((shotId) => !batchShotIds.includes(String(shotId)))),
+        shots: state.shots.map((shot: any) => (
+          batchShotIds.includes(String(shot.id))
+            ? { ...shot, videoStatus: previousVideoStatuses.get(String(shot.id)) || shot.videoStatus, videoTaskId: null }
+            : shot
+        )),
+      }));
     } finally {
       setIsGeneratingAll(false);
     }
@@ -2915,6 +3047,23 @@ export function VideoGenTab({
           <div className="mt-1 whitespace-pre-wrap break-words">{currentVideoErrorMessage}</div>
         </div>
       )}
+      <div className={`mx-8 mb-2 rounded-lg border px-3 py-2 text-sm ${currentAudioDriveReadiness.ready ? 'border-green-200 bg-green-50 text-green-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2 font-medium">
+            <Volume2 className="h-4 w-4" />
+            AudioDrive {currentAudioDriveReadiness.ready ? 'READY' : '未就绪'}
+          </div>
+          <div className="text-xs">
+            Timeline: {currentAudioDriveReadiness.timelineReady ? 'READY' : 'NOT_READY'} · Clip Audio: {currentAudioDriveReadiness.readyClipCount}/{currentAudioDriveReadiness.clipCount || 0}
+          </div>
+        </div>
+        {!currentAudioDriveReadiness.ready && (
+          <div className="mt-1 text-xs">{currentAudioDriveReadiness.reason}</div>
+        )}
+        {currentNeedsKeyframeReplan && (
+          <div className="mt-1 text-xs text-amber-700">AudioDrive 重新构建了 execution_windows，点击生成视频会先自动重新规划关键帧。</div>
+        )}
+      </div>
       {/* 操作栏 */}
       <div className="flex-shrink-0 flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
         <div className="ml-8 flex items-center gap-4">
@@ -2931,7 +3080,8 @@ export function VideoGenTab({
             <div className="relative inline-flex">
               <button
                 onClick={() => handleGenerateVideo('llm')}
-                disabled={!effectiveChapterId || !currentShotId}
+                disabled={!effectiveChapterId || !currentShotId || Boolean(currentVideoGenerateDisabledReason)}
+                title={currentVideoGenerateDisabledReason || undefined}
                 className="px-4 py-2 bg-blue-600 text-white rounded-l-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
                 <Film className="w-4 h-4" />
@@ -2943,7 +3093,8 @@ export function VideoGenTab({
                   event.stopPropagation();
                   setShowGenerateVideoMenu(prev => !prev);
                 }}
-                disabled={!effectiveChapterId || !currentShotId}
+                disabled={!effectiveChapterId || !currentShotId || Boolean(currentVideoGenerateDisabledReason)}
+                title={currentVideoGenerateDisabledReason || undefined}
                 className="px-2 py-2 bg-blue-600 text-white border-l border-blue-500 rounded-r-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
                 aria-label="选择视频生成方式"
               >
@@ -2961,9 +3112,9 @@ export function VideoGenTab({
                   <button
                     type="button"
                     onClick={() => handleGenerateVideo('video_only')}
-                    disabled={!hasReusableVideoPrompt}
+                    disabled={!hasReusableVideoPrompt || Boolean(currentVideoGenerateDisabledReason)}
                     className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50 disabled:text-gray-400 disabled:hover:bg-white disabled:cursor-not-allowed"
-                    title={!hasReusableVideoPrompt ? '当前 Shot 没有可复用的视频最终 Prompt' : undefined}
+                    title={currentVideoGenerateDisabledReason || (!hasReusableVideoPrompt ? '当前 Shot 没有可复用的视频最终 Prompt' : undefined)}
                   >
                     只生成当前Shot视频
                   </button>
@@ -3185,6 +3336,28 @@ export function VideoGenTab({
             </div>
           )}
         </div>
+        {(previewDriveAudioUrl || previewFinalAudioUrl) && (
+          <div className="rounded-lg border border-gray-200 bg-white p-3">
+            <div className="mb-2 flex items-center justify-between gap-2 text-xs text-gray-600">
+              <span className="font-semibold text-gray-800">预览 Clip 音频</span>
+              <span>C{previewAudioClip?.window_index || previewAudioClip?.clip_index || 1} · {previewAudioClip?.audio_status || previewAudioClip?.audioStatus || 'READY'}</span>
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              {previewDriveAudioUrl && (
+                <div className="rounded-md border border-cyan-100 bg-cyan-50/60 px-2 py-1.5">
+                  <div className="mb-1 text-[11px] font-medium text-cyan-700">Drive 音频</div>
+                  <audio src={previewDriveAudioUrl} controls preload="metadata" className="h-8 w-full" />
+                </div>
+              )}
+              {previewFinalAudioUrl && (
+                <div className="rounded-md border border-purple-100 bg-purple-50/60 px-2 py-1.5">
+                  <div className="mb-1 text-[11px] font-medium text-purple-700">Final 音频</div>
+                  <audio src={previewFinalAudioUrl} controls preload="metadata" className="h-8 w-full" />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         <VideoAiCallsPanel
           calls={currentVideoDirectorPlan.ai_calls || []}
           novelId={effectiveNovelId}
@@ -3199,7 +3372,7 @@ export function VideoGenTab({
 
       {/* 批量选择分镜弹窗 */}
       {showBatchSelectModal && createPortal((
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 isolate z-[300] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             {/* 弹窗头部 */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -3220,7 +3393,7 @@ export function VideoGenTab({
             <div className="flex-1 overflow-y-auto p-4 pb-8">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-gray-600">
-                  已选择 {selectedShots.size} / 可选 {selectableShotIndexes().length} / 共 {shotsList.length} 个分镜
+                  已选择 {selectedShotIds.size} / 可选 {selectableShotIds().length} / 共 {shotsList.length} 个分镜
                 </span>
                 <div className="flex items-center gap-3">
                   <button
@@ -3243,22 +3416,23 @@ export function VideoGenTab({
               <div className="grid grid-cols-4 gap-3">
                 {shotsList.map((shot: any, idx: number) => {
                   const shotIndex = idx + 1;
-                  const shotId = shot.id;
-                  const isSelected = selectedShots.has(shotIndex);
+                  const shotId = shot?.id ? String(shot.id) : '';
+                  const isSelected = shotId ? selectedShotIds.has(shotId) : false;
                   const hasVideo = hasShotVideo(shot);
-                  const isGenerating = shotId ? generatingVideos.has(shotId) : false;
+                  const isGenerating = shotId ? generatingVideos.has(shotId) || storePendingVideos.has(shotId) || shot?.videoStatus === 'generating' || (!!shot?.videoTaskId && shot?.videoStatus === 'pending') : false;
                   const eligibility = getBatchShotEligibility(shot);
                   const isSelectable = eligibility.selectable;
+                  const shotImageUrl = getShotImageUrl(shot);
 
                   return (
                     <div
                       key={shot.id || `shot-${shotIndex}`}
-                      onMouseDown={(event) => handleBatchShotMouseDown(event, shotIndex, isSelectable)}
-                      onMouseEnter={() => handleBatchShotMouseEnter(shotIndex, isSelectable)}
+                      onMouseDown={(event) => handleBatchShotMouseDown(event, shotId, isSelectable)}
+                      onMouseEnter={() => handleBatchShotMouseEnter(shotId, isSelectable)}
                       title={isSelectable ? '可生成' : eligibility.reason}
                       className={`
                         relative aspect-video rounded-lg border-2 transition-all
-                        select-none
+                        group select-none
                         ${!isSelectable
                           ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
                           : 'cursor-pointer hover:shadow-md'
@@ -3274,33 +3448,45 @@ export function VideoGenTab({
                       `}
                     >
                       {/* 分镜编号 */}
-                      <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-xs rounded">
+                      <div className="absolute left-1 top-1 z-20 px-1.5 py-0.5 bg-black/60 text-white text-xs rounded">
                         #{shotIndex}
                       </div>
 
                       {/* 选择标记 - 只有可选分镜显示 */}
                       {isSelectable && (
                         <div className={`
-                          absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center
-                          ${isSelected ? 'bg-blue-500' : 'bg-gray-200'}
+                          absolute right-1 top-1 z-30 flex h-5 w-5 items-center justify-center rounded-full border shadow-sm transition-colors
+                          ${isSelected ? 'border-blue-500 bg-blue-500' : 'border-white bg-white/90 group-hover:bg-blue-50'}
                         `}>
-                          {isSelected && <Check className="w-3 h-3 text-white" />}
+                          {isSelected && <Check className="h-3 w-3 text-white" />}
                         </div>
                       )}
 
                       {/* 内容区域 */}
-                      <div className="w-full h-full flex items-center justify-center">
-                        {hasVideo ? (
-                          <Film className="w-8 h-8 text-green-600" />
-                        ) : isGenerating ? (
-                          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                      <div className="w-full h-full overflow-hidden rounded-md bg-gray-100 flex items-center justify-center">
+                        {shotImageUrl ? (
+                          <img
+                            src={shotImageUrl}
+                            alt={`镜${shotIndex}`}
+                            className={`h-full w-full object-cover transition-transform ${isSelectable ? 'group-hover:scale-105' : ''}`}
+                            draggable={false}
+                          />
                         ) : (
                           <Film className="w-8 h-8 text-gray-300" />
                         )}
                       </div>
 
+                      {/* 状态图标 */}
+                      <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                        {isGenerating ? (
+                          <Loader2 className="w-8 h-8 text-blue-500 animate-spin drop-shadow" />
+                        ) : hasVideo ? (
+                          <Film className="w-8 h-8 text-green-600 drop-shadow" />
+                        ) : null}
+                      </div>
+
                       {/* 状态标签 */}
-                      <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg truncate">
+                      <div className="absolute bottom-0 left-0 right-0 z-20 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg truncate">
                         {isSelectable ? (hasVideo ? t('chapterGenerate.generated') : t('chapterGenerate.pending')) : eligibility.reason}
                       </div>
                     </div>
@@ -3318,16 +3504,15 @@ export function VideoGenTab({
                   onChange={(event) => {
                     const checked = event.target.checked;
                     setAutoCompleteDetails(checked);
-                    const selectableIndexes = shotsList
-                      .map((shot: any, idx: number) => {
+                    const nextSelectableShotIds = shotsList
+                      .map((shot: any) => {
                         const shotId = shot?.id ? String(shot.id) : '';
-                        if (!shotId || generatingVideos.has(shotId) || shot?.videoStatus === 'generating') return null;
+                        if (!shotId || generatingVideos.has(shotId) || storePendingVideos.has(shotId) || shot?.videoStatus === 'generating' || (!!shot?.videoTaskId && shot?.videoStatus === 'pending')) return null;
                         if (!getShotImageUrl(shot)) return null;
-                        if (checked) return idx + 1;
-                        return getBatchShotEligibility(shot, checked).selectable ? idx + 1 : null;
+                        return getBatchShotEligibility(shot, checked).selectable ? shotId : null;
                       })
-                      .filter((index: number | null): index is number => index !== null);
-                    setSelectedShots(new Set(selectableIndexes));
+                      .filter((shotId: string | null): shotId is string => shotId !== null);
+                    setSelectedShotIds(new Set(nextSelectableShotIds));
                     setBatchSelectionMode('all');
                   }}
                   className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
@@ -3343,7 +3528,7 @@ export function VideoGenTab({
                 </button>
                 <button
                   onClick={handleGenerateAll}
-                  disabled={selectedShots.size === 0 || isGeneratingAll}
+                  disabled={selectedShotIds.size === 0 || isGeneratingAll}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                 >
                   {isGeneratingAll ? (
@@ -3354,7 +3539,7 @@ export function VideoGenTab({
                   ) : (
                     <>
                       <Film className="w-4 h-4" />
-                      {t('chapterGenerate.generateShots', { count: selectedShots.size })}
+                      {t('chapterGenerate.generateShots', { count: selectedShotIds.size })}
                     </>
                   )}
                 </button>
@@ -3366,7 +3551,7 @@ export function VideoGenTab({
 
       {/* 合并视频选择弹窗 */}
       {showMergeSelectModal && createPortal((
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 isolate z-[300] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <div>
@@ -3534,7 +3719,7 @@ export function VideoGenTab({
 
       {/* 合并视频结果弹窗 */}
       {showMergeModal && mergedVideoUrl && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[200] p-4">
+          <div className="fixed inset-0 isolate z-[300] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             {/* 弹窗头部 */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -3589,7 +3774,7 @@ export function VideoGenTab({
 
       {/* 转场视频预览弹窗 */}
       {previewTransitionVideo && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 isolate z-[300] flex items-center justify-center bg-black/60 backdrop-blur-[1px]">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <div className="flex items-center gap-2">

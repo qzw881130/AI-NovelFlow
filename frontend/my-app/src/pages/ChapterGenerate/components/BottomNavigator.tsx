@@ -63,6 +63,8 @@ export function BottomNavigator({
   const currentShotId = useChapterGenerateStore((state) => state.currentShotId);
   const currentTab = useChapterGenerateStore((state) => state.currentTab);
   const selectedShotIds = useChapterGenerateStore((state) => state.selectedShotIds);
+  const preparingAudioShots = useChapterGenerateStore((state) => state.preparingAudioShots);
+  const pendingAudioPrepareShots = useChapterGenerateStore((state) => state.pendingAudioPrepareShots);
   const bulkMode = useChapterGenerateStore((state) => state.bulkMode);
   const setCurrentShot = useChapterGenerateStore((state) => state.setCurrentShot);
   const toggleShotSelection = useChapterGenerateStore((state) => state.toggleShotSelection);
@@ -90,9 +92,33 @@ export function BottomNavigator({
     const hasVideoResult = !!(shot.videoUrl || shotVideos[shotId]);
     const imageIsGenerating = generatingShots.has(shotId) || shot.imageStatus === 'generating';
     const videoIsGenerating = generatingVideos.has(shotId) || shot.videoStatus === 'generating';
+    const videoIsQueued = pendingVideos.has(shotId) || (!!shot.videoTaskId && shot.videoStatus === 'pending');
+
+    if (currentTab === 2) {
+      if (preparingAudioShots.has(shotId)) return 'generating';
+      if (pendingAudioPrepareShots.has(shotId)) return 'queued';
+      const plan: any = shot.videoDirectorPlan || {};
+      const windows = Array.isArray(plan.window_plans) && plan.window_plans.length > 0
+        ? plan.window_plans
+        : Array.isArray(plan.execution_windows)
+          ? plan.execution_windows
+          : Array.isArray(plan.clips)
+            ? plan.clips
+            : [];
+      const timelineReady = String((shot as any).audioStatus || '').toUpperCase() === 'READY';
+      const clipAudioReady = windows.length > 0 && windows.every((window: any) => (
+        String(window.audio_status || window.audioStatus || '').toUpperCase() === 'READY'
+        && Boolean(window.drive_audio_url || window.driveAudioUrl)
+        && Boolean(window.final_audio_url || window.finalAudioUrl)
+      ));
+      if (timelineReady && clipAudioReady) return 'completed';
+      if (isCurrentShot) return 'current';
+      return 'pending';
+    }
 
     if (currentTab === 1 && imageIsGenerating && !hasImageResult) return 'generating';
-    if (currentTab === 3 && videoIsGenerating && !hasVideoResult) return 'generating';
+    if (currentTab === 3 && videoIsGenerating) return 'generating';
+    if (currentTab === 3 && videoIsQueued) return 'queued';
     if (isCurrentShot) return 'current';
     if (currentTab === 1 && hasImageResult) return 'completed';
     if (currentTab === 3 && hasVideoResult) return 'completed';

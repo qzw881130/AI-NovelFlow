@@ -19,6 +19,7 @@
 - duration
 - continuity_mode
 - dialogues
+- audio_summary（若系统已完成 TTS/Audio Timeline，则由程序提供事实摘要，可含 has_visible_dialogue、visible_speaker_count、speaker_switch_count、has_narration、has_inner_monologue；不得自行猜测）
 
 2. workflow_capability
 由程序配置提供，至少可能包含：
@@ -31,6 +32,10 @@
 }
 
 这些 capability 是事实输入，不得假设未声明能力。
+Audio 时长事实规则：
+- 如果系统已经完成 Audio Timeline，shot.duration 必须是 resolved_duration（已经过真实 TTS 容量校验后的导演 Shot 时长），不得继续使用 TTS 前的 estimated_duration。
+- 本 Prompt 不重新估算或修改 duration。
+
 
 ━━━━━━━━━━━━━━━━━━
 【允许输出模式】
@@ -120,6 +125,12 @@ dialogues 非空：
 
 旁白：
 - 旁白本身不构成视觉人物，不因为存在旁白自动升级模式。
+
+若提供 audio_summary：
+- 单人短而稳定的 visible dialogue 仍可 SINGLE_FRAME。
+- 多可见说话者、频繁 speaker switch、A→B→A 等 speaker re-entry 会提高 MULTI_KEYFRAME 优先级，但不能仅因声音存在就机械升级。
+- narration / inner_monologue 本身不构成可见说话者，不应单独触发模式升级。
+- audio_summary 只辅助视觉风险判断，不负责决定 Clip 边界。
 
 ━━━━━━━━━━━━━━━━━━
 【能力约束】

@@ -15,6 +15,7 @@ from .prompt_template import PromptTemplateRepository
 from .test_case import TestCaseRepository
 from .llm_log import LLMLogRepository
 from .shot_repository import ShotRepository
+from .audio_drive import AudioDriveRepository
 
 __all__ = [
     "NovelRepository",
@@ -28,4 +29,5 @@ __all__ = [
     "TestCaseRepository",
     "LLMLogRepository",
     "ShotRepository",
+    "AudioDriveRepository",
 ]

@@ -44,6 +44,7 @@ async def list_tasks(
             tasks = [t for t in tasks if t.type == type]
         if status:
             tasks = [t for t in tasks if t.status == status]
+        tasks = tasks[:limit]
     else:
         tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
 
@@ -56,6 +57,7 @@ async def list_tasks(
                     tasks = [t for t in tasks if t.type == type]
                 if status:
                     tasks = [t for t in tasks if t.status == status]
+                tasks = tasks[:limit]
             else:
                 tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
 

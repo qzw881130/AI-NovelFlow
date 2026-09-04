@@ -17,6 +17,9 @@ export interface Task {
   created_at: string;
   updated_at: string;
   workflow_id?: string;
+  currentStep?: string;
+  errorMessage?: string;
+  metadata?: Record<string, any>;
 }
 
 export const taskApi = {

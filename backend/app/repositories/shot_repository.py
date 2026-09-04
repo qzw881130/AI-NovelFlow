@@ -308,6 +308,43 @@ class ShotRepository:
         Returns:
             响应字典
         """
+        audio_events = []
+        try:
+            from app.models.audio_drive import ShotAudioEvent
+            audio_events = self.db.query(ShotAudioEvent).filter(
+                ShotAudioEvent.shot_id == shot.id
+            ).order_by(ShotAudioEvent.event_order).all()
+        except Exception:
+            audio_events = []
+
+        audio_event_items = [
+            {
+                "id": event.id,
+                "shotId": event.shot_id,
+                "order": event.event_order,
+                "type": event.event_type,
+                "voiceOwnerCharacterId": event.voice_owner_character_id,
+                "voiceOwnerName": event.voice_owner_name,
+                "visibleSpeakerCharacterId": event.visible_speaker_character_id,
+                "visibleSpeakerName": event.visible_speaker_name,
+                "requiresVisibleLipsync": bool(event.requires_visible_lipsync),
+                "text": event.text,
+                "emotionPrompt": event.emotion_prompt,
+                "pauseAfter": event.pause_after or "NONE",
+                "ttsStatus": event.tts_status or "NOT_GENERATED",
+            }
+            for event in audio_events
+        ]
+        audio_summary = {
+            "eventCount": len(audio_event_items),
+            "visibleLipsyncCount": len([event for event in audio_event_items if event["requiresVisibleLipsync"]]),
+            "narrationCount": len([event for event in audio_event_items if event["type"] == "NARRATION"]),
+            "innerMonologueCount": len([event for event in audio_event_items if event["type"] == "INNER_MONOLOGUE"]),
+            "ttsReadyCount": len([event for event in audio_event_items if event["ttsStatus"] == "READY"]),
+            "ttsStaleCount": len([event for event in audio_event_items if event["ttsStatus"] == "STALE"]),
+            "ttsFailedCount": len([event for event in audio_event_items if event["ttsStatus"] == "FAILED"]),
+        }
+
         return {
             "id": shot.id,
             "chapterId": shot.chapter_id,
@@ -318,7 +355,11 @@ class ShotRepository:
             "characters": json.loads(shot.characters) if shot.characters else [],
             "scene": shot.scene,
             "props": json.loads(shot.props) if shot.props else [],
+            "estimatedDuration": shot.estimated_duration,
             "duration": shot.duration,
+            "audioStatus": shot.audio_status or "NOT_READY",
+            "audioEvents": audio_event_items,
+            "audioEventsSummary": audio_summary,
             "continuity_mode": shot.continuity_mode or "NORMAL",
             "videoDirectorPlan": json.loads(shot.video_director_plan) if shot.video_director_plan else {},
             "imageUrl": shot.image_url,

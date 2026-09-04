@@ -346,6 +346,8 @@ class WorkflowBuilder:
             workflow[reference_audio_node_id]["inputs"]["audio"] = reference_audio_filename
             print(f"[AudioWorkflow] Set reference audio to node {reference_audio_node_id}: {reference_audio_filename}")
 
+        self._set_random_seed(workflow, random.randint(1, 2**32 - 1))
+
         return workflow
 
     def _build_default_audio_workflow(

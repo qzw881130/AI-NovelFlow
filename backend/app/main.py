@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy import text
 import asyncio
 
-from app.api import characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props
+from app.api import audio_drive, characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props
 from app.api import novels, chapters, shots
 from app.core.database import engine, Base
 from app.services.comfyui_monitor import init_monitor
@@ -16,6 +16,7 @@ from app.models.prompt_template import PromptTemplate
 from app.models.llm_log import LLMLog
 from app.models.system_config import SystemConfig  # 导入系统配置模型
 from app.models.shot import Shot
+from app.models.audio_drive import ShotAudioEvent, AudioEventTTSAsset, ShotAudioTimeline, ShotAudioTimelineEvent
 
 
 def ensure_schema_updates():
@@ -32,6 +33,10 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE shots ADD COLUMN video_director_plan TEXT DEFAULT '{}'"))
             if "shot_image_prompt" not in shot_columns:
                 conn.execute(text("ALTER TABLE shots ADD COLUMN shot_image_prompt TEXT DEFAULT ''"))
+            if "estimated_duration" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN estimated_duration INTEGER"))
+            if "audio_status" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN audio_status VARCHAR DEFAULT 'NOT_READY'"))
 
             result = conn.execute(text("PRAGMA table_info(novels)"))
             novel_columns = [row[1] for row in result.fetchall()]
@@ -89,6 +94,8 @@ async def reconcile_active_tasks_loop():
                 updated_count = await TaskService(db).reconcile_active_tasks(active_tasks, db=db)
                 if updated_count:
                     print(f"[TaskReconcile] Updated {updated_count} stale active task(s)")
+            from app.services.audio_drive_service import AudioDriveService
+            AudioDriveService.resume_active_tts_tasks()
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -96,6 +103,51 @@ async def reconcile_active_tasks_loop():
         finally:
             db.close()
         await asyncio.sleep(30)
+
+
+async def audio_drive_tts_worker_loop():
+    """DB-backed serial worker for AudioDrive TTS tasks."""
+    from app.services.audio_drive_service import AudioDriveService
+
+    while True:
+        try:
+            consumed = await AudioDriveService.run_next_persistent_tts_task()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            print(f"[AudioDriveTTSWorker] Failed to consume task: {exc}")
+            consumed = False
+        await asyncio.sleep(1 if consumed else 3)
+
+
+async def audio_drive_prepare_worker_loop():
+    """DB-backed serial worker for full AudioDrive preparation tasks."""
+    from app.services.audio_drive_service import AudioDriveService
+
+    while True:
+        try:
+            consumed = await AudioDriveService.run_next_persistent_audio_prepare_task()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            print(f"[AudioDrivePrepareWorker] Failed to consume task: {exc}")
+            consumed = False
+        await asyncio.sleep(1 if consumed else 3)
+
+
+async def shot_video_batch_worker_loop():
+    """DB-backed serial worker for batch shot video orchestration tasks."""
+    from app.api.shots import run_next_persistent_shot_video_batch_task
+
+    while True:
+        try:
+            consumed = await run_next_persistent_shot_video_batch_task()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            print(f"[ShotVideoBatchWorker] Failed to consume task: {exc}")
+            consumed = False
+        await asyncio.sleep(1 if consumed else 3)
 
 
 @asynccontextmanager
@@ -124,17 +176,42 @@ async def lifespan(app: FastAPI):
     
     monitor = init_monitor(settings.COMFYUI_HOST)
     await monitor.start()
-    from app.api.shots import resume_active_shot_image_batches
+    from app.api.shots import resume_active_shot_image_batches, resume_active_shot_video_batches
     resume_active_shot_image_batches()
+    resume_active_shot_video_batches()
+    from app.services.audio_drive_service import AudioDriveService
+    AudioDriveService.resume_active_tts_tasks()
+    AudioDriveService.resume_active_audio_prepare_tasks()
     task_reconcile_task = asyncio.create_task(reconcile_active_tasks_loop())
     app.state.task_reconcile_task = task_reconcile_task
+    audio_drive_tts_task = asyncio.create_task(audio_drive_tts_worker_loop())
+    app.state.audio_drive_tts_task = audio_drive_tts_task
+    audio_drive_prepare_task = asyncio.create_task(audio_drive_prepare_worker_loop())
+    app.state.audio_drive_prepare_task = audio_drive_prepare_task
+    shot_video_batch_task = asyncio.create_task(shot_video_batch_worker_loop())
+    app.state.shot_video_batch_task = shot_video_batch_task
     
     yield
     
     # Shutdown
     task_reconcile_task.cancel()
+    audio_drive_tts_task.cancel()
+    audio_drive_prepare_task.cancel()
+    shot_video_batch_task.cancel()
     try:
         await task_reconcile_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await audio_drive_tts_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await audio_drive_prepare_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await shot_video_batch_task
     except asyncio.CancelledError:
         pass
     await monitor.stop()
@@ -178,6 +255,7 @@ app.include_router(test_cases.router, prefix="/api/test-cases", tags=["test-case
 app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"])
 app.include_router(files.router, prefix="/api/files", tags=["files"])
 app.include_router(prompt_templates.router, prefix="/api/prompt-templates", tags=["prompt-templates"])
+app.include_router(audio_drive.router, prefix="/api", tags=["audio-drive"])
 app.include_router(llm_logs.router, prefix="/api/llm-logs", tags=["llm-logs"])
 
 

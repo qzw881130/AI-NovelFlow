@@ -110,7 +110,7 @@ SYSTEM_CHARACTER_TEMPLATES: List[Dict] = [
 SYSTEM_CHAPTER_SPLIT_TEMPLATES: List[Dict] = [
     {
         "name": "章节分镜导演解析",
-        "description": "根据章节正文和角色/场景/道具白名单规划导演 Shot 数据",
+        "description": "根据章节正文和角色/场景/道具白名单规划导演 Shot 与 Audio Events",
         "template": load_template("05_NovelFlow_VideoDirector_ShotDirector_V1.txt"),
         "type": "chapter_split"
     }
@@ -130,13 +130,13 @@ SYSTEM_SHOT_IMAGE_PROMPT_TEMPLATES: List[Dict] = [
 SYSTEM_VIDEO_DIRECTOR_TEMPLATES: List[Dict] = [
     {
         "name": "视频生成模式推荐",
-        "description": "根据 Shot 与 Workflow 能力推荐 SINGLE_FRAME / FIRST_LAST_FRAME / MULTI_KEYFRAME",
+        "description": "根据 Shot、Audio Timeline 摘要与 Workflow 能力推荐视频生成模式",
         "template": load_template("07_NovelFlow_VideoGeneration_ModeRecommender_V1.txt"),
         "type": "video_mode_recommender"
     },
     {
         "name": "关键帧过渡规划",
-        "description": "根据相邻关键帧规划自然过渡的 Segment 动态导演描述",
+        "description": "根据相邻关键帧和 Audio 摘要规划自然过渡的 Segment 动态导演描述",
         "template": load_template("10_NovelFlow_KeyframeTransition_Planner_V1.txt"),
         "type": "keyframe_transition"
     }
@@ -146,7 +146,7 @@ SYSTEM_VIDEO_DIRECTOR_TEMPLATES: List[Dict] = [
 SYSTEM_KEYFRAME_PLANNING_TEMPLATES: List[Dict] = [
     {
         "name": "关键帧时间轴规划",
-        "description": "为 MULTI_KEYFRAME Shot 规划每个执行窗口的 3/4 帧关键帧时间轴",
+        "description": "基于程序 execution_windows 为 3/4 帧 Workflow 规划关键帧时间轴",
         "template": load_template("08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt"),
         "type": "keyframe_planner"
     },
@@ -162,19 +162,19 @@ SYSTEM_KEYFRAME_PLANNING_TEMPLATES: List[Dict] = [
 SYSTEM_H3_VIDEO_PROMPT_TEMPLATES: List[Dict] = [
     {
         "name": "MiniMax H3 单帧视频提示词构建",
-        "description": "根据单张权威起始帧、Clip 动态意图和精确对白构建 H3 单帧视频提示词",
+        "description": "根据单张权威起始帧、Clip 动态意图和精确 Speaker Timeline 构建 H3 单帧视频提示词",
         "template": load_template("11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt"),
         "type": "h3_single_frame_prompt"
     },
     {
         "name": "MiniMax H3 首尾帧视频提示词构建",
-        "description": "根据起止两张权威时间帧、过渡描述和精确对白构建 H3 首尾帧视频提示词",
+        "description": "根据起止两张权威时间帧、过渡描述和精确 Speaker Timeline 构建 H3 首尾帧视频提示词",
         "template": load_template("12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt"),
         "type": "h3_first_last_frame_prompt"
     },
     {
         "name": "MiniMax H3 多关键帧视频提示词构建",
-        "description": "根据多张时间顺序关键帧、过渡 Segment 和精确对白构建 H3 多关键帧提示词",
+        "description": "根据多张时间顺序关键帧、过渡 Segment 和精确 Speaker Timeline 构建 H3 多关键帧提示词",
         "template": load_template("13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt"),
         "type": "h3_multi_keyframe_prompt"
     }

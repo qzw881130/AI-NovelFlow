@@ -17,7 +17,7 @@ from app.services.prompt_builder import build_character_prompt, get_style
 from app.services.character_service import CharacterService
 from app.repositories import NovelRepository, CharacterRepository, PromptTemplateRepository, TaskRepository, WorkflowRepository
 from app.models.task import Task
-from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterImageEditRequest, CharacterImageReplaceRequest
+from app.schemas.character import CharacterCreate, CharacterUpdate, CharacterImageEditRequest, CharacterImageReplaceRequest, CharacterVoiceBatchRequest
 from app.api.deps import get_novel_repo, get_character_repo, get_prompt_template_repo, get_llm_service, get_task_repo
 from app.utils.path_utils import url_to_local_path
 
@@ -56,6 +56,14 @@ async def list_characters(
                 c.generating_status = "completed" if c.image_url and task and task.status == "completed" else "failed"
                 fixed_stale_status = True
 
+        active_voice_task = task_repo.get_active_by_character_and_type(c.id, "character_voice")
+        latest_voice_task = active_voice_task or task_repo.get_latest_by_character_and_type(c.id, "character_voice")
+        voice_status = "completed" if c.reference_audio_url else "idle"
+        if active_voice_task:
+            voice_status = active_voice_task.status
+        elif latest_voice_task and latest_voice_task.status == "failed" and not c.reference_audio_url:
+            voice_status = "failed"
+
         novel = novels_map.get(c.novel_id)
         result.append({
             "id": c.id,
@@ -65,6 +73,10 @@ async def list_characters(
             "appearance": c.appearance,
             "voicePrompt": c.voice_prompt,
             "referenceAudioUrl": c.reference_audio_url,
+            "voiceTaskId": latest_voice_task.id if latest_voice_task else None,
+            "voiceTaskStatus": voice_status,
+            "voiceTaskProgress": latest_voice_task.progress if latest_voice_task else 0,
+            "voiceTaskMessage": latest_voice_task.error_message if latest_voice_task else "",
             "imageUrl": c.image_url,
             "generatingStatus": c.generating_status,
             "portraitTaskId": c.portrait_task_id,
@@ -661,6 +673,17 @@ async def generate_character_voice(
     """生成角色音色任务"""
     character_service = CharacterService(db)
     return character_service.create_character_voice_task(character_id)
+
+
+@router.post("/voice/generate-batch", response_model=dict)
+async def generate_character_voice_batch(
+    data: CharacterVoiceBatchRequest,
+    novel_id: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    """批量生成角色音色任务（通过串行 worker 执行）。"""
+    character_service = CharacterService(db)
+    return character_service.create_character_voice_batch_tasks(novel_id, data.character_ids)
 
 
 @router.get("/{character_id}/voice/status", response_model=dict)

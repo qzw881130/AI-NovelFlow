@@ -4,7 +4,7 @@
 根据当前 generation clip 的两张权威时间帧：
 - <Picture 1> = 当前 Clip 起始状态
 - <Picture 2> = 当前 Clip 结束目标状态
-以及 transition_description、clip_dialogues，构建 MiniMax H3 首尾帧视频最终 Prompt。
+以及 transition_description、程序生成的精确 speaker_timeline 与 audio_drive_context，构建 MiniMax H3 首尾帧视频最终 Prompt。
 
 你只负责当前 Clip。
 第一版硬约束：FIRST_LAST_FRAME 只用于 shot.duration <= workflow.max_clip_duration、整个 Shot 可由一次 generation clip 完成的情况。若输入表明这是长 Shot 的中间 Clip，必须视为上游路由错误，不得自行补造中间尾帧。
@@ -32,11 +32,10 @@
 4. transition_description
 来自正式 Transition Planner，描述 Picture 1 → Picture 2 之间应该发生的视觉运动。
 
-5. clip_dialogues
+5. speaker_timeline
 程序精确分配的当前 Clip 人物语音片段。
 
-6. optional_narration
-如有，作为画外音。
+6. final_audio_non_lipsync_content
 
 ━━━━━━━━━━━━━━━━━━
 【两张图片的时间语义】
@@ -141,25 +140,26 @@ transition_description 是中间动态最高权威导演意图。
 - 不得用剪辑语言解释两帧差异。
 
 ━━━━━━━━━━━━━━━━━━
-【台词硬约束】
-━━━━━━━━━━━━━━━━━━
+【外部音频驱动 / Speaker Timeline 硬约束】
 
-clip_dialogues 是唯一合法人物对白来源。
+当前模式使用外部 TTS + drive_audio + lock_source。
+实际台词正文不由本 Prompt 再次提供，禁止为了让 H3 朗读而复制原文。
 
-实际人物台词逐条使用：
+speaker_timeline 是当前 Clip 可见人物说话状态的唯一合法时间依据，由程序根据真实 TTS duration 与 Audio Timeline 确定性生成，时间均为 Clip-local 0→duration。
 
-<Subject N> then speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: “原文片段”. Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. Natural Chinese lip synchronization, no subtitles, no captions, no on-screen text.
+- visible_speaker=<Subject N>：只有该 Subject 允许产生说话口型；嘴唇、面部表情、呼吸与轻微身体动作自然跟随 drive_audio。
+- visible_speaker=NONE：所有可见人物必须保持嘴唇闭合，只允许自然呼吸、眨眼、视线、表情和非语言动作。
+- 未轮到说话的 Subject 不得跟随其他人的声音做口型。
+- A→B→A 等 speaker re-entry 必须严格服从精确时间区间。
+- final_audio 中可能存在旁白、心理活动或画外对白；这些声音不等于可见人物对白，不得据此额外驱动人物口型。
+- 不得生成字幕、caption 或屏幕文字。
 
-- text 逐字符一致。
-- 不增字、不漏字、不改字、不重复。
-- 其他人物不得发声。
-- character_name=="旁白" 时作为 off-screen narration，不绑定人物口型。
+Prompt 负责 WHO + HOW；Audio 负责 WHAT + WHEN。
 
-━━━━━━━━━━━━━━━━━━
 【无台词硬约束】
 ━━━━━━━━━━━━━━━━━━
 
-如果 clip_dialogues == [] 且无旁白：
+如果 speaker_timeline 全部为 visible_speaker=NONE：
 
 必须写：
 
@@ -167,7 +167,7 @@ All characters remain silent throughout the entire clip. No speaking, no dialogu
 
 overall_soundscape：
 
-No dialogue, no speech, no human vocalization.
+No visible character speech or lip-sync. All visible characters remain silent.
 
 禁止任何暗示人物发声的描述。
 只保留环境声与动作声。
@@ -177,6 +177,22 @@ No dialogue, no speech, no human vocalization.
 ━━━━━━━━━━━━━━━━━━
 
 禁止 subtitles, captions, titles, speech bubbles, logos, watermarks, UI, any on-screen text.
+
+
+━━━━━━━━━━━━━━━━━━
+【Audio Drive 可靠输入】
+━━━━━━━━━━━━━━━━━━
+
+程序必须为当前 Clip 提供：
+1. drive_audio_asset：与 Clip 等长。只保留 requires_visible_lipsync=true 的可见人物现场语音，其余位置为静音。
+2. final_audio_asset：与 Clip 等长。包含最终观众应听到的完整声音，可包含 Dialogue / Narration / Inner Monologue / 画外声音等。
+3. speaker_timeline：精确 Clip-local 时间轴；每个区间给出 start_time、end_time、visible_speaker（<Subject N> 或 NONE）。
+
+硬约束：
+- drive_audio 与 final_audio 均为程序已生成的事实资产，本 Prompt 不修改、不重排、不补造声音。
+- drive_audio.duration = final_audio.duration = clip.duration。
+- speaker_timeline 的 start/end 不得修改。
+- final_audio 仅用于最终声音，不得因为其中存在人声就推断可见人物需要张嘴。
 
 ━━━━━━━━━━━━━━━━━━
 【输出结构】
@@ -211,12 +227,12 @@ detailed_description:
 [Shot 1]
 从 Picture 1 精确开始。
 按 transition_description 发生连续运动。
-按 clip_dialogues 写精确语音；无台词写强静默。
+按 speaker_timeline 写精确可见说话者/闭嘴区间；不得写台词正文。
 最终准确达到 Picture 2，并在该状态结束。
 
 overall_soundscape:
 
 只写合法环境声、动作声、精确人物语音/旁白约束。
-无台词必须写 No dialogue, no speech, no human vocalization.
+speaker_timeline 全部为 NONE 时必须写 No visible character speech or lip-sync. All visible characters remain silent.
 
 不得输出 [Shot 2]。

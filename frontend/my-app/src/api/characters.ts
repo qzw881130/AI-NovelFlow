@@ -72,6 +72,15 @@ export const characterApi = {
   generateVoice: (characterId: string) =>
     api.post(`/characters/${characterId}/generate-voice`),
 
+  /** 批量生成角色音色任务 */
+  generateVoiceBatch: (novelId: string, characterIds: string[]) =>
+    api.post<{
+      queuedCount: number;
+      skippedCount: number;
+      tasks: Array<{ id: string; name: string; taskId?: string; status?: string; message?: string }>;
+      skippedItems: Array<{ id: string; name: string; message: string }>;
+    }>(`/characters/voice/generate-batch?novel_id=${novelId}`, { characterIds }),
+
   /** 获取音色生成状态 */
   getVoiceStatus: (characterId: string) =>
     api.get<{

@@ -66,9 +66,41 @@ duration 不受底层视频模型 15 秒等单次生成上限限制。
 - "CONTINUOUS_TAKE"
 
 8. dialogues
-当前 Shot 内原文人物对白/旁白的结构化数组。
+当前 Shot 内“直接引语”的兼容结构化数组，仅用于现有链路兼容与原文直接引语零丢失校验。
 
-9. source_evidence
+重要：
+- dialogues 不是新 Audio 链路的业务真相源。
+- 下游 TTS / Audio Timeline / Speaker Timeline 不得直接读取 dialogues 作为业务输入。
+- 新 Audio 链路唯一权威语义输入是 audio_events。
+
+9. audio_events
+当前 Shot 内全部人声语义事件的结构化数组。这里只负责语义，不负责 TTS、不负责精确秒级 Audio Timeline。
+
+audio_events 元素格式：
+{
+  "order": 1,
+  "type": "DIALOGUE | NARRATION | INNER_MONOLOGUE",
+  "voice_owner": "标准角色名或旁白",
+  "visible_speaker": "标准角色名或 null",
+  "requires_visible_lipsync": true/false,
+  "text": "逐字原文",
+  "emotion_prompt": "简短、可表演的情绪状态",
+  "pause_after": "NONE | SHORT | MEDIUM | LONG"
+}
+
+硬规则：
+- DIALOGUE：角色当前可见时 visible_speaker=该角色、requires_visible_lipsync=true；画外对白则 visible_speaker=null、requires_visible_lipsync=false。
+- NARRATION：voice_owner="旁白"，visible_speaker=null，requires_visible_lipsync=false。
+- INNER_MONOLOGUE：voice_owner=对应角色，visible_speaker=null，requires_visible_lipsync=false。心理活动绝不能标记为现场开口对白。
+- voice_owner 表示声音身份；visible_speaker 表示画面中谁需要张嘴；两者不得混淆。
+- 不得输出 start_time/end_time，不得猜测毫秒级时间轴。
+- pause_after 只表达语义停顿等级；不得输出精确秒数。原文明示沉默/良久时才允许相应长停顿。
+- audio_events.order 是整个 Shot 的全局人声事件顺序，必须从 1 开始严格递增；不得按 DIALOGUE/NARRATION/INNER_MONOLOGUE 分别重新编号。
+- audio_events 是后续 TTS 的唯一业务输入。
+- audio_events.text 必须来自 chapter_text 的原文证据，不得总结、扩写或改写。
+- 若系统把普通叙述正文转为 NARRATION，则 NARRATION.text 也必须逐字来自 chapter_text；不得由 LLM 另写“解说词”。
+
+10. source_evidence
 当前 Shot 对应的原文证据锚点。LLM 只返回可在 chapter_text 中逐字找到的原文片段，不计算字符 offset。后处理程序负责 exact matching 并生成正式 source_ranges。
 
 ━━━━━━━━━━━━━━━━━━
@@ -124,23 +156,27 @@ order 必须从 1 开始严格递增，用于后续程序确定性保持对白�
 - 不得使用“有人”“某人”“群众”等非白名单泛称作为实际 speaker。
 
 ━━━━━━━━━━━━━━━━━━
-【无台词镜头硬约束】
+【声音事件 / 可见说话者硬约束】
 ━━━━━━━━━━━━━━━━━━
 
-当 dialogues == []：
+新 Audio 链路以 audio_events 为权威。
 
-- video_description 必须明确：所有可见人物在整个 Shot 中保持沉默。
-- 不说话、不交谈、不低语、不呢喃、不喊叫、不生成任何人物语音。
-- 只允许必要的环境声和动作声。
-- 不得暗示人物正在说话或进行口型同步。
-- 人物情绪只能通过眼神、眉部、嘴角、头部和身体动作表达。
+当 audio_events 中不存在 requires_visible_lipsync=true 的事件：
+- video_description 必须明确：所有可见人物全程不产生说话口型。
+- 即使存在 NARRATION、INNER_MONOLOGUE 或画外 DIALOGUE，也不得让任何可见人物代替该声音开口。
+- 可见人物只能通过眼神、眉部、嘴角静态表情、头部和身体动作表达情绪。
 
-当 dialogues 非空：
-- video_description 中必须逐字出现对应 dialogues[].text。
-- 只有 dialogues 中指定的实际人物允许发声。
-- 旁白必须明确为画外音，不允许画面人物代替旁白开口。
-- 不得增加任何原文之外的称谓、语气词、填充词、感叹词、解释或额外对白。
+当存在 requires_visible_lipsync=true 的 DIALOGUE：
+- video_description 只描述“谁在现场说话、其他人如何倾听/反应”的导演意图，不为下游 H3 朗读而机械复制台词正文。
+- 台词正文权威来源是 audio_events.text；下游由外部 TTS 生成声音。
+- 只有 audio_events.visible_speaker 指定的可见角色允许产生现场说话行为。
+- NARRATION 必须是画外声音；INNER_MONOLOGUE 必须是非开口内心声音；画外 DIALOGUE 的 visible_speaker 必须为 null。
+- 不得增加原文之外的称谓、语气词、填充词、感叹词、解释或额外对白。
 - 不生成字幕、标题、气泡、UI 或其他画面文字。
+
+兼容字段 dialogues：
+- 继续执行直接引语零丢失、零重复、零改写校验。
+- 但不得再把 dialogues 作为 TTS / Speaker Timeline 的下游权威输入。
 
 ━━━━━━━━━━━━━━━━━━
 【原文 Grounding / source_evidence】
@@ -355,7 +391,8 @@ video_description 不得输出：
       "props": [],
       "duration": 8,
       "continuity_mode": "NORMAL",
-      "dialogues": []
+      "dialogues": [],
+      "audio_events": []
     }
   ]
 }

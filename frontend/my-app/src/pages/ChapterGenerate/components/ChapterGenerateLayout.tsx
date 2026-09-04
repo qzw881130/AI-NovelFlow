@@ -182,7 +182,7 @@ export function ChapterGenerateLayout({
     const mode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
     const clips = mode === 'MULTI_KEYFRAME' && Array.isArray(plan.window_plans) ? plan.window_plans : [];
     const hasShotVideo = !!(shot.videoUrl || shotVideos[shotId] || plan.merged_video_url);
-    const isGenerating = generatingVideos.has(shotId) || pendingVideos.has(shotId) || shot.videoStatus === 'generating' || shot.videoStatus === 'pending';
+    const isGenerating = generatingVideos.has(shotId) || pendingVideos.has(shotId) || shot.videoStatus === 'generating' || (!!shot.videoTaskId && shot.videoStatus === 'pending');
     const isFailed = shot.videoStatus === 'failed';
     const allClipsReady = clips.length > 0 && clips.every((clip: any) => !!(clip.video_url || clip.local_path));
     const latestClipGeneratedAt = Math.max(0, ...clips.map((clip: any) => parsePlanTime(clip.generated_at)));
@@ -190,12 +190,27 @@ export function ChapterGenerateLayout({
     const needsMerge = mode === 'MULTI_KEYFRAME' && allClipsReady && (!hasShotVideo || !mergedAt || latestClipGeneratedAt > mergedAt);
 
     if (isGenerating) stats.generating.push(shot);
-    else if (needsMerge) stats.needsMerge.push(shot);
     else if (hasShotVideo) stats.completed.push(shot);
+    else if (needsMerge) stats.needsMerge.push(shot);
     else if (isFailed) stats.failed.push(shot);
     else stats.incomplete.push(shot);
     return stats;
   }, { completed: [] as any[], generating: [] as any[], failed: [] as any[], needsMerge: [] as any[], incomplete: [] as any[] });
+  const audioDriveReadyShots = shots.filter((shot: any) => {
+    const plan: any = shot.videoDirectorPlan || {};
+    const windows = Array.isArray(plan.window_plans) && plan.window_plans.length > 0
+      ? plan.window_plans
+      : Array.isArray(plan.execution_windows)
+        ? plan.execution_windows
+        : [];
+    const timelineReady = String(shot.audioStatus || '').toUpperCase() === 'READY';
+    const clipAudioReady = windows.length > 0 && windows.every((window: any) => (
+      String(window.audio_status || window.audioStatus || '').toUpperCase() === 'READY'
+      && Boolean(window.drive_audio_url || window.driveAudioUrl)
+      && Boolean(window.final_audio_url || window.finalAudioUrl)
+    ));
+    return timelineReady && clipAudioReady;
+  });
 
   const renderVideoGenerationStats = () => {
     if (currentTab !== 3 || shots.length === 0) return null;
@@ -205,6 +220,7 @@ export function ChapterGenerateLayout({
       ['needsMerge', '待合并', videoStats.needsMerge, 'border-amber-100 bg-amber-50 text-amber-700'],
       ['failed', '失败', videoStats.failed, 'border-red-100 bg-red-50 text-red-700'],
       ['incomplete', '未完成', videoStats.incomplete, 'border-gray-200 bg-gray-50 text-gray-600'],
+      ['audioReady', '音频就绪', audioDriveReadyShots, 'border-cyan-100 bg-cyan-50 text-cyan-700'],
     ] as const;
 
     return (

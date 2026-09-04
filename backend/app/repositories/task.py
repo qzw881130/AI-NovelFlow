@@ -67,6 +67,13 @@ class TaskRepository:
             Task.type == task_type,
             Task.status.in_(["pending", "running"])
         ).first()
+
+    def get_latest_by_character_and_type(self, character_id: str, task_type: str) -> Optional[Task]:
+        """获取角色指定类型的最新任务"""
+        return self.db.query(Task).filter(
+            Task.character_id == character_id,
+            Task.type == task_type,
+        ).order_by(Task.created_at.desc()).first()
     
     def get_active_by_scene(self, scene_id: str) -> Optional[Task]:
         """获取场景进行中的任务"""
@@ -188,33 +195,43 @@ class TaskRepository:
         novel_id: str, 
         chapter_id: str, 
         shot_index: int, 
-        task_type: str = "shot_image"
+        task_type: str = "shot_image",
+        shot_id: str = None,
     ) -> Optional[Task]:
         """获取分镜进行中的任务"""
         expected_name = f"生成分镜图: 镜{shot_index}" if task_type == "shot_image" else f"生成视频: 镜{shot_index}"
-        return self.db.query(Task).filter(
+        query = self.db.query(Task).filter(
             Task.novel_id == novel_id,
             Task.chapter_id == chapter_id,
             Task.type == task_type,
-            Task.name == expected_name,
             Task.status.in_(["pending", "running"])
-        ).first()
+        )
+        if shot_id:
+            task = query.filter(Task.shot_id == shot_id).first()
+            if task:
+                return task
+        return query.filter(Task.name == expected_name).first()
     
     def get_failed_shot_task(
         self, 
         novel_id: str, 
         chapter_id: str, 
         shot_index: int, 
-        task_type: str = "shot_video"
+        task_type: str = "shot_video",
+        shot_id: str = None,
     ) -> Optional[Task]:
         """获取失败的分镜任务"""
-        return self.db.query(Task).filter(
+        query = self.db.query(Task).filter(
             Task.novel_id == novel_id,
             Task.chapter_id == chapter_id,
             Task.type == task_type,
-            Task.name.like(f"%镜{shot_index}%"),
             Task.status == "failed"
-        ).first()
+        )
+        if shot_id:
+            task = query.filter(Task.shot_id == shot_id).first()
+            if task:
+                return task
+        return query.filter(Task.name == f"生成视频: 镜{shot_index}").first()
     
     def get_transition_task(
         self, 

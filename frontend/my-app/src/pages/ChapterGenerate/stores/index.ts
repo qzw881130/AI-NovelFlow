@@ -152,6 +152,8 @@ export function useGenerationSlice(): GenerationSlice {
     audioUrls: state.audioUrls,
     audioSources: state.audioSources,
     uploadingAudios: state.uploadingAudios,
+    preparingAudioShots: state.preparingAudioShots,
+    pendingAudioPrepareShots: state.pendingAudioPrepareShots,
     // Keyframe Generation State
     generatingKeyframes: state.generatingKeyframes,
     keyframeTasks: state.keyframeTasks,
@@ -187,6 +189,8 @@ export function useGenerationSlice(): GenerationSlice {
     isAudioUploading: state.isAudioUploading,
     getShotAudioTasks: state.getShotAudioTasks,
     initAudioFromShots: state.initAudioFromShots,
+    setAudioPrepareStatus: state.setAudioPrepareStatus,
+    clearAudioPrepareStatus: state.clearAudioPrepareStatus,
     // Keyframe Generation Actions
     generateKeyframeDescriptions: state.generateKeyframeDescriptions,
     generateKeyframeImage: state.generateKeyframeImage,
