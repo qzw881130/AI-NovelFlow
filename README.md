@@ -72,6 +72,10 @@ NovelFlow 是一个将小说自动转换为视频的 AI 平台。
 | <a href="https://t.me/AI_NovelFlow" target="_blank">@AI_NovelFlow</a> | 1083469624 |
 | <img src="docs/telegram_group.png" width="200" alt="Telegram群二维码"> | <img src="docs/qq_group.png" width="200" alt="QQ群二维码"> |
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=qzw881130/AI-NovelFlow&type=Date)](https://star-history.com/#qzw881130/AI-NovelFlow&Date)
+
 ## 技术栈
 
 - **前端**: React + TypeScript + Tailwind CSS + Vite
