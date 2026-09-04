@@ -31,12 +31,19 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE shots ADD COLUMN continuity_mode VARCHAR DEFAULT 'NORMAL'"))
             if "video_director_plan" not in shot_columns:
                 conn.execute(text("ALTER TABLE shots ADD COLUMN video_director_plan TEXT DEFAULT '{}'"))
+            if "video_director_plan_revision" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN video_director_plan_revision INTEGER DEFAULT 0"))
             if "shot_image_prompt" not in shot_columns:
                 conn.execute(text("ALTER TABLE shots ADD COLUMN shot_image_prompt TEXT DEFAULT ''"))
             if "estimated_duration" not in shot_columns:
                 conn.execute(text("ALTER TABLE shots ADD COLUMN estimated_duration INTEGER"))
             if "audio_status" not in shot_columns:
                 conn.execute(text("ALTER TABLE shots ADD COLUMN audio_status VARCHAR DEFAULT 'NOT_READY'"))
+
+            result = conn.execute(text("PRAGMA table_info(shot_audio_timelines)"))
+            audio_timeline_columns = [row[1] for row in result.fetchall()]
+            if audio_timeline_columns and "audio_required_duration" not in audio_timeline_columns:
+                conn.execute(text("ALTER TABLE shot_audio_timelines ADD COLUMN audio_required_duration FLOAT"))
 
             result = conn.execute(text("PRAGMA table_info(novels)"))
             novel_columns = [row[1] for row in result.fetchall()]
@@ -67,6 +74,16 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN batch_order INTEGER"))
             if "metadata_json" not in task_columns:
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN metadata_json TEXT"))
+            if "worker_id" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN worker_id VARCHAR"))
+            if "claim_token" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN claim_token VARCHAR"))
+            if "claimed_at" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN claimed_at DATETIME"))
+            if "heartbeat_at" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN heartbeat_at DATETIME"))
+            if "attempt" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN attempt INTEGER DEFAULT 0"))
 
             result = conn.execute(text("PRAGMA table_info(llm_logs)"))
             llm_log_columns = [row[1] for row in result.fetchall()]

@@ -321,9 +321,11 @@ export function ChapterGenerateLayout({
             characters: shot.characters,
             scene: shot.scene,
             props: shot.props,
+            estimated_duration: shot.estimatedDuration || shot.duration,
             duration: shot.duration,
             continuity_mode: shot.continuity_mode || 'NORMAL',
             dialogues: shot.dialogues,
+            audio_events: shot.audioEvents || [],
           }))
         );
         if (!result.success) {

@@ -13,6 +13,7 @@ from app.models.shot import Shot
 from app.models.workflow import Workflow
 from app.repositories import TaskRepository
 from app.services.task_service import TaskService
+from app.services.video_director_plan_service import VideoDirectorPlanService
 from app.api.deps import get_task_repo
 
 router = APIRouter()
@@ -255,16 +256,16 @@ async def get_task_clip_workflow(
 
             shot = db.query(Shot).filter(Shot.id == task.shot_id).first()
             if shot and shot.video_director_plan:
-                try:
-                    plan = json.loads(shot.video_director_plan)
+                def mutate(plan: dict) -> dict:
                     plan_windows = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
                     for plan_window in plan_windows:
                         if isinstance(plan_window, dict) and int(plan_window.get("window_index") or 0) == window_index:
                             plan_window["workflow_json"] = workflow_json
                             break
-                    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-                except Exception:
-                    pass
+                    plan["window_plans"] = plan_windows
+                    return plan
+
+                VideoDirectorPlanService(db).mutate(shot.id, mutate)
             db.commit()
 
     return {

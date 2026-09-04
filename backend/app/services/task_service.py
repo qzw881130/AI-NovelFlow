@@ -27,6 +27,7 @@ from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.comfyui import ComfyUIService
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.services.file_storage import file_storage
+from app.services.video_director_plan_service import VideoDirectorPlanService
 from app.services.prompt_builder import (
     build_character_prompt,
     build_scene_prompt,
@@ -508,14 +509,10 @@ class TaskService:
 
             shot_repo = ShotRepository(db)
             shot = shot_repo.get_by_id(task.shot_id) if task.shot_id else None
-            if not shot:
-                match = re.search(r"镜\s*(\d+)", task.name or "")
-                if match:
-                    shot = shot_repo.get_by_chapter_and_index(task.chapter_id, int(match.group(1)))
 
             if not shot:
                 task.status = "failed"
-                task.error_message = "重试失败：找不到关联分镜"
+                task.error_message = "重试失败：视频任务缺少有效 shot_id"
                 task.current_step = "重试失败"
                 db.commit()
                 return {"success": False, "message": task.error_message, "status_code": 400}
@@ -536,6 +533,7 @@ class TaskService:
                 task.id,
                 task.novel_id,
                 task.chapter_id,
+                shot.id,
                 shot.index,
                 task.workflow_id,
                 shot.image_url or "",
@@ -931,6 +929,7 @@ class TaskService:
             task_id=task.id,
             novel_id=task.novel_id,
             chapter_id=task.chapter_id,
+            shot_id=shot.id,
             shot_index=int(shot.index or 0),
             workflow_id=task.workflow_id,
             shot_image_url=shot_image_url,
@@ -1023,16 +1022,15 @@ class TaskService:
         })
         task.video_director_clips = json.dumps(window_plans, ensure_ascii=False)
 
-        try:
-            plan = json.loads(shot.video_director_plan or "{}")
+        def mutate_window_result(plan: dict) -> dict:
             if isinstance(plan.get("window_plans"), list):
                 for plan_window in plan["window_plans"]:
                     if int(plan_window.get("window_index") or plan_window.get("clip_index") or -1) == window_index:
                         plan_window.update(window)
                         break
-                shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-        except Exception:
-            pass
+            return plan
+
+        VideoDirectorPlanService(db).mutate(shot.id, mutate_window_result)
 
         all_succeeded = bool(window_plans) and all(
             str((window or {}).get("status") or "").upper() == "SUCCEEDED" and (window or {}).get("video_url")
@@ -1062,12 +1060,10 @@ class TaskService:
             task.status = "running"
             task.current_step = "已恢复完成 Clip，等待后续 Clip..."
             task.error_message = None
-            try:
-                plan = json.loads(shot.video_director_plan or "{}")
-                plan.pop("task_error_message", None)
-                shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-            except Exception:
-                pass
+            VideoDirectorPlanService(db).mutate(
+                shot.id,
+                lambda plan: (plan.pop("task_error_message", None), plan)[1],
+            )
             shot_repo.update(shot, video_status="generating")
 
         return True

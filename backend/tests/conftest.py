@@ -48,6 +48,7 @@ from app.models.workflow import Workflow
 from app.models.prompt_template import PromptTemplate
 from app.models.test_case import TestCase
 from app.models.system_config import SystemConfig
+from app.models.audio_drive import AudioEventTTSAsset, ShotAudioEvent, ShotAudioTimeline, ShotAudioTimelineEvent
 
 
 # 使用内存数据库进行测试

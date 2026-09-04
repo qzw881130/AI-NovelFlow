@@ -132,6 +132,7 @@ class ShotResponse(BaseModel):
     duration: int
     continuity_mode: str = "NORMAL"
     videoDirectorPlan: dict = {}
+    videoDirectorPlanRevision: int = 0
     imageUrl: Optional[str] = None
     imagePath: Optional[str] = None
     imageStatus: str
@@ -221,6 +222,9 @@ class GenerateVideoDirectorClipRequest(BaseModel):
 class SaveVideoDirectorPlanRequest(BaseModel):
     """保存视频导演规划请求"""
 
+    model_config = ConfigDict(populate_by_name=True)
+
+    expected_revision: Optional[int] = Field(None, alias="expectedRevision")
     selected_mode: Optional[VideoMode] = None
     recommended_mode: Optional[VideoMode] = None
     recommendation_reason: Optional[str] = None
@@ -230,6 +234,25 @@ class SaveVideoDirectorPlanRequest(BaseModel):
     execution_windows: Optional[List[dict]] = None
     window_plans: Optional[List[dict]] = None
     validation: Optional[dict] = None
+
+
+class PatchVideoPromptRequest(BaseModel):
+    """字段级更新视频 Clip Prompt。"""
+
+    collection: Literal["clips", "window_plans"] = Field(..., description="目标集合")
+    index: int = Field(..., ge=1, description="Clip/window index")
+    prompt_text: str = Field(..., alias="promptText", description="视频 Prompt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PatchVideoKeyframeDescriptionRequest(BaseModel):
+    """字段级更新 Video Director keyframe 描述。"""
+
+    index: int = Field(..., ge=1, description="Plan keyframe index")
+    description: str = Field(..., description="关键帧描述")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class RecommendVideoModeRequest(BaseModel):

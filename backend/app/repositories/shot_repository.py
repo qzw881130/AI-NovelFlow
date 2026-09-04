@@ -121,6 +121,11 @@ class ShotRepository:
         """
         for key, value in kwargs.items():
             if hasattr(shot, key):
+                if key == "video_director_plan":
+                    current_value = shot.video_director_plan or "{}"
+                    next_value = json.dumps(value, ensure_ascii=False) if isinstance(value, (list, dict)) else (value or "{}")
+                    if current_value != next_value:
+                        shot.video_director_plan_revision = int(shot.video_director_plan_revision or 0) + 1
                 # JSON 字段需要序列化
                 if key in ('characters', 'props', 'dialogues', 'keyframes', 'video_director_plan') and isinstance(value, (list, dict)):
                     value = json.dumps(value, ensure_ascii=False)
@@ -362,6 +367,7 @@ class ShotRepository:
             "audioEventsSummary": audio_summary,
             "continuity_mode": shot.continuity_mode or "NORMAL",
             "videoDirectorPlan": json.loads(shot.video_director_plan) if shot.video_director_plan else {},
+            "videoDirectorPlanRevision": shot.video_director_plan_revision or 0,
             "imageUrl": shot.image_url,
             "imagePath": shot.image_path,
             "imageStatus": shot.image_status,

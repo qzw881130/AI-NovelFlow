@@ -2036,45 +2036,23 @@ export function VideoGenTab({
   const handleSaveVideoPrompts = useCallback(async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotData?.id || videoPromptDrafts.length === 0) return;
 
-    const nextPlan: VideoDirectorPlan = JSON.parse(JSON.stringify(currentVideoDirectorPlan || {}));
-    const selectedMode = nextPlan.selected_mode || nextPlan.recommended_mode || 'SINGLE_FRAME';
-
-    videoPromptDrafts.forEach((draft) => {
-      if (draft.source === 'window_plan' && draft.index !== undefined && nextPlan.window_plans?.[draft.index]) {
-        nextPlan.window_plans[draft.index] = { ...nextPlan.window_plans[draft.index], prompt_text: draft.prompt };
-      } else if (draft.source === 'clip' && draft.index !== undefined && nextPlan.clips?.[draft.index]) {
-        nextPlan.clips[draft.index] = { ...nextPlan.clips[draft.index], prompt_text: draft.prompt };
-      } else if (draft.source === 'ai_call') {
-        const duration = Number(currentShotData?.duration || 0);
-        nextPlan.clips = [{
-          clip_index: 1,
-          start_time: 0,
-          end_time: duration,
-          status: 'PENDING',
-          prompt_text: draft.prompt,
-        }];
-      }
-    });
-
-    if (selectedMode !== 'MULTI_KEYFRAME' && nextPlan.ai_calls?.length) {
-      for (let index = nextPlan.ai_calls.length - 1; index >= 0; index -= 1) {
-        if (nextPlan.ai_calls[index]?.final_prompt !== undefined) {
-          nextPlan.ai_calls[index] = { ...nextPlan.ai_calls[index], final_prompt: videoPromptDrafts[videoPromptDrafts.length - 1].prompt };
-          break;
-        }
-      }
-    }
-
     setIsSavingVideoPrompts(true);
     try {
-      const result = await shotsApi.batchUpdateShots(effectiveNovelId, effectiveChapterId, [{
-        id: currentShotData.id,
-        video_director_plan: nextPlan,
-      }]);
-      if (!result.success) {
-        throw new Error(result.message || '保存 AI 提示词失败');
+      let latestPlan: VideoDirectorPlan | undefined;
+      for (const draft of videoPromptDrafts) {
+        const collection = draft.source === 'window_plan' ? 'window_plans' : 'clips';
+        const index = draft.index !== undefined ? draft.index + 1 : 1;
+        const result = await shotsApi.patchVideoDirectorPrompt(effectiveNovelId, effectiveChapterId, currentShotData.id, {
+          collection,
+          index,
+          promptText: draft.prompt,
+        });
+        if (!result.success) {
+          throw new Error(result.message || result.detail || '保存 AI 提示词失败');
+        }
+        latestPlan = result.data;
       }
-      updateCurrentShotVideoDirectorPlan(nextPlan);
+      if (latestPlan) updateCurrentShotVideoDirectorPlan(latestPlan);
       setIsVideoPromptModalOpen(false);
       toast.success('AI 提示词已保存');
     } catch (error) {
@@ -2118,7 +2096,10 @@ export function VideoGenTab({
     const optimisticPlan = { ...currentVideoDirectorPlan, selected_mode: mode };
     updateCurrentShotVideoDirectorPlan(optimisticPlan);
     try {
-      const result = await shotsApi.saveVideoDirectorPlan(effectiveNovelId, effectiveChapterId, currentShotId, { selected_mode: mode });
+      const result = await shotsApi.saveVideoDirectorPlan(effectiveNovelId, effectiveChapterId, currentShotId, {
+        selected_mode: mode,
+        expectedRevision: currentShotData?.videoDirectorPlanRevision ?? 0,
+      } as any);
       if (result.success && result.data) {
         updateCurrentShotVideoDirectorPlan(result.data);
       } else {
@@ -2860,7 +2841,6 @@ export function VideoGenTab({
         id: currentShotData.id,
         video_description: currentShotData.video_description,
         duration: currentShotData.duration,
-        video_director_plan: currentShotData.videoDirectorPlan,
       }]);
 
       if (result.success) {

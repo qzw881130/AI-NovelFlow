@@ -1,7 +1,7 @@
 import hashlib
 import asyncio
 import json
-import math
+import uuid
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -17,12 +17,16 @@ from app.repositories.character_repository import CharacterRepository
 from app.repositories.shot_repository import ShotRepository
 from app.repositories import TaskRepository, WorkflowRepository
 from app.services.comfyui import ComfyUIService
+from app.services.duration_contract import audio_required_duration, clip_duration as contract_clip_duration, resolved_duration, visual_required_duration
 from app.services.execution_window_builder import build_natural_execution_windows
 from app.services.file_storage import file_storage
+from app.services.invalidation_service import InvalidationService
+from app.services.video_director_plan_service import VideoDirectorPlanService
 from app.utils.path_utils import url_to_local_path
 
 ACTIVE_AUDIO_TTS_TASK_IDS: Set[str] = set()
 ACTIVE_AUDIO_PREPARE_TASK_IDS: Set[str] = set()
+TTS_LEASE_STALE_SECONDS = 120
 
 
 class AudioDriveService:
@@ -150,9 +154,10 @@ class AudioDriveService:
 
         db = SessionLocal()
         try:
+            TaskRepository(db).recover_stale_running_tasks("audio_event_tts", TTS_LEASE_STALE_SECONDS)
             tasks = db.query(Task).filter(
                 Task.type == "audio_event_tts",
-                Task.status == "running",
+                Task.status == "pending",
             ).order_by(Task.created_at.asc()).all()
             for task in tasks:
                 try:
@@ -174,9 +179,6 @@ class AudioDriveService:
                     task.completed_at = task.completed_at or datetime.utcnow()
                     db.commit()
                     continue
-                task.status = "pending"
-                task.progress = 0
-                task.current_step = "等待恢复处理"
                 event.tts_status = "GENERATING"
                 db.commit()
         finally:
@@ -191,10 +193,8 @@ class AudioDriveService:
 
         db = SessionLocal()
         try:
-            task = db.query(Task).filter(
-                Task.type == "audio_event_tts",
-                Task.status == "pending",
-            ).order_by(Task.created_at.asc()).first()
+            worker_id = f"audio-tts-{uuid.uuid4()}"
+            task = TaskRepository(db).claim_pending_task("audio_event_tts", worker_id)
             if not task:
                 return False
             try:
@@ -211,12 +211,13 @@ class AudioDriveService:
                 return True
             task_id = task.id
             workflow_id = task.workflow_id
+            claim_token = task.claim_token
         finally:
             db.close()
 
         ACTIVE_AUDIO_TTS_TASK_IDS.add(task_id)
         try:
-            await AudioDriveService._run_tts_task(task_id, event_id, workflow_id)
+            await AudioDriveService._run_tts_task(task_id, event_id, workflow_id, claim_token)
         finally:
             ACTIVE_AUDIO_TTS_TASK_IDS.discard(task_id)
         return True
@@ -331,7 +332,7 @@ class AudioDriveService:
         for _ in range(600):
             events = service.repo.list_events(shot_id)
             if not events:
-                raise RuntimeError(f"镜 {shot_index} 没有 Audio Events")
+                return
             failed = [event for event in events if event.tts_status == "FAILED"]
             if failed:
                 raise RuntimeError(f"镜 {shot_index} 存在 TTS 失败事件")
@@ -474,62 +475,73 @@ class AudioDriveService:
 
         if changed & tts_stale_fields:
             event.tts_status = "STALE"
+            event.text_hash = None
+            self.repo._mark_current_tts_assets_stale(event.id)
         if changed & timeline_stale_fields:
-            self._mark_shot_audio_stale(event.shot_id)
+            level = "SPEAKER_BINDING_CHANGED" if changed <= {"visibleSpeakerCharacterId", "visibleSpeakerName", "requiresVisibleLipsync"} else "AUDIO_TIMING_CHANGED"
+            self._mark_shot_audio_stale(event.shot_id, level=level)
 
         self.db.commit()
         self.db.refresh(event)
         return {"success": True, "data": self._event_to_response(event)}
 
-    def _mark_shot_audio_stale(self, shot_id: str) -> None:
-        shot = self.shot_repo.get_by_id(shot_id)
-        if shot:
-            shot.audio_status = "STALE"
-            plan = json.loads(shot.video_director_plan or "{}") if shot.video_director_plan else {}
-            for key in ("window_plans", "execution_windows", "clips"):
-                for window in plan.get(key) or []:
-                    if isinstance(window, dict):
-                        window["audio_status"] = "STALE"
-            shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-        latest = self.repo.latest_timeline(shot_id)
-        if latest:
-            latest.status = "STALE"
+    def _mark_shot_audio_stale(self, shot_id: str, level: str = "AUDIO_TIMING_CHANGED") -> None:
+        InvalidationService(self.db).invalidate_audio_downstream(
+            shot_id,
+            reason="Audio Event 变更，AudioDrive 下游产物已失效",
+            level=level,
+        )
 
     @staticmethod
-    async def _run_tts_task(task_id: str, event_id: str, workflow_id: str) -> None:
+    async def _run_tts_task(task_id: str, event_id: str, workflow_id: str, claim_token: str) -> None:
         from app.core.database import SessionLocal
 
         db = SessionLocal()
         service = AudioDriveService(db)
         task_repo = TaskRepository(db)
+        def claim_current() -> bool:
+            return bool(claim_token and task_repo.task_claim_is_current(task_id, claim_token))
+
+        def update_task(fields: dict) -> bool:
+            return task_repo.update_claimed_task(task_id, claim_token, fields)
+
+        def fail_task(message: str, step: str = "任务异常") -> None:
+            if not claim_current():
+                return
+            event = service.repo.get_event(event_id)
+            if event:
+                event.tts_status = "FAILED"
+            update_task({
+                "status": "failed",
+                "error_message": message,
+                "current_step": step,
+                "completed_at": datetime.utcnow(),
+            })
+
         try:
             task = task_repo.get_by_id(task_id)
             event = service.repo.get_event(event_id)
             workflow = WorkflowRepository(db).get_by_id(workflow_id)
             if not task or not event or not workflow:
                 return
-            if task.status in {"completed", "cancelled"}:
+            if not claim_current():
                 return
             current_asset = service.repo.current_tts_asset(event.id)
             if current_asset and current_asset.status == "READY" and event.tts_status == "READY":
-                task.status = "completed"
-                task.progress = 100
-                task.result_url = current_asset.audio_url
-                task.current_step = "TTS 已存在，跳过生成"
-                task.completed_at = task.completed_at or datetime.utcnow()
-                db.commit()
+                update_task({
+                    "status": "completed",
+                    "progress": 100,
+                    "result_url": current_asset.audio_url,
+                    "current_step": "TTS 已存在，跳过生成",
+                    "completed_at": task.completed_at or datetime.utcnow(),
+                })
                 return
             shot = service.shot_repo.get_by_id(event.shot_id)
             if not shot:
-                task.status = "failed"
-                task.error_message = "分镜不存在"
-                event.tts_status = "FAILED"
-                db.commit()
+                fail_task("分镜不存在", "分镜不存在")
                 return
-            task.status = "running"
-            task.started_at = datetime.utcnow()
-            task.current_step = "准备参考音色"
-            db.commit()
+            if not update_task({"current_step": "准备参考音色"}):
+                return
 
             character = None
             char_repo = CharacterRepository(db)
@@ -538,29 +550,22 @@ class AudioDriveService:
             if not character and event.voice_owner_name:
                 character = char_repo.get_by_name(shot.chapter.novel_id, event.voice_owner_name)
             if not character or not character.reference_audio_url:
-                task.status = "failed"
-                task.error_message = f"声音角色 '{event.voice_owner_name}' 未配置参考音色"
-                task.current_step = "缺少参考音色"
-                event.tts_status = "FAILED"
-                db.commit()
+                fail_task(f"声音角色 '{event.voice_owner_name}' 未配置参考音色", "缺少参考音色")
                 return
 
             reference_path = url_to_local_path(character.reference_audio_url)
             if not reference_path:
-                task.status = "failed"
-                task.error_message = "参考音色文件不存在或不是本地文件"
-                task.current_step = "参考音色不可用"
-                event.tts_status = "FAILED"
-                db.commit()
+                fail_task("参考音色文件不存在或不是本地文件", "参考音色不可用")
                 return
 
             comfy = ComfyUIService()
+            if not task_repo.heartbeat_task(task_id, claim_token):
+                return
             upload_result = await comfy.client.upload_audio(str(reference_path))
             if not upload_result.get("success"):
-                task.status = "failed"
-                task.error_message = upload_result.get("message") or "上传参考音色失败"
-                event.tts_status = "FAILED"
-                db.commit()
+                fail_task(upload_result.get("message") or "上传参考音色失败", "上传参考音色失败")
+                return
+            if not task_repo.heartbeat_task(task_id, claim_token):
                 return
 
             node_mapping = json.loads(workflow.node_mapping or "{}") if workflow.node_mapping else {}
@@ -573,33 +578,30 @@ class AudioDriveService:
                 reference_audio_filename=upload_result.get("filename"),
                 emotion_prompt=event.emotion_prompt or "自然",
             )
-            task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
-            task.prompt_text = f"Audio Event: {event.id}\n角色: {event.voice_owner_name}\n文本: {event.text}\n情感: {event.emotion_prompt or '自然'}"
-            task.current_step = "提交 ComfyUI 音频生成"
-            db.commit()
+            if not update_task({
+                "workflow_json": json.dumps(submitted_workflow, ensure_ascii=False, indent=2),
+                "prompt_text": f"Audio Event: {event.id}\n角色: {event.voice_owner_name}\n文本: {event.text}\n情感: {event.emotion_prompt or '自然'}",
+                "current_step": "提交 ComfyUI 音频生成",
+            }):
+                return
 
             queue_result = await comfy.client.queue_prompt(submitted_workflow)
             if not queue_result.get("success"):
-                task.status = "failed"
-                task.error_message = queue_result.get("error") or "提交任务失败"
-                event.tts_status = "FAILED"
-                db.commit()
+                fail_task(queue_result.get("error") or "提交任务失败", "提交任务失败")
                 return
-            task.comfyui_prompt_id = queue_result.get("prompt_id")
-            task.current_step = "正在生成 TTS"
-            db.commit()
+            if not update_task({"comfyui_prompt_id": queue_result.get("prompt_id"), "current_step": "正在生成 TTS"}):
+                return
 
             result = await comfy.client.wait_for_audio_result(
-                task.comfyui_prompt_id,
+                queue_result.get("prompt_id"),
                 submitted_workflow,
                 node_mapping.get("save_audio_node_id"),
                 timeout=600,
             )
             if not result.get("success"):
-                task.status = "failed"
-                task.error_message = result.get("message") or "生成失败"
-                event.tts_status = "FAILED"
-                db.commit()
+                fail_task(result.get("message") or "生成失败", "生成失败")
+                return
+            if not task_repo.heartbeat_task(task_id, claim_token):
                 return
 
             remote_url = result.get("audio_url")
@@ -615,8 +617,11 @@ class AudioDriveService:
                 relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
                 audio_url = f"/api/files/{relative_path.lstrip('/')}"
                 duration = duration or AudioDriveService._probe_audio_duration(local_path)
+            if not claim_current():
+                return
             asset = service.repo.add_tts_asset(
                 event.id,
+                commit=False,
                 provider="comfyui",
                 model=workflow.name,
                 voice_id=character.id,
@@ -629,22 +634,17 @@ class AudioDriveService:
             )
             event.tts_status = "READY"
             event.voice_owner_character_id = character.id
-            task.result_url = asset.audio_url
-            task.status = "completed"
-            task.progress = 100
-            task.current_step = "TTS 生成完成"
-            task.completed_at = datetime.utcnow()
+            if not update_task({
+                "status": "completed",
+                "progress": 100,
+                "result_url": asset.audio_url,
+                "current_step": "TTS 生成完成",
+                "completed_at": datetime.utcnow(),
+            }):
+                return
             db.commit()
         except Exception as exc:
-            task = task_repo.get_by_id(task_id)
-            event = service.repo.get_event(event_id)
-            if task:
-                task.status = "failed"
-                task.error_message = str(exc)
-                task.current_step = "任务异常"
-            if event:
-                event.tts_status = "FAILED"
-            db.commit()
+            fail_task(str(exc), "任务异常")
         finally:
             db.close()
 
@@ -713,11 +713,16 @@ class AudioDriveService:
             }
 
         if shot.estimated_duration is None:
-            shot.estimated_duration = shot.duration
-        visual_required_duration = max(float(shot.estimated_duration or 0), float(shot.duration or 0))
-        total_duration = max(visual_required_duration, cursor)
+            shot.estimated_duration = shot.duration or 4
+        audio_duration = audio_required_duration(cursor)
+        visual_duration = visual_required_duration(shot)
+        total_duration = resolved_duration(shot, None, default=visual_duration)
+        total_duration = max(total_duration, audio_duration)
         summary = {
             "event_count": len(events),
+            "visual_required_duration": visual_duration,
+            "audio_required_duration": audio_duration,
+            "resolved_duration": round(total_duration, 3),
             "has_visible_dialogue": any(event.requires_visible_lipsync for event in events),
             "visible_speaker_count": len({event.visible_speaker_name for event in events if event.requires_visible_lipsync and event.visible_speaker_name}),
             "speaker_switch_count": speaker_switch_count,
@@ -728,19 +733,28 @@ class AudioDriveService:
             "events": [self._event_to_response(event) for event in events],
             "assets": [self._asset_to_response(self.repo.current_tts_asset(event.id)) for event in events],
         })
-        timeline = self.repo.create_timeline(shot_id, round(total_duration, 3), source_hash, summary, timeline_events)
-        shot.duration = int(math.ceil(total_duration)) or shot.duration
+        timeline = self.repo.create_timeline(shot_id, round(total_duration, 3), source_hash, summary, timeline_events, audio_required_duration=audio_duration)
+        InvalidationService(self.db).invalidate_audio_downstream(
+            shot_id,
+            reason="Audio Timeline 已重建，视频下游产物已失效",
+            level="AUDIO_TIMING_CHANGED",
+            mark_audio_stale=False,
+            mark_timeline_stale=False,
+        )
         shot.audio_status = "READY"
-        plan = json.loads(shot.video_director_plan or "{}") if shot.video_director_plan else {}
-        plan["audio_timeline"] = {
+        audio_timeline_plan = {
             "id": timeline.id,
             "revision": timeline.revision,
+            "source_hash": timeline.generated_from_hash,
+            "audio_required_duration": audio_duration,
             "resolved_duration": round(total_duration, 3),
             "audio_summary": summary,
             "events": self._timeline_to_response(timeline).get("events") or [],
         }
-        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-        self.db.commit()
+        VideoDirectorPlanService(self.db).mutate(
+            shot_id,
+            lambda plan: {**plan, "audio_timeline": audio_timeline_plan},
+        )
         return {"success": True, "data": self._timeline_to_response(timeline)}
 
     def get_timeline(self, shot_id: str) -> dict:
@@ -760,6 +774,7 @@ class AudioDriveService:
             "shotId": timeline.shot_id,
             "revision": timeline.revision,
             "totalDuration": timeline.total_duration,
+            "audioRequiredDuration": timeline.audio_required_duration,
             "status": timeline.status,
             "audioSummary": json.loads(timeline.audio_summary_json or "{}"),
             "events": [
@@ -786,7 +801,7 @@ class AudioDriveService:
         timeline = self.repo.latest_timeline(shot_id)
         if not timeline or timeline.status != "READY":
             return {"success": False, "status_code": 400, "message": "Audio Timeline 未 READY"}
-        duration = float(timeline.total_duration if timeline else shot.duration or 4)
+        duration = resolved_duration(shot, timeline)
         max_duration = float(max_clip_duration or 15)
         timeline_events = [
             {
@@ -815,14 +830,16 @@ class AudioDriveService:
                 and float(item.get("end_time") or 0) == float(window["end_time"])
             )), None)
             merged_window_plans.append({**existing, **window} if existing else window)
-        plan["execution_windows"] = windows
-        plan["window_plans"] = merged_window_plans
-        if windows_changed:
-            plan["keyframes"] = []
-            plan["keyframe_planning_status"] = "STALE"
-            plan["keyframe_planning_message"] = "AudioDrive 重新构建了 execution_windows，请重新规划关键帧。"
-        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-        self.db.commit()
+        def mutate_plan(plan: dict) -> dict:
+            plan["execution_windows"] = windows
+            plan["window_plans"] = merged_window_plans
+            if windows_changed:
+                plan["keyframes"] = []
+                plan["keyframe_planning_status"] = "STALE"
+                plan["keyframe_planning_message"] = "AudioDrive 重新构建了 execution_windows，请重新规划关键帧。"
+            return plan
+
+        VideoDirectorPlanService(self.db).mutate(shot_id, mutate_plan)
         return {"success": True, "data": {"shotId": shot_id, "executionWindows": windows}}
 
     def build_clip_audio(self, shot_id: str, window_index: int, force: bool = False) -> dict:
@@ -839,21 +856,32 @@ class AudioDriveService:
             return {"success": False, "status_code": 404, "message": "Clip window 不存在"}
         start = float(window.get("start_time") or 0)
         end = float(window.get("end_time") or start)
-        clip_duration = round(max(0.0, end - start), 3)
+        clip_duration = contract_clip_duration(start, end)
         if clip_duration <= 0:
             return {"success": False, "status_code": 400, "message": "Clip window 时长无效"}
 
         drive_path = file_storage.get_clip_audio_path(shot.chapter.novel_id, shot.chapter_id, shot.id, window_index, "drive_audio")
         final_path = file_storage.get_clip_audio_path(shot.chapter.novel_id, shot.chapter_id, shot.id, window_index, "final_audio")
         manifest_path = file_storage.get_clip_audio_path(shot.chapter.novel_id, shot.chapter_id, shot.id, window_index, "manifest", ext=".json")
+        timeline_revision = int(timeline.revision or 0)
+        timeline_hash = timeline.generated_from_hash
 
-        if not force and window.get("audio_status") == "READY" and drive_path.exists() and final_path.exists():
+        bound_revision = window.get("audio_timeline_revision") or window.get("audioTimelineRevision")
+        bound_hash = window.get("audio_timeline_hash") or window.get("audioTimelineHash")
+        cache_matches_timeline = (
+            window.get("audio_timeline_id") == timeline.id
+            and int(bound_revision or 0) == timeline_revision
+            and (not timeline_hash or bound_hash == timeline_hash)
+        )
+        if not force and window.get("audio_status") == "READY" and cache_matches_timeline and drive_path.exists() and final_path.exists():
             return {
                 "success": True,
                 "data": {
                     "shotId": shot_id,
                     "windowIndex": window_index,
                     "audioTimelineId": timeline.id,
+                    "audioTimelineRevision": timeline_revision,
+                    "audioTimelineHash": timeline_hash,
                     "speakerTimeline": window.get("speaker_timeline") or [],
                     "audioStatus": "READY",
                     "driveAudioUrl": window.get("drive_audio_url") or self._path_to_file_url(drive_path),
@@ -863,8 +891,18 @@ class AudioDriveService:
             }
 
         speaker_timeline = self._build_speaker_timeline(timeline, start, end)
-        final_segments = self._collect_clip_audio_segments(timeline, start, end, drive_only=False)
-        drive_segments = self._collect_clip_audio_segments(timeline, start, end, drive_only=True)
+        final_collection = self._collect_clip_audio_segments(timeline, start, end, drive_only=False)
+        drive_collection = self._collect_clip_audio_segments(timeline, start, end, drive_only=True)
+        missing_segments = final_collection["missing"] + drive_collection["missing"]
+        if missing_segments:
+            return {
+                "success": False,
+                "status_code": 400,
+                "message": "Clip Audio 所需 TTS 资产缺失或不可用，请重新生成 TTS。",
+                "data": {"missingSegments": missing_segments},
+            }
+        final_segments = final_collection["segments"]
+        drive_segments = drive_collection["segments"]
 
         final_result = self._render_clip_audio(final_segments, final_path, clip_duration)
         if not final_result.get("success"):
@@ -877,6 +915,8 @@ class AudioDriveService:
             "shot_id": shot_id,
             "window_index": window_index,
             "audio_timeline_id": timeline.id,
+            "audio_timeline_revision": timeline_revision,
+            "audio_timeline_hash": timeline_hash,
             "clip_start": start,
             "clip_end": end,
             "clip_duration": clip_duration,
@@ -890,6 +930,8 @@ class AudioDriveService:
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
 
         window["audio_timeline_id"] = timeline.id
+        window["audio_timeline_revision"] = timeline_revision
+        window["audio_timeline_hash"] = timeline_hash
         window["speaker_timeline"] = speaker_timeline
         window["audio_status"] = "READY"
         window["audio_message"] = "Clip Audio READY"
@@ -899,15 +941,41 @@ class AudioDriveService:
         window["final_audio_path"] = str(final_path)
         window["clip_audio_manifest_path"] = str(manifest_path)
         window["clip_audio_duration"] = clip_duration
-        plan["window_plans"] = windows
-        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-        self.db.commit()
+        audio_fields = {
+            "audio_timeline_id": timeline.id,
+            "audio_timeline_revision": timeline_revision,
+            "audio_timeline_hash": timeline_hash,
+            "speaker_timeline": speaker_timeline,
+            "audio_status": window["audio_status"],
+            "audio_message": window["audio_message"],
+            "drive_audio_url": window["drive_audio_url"],
+            "final_audio_url": window["final_audio_url"],
+            "drive_audio_path": window["drive_audio_path"],
+            "final_audio_path": window["final_audio_path"],
+            "clip_audio_manifest_path": window["clip_audio_manifest_path"],
+            "clip_audio_duration": clip_duration,
+        }
+
+        def mutate_audio_window(latest: dict) -> dict:
+            latest_windows = latest.get("window_plans") if isinstance(latest.get("window_plans"), list) else []
+            for item in latest_windows:
+                if isinstance(item, dict) and int(item.get("window_index") or item.get("index") or 0) == window_index:
+                    item.update(audio_fields)
+                    break
+            else:
+                latest_windows.append({**window, **audio_fields})
+            latest["window_plans"] = latest_windows
+            return latest
+
+        VideoDirectorPlanService(self.db).mutate(shot_id, mutate_audio_window)
         return {
             "success": True,
             "data": {
                 "shotId": shot_id,
                 "windowIndex": window_index,
                 "audioTimelineId": timeline.id,
+                "audioTimelineRevision": timeline_revision,
+                "audioTimelineHash": timeline_hash,
                 "speakerTimeline": speaker_timeline,
                 "audioStatus": window["audio_status"],
                 "driveAudioUrl": window["drive_audio_url"],
@@ -920,8 +988,9 @@ class AudioDriveService:
         relative_path = str(path).replace(str(file_storage.base_dir), "").replace("\\", "/")
         return f"/api/files/{relative_path.lstrip('/')}"
 
-    def _collect_clip_audio_segments(self, timeline: ShotAudioTimeline, clip_start: float, clip_end: float, drive_only: bool) -> list:
+    def _collect_clip_audio_segments(self, timeline: ShotAudioTimeline, clip_start: float, clip_end: float, drive_only: bool) -> dict:
         segments = []
+        missing = []
         for event in self.repo.list_timeline_events(timeline.id):
             if drive_only and (not event.requires_visible_lipsync or not event.visible_speaker_name):
                 continue
@@ -930,12 +999,15 @@ class AudioDriveService:
             if overlap_end <= overlap_start:
                 continue
             if not event.tts_asset_id:
+                missing.append({"audio_event_id": event.audio_event_id, "reason": "missing_tts_asset_id", "track": "drive" if drive_only else "final"})
                 continue
             asset = self.repo.get_tts_asset(event.tts_asset_id)
             if not asset or asset.status != "READY":
+                missing.append({"audio_event_id": event.audio_event_id, "tts_asset_id": event.tts_asset_id, "reason": "tts_asset_not_ready", "track": "drive" if drive_only else "final"})
                 continue
             source_path = asset.audio_path or url_to_local_path(asset.audio_url or "")
             if not source_path or not Path(source_path).is_file():
+                missing.append({"audio_event_id": event.audio_event_id, "tts_asset_id": event.tts_asset_id, "reason": "tts_file_missing", "track": "drive" if drive_only else "final"})
                 continue
             segments.append({
                 "source_path": str(source_path),
@@ -949,7 +1021,7 @@ class AudioDriveService:
                 "visible_speaker_name": event.visible_speaker_name,
                 "requires_visible_lipsync": bool(event.requires_visible_lipsync),
             })
-        return segments
+        return {"segments": segments, "expected_count": len(segments) + len(missing), "missing": missing}
 
     def _render_clip_audio(self, segments: list, output_path: Path, duration: float) -> dict:
         output_path.parent.mkdir(parents=True, exist_ok=True)

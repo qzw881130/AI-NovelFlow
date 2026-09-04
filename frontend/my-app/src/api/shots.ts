@@ -403,6 +403,27 @@ export const shotsApi = {
     return response.json();
   },
 
+  patchVideoDirectorPrompt: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    patch: { collection: 'clips' | 'window_plans'; index: number; promptText: string }
+  ): Promise<{ success: boolean; data?: VideoDirectorPlan; revision?: number; message?: string; detail?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/prompt`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      }
+    );
+    const data = await response.json().catch(async () => ({ detail: await response.text().catch(() => '') }));
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || '保存 AI 提示词失败', detail: data?.detail };
+    }
+    return data;
+  },
+
   planVideoKeyframes: async (
     novelId: string,
     chapterId: string,

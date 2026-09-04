@@ -339,7 +339,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
       if (!res.success) throw new Error(res.message || '构建 Timeline 失败');
       setTimeline(res.data || null);
       setAudioStatus('READY');
-      setMessage('Audio Timeline 已构建，resolved_duration 已写回 Shot duration');
+      setMessage('Audio Timeline 已构建，resolved_duration 已更新');
       await loadAudioDrive();
       await fetchShots(novelId, chapterId);
     } catch (error) {
@@ -594,7 +594,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
           <p className="mt-0.5 text-xs text-gray-500">分镜图生成和音频生成可并行；视频生成前会检查 Audio Timeline / resolved_duration。</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={prepareCurrentShotAudio} disabled={preparingAudio || events.length === 0} className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-2 text-sm text-white hover:bg-purple-700 disabled:opacity-50">
+          <button onClick={prepareCurrentShotAudio} disabled={preparingAudio} className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-2 text-sm text-white hover:bg-purple-700 disabled:opacity-50">
             {preparingAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
             一键准备音频
           </button>
@@ -606,7 +606,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
             {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
             批量生成 TTS
           </button>
-          <button onClick={() => buildTimeline(false)} disabled={buildingTimeline || events.length === 0} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+          <button onClick={() => buildTimeline(false)} disabled={buildingTimeline} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
             {buildingTimeline ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
             构建 Timeline
           </button>
@@ -778,7 +778,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
                     <div className="flex justify-between"><span>estimated_duration</span><span>{currentShot.estimatedDuration ?? currentShot.duration}s</span></div>
                     <div className="flex justify-between"><span>resolved_duration</span><span>{timeline?.totalDuration ?? '-'}s</span></div>
                   </div>
-                  <button onClick={() => buildTimeline(true)} disabled={buildingTimeline || events.length === 0} className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">重建 Timeline</button>
+                  <button onClick={() => buildTimeline(true)} disabled={buildingTimeline} className="mt-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">重建 Timeline</button>
                 </div>
 
                 <div className="rounded-xl border border-gray-200 bg-white p-4">

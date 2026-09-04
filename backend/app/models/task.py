@@ -49,6 +49,11 @@ class Task(Base):
     reference_images = Column(Text, nullable=True)
     video_director_clips = Column(Text, nullable=True)
     metadata_json = Column(Text, nullable=True)
+    worker_id = Column(String, nullable=True, index=True)
+    claim_token = Column(String, nullable=True, index=True)
+    claimed_at = Column(DateTime(timezone=True), nullable=True)
+    heartbeat_at = Column(DateTime(timezone=True), nullable=True)
+    attempt = Column(Integer, default=0)
 
     # 时间戳
     created_at = Column(DateTime(timezone=True), server_default=func.now())

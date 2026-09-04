@@ -132,6 +132,7 @@ export interface ShotData {
   props: string[];
   duration: number;
   videoDirectorPlan?: VideoDirectorPlan;
+  videoDirectorPlanRevision?: number;
   dialogues?: DialogueData[];
   image_url?: string;
   image_path?: string;

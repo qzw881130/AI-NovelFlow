@@ -12,7 +12,9 @@ from app.models.task import Task
 from app.models.workflow import Workflow
 from app.core.database import SessionLocal
 from app.services.comfyui import ComfyUIService
+from app.services.duration_contract import audio_required_duration as contract_audio_required_duration, clip_duration as contract_clip_duration, legal_h3_frame_count, visual_required_duration
 from app.services.file_storage import file_storage
+from app.services.video_director_plan_service import VideoDirectorPlanService
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.repositories.shot_repository import ShotRepository
 from app.services.background_workers import worker_manager
@@ -36,6 +38,17 @@ def _to_float_or_none(value):
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _resolved_duration_from_plan(shot, video_director_plan: dict) -> float:
+    visual = visual_required_duration(shot)
+    audio_timeline = video_director_plan.get("audio_timeline") if isinstance(video_director_plan.get("audio_timeline"), dict) else {}
+    audio = contract_audio_required_duration(audio_timeline.get("audio_required_duration"))
+    if audio > 0:
+        return round(max(visual, audio), 3)
+    if audio_timeline.get("resolved_duration") is not None:
+        return round(max(visual, float(audio_timeline.get("resolved_duration") or 0)), 3)
+    return visual
 
 
 def _dialogue_time_range(dialogue: dict):
@@ -105,15 +118,17 @@ def _sync_task_video_director_clips(task, window_plans: list) -> None:
 
 
 def _update_window_plan(shot, window_index: int, fields: dict, db, task=None) -> None:
-    plan = safe_json_dict(shot.video_director_plan)
-    window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
-    for window_plan in window_plans:
-        if isinstance(window_plan, dict) and int(window_plan.get("window_index") or 0) == int(window_index):
-            window_plan.update(fields)
-            break
-    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-    _sync_task_video_director_clips(task, window_plans)
-    db.commit()
+    def mutate(plan: dict) -> dict:
+        window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+        for window_plan in window_plans:
+            if isinstance(window_plan, dict) and int(window_plan.get("window_index") or 0) == int(window_index):
+                window_plan.update(fields)
+                break
+        plan["window_plans"] = window_plans
+        _sync_task_video_director_clips(task, window_plans)
+        return plan
+
+    VideoDirectorPlanService(db).mutate(shot.id, mutate)
 
 
 def _update_window_plan_status(shot, window_index: int, status: str, db, task=None) -> None:
@@ -121,76 +136,43 @@ def _update_window_plan_status(shot, window_index: int, status: str, db, task=No
 
 
 def _update_clip_prompt(shot, clip: dict, prompt_text: str, db) -> None:
-    plan = safe_json_dict(shot.video_director_plan)
-    clips = plan.get("clips") if isinstance(plan.get("clips"), list) else []
-    clip_index = int((clip or {}).get("clip_index") or 1)
-    clip_start = (clip or {}).get("start_time", 0)
-    clip_end = (clip or {}).get("end_time")
-    updated = False
-
-    for index, existing_clip in enumerate(clips):
-        if not isinstance(existing_clip, dict):
-            continue
-        if int(existing_clip.get("clip_index") or index + 1) == clip_index:
-            existing_clip["prompt_text"] = prompt_text
-            updated = True
-            break
-
-    if not updated:
-        clips.append({
-            "clip_index": clip_index,
-            "start_time": clip_start,
-            "end_time": clip_end,
-            "status": (clip or {}).get("status") or "PENDING",
-            "prompt_text": prompt_text,
-        })
-
-    plan["clips"] = clips
-    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-    db.commit()
+    VideoDirectorPlanService(db).patch_clip_prompt(shot.id, "clips", int((clip or {}).get("clip_index") or 1), prompt_text)
 
 
 def _update_clip_result(shot, clip: dict, fields: dict, db) -> None:
-    plan = safe_json_dict(shot.video_director_plan)
-    clips = plan.get("clips") if isinstance(plan.get("clips"), list) else []
-    clip_index = int((clip or {}).get("clip_index") or 1)
-    clip_start = (clip or {}).get("start_time", 0)
-    clip_end = (clip or {}).get("end_time")
-    updated = False
+    def mutate(plan: dict) -> dict:
+        clips = plan.get("clips") if isinstance(plan.get("clips"), list) else []
+        clip_index = int((clip or {}).get("clip_index") or 1)
+        clip_start = (clip or {}).get("start_time", 0)
+        clip_end = (clip or {}).get("end_time")
+        for index, existing_clip in enumerate(clips):
+            if isinstance(existing_clip, dict) and int(existing_clip.get("clip_index") or index + 1) == clip_index:
+                existing_clip.update(fields)
+                break
+        else:
+            clips.append({"clip_index": clip_index, "start_time": clip_start, "end_time": clip_end, **fields})
+        plan["clips"] = clips
+        return plan
 
-    for index, existing_clip in enumerate(clips):
-        if not isinstance(existing_clip, dict):
-            continue
-        if int(existing_clip.get("clip_index") or index + 1) == clip_index:
-            existing_clip.update(fields)
-            updated = True
-            break
-
-    if not updated:
-        clips.append({
-            "clip_index": clip_index,
-            "start_time": clip_start,
-            "end_time": clip_end,
-            **fields,
-        })
-
-    plan["clips"] = clips
-    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-    db.commit()
+    VideoDirectorPlanService(db).mutate(shot.id, mutate)
 
 
 def _mark_shot_video_failed(shot, shot_repo: ShotRepository, message: str):
-    plan = safe_json_dict(shot.video_director_plan)
-    plan["task_error_message"] = message
-    plan["error_message"] = message
-    return shot_repo.update(shot, video_status="failed", video_director_plan=plan)
+    VideoDirectorPlanService(shot_repo.db).mutate(
+        shot.id,
+        lambda plan: {**plan, "task_error_message": message, "error_message": message},
+    )
+    return shot_repo.update(shot, video_status="failed")
 
 
 def _clear_shot_video_error(shot, shot_repo: ShotRepository, **fields):
-    plan = safe_json_dict(shot.video_director_plan)
-    plan.pop("task_error_message", None)
-    plan.pop("error_message", None)
-    return shot_repo.update(shot, video_director_plan=plan, **fields)
+    def mutate(plan: dict) -> dict:
+        plan.pop("task_error_message", None)
+        plan.pop("error_message", None)
+        return plan
+
+    VideoDirectorPlanService(shot_repo.db).mutate(shot.id, mutate)
+    return shot_repo.update(shot, **fields)
 
 
 def _is_task_cancelled(db, task) -> bool:
@@ -199,34 +181,35 @@ def _is_task_cancelled(db, task) -> bool:
 
 
 def _cleanup_task_generated_clip_videos(db, task, shot) -> None:
-    plan = safe_json_dict(shot.video_director_plan)
-    window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
-    changed = False
-    for window_plan in window_plans:
-        if not isinstance(window_plan, dict) or window_plan.get("generated_by_task_id") != task.id:
-            continue
-        local_path = window_plan.get("local_path") or url_to_local_path(window_plan.get("video_url"))
-        if local_path:
-            try:
-                path = Path(local_path)
-                if path.exists() and path.is_file():
-                    path.unlink()
-            except Exception as exc:
-                print(f"[VideoTask {task.id}] Failed to delete cancelled clip video {local_path}: {exc}")
-        for key in ["video_url", "local_path", "source_video_url", "generated_at", "generated_by_task_id"]:
-            window_plan.pop(key, None)
-        window_plan["status"] = "CANCELLED"
-        window_plan["error_message"] = "任务已取消，已清理本任务生成的 Clip 视频"
-        changed = True
-    if changed:
-        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-        _sync_task_video_director_clips(task, window_plans)
-        db.commit()
+    def mutate(plan: dict) -> dict:
+        window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+        changed = False
+        for window_plan in window_plans:
+            if not isinstance(window_plan, dict) or window_plan.get("generated_by_task_id") != task.id:
+                continue
+            local_path = window_plan.get("local_path") or url_to_local_path(window_plan.get("video_url"))
+            if local_path:
+                try:
+                    path = Path(local_path)
+                    if path.exists() and path.is_file():
+                        path.unlink()
+                except Exception as exc:
+                    print(f"[VideoTask {task.id}] Failed to delete cancelled clip video {local_path}: {exc}")
+            for key in ["video_url", "local_path", "source_video_url", "generated_at", "generated_by_task_id"]:
+                window_plan.pop(key, None)
+            window_plan["status"] = "CANCELLED"
+            window_plan["error_message"] = "任务已取消，已清理本任务生成的 Clip 视频"
+            changed = True
+        if changed:
+            plan["window_plans"] = window_plans
+            _sync_task_video_director_clips(task, window_plans)
+        return plan
+
+    VideoDirectorPlanService(db).mutate(shot.id, mutate)
 
 
 def _reset_multi_clip_window_plans_for_task(db, task, shot, only_window_index: int | None = None, preserve_prompt_text: bool = False) -> list:
-    plan = safe_json_dict(shot.video_director_plan)
-    window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+    latest_window_plans = []
     reset_keys = [
         "prompt_id",
         "workflow_json",
@@ -239,22 +222,28 @@ def _reset_multi_clip_window_plans_for_task(db, task, shot, only_window_index: i
     ]
     if not preserve_prompt_text:
         reset_keys.insert(1, "prompt_text")
-    for window_plan in window_plans:
-        if not isinstance(window_plan, dict):
-            continue
-        window_index = int(window_plan.get("window_index") or 0)
-        if only_window_index is not None and window_index != int(only_window_index):
-            continue
-        for key in reset_keys:
-            window_plan.pop(key, None)
-        window_plan["status"] = "PENDING"
-    if only_window_index is None:
-        plan.pop("merged_video_url", None)
-        plan.pop("merged_at", None)
-    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-    _sync_task_video_director_clips(task, window_plans)
-    db.commit()
-    return window_plans
+    def mutate(plan: dict) -> dict:
+        nonlocal latest_window_plans
+        window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+        for window_plan in window_plans:
+            if not isinstance(window_plan, dict):
+                continue
+            window_index = int(window_plan.get("window_index") or 0)
+            if only_window_index is not None and window_index != int(only_window_index):
+                continue
+            for key in reset_keys:
+                window_plan.pop(key, None)
+            window_plan["status"] = "PENDING"
+        if only_window_index is None:
+            plan.pop("merged_video_url", None)
+            plan.pop("merged_at", None)
+        latest_window_plans = window_plans
+        plan["window_plans"] = window_plans
+        _sync_task_video_director_clips(task, window_plans)
+        return plan
+
+    VideoDirectorPlanService(db).mutate(shot.id, mutate)
+    return latest_window_plans
 
 
 def _local_url_from_path(path: str) -> str:
@@ -275,6 +264,23 @@ def _find_window_plan_for_clip(video_director_plan: dict, clip: dict) -> dict | 
     return None
 
 
+def _clip_audio_matches_plan_timeline(window_plan: dict, video_director_plan: dict) -> bool:
+    audio_timeline = video_director_plan.get("audio_timeline") if isinstance(video_director_plan.get("audio_timeline"), dict) else {}
+    if not audio_timeline:
+        return False
+    bound_id = window_plan.get("audio_timeline_id") or window_plan.get("audioTimelineId")
+    bound_revision = window_plan.get("audio_timeline_revision") or window_plan.get("audioTimelineRevision")
+    bound_hash = window_plan.get("audio_timeline_hash") or window_plan.get("audioTimelineHash")
+    timeline_hash = audio_timeline.get("source_hash") or audio_timeline.get("generated_from_hash") or audio_timeline.get("generatedFromHash")
+    if bound_id != audio_timeline.get("id"):
+        return False
+    if int(bound_revision or 0) != int(audio_timeline.get("revision") or 0):
+        return False
+    if timeline_hash and bound_hash != timeline_hash:
+        return False
+    return True
+
+
 def _resolve_audio_drive_for_h3(video_director_plan: dict, clip: dict, node_mapping: dict) -> dict:
     requires_audio_drive = bool(node_mapping.get("drive_audio_node_id") or node_mapping.get("final_audio_node_id"))
     if not requires_audio_drive:
@@ -285,6 +291,8 @@ def _resolve_audio_drive_for_h3(video_director_plan: dict, clip: dict, node_mapp
         raise RuntimeError("当前 Clip 缺少 AudioDrive window_plan，请先构建 Execution Windows 和 Clip Audio。")
     if str(window_plan.get("audio_status") or window_plan.get("audioStatus") or "").upper() != "READY":
         raise RuntimeError(f"Clip {window_plan.get('window_index')} Audio 未 READY，请先在音频生成页构建 Clip Audio。")
+    if not _clip_audio_matches_plan_timeline(window_plan, video_director_plan):
+        raise RuntimeError(f"Clip {window_plan.get('window_index') or window_plan.get('clip_index')} Audio 与当前 Audio Timeline 不匹配，请重建 Clip Audio。")
 
     drive_audio_path = window_plan.get("drive_audio_path") or window_plan.get("driveAudioPath") or url_to_local_path(window_plan.get("drive_audio_url") or window_plan.get("driveAudioUrl") or "")
     final_audio_path = window_plan.get("final_audio_path") or window_plan.get("finalAudioPath") or url_to_local_path(window_plan.get("final_audio_url") or window_plan.get("finalAudioUrl") or "")
@@ -371,6 +379,7 @@ def enqueue_shot_video_task(
     task_id: str,
     novel_id: str,
     chapter_id: str,
+    shot_id: str,
     shot_index: int,
     workflow_id: str,
     shot_image_url: str,
@@ -387,6 +396,7 @@ def enqueue_shot_video_task(
             task_id,
             novel_id,
             chapter_id,
+            shot_id,
             shot_index,
             workflow_id,
             shot_image_url,
@@ -404,6 +414,7 @@ async def generate_shot_video_task(
     task_id: str,
     novel_id: str,
     chapter_id: str,
+    shot_id: str,
     shot_index: int,
     workflow_id: str,
     shot_image_url: str,
@@ -421,7 +432,7 @@ async def generate_shot_video_task(
         task_id: 任务ID
         novel_id: 小说ID
         chapter_id: 章节ID
-        shot_index: 分镜索引
+        shot_index: 分镜索引（仅展示/文件命名元数据，不作为业务身份）
         workflow_id: 工作流ID
         shot_image_url: 分镜图片URL
         use_keyframes: 是否使用关键帧（如果存在），默认 True
@@ -468,15 +479,24 @@ async def generate_shot_video_task(
         node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
         print(f"[VideoTask {task_id}] Node mapping: {node_mapping}")
 
-        # 使用 ShotRepository 获取分镜数据
         shot_repo = ShotRepository(db)
-        shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
-
-        if not shot:
+        if not task.shot_id:
             task.status = "failed"
-            task.error_message = "分镜不存在"
+            task.error_message = "视频任务缺少稳定 shot_id"
+            task.current_step = "分镜身份无效"
             db.commit()
             return
+
+        shot = shot_repo.get_by_id(task.shot_id)
+
+        if not shot or shot.chapter_id != chapter_id:
+            task.status = "failed"
+            task.error_message = "分镜不存在"
+            task.current_step = "分镜不存在"
+            db.commit()
+            return
+
+        shot_index = int(shot.index or 0)
 
         # 视频生成优先由 11/12/13 Prompt Builder 产出最终 H3 prompt。
         shot_prompt = (shot.video_description or "").strip() or (shot.description or "")
@@ -487,10 +507,10 @@ async def generate_shot_video_task(
         task.description = f"{task.description}；视频模式：{selected_mode}"
         db.commit()
 
-        duration = shot.duration or 4
+        duration = _resolved_duration_from_plan(shot, video_director_plan)
         fps = 25
         raw_frame_count = int(fps * duration)
-        frame_count = ((raw_frame_count // 8) * 8) + 1
+        frame_count = legal_h3_frame_count(duration, fps)
         print(f"[VideoTask {task_id}] Duration: {duration}s, FPS: {fps}, Raw frames: {raw_frame_count}, Adjusted frames: {frame_count}")
 
         character_reference_path = None
@@ -704,6 +724,9 @@ async def generate_shot_video_task(
             }
         if not clip:
             clip = {"clip_index": 1, "start_time": 0, "end_time": duration, "status": "PENDING"}
+        duration = contract_clip_duration(clip.get("start_time") or 0, clip.get("end_time") or duration) or duration
+        raw_frame_count = int(fps * duration)
+        frame_count = legal_h3_frame_count(duration, fps)
         effective_node_mapping = dict(node_mapping)
         if workflow.type == "first_last_video":
             effective_node_mapping["reference_image_node_id"] = node_mapping.get("first_image_node_id")
@@ -1041,9 +1064,9 @@ async def _generate_multi_clip_video_task(
         task.prompt_text = clip_prompt
         _update_window_plan(shot, window_index, {"prompt_text": clip_prompt}, db, task=task)
 
-        clip_duration = max(1, float(clip["end_time"]) - float(clip["start_time"]))
+        clip_duration = contract_clip_duration(clip["start_time"], clip["end_time"])
         raw_frame_count = int(fps * clip_duration)
-        clip_frame_count = ((raw_frame_count // 8) * 8) + 1
+        clip_frame_count = legal_h3_frame_count(clip_duration, fps)
 
         def save_prompt_id(prompt_id: str, submitted_workflow: dict = None):
             task.comfyui_prompt_id = prompt_id
@@ -1195,10 +1218,10 @@ async def _generate_multi_clip_video_task(
         return
 
     local_url = _local_url_from_path(output_path)
-    plan = safe_json_dict(shot.video_director_plan)
-    plan["merged_video_url"] = local_url
-    plan["merged_at"] = datetime.utcnow().isoformat()
-    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+    VideoDirectorPlanService(db).mutate(
+        shot.id,
+        lambda plan: {**plan, "merged_video_url": local_url, "merged_at": datetime.utcnow().isoformat()},
+    )
     _clear_shot_video_error(shot, shot_repo, video_url=local_url, video_status="completed", video_task_id=task.id)
     task.status = "completed"
     task.progress = 100
@@ -1249,11 +1272,11 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
         return merge_result
 
     local_url = _local_url_from_path(output_path)
-    plan["merged_video_url"] = local_url
-    plan["merged_at"] = datetime.utcnow().isoformat()
-    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+    plan, _revision = VideoDirectorPlanService(db).mutate(
+        shot.id,
+        lambda latest: {**latest, "merged_video_url": local_url, "merged_at": datetime.utcnow().isoformat()},
+    )
     _clear_shot_video_error(shot, shot_repo, video_url=local_url, video_status="completed", video_task_id=None)
-    db.commit()
     return {"success": True, "video_url": local_url, "plan": plan}
 
 
@@ -1271,7 +1294,7 @@ async def _save_generated_video(
         task.status = "failed"
         task.error_message = "未获取到视频URL"
         task.current_step = "生成失败"
-        shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+        shot = shot_repo.get_by_id(task.shot_id) if task.shot_id else None
         if shot:
             _mark_shot_video_failed(shot, shot_repo, task.error_message)
         db.commit()
@@ -1292,7 +1315,7 @@ async def _save_generated_video(
                     path.unlink()
             except Exception as exc:
                 print(f"[VideoTask {task_id}] Failed to delete cancelled downloaded video {local_path}: {exc}")
-        shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+        shot = shot_repo.get_by_id(task.shot_id) if task.shot_id else None
         if shot:
             _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
         db.commit()
@@ -1303,7 +1326,7 @@ async def _save_generated_video(
         local_url = f"/api/files/{relative_path.lstrip('/')}"
 
         # 更新 Shot 记录中的视频数据
-        shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+        shot = shot_repo.get_by_id(task.shot_id) if task.shot_id else None
         if shot:
             _update_clip_result(shot, clip or {}, {
                 "status": "SUCCEEDED",
@@ -1328,7 +1351,7 @@ async def _save_generated_video(
         task.status = "failed"
         task.error_message = "下载视频失败"
         task.current_step = "下载失败"
-        shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+        shot = shot_repo.get_by_id(task.shot_id) if task.shot_id else None
         if shot:
             _mark_shot_video_failed(shot, shot_repo, task.error_message)
         db.commit()

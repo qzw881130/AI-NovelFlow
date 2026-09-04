@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
 from app.models.shot import Shot
 from app.models.task import Task
@@ -23,6 +23,7 @@ from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.comfyui import ComfyUIService
 from app.services.llm_service import LLMService
 from app.services.file_storage import file_storage
+from app.services.video_director_plan_service import VideoDirectorPlanService
 from app.services.background_workers import worker_manager
 from app.services.prompt_builder import get_style
 from app.services.video_director_ai import append_video_ai_call, strip_media_refs
@@ -44,35 +45,37 @@ class ShotKeyframeService:
         plan_keyframe_index = keyframe.get("plan_keyframe_index")
         if plan_keyframe_index is None or not shot.video_director_plan:
             return
-        try:
-            plan = json.loads(shot.video_director_plan) if isinstance(shot.video_director_plan, str) else shot.video_director_plan
-        except Exception:
-            return
-        if not isinstance(plan, dict) or not isinstance(plan.get("keyframes"), list):
-            return
-        for plan_keyframe in plan["keyframes"]:
-            if isinstance(plan_keyframe, dict) and int(plan_keyframe.get("index") or -1) == int(plan_keyframe_index):
-                plan_keyframe["image_url"] = image_url
-                if task_id:
-                    plan_keyframe["image_task_id"] = task_id
-                shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-                return
+        def mutate(plan: dict) -> dict:
+            keyframes = plan.get("keyframes") if isinstance(plan.get("keyframes"), list) else []
+            for plan_keyframe in keyframes:
+                if isinstance(plan_keyframe, dict) and int(plan_keyframe.get("index") or -1) == int(plan_keyframe_index):
+                    plan_keyframe["image_url"] = image_url
+                    if task_id:
+                        plan_keyframe["image_task_id"] = task_id
+                    break
+            plan["keyframes"] = keyframes
+            return plan
+
+        db = object_session(shot)
+        if db:
+            VideoDirectorPlanService(db).mutate(shot.id, mutate)
 
     def _sync_video_director_keyframe_fields(self, shot: Shot, keyframe: dict, fields: dict) -> None:
         plan_keyframe_index = keyframe.get("plan_keyframe_index")
         if plan_keyframe_index is None or not shot.video_director_plan:
             return
-        try:
-            plan = json.loads(shot.video_director_plan) if isinstance(shot.video_director_plan, str) else shot.video_director_plan
-        except Exception:
-            return
-        if not isinstance(plan, dict) or not isinstance(plan.get("keyframes"), list):
-            return
-        for plan_keyframe in plan["keyframes"]:
-            if isinstance(plan_keyframe, dict) and int(plan_keyframe.get("index") or -1) == int(plan_keyframe_index):
-                plan_keyframe.update(fields)
-                shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-                return
+        def mutate(plan: dict) -> dict:
+            keyframes = plan.get("keyframes") if isinstance(plan.get("keyframes"), list) else []
+            for plan_keyframe in keyframes:
+                if isinstance(plan_keyframe, dict) and int(plan_keyframe.get("index") or -1) == int(plan_keyframe_index):
+                    plan_keyframe.update(fields)
+                    break
+            plan["keyframes"] = keyframes
+            return plan
+
+        db = object_session(shot)
+        if db:
+            VideoDirectorPlanService(db).mutate(shot.id, mutate)
 
     def _get_reusable_keyframe_prompt(self, db: Session, shot_id: str, frame_index: int, keyframe: dict) -> str:
         prompt = keyframe.get("prompt_text")

@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse, StreamingResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 from pydantic import BaseModel
 
 from app.core.database import get_db
@@ -24,7 +24,9 @@ from app.models.task import Task
 from app.models.workflow import Workflow
 from app.models.llm_log import LLMLog
 from app.services.comfyui import ComfyUIService
+from app.services.duration_contract import audio_required_duration as contract_audio_required_duration, resolved_duration as contract_resolved_duration, visual_required_duration
 from app.services.file_storage import file_storage
+from app.services.video_director_plan_service import PlanOwnershipError, PlanRevisionConflict, VideoDirectorPlanService
 from app.services.novel_service import (
     NovelService,
     generate_transition_video_task,
@@ -69,6 +71,8 @@ from app.schemas.shot import (
     RecommendVideoModeRequest,
     PlanVideoKeyframesRequest,
     SaveVideoDirectorPlanRequest,
+    PatchVideoPromptRequest,
+    PatchVideoKeyframeDescriptionRequest,
 )
 from app.api.deps import (
     get_novel_repo,
@@ -403,6 +407,7 @@ async def _ensure_shot_ready_for_batch_video(
             plan = _sync_latest_audio_timeline_into_plan(shot, shot_repo)
             duration = _plan_resolved_duration(shot, plan)
             mode = "MULTI_KEYFRAME" if duration > int(capability.get("max_clip_duration") or 15) else "SINGLE_FRAME"
+            previous_audio_windows = _collect_audio_clip_sources(plan)
             plan.update({
                 "selected_mode": mode,
                 "recommended_mode": mode,
@@ -412,9 +417,12 @@ async def _ensure_shot_ready_for_batch_video(
                 "execution_windows": _build_execution_windows(duration, int(capability.get("max_clip_duration") or 15), (plan.get("audio_timeline") or {}).get("events") or []) if mode == "MULTI_KEYFRAME" else [],
             })
             if mode == "MULTI_KEYFRAME":
-                plan["window_plans"] = _preserve_matching_clip_audio_fields([dict(window) for window in plan.get("execution_windows") or []], plan.get("window_plans") or [])
+                plan["window_plans"] = _preserve_matching_clip_audio_fields([dict(window) for window in plan.get("execution_windows") or []], previous_audio_windows)
                 plan["clips"] = []
                 plan["keyframes"] = _build_minimal_keyframes(shot, mode, int(capability.get("max_clip_duration") or 15), duration=duration)
+            else:
+                plan["window_plans"] = []
+                plan["clips"] = _preserve_matching_clip_audio_fields(_build_clip_plan(duration, int(capability.get("max_clip_duration") or 15)), previous_audio_windows)
             shot_repo.update(shot, video_director_plan=plan)
 
     mode = mode or "SINGLE_FRAME"
@@ -1619,8 +1627,8 @@ def _parse_recommended_mode(content: str, duration: int, workflow_capability: di
     return mode
 
 
-def _build_video_mode_reason(shot, mode: str, workflow_capability: dict) -> str:
-    duration = shot.duration or 4
+def _build_video_mode_reason(shot, mode: str, workflow_capability: dict, duration: Optional[float] = None) -> str:
+    duration = float(duration if duration is not None else visual_required_duration(shot))
     max_clip_duration = workflow_capability["max_clip_duration"]
     if duration > max_clip_duration:
         return f"{duration} 秒超过当前 Workflow 单次最大 {max_clip_duration} 秒，V1 请使用多关键帧拆分为多个 Clip。"
@@ -1654,7 +1662,13 @@ def _build_execution_windows(duration: float, max_clip_duration: float, audio_ev
 
 def _plan_resolved_duration(shot, plan: dict) -> float:
     audio_timeline = plan.get("audio_timeline") if isinstance(plan.get("audio_timeline"), dict) else {}
-    return float(audio_timeline.get("resolved_duration") or shot.duration or 4)
+    visual = visual_required_duration(shot)
+    audio = contract_audio_required_duration(audio_timeline.get("audio_required_duration"))
+    if audio > 0:
+        return round(max(visual, audio), 3)
+    if audio_timeline.get("resolved_duration") is not None:
+        return round(max(visual, float(audio_timeline.get("resolved_duration") or 0)), 3)
+    return visual
 
 
 def _execution_windows_match_duration(execution_windows: list, duration: float, max_clip_duration: int, audio_events: Optional[list] = None) -> bool:
@@ -1755,7 +1769,7 @@ def _get_video_director_keyframe_image_url(shot, keyframe: dict) -> Optional[str
 
 
 def _build_minimal_keyframes(shot, mode: str, max_clip_duration: int, duration: Optional[float] = None) -> list:
-    duration = float(duration if duration is not None else (shot.duration or 4))
+    duration = float(duration if duration is not None else visual_required_duration(shot))
     if mode == "SINGLE_FRAME":
         return []
     if mode == "FIRST_LAST_FRAME":
@@ -1876,7 +1890,9 @@ def _sync_latest_audio_timeline_into_plan(shot, shot_repo: ShotRepository) -> di
         plan["audio_timeline"] = {
             "id": timeline.id,
             "revision": timeline.revision,
-            "resolved_duration": round(float(timeline.total_duration or shot.duration or 0), 3),
+            "source_hash": timeline.generated_from_hash,
+            "audio_required_duration": timeline.audio_required_duration,
+            "resolved_duration": contract_resolved_duration(shot, timeline),
             "audio_summary": audio_summary,
             "events": timeline_events,
         }
@@ -1908,7 +1924,7 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
             "characters": _safe_json_list(shot.characters),
             "scene": shot.scene or "",
             "props": _safe_json_list(shot.props),
-            "duration": shot.duration or 4,
+            "duration": _plan_resolved_duration(shot, plan),
             "continuity_mode": shot.continuity_mode or "NORMAL",
             "dialogues": _safe_json_list(shot.dialogues),
         },
@@ -2116,7 +2132,7 @@ def _build_reused_three_frame_keyframe_plan(shot, plan: dict, execution_windows:
 
 def _preserve_matching_clip_audio_fields(next_window_plans: list, previous_window_plans: list) -> list:
     audio_keys = [
-        "audio_status", "audio_message", "audio_timeline_id", "speaker_timeline",
+        "audio_status", "audio_message", "audio_timeline_id", "audio_timeline_revision", "audio_timeline_hash", "speaker_timeline",
         "drive_audio_url", "final_audio_url", "drive_audio_path", "final_audio_path",
         "clip_audio_manifest_path", "clip_audio_duration",
     ]
@@ -2128,7 +2144,7 @@ def _preserve_matching_clip_audio_fields(next_window_plans: list, previous_windo
     for window in next_window_plans or []:
         if not isinstance(window, dict):
             continue
-        previous = previous_by_index.get(int(window.get("window_index") or 0))
+        previous = previous_by_index.get(int(window.get("window_index") or window.get("clip_index") or 0))
         if not previous:
             continue
         previous_start = previous.get("start_time") if previous.get("start_time") is not None else -1
@@ -2144,9 +2160,43 @@ def _preserve_matching_clip_audio_fields(next_window_plans: list, previous_windo
     return next_window_plans
 
 
+def _collect_audio_clip_sources(plan: dict) -> list:
+    sources = []
+    for key in ("window_plans", "execution_windows", "clips"):
+        value = plan.get(key)
+        if isinstance(value, list):
+            sources.extend([window for window in value if isinstance(window, dict)])
+    return sources
+
+
 def _workflow_requires_audio_drive(workflow: Optional[Workflow]) -> bool:
     mapping = _safe_json_dict(workflow.node_mapping if workflow else None)
     return bool(mapping.get("drive_audio_node_id") or mapping.get("final_audio_node_id"))
+
+
+def _latest_audio_timeline_for_shot(shot):
+    db = object_session(shot)
+    if not db:
+        return None
+    from app.models.audio_drive import ShotAudioTimeline
+    return db.query(ShotAudioTimeline).filter(
+        ShotAudioTimeline.shot_id == shot.id
+    ).order_by(ShotAudioTimeline.revision.desc()).first()
+
+
+def _clip_audio_matches_timeline(window: dict, timeline) -> bool:
+    if not timeline or not isinstance(window, dict):
+        return False
+    bound_id = window.get("audio_timeline_id") or window.get("audioTimelineId")
+    bound_revision = window.get("audio_timeline_revision") or window.get("audioTimelineRevision")
+    bound_hash = window.get("audio_timeline_hash") or window.get("audioTimelineHash")
+    if bound_id != timeline.id:
+        return False
+    if int(bound_revision or 0) != int(timeline.revision or 0):
+        return False
+    if timeline.generated_from_hash and bound_hash != timeline.generated_from_hash:
+        return False
+    return True
 
 
 def _assert_audio_drive_ready_for_video(shot, plan: dict, workflow: Optional[Workflow], window_indexes: Optional[set[int]] = None) -> None:
@@ -2172,16 +2222,25 @@ def _assert_audio_drive_ready_for_video(shot, plan: dict, workflow: Optional[Wor
         raise HTTPException(status_code=400, detail="AudioDrive Clip Audio 未构建，请先在音频生成页构建执行窗口和 Clip Audio。")
     if (shot.audio_status or "") != "READY":
         raise HTTPException(status_code=400, detail="Audio Timeline 未 READY，请先在音频生成页生成 TTS 并构建 Timeline。")
+    latest_timeline = _latest_audio_timeline_for_shot(shot)
+    if not latest_timeline or latest_timeline.status != "READY":
+        raise HTTPException(status_code=400, detail="Audio Timeline 未 READY，请先在音频生成页生成 TTS 并构建 Timeline。")
 
     missing = []
+    stale = []
     for window_index, window in deduped:
         status = window.get("audio_status") or window.get("audioStatus")
         drive_audio = window.get("drive_audio_path") or window.get("driveAudioPath") or window.get("drive_audio_url") or window.get("driveAudioUrl")
         final_audio = window.get("final_audio_path") or window.get("finalAudioPath") or window.get("final_audio_url") or window.get("finalAudioUrl")
         drive_path = url_to_local_path(drive_audio) or drive_audio
         final_path = url_to_local_path(final_audio) or final_audio
+        if not _clip_audio_matches_timeline(window, latest_timeline):
+            stale.append(f"C{window_index}")
+            continue
         if str(status or "").upper() != "READY" or not drive_path or not Path(drive_path).is_file() or not final_path or not Path(final_path).is_file():
             missing.append(f"C{window_index}")
+    if stale:
+        raise HTTPException(status_code=400, detail=f"Clip Audio 与当前 Audio Timeline 不匹配：{' / '.join(stale)}，请重建 Clip Audio。")
     if missing:
         raise HTTPException(status_code=400, detail=f"Clip Audio 未 READY：{' / '.join(missing)}，请先在音频生成页构建 drive/final 音频。")
 
@@ -2364,7 +2423,7 @@ async def recommend_video_mode(
     audio_timeline = audio_repo.latest_timeline(shot.id)
     if not audio_timeline or audio_timeline.status != "READY":
         raise HTTPException(status_code=400, detail="Audio Timeline 未 READY，请先在音频生成页生成 TTS 并构建 Timeline。")
-    resolved_duration = float(audio_timeline.total_duration or shot.duration or 4)
+    resolved_duration = contract_resolved_duration(shot, audio_timeline)
     try:
         audio_summary = json.loads(audio_timeline.audio_summary_json or "{}")
     except Exception:
@@ -2404,25 +2463,28 @@ async def recommend_video_mode(
     selected_mode = _parse_recommended_mode(result.get("content") or "{}", duration, workflow_capability)
     max_clip_duration = workflow_capability["max_clip_duration"]
     parsed_result = {"recommended_mode": selected_mode}
+    previous_audio_windows = _collect_audio_clip_sources(existing_plan)
     execution_windows = _build_execution_windows(duration, max_clip_duration, audio_timeline_events) if selected_mode == "MULTI_KEYFRAME" else []
     preserved_window_plans = _preserve_matching_clip_audio_fields(
         [dict(window) for window in execution_windows],
-        existing_plan.get("window_plans") or existing_plan.get("execution_windows") or [],
+        previous_audio_windows,
     ) if selected_mode == "MULTI_KEYFRAME" else []
     if selected_mode == "FIRST_LAST_FRAME":
-        clips = _build_first_last_clip_plan(duration)
+        clips = _preserve_matching_clip_audio_fields(_build_first_last_clip_plan(duration), previous_audio_windows)
     else:
-        clips = [] if selected_mode == "MULTI_KEYFRAME" else _build_clip_plan(duration, max_clip_duration)
+        clips = [] if selected_mode == "MULTI_KEYFRAME" else _preserve_matching_clip_audio_fields(_build_clip_plan(duration, max_clip_duration), previous_audio_windows)
     keyframes = _build_minimal_keyframes(shot, selected_mode, max_clip_duration, duration=duration)
     plan = _merge_video_director_plan(shot, {
         "selected_mode": selected_mode,
         "recommended_mode": selected_mode,
         "recommended_label": VIDEO_MODE_LABELS[selected_mode],
-        "recommendation_reason": _build_video_mode_reason(shot, selected_mode, workflow_capability),
+        "recommendation_reason": _build_video_mode_reason(shot, selected_mode, workflow_capability, duration=duration),
         "workflow_capability": workflow_capability,
         "audio_timeline": {
             "id": audio_timeline.id,
             "revision": audio_timeline.revision,
+            "source_hash": audio_timeline.generated_from_hash,
+            "audio_required_duration": audio_timeline.audio_required_duration,
             "resolved_duration": round(resolved_duration, 3),
             "audio_summary": audio_summary,
             "events": audio_timeline_events,
@@ -2447,6 +2509,8 @@ async def recommend_video_mode(
             "audio_timeline": {
                 "id": audio_timeline.id,
                 "revision": audio_timeline.revision,
+                "source_hash": audio_timeline.generated_from_hash,
+                "audio_required_duration": audio_timeline.audio_required_duration,
                 "resolved_duration": round(resolved_duration, 3),
                 "audio_summary": audio_summary,
                 "events": audio_timeline_events,
@@ -2489,7 +2553,7 @@ async def plan_video_keyframes(
 
     plan = _safe_json_dict(shot.video_director_plan)
     plan_for_keyframe_reuse = dict(plan)
-    previous_audio_windows = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+    previous_audio_windows = _collect_audio_clip_sources(plan)
     selected_mode = plan.get("selected_mode") or plan.get("recommended_mode")
     if selected_mode not in {"FIRST_LAST_FRAME", "MULTI_KEYFRAME"}:
         raise HTTPException(status_code=400, detail="当前模式不需要 #08 关键帧时间轴规划。")
@@ -2509,7 +2573,7 @@ async def plan_video_keyframes(
     max_clip_duration = int(workflow_capability.get("max_clip_duration") or 15)
     audio_timeline = plan.get("audio_timeline") if isinstance(plan.get("audio_timeline"), dict) else {}
     plan_audio_events = audio_timeline.get("events") if isinstance(audio_timeline.get("events"), list) else []
-    duration = float(audio_timeline.get("resolved_duration") or shot.duration or 4)
+    duration = _plan_resolved_duration(shot, plan)
     if selected_mode == "FIRST_LAST_FRAME" and duration > max_clip_duration:
         raise HTTPException(status_code=400, detail=f"当前 Workflow 单次最大 {max_clip_duration}s，本 Shot {duration}s，请使用多关键帧。")
     execution_windows = plan.get("execution_windows") if isinstance(plan.get("execution_windows"), list) else []
@@ -2638,7 +2702,7 @@ async def plan_video_keyframes(
         "keyframes": keyframes,
         "transitions": [],
         "window_plans": [] if selected_mode == "FIRST_LAST_FRAME" else window_plans,
-        "clips": _build_first_last_clip_plan(duration) if selected_mode == "FIRST_LAST_FRAME" else [],
+        "clips": _preserve_matching_clip_audio_fields(_build_first_last_clip_plan(duration), previous_audio_windows) if selected_mode == "FIRST_LAST_FRAME" else [],
         "validation": validation,
     })
     plan.pop("task_error_message", None)
@@ -2712,10 +2776,16 @@ async def save_video_director_plan(
         raise HTTPException(status_code=404, detail="分镜不存在")
 
     updates = request.model_dump(exclude_unset=True)
+    expected_revision = updates.pop("expected_revision", None)
+    try:
+        VideoDirectorPlanService.assert_user_plan_payload_allowed(updates)
+    except PlanOwnershipError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     plan = _merge_video_director_plan(shot, updates)
-    duration = shot.duration or 4
+    duration = _plan_resolved_duration(shot, plan)
     max_clip_duration = _safe_json_dict(plan.get("workflow_capability")).get("max_clip_duration", 15)
     if updates.get("selected_mode"):
+        previous_audio_windows = _collect_audio_clip_sources(_safe_json_dict(shot.video_director_plan))
         plan["first_last_available"] = duration <= max_clip_duration
         if updates["selected_mode"] == "MULTI_KEYFRAME":
             if not plan.get("execution_windows"):
@@ -2728,14 +2798,83 @@ async def save_video_director_plan(
         elif updates["selected_mode"] == "FIRST_LAST_FRAME":
             plan["execution_windows"] = []
             plan["window_plans"] = []
-            plan["clips"] = _build_first_last_clip_plan(duration)
+            plan["clips"] = _preserve_matching_clip_audio_fields(_build_first_last_clip_plan(duration), previous_audio_windows)
+        elif updates["selected_mode"] == "SINGLE_FRAME":
+            plan["execution_windows"] = []
+            plan["window_plans"] = []
+            plan["clips"] = _preserve_matching_clip_audio_fields(_build_clip_plan(duration, max_clip_duration), previous_audio_windows)
         if updates["selected_mode"] in {"FIRST_LAST_FRAME", "MULTI_KEYFRAME"} and not plan.get("keyframes"):
             plan["keyframes"] = _build_minimal_keyframes(shot, updates["selected_mode"], max_clip_duration, duration=_plan_resolved_duration(shot, plan))
     repo_updates = {"video_director_plan": plan}
     if updates.get("selected_mode") == "FIRST_LAST_FRAME":
         repo_updates["keyframes"] = _build_legacy_keyframes_from_plan(shot, plan.get("keyframes") or [])
-    shot_repo.update(shot, **repo_updates)
-    return {"success": True, "data": plan}
+    try:
+        plan, revision = VideoDirectorPlanService(shot_repo.db).replace_structure(shot.id, plan, expected_revision)
+    except PlanRevisionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    shot_repo.db.refresh(shot)
+    if repo_updates.keys() - {"video_director_plan"}:
+        shot_repo.update(shot, **{key: value for key, value in repo_updates.items() if key != "video_director_plan"})
+    return {"success": True, "data": plan, "revision": revision}
+
+
+@router.patch(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/video-director/prompt",
+    response_model=dict,
+)
+async def patch_video_director_prompt(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    request: PatchVideoPromptRequest,
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+    try:
+        plan, revision = VideoDirectorPlanService(shot_repo.db).patch_clip_prompt(
+            shot.id,
+            request.collection,
+            request.index,
+            request.prompt_text,
+        )
+    except PlanRevisionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return {"success": True, "data": plan, "revision": revision}
+
+
+@router.patch(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/video-director/keyframe-description",
+    response_model=dict,
+)
+async def patch_video_director_keyframe_description(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    request: PatchVideoKeyframeDescriptionRequest,
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+    try:
+        plan, revision = VideoDirectorPlanService(shot_repo.db).patch_keyframe_description(
+            shot.id,
+            request.index,
+            request.description,
+        )
+    except PlanRevisionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return {"success": True, "data": plan, "revision": revision}
 
 
 @router.post(
@@ -2797,7 +2936,7 @@ async def generate_video_director_clip(
         novel_id=novel_id,
         chapter_id=chapter_id,
         shot_index=shot.index,
-        shot_duration=shot.duration or 4,
+        shot_duration=_plan_resolved_duration(shot, plan),
         chapter_title=chapter.title,
         workflow_id=workflow.id,
         workflow_name=workflow.name,
@@ -2814,6 +2953,7 @@ async def generate_video_director_clip(
         task.id,
         novel_id,
         chapter_id,
+        shot.id,
         shot.index,
         workflow.id,
         shot.image_url,
@@ -2894,7 +3034,7 @@ async def generate_shot_video(
         raise HTTPException(status_code=400, detail=f"分镜 {shot_id} 不存在")
 
     shot_index = shot.index
-    shot_duration = shot.duration or 4
+    shot_duration = visual_required_duration(shot)
 
     # 检查是否有已生成的分镜图片
     shot_image_url = shot.image_url
@@ -2928,6 +3068,7 @@ async def generate_shot_video(
         task_repo.delete(failed_task)
 
     video_director_plan = _sync_latest_audio_timeline_into_plan(shot, shot_repo)
+    shot_duration = _plan_resolved_duration(shot, video_director_plan)
     selected_mode = request.selected_mode or video_director_plan.get("selected_mode") or "SINGLE_FRAME"
     expected_workflow_type = "video"
     if selected_mode == "FIRST_LAST_FRAME":
@@ -3018,6 +3159,7 @@ async def generate_shot_video(
         task.id,
         novel_id,
         chapter_id,
+        shot.id,
         shot_index,
         workflow.id,
         shot_image_url,
@@ -4245,24 +4387,24 @@ async def batch_update_shots(
 
         # 构建更新数据
         update_data = {}
-        for key in ["description", "video_description", "shot_image_prompt", "characters", "scene", "props", "duration", "estimated_duration", "continuity_mode", "video_director_plan", "dialogues"]:
+        if "video_director_plan" in shot_data:
+            raise HTTPException(status_code=400, detail="batch_update_shots 不允许整份写入 video_director_plan，请使用 Video Director 专用 patch 接口")
+
+        for key in ["description", "video_description", "shot_image_prompt", "characters", "scene", "props", "duration", "estimated_duration", "continuity_mode", "dialogues"]:
             if key in shot_data:
                 update_data[key] = shot_data[key]
 
-        if update_data:
-            updated_shot = shot_repo.update(shot, **update_data)
-            audio_events = shot_data.get("audio_events") or shot_data.get("audioEvents")
-            if isinstance(audio_events, list):
-                from app.repositories.audio_drive import AudioDriveRepository
-                audio_events = [
-                    {**event, "tts_status": "STALE", "ttsStatus": "STALE"}
-                    for event in audio_events
-                    if isinstance(event, dict)
-                ]
-                AudioDriveRepository(shot_repo.db).replace_events(shot.id, audio_events)
+        updated_shot = shot_repo.update(shot, **update_data) if update_data else shot
+        audio_events = shot_data.get("audio_events") if "audio_events" in shot_data else shot_data.get("audioEvents")
+        if isinstance(audio_events, list):
+            from app.repositories.audio_drive import AudioDriveRepository
+            audio_repo = AudioDriveRepository(shot_repo.db)
+            audio_repo.sync_events(shot.id, audio_events)
+            if audio_repo.last_sync_timeline_stale:
                 updated_shot.audio_status = "STALE"
                 shot_repo.db.commit()
-                shot_repo.db.refresh(updated_shot)
+            shot_repo.db.refresh(updated_shot)
+        if update_data or isinstance(audio_events, list):
             updated_shots.append(shot_repo.to_response(updated_shot))
 
     return {

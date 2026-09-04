@@ -3,7 +3,10 @@ Task Repository 层
 
 封装任务相关的数据库查询逻辑
 """
+from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
+import json
+import uuid
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 
@@ -51,6 +54,90 @@ class TaskRepository:
     def get_by_id(self, task_id: str) -> Optional[Task]:
         """根据 ID 获取任务"""
         return self.db.query(Task).filter(Task.id == task_id).first()
+
+    def claim_pending_task(self, task_type: str, worker_id: str) -> Optional[Task]:
+        candidate = self.db.query(Task).filter(
+            Task.type == task_type,
+            Task.status == "pending",
+        ).order_by(Task.created_at.asc()).first()
+        if not candidate:
+            return None
+
+        now = datetime.utcnow()
+        claim_token = str(uuid.uuid4())
+        updated = self.db.query(Task).filter(
+            Task.id == candidate.id,
+            Task.status == "pending",
+        ).update({
+            "status": "running",
+            "worker_id": worker_id,
+            "claim_token": claim_token,
+            "claimed_at": now,
+            "heartbeat_at": now,
+            "started_at": candidate.started_at or now,
+            "attempt": (candidate.attempt or 0) + 1,
+            "current_step": candidate.current_step or "任务已领取",
+        }, synchronize_session=False)
+        if updated != 1:
+            self.db.rollback()
+            return None
+        self.db.commit()
+        return self.get_by_id(candidate.id)
+
+    def task_claim_is_current(self, task_id: str, claim_token: str) -> bool:
+        return self.db.query(Task).filter(
+            Task.id == task_id,
+            Task.status == "running",
+            Task.claim_token == claim_token,
+        ).first() is not None
+
+    def heartbeat_task(self, task_id: str, claim_token: str) -> bool:
+        updated = self.db.query(Task).filter(
+            Task.id == task_id,
+            Task.status == "running",
+            Task.claim_token == claim_token,
+        ).update({"heartbeat_at": datetime.utcnow()}, synchronize_session=False)
+        self.db.commit()
+        return updated == 1
+
+    def update_claimed_task(self, task_id: str, claim_token: str, fields: Dict[str, Any]) -> bool:
+        updated = self.db.query(Task).filter(
+            Task.id == task_id,
+            Task.status == "running",
+            Task.claim_token == claim_token,
+        ).update({**fields, "heartbeat_at": datetime.utcnow()}, synchronize_session=False)
+        if updated == 1:
+            self.db.commit()
+            return True
+        self.db.rollback()
+        return False
+
+    def recover_stale_running_tasks(self, task_type: str, stale_timeout_seconds: int) -> int:
+        cutoff = datetime.utcnow() - timedelta(seconds=stale_timeout_seconds)
+        tasks = self.db.query(Task).filter(
+            Task.type == task_type,
+            Task.status == "running",
+            or_(Task.heartbeat_at == None, Task.heartbeat_at < cutoff),
+        ).all()
+        for task in tasks:
+            metadata = {}
+            try:
+                metadata = json.loads(task.metadata_json or "{}") if task.metadata_json else {}
+            except Exception:
+                metadata = {}
+            metadata["recovered_from_stale_lease"] = True
+            metadata["previous_worker_id"] = task.worker_id
+            metadata["previous_claimed_at"] = task.claimed_at.isoformat() if task.claimed_at else None
+            task.status = "pending"
+            task.worker_id = None
+            task.claim_token = None
+            task.claimed_at = None
+            task.heartbeat_at = None
+            task.current_step = "等待恢复处理"
+            task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+        if tasks:
+            self.db.commit()
+        return len(tasks)
     
     def get_active_by_character(self, character_id: str) -> Optional[Task]:
         """获取角色进行中的任务"""
@@ -208,6 +295,8 @@ class TaskRepository:
         )
         if shot_id:
             task = query.filter(Task.shot_id == shot_id).first()
+            if task_type == "shot_video":
+                return task
             if task:
                 return task
         return query.filter(Task.name == expected_name).first()
@@ -229,6 +318,8 @@ class TaskRepository:
         )
         if shot_id:
             task = query.filter(Task.shot_id == shot_id).first()
+            if task_type == "shot_video":
+                return task
             if task:
                 return task
         return query.filter(Task.name == f"生成视频: 镜{shot_index}").first()

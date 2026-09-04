@@ -29,6 +29,7 @@ class Shot(Base):
     audio_status = Column(String, default="NOT_READY", index=True)  # AudioDrive: NOT_READY/READY/STALE/FAILED
     continuity_mode = Column(String, default="NORMAL")  # NORMAL/CONTINUOUS_TAKE
     video_director_plan = Column(Text, default="{}")  # 视频导演模式推荐、关键帧、转场和 Clips
+    video_director_plan_revision = Column(Integer, default=0, nullable=False)
 
     # 图片资源
     image_url = Column(String, nullable=True)

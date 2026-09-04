@@ -134,6 +134,80 @@ def _dialogue_speaker(dialogue: dict) -> str:
     return str(dialogue.get("character_name") or dialogue.get("speaker") or dialogue.get("character") or "").strip()
 
 
+def _speaker_name(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def build_clip_subject_manifest(shot, speaker_timeline: list, character_appearances: Optional[dict] = None, character_refs: Optional[dict] = None) -> dict:
+    characters = safe_json_list(shot.characters)
+    appearances = character_appearances or {}
+    visible_names = []
+    for name in characters:
+        name = _speaker_name(name)
+        if name and name not in visible_names:
+            visible_names.append(name)
+    subjects = []
+    for index, name in enumerate(visible_names, 1):
+        character_ref = (character_refs or {}).get(name) or {}
+        subjects.append({
+            "subject_ref": f"<Subject {index}>",
+            "character_id": character_ref.get("id"),
+            "character_name": name,
+            "debug_source": "shot.characters",
+            "appearance": appearances.get(name),
+        })
+    return {"subjects": subjects}
+
+
+def resolve_speaker_timeline_for_h3(speaker_timeline: list, subject_manifest: dict, clip: dict) -> tuple[list, list]:
+    issues = []
+    clip_start = float((clip or {}).get("start_time") or 0)
+    clip_end = float((clip or {}).get("end_time") or clip_start)
+    clip_duration = max(0.0, clip_end - clip_start)
+    by_id = {
+        str(subject.get("character_id")): subject
+        for subject in (subject_manifest or {}).get("subjects") or []
+        if isinstance(subject, dict) and subject.get("character_id")
+    }
+    by_name = {
+        _speaker_name(subject.get("character_name")): subject
+        for subject in (subject_manifest or {}).get("subjects") or []
+        if isinstance(subject, dict) and subject.get("character_name")
+    }
+    resolved = []
+    last_end = 0.0
+    for segment in speaker_timeline or []:
+        if not isinstance(segment, dict):
+            continue
+        try:
+            start = float(segment.get("start_time") if segment.get("start_time") is not None else segment.get("startTime") or 0)
+            end = float(segment.get("end_time") if segment.get("end_time") is not None else segment.get("endTime") or 0)
+        except (TypeError, ValueError):
+            issues.append({"code": "INVALID_SPEAKER_TIMELINE", "segment": segment, "blocking": True})
+            continue
+        speaker = _speaker_name(segment.get("visible_speaker") or segment.get("visibleSpeaker") or "NONE") or "NONE"
+        speaker_character_id = segment.get("visible_speaker_character_id") or segment.get("visibleSpeakerCharacterId")
+        if start < -0.001 or end <= start or end > clip_duration + 0.001 or start < last_end - 0.001:
+            issues.append({"code": "INVALID_SPEAKER_TIMELINE", "speaker": speaker, "start": start, "end": end, "blocking": True})
+        last_end = max(last_end, end)
+        event_type = str(segment.get("event_type") or segment.get("type") or "").upper()
+        if event_type in {"NARRATION", "INNER_MONOLOGUE", "OFFSCREEN_DIALOGUE"} and speaker != "NONE":
+            issues.append({"code": "INVALID_AUDIO_SPEAKER_SEMANTICS", "speaker": speaker, "start": start, "end": end, "blocking": True})
+            speaker_ref = "NONE"
+        elif speaker == "NONE":
+            speaker_ref = "NONE"
+        else:
+            subject = by_id.get(str(speaker_character_id)) if speaker_character_id else None
+            subject = subject or by_name.get(speaker)
+            if not subject:
+                issues.append({"code": "UNRESOLVED_VISIBLE_SPEAKER", "speaker": speaker, "start": start, "end": end, "blocking": True})
+                speaker_ref = speaker
+            else:
+                speaker_ref = subject["subject_ref"]
+        resolved.append({"start_time": round(start, 3), "end_time": round(end, 3), "visible_speaker": speaker_ref, "source_speaker": speaker})
+    return resolved, issues
+
+
 def _estimate_dialogue_seconds(text: str, emotion_prompt: str = "") -> float:
     chinese_chars = len(re.findall(r"[\u4e00-\u9fff]", text or ""))
     other_words = len(re.findall(r"[A-Za-z0-9]+", text or ""))
@@ -264,6 +338,42 @@ def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_c
     }
 
 
+def audit_audiodrive_h3_prompt(final_prompt: str, speaker_timeline: list, subject_manifest: dict, resolution_issues: Optional[list] = None, dialogue_texts: Optional[list[str]] = None) -> dict:
+    issues = list(resolution_issues or [])
+    known_subjects = {
+        subject.get("subject_ref")
+        for subject in (subject_manifest or {}).get("subjects") or []
+        if isinstance(subject, dict) and subject.get("subject_ref")
+    }
+    for subject_ref in sorted(set(re.findall(r"<Subject\s+\d+>", final_prompt or ""))):
+        if subject_ref not in known_subjects:
+            issues.append({"code": "UNKNOWN_SUBJECT_REFERENCE", "subject_ref": subject_ref, "blocking": True})
+    for segment in speaker_timeline or []:
+        if not isinstance(segment, dict):
+            continue
+        speaker = segment.get("visible_speaker") or "NONE"
+        if speaker != "NONE" and speaker not in known_subjects:
+            issues.append({"code": "UNKNOWN_SUBJECT_REFERENCE", "subject_ref": speaker, "blocking": True})
+        if speaker != "NONE" and speaker in known_subjects and speaker not in (final_prompt or ""):
+            issues.append({"code": "MISSING_SUBJECT_REFERENCE_IN_PROMPT", "subject_ref": speaker, "blocking": True})
+        if speaker == "NONE" and re.search(r"NONE[^\n。；;]*(<Subject\s+\d+>|张嘴|说话|口型|lip-sync|lip sync|mouth)", final_prompt or "", re.IGNORECASE):
+            issues.append({"code": "NONE_SEGMENT_LIPSYNC_CONTRADICTION", "blocking": True})
+    speech_verbs = r"(speak|speaks|say|says|read|reads|朗读|说出|说：|台词|念出)"
+    for text in dialogue_texts or []:
+        text = str(text or "").strip()
+        if text and text in (final_prompt or "") and re.search(speech_verbs, final_prompt or "", re.IGNORECASE):
+            issues.append({"code": "DIALOGUE_TEXT_LEAKAGE", "text": text, "blocking": True})
+    blocking = [issue for issue in issues if issue.get("blocking")]
+    return {
+        "source": "AudioDrive",
+        "subject_manifest": subject_manifest,
+        "speaker_timeline_segments": len(speaker_timeline or []),
+        "issues": issues,
+        "blocking_issues": blocking,
+        "passed": not blocking,
+    }
+
+
 def _render_continuity_lock(shot, selected_mode: str, clip: dict | None) -> str:
     if (shot.continuity_mode or "NORMAL") != "CONTINUOUS_TAKE":
         return ""
@@ -292,6 +402,7 @@ def _build_deterministic_h3_prompt(
     transitions: list,
     speaker_timeline: list,
     audio_drive_context: dict,
+    subject_manifest: Optional[dict] = None,
 ) -> str:
     clip_start = float(clip.get("start_time") or 0)
     clip_end = float(clip.get("end_time") or shot.duration or 0)
@@ -319,6 +430,12 @@ def _build_deterministic_h3_prompt(
         for transition in transitions:
             if isinstance(transition, dict):
                 lines.append(transition.get("transition_description") or "Maintain smooth continuous motion between adjacent pictures.")
+    subjects = (subject_manifest or {}).get("subjects") or []
+    if subjects:
+        lines.extend(["", "subject_manifest:"])
+        for subject in subjects:
+            if isinstance(subject, dict):
+                lines.append(f"{subject.get('subject_ref')}: character={subject.get('character_name') or 'UNKNOWN'}")
     if speaker_timeline:
         lines.extend(["", "speaker_timeline:"])
         for segment in speaker_timeline:
@@ -383,7 +500,20 @@ async def build_h3_video_prompt(
     audio_drive_context = audio_drive_context or {}
     shot_characters = safe_json_list(shot.characters)
     character_appearances = character_appearances or {}
-    clip_motion_directive = _build_clip_motion_directive(shot, clip, transitions, speaker_timeline) if is_multi_clip else (shot.video_description or shot.description or "")
+    character_refs = {}
+    if shot_characters:
+        try:
+            from app.models.novel import Character
+            for character in db.query(Character).filter(Character.novel_id == novel.id, Character.name.in_(shot_characters)).all():
+                character_refs[character.name] = {"id": character.id, "name": character.name}
+        except Exception:
+            character_refs = {}
+    subject_manifest = build_clip_subject_manifest(shot, speaker_timeline, character_appearances, character_refs)
+    h3_speaker_timeline, resolution_issues = resolve_speaker_timeline_for_h3(speaker_timeline, subject_manifest, clip)
+    if resolution_issues:
+        audit = audit_audiodrive_h3_prompt("", h3_speaker_timeline, subject_manifest, resolution_issues)
+        raise RuntimeError(json.dumps(audit, ensure_ascii=False))
+    clip_motion_directive = _build_clip_motion_directive(shot, clip, transitions, h3_speaker_timeline) if is_multi_clip else (shot.video_description or shot.description or "")
     payload = {
         "shot": {
             "id": shot.id,
@@ -400,7 +530,8 @@ async def build_h3_video_prompt(
         "selected_mode": selected_mode,
         "clip": clip,
         "motion_directive": clip_motion_directive,
-        "speaker_timeline": speaker_timeline,
+        "speaker_timeline": h3_speaker_timeline,
+        "subject_manifest": subject_manifest,
         "audio_drive_context": audio_drive_context,
         "frames": frames,
         "keyframes": sanitized_keyframes,
@@ -447,21 +578,22 @@ async def build_h3_video_prompt(
             clip=clip,
             keyframes=keyframes,
             transitions=transitions,
-            speaker_timeline=speaker_timeline,
+            speaker_timeline=h3_speaker_timeline,
             audio_drive_context=audio_drive_context,
+            subject_manifest=subject_manifest,
         )
         continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
         if continuity_lock:
             final_prompt = f"{continuity_lock}\n\n{final_prompt}"
-        dialogue_audit = {
-            "source": "AudioDrive",
+        dialogue_audit = audit_audiodrive_h3_prompt(final_prompt, h3_speaker_timeline, subject_manifest, resolution_issues)
+        dialogue_audit.update({
             "fallback": "deterministic_prompt",
             "fallback_error": error,
-            "speaker_timeline_segments": len(speaker_timeline),
             "audio_drive_context": audio_drive_context,
             "audio_mode": audio_drive_context.get("audio_mode"),
-            "passed": True,
-        }
+        })
+        if not dialogue_audit.get("passed"):
+            raise RuntimeError(json.dumps(dialogue_audit, ensure_ascii=False))
         append_video_ai_call(shot, {
             "step": step,
             "task_type": template_type,
@@ -484,13 +616,13 @@ async def build_h3_video_prompt(
     continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
     if continuity_lock:
         final_prompt = f"{continuity_lock}\n\n{final_prompt}"
-    dialogue_audit = {
-        "source": "AudioDrive",
-        "speaker_timeline_segments": len(speaker_timeline),
+    dialogue_audit = audit_audiodrive_h3_prompt(final_prompt, h3_speaker_timeline, subject_manifest, resolution_issues)
+    dialogue_audit.update({
         "audio_drive_context": audio_drive_context,
         "audio_mode": audio_drive_context.get("audio_mode"),
-        "passed": True,
-    }
+    })
+    if not dialogue_audit.get("passed"):
+        raise RuntimeError(json.dumps(dialogue_audit, ensure_ascii=False))
     append_video_ai_call(shot, {
         "step": step,
         "task_type": template_type,

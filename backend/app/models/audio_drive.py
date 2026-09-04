@@ -66,6 +66,7 @@ class ShotAudioTimeline(Base):
     shot_id = Column(String, ForeignKey("shots.id"), nullable=False, index=True)
     revision = Column(Integer, nullable=False, default=1)
     total_duration = Column(Float, nullable=False, default=0)
+    audio_required_duration = Column(Float, nullable=True)
     status = Column(String, default="NOT_READY", index=True)
     generated_from_hash = Column(String, nullable=True, index=True)
     audio_summary_json = Column(Text, nullable=True)
