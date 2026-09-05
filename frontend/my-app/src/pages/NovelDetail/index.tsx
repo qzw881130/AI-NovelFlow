@@ -46,18 +46,18 @@ function ChapterRow({ chapter, index, novelId, selected, onToggleSelect, getStat
     : (chapter.content || '').replace(/\s/g, '').length;
   const videoUrl = getChapterVideoUrl(chapter);
   return (
-    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
-      <div className="flex items-center gap-4">
+    <div className="flex min-w-0 flex-col gap-3 p-3 sm:p-4 xl:flex-row xl:items-center xl:justify-between bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+      <div className="flex min-w-0 items-start gap-2 sm:gap-4 xl:items-center">
         <input
           type="checkbox"
           checked={selected}
           onChange={onToggleSelect}
-          className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          className="mt-1 h-5 w-5 shrink-0 rounded border-gray-300 text-primary-600 focus:ring-primary-500 xl:mt-0 xl:h-4 xl:w-4"
           aria-label={`选择章回 ${chapter.title}`}
         />
-        <span className="text-sm font-medium text-gray-400 w-8">{String(index + 1).padStart(2, '0')}</span>
-        <StatusIcon status={chapter.status} iconInfo={iconInfo} />
-        <div>
+        <span className="min-w-[2ch] shrink-0 text-sm font-medium text-gray-400 sm:min-w-[2rem]">{String(index + 1).padStart(2, '0')}</span>
+        <span className="shrink-0"><StatusIcon status={chapter.status} iconInfo={iconInfo} /></span>
+        <div className="min-w-0 [overflow-wrap:anywhere]">
           <h3 className="font-medium text-gray-900">{chapter.title}</h3>
           <p className="text-xs text-gray-500">{contentLength.toLocaleString()} 字 · {getStatusText(chapter.status)}{chapter.progress > 0 && ` · ${chapter.progress}%`}</p>
           {videoUrl && (
@@ -72,7 +72,7 @@ function ChapterRow({ chapter, index, novelId, selected, onToggleSelect, getStat
           )}
         </div>
       </div>
-      <div className="flex gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end xl:shrink-0 [&>a]:min-h-[44px] [&>button]:min-h-[44px] xl:[&>a]:min-h-0 xl:[&>button]:min-h-0">
         {videoUrl && (
           <>
             <button onClick={() => onPlayVideo(chapter)} className="btn-secondary text-sm py-1.5 px-3" title="播放章回视频">
@@ -112,16 +112,16 @@ export default function NovelDetail() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link to="/novels" className="p-2 text-gray-400 hover:text-gray-600 transition-colors"><ArrowLeft className="h-5 w-5" /></Link>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">{state.novel.title}</h1>
+    <div className="min-w-0 space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex min-w-0 items-start gap-2 sm:gap-4">
+          <Link to="/novels" aria-label={t('novelDetail.backToNovels')} className="shrink-0 p-3 sm:p-2 text-gray-400 hover:text-gray-600 transition-colors"><ArrowLeft className="h-5 w-5" /></Link>
+          <div className="min-w-0 [overflow-wrap:anywhere]">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{state.novel.title}</h1>
             <p className="text-sm text-gray-500">{state.novel.author} · {state.chapters.length} {t('novelDetail.chapters')}</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end xl:shrink-0 [&>button]:min-h-[44px] xl:[&>button]:min-h-0">
           <button
             onClick={() => state.setShowCreateModal(true)}
             className="btn-primary"
@@ -137,14 +137,14 @@ export default function NovelDetail() {
         </div>
       </div>
 
-      {state.novel.description && <div className="card bg-gray-50"><p className="text-gray-600">{state.novel.description}</p></div>}
+      {state.novel.description && <div className="card bg-gray-50 p-4 sm:p-6"><p className="text-gray-600 [overflow-wrap:anywhere]">{state.novel.description}</p></div>}
 
-      <div className="card">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="card min-w-0 p-3 sm:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <h2 className="text-lg font-semibold text-gray-900">{t('novelDetail.chapterCount', { count: state.chapters.length })}</h2>
             {state.chapters.length > 0 && (
-              <label className="flex items-center gap-2 text-sm text-gray-500">
+              <label className="flex min-h-[44px] items-center gap-2 text-sm text-gray-500 sm:min-h-0">
                 <input
                   type="checkbox"
                   checked={selectedChapterIds.length > 0 && selectedChapterIds.length === state.chapters.length}
@@ -155,7 +155,7 @@ export default function NovelDetail() {
               </label>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center [&>button]:min-h-[44px] xl:[&>button]:min-h-0">
             <button
               onClick={async () => {
                 await state.handleDeleteChapters(selectedChapterIds);
@@ -202,23 +202,23 @@ export default function NovelDetail() {
       <BatchImportModal show={state.showBatchImportModal} novelId={state.id!}
         onClose={() => state.setShowBatchImportModal(false)} onImportComplete={state.handleBatchImportComplete} />
       {playingChapter && getChapterVideoUrl(playingChapter) && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-4xl rounded-xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b px-5 py-4">
-              <div>
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-3 sm:p-4">
+          <div className="flex max-h-[calc(100dvh-2rem)] min-w-0 w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b px-4 sm:px-5 py-3 sm:py-4">
+              <div className="min-w-0 max-h-[20dvh] overflow-y-auto [overflow-wrap:anywhere]">
                 <h3 className="text-lg font-semibold text-gray-900">{playingChapter.title}</h3>
                 <p className="text-xs text-gray-500">
                   {formatDuration(playingChapter.chapterVideoDuration)} · {formatFileSize(playingChapter.chapterVideoSize)} · {playingChapter.chapterVideoShotCount || 0} 镜头
                 </p>
               </div>
-              <button onClick={() => setPlayingChapter(null)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+              <button onClick={() => setPlayingChapter(null)} aria-label={t('common.close')} className="shrink-0 rounded-lg p-3 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="bg-black">
-              <video src={getChapterVideoUrl(playingChapter)} controls autoPlay className="max-h-[70vh] w-full" />
+            <div className="min-h-0 overflow-y-auto bg-black">
+              <video src={getChapterVideoUrl(playingChapter)} controls autoPlay className="max-h-[60dvh] w-full" />
             </div>
-            <div className="flex justify-end gap-2 px-5 py-4">
+            <div className="flex shrink-0 flex-wrap justify-end gap-2 px-4 sm:px-5 py-3 sm:py-4 [&>*]:min-h-[44px] sm:[&>*]:min-h-0">
               <a href={getChapterVideoUrl(playingChapter)} download className="btn-secondary text-sm py-1.5 px-3">
                 <Download className="h-3 w-3 mr-1" />下载视频
               </a>

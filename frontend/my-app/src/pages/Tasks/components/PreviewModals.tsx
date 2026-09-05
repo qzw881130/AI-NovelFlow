@@ -76,44 +76,44 @@ export function ImagePreviewModal({ imageUrl, images = [], currentIndex = 0, onN
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 overflow-y-auto px-3 py-16 sm:px-6" onClick={onClose}>
       {canNavigate && (
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onNavigate?.('prev'); }}
-          className="fixed left-6 top-1/2 -translate-y-1/2 p-3 text-white bg-black/30 hover:bg-white/15 rounded-full transition-all z-10"
+          className="fixed left-2 top-1/2 -translate-y-1/2 p-2 sm:left-6 sm:p-3 text-white bg-black/30 hover:bg-white/15 rounded-full transition-all z-10"
           title="上一个参考图 (←)"
           aria-label="上一个参考图"
         >
-          <ChevronLeft className="h-10 w-10" />
+          <ChevronLeft className="h-7 w-7 sm:h-10 sm:w-10" />
         </button>
       )}
-      <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">
+      <div className="relative min-w-0 max-w-full max-h-[calc(100dvh-8rem)] overflow-y-auto flex flex-col items-center">
         {currentImage?.label && (
-          <div className="mb-3 rounded bg-black/45 px-3 py-1 text-sm text-white">
+          <div className="mb-3 max-w-full shrink-0 [overflow-wrap:anywhere] rounded bg-black/45 px-3 py-1 text-center text-sm text-white">
             {currentImage.label} · {currentIndex + 1}/{images.length}
           </div>
         )}
         <img
           src={imageUrl}
           alt={t('tasks.preview')}
-          className="max-w-full max-h-[80vh] object-contain rounded-lg"
+          className="min-h-0 max-w-full max-h-[calc(100dvh-12rem)] shrink object-contain rounded-lg"
           onClick={(e) => e.stopPropagation()}
         />
         {info && (
-          <div className="mt-3 text-white text-sm opacity-80 flex items-center gap-4">
+          <div className="mt-3 shrink-0 text-white text-sm opacity-80 flex flex-wrap justify-center items-center gap-x-4 gap-y-1 text-center">
             <span>{t('tasks.dimensions')}: {info.width} × {info.height} px</span>
             {info.size && <span>{t('tasks.size')}: {info.size}</span>}
           </div>
         )}
         {/* 关闭按钮 */}
-        <button onClick={onClose} className="absolute -top-10 right-0 p-2 text-white hover:text-gray-300 transition-colors">
+        <button onClick={onClose} aria-label={t('common.close')} className="fixed top-3 right-3 z-20 min-h-[44px] min-w-[44px] p-2 text-white bg-black/30 rounded-full hover:text-gray-300 transition-colors">
           <X className="h-6 w-6" />
         </button>
         {/* 下载按钮 */}
         <button
           onClick={(e) => { e.stopPropagation(); handleDownload(); }}
-          className="absolute -top-10 right-10 p-2 text-white hover:text-blue-400 transition-colors"
+          className="fixed top-3 right-16 z-20 min-h-[44px] min-w-[44px] p-2 text-white bg-black/30 rounded-full hover:text-blue-400 transition-colors"
           title={t('common.download') || '下载'}
         >
           <Download className="h-6 w-6" />
@@ -123,11 +123,11 @@ export function ImagePreviewModal({ imageUrl, images = [], currentIndex = 0, onN
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onNavigate?.('next'); }}
-          className="fixed right-6 top-1/2 -translate-y-1/2 p-3 text-white bg-black/30 hover:bg-white/15 rounded-full transition-all z-10"
+          className="fixed right-2 top-1/2 -translate-y-1/2 p-2 sm:right-6 sm:p-3 text-white bg-black/30 hover:bg-white/15 rounded-full transition-all z-10"
           title="下一个参考图 (→)"
           aria-label="下一个参考图"
         >
-          <ChevronRight className="h-10 w-10" />
+          <ChevronRight className="h-7 w-7 sm:h-10 sm:w-10" />
         </button>
       )}
     </div>
@@ -142,10 +142,10 @@ interface VideoPreviewModalProps {
 export function VideoPreviewModal({ videoUrl, onClose }: VideoPreviewModalProps) {
   const { t } = useTranslation();
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center w-full">
-        <video src={videoUrl} controls autoPlay className="max-w-full max-h-[80vh] rounded-lg" onClick={(e) => e.stopPropagation()} />
-        <button onClick={onClose} className="absolute -top-10 right-0 p-2 text-white hover:text-gray-300 transition-colors">
+    <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 px-3 py-16 sm:px-6" onClick={onClose}>
+      <div className="relative min-w-0 max-w-full max-h-[calc(100dvh-8rem)] flex flex-col items-center w-full">
+        <video src={videoUrl} controls autoPlay className="max-w-full max-h-[calc(100dvh-8rem)] rounded-lg" onClick={(e) => e.stopPropagation()} />
+        <button onClick={onClose} aria-label={t('common.close')} className="fixed top-3 right-3 min-h-[44px] min-w-[44px] p-2 text-white bg-black/30 rounded-full hover:text-gray-300 transition-colors">
           <X className="h-6 w-6" />
         </button>
       </div>

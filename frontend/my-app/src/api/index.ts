@@ -3,9 +3,8 @@
  * 统一管理 API 基础 URL 和请求配置
  */
 
-export const API_BASE = import.meta.env.VITE_API_URL 
-  ? `${import.meta.env.VITE_API_URL}/api` 
-  : '/api';
+// Keep browser requests on the current origin on every network interface.
+export const API_BASE = '/api';
 
 /**
  * 通用请求封装

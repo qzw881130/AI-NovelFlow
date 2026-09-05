@@ -258,9 +258,9 @@ export default function WorkflowManager({ onRefresh }: WorkflowManagerProps) {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       {/* 导入导出按钮 */}
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end [&>button]:min-w-0 [&>button]:min-h-11 [&>button]:justify-center [&>button]:break-words [&>button>svg]:shrink-0 lg:[&>button]:min-h-0">
         <button
           type="button"
           onClick={handleExportActiveWorkflows}

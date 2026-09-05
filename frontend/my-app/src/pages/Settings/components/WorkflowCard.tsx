@@ -71,14 +71,14 @@ export function WorkflowCard({
     <div 
       className={`p-4 border rounded-lg ${workflow.isActive ? 'border-blue-500 bg-blue-50' : 'border-gray-200 bg-white'}`}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex-1 flex items-start gap-3">
+      <div className="flex flex-col gap-3 lg:flex-row lg:gap-0 items-start justify-between">
+        <div className="min-w-0 w-full flex-1 flex items-start gap-3">
           {/* 类型图标 */}
-          <div className={`p-2 rounded-lg ${typeColor}`}>
+          <div className={`shrink-0 p-2 rounded-lg ${typeColor}`}>
             <TypeIcon className="h-5 w-5" />
           </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1 break-words">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="font-medium">{getWorkflowDisplayName(workflow, t)}</span>
               {workflow.isSystem && (
                 <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">
@@ -101,7 +101,7 @@ export function WorkflowCard({
             )}
             {/* 扩展属性显示 */}
             {workflow.extension && extensionConfigs[workflow.type] && (
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="text-xs text-gray-400">
                   {t(extensionConfigs[workflow.type].labelKey, { defaultValue: extensionConfigs[workflow.type].label })}:
                 </span>
@@ -113,7 +113,7 @@ export function WorkflowCard({
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex max-w-full flex-wrap items-center gap-2 lg:shrink-0 [&>button]:min-h-11 [&>button]:min-w-11 [&>button]:flex [&>button]:items-center [&>button]:justify-center lg:[&>button]:min-h-0 lg:[&>button]:min-w-0">
           {!workflow.isActive && (
             <button
               type="button"

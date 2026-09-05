@@ -1,0 +1,167 @@
+.props-card > .p-4 {
+  overflow-wrap: anywhere;
+}
+
+/* Keep keyboard and touch actions available without requiring hover. */
+.props-card:focus-within > .relative > button {
+  opacity: 1;
+}
+
+@media (hover: none), (max-width: 1023px) {
+  .props-card > .relative > button {
+    opacity: 1;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .props-card > .relative > button.left-12 {
+    left: 3.75rem;
+  }
+
+  .props-card > .relative > button.bottom-2.right-2 {
+    max-width: calc(100% - 7.5rem);
+    justify-content: center;
+  }
+
+  .props-card > .relative > div.top-2.left-2 {
+    top: 3.75rem;
+    max-width: calc(100% - 1rem);
+  }
+}
+
+/* Shared modals render inline; these overrides apply only on the Props route. */
+@media (max-width: 1023px) {
+  .props-header {
+    align-items: flex-start;
+  }
+
+  .props-actions {
+    width: 100%;
+  }
+
+  .props-page .btn-primary,
+  .props-page .btn-secondary {
+    min-height: 44px;
+    justify-content: center;
+    white-space: normal;
+  }
+
+  .props-page button svg {
+    flex-shrink: 0;
+  }
+
+  .props-page .input-field {
+    min-width: 0;
+    max-width: 100%;
+    font-size: 16px;
+  }
+
+  .props-form-modal > div,
+  .props-image-edit > .fixed > div {
+    max-height: calc(100dvh - 2rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    overflow-wrap: anywhere;
+  }
+
+  .props-form-modal > div > .border-b,
+  .props-image-edit .border-b {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: white;
+    gap: 1rem;
+  }
+
+  .props-form-modal .border-b button,
+  .props-image-edit .border-b button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+
+  .props-image-edit .grid > *,
+  .props-image-edit .border-b > div {
+    min-width: 0;
+  }
+
+  .props-image-edit label {
+    min-height: 44px;
+  }
+
+  .props-card > .p-4 button {
+    min-height: 44px;
+  }
+
+  .props-image-preview > .fixed {
+    padding: 1rem;
+  }
+
+  .props-image-preview > .fixed > .relative {
+    width: 100%;
+    max-width: 56rem;
+    max-height: calc(100dvh - 2rem);
+    padding-top: 3rem;
+  }
+
+  .props-image-preview img {
+    min-height: 0;
+    max-height: calc(100dvh - 15rem);
+    flex-shrink: 1;
+  }
+
+  .props-image-preview .absolute.-top-12 {
+    top: 0;
+  }
+
+  .props-image-preview button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .props-image-preview .mt-3 {
+    min-height: 0;
+    max-width: 100%;
+    overflow-y: auto;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+
+  .props-image-preview .mt-3 > .flex {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 639px) {
+  .props-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .props-actions > button {
+    min-width: 0;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .props-form-modal form > .flex,
+  .props-form-modal > div > .flex:not(.border-b) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .props-image-edit .p-6,
+  .props-image-edit .px-6 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .props-image-edit .mt-3 > button {
+    width: 100%;
+  }
+}

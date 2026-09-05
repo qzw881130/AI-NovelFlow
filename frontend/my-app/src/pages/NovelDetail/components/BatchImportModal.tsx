@@ -128,21 +128,21 @@ export function BatchImportModal({ show, novelId, onClose, onImportComplete }: B
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-2xl max-h-[80vh] flex flex-col">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
+      <div className="bg-white rounded-lg min-w-0 w-full max-w-2xl max-h-[calc(100dvh-2rem)] sm:max-h-[80dvh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b">
+        <div className="flex shrink-0 items-center justify-between gap-3 p-4 sm:p-6 border-b">
           <h2 className="text-lg font-semibold text-gray-900">{t('novelDetail.batchImport.title')}</h2>
-          <button onClick={handleClose} className="p-1 text-gray-400 hover:text-gray-600">
+          <button onClick={handleClose} aria-label={t('common.close')} className="shrink-0 p-3 sm:p-1 text-gray-400 hover:text-gray-600">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-4 [overflow-wrap:anywhere]">
           {/* File Selection */}
           {modalState === 'idle' && (
-            <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-400 transition-colors">
+            <div className="flex flex-col items-center justify-center px-3 py-8 text-center border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-400 transition-colors">
               <Upload className="h-10 w-10 text-gray-400 mb-3" />
               <label className="cursor-pointer">
                 <span className="btn-primary inline-flex items-center">
@@ -173,10 +173,10 @@ export function BatchImportModal({ show, novelId, onClose, onImportComplete }: B
           {(modalState === 'preview_done' || modalState === 'importing') && previewData && (
             <>
               {selectedFile && (
-                <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
-                  <FileText className="h-4 w-4" />
-                  <span>{selectedFile.name}</span>
-                  <span className="text-gray-400">({formatFileSize(selectedFile.size)})</span>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-600 bg-gray-50 rounded-lg p-3">
+                  <FileText className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 flex-1">{selectedFile.name}</span>
+                  <span className="text-gray-400 shrink-0">({formatFileSize(selectedFile.size)})</span>
                 </div>
               )}
               <div className="text-sm font-medium text-gray-700">
@@ -188,12 +188,12 @@ export function BatchImportModal({ show, novelId, onClose, onImportComplete }: B
               </div>
               <div className="border rounded-lg max-h-64 overflow-y-auto">
                 {previewData.chapters.map((ch, idx) => (
-                  <div key={idx} className="flex items-center justify-between px-4 py-2 border-b last:border-b-0 hover:bg-gray-50">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-gray-500 w-8">{ch.number}</span>
-                      <span className="text-sm text-gray-900">{ch.title}</span>
+                  <div key={idx} className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-3 sm:px-4 py-2 border-b last:border-b-0 hover:bg-gray-50">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="text-sm font-medium text-gray-500 min-w-[2rem] shrink-0">{ch.number}</span>
+                      <span className="min-w-0 text-sm text-gray-900">{ch.title}</span>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
                       <span className="text-xs text-gray-500">{ch.content_length}{t('novelDetail.batchImport.chars')}</span>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
                         ch.action === 'new'
@@ -287,7 +287,7 @@ export function BatchImportModal({ show, novelId, onClose, onImportComplete }: B
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-3 p-6 border-t">
+        <div className="flex shrink-0 flex-wrap justify-end gap-3 p-4 sm:p-6 border-t [&>button]:min-h-[44px] [&>button]:flex-1 sm:[&>button]:min-h-0 sm:[&>button]:flex-none">
           {(modalState === 'idle' || modalState === 'import_failed') && (
             <>
               <button onClick={handleClose} className="btn-secondary">{t('common.cancel')}</button>

@@ -73,7 +73,7 @@ export function CharacterCard({
   return (
     <div
       id={`character-${character.id}`}
-      className={`bg-white rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-all group ${
+      className={`character-card min-w-0 bg-white rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-all group ${
         highlightedId === character.id
           ? 'ring-4 ring-blue-500 ring-opacity-50 border-blue-500 animate-pulse'
           : character.isNarrator
@@ -215,11 +215,11 @@ export function CharacterCard({
 
       {/* Character Info */}
       <div className="p-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-gray-900 truncate">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="min-w-0 text-lg font-semibold text-gray-900 break-words" title={character.name}>
             {character.name}
           </h3>
-          <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded">
+          <span className="shrink-0 text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded">
             {aspectRatio}
           </span>
         </div>
@@ -267,7 +267,7 @@ export function CharacterCard({
         {/* 生成提示词 */}
         {characterPrompt && (
           <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
               <p className="text-xs text-gray-400">{t('characters.promptLabel')}</p>
               <span className="text-xs text-gray-400">
                 {characterPrompt.isSystem
@@ -298,7 +298,7 @@ export function CharacterCard({
           </div>
 
           {/* 参考音频状态指示 */}
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             {character.referenceAudioUrl ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs">
                 <Mic className="h-3 w-3" />

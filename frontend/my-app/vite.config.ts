@@ -5,11 +5,9 @@ export default defineConfig(({ mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd())
   
-  // 优先使用环境变量 VITE_API_URL
-  // 如果没有设置，开发模式下使用当前访问的 IP:8000（支持局域网访问）
-  // 这样可以避免硬编码 localhost 导致其他设备无法访问
-  const apiUrl = env.VITE_API_URL || 'http://localhost:8000'
-  console.log('apiUrl', apiUrl)
+  // This target is used by Vite, not the browser. Browser requests stay same-origin.
+  const apiUrl = env.VITE_API_URL || 'http://127.0.0.1:8000'
+  console.log('API proxy: /api ->', apiUrl)
   return {
     plugins: [react()],
     server: {
@@ -23,7 +21,8 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': {
           target: apiUrl,
-          changeOrigin: true,
+          // Preserve the public host so FastAPI redirects stay on the browser origin.
+          changeOrigin: false,
           // 重写路径，确保后端接收正确的路径
           rewrite: (path) => path,
           // 配置 WebSocket 支持（如果需要实时通信）

@@ -1,4 +1,5 @@
-import { ScrollText, ChevronLeft, ChevronRight, Filter, Eye, RefreshCw, BarChart3, X, Loader2 } from 'lucide-react';
+import { useId, useState } from 'react';
+import { ScrollText, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Filter, Eye, RefreshCw, BarChart3, X, Loader2 } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import type { LLMLog } from '../../api/llmLogs';
 import { useLLMLogsState } from './hooks/useLLMLogsState';
@@ -136,6 +137,10 @@ function LogTableRow({ log, onView, formatDate, truncateText, getTaskTypeLabel, 
 export default function LLMLogs() {
   const { t } = useTranslation();
   const state = useLLMLogsState();
+  const filtersId = useId();
+  const [filtersCollapsed, setFiltersCollapsed] = useState(() => (
+    typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches
+  ));
 
   return (
     <div className="space-y-6">
@@ -146,12 +151,24 @@ export default function LLMLogs() {
 
       {/* Filters */}
       <div className="card">
-        <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-gray-500" />
             <span className="text-sm font-medium text-gray-700">{t('llmLogs.filterConditions')}</span>
           </div>
-          <div className="flex flex-nowrap items-center gap-2 flex-shrink-0">
+          <button
+            type="button"
+            aria-expanded={!filtersCollapsed}
+            aria-controls={filtersId}
+            onClick={() => setFiltersCollapsed((value) => !value)}
+            className="inline-flex min-h-[44px] shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
+          >
+            {filtersCollapsed ? t('common.expand') : t('common.collapse')}
+            {filtersCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+          </button>
+        </div>
+        <div id={filtersId} hidden={filtersCollapsed}>
+          <div className="mt-3 mb-4 flex flex-wrap items-center justify-end gap-2">
             <label className="text-sm text-gray-600 whitespace-nowrap">{t('llmLogs.autoRefresh')}</label>
             <select
               value={state.autoRefreshInterval}
@@ -164,8 +181,7 @@ export default function LLMLogs() {
               <option value={60000}>{t('llmLogs.autoRefresh1m')}</option>
             </select>
           </div>
-        </div>
-        <div className="flex flex-wrap items-end gap-4 pb-2">
+        <div className="flex flex-wrap items-end gap-4 pb-2 [&>div]:max-w-full">
           <div className="w-[150px] flex-shrink-0">
             <label className="block text-xs text-gray-500 mb-1">{t('llmLogs.llmProvider')}</label>
             <select value={state.filters.provider} onChange={(e) => state.handleFilterChange('provider', e.target.value)} className="input-field text-sm w-full truncate whitespace-nowrap">
@@ -210,6 +226,7 @@ export default function LLMLogs() {
           <button onClick={() => state.fetchLogs()} className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-gray-600 hover:text-gray-700 hover:bg-gray-100 rounded-md transition-colors whitespace-nowrap flex-shrink-0">
             <RefreshCw className="h-4 w-4" />{t('llmLogs.refresh')}
           </button>
+        </div>
         </div>
       </div>
 

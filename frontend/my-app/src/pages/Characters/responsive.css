@@ -1,0 +1,168 @@
+.characters-page {
+  overflow-wrap: anywhere;
+}
+
+.characters-page .input-field,
+.characters-page .character-card > div,
+.characters-page > .fixed > div {
+  min-width: 0;
+}
+
+.characters-page button svg {
+  flex-shrink: 0;
+}
+
+.characters-page > .fixed {
+  margin-top: 0;
+}
+
+.characters-page > .fixed > div {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.characters-page > .fixed > div > .flex > div:first-child {
+  min-width: 0;
+}
+
+.characters-page > .fixed > div > .flex > button {
+  flex-shrink: 0;
+}
+
+.characters-page .character-card .group-hover\:opacity-100:focus-within {
+  opacity: 1;
+}
+
+/* Keep useful card widths when the sidebar consumes tablet space. */
+@media (min-width: 768px) and (max-width: 1279px) {
+  .characters-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* The preview is shared; these overrides apply only to its Characters instance. */
+.characters-preview > .fixed {
+  padding: 3.5rem 1rem 1rem;
+}
+
+.characters-preview > .fixed > div {
+  min-width: 0;
+  max-width: 100%;
+  max-height: calc(100dvh - 4.5rem);
+}
+
+.characters-preview img {
+  min-height: 0;
+  flex-shrink: 1;
+  max-height: calc(100dvh - 12rem);
+}
+
+.characters-preview img ~ .mt-3 {
+  max-width: 100%;
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.characters-preview .text-lg {
+  max-height: 4rem;
+  overflow-y: auto;
+}
+
+.characters-preview .gap-3 {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+@media (max-width: 1023px), (hover: none) {
+  .characters-page .character-card .group-hover\:opacity-100 {
+    opacity: 1;
+  }
+
+  .characters-page .character-card button,
+  .characters-preview button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .characters-page .character-card button.left-12 {
+    left: 3.75rem;
+  }
+
+  .characters-page .character-card > div:first-child > div.top-2:not(.bg-purple-600) {
+    top: 3.75rem;
+  }
+}
+
+@media (max-width: 767px) {
+  .characters-page .characters-voice-modal {
+    display: block;
+  }
+
+  .characters-voice-table,
+  .characters-voice-table tbody {
+    display: block;
+  }
+
+  .characters-voice-table thead {
+    display: none;
+  }
+
+  .characters-voice-table tr {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    padding: 0.75rem;
+  }
+
+  .characters-voice-table td {
+    display: block;
+    min-width: 0;
+    max-width: 100%;
+    padding: 0.5rem;
+    grid-column: 2;
+  }
+
+  .characters-voice-table td:first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .characters-voice-table input[type='checkbox'] {
+    width: 24px;
+    height: 24px;
+  }
+
+  .characters-voice-table audio {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 639px) {
+  .characters-page button {
+    min-height: 44px;
+  }
+
+  .characters-page > .fixed > div {
+    padding: 1rem;
+  }
+
+  .characters-page > .fixed > div > .border-b,
+  .characters-page > .fixed > div > .grid {
+    padding: 0.75rem 0;
+    gap: 1rem;
+  }
+
+  .characters-page > .fixed .justify-end {
+    flex-wrap: wrap;
+  }
+
+  .characters-page > .fixed .justify-end > button {
+    flex: 1 1 100px;
+  }
+
+  .characters-page > .fixed .ml-auto {
+    width: 100%;
+    margin-left: 0;
+  }
+}

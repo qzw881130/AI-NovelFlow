@@ -88,19 +88,19 @@ export function WorkflowViewModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between p-6 border-b border-gray-100 flex-shrink-0 bg-white">
-          <h3 className="text-lg font-semibold text-gray-900">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+      <div className="bg-white rounded-lg w-full min-w-0 max-w-4xl max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden">
+        <div className="flex items-start justify-between gap-2 p-3 sm:p-6 border-b border-gray-100 flex-shrink-0 bg-white">
+          <h3 className="min-w-0 text-lg font-semibold text-gray-900">
             {t('tasks.workflowDetails')}
-            <span className="ml-2 text-sm font-normal text-gray-500">{getTaskLocalizedName()}</span>
+            <span className="block max-h-20 overflow-y-auto [overflow-wrap:anywhere] text-sm font-normal text-gray-500 sm:mt-1">{getTaskLocalizedName()}</span>
           </h3>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600">
+          <button onClick={onClose} aria-label={t('common.close')} className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center p-1 text-gray-400 hover:text-gray-600">
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-6">
           {loadingWorkflow ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
@@ -148,7 +148,7 @@ export function WorkflowViewModal({
                     <Copy className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 h-72 overflow-y-auto">
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 h-48 sm:h-72 overflow-y-auto">
                   <p className="text-sm text-gray-600 font-mono whitespace-pre-wrap break-all">{workflowData.prompt}</p>
                 </div>
               </div>
@@ -166,7 +166,7 @@ export function WorkflowViewModal({
                       <Download className="h-4 w-4" />
                     </button>
                   </div>
-                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                  <div className="min-w-0 max-w-full border border-gray-200 rounded-lg overflow-hidden [&>div>div.flex]:flex-wrap [&>div>div.flex]:gap-2 [&_input]:min-w-0">
                     <JSONEditor
                       value={workflowJsonText}
                       onChange={() => {}}

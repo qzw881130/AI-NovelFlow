@@ -44,14 +44,14 @@ export function SceneCard({
   return (
     <div
       id={`scene-${scene.id}`}
-      className={`bg-white rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-all group ${
+      className={`scene-card min-w-0 bg-white rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-all group ${
         highlightedId === scene.id 
           ? 'ring-4 ring-blue-500 ring-opacity-50 border-blue-500 animate-pulse' 
           : 'border-gray-200'
       }`}
     >
       {/* Scene Image */}
-      <div className="relative aspect-video bg-gray-100 w-full">
+      <div className="scene-card-image relative aspect-video bg-gray-100 w-full">
         {scene.imageUrl ? (
           <img
             src={scene.imageUrl}
@@ -60,7 +60,7 @@ export function SceneCard({
             onClick={() => onImageClick(scene.imageUrl!, scene.name, scene.id)}
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="scene-card-placeholder absolute inset-0 flex items-center justify-center">
             <MapPin className="h-20 w-20 text-gray-300" />
           </div>
         )}
@@ -153,7 +153,7 @@ export function SceneCard({
 
       {/* Scene Info */}
       <div className="p-4">
-        <h3 className="text-lg font-semibold text-gray-900 truncate">
+        <h3 className="text-lg font-semibold text-gray-900 [overflow-wrap:anywhere]" title={scene.name}>
           {scene.name}
         </h3>
         
@@ -200,7 +200,7 @@ export function SceneCard({
         {/* 生成提示词 */}
         {scenePrompt && (
           <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
               <p className="text-xs text-gray-400">{t('scenes.promptLabel')}</p>
               <span className="text-xs text-gray-400">{templateDisplayName}</span>
             </div>

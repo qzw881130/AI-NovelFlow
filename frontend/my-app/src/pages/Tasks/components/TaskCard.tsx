@@ -120,11 +120,11 @@ export function TaskCard({
   };
 
   return (
-    <div className={`p-4 rounded-lg border ${getStatusColor(task.status)} transition-all hover:shadow-md`}>
-      <div className="flex items-start gap-4">
+    <div className={`min-w-0 [overflow-wrap:anywhere] p-3 sm:p-4 rounded-lg border ${getStatusColor(task.status)} transition-all hover:shadow-md`}>
+      <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-3 sm:gap-4 xl:grid-cols-[auto_minmax(0,1fr)_auto]">
         <div className="p-2 bg-white rounded-lg shadow-sm">{getTaskIcon(task.type)}</div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+        <div className="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1">
+          <div className="flex flex-wrap items-center gap-2">
             <h3 className="font-medium text-gray-900">{getTaskDisplayName(task)}</h3>
             <span className="text-xs px-2 py-0.5 bg-white rounded-full">{getTaskTypeName(task.type)}</span>
             {task.workflowName && (
@@ -133,9 +133,9 @@ export function TaskCard({
               </span>
             )}
           </div>
-          <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-500">
+          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
             <span>{t('tasks.taskId')}:</span>
-            <code className="select-all rounded bg-white/70 px-1.5 py-0.5 font-mono text-[11px] text-gray-600">{task.id}</code>
+            <code className="min-w-0 break-all select-all rounded bg-white/70 px-1.5 py-0.5 font-mono text-[11px] text-gray-600">{task.id}</code>
             <button
               type="button"
               onClick={copyTaskId}
@@ -153,9 +153,9 @@ export function TaskCard({
           )}
           {task.status === 'running' && (
             <div className="mt-2">
-              <div className="flex items-center justify-between text-xs mb-1">
+              <div className="flex items-start justify-between gap-2 text-xs mb-1">
                 <span>{task.currentStep || '处理中...'}</span>
-                <span>{task.progress}%</span>
+                <span className="shrink-0">{task.progress}%</span>
               </div>
               <div className="h-2 bg-white rounded-full overflow-hidden">
                 <div className="h-full bg-primary-500 transition-all duration-500" style={{ width: `${task.progress}%` }} />
@@ -223,7 +223,7 @@ export function TaskCard({
           )}
           {isAudioResultTask && task.status !== 'completed' && (
             <div className="mt-3 max-w-2xl rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              <div className="flex items-center gap-2 font-medium">
+              <div className="flex flex-wrap items-center gap-2 font-medium">
                 {task.status === 'running' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
                 <span>{task.status === 'running' ? 'TTS 生成中' : 'TTS 等待中'}</span>
                 <span className="rounded-full bg-white/80 px-2 py-0.5">{task.currentStep || (task.status === 'running' ? '处理中' : '等待 worker 消费')}</span>
@@ -245,7 +245,7 @@ export function TaskCard({
                 {videoDirectorClips.map((clip, clipIndex) => (
                   <div key={`${task.id}-clip-${clip.windowIndex || clipIndex}`} className="rounded-md border border-gray-200 bg-white p-2 text-xs text-gray-700">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
                         <span className="font-medium text-gray-900">Clip {clip.windowIndex || clipIndex + 1}</span>
                         <span className={`rounded-full px-2 py-0.5 ${clipStatusClass(clip.status)}`}>{getClipStatusText(clip.status)}</span>
                         <span>{clip.startTime ?? '-'}s - {clip.endTime ?? '-'}s</span>
@@ -317,11 +317,11 @@ export function TaskCard({
             <div className="mt-2">
               {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' || task.type === 'single_image_edit' ? (
                 <div>
-                  <div className="relative group inline-block">
+                  <div className="relative group inline-block max-w-full">
                     <img
                       src={task.resultUrl}
                       alt={t('tasks.generatedResult')}
-                      className="h-32 w-auto object-contain rounded-lg border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow bg-gray-50"
+                      className="h-32 w-auto max-w-full object-contain rounded-lg border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow bg-gray-50"
                       onClick={() => task.resultUrl && onPreviewImage(task.resultUrl)}
                       onLoad={() => task.resultUrl && fetchImageInfo(task.resultUrl, task.id)}
                       onError={(e) => {
@@ -345,8 +345,8 @@ export function TaskCard({
                 </div>
               ) : task.type === 'shot_video' || task.type === 'chapter_video' || task.type === 'transition_video' ? (
                 <div>
-                  <div className="relative group inline-block cursor-pointer" onClick={() => task.resultUrl && onPreviewVideo(task.resultUrl)}>
-                    <div className="h-32 w-48 bg-gray-900 rounded-lg flex items-center justify-center overflow-hidden">
+                  <div className="relative group inline-block max-w-full cursor-pointer" onClick={() => task.resultUrl && onPreviewVideo(task.resultUrl)}>
+                    <div className="h-32 w-48 max-w-full bg-gray-900 rounded-lg flex items-center justify-center overflow-hidden">
                       <video src={task.resultUrl} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" preload="metadata" />
                       <div className="absolute inset-0 flex items-center justify-center">
                         <div className="w-12 h-12 bg-black bg-opacity-50 rounded-full flex items-center justify-center group-hover:bg-opacity-70 transition-all group-hover:scale-110">
@@ -387,9 +387,9 @@ export function TaskCard({
             {elapsedSeconds !== null && ` · 耗时: ${elapsedSeconds} 秒`}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="col-start-2 row-start-1 flex min-w-0 flex-wrap items-center justify-end gap-1 sm:col-span-2 sm:col-start-1 sm:row-start-2 xl:col-span-1 xl:col-start-3 xl:row-start-1 [&_button]:min-h-[44px] [&_button]:min-w-[44px] [&_svg]:shrink-0">
           {getStatusIcon(task.status)}
-          <span className="text-sm font-medium min-w-[60px]">{getStatusText(task.status)}</span>
+          <span className="text-sm font-medium">{getStatusText(task.status)}</span>
           {task.status === 'failed' && (
             <button onClick={() => onRetry(task.id)} className="p-2 text-gray-400 hover:text-primary-600 transition-colors" title={t('tasks.retry')}>
               <Play className="h-4 w-4" />

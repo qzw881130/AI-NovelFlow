@@ -10,13 +10,15 @@ function LayoutContent() {
     <>
       <Sidebar />
       <main
-        className="min-h-screen transition-all duration-300"
+        id="main-content"
+        tabIndex={-1}
+        className="min-h-screen min-w-0 transition-[margin,width] duration-300 motion-reduce:transition-none"
         style={{
           marginLeft: `${sidebarWidth}px`,
           width: `calc(100% - ${sidebarWidth}px)`
         }}
       >
-        <div className="w-full py-6 px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 pt-6 pb-24 sm:px-6 lg:px-8 lg:pb-6">
           <Outlet />
         </div>
       </main>

@@ -15,6 +15,7 @@ import { ImageEditModal } from '../../components/ImageEditModal';
 import { ALLOWED_IMAGE_TYPES, POLL_CONFIG, ASPECT_RATIO_CLASSES } from './constants';
 import type { PreviewImageState, DeleteAllConfirmDialog, PropPrompt } from './types';
 import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
+import './responsive.css';
 
 export default function Props() {
   const { t } = useTranslation();
@@ -597,7 +598,7 @@ export default function Props() {
   }, { total: 0, generated: 0, notGenerated: 0, running: 0, pending: 0 });
 
   const statCardClass = (filter: typeof statusFilter, className: string) =>
-    `rounded-lg border px-4 py-3 text-left transition hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${className} ${statusFilter === filter ? 'ring-2 ring-primary-500 shadow-sm' : ''}`;
+    `min-w-0 break-words rounded-lg border px-4 py-3 text-left transition hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${className} ${statusFilter === filter ? 'ring-2 ring-primary-500 shadow-sm' : ''}`;
 
   const getNovelAspectRatio = (novelId: string): string => {
     const novel = novels.find(n => n.id === novelId);
@@ -605,14 +606,14 @@ export default function Props() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="props-page min-w-0 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="props-header flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('props.title')}</h1>
           <p className="mt-1 text-sm text-gray-500">{t('props.subtitle')}</p>
         </div>
-        <div className="flex gap-3">
+        <div className="props-actions flex flex-wrap gap-3">
           {filteredProps.length > 0 && (
             <button
               onClick={generateAllPropImages}
@@ -661,7 +662,7 @@ export default function Props() {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-[3]">
+        <div className="relative min-w-0 flex-[3]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -678,7 +679,7 @@ export default function Props() {
             setSelectedNovel(novelId);
             syncSelectedNovel(novelId);
           }}
-          className="input-field flex-1"
+          className="input-field w-full min-w-0 sm:flex-1"
         >
           {novels.map(novel => (
             <option key={novel.id} value={novel.id}>{novel.title}</option>
@@ -745,19 +746,22 @@ export default function Props() {
       />
 
       {/* Image Preview Modal */}
-      <ImagePreviewModal
-        isOpen={previewImage.isOpen}
-        url={previewImage.url}
-        name={previewImage.name}
-        showDownload={true}
-        onClose={closeImagePreview}
-        showNavigation={true}
-        totalCount={filteredProps.filter(p => p.imageUrl).length}
-        onPrev={() => navigatePreview('prev')}
-        onNext={() => navigatePreview('next')}
-      />
+      <div className="props-image-preview contents">
+        <ImagePreviewModal
+          isOpen={previewImage.isOpen}
+          url={previewImage.url}
+          name={previewImage.name}
+          showDownload={true}
+          onClose={closeImagePreview}
+          showNavigation={true}
+          totalCount={filteredProps.filter(p => p.imageUrl).length}
+          onPrev={() => navigatePreview('prev')}
+          onNext={() => navigatePreview('next')}
+        />
+      </div>
 
       {imageEditProp?.imageUrl && (
+        <div className="props-image-edit contents">
         <ImageEditModal
           isOpen={Boolean(imageEditProp)}
           itemName={imageEditProp.name}
@@ -786,15 +790,16 @@ export default function Props() {
           onReplace={handleReplaceImage}
           onResultSizeChange={setImageEditResultSize}
         />
+        </div>
       )}
 
       {/* Create Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="props-form-modal fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b flex justify-between items-center">
               <h2 className="text-lg font-semibold">{t('props.createProp')}</h2>
-              <button onClick={() => setShowCreateModal(false)}>
+              <button aria-label={t('common.close')} onClick={() => setShowCreateModal(false)}>
                 <X className="h-5 w-5 text-gray-400" />
               </button>
             </div>
@@ -854,11 +859,11 @@ export default function Props() {
 
       {/* Edit Modal */}
       {editingProp && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="props-form-modal fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b flex justify-between items-center">
               <h2 className="text-lg font-semibold">{t('props.editProp')}</h2>
-              <button onClick={() => setEditingProp(null)}>
+              <button aria-label={t('common.close')} onClick={() => setEditingProp(null)}>
                 <X className="h-5 w-5 text-gray-400" />
               </button>
             </div>
@@ -903,7 +908,7 @@ export default function Props() {
 
       {/* Delete All Confirm Dialog */}
       {deleteAllConfirmDialog.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="props-form-modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('props.deleteAllTitle')}</h3>
             <p className="text-sm text-red-600 mb-6">{t('props.deleteAllConfirm')}</p>

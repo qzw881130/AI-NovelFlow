@@ -1,0 +1,150 @@
+.scenes-page .scenes-actions > button {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  justify-content: center;
+}
+
+.scenes-page button svg {
+  flex-shrink: 0;
+}
+
+.scene-card > div:last-child,
+.scenes-form-modal > div,
+.scenes-image-edit > div > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.scene-card .overflow-y-auto {
+  white-space: pre-wrap;
+  overscroll-behavior: contain;
+}
+
+.scenes-form-modal > div,
+.scenes-image-edit > div > div {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.scenes-form-modal > div > div:first-child,
+.scenes-image-edit > div > div > div:first-child {
+  gap: 1rem;
+}
+
+.scenes-image-edit > div > div > div:first-child > div {
+  min-width: 0;
+}
+
+.scenes-image-edit > div > div > div:first-child > button {
+  flex-shrink: 0;
+}
+
+/* Keep the shared preview's controls and caption within this route's viewport. */
+.scenes-image-preview > div {
+  padding: 4rem 1rem 1rem;
+}
+
+.scenes-image-preview > div > div {
+  min-width: 0;
+  max-width: 100%;
+  max-height: calc(100dvh - 5rem);
+}
+
+.scenes-image-preview img {
+  min-height: 0;
+  flex-shrink: 1;
+  max-height: calc(100dvh - 12rem);
+}
+
+.scenes-image-preview img ~ div {
+  min-width: 0;
+  max-width: 100%;
+  max-height: 6rem;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+.scenes-image-preview img ~ div > div:last-child {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+@media (max-width: 1279px), (hover: none), (pointer: coarse) {
+  /* Touch controls occupy their own row rather than covering the image. */
+  .scene-card-image {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    aspect-ratio: auto;
+    padding-bottom: 0.5rem;
+  }
+
+  .scene-card-image > img,
+  .scene-card-image > .scene-card-placeholder {
+    position: static;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .scene-card-image > button {
+    position: static;
+    min-width: 44px;
+    min-height: 44px;
+    opacity: 1;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    margin-inline: 0.25rem;
+    max-width: calc(100% - 0.5rem);
+    overflow-wrap: anywhere;
+  }
+
+  .scene-card-image > button:last-of-type {
+    flex: 1 1 auto;
+  }
+
+  .scene-card-image > button:disabled {
+    opacity: 0.7;
+  }
+
+  .scene-card > div:last-child button {
+    min-height: 44px;
+  }
+
+  .scenes-actions > button,
+  .scenes-image-preview button,
+  .scenes-image-edit button {
+    min-height: 44px;
+  }
+}
+
+@media (hover: hover) and (min-width: 1280px) {
+  .scene-card:focus-within .scene-card-image > button {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 639px) {
+  .scenes-page .input-field {
+    min-width: 0;
+    max-width: 100%;
+    font-size: 16px;
+  }
+
+  .scenes-page textarea {
+    resize: vertical;
+  }
+
+  .scenes-form-modal .scenes-actions > button {
+    flex: 1 1 0;
+  }
+
+  .scenes-image-edit > div > div > div {
+    padding: 1rem;
+  }
+}

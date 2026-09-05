@@ -3,6 +3,7 @@
  */
 
 import { create } from 'zustand';
+import { API_BASE } from '../api';
 import type { SystemConfig, LLMProvider, LLMProviderPreset, LLMModel, ProxyConfig } from '../types';
 import { 
   DEFAULT_CONFIG, 
@@ -12,9 +13,6 @@ import {
   getApiKeyPlaceholder,
   getApiKeyHelp 
 } from '../constants';
-
-// API 基础 URL
-const API_BASE = import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api';
 
 // 从后端加载配置
 const fetchConfigFromBackend = async () => {

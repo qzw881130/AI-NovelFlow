@@ -15,6 +15,7 @@ import { ImageEditModal } from '../../components/ImageEditModal';
 import { ALLOWED_IMAGE_TYPES, POLL_CONFIG } from './constants';
 import type { ScenePrompt, PreviewImageState, DeleteAllConfirmDialog } from './types';
 import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
+import './scenes.css';
 
 export default function Scenes() {
   const { t } = useTranslation();
@@ -604,17 +605,17 @@ export default function Scenes() {
   }, { total: 0, generated: 0, notGenerated: 0, running: 0, pending: 0 });
 
   const statCardClass = (filter: typeof statusFilter, className: string) =>
-    `rounded-lg border px-4 py-3 text-left transition hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${className} ${statusFilter === filter ? 'ring-2 ring-primary-500 shadow-sm' : ''}`;
+    `min-w-0 [overflow-wrap:anywhere] rounded-lg border px-3 sm:px-4 py-3 text-left transition hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 ${className} ${statusFilter === filter ? 'ring-2 ring-primary-500 shadow-sm' : ''}`;
 
   return (
-    <div className="space-y-6">
+    <div className="scenes-page min-w-0 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-gray-900">{t('scenes.title')}</h1>
           <p className="mt-1 text-sm text-gray-500">{t('scenes.subtitle')}</p>
         </div>
-        <div className="flex gap-3">
+        <div className="scenes-actions grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:gap-3 xl:justify-end">
           {filteredScenes.length > 0 && (
             <button
               onClick={generateAllSceneImages}
@@ -663,7 +664,7 @@ export default function Scenes() {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-[3]">
+        <div className="relative min-w-0 sm:flex-[3]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -680,7 +681,7 @@ export default function Scenes() {
             setSelectedNovel(novelId);
             syncSelectedNovel(novelId);
           }}
-          className="input-field flex-1"
+          className="input-field w-full min-w-0 sm:flex-1"
         >
           {novels.map(novel => (
             <option key={novel.id} value={novel.id}>{novel.title}</option>
@@ -688,7 +689,7 @@ export default function Scenes() {
         </select>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
         <button type="button" onClick={() => setStatusFilter('all')} className={statCardClass('all', 'border-gray-200 bg-white')}><p className="text-xs text-gray-500">{t('scenes.totalCount')}</p><p className="mt-1 text-xl font-semibold text-gray-900">{sceneStats.total}</p></button>
         <button type="button" onClick={() => setStatusFilter('generated')} className={statCardClass('generated', 'border-green-100 bg-green-50')}><p className="text-xs text-green-700">{t('scenes.generatedCount')}</p><p className="mt-1 text-xl font-semibold text-green-700">{sceneStats.generated}</p></button>
         <button type="button" onClick={() => setStatusFilter('notGenerated')} className={statCardClass('notGenerated', 'border-gray-200 bg-gray-50')}><p className="text-xs text-gray-600">{t('scenes.notGeneratedCount')}</p><p className="mt-1 text-xl font-semibold text-gray-700">{sceneStats.notGenerated}</p></button>
@@ -708,7 +709,7 @@ export default function Scenes() {
           <p className="mt-1 text-sm text-gray-500">{t('scenes.noScenesTip')}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
           {filteredScenes.map((scene) => {
             const currentNovel = novels.find(n => n.id === selectedNovel);
             const template = promptTemplates.find(pt => pt.id === currentNovel?.promptTemplateId);
@@ -746,6 +747,7 @@ export default function Scenes() {
       />
 
       {/* Image Preview Modal */}
+      <div className="scenes-image-preview">
       <ImagePreviewModal
         isOpen={previewImage.isOpen}
         url={previewImage.url}
@@ -757,8 +759,10 @@ export default function Scenes() {
         onPrev={() => navigatePreview('prev')}
         onNext={() => navigatePreview('next')}
       />
+      </div>
 
       {imageEditScene?.imageUrl && (
+        <div className="scenes-image-edit">
         <ImageEditModal
           isOpen={Boolean(imageEditScene)}
           itemName={imageEditScene.name}
@@ -787,15 +791,16 @@ export default function Scenes() {
           onReplace={handleReplaceImage}
           onResultSizeChange={setImageEditResultSize}
         />
+        </div>
       )}
 
       {/* Create Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="scenes-form-modal fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b flex justify-between items-center">
               <h2 className="text-lg font-semibold">{t('scenes.createScene')}</h2>
-              <button onClick={() => setShowCreateModal(false)}>
+              <button onClick={() => setShowCreateModal(false)} aria-label={t('common.close')} className="shrink-0 p-3 sm:p-2">
                 <X className="h-5 w-5 text-gray-400" />
               </button>
             </div>
@@ -842,7 +847,7 @@ export default function Scenes() {
                   ))}
                 </select>
               </div>
-              <div className="flex justify-end gap-2 pt-4">
+              <div className="scenes-actions flex flex-wrap justify-end gap-2 pt-4">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="btn-secondary">{t('common.cancel')}</button>
                 <button type="submit" className="btn-primary">{t('common.create')}</button>
               </div>
@@ -853,11 +858,11 @@ export default function Scenes() {
 
       {/* Edit Modal */}
       {editingScene && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="scenes-form-modal fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b flex justify-between items-center">
               <h2 className="text-lg font-semibold">{t('scenes.editScene')}</h2>
-              <button onClick={() => setEditingScene(null)}>
+              <button onClick={() => setEditingScene(null)} aria-label={t('common.close')} className="shrink-0 p-3 sm:p-2">
                 <X className="h-5 w-5 text-gray-400" />
               </button>
             </div>
@@ -890,7 +895,7 @@ export default function Scenes() {
                   rows={3}
                 />
               </div>
-              <div className="flex justify-end gap-2 pt-4">
+              <div className="scenes-actions flex flex-wrap justify-end gap-2 pt-4">
                 <button type="button" onClick={() => setEditingScene(null)} className="btn-secondary">{t('common.cancel')}</button>
                 <button type="submit" className="btn-primary">{t('common.save')}</button>
               </div>
@@ -901,11 +906,11 @@ export default function Scenes() {
 
       {/* Delete All Confirm Dialog */}
       {deleteAllConfirmDialog.isOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="scenes-form-modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg p-6 w-full max-w-md">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('scenes.deleteAllTitle')}</h3>
             <p className="text-sm text-red-600 mb-6">{t('scenes.deleteAllConfirm')}</p>
-            <div className="flex justify-end gap-3">
+            <div className="scenes-actions flex flex-wrap justify-end gap-3">
               <button onClick={() => setDeleteAllConfirmDialog({ isOpen: false })} className="btn-secondary">{t('common.cancel')}</button>
               <button onClick={handleDeleteAllScenes} className="btn-primary bg-red-600 hover:bg-red-700">{t('common.confirm')}</button>
             </div>

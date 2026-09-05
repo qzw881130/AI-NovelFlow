@@ -202,26 +202,26 @@ export default function Tasks() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
+    <div className="min-w-0 space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 break-words">
           <h1 className="text-2xl font-bold text-gray-900">{t('tasks.title')}</h1>
           <p className="mt-1 text-sm text-gray-500">{t('tasks.subtitle')}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={handleCancelAll}
             disabled={stats.pending === 0 && stats.running === 0}
-            className={`px-4 py-2 rounded-lg transition-colors flex items-center font-medium ${
+            className={`min-h-[44px] px-4 py-2 rounded-lg transition-colors flex items-center justify-center font-medium ${
               stats.pending === 0 && stats.running === 0
                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 : 'bg-red-50 text-red-600 hover:bg-red-100'
             }`}
           >
-            <Square className="h-4 w-4 mr-2 fill-current" />
+            <Square className="h-4 w-4 mr-2 shrink-0 fill-current" />
             {t('tasks.terminateAll')}
           </button>
-          <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary">
+          <button onClick={handleRefresh} disabled={refreshing} className="btn-secondary min-h-[44px]">
             <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             {t('common.refresh')}
           </button>
@@ -230,7 +230,7 @@ export default function Tasks() {
 
       <ComfyUIStatus />
 
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6 sm:gap-4">
         {[
           { key: 'all', label: t('tasks.allTasks'), color: 'bg-gray-100' },
           { key: 'pending', label: t('tasks.pending'), color: 'bg-yellow-100 text-yellow-800' },
@@ -242,7 +242,7 @@ export default function Tasks() {
           <button
             key={stat.key}
             onClick={() => setFilter(stat.key as any)}
-            className={`p-4 rounded-lg text-center transition-all ${
+            className={`min-w-0 break-words p-3 sm:p-4 rounded-lg text-center transition-all ${
               filter === stat.key ? 'ring-2 ring-primary-500 ' + stat.color : 'bg-gray-50 hover:bg-gray-100'
             }`}
           >
@@ -252,27 +252,30 @@ export default function Tasks() {
         ))}
       </div>
 
-      <div className="card">
-        <div className="mb-4 flex items-center justify-between gap-4">
+      <div className="card min-w-0 p-3 sm:p-6">
+        <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <h2 className="text-lg font-semibold text-gray-900">{t('tasks.taskList')}</h2>
-          <div className="flex items-center gap-3 text-sm text-gray-600">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3 text-sm text-gray-600">
+            <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
             <label htmlFor="task-type-filter" className="whitespace-nowrap">{t('tasks.taskType')}</label>
             <select
               id="task-type-filter"
               value={typeFilter}
               onChange={(event) => setTypeFilter(event.target.value)}
-              className="max-w-[220px] rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="min-h-[44px] min-w-0 flex-1 sm:max-w-[220px] rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               <option value="all">{t('tasks.allTypes')}</option>
               {taskTypeOptions.map((type) => (
                 <option key={type} value={type}>{getTaskTypeName(type as Task['type'])}</option>
               ))}
             </select>
-            <span>每页</span>
+            </div>
+            <label htmlFor="task-page-size">每页</label>
             <select
+              id="task-page-size"
               value={pageSize}
               onChange={(event) => setPageSize(Number(event.target.value))}
-              className="rounded-lg border border-gray-300 bg-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              className="min-h-[44px] rounded-lg border border-gray-300 bg-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
               {[30, 50, 100, 150, 200].map((size) => (
                 <option key={size} value={size}>{size}</option>
@@ -321,7 +324,7 @@ export default function Tasks() {
                 />
               ))}
             </div>
-            <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4 text-sm text-gray-600">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4 text-sm text-gray-600 [&_button]:min-h-[44px]">
               <span>第 {currentPage} / {totalPages} 页</span>
               <div className="flex items-center gap-2">
                 <button

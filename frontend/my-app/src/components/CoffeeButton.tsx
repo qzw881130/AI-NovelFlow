@@ -126,18 +126,24 @@ export default function CoffeeButton() {
       {/* Modal */}
       {isOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 p-4">
-          <div className="relative w-full max-w-4xl rounded-2xl bg-white shadow-2xl overflow-hidden">
+          <div
+            role="dialog"
+            aria-labelledby="coffee-modal-title"
+            className="relative flex max-h-[calc(100vh-2rem)] supports-[height:100dvh]:max-h-[calc(100dvh-2rem)] w-full min-w-0 max-w-4xl flex-col rounded-2xl bg-white shadow-2xl overflow-hidden"
+          >
             {/* Close Button */}
             <button
               onClick={() => setIsOpen(false)}
-              className="absolute right-4 top-4 z-10 rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+              type="button"
+              aria-label={t('common.close')}
+              className="absolute right-3 top-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-white text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-600 lg:bg-transparent"
             >
               <X className="h-5 w-5" />
             </button>
 
-            <div className="flex flex-col lg:flex-row">
+            <div className="flex min-h-0 flex-col overflow-y-auto overscroll-contain lg:flex-row">
               {/* Left Side - QR Codes */}
-              <div className="flex-1 p-6 lg:p-8 bg-gradient-to-br from-amber-50 to-orange-50">
+              <div className="min-w-0 shrink-0 p-4 pt-16 sm:p-6 sm:pt-16 lg:flex-1 lg:p-8 bg-gradient-to-br from-amber-50 to-orange-50">
                 {/* Header */}
                 <div className="mb-6 text-center">
                   <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
@@ -163,7 +169,7 @@ export default function CoffeeButton() {
                       />
                     </svg>
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900">
+                  <h3 id="coffee-modal-title" className="text-xl font-bold text-gray-900">
                     {t('coffee.title')}
                   </h3>
                 </div>
@@ -174,7 +180,7 @@ export default function CoffeeButton() {
                 </p>
 
                 {/* QR Codes */}
-                <div className="grid grid-cols-3 gap-4">
+                <div className="mx-auto grid w-full max-w-xs grid-cols-1 gap-4 sm:max-w-none sm:grid-cols-3">
                   {/* WeChat Pay */}
                   <div className="rounded-xl bg-white p-3 text-center shadow-sm">
                     <p className="mb-2 text-sm font-medium text-gray-700">
@@ -220,7 +226,7 @@ export default function CoffeeButton() {
               </div>
 
               {/* Right Side - Contact Info */}
-              <div className="w-full lg:w-80 p-6 lg:p-8 bg-white border-l border-gray-100">
+              <div className="w-full min-w-0 shrink-0 lg:w-80 p-4 sm:p-6 lg:p-8 bg-white border-t lg:border-t-0 lg:border-l border-gray-100">
                 <h4 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
                   <span className="w-1 h-6 bg-amber-500 rounded-full"></span>
                   {t('coffee.contactMe')}
@@ -242,7 +248,7 @@ export default function CoffeeButton() {
                         <p className="text-sm font-medium text-gray-900">
                           {contact.name}
                         </p>
-                        <p className="text-xs text-gray-500 truncate">
+                        <p className="text-xs text-gray-500 break-words lg:truncate">
                           {contact.value}
                         </p>
                       </div>

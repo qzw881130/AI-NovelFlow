@@ -36,18 +36,20 @@ export function WorkflowOverview() {
   ];
 
   return (
-    <div className="flex items-center justify-between overflow-x-auto pb-2">
+    <ol className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:flex lg:items-center lg:justify-between lg:gap-0 lg:overflow-x-auto lg:pb-2">
       {workflowSteps.map((step, index) => (
-        <div key={index} className="flex items-center flex-shrink-0">
-          <div className="flex flex-col items-center">
+        <li key={index} className="flex min-w-0 items-center lg:shrink-0">
+          <div className="flex min-w-0 w-full flex-col items-center lg:w-auto">
             <div className={`w-14 h-14 rounded-xl flex items-center justify-center mb-2 bg-gradient-to-br ${step.color} text-white shadow-md`}>
-              <step.icon className="h-7 w-7" />
+              <step.icon aria-hidden="true" className="h-7 w-7" />
             </div>
-            <span className="text-xs font-medium text-gray-700 text-center whitespace-nowrap">{titles[index]}</span>
+            <span className="max-w-full break-words text-xs font-medium text-gray-700 text-center lg:whitespace-nowrap">
+              <span className="text-gray-500 lg:hidden">{index + 1}. </span>{titles[index]}
+            </span>
           </div>
-          {index < 12 && <div className="flex items-center flex-1 justify-center mx-1 mb-6"><ChevronRight className="h-5 w-5 text-gray-300" /></div>}
-        </div>
+          {index < workflowSteps.length - 1 && <div aria-hidden="true" className="hidden lg:flex items-center flex-1 justify-center mx-1 mb-6"><ChevronRight className="h-5 w-5 text-gray-300" /></div>}
+        </li>
       ))}
-    </div>
+    </ol>
   );
 }

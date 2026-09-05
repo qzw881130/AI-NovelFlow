@@ -14,6 +14,7 @@ import { ImagePreviewModal, CharacterCard } from './components';
 import { ASPECT_RATIO_CLASSES, ALLOWED_IMAGE_TYPES, ALLOWED_AUDIO_TYPES, MAX_AUDIO_SIZE, POLL_CONFIG } from './constants';
 import type { CharacterPrompt, PreviewImageState, DeleteAllConfirmDialog } from './types';
 import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
+import './responsive.css';
 
 export default function Characters() {
   const { t } = useTranslation();
@@ -852,14 +853,14 @@ export default function Characters() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="characters-page min-w-0 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-center 2xl:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('characters.title')}</h1>
           <p className="mt-1 text-sm text-gray-500">{t('characters.subtitle')}</p>
         </div>
-        <div className="flex gap-3">
+        <div className="characters-toolbar grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:gap-3">
           {selectedNovel && characters.length > 0 && (
             <button
               onClick={openVoiceBatchModal}
@@ -921,7 +922,7 @@ export default function Characters() {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-[3]">
+        <div className="relative min-w-0 sm:flex-[3]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -938,7 +939,7 @@ export default function Characters() {
             setSelectedNovel(novelId);
             syncSelectedNovel(novelId);
           }}
-          className="input-field flex-1"
+          className="input-field min-w-0 w-full sm:w-0 sm:flex-1"
         >
           {novels.map(novel => (
             <option key={novel.id} value={novel.id}>{novel.title}</option>
@@ -1001,7 +1002,7 @@ export default function Characters() {
           <p className="mt-1 text-sm text-gray-500">{t('common.create')} {t('characters.subtitle')}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="characters-grid grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
           {filteredCharacters.map((character) => (
             <CharacterCard
               key={character.id}
@@ -1048,7 +1049,7 @@ export default function Characters() {
 
       {showVoiceBatchModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-6xl max-h-[88vh] flex flex-col">
+          <div className="characters-voice-modal bg-white rounded-xl shadow-xl w-full max-w-6xl max-h-[88vh] flex flex-col">
             <div className="flex items-center justify-between border-b px-5 py-4">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">生成角色音色</h2>
@@ -1087,7 +1088,7 @@ export default function Characters() {
             </div>
 
             <div className="overflow-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="characters-voice-table min-w-full divide-y divide-gray-200">
                 <thead className="sticky top-0 bg-gray-50 z-10">
                   <tr>
                     <th className="w-12 px-4 py-3"></th>
@@ -1185,6 +1186,7 @@ export default function Characters() {
       )}
 
       {/* Image Preview Modal */}
+      <div className="characters-preview">
       <ImagePreviewModal
         isOpen={previewImage.isOpen}
         url={previewImage.url}
@@ -1196,6 +1198,7 @@ export default function Characters() {
         onPrev={() => navigatePreview('prev')}
         onNext={() => navigatePreview('next')}
       />
+      </div>
 
       {/* Image Edit Modal */}
       {imageEditCharacter && (

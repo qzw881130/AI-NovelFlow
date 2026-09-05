@@ -48,7 +48,7 @@ export function PropCard({
   return (
     <div
       id={`prop-${prop.id}`}
-      className={`bg-white rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-all group ${
+      className={`props-card min-w-0 bg-white rounded-lg shadow-sm border overflow-hidden hover:shadow-md transition-all group ${
         highlightedId === prop.id
           ? 'ring-4 ring-blue-500 ring-opacity-50 border-blue-500 animate-pulse'
           : 'border-gray-200'
@@ -204,7 +204,7 @@ export function PropCard({
         {/* 生成提示词 */}
         {propPrompt && (
           <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center justify-between mb-1">
+            <div className="flex flex-wrap items-center justify-between gap-1 mb-1">
               <p className="text-xs text-gray-400">{t('props.promptLabel')}</p>
               <span className="text-xs text-gray-400">{templateDisplayName}</span>
             </div>

@@ -60,19 +60,19 @@ export default function ComfyUIConfig({ formData, onFormDataChange, onUserModifi
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {t('systemSettings.comfyUIHost')}
         </label>
-        <div className="flex gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row">
           <input
             type="text"
             value={formData.comfyUIHost}
             onChange={(e) => { onUserModified(); onFormDataChange({ ...formData, comfyUIHost: e.target.value }); }}
-            className="input-field flex-1"
+            className="input-field min-w-0 flex-1"
             placeholder="http://127.0.0.1:8188"
           />
           <button
             type="button"
             onClick={checkConnection}
             disabled={checking || !formData.comfyUIHost}
-            className="btn-secondary flex items-center gap-2 whitespace-nowrap"
+            className="btn-secondary flex min-h-11 items-center gap-2 whitespace-nowrap lg:min-h-0"
           >
             {checking ? (
               <>

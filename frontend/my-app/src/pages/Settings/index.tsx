@@ -108,7 +108,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">{t('systemSettings.title')}</h1>
         <p className="mt-1 text-sm text-gray-500">
@@ -117,7 +117,7 @@ export default function Settings() {
       </div>
 
       {/* AI 服务配置 - 标签页 */}
-      <div className="card">
+      <div className="card min-w-0 p-4 sm:p-6">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 bg-blue-100 rounded-lg">
             <Bot className="h-5 w-5 text-blue-600" />
@@ -129,7 +129,7 @@ export default function Settings() {
         </div>
         
         {/* 标签页导航 */}
-        <div className="flex border-b border-gray-200 mb-6">
+        <div className="flex max-w-full overflow-x-auto border-b border-gray-200 mb-6 [&>button]:shrink-0 [&>button]:whitespace-nowrap [&>button]:min-h-11 lg:[&>button]:min-h-0">
           <button
             type="button"
             onClick={() => setActiveTab('llm')}
