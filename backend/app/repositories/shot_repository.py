@@ -141,6 +141,8 @@ class ShotRepository:
         Args:
             shot: 分镜对象
         """
+        from app.repositories.audio_drive import AudioDriveRepository
+        AudioDriveRepository(self.db).cleanup_shot_audio_drive(shot.id, commit=False)
         self.db.delete(shot)
         self.db.commit()
 
@@ -154,7 +156,10 @@ class ShotRepository:
         Returns:
             删除的分镜数量
         """
-        count = self.db.query(Shot).filter(Shot.chapter_id == chapter_id).count()
+        shots = self.db.query(Shot).filter(Shot.chapter_id == chapter_id).all()
+        count = len(shots)
+        from app.repositories.audio_drive import AudioDriveRepository
+        AudioDriveRepository(self.db).cleanup_shots_audio_drive([shot.id for shot in shots], commit=False)
         self.db.query(Shot).filter(Shot.chapter_id == chapter_id).delete()
         self.db.commit()
         return count

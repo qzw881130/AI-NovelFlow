@@ -1,7 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from sqlalchemy import text
 import asyncio
 
 from app.api import audio_drive, characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props
@@ -17,83 +16,15 @@ from app.models.llm_log import LLMLog
 from app.models.system_config import SystemConfig  # 导入系统配置模型
 from app.models.shot import Shot
 from app.models.audio_drive import ShotAudioEvent, AudioEventTTSAsset, ShotAudioTimeline, ShotAudioTimelineEvent
+from app.services.sqlite_schema_upgrade import upgrade_sqlite_schema
 
 
 def ensure_schema_updates():
     """补齐 create_all 不会自动添加的轻量字段。"""
-    with engine.connect() as conn:
-        try:
-            result = conn.execute(text("PRAGMA table_info(shots)"))
-            shot_columns = [row[1] for row in result.fetchall()]
-            if "merged_prop_image" not in shot_columns:
-                conn.execute(text("ALTER TABLE shots ADD COLUMN merged_prop_image VARCHAR"))
-            if "continuity_mode" not in shot_columns:
-                conn.execute(text("ALTER TABLE shots ADD COLUMN continuity_mode VARCHAR DEFAULT 'NORMAL'"))
-            if "video_director_plan" not in shot_columns:
-                conn.execute(text("ALTER TABLE shots ADD COLUMN video_director_plan TEXT DEFAULT '{}'"))
-            if "video_director_plan_revision" not in shot_columns:
-                conn.execute(text("ALTER TABLE shots ADD COLUMN video_director_plan_revision INTEGER DEFAULT 0"))
-            if "shot_image_prompt" not in shot_columns:
-                conn.execute(text("ALTER TABLE shots ADD COLUMN shot_image_prompt TEXT DEFAULT ''"))
-            if "estimated_duration" not in shot_columns:
-                conn.execute(text("ALTER TABLE shots ADD COLUMN estimated_duration INTEGER"))
-            if "audio_status" not in shot_columns:
-                conn.execute(text("ALTER TABLE shots ADD COLUMN audio_status VARCHAR DEFAULT 'NOT_READY'"))
-
-            result = conn.execute(text("PRAGMA table_info(shot_audio_timelines)"))
-            audio_timeline_columns = [row[1] for row in result.fetchall()]
-            if audio_timeline_columns and "audio_required_duration" not in audio_timeline_columns:
-                conn.execute(text("ALTER TABLE shot_audio_timelines ADD COLUMN audio_required_duration FLOAT"))
-
-            result = conn.execute(text("PRAGMA table_info(novels)"))
-            novel_columns = [row[1] for row in result.fetchall()]
-            novel_prompt_columns = [
-                "keyframe_description_prompt_template_id",
-                "shot_image_prompt_template_id",
-                "video_mode_recommender_prompt_template_id",
-                "keyframe_planner_prompt_template_id",
-                "keyframe_image_prompt_template_id",
-                "keyframe_transition_prompt_template_id",
-                "h3_single_frame_prompt_template_id",
-                "h3_first_last_frame_prompt_template_id",
-                "h3_multi_keyframe_prompt_template_id",
-            ]
-            for column in novel_prompt_columns:
-                if column not in novel_columns:
-                    conn.execute(text(f"ALTER TABLE novels ADD COLUMN {column} VARCHAR"))
-
-            result = conn.execute(text("PRAGMA table_info(tasks)"))
-            task_columns = [row[1] for row in result.fetchall()]
-            if "reference_images" not in task_columns:
-                conn.execute(text("ALTER TABLE tasks ADD COLUMN reference_images TEXT"))
-            if "video_director_clips" not in task_columns:
-                conn.execute(text("ALTER TABLE tasks ADD COLUMN video_director_clips TEXT"))
-            if "parent_task_id" not in task_columns:
-                conn.execute(text("ALTER TABLE tasks ADD COLUMN parent_task_id VARCHAR"))
-            if "batch_order" not in task_columns:
-                conn.execute(text("ALTER TABLE tasks ADD COLUMN batch_order INTEGER"))
-            if "metadata_json" not in task_columns:
-                conn.execute(text("ALTER TABLE tasks ADD COLUMN metadata_json TEXT"))
-            if "worker_id" not in task_columns:
-                conn.execute(text("ALTER TABLE tasks ADD COLUMN worker_id VARCHAR"))
-            if "claim_token" not in task_columns:
-                conn.execute(text("ALTER TABLE tasks ADD COLUMN claim_token VARCHAR"))
-            if "claimed_at" not in task_columns:
-                conn.execute(text("ALTER TABLE tasks ADD COLUMN claimed_at DATETIME"))
-            if "heartbeat_at" not in task_columns:
-                conn.execute(text("ALTER TABLE tasks ADD COLUMN heartbeat_at DATETIME"))
-            if "attempt" not in task_columns:
-                conn.execute(text("ALTER TABLE tasks ADD COLUMN attempt INTEGER DEFAULT 0"))
-
-            result = conn.execute(text("PRAGMA table_info(llm_logs)"))
-            llm_log_columns = [row[1] for row in result.fetchall()]
-            if "request_info" not in llm_log_columns:
-                conn.execute(text("ALTER TABLE llm_logs ADD COLUMN request_info TEXT"))
-            if "prompt_template_name" not in llm_log_columns:
-                conn.execute(text("ALTER TABLE llm_logs ADD COLUMN prompt_template_name VARCHAR"))
-            conn.commit()
-        except Exception as exc:
-            print(f"[Startup] Failed to ensure schema updates: {exc}")
+    try:
+        upgrade_sqlite_schema(engine)
+    except Exception as exc:
+        print(f"[Startup] Failed to ensure schema updates: {exc}")
 
 
 async def reconcile_active_tasks_loop():

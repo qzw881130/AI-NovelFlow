@@ -1,6 +1,7 @@
 import json
 from typing import List, Optional
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.audio_drive import (
@@ -44,6 +45,34 @@ class AudioDriveRepository:
 
     def get_event(self, event_id: str) -> Optional[ShotAudioEvent]:
         return self.db.query(ShotAudioEvent).filter(ShotAudioEvent.id == event_id).first()
+
+    def cleanup_shot_audio_drive(self, shot_id: str, commit: bool = True) -> None:
+        """Delete all AudioDrive-owned rows for a Shot in dependency order."""
+        timeline_ids = select(ShotAudioTimeline.id).where(ShotAudioTimeline.shot_id == shot_id)
+        event_ids = select(ShotAudioEvent.id).where(ShotAudioEvent.shot_id == shot_id)
+        self.db.query(ShotAudioTimelineEvent).filter(
+            ShotAudioTimelineEvent.timeline_id.in_(timeline_ids)
+        ).delete(synchronize_session=False)
+        self.db.query(ShotAudioTimelineEvent).filter(
+            ShotAudioTimelineEvent.audio_event_id.in_(event_ids)
+        ).delete(synchronize_session=False)
+        self.db.query(ShotAudioTimeline).filter(
+            ShotAudioTimeline.shot_id == shot_id
+        ).delete(synchronize_session=False)
+        self.db.query(AudioEventTTSAsset).filter(
+            AudioEventTTSAsset.audio_event_id.in_(event_ids)
+        ).delete(synchronize_session=False)
+        self.db.query(ShotAudioEvent).filter(
+            ShotAudioEvent.shot_id == shot_id
+        ).delete(synchronize_session=False)
+        if commit:
+            self.db.commit()
+
+    def cleanup_shots_audio_drive(self, shot_ids: list[str], commit: bool = True) -> None:
+        for shot_id in shot_ids or []:
+            self.cleanup_shot_audio_drive(shot_id, commit=False)
+        if commit:
+            self.db.commit()
 
     def _normalize_event_payload(self, item: dict, index: int) -> dict:
         return {

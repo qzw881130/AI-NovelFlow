@@ -6,7 +6,9 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.novel import Chapter
+from app.models.shot import Shot
 from app.repositories import NovelRepository, ChapterRepository, CharacterRepository, SceneRepository, PropRepository
+from app.repositories.audio_drive import AudioDriveRepository
 from app.api.deps import get_novel_repo, get_chapter_repo, get_character_repo, get_scene_repo, get_prop_repo
 from app.utils.time_utils import format_datetime
 from app.utils.text_utils import detect_encoding, parse_chapters_from_text
@@ -134,6 +136,8 @@ async def delete_chapter(
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
     
+    shot_ids = [row[0] for row in db.query(Shot.id).filter(Shot.chapter_id == chapter_id).all()]
+    AudioDriveRepository(db).cleanup_shots_audio_drive(shot_ids, commit=False)
     db.delete(chapter)
     
     # 更新小说章节数

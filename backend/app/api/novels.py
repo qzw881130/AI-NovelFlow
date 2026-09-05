@@ -12,10 +12,12 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
 from app.core.database import get_db
-from app.models.novel import Novel
+from app.models.novel import Chapter, Novel
+from app.models.shot import Shot
 from app.schemas.novel import NovelCreate
 from app.repositories import NovelRepository, ChapterRepository, CharacterRepository, PromptTemplateRepository
 from app.services.novel_service import NovelService
+from app.repositories.audio_drive import AudioDriveRepository
 from app.api.deps import get_novel_repo, get_chapter_repo, get_character_repo
 from app.utils.time_utils import format_datetime
 
@@ -294,6 +296,14 @@ async def delete_novel(
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
+    shot_ids = [
+        row[0]
+        for row in db.query(Shot.id)
+        .join(Chapter, Chapter.id == Shot.chapter_id)
+        .filter(Chapter.novel_id == novel_id)
+        .all()
+    ]
+    AudioDriveRepository(db).cleanup_shots_audio_drive(shot_ids, commit=False)
     db.delete(novel)
     db.commit()
     
