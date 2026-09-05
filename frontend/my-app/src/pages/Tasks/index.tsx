@@ -274,7 +274,7 @@ export default function Tasks() {
               onChange={(event) => setPageSize(Number(event.target.value))}
               className="rounded-lg border border-gray-300 bg-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-primary-500"
             >
-              {[30, 50, 100].map((size) => (
+              {[30, 50, 100, 150, 200].map((size) => (
                 <option key={size} value={size}>{size}</option>
               ))}
             </select>

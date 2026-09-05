@@ -106,6 +106,7 @@ export function ChapterGenerateLayout({
   const [chapterList, setChapterList] = useState<Chapter[]>([]);
   const [isSavingShots, setIsSavingShots] = useState(false);
   const [openVideoStatsKey, setOpenVideoStatsKey] = useState<string | null>(null);
+  const [openAudioStatsKey, setOpenAudioStatsKey] = useState<string | null>(null);
   const initialShotHashAppliedRef = useRef(false);
   const pendingShotHashIndexRef = useRef<number | null>(null);
 
@@ -130,6 +131,8 @@ export function ChapterGenerateLayout({
   const storePendingShots = useChapterGenerateStore((state) => state.pendingShots);
   const storeGeneratingVideos = useChapterGenerateStore((state) => state.generatingVideos);
   const storePendingVideos = useChapterGenerateStore((state) => state.pendingVideos);
+  const preparingAudioShots = useChapterGenerateStore((state) => state.preparingAudioShots);
+  const pendingAudioPrepareShots = useChapterGenerateStore((state) => state.pendingAudioPrepareShots);
   const storeShotImages = useChapterGenerateStore((state) => state.shotImages);
   const storeShotVideos = useChapterGenerateStore((state) => state.shotVideos);
   const setShots = useChapterGenerateStore((state) => state.setShots);
@@ -211,6 +214,81 @@ export function ChapterGenerateLayout({
     ));
     return timelineReady && clipAudioReady;
   });
+  const audioReadyShotIds = new Set(audioDriveReadyShots.map((shot) => String(shot.id)));
+  const audioStats = shots.reduce((stats, shot: any) => {
+    const shotId = String(shot.id || '');
+    const audioStatus = String(shot.audioStatus || '').toUpperCase();
+    const summary = shot.audioEventsSummary || {};
+    if (preparingAudioShots.has(shotId)) stats.preparing.push(shot);
+    else if (pendingAudioPrepareShots.has(shotId)) stats.pending.push(shot);
+    else if (audioStatus === 'FAILED' || Number(summary.ttsFailedCount || 0) > 0) stats.failed.push(shot);
+    else if (audioStatus === 'STALE' || Number(summary.ttsStaleCount || 0) > 0) stats.stale.push(shot);
+    else if (audioReadyShotIds.has(shotId)) stats.ready.push(shot);
+    else stats.incomplete.push(shot);
+    return stats;
+  }, {
+    ready: [] as any[],
+    preparing: [] as any[],
+    pending: [] as any[],
+    stale: [] as any[],
+    failed: [] as any[],
+    incomplete: [] as any[],
+  });
+
+  const renderAudioGenerationStats = () => {
+    if (currentTab !== 2 || shots.length === 0) return null;
+    const items = [
+      ['ready', '已就绪', audioStats.ready, 'border-green-100 bg-green-50 text-green-700'],
+      ['preparing', '准备中', audioStats.preparing, 'border-blue-100 bg-blue-50 text-blue-700'],
+      ['pending', '等待中', audioStats.pending, 'border-cyan-100 bg-cyan-50 text-cyan-700'],
+      ['stale', '已过期', audioStats.stale, 'border-amber-100 bg-amber-50 text-amber-700'],
+      ['failed', '失败', audioStats.failed, 'border-red-100 bg-red-50 text-red-700'],
+      ['incomplete', '未完成', audioStats.incomplete, 'border-gray-200 bg-gray-50 text-gray-600'],
+    ] as const;
+
+    return (
+      <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs shadow-sm">
+        <span className="font-medium text-gray-700">音频生成结果</span>
+        {items.map(([key, label, shotItems, className]) => (
+          <span key={key} className="relative inline-flex">
+            <button
+              type="button"
+              onClick={() => setOpenAudioStatsKey(openAudioStatsKey === key ? null : key)}
+              className={`rounded-full border px-2 py-0.5 ${className}`}
+            >
+              {label} {shotItems.length}
+            </button>
+            {openAudioStatsKey === key && (
+              <span className="absolute left-1/2 top-full z-[90] w-64 -translate-x-1/2 pt-2">
+                <span className="block rounded-lg border border-gray-200 bg-white p-2 text-left shadow-xl">
+                  <span className="mb-2 block text-xs font-medium text-gray-700">{label}分镜编号</span>
+                  {shotItems.length > 0 ? (
+                    <span className="block max-h-72 overflow-y-auto">
+                      {shotItems.map((shot: any) => (
+                        <button
+                          key={shot.id || shot.index}
+                          type="button"
+                          onClick={() => {
+                            setCurrentShot(String(shot.id), Number(shot.index || 1));
+                            setOpenAudioStatsKey(null);
+                          }}
+                          className="mr-1 mb-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                        >
+                          镜{shot.index || '-'}
+                        </button>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="block text-xs text-gray-400">暂无分镜</span>
+                  )}
+                </span>
+              </span>
+            )}
+          </span>
+        ))}
+      </div>
+    );
+  };
 
   const renderVideoGenerationStats = () => {
     if (currentTab !== 3 || shots.length === 0) return null;
@@ -680,6 +758,9 @@ export function ChapterGenerateLayout({
         <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
           <div className="relative">
             <TabNavigation />
+            <div className="absolute left-1/2 top-1 z-[130] -translate-x-1/2">
+              {renderAudioGenerationStats()}
+            </div>
             <div className="absolute right-0 top-1">
               {renderQueueStats()}
             </div>
