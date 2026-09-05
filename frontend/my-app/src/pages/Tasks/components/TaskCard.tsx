@@ -59,6 +59,7 @@ export function TaskCard({
       case 'character_portrait': return <User className="h-5 w-5" />;
       case 'prop_image': return <ImageIcon className="h-5 w-5" />;
       case 'shot_image': return <ImageIcon className="h-5 w-5" />;
+      case 'shot_image_batch': return <ImageIcon className="h-5 w-5" />;
       case 'keyframe_image': return <ImageIcon className="h-5 w-5" />;
       case 'single_image_edit': return <ImageIcon className="h-5 w-5" />;
       case 'character_voice':
@@ -66,6 +67,7 @@ export function TaskCard({
       case 'character_audio':
       case 'narrator_audio': return <Music className="h-5 w-5" />;
       case 'shot_video':
+      case 'shot_video_batch':
       case 'chapter_video':
       case 'transition_video': return <Film className="h-5 w-5" />;
       default: return <ListTodo className="h-5 w-5" />;

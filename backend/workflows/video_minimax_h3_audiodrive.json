@@ -1,0 +1,405 @@
+{
+  "41": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#41 Load CLIP"
+    }
+  },
+  "42": {
+    "inputs": {
+      "noise_seed": 123456789
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#42 RandomNoise"
+    }
+  },
+  "43": {
+    "inputs": {
+      "av_latent": [
+        "50",
+        0
+      ],
+      "video_vae": [
+        "60",
+        0
+      ],
+      "audio_vae": [
+        "57",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3AVDecodeT8",
+    "_meta": {
+      "title": "#43 MiniMax H3 AV Decode (T8)"
+    }
+  },
+  "44": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "48",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "#44 Math Expression"
+    }
+  },
+  "45": {
+    "inputs": {
+      "image": "ABA.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#45 Load Image"
+    }
+  },
+  "46": {
+    "inputs": {
+      "frame_rate": 24,
+      "loop_count": 0,
+      "filename_prefix": "MiniMaxH3/stable_4v4a",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "43",
+        0
+      ],
+      "audio": [
+        "54",
+        2
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "#46 Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "47": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": [
+        "96",
+        0
+      ],
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "#47 Resolution Selector"
+    }
+  },
+  "48": {
+    "inputs": {
+      "value": 15
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "#48 Float (duration)"
+    }
+  },
+  "49": {
+    "inputs": {
+      "model": [
+        "53",
+        0
+      ],
+      "conditioning": [
+        "54",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "#49 Basic Guider"
+    }
+  },
+  "50": {
+    "inputs": {
+      "noise": [
+        "42",
+        0
+      ],
+      "guider": [
+        "49",
+        0
+      ],
+      "sampler": [
+        "53",
+        1
+      ],
+      "sigmas": [
+        "53",
+        2
+      ],
+      "latent_image": [
+        "54",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#50 SamplerCustomAdvanced"
+    }
+  },
+  "51": {
+    "inputs": {
+      "prompt": "subject_definitions:\n\n<Subject 1>：<Picture 1>中画面左侧的男性，佩戴黄色头巾，身穿黄褐色长袍，留黑色长须，手持长杖。\n\n<Subject 2>：<Picture 1>中画面右侧的男性，白发白须，身穿浅青色长袍，手持木杖。\n\n<Picture 1>：定义两名人物的外貌、服装、空间位置以及洞穴场景构图。两名人物在整个视频中保持身份、外貌、服装和相对位置稳定。\n\nsummary:\n\n15秒双人物音视频测试。\n\n用于驱动画面人物口型的音频中，只有一个时间区间存在可见人物对白：\n\n00:07.800–00:10.360 → <Subject 1>说话。\n\n除此之外的所有时间区间，画面中都不存在可见说话者。\n\n只有<Subject 1>在指定对白区间允许产生说话口型。\n\n<Subject 2>全程不说话。\n\n不得根据最终音轨中的其他人声让画面人物产生额外说话口型。\n\n不得出现字幕或屏幕文字。\n\n\nspeaker_timeline:\n\n[00:00.000–00:07.800]\n\nvisible_speaker = NONE\n\n<Subject 1>保持嘴唇闭合。\n<Subject 2>保持嘴唇闭合。\n\n两名人物均不说话。\n\n允许自然呼吸、眨眼、眼神变化、轻微头部动作和自然的身体反应。\n\n这一时间区间内不得让任何可见人物产生说话口型。\n\n\n[00:07.800–00:10.360]\n\nvisible_speaker = <Subject 1>\n\n只有<Subject 1>自然开口说话。\n\n<Subject 1>的嘴唇运动、面部表情、呼吸和轻微身体动作严格跟随驱动音频中的语音节奏和停顿。\n\n<Subject 2>必须保持嘴唇闭合，只进行自然倾听反应。\n\n这一时间区间内唯一允许产生说话口型的人物是<Subject 1>。\n\n\n[00:10.360–00:15.000]\n\nvisible_speaker = NONE\n\n<Subject 1>立即停止说话并自然闭口。\n<Subject 2>继续保持嘴唇闭合。\n\n这一时间区间内不存在任何可见说话者。\n\n即使最终音轨中存在其他人声，两名画面人物也不得跟随这些声音产生说话口型。\n\n允许<Subject 1>通过眼神变化、轻微表情、停顿和自然身体反应表现思考状态，但嘴唇必须保持闭合。\n\n<Subject 2>只进行自然的非语言反应。\n\n\nspeaker_assignment_rules:\n\n唯一的可见说话区间：\n\n00:07.800–00:10.360\n→ <Subject 1>\n\n其他全部时间：\n\n00:00.000–00:07.800\n→ visible_speaker = NONE\n\n00:10.360–00:15.000\n→ visible_speaker = NONE\n\n<Subject 2>：\n00:00.000–00:15.000 全程不说话。\n\n禁止根据最终音轨中的旁白、画外声音、内心声音或其他非现场声音驱动画面人物口型。\n\n只有drive audio中明确存在的现场对白允许驱动可见人物说话。\n\n\nvisual_direction:\n\n摄影机可以根据当前可见说话者进行轻微的视觉关注变化。\n\n在<Subject 1>说话期间，可以自然加强对<Subject 1>的视觉关注。\n\n没有可见说话者时，不要把任何人物表现为正在讲话。\n\n保持两名人物身份、服装和场景连续一致。\n\n\noverall_soundscape:\n\n保持最终音轨中的声音内容、顺序和时序不变。\n\n最终音轨中的人声不等于可见人物对白。\n\n是否产生人物说话口型，只由speaker_timeline和drive audio决定。\n\n不得为最终音轨中的非现场人声生成额外人物口型。"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#51 ⚙️ CR Prompt Text"
+    }
+  },
+  "52": {
+    "inputs": {
+      "lora_name": "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+      "strength_model": 1.0000000000000002,
+      "model": [
+        "59",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderBypassModelOnly",
+    "_meta": {
+      "title": "#52 lora only"
+    }
+  },
+  "53": {
+    "inputs": {
+      "steps": 8,
+      "shift_video": 12,
+      "shift_audio": 3,
+      "sampler_name": "dual_clock_euler",
+      "scheduler": "native_flow",
+      "model": [
+        "52",
+        0
+      ],
+      "av_latent": [
+        "54",
+        1
+      ]
+    },
+    "class_type": "MiniMaxH3DualClockSamplerT8",
+    "_meta": {
+      "title": "#53 STABLE 4 video / 4 audio"
+    }
+  },
+  "54": {
+    "inputs": {
+      "prompt": [
+        "51",
+        0
+      ],
+      "width": [
+        "47",
+        0
+      ],
+      "height": [
+        "47",
+        1
+      ],
+      "length": [
+        "44",
+        1
+      ],
+      "task_type": "Ref2VA",
+      "audio_mode": "lock_source",
+      "audio_denoise_strength": 0,
+      "add_source_as_reference": false,
+      "prompt_primary_audio_ordinal": 0,
+      "strict_prompt_tags": true,
+      "ref_image_size": "match",
+      "reference_video_policy": "official_2_to_15s",
+      "allow_above_reference_area": false,
+      "clip": [
+        "41",
+        0
+      ],
+      "video_vae": [
+        "60",
+        0
+      ],
+      "audio_vae": [
+        "57",
+        0
+      ],
+      "drive_audio": [
+        "61",
+        0
+      ],
+      "final_audio": [
+        "91",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "45",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3AudioConditioningT8",
+    "_meta": {
+      "title": "#54 MiniMax H3 Audio Conditioning (T8)"
+    }
+  },
+  "56": {
+    "inputs": {
+      "unet_name": "10Eros_Max_h3_fl2va_beta1_pruned.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#56 Load Diffusion Model"
+    }
+  },
+  "57": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#57 Load VAE"
+    }
+  },
+  "58": {
+    "inputs": {
+      "model": [
+        "56",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+    "_meta": {
+      "title": "#58 MiniMax H3 Mem Eff Sage Attention Patch"
+    }
+  },
+  "59": {
+    "inputs": {
+      "attention": "pytorch attention",
+      "model": [
+        "58",
+        0
+      ]
+    },
+    "class_type": "ModelAttentionBackend",
+    "_meta": {
+      "title": "#59 ModelAttentionBackend"
+    }
+  },
+  "60": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#60 Load VAE"
+    }
+  },
+  "61": {
+    "inputs": {
+      "audio": "h3_drive_dialogue_only.wav"
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "#61 Load Audio(Drive audio)"
+    }
+  },
+  "91": {
+    "inputs": {
+      "audio": "h3_ABA_test.wav"
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "#91 Load Audio(Final audio)"
+    }
+  },
+  "92": {
+    "inputs": {
+      "clean_file_cache": true,
+      "clean_processes": true,
+      "clean_dlls": true,
+      "retry_times": 3,
+      "anything": [
+        "93",
+        0
+      ]
+    },
+    "class_type": "RAMCleanup",
+    "_meta": {
+      "title": "#92 🎈RAM-Cleanup"
+    }
+  },
+  "93": {
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "color_space": "sRGB",
+      "images": [
+        "94",
+        0
+      ],
+      "audio": [
+        "54",
+        2
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "#93 Create Video"
+    }
+  },
+  "94": {
+    "inputs": {
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
+      "quality": "ULTRA",
+      "images": [
+        "43",
+        0
+      ]
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "#94 RTX Video Super Resolution"
+    }
+  },
+  "95": {
+    "inputs": {
+      "filename_prefix": "video/MiniMax_H3",
+      "format": "auto",
+      "format.codec": "auto",
+      "codec": "auto",
+      "video-preview": "",
+      "video": [
+        "92",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "#95 Save Video（高分辨率）"
+    }
+  },
+  "96": {
+    "inputs": {
+      "value": 0.4
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "#170 Megapixels"
+    }
+  }
+}

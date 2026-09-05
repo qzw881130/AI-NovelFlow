@@ -16,6 +16,9 @@ export default function Tasks() {
     isLoading,
     filter,
     setFilter,
+    typeFilter,
+    setTypeFilter,
+    tasks,
     refreshing,
     expandedErrors,
     viewingWorkflow,
@@ -53,7 +56,7 @@ export default function Tasks() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, pageSize]);
+  }, [filter, typeFilter, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -102,22 +105,46 @@ export default function Tasks() {
     const names: Record<string, string> = {
       'character_portrait': t('tasks.types.characterPortrait'),
       'character_voice': t('tasks.types.characterVoice'),
-      'audio_event_tts': 'Audio Event TTS',
-      'audio_prepare': 'AudioDrive 音频准备',
+      'audio_event_tts': t('tasks.types.audioEventTts'),
+      'audio_prepare': t('tasks.types.audioPrepare'),
       'character_audio': t('tasks.types.characterAudio'),
       'narrator_audio': t('tasks.types.narratorAudio'),
       'shot_image': t('tasks.types.shotImage'),
+      'shot_image_batch': t('tasks.types.shotImageBatch'),
       'scene_image': t('tasks.types.sceneImage'),
       'prop_image': t('tasks.types.propImage'),
       'keyframe_image': t('tasks.types.keyframeImage'),
       'single_image_edit': t('tasks.types.singleImageEdit'),
       'shot_video': t('tasks.types.shotVideo'),
-      'shot_video_batch': '批量分镜视频',
+      'shot_video_batch': t('tasks.types.shotVideoBatch'),
       'chapter_video': t('tasks.types.chapterVideo'),
       'transition_video': t('tasks.types.transitionVideo'),
     };
     return names[type] || type;
   };
+
+  const taskTypeOptions = useMemo(() => {
+    const supportedTypes: Task['type'][] = [
+      'character_portrait',
+      'character_voice',
+      'audio_event_tts',
+      'audio_prepare',
+      'character_audio',
+      'narrator_audio',
+      'scene_image',
+      'prop_image',
+      'shot_image',
+      'shot_image_batch',
+      'keyframe_image',
+      'single_image_edit',
+      'shot_video',
+      'shot_video_batch',
+      'transition_video',
+      'chapter_video',
+    ];
+    const observedTypes = tasks.map(task => task.type).filter(Boolean);
+    return Array.from(new Set<string>([...supportedTypes, ...observedTypes]));
+  }, [tasks]);
 
   const getWorkflowDisplayName = (task: Task): string => {
     if (!task.workflowName) return '';
@@ -229,6 +256,18 @@ export default function Tasks() {
         <div className="mb-4 flex items-center justify-between gap-4">
           <h2 className="text-lg font-semibold text-gray-900">{t('tasks.taskList')}</h2>
           <div className="flex items-center gap-3 text-sm text-gray-600">
+            <label htmlFor="task-type-filter" className="whitespace-nowrap">{t('tasks.taskType')}</label>
+            <select
+              id="task-type-filter"
+              value={typeFilter}
+              onChange={(event) => setTypeFilter(event.target.value)}
+              className="max-w-[220px] rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="all">{t('tasks.allTypes')}</option>
+              {taskTypeOptions.map((type) => (
+                <option key={type} value={type}>{getTaskTypeName(type as Task['type'])}</option>
+              ))}
+            </select>
             <span>每页</span>
             <select
               value={pageSize}
@@ -251,7 +290,7 @@ export default function Tasks() {
           <div className="text-center py-12">
             <ListTodo className="mx-auto h-12 w-12 text-gray-300" />
             <h3 className="mt-4 text-lg font-medium text-gray-900">{t('tasks.noTasks')}</h3>
-            <p className="mt-1 text-sm text-gray-500">{filter === 'all' ? t('tasks.noTasksCreated') : t('tasks.noTasksInStatus')}</p>
+            <p className="mt-1 text-sm text-gray-500">{filter === 'all' && typeFilter === 'all' ? t('tasks.noTasksCreated') : t('tasks.noTasksInStatus')}</p>
           </div>
         ) : (
           <>

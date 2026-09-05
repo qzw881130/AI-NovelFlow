@@ -6,6 +6,33 @@ from app.models.workflow import Workflow
 from app.services.workflow_service import WorkflowService
 
 
+def test_audiodrive_h3_system_workflows_are_registered_as_defaults(db_session):
+    WorkflowService(db_session).load_default_workflows()
+    expected = {
+        "video": ("MiniMax H3 AudioDrive 单帧生视频", 1),
+        "first_last_video": ("MiniMax H3 AudioDrive 首尾帧生视频", 2),
+        "three_frame_video": ("MiniMax H3 AudioDrive 三帧生视频", 3),
+        "four_frame_video": ("MiniMax H3 AudioDrive 四帧生视频", 4),
+    }
+
+    for workflow_type, (expected_name, frame_count) in expected.items():
+        active = db_session.query(Workflow).filter(
+            Workflow.type == workflow_type,
+            Workflow.is_active == True,
+        ).one()
+        workflow_json = json.loads(active.workflow_json)
+        node_mapping = json.loads(active.node_mapping)
+        extension = json.loads(active.extension)
+
+        assert active.name == expected_name
+        assert active.is_system is True
+        assert node_mapping["drive_audio_node_id"] in workflow_json
+        assert node_mapping["final_audio_node_id"] in workflow_json
+        assert node_mapping["prompt_node_id"] in workflow_json
+        assert node_mapping["video_save_node_id"] in workflow_json
+        assert extension == {"max_clip_duration": 15, "frame_count": frame_count}
+
+
 def test_workflow_export_preview_and_import_preserves_metadata(client, db_session, tmp_path, monkeypatch):
     monkeypatch.setattr(WorkflowService, "get_user_workflows_dir", staticmethod(lambda: str(tmp_path)))
 

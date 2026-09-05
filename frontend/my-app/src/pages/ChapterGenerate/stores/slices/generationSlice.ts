@@ -38,6 +38,7 @@ const saveTransitionSettings = (settings: { selectedTransitionWorkflow: string; 
 };
 
 const savedTransitionSettings = getSavedTransitionSettings();
+const pollingShotTaskChapters = new Set<string>();
 const pollingVideoTaskChapters = new Set<string>();
 
 const valuesEqual = (left: unknown, right: unknown): boolean => {
@@ -727,10 +728,12 @@ export const createGenerationSlice: StateCreator<
   // ========== 任务轮询方法 ==========
 
   checkShotTaskStatus: async (chapterId: string) => {
+    if (pollingShotTaskChapters.has(chapterId)) return;
+    pollingShotTaskChapters.add(chapterId);
     console.log('[checkShotTaskStatus] Start, current generatingShots:', [...get().generatingShots]);
     try {
       // 使用正确的 API 端点，按章节和类型筛选任务
-      const response = await fetch(`/api/tasks/?type=shot_image&chapter_id=${chapterId}`);
+      const response = await fetch(`/api/tasks/?type=shot_image&chapter_id=${chapterId}&limit=500`);
       const result = await response.json();
 
       console.log('[checkShotTaskStatus] API result:', result.data?.length, 'tasks');
@@ -843,12 +846,11 @@ export const createGenerationSlice: StateCreator<
                   ? 'failed'
                   : 'pending';
 
-            return {
-              ...shot,
+            return mergeShotIfChanged(shot, {
               imageStatus,
               imageUrl: latestCompletedUrl || (hasRunningTask || hasPendingTask ? null : shot.imageUrl),
               imageTaskId: (completedIsCurrent ? latestCompletedTask.id : latestTask.id) || shot.imageTaskId,
-            };
+            });
           }
           return shot;
         });
@@ -856,7 +858,8 @@ export const createGenerationSlice: StateCreator<
         // 只有当数据真正变化时才更新状态
         console.log('[checkShotTaskStatus] shotImagesUpdated:', shotImagesUpdated, 'generatingShotsUpdated:', generatingShotsUpdated, 'pendingShotsUpdated:', pendingShotsUpdated);
         console.log('[checkShotTaskStatus] newGeneratingShots:', [...newGeneratingShots]);
-        if (shotImagesUpdated || generatingShotsUpdated || pendingShotsUpdated) {
+        const shotsUpdated = updatedShots.some((shot, index) => shot !== shots[index]);
+        if (shotImagesUpdated || generatingShotsUpdated || pendingShotsUpdated || shotsUpdated) {
           set({
             shots: updatedShots,
             shotImages: newShotImages,
@@ -864,13 +867,12 @@ export const createGenerationSlice: StateCreator<
             pendingShots: newPendingShots
           });
           console.log('[checkShotTaskStatus] State updated with newGeneratingShots');
-        } else {
-          set({ shots: updatedShots });
-          console.log('[checkShotTaskStatus] Only shots updated');
         }
       }
     } catch (error) {
       console.error('检查图片任务状态失败:', error);
+    } finally {
+      pollingShotTaskChapters.delete(chapterId);
     }
   },
 

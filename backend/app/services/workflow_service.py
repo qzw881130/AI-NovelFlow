@@ -80,6 +80,7 @@ class WorkflowService:
 
                 # 获取该类型的默认节点映射
                 node_mapping = DEFAULT_WORKFLOW_NODE_MAPPINGS.get(wf_type)
+                extension = None
 
                 # 如果 EXTRA_SYSTEM_WORKFLOWS 中有配置，使用配置中的值
                 if wf_config:
@@ -88,6 +89,7 @@ class WorkflowService:
                     # 配置中的 node_mapping 优先
                     if "node_mapping" in wf_config:
                         node_mapping = wf_config["node_mapping"]
+                    extension = wf_config.get("extension")
                 else:
                     name = f"系统默认-{WORKFLOW_TYPES.get(wf_type, wf_type)}"
                     description = f"系统预设的{WORKFLOW_TYPES.get(wf_type, wf_type)}工作流"
@@ -105,6 +107,9 @@ class WorkflowService:
                     if node_mapping and not existing.node_mapping:
                         existing.node_mapping = json.dumps(node_mapping, ensure_ascii=False)
                         print(f"[Workflow] Updated node mapping for default: {wf_type}")
+                    if extension and not existing.extension:
+                        existing.extension = json.dumps(extension, ensure_ascii=False)
+                        print(f"[Workflow] Updated extension for default: {wf_type}")
                     continue
 
                 workflow = Workflow(
@@ -115,8 +120,13 @@ class WorkflowService:
                     is_system=True,
                     is_active=True,
                     file_path=file_path,
-                    node_mapping=json.dumps(node_mapping, ensure_ascii=False) if node_mapping else None
+                    node_mapping=json.dumps(node_mapping, ensure_ascii=False) if node_mapping else None,
+                    extension=json.dumps(extension, ensure_ascii=False) if extension else None,
                 )
+                self.db.query(Workflow).filter(
+                    Workflow.type == wf_type,
+                    Workflow.is_active == True,
+                ).update({"is_active": False}, synchronize_session=False)
                 self.db.add(workflow)
 
     def _find_extra_workflow_config(self, filename: str) -> Optional[dict]:

@@ -1,0 +1,444 @@
+{
+  "41": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#41 Load CLIP"
+    }
+  },
+  "42": {
+    "inputs": {
+      "noise_seed": 123456789
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#42 RandomNoise"
+    }
+  },
+  "43": {
+    "inputs": {
+      "av_latent": [
+        "50",
+        0
+      ],
+      "video_vae": [
+        "60",
+        0
+      ],
+      "audio_vae": [
+        "57",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3AVDecodeT8",
+    "_meta": {
+      "title": "#43 MiniMax H3 AV Decode (T8)"
+    }
+  },
+  "44": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "48",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "#44 Math Expression"
+    }
+  },
+  "45": {
+    "inputs": {
+      "image": "ABA.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#45 Load Image(First Frame)"
+    }
+  },
+  "46": {
+    "inputs": {
+      "frame_rate": 24,
+      "loop_count": 0,
+      "filename_prefix": "MiniMaxH3/stable_4v4a",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "43",
+        0
+      ],
+      "audio": [
+        "54",
+        2
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "#46 Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "47": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": [
+        "96",
+        0
+      ],
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "#47 Resolution Selector"
+    }
+  },
+  "48": {
+    "inputs": {
+      "value": 15
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "#48 Float (duration)"
+    }
+  },
+  "49": {
+    "inputs": {
+      "model": [
+        "53",
+        0
+      ],
+      "conditioning": [
+        "54",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "#49 Basic Guider"
+    }
+  },
+  "50": {
+    "inputs": {
+      "noise": [
+        "42",
+        0
+      ],
+      "guider": [
+        "49",
+        0
+      ],
+      "sampler": [
+        "53",
+        1
+      ],
+      "sigmas": [
+        "53",
+        2
+      ],
+      "latent_image": [
+        "54",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#50 SamplerCustomAdvanced"
+    }
+  },
+  "51": {
+    "inputs": {
+      "prompt": "subject_definitions:\n\n<Subject 1>：<Picture 1>、<Picture 2>、<Picture 3>、<Picture 4>中对应的第一主要人物。\n保持其身份、面部、年龄、发型、服装、体型和主要外观特征连续一致。\n\n<Subject 2>：<Picture 1>、<Picture 2>、<Picture 3>、<Picture 4>中对应的第二主要人物。\n保持其身份、面部、年龄、发型、服装、体型和主要外观特征连续一致。\n\n\nkeyframe_definitions:\n\n<Picture 1>：\n定义 KF1，即当前 Clip 开始时的视觉状态。\n定义人物位置、姿态、表情、环境、构图和摄影机状态。\n\n<Picture 2>：\n定义 KF2，即第一个中间视觉锚点。\n它不是独立场景，而是 KF1 → KF4 连续运动过程中的第一个必须经过的目标状态。\n\n<Picture 3>：\n定义 KF3，即第二个中间视觉锚点。\n它不是独立场景，而是 KF2 → KF4 连续运动过程中的第二个必须经过的目标状态。\n\n<Picture 4>：\n定义 KF4，即当前 Clip 最终必须到达的视觉目标状态。\n\n四张 Picture 必须严格按照时间顺序使用：\n\n<Picture 1>\n→ <Picture 2>\n→ <Picture 3>\n→ <Picture 4>\n\n不得交换顺序。\n不得跳过 <Picture 2>。\n不得跳过 <Picture 3>。\n不得从 <Picture 1> 直接跳到 <Picture 4>。\n\n不得把四张图片理解为四个同时存在的场景。\n不得将四张参考图中的同一人物解释为多个不同人物。\n不得因为存在四张参考图而复制人物。\n\n\nsummary:\n\n生成一个由 KF1 开始，依次经过 KF2、KF3，最终自然到达 KF4 的四关键帧连续视频。\n\n整个 Clip 必须形成一条连续视觉运动：\n\nKF1\n→ Transition 1\n→ KF2\n→ Transition 2\n→ KF3\n→ Transition 3\n→ KF4\n\nKF2 和 KF3 都是必须经过的视觉锚点，而不是普通参考图。\n\n输入的 drive_audio 是可见人物口型驱动的唯一音频依据。\n\n输入的 final_audio 是最终成片声音依据。\n\nPrompt 不定义、复述、补充或改写实际对白正文。\n\n不得因为 final_audio 中存在旁白、心理活动、画外声音或其他非现场人声，就让画面人物产生说话口型。\n\n不得自行生成额外对白。\n不得重复对白。\n不得补全未提供的对白。\n不得生成字幕、caption 或屏幕文字。\n\n\nkeyframe_timeline:\n\n[KF1_TIME] → <Picture 1>\n\n[KF2_TIME] → <Picture 2>\n\n[KF3_TIME] → <Picture 3>\n\n[KF4_TIME] → <Picture 4>\n\n上述时间由当前 Clip 的 Keyframe Plan 提供。\n\n四个时间点表示对应视觉状态应在该时刻附近被达到。\n\n关键帧时间不是硬切镜点。\n\n人物动作、表情、视线、身体位置、环境状态和摄影机运动必须在关键帧之间连续变化。\n\n不得提前完成后续关键帧状态。\n\n在 KF2_TIME 之前，不应提前进入完整 KF3 或 KF4 状态。\n\n在 KF3_TIME 之前，不应提前进入完整 KF4 状态。\n\n\nspeaker_timeline:\n\n[SPEAKER_TIMELINE_PLACEHOLDER]\n\n\nspeaker_rules:\n\nvisible_speaker = <Subject N> 时：\n\n只有该人物允许产生说话口型。\n\n该人物的嘴唇运动、面部表情、呼吸和轻微身体动作跟随 drive_audio 当前语音自然变化。\n\n其他可见人物必须保持嘴唇闭合，只进行自然倾听或非语言反应。\n\n\nvisible_speaker = NONE 时：\n\n所有可见人物必须保持嘴唇闭合。\n\n即使 final_audio 当前存在旁白、心理活动、画外对白或其他人声，也不得产生人物说话口型。\n\n允许自然呼吸、眨眼、视线变化、表情变化、头部动作和身体动作。\n\n\nspeaker_timeline 与 drive_audio 共同决定：\n\n谁在什么时候产生可见说话口型。\n\nfinal_audio 不决定可见说话者。\n\n\nvisual_transition:\n\n[Transition 1: KF1 → KF2]\n\n从 <Picture 1> 定义的 KF1 状态开始。\n\n人物动作、姿态、表情、视线、身体位置以及摄影机状态连续自然发展。\n\n逐渐接近 <Picture 2> 定义的 KF2 状态。\n\n不得瞬间跳到 KF2。\n不得突然改变人物身份、服装或人物数量。\n不得产生无法由连续动作解释的位置变化。\n\n到达 KF2_TIME 附近时，画面应明显体现 <Picture 2> 所定义的视觉状态。\n\n\n[Transition 2: KF2 → KF3]\n\n从 KF2 已达到的状态继续发展。\n\n人物动作、表情、视线、身体位置、环境状态和摄影机运动继续保持连续。\n\n逐渐接近 <Picture 3> 定义的 KF3 状态。\n\n不得回退到 KF1。\n\n不得重新执行已经在 Transition 1 中完成的完整动作。\n\n不得跳过 KF3 直接进入 KF4。\n\n到达 KF3_TIME 附近时，画面应明显体现 <Picture 3> 所定义的视觉状态。\n\n\n[Transition 3: KF3 → KF4]\n\n从 KF3 已达到的状态继续自然发展。\n\n人物动作、表情、视线、身体位置、环境变化和摄影机运动保持连续。\n\n逐渐接近 <Picture 4> 定义的最终 KF4 状态。\n\n不得回退到 KF1 或 KF2。\n\n不得重复前两个 Transition 已经完成的完整动作。\n\n不得产生与当前 Clip 无关的新剧情状态。\n\n临近 Clip 结束时，画面自然收束到 KF4。\n\n\nvisual_continuity_rules:\n\n四张关键帧共同描述同一个连续 Clip。\n\n它们不是四个独立镜头，也不是四个独立场景。\n\n同一人物在四张关键帧中的身份必须保持一致。\n\n不得因为姿势、景别、拍摄角度、人物大小或位置变化而把同一人物解释为不同人物。\n\n人物数量以当前视觉规划为准。\n\n不得因为多张参考图而复制角色。\n\n环境必须保持可以解释的空间连续性。\n\n如果人物位置在 KF1、KF2、KF3、KF4 之间发生变化，必须通过自然动作完成，不得瞬移。\n\n如果人物姿态发生变化，必须通过连续身体动作完成。\n\n如果人物表情发生变化，应逐渐演变。\n\n如果视线发生变化，应通过自然眼神和头部动作完成。\n\n如果摄影机景别或构图发生变化，应通过合理的推镜、拉镜、摇移、跟随、横移或其他连续摄影机运动实现。\n\n不得通过无依据的硬切来完成关键帧之间的状态变化。\n\n\nkeyframe_priority_rules:\n\n四个 Picture 都是当前 Clip 的时间锚点。\n\n不得只保持 <Picture 1> 的状态直到视频结束。\n\n不得只使用 <Picture 1> 和 <Picture 4>，忽略中间两帧。\n\n不得把 <Picture 2> 或 <Picture 3> 仅作为人物外貌参考而忽略其构图、动作或视觉状态。\n\nKF2 和 KF3 必须实际影响生成视频的中间视觉过程。\n\n如果关键帧之间存在较大的状态变化，应把变化合理分配到对应 Transition 中完成：\n\nKF1 → KF2 的变化只在 Transition 1 中逐渐完成。\n\nKF2 → KF3 的变化只在 Transition 2 中逐渐完成。\n\nKF3 → KF4 的变化只在 Transition 3 中逐渐完成。\n\n不得把所有变化集中到视频开始或结束的短时间内。\n\n\naudio_visual_coordination:\n\n声音事件只影响对应时间区间内人物的表演状态。\n\n声音事件不得改变：\n\nKF1\n→ KF2\n→ KF3\n→ KF4\n\n的视觉顺序。\n\n人物说话时，可以自然配合：\n\n嘴唇运动、\n表情变化、\n视线变化、\n轻微头部动作、\n呼吸、\n合理的身体动作。\n\n但说话动作不得阻止人物完成当前 Transition 的视觉任务。\n\n\n如果某段没有可见对白，应继续完成必要的：\n\n人物动作、\n人物反应、\n环境变化、\n镜头运动、\n情绪停顿、\n关键帧之间的视觉过渡。\n\n无对白不等于无动作。\n\n不得因为对白较短而压缩或删除无台词视觉过程。\n\n\n例如：\n\nClip 时长 = 15 秒\n\n可见人物对白总长度 = 3 秒\n\n剩余约 12 秒仍必须用于：\n\nKF1 → KF2\nKF2 → KF3\nKF3 → KF4\n\n所需要的动作、反应、镜头变化和视觉过渡。\n\n不得把整个 Clip 压缩成约 3 秒的对白表演。\n\n\nspeaker_assignment_rules:\n\n只有 drive_audio 中实际存在，并由 speaker_timeline 指定为 visible_speaker 的现场对白，可以驱动可见人物口型。\n\n\nNARRATION：\n\nvisible_speaker = NONE\n\n\nINNER_MONOLOGUE：\n\nvisible_speaker = NONE\n\n\n画外对白 / 当前说话者不在画面：\n\nvisible_speaker = NONE\n\n\n禁止根据 final_audio 自动猜测说话者。\n\n禁止因为 final_audio 中听到某个人物声音，就自动让该人物开口。\n\n禁止多个可见人物同时跟随同一段语音产生口型，除非 speaker_timeline 明确要求。\n\n\noverall_soundscape:\n\n保持 final_audio 中声音内容、顺序、时序和停顿不变。\n\ndrive_audio 仅用于可见人物口型驱动。\n\nfinal_audio 用于最终成片声音。\n\n最终音轨中的人声不等于可见人物对白。\n\n不得为 final_audio 中的旁白、心理活动、画外声音或其他非现场声音生成额外人物口型。\n\n\nending_constraint:\n\n视频必须完整经历：\n\nKF1\n→ KF2\n→ KF3\n→ KF4\n\n不得在 KF2 结束视频。\n\n不得在 KF3 结束视频。\n\n最后一个声音事件结束后，如果距离 Clip 结束仍有时间：\n\n不得提前结束视频。\n\n不得新增对白。\n\n不得重复之前的对白。\n\n人物继续进行与当前 Transition 和 KF4 目标一致的自然非语言动作。\n\n摄影机继续完成必要的镜头运动。\n\n画面继续自然向 KF4 收束。\n\n\nClip 最终画面必须尽可能接近 <Picture 4> 定义的：\n\n人物身份、\n人物位置、\n人物姿态、\n人物表情、\n环境状态、\n构图、\n摄影机关系。\n\n\n到达 KF4 后，不得继续发展新的剧情状态。\n\nClip 必须完整覆盖规划时长，并在 KF4 所定义的视觉状态附近结束。"
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#51 ⚙️ CR Prompt Text"
+    }
+  },
+  "52": {
+    "inputs": {
+      "lora_name": "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+      "strength_model": 1.0000000000000002,
+      "model": [
+        "59",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderBypassModelOnly",
+    "_meta": {
+      "title": "#52 lora only"
+    }
+  },
+  "53": {
+    "inputs": {
+      "steps": 8,
+      "shift_video": 12,
+      "shift_audio": 3,
+      "sampler_name": "dual_clock_euler",
+      "scheduler": "native_flow",
+      "model": [
+        "52",
+        0
+      ],
+      "av_latent": [
+        "54",
+        1
+      ]
+    },
+    "class_type": "MiniMaxH3DualClockSamplerT8",
+    "_meta": {
+      "title": "#53 STABLE 4 video / 4 audio"
+    }
+  },
+  "54": {
+    "inputs": {
+      "prompt": [
+        "51",
+        0
+      ],
+      "width": [
+        "47",
+        0
+      ],
+      "height": [
+        "47",
+        1
+      ],
+      "length": [
+        "44",
+        1
+      ],
+      "task_type": "Ref2VA",
+      "audio_mode": "lock_source",
+      "audio_denoise_strength": 0,
+      "add_source_as_reference": false,
+      "prompt_primary_audio_ordinal": 0,
+      "strict_prompt_tags": true,
+      "ref_image_size": "match",
+      "reference_video_policy": "official_2_to_15s",
+      "allow_above_reference_area": false,
+      "clip": [
+        "41",
+        0
+      ],
+      "video_vae": [
+        "60",
+        0
+      ],
+      "audio_vae": [
+        "57",
+        0
+      ],
+      "drive_audio": [
+        "61",
+        0
+      ],
+      "final_audio": [
+        "91",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "45",
+        0
+      ],
+      "ref_images.ref_image_1": [
+        "97",
+        0
+      ],
+      "ref_images.ref_image_2": [
+        "98",
+        0
+      ],
+      "ref_images.ref_image_3": [
+        "99",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3AudioConditioningT8",
+    "_meta": {
+      "title": "#54 MiniMax H3 Audio Conditioning (T8)"
+    }
+  },
+  "56": {
+    "inputs": {
+      "unet_name": "10Eros_Max_h3_fl2va_beta1_pruned.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#56 Load Diffusion Model"
+    }
+  },
+  "57": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#57 Load VAE"
+    }
+  },
+  "58": {
+    "inputs": {
+      "model": [
+        "56",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+    "_meta": {
+      "title": "#58 MiniMax H3 Mem Eff Sage Attention Patch"
+    }
+  },
+  "59": {
+    "inputs": {
+      "attention": "pytorch attention",
+      "model": [
+        "58",
+        0
+      ]
+    },
+    "class_type": "ModelAttentionBackend",
+    "_meta": {
+      "title": "#59 ModelAttentionBackend"
+    }
+  },
+  "60": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#60 Load VAE"
+    }
+  },
+  "61": {
+    "inputs": {
+      "audio": "h3_drive_dialogue_only.wav"
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "#61 Load Audio(Drive audio)"
+    }
+  },
+  "91": {
+    "inputs": {
+      "audio": "h3_ABA_test.wav"
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "#91 Load Audio(Final audio)"
+    }
+  },
+  "92": {
+    "inputs": {
+      "clean_file_cache": true,
+      "clean_processes": true,
+      "clean_dlls": true,
+      "retry_times": 3,
+      "anything": [
+        "93",
+        0
+      ]
+    },
+    "class_type": "RAMCleanup",
+    "_meta": {
+      "title": "#92 🎈RAM-Cleanup"
+    }
+  },
+  "93": {
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "color_space": "sRGB",
+      "images": [
+        "94",
+        0
+      ],
+      "audio": [
+        "54",
+        2
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "#93 Create Video"
+    }
+  },
+  "94": {
+    "inputs": {
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
+      "quality": "ULTRA",
+      "images": [
+        "43",
+        0
+      ]
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "#94 RTX Video Super Resolution"
+    }
+  },
+  "95": {
+    "inputs": {
+      "filename_prefix": "video/MiniMax_H3",
+      "format": "auto",
+      "format.codec": "auto",
+      "codec": "auto",
+      "video-preview": "",
+      "video": [
+        "92",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "#95 Save Video（高分辨率）"
+    }
+  },
+  "96": {
+    "inputs": {
+      "value": 0.4
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "#96 Megapixels"
+    }
+  },
+  "97": {
+    "inputs": {
+      "image": "ABA.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#97 Load Image(Second Frame)"
+    }
+  },
+  "98": {
+    "inputs": {
+      "image": "ABA.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#98 Load Image(Third Frame)"
+    }
+  },
+  "99": {
+    "inputs": {
+      "image": "ABA.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#98 Load Image(Fourth Frame)"
+    }
+  }
+}
