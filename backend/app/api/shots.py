@@ -1970,7 +1970,7 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
             "dialogues": _safe_json_list(shot.dialogues),
         },
         "selected_mode": selected_mode,
-        "execution_windows": plan.get("execution_windows") or [],
+        "execution_windows": (plan.get("execution_windows") or []) if selected_mode == "MULTI_KEYFRAME" else [],
         "workflow_capability": strip_media_refs(workflow_capability),
         "existing_keyframes": strip_media_refs(plan.get("keyframes") or []),
         "continuity_requirements": _build_continuity_requirements(shot),
@@ -1983,7 +1983,6 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
     }
     if previous_failures:
         payload["previous_failed_attempts"] = previous_failures
-        payload["retry_instruction"] = "上一次 #08 输出未通过程序校验。请重新规划完整 JSON，必须修正 previous_failed_attempts 中的错误；尤其保证每个 window_plan.keyframe_indexes 数量严格等于 selected_frame_count，且每个 window 至少包含起点、中间点、终点三个关键帧。"
     return "请基于以下正式保存的 Shot 与执行窗口，规划视频关键帧时间轴。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
 
 
@@ -2004,14 +2003,31 @@ def _parse_keyframe_planner_content(content: str) -> dict:
         raise
 
 
-def _normalize_keyframe_planner_result(parsed: dict, execution_windows: list, duration: int) -> tuple[list, list, dict]:
+def _normalize_keyframe_planner_result(parsed: dict, execution_windows: list, duration: float, selected_mode: str, max_clip_duration: float) -> tuple[list, list, dict]:
     if not isinstance(parsed, dict):
         raise ValueError("#08 返回必须是 JSON Object")
     raw_keyframes = parsed.get("keyframes") if isinstance(parsed.get("keyframes"), list) else []
     raw_window_plans = parsed.get("window_plans") if isinstance(parsed.get("window_plans"), list) else []
     if not raw_keyframes:
         raise ValueError("#08 返回缺少 keyframes")
-    if len(raw_window_plans) != len(execution_windows):
+    if selected_mode == "FIRST_LAST_FRAME":
+        # Persisted windows can be AudioDrive bindings, not LLM window plans.
+        if not 0 < duration <= max_clip_duration:
+            raise ValueError("FIRST_LAST_FRAME duration must be positive and within max_clip_duration")
+        if parsed.get("window_plans") != []:
+            raise ValueError("FIRST_LAST_FRAME window_plans must be []")
+        if len(raw_keyframes) != 2 or any(
+            not isinstance(keyframe, dict)
+            or keyframe.get("index") != index
+            or keyframe.get("role") != role
+            or keyframe.get("time_seconds") != time
+            for keyframe, index, role, time in zip(raw_keyframes, (1, 2), ("START", "END"), (0, duration))
+        ):
+            raise ValueError("FIRST_LAST_FRAME requires KF1 START at 0 and KF2 END at resolved duration")
+        execution_windows = []
+    elif selected_mode != "MULTI_KEYFRAME":
+        raise ValueError("Unsupported keyframe planning mode")
+    elif not execution_windows or len(raw_window_plans) != len(execution_windows):
         raise ValueError("#08 返回的 window_plans 数量必须与 execution_windows 一致")
 
     normalized_keyframes = []
@@ -2033,8 +2049,11 @@ def _normalize_keyframe_planner_result(parsed: dict, execution_windows: list, du
         })
 
     keyframe_indexes = {kf["index"] for kf in normalized_keyframes}
+    if len(keyframe_indexes) != len(normalized_keyframes):
+        raise ValueError("keyframe indexes must be unique")
     windows_by_index = {int(window["window_index"]): window for window in execution_windows}
     normalized_window_plans = []
+    seen_windows = set()
     for idx, plan_item in enumerate(raw_window_plans, 1):
         if not isinstance(plan_item, dict):
             raise ValueError("window_plans 中存在无效对象")
@@ -2042,12 +2061,17 @@ def _normalize_keyframe_planner_result(parsed: dict, execution_windows: list, du
         window = windows_by_index.get(window_index)
         if not window:
             raise ValueError(f"window_plans 引用了不存在的 execution_window {window_index}")
+        if window_index in seen_windows:
+            raise ValueError("window_plans must match distinct execution_windows")
+        seen_windows.add(window_index)
         selected_frame_count = int(plan_item.get("selected_frame_count") or plan_item.get("frame_count") or 0)
         if selected_frame_count not in {3, 4}:
             raise ValueError("每个 window_plan 的 selected_frame_count 必须是 3 或 4")
         indexes = [int(index) for index in (plan_item.get("keyframe_indexes") or [])]
         if len(indexes) != selected_frame_count:
             raise ValueError(f"window_plan {window_index} 的 keyframe_indexes 数量必须等于 selected_frame_count")
+        if len(set(indexes)) != selected_frame_count:
+            raise ValueError("window_plan keyframe_indexes must be distinct")
         missing = [index for index in indexes if index not in keyframe_indexes]
         if missing:
             raise ValueError(f"window_plan {window_index} 引用了不存在的 Keyframe: {missing}")
@@ -2713,7 +2737,7 @@ async def plan_video_keyframes(
 
         try:
             parsed = _parse_keyframe_planner_content(result.get("content") or "{}")
-            keyframes, window_plans, validation = _normalize_keyframe_planner_result(parsed, execution_windows, duration)
+            keyframes, window_plans, validation = _normalize_keyframe_planner_result(parsed, execution_windows, duration, selected_mode, max_clip_duration)
             break
         except Exception as exc:
             error = str(exc)

@@ -197,6 +197,9 @@ selected_mode == "FIRST_LAST_FRAME"：
 
 禁止添加 INTERMEDIATE。
 FIRST_LAST_FRAME 的 window_plans 输出空数组 []。
+该模式的音频执行窗口由程序管理，不要求你输出多关键帧 window_plans。
+
+若输入包含 previous_failed_attempts，说明之前的输出未通过程序校验：修正其中的问题并重新输出完整 JSON，严格遵守当前 selected_mode 的规则。FIRST_LAST_FRAME 仍只输出 START/END 和空 window_plans；只有 MULTI_KEYFRAME 才需要为每个 execution_window 输出对应的 3/4 帧 window_plan，不得为重试而改变生成模式。
 
 END description 必须：
 - 与 START 保持相同人物身份；
