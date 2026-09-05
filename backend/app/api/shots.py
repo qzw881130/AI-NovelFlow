@@ -591,6 +591,30 @@ async def run_next_persistent_shot_video_batch_task() -> bool:
         db.close()
 
 
+def _persist_batch_video_failure(db: Session, shot_id: str, owner_id: str, message: str) -> None:
+    # Compare ownership and plan revision in the write, not just the session snapshot.
+    for _ in range(3):
+        shot = db.query(Shot).filter(Shot.id == shot_id).populate_existing().first()
+        if not shot or shot.video_task_id != owner_id or shot.video_status == "completed":
+            return
+        revision = int(shot.video_director_plan_revision or 0)
+        plan = _safe_json_dict(shot.video_director_plan)
+        plan.update({"error_message": message, "task_error_message": message})
+        updated = db.query(Shot).filter(
+            Shot.id == shot_id,
+            Shot.video_task_id == owner_id,
+            Shot.video_status != "completed",
+            Shot.video_director_plan_revision == revision,
+        ).update({
+            "video_status": "completed" if shot.video_url else "failed",
+            "video_director_plan": json.dumps(plan, ensure_ascii=False),
+            "video_director_plan_revision": revision + 1,
+        }, synchronize_session=False)
+        if updated:
+            db.refresh(shot)
+            return
+
+
 async def run_shot_video_batch_task(task_id: str) -> None:
     db = SessionLocal()
     try:
@@ -648,6 +672,23 @@ async def run_shot_video_batch_task(task_id: str) -> None:
                 failed_count += 1
                 continue
 
+            # Older persisted batches did not bind their queued shots to the parent.
+            if not shot.video_task_id and shot.video_status == "pending" and not shot.video_url:
+                db.query(Shot).filter(
+                    Shot.id == shot.id, Shot.video_task_id.is_(None),
+                    Shot.video_status == "pending", (Shot.video_url.is_(None) | (Shot.video_url == "")),
+                ).update({"video_task_id": task.id}, synchronize_session=False)
+                db.commit()
+            db.refresh(shot)
+            owner = db.query(Task).filter(Task.id == shot.video_task_id).first() if shot.video_task_id else None
+            if shot.video_task_id != task.id and not (
+                owner and owner.type == "shot_video" and owner.parent_task_id == task.id
+            ):
+                results[shot_id] = {"status": "failed", "message": "Shot video task ownership changed", "shotIndex": shot.index}
+                failed_count += 1
+                continue
+            failure_owner_id = shot.video_task_id
+
             task.current_step = f"提交镜 {shot.index} 视频任务 ({index}/{total})..."
             task.progress = max(1, int(((index - 1) / total) * 95))
             task.metadata_json = json.dumps({**metadata, "results": results}, ensure_ascii=False)
@@ -661,6 +702,9 @@ async def run_shot_video_batch_task(task_id: str) -> None:
                     selected_modes.get(shot.id) or None,
                     auto_complete=auto_complete,
                 )
+                db.refresh(shot)
+                if shot.video_task_id != failure_owner_id:
+                    raise RuntimeError("Shot video task ownership changed during preflight")
                 response = await generate_shot_video(
                     task.novel_id,
                     task.chapter_id,
@@ -682,15 +726,11 @@ async def run_shot_video_batch_task(task_id: str) -> None:
                     child_task.batch_order = index
                     db.commit()
                 results[shot_id] = {"status": "running", "taskId": child_task_id, "shotIndex": shot.index}
-            except HTTPException as exc:
-                results[shot_id] = {"status": "failed", "message": str(exc.detail), "shotIndex": shot.index}
-                failed_count += 1
-                metadata["results"] = results
-                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
-                db.commit()
-                continue
             except Exception as exc:
-                results[shot_id] = {"status": "failed", "message": str(exc), "shotIndex": shot.index}
+                db.rollback()
+                message = str(exc.detail) if isinstance(exc, HTTPException) else str(exc) or type(exc).__name__
+                _persist_batch_video_failure(db, shot_id, failure_owner_id, message)
+                results[shot_id] = {"status": "failed", "message": message, "shotIndex": shot.index}
                 failed_count += 1
                 metadata["results"] = results
                 task.metadata_json = json.dumps(metadata, ensure_ascii=False)
@@ -715,7 +755,8 @@ async def run_shot_video_batch_task(task_id: str) -> None:
                 results[shot_id] = {"status": "completed", "taskId": child_task.id, "resultUrl": child_task.result_url, "shotIndex": shot.index}
                 success_count += 1
             else:
-                message = child_task.error_message if child_task else "视频任务未创建或已丢失"
+                message = (child_task.error_message or "视频生成子任务失败") if child_task else "视频任务未创建或已丢失"
+                _persist_batch_video_failure(db, shot_id, child_task_id or failure_owner_id, message)
                 results[shot_id] = {"status": "failed", "taskId": child_task_id, "message": message, "shotIndex": shot.index}
                 failed_count += 1
             metadata["results"] = results
@@ -732,8 +773,11 @@ async def run_shot_video_batch_task(task_id: str) -> None:
         db.commit()
     except Exception as exc:
         print(f"[ShotVideoBatch {task_id}] Error: {exc}")
+        db.rollback()
         task = db.query(Task).filter(Task.id == task_id).first()
         if task:
+            for queued_shot in db.query(Shot).filter(Shot.video_task_id == task.id).all():
+                _persist_batch_video_failure(db, queued_shot.id, task.id, str(exc) or type(exc).__name__)
             task.status = "failed"
             task.error_message = str(exc)
             task.current_step = "批量视频失败"
@@ -2201,32 +2245,35 @@ def _preserve_matching_clip_audio_fields(next_window_plans: list, previous_windo
         "drive_audio_url", "final_audio_url", "drive_audio_path", "final_audio_path",
         "clip_audio_manifest_path", "clip_audio_duration",
     ]
-    previous_by_index = {
-        int(window.get("window_index") or window.get("clip_index") or 0): window
-        for window in previous_window_plans or []
-        if isinstance(window, dict)
-    }
+    previous_by_index = {}
+    for previous in previous_window_plans or []:
+        if isinstance(previous, dict) and any(previous.get(key) is not None for key in audio_keys):
+            index = int(previous.get("window_index") or previous.get("clip_index") or 0)
+            previous_by_index.setdefault(index, []).append(previous)
     for window in next_window_plans or []:
         if not isinstance(window, dict):
             continue
-        previous = previous_by_index.get(int(window.get("window_index") or window.get("clip_index") or 0))
-        if not previous:
-            continue
-        previous_start = previous.get("start_time") if previous.get("start_time") is not None else -1
-        previous_end = previous.get("end_time") if previous.get("end_time") is not None else -1
-        window_start = window.get("start_time") if window.get("start_time") is not None else -2
-        window_end = window.get("end_time") if window.get("end_time") is not None else -2
-        same_range = float(previous_start) == float(window_start) and float(previous_end) == float(window_end)
-        if not same_range:
-            continue
-        for key in audio_keys:
-            if previous.get(key) is not None:
-                window[key] = previous.get(key)
+        candidates = previous_by_index.get(int(window.get("window_index") or window.get("clip_index") or 0), [])
+        for previous in candidates:
+            same_range = all(
+                previous.get(key) is not None and window.get(key) is not None
+                and float(previous[key]) == float(window[key])
+                for key in ("start_time", "end_time")
+            )
+            if not same_range:
+                continue
+            # Keep one coherent binding; never fill gaps from a different candidate.
+            for key in audio_keys:
+                window.pop(key, None)
+                if previous.get(key) is not None:
+                    window[key] = previous[key]
+            break
     return next_window_plans
 
 
 def _collect_audio_clip_sources(plan: dict) -> list:
     sources = []
+    # Preserve priority and duplicates: range matching happens before selection.
     for key in ("window_plans", "execution_windows", "clips"):
         value = plan.get(key)
         if isinstance(value, list):
@@ -3323,6 +3370,20 @@ async def generate_shot_videos_batch(
         metadata_json=json.dumps(metadata, ensure_ascii=False),
     )
     db.add(task)
+    db.flush()
+    for shot_id in unique_shot_ids:
+        shot = shot_repo.get_by_id(shot_id)
+        active_child = TaskRepository(db).get_active_shot_task(
+            novel_id, chapter_id, shot.index, "shot_video", shot_id=shot.id,
+        )
+        if active_child:
+            continue
+        db.query(Shot).filter(
+            Shot.id == shot.id,
+            Shot.video_task_id == shot.video_task_id,
+            Shot.video_status == shot.video_status,
+        ).update({"video_task_id": task.id, "video_status": "pending"}, synchronize_session=False)
+        db.refresh(shot)
     db.commit()
     db.refresh(task)
 

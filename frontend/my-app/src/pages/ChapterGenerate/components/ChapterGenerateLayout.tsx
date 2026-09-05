@@ -194,8 +194,8 @@ export function ChapterGenerateLayout({
 
     if (isGenerating) stats.generating.push(shot);
     else if (hasShotVideo) stats.completed.push(shot);
-    else if (needsMerge) stats.needsMerge.push(shot);
     else if (isFailed) stats.failed.push(shot);
+    else if (needsMerge) stats.needsMerge.push(shot);
     else stats.incomplete.push(shot);
     return stats;
   }, { completed: [] as any[], generating: [] as any[], failed: [] as any[], needsMerge: [] as any[], incomplete: [] as any[] });

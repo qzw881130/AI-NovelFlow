@@ -908,8 +908,9 @@ class FileStorageService:
             # 构建视频列表（插入转场视频）
             final_video_list = []
             for i, video_path in enumerate(video_paths):
-                if Path(video_path).exists():
-                    final_video_list.append(video_path)
+                if not Path(video_path).is_file():
+                    return {"success": False, "message": f"视频文件不存在: {video_path}"}
+                final_video_list.append(video_path)
                 # 在每个视频后插入转场（除了最后一个）
                 if transition_videos and i < len(transition_videos) and i < len(video_paths) - 1:
                     trans_path = transition_videos[i]
@@ -961,7 +962,7 @@ class FileStorageService:
 
                 def _run_validate():
                     return subprocess.run(
-                        ['ffmpeg', '-v', 'error', '-i', video_path, '-f', 'null', '-'],
+                        ['ffmpeg', '-v', 'error', '-xerror', '-i', video_path, '-f', 'null', '-'],
                         capture_output=True,
                         text=True,
                     )
@@ -969,45 +970,7 @@ class FileStorageService:
                 result = await loop.run_in_executor(None, _run_validate)
                 stderr = (result.stderr or '').strip()
                 if result.returncode != 0 or stderr:
-                    raise RuntimeError(f"视频输出解码校验失败: {stderr[:300] or f'ffmpeg exit {result.returncode}'}")
-
-            async def _run_direct_filter_merge():
-                loop = asyncio.get_event_loop()
-                cmd = ['ffmpeg']
-                for video_path in final_video_list:
-                    cmd.extend(['-i', video_path])
-
-                stream_filters = []
-                for index in range(len(final_video_list)):
-                    stream_filters.append(
-                        f'[{index}:v:0]scale={target_width}:{target_height}:force_original_aspect_ratio=decrease,'
-                        f'pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2:black,'
-                        f'fps=24,format=yuv420p,setpts=PTS-STARTPTS[v{index}]'
-                    )
-                    stream_filters.append(f'[{index}:a:0]aresample=48000,asetpts=PTS-STARTPTS[a{index}]')
-                concat_inputs = ''.join(f'[v{index}][a{index}]' for index in range(len(final_video_list)))
-                filter_complex = ';'.join(stream_filters + [f'{concat_inputs}concat=n={len(final_video_list)}:v=1:a=1[v][a]'])
-                cmd.extend([
-                    '-filter_complex', filter_complex,
-                    '-map', '[v]',
-                    '-map', '[a]',
-                    '-c:v', 'libx264',
-                    '-preset', 'medium',
-                    '-crf', '18',
-                    '-pix_fmt', 'yuv420p',
-                    '-c:a', 'aac',
-                    '-ar', '48000',
-                    '-ac', '2',
-                    '-movflags', '+faststart',
-                    '-y',
-                    output_path,
-                ])
-                print(f"[FileStorage] Running direct fallback ffmpeg: {' '.join(cmd)}")
-
-                def _run_direct_fallback():
-                    return subprocess.run(cmd, capture_output=True, text=True)
-
-                return await loop.run_in_executor(None, _run_direct_fallback)
+                    raise RuntimeError(f"视频解码校验失败 ({video_path}): {stderr[:300] or f'ffmpeg exit {result.returncode}'}")
 
             target_info = await _get_video_info(final_video_list[0])
             target_width = target_info['width']
@@ -1016,7 +979,9 @@ class FileStorageService:
             if target_width <= 0 or target_height <= 0:
                 return {"success": False, "message": "无法读取目标视频分辨率"}
 
-            temp_normalized_dir = tempfile.mkdtemp(prefix='novelflow_merge_')
+            # Keep candidates on the destination filesystem for atomic publication.
+            temp_normalized_dir = tempfile.mkdtemp(prefix='.novelflow_merge_', dir=str(Path(output_path).resolve().parent))
+            candidate_path = os.path.join(temp_normalized_dir, 'merged.mp4')
             normalized_paths = []
             concat_file = None
 
@@ -1024,11 +989,16 @@ class FileStorageService:
             try:
                 loop = asyncio.get_event_loop()
 
+                # Reject corrupt sources before a decoder can conceal their errors.
+                for video_path in final_video_list:
+                    await _validate_video_decode(video_path)
+
                 for index, video_path in enumerate(final_video_list):
                     normalized_path = os.path.join(temp_normalized_dir, f'normalized_{index:03d}.mp4')
                     video_info = await _get_video_info(video_path)
                     normalize_cmd = [
                         'ffmpeg',
+                        '-xerror',
                         '-i', video_path,
                     ]
 
@@ -1073,15 +1043,15 @@ class FileStorageService:
                     normalized_paths.append(normalized_path)
 
                 if len(normalized_paths) == 1:
-                    shutil.copy2(normalized_paths[0], output_path)
-                    await _validate_video_decode(output_path)
+                    await _validate_video_decode(normalized_paths[0])
+                    os.replace(normalized_paths[0], output_path)
                     return {
                         "success": True,
                         "output_path": output_path,
                         "message": "合并完成，共 1 个视频片段"
                     }
 
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', dir=temp_normalized_dir, delete=False) as f:
                     concat_file = f.name
                     for video_path in normalized_paths:
                         escaped_path = video_path.replace("'", "'\\''")
@@ -1089,7 +1059,7 @@ class FileStorageService:
             
                 # 使用 concat filter 重新编码输出。MP4/H.264 即使参数一致，直接 -c copy
                 # 拼接仍可能产生浏览器无法解码的 NAL 边界问题。
-                cmd = ['ffmpeg']
+                cmd = ['ffmpeg', '-xerror']
                 for video_path in normalized_paths:
                     cmd.extend(['-i', video_path])
                 normalized_streams = []
@@ -1111,8 +1081,14 @@ class FileStorageService:
                     '-ac', '2',
                     '-movflags', '+faststart',
                     '-y',  # 覆盖输出文件
-                    output_path,
+                    candidate_path,
                 ])
+
+                filter_cmd = cmd
+                cmd = [
+                    'ffmpeg', '-f', 'concat', '-safe', '0', '-i', concat_file,
+                    '-c', 'copy', '-movflags', '+faststart', '-y', candidate_path,
+                ]
                 
                 print(f"[FileStorage] Running ffmpeg: {' '.join(cmd)}")
                 
@@ -1137,34 +1113,18 @@ class FileStorageService:
                     }
                 
                 # 检查输出文件是否存在
-                if not Path(output_path).exists():
+                if not Path(candidate_path).exists():
                     return {
                         "success": False,
                         "message": "输出文件未生成"
                     }
 
                 try:
-                    await _validate_video_decode(output_path)
-                except Exception as validation_error:
+                    await _validate_video_decode(candidate_path)
+                except RuntimeError as validation_error:
                     print(f"[FileStorage] Merged video validation failed, retrying fallback merge: {validation_error}")
-                    if Path(output_path).exists():
-                        Path(output_path).unlink()
-                    fallback_cmd = [
-                        'ffmpeg',
-                        '-f', 'concat',
-                        '-safe', '0',
-                        '-i', concat_file,
-                        '-c:v', 'libx264',
-                        '-preset', 'medium',
-                        '-crf', '18',
-                        '-pix_fmt', 'yuv420p',
-                        '-c:a', 'aac',
-                        '-ar', '48000',
-                        '-ac', '2',
-                        '-movflags', '+faststart',
-                        '-y',
-                        output_path,
-                    ]
+                    Path(candidate_path).unlink()
+                    fallback_cmd = filter_cmd
                     print(f"[FileStorage] Running fallback ffmpeg: {' '.join(fallback_cmd)}")
 
                     def _run_fallback_ffmpeg():
@@ -1177,31 +1137,14 @@ class FileStorageService:
                             "success": False,
                             "message": f"视频合并自动修复失败: {fallback_result.stderr[:200]}"
                         }
-                    if not Path(output_path).exists():
+                    if not Path(candidate_path).exists():
                         return {
                             "success": False,
                             "message": "视频合并自动修复失败: 输出文件未生成"
                         }
-                    try:
-                        await _validate_video_decode(output_path)
-                    except Exception as fallback_validation_error:
-                        print(f"[FileStorage] Fallback merged video validation failed, retrying direct merge: {fallback_validation_error}")
-                        if Path(output_path).exists():
-                            Path(output_path).unlink()
-                        direct_result = await _run_direct_filter_merge()
-                        if direct_result.returncode != 0:
-                            print(f"[FileStorage] Direct fallback FFmpeg error: {direct_result.stderr}")
-                            return {
-                                "success": False,
-                                "message": f"视频合并自动修复失败: {direct_result.stderr[:200]}"
-                            }
-                        if not Path(output_path).exists():
-                            return {
-                                "success": False,
-                                "message": "视频合并自动修复失败: 输出文件未生成"
-                            }
-                        await _validate_video_decode(output_path)
+                    await _validate_video_decode(candidate_path)
 
+                os.replace(candidate_path, output_path)
                 print(f"[FileStorage] Video merged successfully: {output_path}")
                 return {
                     "success": True,

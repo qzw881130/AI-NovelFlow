@@ -1936,6 +1936,14 @@ export function VideoGenTab({
       };
     }
 
+    if (!hasVideo && currentShotData?.videoStatus === 'failed') {
+      return {
+        label: /合并失败|merge failed|failed to merge/i.test(currentVideoErrorMessage || '') ? '合并失败' : '失败',
+        className: 'border-red-100 bg-red-50 text-red-700',
+        detail: currentVideoErrorMessage || (clipCount > 0 ? `Clip ${completedClipCount}/${clipCount}` : '视频任务失败'),
+      };
+    }
+
     if (needsMerge) {
       return {
         label: '待合并',
@@ -1949,14 +1957,6 @@ export function VideoGenTab({
         label: '已完成',
         className: 'border-green-100 bg-green-50 text-green-700',
         detail: clipCount > 0 ? `Shot 视频已生成，Clip ${completedClipCount}/${clipCount}` : 'Shot 视频已生成',
-      };
-    }
-
-    if (currentShotData?.videoStatus === 'failed') {
-      return {
-        label: '失败',
-        className: 'border-red-100 bg-red-50 text-red-700',
-        detail: currentVideoErrorMessage || (clipCount > 0 ? `Clip ${completedClipCount}/${clipCount}` : '视频任务失败'),
       };
     }
 
