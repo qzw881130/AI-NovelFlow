@@ -3250,18 +3250,35 @@ async def generate_shot_videos_batch(
     if invalid_ids:
         raise HTTPException(status_code=400, detail="选择的分镜不属于当前章节")
 
-    active_batch = db.query(Task).filter(
+    active_batches = db.query(Task).filter(
         Task.type == "shot_video_batch",
         Task.novel_id == novel_id,
         Task.chapter_id == chapter_id,
         Task.status.in_(["pending", "running"]),
-    ).first()
-    if active_batch:
-        return {
-            "success": True,
-            "message": "已有批量视频生成任务正在运行",
-            "data": {"taskId": active_batch.id, "status": active_batch.status},
-        }
+    ).order_by(Task.created_at.asc()).all()
+    requested_shot_ids = set(unique_shot_ids)
+    for active_batch in active_batches:
+        try:
+            active_metadata = json.loads(active_batch.metadata_json or "{}")
+        except Exception:
+            active_metadata = {}
+        active_shot_ids = {str(shot_id) for shot_id in (active_metadata.get("shot_ids") or []) if shot_id}
+        if active_shot_ids == requested_shot_ids:
+            return {
+                "success": True,
+                "message": "相同分镜已在批量视频队列中",
+                "data": {"taskId": active_batch.id, "status": active_batch.status, "shotIds": unique_shot_ids},
+            }
+        overlapping_shot_ids = requested_shot_ids & active_shot_ids
+        if overlapping_shot_ids:
+            overlapping_indexes = sorted(
+                shot.index for shot in shot_repo.get_by_chapter(chapter_id)
+                if shot.id in overlapping_shot_ids
+            )
+            raise HTTPException(
+                status_code=409,
+                detail=f"部分分镜已在批量视频队列中：{', '.join(f'镜{index}' for index in overlapping_indexes)}",
+            )
 
     metadata = {
         "shot_ids": unique_shot_ids,

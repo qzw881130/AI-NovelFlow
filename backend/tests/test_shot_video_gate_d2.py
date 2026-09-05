@@ -1,14 +1,60 @@
 import asyncio
 import json
 
+import pytest
+from fastapi import HTTPException
+
 from app.models.novel import Chapter, Novel
 from app.models.shot import Shot
 from app.models.task import Task
 from app.models.workflow import Workflow
-from app.api.shots import resume_active_shot_video_batches
+from app.api.shots import BatchShotVideoRequest, generate_shot_videos_batch, resume_active_shot_video_batches
+from app.repositories import ChapterRepository, NovelRepository, ShotRepository
 from app.repositories.task import TaskRepository
 from app.services.shot_video_service import generate_shot_video_task
 from app.services.task_service import TaskService
+
+
+def test_disjoint_video_batches_queue_instead_of_reusing_active_batch(db_session):
+    novel = Novel(title="Batch queue")
+    db_session.add(novel)
+    db_session.commit()
+    db_session.refresh(novel)
+    chapter = Chapter(novel_id=novel.id, number=1, title="Chapter", content="content")
+    db_session.add(chapter)
+    db_session.commit()
+    db_session.refresh(chapter)
+    shots = [
+        Shot(chapter_id=chapter.id, index=index, description=f"Shot {index}", characters="[]", props="[]", duration=4)
+        for index in range(1, 4)
+    ]
+    db_session.add_all(shots)
+    db_session.commit()
+    for shot in shots:
+        db_session.refresh(shot)
+
+    async def submit(shot_ids):
+        return await generate_shot_videos_batch(
+            novel.id,
+            chapter.id,
+            BatchShotVideoRequest(shot_ids=shot_ids),
+            novel_repo=NovelRepository(db_session),
+            chapter_repo=ChapterRepository(db_session),
+            shot_repo=ShotRepository(db_session),
+            db=db_session,
+        )
+
+    first = asyncio.run(submit([shots[0].id]))
+    second = asyncio.run(submit([shots[1].id]))
+    duplicate = asyncio.run(submit([shots[1].id]))
+
+    assert first["data"]["taskId"] != second["data"]["taskId"]
+    assert duplicate["data"]["taskId"] == second["data"]["taskId"]
+    assert db_session.query(Task).filter(Task.type == "shot_video_batch").count() == 2
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(submit([shots[0].id, shots[2].id]))
+    assert exc_info.value.status_code == 409
 
 
 def test_service_restart_requeues_batch_and_releases_unsubmitted_child(db_session, monkeypatch):
