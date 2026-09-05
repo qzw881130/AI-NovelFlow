@@ -1800,7 +1800,7 @@ export function VideoGenTab({
   const previewAudioClip = selectedPreviewClip || currentPlanClips.find((clip: any) => clip.drive_audio_url || clip.driveAudioUrl || clip.final_audio_url || clip.finalAudioUrl) || null;
   const previewDriveAudioUrl = previewAudioClip?.drive_audio_url || previewAudioClip?.driveAudioUrl;
   const previewFinalAudioUrl = previewAudioClip?.final_audio_url || previewAudioClip?.finalAudioUrl;
-  const previewVideoUrl = selectedPreviewClip?.video_url || currentShotVideoUrl;
+  const previewVideoUrl = selectedPreviewClip?.video_url || currentShotVideoUrl || currentVideoDirectorPlan.merged_video_url;
   const previewVideoLabel = selectedPreviewClip ? `C${selectedPreviewClip.window_index || selectedPreviewClip.clip_index}` : 'Shot';
   const previewClipMarkers = !selectedPreviewClip && currentSelectedVideoMode === 'MULTI_KEYFRAME'
     ? currentPlanClips
@@ -1979,12 +1979,16 @@ export function VideoGenTab({
     saveVideoTabUiState({ showKeyframes, showAudioRef, isSidePanelCollapsed });
   }, [showKeyframes, showAudioRef, isSidePanelCollapsed]);
 
-  const updateCurrentShotVideoDirectorPlan = useCallback((plan: VideoDirectorPlan) => {
+  const updateCurrentShotVideoDirectorPlan = useCallback((plan: VideoDirectorPlan, revision?: number) => {
     if (!currentShotId) return;
-    setShots(shotsList.map((shot: any) => (
-      String(shot.id) === currentShotId ? { ...shot, videoDirectorPlan: plan } : shot
-    )));
-  }, [currentShotId, setShots, shotsList]);
+    useChapterGenerateStore.setState((state) => ({
+      shots: state.shots.map((shot: any) => (
+        String(shot.id) === currentShotId
+          ? { ...shot, videoDirectorPlan: plan, ...(revision !== undefined ? { videoDirectorPlanRevision: revision } : {}) }
+          : shot
+      )),
+    }));
+  }, [currentShotId]);
 
   const buildVideoPromptDrafts = useCallback((plan: VideoDirectorPlan): VideoPromptDraft[] => {
     const selectedMode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
@@ -2039,6 +2043,7 @@ export function VideoGenTab({
     setIsSavingVideoPrompts(true);
     try {
       let latestPlan: VideoDirectorPlan | undefined;
+      let latestRevision: number | undefined;
       for (const draft of videoPromptDrafts) {
         const collection = draft.source === 'window_plan' ? 'window_plans' : 'clips';
         const index = draft.index !== undefined ? draft.index + 1 : 1;
@@ -2051,8 +2056,9 @@ export function VideoGenTab({
           throw new Error(result.message || result.detail || '保存 AI 提示词失败');
         }
         latestPlan = result.data;
+        latestRevision = result.revision;
       }
-      if (latestPlan) updateCurrentShotVideoDirectorPlan(latestPlan);
+      if (latestPlan) updateCurrentShotVideoDirectorPlan(latestPlan, latestRevision);
       setIsVideoPromptModalOpen(false);
       toast.success('AI 提示词已保存');
     } catch (error) {
@@ -2101,7 +2107,7 @@ export function VideoGenTab({
         expectedRevision: currentShotData?.videoDirectorPlanRevision ?? 0,
       } as any);
       if (result.success && result.data) {
-        updateCurrentShotVideoDirectorPlan(result.data);
+        updateCurrentShotVideoDirectorPlan(result.data, result.revision);
       } else {
         toast.error(result.message || '保存视频模式失败');
       }
@@ -2280,40 +2286,6 @@ export function VideoGenTab({
     };
   }, [previewVideoUrl]);
 
-  useEffect(() => {
-    if (!isGeneratingCurrent || !effectiveNovelId || !effectiveChapterId || !currentShotId) return;
-    let stopped = false;
-    let timer: number | undefined;
-
-    const refreshCurrentShot = async () => {
-      try {
-        const result = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, currentShotId);
-        if (!stopped && result.success && result.data) {
-          setShots(shotsList.map((shot: any) => (
-            String(shot.id) === currentShotId ? { ...shot, ...result.data } : shot
-          )));
-          if (result.data.videoUrl) {
-            setShotVideos((videos: Record<string, string>) => ({ ...videos, [currentShotId]: result.data.videoUrl! }));
-          }
-          if (result.data.videoStatus !== 'generating') {
-            setRegeneratingClipKey(null);
-          }
-        }
-      } catch (error) {
-        console.error('刷新当前视频状态失败:', error);
-      }
-      if (!stopped) {
-        timer = window.setTimeout(refreshCurrentShot, 2000);
-      }
-    };
-
-    timer = window.setTimeout(refreshCurrentShot, 2000);
-    return () => {
-      stopped = true;
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [currentShotId, effectiveChapterId, effectiveNovelId, isGeneratingCurrent, setShotVideos, setShots, shotsList]);
-
   const handleToggleKeyframes = () => {
     const nextShowKeyframes = !showKeyframes;
     setShowKeyframes(nextShowKeyframes);
@@ -2353,6 +2325,12 @@ export function VideoGenTab({
     setSelectedPreviewClipKey(null);
     setRegeneratingClipKey(null);
   }, [currentShotId]);
+
+  useEffect(() => {
+    if (!isGeneratingCurrent && !isCurrentVideoPending) {
+      setRegeneratingClipKey(null);
+    }
+  }, [isCurrentVideoPending, isGeneratingCurrent]);
 
   const hasVideo = !!currentShotVideoUrl;
   const hasPreviewVideo = !!previewVideoUrl;
@@ -2399,37 +2377,18 @@ export function VideoGenTab({
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return null;
     const result = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, currentShotId);
     if (result.success && result.data) {
-      setShots(shotsList.map((shot: any) => (
-        String(shot.id) === currentShotId ? { ...shot, ...result.data } : shot
-      )));
+      useChapterGenerateStore.setState((state) => ({
+        shots: state.shots.map((shot: any) => (
+          String(shot.id) === currentShotId ? { ...shot, ...result.data } : shot
+        )),
+      }));
       if (result.data.videoUrl) {
         setShotVideos((prev) => ({ ...prev, [currentShotId]: result.data.videoUrl || '' }));
       }
       return result.data;
     }
     return null;
-  }, [currentShotId, effectiveChapterId, effectiveNovelId, setShotVideos, setShots, shotsList]);
-
-  useEffect(() => {
-    if (!effectiveChapterId || !currentShotId || (!isGeneratingCurrent && !isCurrentVideoPending)) return;
-    let cancelled = false;
-    let timeoutId: ReturnType<typeof window.setTimeout> | null = null;
-
-    const refreshActiveShot = async () => {
-      if (cancelled) return;
-      await checkVideoTaskStatus(effectiveChapterId);
-      await refreshCurrentShotData();
-      if (!cancelled) {
-        timeoutId = window.setTimeout(refreshActiveShot, 2000);
-      }
-    };
-
-    timeoutId = window.setTimeout(refreshActiveShot, 1000);
-    return () => {
-      cancelled = true;
-      if (timeoutId) window.clearTimeout(timeoutId);
-    };
-  }, [checkVideoTaskStatus, currentShotId, effectiveChapterId, isCurrentVideoPending, isGeneratingCurrent, refreshCurrentShotData]);
+  }, [currentShotId, effectiveChapterId, effectiveNovelId, setShotVideos]);
 
   const handleRefreshAiCalls = useCallback(async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
@@ -3291,11 +3250,11 @@ export function VideoGenTab({
                   </div>
                 )}
               </>
-            ) : isGeneratingCurrent ? (
+            ) : isGeneratingCurrent || isCurrentVideoPending ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
                   <Loader2 className="w-12 h-12 text-blue-500 animate-spin mx-auto mb-4" />
-                  <p className="text-gray-600">{t('chapterGenerate.videoGenerating')}</p>
+                  <p className="text-gray-600">{isCurrentVideoPending ? '视频等待生成中' : t('chapterGenerate.videoGenerating')}</p>
                 </div>
               </div>
             ) : (

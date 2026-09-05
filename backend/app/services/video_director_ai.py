@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.novel import Novel
 from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.llm.base import mark_matching_pending_llm_logs_error
@@ -136,6 +137,23 @@ def _dialogue_speaker(dialogue: dict) -> str:
 
 def _speaker_name(value: Any) -> str:
     return str(value or "").strip()
+
+
+def _extract_audio_text_rendering_constraint(template_text: str) -> str:
+    match = re.search(
+        r"【Audio Drive 文本渲染禁令】\s*\n(?:━{5,}\s*\n)?(?P<body>.*?)(?=\n━{5,}|\Z)",
+        template_text or "",
+        re.DOTALL,
+    )
+    return (match.group("body") if match else "").strip()
+
+
+def _apply_audio_text_rendering_constraint(final_prompt: str, constraint: str) -> str:
+    prompt = (final_prompt or "").strip()
+    constraint = (constraint or "").strip()
+    if not constraint or constraint in prompt:
+        return prompt
+    return f"{prompt}\n\ntext_rendering_constraint:\n{constraint}".strip()
 
 
 def build_clip_subject_manifest(shot, speaker_timeline: list, character_appearances: Optional[dict] = None, character_refs: Optional[dict] = None) -> dict:
@@ -340,12 +358,25 @@ def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_c
 
 def audit_audiodrive_h3_prompt(final_prompt: str, speaker_timeline: list, subject_manifest: dict, resolution_issues: Optional[list] = None, dialogue_texts: Optional[list[str]] = None) -> dict:
     issues = list(resolution_issues or [])
+    prompt = final_prompt or ""
     known_subjects = {
         subject.get("subject_ref")
         for subject in (subject_manifest or {}).get("subjects") or []
         if isinstance(subject, dict) and subject.get("subject_ref")
     }
-    for subject_ref in sorted(set(re.findall(r"<Subject\s+\d+>", final_prompt or ""))):
+    subtitle_constraints = [
+        ("drive_audio", r"drive_audio"),
+        ("lipsync_only", r"lip-sync|lipsync"),
+        ("never_transcribe", r"never\s+transcribe"),
+        ("audio_not_text", r"audio[^\n]*(text|visible text)|spoken audio must remain audio only|render[^\n]*audio[^\n]*text"),
+        ("no_subtitles", r"no subtitles|subtitles"),
+        ("no_captions", r"no captions|captions"),
+        ("no_transcription", r"no audio transcription|transcription"),
+    ]
+    missing_constraints = [name for name, pattern in subtitle_constraints if not re.search(pattern, prompt, re.IGNORECASE)]
+    if missing_constraints:
+        issues.append({"code": "MISSING_AUDIO_TEXT_RENDERING_CONSTRAINT", "missing": missing_constraints, "blocking": True})
+    for subject_ref in sorted(set(re.findall(r"<Subject\s+\d+>", prompt))):
         if subject_ref not in known_subjects:
             issues.append({"code": "UNKNOWN_SUBJECT_REFERENCE", "subject_ref": subject_ref, "blocking": True})
     for segment in speaker_timeline or []:
@@ -354,14 +385,27 @@ def audit_audiodrive_h3_prompt(final_prompt: str, speaker_timeline: list, subjec
         speaker = segment.get("visible_speaker") or "NONE"
         if speaker != "NONE" and speaker not in known_subjects:
             issues.append({"code": "UNKNOWN_SUBJECT_REFERENCE", "subject_ref": speaker, "blocking": True})
-        if speaker != "NONE" and speaker in known_subjects and speaker not in (final_prompt or ""):
+        if speaker != "NONE" and speaker in known_subjects and speaker not in prompt:
             issues.append({"code": "MISSING_SUBJECT_REFERENCE_IN_PROMPT", "subject_ref": speaker, "blocking": True})
-        if speaker == "NONE" and re.search(r"NONE[^\n。；;]*(<Subject\s+\d+>|张嘴|说话|口型|lip-sync|lip sync|mouth)", final_prompt or "", re.IGNORECASE):
-            issues.append({"code": "NONE_SEGMENT_LIPSYNC_CONTRADICTION", "blocking": True})
+        if speaker == "NONE":
+            for clause in re.findall(r"NONE[^\n。；;]*", prompt, re.IGNORECASE):
+                has_negative_rule = re.search(
+                    r"\bno\b[^\n]*(lip-sync|lip sync|speaking|speech)|do not[^\n]*(lip-sync|lip sync|speak|mouth)|must remain[^\n]*(closed|silent)|不得|禁止|闭合|闭嘴|保持沉默",
+                    clause,
+                    re.IGNORECASE,
+                )
+                has_positive_lipsync = re.search(
+                    r"<Subject\s+\d+>|张嘴|说话|产生口型|做口型|lip-syncs?|lip syncs?|mouth\s+(moves|opens)",
+                    clause,
+                    re.IGNORECASE,
+                )
+                if has_positive_lipsync and not has_negative_rule:
+                    issues.append({"code": "NONE_SEGMENT_LIPSYNC_CONTRADICTION", "blocking": True})
+                    break
     speech_verbs = r"(speak|speaks|say|says|read|reads|朗读|说出|说：|台词|念出)"
     for text in dialogue_texts or []:
         text = str(text or "").strip()
-        if text and text in (final_prompt or "") and re.search(speech_verbs, final_prompt or "", re.IGNORECASE):
+        if text and text in prompt and re.search(speech_verbs, prompt, re.IGNORECASE):
             issues.append({"code": "DIALOGUE_TEXT_LEAKAGE", "text": text, "blocking": True})
     blocking = [issue for issue in issues if issue.get("blocking")]
     return {
@@ -403,6 +447,7 @@ def _build_deterministic_h3_prompt(
     speaker_timeline: list,
     audio_drive_context: dict,
     subject_manifest: Optional[dict] = None,
+    audio_text_rendering_constraint: str = "",
 ) -> str:
     clip_start = float(clip.get("start_time") or 0)
     clip_end = float(clip.get("end_time") or shot.duration or 0)
@@ -451,6 +496,8 @@ def _build_deterministic_h3_prompt(
         f"final_audio={audio_drive_context.get('final_audio') or 'provided final audio'}",
         "drive_audio controls visible lip-sync only; final_audio is the complete audience-facing audio.",
     ])
+    if audio_text_rendering_constraint:
+        lines.extend(["", "text_rendering_constraint:", audio_text_rendering_constraint])
     return "\n".join(lines).strip()
 
 
@@ -486,6 +533,7 @@ async def build_h3_video_prompt(
         template_type = "h3_single_frame_prompt"
 
     template = resolve_prompt_template(db, novel, template_attr, template_type)
+    audio_text_rendering_constraint = _extract_audio_text_rendering_constraint(template.template)
     sanitized_keyframes = strip_media_refs(keyframes)
     frames = sanitized_keyframes or [
         {
@@ -533,6 +581,7 @@ async def build_h3_video_prompt(
         "speaker_timeline": h3_speaker_timeline,
         "subject_manifest": subject_manifest,
         "audio_drive_context": audio_drive_context,
+        "audio_drive_text_rendering_constraint": audio_text_rendering_constraint,
         "frames": frames,
         "keyframes": sanitized_keyframes,
         "transitions": strip_media_refs(transitions),
@@ -547,6 +596,7 @@ async def build_h3_video_prompt(
     }
     user_content = "请基于以下 Video Director 规划数据，生成可直接用于 MiniMax H3 的最终视频提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
     try:
+        llm_timeout = max(1, int(getattr(get_settings(), "LLM_TIMEOUT", 600) or 600))
         result = await asyncio.wait_for(
             LLMService().chat_completion(
                 system_prompt=template.template,
@@ -558,7 +608,7 @@ async def build_h3_video_prompt(
                 novel_id=novel.id,
                 chapter_id=shot.chapter_id,
             ),
-            timeout=45,
+            timeout=llm_timeout,
         )
     except asyncio.TimeoutError:
         mark_matching_pending_llm_logs_error(
@@ -581,6 +631,7 @@ async def build_h3_video_prompt(
             speaker_timeline=h3_speaker_timeline,
             audio_drive_context=audio_drive_context,
             subject_manifest=subject_manifest,
+            audio_text_rendering_constraint=audio_text_rendering_constraint,
         )
         continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
         if continuity_lock:
@@ -612,7 +663,10 @@ async def build_h3_video_prompt(
         db.commit()
         return final_prompt
 
-    final_prompt = (result.get("content") or "").strip()
+    final_prompt = _apply_audio_text_rendering_constraint(
+        result.get("content") or "",
+        audio_text_rendering_constraint,
+    )
     continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
     if continuity_lock:
         final_prompt = f"{continuity_lock}\n\n{final_prompt}"

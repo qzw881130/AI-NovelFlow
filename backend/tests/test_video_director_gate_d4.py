@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -6,11 +7,21 @@ from app.models.novel import Chapter, Novel
 from app.models.prompt_template import PromptTemplate
 from app.models.shot import Shot
 from app.services.video_director_ai import (
+    _apply_audio_text_rendering_constraint,
+    _extract_audio_text_rendering_constraint,
     audit_audiodrive_h3_prompt,
     build_clip_subject_manifest,
     build_h3_video_prompt,
     resolve_speaker_timeline_for_h3,
 )
+
+
+AUDIO_TEXT_RENDERING_CONSTRAINT_FIXTURE = """The input drive_audio is provided only for visible lip-sync, speech timing, facial performance, and speaking rhythm.
+Never transcribe drive_audio.
+Never transcribe, display, visualize, quote, or render any spoken content from drive_audio or final_audio as text.
+Spoken audio must remain audio only.
+Do not generate subtitles, captions, dialogue text, speech bubbles, karaoke text, transcription, Chinese characters, English text, or any readable on-screen text derived from the audio.
+The video must contain no subtitles, no captions, and no audio transcription."""
 
 
 def _shot(characters):
@@ -25,6 +36,10 @@ def _resolve(characters, timeline):
     manifest = build_clip_subject_manifest(_shot(characters), timeline)
     resolved, issues = resolve_speaker_timeline_for_h3(timeline, manifest, _clip())
     return manifest, resolved, issues
+
+
+def _prompt(body: str) -> str:
+    return f"{body}\n\n{AUDIO_TEXT_RENDERING_CONSTRAINT_FIXTURE}"
 
 
 def test_single_speaker_resolves_to_subject_1():
@@ -89,7 +104,7 @@ def test_non_visible_audio_semantics_must_be_none(event_type):
         {"start_time": 0, "end_time": 2, "visible_speaker": "NONE", "event_type": event_type},
     ])
 
-    audit = audit_audiodrive_h3_prompt("speaker_timeline: visible_speaker=NONE", resolved, manifest, issues)
+    audit = audit_audiodrive_h3_prompt(_prompt("speaker_timeline: visible_speaker=NONE"), resolved, manifest, issues)
     assert resolved[0]["visible_speaker"] == "NONE"
     assert audit["passed"] is True
 
@@ -108,7 +123,7 @@ def test_invalid_timeline_fails_audit():
         {"start_time": 3, "end_time": 2, "visible_speaker": "小马"},
     ])
 
-    audit = audit_audiodrive_h3_prompt("", resolved, manifest, issues)
+    audit = audit_audiodrive_h3_prompt(_prompt(""), resolved, manifest, issues)
     assert audit["passed"] is False
     assert any(issue["code"] == "INVALID_SPEAKER_TIMELINE" for issue in audit["issues"])
 
@@ -118,9 +133,25 @@ def test_none_segment_prompt_contradiction_fails_audit():
         {"start_time": 0, "end_time": 2, "visible_speaker": "NONE"},
     ])
 
-    audit = audit_audiodrive_h3_prompt("During NONE, <Subject 1> lip-syncs clearly.", resolved, manifest, issues)
+    audit = audit_audiodrive_h3_prompt(_prompt("During NONE, <Subject 1> lip-syncs clearly."), resolved, manifest, issues)
     assert audit["passed"] is False
     assert any(issue["code"] == "NONE_SEGMENT_LIPSYNC_CONTRADICTION" for issue in audit["issues"])
+
+
+def test_none_segment_no_lipsync_rule_passes_audit():
+    manifest, resolved, issues = _resolve(["小马"], [
+        {"start_time": 0, "end_time": 2, "visible_speaker": "NONE"},
+    ])
+
+    audit = audit_audiodrive_h3_prompt(
+        _prompt("visible_speaker=NONE: All visible characters remain silent with no lip-sync."),
+        resolved,
+        manifest,
+        issues,
+    )
+
+    assert audit["passed"] is True
+    assert not any(issue["code"] == "NONE_SEGMENT_LIPSYNC_CONTRADICTION" for issue in audit["issues"])
 
 
 def test_dialogue_text_leakage_fails_audit():
@@ -128,7 +159,7 @@ def test_dialogue_text_leakage_fails_audit():
         {"start_time": 0, "end_time": 2, "visible_speaker": "小马"},
     ])
 
-    audit = audit_audiodrive_h3_prompt("<Subject 1> says 你好妈妈", resolved, manifest, issues, dialogue_texts=["你好妈妈"])
+    audit = audit_audiodrive_h3_prompt(_prompt("<Subject 1> says 你好妈妈"), resolved, manifest, issues, dialogue_texts=["你好妈妈"])
     assert audit["passed"] is False
     assert any(issue["code"] == "DIALOGUE_TEXT_LEAKAGE" for issue in audit["issues"])
 
@@ -138,9 +169,59 @@ def test_unknown_subject_reference_fails_audit():
         {"start_time": 0, "end_time": 2, "visible_speaker": "小马"},
     ])
 
-    audit = audit_audiodrive_h3_prompt("<Subject 3> enters and talks.", resolved, manifest, issues)
+    audit = audit_audiodrive_h3_prompt(_prompt("<Subject 1> watches. <Subject 3> enters and talks."), resolved, manifest, issues)
     assert audit["passed"] is False
     assert any(issue["code"] == "UNKNOWN_SUBJECT_REFERENCE" for issue in audit["issues"])
+
+
+def test_missing_audio_text_rendering_constraint_fails_audit():
+    manifest, resolved, issues = _resolve(["小马"], [
+        {"start_time": 0, "end_time": 2, "visible_speaker": "小马"},
+    ])
+
+    audit = audit_audiodrive_h3_prompt("speaker_timeline: <Subject 1> lip-syncs", resolved, manifest, issues)
+
+    assert audit["passed"] is False
+    assert any(issue["code"] == "MISSING_AUDIO_TEXT_RENDERING_CONSTRAINT" for issue in audit["issues"])
+
+
+def test_template_constraint_is_applied_when_successful_llm_output_omits_it():
+    template = f"""H3 template
+━━━━━━━━━━━━━━━━━━
+【Audio Drive 文本渲染禁令】
+━━━━━━━━━━━━━━━━━━
+{AUDIO_TEXT_RENDERING_CONSTRAINT_FIXTURE}
+━━━━━━━━━━━━━━━━━━
+【输出】
+"""
+
+    constraint = _extract_audio_text_rendering_constraint(template)
+    final_prompt = _apply_audio_text_rendering_constraint("speaker_timeline: <Subject 1> lip-syncs", constraint)
+    manifest, resolved, issues = _resolve(["小马"], [
+        {"start_time": 0, "end_time": 2, "visible_speaker": "小马"},
+    ])
+    audit = audit_audiodrive_h3_prompt(final_prompt, resolved, manifest, issues)
+
+    assert constraint == AUDIO_TEXT_RENDERING_CONSTRAINT_FIXTURE
+    assert final_prompt.count(AUDIO_TEXT_RENDERING_CONSTRAINT_FIXTURE) == 1
+    assert audit["passed"] is True
+
+
+@pytest.mark.parametrize("template_filename", [
+    "11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt",
+    "12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt",
+    "13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt",
+])
+def test_system_h3_templates_include_audio_text_rendering_constraint(template_filename):
+    manifest, resolved, issues = _resolve(["小马", "母马"], [
+        {"start_time": 0, "end_time": 2, "visible_speaker": "小马"},
+    ])
+    template_path = Path(__file__).resolve().parents[1] / "prompt_templates" / template_filename
+    template_text = template_path.read_text(encoding="utf-8")
+
+    audit = audit_audiodrive_h3_prompt(f"speaker_timeline: <Subject 1> lip-syncs\n\n{template_text}", resolved, manifest, issues)
+
+    assert audit["passed"] is True
 
 
 def test_subject_slot_is_resolved_from_current_manifest_each_time():

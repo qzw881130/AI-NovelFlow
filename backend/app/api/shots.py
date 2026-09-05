@@ -454,6 +454,36 @@ async def _ensure_shot_ready_for_batch_video(
         plan["selected_mode"] = mode
         shot_repo.update(shot, video_director_plan=plan)
 
+    if auto_complete:
+        from app.services.audio_drive_service import AudioDriveService
+
+        audio_drive_service = AudioDriveService(db)
+        timeline_result = audio_drive_service.get_timeline(shot.id)
+        timeline_data = timeline_result.get("data") if timeline_result.get("success") else None
+        if not timeline_data or str(timeline_data.get("status") or "").upper() != "READY" or str(shot.audio_status or "").upper() != "READY":
+            parent_task.current_step = f"重建镜 {shot.index} Audio Timeline..."
+            db.commit()
+            timeline_result = audio_drive_service.build_timeline(shot.id, force=True)
+            if not timeline_result.get("success"):
+                raise RuntimeError(timeline_result.get("message") or "Audio Timeline 重建失败")
+
+        parent_task.current_step = f"重建镜 {shot.index} Clip Audio..."
+        db.commit()
+        windows_result = audio_drive_service.build_execution_windows(shot.id, max_clip_duration=max_clip_duration)
+        if not windows_result.get("success"):
+            raise RuntimeError(windows_result.get("message") or "Execution Windows 重建失败")
+        execution_windows = (windows_result.get("data") or {}).get("executionWindows") or []
+        for window in execution_windows:
+            window_index = int(window.get("window_index") or window.get("index") or 0)
+            if not window_index:
+                continue
+            clip_audio_result = audio_drive_service.build_clip_audio(shot.id, window_index, force=True)
+            if not clip_audio_result.get("success"):
+                raise RuntimeError(clip_audio_result.get("message") or f"C{window_index} Clip Audio 重建失败")
+        db.expire_all()
+        shot = shot_repo.get_by_id(shot.id)
+        plan = _safe_json_dict(shot.video_director_plan)
+
     if auto_complete and mode in {"FIRST_LAST_FRAME", "MULTI_KEYFRAME"}:
         plan = _safe_json_dict(shot.video_director_plan)
         workflow_capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else {}
@@ -525,6 +555,17 @@ def resume_active_shot_video_batches() -> None:
             Task.status == "running",
         ).all()
         for task in active_tasks:
+            interrupted_children = db.query(Task).filter(
+                Task.parent_task_id == task.id,
+                Task.type == "shot_video",
+                Task.status.in_(["pending", "running"]),
+                Task.comfyui_prompt_id.is_(None),
+            ).all()
+            for child in interrupted_children:
+                child.status = "failed"
+                child.error_message = "服务重启时子任务尚未提交到 ComfyUI，将由批量任务重新创建"
+                child.current_step = "等待批量任务重试"
+                child.completed_at = datetime.utcnow()
             task.status = "pending"
             task.current_step = "服务重启后等待继续批量生成视频..."
         if active_tasks:

@@ -5,9 +5,62 @@ from app.models.novel import Chapter, Novel
 from app.models.shot import Shot
 from app.models.task import Task
 from app.models.workflow import Workflow
+from app.api.shots import resume_active_shot_video_batches
 from app.repositories.task import TaskRepository
 from app.services.shot_video_service import generate_shot_video_task
 from app.services.task_service import TaskService
+
+
+def test_service_restart_requeues_batch_and_releases_unsubmitted_child(db_session, monkeypatch):
+    parent = Task(type="shot_video_batch", status="running", name="batch")
+    db_session.add(parent)
+    db_session.commit()
+    db_session.refresh(parent)
+    child = Task(
+        type="shot_video",
+        status="running",
+        name="child",
+        parent_task_id=parent.id,
+        comfyui_prompt_id=None,
+    )
+    db_session.add(child)
+    db_session.commit()
+    db_session.refresh(child)
+    parent_id = parent.id
+    child_id = child.id
+    monkeypatch.setattr("app.api.shots.SessionLocal", lambda: db_session)
+
+    resume_active_shot_video_batches()
+
+    assert db_session.query(Task).filter(Task.id == parent_id).one().status == "pending"
+    recovered_child = db_session.query(Task).filter(Task.id == child_id).one()
+    assert recovered_child.status == "failed"
+    assert "重新创建" in recovered_child.error_message
+
+
+def test_service_restart_preserves_child_already_submitted_to_comfyui(db_session, monkeypatch):
+    parent = Task(type="shot_video_batch", status="running", name="batch")
+    db_session.add(parent)
+    db_session.commit()
+    db_session.refresh(parent)
+    child = Task(
+        type="shot_video",
+        status="running",
+        name="child",
+        parent_task_id=parent.id,
+        comfyui_prompt_id="prompt-1",
+    )
+    db_session.add(child)
+    db_session.commit()
+    db_session.refresh(child)
+    parent_id = parent.id
+    child_id = child.id
+    monkeypatch.setattr("app.api.shots.SessionLocal", lambda: db_session)
+
+    resume_active_shot_video_batches()
+
+    assert db_session.query(Task).filter(Task.id == parent_id).one().status == "pending"
+    assert db_session.query(Task).filter(Task.id == child_id).one().status == "running"
 
 
 def _create_video_fixture(db_session, tmp_path, *, task_shot_id="USE_B", task_name="生成视频: 镜2"):

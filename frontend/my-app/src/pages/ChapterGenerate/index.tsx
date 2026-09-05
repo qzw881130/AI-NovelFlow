@@ -131,13 +131,15 @@ export default function ChapterGenerate() {
     }
   }, [cid, id, fetchProps]);
 
+  const currentChapterShotsLoaded = Boolean(cid && shots.length > 0 && shots.every((shot) => shot.chapterId === cid));
+
   // 刷新页面后本地 generating 集合为空，需要先从后端恢复一次任务状态。
   useEffect(() => {
-    if (!cid || chapter?.id !== cid || activeTasksSyncedChapterRef.current === cid) return;
+    if (!cid || chapter?.id !== cid || !currentChapterShotsLoaded || activeTasksSyncedChapterRef.current === cid) return;
 
     activeTasksSyncedChapterRef.current = cid;
     fetchActiveTasks(cid);
-  }, [cid, chapter?.id, fetchActiveTasks]);
+  }, [cid, chapter?.id, currentChapterShotsLoaded, fetchActiveTasks]);
 
   // 从章节数据初始化状态
   useEffect(() => {

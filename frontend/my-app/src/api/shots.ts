@@ -41,6 +41,7 @@ export interface Shot {
   };
   continuity_mode?: string;
   videoDirectorPlan?: VideoDirectorPlan;
+  videoDirectorPlanRevision?: number;
   imageUrl: string | null;
   imagePath: string | null;
   imageStatus: 'pending' | 'generating' | 'completed' | 'failed';
@@ -391,7 +392,7 @@ export const shotsApi = {
     chapterId: string,
     shotId: string,
     plan: Partial<VideoDirectorPlan>
-  ): Promise<{ success: boolean; data?: VideoDirectorPlan; message?: string }> => {
+  ): Promise<{ success: boolean; data?: VideoDirectorPlan; revision?: number; message?: string }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director`,
       {

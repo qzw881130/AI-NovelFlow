@@ -103,7 +103,8 @@ export function ShotThumbnail({
         relative flex-shrink-0 w-32 h-24 rounded-lg border-2 cursor-pointer
         transition-all duration-200 overflow-hidden
         ${config.color}
-        ${status === 'generating' || status === 'queued' ? 'ring-2 ring-inset ring-blue-400 shadow-md' : isSelected ? 'z-10 -translate-y-1 border-blue-500 ring-4 ring-blue-500/35 shadow-xl' : 'hover:shadow-md'}
+        ${isSelected ? 'z-10 -translate-y-1 border-blue-500' : ''}
+        ${status === 'generating' || status === 'queued' ? 'ring-2 ring-inset ring-blue-400 shadow-md' : isSelected ? 'ring-4 ring-blue-500/35 shadow-xl' : 'hover:shadow-md'}
       `}
     >
       {status === 'queued' && (

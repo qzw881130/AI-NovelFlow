@@ -178,6 +178,17 @@ No visible character speech or lip-sync. All visible characters remain silent.
 
 禁止 subtitles, captions, titles, speech bubbles, logos, watermarks, UI, any on-screen text.
 
+━━━━━━━━━━━━━━━━━━
+【Audio Drive 文本渲染禁令】
+━━━━━━━━━━━━━━━━━━
+
+The input drive_audio is provided only for visible lip-sync, speech timing, facial performance, and speaking rhythm.
+Never transcribe drive_audio.
+Never transcribe, display, visualize, quote, or render any spoken content from drive_audio or final_audio as text.
+Spoken audio must remain audio only.
+Do not generate subtitles, captions, dialogue text, speech bubbles, karaoke text, transcription, Chinese characters, English text, or any readable on-screen text derived from the audio.
+The video must contain no subtitles, no captions, and no audio transcription.
+
 
 ━━━━━━━━━━━━━━━━━━
 【Audio Drive 可靠输入】

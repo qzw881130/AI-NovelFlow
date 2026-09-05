@@ -712,9 +712,10 @@ async def generate_shot_video_task(
         }
         window_plans = video_director_plan.get("window_plans") if isinstance(video_director_plan.get("window_plans"), list) else []
         clip = (video_director_plan.get("clips") or [{}])[0] if isinstance(video_director_plan.get("clips"), list) else {}
-        if selected_mode == "MULTI_KEYFRAME" and window_plans:
+        if window_plans:
             window_plan = window_plans[0]
             clip = {
+                **(clip if isinstance(clip, dict) else {}),
                 "clip_index": window_plan.get("window_index") or 1,
                 "start_time": window_plan.get("start_time") or 0,
                 "end_time": window_plan.get("end_time") or duration,
