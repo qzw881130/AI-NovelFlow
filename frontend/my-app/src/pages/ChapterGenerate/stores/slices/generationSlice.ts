@@ -40,6 +40,7 @@ const saveTransitionSettings = (settings: { selectedTransitionWorkflow: string; 
 const savedTransitionSettings = getSavedTransitionSettings();
 const pollingShotTaskChapters = new Set<string>();
 const pollingVideoTaskChapters = new Set<string>();
+const pollingAudioPrepareTaskChapters = new Set<string>();
 
 const valuesEqual = (left: unknown, right: unknown): boolean => {
   if (Object.is(left, right)) return true;
@@ -95,6 +96,7 @@ export interface GenerationSlice extends GenerationSliceState {
   checkVideoTaskStatus: (chapterId: string) => Promise<void>;
   checkTransitionTaskStatus: (chapterId: string) => Promise<void>;
   checkAudioTaskStatus: (chapterId: string) => Promise<void>;
+  checkAudioPrepareTaskStatus: (chapterId: string) => Promise<void>;
   checkKeyframeTaskStatus: (chapterId: string) => Promise<void>;
   fetchActiveTasks: (chapterId: string) => Promise<void>;
 
@@ -1317,6 +1319,42 @@ export const createGenerationSlice: StateCreator<
     }
   },
 
+  checkAudioPrepareTaskStatus: async (chapterId: string) => {
+    if (pollingAudioPrepareTaskChapters.has(chapterId)) return;
+    pollingAudioPrepareTaskChapters.add(chapterId);
+    try {
+      const response = await fetch(`/api/tasks/?chapter_id=${chapterId}&type=audio_prepare&limit=500`);
+      const result = await response.json();
+      if (!result.success || !Array.isArray(result.data)) return;
+
+      const activeTask = result.data.find((task: any) => (
+        ['pending', 'queued', 'running'].includes(String(task.status || '').toLowerCase())
+      ));
+      if (activeTask) {
+        const metadata = activeTask.metadata && typeof activeTask.metadata === 'object' ? activeTask.metadata : {};
+        const shotIds = Array.isArray(metadata.shot_ids) ? metadata.shot_ids.map(String) : [];
+        const step = String(activeTask.currentStep || activeTask.current_step || '');
+        const shotIndexMatch = step.match(/镜\s*(\d+)/);
+        const runningShot = shotIndexMatch
+          ? get().shots.find((shot) => Number(shot.index) === Number(shotIndexMatch[1]))
+          : null;
+        get().setAudioPrepareStatus(shotIds, runningShot?.id || null);
+        return;
+      }
+
+      const hadTrackedPrepare = get().preparingAudioShots.size > 0 || get().pendingAudioPrepareShots.size > 0;
+      get().clearAudioPrepareStatus();
+      if (hadTrackedPrepare) {
+        const novelId = get().chapter?.novelId || get().novel?.id;
+        if (novelId) await get().fetchShots(novelId, chapterId);
+      }
+    } catch (error) {
+      console.error('检查 AudioDrive 音频准备任务状态失败:', error);
+    } finally {
+      pollingAudioPrepareTaskChapters.delete(chapterId);
+    }
+  },
+
   fetchActiveTasks: async (chapterId: string) => {
     // 获取所有活跃任务
     await Promise.allSettled([
@@ -1324,6 +1362,7 @@ export const createGenerationSlice: StateCreator<
       get().checkVideoTaskStatus(chapterId),
       get().checkTransitionTaskStatus(chapterId),
       get().checkAudioTaskStatus(chapterId),
+      get().checkAudioPrepareTaskStatus(chapterId),
       get().checkKeyframeTaskStatus(chapterId),
     ]);
   },

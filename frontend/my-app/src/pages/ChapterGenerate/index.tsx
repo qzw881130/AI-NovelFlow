@@ -24,6 +24,7 @@ export default function ChapterGenerate() {
     chapter, novel, parsedData, characters, scenes, props, loading,
     shotImages, shotVideos, transitionVideos, generatingShots, pendingShots,
     generatingVideos, pendingVideos, generatingTransitions, generatingAudios, generatingKeyframes,
+    preparingAudioShots, pendingAudioPrepareShots,
     showFullTextModal, showMergedImageModal, showImagePreview,
     previewImageUrl, previewImageIndex, mergedImage, mergedImageLabel, isMerging,
     splitConfirmDialog, audioTasks, audioWarnings,
@@ -41,7 +42,7 @@ export default function ChapterGenerate() {
     generateShotImage, generateAllImages, uploadShotImage, generateShotVideo,
     generateAllVideos, generateTransition, generateAllTransitions, generateShotAudio,
     generateAllAudio, fetchTransitionWorkflows, checkShotTaskStatus, checkVideoTaskStatus,
-    checkTransitionTaskStatus, checkAudioTaskStatus, checkKeyframeTaskStatus, fetchActiveTasks,
+    checkTransitionTaskStatus, checkAudioTaskStatus, checkAudioPrepareTaskStatus, checkKeyframeTaskStatus, fetchActiveTasks,
   } = store;
 
   // UI 方法
@@ -72,6 +73,8 @@ export default function ChapterGenerate() {
                                pendingVideos.size > 0 ||
                                generatingTransitions.size > 0 ||
                                generatingAudios.size > 0 ||
+                               preparingAudioShots.size > 0 ||
+                               pendingAudioPrepareShots.size > 0 ||
                                generatingKeyframes.size > 0;
 
     if (!hasGeneratingTasks) return;
@@ -96,6 +99,9 @@ export default function ChapterGenerate() {
       if (generatingAudios.size > 0) {
         checks.push(checkAudioTaskStatus(cid));
       }
+      if (preparingAudioShots.size > 0 || pendingAudioPrepareShots.size > 0) {
+        checks.push(checkAudioPrepareTaskStatus(cid));
+      }
       if (generatingKeyframes.size > 0) {
         checks.push(checkKeyframeTaskStatus(cid));
       }
@@ -116,7 +122,7 @@ export default function ChapterGenerate() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [cid, id, generatingShots.size, pendingShots.size, generatingVideos.size, pendingVideos.size, generatingTransitions.size, generatingAudios.size, generatingKeyframes.size]);
+  }, [cid, id, generatingShots.size, pendingShots.size, generatingVideos.size, pendingVideos.size, generatingTransitions.size, generatingAudios.size, preparingAudioShots.size, pendingAudioPrepareShots.size, generatingKeyframes.size]);
 
   // 获取真实章节数据和角色列表
   useEffect(() => {

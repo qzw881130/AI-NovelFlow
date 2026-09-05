@@ -1242,7 +1242,7 @@ class TaskService:
                 "shotId": t.shot_id,
                 "parentTaskId": getattr(t, "parent_task_id", None),
                 "batchOrder": getattr(t, "batch_order", None),
-                "metadata": parse_metadata(getattr(t, "metadata_json", None)) if t.type == "shot_video_batch" else {},
+                "metadata": parse_metadata(getattr(t, "metadata_json", None)) if t.type in {"shot_video_batch", "shot_image_batch", "audio_prepare"} else {},
                 "createdAt": format_datetime(t.created_at),
                 "startedAt": format_datetime(t.started_at),
                 "completedAt": format_datetime(t.completed_at),

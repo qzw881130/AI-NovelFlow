@@ -375,6 +375,7 @@ export interface ChapterGenerateStore
   checkVideoTaskStatus: (chapterId: string) => Promise<void>;
   checkTransitionTaskStatus: (chapterId: string) => Promise<void>;
   checkAudioTaskStatus: (chapterId: string) => Promise<void>;
+  checkAudioPrepareTaskStatus: (chapterId: string) => Promise<void>;
   checkKeyframeTaskStatus: (chapterId: string) => Promise<void>;
   fetchActiveTasks: (chapterId: string) => Promise<void>;
 

@@ -213,6 +213,7 @@ export function useGenerationSlice(): GenerationSlice {
     checkVideoTaskStatus: state.checkVideoTaskStatus,
     checkTransitionTaskStatus: state.checkTransitionTaskStatus,
     checkAudioTaskStatus: state.checkAudioTaskStatus,
+    checkAudioPrepareTaskStatus: state.checkAudioPrepareTaskStatus,
     checkKeyframeTaskStatus: state.checkKeyframeTaskStatus,
     fetchActiveTasks: state.fetchActiveTasks,
   }));
