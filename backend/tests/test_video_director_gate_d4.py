@@ -154,6 +154,50 @@ def test_none_segment_no_lipsync_rule_passes_audit():
     assert not any(issue["code"] == "NONE_SEGMENT_LIPSYNC_CONTRADICTION" for issue in audit["issues"])
 
 
+@pytest.mark.parametrize("body", [
+    "visible_speaker=NONE，画面无可说话人物。",
+    "visible_speaker=NONE，小马不说话，不张嘴，不产生口型。",
+    "NONE: <Subject 1> is completely silent and does not speak.",
+    "NONE. <Subject2> closes her mouth.",
+    "NONE: <Subject 1> must remain silent, with no lip-sync; 2s-4s: <Subject 1> speaks.",
+    "0.0s-2.0s visible_speaker=NONE，嘴巴闭合。2.0s-4.0s <Subject 1> 张嘴说话。",
+    "0s-2s NONE: <Subject 1> is silent, 2s-4s <Subject 1> lip-syncs.",
+    "NONE: no lip-sync, visible_speaker=<Subject 1>: speaks.",
+    "NONE: <Subject 1> does not speak and never lip-syncs.",
+    "NONE期间，小马不张嘴说话，禁止任何人物产生口型。",
+])
+def test_none_segment_negated_and_scoped_speech_passes(body):
+    manifest, resolved, issues = _resolve(["小马", "老牛"], [
+        {"start_time": 0, "end_time": 2, "visible_speaker": "NONE"},
+        {"start_time": 2, "end_time": 4, "visible_speaker": "小马"},
+    ])
+
+    audit = audit_audiodrive_h3_prompt(_prompt(body + "\nSubject manifest: <Subject 1>"), resolved, manifest, issues)
+
+    assert audit["passed"] is True, audit["issues"]
+
+
+@pytest.mark.parametrize("body", [
+    "visible_speaker=NONE，小马不说话，但老牛张嘴说话。",
+    "NONE: <Subject 1> does not speak, but <Subject 2> speaks.",
+    "NONE: <Subject 1> stays silent while <Subject 2> lip-syncs.",
+    "NONE. <Subject2> closes her mouth, but <Subject 1> mouth moves.",
+    "NONE，小马不得张嘴，老牛产生口型。",
+    "NONE: no lip-sync, but <Subject 1> talks.",
+    "0s-2s NONE: <Subject 1> speaks; 2s-4s <Subject 1> stays silent.",
+    "NONE期间，小马不张嘴说话，但老牛张嘴说话。",
+])
+def test_none_segment_mixed_negation_still_blocks_speech(body):
+    manifest, resolved, issues = _resolve(["小马", "老牛"], [
+        {"start_time": 0, "end_time": 2, "visible_speaker": "NONE"},
+    ])
+
+    audit = audit_audiodrive_h3_prompt(_prompt(body), resolved, manifest, issues)
+
+    assert audit["passed"] is False
+    assert [issue["code"] for issue in audit["blocking_issues"]] == ["NONE_SEGMENT_LIPSYNC_CONTRADICTION"]
+
+
 def test_dialogue_text_leakage_fails_audit():
     manifest, resolved, issues = _resolve(["小马"], [
         {"start_time": 0, "end_time": 2, "visible_speaker": "小马"},

@@ -122,27 +122,21 @@ export default function ComfyUIStatus() {
           </div>
         )}
 
-        {/* GPU 使用率 */}
-          <div>
-            <div className="flex flex-col gap-1 mb-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-2 min-w-0">
-                <span className="text-gray-700 font-medium">{t('tasks.gpuUsage')}</span>
-                {stats.gpuSource === 'real' && (
-                  <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded">{t('tasks.realtime')}</span>
-                )}
-              </div>
-              <span className="text-gray-900 font-semibold sm:text-right">{stats.gpuUsage}%</span>
+        {/* GPU 温度 */}
+        {stats.temperature !== undefined && stats.temperature > 0 && (
+          <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <Thermometer className="h-4 w-4 text-gray-500" />
+              <span className="text-gray-700 font-medium">{t('tasks.gpuTemperature')}</span>
             </div>
-          <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
-            <div 
-              className={`h-full rounded-full transition-all duration-500 ${
-                stats.gpuUsage > 80 ? 'bg-red-500' : 
-                stats.gpuUsage > 50 ? 'bg-amber-500' : 'bg-green-500'
-              }`}
-              style={{ width: `${stats.gpuUsage}%` }}
-            />
+            <span className={`font-semibold ${
+              stats.temperature > 80 ? 'text-red-600' :
+              stats.temperature > 70 ? 'text-amber-600' : 'text-green-600'
+            }`}>
+              {stats.temperature}°C
+            </span>
           </div>
-        </div>
+        )}
 
         {/* 显存占用 */}
           <div>
@@ -187,21 +181,27 @@ export default function ComfyUIStatus() {
           </div>
         )}
 
-        {/* GPU 温度 */}
-        {stats.temperature !== undefined && stats.temperature > 0 && (
-          <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 min-w-0">
-              <Thermometer className="h-4 w-4 text-gray-500" />
-              <span className="text-gray-700 font-medium">{t('tasks.gpuTemperature')}</span>
+        {/* GPU 使用率 */}
+        <div>
+          <div className="flex flex-col gap-1 mb-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-2 min-w-0">
+              <span className="text-gray-700 font-medium">{t('tasks.gpuUsage')}</span>
+              {stats.gpuSource === 'real' && (
+                <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded">{t('tasks.realtime')}</span>
+              )}
             </div>
-            <span className={`font-semibold ${
-              stats.temperature > 80 ? 'text-red-600' :
-              stats.temperature > 70 ? 'text-amber-600' : 'text-green-600'
-            }`}>
-              {stats.temperature}°C
-            </span>
+            <span className="text-gray-900 font-semibold sm:text-right">{stats.gpuUsage}%</span>
           </div>
-        )}
+          <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                stats.gpuUsage > 80 ? 'bg-red-500' :
+                stats.gpuUsage > 50 ? 'bg-amber-500' : 'bg-green-500'
+              }`}
+              style={{ width: `${stats.gpuUsage}%` }}
+            />
+          </div>
+        </div>
 
         {/* 队列任务 */}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100">

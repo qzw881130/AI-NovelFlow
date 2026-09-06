@@ -14,6 +14,7 @@ import { useChapterGenerateStore } from '../stores';
 import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info, ChevronLeft, ChevronRight, RefreshCw, Sparkles, PictureInPicture } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
+import { formalVideoPlanReady, matchingLegacyKeyframe, videoKeyframeImage } from '../videoPlan';
 import { taskApi } from '../../../api/tasks';
 import { toast } from '../../../stores/toastStore';
 import KeyframesManager from '../../../components/KeyframesManager';
@@ -86,7 +87,10 @@ const videoPlanWindowsMatchDuration = (plan: VideoDirectorPlan, duration: number
 
 const getAudioDriveReadiness = (shot: any) => {
   const plan: any = shot?.videoDirectorPlan || {};
-  const windows = Array.isArray(plan.window_plans) && plan.window_plans.length > 0
+  const mode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
+  const windows = mode === 'FIRST_LAST_FRAME' && Array.isArray(plan.clips) && plan.clips.length > 0
+    ? plan.clips
+    : Array.isArray(plan.window_plans) && plan.window_plans.length > 0
     ? plan.window_plans
     : Array.isArray(plan.execution_windows)
       ? plan.execution_windows
@@ -116,6 +120,7 @@ const mergeClipAudioWindows = (plan: any, selectedMode: string) => {
   const executionWindows = Array.isArray(plan?.execution_windows) ? plan.execution_windows : [];
   if (selectedMode === 'MULTI_KEYFRAME') return windowPlans.length > 0 ? windowPlans : executionWindows;
   const baseClips = Array.isArray(plan?.clips) ? plan.clips : [];
+  if (selectedMode === 'FIRST_LAST_FRAME' && baseClips.length > 0) return baseClips;
   const audioWindows = windowPlans.length > 0 ? windowPlans : executionWindows;
   if (baseClips.length === 0) return audioWindows;
   return baseClips.map((clip: any, index: number) => {
@@ -742,20 +747,16 @@ function VideoDirectorPanel({
   const keyframes = plan.keyframes || [];
   const clips = mergeClipAudioWindows(plan, selectedMode);
   const hasWindowPlans = selectedMode === 'MULTI_KEYFRAME' && clips.length > 0;
-  const legacyKeyframes = shot?.keyframes || [];
   const getKeyframeImageUrl = (kf: any) => {
     if (!kf) return null;
     if (kf.role === 'START') return shotImageUrl || null;
-    if (kf.image_url || kf.imageUrl) return kf.image_url || kf.imageUrl;
-    const legacyKeyframe = legacyKeyframes.find((item: any) => Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(kf.index));
-    return legacyKeyframe?.image_url || legacyKeyframe?.imageUrl || null;
+    return videoKeyframeImage(shot, kf);
   };
   const getKeyframeFrameIndex = (kf: any) => {
     if (!kf || kf.role === 'START') return undefined;
-    const legacyKeyframe = legacyKeyframes.find((item: any) => Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(kf.index));
+    const legacyKeyframe = matchingLegacyKeyframe(shot, kf);
     if (legacyKeyframe?.frame_index !== undefined) return Number(legacyKeyframe.frame_index);
-    const nonStartIndex = keyframes.filter((item: any) => item.role !== 'START').findIndex((item: any) => Number(item.index) === Number(kf.index));
-    return nonStartIndex >= 0 ? nonStartIndex : undefined;
+    return undefined;
   };
   const isKeyframeGenerating = (kf: any) => {
     const shotId = shot?.id ? String(shot.id) : '';
@@ -1705,7 +1706,9 @@ export function VideoGenTab({
   const effectiveNovelId = novelId || chapter?.novelId;
   const effectiveChapterId = chapterId || chapter?.id;
 
-  const [selectedVideo, setSelectedVideo] = useState<number>(1);
+  const selectedVideo = currentShot ?? store.currentShotIndex ?? 1;
+  const [preparingVideoShotId, setPreparingVideoShotId] = useState<string | null>(null);
+  const preparingVideoRef = useRef(false);
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -1776,10 +1779,8 @@ export function VideoGenTab({
     ? !!currentVideoDirectorPlan.window_plans?.length && currentVideoDirectorPlan.window_plans.every((windowPlan: any) => String(windowPlan?.prompt_text || '').trim().length > 0)
     : [...(currentVideoDirectorPlan.ai_calls || [])].reverse().some((call: any) => String(call?.final_prompt || '').trim().length > 0);
   const currentEndPlanKeyframe = (currentVideoDirectorPlan.keyframes || []).find((keyframe: any) => keyframe.role === 'END');
-  const currentEndLegacyKeyframe = (currentShotData?.keyframes || []).find((keyframe: any) => (
-    Number(keyframe.plan_keyframe_index) === Number(currentEndPlanKeyframe?.index || 2)
-  ));
-  const currentEndFrameIndex = currentEndLegacyKeyframe?.frame_index ?? (currentEndPlanKeyframe ? 0 : undefined);
+  const currentEndLegacyKeyframe = matchingLegacyKeyframe(currentShotData, currentEndPlanKeyframe);
+  const currentEndFrameIndex = currentEndLegacyKeyframe?.frame_index;
   const isGeneratingCurrentEndKeyframe = currentShotId && currentEndFrameIndex !== undefined
     ? generatingKeyframes.has(`${currentShotId}-${Number(currentEndFrameIndex)}`)
     : false;
@@ -1812,6 +1813,7 @@ export function VideoGenTab({
     : [];
   const previewTimelineDuration = Number(currentShotData?.duration || videoMetadata.duration || 0);
   const [recommendingShotId, setRecommendingShotId] = useState<string | null>(null);
+  const autoRecommendationAttempts = useRef(new Set<string>());
   const [planningKeyframesShotId, setPlanningKeyframesShotId] = useState<string | null>(null);
   const [generatingMissingKeyframesShotId, setGeneratingMissingKeyframesShotId] = useState<string | null>(null);
 
@@ -1828,15 +1830,8 @@ export function VideoGenTab({
   const getVideoDirectorKeyframeImageUrl = useCallback((shot: any, keyframe: any) => {
     if (!keyframe) return null;
     if (keyframe.role === 'START') return getShotImageUrl(shot);
-    if (keyframe.image_url || keyframe.imageUrl) return keyframe.image_url || keyframe.imageUrl;
-    const legacyKeyframe = (shot?.keyframes || []).find((item: any) => (
-      Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(keyframe.index)
-    ));
-    return legacyKeyframe?.image_url || legacyKeyframe?.imageUrl || null;
+    return videoKeyframeImage(shot, keyframe);
   }, [getShotImageUrl]);
-  const currentEndKeyframeImageUrl = currentEndPlanKeyframe
-    ? getVideoDirectorKeyframeImageUrl(currentShotData, currentEndPlanKeyframe)
-    : null;
 
   const getBatchShotEligibility = useCallback((shot: any, autoCompleteOverride = autoCompleteDetails) => {
     const shotId = shot?.id ? String(shot.id) : '';
@@ -1896,12 +1891,12 @@ export function VideoGenTab({
     .filter((shotId: string | null): shotId is string => shotId !== null), [getBatchShotEligibility, shotsList]);
 
   // 检查当前分镜是否正在生成
-  const isGeneratingCurrent = currentShotId ? generatingVideos.has(currentShotId) || currentShotData?.videoStatus === 'generating' : false;
+  const isGeneratingCurrent = currentShotId ? preparingVideoShotId === currentShotId || generatingVideos.has(currentShotId) || currentShotData?.videoStatus === 'generating' : false;
   const isCurrentVideoPending = currentShotId ? storePendingVideos.has(currentShotId) || (!!currentShotData?.videoTaskId && currentShotData?.videoStatus === 'pending') : false;
   const latestFailedAiCallError = currentVideoDirectorPlan?.ai_calls
     ? [...currentVideoDirectorPlan.ai_calls].reverse().find((call: any) => String(call?.status || '').toLowerCase() !== 'success' && String(call?.error_message || '').trim())?.error_message
     : '';
-  const currentVideoErrorMessage = currentShotData?.videoStatus === 'failed' && !currentShotVideoUrl && !currentVideoDirectorPlan.merged_video_url
+  const currentVideoErrorMessage = currentShotData?.videoStatus === 'failed'
     ? formatUserFacingError((currentVideoDirectorPlan as any).task_error_message || (currentVideoDirectorPlan as any).error_message || latestFailedAiCallError) || '当前 Shot 视频任务失败；如果已有部分 Clip 完成，可以重新生成缺失 Clip 或重新生成当前 Shot 视频。'
     : null;
   const currentAudioDriveReadiness = getAudioDriveReadiness(currentShotData);
@@ -1936,7 +1931,7 @@ export function VideoGenTab({
       };
     }
 
-    if (!hasVideo && currentShotData?.videoStatus === 'failed') {
+    if (currentShotData?.videoStatus === 'failed') {
       return {
         label: /合并失败|merge failed|failed to merge/i.test(currentVideoErrorMessage || '') ? '合并失败' : '失败',
         className: 'border-red-100 bg-red-50 text-red-700',
@@ -2125,7 +2120,7 @@ export function VideoGenTab({
       if (result.success && result.data) {
         const refreshed = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, currentShotId);
         if (refreshed.success && refreshed.data) {
-          setShots(shotsList.map((shot: any) => (
+          setShots(useChapterGenerateStore.getState().shots.map((shot: any) => (
             String(shot.id) === currentShotId ? { ...shot, ...refreshed.data } : shot
           )));
           if (!refreshed.data.videoUrl) {
@@ -2162,7 +2157,7 @@ export function VideoGenTab({
       if (refreshed.success && refreshed.data) {
         sourceShot = refreshed.data;
         sourcePlan = refreshed.data.videoDirectorPlan || {};
-        setShots(shotsList.map((shot: any) => (
+        setShots(useChapterGenerateStore.getState().shots.map((shot: any) => (
           String(shot.id) === currentShotId ? { ...shot, ...refreshed.data } : shot
         )));
       }
@@ -2170,19 +2165,18 @@ export function VideoGenTab({
       console.error('刷新关键帧状态失败:', error);
     }
     const planKeyframes = sourcePlan.keyframes || [];
-    const legacyKeyframes = sourceShot.keyframes || [];
     const activeKeyframeTasks = useChapterGenerateStore.getState().keyframeTasks;
     const nonStartPlanKeyframes = planKeyframes.filter((keyframe: any) => keyframe.role !== 'START');
     const missingLegacyKeyframes = nonStartPlanKeyframes
-      .map((keyframe: any, index: number) => {
-        const legacyKeyframe = legacyKeyframes.find((item: any) => Number(item.plan_keyframe_index) === Number(keyframe.index));
-        const imageUrl = keyframe.image_url || keyframe.imageUrl || legacyKeyframe?.image_url || legacyKeyframe?.imageUrl;
+      .map((keyframe: any) => {
+        const legacyKeyframe = matchingLegacyKeyframe(sourceShot, keyframe);
+        const imageUrl = videoKeyframeImage(sourceShot, keyframe);
         if (imageUrl) return null;
-        const frameIndex = legacyKeyframe?.frame_index ?? index;
+        const frameIndex = legacyKeyframe?.frame_index;
         const activeTask = activeKeyframeTasks.find((task: any) => (
           task.shotId === currentShotId
           && Number(task.frameIndex) === Number(frameIndex)
-          && ['pending', 'running'].includes(String(task.status))
+          && ['pending', 'queued', 'running'].includes(String(task.status))
         ));
         return { ...(legacyKeyframe || { plan_keyframe_index: keyframe.index }), frame_index: frameIndex, activeTask };
       })
@@ -2216,10 +2210,7 @@ export function VideoGenTab({
   const handleGenerateEndKeyframe = useCallback(async (mode: 'llm' | 'image_only' = 'llm') => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId || !currentShotData) return;
     const endPlanKeyframe = (currentVideoDirectorPlan.keyframes || []).find((keyframe: any) => keyframe.role === 'END');
-    const legacyKeyframes = currentShotData.keyframes || [];
-    const legacyEndKeyframe = legacyKeyframes.find((keyframe: any) => (
-      Number(keyframe.plan_keyframe_index) === Number(endPlanKeyframe?.index || 2)
-    )) || (endPlanKeyframe ? { frame_index: 0 } : legacyKeyframes[0]);
+    const legacyEndKeyframe = matchingLegacyKeyframe(currentShotData, endPlanKeyframe);
 
     if (!legacyEndKeyframe || legacyEndKeyframe.frame_index === undefined) {
       toast.error('缺少 END 关键帧记录，请重新选择首尾帧模式或重新推荐');
@@ -2249,10 +2240,13 @@ export function VideoGenTab({
 
   useEffect(() => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
-    if (currentVideoDirectorPlan.recommended_mode || recommendingShotId === currentShotId) return;
+    if (currentVideoDirectorPlan.recommended_mode || currentVideoDirectorPlan.selected_mode || recommendingShotId === currentShotId) return;
     if (!currentAudioDriveReadiness.ready) return;
+    const key = `${effectiveChapterId}:${currentShotId}`;
+    if (autoRecommendationAttempts.current.has(key)) return;
+    autoRecommendationAttempts.current.add(key);
     handleRecommendVideoMode(false);
-  }, [currentAudioDriveReadiness.ready, currentShotId, currentVideoDirectorPlan.recommended_mode, effectiveChapterId, effectiveNovelId, handleRecommendVideoMode, recommendingShotId]);
+  }, [currentAudioDriveReadiness.ready, currentShotId, currentVideoDirectorPlan.recommended_mode, currentVideoDirectorPlan.selected_mode, effectiveChapterId, effectiveNovelId, handleRecommendVideoMode, recommendingShotId]);
 
   useEffect(() => {
     setVideoMetadata({ duration: null, width: null, height: null, sizeBytes: null });
@@ -2304,16 +2298,8 @@ export function VideoGenTab({
     saveVideoTabUiState({ showKeyframes, showAudioRef, isSidePanelCollapsed: nextCollapsed });
   };
 
-  // 同步 currentShot 和 selectedVideo
-  useEffect(() => {
-    if (currentShot && currentShot !== selectedVideo) {
-      setSelectedVideo(currentShot);
-    }
-  }, [currentShot, selectedVideo]);
-
   // 当用户点击视频列表时，切换分镜
   const handleVideoClick = (shotNum: number) => {
-    setSelectedVideo(shotNum);
     const shot = shotsList[shotNum - 1];
     if (shot) {
       const shotId = shot.id || String(shotNum);
@@ -2345,31 +2331,56 @@ export function VideoGenTab({
 
   const handleGenerateVideo = async (mode: 'llm' | 'video_only' = 'llm') => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
-    if (mode === 'video_only' && !hasReusableVideoPrompt) return;
-    if (!currentAudioDriveReadiness.ready) {
-      toast.error(currentAudioDriveReadiness.reason || 'AudioDrive 未 READY，请先到音频生成页完成音频准备。');
-      return;
-    }
-    if (currentSelectedVideoMode === 'FIRST_LAST_FRAME' && !currentEndKeyframeImageUrl) {
-      toast.error('首尾帧模式需要先生成 END 关键帧图片。');
-      return;
-    }
+    if (preparingVideoRef.current) return;
     if (hasVideo && !window.confirm(t('chapterGenerate.videoExistsConfirmDelete'))) return;
     setShowGenerateVideoMenu(false);
-
+    preparingVideoRef.current = true;
+    setPreparingVideoShotId(currentShotId);
     try {
-      if (!currentMultiKeyframePlanReady) {
-        toast.info('AudioDrive 窗口已变化，先自动重新规划关键帧。');
+      let latest = await refreshCurrentShotData();
+      if (!latest) throw new Error('无法刷新 Shot，请重试后生成。');
+      let readiness = getAudioDriveReadiness(latest);
+      if (!readiness.ready) throw new Error(readiness.reason);
+      if (!formalVideoPlanReady(latest)) {
+        if (mode === 'video_only') throw new Error('关键帧正式规划缺失或与音频窗口不匹配，请使用 LLM+生成自动补齐。');
+        toast.info('先自动补齐与 AudioDrive 窗口匹配的关键帧规划。');
         const planned = await handlePlanVideoKeyframes(true);
         if (!planned) return;
+        latest = await refreshCurrentShotData();
+        if (!latest || !formalVideoPlanReady(latest)) throw new Error('关键帧规划仍不完整，请在视频导演中重新规划或重新推荐后重试。');
       }
-      await generateShotVideo(effectiveNovelId, effectiveChapterId, currentShotId, currentSelectedVideoMode, {
+      readiness = getAudioDriveReadiness(latest);
+      if (!readiness.ready) throw new Error(readiness.reason);
+      if (!getShotImageUrl(latest)) throw new Error('缺少主分镜图，请先到分镜图生成页生成或上传起始帧。');
+      const plan = latest.videoDirectorPlan || {};
+      const selectedMode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
+      if (mode === 'video_only' && !buildVideoPromptDrafts(plan).some(draft => draft.prompt.trim())) {
+        throw new Error('缺少可复用的视频提示词，请使用 LLM+生成。');
+      }
+      const missing = (plan.keyframes || []).filter((frame: any) => frame.role !== 'START' && !videoKeyframeImage(latest, frame));
+      if (selectedMode !== 'SINGLE_FRAME' && missing.length) {
+        if (mode === 'video_only') throw new Error('关键帧图片缺失，请使用 LLM+生成自动补齐图片。');
+        for (const frame of missing) {
+          const legacy = matchingLegacyKeyframe(latest, frame);
+          if (legacy?.frame_index === undefined) throw new Error('关键帧记录与正式规划不匹配，请重新规划关键帧后重试；不会复用不兼容的旧图片。');
+          const state = useChapterGenerateStore.getState();
+          if (!state.generatingKeyframes.has(`${currentShotId}-${legacy.frame_index}`)) {
+            await generateKeyframeImage(effectiveNovelId, effectiveChapterId, currentShotId, Number(legacy.frame_index));
+          }
+        }
+        toast.info('缺失关键帧图片已提交生成或正在生成。请等待图片完成后，再点击 LLM+生成当前 Shot 视频。');
+        return;
+      }
+      await generateShotVideo(effectiveNovelId, effectiveChapterId, currentShotId, selectedMode, {
         skipLlmWhenPromptExists: mode === 'video_only',
       });
       markTabComplete(3);
     } catch (error) {
       console.error(t('chapterGenerate.videoGenerateFailed') + ':', error);
       toast.error(error instanceof Error ? error.message : t('chapterGenerate.videoGenerateFailed'));
+    } finally {
+      preparingVideoRef.current = false;
+      setPreparingVideoShotId(null);
     }
   };
 
@@ -2427,9 +2438,6 @@ export function VideoGenTab({
           String(shot.id) === currentShotId ? { ...shot, videoStatus: 'failed', videoTaskId: null } : shot
         )),
       }));
-      setShots(shotsList.map((shot: any) => (
-        String(shot.id) === currentShotId ? { ...shot, videoStatus: 'failed', videoTaskId: null } : shot
-      )));
       await refreshCurrentShotData();
       toast.success(t('chapterGenerate.videoCancelled'));
     } catch (error) {
@@ -2470,7 +2478,8 @@ export function VideoGenTab({
         skip_llm_when_prompt_exists: useExistingPrompt,
       });
       if (result.success) {
-        setShots(shotsList.map((shot: any) => (
+        useChapterGenerateStore.setState(state => ({ generatingVideos: new Set([...state.generatingVideos, currentShotId]) }));
+        setShots(useChapterGenerateStore.getState().shots.map((shot: any) => (
           String(shot.id) === currentShotId ? { ...shot, videoStatus: 'generating', videoTaskId: result.data?.taskId || shot.videoTaskId } : shot
         )));
         toast.success(`C${windowIndex} 已提交${useExistingPrompt ? '仅生成视频' : 'LLM+生成视频'}，完成后会自动合并`);
@@ -2492,7 +2501,7 @@ export function VideoGenTab({
       const result = await shotsApi.mergeVideoDirectorClips(effectiveNovelId, effectiveChapterId, currentShotId);
       if (result.success && result.data) {
         setSelectedPreviewClipKey(null);
-        setShots(shotsList.map((shot: any) => (
+        setShots(useChapterGenerateStore.getState().shots.map((shot: any) => (
           String(shot.id) === currentShotId
             ? { ...shot, videoUrl: result.data?.videoUrl || shot.videoUrl, videoDirectorPlan: result.data?.videoDirectorPlan || shot.videoDirectorPlan, videoStatus: 'completed' }
             : shot
@@ -2566,7 +2575,7 @@ export function VideoGenTab({
         ? await shotsApi.replaceImage(effectiveNovelId, effectiveChapterId, currentShotId, imageEditResultUrl)
         : await shotsApi.replaceKeyframeImage(effectiveNovelId, effectiveChapterId, currentShotId, Number(imageEditTarget.frameIndex), imageEditResultUrl);
       if (result.success && result.data) {
-        setShots(shotsList.map((shot: any) => (String(shot.id) === currentShotId ? { ...shot, ...result.data } : shot)));
+        setShots(useChapterGenerateStore.getState().shots.map((shot: any) => (String(shot.id) === currentShotId ? { ...shot, ...result.data } : shot)));
         if (imageEditTarget.type === 'shot') {
           setShotImages((images: Record<string, string>) => ({ ...images, [currentShotId]: result.data?.imageUrl || imageEditResultUrl }));
         }
@@ -2753,8 +2762,8 @@ export function VideoGenTab({
 
     console.log('[VideoGenTab] Updating keyframes:', updatedKeyframes);
     // 更新 store.shots
-    const updatedShots = shotsList.map((s: any, idx: number) =>
-      idx === shotIndex ? { ...s, keyframes: updatedKeyframes } : s
+    const updatedShots = useChapterGenerateStore.getState().shots.map((s: any) =>
+      s.id === shot.id ? { ...s, keyframes: updatedKeyframes } : s
     );
     setShots(updatedShots);
   }, [shotsList, selectedVideo, setShots]);
@@ -2766,8 +2775,8 @@ export function VideoGenTab({
     if (!shot) return;
 
     // 更新 store.shots
-    const updatedShots = shotsList.map((s: any, idx: number) =>
-      idx === shotIndex ? { ...s, referenceAudioUrl: audioUrl || null } : s
+    const updatedShots = useChapterGenerateStore.getState().shots.map((s: any) =>
+      s.id === shot.id ? { ...s, referenceAudioUrl: audioUrl || null } : s
     );
     setShots(updatedShots);
   };
@@ -2837,7 +2846,7 @@ export function VideoGenTab({
 
       const result = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, currentShotId);
       if (result.success && result.data) {
-        setShots(shotsList.map((shot: any) => (
+        setShots(useChapterGenerateStore.getState().shots.map((shot: any) => (
           shot.id === currentShotId ? { ...shot, ...result.data } : shot
         )));
 

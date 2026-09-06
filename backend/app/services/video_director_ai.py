@@ -388,18 +388,26 @@ def audit_audiodrive_h3_prompt(final_prompt: str, speaker_timeline: list, subjec
         if speaker != "NONE" and speaker in known_subjects and speaker not in prompt:
             issues.append({"code": "MISSING_SUBJECT_REFERENCE_IN_PROMPT", "subject_ref": speaker, "blocking": True})
         if speaker == "NONE":
-            for clause in re.findall(r"NONE[^\n。；;]*", prompt, re.IGNORECASE):
-                has_negative_rule = re.search(
-                    r"\bno\b[^\n]*(lip-sync|lip sync|speaking|speech)|do not[^\n]*(lip-sync|lip sync|speak|mouth)|must remain[^\n]*(closed|silent)|不得|禁止|闭合|闭嘴|保持沉默",
-                    clause,
-                    re.IGNORECASE,
-                )
-                has_positive_lipsync = re.search(
-                    r"<Subject\s+\d+>|张嘴|说话|产生口型|做口型|lip-syncs?|lip syncs?|mouth\s+(moves|opens)",
-                    clause,
-                    re.IGNORECASE,
-                )
-                if has_positive_lipsync and not has_negative_rule:
+            speech_action = (
+                r"张嘴|开口|说话|讲话|发声|(?:产生|做)口型|"
+                r"\b(?:lip[- ]?sync(?:s|ing)?|speak(?:s|ing)?|talk(?:s|ing)?)\b|"
+                r"\bmouth\s+(?:moves?|opens?)\b"
+            )
+            negated_action = (
+                r"(?:不(?:得|要|会|能|可|再|允许)?|没有|未|禁止|无需|无)(?:任何|可|在|再)?"
+                r"(?:人物|角色)?\s*(?:" + speech_action + r")(?:张嘴|开口|说话|讲话|发声|(?:产生|做)口型)*|"
+                r"\b(?:no|not|never|without)\s+(?:any\s+)?(?:" + speech_action + r")"
+            )
+            # End NONE scope at a new timed interval or speaker assignment, even on the same line.
+            scope_boundary = (
+                r"[\n。；;]|(?=\bvisible_speaker\s*[:=])|"
+                r"(?=\d+(?:\.\d+)?\s*(?:s|秒)?\s*(?:-|–|~|至|到|to)\s*\d+(?:\.\d+)?\s*(?:s|秒)?)"
+            )
+            for none_marker in re.finditer(r"(?<![A-Za-z0-9_])NONE(?![A-Za-z0-9_])", prompt, re.IGNORECASE):
+                clause = re.split(scope_boundary, prompt[none_marker.end():], maxsplit=1, flags=re.IGNORECASE)[0]
+                # Remove only negated actions, never exempt other actions in a mixed clause.
+                affirmative = re.sub(negated_action, "", clause, flags=re.IGNORECASE)
+                if re.search(speech_action, affirmative, re.IGNORECASE):
                     issues.append({"code": "NONE_SEGMENT_LIPSYNC_CONTRADICTION", "blocking": True})
                     break
     speech_verbs = r"(speak|speaks|say|says|read|reads|朗读|说出|说：|台词|念出)"
