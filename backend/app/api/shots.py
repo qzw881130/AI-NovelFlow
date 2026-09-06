@@ -2817,6 +2817,8 @@ async def plan_video_keyframes(
         "clips": _preserve_matching_clip_audio_fields(_build_first_last_clip_plan(duration), previous_audio_windows) if selected_mode == "FIRST_LAST_FRAME" else [],
         "validation": validation,
     })
+    plan["keyframe_planning_status"] = "READY"
+    plan.pop("keyframe_planning_message", None)
     plan.pop("task_error_message", None)
     plan.pop("error_message", None)
     plan.pop("merged_video_url", None)

@@ -54,7 +54,7 @@ async function runHandler(initial, refreshed, mode = 'llm') {
   const calls = [], errors = [];
   let latest = initial;
   const context = {
-    ...helpers, effectiveNovelId: 'n', effectiveChapterId: 'c', currentShotId: '46', hasVideo: false,
+    ...helpers, effectiveNovelId: 'n', effectiveChapterId: 'c', currentShotId: initial.id, hasVideo: false,
     preparingVideoRef: { current: false }, setPreparingVideoShotId() {}, setShowGenerateVideoMenu() {},
     refreshCurrentShotData: async () => { calls.push('refresh'); return latest; },
     getAudioDriveReadiness,
@@ -158,6 +158,74 @@ test('MULTI_KEYFRAME still selects window_plans rather than legacy clips', () =>
   s.videoDirectorPlan.window_plans = [{ ...audioClip(), audio_status: 'STALE' }];
   assert.equal(getAudioDriveReadiness(s).ready, false);
   assert.equal(mergeClipAudioWindows(s.videoDirectorPlan, 'MULTI_KEYFRAME'), s.videoDirectorPlan.window_plans);
+});
+
+const shot91 = () => {
+  const windows = [[0, 11.091], [11.091, 17.088]].map(([start_time, end_time], i) => ({
+    ...audioClip(), window_index: i + 1, start_time, end_time,
+  }));
+  return { ...shot(), id: '9d523806-8ae9-49af-ac60-573b10408545', duration: 20, videoTaskId: null,
+    videoDirectorPlan: {
+      selected_mode: 'MULTI_KEYFRAME', keyframe_planning_status: 'STALE', keyframe_planning_message: 'Old audio build',
+      audio_timeline: { resolved_duration: 17.088 }, execution_windows: windows,
+      window_plans: windows.map((w, i) => ({ ...w, selected_frame_count: 3, keyframe_indexes: i ? [3, 4, 5] : [1, 2, 3] })),
+      keyframes: [0, 5, 11.091, 14, 17.088].map((time_seconds, i) => ({
+        index: i + 1, time_seconds, role: i === 0 ? 'START' : i === 4 ? 'END' : 'INTERMEDIATE', image_url: `frame${i + 1}.png`,
+      })),
+    },
+  };
+};
+
+test('Shot91 manual LLM+ submits video for canonical legacy STALE multi plan without replanning', async () => {
+  const s = shot91();
+  assert.equal(helpers.formalVideoPlanReady(s), true);
+  assert.deepEqual(await runHandler(s, s), { calls: ['refresh', 'video'], errors: [] });
+});
+
+test('Shot91 replan reaches video and subsequent attempts never repeat planning', async () => {
+  for (const status of ['STALE', 'READY']) {
+    const initial = shot91(); initial.videoDirectorPlan.keyframes = [];
+    const updated = shot91(); updated.videoDirectorPlan.keyframe_planning_status = status;
+    assert.deepEqual(await runHandler(initial, updated), { calls: ['refresh', 'plan', 'refresh', 'video'], errors: [] });
+    assert.deepEqual(await runHandler(updated, updated), { calls: ['refresh', 'video'], errors: [] });
+  }
+});
+
+test('multi readiness rejects noncanonical bounds, counts, references and ordering even with READY', async () => {
+  const defects = [
+    p => { p.audio_timeline.resolved_duration = 18; },
+    p => { p.execution_windows[0].start_time = -1; },
+    p => { p.execution_windows[1].start_time = 12; },
+    p => { p.execution_windows[1].end_time = 20; },
+    p => { p.execution_windows[0].end_time = 0; },
+    p => { p.window_plans[0].start_time = null; },
+    p => { p.window_plans[1].end_time = 18; },
+    p => { p.window_plans.pop(); },
+    p => { p.window_plans[1].window_index = 1; },
+    p => { p.window_plans[0].selected_frame_count = 2; },
+    p => { p.window_plans[0].selected_frame_count = 4; },
+    p => { p.window_plans[0].keyframe_indexes = [1, 2, 2]; },
+    p => { p.window_plans[0].keyframe_indexes = [1, 2, 99]; },
+    p => { p.window_plans[0].keyframe_indexes = [1, 3, 2]; },
+    p => { p.window_plans[0].keyframe_indexes = [1, 2, 4]; },
+    p => { p.keyframes[0].time_seconds = 1; },
+    p => { p.keyframes[4].time_seconds = 17; },
+    p => { p.keyframes[1].time_seconds = 12; },
+    p => { p.keyframes[1].time_seconds = NaN; },
+    p => { p.keyframes[1].index = 1; },
+    p => { p.keyframes[0].role = 'INTERMEDIATE'; },
+    p => { p.keyframes.reverse(); },
+  ];
+  for (const status of ['STALE', 'READY']) {
+    for (const mutate of defects) {
+      const s = shot91(); s.videoDirectorPlan.keyframe_planning_status = status;
+      mutate(s.videoDirectorPlan);
+      assert.equal(helpers.formalVideoPlanReady(s), false, `${status}: ${mutate}`);
+      const result = await runHandler(s, s);
+      assert.equal(result.calls.includes('video'), false);
+      assert.equal(result.errors.length, 1);
+    }
+  }
 });
 
 function storeHarness(s, tasks, batchTasks = []) {

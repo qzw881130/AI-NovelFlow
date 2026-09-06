@@ -93,6 +93,7 @@ def test_planning_call_preserves_ready_audio_and_canonical_duration(monkeypatch,
     binding = {"window_index": 1, "start_time": 0, "end_time": 14.3, **audio}
     timeline = {"audio_required_duration": 14.3, "resolved_duration": 14.3, "events": []}
     plan = {"selected_mode": mode, "workflow_capability": {"max_clip_duration": 15},
+            "keyframe_planning_status": "STALE", "keyframe_planning_message": "Old audio build",
             "audio_timeline": timeline, source: [deepcopy(binding)]}
     shot = Shot(id="shot46", chapter_id="chapter", index=46, description="Start", video_description="End",
                 estimated_duration=12, duration=99, audio_status="READY", video_director_plan=json.dumps(plan))
@@ -115,6 +116,11 @@ def test_planning_call_preserves_ready_audio_and_canonical_duration(monkeypatch,
         template_repo=Mock(), llm_service=llm,
     ))
     saved = result["data"]
+    assert saved["keyframe_planning_status"] == "READY"
+    assert "keyframe_planning_message" not in saved
+    persisted = json.loads(shot.video_director_plan)
+    assert persisted["keyframe_planning_status"] == "READY"
+    assert "keyframe_planning_message" not in persisted
     target = saved["clips" if mode == "FIRST_LAST_FRAME" else "window_plans"][0]
     assert {key: target[key] for key in audio} == audio
     assert target["end_time"] == 14.3
