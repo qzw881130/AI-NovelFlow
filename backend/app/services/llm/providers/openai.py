@@ -7,7 +7,6 @@ import httpx
 import asyncio
 import os
 import time
-import json
 from typing import Dict, Any, Optional
 from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
 
@@ -158,7 +157,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         log_id = None
         try:
             async with client:
-                print(f"[openai chat_completion] endpoint:{endpoint}, headers:{headers}, timeout:{timeout}")
+                print(f"[openai chat_completion] endpoint:{request_info['url']}, headers:{request_info['headers']}, timeout:{timeout}")
                 log_id = create_llm_log(
                     provider=self.config.provider,
                     model=self.config.model,
@@ -182,74 +181,9 @@ class OpenAICompatibleProvider(BaseLLMProvider):
 
             if response.status_code == 200:
                 data = response.json()
-                content = self._parse_response(data)
-                finish_reason = self._get_finish_reason(data)
-
-                if not content:
-                    raw_response = json.dumps(data, ensure_ascii=False)
-                    error_msg = "API 返回成功状态，但响应内容为空"
-
-                    update_llm_log(
-                        log_id=log_id,
-                        response=raw_response,
-                        status="error",
-                        error_message=error_msg,
-                        duration=duration,
-                    )
-
-                    return LLMResponse(
-                        success=False,
-                        error=error_msg,
-                        raw_response=data,
-                        duration=duration
-                    )
-
-                if finish_reason == "length":
-                    error_msg = "API 响应因长度限制被截断，请提高最大 token 数或缩短输入后重试"
-
-                    update_llm_log(
-                        log_id=log_id,
-                        response=content,
-                        status="error",
-                        error_message=error_msg,
-                        duration=duration,
-                    )
-
-                    return LLMResponse(
-                        success=False,
-                        error=error_msg,
-                        content=content,
-                        raw_response=data,
-                        duration=duration
-                    )
-
-                update_llm_log(
-                    log_id=log_id,
-                    response=content,
-                    status="success",
-                    duration=duration,
-                )
-
-                return LLMResponse(
-                    success=True,
-                    content=content,
-                    raw_response=data,
-                    duration=duration
-                )
+                return self._complete_response(log_id, data, duration)
             else:
-                error_msg = f"API 错误 ({response.status_code}): {response.text}"
-                update_llm_log(
-                    log_id=log_id,
-                    status="error",
-                    error_message=error_msg,
-                    duration=duration,
-                )
-
-                return LLMResponse(
-                    success=False,
-                    error=error_msg,
-                    duration=duration
-                )
+                return self._http_error_response(log_id, response, duration)
         except asyncio.CancelledError:
             duration = time.time() - start_time
             update_llm_log(

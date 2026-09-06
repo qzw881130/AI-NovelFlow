@@ -96,6 +96,7 @@ class LLMLogRepository:
             LLMLog.character_id,
             LLMLog.used_proxy,
             LLMLog.duration,
+            LLMLog.usage_metrics,
         ).order_by(desc(LLMLog.created_at)).offset((page - 1) * page_size).limit(page_size).all()
 
         return rows, total

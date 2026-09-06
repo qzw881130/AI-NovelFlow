@@ -2377,7 +2377,7 @@ export function VideoGenTab({
       markTabComplete(3);
     } catch (error) {
       console.error(t('chapterGenerate.videoGenerateFailed') + ':', error);
-      toast.error(error instanceof Error ? error.message : t('chapterGenerate.videoGenerateFailed'));
+      toast.error(formatUserFacingError(error instanceof Error ? error.message : t('chapterGenerate.videoGenerateFailed')));
     } finally {
       preparingVideoRef.current = false;
       setPreparingVideoShotId(null);
@@ -2485,7 +2485,7 @@ export function VideoGenTab({
         toast.success(`C${windowIndex} 已提交${useExistingPrompt ? '仅生成视频' : 'LLM+生成视频'}，完成后会自动合并`);
       } else {
         setRegeneratingClipKey(null);
-        toast.error(result.message || result.detail || 'Clip 重新生成失败');
+        toast.error(formatUserFacingError(result.message || result.detail || 'Clip 重新生成失败'));
       }
     } catch (error) {
       setRegeneratingClipKey(null);
@@ -2739,7 +2739,7 @@ export function VideoGenTab({
     } catch (error) {
       console.error(t('chapterGenerate.batchVideoGenerateFailed') + ':', error);
       const message = error instanceof Error ? error.message : '批量视频任务提交失败';
-      toast.error(message);
+      toast.error(formatUserFacingError(message));
       useChapterGenerateStore.setState((state) => ({
         generatingVideos: new Set([...state.generatingVideos].filter((shotId) => !batchShotIds.includes(String(shotId)))),
         pendingVideos: new Set([...state.pendingVideos].filter((shotId) => !batchShotIds.includes(String(shotId)))),

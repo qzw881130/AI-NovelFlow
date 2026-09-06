@@ -76,6 +76,8 @@ def upgrade_sqlite_schema(engine: Engine) -> None:
             _add_column_if_missing(conn, "tasks", "attempt", "attempt INTEGER DEFAULT 0")
 
         if _table_exists(conn, "llm_logs"):
+            _add_column_if_missing(conn, "llm_logs", "usage_metrics", "usage_metrics JSON")
+            _add_column_if_missing(conn, "llm_logs", "duration", "duration FLOAT")
             _add_column_if_missing(conn, "llm_logs", "request_info", "request_info TEXT")
             _add_column_if_missing(conn, "llm_logs", "prompt_template_name", "prompt_template_name VARCHAR")
 

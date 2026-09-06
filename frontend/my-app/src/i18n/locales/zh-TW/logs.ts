@@ -4,6 +4,16 @@ import zhCN from '../zh-CN/logs';
 export default {
   llmLogs: {
     ...zhCN.llmLogs,
+    speed: '速度 (tokens/s)',
+    tokenDetails: 'Token 用量與速度',
+    inputTokens: '輸入 Token',
+    outputTokens: '輸出 Token',
+    totalTokens: '總 Token',
+    cachedInputTokens: '快取輸入 Token',
+    reasoningTokens: '推理 Token',
+    finishReason: '結束原因',
+    averageOutputThroughput: '平均輸出吞吐量（含等待時間）',
+    throughputExplanation: '輸出 Token 數除以請求總耗時，包含等待時間，並非模型實際生成速率。',
     title: '大模型日誌',
     subtitle: '檢視大模型呼叫的日誌記錄',
     clearLogs: '清空日誌',

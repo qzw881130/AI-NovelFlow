@@ -6,6 +6,8 @@ import { useTranslation } from '../../../stores/i18nStore';
 import type { Task, VideoDirectorTaskClip } from '../../../types';
 import type { ImageInfo } from '../types';
 import { formatUserFacingError } from '../../../utils';
+import { copyToClipboard } from '../../../utils/clipboard';
+import { toast } from '../../../stores/toastStore';
 
 interface TaskCardProps {
   task: Task;
@@ -92,9 +94,10 @@ export function TaskCard({
   const displayErrorMessage = formatUserFacingError(task.errorMessage) || task.errorMessage;
   const copyTaskId = async () => {
     try {
-      await navigator.clipboard.writeText(task.id);
+      await copyToClipboard(task.id);
+      toast.success(t('common.copied'));
     } catch {
-      // Ignore clipboard failures; the full ID is visible for manual selection.
+      toast.error(t('common.copyFailed'));
     }
   };
   const getClipStatusText = (status?: string) => {
@@ -140,9 +143,10 @@ export function TaskCard({
               type="button"
               onClick={copyTaskId}
               className="rounded p-1 text-gray-400 hover:bg-white hover:text-blue-600"
-              title="复制 Task ID"
+              title={`${t('common.copy')} ${t('tasks.taskId')}`}
+              aria-label={`${t('common.copy')} ${t('tasks.taskId')}`}
             >
-              <Copy className="h-3.5 w-3.5" />
+              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           </div>
           {task.description && <p className="text-sm mt-1 opacity-80">{getTaskDisplayDescription(task)}</p>}

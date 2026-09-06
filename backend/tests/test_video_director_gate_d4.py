@@ -154,6 +154,22 @@ def test_none_segment_no_lipsync_rule_passes_audit():
     assert not any(issue["code"] == "NONE_SEGMENT_LIPSYNC_CONTRADICTION" for issue in audit["issues"])
 
 
+def test_shot119_clip2_exact_none_output_passes_audit():
+    # LLM log 105035bb-ddf0-4097-b042-2746e38c8f35, 2026-09-06 01:42:54.
+    body = """dialogue_timeline:
+
+All visible characters remain silent and do not perform speech lip-sync throughout the entire clip.
+
+详细可见说话者时间轴：0.000s–14.977s，visible_speaker = NONE，整段无任何人产生说话口型。
+"""
+    manifest = build_clip_subject_manifest(_shot(["小马"]), [])
+    timeline = [{"start_time": 0.0, "end_time": 14.977, "visible_speaker": "NONE"}]
+
+    audit = audit_audiodrive_h3_prompt(_prompt(body), timeline, manifest)
+
+    assert audit["passed"] is True, audit["issues"]
+
+
 @pytest.mark.parametrize("body", [
     "visible_speaker=NONE，画面无可说话人物。",
     "visible_speaker=NONE，小马不说话，不张嘴，不产生口型。",
@@ -165,6 +181,14 @@ def test_none_segment_no_lipsync_rule_passes_audit():
     "NONE: no lip-sync, visible_speaker=<Subject 1>: speaks.",
     "NONE: <Subject 1> does not speak and never lip-syncs.",
     "NONE期间，小马不张嘴说话，禁止任何人物产生口型。",
+    "NONE，整段无任何人产生说话口型。",
+    "NONE，没有任何人物产生讲话口型。",
+    "NONE，禁止任何角色做发声口型。",
+    "NONE，无人说话。",
+    "NONE，不允许任何人张嘴说话。",
+    "NONE，小马不产生说话口型，不做讲话口型。",
+    "NONE，无任何可见人物产生说话口型。",
+    "NONE，无可见角色做说话口型。",
 ])
 def test_none_segment_negated_and_scoped_speech_passes(body):
     manifest, resolved, issues = _resolve(["小马", "老牛"], [
@@ -186,6 +210,17 @@ def test_none_segment_negated_and_scoped_speech_passes(body):
     "NONE: no lip-sync, but <Subject 1> talks.",
     "0s-2s NONE: <Subject 1> speaks; 2s-4s <Subject 1> stays silent.",
     "NONE期间，小马不张嘴说话，但老牛张嘴说话。",
+    "NONE，整段无任何人产生说话口型，但小马张嘴说话。",
+    "NONE，小马说话，但其他人不产生说话口型。",
+    "NONE，无任何人产生说话口型，<Subject 1> lip-syncs.",
+    "NONE，无任何人产生说话口型，老牛做讲话口型。",
+    "NONE，无任何人产生说话口型，老牛产生口型。",
+    "NONE，没有字幕，小马产生说话口型。",
+    "NONE，小马不走动而是说话。",
+    "NONE，无任何人阻止小马说话。",
+    "NONE，小马不仅说话，还张嘴。",
+    "NONE，小马产生说话口型。",
+    "NONE，小马做发声口型。",
 ])
 def test_none_segment_mixed_negation_still_blocks_speech(body):
     manifest, resolved, issues = _resolve(["小马", "老牛"], [

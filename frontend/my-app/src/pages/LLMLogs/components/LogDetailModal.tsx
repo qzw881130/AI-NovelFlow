@@ -3,6 +3,7 @@ import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import type { LLMLog } from '../../../api/llmLogs';
 import type { PromptTab } from '../hooks/useLLMLogsState';
+import { LogSpeed } from './LogSpeed';
 
 interface LogDetailModalProps {
   log: LLMLog;
@@ -111,7 +112,7 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
           <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex flex-wrap items-center gap-4 text-sm">
             <span className="text-gray-500">{t('llmLogs.provider')}:</span><span className="font-medium">{log.provider}</span>
             <span className="text-gray-500">{t('llmLogs.model')}:</span><span className="font-medium">{log.model}</span>
             <span className="text-gray-500">{t('llmLogs.task')}:</span><span className="font-medium">{getTaskTypeLabel(log.task_type)}</span>
@@ -119,6 +120,8 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
             <span className="text-gray-500">{t('llmLogs.proxy')}:</span><span className="font-medium">{log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}</span>
             <span className="text-gray-500">{t('llmLogs.duration')}:</span>
             <span className="font-medium">{getDisplayDuration(log)}</span>
+            <span className="text-gray-500">{t('llmLogs.speed')}:</span>
+            <LogSpeed log={log} />
           </div>
           <div className="flex items-center gap-2 text-sm">
             <span className="text-gray-500">{t('llmLogs.promptTemplateName')}:</span>

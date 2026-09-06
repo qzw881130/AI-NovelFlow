@@ -4,6 +4,16 @@ import enUS from '../en-US/logs';
 export default {
   llmLogs: {
     ...enUS.llmLogs,
+    speed: '속도 (tokens/s)',
+    tokenDetails: '토큰 사용량 및 속도',
+    inputTokens: '입력 토큰',
+    outputTokens: '출력 토큰',
+    totalTokens: '총 토큰',
+    cachedInputTokens: '캐시된 입력 토큰',
+    reasoningTokens: '추론 토큰',
+    finishReason: '종료 사유',
+    averageOutputThroughput: '평균 출력 처리량 (대기 시간 포함)',
+    throughputExplanation: '출력 토큰 수를 대기 시간을 포함한 전체 요청 시간으로 나눈 값입니다. 모델의 실제 생성 속도가 아닙니다.',
     title: 'LLM 로그',
     subtitle: 'LLM 호출 로그 기록 보기',
     clearLogs: '로그 지우기',

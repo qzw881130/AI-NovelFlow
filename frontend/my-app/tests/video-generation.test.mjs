@@ -15,6 +15,7 @@ function load(text, imports = {}) {
   return exports;
 }
 const helpers = load(source('videoPlan.ts'));
+const { formatUserFacingError } = load(readFileSync(new URL('../src/utils/errorUtils.ts', import.meta.url), 'utf8'));
 const end = { index: 2, role: 'END', time_seconds: 9.051, description: 'End pose' };
 const legacy = { frame_index: 0, plan_keyframe_index: 2, time_seconds: 9.051, description: 'End pose', image_url: 'end.png' };
 const audioClip = () => ({ clip_index: 1, start_time: 0, end_time: 9.051, audio_status: 'READY', drive_audio_url: 'drive.wav', final_audio_url: 'final.wav' });
@@ -57,7 +58,7 @@ async function runHandler(initial, refreshed, mode = 'llm') {
     ...helpers, effectiveNovelId: 'n', effectiveChapterId: 'c', currentShotId: initial.id, hasVideo: false,
     preparingVideoRef: { current: false }, setPreparingVideoShotId() {}, setShowGenerateVideoMenu() {},
     refreshCurrentShotData: async () => { calls.push('refresh'); return latest; },
-    getAudioDriveReadiness,
+    getAudioDriveReadiness, formatUserFacingError,
     getShotImageUrl: s => s.imageUrl, buildVideoPromptDrafts: () => [],
     handlePlanVideoKeyframes: async () => { calls.push('plan'); latest = refreshed; return true; },
     generateKeyframeImage: async () => calls.push('image'), generateShotVideo: async () => calls.push('video'),

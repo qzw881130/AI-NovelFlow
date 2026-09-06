@@ -7,6 +7,7 @@ import { useConfigStore, LLM_PROVIDER_PRESETS } from '../../../stores/configStor
 import { getProviderDisplayName, getModelName, getModelDescription } from '../utils';
 import type { SettingsFormData } from '../types';
 import type { LLMProvider, LLMModel } from '../../../types';
+import { ProviderLogo } from '../../../components/ProviderLogo';
 
 interface LLMConfigProps {
   formData: SettingsFormData;
@@ -135,13 +136,7 @@ export default function LLMConfig({ formData, onFormDataChange, onUserModified }
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
               }`}
             >
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                formData.llmProvider === preset.id
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-gray-200 text-gray-600'
-              }`}>
-                {getProviderDisplayName(preset.id, t).charAt(0)}
-              </div>
+              <ProviderLogo provider={preset.id} label={getProviderDisplayName(preset.id, t)} />
               <div className="text-left">
                 <div className="text-sm font-medium">{getProviderDisplayName(preset.id, t)}</div>
                 <div className="text-xs text-gray-500">

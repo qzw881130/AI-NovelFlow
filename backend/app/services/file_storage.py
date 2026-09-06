@@ -7,7 +7,7 @@ import json
 import httpx
 import shutil
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Callable, Awaitable
 from datetime import datetime
 
 from app.utils.path_utils import url_to_local_path
@@ -61,7 +61,7 @@ class FileStorageService:
             })
 
         payload = json.dumps(
-            {"version": 1, "mode": mode, "segments": manifest},
+            {"version": 2, "mode": mode, "segments": manifest},
             sort_keys=True,
             separators=(",", ":"),
         )
@@ -878,8 +878,56 @@ class FileStorageService:
             return None
 
 
-    async def merge_videos(self, video_paths: List[str], output_path: str, 
-                          transition_videos: List[str] = None) -> Dict[str, Any]:
+    async def _run_merge_process(self, cmd, on_time=None):
+        """Drain both pipes while reporting FFmpeg's output timeline, not wall time."""
+        import asyncio
+        import subprocess
+
+        if on_time is not None:
+            cmd = [cmd[0], '-progress', 'pipe:1', '-nostats', *cmd[1:]]
+        process = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+
+        async def read_stdout():
+            if on_time is None:
+                return await process.stdout.read()
+            while line := await process.stdout.readline():
+                key, _, value = line.strip().partition(b'=')
+                if key == b'out_time_us':
+                    try:
+                        seconds = max(0, int(value)) / 1_000_000
+                    except ValueError:
+                        continue
+                    await on_time(seconds)
+            return b''
+
+        async def read_stderr():
+            diagnostic = b''
+            while chunk := await process.stderr.read(65536):
+                diagnostic = (diagnostic + chunk)[-65536:]
+            return diagnostic
+
+        readers = [asyncio.create_task(read_stdout()), asyncio.create_task(read_stderr())]
+        try:
+            stdout, stderr = await asyncio.gather(*readers)
+            await process.wait()
+            return subprocess.CompletedProcess(cmd, process.returncode, stdout.decode(errors='replace'), stderr.decode(errors='replace'))
+        finally:
+            # Reap before the caller removes files, including on callback failure/cancellation.
+            if process.returncode is None:
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    pass
+            for reader in readers:
+                reader.cancel()
+            await asyncio.gather(*readers, return_exceptions=True)
+            await process.wait()
+
+    async def merge_videos(self, video_paths: List[str], output_path: str,
+                          transition_videos: List[str] = None,
+                          progress_callback: Optional[Callable[[float, str], Awaitable[None]]] = None) -> Dict[str, Any]:
         """
         合并多个视频文件（使用 ffmpeg）
         
@@ -887,6 +935,10 @@ class FileStorageService:
             video_paths: 视频文件路径列表（分镜视频）
             output_path: 输出文件路径
             transition_videos: 转场视频路径列表（可选），长度应为 len(video_paths) - 1
+            progress_callback: Awaited (percent, step); monotonic 0..100. Source validation
+                0..15, normalization 15..65, encoding 65..95, final validation 95,
+                atomic publication 99, published 100. Unknown durations advance only
+                on completion. Callback failures abort; cancellation propagates.
             
         Returns:
             {
@@ -896,11 +948,19 @@ class FileStorageService:
             }
         """
         try:
-            import subprocess
-            import asyncio
             import tempfile
             import os
             import json
+            from fractions import Fraction
+            from math import ceil
+
+            last_progress = 0.0
+
+            async def report(percent, step):
+                nonlocal last_progress
+                last_progress = max(last_progress, min(100.0, percent))
+                if progress_callback is not None:
+                    await progress_callback(last_progress, step)
             
             if not video_paths or len(video_paths) == 0:
                 return {"success": False, "message": "没有视频文件"}
@@ -922,23 +982,17 @@ class FileStorageService:
             
             print(f"[FileStorage] Merging {len(final_video_list)} videos: {final_video_list}")
 
-            async def _get_video_info(video_path: str) -> Dict[str, Any]:
-                loop = asyncio.get_event_loop()
-
-                def _run_ffprobe():
-                    return subprocess.run(
-                        [
-                            'ffprobe',
-                            '-v', 'error',
-                            '-show_entries', 'stream=codec_type,width,height',
-                            '-of', 'json',
-                            video_path,
-                        ],
-                        capture_output=True,
-                        text=True,
-                    )
-
-                result = await loop.run_in_executor(None, _run_ffprobe)
+            async def _get_video_info(video_path: str, count_frames: bool = False) -> Dict[str, Any]:
+                result = await self._run_merge_process(
+                    [
+                        'ffprobe',
+                        '-v', 'error',
+                        *(['-count_frames'] if count_frames else []),
+                        '-show_entries', 'stream=codec_type,width,height,start_time,duration_ts,time_base,nb_read_frames:format=duration',
+                        '-of', 'json',
+                        video_path,
+                    ],
+                )
                 if result.returncode != 0:
                     raise RuntimeError(f"ffprobe failed for {video_path}: {result.stderr}")
 
@@ -951,23 +1005,20 @@ class FileStorageService:
                 if not video_stream:
                     raise RuntimeError(f"No video stream found in {video_path}")
 
+                audio_stream = next((stream for stream in streams if stream.get('codec_type') == 'audio'), None)
                 return {
                     'width': int(video_stream.get('width') or 0),
                     'height': int(video_stream.get('height') or 0),
-                    'has_audio': any(stream.get('codec_type') == 'audio' for stream in streams),
+                    'video': video_stream,
+                    'audio': audio_stream,
+                    'duration': (data.get('format') or {}).get('duration'),
                 }
 
             async def _validate_video_decode(video_path: str):
-                loop = asyncio.get_event_loop()
-
-                def _run_validate():
-                    return subprocess.run(
-                        ['ffmpeg', '-v', 'error', '-xerror', '-i', video_path, '-f', 'null', '-'],
-                        capture_output=True,
-                        text=True,
-                    )
-
-                result = await loop.run_in_executor(None, _run_validate)
+                result = await self._run_merge_process(
+                    ['ffmpeg', '-v', 'error', '-xerror', '-i', video_path,
+                     '-map', '0:v:0', '-map', '0:a:0?', '-f', 'null', '-'],
+                )
                 stderr = (result.stderr or '').strip()
                 if result.returncode != 0 or stderr:
                     raise RuntimeError(f"视频解码校验失败 ({video_path}): {stderr[:300] or f'ffmpeg exit {result.returncode}'}")
@@ -983,43 +1034,64 @@ class FileStorageService:
             temp_normalized_dir = tempfile.mkdtemp(prefix='.novelflow_merge_', dir=str(Path(output_path).resolve().parent))
             candidate_path = os.path.join(temp_normalized_dir, 'merged.mp4')
             normalized_paths = []
-            concat_file = None
+            segment_frames = []
 
             # 创建临时文件列表
             try:
-                loop = asyncio.get_event_loop()
-
                 # Reject corrupt sources before a decoder can conceal their errors.
-                for video_path in final_video_list:
+                count = len(final_video_list)
+                for index, video_path in enumerate(final_video_list):
+                    await report(15 * index / count, f"校验源视频 {index + 1}/{count}")
                     await _validate_video_decode(video_path)
+                    await report(15 * (index + 1) / count, f"校验源视频 {index + 1}/{count}")
 
                 for index, video_path in enumerate(final_video_list):
-                    normalized_path = os.path.join(temp_normalized_dir, f'normalized_{index:03d}.mp4')
+                    normalized_path = os.path.join(temp_normalized_dir, f'normalized_{index:03d}.mov')
                     video_info = await _get_video_info(video_path)
+                    video_start = Fraction(video_info['video'].get('start_time') or '0')
+                    audio_start = Fraction((video_info['audio'] or {}).get('start_time') or video_start)
+                    origin = min(video_start, audio_start)
+                    # Measure the common A/V timeline, including retained start offsets.
+                    durations = []
+                    for stream in (video_info['video'], video_info['audio']):
+                        if stream and stream.get('duration_ts') is not None and stream.get('time_base'):
+                            try:
+                                durations.append(float(Fraction(stream.get('start_time') or origin) - origin
+                                                       + int(stream['duration_ts']) * Fraction(stream['time_base'])))
+                            except (ValueError, TypeError, ZeroDivisionError):
+                                pass
+                    try:
+                        duration = max(durations) if durations else float(video_info['duration'] or 0)
+                    except (ValueError, TypeError):
+                        duration = 0
+                    step = f"标准化视频 {index + 1}/{count}"
+                    await report(15 + 50 * index / count, step)
+
+                    async def normalize_progress(seconds):
+                        fraction = min(0.99, seconds / duration) if duration > 0 else 0
+                        await report(15 + 50 * (index + fraction) / count, step)
                     normalize_cmd = [
                         'ffmpeg',
                         '-xerror',
                         '-i', video_path,
+                        '-map', '0:v:0', '-map', '0:a:0?',
                     ]
 
-                    if not video_info['has_audio']:
-                        normalize_cmd.extend([
-                            '-f', 'lavfi',
-                            '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000',
-                        ])
-
                     normalize_cmd.extend([
-                        '-vf', f'scale={target_width}:{target_height}:force_original_aspect_ratio=decrease,pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2:black,fps=24,format=yuv420p',
+                        '-vf', f'setpts=PTS-STARTPTS+({video_start - origin})/TB,scale={target_width}:{target_height}:force_original_aspect_ratio=decrease,pad={target_width}:{target_height}:(ow-iw)/2:(oh-ih)/2:black,setsar=1,fps=24:start_time=0:eof_action=pass,format=yuv420p',
                         '-c:v', 'libx264',
                         '-preset', 'medium',
                         '-crf', '18',
-                        '-c:a', 'aac',
+                        '-c:a', 'pcm_s16le',
                         '-ar', '48000',
                         '-ac', '2',
                     ])
 
-                    if not video_info['has_audio']:
-                        normalize_cmd.append('-shortest')
+                    if video_info['audio']:
+                        # Fill timestamp gaps without changing speech speed; retain A/V offsets.
+                        normalize_cmd.extend([
+                            '-af', f'asetpts=PTS-STARTPTS+({audio_start - origin})/TB,aresample=48000:async=1:first_pts=0',
+                        ])
 
                     normalize_cmd.extend([
                         '-movflags', '+faststart',
@@ -1029,10 +1101,7 @@ class FileStorageService:
 
                     print(f"[FileStorage] Normalizing video: {' '.join(normalize_cmd)}")
 
-                    def _run_normalize(cmd=normalize_cmd):
-                        return subprocess.run(cmd, capture_output=True, text=True)
-
-                    normalize_result = await loop.run_in_executor(None, _run_normalize)
+                    normalize_result = await self._run_merge_process(normalize_cmd, normalize_progress)
                     if normalize_result.returncode != 0:
                         print(f"[FileStorage] Normalize error: {normalize_result.stderr}")
                         return {
@@ -1041,31 +1110,26 @@ class FileStorageService:
                         }
 
                     normalized_paths.append(normalized_path)
+                    normalized_info = await _get_video_info(normalized_path, count_frames=True)
+                    frames = int(normalized_info['video']['nb_read_frames'])
+                    if frames <= 0:
+                        raise RuntimeError(f"No normalized video frames in {video_path}")
+                    audio = normalized_info['audio']
+                    # PCM duration is sample-exact. Never cut speech to fit a shorter video.
+                    audio_duration = Fraction(int(audio['duration_ts'])) * Fraction(audio['time_base']) if audio else 0
+                    segment_frames.append((frames, max(frames, ceil(audio_duration * 24)), bool(audio)))
+                    await report(15 + 50 * (index + 1) / count, step)
 
-                if len(normalized_paths) == 1:
-                    await _validate_video_decode(normalized_paths[0])
-                    os.replace(normalized_paths[0], output_path)
-                    return {
-                        "success": True,
-                        "output_path": output_path,
-                        "message": "合并完成，共 1 个视频片段"
-                    }
-
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', dir=temp_normalized_dir, delete=False) as f:
-                    concat_file = f.name
-                    for video_path in normalized_paths:
-                        escaped_path = video_path.replace("'", "'\\''")
-                        f.write(f"file '{escaped_path}'\n")
-            
-                # 使用 concat filter 重新编码输出。MP4/H.264 即使参数一致，直接 -c copy
-                # 拼接仍可能产生浏览器无法解码的 NAL 边界问题。
+                # Exact frame/sample boundaries, with only one AAC encode for the chapter.
                 cmd = ['ffmpeg', '-xerror']
                 for video_path in normalized_paths:
                     cmd.extend(['-i', video_path])
                 normalized_streams = []
-                for index in range(len(normalized_paths)):
-                    normalized_streams.append(f'[{index}:v:0]setpts=PTS-STARTPTS[v{index}]')
-                    normalized_streams.append(f'[{index}:a:0]asetpts=PTS-STARTPTS[a{index}]')
+                for index, (frames, target_frames, has_audio) in enumerate(segment_frames):
+                    samples = target_frames * 2000  # 48000 Hz / 24 fps
+                    normalized_streams.append(f'[{index}:v:0]tpad=stop_mode=clone:stop={target_frames - frames},trim=end_frame={target_frames},setpts=N/(24*TB)[v{index}]')
+                    audio_input = f'[{index}:a:0]' if has_audio else 'anullsrc=channel_layout=stereo:sample_rate=48000,'
+                    normalized_streams.append(f'{audio_input}apad=whole_len={samples},atrim=end_sample={samples},asetpts=N/SR/TB[a{index}]')
                 concat_inputs = ''.join(f'[v{index}][a{index}]' for index in range(len(normalized_paths)))
                 filter_complex = ';'.join(normalized_streams + [f'{concat_inputs}concat=n={len(normalized_paths)}:v=1:a=1[v][a]'])
                 cmd.extend([
@@ -1084,26 +1148,15 @@ class FileStorageService:
                     candidate_path,
                 ])
 
-                filter_cmd = cmd
-                cmd = [
-                    'ffmpeg', '-f', 'concat', '-safe', '0', '-i', concat_file,
-                    '-c', 'copy', '-movflags', '+faststart', '-y', candidate_path,
-                ]
-                
                 print(f"[FileStorage] Running ffmpeg: {' '.join(cmd)}")
                 
-                # 在线程池中执行
-                loop = asyncio.get_event_loop()
-                
-                def _run_ffmpeg():
-                    result = subprocess.run(
-                        cmd,
-                        capture_output=True,
-                        text=True
-                    )
-                    return result
-                
-                result = await loop.run_in_executor(None, _run_ffmpeg)
+                total_duration = sum(frames for _, frames, _ in segment_frames) / 24
+                await report(65, "编码合并视频")
+
+                async def encode_progress(seconds):
+                    await report(65 + 30 * min(0.99, seconds / total_duration), "编码合并视频")
+
+                result = await self._run_merge_process(cmd, encode_progress)
 
                 if result.returncode != 0:
                     print(f"[FileStorage] FFmpeg error: {result.stderr}")
@@ -1119,32 +1172,12 @@ class FileStorageService:
                         "message": "输出文件未生成"
                     }
 
-                try:
-                    await _validate_video_decode(candidate_path)
-                except RuntimeError as validation_error:
-                    print(f"[FileStorage] Merged video validation failed, retrying fallback merge: {validation_error}")
-                    Path(candidate_path).unlink()
-                    fallback_cmd = filter_cmd
-                    print(f"[FileStorage] Running fallback ffmpeg: {' '.join(fallback_cmd)}")
+                await report(95, "校验合并视频")
+                await _validate_video_decode(candidate_path)
 
-                    def _run_fallback_ffmpeg():
-                        return subprocess.run(fallback_cmd, capture_output=True, text=True)
-
-                    fallback_result = await loop.run_in_executor(None, _run_fallback_ffmpeg)
-                    if fallback_result.returncode != 0:
-                        print(f"[FileStorage] Fallback FFmpeg error: {fallback_result.stderr}")
-                        return {
-                            "success": False,
-                            "message": f"视频合并自动修复失败: {fallback_result.stderr[:200]}"
-                        }
-                    if not Path(candidate_path).exists():
-                        return {
-                            "success": False,
-                            "message": "视频合并自动修复失败: 输出文件未生成"
-                        }
-                    await _validate_video_decode(candidate_path)
-
+                await report(99, "发布合并视频")
                 os.replace(candidate_path, output_path)
+                await report(100, "合并视频已发布")
                 print(f"[FileStorage] Video merged successfully: {output_path}")
                 return {
                     "success": True,
@@ -1155,8 +1188,6 @@ class FileStorageService:
             except Exception as e:
                 raise e
             finally:
-                if concat_file and os.path.exists(concat_file):
-                    os.unlink(concat_file)
                 shutil.rmtree(temp_normalized_dir, ignore_errors=True)
             
         except Exception as e:

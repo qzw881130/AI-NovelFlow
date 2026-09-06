@@ -137,35 +137,9 @@ class AnthropicProvider(BaseLLMProvider):
 
             if response.status_code == 200:
                 data = response.json()
-                content = self._parse_response(data)
-
-                update_llm_log(
-                    log_id=log_id,
-                    response=content,
-                    status="success",
-                    duration=duration,
-                )
-
-                return LLMResponse(
-                    success=True,
-                    content=content,
-                    raw_response=data,
-                    duration=duration
-                )
+                return self._complete_response(log_id, data, duration)
             else:
-                error_msg = f"API 错误 ({response.status_code}): {response.text}"
-                update_llm_log(
-                    log_id=log_id,
-                    status="error",
-                    error_message=error_msg,
-                    duration=duration,
-                )
-
-                return LLMResponse(
-                    success=False,
-                    error=error_msg,
-                    duration=duration
-                )
+                return self._http_error_response(log_id, response, duration)
         except Exception as e:
             import traceback
             error_type = type(e).__name__

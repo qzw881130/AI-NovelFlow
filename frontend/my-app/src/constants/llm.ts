@@ -55,6 +55,7 @@ export const LLM_PROVIDER_PRESETS: LLMProviderPreset[] = [
     name: 'OpenAI',
     defaultApiUrl: 'https://api.openai.com/v1',
     models: [
+      { id: 'gpt-6-astra', name: 'GPT-6 Astra', description: '旗舰推理与编码模型' },
       { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna' },
       { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol' },
       { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra' },
@@ -62,10 +63,6 @@ export const LLM_PROVIDER_PRESETS: LLMProviderPreset[] = [
       { id: 'gpt-5.4', name: 'GPT-5.4', description: '高性价比专业模型', maxTokens: 1000000 },
       { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', description: '轻量高性能模型', maxTokens: 400000 },
       { id: 'gpt-5.4-nano', name: 'GPT-5.4 Nano', description: '超低延迟模型', maxTokens: 400000 },
-      { id: 'gpt-4o', name: 'GPT-4o', description: '多模态旗舰模型', maxTokens: 128000 },
-      { id: 'gpt-4o-mini', name: 'GPT-4o Mini', description: '轻量快速模型', maxTokens: 128000 },
-      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo', description: '高性能模型', maxTokens: 128000 },
-      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo', description: '经济实用模型', maxTokens: 16385 },
     ],
     apiKeyPlaceholder: 'sk-...',
     apiKeyHelp: '在 OpenAI 控制台获取 API Key',

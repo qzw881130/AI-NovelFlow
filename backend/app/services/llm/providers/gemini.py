@@ -21,12 +21,13 @@ class GeminiProvider(BaseLLMProvider):
     def _get_endpoint(self) -> str:
         """获取 API 端点 URL"""
         base = self.config.api_url.rstrip("/")
-        return f"{base}/models/{self.config.model}:generateContent?key={self._get_current_api_key()}"
+        return f"{base}/models/{self.config.model}:generateContent"
 
     def _get_headers(self) -> Dict[str, str]:
         """获取请求头"""
         return {
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "x-goog-api-key": self._get_current_api_key(),
         }
 
     def _build_request_body(
@@ -141,35 +142,9 @@ class GeminiProvider(BaseLLMProvider):
 
             if response.status_code == 200:
                 data = response.json()
-                content = self._parse_response(data)
-
-                update_llm_log(
-                    log_id=log_id,
-                    response=content,
-                    status="success",
-                    duration=duration,
-                )
-
-                return LLMResponse(
-                    success=True,
-                    content=content,
-                    raw_response=data,
-                    duration=duration
-                )
+                return self._complete_response(log_id, data, duration)
             else:
-                error_msg = f"API 错误 ({response.status_code}): {response.text}"
-                update_llm_log(
-                    log_id=log_id,
-                    status="error",
-                    error_message=error_msg,
-                    duration=duration,
-                )
-
-                return LLMResponse(
-                    success=False,
-                    error=error_msg,
-                    duration=duration
-                )
+                return self._http_error_response(log_id, response, duration)
         except Exception as e:
             import traceback
             error_type = type(e).__name__

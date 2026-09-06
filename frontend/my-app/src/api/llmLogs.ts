@@ -2,26 +2,8 @@
  * LLM 日志相关 API
  */
 import { api } from './index';
-
-export interface LLMLog {
-  id: string;
-  created_at: string;
-  provider: string;
-  model: string;
-  prompt_template_name: string | null;
-  system_prompt: string | null;
-  user_prompt: string;
-  request_info?: string | null;
-  response: string | null;
-  status: 'pending' | 'success' | 'error';
-  error_message: string | null;
-  task_type: string | null;
-  novel_id: string | null;
-  chapter_id: string | null;
-  character_id: string | null;
-  used_proxy: boolean;
-  duration: number | null;
-}
+import type { LLMLog } from '../types';
+export type { LLMLog, LLMLogMetrics } from '../types';
 
 export interface Pagination {
   page: number;

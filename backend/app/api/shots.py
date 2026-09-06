@@ -8,6 +8,7 @@ import os
 import subprocess
 import uuid
 import zipfile
+from time import monotonic
 from io import BytesIO
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -209,15 +210,34 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
                 result = {"success": True, "message": f"使用上次合并结果，共 {len(segments)} 个视频片段"}
                 cache_hit = True
             else:
-                task.progress = 35
-                task.current_step = f"正在合并 {len(segments)} 个视频片段..."
-                db.commit()
+                last_write = 0.0
+                last_phase = None
+
+                async def merge_progress(percent: float, step: str) -> None:
+                    nonlocal last_write, last_phase
+                    # Storage publishes to temp_path; reserve 100 for the final path and DB result.
+                    progress = max(task.progress, min(99, int(20 + percent * 0.79)))
+                    if percent == 100:
+                        step = "发布章节视频"
+                    now = monotonic()
+                    phase = step.split()[0]
+                    if now - last_write < 1 and phase == last_phase:
+                        return
+                    if progress == task.progress and step == task.current_step:
+                        return
+                    task.progress = progress
+                    task.current_step = step
+                    db.commit()
+                    last_write = now
+                    last_phase = phase
+
                 temp_path = output_dir / f".{mode}-{uuid.uuid4().hex}.tmp.mp4"
                 try:
                     result = await file_storage.merge_videos(
                         video_paths,
                         str(temp_path),
                         trans_paths if include_transitions else None,
+                        progress_callback=merge_progress,
                     )
                     if result.get("success"):
                         os.replace(temp_path, output_path)

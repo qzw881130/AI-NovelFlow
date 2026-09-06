@@ -141,7 +141,8 @@ def get_llm_logs(
                     "chapter_id": log.chapter_id,
                     "character_id": log.character_id,
                     "used_proxy": log.used_proxy,
-                    "duration": log.duration  # 添加耗时字段
+                    "duration": log.duration,
+                    "metrics": log.usage_metrics,
                 }
                 for log in logs
             ],
@@ -273,6 +274,7 @@ def get_llm_log_detail(
             "chapter_id": log.chapter_id,
             "character_id": log.character_id,
             "used_proxy": log.used_proxy,
-            "duration": log.duration  # 添加耗时字段
+            "duration": log.duration,
+            "metrics": log.usage_metrics,
         }
     }

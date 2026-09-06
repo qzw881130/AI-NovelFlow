@@ -388,14 +388,15 @@ def audit_audiodrive_h3_prompt(final_prompt: str, speaker_timeline: list, subjec
         if speaker != "NONE" and speaker in known_subjects and speaker not in prompt:
             issues.append({"code": "MISSING_SUBJECT_REFERENCE_IN_PROMPT", "subject_ref": speaker, "blocking": True})
         if speaker == "NONE":
+            chinese_speech_action = r"张嘴|开口|说话|讲话|发声|(?:产生|做)(?:说话|讲话|发声)?口型"
             speech_action = (
-                r"张嘴|开口|说话|讲话|发声|(?:产生|做)口型|"
+                chinese_speech_action + r"|"
                 r"\b(?:lip[- ]?sync(?:s|ing)?|speak(?:s|ing)?|talk(?:s|ing)?)\b|"
                 r"\bmouth\s+(?:moves?|opens?)\b"
             )
             negated_action = (
                 r"(?:不(?:得|要|会|能|可|再|允许)?|没有|未|禁止|无需|无)(?:任何|可|在|再)?"
-                r"(?:人物|角色)?\s*(?:" + speech_action + r")(?:张嘴|开口|说话|讲话|发声|(?:产生|做)口型)*|"
+                r"(?:(?:可见)?(?:人物|角色|人))?\s*(?:" + speech_action + r")(?:" + chinese_speech_action + r")*|"
                 r"\b(?:no|not|never|without)\s+(?:any\s+)?(?:" + speech_action + r")"
             )
             # End NONE scope at a new timed interval or speaker assignment, even on the same line.
