@@ -60,6 +60,8 @@ export interface LLMModel {
   name: string;
   description?: string;
   maxTokens?: number;
+  contextLength?: number;
+  capabilities?: { vision?: boolean };
 }
 
 export interface Novel {

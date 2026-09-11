@@ -182,16 +182,11 @@ class TaskRepository:
         self, 
         novel_id: str, 
         chapter_id: str, 
-        shot_index: int
+        shot_index: int,
+        execution_purpose: str = "production",
     ) -> Optional[Task]:
         """获取分镜进行中的任务"""
-        return self.db.query(Task).filter(
-            Task.novel_id == novel_id,
-            Task.chapter_id == chapter_id,
-            Task.type == "shot_image",
-            Task.name == f"生成分镜图: 镜{shot_index}",
-            Task.status.in_(["pending", "running"])
-        ).first()
+        return self.get_active_shot_task(novel_id, chapter_id, shot_index, execution_purpose=execution_purpose)
     
     def list_active_tasks(self) -> List[Task]:
         """获取所有进行中或待处理的任务"""
@@ -284,6 +279,7 @@ class TaskRepository:
         shot_index: int, 
         task_type: str = "shot_image",
         shot_id: str = None,
+        execution_purpose: str = "production",
     ) -> Optional[Task]:
         """获取分镜进行中的任务"""
         expected_name = f"生成分镜图: 镜{shot_index}" if task_type == "shot_image" else f"生成视频: 镜{shot_index}"
@@ -291,15 +287,16 @@ class TaskRepository:
             Task.novel_id == novel_id,
             Task.chapter_id == chapter_id,
             Task.type == task_type,
-            Task.status.in_(["pending", "running"])
+            Task.status.in_(["pending", "queued", "running"])
         )
         if shot_id:
-            task = query.filter(Task.shot_id == shot_id).first()
+            task = self._shot_task_for_purpose(query.filter(Task.shot_id == shot_id), execution_purpose)
             if task_type == "shot_video":
                 return task
             if task:
                 return task
-        return query.filter(Task.name == expected_name).first()
+            query = query.filter(Task.shot_id.is_(None))
+        return self._shot_task_for_purpose(query.filter(Task.name == expected_name), execution_purpose)
     
     def get_failed_shot_task(
         self, 
@@ -308,6 +305,7 @@ class TaskRepository:
         shot_index: int, 
         task_type: str = "shot_video",
         shot_id: str = None,
+        execution_purpose: str = "production",
     ) -> Optional[Task]:
         """获取失败的分镜任务"""
         query = self.db.query(Task).filter(
@@ -317,12 +315,27 @@ class TaskRepository:
             Task.status == "failed"
         )
         if shot_id:
-            task = query.filter(Task.shot_id == shot_id).first()
+            task = self._shot_task_for_purpose(query.filter(Task.shot_id == shot_id), execution_purpose)
             if task_type == "shot_video":
                 return task
             if task:
                 return task
-        return query.filter(Task.name == f"生成视频: 镜{shot_index}").first()
+            query = query.filter(Task.shot_id.is_(None))
+        return self._shot_task_for_purpose(query.filter(Task.name == f"生成视频: 镜{shot_index}"), execution_purpose)
+
+    def _shot_task_for_purpose(self, query, purpose: str) -> Optional[Task]:
+        from app.services.task_execution import ExecutionConflict, execution_purpose as task_execution_purpose
+
+        if purpose not in ("production", "benchmark"):
+            raise ExecutionConflict("INVALID_EXECUTION_PURPOSE")
+        for task in query.order_by(Task.created_at.desc()).all():
+            # Invalid persisted purposes are not eligible for reuse or cleanup.
+            try:
+                if task_execution_purpose(task) == purpose:
+                    return task
+            except ExecutionConflict:
+                continue
+        return None
     
     def get_transition_task(
         self, 
@@ -348,7 +361,8 @@ class TaskRepository:
         chapter_title: str,
         workflow_id: str,
         workflow_name: str,
-        shot_id: str = None
+        shot_id: str = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> Task:
         """创建分镜图片生成任务"""
         task = Task(
@@ -360,7 +374,8 @@ class TaskRepository:
             shot_id=shot_id,
             status="pending",
             workflow_id=workflow_id,
-            workflow_name=workflow_name
+            workflow_name=workflow_name,
+            metadata_json=json.dumps(metadata, ensure_ascii=False, allow_nan=False) if metadata is not None else None,
         )
         return self.create(task)
 
@@ -373,7 +388,10 @@ class TaskRepository:
         chapter_title: str,
         workflow_id: str,
         workflow_name: str,
-        shot_id: str = None
+        shot_id: str = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        parent_task_id: Optional[str] = None,
+        batch_order: Optional[int] = None,
     ) -> Task:
         """创建分镜视频生成任务"""
         task = Task(
@@ -385,7 +403,10 @@ class TaskRepository:
             shot_id=shot_id,
             status="pending",
             workflow_id=workflow_id,
-            workflow_name=workflow_name
+            workflow_name=workflow_name,
+            metadata_json=json.dumps(metadata, ensure_ascii=False, allow_nan=False) if metadata is not None else None,
+            parent_task_id=parent_task_id,
+            batch_order=batch_order,
         )
         return self.create(task)
     

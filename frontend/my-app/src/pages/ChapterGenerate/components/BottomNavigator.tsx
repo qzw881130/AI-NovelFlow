@@ -10,7 +10,7 @@
  */
 
 import { useMemo, useRef, useEffect } from 'react';
-import { ChevronUp, ChevronDown } from 'lucide-react';
+import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useChapterGenerateStore } from '../stores';
 import { useSidebar } from '../../../contexts/SidebarContext';
 import { ShotThumbnail, ShotStatus as ShotThumbnailStatus } from './ShotThumbnail';
@@ -148,7 +148,7 @@ export function BottomNavigator({
       if (showImagePreview) {
         return;
       }
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      if (e.defaultPrevented || (e.target instanceof HTMLElement && e.target.closest('input, textarea, select, button, [contenteditable="true"], dialog'))) {
         return;
       }
 
@@ -167,15 +167,22 @@ export function BottomNavigator({
 
   // 滚动到当前分镜
   useEffect(() => {
-    if (scrollRef.current && currentShotIndex > 0) {
-      const thumbnailWidth = 140; // w-32 + gap
-      const scrollPosition = (currentShotIndex - 1) * thumbnailWidth;
-      scrollRef.current.scrollTo({
-        left: scrollPosition,
+    const container = scrollRef.current;
+    if (!container || collapsed) return;
+    const scrollToCurrent = () => {
+      const thumbnail = container.children[currentShotIndex - 1] as HTMLElement | undefined;
+      if (!thumbnail) return;
+      const left = thumbnail.getBoundingClientRect().left - container.getBoundingClientRect().left + container.scrollLeft;
+      container.scrollTo({
+        left: Math.max(0, left - (container.clientWidth - thumbnail.offsetWidth) / 2),
         behavior: 'smooth',
       });
-    }
-  }, [currentShotIndex]);
+    };
+    scrollToCurrent();
+    const observer = new ResizeObserver(scrollToCurrent);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [currentShotIndex, collapsed, shots.length]);
 
   // 虚拟滚动优化（超过 20 个分镜时）
   const visibleShots = useMemo(() => {
@@ -220,7 +227,7 @@ export function BottomNavigator({
   if (shots.length === 0) {
     return (
       <div
-        className="fixed bottom-0 right-0 h-32 bg-white border-t border-gray-200 flex items-center justify-center"
+        className="generate-bottom-nav fixed bottom-0 right-0 h-32 bg-white border-t border-gray-200 flex items-center justify-center"
         style={{
           left: `${sidebarWidth}px`,
           width: `calc(100% - ${sidebarWidth}px)`
@@ -233,7 +240,7 @@ export function BottomNavigator({
 
   return (
     <div
-      className={`fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-lg transition-all duration-300 ease-in-out ${
+      className={`generate-bottom-nav fixed bottom-0 right-0 bg-white border-t border-gray-200 shadow-lg transition-all duration-300 ease-in-out ${
         collapsed ? 'h-10' : 'h-48'
       }`}
       style={{
@@ -241,12 +248,11 @@ export function BottomNavigator({
         width: `calc(100% - ${sidebarWidth}px)`
       }}
     >
-      {!collapsed && (
         <div className="flex flex-col h-full">
           {/* 收起/展开按钮 - 放在控制栏右侧 */}
-          <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-gray-100">
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">
+          <div className={`generate-nav-controls flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-gray-100 ${collapsed ? 'lg:h-full lg:py-0' : ''}`}>
+            <div className="min-w-0 flex items-center gap-4">
+              <span className="truncate text-sm text-gray-600">
                 {t('chapterGenerate.shotId', { id: currentShotIndex, total: shots.length })}
               </span>
               {bulkMode && (
@@ -260,31 +266,40 @@ export function BottomNavigator({
               <button
                 onClick={goToPreviousShot}
                 disabled={currentShotIndex <= 1}
-                className="min-w-[104px] px-4 py-2 text-sm whitespace-nowrap border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label={t('chapterGenerate.previousShot')}
+                title={t('chapterGenerate.previousShot')}
+                className={`generate-nav-step px-3 lg:px-4 py-2 text-sm whitespace-nowrap border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed ${collapsed ? 'lg:hidden' : ''}`}
               >
-                {t('chapterGenerate.previousShot')}
+                <ChevronLeft className="h-5 w-5 lg:hidden" />
+                <span className="hidden lg:inline">{t('chapterGenerate.previousShot')}</span>
               </button>
               <button
                 onClick={goToNextShot}
                 disabled={currentShotIndex >= shots.length}
-                className="min-w-[104px] px-4 py-2 text-sm whitespace-nowrap border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label={t('chapterGenerate.nextShot')}
+                title={t('chapterGenerate.nextShot')}
+                className={`generate-nav-step px-3 lg:px-4 py-2 text-sm whitespace-nowrap border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed ${collapsed ? 'lg:hidden' : ''}`}
               >
-                {t('chapterGenerate.nextShot')}
+                <ChevronRight className="h-5 w-5 lg:hidden" />
+                <span className="hidden lg:inline">{t('chapterGenerate.nextShot')}</span>
               </button>
 
               {/* 收起按钮 */}
               <button
                 onClick={handleToggleCollapsed}
-                className="ml-2 w-7 h-7 bg-gray-100 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-200 transition-colors"
-                title={t('chapterGenerate.collapseNavbar')}
+                className="generate-nav-toggle lg:ml-2 w-7 h-7 bg-gray-100 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-200 transition-colors"
+                title={t(collapsed ? 'chapterGenerate.expandNavbar' : 'chapterGenerate.collapseNavbar')}
+                aria-label={t(collapsed ? 'chapterGenerate.expandNavbar' : 'chapterGenerate.collapseNavbar')}
+                aria-expanded={!collapsed}
+                aria-controls="generate-thumbnails"
               >
-                <ChevronDown className="w-4 h-4 text-gray-600" />
+                {collapsed ? <ChevronUp className="w-4 h-4 text-gray-600" /> : <ChevronDown className="w-4 h-4 text-gray-600" />}
               </button>
             </div>
           </div>
 
           {/* 缩略图滚动区 - 为滚动条预留空间 */}
-          <div className="flex-1 overflow-hidden py-3">
+          {!collapsed && <div id="generate-thumbnails" className="generate-thumbnail-strip flex-1 min-h-0 overflow-hidden py-3">
             <div
               ref={scrollRef}
               className="flex h-full items-center gap-2 overflow-x-auto overflow-y-hidden px-4 bottom-nav-scroll"
@@ -314,23 +329,8 @@ export function BottomNavigator({
                 );
               })}
             </div>
-          </div>
+          </div>}
         </div>
-      )}
-
-      {/* 收起状态 */}
-      {collapsed && (
-        <div className="flex items-center justify-between h-full px-4">
-          <span className="text-sm text-gray-500">{t('chapterGenerate.navbarCollapsed')}</span>
-          <button
-            onClick={handleToggleCollapsed}
-            className="w-7 h-7 bg-gray-100 border border-gray-300 rounded flex items-center justify-center hover:bg-gray-200 transition-colors"
-            title={t('chapterGenerate.expandNavbar')}
-          >
-            <ChevronUp className="w-4 h-4 text-gray-600" />
-          </button>
-        </div>
-      )}
     </div>
   );
 }

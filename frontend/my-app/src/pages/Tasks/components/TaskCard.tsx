@@ -388,7 +388,7 @@ export function TaskCard({
           <div className="mt-2 text-xs opacity-60">
             {t('common.createdAt')}: {formatDate(task.createdAt)}
             {task.completedAt && ` · ${t('tasks.completedAt')}: ${formatDate(task.completedAt)}`}
-            {elapsedSeconds !== null && ` · 耗时: ${elapsedSeconds} 秒`}
+            {elapsedSeconds !== null && ` · 耗时: ${elapsedSeconds >= 60 ? `${Math.floor(elapsedSeconds / 60)}分钟${elapsedSeconds % 60}秒` : `${elapsedSeconds}秒`}`}
           </div>
         </div>
         <div className="col-start-2 row-start-1 flex min-w-0 flex-wrap items-center justify-end gap-1 sm:col-span-2 sm:col-start-1 sm:row-start-2 xl:col-span-1 xl:col-start-3 xl:row-start-1 [&_button]:min-h-[44px] [&_button]:min-w-[44px] [&_svg]:shrink-0">

@@ -80,6 +80,8 @@ def upgrade_sqlite_schema(engine: Engine) -> None:
             _add_column_if_missing(conn, "llm_logs", "duration", "duration FLOAT")
             _add_column_if_missing(conn, "llm_logs", "request_info", "request_info TEXT")
             _add_column_if_missing(conn, "llm_logs", "prompt_template_name", "prompt_template_name VARCHAR")
+            _create_index(conn, "CREATE INDEX IF NOT EXISTS ix_llm_logs_created_at_id ON llm_logs (created_at, id)")
+            _create_index(conn, "CREATE INDEX IF NOT EXISTS ix_llm_logs_status_created_at ON llm_logs (status, created_at)")
 
         _create_index(conn, "CREATE INDEX IF NOT EXISTS ix_shots_audio_status ON shots (audio_status)")
         _create_index(conn, "CREATE INDEX IF NOT EXISTS ix_shots_chapter_index ON shots (chapter_id, \"index\")")

@@ -96,11 +96,21 @@ export function ShotThumbnail({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label={`分镜${index} · ${config.label}`}
+      aria-pressed={isSelected}
+      onKeyDown={(event) => {
+        if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+          event.preventDefault();
+          onClick?.();
+        }
+      }}
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onContextMenu={handleContextMenu}
       className={`
-        relative flex-shrink-0 w-32 h-24 rounded-lg border-2 cursor-pointer
+        generate-thumbnail relative flex-shrink-0 w-32 h-24 rounded-lg border-2 cursor-pointer
         transition-all duration-200 overflow-hidden
         ${config.color}
         ${isSelected ? 'z-10 -translate-y-1 border-blue-500' : ''}

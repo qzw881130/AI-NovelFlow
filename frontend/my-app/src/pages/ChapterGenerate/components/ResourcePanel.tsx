@@ -135,7 +135,7 @@ export function ResourcePanel({
   const hasResources = characterItems.length > 0 || sceneItems.length > 0 || propItems.length > 0;
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="generate-resource-panel h-full flex flex-col">
       {/* 标题 */}
       <div className="flex-shrink-0 pb-3 border-b border-gray-200">
         <h3 className="text-sm font-semibold text-gray-700">{t('chapterGenerate.shotResources')}</h3>

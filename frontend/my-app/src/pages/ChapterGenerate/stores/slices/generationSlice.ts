@@ -45,6 +45,19 @@ const pollingAudioPrepareTaskChapters = new Set<string>();
 const pollingKeyframeTaskChapters = new Set<string>();
 const submittingVideoShots = new Set<string>();
 
+const isProductionTask = (task: { execution_purpose?: unknown }): boolean => (
+  !('execution_purpose' in task) || task.execution_purpose === 'production'
+);
+
+const isWholeShotVideoTask = (task: any): boolean => {
+  if (!isProductionTask(task)) return false;
+  if (!('videoExecution' in task)) return true;
+  const execution = task.videoExecution;
+  if (execution?.strict === false) return true;
+  return execution?.strict === true && execution.scope === 'whole_shot' && !execution.error
+    && (task.status !== 'completed' || (execution.attachment === 'attached' && execution.published === true));
+};
+
 const valuesEqual = (left: unknown, right: unknown): boolean => {
   if (Object.is(left, right)) return true;
   if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;
@@ -748,7 +761,7 @@ export const createGenerationSlice: StateCreator<
       console.log('[checkShotTaskStatus] API result:', result.data?.length, 'tasks');
 
       if (result.success && result.data) {
-        const tasks = result.data;
+        const tasks = result.data.filter(isProductionTask);
 
         // 构建 shotId -> tasks[] 的映射（同一个 shotId 可能有多个任务）
         const tasksByShotId: Record<string, any[]> = {};
@@ -903,6 +916,7 @@ export const createGenerationSlice: StateCreator<
         const activeBatchShotResults: Record<string, any> = {};
         if (batchResult.success && Array.isArray(batchResult.data)) {
           batchResult.data
+            .filter(isProductionTask)
             .forEach((task: any) => {
               const batchStatus = String(task.status || '').toLowerCase();
               const batchIsActive = ['pending', 'queued', 'running'].includes(batchStatus);
@@ -927,7 +941,7 @@ export const createGenerationSlice: StateCreator<
 
         // 构建 shotId -> tasks 列表的映射（一个 shotId 可能有多个任务）
         const shotTasksMap: Record<string, any[]> = {};
-        result.data.forEach((task: any) => {
+        result.data.filter(isWholeShotVideoTask).forEach((task: any) => {
           // 优先使用 task.shotId 字段（后端返回驼峰格式）
           let shotId = task.shotId;
           if (!shotId) {
@@ -1151,7 +1165,7 @@ export const createGenerationSlice: StateCreator<
                     ? { ...refreshed.videoDirectorPlan, task_error_message: (shot.videoDirectorPlan as any)?.task_error_message, error_message: (shot.videoDirectorPlan as any)?.error_message }
                     : refreshed.videoDirectorPlan,
                   videoDirectorPlanRevision: refreshed.videoDirectorPlanRevision,
-                  videoUrl: taskMap[shot.id]?.resultUrl || refreshed.videoUrl || shot.videoUrl,
+                  videoUrl: refreshed.videoUrl ?? shot.videoUrl,
                 };
                 if (detailPatch.videoUrl) {
                   nextShotVideos[shot.id] = detailPatch.videoUrl;
@@ -1393,7 +1407,7 @@ export const createGenerationSlice: StateCreator<
         const updatedShots = [...shots];
 
         const seenFrames = new Set<string>();
-        const orderedTasks = [...result.data].sort((a: any, b: any) => (
+        const orderedTasks = result.data.filter(isProductionTask).sort((a: any, b: any) => (
           new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
         ));
         orderedTasks.forEach((task: any) => {
@@ -1442,8 +1456,11 @@ export const createGenerationSlice: StateCreator<
             // 如果完成，更新图片URL
             if (task.status === 'completed' && task.resultUrl) {
               if (taskIndex < 0 && !taskBelongsToCurrentKeyframe) return;
-              if (newKeyframeImageUrls[keyframeKey] !== task.resultUrl) {
-                newKeyframeImageUrls[keyframeKey] = task.resultUrl;
+              // Historical task results are not the current image after a manual replacement.
+              const justCompleted = taskIndex >= 0 && keyframeTasks[taskIndex].status !== 'completed';
+              const imageUrl = (!justCompleted && (legacyKeyframe?.image_url || (legacyKeyframe as any)?.imageUrl)) || task.resultUrl;
+              if (newKeyframeImageUrls[keyframeKey] !== imageUrl) {
+                newKeyframeImageUrls[keyframeKey] = imageUrl;
                 keyframeImageUrlsUpdated = true;
               }
 
@@ -1457,7 +1474,7 @@ export const createGenerationSlice: StateCreator<
               if (shotIndex >= 0 && currentShot && taskBelongsToCurrentKeyframe) {
                 const updatedKeyframes = (currentShot.keyframes || []).map((kf: any) =>
                   kf.frame_index === frameIndex
-                    ? { ...kf, image_url: task.resultUrl, image_task_id: task.id }
+                    ? { ...kf, image_url: imageUrl, image_task_id: task.id }
                     : kf
                 );
                 const nonStartPlanKeyframes = (currentShot.videoDirectorPlan?.keyframes || []).filter((kf: any) => kf.role !== 'START');
@@ -1467,7 +1484,7 @@ export const createGenerationSlice: StateCreator<
                     ...currentShot.videoDirectorPlan,
                     keyframes: (currentShot.videoDirectorPlan.keyframes || []).map((kf: any) => (
                       Number(kf.index) === Number(planKeyframeIndex)
-                        ? { ...kf, image_url: task.resultUrl, image_task_id: task.id }
+                        ? { ...kf, image_url: imageUrl, image_task_id: task.id }
                         : kf
                     )),
                   }

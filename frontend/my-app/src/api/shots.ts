@@ -88,6 +88,12 @@ export interface VideoDirectorPlan {
   error_message?: string;
   first_last_available?: boolean;
   notice?: string;
+  audio_timeline?: {
+    id?: string;
+    revision?: number;
+    resolved_duration?: number | null;
+    audio_required_duration?: number | null;
+  };
   workflow_capability?: {
     max_clip_duration?: number;
     workflow_name?: string;

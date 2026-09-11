@@ -165,6 +165,8 @@ def test_chapter_task_throttling_cache_and_final_publish(db_session, tmp_path, m
     published = directory / f"shots_only-{signature}.mp4"
     if outcome == "cache":
         published.write_bytes(b"cached")
+        from app.services.rendered_subtitles import publish
+        publish(published, [], {"kind": "merge"}, unavailable="Legacy source has no subtitle binding")
     monkeypatch.setattr(api, "SessionLocal", lambda: db_session)
     monkeypatch.setattr(api, "file_storage", storage)
     monkeypatch.setattr(api, "url_to_local_path", lambda url: str(source))

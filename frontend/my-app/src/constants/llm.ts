@@ -43,6 +43,7 @@ export const LLM_PROVIDER_PRESETS: LLMProviderPreset[] = [
     models: [
       { id: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', description: '新一代快速模型', maxTokens: 393216 },
       { id: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', description: '新一代高性能模型', maxTokens: 393216 },
+      { id: 'deepseek-v4-flash-vision-exp', name: 'DeepSeek V4 Flash Vision Exp', contextLength: 1048576, maxTokens: 393216, capabilities: { vision: true } },
       { id: 'deepseek-chat', name: 'DeepSeek Chat', description: '通用对话模型', maxTokens: 8192 },
       { id: 'deepseek-coder', name: 'DeepSeek Coder', description: '代码专用模型', maxTokens: 8192 },
       { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner', description: '推理模型', maxTokens: 8192 },

@@ -43,12 +43,20 @@ class ComfyUIClient:
     
     # ==================== 文件上传 ====================
     
-    async def upload_image(self, image_path: str) -> Dict[str, Any]:
+    async def upload_image(
+        self,
+        image_path: str,
+        *,
+        upload_name: Optional[str] = None,
+        payload: Optional[bytes] = None,
+    ) -> Dict[str, Any]:
         """
         上传图片到 ComfyUI
 
         Args:
             image_path: 本地图片路径
+            upload_name: Opt-in ASCII basename; the caller supplies a unique name.
+            payload: Frozen nonempty bytes; when supplied, no local path is accessed.
 
         Returns:
             {
@@ -56,7 +64,75 @@ class ComfyUIClient:
                 "filename": str,  # ComfyUI 中的文件名
                 "message": str
             }
+
+        Opt-in success also returns payload_sha256, payload_size, subfolder and
+        type. The receipt must explicitly contain name, subfolder and type=input.
+        Names and nonempty subfolder components must match
+        [A-Za-z0-9_-]+(?:[.][A-Za-z0-9_-]+)*; subfolder uses relative '/' separators.
+        filename is the server's name, prefixed with subfolder when nonempty.
+        The hash proves the request payload, not the contents of remote storage.
         """
+        if upload_name is None and payload is not None:
+            return {"success": False, "message": "payload requires upload_name"}
+
+        if upload_name is not None:
+            try:
+                import hashlib
+                import os
+                import re
+
+                component = re.compile(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*")
+                if not isinstance(upload_name, str) or not component.fullmatch(upload_name):
+                    return {"success": False, "message": "Invalid upload_name: expected a safe ASCII basename"}
+
+                if payload is None:
+                    if not os.path.isfile(image_path):
+                        return {"success": False, "message": f"Image path is not a local file: {image_path}"}
+                    with open(image_path, "rb") as f:
+                        payload = f.read()
+
+                if not isinstance(payload, bytes) or not payload:
+                    return {"success": False, "message": "payload must be nonempty bytes"}
+
+                payload_sha256 = hashlib.sha256(payload).hexdigest()
+                async with self._client() as client:
+                    response = await client.post(
+                        f"{self.base_url}/upload/image",
+                        files={"image": (upload_name, payload, "image/png")},
+                        data={"type": "input", "overwrite": "true"},
+                        timeout=30.0,
+                    )
+
+                if response.status_code != 200:
+                    return {"success": False, "message": f"Image upload failed (HTTP {response.status_code})"}
+
+                result = response.json()
+                if not isinstance(result, dict):
+                    return {"success": False, "message": "Invalid image upload receipt: expected an object"}
+
+                name = result.get("name")
+                if not isinstance(name, str) or not component.fullmatch(name):
+                    return {"success": False, "message": "Invalid image upload receipt: unsafe or missing name"}
+                if result.get("type") != "input":
+                    return {"success": False, "message": "Invalid image upload receipt: type must be input"}
+                subfolder = result.get("subfolder")
+                if not isinstance(subfolder, str) or (
+                    subfolder and any(not component.fullmatch(part) for part in subfolder.split("/"))
+                ):
+                    return {"success": False, "message": "Invalid image upload receipt: unsafe or missing subfolder"}
+
+                return {
+                    "success": True,
+                    "filename": f"{subfolder}/{name}" if subfolder else name,
+                    "subfolder": subfolder,
+                    "type": "input",
+                    "payload_sha256": payload_sha256,
+                    "payload_size": len(payload),
+                    "message": "上传成功",
+                }
+            except Exception as e:
+                return {"success": False, "message": f"Image upload failed: {str(e)}"}
+
         try:
             import os
             from pathlib import Path

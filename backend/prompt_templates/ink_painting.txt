@@ -1,1 +1,1 @@
-character portrait, Chinese ink painting style, traditional art, {appearance}, single character, centered, elegant, artistic, high quality
+character reference portrait, ##STYLE##, {appearance}, single character, centered, clean background, clear silhouette and recognizable identity details, consistent anatomy and proportions appropriate to the selected style

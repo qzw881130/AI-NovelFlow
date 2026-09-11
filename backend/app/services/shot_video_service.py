@@ -4,21 +4,27 @@
 封装分镜视频生成的后台任务逻辑
 """
 import json
+from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
+from uuid import uuid4
 
 from app.models.novel import Novel, Chapter
 from app.models.task import Task
 from app.models.workflow import Workflow
 from app.core.database import SessionLocal
 from app.services.comfyui import ComfyUIService
+from app.services.comfyui.service import is_h3_workflow
 from app.services.duration_contract import audio_required_duration as contract_audio_required_duration, clip_duration as contract_clip_duration, legal_h3_frame_count, visual_required_duration
 from app.services.file_storage import file_storage
 from app.services.video_director_plan_service import VideoDirectorPlanService
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.repositories.shot_repository import ShotRepository
 from app.services.background_workers import worker_manager
-from app.services.video_director_ai import build_h3_video_prompt, safe_json_dict, safe_json_list
+from app.services.video_director_ai import (
+    build_h3_video_prompt, prepare_h3_prompt, resolve_h3_prompt_subjects, safe_json_dict, safe_json_list,
+)
+from app.services.h3_prompt_validation import H3PromptValidationError, prompt_digest
 
 
 def _filter_transitions_for_keyframe_indexes(transitions: list, keyframe_indexes: list) -> list:
@@ -113,8 +119,23 @@ def _clip_dialogues_for_prompt(dialogues: list, clip: dict, shot_duration: float
 
 
 def _sync_task_video_director_clips(task, window_plans: list) -> None:
-    if task is not None:
+    if task is not None and not hasattr(task, "_video_execution"):
         task.video_director_clips = json.dumps(window_plans, ensure_ascii=False)
+
+
+def _mutate_video_plan(db, shot, mutator):
+    if hasattr(shot, "_execution_task_id"):
+        from app.services.shot_video_execution import mutate_private_plan
+        return mutate_private_plan(db, shot, mutator)
+    return VideoDirectorPlanService(db).mutate(shot.id, mutator)
+
+
+def _refresh_video_shot(db, shot):
+    if hasattr(shot, "_execution_task_id"):
+        from app.services.shot_video_execution import refresh_private_shot
+        refresh_private_shot(db, shot)
+    else:
+        db.refresh(shot)
 
 
 def _update_window_plan(shot, window_index: int, fields: dict, db, task=None) -> None:
@@ -123,12 +144,14 @@ def _update_window_plan(shot, window_index: int, fields: dict, db, task=None) ->
         for window_plan in window_plans:
             if isinstance(window_plan, dict) and int(window_plan.get("window_index") or 0) == int(window_index):
                 window_plan.update(fields)
+                if fields.get("status") == "SUCCEEDED":
+                    window_plan.pop("h3_prompt_gate_failed", None)
                 break
         plan["window_plans"] = window_plans
         _sync_task_video_director_clips(task, window_plans)
         return plan
 
-    VideoDirectorPlanService(db).mutate(shot.id, mutate)
+    _mutate_video_plan(db, shot, mutate)
 
 
 def _update_window_plan_status(shot, window_index: int, status: str, db, task=None) -> None:
@@ -136,6 +159,9 @@ def _update_window_plan_status(shot, window_index: int, status: str, db, task=No
 
 
 def _update_clip_prompt(shot, clip: dict, prompt_text: str, db) -> None:
+    if hasattr(shot, "_execution_task_id"):
+        _update_clip_result(shot, clip, {"prompt_text": prompt_text}, db)
+        return
     VideoDirectorPlanService(db).patch_clip_prompt(shot.id, "clips", int((clip or {}).get("clip_index") or 1), prompt_text)
 
 
@@ -154,10 +180,14 @@ def _update_clip_result(shot, clip: dict, fields: dict, db) -> None:
         plan["clips"] = clips
         return plan
 
-    VideoDirectorPlanService(db).mutate(shot.id, mutate)
+    _mutate_video_plan(db, shot, mutate)
 
 
 def _mark_shot_video_failed(shot, shot_repo: ShotRepository, message: str):
+    if hasattr(shot, "_execution_task_id"):
+        from app.services.shot_video_execution import fail_execution
+        fail_execution(shot_repo.db, shot._video_execution, message)
+        return shot
     VideoDirectorPlanService(shot_repo.db).mutate(
         shot.id,
         lambda plan: {**plan, "task_error_message": message, "error_message": message},
@@ -166,6 +196,8 @@ def _mark_shot_video_failed(shot, shot_repo: ShotRepository, message: str):
 
 
 def _clear_shot_video_error(shot, shot_repo: ShotRepository, **fields):
+    if hasattr(shot, "_execution_task_id"):
+        raise RuntimeError("Private video results require the execution publication CAS")
     def mutate(plan: dict) -> dict:
         plan.pop("task_error_message", None)
         plan.pop("error_message", None)
@@ -181,6 +213,8 @@ def _is_task_cancelled(db, task) -> bool:
 
 
 def _cleanup_task_generated_clip_videos(db, task, shot) -> None:
+    if hasattr(shot, "_execution_task_id"):
+        return
     def mutate(plan: dict) -> dict:
         window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
         changed = False
@@ -205,7 +239,7 @@ def _cleanup_task_generated_clip_videos(db, task, shot) -> None:
             _sync_task_video_director_clips(task, window_plans)
         return plan
 
-    VideoDirectorPlanService(db).mutate(shot.id, mutate)
+    _mutate_video_plan(db, shot, mutate)
 
 
 def _reset_multi_clip_window_plans_for_task(db, task, shot, only_window_index: int | None = None, preserve_prompt_text: bool = False) -> list:
@@ -242,7 +276,7 @@ def _reset_multi_clip_window_plans_for_task(db, task, shot, only_window_index: i
         _sync_task_video_director_clips(task, window_plans)
         return plan
 
-    VideoDirectorPlanService(db).mutate(shot.id, mutate)
+    _mutate_video_plan(db, shot, mutate)
     return latest_window_plans
 
 
@@ -302,6 +336,16 @@ def _resolve_audio_drive_for_h3(video_director_plan: dict, clip: dict, node_mapp
         raise RuntimeError(f"Clip {window_plan.get('window_index')} final_audio 文件不存在，请重建 Clip Audio。")
 
     clip_duration = float(window_plan.get("clip_audio_duration") or window_plan.get("clipAudioDuration") or max(0.0, float((clip or {}).get("end_time") or 0) - float((clip or {}).get("start_time") or 0)))
+    from app.services.rendered_subtitles import load
+    clip["subtitle_audio_path"] = final_audio_path
+    clip["subtitle_snapshot"] = load(final_audio_path)
+    snapshot = clip["subtitle_snapshot"]
+    if snapshot and (snapshot["lineage"].get("timeline_id") != window_plan.get("audio_timeline_id")
+                     or snapshot["lineage"].get("timeline_revision") != int(window_plan.get("audio_timeline_revision") or 0)
+                     or snapshot["lineage"].get("timeline_hash") != window_plan.get("audio_timeline_hash")
+                     or snapshot["lineage"].get("clip_start") != float(clip.get("start_time") or 0)
+                     or snapshot["lineage"].get("clip_end") != float(clip.get("end_time") or 0)):
+        clip["subtitle_snapshot"] = None
     speaker_timeline = window_plan.get("speaker_timeline") if isinstance(window_plan.get("speaker_timeline"), list) else window_plan.get("speakerTimeline") if isinstance(window_plan.get("speakerTimeline"), list) else []
     return {
         "enabled": True,
@@ -361,18 +405,534 @@ def _hydrate_plan_keyframes_from_legacy(shot, plan_keyframes: list) -> list:
     return hydrated
 
 
-def _get_reusable_video_prompt(video_director_plan: dict) -> str:
-    clips = video_director_plan.get("clips") if isinstance(video_director_plan.get("clips"), list) else []
-    for clip in clips:
-        prompt = (clip or {}).get("prompt_text")
-        if isinstance(prompt, str) and prompt.strip():
-            return prompt.strip()
-    ai_calls = video_director_plan.get("ai_calls") if isinstance(video_director_plan.get("ai_calls"), list) else []
-    for call in reversed(ai_calls):
-        prompt = (call or {}).get("final_prompt")
-        if isinstance(prompt, str) and prompt.strip():
-            return prompt.strip()
-    return ""
+def _h3_prompt_clip(plan: dict, selected_mode: str, clip: dict) -> dict:
+    """Editable prompt owner, not necessarily the execution or audio source."""
+    collection = "window_plans" if selected_mode == "MULTI_KEYFRAME" else "clips"
+    index = int(clip.get("clip_index") or 1)
+    matches = [
+        item for position, item in enumerate(safe_json_list(plan.get(collection)), 1)
+        if isinstance(item, dict) and int(item.get("window_index") or item.get("clip_index") or position) == index
+    ]
+    if len(matches) > 1:
+        raise H3PromptValidationError("AMBIGUOUS_CLIP", index)
+    return matches[0] if matches else {}
+
+
+def _h3_clip_structure(shot, plan: dict, selected_mode: str, clip: dict) -> dict | None:
+    """Failure ownership excludes editable prompt text, descriptions and media facts."""
+    try:
+        owner = _h3_prompt_clip(plan, selected_mode, clip)
+        windows = safe_json_list(plan.get("window_plans"))
+        multi_executor = selected_mode == "MULTI_KEYFRAME" and len(windows) > 1
+        first_window = windows[0] if windows and not multi_executor else None
+        source = owner if multi_executor else first_window if first_window is not None else (safe_json_list(plan.get("clips")) or [{}])[0]
+        fields = ("clip_index", "window_index", "start_time", "end_time", "keyframe_indexes",
+                  "selected_frame_count", "workflow_key", "workflow_type", "role")
+        indexes = {int(index) for index in ((first_window or owner).get("keyframe_indexes") or [])}
+        return deepcopy({
+            "mode": plan.get("selected_mode") or selected_mode,
+            "range": [int(source.get("window_index" if multi_executor or first_window is not None else "clip_index") or 1),
+                      float(source.get("start_time") or 0),
+                      float(source.get("end_time") or (0 if multi_executor else _resolved_duration_from_plan(shot, plan)))],
+            "owner": {field: owner.get(field) for field in fields} if owner else None,
+            "first_window": {field: first_window.get(field) for field in fields} if first_window else None,
+            "keyframes": [{field: frame.get(field) for field in ("index", "role", "time_seconds")}
+                          for frame in safe_json_list(plan.get("keyframes")) if isinstance(frame, dict)
+                          and (selected_mode != "MULTI_KEYFRAME" or int(frame.get("index") or -1) in indexes)],
+        })
+    except (H3PromptValidationError, TypeError, ValueError, AttributeError):
+        return None
+
+
+def _get_reusable_video_prompt(video_director_plan: dict, *, selected_mode: str, clip: dict,
+                               workflow_type: str, context: dict) -> str | None:
+    if video_director_plan.get("selected_mode", selected_mode) != selected_mode:
+        return None
+    current = _h3_prompt_clip(video_director_plan, selected_mode, clip)
+    if current.get("workflow_type") not in (None, workflow_type):
+        raise H3PromptValidationError("REUSE_WORKFLOW_CHANGED")
+    # Even empty/invalid current edits are authoritative; never search past them.
+    if "prompt_text" in current:
+        if not isinstance(current["prompt_text"], str):
+            raise H3PromptValidationError("INVALID_CURRENT_PROMPT")
+        return current["prompt_text"]
+
+    step, task_type = {
+        "SINGLE_FRAME": ("11", "h3_single_frame_prompt"),
+        "FIRST_LAST_FRAME": ("12", "h3_first_last_frame_prompt"),
+        "MULTI_KEYFRAME": ("13", "h3_multi_keyframe_prompt"),
+    }[selected_mode]
+    for call in reversed(safe_json_list(video_director_plan.get("ai_calls"))):
+        if not isinstance(call, dict):
+            continue
+        if str(call.get("step")) in {"07", "08", "10"}:
+            break
+        if not (str(call.get("step")) == step and call.get("task_type") == task_type
+                and call.get("status") == "success" and call.get("clip_index") == clip.get("clip_index")
+                and call.get("workflow_type") == workflow_type):
+            continue
+        saved = safe_json_dict(call.get("parsed_result"))
+        if "context" in saved:
+            if saved["context"] != context:
+                return None
+        elif (video_director_plan.get("invalidation_reason") or video_director_plan.get("invalidation_level")
+              or video_director_plan.get("keyframe_planning_status") == "STALE"):
+            return None
+        # Legacy one-window MULTI stored only ai_calls. CoreGate still validates
+        # this exact candidate, including independently saved fallback markers.
+        prompt = call.get("final_prompt")
+        if not isinstance(prompt, str):
+            raise H3PromptValidationError("INVALID_SAVED_PROMPT")
+        return prompt
+    return None
+
+
+def _h3_prompt_context(db, shot, selected_mode: str, clip: dict, audio_drive_enabled: bool, *, plan=None, effective_context=None) -> dict:
+    plan = safe_json_dict(shot.video_director_plan) if plan is None else plan
+    owner = _h3_prompt_clip(plan, selected_mode, clip)
+    windows = safe_json_list(plan.get("window_plans"))
+    if selected_mode == "MULTI_KEYFRAME" and not owner:
+        raise H3PromptValidationError("CLIP_REMOVED", clip.get("clip_index"))
+    multi_executor = selected_mode == "MULTI_KEYFRAME" and len(windows) > 1
+    if multi_executor:
+        effective = owner
+    else:
+        effective = (safe_json_list(plan.get("clips")) or [{}])[0]
+        # The single-call executor overlays its first window in every mode.
+        if windows:
+            window = windows[0]
+            effective = {
+                **effective, "clip_index": window.get("window_index") or 1,
+                "start_time": window.get("start_time") or 0,
+                "end_time": window.get("end_time") or _resolved_duration_from_plan(shot, plan),
+                **{field: window.get(field) for field in ("selected_frame_count", "workflow_key")},
+                "keyframe_indexes": window.get("keyframe_indexes") or [],
+            }
+        if not effective:
+            effective = {"clip_index": 1, "start_time": 0, "end_time": _resolved_duration_from_plan(shot, plan)}
+    current_clip = {
+        "clip_index": int((effective.get("window_index") if multi_executor else effective.get("clip_index")) or 1),
+        "start_time": float(effective.get("start_time") or 0),
+        "end_time": float(effective.get("end_time") or (0 if multi_executor else _resolved_duration_from_plan(shot, plan))),
+        **{field: effective.get(field) for field in ("selected_frame_count", "workflow_key", "workflow_type")},
+        "keyframe_indexes": effective.get("keyframe_indexes") or [],
+    }
+    keyframes = safe_json_list(plan.get("keyframes"))
+    transitions = safe_json_list(plan.get("transitions"))
+    if selected_mode == "MULTI_KEYFRAME":
+        indexes = {int(index) for index in current_clip["keyframe_indexes"]}
+        keyframes = [item for item in keyframes if isinstance(item, dict) and int(item.get("index") or -1) in indexes]
+        transitions = _filter_transitions_for_keyframe_indexes(transitions, current_clip["keyframe_indexes"])
+    context = {
+        "selected_mode": selected_mode, "plan_selected_mode": plan.get("selected_mode") or selected_mode,
+        "clip": current_clip,
+        "shot": {field: getattr(shot, field, None) for field in (
+            "id", "chapter_id", "index", "description", "video_description", "duration", "estimated_duration", "continuity_mode", "scene",
+        )},
+        "characters": safe_json_list(shot.characters), "props": safe_json_list(shot.props),
+        "keyframes": [{field: item.get(field) for field in (
+            "index", "role", "time_seconds", "description", "image_url",
+        )} for item in keyframes if isinstance(item, dict)],
+        "transitions": [{field: item.get(field) for field in (
+            "from_keyframe_index", "to_keyframe_index", "transition_description",
+        )} for item in transitions if isinstance(item, dict)],
+        "invalidation": {field: plan.get(field) for field in ("invalidation_reason", "invalidation_level")},
+        "planning_stale": plan.get("keyframe_planning_status") == "STALE",
+    }
+    first_index = (current_clip["keyframe_indexes"] or [None])[0]
+    first_keyframe = next((item for item in keyframes if isinstance(item, dict) and item.get("index") == first_index), {})
+    uses_shot_image = (not multi_executor
+                       or (first_index == 1 and first_keyframe.get("role") == "START"))
+    context["start_image_url"] = shot.image_url if uses_shot_image else first_keyframe.get("image_url")
+    if audio_drive_enabled:
+        from app.models.audio_drive import ShotAudioTimeline
+        audio_window = _find_window_plan_for_clip(plan, current_clip)
+        latest = db.query(ShotAudioTimeline).filter(ShotAudioTimeline.shot_id == shot.id).order_by(
+            ShotAudioTimeline.revision.desc(),
+        ).populate_existing().first()
+        if (not audio_window or getattr(shot, "audio_status", None) != "READY" or not latest or latest.status != "READY"
+                or str(audio_window.get("audio_status") or audio_window.get("audioStatus") or "").upper() != "READY"
+                or not _clip_audio_matches_plan_timeline(audio_window, plan)
+                or not _clip_audio_matches_plan_timeline(audio_window, {"audio_timeline": {
+                    "id": latest.id, "revision": latest.revision, "source_hash": latest.generated_from_hash,
+                }})):
+            raise H3PromptValidationError("AUDIO_BINDING_NOT_READY")
+        speaker_timeline = audio_window.get("speaker_timeline") if isinstance(audio_window.get("speaker_timeline"), list) else audio_window.get("speakerTimeline") if isinstance(audio_window.get("speakerTimeline"), list) else []
+        audio = {"id": latest.id, "revision": latest.revision, "hash": latest.generated_from_hash, "status": latest.status,
+                 "bound_hash": audio_window.get("audio_timeline_hash") or audio_window.get("audioTimelineHash"),
+                 "speaker_timeline": speaker_timeline,
+                 "duration": round(float(audio_window.get("clip_audio_duration") or audio_window.get("clipAudioDuration")
+                                         or max(0.0, float(effective.get("end_time") or 0) - float(effective.get("start_time") or 0))), 3)}
+        for field, camel in (("drive_audio", "driveAudio"), ("final_audio", "finalAudio")):
+            path = audio_window.get(f"{field}_path") or audio_window.get(f"{camel}Path") or url_to_local_path(
+                audio_window.get(f"{field}_url") or audio_window.get(f"{camel}Url") or "",
+            )
+            if not path or not Path(path).is_file():
+                raise H3PromptValidationError("AUDIO_FILE_NOT_READY", field)
+            audio[field] = {"path": str(path)}
+        context["audio"] = audio
+    if effective_context is not None:
+        context["planned_context_hash"] = prompt_digest(context)
+        context.update({field: effective_context[field] for field in ("start_image_url", "keyframes", "transitions")})
+        context["actual_state_handoff"] = {
+            field: effective_context[field] for field in (
+                "version", "source", "run_id", "from_clip", "to_clip", "clip_attempt_id",
+                "planned_context_hash", "start_image_sha256", "trusted_state", "canonical_state", "evidence_hash",
+            )
+        }
+        context["actual_state_handoff"]["effective_context_hash"] = prompt_digest(effective_context)
+    return deepcopy(context)
+
+
+def _save_h3_prompt_gate(db, task, record: dict, *, prompt_id=None, error=None, failure_kind=None) -> None:
+    if record.get("applicable") is False:
+        return
+    if prompt_id:
+        record.update({"prompt_id": prompt_id, "submission_state": "submitted"})
+    if failure_kind == "H3_PROMPT_SUBMISSION_REJECTED":
+        record["submission_failure_kind"] = failure_kind
+        prequeue = record.setdefault("prequeue_validation", {})
+        prequeue.update({"passed": False, "failure_kind": failure_kind})
+        prequeue.setdefault("errors", [{"code": failure_kind, "details": str(error or "")}])
+    if error:
+        record["submission_error"] = str(error)
+        if not record.get("prompt_id"):
+            record["submission_state"] = "unknown" if record.get("prequeue_validation", {}).get("passed") else "not_submitted"
+    if hasattr(task, "_video_execution"):
+        from app.services.shot_video_execution import save_gate_record
+        save_gate_record(db, task, record)
+        return
+    # Merge into the latest metadata, not a task-wide prompt/prompt_id snapshot.
+    db.flush()
+    db.refresh(task)
+    metadata = safe_json_dict(task.metadata_json)
+    gate = metadata.setdefault("h3_prompt_gate", {"version": 1, "clips": {}})
+    attempts = gate["clips"].setdefault(str(record["clip_index"]), [])
+    for index, previous in enumerate(attempts):
+        if previous.get("attempt_id") == record["attempt_id"]:
+            attempts[index] = deepcopy(record)
+            break
+    else:
+        attempts.append(deepcopy(record))
+    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    db.commit()
+
+
+def _fail_h3_video_clip(db, task, shot, clip: dict, selected_mode: str, message: str, *, target, gate_failed=False) -> None:
+    if hasattr(shot, "_execution_task_id"):
+        from app.services.shot_video_execution import fail_execution
+        fail_execution(db, shot._video_execution, message, clip_index=int(clip.get("clip_index") or 1), gate_failed=gate_failed)
+        return
+    db.refresh(task)
+    db.refresh(shot)
+    if any(
+        getattr(task, field, None) != value for field, value in target.items()
+        if field not in {"shot_video_task_id", "clip_structure"}
+    ):
+        return
+    owned = False
+
+    def fail_owned_clip(plan):
+        nonlocal owned
+        owned = False
+        frozen = target.get("clip_structure")
+        if not frozen or _h3_clip_structure(shot, plan, selected_mode, clip) != frozen:
+            return plan
+        current = _h3_prompt_clip(plan, selected_mode, clip)
+        if not current:
+            if selected_mode == "SINGLE_FRAME" and frozen["owner"] is None:
+                plan.update({"task_error_message": message, "error_message": message})
+                owned = True
+            return plan
+        current.update({"status": "FAILED", "error_message": message})
+        if selected_mode == "MULTI_KEYFRAME":
+            if gate_failed:
+                current["h3_prompt_gate_failed"] = True
+            _sync_task_video_director_clips(task, plan.get("window_plans") or [])
+        plan.update({"task_error_message": message, "error_message": message})
+        owned = True
+        return plan
+
+    if task.shot_id == shot.id and shot.video_task_id == target["shot_video_task_id"]:
+        VideoDirectorPlanService(db).mutate(shot.id, fail_owned_clip)
+        if owned:
+            ShotRepository(db).update(shot, video_status="failed")
+    if task.status != "cancelled":
+        task.status = "failed"
+        task.error_message = message
+        task.current_step = "生成失败"
+    db.commit()
+
+
+async def _build_h3_prompt_for_worker(*, db, task, novel, shot, selected_mode, clip, workflow,
+                                     workflow_capability, start_image_url, keyframes, transitions,
+                                     reference_images, character_appearances, audio_drive,
+                                     skip_llm_when_prompt_exists=False, effective_context=None):
+    """Return (prompt, read-only graph callback); evidence belongs to this attempt."""
+    if effective_context is not None and skip_llm_when_prompt_exists:
+        raise H3PromptValidationError("HANDOFF_REQUIRES_FRESH_PROMPT")
+    enabled = bool(audio_drive.get("enabled"))
+    graph = safe_json_dict(workflow.workflow_json)
+    handoff_kwargs = {"effective_context": effective_context} if effective_context is not None else {}
+    handoff_handle = deepcopy(getattr(task, "_video_execution", None) or getattr(shot, "_video_execution", None)) if handoff_kwargs else None
+    handoff_hash = prompt_digest(effective_context) if handoff_kwargs else None
+    if handoff_kwargs and (not is_h3_workflow(graph) or selected_mode != "MULTI_KEYFRAME" or clip.get("clip_index") != 2):
+        raise H3PromptValidationError("HANDOFF_REQUIRES_C2_H3")
+    target = {field: getattr(task, field, None) for field in (
+        "id", "shot_id", "chapter_id", "novel_id", "workflow_id", "claim_token", "attempt",
+    )}
+    target["shot_video_task_id"] = shot.video_task_id
+    target["clip_structure"] = _h3_clip_structure(shot, safe_json_dict(shot.video_director_plan), selected_mode, clip)
+
+    if not is_h3_workflow(graph):
+        plan = safe_json_dict(shot.video_director_plan)
+        try:
+            prompt = ""
+            if skip_llm_when_prompt_exists:
+                if selected_mode == "MULTI_KEYFRAME" and len(safe_json_list(plan.get("window_plans"))) > 1:
+                    sources = (([_h3_prompt_clip(plan, selected_mode, clip)], "prompt_text"),)
+                else:
+                    sources = ((safe_json_list(plan.get("clips")), "prompt_text"),
+                               (reversed(safe_json_list(plan.get("ai_calls"))), "final_prompt"))
+                for items, field in sources:
+                    for item in items:
+                        candidate = item.get(field) if isinstance(item, dict) else None
+                        if isinstance(candidate, str) and candidate.strip():
+                            prompt = candidate.strip()
+                            break
+                    if prompt:
+                        break
+                if not prompt:
+                    raise RuntimeError("No reusable video prompt is available")
+            else:
+                prompt = await build_h3_video_prompt(
+                    db=db, novel=novel, shot=shot, selected_mode=selected_mode, clip=clip,
+                    workflow_capability=workflow_capability, workflow_type=workflow.type, workflow_name=workflow.name,
+                    start_image_url=start_image_url, keyframes=keyframes, transitions=transitions, clip_dialogues=[],
+                    reference_images=reference_images, character_appearances=character_appearances,
+                    speaker_timeline=audio_drive.get("speaker_timeline") or [],
+                    audio_drive_context=audio_drive.get("audio_drive_context") or {}, workflow_graph=graph,
+                )
+            if selected_mode != "MULTI_KEYFRAME":
+                _update_clip_prompt(shot, clip, prompt, db)
+            elif len(safe_json_list(plan.get("window_plans"))) > 1:
+                _update_window_plan(shot, int(clip.get("clip_index") or 1), {"prompt_text": prompt}, db, task=task)
+            if target["clip_structure"] and target["clip_structure"]["owner"] is None:
+                target["clip_structure"] = _h3_clip_structure(shot, safe_json_dict(shot.video_director_plan), selected_mode, clip)
+        except Exception as exc:
+            _fail_h3_video_clip(db, task, shot, clip, selected_mode, str(exc), target=target)
+            raise
+
+        def on_before_submit_non_h3(submitted_workflow):
+            if is_h3_workflow(submitted_workflow):
+                error = H3PromptValidationError("H3_GRAPH_REQUIRES_PROMPT_GATE")
+                _fail_h3_video_clip(db, task, shot, clip, selected_mode, str(error), target=target, gate_failed=True)
+                raise error
+
+        on_before_submit_non_h3.validation_record = {"applicable": False, "target": target}
+        return prompt, on_before_submit_non_h3
+
+    record = {"version": 1, "attempt_id": getattr(shot, "_video_clip_attempt_id", None) or uuid4().hex, "clip_index": int(clip.get("clip_index") or 1),
+              "selected_mode": selected_mode, "workflow_type": workflow.type, "passed": False,
+              "stage": "candidate", "raw_candidate": None, "submission_state": "not_submitted", "target": target}
+
+    def fail(exc, *, prequeue=False):
+        error = exc if isinstance(exc, H3PromptValidationError) else H3PromptValidationError("WORKER_GATE_ERROR", str(exc))
+        record.update({"passed": False, "errors": [{"code": error.code, "details": error.details}]})
+        if prequeue:
+            record["prequeue_validation"] = {**record.get("prequeue_validation", {}), "passed": False, "errors": record["errors"]}
+        _save_h3_prompt_gate(db, task, record, error=error)
+        _fail_h3_video_clip(db, task, shot, clip, selected_mode, str(error), target=target, gate_failed=True)
+        return error
+
+    def check_handoff(context):
+        if effective_context is None:
+            return
+        db.refresh(task)
+        metadata = safe_json_dict(task.metadata_json)
+        root = safe_json_dict(metadata.get("actual_state_handoff"))
+        run = safe_json_dict(metadata.get("video_run"))
+        slot = safe_json_dict(safe_json_dict(run.get("clips")).get("2"))
+        handle = handoff_handle or {}
+        if (root.get("decision") not in {"CONTINUE", "WARN"} or root.get("can_submit_c2") is not True
+                or root.get("effective_context") != effective_context
+                or root.get("effective_context_hash") != handoff_hash
+                or prompt_digest(root.get("effective_context")) != handoff_hash
+                or prompt_digest(effective_context) != handoff_hash):
+            raise H3PromptValidationError("HANDOFF_CONTEXT_NOT_AUTHORIZED")
+        if (not handle.get("run_id") or not handle.get("claim_token")
+                or handle.get("task_id") != task.id or task.type != "shot_video" or task.status != "running"
+                or handle.get("claim_token") != task.claim_token or handle.get("attempt") != task.attempt
+                or any(getattr(owner, "_video_execution") != handle for owner in (task, shot) if hasattr(owner, "_video_execution"))
+                or not any(hasattr(owner, "_video_execution") for owner in (task, shot))
+                or run.get("run_id") != handle["run_id"] or run.get("phase") != "running" or run.get("superseded_by")
+                or safe_json_dict(metadata.get("execution")).get("attempt_id") != handle["run_id"]
+                or effective_context["run_id"] != handle["run_id"]
+                or not slot.get("attempt_id") or safe_json_dict(slot.get("spec")).get("clip_index") != 2
+                or safe_json_dict(handle.get("attempts")).get("2") != slot["attempt_id"]
+                or effective_context["clip_attempt_id"] != slot["attempt_id"]
+                or getattr(shot, "_video_clip_attempt_id", None) != slot["attempt_id"]
+                or record["attempt_id"] != slot["attempt_id"] or context["clip"]["clip_index"] != 2):
+            raise H3PromptValidationError("HANDOFF_EXECUTION_CHANGED")
+        if context["planned_context_hash"] != effective_context["planned_context_hash"]:
+            raise H3PromptValidationError("HANDOFF_PLANNED_CONTEXT_CHANGED")
+        # Effective inputs must match the bundle, not become a substitute baseline plan.
+        if keyframes != effective_context["keyframes"] or transitions != effective_context["transitions"]:
+            raise H3PromptValidationError("VISUAL_INPUTS_CHANGED")
+
+    def check_current():
+        db.refresh(task)
+        _refresh_video_shot(db, shot)
+        if task.status == "cancelled":
+            raise H3PromptValidationError("TASK_CANCELLED")
+        if (task.status != "running" or task.shot_id != shot.id
+                or any(getattr(task, field, None) != value for field, value in target.items()
+                       if field not in {"shot_video_task_id", "clip_structure"})
+                or shot.video_task_id != target["shot_video_task_id"]):
+            raise H3PromptValidationError("TASK_TARGET_REPLACED")
+        current = _h3_prompt_context(db, shot, selected_mode, clip, enabled, **handoff_kwargs)
+        check_handoff(current)
+        if current != record["context"]:
+            raise H3PromptValidationError("SEMANTIC_CONTEXT_CHANGED", [
+                field for field in current if current[field] != record["context"].get(field)
+            ])
+        if _h3_clip_structure(shot, safe_json_dict(shot.video_director_plan), selected_mode, clip) != target["clip_structure"]:
+            raise H3PromptValidationError("CLIP_TARGET_REPLACED")
+        current_prompt = _h3_prompt_clip(safe_json_dict(shot.video_director_plan), selected_mode, clip)
+        if ("prompt_text" in current_prompt, current_prompt.get("prompt_text")) != prompt_source:
+            raise H3PromptValidationError("MANUAL_PROMPT_CHANGED")
+        return current
+
+    try:
+        db.refresh(task)
+        _refresh_video_shot(db, shot)
+        if effective_context is not None:
+            if (not isinstance(effective_context, dict) or type(effective_context.get("version")) is not int
+                    or effective_context["version"] != 1 or effective_context.get("source") != "actual_state_handoff"
+                    or type(effective_context.get("from_clip")) is not int or effective_context["from_clip"] != 1
+                    or type(effective_context.get("to_clip")) is not int or effective_context["to_clip"] != 2
+                    or any(not isinstance(effective_context.get(field), str) or not effective_context[field] for field in (
+                        "run_id", "clip_attempt_id", "planned_context_hash", "start_image_url", "start_image_sha256", "evidence_hash",
+                    ))
+                    or any(not isinstance(effective_context.get(field), list)
+                           or any(not isinstance(item, dict) for item in effective_context[field])
+                           for field in ("keyframes", "transitions", "trusted_state", "canonical_state"))
+                    or len(effective_context["keyframes"]) not in {3, 4}
+                    or effective_context["keyframes"][0].get("image_url") != effective_context["start_image_url"]
+                    or not isinstance(effective_context["keyframes"][0].get("description"), str)
+                    or not effective_context["keyframes"][0]["description"].strip()):
+                raise H3PromptValidationError("INVALID_HANDOFF_CONTEXT")
+        if any(isinstance(node, dict) and node.get("class_type") == "MiniMaxH3AudioConditioningT8" for node in graph.values()) and not enabled:
+            raise H3PromptValidationError("AUDIODRIVE_REQUIRED_BY_GRAPH")
+        record["context"] = _h3_prompt_context(db, shot, selected_mode, clip, enabled, **handoff_kwargs)
+        record["context_hash"] = prompt_digest(record["context"])
+        current = _h3_prompt_clip(safe_json_dict(shot.video_director_plan), selected_mode, clip)
+        prompt_source = ("prompt_text" in current, current.get("prompt_text"))
+        check_current()
+        expected = record["context"]["clip"]
+        if any(clip.get(field) != value for field, value in expected.items() if field in clip):
+            raise H3PromptValidationError("CLIP_CONTEXT_CHANGED")
+        if start_image_url != record["context"]["start_image_url"]:
+            raise H3PromptValidationError("START_IMAGE_CHANGED")
+        if effective_context is None:
+            supplied = _h3_prompt_context(db, shot, selected_mode, clip, enabled, plan={
+                **safe_json_dict(shot.video_director_plan), "keyframes": keyframes, "transitions": transitions,
+            })
+            if any(supplied[field] != record["context"][field] for field in ("keyframes", "transitions")):
+                raise H3PromptValidationError("VISUAL_INPUTS_CHANGED")
+        if enabled:
+            if (audio_drive.get("speaker_timeline") or []) != record["context"]["audio"]["speaker_timeline"]:
+                raise H3PromptValidationError("SPEAKER_TIMELINE_CHANGED")
+            for field in ("drive_audio", "final_audio"):
+                if str(audio_drive.get(f"{field}_path") or "") != record["context"]["audio"][field]["path"]:
+                    raise H3PromptValidationError("AUDIO_INPUT_CHANGED", field)
+        reusable_prompt = None
+        if skip_llm_when_prompt_exists:
+            reusable_prompt = _get_reusable_video_prompt(
+                safe_json_dict(shot.video_director_plan), selected_mode=selected_mode, clip=clip,
+                workflow_type=workflow.type, context=record["context"],
+            )
+            if reusable_prompt is None:
+                raise H3PromptValidationError("REUSABLE_PROMPT_MISSING")
+        record["raw_candidate"] = reusable_prompt
+        _save_h3_prompt_gate(db, task, record)
+        prompt = await build_h3_video_prompt(
+            db=db, novel=novel, shot=shot, selected_mode=selected_mode, clip=clip,
+            workflow_capability=workflow_capability, workflow_type=workflow.type, workflow_name=workflow.name,
+            start_image_url=start_image_url, keyframes=keyframes, transitions=transitions, clip_dialogues=[],
+            reference_images=reference_images, character_appearances=character_appearances,
+            speaker_timeline=audio_drive.get("speaker_timeline") or [],
+            audio_drive_context=audio_drive.get("audio_drive_context") or {},
+            reusable_prompt=reusable_prompt, validation_record=record, audio_drive_enabled=enabled,
+            **handoff_kwargs,
+        )
+        if not record.get("passed") or record.get("final_prompt") != prompt or record.get("final_hash") != prompt_digest(prompt):
+            raise H3PromptValidationError("BUILDER_RECORD_MISMATCH")
+        check_current()
+
+        def save_prompt(plan):
+            current = _h3_prompt_clip(plan, selected_mode, clip)
+            if ("prompt_text" in current, current.get("prompt_text")) != prompt_source:
+                raise H3PromptValidationError("MANUAL_PROMPT_CHANGED")
+            context = _h3_prompt_context(db, shot, selected_mode, clip, enabled, plan=plan, **handoff_kwargs)
+            check_handoff(context)
+            if context != record["context"]:
+                raise H3PromptValidationError("SEMANTIC_CONTEXT_CHANGED")
+            if _h3_clip_structure(shot, plan, selected_mode, clip) != target["clip_structure"]:
+                raise H3PromptValidationError("CLIP_TARGET_REPLACED")
+            if not current:
+                current = dict(record["context"]["clip"])
+                plan.setdefault("clips", []).append(current)
+            current["prompt_text"] = prompt
+            return plan
+
+        _mutate_video_plan(db, shot, save_prompt)
+        if target["clip_structure"] and target["clip_structure"]["owner"] is None:
+            target["clip_structure"] = _h3_clip_structure(shot, safe_json_dict(shot.video_director_plan), selected_mode, clip)
+        prompt_source = (True, prompt)
+        _save_h3_prompt_gate(db, task, record)
+    except Exception as exc:
+        raise fail(exc) from exc
+
+    def on_before_submit(submitted_workflow):
+        try:
+            if not is_h3_workflow(submitted_workflow):
+                raise H3PromptValidationError("H3_GRAPH_REMOVED")
+            if any(isinstance(node, dict) and node.get("class_type") == "MiniMaxH3AudioConditioningT8"
+                   for node in submitted_workflow.values()) and not enabled:
+                raise H3PromptValidationError("AUDIODRIVE_REQUIRED_BY_GRAPH")
+            current = check_current()
+            from app.models.novel import Character
+            appearances = {character.name: character.appearance for character in db.query(Character).filter(
+                Character.novel_id == novel.id, Character.name.in_(safe_json_list(shot.characters)),
+            ).populate_existing().all() if character.appearance}
+            manifest, timeline, issues = resolve_h3_prompt_subjects(
+                db, novel.id, shot, clip, current.get("audio", {}).get("speaker_timeline", []), appearances,
+            )
+            if issues:
+                raise H3PromptValidationError("SUBJECT_RESOLUTION_FAILED", issues)
+            prepared = prepare_h3_prompt(
+                record["raw_candidate"], constraint=record["constraint"], continuity_lock=record["continuity_lock"],
+                subject_manifest=manifest, speaker_timeline=timeline, audio_drive_enabled=enabled,
+                fallback_context=record.get("fallback_context"),
+            )
+            record["prequeue_validation"] = prepared
+            if (prepared["final_prompt"] != prompt or prepared["final_hash"] != record["final_hash"]
+                    or manifest != record["subject_manifest"] or timeline != record["speaker_timeline"]):
+                raise H3PromptValidationError("PREQUEUE_PROMPT_CHANGED")
+            if selected_mode == "MULTI_KEYFRAME" and len(safe_json_list(safe_json_dict(shot.video_director_plan).get("window_plans"))) > 1:
+                # Keep old facts through rejection, but never submit a new attempt
+                # with the preceding attempt's window prompt_id/video metadata.
+                _reset_multi_clip_window_plans_for_task(
+                    db, task, shot, only_window_index=int(clip.get("clip_index") or 1), preserve_prompt_text=True,
+                )
+            record["submission_state"] = "prepared"
+            _save_h3_prompt_gate(db, task, record)
+        except Exception as exc:
+            raise fail(exc, prequeue=True) from exc
+
+    on_before_submit.validation_record = record
+    return prompt, on_before_submit
 
 
 def enqueue_shot_video_task(
@@ -439,17 +999,33 @@ async def generate_shot_video_task(
         use_reference_audio: 是否使用参考音频（如果存在），默认 True
     """
     db = SessionLocal()
+    strict_execution = False
     try:
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task:
             return
-        if task.status == "cancelled":
+        if task.status not in {"pending", "running"}:
             return
 
-        task.status = "running"
-        task.started_at = datetime.utcnow()
-        task.current_step = "准备生成视频..."
+        try:
+            execution_metadata = json.loads(task.metadata_json) if task.metadata_json else {}
+        except (TypeError, ValueError):
+            execution_metadata = None
+        if (not isinstance(execution_metadata, dict) or "execution" in execution_metadata or "video_run" in execution_metadata
+                or execution_metadata.get("execution_purpose", "production") != "production"):
+            from app.services.shot_video_execution import run_video_execution
+            strict_execution = True
+            await run_video_execution(db, task_id)
+            return
+
+        started = db.query(Task).filter(Task.id == task_id, Task.status == task.status).update({
+            "status": "running", "started_at": datetime.utcnow(), "current_step": "准备生成视频...",
+        }, synchronize_session=False)
+        if started != 1:
+            db.rollback()
+            return
         db.commit()
+        db.refresh(task)
 
         chapter = db.query(Chapter).filter(
             Chapter.id == chapter_id,
@@ -606,14 +1182,30 @@ async def generate_shot_video_task(
 
         window_plans = video_director_plan.get("window_plans") if isinstance(video_director_plan.get("window_plans"), list) else []
         if selected_mode == "MULTI_KEYFRAME" and len(window_plans) > 1:
-            window_plans = _reset_multi_clip_window_plans_for_task(
-                db,
-                task,
-                shot,
-                only_window_index=only_window_index,
-                preserve_prompt_text=skip_llm_when_prompt_exists,
-            )
-            video_director_plan = safe_json_dict(shot.video_director_plan)
+            # Legacy graphs reset before execution; H3 keeps its delayed gate reset.
+            selected_count = 0
+            non_h3_windows = []
+            non_h3_by_type = {}
+            for position, window in enumerate(window_plans, 1):
+                window_index = int(window.get("window_index") or position)
+                if only_window_index is not None and window_index != int(only_window_index):
+                    continue
+                selected_count += 1
+                clip_workflow_type = "three_frame_video" if int(window.get("selected_frame_count") or 0) == 3 else "four_frame_video"
+                if clip_workflow_type not in non_h3_by_type:
+                    clip_workflow = db.query(Workflow).filter(Workflow.type == clip_workflow_type, Workflow.is_active == True).first()
+                    non_h3_by_type[clip_workflow_type] = bool(
+                        clip_workflow and not is_h3_workflow(safe_json_dict(clip_workflow.workflow_json))
+                    )
+                if non_h3_by_type[clip_workflow_type]:
+                    non_h3_windows.append(window_index)
+            if non_h3_windows:
+                reset_indexes = [only_window_index] if len(non_h3_windows) == selected_count else non_h3_windows
+                for reset_index in reset_indexes:
+                    window_plans = _reset_multi_clip_window_plans_for_task(
+                        db, task, shot, only_window_index=reset_index, preserve_prompt_text=skip_llm_when_prompt_exists,
+                    )
+                video_director_plan = safe_json_dict(shot.video_director_plan)
             await _generate_multi_clip_video_task(
                 db=db,
                 task=task,
@@ -714,6 +1306,9 @@ async def generate_shot_video_task(
         clip = (video_director_plan.get("clips") or [{}])[0] if isinstance(video_director_plan.get("clips"), list) else {}
         if window_plans:
             window_plan = window_plans[0]
+            if only_window_index is not None and int(window_plan.get("window_index") or 1) != int(only_window_index):
+                clip = {"clip_index": int(only_window_index)}
+                raise RuntimeError(f"Clip {only_window_index} does not exist in the current plan")
             clip = {
                 **(clip if isinstance(clip, dict) else {}),
                 "clip_index": window_plan.get("window_index") or 1,
@@ -751,49 +1346,23 @@ async def generate_shot_video_task(
         transitions_for_prompt = video_director_plan.get("transitions") if isinstance(video_director_plan.get("transitions"), list) else []
         if selected_mode == "MULTI_KEYFRAME" and clip.get("keyframe_indexes"):
             transitions_for_prompt = _filter_transitions_for_keyframe_indexes(transitions_for_prompt, clip.get("keyframe_indexes") or [])
-        reusable_prompt = _get_reusable_video_prompt(video_director_plan) if skip_llm_when_prompt_exists else ""
-        if skip_llm_when_prompt_exists and not reusable_prompt:
-            task.status = "failed"
-            task.error_message = "当前 Shot 没有可复用的视频最终 Prompt，请先使用 LLM+生成当前Shot视频。"
-            task.current_step = "缺少视频最终 Prompt"
-            _mark_shot_video_failed(shot, shot_repo, task.error_message)
-            db.commit()
-            return
-        if reusable_prompt:
-            task.current_step = "复用已有 H3 视频提示词..."
-            shot_prompt = reusable_prompt
-            db.commit()
-        else:
-            task.current_step = "正在构建 H3 视频提示词..."
-            if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
-                _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "PROMPT_BUILDING", db, task=task)
-            db.commit()
-            shot_prompt = await build_h3_video_prompt(
-                db=db,
-                novel=novel,
-                shot=shot,
-                selected_mode=selected_mode,
-                clip=clip,
-                workflow_capability=workflow_capability,
-                workflow_type=workflow.type,
-                workflow_name=workflow.name,
-                start_image_url=shot_image_url,
-                keyframes=keyframes_for_prompt,
-                transitions=transitions_for_prompt,
-                clip_dialogues=[],
-                reference_images=reference_images,
-                character_appearances=character_appearances,
-                speaker_timeline=audio_drive.get("speaker_timeline") or [],
-                audio_drive_context=audio_drive.get("audio_drive_context") or {},
-            )
+        task.current_step = "复用已有 H3 视频提示词..." if skip_llm_when_prompt_exists else "正在构建 H3 视频提示词..."
+        if selected_mode == "MULTI_KEYFRAME":
+            _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "PROMPT_BUILDING", db, task=task)
+        db.commit()
+        shot_prompt, on_before_submit = await _build_h3_prompt_for_worker(
+            db=db, task=task, novel=novel, shot=shot, selected_mode=selected_mode, clip=clip, workflow=workflow,
+            workflow_capability=workflow_capability, start_image_url=shot_image_url,
+            keyframes=keyframes_for_prompt, transitions=transitions_for_prompt, reference_images=reference_images,
+            character_appearances=character_appearances, audio_drive=audio_drive,
+            skip_llm_when_prompt_exists=skip_llm_when_prompt_exists,
+        )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
             _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
             db.commit()
             return
         task.prompt_text = shot_prompt
-        if selected_mode != "MULTI_KEYFRAME":
-            _update_clip_prompt(shot, clip, shot_prompt, db)
         db.commit()
 
         task.current_step = "正在调用 ComfyUI 生成视频..."
@@ -814,6 +1383,7 @@ async def generate_shot_video_task(
                     fields["workflow_json"] = submitted_workflow
                 _update_window_plan(shot, int(clip.get("clip_index") or 1), fields, db, task=task)
             db.commit()
+            _save_h3_prompt_gate(db, task, on_before_submit.validation_record, prompt_id=prompt_id)
             print(f"[VideoTask {task_id}] Saved ComfyUI prompt_id: {prompt_id}")
 
         result = await comfyui_service.generate_shot_video_with_workflow(
@@ -832,8 +1402,14 @@ async def generate_shot_video_task(
             drive_audio_path=audio_drive.get("drive_audio_path"),
             final_audio_path=audio_drive.get("final_audio_path"),
             keyframe_paths=keyframe_paths,
-            on_prompt_queued=save_prompt_id
+            on_prompt_queued=save_prompt_id,
+            on_before_submit=on_before_submit,
         )
+        if result.get("prompt_id"):
+            _save_h3_prompt_gate(db, task, on_before_submit.validation_record, prompt_id=result["prompt_id"])
+        if not result.get("success"):
+            _save_h3_prompt_gate(db, task, on_before_submit.validation_record, error=result.get("message") or "Generation failed",
+                                 failure_kind=result.get("failure_kind"))
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
             _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
@@ -852,18 +1428,17 @@ async def generate_shot_video_task(
             print(f"[VideoTask {task_id}] Saved submitted workflow to task")
 
         if not result.get("success"):
-            task.status = "failed"
-            task.error_message = result.get("message", "生成失败")
-            task.current_step = "生成失败"
-            if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
-                _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "FAILED", db, task=task)
-            _mark_shot_video_failed(shot, shot_repo, task.error_message)
-            db.commit()
+            _fail_h3_video_clip(db, task, shot, clip, selected_mode, result.get("message") or "Generation failed",
+                                target=on_before_submit.validation_record["target"],
+                                gate_failed=result.get("failure_kind") == "H3_PROMPT_SUBMISSION_REJECTED")
             return
 
         # 下载并保存视频
         await _save_generated_video(result, task, novel_id, chapter_id, shot_index, db, task_id, shot_repo, clip=clip)
-        if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
+        if task.status == "failed":
+            _fail_h3_video_clip(db, task, shot, clip, selected_mode, task.error_message,
+                                target=on_before_submit.validation_record["target"])
+        elif task.status == "completed" and selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
             _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "SUCCEEDED", db, task=task)
 
     except Exception as e:
@@ -871,13 +1446,24 @@ async def generate_shot_video_task(
         import traceback
         traceback.print_exc()
 
+        if strict_execution:
+            # A failed claim/CAS must never fall into unfenced legacy writeback.
+            return
         try:
-            task.status = "failed"
-            task.error_message = str(e)
-            task.current_step = "任务异常"
-            if 'shot' in locals() and shot:
-                _mark_shot_video_failed(shot, shot_repo, task.error_message)
-            db.commit()
+            if not isinstance(e, H3PromptValidationError):
+                record = on_before_submit.validation_record if 'on_before_submit' in locals() else None
+                if record:
+                    _save_h3_prompt_gate(db, task, record, error=e)
+                if record and 'shot' in locals() and shot and 'clip' in locals():
+                    _fail_h3_video_clip(db, task, shot, clip, selected_mode, str(e), target=record["target"])
+                else:
+                    if task.status != "cancelled":
+                        task.status = "failed"
+                        task.error_message = str(e)
+                        task.current_step = "任务异常"
+                    if 'shot' in locals() and shot:
+                        _mark_shot_video_failed(shot, shot_repo, str(e))
+                    db.commit()
         except Exception:
             pass
     finally:
@@ -1004,21 +1590,11 @@ async def _generate_multi_clip_video_task(
             db.commit()
             return
 
-        reusable_clip_prompt = (window_plan.get("prompt_text") or "").strip() if skip_llm_when_prompt_exists else ""
-        if skip_llm_when_prompt_exists and not reusable_clip_prompt:
-            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": "缺少可复用的 Clip 视频最终 Prompt"}, db, task=task)
-            task.status = "failed"
-            task.error_message = f"Clip {window_index} 没有可复用的视频最终 Prompt，请先使用 LLM+生成当前Shot视频。"
-            task.current_step = "缺少视频最终 Prompt"
-            _mark_shot_video_failed(shot, shot_repo, task.error_message)
-            db.commit()
-            return
-
-        task.current_step = f"{'复用已有' if reusable_clip_prompt else '正在构建'} Clip {clip_position}/{len(window_plans)} H3 提示词..."
+        task.current_step = f"{'复用已有' if skip_llm_when_prompt_exists else '正在构建'} Clip {clip_position}/{len(window_plans)} H3 提示词..."
         task.progress = int(10 + ((clip_position - 1) / len(window_plans)) * 70)
         task.reference_images = json.dumps(reference_images, ensure_ascii=False)
         _update_window_plan(shot, window_index, {
-            "status": "RUNNING" if reusable_clip_prompt else "PROMPT_BUILDING",
+            "status": "PROMPT_BUILDING",
             "workflow_type": workflow_type,
             "workflow_name": workflow.name,
             "reference_images": reference_images,
@@ -1027,43 +1603,22 @@ async def _generate_multi_clip_video_task(
             "error_message": None,
         }, db, task=task)
         db.commit()
-        if reusable_clip_prompt:
-            clip_prompt = reusable_clip_prompt
-        else:
-            try:
-                clip_prompt = await build_h3_video_prompt(
-                    db=db,
-                    novel=novel,
-                    shot=shot,
-                    selected_mode="MULTI_KEYFRAME",
-                    clip=clip,
-                    workflow_capability=workflow_capability,
-                    workflow_type=workflow_type,
-                    workflow_name=workflow.name,
-                    start_image_url=start_image_url,
-                    keyframes=keyframes_for_prompt,
-                    transitions=clip_transitions_for_prompt,
-                    clip_dialogues=[],
-                    reference_images=reference_images,
-                    character_appearances=character_appearances,
-                    speaker_timeline=audio_drive.get("speaker_timeline") or [],
-                    audio_drive_context=audio_drive.get("audio_drive_context") or {},
-                )
-            except Exception as exc:
-                task.status = "failed"
-                task.error_message = str(exc) or "Clip H3 提示词构建失败"
-                task.current_step = f"Clip {clip_position} H3 提示词构建失败"
-                _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": task.error_message}, db, task=task)
-                _mark_shot_video_failed(shot, shot_repo, task.error_message)
-                db.commit()
-                return
+        try:
+            clip_prompt, on_before_submit = await _build_h3_prompt_for_worker(
+                db=db, task=task, novel=novel, shot=shot, selected_mode="MULTI_KEYFRAME", clip=clip, workflow=workflow,
+                workflow_capability=workflow_capability, start_image_url=start_image_url,
+                keyframes=keyframes_for_prompt, transitions=clip_transitions_for_prompt, reference_images=reference_images,
+                character_appearances=character_appearances, audio_drive=audio_drive,
+                skip_llm_when_prompt_exists=skip_llm_when_prompt_exists,
+            )
+        except H3PromptValidationError:
+            return
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
             _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
             db.commit()
             return
         task.prompt_text = clip_prompt
-        _update_window_plan(shot, window_index, {"prompt_text": clip_prompt}, db, task=task)
 
         clip_duration = contract_clip_duration(clip["start_time"], clip["end_time"])
         raw_frame_count = int(fps * clip_duration)
@@ -1077,29 +1632,41 @@ async def _generate_multi_clip_video_task(
                 fields["workflow_json"] = submitted_workflow
             _update_window_plan(shot, window_index, fields, db, task=task)
             db.commit()
+            _save_h3_prompt_gate(db, task, on_before_submit.validation_record, prompt_id=prompt_id)
             print(f"[VideoTask {task_id}] Clip {clip_position} ComfyUI prompt_id: {prompt_id}")
 
         task.current_step = f"正在生成 Clip {clip_position}/{len(window_plans)}..."
         _update_window_plan_status(shot, window_index, "RUNNING", db, task=task)
         db.commit()
-        result = await comfyui_service.generate_shot_video_with_workflow(
-            prompt=clip_prompt,
-            workflow_json=workflow.workflow_json,
-            node_mapping=node_mapping,
-            aspect_ratio=novel.aspect_ratio or "16:9",
-            character_reference_path=start_image_path,
-            frame_count=clip_frame_count,
-            duration_seconds=clip_duration,
-            style=style,
-            character_appearances=character_appearances,
-            scene_setting=scene_setting,
-            prop_appearances=prop_appearances,
-            reference_audio_path=None if audio_drive.get("enabled") else reference_audio_path,
-            drive_audio_path=audio_drive.get("drive_audio_path"),
-            final_audio_path=audio_drive.get("final_audio_path"),
-            keyframe_paths=keyframe_paths,
-            on_prompt_queued=save_prompt_id,
-        )
+        try:
+            result = await comfyui_service.generate_shot_video_with_workflow(
+                prompt=clip_prompt,
+                workflow_json=workflow.workflow_json,
+                node_mapping=node_mapping,
+                aspect_ratio=novel.aspect_ratio or "16:9",
+                character_reference_path=start_image_path,
+                frame_count=clip_frame_count,
+                duration_seconds=clip_duration,
+                style=style,
+                character_appearances=character_appearances,
+                scene_setting=scene_setting,
+                prop_appearances=prop_appearances,
+                reference_audio_path=None if audio_drive.get("enabled") else reference_audio_path,
+                drive_audio_path=audio_drive.get("drive_audio_path"),
+                final_audio_path=audio_drive.get("final_audio_path"),
+                keyframe_paths=keyframe_paths,
+                on_prompt_queued=save_prompt_id,
+                on_before_submit=on_before_submit,
+            )
+        except Exception as exc:
+            _save_h3_prompt_gate(db, task, on_before_submit.validation_record, error=exc)
+            _fail_h3_video_clip(db, task, shot, clip, "MULTI_KEYFRAME", str(exc), target=on_before_submit.validation_record["target"])
+            return
+        if result.get("prompt_id"):
+            _save_h3_prompt_gate(db, task, on_before_submit.validation_record, prompt_id=result["prompt_id"])
+        if not result.get("success") or not result.get("video_url"):
+            _save_h3_prompt_gate(db, task, on_before_submit.validation_record, error=result.get("message") or "Clip generation failed",
+                                 failure_kind=result.get("failure_kind"))
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
             _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
@@ -1107,16 +1674,14 @@ async def _generate_multi_clip_video_task(
             return
         if result.get("submitted_workflow"):
             task.workflow_json = json.dumps(result["submitted_workflow"], ensure_ascii=False, indent=2)
-            _update_window_plan(shot, window_index, {"workflow_json": result["submitted_workflow"]}, db, task=task)
             db.commit()
         if not result.get("success") or not result.get("video_url"):
-            task.status = "failed"
-            task.error_message = result.get("message") or "Clip 生成失败"
-            task.current_step = f"Clip {clip_position} 生成失败"
-            _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": task.error_message}, db, task=task)
-            _mark_shot_video_failed(shot, shot_repo, task.error_message)
-            db.commit()
+            _fail_h3_video_clip(db, task, shot, clip, "MULTI_KEYFRAME", result.get("message") or "Clip generation failed",
+                                target=on_before_submit.validation_record["target"],
+                                gate_failed=result.get("failure_kind") == "H3_PROMPT_SUBMISSION_REJECTED")
             return
+        if result.get("submitted_workflow"):
+            _update_window_plan(shot, window_index, {"workflow_json": result["submitted_workflow"]}, db, task=task)
 
         task.current_step = f"正在下载 Clip {clip_position}/{len(window_plans)}..."
         db.commit()
@@ -1147,6 +1712,8 @@ async def _generate_multi_clip_video_task(
             db.commit()
             return
         clip_video_paths.append(local_path)
+        from app.services.rendered_subtitles import lock_generated_audio
+        await lock_generated_audio(file_storage, local_path, clip.get("subtitle_audio_path"), clip.get("subtitle_snapshot"))
         generated_any = True
         _update_window_plan(shot, window_index, {
             "status": "SUCCEEDED",
@@ -1233,10 +1800,24 @@ async def _generate_multi_clip_video_task(
 
 
 async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, novel_id: str, chapter_id: str, shot_index: int) -> dict:
+    if hasattr(shot, "_execution_task_id"):
+        return {"success": False, "message": "Strict video runs merge only their verified receipt manifest"}
+    db.refresh(shot)
     plan = safe_json_dict(shot.video_director_plan)
+    execution_task_id = plan.get("video_execution_task_id") or shot.video_task_id
+    owner = db.query(Task).filter(Task.id == execution_task_id).first() if execution_task_id else None
+    if plan.get("video_execution_task_id") or (owner and ("execution" in safe_json_dict(owner.metadata_json) or "video_run" in safe_json_dict(owner.metadata_json))):
+        from app.services.shot_video_execution import completed_video_artifact
+        return completed_video_artifact(db, execution_task_id, shot_id=shot.id)
     window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
     if not window_plans:
         return {"success": False, "message": "缺少 Clip 执行计划"}
+    gate_failed_clips = [
+        f"C{window.get('window_index') or position}" for position, window in enumerate(window_plans, 1)
+        if isinstance(window, dict) and window.get("h3_prompt_gate_failed")
+    ]
+    if gate_failed_clips:
+        return {"success": False, "message": f"H3_PROMPT_GATE_FAILED: {', '.join(gate_failed_clips)}; regenerate before merging"}
 
     clip_video_paths = []
     missing_clips = []
@@ -1259,7 +1840,8 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
         default=None,
     )
     existing_video_url = plan.get("merged_video_url") or shot.video_url
-    if existing_video_url and merged_at and (not latest_clip_generated_at or latest_clip_generated_at <= merged_at):
+    from app.services.rendered_subtitles import matches_sources
+    if existing_video_url and merged_at and (not latest_clip_generated_at or latest_clip_generated_at <= merged_at) and matches_sources(url_to_local_path(existing_video_url), clip_video_paths):
         return {"success": True, "video_url": existing_video_url, "plan": plan, "skipped": True}
 
     story_dir = file_storage._get_story_dir(novel_id)
@@ -1323,6 +1905,8 @@ async def _save_generated_video(
         return
 
     if local_path:
+        from app.services.rendered_subtitles import lock_generated_audio
+        await lock_generated_audio(file_storage, local_path, (clip or {}).get("subtitle_audio_path"), (clip or {}).get("subtitle_snapshot"))
         relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
         local_url = f"/api/files/{relative_path.lstrip('/')}"
 

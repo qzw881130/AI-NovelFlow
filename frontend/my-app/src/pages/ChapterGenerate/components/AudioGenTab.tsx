@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Check, Clock, Image, Loader2, Mic, RefreshCw, Save, Square, Volume2, Wand2, X } from 'lucide-react';
 import { audioDriveApi, type AudioDriveEvent, type AudioDriveExecutionWindow, type AudioTimeline } from '../../../api/audioDrive';
 import { taskApi } from '../../../api/tasks';
 import { useTranslation } from '../../../stores/i18nStore';
 import { useChapterGenerateStore, useShotNavigatorSlice } from '../stores';
+import { BatchShotOption } from './BatchShotOption';
+import { GenerateDialog } from './GenerateDialog';
+import { AudioTimingReview } from './AudioTimingReview';
 
 interface AudioGenTabProps {
   novelId: string;
@@ -157,6 +159,7 @@ function AudioTimelineChart({ timeline }: { timeline: AudioTimeline }) {
           </div>
         </div>
       </div>
+      <div className="mt-3"><AudioTimingReview timeline={timeline} /></div>
     </div>
   );
 }
@@ -187,6 +190,8 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
   const [maxClipDuration, setMaxClipDuration] = useState(15);
   const [clipWindows, setClipWindows] = useState<AudioDriveExecutionWindow[]>([]);
   const [message, setMessage] = useState<string>('');
+  const [voicesOpen, setVoicesOpen] = useState(false);
+  const loadRequestRef = useRef(0);
   const batchDragRef = useRef<{ active: boolean; shouldSelect: boolean; touched: Set<string> }>({
     active: false,
     shouldSelect: true,
@@ -228,35 +233,42 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
 
   const loadAudioDrive = async () => {
     if (!currentShot?.id) return;
+    const request = ++loadRequestRef.current;
     setLoading(true);
     try {
       const [eventsRes, timelineRes] = await Promise.all([
         audioDriveApi.fetchEvents(currentShot.id),
         audioDriveApi.fetchTimeline(currentShot.id),
       ]);
+      if (request !== loadRequestRef.current) return;
       const nextEvents = eventsRes.data?.events || [];
       setEvents(nextEvents);
       setAudioStatus(eventsRes.data?.audioStatus || 'NOT_READY');
       setTimeline(timelineRes.data || null);
-      loadClipWindowsFromShot();
+      // Clip windows follow the current store plan, not this request's older closure.
       setSelectedEventId((prev) => (
         prev && nextEvents.some((event) => event.id === prev)
           ? prev
           : nextEvents[0]?.id || null
       ));
     } catch (error) {
+      if (request !== loadRequestRef.current) return;
       console.error('加载 AudioDrive 数据失败:', error);
       setMessage('加载 AudioDrive 数据失败');
     } finally {
-      setLoading(false);
+      if (request === loadRequestRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
+    setEvents([]);
+    setTimeline(null);
+    setAudioStatus('NOT_READY');
     setSelectedEventId(null);
     setEditingEvent(null);
     setMessage('');
     loadAudioDrive();
+    return () => { loadRequestRef.current += 1; };
   }, [currentShot?.id]);
 
   useEffect(() => {
@@ -477,7 +489,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
   };
 
   const startBatchShotDrag = (shotId: string, isSelected: boolean, event: any) => {
-    if (batchPreparing) return;
+    if (batchPreparing || event.button !== 0) return;
     event.preventDefault();
     const shouldSelect = !isSelected;
     batchDragRef.current = { active: true, shouldSelect, touched: new Set([shotId]) };
@@ -498,7 +510,11 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
   useEffect(() => {
     if (!showBatchAudioModal) return;
     window.addEventListener('pointerup', endBatchShotDrag);
-    return () => window.removeEventListener('pointerup', endBatchShotDrag);
+    window.addEventListener('pointercancel', endBatchShotDrag);
+    return () => {
+      window.removeEventListener('pointerup', endBatchShotDrag);
+      window.removeEventListener('pointercancel', endBatchShotDrag);
+    };
   }, [showBatchAudioModal]);
 
   useEffect(() => {
@@ -584,8 +600,8 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
   }
 
   return (
-    <div className="flex h-full flex-col bg-white">
-      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
+    <div className="generate-audio-tab flex h-full min-w-0 flex-col bg-white">
+      <div className="generate-toolbar flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-semibold text-gray-900">AudioDrive 工作区</h3>
@@ -593,28 +609,33 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
           </div>
           <p className="mt-0.5 text-xs text-gray-500">分镜图生成和音频生成可并行；视频生成前会检查 Audio Timeline / resolved_duration。</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={prepareCurrentShotAudio} disabled={preparingAudio} className="inline-flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-2 text-sm text-white hover:bg-purple-700 disabled:opacity-50">
+        <div className="generate-actions flex flex-wrap items-center gap-2">
+          <button onClick={prepareCurrentShotAudio} disabled={preparingAudio} aria-label="一键准备音频" title="一键准备音频" className="generate-short-action inline-flex items-center gap-1 rounded-lg bg-purple-600 px-3 py-2 text-sm text-white hover:bg-purple-700 disabled:opacity-50">
             {preparingAudio ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-            一键准备音频
+            <span className="hidden lg:inline">一键准备音频</span>
+            <span className="lg:hidden" aria-hidden="true">准备音频</span>
           </button>
-          <button onClick={openBatchAudioModal} disabled={batchPreparing || shots.length === 0} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50">
+          <button onClick={openBatchAudioModal} disabled={batchPreparing || shots.length === 0} aria-label="批量准备音频" title="批量准备音频" className="generate-short-action inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 disabled:opacity-50">
             {batchPreparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
-            批量准备音频
+            <span className="hidden lg:inline">批量准备音频</span>
+            <span className="lg:hidden" aria-hidden="true">批量准备</span>
           </button>
-          <button onClick={() => generateShotTts(false)} disabled={generating || events.length === 0} className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-3 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50">
+          <button onClick={() => generateShotTts(false)} disabled={generating || events.length === 0} aria-label="批量生成 TTS" title="批量生成 TTS" className="generate-short-action inline-flex items-center gap-1 rounded-lg bg-green-600 px-3 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50">
             {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
-            批量生成 TTS
+            <span className="hidden lg:inline">批量生成 TTS</span>
+            <span className="lg:hidden" aria-hidden="true">批量TTS</span>
           </button>
-          <button onClick={() => buildTimeline(false)} disabled={buildingTimeline} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+          <button onClick={() => buildTimeline(false)} disabled={buildingTimeline} aria-label="构建 Timeline" title="构建 Timeline" className="generate-short-action inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
             {buildingTimeline ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-            构建 Timeline
+            <span className="hidden lg:inline">构建 Timeline</span>
+            <span className="lg:hidden" aria-hidden="true">构建时间轴</span>
           </button>
-          <button onClick={() => buildAllClipAudio(false)} disabled={buildingClipAudio !== null || timeline?.status !== 'READY'} className="inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-3 py-2 text-sm text-white hover:bg-cyan-700 disabled:opacity-50">
+          <button onClick={() => buildAllClipAudio(false)} disabled={buildingClipAudio !== null || timeline?.status !== 'READY'} aria-label="构建全部 Clip Audio" title="构建全部 Clip Audio" className="generate-short-action inline-flex items-center gap-1 rounded-lg bg-cyan-600 px-3 py-2 text-sm text-white hover:bg-cyan-700 disabled:opacity-50">
             {buildingClipAudio === 'all' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
-            构建全部 Clip Audio
+            <span className="hidden lg:inline">构建全部 Clip Audio</span>
+            <span className="lg:hidden" aria-hidden="true">构建Clip</span>
           </button>
-          <button onClick={loadAudioDrive} disabled={loading} className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
+          <button onClick={loadAudioDrive} disabled={loading} aria-label={t('common.refresh')} title={t('common.refresh')} className="generate-icon-action rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
@@ -622,8 +643,19 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
 
       {message && <div className="mx-4 mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-700">{message}</div>}
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        <aside className="w-64 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-3">
+      <details className="mx-3 mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+        <summary className="cursor-pointer font-medium text-gray-700">新构建音轨的混音规则</summary>
+        <p className="mt-2 leading-relaxed">对白和旁白按完整源音频统一电平，目标 -20 dBFS RMS，增益限制为 -6 至 +6 dB，采样峰值不超过 -1 dBFS。静音不会被放大，Drive 仍只包含可见口型语音。</p>
+        <p className="mt-2 leading-relaxed">已有 READY 音轨继续复用；新建或显式重建采用新混音，写入新文件并保留旧音频，不重新生成 TTS，也不自动替换已交付视频。此处不是 LUFS 或真峰值测量。</p>
+      </details>
+
+      <div className="generate-audio-content flex min-h-0 flex-1 overflow-hidden">
+        <aside className="generate-voices w-64 shrink-0 overflow-y-auto border-r border-gray-200 bg-gray-50 p-3" data-open={voicesOpen}>
+          <button type="button" className="mb-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-left text-sm lg:hidden"
+            aria-expanded={voicesOpen} aria-controls="generate-voice-list" onClick={() => setVoicesOpen(!voicesOpen)}>
+            Voice Profile ({sortedCharacters.length}) · {voicesOpen ? t('common.collapse') : t('common.expand')}
+          </button>
+          <div id="generate-voice-list">
           <h4 className="text-sm font-medium text-gray-800">Voice Profile</h4>
           <p className="mb-3 text-xs text-gray-500">角色库音色，可与分镜图生成并行准备</p>
           <div className="space-y-2">
@@ -644,16 +676,17 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
               </div>
             ))}
           </div>
+          </div>
         </aside>
 
-        <aside className="w-72 shrink-0 overflow-y-auto border-r border-gray-200 p-3">
+        <aside className="generate-audio-events w-72 shrink-0 overflow-y-auto border-r border-gray-200 p-3">
           <div className="mb-3 flex items-center justify-between">
             <div>
               <h4 className="text-sm font-medium text-gray-800">Audio Events</h4>
               <p className="text-xs text-gray-500">镜 {currentShotIndex} · {events.length} 个声音事件</p>
             </div>
           </div>
-          <div className="space-y-2">
+          <div className="generate-event-list space-y-2">
             {events.map((event) => (
               <button
                 key={event.id}
@@ -678,14 +711,14 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 overflow-y-auto p-5">
+        <main className="generate-audio-editor min-w-0 flex-1 overflow-y-auto p-5">
           {!editingEvent ? (
             <div className="flex h-full items-center justify-center text-sm text-gray-500">请选择一个 Audio Event</div>
           ) : (
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
               <section className="space-y-4">
                 <div className="rounded-xl border border-gray-200 bg-white p-4">
-                  <div className="mb-4 flex items-center justify-between">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <h4 className="text-base font-semibold text-gray-900">编辑 Audio Event #{editingEvent.order}</h4>
                       <p className="text-xs text-gray-500">Audio Events 是 TTS 的唯一业务输入，dialogues 仅兼容。</p>
@@ -742,10 +775,10 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
                       <input type="checkbox" checked={editingEvent.requiresVisibleLipsync} onChange={(e) => setEditingEvent({ ...editingEvent, requiresVisibleLipsync: e.target.checked })} />
                       需要可见口型驱动
                     </label>
-                    <div className="flex gap-2">
-                      <button onClick={saveEvent} disabled={saving} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
+                    <div className="generate-actions flex flex-wrap gap-2">
+                      <button onClick={saveEvent} disabled={saving} aria-label="保存事件" title="保存事件" className="generate-icon-action inline-flex items-center gap-1 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700 disabled:opacity-50">
                         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        保存事件
+                        <span className="hidden lg:inline">保存事件</span>
                       </button>
                       <button onClick={() => generateSelectedTts(editingEvent.ttsStatus === 'READY')} disabled={generating || !editingEvent.text} className="inline-flex items-center gap-1 rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50">
                         {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mic className="h-4 w-4" />}
@@ -767,7 +800,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
                 </div>
               </section>
 
-              <aside className="space-y-4">
+              <aside className="generate-audio-sidebar space-y-4">
                 <div className="rounded-xl border border-gray-200 bg-white p-4">
                   <h4 className="text-sm font-semibold text-gray-900">前置准备</h4>
                   <div className="mt-3 space-y-2 text-sm">
@@ -845,7 +878,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-gray-200 bg-white p-4">
+                <div className="generate-audio-timeline rounded-xl border border-gray-200 bg-white p-4">
                   <div className="mb-3 flex items-center justify-between">
                     <h4 className="text-sm font-semibold text-gray-900">Audio Timeline</h4>
                     <StatusBadge status={timeline?.status} />
@@ -861,8 +894,8 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
           )}
         </main>
       </div>
-      {showBatchAudioModal && createPortal((
-        <div className="fixed inset-0 isolate z-[300] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
+      {showBatchAudioModal && (
+        <GenerateDialog label="选择要准备音频的分镜" busy={batchPreparing} onClose={() => setShowBatchAudioModal(false)}>
           <div className="flex max-h-[84vh] w-full max-w-4xl flex-col rounded-xl bg-white shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-5 py-4">
               <div>
@@ -888,26 +921,20 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {selectableBatchShots.map((shot: any) => {
                   const shotId = String(shot.id);
                   const isSelected = selectedBatchShotIds.has(shotId);
                   const isReady = audioReadyShotIds.has(shotId);
                   const imageUrl = shot.imageUrl || shot.image_url;
                   return (
-                    <button
+                    <BatchShotOption
                       key={shotId}
-                      type="button"
-                      onClick={(event) => event.preventDefault()}
-                      onPointerDown={(event) => startBatchShotDrag(shotId, isSelected, event)}
-                      onPointerEnter={() => enterBatchShotDrag(shotId)}
-                      onPointerUp={endBatchShotDrag}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          toggleBatchShot(shotId);
-                        }
-                      }}
+                      selected={isSelected}
+                      aria-label={`镜${shot.index}`}
+                      onToggle={() => toggleBatchShot(shotId)}
+                      onSelectionStart={(event) => startBatchShotDrag(shotId, isSelected, event)}
+                      onSelectionEnter={() => enterBatchShotDrag(shotId)}
                       disabled={batchPreparing}
                       className={`relative aspect-video select-none overflow-hidden rounded-lg border-2 text-left transition-all disabled:cursor-not-allowed disabled:opacity-70 ${isSelected ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 bg-gray-50 hover:border-blue-300'}`}
                     >
@@ -919,7 +946,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
                       <div className={`absolute bottom-0 left-0 right-0 px-2 py-1 text-center text-xs text-white ${isReady ? 'bg-green-600/85' : 'bg-black/60'}`}>
                         {isReady ? '音频 READY' : '待准备'}
                       </div>
-                    </button>
+                    </BatchShotOption>
                   );
                 })}
               </div>
@@ -936,8 +963,8 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
               </div>
             </div>
           </div>
-        </div>
-      ), document.body)}
+        </GenerateDialog>
+      )}
     </div>
   );
 }

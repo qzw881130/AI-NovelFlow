@@ -31,39 +31,132 @@ def load_template(filename: str) -> str:
 SYSTEM_STYLE_TEMPLATES: List[Dict] = [
     {
         "name": "动漫风格",
-        "description": "适用于动漫风格的图片生成",
-        "template": "anime style, high quality, detailed, professional artwork",
+        "description": "二维动漫渲染，清晰线稿、赛璐璐分层阴影与统一色彩",
+        "template": """2D anime rendering with precise, clean linework and controlled line weight,
+flat local colors, crisp cel-shaded shadow shapes and restrained highlights,
+consistent drawn contours and shading across characters, environments and props,
+readable silhouettes and material cues expressed through line and color rather than photorealistic textures.
+Preserve authored identities, clothing, props, architecture and world details; change rendering only.""",
         "type": "style"
     },
     {
         "name": "写实风格",
-        "description": "适用于写实风格的图片生成",
-        "template": """photorealistic historical cinematic aesthetic,
-live-action Three Kingdoms period drama,
-historically grounded late Eastern Han dynasty visual design,
-authentic period materials, craftsmanship and architecture,
-realistic fabric, leather, wood, stone, bronze and metal textures,
-natural physically plausible lighting,
-cinematic but restrained presentation,
-subtle restrained color grading,
-historically grounded proportions and construction,
-highly detailed realistic surfaces,
-no illustration, no anime, no cartoon,
-no painterly rendering, no stylized game aesthetic,
-no fantasy elements, no modern elements,
-consistent photorealistic visual universe""",
+        "description": "电影级写实质感，自然光影与可信材质，时代和世界观遵循故事",
+        "template": """cinematic photorealistic rendering with physically plausible light and shadow,
+believable surface textures, material-specific reflections and fine natural detail,
+coherent anatomy and object construction, restrained color grading and natural tonal range,
+consistent photographic realism across characters, environments and props.
+Era, technology, clothing, architecture and materials follow the story, including modern or fantastical elements when authored.
+Preserve authored identities, clothing, props, architecture and world details; change rendering only.""",
         "type": "style"
     },
     {
         "name": "Q版风格",
-        "description": "适用于Q版卡通风格的图片生成",
-        "template": "chibi style, cute cartoon style, kawaii, colorful",
+        "description": "稳定头身比的二维Q版角色，场景和道具保持原有结构与功能比例",
+        "template": """2D chibi cartoon rendering with clean rounded linework, flat colors and simple cel shading,
+depicted humanoid characters use stable 2.5-to-3-head-tall proportions and simplified facial features,
+retain recognizable age cues, species traits, hairstyles, clothing and identity-defining details.
+Environments and props share the same 2D linework and shading while retaining their authored structure, functional proportions and relative scale; do not give buildings or objects chibi anatomy.
+Preserve authored identities, clothing, props, architecture and world details; stylize character proportions without redesigning the story.""",
         "type": "style"
     },
     {
         "name": "水墨风格",
-        "description": "适用于中国传统水墨画风格的图片生成",
-        "template": "Chinese ink painting style, traditional art, elegant, artistic",
+        "description": "毛笔墨韵、浓淡晕染与宣纸肌理，以墨色和克制淡彩统一画面",
+        "template": """Chinese ink-wash rendering with expressive brush pressure, dry-brush edges and wet ink diffusion,
+layered ink values and soft wash transitions on subtly textured absorbent paper,
+an ink-led palette with restrained color washes retaining identity-defining color cues,
+forms and material differences described through brushwork and ink density,
+consistent ink-and-paper treatment across characters, environments and props.
+Preserve authored identities, clothing, props, architecture and world details; change rendering only, without adding traditional motifs or changing the story era.""",
+        "type": "style"
+    },
+    {
+        "name": "3D动画风格",
+        "description": "风格化三维动画质感，清晰体积、柔和光照与统一材质表现",
+        "template": """stylized 3D animation rendering with clean modeled forms and readable volumes,
+smooth surface shading, soft bounced light and coherent contact shadows,
+controlled material roughness and restrained specular highlights,
+selective surface detail that supports the authored designs without photorealistic texture noise,
+consistent three-dimensional rendering across characters, environments and props.
+Preserve authored identities, proportions, clothing, props, architecture and world details; change rendering only.""",
+        "type": "style"
+    },
+    {
+        "name": "水彩绘本风格",
+        "description": "透明水彩叠色、柔和边缘与纸张颗粒，呈现手绘绘本质感",
+        "template": """watercolor picture-book rendering with transparent layered washes and delicate pigment granulation,
+soft bleeding edges balanced with selective fine drawn contours,
+visible watercolor paper texture and subtle variations in pigment density,
+harmonized colors that retain identity-defining color cues and readable material differences,
+consistent hand-painted treatment across characters, environments and props.
+Preserve authored identities, proportions, clothing, props, architecture and world details; change rendering only.""",
+        "type": "style"
+    },
+    {
+        "name": "油画风格",
+        "description": "油彩笔触、层叠罩染与画布肌理，强调色彩和明暗塑形",
+        "template": """oil painting rendering with visible directional brushwork and subtle canvas grain,
+layered opaque paint and translucent glazes, selective impasto highlights,
+forms modeled through coherent tonal values, warm-cool color relationships and controlled edges,
+material distinctions conveyed through paint handling rather than photographic texture,
+consistent oil-painted treatment across characters, environments and props.
+Preserve authored identities, proportions, clothing, props, architecture and world details; change rendering only.""",
+        "type": "style"
+    },
+    {
+        "name": "美式漫画风格",
+        "description": "美式漫画墨线、鲜明色块、排线与半色调网点表现",
+        "template": """American comic-book rendering with confident ink contours and varied line weight,
+bold flat color shapes, graphic shadow masses, selective crosshatching and halftone texture,
+clear silhouettes and controlled high-contrast value separation,
+material differences expressed through ink marks and color rather than photographic surfaces,
+consistent printed-comic treatment across characters, environments and props.
+Preserve authored identities, proportions, clothing, props, architecture and world details; change rendering only, without inventing superhero costumes or exaggerated musculature.""",
+        "type": "style"
+    },
+    {
+        "name": "像素艺术风格",
+        "description": "统一像素网格、有限色板与清晰像素簇，避免模糊和平滑渐变",
+        "template": """pixel art rendering on a consistent square pixel grid with deliberate pixel clusters,
+crisp stepped edges, a limited coordinated palette and discrete color ramps,
+selective ordered dithering for tonal transitions, without smooth gradients, blur or anti-aliased contours,
+readable silhouettes and essential identity details at a consistent pixel density,
+the same pixel-based treatment across characters, environments and props.
+Preserve authored identities, proportions, clothing, props, architecture and world details; simplify surface detail without adding game interface elements.""",
+        "type": "style"
+    },
+    {
+        "name": "剪纸艺术风格",
+        "description": "剪纸轮廓、层叠色纸与轻微投影，保留主体轮廓和辨识细节",
+        "template": """layered cut-paper art rendering with crisp cut edges and carefully shaped paper silhouettes,
+flat colored paper surfaces, subtle paper fibers and slight shadows between overlapping layers,
+forms and material differences translated into coherent paper shapes and color layers,
+retain identity-defining colors and details instead of reducing every subject to a generic silhouette,
+consistent paper-crafted treatment across characters, environments and props.
+Preserve authored identities, proportions, clothing, props, architecture and world details; change rendering only, without adding decorative folk motifs.""",
+        "type": "style"
+    },
+    {
+        "name": "黏土定格风格",
+        "description": "手工黏土定格质感，柔和体积、细微塑形痕迹与哑光表面",
+        "template": """clay stop-motion aesthetic with tactile hand-sculpted surfaces and softly shaped volumes,
+subtle tool marks, gentle surface irregularities and mostly matte material response,
+soft light, coherent contact shadows and restrained highlights,
+authored materials remain recognizable through their colors, shapes and sculpted surface cues,
+consistent handcrafted clay rendering across characters, environments and props.
+Preserve authored identities, proportions, clothing, props, architecture and world details; change rendering only, without turning subjects into generic toys.""",
+        "type": "style"
+    },
+    {
+        "name": "国风工笔风格",
+        "description": "工笔细线勾勒、层层设色与绢纸质感，细致保留服饰和器物特征",
+        "template": """Chinese gongbi fine-brush painting rendering with delicate controlled outlines,
+precise contour definition, meticulous small details and evenly layered translucent color,
+subtle silk or fine-paper texture, refined tonal transitions and restrained mineral-pigment richness,
+material differences expressed through fine linework and careful color layering rather than loose ink splashes,
+consistent fine-brush treatment across characters, environments and props.
+Preserve authored identities, proportions, clothing, props, architecture and world details; change rendering only, without adding historical costumes, ornaments or a different era.""",
         "type": "style"
     }
 ]

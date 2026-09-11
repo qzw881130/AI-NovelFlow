@@ -87,6 +87,7 @@ class LLMService:
         model_limits = {
             "deepseek-v4-flash": 393216,
             "deepseek-v4-pro": 393216,
+            "deepseek-v4-flash-vision-exp": 393216,
         }
         limit = model_limits.get(self.model)
         if limit is not None:
@@ -96,7 +97,7 @@ class LLMService:
     async def chat_completion(
         self,
         system_prompt: str,
-        user_content: str,
+        user_content: str | List[Dict[str, Any]],
         temperature: float = DEFAULT_TEMPERATURE,
         max_tokens: Optional[int] = None,
         response_format: Optional[str] = None,
@@ -124,7 +125,8 @@ class LLMService:
         if final_max_tokens is None:
             final_max_tokens = DEFAULT_MAX_TOKENS
         final_max_tokens = self._normalize_max_tokens(final_max_tokens)
-        print(f"[chat_completion] url: {self.api_url}, model: {self.model}, temperature: {final_temperature}, max_tokens: {final_max_tokens} \n system_prompt: {system_prompt}\n user_content: {user_content}")
+        logged_content = user_content if isinstance(user_content, str) else "[multimodal content]"
+        print(f"[chat_completion] url: {self.api_url}, model: {self.model}, temperature: {final_temperature}, max_tokens: {final_max_tokens} \n system_prompt: {system_prompt}\n user_content: {logged_content}")
 
         client = self._get_client()
         return await client.chat_completion(

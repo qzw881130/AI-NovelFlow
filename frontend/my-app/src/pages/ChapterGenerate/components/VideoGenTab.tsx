@@ -9,7 +9,8 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { BatchShotOption } from './BatchShotOption';
+import { GenerateDialog } from './GenerateDialog';
 import { useChapterGenerateStore } from '../stores';
 import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info, ChevronLeft, ChevronRight, RefreshCw, Sparkles, PictureInPicture } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
@@ -92,7 +93,7 @@ const getAudioDriveReadiness = (shot: any) => {
     ? plan.clips
     : Array.isArray(plan.window_plans) && plan.window_plans.length > 0
     ? plan.window_plans
-    : Array.isArray(plan.execution_windows)
+    : Array.isArray(plan.execution_windows) && (mode === 'MULTI_KEYFRAME' || plan.execution_windows.length > 0)
       ? plan.execution_windows
       : Array.isArray(plan.clips)
         ? plan.clips
@@ -897,7 +898,7 @@ function VideoDirectorPanel({
 
   return (
     <>
-    <div className="flex-shrink-0 border border-gray-200 rounded-lg p-4 space-y-4 bg-white">
+    <div className="generate-video-director flex-shrink-0 border border-gray-200 rounded-lg p-4 space-y-4 bg-white">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2 min-w-0">
@@ -913,20 +914,24 @@ function VideoDirectorPanel({
           <button
             type="button"
             onClick={onOpenPromptModal}
-            className="px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+            aria-label="AI提示词"
+            title="AI提示词"
+            className="generate-icon-action px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-700 hover:bg-blue-100 transition-colors flex items-center gap-1.5 whitespace-nowrap"
           >
             <Copy className="w-4 h-4" />
-            AI提示词
+            <span className="hidden lg:inline">AI提示词</span>
           </button>
           <button
             type="button"
             onClick={() => onRecommend(true)}
             disabled={isRecommending || !!isShotVideoGenerating}
-            title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再重新推荐' : undefined}
-            className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
+            aria-label="重新推荐视频生成模式"
+            title={isShotVideoGenerating ? '重新推荐视频生成模式 · 当前 Shot 视频生成中，请等待完成后再重新推荐' : '重新推荐视频生成模式'}
+            className="generate-short-action px-3 py-1.5 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-1.5 whitespace-nowrap"
           >
             <RefreshCw className={`w-4 h-4 ${isRecommending ? 'animate-spin' : ''}`} />
-            重新推荐视频生成模式
+            <span className="hidden lg:inline">重新推荐视频生成模式</span>
+            <span className="lg:hidden" aria-hidden="true">重新推荐</span>
           </button>
         </div>
       </div>
@@ -973,7 +978,7 @@ function VideoDirectorPanel({
       )}
 
       {selectedMode === 'SINGLE_FRAME' && (
-        <div className="grid grid-cols-[minmax(260px,45%)_1fr] gap-4">
+        <div className="generate-director-grid grid grid-cols-[minmax(260px,45%)_1fr] gap-4">
           <div>
             <div className="text-xs font-medium text-gray-600 mb-2">起始帧</div>
             <div className="relative aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200">
@@ -1250,7 +1255,7 @@ function VideoDirectorPanel({
             </div>
           </div>
 
-          <div className="grid grid-cols-[minmax(260px,45%)_1fr] gap-4">
+          <div className="generate-director-grid grid grid-cols-[minmax(260px,45%)_1fr] gap-4">
             <div>
               <div className="relative aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
                 {isKeyframeGenerating(selectedKeyframe) ? (
@@ -1334,7 +1339,7 @@ function VideoDirectorPanel({
           </div>
         )}
         {clips.length > 0 ? (
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3">
+          <div className="generate-director-grid grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3">
             {clips.map((clip: any) => {
               const clipIndex = clip.clip_index || clip.window_index;
               const frameCount = clip.selected_frame_count || clip.frame_count;
@@ -1741,6 +1746,7 @@ export function VideoGenTab({
   const [isRefreshingVideo, setIsRefreshingVideo] = useState(false);
   const [selectedPreviewClipKey, setSelectedPreviewClipKey] = useState<string | null>(null);
   const [regeneratingClipKey, setRegeneratingClipKey] = useState<string | null>(null);
+  const [regeneratingClipTask, setRegeneratingClipTask] = useState<{ taskId: string; shotId: string } | null>(null);
   const [isMergingClips, setIsMergingClips] = useState(false);
   const [isCancellingVideo, setIsCancellingVideo] = useState(false);
   const [isRefreshingAiCalls, setIsRefreshingAiCalls] = useState(false);
@@ -2310,13 +2316,42 @@ export function VideoGenTab({
   useEffect(() => {
     setSelectedPreviewClipKey(null);
     setRegeneratingClipKey(null);
+    setRegeneratingClipTask(null);
   }, [currentShotId]);
 
   useEffect(() => {
-    if (!isGeneratingCurrent && !isCurrentVideoPending) {
-      setRegeneratingClipKey(null);
+    if (!regeneratingClipTask) return;
+    if (regeneratingClipTask.shotId !== currentShotId) {
+      setRegeneratingClipTask(null);
+      return;
     }
-  }, [isCurrentVideoPending, isGeneratingCurrent]);
+    let stopped = false;
+    let inFlight = false;
+    const pollClipTask = async () => {
+      if (stopped || inFlight) return;
+      inFlight = true;
+      try {
+        const result = await taskApi.fetch(regeneratingClipTask.taskId);
+        if (stopped || !result.success || !result.data) return;
+        if (['completed', 'failed', 'cancelled'].includes(result.data.status)) {
+          setRegeneratingClipKey(null);
+          setRegeneratingClipTask(null);
+          if (result.data.status === 'completed') {
+            toast.success('Clip 结果已保存在任务列表，不会替换整体视频；整体视频需新建完整执行。');
+          } else {
+            toast.error(result.data.errorMessage || 'Clip 生成已终止');
+          }
+        }
+      } catch (error) {
+        console.error('检查 Clip 任务失败:', error);
+      } finally {
+        inFlight = false;
+      }
+    };
+    void pollClipTask();
+    const interval = setInterval(pollClipTask, 3000);
+    return () => { stopped = true; clearInterval(interval); };
+  }, [currentShotId, regeneratingClipTask]);
 
   const hasVideo = !!currentShotVideoUrl;
   const hasPreviewVideo = !!previewVideoUrl;
@@ -2466,7 +2501,7 @@ export function VideoGenTab({
       toast.info(`C${windowIndex} 缺少可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频。`);
       return;
     }
-    if (clip.video_url && !window.confirm(`确认重新生成 C${windowIndex}？完成后会自动重新合并整体视频。`)) return;
+    if (clip.video_url && !window.confirm(`确认重新生成 C${windowIndex}？结果仅保存在任务列表，不会替换或自动合并整体视频。`)) return;
 
     const clipKey = getPlanClipKey(clip);
     setRegeneratingClipKey(clipKey);
@@ -2474,15 +2509,12 @@ export function VideoGenTab({
     try {
       const result = await shotsApi.generateVideoDirectorClip(effectiveNovelId, effectiveChapterId, currentShotId, windowIndex, {
         use_reference_audio: true,
-        auto_merge: true,
+        auto_merge: false,
         skip_llm_when_prompt_exists: useExistingPrompt,
       });
-      if (result.success) {
-        useChapterGenerateStore.setState(state => ({ generatingVideos: new Set([...state.generatingVideos, currentShotId]) }));
-        setShots(useChapterGenerateStore.getState().shots.map((shot: any) => (
-          String(shot.id) === currentShotId ? { ...shot, videoStatus: 'generating', videoTaskId: result.data?.taskId || shot.videoTaskId } : shot
-        )));
-        toast.success(`C${windowIndex} 已提交${useExistingPrompt ? '仅生成视频' : 'LLM+生成视频'}，完成后会自动合并`);
+      if (result.success && result.data?.taskId) {
+        setRegeneratingClipTask({ taskId: result.data.taskId, shotId: currentShotId });
+        toast.success(`C${windowIndex} 已提交${useExistingPrompt ? '仅生成视频' : 'LLM+生成视频'}；结果仅保存在任务列表`);
       } else {
         setRegeneratingClipKey(null);
         toast.error(formatUserFacingError(result.message || result.detail || 'Clip 重新生成失败'));
@@ -2492,7 +2524,7 @@ export function VideoGenTab({
       console.error('Clip 重新生成失败:', error);
       toast.error('Clip 重新生成失败');
     }
-  }, [currentShotId, effectiveChapterId, effectiveNovelId, setShots, shotsList]);
+  }, [currentShotData, currentShotId, effectiveChapterId, effectiveNovelId]);
 
   const handleMergeDirectorClips = useCallback(async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
@@ -2661,8 +2693,12 @@ export function VideoGenTab({
   useEffect(() => {
     if (!dragSelectionMode) return;
     const handleMouseUp = () => setDragSelectionMode(null);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => window.removeEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointerup', handleMouseUp);
+    window.addEventListener('pointercancel', handleMouseUp);
+    return () => {
+      window.removeEventListener('pointerup', handleMouseUp);
+      window.removeEventListener('pointercancel', handleMouseUp);
+    };
   }, [dragSelectionMode]);
 
   const handleVideoMetadataLoaded = (event: React.SyntheticEvent<HTMLVideoElement>) => {
@@ -2945,8 +2981,12 @@ export function VideoGenTab({
   useEffect(() => {
     if (!mergeSelectionMode) return;
     const handleMouseUp = () => setMergeSelectionMode(null);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => window.removeEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointerup', handleMouseUp);
+    window.addEventListener('pointercancel', handleMouseUp);
+    return () => {
+      window.removeEventListener('pointerup', handleMouseUp);
+      window.removeEventListener('pointercancel', handleMouseUp);
+    };
   }, [mergeSelectionMode]);
 
   // 处理合并视频
@@ -2988,7 +3028,7 @@ export function VideoGenTab({
   const videoCount = shotsList.filter((shot: any) => shot.videoUrl || shotVideos[shot.id]).length;
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="generate-video-tab h-full min-w-0 flex flex-col">
       {currentVideoErrorMessage && (
         <div className="mx-8 mb-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           <div className="font-medium">视频生成失败</div>
@@ -3013,27 +3053,32 @@ export function VideoGenTab({
         )}
       </div>
       {/* 操作栏 */}
-      <div className="flex-shrink-0 flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
-        <div className="ml-8 flex items-center gap-4">
+      <div className="generate-toolbar flex-shrink-0 flex flex-wrap items-center justify-between gap-3 mb-2 pb-2 border-b border-gray-200">
+        <div className="generate-actions ml-8 flex flex-wrap items-center gap-3">
           {isGeneratingCurrent ? (
             <button
               onClick={handleCancelCurrentVideo}
               disabled={isCancellingVideo || !effectiveChapterId}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              aria-label={isCancellingVideo ? t('chapterGenerate.cancellingVideo') : t('chapterGenerate.cancelVideoGeneration')}
+              title={isCancellingVideo ? t('chapterGenerate.cancellingVideo') : t('chapterGenerate.cancelVideoGeneration')}
+              className="generate-short-action px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               <Loader2 className="w-4 h-4 animate-spin" />
-              {isCancellingVideo ? t('chapterGenerate.cancellingVideo') : t('chapterGenerate.cancelVideoGeneration')}
+              <span className="hidden lg:inline">{isCancellingVideo ? t('chapterGenerate.cancellingVideo') : t('chapterGenerate.cancelVideoGeneration')}</span>
+              <span className="lg:hidden" aria-hidden="true">{isCancellingVideo ? '取消中' : '取消生成'}</span>
             </button>
           ) : (
             <div className="relative inline-flex">
               <button
                 onClick={() => handleGenerateVideo('llm')}
                 disabled={!effectiveChapterId || !currentShotId || Boolean(currentVideoGenerateDisabledReason)}
-                title={currentVideoGenerateDisabledReason || undefined}
-                className="px-4 py-2 bg-blue-600 text-white rounded-l-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+                aria-label="LLM+生成当前Shot视频"
+                title={currentVideoGenerateDisabledReason ? `LLM+生成当前Shot视频 · ${currentVideoGenerateDisabledReason}` : 'LLM+生成当前Shot视频'}
+                className="generate-short-action px-4 py-2 bg-blue-600 text-white rounded-l-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
                 <Film className="w-4 h-4" />
-                LLM+生成当前Shot视频
+                <span className="hidden lg:inline">LLM+生成当前Shot视频</span>
+                <span className="lg:hidden" aria-hidden="true">生成</span>
               </button>
               <button
                 type="button"
@@ -3042,7 +3087,7 @@ export function VideoGenTab({
                   setShowGenerateVideoMenu(prev => !prev);
                 }}
                 disabled={!effectiveChapterId || !currentShotId || Boolean(currentVideoGenerateDisabledReason)}
-                title={currentVideoGenerateDisabledReason || undefined}
+                title={currentVideoGenerateDisabledReason ? `选择视频生成方式 · ${currentVideoGenerateDisabledReason}` : '选择视频生成方式'}
                 className="px-2 py-2 bg-blue-600 text-white border-l border-blue-500 rounded-r-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
                 aria-label="选择视频生成方式"
               >
@@ -3073,51 +3118,61 @@ export function VideoGenTab({
           <button
             onClick={handleOpenBatchSelect}
             disabled={isGeneratingAll || !effectiveChapterId}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-label="批量生成视频"
+            title="批量生成视频"
+            className="generate-short-action px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            批量生成视频
+            <span className="hidden lg:inline">批量生成视频</span>
+            <span className="lg:hidden" aria-hidden="true">批量</span>
           </button>
           <button
             onClick={handleSaveShot}
             disabled={isSaving || !effectiveChapterId}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            aria-label={isSaving ? t('common.saving') : '保存视频规划'}
+            title={isSaving ? t('common.saving') : '保存视频规划'}
+            className="generate-icon-action px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             {isSaving ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                {t('common.saving')}
+                <span className="hidden lg:inline">{t('common.saving')}</span>
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                保存视频规划
+                <span className="hidden lg:inline">保存视频规划</span>
               </>
             )}
           </button>
           <button
             onClick={handleDownloadMaterials}
             disabled={isDownloading || !effectiveChapterId}
-            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            aria-label={isDownloading ? t('chapterGenerate.packing') : t('chapterGenerate.downloadMaterials')}
+            title={isDownloading ? t('chapterGenerate.packing') : t('chapterGenerate.downloadMaterials')}
+            className="generate-icon-action px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             {isDownloading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                {t('chapterGenerate.packing')}
+                <span className="hidden lg:inline">{t('chapterGenerate.packing')}</span>
               </>
             ) : (
               <>
                 <Download className="w-4 h-4" />
-                {t('chapterGenerate.downloadMaterials')}
+                <span className="hidden lg:inline">{t('chapterGenerate.downloadMaterials')}</span>
               </>
             )}
           </button>
           <button
             onClick={handleOpenMergeSelect}
             disabled={mergingMode !== null || !effectiveChapterId || videoCount === 0}
-            className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            aria-label={mergingMode ? '提交任务中...' : t('chapterGenerate.mergeVideo')}
+            title={mergingMode ? '提交任务中...' : t('chapterGenerate.mergeVideo')}
+            className="generate-short-action px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             {mergingMode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Combine className="w-4 h-4" />}
-            {mergingMode ? '提交任务中...' : t('chapterGenerate.mergeVideo')}
+            <span className="hidden lg:inline">{mergingMode ? '提交任务中...' : t('chapterGenerate.mergeVideo')}</span>
+            <span className="lg:hidden" aria-hidden="true">{mergingMode ? '提交中' : '合并'}</span>
           </button>
         </div>
         <div className="mr-8 flex min-w-[220px] max-w-[360px] flex-col items-end gap-1 text-right">
@@ -3137,7 +3192,7 @@ export function VideoGenTab({
       </div>
 
       {/* 内容区 - 主编辑区 + 右侧视频预览 */}
-      <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 overflow-hidden">
+      <div className="generate-video-content flex-1 min-h-0 flex flex-col lg:flex-row gap-4 overflow-hidden">
         {/* 中间：视频提示词编辑 + 视频导演 */}
         <div className="video-main-column flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto pr-1">
           <VideoDirectorPanel
@@ -3170,7 +3225,7 @@ export function VideoGenTab({
         </div>
 
         {/* 右侧：视频预览 + AI 调用结果 */}
-        <div className="flex-shrink-0 lg:w-[360px] xl:w-[420px] min-h-0 flex flex-col gap-3 overflow-hidden">
+        <div className="generate-video-preview flex-shrink-0 lg:w-[360px] xl:w-[420px] min-h-0 flex flex-col gap-3 overflow-hidden">
         <div className="video-preview-card h-[360px] flex-shrink-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden bg-white">
           <div className="flex-shrink-0 p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
             <div>
@@ -3192,11 +3247,12 @@ export function VideoGenTab({
                 type="button"
                 onClick={handleRefreshCurrentVideo}
                 disabled={isRefreshingVideo || !effectiveChapterId || !currentShotId}
-                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-white hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                aria-label="刷新视频预览"
+                className="generate-icon-action inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-600 hover:bg-white hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 title="刷新视频预览"
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingVideo ? 'animate-spin' : ''}`} />
-                刷新
+                <span className="hidden lg:inline">刷新</span>
               </button>
             </div>
           </div>
@@ -3319,8 +3375,8 @@ export function VideoGenTab({
       </div>
 
       {/* 批量选择分镜弹窗 */}
-      {showBatchSelectModal && createPortal((
-        <div className="fixed inset-0 isolate z-[300] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
+      {showBatchSelectModal && (
+        <GenerateDialog label={t('chapterGenerate.selectShotsToGenerate')} onClose={() => setShowBatchSelectModal(false)}>
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             {/* 弹窗头部 */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -3361,7 +3417,7 @@ export function VideoGenTab({
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {shotsList.map((shot: any, idx: number) => {
                   const shotIndex = idx + 1;
                   const shotId = shot?.id ? String(shot.id) : '';
@@ -3373,10 +3429,14 @@ export function VideoGenTab({
                   const shotImageUrl = getShotImageUrl(shot);
 
                   return (
-                    <div
+                    <BatchShotOption
                       key={shot.id || `shot-${shotIndex}`}
-                      onMouseDown={(event) => handleBatchShotMouseDown(event, shotId, isSelectable)}
-                      onMouseEnter={() => handleBatchShotMouseEnter(shotId, isSelectable)}
+                      selected={isSelected}
+                      disabled={!isSelectable}
+                      aria-label={`镜${shotIndex}`}
+                      onToggle={() => applyBatchShotSelection(shotId, isSelected ? 'deselect' : 'select')}
+                      onSelectionStart={(event) => handleBatchShotMouseDown(event, shotId, isSelectable)}
+                      onSelectionEnter={() => handleBatchShotMouseEnter(shotId, isSelectable)}
                       title={isSelectable ? '可生成' : eligibility.reason}
                       className={`
                         relative aspect-video rounded-lg border-2 transition-all
@@ -3437,7 +3497,7 @@ export function VideoGenTab({
                       <div className="absolute bottom-0 left-0 right-0 z-20 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg truncate">
                         {isSelectable ? (hasVideo ? t('chapterGenerate.generated') : t('chapterGenerate.pending')) : eligibility.reason}
                       </div>
-                    </div>
+                    </BatchShotOption>
                   );
                 })}
               </div>
@@ -3494,12 +3554,12 @@ export function VideoGenTab({
               </div>
             </div>
           </div>
-        </div>
-      ), document.body)}
+        </GenerateDialog>
+      )}
 
       {/* 合并视频选择弹窗 */}
-      {showMergeSelectModal && createPortal((
-        <div className="fixed inset-0 isolate z-[300] flex items-center justify-center bg-black/60 p-4 backdrop-blur-[1px]">
+      {showMergeSelectModal && (
+        <GenerateDialog label="选择要合并的分镜视频" onClose={() => setShowMergeSelectModal(false)}>
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
               <div>
@@ -3541,7 +3601,7 @@ export function VideoGenTab({
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {shotsList.map((shot: any, idx: number) => {
                   const shotId = shot?.id ? String(shot.id) : '';
                   const shotIndex = shot.index || idx + 1;
@@ -3553,10 +3613,14 @@ export function VideoGenTab({
                   const statusLabel = videoUrl ? '已生成' : isGenerating ? '生成中' : isFailed ? '失败' : '未生成';
 
                   return (
-                    <div
+                    <BatchShotOption
                       key={shotId || `merge-shot-${shotIndex}`}
-                      onMouseDown={(event) => handleMergeShotMouseDown(event, shotId, isSelectable)}
-                      onMouseEnter={() => handleMergeShotMouseEnter(shotId, isSelectable)}
+                      selected={isSelected}
+                      disabled={!isSelectable}
+                      aria-label={`镜${shotIndex}`}
+                      onToggle={() => applyMergeShotSelection(shotId, isSelected ? 'deselect' : 'select')}
+                      onSelectionStart={(event) => handleMergeShotMouseDown(event, shotId, isSelectable)}
+                      onSelectionEnter={() => handleMergeShotMouseEnter(shotId, isSelectable)}
                       title={isSelectable ? `镜${shotIndex} 可合并` : `镜${shotIndex} ${statusLabel}`}
                       className={`
                         relative aspect-video rounded-lg border-2 transition-all
@@ -3585,7 +3649,7 @@ export function VideoGenTab({
                       <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg truncate">
                         {statusLabel} · {Number(shot.duration || 0)}s
                       </div>
-                    </div>
+                    </BatchShotOption>
                   );
                 })}
               </div>
@@ -3613,8 +3677,8 @@ export function VideoGenTab({
               </div>
             </div>
           </div>
-        </div>
-      ), document.body)}
+        </GenerateDialog>
+      )}
 
       {/* 图片预览弹窗 */}
       <ImagePreviewModal

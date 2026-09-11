@@ -91,7 +91,8 @@ def test_planning_call_preserves_ready_audio_and_canonical_duration(monkeypatch,
         "clip_audio_manifest_path": "/audio/manifest.json", "clip_audio_duration": 14.3,
     }
     binding = {"window_index": 1, "start_time": 0, "end_time": 14.3, **audio}
-    timeline = {"audio_required_duration": 14.3, "resolved_duration": 14.3, "events": []}
+    timeline = {"id": "timeline", "revision": 2, "source_hash": "hash",
+                "audio_required_duration": 14.3, "resolved_duration": 14.3, "events": []}
     plan = {"selected_mode": mode, "workflow_capability": {"max_clip_duration": 15},
             "keyframe_planning_status": "STALE", "keyframe_planning_message": "Old audio build",
             "audio_timeline": timeline, source: [deepcopy(binding)]}
@@ -103,8 +104,12 @@ def test_planning_call_preserves_ready_audio_and_canonical_duration(monkeypatch,
             setattr(obj, key, json.dumps(value) if isinstance(value, (dict, list)) else value)
 
     repo = Mock(get_by_id=Mock(return_value=shot), update=Mock(side_effect=update))
+    monkeypatch.setattr(shots, "_latest_audio_timeline_for_shot", Mock(return_value=SimpleNamespace(
+        id="timeline", revision=2, generated_from_hash="hash", status="READY")))
+    monkeypatch.setattr(shots, "_sync_latest_audio_timeline_into_plan", lambda *_: json.loads(shot.video_director_plan))
     template = SimpleNamespace(name="08 V2", template=(Path(__file__).parents[1] / "prompt_templates/08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt").read_text())
     monkeypatch.setattr(shots, "_get_keyframe_planner_template", Mock(return_value=template))
+    monkeypatch.setattr(shots, "get_style", Mock(return_value=("test ink style", None)))
     transitions = AsyncMock(return_value=[])
     monkeypatch.setattr(shots, "_plan_keyframe_transitions", transitions)
     llm = SimpleNamespace(chat_completion=AsyncMock(return_value={"success": True, "content": json.dumps(planner_result(mode))}))
@@ -130,8 +135,35 @@ def test_planning_call_preserves_ready_audio_and_canonical_duration(monkeypatch,
     assert llm.chat_completion.await_count == 1
     payload = json.loads(llm.chat_completion.call_args.kwargs["user_content"].split("\n\n", 1)[1])
     assert payload["shot"]["duration"] == 14.3
+    assert payload["visual_style"] == "test ink style"
+    assert "##STYLE##" not in llm.chat_completion.call_args.kwargs["system_prompt"]
+    assert "test ink style" in llm.chat_completion.call_args.kwargs["system_prompt"]
+    assert "##STYLE##" in template.template
     if mode == "FIRST_LAST_FRAME":
         assert payload["execution_windows"] == []
         assert saved["window_plans"] == []
     else:
         assert len(payload["execution_windows"]) == 1
+
+
+@pytest.mark.parametrize("change", [None, "time_seconds", "description", "role", "index", "missing_time"])
+def test_replan_reuses_only_state_compatible_images(change):
+    frame = {"index": 2, "role": "END", "time_seconds": 10, "description": "End"}
+    legacy = {**frame, "plan_keyframe_index": 2, "image_url": "/existing.png", "image_task_id": "producer"}
+    if change == "index":
+        legacy["plan_keyframe_index"] = 5
+    elif change == "missing_time":
+        legacy.pop("time_seconds")
+        frame.pop("time_seconds")
+    elif change:
+        legacy[change] = {"time_seconds": 5, "description": "Different state", "role": "INTERMEDIATE"}[change]
+    shot = Shot(description="Start", keyframes=json.dumps([legacy]))
+    hydrated = shots._hydrate_plan_keyframes_from_legacy(shot, [frame])[0]
+    assert hydrated.get("image_url") == ("/existing.png" if change in (None, "index") else None)
+
+
+def test_single_window_images_cannot_fake_a_two_window_reuse_plan():
+    shot = Shot(description="Start", video_description="End", keyframes="[]")
+    plan = {"keyframes": [{"time_seconds": time, "description": str(time), "image_url": f"/{time}.png"} for time in (5, 10)]}
+    windows = [{"window_index": 1, "start_time": 0, "end_time": 4.137}, {"window_index": 2, "start_time": 4.137, "end_time": 10}]
+    assert shots._build_reused_three_frame_keyframe_plan(shot, plan, windows, 10) is None

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import asyncio
 
 from app.api import audio_drive, characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props
-from app.api import novels, chapters, shots
+from app.api import novels, chapters, shots, chapter_subtitles
 from app.core.database import engine, Base
 from app.services.comfyui_monitor import init_monitor
 # 导入所有模型以确保创建表
@@ -194,6 +194,7 @@ app.include_router(config.router, prefix="/api/config", tags=["config"])
 # 小说相关路由（拆分为多个模块）
 app.include_router(novels.router, prefix="/api/novels", tags=["novels"])
 app.include_router(chapters.router, prefix="/api/novels", tags=["novels"])
+app.include_router(chapter_subtitles.router, prefix="/api/novels", tags=["audio-drive"])
 app.include_router(shots.router, prefix="/api/novels", tags=["novels"])
 app.include_router(characters.router, prefix="/api/characters", tags=["characters"])
 app.include_router(scenes.router, prefix="/api/scenes", tags=["scenes"])

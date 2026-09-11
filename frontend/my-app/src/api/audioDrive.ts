@@ -50,7 +50,25 @@ export interface AudioTimeline {
   totalDuration: number;
   status: TimelineStatus;
   audioSummary: Record<string, any>;
+  timingSummary?: AudioTimingSummary;
   events: AudioTimelineEvent[];
+}
+
+export interface AudioTimingSummary {
+  measurementBasis: 'READY_TTS_ASSET_FILE_DURATION';
+  ttsEventCount: number;
+  readyTtsEventCount: number;
+  ttsCoverageComplete: boolean;
+  unmeasuredAudioEventIds: string[];
+  measuredTtsDurationSeconds: number;
+  measuredTtsCoverageSeconds: number;
+  lastTtsFileEndSeconds: number | null;
+  authoredFinalPauseSeconds: number | null;
+  visualEstimatedFloorSeconds: number;
+  resolvedDurationSeconds: number;
+  remainingNonSpeechHoldSeconds: number | null;
+  holdAfterAuthoredFinalPauseSeconds: number | null;
+  longTailReviewSuggested: boolean;
 }
 
 export interface AudioDriveExecutionWindow {

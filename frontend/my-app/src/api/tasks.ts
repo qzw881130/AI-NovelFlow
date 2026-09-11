@@ -6,6 +6,15 @@ import { api } from './index';
 export interface Task {
   id: string;
   type: string;
+  execution_purpose?: 'production' | 'benchmark' | null;
+  executionPurposeError?: string;
+  videoExecution?: {
+    strict: boolean;
+    scope: 'whole_shot' | 'clip' | null;
+    attachment: 'attached' | 'archived' | 'detached' | null;
+    published: boolean;
+    error?: string;
+  };
   status: string;
   progress: number;
   novel_id: string;

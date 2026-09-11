@@ -1,7 +1,7 @@
 /**
  * 章节相关 API
  */
-import { api } from './index';
+import { api, API_BASE } from './index';
 import type { Chapter, Novel } from '../types';
 
 export interface ParseResult {
@@ -85,6 +85,29 @@ export const chapterApi = {
   /** 下载章节素材 */
   downloadMaterials: (novelId: string, chapterId: string) =>
     `/api/novels/${novelId}/chapters/${chapterId}/download-materials/`,
+
+  /** 下载 AudioDrive 成片字幕；后端校验成片与渲染时间轴、音频快照元数据匹配，不回退到逻辑音频时间轴。 */
+  downloadSubtitles: async (novelId: string, chapterId: string, format: 'srt' | 'ass') => {
+    const response = await fetch(`${API_BASE}/novels/${encodeURIComponent(novelId)}/chapters/${encodeURIComponent(chapterId)}/subtitles?format=${format}`);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(typeof error.detail === 'string' ? error.detail : `字幕导出失败 (${response.status})，请稍后重试`);
+    }
+
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const encodedFilename = disposition.match(/filename\*\s*=\s*UTF-8'[^']*'([^;]+)/i)?.[1];
+    const plainFilename = disposition.match(/filename\s*=\s*(?:"((?:\\.|[^"\\])*)"|([^;]+))/i);
+    let filename = plainFilename?.[1]?.replace(/\\(.)/g, '$1') || plainFilename?.[2]?.trim();
+    if (encodedFilename) {
+      try {
+        filename = decodeURIComponent(encodedFilename.trim());
+      } catch {
+        // A malformed extended filename must not prevent downloading the attachment.
+      }
+    }
+    filename = filename?.split(/[\\/]/).pop()?.replace(/[\x00-\x1f\x7f]/g, '') || `chapter-${chapterId}.${format}`;
+    return { blob: await response.blob(), filename };
+  },
 
   /** 合并章节视频 */
   mergeVideos: (novelId: string, chapterId: string) =>

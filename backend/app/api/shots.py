@@ -8,11 +8,13 @@ import os
 import subprocess
 import uuid
 import zipfile
+from copy import deepcopy
 from time import monotonic
 from io import BytesIO
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
+from types import SimpleNamespace
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session, object_session
@@ -33,7 +35,13 @@ from app.services.novel_service import (
     generate_transition_video_task,
 )
 from app.services.shot_image_service import enqueue_shot_image_task
-from app.services.shot_video_service import enqueue_shot_video_task, merge_video_director_clip_videos, _clip_dialogues_for_prompt
+from app.services.shot_video_service import enqueue_shot_video_task, _clip_dialogues_for_prompt
+from app.services import shot_video_execution
+from app.services.actual_state_handoff import validate_handoff_scope
+from app.services.task_execution import (
+    ExecutionConflict, create_execution_metadata, execution_purpose as task_execution_purpose,
+    execution_record, load_execution_shot, persist_execution_state, record_execution_observation,
+)
 from app.services.execution_window_builder import build_natural_execution_windows
 
 generate_shot_task = enqueue_shot_image_task
@@ -52,6 +60,7 @@ from app.services.shot_keyframe_service import ShotKeyframeService
 from app.services.audio_reference_service import AudioReferenceService
 from app.services.single_image_edit_service import SingleImageEditService
 from app.schemas.shot import (
+    ExecutionRequest,
     TransitionVideoRequest,
     BatchTransitionRequest,
     MergeVideosRequest,
@@ -205,8 +214,9 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
         output_path = output_dir / f"{mode}-{signature}.mp4"
 
         lock = merge_video_locks.setdefault(str(output_path), asyncio.Lock())
+        from app.services.rendered_subtitles import load, sidecar
         async with lock:
-            if output_path.is_file() and output_path.stat().st_size > 0:
+            if output_path.is_file() and output_path.stat().st_size > 0 and load(output_path, require_ready=False):
                 result = {"success": True, "message": f"使用上次合并结果，共 {len(segments)} 个视频片段"}
                 cache_hit = True
             else:
@@ -241,9 +251,12 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
                     )
                     if result.get("success"):
                         os.replace(temp_path, output_path)
+                        if sidecar(temp_path).is_file():
+                            os.replace(sidecar(temp_path), sidecar(output_path))
                 finally:
                     if temp_path.exists():
                         temp_path.unlink()
+                    sidecar(temp_path).unlink(missing_ok=True)
                 cache_hit = False
 
         if not result.get("success"):
@@ -256,6 +269,8 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
         is_final_video = bool(all_shot_ids) and valid_shot_ids == all_shot_ids and len(valid_shots) == len(all_shot_ids)
         metadata.update({
             "cache_hit": cache_hit,
+            "merge_signature": signature,
+            "subtitle_media_sha256": (load(output_path, require_ready=False) or {}).get("media_sha256"),
             "mode": mode,
             "video_url": video_url,
             "segments_count": len(segments),
@@ -288,16 +303,47 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
         db.close()
 
 
-class BatchShotImageRequest(BaseModel):
+class BatchShotImageRequest(ExecutionRequest):
     shot_ids: list[str]
     skip_llm_when_prompt_exists: bool = True
 
 
-class BatchShotVideoRequest(BaseModel):
+class BatchShotVideoRequest(ExecutionRequest):
     shot_ids: list[str]
     selected_modes: Optional[dict[str, str]] = None
     auto_complete: bool = False
     skip_llm_when_prompt_exists: bool = False
+
+
+def _request_execution_purpose(request) -> str:
+    purpose = request.execution_purpose if request is not None else "production"
+    if not isinstance(purpose, str) or purpose not in {"production", "benchmark"}:
+        raise HTTPException(status_code=422, detail="INVALID_EXECUTION_PURPOSE")
+    return purpose
+
+
+def _benchmark_request(request, schema):
+    request = request or schema()
+    purpose = _request_execution_purpose(request)
+    if "execution_purpose" in request.model_fields_set and purpose != "benchmark":
+        raise HTTPException(status_code=400, detail="BENCHMARK_EXECUTION_PURPOSE_REQUIRED")
+    return request.model_copy(update={"execution_purpose": "benchmark"})
+
+
+def _private_benchmark_shot(db, shot):
+    if any(isinstance(item, Shot) for item in (*db.new, *db.dirty, *db.deleted)):
+        raise HTTPException(status_code=409, detail="PRODUCTION_SHOT_DIRTY")
+    snapshot = create_execution_metadata(shot, purpose="benchmark")["execution"]["shot_snapshot"]
+    for key, expected in (("characters", list), ("props", list), ("dialogues", list), ("keyframes", list), ("video_director_plan", dict)):
+        try:
+            value = snapshot[key]
+            parsed = expected() if value is None or value == "" else json.loads(value) if isinstance(value, str) else value
+            if not isinstance(parsed, expected):
+                raise ValueError("Invalid source type")
+            json.dumps(parsed, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=f"BENCHMARK_SOURCE_NOT_READY: {key}") from exc
+    return SimpleNamespace(**deepcopy(snapshot))
 
 
 def _video_director_keyframe_frame_index(shot, plan: dict, keyframe: dict) -> Optional[int]:
@@ -463,7 +509,9 @@ async def _ensure_shot_ready_for_batch_video(
             and len(window.get("keyframe_indexes") or []) == int(window.get("selected_frame_count") or 0)
             for window in window_plans
         )
-        if not has_executable_windows:
+        if not has_executable_windows and not selected_mode and not _execution_windows_match_duration(
+            plan.get("execution_windows") or [], _plan_resolved_duration(shot, plan), max_clip_duration,
+        ):
             mode = "FIRST_LAST_FRAME"
             plan["selected_mode"] = mode
             plan["recommended_mode"] = mode
@@ -481,25 +529,49 @@ async def _ensure_shot_ready_for_batch_video(
         timeline_result = audio_drive_service.get_timeline(shot.id)
         timeline_data = timeline_result.get("data") if timeline_result.get("success") else None
         if not timeline_data or str(timeline_data.get("status") or "").upper() != "READY" or str(shot.audio_status or "").upper() != "READY":
-            parent_task.current_step = f"重建镜 {shot.index} Audio Timeline..."
-            db.commit()
-            timeline_result = audio_drive_service.build_timeline(shot.id, force=True)
-            if not timeline_result.get("success"):
-                raise RuntimeError(timeline_result.get("message") or "Audio Timeline 重建失败")
+            raise RuntimeError("Audio Timeline 未 READY，请先在音频生成页构建 Timeline。")
 
-        parent_task.current_step = f"重建镜 {shot.index} Clip Audio..."
-        db.commit()
-        windows_result = audio_drive_service.build_execution_windows(shot.id, max_clip_duration=max_clip_duration)
-        if not windows_result.get("success"):
-            raise RuntimeError(windows_result.get("message") or "Execution Windows 重建失败")
-        execution_windows = (windows_result.get("data") or {}).get("executionWindows") or []
+        timeline = _latest_audio_timeline_for_shot(shot, db)
+        duration = _plan_resolved_duration(shot, plan)
+        sources = _collect_audio_clip_sources(plan)
+        execution_windows = []
+        for collection in ("execution_windows", "window_plans", "clips"):
+            candidates = [{**window, "window_index": window.get("window_index") or window.get("clip_index")}
+                          for window in plan.get(collection) or [] if isinstance(window, dict)]
+            if _audio_execution_windows_current(candidates, duration, max_clip_duration, timeline, sources):
+                execution_windows = _preserve_matching_clip_audio_fields(candidates, sources)
+                break
+        if not execution_windows:
+            parent_task.current_step = f"构建镜 {shot.index} Execution Windows..."
+            db.commit()
+            windows_result = audio_drive_service.build_execution_windows(shot.id, max_clip_duration=max_clip_duration)
+            if not windows_result.get("success"):
+                raise RuntimeError(windows_result.get("message") or "Execution Windows 构建失败")
+            execution_windows = (windows_result.get("data") or {}).get("executionWindows") or []
+            plan = _safe_json_dict(shot.video_director_plan)
         for window in execution_windows:
             window_index = int(window.get("window_index") or window.get("index") or 0)
             if not window_index:
                 continue
-            clip_audio_result = audio_drive_service.build_clip_audio(shot.id, window_index, force=True)
+            audio_paths = [window.get(f"{track}_audio_path") or window.get(f"{track}_audio_url") for track in ("drive", "final")]
+            if (window.get("audio_status") == "READY" and _clip_audio_matches_timeline(window, timeline)
+                    and all(path and Path(url_to_local_path(path) or path).is_file() for path in audio_paths)):
+                continue
+            # Clip Audio writes to window_plans; retain only matching window structure.
+            windows = []
+            for target in execution_windows:
+                existing = next((item for item in plan.get("window_plans") or [] if all(
+                    item.get(key) == target.get(key) for key in ("window_index", "start_time", "end_time")
+                )), {})
+                windows.append({**target, **existing})
+            plan["window_plans"] = windows
+            shot_repo.update(shot, video_director_plan=plan)
+            parent_task.current_step = f"构建镜 {shot.index} C{window_index} Clip Audio..."
+            db.commit()
+            clip_audio_result = audio_drive_service.build_clip_audio(shot.id, window_index, force=False)
             if not clip_audio_result.get("success"):
                 raise RuntimeError(clip_audio_result.get("message") or f"C{window_index} Clip Audio 重建失败")
+            plan = _safe_json_dict(shot.video_director_plan)
         db.expire_all()
         shot = shot_repo.get_by_id(shot.id)
         plan = _safe_json_dict(shot.video_director_plan)
@@ -510,6 +582,8 @@ async def _ensure_shot_ready_for_batch_video(
         max_clip_duration = int(workflow_capability.get("max_clip_duration") or 15)
         duration = _plan_resolved_duration(shot, plan)
         needs_plan = not plan.get("keyframes")
+        if mode == "FIRST_LAST_FRAME":
+            needs_plan = not _first_last_plan_complete(plan, duration, max_clip_duration)
         if mode == "MULTI_KEYFRAME":
             audio_timeline = plan.get("audio_timeline") if isinstance(plan.get("audio_timeline"), dict) else {}
             audio_events = audio_timeline.get("events") if isinstance(audio_timeline.get("events"), list) else []
@@ -526,6 +600,20 @@ async def _ensure_shot_ready_for_batch_video(
         if needs_plan:
             parent_task.current_step = f"规划镜 {shot.index} 关键帧..."
             db.commit()
+            # The normal planner invalidates video ownership. Stage its changes and
+            # publish only planning fields if the original Shot and parent still match.
+            source = {column.key: getattr(shot, column.key) for column in Shot.__table__.columns
+                      if column.key not in {"created_at", "updated_at"}}
+            if source["video_task_id"] != parent_task.id:
+                raise RuntimeError("Shot video task ownership changed during preflight")
+            parent_metadata = parent_task.metadata_json
+            staged = SimpleNamespace(**deepcopy(source))
+
+            def stage_update(target, **fields):
+                for key, value in fields.items():
+                    setattr(target, key, json.dumps(value, ensure_ascii=False) if isinstance(value, (dict, list)) else value)
+                return target
+
             result = await asyncio.wait_for(
                 plan_video_keyframes(
                     parent_task.novel_id,
@@ -535,14 +623,27 @@ async def _ensure_shot_ready_for_batch_video(
                     db=db,
                     novel_repo=novel_repo,
                     chapter_repo=chapter_repo,
-                    shot_repo=shot_repo,
+                    shot_repo=SimpleNamespace(db=db, get_by_id=lambda _: staged, update=stage_update),
                     workflow_repo=workflow_repo,
                     template_repo=template_repo,
                     llm_service=llm_service,
                 ),
                 timeout=180,
             )
-            plan = result.get("data") or _safe_json_dict(shot.video_director_plan)
+            plan = result.get("data") or _safe_json_dict(staged.video_director_plan)
+            if mode == "FIRST_LAST_FRAME" and not _first_last_plan_complete(plan, duration, max_clip_duration):
+                raise RuntimeError("FIRST_LAST_FRAME 关键帧或过渡规划不完整")
+            count = db.query(Shot).filter(
+                *(getattr(Shot, key) == value for key, value in source.items()),
+                db.query(Task.id).filter(Task.id == parent_task.id, Task.type == "shot_video_batch",
+                                        Task.status == "running", Task.metadata_json == parent_metadata).exists(),
+            ).update({"video_director_plan": json.dumps(plan, ensure_ascii=False), "keyframes": staged.keyframes,
+                      "video_director_plan_revision": int(source["video_director_plan_revision"] or 0) + 1}, synchronize_session=False)
+            if count != 1:
+                db.rollback()
+                raise RuntimeError("Shot or batch changed during keyframe preflight")
+            db.commit()
+            db.refresh(shot)
 
         _ensure_legacy_keyframe_slots(shot, shot_repo, plan)
         db.commit()
@@ -567,30 +668,81 @@ async def _ensure_shot_ready_for_batch_video(
     return mode
 
 
+def _batch_start_error(db: Session, task: Task) -> Optional[str]:
+    from app.services.task_execution import metadata as execution_metadata
+
+    try:
+        if task_execution_purpose(task) != "production":
+            return "BENCHMARK_BATCH_UNSUPPORTED"
+        saved = execution_metadata(task)
+        children = db.query(Task).filter(Task.parent_task_id == task.id).all()
+        for child in children:
+            if task_execution_purpose(child) != "production":
+                return "BENCHMARK_BATCH_UNSUPPORTED"
+            if task.type == "shot_image_batch" and "execution" in execution_metadata(child):
+                return "BATCH_EXECUTION_REVIEW_REQUIRED: private image attempt already exists"
+    except ExecutionConflict as exc:
+        return str(exc)
+    if "execution" in saved or "video_run" in saved:
+        return "BATCH_EXECUTION_REVIEW_REQUIRED: unexpected batch execution contract"
+    if task.type == "shot_video_batch":
+        # A missing CID does not prove that ComfyUI rejected a submission. Even
+        # a pending strict child already owns an attempt; recovery must not replace it.
+        if children or saved.get("results", {}) != {}:
+            return "BATCH_EXECUTION_REVIEW_REQUIRED: child attempt or result evidence exists"
+        if (task.started_at or task.completed_at or task.claim_token or task.claimed_at or task.heartbeat_at
+                or task.worker_id or task.attempt or task.progress or task.comfyui_prompt_id
+                or task.result_url or task.workflow_json or task.prompt_text or task.error_message):
+            return "BATCH_EXECUTION_REVIEW_REQUIRED: parent has already started"
+        required = {"shot_ids", "selected_modes", "auto_complete", "skip_llm_when_prompt_exists"}
+        if (not required <= saved.keys() or not isinstance(saved["shot_ids"], list) or not saved["shot_ids"]
+                or any(not isinstance(shot_id, str) or not shot_id for shot_id in saved["shot_ids"])
+                or len(set(saved["shot_ids"])) != len(saved["shot_ids"])
+                or not isinstance(saved["selected_modes"], dict)
+                or any(key not in saved["shot_ids"] or not isinstance(mode, str) or mode not in VIDEO_MODE_LABELS
+                       for key, mode in saved["selected_modes"].items())
+                or any(type(saved[key]) is not bool for key in ("auto_complete", "skip_llm_when_prompt_exists"))):
+            return "BATCH_EXPLICIT_OPTIONS_REQUIRED"
+    return None
+
+
+def _hold_batch_task(db: Session, task: Task, reason: str) -> None:
+    # Hold only the observed parent. Child execution/receipt/timestamp evidence
+    # belongs to its runner/reconciler and is never rewritten by batch recovery.
+    if task.status not in {"pending", "running"}:
+        return
+    conditions = [getattr(Task, column.key) == getattr(task, column.key) for column in Task.__table__.columns
+                  if column.key not in {"created_at", "updated_at"}]
+    count = db.query(Task).filter(*conditions).update({
+        "status": "failed", "error_message": reason, "current_step": "Batch held; automatic resubmission disabled",
+        "completed_at": task.completed_at or datetime.utcnow(),
+    }, synchronize_session=False)
+    if count == 1:
+        db.commit()
+        db.refresh(task)
+    else:
+        db.rollback()
+
+
 def resume_active_shot_video_batches() -> None:
     db = SessionLocal()
     try:
         active_tasks = db.query(Task).filter(
             Task.type == "shot_video_batch",
-            Task.status == "running",
+            Task.status.in_(["pending", "running"]),
         ).all()
         for task in active_tasks:
-            interrupted_children = db.query(Task).filter(
-                Task.parent_task_id == task.id,
-                Task.type == "shot_video",
-                Task.status.in_(["pending", "running"]),
-                Task.comfyui_prompt_id.is_(None),
-            ).all()
-            for child in interrupted_children:
-                child.status = "failed"
-                child.error_message = "服务重启时子任务尚未提交到 ComfyUI，将由批量任务重新创建"
-                child.current_step = "等待批量任务重试"
-                child.completed_at = datetime.utcnow()
-            task.status = "pending"
-            task.current_step = "服务重启后等待继续批量生成视频..."
-        if active_tasks:
-            db.commit()
-            print(f"[ShotVideoBatch] Resumed {len(active_tasks)} active batch task(s)")
+            reason = _batch_start_error(db, task)
+            if reason:
+                _hold_batch_task(db, task, reason)
+            elif task.status == "running":
+                from sqlalchemy.orm import aliased
+                child = aliased(Task)
+                conditions = [getattr(Task, column.key) == getattr(task, column.key) for column in Task.__table__.columns
+                              if column.key not in {"created_at", "updated_at"}]
+                db.query(Task).filter(*conditions, ~db.query(child.id).filter(child.parent_task_id == task.id).exists()).update(
+                    {"status": "pending", "current_step": "Waiting to start an unattempted batch"}, synchronize_session=False)
+                db.commit()
     finally:
         db.close()
 
@@ -612,6 +764,34 @@ async def run_next_persistent_shot_video_batch_task() -> bool:
 
 
 def _persist_batch_video_failure(db: Session, shot_id: str, owner_id: str, message: str) -> None:
+    owner = db.query(Task).filter(Task.id == owner_id).populate_existing().first()
+    if not owner or owner.type not in {"shot_video", "shot_video_batch"}:
+        return
+    if owner.type == "shot_video":
+        if owner.shot_id != shot_id:
+            return
+        attempts = [owner]
+    else:
+        attempts = db.query(Task).filter(
+            Task.parent_task_id == owner.id, Task.shot_id == shot_id, Task.type == "shot_video",
+        ).populate_existing().all()
+    strict_attempts = [attempt for attempt in attempts if shot_video_execution.has_video_execution(attempt)]
+    if strict_attempts:
+        # Strict settlement owns the status transition, even before claim.
+        # False is not permission to restore an old URL or rewrite the plan.
+        for attempt in strict_attempts:
+            shot_video_execution.settle_terminated_video(db, attempt)
+        return
+    try:
+        if task_execution_purpose(owner) != "production":
+            return
+    except ExecutionConflict:
+        return
+    owner_condition = db.query(Task.id).filter(
+        Task.id == owner.id, Task.type == owner.type, Task.shot_id == owner.shot_id,
+        Task.parent_task_id == owner.parent_task_id, Task.status == owner.status,
+        Task.metadata_json == owner.metadata_json,
+    ).exists()
     # Compare ownership and plan revision in the write, not just the session snapshot.
     for _ in range(3):
         shot = db.query(Shot).filter(Shot.id == shot_id).populate_existing().first()
@@ -623,8 +803,10 @@ def _persist_batch_video_failure(db: Session, shot_id: str, owner_id: str, messa
         updated = db.query(Shot).filter(
             Shot.id == shot_id,
             Shot.video_task_id == owner_id,
-            Shot.video_status != "completed",
+            Shot.video_status == shot.video_status,
             Shot.video_director_plan_revision == revision,
+            Shot.video_director_plan == shot.video_director_plan,
+            owner_condition,
         ).update({
             "video_status": "completed" if shot.video_url else "failed",
             "video_director_plan": json.dumps(plan, ensure_ascii=False),
@@ -639,14 +821,25 @@ async def run_shot_video_batch_task(task_id: str) -> None:
     db = SessionLocal()
     try:
         task = db.query(Task).filter(Task.id == task_id).first()
-        if not task or task.status == "cancelled":
+        if not task or task.type != "shot_video_batch" or task.status != "pending":
             return
 
-        task.status = "running"
-        task.started_at = task.started_at or datetime.utcnow()
-        task.current_step = "准备批量生成视频..."
-        task.error_message = None
+        reason = _batch_start_error(db, task)
+        if reason:
+            _hold_batch_task(db, task, reason)
+            return
+        from sqlalchemy.orm import aliased
+        child = aliased(Task)
+        conditions = [getattr(Task, column.key) == getattr(task, column.key) for column in Task.__table__.columns
+                      if column.key not in {"created_at", "updated_at"}]
+        count = db.query(Task).filter(*conditions, ~db.query(child.id).filter(child.parent_task_id == task.id).exists()).update({
+            "status": "running", "started_at": datetime.utcnow(), "current_step": "准备批量生成视频...",
+        }, synchronize_session=False)
+        if count != 1:
+            db.rollback()
+            return
         db.commit()
+        db.refresh(task)
 
         try:
             metadata = json.loads(task.metadata_json or "{}")
@@ -676,9 +869,7 @@ async def run_shot_video_batch_task(task_id: str) -> None:
 
         for index, shot_id in enumerate(shot_ids, 1):
             db.refresh(task)
-            if task.status == "cancelled":
-                task.current_step = "批量视频任务已取消"
-                db.commit()
+            if task.status != "running":
                 return
 
             existing_result = results.get(shot_id) if isinstance(results.get(shot_id), dict) else None
@@ -686,6 +877,9 @@ async def run_shot_video_batch_task(task_id: str) -> None:
                 success_count += 1
                 continue
 
+            if db.query(Task.id).filter(Task.parent_task_id == task.id, Task.shot_id == shot_id, Task.type == "shot_video").first():
+                _hold_batch_task(db, task, "BATCH_EXECUTION_REVIEW_REQUIRED: video child already exists")
+                return
             shot = shot_repo.get_by_id(shot_id)
             if not shot or shot.chapter_id != task.chapter_id:
                 results[shot_id] = {"status": "failed", "message": "分镜不存在或不属于当前章节"}
@@ -722,10 +916,13 @@ async def run_shot_video_batch_task(task_id: str) -> None:
                     selected_modes.get(shot.id) or None,
                     auto_complete=auto_complete,
                 )
+                db.refresh(task)
+                if task.status != "running":
+                    return
                 db.refresh(shot)
                 if shot.video_task_id != failure_owner_id:
                     raise RuntimeError("Shot video task ownership changed during preflight")
-                response = await generate_shot_video(
+                response = await _generate_shot_video(
                     task.novel_id,
                     task.chapter_id,
                     shot.id,
@@ -738,16 +935,16 @@ async def run_shot_video_batch_task(task_id: str) -> None:
                     task_repo=task_repo,
                     workflow_repo=workflow_repo,
                     shot_repo=shot_repo,
+                    parent_task_id=task.id,
+                    batch_order=index,
                 )
                 child_task_id = ((response or {}).get("data") or {}).get("taskId")
-                child_task = db.query(Task).filter(Task.id == child_task_id).first() if child_task_id else None
-                if child_task:
-                    child_task.parent_task_id = task.id
-                    child_task.batch_order = index
-                    db.commit()
                 results[shot_id] = {"status": "running", "taskId": child_task_id, "shotIndex": shot.index}
             except Exception as exc:
                 db.rollback()
+                db.refresh(task)
+                if task.status != "running":
+                    return
                 message = str(exc.detail) if isinstance(exc, HTTPException) else str(exc) or type(exc).__name__
                 _persist_batch_video_failure(db, shot_id, failure_owner_id, message)
                 results[shot_id] = {"status": "failed", "message": message, "shotIndex": shot.index}
@@ -760,9 +957,7 @@ async def run_shot_video_batch_task(task_id: str) -> None:
             child_task = db.query(Task).filter(Task.id == child_task_id).first() if child_task_id else None
             while child_task and child_task.status in {"pending", "queued", "running"}:
                 db.refresh(task)
-                if task.status == "cancelled":
-                    task.current_step = "批量视频任务已取消"
-                    db.commit()
+                if task.status != "running":
                     return
                 task.current_step = f"等待镜 {shot.index} 视频完成 ({index}/{total})..."
                 task.progress = max(task.progress or 0, int(((index - 1) / total) * 95))
@@ -771,6 +966,9 @@ async def run_shot_video_batch_task(task_id: str) -> None:
                 db.expire_all()
                 child_task = db.query(Task).filter(Task.id == child_task_id).first()
 
+            db.refresh(task)
+            if task.status != "running":
+                return
             if child_task and child_task.status == "completed":
                 results[shot_id] = {"status": "completed", "taskId": child_task.id, "resultUrl": child_task.result_url, "shotIndex": shot.index}
                 success_count += 1
@@ -783,6 +981,9 @@ async def run_shot_video_batch_task(task_id: str) -> None:
             task.metadata_json = json.dumps(metadata, ensure_ascii=False)
             db.commit()
 
+        db.refresh(task)
+        if task.status != "running":
+            return
         task.progress = 100
         task.status = "completed" if success_count else "failed"
         task.current_step = f"批量视频完成：成功 {success_count}，失败 {failed_count}"
@@ -795,7 +996,7 @@ async def run_shot_video_batch_task(task_id: str) -> None:
         print(f"[ShotVideoBatch {task_id}] Error: {exc}")
         db.rollback()
         task = db.query(Task).filter(Task.id == task_id).first()
-        if task:
+        if task and task.status == "running":
             for queued_shot in db.query(Shot).filter(Shot.video_task_id == task.id).all():
                 _persist_batch_video_failure(db, queued_shot.id, task.id, str(exc) or type(exc).__name__)
             task.status = "failed"
@@ -944,7 +1145,7 @@ def _build_shot_image_reference_manifest(db: Session, novel: Novel, shot):
             .filter(Character.novel_id == novel.id, Character.name == name)
             .first()
         )
-        if character and character.image_url and url_to_local_path(character.image_url):
+        if character and not character.is_narrator and character.name.casefold() not in {"narrator", "旁白"} and character.image_url and url_to_local_path(character.image_url):
             character_members.append(name)
     if character_members:
         manifest.append(
@@ -1021,7 +1222,7 @@ def _build_shot_image_reference_bundle(db: Session, novel: Novel, shot):
             .filter(Character.novel_id == novel.id, Character.name == name)
             .first()
         )
-        if character and character.image_url and url_to_local_path(character.image_url):
+        if character and not character.is_narrator and character.name.casefold() not in {"narrator", "旁白"} and character.image_url and url_to_local_path(character.image_url):
             character_members.append(name)
 
     scene_name = ""
@@ -1063,10 +1264,12 @@ def _build_shot_image_reference_bundle(db: Session, novel: Novel, shot):
 
 
 def _build_shot_image_prompt_input(db: Session, novel: Novel, shot, template_body: str) -> str:
+    from app.services.video_director_ai import build_visual_identity_context
     shot_characters = _safe_json_list(shot.characters)
     shot_props = _safe_json_list(shot.props)
     shot_dialogues = _safe_json_list(shot.dialogues)
     visual_style, _ = get_style(db, novel, "character")
+    visual_identity = build_visual_identity_context(db, novel.id, shot_characters, shot_props, visual_style)
 
     payload = {
         "shot": {
@@ -1074,12 +1277,13 @@ def _build_shot_image_prompt_input(db: Session, novel: Novel, shot, template_bod
             "index": shot.index,
             "description": shot.description or "",
             "video_description": shot.video_description or "",
-            "characters": shot_characters,
+            "characters": visual_identity["characters"],
             "scene": shot.scene or "",
             "props": shot_props,
             "dialogues": shot_dialogues,
         },
         "visual_style": visual_style,
+        "visual_identity": visual_identity,
     }
 
     if "reference_image_manifest" in template_body:
@@ -1105,9 +1309,10 @@ async def _resolve_shot_image_prompt_text(
     template_repo: PromptTemplateRepository,
     llm_service: LLMService,
     prompt_text: Optional[str],
+    strict: bool = False,
 ):
     if prompt_text and prompt_text.strip():
-        return prompt_text.strip(), "用户编辑的主分镜图提示词"
+        return prompt_text if strict else prompt_text.strip(), "用户编辑的主分镜图提示词"
 
     template = _get_shot_image_prompt_template(novel, template_repo)
     fallback_prompt = shot.description or "主分镜图"
@@ -1124,12 +1329,16 @@ async def _resolve_shot_image_prompt_text(
         chapter_id=shot.chapter_id,
     )
     if not result.get("success"):
+        if strict:
+            raise RuntimeError(result.get("error") or result.get("message") or "BENCHMARK_PROMPT_RESOLUTION_FAILED")
         print(f"[GenerateShot] Prompt builder failed, fallback to shot description: {result.get('error') or result.get('message')}")
         return fallback_prompt, f"{template_name}（fallback）"
     final_prompt = (result.get("content") or "").strip()
     if not final_prompt:
+        if strict:
+            raise RuntimeError("BENCHMARK_FINAL_PROMPT_REQUIRED")
         return fallback_prompt, f"{template_name}（fallback）"
-    return final_prompt, template_name
+    return result["content"] if strict else final_prompt, template_name
 
 
 @router.post(
@@ -1150,7 +1359,8 @@ async def generate_shot_image(
     llm_service: LLMService = Depends(get_llm_service),
 ):
     """为指定分镜生成图片（创建后台任务）"""
-    lock_key = f"{novel_id}:{chapter_id}:{shot_id}"
+    purpose = _request_execution_purpose(request)
+    lock_key = f"{novel_id}:{chapter_id}:{shot_id}:{purpose}"
     lock = shot_image_generation_locks.setdefault(lock_key, asyncio.Lock())
     if lock.locked():
         return {
@@ -1174,6 +1384,25 @@ async def generate_shot_image(
             template_repo=template_repo,
             llm_service=llm_service,
         )
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/benchmark/generate", response_model=dict)
+async def benchmark_generate_shot_image(
+    novel_id: str, chapter_id: str, shot_id: str,
+    request: Optional[GenerateShotImageRequest] = None,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    task_repo: TaskRepository = Depends(get_task_repo),
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+    template_repo: PromptTemplateRepository = Depends(get_prompt_template_repo),
+    llm_service: LLMService = Depends(get_llm_service),
+):
+    return await generate_shot_image(
+        novel_id, chapter_id, shot_id, _benchmark_request(request, GenerateShotImageRequest),
+        db, novel_repo, chapter_repo, task_repo, workflow_repo, shot_repo, template_repo, llm_service,
+    )
 
 
 async def _generate_shot_image_locked(
@@ -1221,6 +1450,9 @@ async def _prepare_and_enqueue_shot_image_generation(
     llm_service: LLMService,
     existing_task: Optional[Task] = None,
 ):
+    purpose = _request_execution_purpose(request)
+    if existing_task and (task_execution_purpose(existing_task) != purpose or purpose == "benchmark"):
+        raise HTTPException(status_code=409, detail="EXECUTION_PARENT_OR_PURPOSE_MISMATCH")
     # 获取章节
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
 
@@ -1244,12 +1476,23 @@ async def _prepare_and_enqueue_shot_image_generation(
             raise HTTPException(status_code=400, detail=f"分镜索引 {shot_id} 超出范围")
         raise HTTPException(status_code=404, detail=f"分镜 {shot_id} 不存在")
 
+    if purpose == "benchmark":
+        shot = _private_benchmark_shot(db, shot)
+        for model, names in ((Character, _safe_json_list(shot.characters)),
+                             (Scene, [shot.scene] if shot.scene else []), (Prop, _safe_json_list(shot.props))):
+            for name in names:
+                entity = db.query(model).filter(model.novel_id == novel_id, model.name == name).first()
+                path = url_to_local_path(entity.image_url) if entity and entity.image_url else None
+                if not path or not Path(path).is_file():
+                    raise HTTPException(status_code=400, detail=f"BENCHMARK_REFERENCE_NOT_READY: {name}")
     shot_index = shot.index
     shot_description = shot.description
     resolved_shot_id = shot.id
 
     # 检查是否已有进行中的任务
-    active_task = task_repo.get_active_shot_task(novel_id, chapter_id, shot_index, "shot_image")
+    active_task = task_repo.get_active_shot_task(
+        novel_id, chapter_id, shot_index, "shot_image", shot_id=shot.id, execution_purpose=purpose,
+    )
     if active_task and (not existing_task or active_task.id != existing_task.id):
         return {
             "success": True,
@@ -1268,6 +1511,37 @@ async def _prepare_and_enqueue_shot_image_generation(
     is_valid, error_msg = TaskService.validate_workflow_node_mapping(workflow, shot_workflow_type)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_msg)
+
+    if purpose == "benchmark":
+        task = task_repo.create_shot_image_task(
+            novel_id=novel_id, chapter_id=chapter_id, shot_index=shot_index, chapter_title=chapter_title,
+            workflow_id=workflow.id, workflow_name=workflow.name, shot_id=resolved_shot_id,
+            metadata=create_execution_metadata(shot, purpose=purpose, request=request.model_dump()),
+        )
+        private_shot = load_execution_shot(task)
+        task_id = task.id
+        try:
+            final_prompt, template_name = await _resolve_shot_image_prompt_text(
+                db, novel, private_shot, template_repo, llm_service, request.prompt_text, strict=True,
+            )
+            persist_execution_state(db, task, private_shot, {"prompt_template_name": template_name},
+                                    prompt_text=final_prompt, current_step="Waiting for benchmark image generation")
+            generate_shot_task(task_id, novel_id, chapter_id, shot_index, final_prompt, task.workflow_id)
+        except (Exception, asyncio.CancelledError) as exc:
+            db.rollback()
+            try:
+                persist_execution_state(db, task, private_shot, {"failure": {"message": str(exc)}},
+                                        status="failed", error_message=str(exc), completed_at=datetime.utcnow(),
+                                        current_step="Benchmark image admission failed")
+            except ExecutionConflict:
+                record_execution_observation(db, task_id, private_shot, exc)
+            if isinstance(exc, asyncio.CancelledError):
+                raise
+            raise HTTPException(status_code=409 if isinstance(exc, ExecutionConflict) else 502, detail={
+                "code": "BENCHMARK_PROMPT_RESOLUTION_FAILED", "taskId": task_id, "message": str(exc),
+            }) from exc
+        return {"success": True, "message": "分镜图生成任务已创建",
+                "data": {"taskId": task_id, "status": "pending", "promptText": final_prompt}}
 
     final_prompt, prompt_template_name = await _resolve_shot_image_prompt_text(
         db,
@@ -1333,6 +1607,17 @@ async def _prepare_and_enqueue_shot_image_generation(
 def enqueue_shot_image_batch_task(batch_task_id: str) -> None:
     if batch_task_id in shot_image_batch_locks:
         return
+    db = SessionLocal()
+    try:
+        task = db.query(Task).filter(Task.id == batch_task_id, Task.type == "shot_image_batch").first()
+        if not task or task.status not in {"pending", "running"}:
+            return
+        reason = _batch_start_error(db, task)
+        if reason:
+            _hold_batch_task(db, task, reason)
+            return
+    finally:
+        db.close()
     shot_image_batch_locks.add(batch_task_id)
     worker_manager.worker("shot_image_batch").enqueue(lambda: run_shot_image_batch_task(batch_task_id))
 
@@ -1359,7 +1644,11 @@ async def run_shot_image_batch_task(batch_task_id: str) -> None:
     db = SessionLocal()
     try:
         batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
-        if not batch_task or batch_task.status == "cancelled":
+        if not batch_task or batch_task.type != "shot_image_batch" or batch_task.status not in {"pending", "running"}:
+            return
+        reason = _batch_start_error(db, batch_task)
+        if reason:
+            _hold_batch_task(db, batch_task, reason)
             return
 
         metadata = _safe_json_dict(batch_task.metadata_json)
@@ -1385,6 +1674,13 @@ async def run_shot_image_batch_task(batch_task_id: str) -> None:
             db.expire_all()
             batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
             child_task = db.query(Task).filter(Task.id == child_task.id).first()
+            if batch_task:
+                reason = _batch_start_error(db, batch_task)
+                if reason:
+                    _hold_batch_task(db, batch_task, reason)
+                    return
+                if batch_task.status not in {"pending", "running", "cancelled"}:
+                    return
             if not batch_task or batch_task.status == "cancelled":
                 remaining = db.query(Task).filter(
                     Task.parent_task_id == batch_task_id,
@@ -1496,6 +1792,8 @@ async def generate_shot_images_batch(
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
     """创建可在页面关闭后继续执行的分镜图批量生成任务。"""
+    if _request_execution_purpose(data) == "benchmark":
+        raise HTTPException(status_code=400, detail="BENCHMARK_BATCH_UNSUPPORTED")
     if not data.shot_ids:
         raise HTTPException(status_code=400, detail="请选择要生成的分镜")
     novel = novel_repo.get_by_id(novel_id)
@@ -1511,7 +1809,7 @@ async def generate_shot_images_batch(
         if not shot or shot.chapter_id != chapter_id:
             raise HTTPException(status_code=404, detail=f"分镜不存在：{shot_id}")
 
-        existing_task = task_repo.get_active_shot_task(novel_id, chapter_id, shot.index, "shot_image")
+        existing_task = task_repo.get_active_shot_task(novel_id, chapter_id, shot.index, "shot_image", shot_id=shot.id)
         if existing_task and existing_task.parent_task_id:
             raise HTTPException(status_code=400, detail=f"分镜 {shot.index} 已在批量生成队列中")
 
@@ -1542,6 +1840,7 @@ async def generate_shot_images_batch(
         progress=0,
         current_step="等待处理",
         metadata_json=json.dumps({
+            "execution_purpose": "production",
             "shot_ids": data.shot_ids,
             "skip_llm_when_prompt_exists": data.skip_llm_when_prompt_exists,
         }, ensure_ascii=False),
@@ -1777,19 +2076,29 @@ def _plan_resolved_duration(shot, plan: dict) -> float:
 
 
 def _execution_windows_match_duration(execution_windows: list, duration: float, max_clip_duration: int, audio_events: Optional[list] = None) -> bool:
+    from math import isfinite
+
     if not execution_windows:
         return False
-    expected_windows = _build_execution_windows(duration, max_clip_duration, audio_events)
-    if len(execution_windows) != len(expected_windows):
+    # The workflow cap is an upper bound, not a required partition of the Shot.
+    cursor = 0.0
+    try:
+        if not isfinite(duration) or not isfinite(max_clip_duration) or duration <= 0 or max_clip_duration <= 0:
+            return False
+        for index, window in enumerate(execution_windows, 1):
+            if not isinstance(window, dict) or float(window["window_index"]) != index:
+                return False
+            start, end = float(window["start_time"]), float(window["end_time"])
+            if (not isfinite(start) or not isfinite(end) or start < 0 or end <= start
+                    or abs(start - cursor) > 0.001 or round(end - start, 3) > max_clip_duration):
+                return False
+            if "duration" in window and (not isfinite(float(window["duration"]))
+                                         or abs(float(window["duration"]) - (end - start)) > 0.001):
+                return False
+            cursor = end
+    except (KeyError, TypeError, ValueError, OverflowError):
         return False
-    for current, expected in zip(execution_windows, expected_windows):
-        if int(current.get("window_index") or 0) != int(expected.get("window_index") or 0):
-            return False
-        if abs(float(current.get("start_time") or 0) - float(expected.get("start_time") or 0)) > 0.001:
-            return False
-        if abs(float(current.get("end_time") or 0) - float(expected.get("end_time") or 0)) > 0.001:
-            return False
-    return True
+    return abs(cursor - duration) <= 0.001
 
 
 def _build_first_last_clip_plan(duration: int) -> list:
@@ -1804,6 +2113,20 @@ def _build_first_last_clip_plan(duration: int) -> list:
         "keyframe_indexes": [1, 2],
         "status": "PENDING",
     }]
+
+
+def _first_last_plan_complete(plan: dict, duration: float, max_clip_duration: float) -> bool:
+    try:
+        frames, _, _ = _normalize_keyframe_planner_result(
+            {"keyframes": plan.get("keyframes"), "window_plans": []}, [], duration, "FIRST_LAST_FRAME", max_clip_duration,
+        )
+        transitions = plan.get("transitions") or []
+        return (plan.get("keyframe_planning_status") == "READY" and bool(frames[-1]["description"].strip())
+                and len(transitions) == 1 and all(transitions[0].get(key) == value for key, value in {
+                    "from_keyframe_index": 1, "to_keyframe_index": 2, "start_time": 0, "end_time": duration,
+                }.items()) and bool(transitions[0].get("transition_description", "").strip()))
+    except (ValueError, TypeError, AttributeError, KeyError):
+        return False
 
 
 def _build_legacy_keyframes_from_plan(shot, keyframes: list) -> list:
@@ -1824,21 +2147,16 @@ def _build_legacy_keyframes_from_plan(shot, keyframes: list) -> list:
 
 def _hydrate_plan_keyframes_from_legacy(shot, keyframes: list) -> list:
     legacy_keyframes = _safe_json_list(shot.keyframes)
-    legacy_by_plan_index = {
-        int(item.get("plan_keyframe_index")): item
-        for item in legacy_keyframes
-        if isinstance(item, dict) and item.get("plan_keyframe_index") is not None
-    }
     hydrated = []
     for keyframe in keyframes or []:
         if not isinstance(keyframe, dict):
             continue
         next_keyframe = dict(keyframe)
-        plan_index = next_keyframe.get("index")
-        try:
-            legacy = legacy_by_plan_index.get(int(plan_index)) if plan_index is not None else None
-        except Exception:
-            legacy = None
+        # Replanning can renumber frames; reuse their state, never the index alone.
+        legacy = next((item for item in legacy_keyframes if isinstance(item, dict) and item.get("image_url")
+                       and item.get("time_seconds") is not None and item.get("time_seconds") == next_keyframe.get("time_seconds")
+                       and item.get("role") in (None, next_keyframe.get("role"))
+                       and str(item.get("description") or "").strip() == str(next_keyframe.get("description") or shot.description or "").strip()), None)
         if legacy:
             for field in ("image_url", "image_task_id"):
                 if not next_keyframe.get(field) and legacy.get(field):
@@ -1970,7 +2288,9 @@ def _sync_latest_audio_timeline_into_plan(shot, shot_repo: ShotRepository) -> di
         if not timeline or timeline.status != "READY":
             return plan
         current = plan.get("audio_timeline") if isinstance(plan.get("audio_timeline"), dict) else {}
-        if current.get("id") == timeline.id and float(current.get("resolved_duration") or 0) == float(timeline.total_duration or 0):
+        if (current.get("id") == timeline.id and current.get("revision") == timeline.revision
+                and current.get("source_hash") == timeline.generated_from_hash
+                and float(current.get("resolved_duration") or 0) == float(timeline.total_duration or 0)):
             return plan
         source_events = {event.id: event for event in audio_repo.list_events(shot.id)}
         timeline_events = [
@@ -2018,7 +2338,7 @@ def _get_keyframe_planner_template(novel: Novel, template_repo: PromptTemplateRe
     return template
 
 
-def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: dict, previous_failures: list = None) -> str:
+def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: dict, previous_failures: list = None, *, visual_style: str = "") -> str:
     selected_mode = plan.get("selected_mode") or "MULTI_KEYFRAME"
     payload = {
         "shot": {
@@ -2034,6 +2354,7 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
             "dialogues": _safe_json_list(shot.dialogues),
         },
         "selected_mode": selected_mode,
+        "visual_style": visual_style,
         "execution_windows": (plan.get("execution_windows") or []) if selected_mode == "MULTI_KEYFRAME" else [],
         "workflow_capability": strip_media_refs(workflow_capability),
         "existing_keyframes": strip_media_refs(plan.get("keyframes") or []),
@@ -2203,7 +2524,7 @@ def _build_reused_three_frame_keyframe_plan(shot, plan: dict, execution_windows:
             return keyframes_by_time[normalized_time]
 
         image_source = None if normalized_time == 0 else _nearest_reusable_keyframe_image(candidates, normalized_time)
-        if normalized_time != 0 and not image_source:
+        if normalized_time != 0 and not (image_source and abs(image_source["time_seconds"] - normalized_time) <= 0.001):
             return None
 
         index = len(keyframes) + 1
@@ -2254,7 +2575,7 @@ def _build_reused_three_frame_keyframe_plan(shot, plan: dict, execution_windows:
 
     validation = {
         "source": "deterministic_reuse_fallback",
-        "reason": "LLM keyframe planner unavailable; reused existing keyframe images by nearest timestamp.",
+        "reason": "Reused existing keyframe states at matching timestamps.",
     }
     return keyframes, window_plans, validation
 
@@ -2268,7 +2589,12 @@ def _preserve_matching_clip_audio_fields(next_window_plans: list, previous_windo
     previous_by_index = {}
     for previous in previous_window_plans or []:
         if isinstance(previous, dict) and any(previous.get(key) is not None for key in audio_keys):
-            index = int(previous.get("window_index") or previous.get("clip_index") or 0)
+            try:
+                index = int(previous.get("window_index") or previous.get("clip_index") or 0)
+                if not all(float(previous[key]) >= 0 for key in ("start_time", "end_time")):
+                    continue
+            except (KeyError, TypeError, ValueError, OverflowError):
+                continue
             previous_by_index.setdefault(index, []).append(previous)
     for window in next_window_plans or []:
         if not isinstance(window, dict):
@@ -2306,8 +2632,8 @@ def _workflow_requires_audio_drive(workflow: Optional[Workflow]) -> bool:
     return bool(mapping.get("drive_audio_node_id") or mapping.get("final_audio_node_id"))
 
 
-def _latest_audio_timeline_for_shot(shot):
-    db = object_session(shot)
+def _latest_audio_timeline_for_shot(shot, db=None):
+    db = db if db is not None else object_session(shot)
     if not db:
         return None
     from app.models.audio_drive import ShotAudioTimeline
@@ -2324,14 +2650,33 @@ def _clip_audio_matches_timeline(window: dict, timeline) -> bool:
     bound_hash = window.get("audio_timeline_hash") or window.get("audioTimelineHash")
     if bound_id != timeline.id:
         return False
-    if int(bound_revision or 0) != int(timeline.revision or 0):
+    try:
+        revision_matches = int(bound_revision or 0) == int(timeline.revision or 0)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    if not revision_matches:
         return False
     if timeline.generated_from_hash and bound_hash != timeline.generated_from_hash:
         return False
     return True
 
 
-def _assert_audio_drive_ready_for_video(shot, plan: dict, workflow: Optional[Workflow], window_indexes: Optional[set[int]] = None) -> None:
+def _audio_execution_windows_current(windows: list, duration: float, max_clip_duration: float, timeline, sources: list) -> bool:
+    return bool(timeline and timeline.status == "READY"
+                and _execution_windows_match_duration(windows, duration, max_clip_duration) and all(
+                    window.get("audio_status") != "STALE" and (
+                        _clip_audio_matches_timeline(window, timeline)
+                        if any(key in window for key in ("audio_timeline_id", "audio_timeline_revision", "audio_timeline_hash")) else any(
+                            source.get("audio_status") == "READY" and _clip_audio_matches_timeline(source, timeline)
+                            and (source.get("window_index") or source.get("clip_index")) == window.get("window_index")
+                            and source.get("start_time") == window.get("start_time") and source.get("end_time") == window.get("end_time")
+                            for source in sources
+                        )
+                    ) for window in windows
+                ))
+
+
+def _assert_audio_drive_ready_for_video(shot, plan: dict, workflow: Optional[Workflow], window_indexes: Optional[set[int]] = None, *, db=None) -> None:
     if not _workflow_requires_audio_drive(workflow):
         return
     deduped_by_index = {}
@@ -2354,7 +2699,7 @@ def _assert_audio_drive_ready_for_video(shot, plan: dict, workflow: Optional[Wor
         raise HTTPException(status_code=400, detail="AudioDrive Clip Audio 未构建，请先在音频生成页构建执行窗口和 Clip Audio。")
     if (shot.audio_status or "") != "READY":
         raise HTTPException(status_code=400, detail="Audio Timeline 未 READY，请先在音频生成页生成 TTS 并构建 Timeline。")
-    latest_timeline = _latest_audio_timeline_for_shot(shot)
+    latest_timeline = _latest_audio_timeline_for_shot(shot, db)
     if not latest_timeline or latest_timeline.status != "READY":
         raise HTTPException(status_code=400, detail="Audio Timeline 未 READY，请先在音频生成页生成 TTS 并构建 Timeline。")
 
@@ -2375,6 +2720,117 @@ def _assert_audio_drive_ready_for_video(shot, plan: dict, workflow: Optional[Wor
         raise HTTPException(status_code=400, detail=f"Clip Audio 与当前 Audio Timeline 不匹配：{' / '.join(stale)}，请重建 Clip Audio。")
     if missing:
         raise HTTPException(status_code=400, detail=f"Clip Audio 未 READY：{' / '.join(missing)}，请先在音频生成页构建 drive/final 音频。")
+
+
+def _benchmark_video_plan(db, shot):
+    try:
+        plan = json.loads(shot.video_director_plan or "{}")
+        if not isinstance(plan, dict):
+            raise ValueError("Invalid plan")
+        for collection in ("keyframes", "clips", "execution_windows", "window_plans"):
+            items = plan.get(collection, [])
+            if not isinstance(items, list) or any(not isinstance(item, dict) for item in items):
+                raise ValueError(f"Invalid {collection}")
+        timeline = _latest_audio_timeline_for_shot(shot, db)
+        binding = plan.get("audio_timeline") or {}
+        if timeline or binding:
+            if (not timeline or timeline.status != "READY" or shot.audio_status != "READY"
+                    or binding.get("id") != timeline.id or binding.get("revision") != timeline.revision
+                    or binding.get("source_hash") != timeline.generated_from_hash
+                    or float(binding.get("resolved_duration") or 0) != contract_resolved_duration(shot, timeline)):
+                raise ValueError("Existing Audio Timeline binding is not ready or current")
+        return plan
+    except (ValueError, TypeError, AttributeError) as exc:
+        raise HTTPException(status_code=400, detail=f"BENCHMARK_SOURCE_NOT_READY: {exc}") from exc
+
+
+def _assert_benchmark_video_references(shot, plan, mode, only_window_index=None, *, use_reference_audio=True):
+    urls = [shot.image_url]
+    if mode == "FIRST_LAST_FRAME":
+        end = next((item for item in plan.get("keyframes", []) if item.get("role") == "END"), None)
+        urls.append(_get_video_director_keyframe_image_url(shot, end))
+    elif mode == "MULTI_KEYFRAME":
+        indexes = {index for window in plan.get("window_plans", [])
+                   if only_window_index is None or window.get("window_index") == only_window_index
+                   for index in window.get("keyframe_indexes", [])}
+        urls.extend(_get_video_director_keyframe_image_url(shot, frame) for frame in plan.get("keyframes", [])
+                    if frame.get("index") in indexes and frame.get("role") != "START")
+    if use_reference_audio and shot.reference_audio_url:
+        urls.append(shot.reference_audio_url)
+    for url in urls:
+        path = url_to_local_path(url) if url else None
+        if not path or not Path(path).is_file():
+            raise HTTPException(status_code=400, detail="BENCHMARK_REFERENCE_NOT_READY")
+
+
+def _assert_video_admission_parent(db, shot, purpose, novel_id, parent_task_id=None):
+    if parent_task_id:
+        parent = db.query(Task).filter(Task.id == parent_task_id).populate_existing().first()
+        if (purpose != "production" or not parent or parent.type != "shot_video_batch"
+                or parent.status not in {"pending", "running"} or task_execution_purpose(parent) != purpose
+                or parent.novel_id != novel_id or parent.chapter_id != shot.chapter_id
+                or shot.id not in _safe_json_dict(parent.metadata_json).get("shot_ids", [])):
+            raise HTTPException(status_code=409, detail="EXECUTION_PARENT_OR_PURPOSE_MISMATCH")
+        if db.query(Task.id).filter(Task.parent_task_id == parent_task_id, Task.shot_id == shot.id, Task.type == "shot_video").first():
+            raise HTTPException(status_code=409, detail="BATCH_EXECUTION_REVIEW_REQUIRED: video child already exists")
+        if shot.video_task_id != parent_task_id:
+            owner = db.query(Task).filter(Task.id == shot.video_task_id).first()
+            if not owner or owner.type != "shot_video" or owner.parent_task_id != parent_task_id:
+                raise HTTPException(status_code=409, detail="VIDEO_ADMISSION_CONFLICT")
+        return parent
+    if purpose == "production" and shot.video_task_id:
+        owner = db.query(Task).filter(Task.id == shot.video_task_id).first()
+        if owner and owner.type == "shot_video_batch" and owner.status in {"pending", "running"}:
+            raise HTTPException(status_code=409, detail="VIDEO_BATCH_OWNS_SHOT")
+    return None
+
+
+def _admit_video_execution(task_repo, shot, chapter, workflow, purpose, options, *, parent_task_id=None, batch_order=None):
+    db = task_repo.db
+    parent = _assert_video_admission_parent(db, shot, purpose, chapter.novel_id, parent_task_id)
+    parent_metadata = parent.metadata_json if parent else None
+    if task_repo.get_active_shot_task(chapter.novel_id, chapter.id, shot.index, "shot_video", shot_id=shot.id, execution_purpose=purpose):
+        raise HTTPException(status_code=409, detail="VIDEO_ADMISSION_CONFLICT")
+    frozen = create_execution_metadata(shot, purpose=purpose, request=options)
+    source = frozen["execution"]["shot_snapshot"]
+    task = task_repo.create_shot_video_task(
+        novel_id=chapter.novel_id, chapter_id=chapter.id, shot_index=source["index"],
+        shot_duration=_plan_resolved_duration(shot, _safe_json_dict(shot.video_director_plan)),
+        chapter_title=chapter.title, workflow_id=workflow.id, workflow_name=workflow.name, shot_id=source["id"],
+        metadata=frozen, parent_task_id=parent_task_id, batch_order=batch_order,
+    )
+    # The first durable insert already owns the immutable request and batch identity.
+    # Only this CAS may claim the live Shot after preflight; never refresh-and-overwrite it.
+    original = json.dumps(frozen, ensure_ascii=False, allow_nan=False)
+    conditions = [Task.id == task.id, Task.status == "pending", Task.metadata_json == original,
+                  Task.parent_task_id == parent_task_id, Task.batch_order == batch_order,
+                  Task.type == "shot_video", Task.shot_id == source["id"], Task.chapter_id == source["chapter_id"],
+                  Task.novel_id == chapter.novel_id, Task.workflow_id == options["workflow_id"],
+                  Task.claim_token.is_(None), Task.attempt == 0]
+    actor_conditions = tuple(conditions)
+    if parent:
+        from sqlalchemy.orm import aliased
+        parent_row = aliased(Task)
+        conditions.append(db.query(parent_row.id).filter(
+            parent_row.id == parent_task_id, parent_row.status.in_(["pending", "running"]),
+            parent_row.metadata_json == parent_metadata,
+        ).exists())
+    source_conditions = [getattr(Shot, key) == value for key, value in source.items() if key not in {"created_at", "updated_at"}]
+    if purpose == "production":
+        conditions.append(db.query(Shot.id).filter(*source_conditions).exists())
+    count = db.query(Task).filter(*conditions).update({"current_step": "Waiting for video execution"}, synchronize_session=False)
+    if count == 1 and purpose == "production" and options["only_window_index"] is None:
+        count = db.query(Shot).filter(*source_conditions).update(
+            {"video_task_id": task.id, "video_status": "generating"}, synchronize_session=False)
+    if count != 1:
+        db.rollback()
+        db.query(Task).filter(*actor_conditions).update({
+            "status": "failed", "error_message": "VIDEO_ADMISSION_CONFLICT", "completed_at": datetime.utcnow(),
+        }, synchronize_session=False)
+        db.commit()
+        raise HTTPException(status_code=409, detail="VIDEO_ADMISSION_CONFLICT")
+    db.commit()
+    return task
 
 
 def _get_keyframe_transition_template(novel: Novel, template_repo: PromptTemplateRepository):
@@ -2695,13 +3151,22 @@ async def plan_video_keyframes(
         and isinstance(window.get("keyframe_indexes"), list)
         for window in (plan.get("window_plans") or [])
     )
-    if selected_mode == "MULTI_KEYFRAME" and has_planned_windows and not request.force:
-        return {"success": True, "data": plan}
     if selected_mode == "FIRST_LAST_FRAME" and plan.get("keyframes") and plan.get("transitions") and not request.force:
         return {"success": True, "data": plan}
 
     workflow = workflow_repo.get_active_by_type("video")
     workflow_capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else _get_video_workflow_capability(workflow)
+    if selected_mode == "MULTI_KEYFRAME":
+        timeline = _latest_audio_timeline_for_shot(shot, db)
+        if not timeline or timeline.status != "READY":
+            raise HTTPException(status_code=400, detail="Audio Timeline 未 READY，请先在音频生成页构建 Timeline。")
+        plan = _sync_latest_audio_timeline_into_plan(shot, shot_repo)
+        previous_audio_windows = [window for window in previous_audio_windows if _clip_audio_matches_timeline(window, timeline)]
+        # Either frame count may be selected by #08; respect the active workflows, not a saved cap.
+        workflows = [workflow_repo.get_active_by_type(kind) for kind in ("three_frame_video", "four_frame_video")]
+        workflow = min([item for item in workflows if item] or [workflow],
+                       key=lambda item: _get_video_workflow_capability(item)["max_clip_duration"])
+        workflow_capability = _get_video_workflow_capability(workflow)
     max_clip_duration = int(workflow_capability.get("max_clip_duration") or 15)
     audio_timeline = plan.get("audio_timeline") if isinstance(plan.get("audio_timeline"), dict) else {}
     plan_audio_events = audio_timeline.get("events") if isinstance(audio_timeline.get("events"), list) else []
@@ -2709,6 +3174,12 @@ async def plan_video_keyframes(
     if selected_mode == "FIRST_LAST_FRAME" and duration > max_clip_duration:
         raise HTTPException(status_code=400, detail=f"当前 Workflow 单次最大 {max_clip_duration}s，本 Shot {duration}s，请使用多关键帧。")
     execution_windows = plan.get("execution_windows") if isinstance(plan.get("execution_windows"), list) else []
+    # Older AudioDrive windows can establish their revision through matching READY Clip Audio.
+    windows_current = selected_mode == "MULTI_KEYFRAME" and _audio_execution_windows_current(
+        execution_windows, duration, max_clip_duration, timeline, previous_audio_windows,
+    )
+    if windows_current and has_planned_windows and plan.get("keyframe_planning_status") != "STALE" and not request.force:
+        return {"success": True, "data": plan}
     if selected_mode == "FIRST_LAST_FRAME":
         first_last_clip = _build_first_last_clip_plan(duration)[0]
         audio_windows = [
@@ -2728,7 +3199,7 @@ async def plan_video_keyframes(
             plan["execution_windows"] = []
             plan["window_plans"] = []
         plan["clips"] = _build_first_last_clip_plan(duration)
-    elif request.force or not _execution_windows_match_duration(execution_windows, duration, max_clip_duration, plan_audio_events):
+    elif not windows_current:
         execution_windows = _build_execution_windows(duration, max_clip_duration, plan_audio_events)
         plan["execution_windows"] = execution_windows
         plan["window_plans"] = _preserve_matching_clip_audio_fields(
@@ -2739,6 +3210,7 @@ async def plan_video_keyframes(
     plan["workflow_capability"] = workflow_capability
     if selected_mode == "MULTI_KEYFRAME":
         plan["clips"] = []
+        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
 
     previous_failures = []
     result = None
@@ -2760,11 +3232,13 @@ async def plan_video_keyframes(
         result = {"content": json.dumps({"validation": validation, "keyframes": keyframes, "window_plans": window_plans}, ensure_ascii=False)}
 
     template = _get_keyframe_planner_template(novel, template_repo)
+    visual_style, _ = get_style(db, novel, "character")
+    system_prompt = template.template.replace("##STYLE##", visual_style)
     max_attempts = 3
     for attempt in ([] if reused_stale_plan else range(1, max_attempts + 1)):
-        user_content = _build_keyframe_planner_user_content(shot, plan, workflow_capability, previous_failures)
+        user_content = _build_keyframe_planner_user_content(shot, plan, workflow_capability, previous_failures, visual_style=visual_style)
         result = await llm_service.chat_completion(
-            system_prompt=template.template,
+            system_prompt=system_prompt,
             user_content=user_content,
             temperature=0.3,
             max_tokens=2500,
@@ -3027,6 +3501,7 @@ async def generate_video_director_clip(
     workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
+    purpose = _request_execution_purpose(request)
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
@@ -3036,10 +3511,13 @@ async def generate_video_director_clip(
     shot = shot_repo.get_by_id(shot_id)
     if not shot or shot.chapter_id != chapter_id:
         raise HTTPException(status_code=404, detail="分镜不存在")
+    if purpose == "benchmark":
+        shot = _private_benchmark_shot(shot_repo.db, shot)
+    _assert_video_admission_parent(shot_repo.db, shot, purpose, novel_id)
     if not shot.image_url:
         raise HTTPException(status_code=400, detail="该分镜尚未生成图片，请先生成分镜图片")
 
-    plan = _safe_json_dict(shot.video_director_plan)
+    plan = _benchmark_video_plan(shot_repo.db, shot) if purpose == "benchmark" else _safe_json_dict(shot.video_director_plan)
     valid_plan, plan_error, _ = _validate_multi_keyframe_plan_for_execution(shot, plan)
     if not valid_plan:
         raise HTTPException(status_code=400, detail=plan_error)
@@ -3056,31 +3534,39 @@ async def generate_video_director_clip(
     is_valid, error_msg = TaskService.validate_workflow_node_mapping(workflow, workflow_type)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_msg)
-    _assert_audio_drive_ready_for_video(shot, plan, workflow, {int(window_index)})
+    _assert_audio_drive_ready_for_video(shot, plan, workflow, {int(window_index)}, db=shot_repo.db)
+    if purpose == "benchmark":
+        _assert_benchmark_video_references(shot, plan, "MULTI_KEYFRAME", window_index, use_reference_audio=request.use_reference_audio)
 
-    existing_task = task_repo.get_active_shot_task(novel_id, chapter_id, shot.index, "shot_video", shot_id=shot.id)
+    existing_task = task_repo.get_active_shot_task(
+        novel_id, chapter_id, shot.index, "shot_video", shot_id=shot.id, execution_purpose=purpose,
+    )
     if existing_task:
+        if request.visual_state_validation is not None and request.visual_state_validation.enabled:
+            try:
+                saved = execution_record(existing_task)["request"]["visual_state_validation"]
+                matches = shot_video_execution.digest(saved) == shot_video_execution.digest(request.visual_state_validation.model_dump(mode="json"))
+            except (ExecutionConflict, KeyError, TypeError, ValueError):
+                matches = False
+            if not matches:
+                raise HTTPException(status_code=409, detail="VISUAL_STATE_VALIDATION_ACTIVE_TASK_MISMATCH")
         return {
             "success": True,
             "message": "已有进行中的视频生成任务",
             "data": {"taskId": existing_task.id, "status": existing_task.status},
         }
 
-    task = task_repo.create_shot_video_task(
-        novel_id=novel_id,
-        chapter_id=chapter_id,
-        shot_index=shot.index,
-        shot_duration=_plan_resolved_duration(shot, plan),
-        chapter_title=chapter.title,
-        workflow_id=workflow.id,
-        workflow_name=workflow.name,
-        shot_id=shot.id,
-    )
+    task = _admit_video_execution(task_repo, shot, chapter, workflow, purpose, {
+        "use_keyframes": True, "use_reference_audio": request.use_reference_audio,
+        "selected_mode": "MULTI_KEYFRAME", "workflow_id": workflow.id,
+        "only_window_index": window_index, "auto_merge_clips": request.auto_merge,
+        "skip_llm_when_prompt_exists": request.skip_llm_when_prompt_exists,
+        **({"visual_state_validation": request.visual_state_validation.model_dump(mode="json")}
+           if request.visual_state_validation is not None else {}),
+    })
     task.name = f"重新生成视频 Clip: 镜{shot.index} · C{window_index}"
     task.description = f"为章节 '{chapter.title}' 的分镜 {shot.index} 重新生成 Clip {window_index}"
     db = shot_repo.db
-    if request.auto_merge:
-        shot_repo.update_video_status(shot, "generating", task_id=task.id)
     db.commit()
 
     generate_shot_video_task(
@@ -3111,6 +3597,7 @@ async def merge_video_director_clips(
     shot_id: str,
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
+    task_id: Optional[str] = None,
 ):
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
     if not chapter:
@@ -3119,7 +3606,7 @@ async def merge_video_director_clips(
     if not shot or shot.chapter_id != chapter_id:
         raise HTTPException(status_code=404, detail="分镜不存在")
 
-    result = await merge_video_director_clip_videos(shot_repo.db, shot, shot_repo, novel_id, chapter_id, shot.index)
+    result = shot_video_execution.completed_video_artifact(shot_repo.db, task_id or shot.video_task_id, shot_id=shot.id)
     if not result.get("success"):
         raise HTTPException(status_code=400, detail=result.get("message") or "多 Clip 拼接失败")
     return {"success": True, "data": {"videoUrl": result.get("video_url"), "videoDirectorPlan": result.get("plan"), "skipped": result.get("skipped", False)}}
@@ -3142,6 +3629,31 @@ async def generate_shot_video(
     workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
 ):
+    return await _generate_shot_video(
+        novel_id, chapter_id, shot_id, request, novel_repo, chapter_repo, task_repo, workflow_repo, shot_repo,
+    )
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/benchmark/generate-video", response_model=dict)
+async def benchmark_generate_shot_video(
+    novel_id: str, chapter_id: str, shot_id: str,
+    request: Optional[GenerateVideoRequest] = None,
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    task_repo: TaskRepository = Depends(get_task_repo),
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    return await generate_shot_video(
+        novel_id, chapter_id, shot_id, _benchmark_request(request, GenerateVideoRequest),
+        novel_repo, chapter_repo, task_repo, workflow_repo, shot_repo,
+    )
+
+
+async def _generate_shot_video(
+    novel_id, chapter_id, shot_id, request, novel_repo, chapter_repo, task_repo, workflow_repo, shot_repo,
+    *, parent_task_id=None, batch_order=None,
+):
     """为指定分镜生成视频（基于已生成的分镜图片）
 
     Args:
@@ -3150,6 +3662,7 @@ async def generate_shot_video(
             - use_reference_audio: 是否使用参考音频（如果存在），默认 True
             - workflow_id: 指定工作流ID（可选）
     """
+    purpose = _request_execution_purpose(request)
     # 获取章节
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
 
@@ -3167,6 +3680,27 @@ async def generate_shot_video(
     if not shot:
         raise HTTPException(status_code=400, detail=f"分镜 {shot_id} 不存在")
 
+    video_director_plan = _safe_json_dict(shot.video_director_plan)
+    options = {
+        "use_keyframes": request.use_keyframes, "use_reference_audio": request.use_reference_audio,
+        "selected_mode": request.selected_mode or video_director_plan.get("selected_mode") or "SINGLE_FRAME",
+        "workflow_id": request.workflow_id, "only_window_index": None,
+        "auto_merge_clips": False, "skip_llm_when_prompt_exists": request.skip_llm_when_prompt_exists,
+        **({"visual_state_validation": request.visual_state_validation.model_dump(mode="json")}
+           if request.visual_state_validation is not None else {}),
+        **({"actual_state_handoff": request.actual_state_handoff.model_dump(mode="json")}
+           if request.actual_state_handoff is not None else {}),
+    }
+    # Unsupported opt-ins must stop before active reuse, cleanup, or audio sync.
+    try:
+        validate_handoff_scope(options, video_director_plan, options["selected_mode"])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if purpose == "benchmark":
+        shot = _private_benchmark_shot(shot_repo.db, shot)
+    _assert_video_admission_parent(shot_repo.db, shot, purpose, novel_id, parent_task_id)
+    admission_owner_id = shot.video_task_id
     shot_index = shot.index
     shot_duration = visual_required_duration(shot)
 
@@ -3180,30 +3714,69 @@ async def generate_shot_video(
 
     # 检查是否已有进行中的视频生成任务
     existing_task = task_repo.get_active_shot_task(
-        novel_id, chapter_id, shot_index, "shot_video", shot_id=shot.id
+        novel_id, chapter_id, shot_index, "shot_video", shot_id=shot.id, execution_purpose=purpose,
     )
 
     if existing_task:
+        if parent_task_id and (existing_task.parent_task_id != parent_task_id or existing_task.batch_order != batch_order):
+            raise HTTPException(status_code=409, detail="EXECUTION_PARENT_OR_PURPOSE_MISMATCH")
+        if request.visual_state_validation is not None and request.visual_state_validation.enabled:
+            try:
+                saved = execution_record(existing_task)["request"]["visual_state_validation"]
+                matches = shot_video_execution.digest(saved) == shot_video_execution.digest(request.visual_state_validation.model_dump(mode="json"))
+            except (ExecutionConflict, KeyError, TypeError, ValueError):
+                matches = False
+            if not matches:
+                raise HTTPException(status_code=409, detail="VISUAL_STATE_VALIDATION_ACTIVE_TASK_MISMATCH")
+        if request.actual_state_handoff is not None and request.actual_state_handoff.enabled:
+            try:
+                frozen = execution_record(existing_task)
+                saved = frozen["request"]
+                matches = (
+                    shot_video_execution.digest(saved["actual_state_handoff"]) == shot_video_execution.digest(options["actual_state_handoff"])
+                    and saved["only_window_index"] is None
+                    and saved["skip_llm_when_prompt_exists"] is False
+                    and validate_handoff_scope(saved, _safe_json_dict(frozen["shot_snapshot"]["video_director_plan"]), saved["selected_mode"])
+                )
+            except (ExecutionConflict, KeyError, TypeError, ValueError, AttributeError):
+                matches = False
+            if not matches:
+                raise HTTPException(status_code=409, detail="ACTUAL_STATE_HANDOFF_ACTIVE_TASK_MISMATCH")
         return {
             "success": True,
             "message": "已有进行中的视频生成任务",
             "data": {"taskId": existing_task.id, "status": existing_task.status},
         }
 
-    # 检查是否有失败的任务，如果有则删除旧任务以便重新生成
+    # Keep failed H3 tasks as prompt-reuse evidence; replace other failed tasks.
     failed_task = task_repo.get_failed_shot_task(
-        novel_id, chapter_id, shot_index, "shot_video", shot_id=shot.id
-    )
+        novel_id, chapter_id, shot_index, "shot_video", shot_id=shot.id, execution_purpose="production",
+    ) if purpose == "production" else None
 
     if failed_task:
-        print(
-            f"[GenerateVideo] Deleting failed task {failed_task.id} for shot {shot_id} to allow regeneration"
-        )
-        task_repo.delete(failed_task)
+        from app.services.comfyui.service import is_h3_workflow
 
-    video_director_plan = _sync_latest_audio_timeline_into_plan(shot, shot_repo)
+        gate = _safe_json_dict(_safe_json_dict(failed_task.metadata_json).get("h3_prompt_gate"))
+        if not ("execution" in _safe_json_dict(failed_task.metadata_json)
+                or gate.get("version") == 1 or is_h3_workflow(_safe_json_dict(failed_task.workflow_json))):
+            print(
+                f"[GenerateVideo] Deleting failed task {failed_task.id} for shot {shot_id} to allow regeneration"
+            )
+            task_repo.delete(failed_task)
+
+    video_director_plan = (_benchmark_video_plan(shot_repo.db, shot) if purpose == "benchmark"
+                           else _sync_latest_audio_timeline_into_plan(shot, shot_repo))
+    if purpose == "production" and shot.video_task_id != admission_owner_id:
+        raise HTTPException(status_code=409, detail="VIDEO_ADMISSION_CONFLICT")
     shot_duration = _plan_resolved_duration(shot, video_director_plan)
     selected_mode = request.selected_mode or video_director_plan.get("selected_mode") or "SINGLE_FRAME"
+    options["selected_mode"] = selected_mode
+    try:
+        validate_handoff_scope(options, video_director_plan, selected_mode)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if selected_mode not in VIDEO_MODE_LABELS:
+        raise HTTPException(status_code=400, detail="INVALID_VIDEO_MODE")
     expected_workflow_type = "video"
     if selected_mode == "FIRST_LAST_FRAME":
         expected_workflow_type = "first_last_video"
@@ -3211,7 +3784,22 @@ async def generate_shot_video(
         valid_plan, plan_error, first_frame_count = _validate_multi_keyframe_plan_for_execution(shot, video_director_plan)
         if not valid_plan:
             final_error = f"视频生成前置检查失败：{plan_error}"
-            _mark_video_director_planning_failed(shot, shot_repo, video_director_plan, final_error)
+            if purpose == "production":
+                db = shot_repo.db
+                video_director_plan.update(error_message=final_error, task_error_message=final_error)
+                count = db.query(Shot).filter(
+                    Shot.id == shot.id, Shot.video_task_id == admission_owner_id,
+                    Shot.video_director_plan_revision == shot.video_director_plan_revision,
+                    Shot.video_director_plan == shot.video_director_plan,
+                ).update({
+                    "video_director_plan": json.dumps(video_director_plan, ensure_ascii=False),
+                    "video_director_plan_revision": int(shot.video_director_plan_revision or 0) + 1,
+                    "video_status": "failed", "video_task_id": None,
+                }, synchronize_session=False)
+                if count != 1:
+                    db.rollback()
+                    raise HTTPException(status_code=409, detail="VIDEO_ADMISSION_CONFLICT")
+                db.commit()
             raise HTTPException(status_code=400, detail=final_error)
         window_plans = video_director_plan.get("window_plans") if isinstance(video_director_plan.get("window_plans"), list) else []
         needed_workflow_types = {
@@ -3230,7 +3818,7 @@ async def generate_shot_video(
                 for window_plan in window_plans
                 if ("three_frame_video" if int(window_plan.get("selected_frame_count") or 0) == 3 else "four_frame_video") == workflow_type
             }
-            _assert_audio_drive_ready_for_video(shot, video_director_plan, clip_workflow, workflow_window_indexes)
+            _assert_audio_drive_ready_for_video(shot, video_director_plan, clip_workflow, workflow_window_indexes, db=shot_repo.db)
         expected_workflow_type = "three_frame_video" if first_frame_count == 3 else "four_frame_video"
 
     # 获取视频生成工作流（优先使用指定的工作流，否则按 selected_mode 使用激活工作流）
@@ -3261,33 +3849,24 @@ async def generate_shot_video(
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_msg)
     if selected_mode != "MULTI_KEYFRAME":
-        _assert_audio_drive_ready_for_video(shot, video_director_plan, workflow, {1})
+        _assert_audio_drive_ready_for_video(shot, video_director_plan, workflow, {1}, db=shot_repo.db)
+    if purpose == "benchmark":
+        _assert_benchmark_video_references(shot, video_director_plan, selected_mode, use_reference_audio=request.use_reference_audio)
+    elif shot.video_task_id != admission_owner_id:
+        raise HTTPException(status_code=409, detail="VIDEO_ADMISSION_CONFLICT")
 
     # 保留旧视频直到新任务成功，避免重复生成失败后丢失可用产物。
     if shot.video_url:
         print(f"[GenerateVideo] Keeping previous video until replacement succeeds for shot {shot_id}: {shot.video_url}")
-    shot_repo.update_video_status(shot, "generating")
-
-    # 使用 Repository 创建任务记录
-    task = task_repo.create_shot_video_task(
-        novel_id=novel_id,
-        chapter_id=chapter_id,
-        shot_index=shot_index,
-        shot_duration=shot_duration,
-        chapter_title=chapter.title,
-        workflow_id=workflow.id,
-        workflow_name=workflow.name,
-        shot_id=shot.id,
-    )
+    options["workflow_id"] = workflow.id
+    task = _admit_video_execution(task_repo, shot, chapter, workflow, purpose, options,
+                                 parent_task_id=parent_task_id, batch_order=batch_order)
 
     print(f"[GenerateVideo] Created task {task.id} for shot {shot.id}")
     task.description = f"{task.description}；视频模式：{VIDEO_MODE_LABELS.get(selected_mode, selected_mode)}"
     db = shot_repo.db
     db.commit()
     print(f"[GenerateVideo] selected_mode={selected_mode}, use_keyframes={request.use_keyframes}, use_reference_audio={request.use_reference_audio}")
-
-    # 更新 Shot 表任务 ID
-    shot_repo.update_video_status(shot, "generating", task_id=task.id)
 
     generate_shot_video_task(
         task.id,
@@ -3323,6 +3902,8 @@ async def generate_shot_videos_batch(
     shot_repo: ShotRepository = Depends(get_shot_repo),
     db: Session = Depends(get_db),
 ):
+    if _request_execution_purpose(request) == "benchmark":
+        raise HTTPException(status_code=400, detail="BENCHMARK_BATCH_UNSUPPORTED")
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -3351,6 +3932,8 @@ async def generate_shot_videos_batch(
     ).order_by(Task.created_at.asc()).all()
     requested_shot_ids = set(unique_shot_ids)
     for active_batch in active_batches:
+        if task_execution_purpose(active_batch) != "production":
+            continue
         try:
             active_metadata = json.loads(active_batch.metadata_json or "{}")
         except Exception:
@@ -3374,6 +3957,7 @@ async def generate_shot_videos_batch(
             )
 
     metadata = {
+        "execution_purpose": "production",
         "shot_ids": unique_shot_ids,
         "selected_modes": request.selected_modes or {},
         "auto_complete": bool(request.auto_complete),
@@ -3712,11 +4296,10 @@ def _build_shot_image_data_response(
 
         for shot in shots:
             shot_dir = f"shot{int(shot.index):03d}"
-            latest_task = (
-                db.query(Task)
-                .filter(Task.shot_id == shot.id, Task.type == "shot_image")
-                .order_by(Task.created_at.desc())
-                .first()
+            active_image_task_id = shot.image_task_id
+            query = db.query(Task).filter(Task.shot_id == shot.id, Task.type == "shot_image")
+            latest_task = TaskRepository(db)._shot_task_for_purpose(
+                query.filter(Task.id == active_image_task_id) if active_image_task_id else query, "production",
             )
             scene = None
             if shot.scene:
@@ -5014,6 +5597,7 @@ async def generate_keyframe_image(
     Returns:
         生成任务信息
     """
+    purpose = _request_execution_purpose(request)
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -5029,6 +5613,8 @@ async def generate_keyframe_image(
     if shot.chapter_id != chapter_id:
         raise HTTPException(status_code=400, detail="分镜不属于该章节")
 
+    if purpose == "benchmark":
+        shot = _private_benchmark_shot(db, shot)
     existing_keyframes = _safe_json_list(shot.keyframes)
     plan = _safe_json_dict(shot.video_director_plan)
     plan_keyframes = plan.get("keyframes") if isinstance(plan.get("keyframes"), list) else []
@@ -5043,8 +5629,13 @@ async def generate_keyframe_image(
         for keyframe in existing_keyframes
     )
     if end_plan_keyframe and not has_end_legacy_keyframe:
+        if purpose == "benchmark":
+            raise HTTPException(status_code=400, detail="BENCHMARK_LEGACY_KEYFRAME_TARGET_REQUIRED")
         shot_repo.update(shot, keyframes=_build_legacy_keyframes_from_plan(shot, plan_keyframes))
         db.commit()
+    if purpose == "benchmark" and (frame_index < 0 or frame_index >= len(existing_keyframes)
+                                   or not isinstance(existing_keyframes[frame_index], dict)):
+        raise HTTPException(status_code=400, detail="BENCHMARK_LEGACY_KEYFRAME_TARGET_REQUIRED")
 
     keyframe_service = ShotKeyframeService()
     success, task_id, message = await keyframe_service.generate_keyframe_image(
@@ -5053,6 +5644,7 @@ async def generate_keyframe_image(
         frame_index,
         request.workflow_id,
         skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
+        execution_purpose=purpose,
     )
 
     return {
@@ -5060,6 +5652,21 @@ async def generate_keyframe_image(
         "data": {"task_id": task_id} if success else None,
         "message": message,
     }
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/benchmark/keyframes/{frame_index}/generate-image", response_model=dict)
+async def benchmark_generate_keyframe_image(
+    novel_id: str, chapter_id: str, shot_id: str, frame_index: int,
+    request: Optional[GenerateKeyframeImageRequest] = None,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    return await generate_keyframe_image(
+        novel_id, chapter_id, shot_id, frame_index, _benchmark_request(request, GenerateKeyframeImageRequest),
+        db, novel_repo, chapter_repo, shot_repo,
+    )
 
 
 @router.post(

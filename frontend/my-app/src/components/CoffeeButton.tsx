@@ -54,7 +54,7 @@ export default function CoffeeButton() {
           href="https://github.com/qzw881130/AI-NovelFlow"
           target="_blank"
           rel="noopener noreferrer"
-          className="group fixed bottom-4 left-[180px] z-[100] flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white shadow-lg transition-all hover:bg-gray-800 hover:shadow-xl lg:bottom-6 lg:left-[192px]"
+          className="coffee-floating-control group fixed bottom-4 left-[180px] z-[100] flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white shadow-lg transition-all hover:bg-gray-800 hover:shadow-xl lg:bottom-6 lg:left-[192px]"
           title="GitHub"
         >
           <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
@@ -67,7 +67,7 @@ export default function CoffeeButton() {
       {!isCollapsed && (
         <button
           onClick={() => setIsOpen(true)}
-          className="group fixed bottom-4 left-4 z-[100] flex items-center gap-2 rounded-full bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all hover:bg-amber-700 hover:shadow-xl lg:bottom-6 lg:left-6"
+          className="coffee-floating-control group fixed bottom-4 left-4 z-[100] flex items-center gap-2 rounded-full bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-lg transition-all hover:bg-amber-700 hover:shadow-xl lg:bottom-6 lg:left-6"
         >
           {/* Animated Coffee Cup Icon */}
           <div className="relative">

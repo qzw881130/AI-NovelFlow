@@ -1,5 +1,6 @@
 """Helpers for Video Director prompt call records and prompt builders."""
 import asyncio
+from copy import deepcopy
 import json
 import re
 from datetime import datetime
@@ -12,6 +13,9 @@ from app.models.novel import Novel
 from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.llm.base import mark_matching_pending_llm_logs_error
 from app.services.llm_service import LLMService
+from app.services.h3_prompt_validation import (
+    H3PromptValidationError, prompt_digest, strip_h3_managed_layers, validate_h3_prompt_core,
+)
 
 
 VIDEO_AI_STEP_LABELS = {
@@ -47,6 +51,44 @@ def safe_json_list(value: Any) -> list:
         return parsed if isinstance(parsed, list) else []
     except Exception:
         return []
+
+
+def build_visual_identity_context(db, novel_id, character_names, prop_names, visual_style) -> dict:
+    """Read only named saved facts; appearances never imply additional image bindings."""
+    from app.models.novel import Character, Prop
+
+    characters, appearances, props = [], {}, {}
+    for name in dict.fromkeys(character_names):
+        if not isinstance(name, str) or not name.strip() or name.casefold() in {"narrator", "旁白"}:
+            continue
+        character = db.query(Character).filter(Character.novel_id == novel_id, Character.name == name).first()
+        if character and getattr(character, "is_narrator", False):
+            continue
+        characters.append(name)
+        if character and isinstance(character.appearance, str) and character.appearance.strip():
+            appearances[name] = character.appearance
+    for name in dict.fromkeys(prop_names):
+        if not isinstance(name, str) or not name.strip():
+            continue
+        prop = db.query(Prop).filter(Prop.novel_id == novel_id, Prop.name == name).first()
+        if prop and isinstance(prop.appearance, str) and prop.appearance.strip():
+            props[name] = prop.appearance
+    return {
+        "characters": characters,
+        "character_appearances": appearances,
+        "prop_appearances": props,
+        "visual_style": visual_style,
+        "preservation_rule": (
+            "Bind each appearance only to its exact saved name. These are text facts, not extra reference pictures "
+            "or evidence that a prop is visible. Actually bound images are the primary visible identity, design and style authority; "
+            "saved facts and visual_style supplement unknown stable features, never override visible age, face, costume, colors or prop design. "
+            "Preserve stable features across shots; lighting, blur and pose do not imply a redesign. "
+            "Current authored shot/keyframe/clip states govern pose, expression, position, held/dropped/absent props, damage "
+            "and explicit costume or age changes. Do not restore baseline clothes, heal damage, re-equip dropped props "
+            "or invent props from appearance text. Only the named visual cast and currently authored visible props may appear; "
+            "narrator is audio-only. With no bound image, use these text facts and style without claiming image inheritance."
+        ),
+    }
 
 
 MEDIA_REF_KEYS = {"image_url", "image_path", "image_task_id", "reference_image_url", "reference_url", "url", "path"}
@@ -162,7 +204,8 @@ def build_clip_subject_manifest(shot, speaker_timeline: list, character_appearan
     visible_names = []
     for name in characters:
         name = _speaker_name(name)
-        if name and name not in visible_names:
+        if (name and name.casefold() not in {"narrator", "旁白"}
+                and not ((character_refs or {}).get(name) or {}).get("is_narrator") and name not in visible_names):
             visible_names.append(name)
     subjects = []
     for index, name in enumerate(visible_names, 1):
@@ -356,6 +399,33 @@ def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_c
     }
 
 
+def _audiodrive_speech_audit_view(prompt: str) -> str:
+    """Decode valid director JSON for speech scoping, without rewriting the prompt."""
+    offset = 0
+    if prompt.startswith("shot_continuity_lock:\n"):
+        boundary = prompt.find("\n\n")
+        if boundary < 0:
+            return prompt
+        offset = boundary + 2
+    body = prompt[offset:]
+    if not body.startswith("{"):
+        return prompt
+    try:
+        document, end = json.JSONDecoder().raw_decode(body)
+        validate_h3_prompt_core(body[:end], allow_empty_subjects=True)
+    except (ValueError, H3PromptValidationError):
+        return prompt
+    suffix = body[end:]
+    if suffix.strip() and not suffix.lstrip().startswith("text_rendering_constraint:"):
+        return prompt
+    # Keep every field, but do not let compact JSON join unrelated field scopes.
+    view = "\n\n".join(
+        f"{name}:\n" + (value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, indent=2))
+        for name, value in document.items()
+    )
+    return prompt[:offset] + view + suffix
+
+
 def audit_audiodrive_h3_prompt(final_prompt: str, speaker_timeline: list, subject_manifest: dict, resolution_issues: Optional[list] = None, dialogue_texts: Optional[list[str]] = None) -> dict:
     issues = list(resolution_issues or [])
     prompt = final_prompt or ""
@@ -379,6 +449,7 @@ def audit_audiodrive_h3_prompt(final_prompt: str, speaker_timeline: list, subjec
     for subject_ref in sorted(set(re.findall(r"<Subject\s+\d+>", prompt))):
         if subject_ref not in known_subjects:
             issues.append({"code": "UNKNOWN_SUBJECT_REFERENCE", "subject_ref": subject_ref, "blocking": True})
+    speech_prompt = _audiodrive_speech_audit_view(prompt)
     for segment in speaker_timeline or []:
         if not isinstance(segment, dict):
             continue
@@ -388,27 +459,40 @@ def audit_audiodrive_h3_prompt(final_prompt: str, speaker_timeline: list, subjec
         if speaker != "NONE" and speaker in known_subjects and speaker not in prompt:
             issues.append({"code": "MISSING_SUBJECT_REFERENCE_IN_PROMPT", "subject_ref": speaker, "blocking": True})
         if speaker == "NONE":
-            chinese_speech_action = r"张嘴|开口|说话|讲话|发声|(?:产生|做)(?:说话|讲话|发声)?口型"
+            chinese_speech_action = r"张嘴|开口|说道|说话|讲话|发声|说\s*[:：]|(?:产生|做|进行)(?:任何)?(?:说话|讲话|发声)?口型"
             speech_action = (
                 chinese_speech_action + r"|"
-                r"\b(?:lip[- ]?sync(?:s|ing)?|speak(?:s|ing)?|talk(?:s|ing)?)\b|"
+                r"\bspeech\s+mouthing\b|"
+                r"\b(?:lip[- ]?sync(?:s|ing)?|speak(?:s|ing)?|talk(?:s|ing)?|say(?:s|ing)?)\b|"
                 r"\bmouth\s+(?:moves?|opens?)\b"
             )
+            negatable_action = r"(?:" + speech_action + r"|\bspeech\b)"
             negated_action = (
                 r"(?:不(?:得|要|会|能|可|再|允许)?|没有|未|禁止|无需|无)(?:任何|可|在|再)?"
                 r"(?:(?:可见)?(?:人物|角色|人))?\s*(?:" + speech_action + r")(?:" + chinese_speech_action + r")*|"
-                r"\b(?:no|not|never|without)\s+(?:any\s+)?(?:" + speech_action + r")"
+                r"\b(?:no\s*(?:visible\s*)?characters?\s+(?:(?:performs?|produces?)\s+)?(?:any\s+)?|(?:no|not|never|without)\s+(?:any\s+)?)"
+                + negatable_action + r"(?:\s+(?:or|nor)\s+(?:any\s+)?" + negatable_action + r")*"
+                r"|\bnone\s+of\s+(?:the\s+)?(?:visible\s+)?characters\s+produces?\s+(?:any\s+)?"
+                + negatable_action + r"(?:\s+(?:or|nor)\s+(?:any\s+)?" + negatable_action + r")*"
+                r"|\bnon[- ]lip[- ]?sync\b"
+            )
+            explicit_dialogue = (
+                r"(?:台词|对白|(?<![A-Za-z0-9_])(?:exact_dialogue|dialogue))\s*[:：][ \t]*"
+                r"(?:[\"'“‘][ \t]*[^\"'“”‘’\s]|"
+                r"(?!(?:NONE|null|无(?:台词)?|没有台词|保持沉默)(?:[ \t]*[。；;,，]|\s*$))[^\W_])|"
+                r"<Subject\s+\d+>\s*[:：][ \t]*[\"'“‘][ \t]*[^\"'“”‘’\s]"
             )
             # End NONE scope at a new timed interval or speaker assignment, even on the same line.
             scope_boundary = (
                 r"[\n。；;]|(?=\bvisible_speaker\s*[:=])|"
                 r"(?=\d+(?:\.\d+)?\s*(?:s|秒)?\s*(?:-|–|~|至|到|to)\s*\d+(?:\.\d+)?\s*(?:s|秒)?)"
             )
-            for none_marker in re.finditer(r"(?<![A-Za-z0-9_])NONE(?![A-Za-z0-9_])", prompt, re.IGNORECASE):
-                clause = re.split(scope_boundary, prompt[none_marker.end():], maxsplit=1, flags=re.IGNORECASE)[0]
-                # Remove only negated actions, never exempt other actions in a mixed clause.
-                affirmative = re.sub(negated_action, "", clause, flags=re.IGNORECASE)
-                if re.search(speech_action, affirmative, re.IGNORECASE):
+            # Ordinary "none of ..." is a negated subject, not a timeline sentinel.
+            for none_marker in re.finditer(r"(?<![A-Za-z0-9_])NONE(?![A-Za-z0-9_]|\s+of\b)", speech_prompt, re.IGNORECASE):
+                clause = re.split(scope_boundary, speech_prompt[none_marker.end():], maxsplit=1, flags=re.IGNORECASE)[0]
+                # Mask only negated predicates; keep other actions and explicit spoken text.
+                affirmative = re.sub(negated_action, lambda match: " " * len(match[0]), clause, flags=re.IGNORECASE)
+                if re.search(speech_action, affirmative, re.IGNORECASE) or re.search(explicit_dialogue, clause, re.IGNORECASE):
                     issues.append({"code": "NONE_SEGMENT_LIPSYNC_CONTRADICTION", "blocking": True})
                     break
     speech_verbs = r"(speak|speaks|say|says|read|reads|朗读|说出|说：|台词|念出)"
@@ -447,6 +531,46 @@ def _render_continuity_lock(shot, selected_mode: str, clip: dict | None) -> str:
     ])
 
 
+def _handoff_prompt_payload(effective_context: dict) -> dict:
+    """Only approved state fields and opaque provenance, never the observation report or media locators."""
+    return strip_media_refs({
+        **{field: effective_context[field] for field in (
+            "version", "source", "run_id", "from_clip", "to_clip", "clip_attempt_id",
+            "planned_context_hash", "start_image_sha256", "evidence_hash",
+        )},
+        "effective_context_hash": prompt_digest(effective_context),
+        "picture_1_role": "Picture 1 is the validated actual C1 tail for this same-run C2 handoff, not the original planned keyframe.",
+        "picture_1_description": effective_context["keyframes"][0]["description"],
+        "trust_scope": "At the C2 start, inherit only the confirmed coarse facts in trusted_state. Validation does not certify all pixels, "
+        "hidden details, or unknown facts; do not promote them into canon.",
+        "preservation_rule": "Preserve canonical_state as the original P0 invariant requirements, not newly observed facts. "
+        "Keep later planned keyframes and transitions; do not rewrite the plan to excuse a canonical violation.",
+        "audio_rule": "Keep declared AudioDrive speakers and timing unchanged; speaker_timeline and drive_audio remain the authority for visible lip-sync.",
+        "trusted_state": [{field: fact[field] for field in ("predicate", "subject", "value", "state") if field in fact}
+                          for fact in effective_context["trusted_state"]
+                          if fact.get("state") in {"PRESENT", "ABSENT"}
+                          and fact.get("confidence") in {None, "HIGH"} and not fact.get("known_unknown")],
+        "canonical_state": [{field: requirement[field] for field in (
+            "predicate", "subject", "value", "expected", "critical", "protected", "known_unknown",
+        ) if field in requirement} for requirement in effective_context["canonical_state"]],
+    })
+
+
+def build_handoff_continuity_layer(effective_context: dict | None) -> str:
+    if effective_context is None:
+        return ""
+    payload = _handoff_prompt_payload(effective_context)
+    return "\n".join([
+        "actual_state_handoff: source=actual_state_handoff; version=1; C1->C2; "
+        f"effective_context_hash={payload['effective_context_hash']}; evidence_hash={payload['evidence_hash']}; "
+        f"start_image_sha256={payload['start_image_sha256']}",
+        payload["picture_1_role"], payload["trust_scope"], payload["preservation_rule"], payload["audio_rule"],
+        "Picture 1 description: " + json.dumps(payload["picture_1_description"], ensure_ascii=False),
+        "trusted_state: " + json.dumps(payload["trusted_state"], ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        "canonical_state: " + json.dumps(payload["canonical_state"], ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+    ])
+
+
 def _build_deterministic_h3_prompt(
     shot,
     selected_mode: str,
@@ -457,6 +581,7 @@ def _build_deterministic_h3_prompt(
     audio_drive_context: dict,
     subject_manifest: Optional[dict] = None,
     audio_text_rendering_constraint: str = "",
+    visual_identity: Optional[dict] = None,
 ) -> str:
     clip_start = float(clip.get("start_time") or 0)
     clip_end = float(clip.get("end_time") or shot.duration or 0)
@@ -505,9 +630,107 @@ def _build_deterministic_h3_prompt(
         f"final_audio={audio_drive_context.get('final_audio') or 'provided final audio'}",
         "drive_audio controls visible lip-sync only; final_audio is the complete audience-facing audio.",
     ])
+    if visual_identity is not None:
+        lines.extend(["", "official_character_identity_lock:", json.dumps(visual_identity, ensure_ascii=False)])
     if audio_text_rendering_constraint:
         lines.extend(["", "text_rendering_constraint:", audio_text_rendering_constraint])
     return "\n".join(lines).strip()
+
+
+def resolve_h3_prompt_subjects(db, novel_id, shot, clip, speaker_timeline, character_appearances):
+    character_refs = {}
+    shot_characters = safe_json_list(shot.characters)
+    if shot_characters:
+        from app.models.novel import Character
+        for character in db.query(Character).filter(Character.novel_id == novel_id, Character.name.in_(shot_characters)).all():
+            character_refs[character.name] = {"id": character.id, "name": character.name,
+                                              "is_narrator": bool(getattr(character, "is_narrator", False))}
+    manifest = build_clip_subject_manifest(shot, speaker_timeline, character_appearances, character_refs)
+    timeline, issues = resolve_speaker_timeline_for_h3(speaker_timeline, manifest, clip)
+    return manifest, timeline, issues
+
+
+def prepare_h3_prompt(value, *, constraint, continuity_lock, subject_manifest, speaker_timeline,
+                      audio_drive_enabled=True, fallback_context=None):
+    core = strip_h3_managed_layers(value, constraint, continuity_lock)
+    validation = validate_h3_prompt_core(
+        core, allow_empty_subjects=not subject_manifest.get("subjects"), fallback_context=fallback_context,
+    )
+    final_prompt = _apply_audio_text_rendering_constraint(validation["core"], constraint)
+    if continuity_lock:
+        final_prompt = f"{continuity_lock}\n\n{final_prompt}"
+    audit = audit_audiodrive_h3_prompt(final_prompt, speaker_timeline, subject_manifest) if audio_drive_enabled else {"passed": True, "applicable": False, "issues": []}
+    if not audit["passed"]:
+        raise H3PromptValidationError("AUDIODRIVE_AUDIT_FAILED", audit["issues"])
+    return {
+        **validation, "passed": True, "final_prompt": final_prompt, "final_hash": prompt_digest(final_prompt),
+        "constraint": constraint, "continuity_lock": continuity_lock, "audio_drive_enabled": audio_drive_enabled,
+        "subject_manifest": subject_manifest, "speaker_timeline": speaker_timeline, "audio_audit": audit,
+        "fallback_context": fallback_context,
+    }
+
+
+def _record_h3_prompt_call(db, shot, call):
+    from types import SimpleNamespace
+    from app.services.video_director_plan_service import VideoDirectorPlanService
+    if call.get("response") is not None and not isinstance(call["response"], str):
+        call = {**call, "response": json.dumps(call["response"], ensure_ascii=False)}
+    if hasattr(shot, "_execution_task_id"):
+        from app.services.shot_video_execution import mutate_private_plan
+        mutate_private_plan(db, shot, lambda plan: append_video_ai_call(SimpleNamespace(video_director_plan=plan), call))
+        return
+    VideoDirectorPlanService(db).mutate(
+        shot.id, lambda plan: append_video_ai_call(SimpleNamespace(video_director_plan=plan), call),
+    )
+
+
+def _has_recorded_h3_fallback(db, shot, clip, candidate, record):
+    """A user-editable plan/ai_calls marker cannot establish fallback provenance."""
+    from app.models.task import Task
+    from app.services.comfyui.service import is_h3_workflow, resolve_h3_consumed_prompt
+    current_task_id = (record.get("target") or {}).get("id")
+    clip_index = int(clip.get("clip_index") or 1)
+    for previous in db.query(Task).filter(Task.shot_id == shot.id, Task.type == "shot_video").all():
+        if previous.id == current_task_id:
+            continue
+        metadata = safe_json_dict(previous.metadata_json)
+        if "h3_prompt_gate" in metadata:
+            attempts = safe_json_dict(metadata["h3_prompt_gate"]).get("clips", {}).get(str(clip_index), [])
+            for attempt in attempts:
+                if (isinstance(attempt, dict) and attempt.get("passed") is True
+                        and attempt.get("origin") in {"fallback", "reused_fallback"}
+                        and attempt.get("profile") == "deterministic_fallback"
+                        and attempt.get("final_prompt") == candidate
+                        and attempt.get("final_hash") == prompt_digest(candidate)):
+                    record["fallback_source_task_id"] = previous.id
+                    return True
+            continue
+        # Older tasks have no gate record. Require an independent, submitted H3
+        # graph; copied plan text or a success flag alone is not evidence.
+        if not previous.comfyui_prompt_id or not is_h3_workflow(safe_json_dict(previous.workflow_json)):
+            continue
+        documents = safe_json_list(previous.video_director_clips)
+        if not documents and clip_index == 1:
+            documents = [{"clip_index": 1, "prompt_id": previous.comfyui_prompt_id,
+                          "prompt_text": previous.prompt_text, "workflow_json": previous.workflow_json}]
+        for document in documents:
+            if (not isinstance(document, dict) or document.get("prompt_text") != candidate
+                    or int(document.get("clip_index") or document.get("window_index") or 0) != clip_index
+                    or not document.get("prompt_id")):
+                continue
+            graph = safe_json_dict(document.get("workflow_json"))
+            for node_id, node in graph.items():
+                if not isinstance(node, dict) or node.get("class_type") not in {"MiniMaxH3AudioConditioningT8", "MiniMaxH3ReferenceToVideo"}:
+                    continue
+                reference = node.get("inputs", {}).get("prompt")
+                source_id = reference[0] if isinstance(reference, list) and len(reference) == 2 else node_id
+                try:
+                    if resolve_h3_consumed_prompt(graph, {"prompt_node_id": source_id}) == candidate:
+                        record["fallback_source_task_id"] = previous.id
+                        return True
+                except ValueError:
+                    continue
+    return False
 
 
 async def build_h3_video_prompt(
@@ -527,7 +750,25 @@ async def build_h3_video_prompt(
     character_appearances: Optional[dict] = None,
     speaker_timeline: Optional[list] = None,
     audio_drive_context: Optional[dict] = None,
+    reusable_prompt: Optional[str] = None,
+    validation_record: Optional[dict] = None,
+    audio_drive_enabled: bool = True,
+    workflow_graph: Optional[dict] = None,
+    effective_context: Optional[dict] = None,
 ) -> str:
+    core_gate_required = workflow_graph is None or any(
+        isinstance(node, dict) and str(node.get("class_type", "")).startswith("MiniMaxH3")
+        for node in workflow_graph.values()
+    )
+    if effective_context is not None:
+        if reusable_prompt is not None:
+            raise H3PromptValidationError("HANDOFF_REQUIRES_FRESH_PROMPT")
+        if not core_gate_required or selected_mode != "MULTI_KEYFRAME" or clip.get("clip_index") != 2:
+            raise H3PromptValidationError("HANDOFF_REQUIRES_C2_H3")
+        effective_context = deepcopy(effective_context)
+        start_image_url = effective_context["start_image_url"]
+        keyframes = effective_context["keyframes"]
+        transitions = effective_context["transitions"]
     if selected_mode == "FIRST_LAST_FRAME":
         step = "12"
         template_attr = "h3_first_last_frame_prompt_template_id"
@@ -557,16 +798,16 @@ async def build_h3_video_prompt(
     audio_drive_context = audio_drive_context or {}
     shot_characters = safe_json_list(shot.characters)
     character_appearances = character_appearances or {}
-    character_refs = {}
-    if shot_characters:
-        try:
-            from app.models.novel import Character
-            for character in db.query(Character).filter(Character.novel_id == novel.id, Character.name.in_(shot_characters)).all():
-                character_refs[character.name] = {"id": character.id, "name": character.name}
-        except Exception:
-            character_refs = {}
-    subject_manifest = build_clip_subject_manifest(shot, speaker_timeline, character_appearances, character_refs)
-    h3_speaker_timeline, resolution_issues = resolve_speaker_timeline_for_h3(speaker_timeline, subject_manifest, clip)
+    visual_identity = None
+    if reusable_prompt is None:
+        from app.services.prompt_builder import get_style
+        visual_style, _ = get_style(db, novel, "character")
+        visual_identity = build_visual_identity_context(db, novel.id, shot_characters, safe_json_list(shot.props), visual_style)
+        shot_characters = visual_identity["characters"]
+        character_appearances = visual_identity["character_appearances"]
+    subject_manifest, h3_speaker_timeline, resolution_issues = resolve_h3_prompt_subjects(
+        db, novel.id, shot, clip, speaker_timeline, character_appearances,
+    )
     if resolution_issues:
         audit = audit_audiodrive_h3_prompt("", h3_speaker_timeline, subject_manifest, resolution_issues)
         raise RuntimeError(json.dumps(audit, ensure_ascii=False))
@@ -603,102 +844,135 @@ async def build_h3_video_prompt(
             "rule": "CONTINUOUS_TAKE forbids cuts and hidden edits while still allowing SINGLE_FRAME, FIRST_LAST_FRAME, or MULTI_KEYFRAME according to selected_mode.",
         },
     }
+    if visual_identity is not None:
+        payload["visual_identity"] = visual_identity
+    if effective_context is not None:
+        payload["actual_state_handoff"] = _handoff_prompt_payload(effective_context)
+        # One managed prefix keeps JSON speech scoping and prequeue reconstruction unchanged.
+        handoff_continuity_lock = (_render_continuity_lock(shot, selected_mode, clip) or "shot_continuity_lock:") + "\n" + build_handoff_continuity_layer(effective_context)
     user_content = "请基于以下 Video Director 规划数据，生成可直接用于 MiniMax H3 的最终视频提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
-    try:
-        llm_timeout = max(1, int(getattr(get_settings(), "LLM_TIMEOUT", 600) or 600))
-        result = await asyncio.wait_for(
-            LLMService().chat_completion(
-                system_prompt=template.template,
-                user_content=user_content,
-                temperature=0.3,
-                max_tokens=1800,
-                task_type=template_type,
-                prompt_template_name=template.name,
-                novel_id=novel.id,
-                chapter_id=shot.chapter_id,
-            ),
-            timeout=llm_timeout,
-        )
-    except asyncio.TimeoutError:
-        mark_matching_pending_llm_logs_error(
-            task_type=template_type,
-            novel_id=novel.id,
-            chapter_id=shot.chapter_id,
-            prompt_template_name=template.name,
-            user_prompt=user_content,
-            error_message="H3 视频提示词生成超时，已使用 deterministic fallback 继续生成视频",
-        )
-        result = {"success": False, "error": "H3 视频提示词生成超时"}
-    if not result.get("success"):
-        error = result.get("error") or "H3 视频提示词生成失败"
-        final_prompt = _build_deterministic_h3_prompt(
-            shot=shot,
-            selected_mode=selected_mode,
-            clip=clip,
-            keyframes=keyframes,
-            transitions=transitions,
-            speaker_timeline=h3_speaker_timeline,
-            audio_drive_context=audio_drive_context,
-            subject_manifest=subject_manifest,
-            audio_text_rendering_constraint=audio_text_rendering_constraint,
-        )
-        continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
-        if continuity_lock:
-            final_prompt = f"{continuity_lock}\n\n{final_prompt}"
-        dialogue_audit = audit_audiodrive_h3_prompt(final_prompt, h3_speaker_timeline, subject_manifest, resolution_issues)
-        dialogue_audit.update({
-            "fallback": "deterministic_prompt",
-            "fallback_error": error,
-            "audio_drive_context": audio_drive_context,
-            "audio_mode": audio_drive_context.get("audio_mode"),
-        })
-        if not dialogue_audit.get("passed"):
-            raise RuntimeError(json.dumps(dialogue_audit, ensure_ascii=False))
-        append_video_ai_call(shot, {
-            "step": step,
-            "task_type": template_type,
-            "prompt_template_name": template.name,
-            "status": "success",
-            "error_message": error,
+    record = validation_record if validation_record is not None else {}
+    record.update({"version": 1, "passed": False, "stage": "candidate", "origin": "reuse" if reusable_prompt is not None else "llm",
+                   "llm_invoked": reusable_prompt is None, "clip_index": clip.get("clip_index"), "selected_mode": selected_mode})
+    if visual_identity is not None:
+        record["visual_identity"] = deepcopy(visual_identity)
+        record["input_hash"] = prompt_digest(payload)
+    call = {"step": step, "task_type": template_type, "prompt_template_name": template.name,
             "input_summary": f"Shot {shot.index} Clip {clip.get('clip_index')} {selected_mode}",
-            "response": error,
-            "parsed_result": dialogue_audit,
-            "final_prompt": final_prompt,
-            "clip_index": clip.get("clip_index"),
-            "workflow_type": workflow_type,
-            "workflow_name": workflow_name,
-            "reference_images": reference_images,
+            "clip_index": clip.get("clip_index"), "workflow_type": workflow_type,
+            "workflow_name": workflow_name, "reference_images": reference_images}
+    error = ""
+    fallback_context = None
+    try:
+        if reusable_prompt is not None:
+            candidate = reusable_prompt
+            previous_calls = safe_json_dict(shot.video_director_plan).get("ai_calls") or []
+            prior_identity = None
+            if record.get("target"):
+                from app.models.task import Task
+                for previous in db.query(Task).filter(Task.shot_id == shot.id, Task.type == "shot_video").order_by(Task.created_at.desc()).all():
+                    gate = safe_json_dict(safe_json_dict(previous.metadata_json).get("h3_prompt_gate"))
+                    attempts = safe_json_list(safe_json_dict(gate.get("clips")).get(str(clip.get("clip_index") or 1)))
+                    prior_identity = next((item["visual_identity"] for item in reversed(attempts)
+                                           if isinstance(item, dict) and item.get("passed") is True and item.get("final_prompt") == candidate
+                                           and item.get("final_hash") == prompt_digest(candidate) and isinstance(item.get("visual_identity"), dict)), None)
+                    if prior_identity is not None:
+                        break
+            if prior_identity is None:
+                prior_identity = next((item["parsed_result"]["visual_identity"] for item in reversed(previous_calls)
+                                       if isinstance(item, dict) and item.get("final_prompt") == candidate and item.get("step") == step
+                                       and item.get("status") == "success" and isinstance(item.get("parsed_result"), dict)
+                                       and isinstance(item["parsed_result"].get("visual_identity"), dict)), None)
+            if prior_identity is not None:
+                from app.services.prompt_builder import get_style
+                visual_style, _ = get_style(db, novel, "character")
+                current_identity = build_visual_identity_context(db, novel.id, shot_characters, safe_json_list(shot.props), visual_style)
+                if current_identity != prior_identity:
+                    raise H3PromptValidationError("VISUAL_IDENTITY_CHANGED", "Saved appearance/style facts changed; use LLM+ to request a new prompt.")
+                record["visual_identity"] = deepcopy(prior_identity)
+            if not any(item.get("final_prompt") == candidate and item.get("step") == step
+                       and item.get("status") == "success" for item in previous_calls if isinstance(item, dict)):
+                record["origin"] = "manual"
+            fallback_shaped = strip_h3_managed_layers(
+                reusable_prompt, audio_text_rendering_constraint, _render_continuity_lock(shot, selected_mode, clip),
+            ).startswith("Generate Shot ") if core_gate_required else False
+            legacy_fallback = fallback_shaped and _has_recorded_h3_fallback(db, shot, clip, reusable_prompt, record)
+            if legacy_fallback:
+                record["origin"] = "reused_fallback"
+                fallback_context = {"shot_index": shot.index, "selected_mode": selected_mode,
+                                    "start_time": clip.get("start_time") or 0, "end_time": clip.get("end_time") or shot.duration or 0}
+        else:
+            try:
+                llm_timeout = max(1, int(getattr(get_settings(), "LLM_TIMEOUT", 600) or 600))
+                result = await asyncio.wait_for(
+                    LLMService().chat_completion(
+                        system_prompt=template.template, user_content=user_content, temperature=0.3, max_tokens=1800,
+                        task_type=template_type, prompt_template_name=template.name, novel_id=novel.id, chapter_id=shot.chapter_id,
+                    ), timeout=llm_timeout,
+                )
+            except asyncio.TimeoutError:
+                mark_matching_pending_llm_logs_error(
+                    task_type=template_type, novel_id=novel.id, chapter_id=shot.chapter_id,
+                    prompt_template_name=template.name, user_prompt=user_content,
+                    error_message="H3 视频提示词生成超时，已使用 deterministic fallback 继续生成视频",
+                )
+                result = {"success": False, "failure_kind": "TIMEOUT", "error": "H3 视频提示词生成超时"}
+            record["llm_failure_kind"] = result.get("failure_kind")
+            if not result.get("success"):
+                error = result.get("error") or "H3 视频提示词生成失败"
+                record["diagnostic_content"] = result.get("diagnostic_content")
+                record["diagnostic_type"] = result.get("diagnostic_type")
+                if core_gate_required and result.get("failure_kind") not in {"TIMEOUT", "SERVICE_ERROR"}:
+                    raise H3PromptValidationError(result.get("failure_kind") or "UNKNOWN_ERROR", error)
+                record["origin"] = "fallback"
+                candidate = _build_deterministic_h3_prompt(
+                    shot=shot, selected_mode=selected_mode, clip=clip, keyframes=keyframes, transitions=transitions,
+                    speaker_timeline=h3_speaker_timeline, audio_drive_context=audio_drive_context, subject_manifest=subject_manifest,
+                    visual_identity=visual_identity,
+                )
+                fallback_context = {"shot_index": shot.index, "selected_mode": selected_mode,
+                                    "start_time": clip.get("start_time") or 0, "end_time": clip.get("end_time") or shot.duration or 0}
+            else:
+                candidate = result.get("content")
+        record["raw_candidate"] = candidate
+        record["stage"] = "core"
+        if core_gate_required:
+            prepared = prepare_h3_prompt(
+                candidate, constraint=audio_text_rendering_constraint,
+                continuity_lock=handoff_continuity_lock if effective_context is not None else _render_continuity_lock(shot, selected_mode, clip),
+                subject_manifest=subject_manifest, speaker_timeline=h3_speaker_timeline,
+                audio_drive_enabled=audio_drive_enabled, fallback_context=fallback_context,
+            )
+        else:
+            # This builder was already shared with non-H3 video workflows. Keep
+            # their existing composition/audit behavior outside the new gate.
+            final_prompt = _apply_audio_text_rendering_constraint(candidate, audio_text_rendering_constraint)
+            continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
+            if continuity_lock:
+                final_prompt = f"{continuity_lock}\n\n{final_prompt}"
+            audit = audit_audiodrive_h3_prompt(final_prompt, h3_speaker_timeline, subject_manifest, resolution_issues)
+            if not audit["passed"]:
+                raise RuntimeError(json.dumps(audit, ensure_ascii=False))
+            prepared = {"passed": True, "core_gate_applicable": False, "final_prompt": final_prompt,
+                        "final_hash": prompt_digest(final_prompt), "audio_audit": audit}
+        record.update(prepared)
+        record["stage"] = "prepared"
+        if fallback_context:
+            record["fallback"] = "deterministic_prompt"
+            record["fallback_error"] = error
+        _record_h3_prompt_call(db, shot, {
+            **call, "status": "success", "error_message": error,
+            "response": candidate if record["origin"] == "llm" else error,
+            "parsed_result": dict(record), "final_prompt": prepared["final_prompt"],
         })
         db.commit()
-        return final_prompt
-
-    final_prompt = _apply_audio_text_rendering_constraint(
-        result.get("content") or "",
-        audio_text_rendering_constraint,
-    )
-    continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
-    if continuity_lock:
-        final_prompt = f"{continuity_lock}\n\n{final_prompt}"
-    dialogue_audit = audit_audiodrive_h3_prompt(final_prompt, h3_speaker_timeline, subject_manifest, resolution_issues)
-    dialogue_audit.update({
-        "audio_drive_context": audio_drive_context,
-        "audio_mode": audio_drive_context.get("audio_mode"),
-    })
-    if not dialogue_audit.get("passed"):
-        raise RuntimeError(json.dumps(dialogue_audit, ensure_ascii=False))
-    append_video_ai_call(shot, {
-        "step": step,
-        "task_type": template_type,
-        "prompt_template_name": template.name,
-        "status": "success",
-        "input_summary": f"Shot {shot.index} Clip {clip.get('clip_index')} {selected_mode}",
-        "response": result.get("content") or "",
-        "parsed_result": dialogue_audit,
-        "final_prompt": final_prompt,
-        "clip_index": clip.get("clip_index"),
-        "workflow_type": workflow_type,
-        "workflow_name": workflow_name,
-        "reference_images": reference_images,
-    })
-    db.commit()
-    return final_prompt
+        return prepared["final_prompt"]
+    except H3PromptValidationError as exc:
+        record.update({"passed": False, "failure_kind": exc.code if exc.code in {"INVALID_OUTPUT", "UNKNOWN_ERROR", "SERVICE_ERROR", "TIMEOUT"} else "INVALID_OUTPUT",
+                       "issues": [{"code": exc.code, "details": exc.details}]})
+        _record_h3_prompt_call(db, shot, {
+            **call, "status": "error", "error_message": str(exc),
+            "response": record.get("raw_candidate") or record.get("diagnostic_content"), "parsed_result": dict(record),
+        })
+        db.commit()
+        raise

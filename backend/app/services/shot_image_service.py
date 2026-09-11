@@ -4,9 +4,15 @@
 封装分镜图片生成的后台任务逻辑
 """
 
+import asyncio
+from copy import deepcopy
+import hashlib
 import json
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, Dict
+from urllib.parse import urlencode
+from uuid import uuid4
 
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.task import Task
@@ -68,11 +74,17 @@ async def generate_shot_image_task(
         workflow_id: 工作流ID
     """
     db = SessionLocal()
+    production_path = False
     try:
         # 获取任务
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task:
             return
+        from app.services.task_execution import is_benchmark
+        if is_benchmark(task):
+            await generate_benchmark_shot_image_task(db, task)
+            return
+        production_path = True
         if task.status == "cancelled":
             return
 
@@ -140,6 +152,13 @@ async def generate_shot_image_task(
 
         # 获取风格提示词
         style, _ = get_style(db, novel, "character")
+        from app.services.video_director_ai import build_visual_identity_context
+        visual_identity = build_visual_identity_context(db, novel.id, shot_characters, shot_props, style)
+        shot_characters = visual_identity["characters"]
+        metadata = json.loads(task.metadata_json or "{}")
+        metadata["visual_identity"] = visual_identity
+        task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+        db.commit()
         print(f"[ShotTask {task_id}] Using style: {style}")
 
         comfyui_service = ComfyUIService()
@@ -165,15 +184,7 @@ async def generate_shot_image_task(
 
         # ========== 查询角色/场景/道具的描述信息（用于占位符替换） ==========
         # 查询角色外貌描述
-        character_appearances = {}
-        for char_name in shot_characters:
-            character = (
-                db.query(Character)
-                .filter(Character.novel_id == novel_id, Character.name == char_name)
-                .first()
-            )
-            if character and character.appearance:
-                character_appearances[char_name] = character.appearance
+        character_appearances = visual_identity["character_appearances"]
         print(f"[ShotTask {task_id}] Character appearances: {character_appearances}")
 
         # 查询场景设定
@@ -189,15 +200,7 @@ async def generate_shot_image_task(
         print(f"[ShotTask {task_id}] Scene setting: {scene_setting}")
 
         # 查询道具外观
-        prop_appearances = {}
-        for prop_name in shot_props:
-            prop = (
-                db.query(Prop)
-                .filter(Prop.novel_id == novel_id, Prop.name == prop_name)
-                .first()
-            )
-            if prop and prop.appearance:
-                prop_appearances[prop_name] = prop.appearance
+        prop_appearances = visual_identity["prop_appearances"]
         print(f"[ShotTask {task_id}] Prop appearances: {prop_appearances}")
 
         # 构建工作流
@@ -284,6 +287,8 @@ async def generate_shot_image_task(
 
         traceback.print_exc()
 
+        if not production_path:
+            return
         try:
             task.status = "failed"
             task.error_message = str(e)
@@ -296,6 +301,258 @@ async def generate_shot_image_task(
 
 
 # ==================== 辅助函数 ====================
+
+
+def _image_graph_hash(graph):
+    return hashlib.sha256(json.dumps(graph, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode()).hexdigest()
+
+
+def _image_semantic_graph_hash(graph, *, code="BENCHMARK_IMAGE_SUBMISSION_UNVERIFIED"):
+    from app.services.keyframe_reference_graph import KeyframeGraphError, numeric_graph_digest
+    from app.services.task_execution import ExecutionConflict
+    try:
+        return numeric_graph_digest(graph)
+    except KeyframeGraphError as exc:
+        raise ExecutionConflict(code) from exc
+
+
+def _benchmark_image_error(db, task, shot, error, *, artifact_url=None, source_url=None):
+    from app.services.task_execution import ExecutionConflict, persist_execution_state, record_execution_observation
+    task_id = shot._execution_task_id
+    try:
+        persist_execution_state(db, task, shot, {"failure": {"message": str(error), "source_url": source_url}},
+                                status="failed", error_message=str(error), current_step="Benchmark image failed",
+                                completed_at=datetime.utcnow())
+    except ExecutionConflict:
+        pass
+    record_execution_observation(db, task_id, shot, error, artifact_url=artifact_url, source_url=source_url)
+
+
+async def _archive_benchmark_shot_image(db, task, shot, source_url):
+    from app.services.task_execution import artifact_directory, assert_execution_active, persist_execution_state
+    from app.services.shot_keyframe_service import ShotKeyframeService
+    assert_execution_active(db, task, shot)
+    destination = artifact_directory(task) / f"image-{uuid4().hex}.png"
+    local_url = None
+    try:
+        local_path = await file_storage.download_image(
+            url=source_url, novel_id=task.novel_id, character_name=f"shot_{shot.id}",
+            image_type="shot", chapter_id=task.chapter_id, destination=destination,
+        )
+        if not local_path:
+            raise RuntimeError("BENCHMARK_IMAGE_DOWNLOAD_FAILED")
+        if Path(local_path).resolve() != destination.resolve():
+            raise RuntimeError("BENCHMARK_IMAGE_DESTINATION_CHANGED")
+        local_url = local_path_to_url(local_path)
+        _, payload = ShotKeyframeService._read_reference_payload(local_url)
+        shot.image_url, shot.image_path = local_url, str(local_path)
+        shot.image_task_id, shot.image_status = task.id, "completed"
+        persist_execution_state(db, task, shot, {"result": {
+            "url": local_url, "local_path": str(local_path), "source_url": source_url,
+            "sha256": hashlib.sha256(payload).hexdigest(), "attachment": "archived",
+        }}, status="completed", progress=100, result_url=local_url, error_message=None,
+            current_step="Benchmark image archived", completed_at=datetime.utcnow())
+        return True
+    except asyncio.CancelledError:
+        _benchmark_image_error(db, task, shot, "BENCHMARK_WORKER_INTERRUPTED", artifact_url=local_url, source_url=source_url)
+        raise
+    except Exception as exc:
+        _benchmark_image_error(db, task, shot, exc, artifact_url=local_url, source_url=source_url)
+        return False
+
+
+def _benchmark_image_proof(task):
+    from app.services.task_execution import ExecutionConflict, execution_record, is_benchmark
+    if not is_benchmark(task):
+        raise ExecutionConflict("BENCHMARK_PURPOSE_REQUIRED")
+    record = execution_record(task)
+    proof = record.get("shot_image", {})
+    if (task.type != "shot_image" or not task.comfyui_prompt_id or proof.get("submission_state") != "submitted"
+            or proof.get("prompt_id") != task.comfyui_prompt_id or task.prompt_text != proof.get("prompt_text")
+            or not task.workflow_json):
+        raise ExecutionConflict("BENCHMARK_IMAGE_SUBMISSION_UNVERIFIED")
+    graph = json.loads(task.workflow_json)
+    if _image_graph_hash(graph) != proof.get("graph_hash"):
+        raise ExecutionConflict("BENCHMARK_IMAGE_SUBMISSION_UNVERIFIED")
+    semantic_hash = _image_semantic_graph_hash(graph)
+    if proof.get("semantic_graph_hash", semantic_hash) != semantic_hash:
+        raise ExecutionConflict("BENCHMARK_IMAGE_SUBMISSION_UNVERIFIED")
+    # Old receipts retain their raw hash; derive this comparison fact without a write.
+    return {**proof, "semantic_graph_hash": semantic_hash}
+
+
+def _benchmark_shot_image_output(task, history):
+    from app.services.task_execution import ExecutionConflict
+    proof = _benchmark_image_proof(task)
+    # #06 can bind multiple references: compare all graph content, not a #09 profile/cache key.
+    submitted = history.get("prompt") if isinstance(history, dict) else None
+    if (not isinstance(submitted, list) or len(submitted) < 3 or submitted[1] != proof["prompt_id"]
+            or _image_semantic_graph_hash(submitted[2], code="BENCHMARK_IMAGE_HISTORY_MISMATCH") != proof["semantic_graph_hash"]):
+        raise ExecutionConflict("BENCHMARK_IMAGE_HISTORY_MISMATCH")
+    status = history.get("status") or {}
+    if status.get("status_str") == "error" or not (status.get("completed") is True or status.get("status_str") in {"success", "completed"}):
+        raise ExecutionConflict("BENCHMARK_IMAGE_NOT_COMPLETED")
+    output = (history.get("outputs") or {}).get(proof["output_node_id"], {})
+    images = output.get("images") if isinstance(output, dict) else None
+    if not isinstance(images, list) or len(images) != 1 or not isinstance(images[0], dict):
+        raise ExecutionConflict("BENCHMARK_IMAGE_OUTPUT_UNCERTAIN")
+    image = images[0]
+    name, folder = image.get("filename"), image.get("subfolder", "")
+    if (not isinstance(name, str) or not name or "/" in name or "\\" in name or name in {".", ".."}
+            or not isinstance(folder, str) or "\\" in folder or folder.startswith("/") or ".." in folder.split("/")
+            or image.get("type") != "output"):
+        raise ExecutionConflict("BENCHMARK_IMAGE_OUTPUT_LOCATOR_INVALID")
+    return proof["endpoint"].rstrip("/") + "/view?" + urlencode({"filename": name, "subfolder": folder, "type": "output"})
+
+
+async def recover_benchmark_shot_image(db, task, prompt_history):
+    """TaskService hook: archive frozen #06 history without touching production."""
+    from app.services.task_execution import execution_record, is_benchmark, load_execution_shot
+    if task.type != "shot_image" or not is_benchmark(task):
+        return False
+    task = db.query(Task).filter(Task.id == task.id).populate_existing().first()
+    if not task or not is_benchmark(task) or task.status not in {"running", "completed"}:
+        return False
+    shot = load_execution_shot(task)
+    result = execution_record(task).get("result", {})
+    try:
+        if task.status == "completed":
+            _benchmark_image_proof(task)
+            return bool(result.get("attachment") == "archived" and result.get("url") == task.result_url and task.result_url)
+        source_url = _benchmark_shot_image_output(task, prompt_history)
+    except Exception as exc:
+        _benchmark_image_error(db, task, shot, exc)
+        return False
+    return await _archive_benchmark_shot_image(db, task, shot, source_url)
+
+
+async def generate_benchmark_shot_image_task(db, task):
+    """The existing queue entry dispatches here only for explicit benchmarks."""
+    from app.services.file_storage import FileStorageService
+    from app.services.keyframe_reference_contract import frozen_keyframe_client
+    from app.services.task_execution import (
+        artifact_directory, assert_execution_active, is_benchmark, load_execution_shot,
+        persist_execution_shot, persist_execution_state, record_execution_observation,
+    )
+    if not is_benchmark(task) or task.status != "pending":
+        return
+    shot = load_execution_shot(task)
+    task_id = task.id
+    try:
+        prompt = task.prompt_text
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise RuntimeError("BENCHMARK_FINAL_PROMPT_REQUIRED")
+        shot.shot_image_prompt = prompt
+        persist_execution_shot(db, task, shot, status="running", started_at=datetime.utcnow(), current_step="Preparing benchmark image")
+        novel = db.query(Novel).filter(Novel.id == task.novel_id).first()
+        workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
+        if not novel or not workflow:
+            raise RuntimeError("BENCHMARK_INPUT_NOT_FOUND")
+        mapping = json.loads(workflow.node_mapping or "{}")
+        service = ComfyUIService()
+        client = frozen_keyframe_client(service.client.base_url)
+        style, _ = get_style(db, novel, "character")
+        from app.services.video_director_ai import build_visual_identity_context
+        visual_identity = build_visual_identity_context(db, novel.id, json.loads(shot.characters or "[]"), json.loads(shot.props or "[]"), style)
+        root = artifact_directory(task)
+        # Legacy merge utilities may glob-delete old composites. Give them a fresh private storage root.
+        references_storage = FileStorageService(base_dir=root / "references" / uuid4().hex)
+        references, source_records = {}, []
+        scene_setting = None
+        for model, names, role, merge in (
+            (Character, visual_identity["characters"], "character", merge_character_images),
+            (Scene, [shot.scene] if shot.scene else [], "scene", None),
+            (Prop, json.loads(shot.props or "[]"), "prop", merge_prop_images),
+        ):
+            images = []
+            for name in names:
+                entity = db.query(model).filter(model.novel_id == task.novel_id, model.name == name).first()
+                if not entity:
+                    continue
+                if role == "scene":
+                    scene_setting = entity.setting
+                path = url_to_local_path(entity.image_url) if entity.image_url else None
+                if path:
+                    payload = Path(path).read_bytes()
+                    captured = references_storage.base_dir / f"input-{uuid4().hex}{Path(path).suffix or '.png'}"
+                    with captured.open("xb") as output:
+                        output.write(payload)
+                    images.append((name, str(captured)))
+                    source_records.append({"role": role, "name": name, "source_url": entity.image_url,
+                                           "url": local_path_to_url(str(captured)), "sha256": hashlib.sha256(payload).hexdigest()})
+            if not images:
+                continue
+            path = merge(task.novel_id, task.chapter_id, shot.index, images, references_storage) if merge and (role == "character" or len(images) > 1) else images[0][1]
+            if not path:
+                raise RuntimeError("BENCHMARK_REFERENCE_MERGE_FAILED")
+            references[role] = {"label": role, "url": local_path_to_url(str(path)), "path": str(path)}
+            if role in {"character", "prop"}:
+                setattr(shot, f"merged_{role}_image", references[role]["url"])
+        persist_execution_state(db, task, shot, {"reference_sources": source_records, "visual_identity": visual_identity})
+        graph = service.builder.build_shot_workflow(
+            prompt=prompt, workflow_json=workflow.workflow_json, node_mapping=mapping,
+            aspect_ratio=novel.aspect_ratio or "16:9", style=style,
+            character_appearances=visual_identity["character_appearances"], scene_setting=scene_setting, prop_appearances=visual_identity["prop_appearances"],
+        )
+        by_key = {f"{role}_reference_image_node_id": value for role, value in references.items()}
+        custom = _get_first_custom_reference_node_key(mapping)
+        if custom and "prop" in references:
+            by_key[custom] = references["prop"]
+        visible = []
+        for key in _get_compact_reference_node_keys(mapping):
+            node_id = str(mapping[key])
+            item = by_key.get(key)
+            if node_id not in graph:
+                continue
+            if item:
+                assert_execution_active(db, task, shot)
+                receipt = await client.upload_image(item["path"])
+                assert_execution_active(db, task, shot)
+                if not receipt.get("success") or not receipt.get("filename"):
+                    raise RuntimeError("BENCHMARK_REFERENCE_UPLOAD_FAILED")
+                graph[node_id]["inputs"]["image"] = receipt["filename"]
+                visible.append({"label": item["label"], "url": item["url"]})
+            else:
+                graph[node_id]["inputs"]["image"] = ""
+                disconnect_reference_chain(graph, node_id)
+        output_id = str(mapping.get("save_image_node_id") or mapping.get("output_node_id") or "")
+        if not output_id or graph.get(output_id, {}).get("class_type") != "SaveImage":
+            raise RuntimeError("BENCHMARK_IMAGE_OUTPUT_UNVERIFIED")
+        graph_hash, semantic_hash = _image_graph_hash(graph), _image_semantic_graph_hash(graph)
+        proof = {"endpoint": client.base_url, "output_node_id": output_id, "graph_hash": graph_hash, "semantic_graph_hash": semantic_hash,
+                 "prompt_text": prompt, "submission_state": "attempted", "node_mapping": deepcopy(mapping)}
+        persist_execution_state(db, task, shot, {"shot_image": proof}, workflow_json=json.dumps(graph, ensure_ascii=False),
+                                reference_images=json.dumps(visible, ensure_ascii=False), progress=30, current_step="Submitting benchmark image")
+        queued = await client.queue_prompt(graph)
+        prompt_id = queued.get("prompt_id")
+        if not queued.get("success") or not isinstance(prompt_id, str) or not prompt_id.strip():
+            raise RuntimeError("BENCHMARK_IMAGE_SUBMISSION_UNCONFIRMED")
+        proof.update(submission_state="submitted", prompt_id=prompt_id)
+        try:
+            persist_execution_state(db, task, shot, {"shot_image": proof}, comfyui_prompt_id=prompt_id)
+        except Exception as exc:
+            record_execution_observation(db, task_id, shot, exc, details={
+                "prompt_id": prompt_id, "endpoint": proof["endpoint"], "graph_hash": proof["graph_hash"], "workflow": graph,
+            })
+            raise
+        deadline = asyncio.get_running_loop().time() + 7200
+        while asyncio.get_running_loop().time() < deadline:
+            assert_execution_active(db, task, shot)
+            state = await client.get_prompt_state(prompt_id)
+            assert_execution_active(db, task, shot)
+            if state.get("state") == "completed":
+                source_url = _benchmark_shot_image_output(task, state.get("history"))
+                await _archive_benchmark_shot_image(db, task, shot, source_url)
+                return
+            if state.get("state") in {"error", "missing"}:
+                raise RuntimeError(state.get("message") or "BENCHMARK_IMAGE_JOB_UNAVAILABLE")
+            await asyncio.sleep(2)
+        raise RuntimeError("BENCHMARK_IMAGE_TIMEOUT")
+    except asyncio.CancelledError:
+        _benchmark_image_error(db, task, shot, "BENCHMARK_WORKER_INTERRUPTED")
+        raise
+    except Exception as exc:
+        _benchmark_image_error(db, task, shot, exc)
 
 
 async def _process_character_references(
@@ -331,13 +588,12 @@ async def _process_character_references(
         print(
             f"[ShotTask {task_id}] Character '{char_name}': found={character is not None}, has_image={character.image_url if character else None}"
         )
-        if character and character.image_url:
+        if character and not character.is_narrator and character.name.casefold() not in {"narrator", "旁白"} and character.image_url:
             full_path = url_to_local_path(character.image_url)
-            if full_path:
-                character_images.append((char_name, full_path))
-                print(
-                    f"[ShotTask {task_id}] Found character image: {char_name} -> {full_path}"
-                )
+            if not full_path or not Path(full_path).is_file():
+                raise RuntimeError(f"角色参考图不可用: {char_name}；请修复或重新上传该图片后重试，未提交生成。")
+            character_images.append((char_name, full_path))
+            print(f"[ShotTask {task_id}] Found character image: {char_name} -> {full_path}")
 
     print(f"[ShotTask {task_id}] Total character images found: {len(character_images)}")
 
@@ -358,9 +614,7 @@ async def _process_character_references(
             task.current_step = f"已合并 {len(character_images)} 个角色图片"
             db.commit()
         else:
-            print(f"[ShotTask {task_id}] Failed to merge character images")
-            task.current_step = "角色图片合并失败，继续生成..."
-            db.commit()
+            raise RuntimeError(f"角色参考图合并失败: {', '.join(name for name, _ in character_images)}；请检查源图片后重试，未提交生成。")
 
     return character_reference_path
 
@@ -406,11 +660,10 @@ async def _process_scene_reference(
 
     if scene and scene.image_url:
         full_path = url_to_local_path(scene.image_url)
-        if full_path:
-            print(
-                f"[ShotTask {task_id}] Found scene image: {shot_scene} -> {full_path}"
-            )
-            return full_path
+        if not full_path or not Path(full_path).is_file():
+            raise RuntimeError(f"场景参考图不可用: {shot_scene}；请修复或重新上传该图片后重试，未提交生成。")
+        print(f"[ShotTask {task_id}] Found scene image: {shot_scene} -> {full_path}")
+        return full_path
 
     return None
 
@@ -460,11 +713,10 @@ async def _process_prop_references(
 
         if prop and prop.image_url:
             full_path = url_to_local_path(prop.image_url)
-            if full_path:
-                prop_images.append((prop_name, full_path))
-                print(
-                    f"[ShotTask {task_id}] Found prop image: {prop_name} -> {full_path}"
-                )
+            if not full_path or not Path(full_path).is_file():
+                raise RuntimeError(f"道具参考图不可用: {prop_name}；请修复或重新上传该图片后重试，未提交生成。")
+            prop_images.append((prop_name, full_path))
+            print(f"[ShotTask {task_id}] Found prop image: {prop_name} -> {full_path}")
 
     print(f"[ShotTask {task_id}] Total prop images found: {len(prop_images)}")
 
@@ -487,10 +739,7 @@ async def _process_prop_references(
         db.commit()
         return {"合并道具图": merged_path}
 
-    print(f"[ShotTask {task_id}] Failed to merge prop images")
-    task.current_step = "道具图片合并失败，继续使用首个道具图..."
-    db.commit()
-    return {prop_images[0][0]: prop_images[0][1]}
+    raise RuntimeError(f"道具参考图合并失败: {', '.join(name for name, _ in prop_images)}；请检查源图片后重试，未提交生成。")
 
 
 def _update_shot_merged_prop_url(
@@ -544,55 +793,52 @@ async def _upload_references_and_update_workflow(
     reference_items_by_key = {}
     if character_reference_path:
         character_url = local_path_to_url(character_reference_path)
-        if character_url:
-            reference_items_by_key["character_reference_image_node_id"] = {"label": "角色合并图", "url": character_url, "path": character_reference_path}
+        if not character_url:
+            raise RuntimeError("角色参考图路径不可用；请检查图片存储路径后重试，未提交生成。")
+        reference_items_by_key["character_reference_image_node_id"] = {"label": "角色合并图", "url": character_url, "path": character_reference_path}
     if scene_reference_path:
         scene_url = local_path_to_url(scene_reference_path)
-        if scene_url:
-            reference_items_by_key["scene_reference_image_node_id"] = {"label": "场景图", "url": scene_url, "path": scene_reference_path}
+        if not scene_url:
+            raise RuntimeError("场景参考图路径不可用；请检查图片存储路径后重试，未提交生成。")
+        reference_items_by_key["scene_reference_image_node_id"] = {"label": "场景图", "url": scene_url, "path": scene_reference_path}
     if prop_reference_paths:
         prop_label = "、".join(prop_reference_paths.keys())
         prop_path = next((path for path in prop_reference_paths.values() if path), None)
         prop_url = local_path_to_url(prop_path) if prop_path else None
-        if prop_path and prop_url:
-            prop_item = {"label": f"道具合并图: {prop_label}", "url": prop_url, "path": prop_path}
-            reference_items_by_key["prop_reference_image_node_id"] = prop_item
-            first_custom_key = _get_first_custom_reference_node_key(node_mapping)
-            if first_custom_key:
-                reference_items_by_key[first_custom_key] = prop_item
+        if not prop_path or not prop_url or len(prop_reference_paths) != 1:
+            raise RuntimeError("道具参考图集合不可用；请检查合并结果与存储路径后重试，未提交生成。")
+        prop_key = "prop_reference_image_node_id"
+        if not node_mapping.get(prop_key):
+            prop_key = _get_first_custom_reference_node_key(node_mapping) or prop_key
+        reference_items_by_key[prop_key] = {"label": f"道具合并图: {prop_label}", "url": prop_url, "path": prop_path}
+
+    bound_nodes = set()
+    for key, item in reference_items_by_key.items():
+        node_id = str(node_mapping.get(key))
+        node = submitted_workflow.get(node_id)
+        if not isinstance(node, dict) or not isinstance(node.get("inputs"), dict) or "image" not in node["inputs"]:
+            raise RuntimeError(f"工作流无法绑定{item['label']}: {key}；请选择支持该参考图的工作流或修复节点映射，未提交生成。")
+        if node_id in bound_nodes:
+            raise RuntimeError(f"参考图节点重复: {key}；请为每张参考图配置独立节点，未提交生成。")
+        bound_nodes.add(node_id)
 
     reference_node_keys = _get_compact_reference_node_keys(node_mapping)
     reference_items = [reference_items_by_key.get(key) for key in reference_node_keys]
     visible_reference_items = [item for item in reference_items if item]
-
-    task.reference_images = (
-        json.dumps(
-            [{"label": item["label"], "url": item["url"]} for item in visible_reference_items],
-            ensure_ascii=False,
-        )
-        if visible_reference_items
-        else None
-    )
-    db.commit()
 
     uploaded_filenames = []
     for item in reference_items:
         if not item:
             uploaded_filenames.append(None)
             continue
-        upload_result = await comfyui_service.client.upload_image(item["path"])
-        if upload_result.get("success"):
-            uploaded_filenames.append(upload_result.get("filename"))
-            print(
-                f"[ShotTask {task_id}] {item['label']} uploaded successfully: "
-                f"{upload_result.get('filename')}"
-            )
-        else:
-            uploaded_filenames.append(None)
-            print(
-                f"[ShotTask {task_id}] Failed to upload {item['label']}: "
-                f"{upload_result.get('message')}"
-            )
+        try:
+            upload_result = await comfyui_service.client.upload_image(item["path"])
+        except Exception as exc:
+            raise RuntimeError(f"参考图上传失败: {item['label']}；请检查 ComfyUI 连接后重试，未提交生成。{exc}") from exc
+        filename = upload_result.get("filename") if isinstance(upload_result, dict) else None
+        if not filename or not isinstance(filename, str) or not filename.strip() or not upload_result.get("success"):
+            raise RuntimeError(f"参考图上传失败: {item['label']}；请检查 ComfyUI 上传结果后重试，未提交生成。{upload_result}")
+        uploaded_filenames.append(filename)
 
     for index, ref_key in enumerate(reference_node_keys):
         node_id = node_mapping.get(ref_key)
@@ -606,11 +852,14 @@ async def _upload_references_and_update_workflow(
                 f"[ShotTask {task_id}] Set <Picture {index + 1}> node "
                 f"{node_id_str} to {uploaded_filename}"
             )
-        else:
+        elif node_id_str not in bound_nodes:
             submitted_workflow[node_id_str]["inputs"]["image"] = ""
             disconnect_reference_chain(submitted_workflow, node_id_str)
             print(f"[ShotTask {task_id}] Disconnected unused reference node {node_id_str}")
 
+    task.reference_images = json.dumps(
+        [{"label": item["label"], "url": item["url"]} for item in visible_reference_items], ensure_ascii=False,
+    ) if visible_reference_items else None
     task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
     db.commit()
     print(f"[ShotTask {task_id}] Saved workflow with reference images to task")

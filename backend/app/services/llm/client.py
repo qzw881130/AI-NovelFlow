@@ -3,10 +3,9 @@ LLM 统一客户端
 
 提供统一的 LLM 调用接口，支持多厂商切换和 API Key 轮询。
 """
-import httpx
 import os
 from typing import Optional, Dict, Any, Type
-from .base import BaseLLMProvider, LLMConfig, LLMResponse
+from .base import BaseLLMProvider, LLMConfig
 from .providers.openai import OpenAICompatibleProvider
 from .providers.anthropic import AnthropicProvider
 from .providers.gemini import GeminiProvider
@@ -61,7 +60,7 @@ class LLMClient:
     async def chat_completion(
         self,
         system_prompt: str,
-        user_content: str,
+        user_content: str | list[Dict[str, Any]],
         temperature: float = 0.7,
         max_tokens: int = 4000,
         response_format: Optional[str] = None,
@@ -90,32 +89,49 @@ class LLMClient:
             {
                 "success": bool,
                 "content": str,
-                "error": str (optional)
+                "error": str (optional),
+                "failure_kind": str | None,
+                "diagnostic_content": Any,
+                "diagnostic_type": str | None
             }
         """
-        result = await self._provider.chat_completion(
-            system_prompt=system_prompt,
-            user_content=user_content,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            response_format=response_format,
-            task_type=task_type,
-            prompt_template_name=prompt_template_name,
-            novel_id=novel_id,
-            chapter_id=chapter_id,
-            character_id=character_id
-        )
+        try:
+            result = await self._provider.chat_completion(
+                system_prompt=system_prompt,
+                user_content=user_content,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format=response_format,
+                task_type=task_type,
+                prompt_template_name=prompt_template_name,
+                novel_id=novel_id,
+                chapter_id=chapter_id,
+                character_id=character_id
+            )
+        except Exception as exc:
+            result = self._provider._exception_response(None, exc, 0.0)
 
         # 转换为兼容旧 LLMService 的格式
         if result.success:
             return {
                 "success": True,
                 "content": result.content,
-                "raw_response": result.raw_response
+                "raw_response": result.raw_response,
+                "failure_kind": None,
+                "diagnostic_content": result.diagnostic_content,
+                "diagnostic_type": result.diagnostic_type,
             }
         else:
+            diagnostic_content = result.diagnostic_content
+            diagnostic_type = result.diagnostic_type
+            if diagnostic_type is None and diagnostic_content is None and result.content != "":
+                diagnostic_content = result.content
+                diagnostic_type = type(result.content).__name__
             return {
                 "success": False,
                 "error": result.error,
-                "content": ""
+                "content": "",
+                "failure_kind": result.failure_kind or "UNKNOWN_ERROR",
+                "diagnostic_content": diagnostic_content,
+                "diagnostic_type": diagnostic_type,
             }

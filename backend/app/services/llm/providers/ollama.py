@@ -131,6 +131,7 @@ class OllamaProvider(BaseLLMProvider):
         )
 
         log_id = None
+        response = None
         try:
             async with client:
                 log_id = create_llm_log(
@@ -171,13 +172,6 @@ class OllamaProvider(BaseLLMProvider):
             else:
                 return self._http_error_response(log_id, response, duration)
         except Exception as e:
-            import traceback
-            error_type = type(e).__name__
-            error_detail = str(e) if str(e) else "(无详细错误信息)"
-            error_msg = f"请求异常：[{error_type}] {error_detail}"
-            print(f"[OllamaProvider] {error_msg}")
-            traceback.print_exc()
-
             # 恢复环境变量
             if old_http_proxy:
                 os.environ['HTTP_PROXY'] = old_http_proxy
@@ -189,18 +183,7 @@ class OllamaProvider(BaseLLMProvider):
                 os.environ['https_proxy'] = old_https_proxy_lower
 
             duration = time.time() - start_time
-            update_llm_log(
-                log_id=log_id,
-                status="error",
-                error_message=error_msg,
-                duration=duration,
-            )
-
-            return LLMResponse(
-                success=False,
-                error=error_msg,
-                duration=duration
-            )
+            return self._exception_response(log_id, e, duration, response=response)
 
     async def get_models(self) -> List[str]:
         """

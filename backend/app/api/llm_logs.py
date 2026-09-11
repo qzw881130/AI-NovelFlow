@@ -85,13 +85,16 @@ def reconcile_stale_pending_llm_logs(db: Session) -> int:
     stale_logs = db.query(LLMLog).filter(
         LLMLog.status == "pending",
         LLMLog.created_at < cutoff,
-    ).all()
-    for log in stale_logs:
-        log.status = "error"
-        log.error_message = "LLM 调用超过配置超时时间仍未完成，可能是请求中断或后台进程已退出"
-    if stale_logs:
-        db.commit()
-    return len(stale_logs)
+    )
+    # Use the status/time index without loading prompts or taking a write lock when idle.
+    if not db.query(stale_logs.exists()).scalar():
+        return 0
+    updated = stale_logs.update({
+        LLMLog.status: "error",
+        LLMLog.error_message: "LLM 调用超过配置超时时间仍未完成，可能是请求中断或后台进程已退出",
+    }, synchronize_session=False)
+    db.commit()
+    return updated
 
 
 @router.get("/")

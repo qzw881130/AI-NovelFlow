@@ -6,6 +6,7 @@ import type { Chapter } from '../../types';
 import { useNovelDetailState } from './hooks/useNovelDetailState';
 import { CreateChapterModal } from './components/CreateChapterModal';
 import { BatchImportModal } from './components/BatchImportModal';
+import { SubtitleExportMenu } from './components/SubtitleExportMenu';
 
 function StatusIcon({ status, iconInfo }: { status: Chapter['status']; iconInfo: { icon: string; color: string; spin?: boolean } }) {
   if (iconInfo.icon === 'check') return <CheckCircle className={`h-5 w-5 ${iconInfo.color}`} />;
@@ -83,6 +84,7 @@ function ChapterRow({ chapter, index, novelId, selected, onToggleSelect, getStat
             </a>
           </>
         )}
+        <SubtitleExportMenu novelId={novelId} chapterId={chapter.id} chapterTitle={chapter.title} />
         <Link to={`/novels/${novelId}/chapters/${chapter.id}`} className="btn-primary text-sm py-1.5 px-3">
           <Edit3 className="h-3 w-3 mr-1" />{t('common.edit')}
         </Link>

@@ -90,7 +90,8 @@ export default function KeyframesManager({
           let hasUpdates = false;
           const updatedKeyframes = keyframes.map((kf) => {
             if (kf.image_task_id && generatingImages.has(kf.frame_index)) {
-              const task = result.data.find((t: any) => t.id === kf.image_task_id);
+              const task = result.data.find((t: any) => t.id === kf.image_task_id
+                && (!('execution_purpose' in t) || t.execution_purpose === 'production'));
               if (task) {
                 console.log(`[KeyframesManager] Task ${kf.image_task_id} status: ${task.status}`);
                 if (task.status === 'completed' && task.resultUrl) {

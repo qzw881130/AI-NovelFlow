@@ -3,8 +3,16 @@
 from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List, Literal
 
+from app.schemas.visual_state import ActualStateHandoff, VisualStateValidation
+
 
 VideoMode = Literal["SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"]
+
+
+class ExecutionRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    execution_purpose: Literal["production", "benchmark"] = Field("production", alias="executionPurpose")
 
 
 class DialogueData(BaseModel):
@@ -42,7 +50,7 @@ class ShotAudioRequest(BaseModel):
     dialogues: List[DialogueData] = Field(..., description="台词列表")
 
 
-class GenerateShotImageRequest(BaseModel):
+class GenerateShotImageRequest(ExecutionRequest):
     """生成分镜图片请求"""
 
     prompt_text: Optional[str] = Field(None, description="已确认的最终生图提示词；为空时由 LLM 生成")
@@ -172,7 +180,7 @@ class GenerateKeyframeDescriptionsRequest(BaseModel):
     count: int = Field(3, ge=1, le=10, description="要生成的关键帧数量")
 
 
-class GenerateKeyframeImageRequest(BaseModel):
+class GenerateKeyframeImageRequest(ExecutionRequest):
     """生成关键帧图片请求"""
 
     workflow_id: Optional[str] = Field(None, description="指定工作流ID")
@@ -197,7 +205,7 @@ class SetReferenceAudioRequest(BaseModel):
     character_name: Optional[str] = Field(None, description="角色名称（mode为character时使用）")
 
 
-class GenerateVideoRequest(BaseModel):
+class GenerateVideoRequest(ExecutionRequest):
     """生成视频请求"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -207,9 +215,11 @@ class GenerateVideoRequest(BaseModel):
     workflow_id: Optional[str] = Field(None, alias="workflowId", description="指定工作流ID")
     selected_mode: Optional[VideoMode] = Field(None, alias="selectedMode", description="视频导演选择的生成模式")
     skip_llm_when_prompt_exists: bool = Field(False, alias="skipLlmWhenPromptExists", description="已有最终视频提示词时跳过 LLM，直接提交工作流")
+    visual_state_validation: Optional[VisualStateValidation] = Field(None, alias="visualStateValidation")
+    actual_state_handoff: Optional[ActualStateHandoff] = Field(None, alias="actualStateHandoff")
 
 
-class GenerateVideoDirectorClipRequest(BaseModel):
+class GenerateVideoDirectorClipRequest(ExecutionRequest):
     """重新生成单个 Video Director Clip 请求"""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -217,6 +227,7 @@ class GenerateVideoDirectorClipRequest(BaseModel):
     use_reference_audio: bool = Field(True, alias="useReferenceAudio", description="是否使用参考音频（如果存在）")
     auto_merge: bool = Field(True, alias="autoMerge", description="Clip 生成成功后是否自动重新合并 Shot 视频")
     skip_llm_when_prompt_exists: bool = Field(False, alias="skipLlmWhenPromptExists", description="已有 Clip 最终视频提示词时跳过 LLM，直接提交工作流")
+    visual_state_validation: Optional[VisualStateValidation] = Field(None, alias="visualStateValidation")
 
 
 class SaveVideoDirectorPlanRequest(BaseModel):

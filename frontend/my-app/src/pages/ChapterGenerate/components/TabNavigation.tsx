@@ -18,6 +18,7 @@ export type StageTab = 'shot_split' | 'shot_image' | 'audio_gen' | 'video_gen';
 interface TabConfig {
   key: StageTab;
   labelKey: string;
+  mobileLabelKey: string;
   icon: React.ReactNode;
   index: number;
 }
@@ -26,24 +27,28 @@ const tabs: TabConfig[] = [
   {
     key: 'shot_split',
     labelKey: 'chapterGenerate.tabShotSplit',
+    mobileLabelKey: 'chapterGenerate.tabShotSplitShort',
     icon: <FileText className="w-4 h-4" />,
     index: 0,
   },
   {
     key: 'shot_image',
     labelKey: 'chapterGenerate.tabShotImage',
+    mobileLabelKey: 'chapterGenerate.tabShotImageShort',
     icon: <Image className="w-4 h-4" />,
     index: 1,
   },
   {
     key: 'audio_gen',
     labelKey: 'chapterGenerate.tabAudioGen',
+    mobileLabelKey: 'chapterGenerate.tabAudioGenShort',
     icon: <Mic className="w-4 h-4" />,
     index: 2,
   },
   {
     key: 'video_gen',
     labelKey: 'chapterGenerate.tabVideoGen',
+    mobileLabelKey: 'chapterGenerate.tabVideoGenShort',
     icon: <Film className="w-4 h-4" />,
     index: 3,
   },
@@ -83,7 +88,7 @@ export function TabNavigation() {
 
   return (
     <div onKeyDown={handleKeyDown} tabIndex={0} className="outline-none">
-      <div className="flex gap-2 mb-2 border-b border-gray-200">
+      <div className="generate-tabs grid grid-cols-4 lg:flex gap-1 lg:gap-2 lg:mb-2 border-b border-gray-200">
         {tabs.map((tab) => {
           const isActive = currentTab === tab.index;
           const isCompleted = tabProgress[tab.index];
@@ -91,9 +96,13 @@ export function TabNavigation() {
           return (
             <button
               key={tab.key}
+              type="button"
+              aria-pressed={isActive}
+              aria-label={t(tab.labelKey)}
+              title={t(tab.labelKey)}
               onClick={() => setCurrentTab(tab.index)}
               className={`
-                flex items-center gap-1.5 px-3 py-2 text-sm font-medium transition-all relative
+                flex shrink-0 items-center justify-center gap-1.5 px-2 lg:px-3 py-2 text-xs lg:text-sm whitespace-nowrap font-medium transition-all relative
                 ${
                   isActive
                     ? 'text-blue-600 bg-blue-50'
@@ -108,11 +117,12 @@ export function TabNavigation() {
               </span>
 
               {/* 标签 */}
-              <span>{t(tab.labelKey)}</span>
+              <span className="hidden lg:inline">{t(tab.labelKey)}</span>
+              <span className="lg:hidden" aria-hidden="true">{t(tab.mobileLabelKey)}</span>
 
               {/* 完成状态标记 */}
               {isCompleted && (
-                <Check className="w-3.5 h-3.5 text-green-500 ml-0.5" />
+                <Check className="hidden lg:block w-3.5 h-3.5 text-green-500 ml-0.5" />
               )}
 
               {/* 激活指示器 */}

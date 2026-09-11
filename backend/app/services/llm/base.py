@@ -6,6 +6,7 @@ LLM 服务基类定义
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
+import httpx
 import json
 import uuid
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
@@ -213,6 +214,9 @@ class LLMResponse:
     error: str = ""
     raw_response: Optional[Dict[str, Any]] = None
     duration: float = 0.0
+    failure_kind: Optional[str] = None
+    diagnostic_content: Any = None  # Candidate or undecodable response body, never prompt content.
+    diagnostic_type: Optional[str] = None
 
 
 class BaseLLMProvider(ABC):
@@ -235,21 +239,40 @@ class BaseLLMProvider(ABC):
         metrics = normalize_metrics(self.config.provider, data, duration)
         content = ""
         error = ""
+        candidate = None
+        diagnostic_type = None
         try:
-            content = self._parse_response(data)
+            candidate = self._parse_response(data)
             if metrics["finish_reason"] in {"length", "max_tokens", "MAX_TOKENS"}:
                 error = "API 响应因长度限制被截断，请提高最大 token 数或缩短输入后重试"
-            elif not content:
+            elif not isinstance(candidate, str):
+                error = "API 返回成功状态，但响应内容不是字符串"
+            elif not candidate.strip():
                 error = "API 返回成功状态，但响应内容为空"
-        except (KeyError, IndexError, TypeError, AttributeError):
+            else:
+                content = candidate
+        except (KeyError, IndexError, TypeError, AttributeError, ValueError) as exc:
             error = "API 响应格式无效"
+            diagnostic_type = type(exc).__name__
+        if error and diagnostic_type is None:
+            diagnostic_type = type(candidate).__name__
+
+        log_content = candidate
+        if log_content is not None and not isinstance(log_content, str):
+            try:
+                log_content = json.dumps(log_content, ensure_ascii=False)
+            except (TypeError, ValueError):
+                log_content = None
         update_llm_log(
-            log_id, status="error" if error else "success", response=content,
+            log_id, status="error" if error else "success", response=log_content,
             error_message=error or None, duration=duration, metrics=metrics,
         )
         return LLMResponse(
             success=not error, content=content, error=error,
             raw_response=data, duration=duration,
+            failure_kind="INVALID_OUTPUT" if error else None,
+            diagnostic_content=candidate if error else None,
+            diagnostic_type=diagnostic_type,
         )
 
     def _http_error_response(self, log_id, response, duration):
@@ -260,7 +283,37 @@ class BaseLLMProvider(ABC):
             pass
         error = f"API 错误 ({response.status_code}): {response.text}"
         update_llm_log(log_id, status="error", error_message=error, duration=duration, metrics=metrics)
-        return LLMResponse(success=False, error=error, duration=duration)
+        return LLMResponse(success=False, error=error, duration=duration, failure_kind="SERVICE_ERROR")
+
+    def _exception_response(self, log_id, exc, duration, response=None):
+        diagnostic_content = None
+        if isinstance(exc, (TimeoutError, httpx.TimeoutException)):
+            failure_kind = "TIMEOUT"
+        elif isinstance(exc, (httpx.HTTPError, ConnectionError)):
+            failure_kind = "SERVICE_ERROR"
+        elif (response is not None and response.status_code == 200
+              and isinstance(exc, (json.JSONDecodeError, UnicodeDecodeError))):
+            failure_kind = "INVALID_OUTPUT"
+            diagnostic_content = response.text
+        else:
+            failure_kind = "UNKNOWN_ERROR"
+
+        error = f"请求异常：[{type(exc).__name__}] {str(exc) or '(无详细错误信息)'}"
+        # Keep only body text, not request/response objects, and redact reflected API keys.
+        for api_key in self._api_keys:
+            error = error.replace(api_key, "***")
+            if diagnostic_content is not None:
+                diagnostic_content = diagnostic_content.replace(api_key, "***")
+        print(f"[{type(self).__name__}] {error}")
+        update_llm_log(
+            log_id, status="error", response=diagnostic_content,
+            error_message=error, duration=duration,
+        )
+        return LLMResponse(
+            success=False, error=error, duration=duration, failure_kind=failure_kind,
+            diagnostic_content=diagnostic_content,
+            diagnostic_type="str" if diagnostic_content is not None else None,
+        )
 
     @property
     def provider_name(self) -> str:
@@ -291,7 +344,7 @@ class BaseLLMProvider(ABC):
     async def chat_completion(
         self,
         system_prompt: str,
-        user_content: str,
+        user_content: str | list[Dict[str, Any]],
         temperature: float = 0.7,
         max_tokens: int = 4000,
         response_format: Optional[str] = None,
@@ -316,7 +369,7 @@ class BaseLLMProvider(ABC):
     def _build_request_body(
         self,
         system_prompt: str,
-        user_content: str,
+        user_content: str | list[Dict[str, Any]],
         temperature: float,
         max_tokens: int,
         response_format: Optional[str]

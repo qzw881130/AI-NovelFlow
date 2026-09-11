@@ -1,5 +1,5 @@
 """LLM调用日志模型"""
-from sqlalchemy import Column, String, Text, DateTime, Integer, JSON, Boolean, Float
+from sqlalchemy import Column, String, Text, DateTime, Integer, JSON, Boolean, Float, Index
 from sqlalchemy.sql import func
 from app.core.database import Base
 import uuid
@@ -7,6 +7,10 @@ import uuid
 
 class LLMLog(Base):
     __tablename__ = "llm_logs"
+    __table_args__ = (
+        Index("ix_llm_logs_created_at_id", "created_at", "id"),
+        Index("ix_llm_logs_status_created_at", "status", "created_at"),
+    )
     
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     

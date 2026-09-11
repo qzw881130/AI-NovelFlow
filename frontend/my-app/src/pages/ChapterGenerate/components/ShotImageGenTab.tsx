@@ -9,13 +9,15 @@
 
 import { cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
 import { useChapterGenerateStore } from '../stores';
-import { Box, ChevronDown, Download, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
+import { Box, ChevronDown, Download, Image, Loader2, Package, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
 import { shotsApi } from '../../../api/shots';
 import { taskApi } from '../../../api/tasks';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Shot } from '../../../api/shots';
 import { ImageEditModal } from '../../../components/ImageEditModal';
 import { toast } from '../../../stores/toastStore';
+import { BatchShotOption } from './BatchShotOption';
+import { GenerateDialog } from './GenerateDialog';
 
 interface ShotImageGenTabProps {
   chapter?: any;
@@ -217,8 +219,12 @@ export function ShotImageGenTab({
   useEffect(() => {
     if (!dragSelectionMode) return;
     const handleMouseUp = () => setDragSelectionMode(null);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => window.removeEventListener('mouseup', handleMouseUp);
+    window.addEventListener('pointerup', handleMouseUp);
+    window.addEventListener('pointercancel', handleMouseUp);
+    return () => {
+      window.removeEventListener('pointerup', handleMouseUp);
+      window.removeEventListener('pointercancel', handleMouseUp);
+    };
   }, [dragSelectionMode]);
 
   useEffect(() => {
@@ -524,31 +530,34 @@ export function ShotImageGenTab({
   };
 
   const childrenWithSaveShortcut = isValidElement(children)
-    ? cloneElement(children, { onSave: handleSaveShot } as { onSave: () => Promise<void> })
+    ? cloneElement(children, { onSave: handleSaveShot, isSaving } as { onSave: () => Promise<void>; isSaving: boolean })
     : children;
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="generate-image-tab h-full min-w-0 flex flex-col">
       {/* 操作栏 */}
-      <div className="flex-shrink-0 flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
-        <div className="flex items-center gap-4">
+      <div className="generate-toolbar flex-shrink-0 flex flex-wrap items-center justify-between gap-3 mb-4 pb-4 border-b border-gray-200">
+        <div className="generate-actions flex flex-wrap items-center gap-3">
           <div className="relative inline-flex">
             <button
               onClick={() => handleGenerateShot('llm')}
               disabled={isGeneratingCurrent || !chapterId || !currentShotId}
-              className="px-4 py-2 bg-blue-600 text-white rounded-l-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              aria-label={isGeneratingCurrent ? (isSubmittingCurrent ? '处理中' : t('chapterGenerate.generating')) : 'LLM+生成分镜'}
+              title={isGeneratingCurrent ? (isSubmittingCurrent ? '处理中' : t('chapterGenerate.generating')) : 'LLM+生成分镜'}
+              className="generate-short-action px-4 py-2 bg-blue-600 text-white rounded-l-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               {isGeneratingCurrent ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  {isSubmittingCurrent ? '处理中' : t('chapterGenerate.generating')}
+                  <span className="hidden lg:inline">{isSubmittingCurrent ? '处理中' : t('chapterGenerate.generating')}</span>
                 </>
               ) : (
                 <>
                   <Image className="w-4 h-4" />
-                  LLM+生成分镜
+                  <span className="hidden lg:inline">LLM+生成分镜</span>
                 </>
               )}
+              <span className="lg:hidden" aria-hidden="true">{isGeneratingCurrent ? '生成中' : '生成'}</span>
             </button>
             <button
               type="button"
@@ -559,6 +568,7 @@ export function ShotImageGenTab({
               disabled={isGeneratingCurrent || !chapterId || !currentShotId}
               className="px-2 py-2 bg-blue-600 text-white border-l border-blue-500 rounded-r-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
               aria-label="选择分镜生成方式"
+              title="选择分镜生成方式"
             >
               <ChevronDown className="w-4 h-4" />
             </button>
@@ -586,14 +596,19 @@ export function ShotImageGenTab({
           <button
             onClick={handleOpenBatchSelect}
             disabled={isGeneratingAll || !chapterId}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-label={t('chapterGenerate.batchGenerate')}
+            title={t('chapterGenerate.batchGenerate')}
+            className="generate-short-action px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {t('chapterGenerate.batchGenerate')}
+            <span className="hidden lg:inline">{t('chapterGenerate.batchGenerate')}</span>
+            <span className="lg:hidden" aria-hidden="true">批量</span>
           </button>
           {(isGeneratingAll || generatingShots.size > 0 || pendingShots.size > 0) && (
             <button
               onClick={handleCancelGenerateAll}
               disabled={isCancellingAll}
+              aria-label="取消批量"
+              title="取消批量"
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
               {isCancellingAll ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />}
@@ -603,63 +618,71 @@ export function ShotImageGenTab({
           <button
             onClick={handleSaveShot}
             disabled={isSaving || !chapterId}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            aria-label={isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}
+            title={isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}
+            className="generate-icon-action px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             {isSaving ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                {t('common.saving')}
+                <span className="hidden lg:inline">{t('common.saving')}</span>
               </>
             ) : (
               <>
                 <Save className="w-4 h-4" />
-                {t('chapterGenerate.saveShots')}
+                <span className="hidden lg:inline">{t('chapterGenerate.saveShots')}</span>
               </>
             )}
           </button>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="generate-actions flex flex-wrap items-center gap-3">
           <button
             onClick={handleDownloadCurrentShotImageData}
             disabled={isDownloadingCurrentShotImageData || !chapterId || !currentShotId}
-            className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            aria-label="打包当前分镜图数据"
+            title="打包当前分镜图数据"
+            className="generate-icon-action px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             {isDownloadingCurrentShotImageData ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               <Download className="w-4 h-4" />
             )}
-            打包当前分镜图数据
+            <span className="hidden lg:inline">打包当前分镜图数据</span>
           </button>
           <button
             onClick={handleDownloadShotImageData}
             disabled={isDownloadingShotImageData || !chapterId}
-            className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            aria-label="打包分镜图数据"
+            title="打包分镜图数据"
+            className="generate-icon-action px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
             {isDownloadingShotImageData ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Download className="w-4 h-4" />
+              <Package className="w-4 h-4" />
             )}
-            打包分镜图数据
+            <span className="hidden lg:inline">打包分镜图数据</span>
           </button>
           <button
             onClick={handleViewMergedImage}
             disabled={!shotsList[currentShotIndex - 1]?.mergedCharacterImage}
-            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            title={!shotsList[currentShotIndex - 1]?.mergedCharacterImage ? t('chapterGenerate.noMergedCharacterImage') : t('chapterGenerate.viewMergedImage')}
+            aria-label={t('chapterGenerate.viewMergedImage')}
+            className="generate-icon-action px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            title={`${t('chapterGenerate.viewMergedImage')}${!shotsList[currentShotIndex - 1]?.mergedCharacterImage ? ` · ${t('chapterGenerate.noMergedCharacterImage')}` : ''}`}
           >
             <Users className="w-4 h-4" />
-            {t('chapterGenerate.viewMergedImage')}
+            <span className="hidden lg:inline">{t('chapterGenerate.viewMergedImage')}</span>
           </button>
           <button
             onClick={handleViewMergedPropImage}
             disabled={!shotsList[currentShotIndex - 1]?.mergedPropImage}
-            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            title={!shotsList[currentShotIndex - 1]?.mergedPropImage ? t('chapterGenerate.noMergedPropImage') : t('chapterGenerate.viewMergedPropImage')}
+            aria-label={t('chapterGenerate.viewMergedPropImage')}
+            className="generate-icon-action px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            title={`${t('chapterGenerate.viewMergedPropImage')}${!shotsList[currentShotIndex - 1]?.mergedPropImage ? ` · ${t('chapterGenerate.noMergedPropImage')}` : ''}`}
           >
             <Box className="w-4 h-4" />
-            {t('chapterGenerate.viewMergedPropImage')}
+            <span className="hidden lg:inline">{t('chapterGenerate.viewMergedPropImage')}</span>
           </button>
           <div className="text-sm text-gray-500">
             {t('chapterGenerate.shotId', { id: currentShot || 0, total: shotsList.length })}
@@ -668,16 +691,16 @@ export function ShotImageGenTab({
       </div>
 
       {/* 内容区 */}
-      <div className="flex-1 min-h-0 flex gap-4 overflow-hidden">
-        {/* 表单编辑区 - 固定宽度 600px */}
+      <div className="generate-image-content flex-1 min-h-0 flex gap-4 overflow-hidden">
+        {/* 表单编辑区 */}
         <div className="shot-image-form-panel w-[600px] flex-shrink-0 overflow-y-auto border border-gray-200 rounded-lg p-4">
           {childrenWithSaveShortcut}
         </div>
 
         {/* 分镜图预览区 - 自适应剩余宽度 */}
-        <div className="flex-1 min-h-0 min-w-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
+        <div className="generate-image-preview flex-1 min-h-0 min-w-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden">
           <div className="p-3 border-b border-gray-200 bg-white">
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
               <label className="text-sm font-medium text-gray-700">主分镜图 AI 提示词</label>
               <span className="text-xs text-gray-500">点击生成当前分镜后自动填入，可编辑后再次生成</span>
             </div>
@@ -697,9 +720,9 @@ export function ShotImageGenTab({
               placeholder="点击“生成当前分镜”后，这里会显示由主分镜图提示词模板生成的最终生图提示词。"
             />
           </div>
-          <div className="p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+          <div className="p-3 border-b border-gray-200 bg-gray-50 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.shotPreview')}</h3>
-            <div className="flex items-center gap-2">
+            <div className="generate-actions flex flex-wrap items-center gap-2">
               <button
                 onClick={openImageEdit}
                 disabled={!hasImage || isGeneratingCurrent || isUploading}
@@ -739,7 +762,7 @@ export function ShotImageGenTab({
             />
           </div>
 
-          <div className="flex-1 min-h-0 overflow-hidden flex flex-col items-center justify-start bg-gray-100 p-6 relative">
+          <div className="generate-image-canvas flex-1 min-h-0 overflow-hidden flex flex-col items-center justify-start bg-gray-100 p-6 relative">
             {hasImage ? (
               <>
                 <div className="grid min-h-0 flex-1 w-full grid-rows-[minmax(0,1fr)_auto] justify-items-center overflow-hidden pb-2">
@@ -799,7 +822,7 @@ export function ShotImageGenTab({
 
       {/* 批量选择分镜弹窗 */}
       {showBatchSelectModal && (
-        <div className="fixed inset-0 isolate z-[300] flex items-center justify-center bg-black/60 backdrop-blur-[1px]">
+        <GenerateDialog label={t('chapterGenerate.selectShotsToGenerate')} onClose={() => setShowBatchSelectModal(false)}>
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             {/* 弹窗头部 */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -849,7 +872,7 @@ export function ShotImageGenTab({
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {shots.map((shot: Shot) => {
                   const shotId = shot.id;
                   const shotIndex = shot.index;
@@ -862,10 +885,14 @@ export function ShotImageGenTab({
                   const isDisabled = isGenerating || isQueued;
 
                   return (
-                    <div
+                    <BatchShotOption
                       key={shotId}
-                      onMouseDown={(event) => handleShotSelectMouseDown(event, shotId, isDisabled)}
-                      onMouseEnter={() => handleShotSelectMouseEnter(shotId, isDisabled)}
+                      selected={isSelected}
+                      disabled={isDisabled}
+                      aria-label={`${t('chapterGenerate.shot')}${shotIndex}`}
+                      onToggle={() => applyShotSelection(shotId, isSelected ? 'deselect' : 'select')}
+                      onSelectionStart={(event) => handleShotSelectMouseDown(event, shotId, isDisabled)}
+                      onSelectionEnter={() => handleShotSelectMouseEnter(shotId, isDisabled)}
                       className={`
                         relative aspect-square rounded-lg border-2 transition-all
                         select-none
@@ -917,7 +944,7 @@ export function ShotImageGenTab({
                       <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg">
                         {isGenerating ? t('chapterGenerate.generating') : isQueued ? '队列中' : hasShotImage ? t('chapterGenerate.generated') : t('chapterGenerate.pending')}
                       </div>
-                    </div>
+                    </BatchShotOption>
                   );
                 })}
               </div>
@@ -961,7 +988,7 @@ export function ShotImageGenTab({
               </div>
             </div>
           </div>
-        </div>
+        </GenerateDialog>
       )}
 
       {currentImageUrl && (

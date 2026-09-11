@@ -12,6 +12,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { X, ChevronDown, Check } from 'lucide-react';
 import { useChapterGenerateStore } from '../stores';
 import { useTranslation } from '../../../stores/i18nStore';
+import { GenerateDialog } from './GenerateDialog';
 
 interface ChapterResourcesModalProps {
   isOpen: boolean;
@@ -147,13 +148,14 @@ export function ChapterResourcesModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl h-[95vh] overflow-hidden flex flex-col">
+    <GenerateDialog label={t('chapterGenerate.chapterResourceManagement')} onClose={onClose} busy={isSaving}>
+      <div className="generate-resources-modal bg-white rounded-lg shadow-xl w-full max-w-4xl h-[95vh] overflow-hidden flex flex-col">
         {/* 头部 */}
         <div className="flex items-center justify-between px-6 py-3 border-b border-gray-200 flex-shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">{t('chapterGenerate.chapterResourceManagement')}</h2>
           <button
             onClick={onClose}
+            aria-label={t('common.close')}
             className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
           >
             <X className="w-5 h-5" />
@@ -162,7 +164,7 @@ export function ChapterResourcesModal({
 
         {/* 内容区 */}
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* 角色管理 */}
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
@@ -412,7 +414,7 @@ export function ChapterResourcesModal({
           </button>
         </div>
       </div>
-    </div>
+    </GenerateDialog>
   );
 }
 

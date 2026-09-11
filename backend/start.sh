@@ -67,7 +67,8 @@ echo "按 Ctrl+C 停止服务"
 echo ""
 
 # 使用 nohup 在后台运行，输出到 backend.log
-nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload > backend.log 2>&1 &
+# Bound shutdown so long-lived connections cannot leave stale reload workers running.
+nohup python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --timeout-graceful-shutdown 10 > backend.log 2>&1 &
 disown 2>/dev/null || true
 
 # 等待服务启动

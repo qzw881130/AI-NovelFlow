@@ -152,11 +152,14 @@ def test_request_urls_and_google_headers_are_redacted():
 def test_sqlite_upgrade_is_idempotent_and_preserves_old_rows():
     engine = create_engine("sqlite:///:memory:")
     with engine.begin() as conn:
-        conn.execute(text("CREATE TABLE llm_logs (id VARCHAR PRIMARY KEY, response TEXT)"))
-        conn.execute(text("INSERT INTO llm_logs VALUES ('old', 'keep')"))
+        conn.execute(text("CREATE TABLE llm_logs (id VARCHAR PRIMARY KEY, response TEXT, created_at DATETIME, status VARCHAR)"))
+        conn.execute(text("INSERT INTO llm_logs (id, response) VALUES ('old', 'keep')"))
     upgrade_sqlite_schema(engine)
     upgrade_sqlite_schema(engine)
     assert [column["name"] for column in inspect(engine).get_columns("llm_logs")].count("usage_metrics") == 1
+    indexes = {index["name"]: index["column_names"] for index in inspect(engine).get_indexes("llm_logs")}
+    assert indexes["ix_llm_logs_created_at_id"] == ["created_at", "id"]
+    assert indexes["ix_llm_logs_status_created_at"] == ["status", "created_at"]
     with engine.begin() as conn:
         assert conn.execute(text("SELECT response, usage_metrics, duration FROM llm_logs")).one() == ("keep", None, None)
     engine.dispose()

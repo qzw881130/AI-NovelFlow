@@ -1,1 +1,1 @@
-chibi character, cute cartoon style, kawaii, {appearance}, single character, centered, colorful, clean background, professional artwork, 4k
+character reference portrait, ##STYLE##, {appearance}, single character, centered, clean background, stable head-to-body proportions as specified by the selected style, preserve recognizable age cues, species traits, hairstyle and clothing details

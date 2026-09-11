@@ -1,6 +1,8 @@
 import hashlib
 import asyncio
 import json
+import math
+import re
 import uuid
 import subprocess
 from datetime import datetime
@@ -21,12 +23,31 @@ from app.services.duration_contract import audio_required_duration, clip_duratio
 from app.services.execution_window_builder import build_natural_execution_windows
 from app.services.file_storage import file_storage
 from app.services.invalidation_service import InvalidationService
-from app.services.video_director_plan_service import VideoDirectorPlanService
+from app.services.video_director_plan_service import PlanRevisionConflict, VideoDirectorPlanService
 from app.utils.path_utils import url_to_local_path
 
 ACTIVE_AUDIO_TTS_TASK_IDS: Set[str] = set()
 ACTIVE_AUDIO_PREPARE_TASK_IDS: Set[str] = set()
 TTS_LEASE_STALE_SECONDS = 120
+
+# RMS dBFS over the entire decoded utterance (including its internal silence), not LUFS.
+# Duplicate mono at unity per channel; leave stereo intact. Never level padded clips.
+CLIP_AUDIO_RENDER_PROFILE = {
+    "id": "speech-rms-v1",
+    "measurement": "whole_source_rms_dbfs",
+    "targetRmsDbfs": -20.0,
+    "minGainDb": -6.0,
+    "maxGainDb": 6.0,
+    "silenceThresholdDbfs": -55.0,
+    "peakLimitDbfs": -1.0,
+    "peakProtection": "zero_latency_sample_clamp_not_true_peak",
+    "channelPolicy": "mono_unity_duplicate_stereo_preserve",
+    "sampleRate": 44100,
+    "channels": 2,
+    "codec": "pcm_s16le",
+    "mixNormalize": False,
+}
+SPEECH_FORMAT_FILTER = "aresample=44100:osf=fltp"
 
 
 class AudioDriveService:
@@ -569,8 +590,9 @@ class AudioDriveService:
                 return
 
             node_mapping = json.loads(workflow.node_mapping or "{}") if workflow.node_mapping else {}
+            submitted_text = event.text
             submitted_workflow = comfy.builder.build_audio_workflow(
-                text=event.text,
+                text=submitted_text,
                 workflow_json=workflow.workflow_json,
                 novel_id=shot.chapter.novel_id,
                 character_name=event.voice_owner_name,
@@ -616,7 +638,7 @@ class AudioDriveService:
             if local_path:
                 relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
                 audio_url = f"/api/files/{relative_path.lstrip('/')}"
-                duration = duration or AudioDriveService._probe_audio_duration(local_path)
+                duration = AudioDriveService._probe_audio_duration(local_path) or duration
             if not claim_current():
                 return
             asset = service.repo.add_tts_asset(
@@ -628,11 +650,16 @@ class AudioDriveService:
                 audio_url=audio_url,
                 audio_path=local_path,
                 duration_seconds=duration,
-                text_hash=service._hash_payload({"text": event.text}),
+                text_hash=service._hash_payload({"text": submitted_text}),
                 config_json=json.dumps({"emotion_prompt": event.emotion_prompt}, ensure_ascii=False),
                 status="READY",
             )
             event.tts_status = "READY"
+            if local_path and duration:
+                from app.services.rendered_subtitles import publish
+                publish(local_path, [{"start": "0", "end": str(duration), "text": submitted_text}],
+                        {"kind": "tts", "audio_event_id": event.id, "tts_asset_id": asset.id,
+                         "task_id": task_id, "text_hash": asset.text_hash})
             event.voice_owner_character_id = character.id
             if not update_task({
                 "status": "completed",
@@ -720,6 +747,7 @@ class AudioDriveService:
         total_duration = max(total_duration, audio_duration)
         summary = {
             "event_count": len(events),
+            "authored_final_pause_seconds": PAUSE_AFTER_SECONDS.get((events[-1].pause_after or "NONE").upper(), 0.0) if events else 0.0,
             "visual_required_duration": visual_duration,
             "audio_required_duration": audio_duration,
             "resolved_duration": round(total_duration, 3),
@@ -769,6 +797,7 @@ class AudioDriveService:
     def _timeline_to_response(self, timeline: ShotAudioTimeline) -> dict:
         events = self.repo.list_timeline_events(timeline.id)
         source_events = {event.id: event for event in self.repo.list_events(timeline.shot_id)}
+        audio_summary = json.loads(timeline.audio_summary_json or "{}")
         return {
             "id": timeline.id,
             "shotId": timeline.shot_id,
@@ -776,7 +805,8 @@ class AudioDriveService:
             "totalDuration": timeline.total_duration,
             "audioRequiredDuration": timeline.audio_required_duration,
             "status": timeline.status,
-            "audioSummary": json.loads(timeline.audio_summary_json or "{}"),
+            "audioSummary": audio_summary,
+            "timingSummary": self._timing_summary(timeline, events, audio_summary),
             "events": [
                 {
                     "audioEventId": event.audio_event_id,
@@ -792,6 +822,53 @@ class AudioDriveService:
                 }
                 for event in events
             ],
+        }
+
+    def _timing_summary(self, timeline: ShotAudioTimeline, events: list, audio_summary: dict) -> dict:
+        """Read stored, timeline-bound READY file durations; never probe, rebuild or trim on GET."""
+        shot = self.shot_repo.get_by_id(timeline.shot_id)
+        intervals = []
+        missing = []
+        for event in events:
+            asset = self.repo.get_tts_asset(event.tts_asset_id) if event.tts_asset_id else None
+            duration = float(asset.duration_seconds or 0) if asset and asset.status == "READY" else 0.0
+            if not math.isfinite(duration) or duration <= 0:
+                missing.append(event.audio_event_id)
+                continue
+            intervals.append((float(event.start_time), float(event.start_time) + duration))
+
+        coverage = 0.0
+        covered_end = 0.0
+        for start, end in sorted(intervals):
+            coverage += max(0.0, end - max(start, covered_end))
+            covered_end = max(covered_end, end)
+        last_end = max((end for _, end in intervals), default=None)
+        complete = timeline.status == "READY" and not missing
+        duration = resolved_duration(shot, timeline)
+        final_pause = audio_summary.get("authored_final_pause_seconds")
+        if not events:
+            final_pause = 0.0
+        elif final_pause is None and timeline.audio_required_duration is not None:
+            # Legacy timelines stored the audio cursor including the final pause, separately
+            # from the visual floor. Do not read today's edited pause into an old timeline.
+            final_pause = max(0.0, float(timeline.audio_required_duration) - max(float(event.end_time) for event in events))
+        hold = max(0.0, duration - (last_end or 0.0)) if complete else None
+        extra_hold = max(0.0, hold - final_pause) if hold is not None and final_pause is not None else None
+        return {
+            "measurementBasis": "READY_TTS_ASSET_FILE_DURATION",
+            "ttsEventCount": len(events),
+            "readyTtsEventCount": len(intervals),
+            "ttsCoverageComplete": complete,
+            "unmeasuredAudioEventIds": missing,
+            "measuredTtsDurationSeconds": round(sum(end - start for start, end in intervals), 3),
+            "measuredTtsCoverageSeconds": round(coverage, 3),
+            "lastTtsFileEndSeconds": round(last_end, 3) if last_end is not None else None,
+            "authoredFinalPauseSeconds": round(final_pause, 3) if final_pause is not None else None,
+            "visualEstimatedFloorSeconds": visual_required_duration(shot),
+            "resolvedDurationSeconds": duration,
+            "remainingNonSpeechHoldSeconds": round(hold, 3) if hold is not None else None,
+            "holdAfterAuthoredFinalPauseSeconds": round(extra_hold, 3) if extra_hold is not None else None,
+            "longTailReviewSuggested": bool(last_end is not None and extra_hold is not None and extra_hold >= 3.0),
         }
 
     def build_execution_windows(self, shot_id: str, max_clip_duration: Optional[float] = None) -> dict:
@@ -830,6 +907,10 @@ class AudioDriveService:
                 and float(item.get("end_time") or 0) == float(window["end_time"])
             )), None)
             merged_window_plans.append({**existing, **window} if existing else window)
+        # Bind window geometry even before Clip Audio exists, without rebinding cached audio.
+        windows = [{**window, "audio_timeline_id": timeline.id,
+                    "audio_timeline_revision": timeline.revision,
+                    "audio_timeline_hash": timeline.generated_from_hash} for window in windows]
         def mutate_plan(plan: dict) -> dict:
             plan["execution_windows"] = windows
             plan["window_plans"] = merged_window_plans
@@ -860,9 +941,10 @@ class AudioDriveService:
         if clip_duration <= 0:
             return {"success": False, "status_code": 400, "message": "Clip window 时长无效"}
 
-        drive_path = file_storage.get_clip_audio_path(shot.chapter.novel_id, shot.chapter_id, shot.id, window_index, "drive_audio")
-        final_path = file_storage.get_clip_audio_path(shot.chapter.novel_id, shot.chapter_id, shot.id, window_index, "final_audio")
-        manifest_path = file_storage.get_clip_audio_path(shot.chapter.novel_id, shot.chapter_id, shot.id, window_index, "manifest", ext=".json")
+        drive_path = window.get("drive_audio_path") or url_to_local_path(window.get("drive_audio_url") or "")
+        final_path = window.get("final_audio_path") or url_to_local_path(window.get("final_audio_url") or "")
+        drive_path = Path(drive_path) if drive_path else file_storage.get_clip_audio_path(shot.chapter.novel_id, shot.chapter_id, shot.id, window_index, "drive_audio")
+        final_path = Path(final_path) if final_path else file_storage.get_clip_audio_path(shot.chapter.novel_id, shot.chapter_id, shot.id, window_index, "final_audio")
         timeline_revision = int(timeline.revision or 0)
         timeline_hash = timeline.generated_from_hash
 
@@ -873,7 +955,18 @@ class AudioDriveService:
             and int(bound_revision or 0) == timeline_revision
             and (not timeline_hash or bound_hash == timeline_hash)
         )
+        from app.services.rendered_subtitles import load, publish, fingerprint
         if not force and window.get("audio_status") == "READY" and cache_matches_timeline and drive_path.exists() and final_path.exists():
+            # A missing/legacy subtitle snapshot is not permission to replace READY audio.
+            # Keep subtitle verification fail-closed, independently of audio reuse.
+            snapshot = load(final_path, require_ready=False)
+            lineage = snapshot.get("lineage", {}) if snapshot else {}
+            render_metadata = None
+            if (lineage.get("timeline_id") == timeline.id
+                    and lineage.get("timeline_revision") == timeline_revision
+                    and lineage.get("timeline_hash") == timeline_hash
+                    and lineage.get("clip_start") == start and lineage.get("clip_end") == end):
+                render_metadata = lineage.get("render_metadata")
             return {
                 "success": True,
                 "data": {
@@ -886,10 +979,22 @@ class AudioDriveService:
                     "audioStatus": "READY",
                     "driveAudioUrl": window.get("drive_audio_url") or self._path_to_file_url(drive_path),
                     "finalAudioUrl": window.get("final_audio_url") or self._path_to_file_url(final_path),
+                    "renderMetadata": render_metadata or None,
+                    "subtitleStatus": "READY" if snapshot and not snapshot.get("unavailable") else "UNAVAILABLE",
                     "message": "Clip Audio 已存在",
                 },
             }
 
+        audio_window_keys = (
+            "window_index", "index", "start_time", "end_time",
+            "audio_timeline_id", "audio_timeline_revision", "audio_timeline_hash",
+            "audioTimelineId", "audioTimelineRevision", "audioTimelineHash",
+            "audio_status", "speaker_timeline", "clip_audio_duration",
+            "drive_audio_url", "final_audio_url", "drive_audio_path", "final_audio_path",
+            "clip_audio_manifest_path",
+        )
+        starting_audio_window = {key: window.get(key) for key in audio_window_keys}
+        starting_timeline = (timeline.id, timeline_revision, timeline_hash, "READY")
         speaker_timeline = self._build_speaker_timeline(timeline, start, end)
         final_collection = self._collect_clip_audio_segments(timeline, start, end, drive_only=False)
         drive_collection = self._collect_clip_audio_segments(timeline, start, end, drive_only=True)
@@ -904,12 +1009,59 @@ class AudioDriveService:
         final_segments = final_collection["segments"]
         drive_segments = drive_collection["segments"]
 
+        # Publish new paths only after both tracks, subtitle snapshot and manifest exist.
+        # Even an explicit rerender of identical inputs must not replace historical bytes.
+        render_id = uuid.uuid4().hex
+        suffix = f"{CLIP_AUDIO_RENDER_PROFILE['id']}_{render_id}"
+        drive_path = file_storage.get_clip_audio_path(shot.chapter.novel_id, shot.chapter_id, shot.id, window_index, f"drive_audio_{suffix}")
+        final_path = file_storage.get_clip_audio_path(shot.chapter.novel_id, shot.chapter_id, shot.id, window_index, f"final_audio_{suffix}")
+        manifest_path = file_storage.get_clip_audio_path(shot.chapter.novel_id, shot.chapter_id, shot.id, window_index, f"manifest_{suffix}", ext=".json")
+
+        # Capture text and source bytes before rendering, never from later business state.
+        cues = []
+        subtitle_missing = False
+        for segment in final_segments:
+            event = self.repo.get_event(segment["audio_event_id"])
+            asset = self.repo.get_tts_asset(segment["tts_asset_id"])
+            segment["source_sha256"] = fingerprint(segment["source_path"])
+            tts_snapshot = load(segment["source_path"])
+            if (not event or not asset or asset.text_hash != self._hash_payload({"text": event.text})
+                    or not tts_snapshot or tts_snapshot["lineage"].get("tts_asset_id") != asset.id
+                    or tts_snapshot["lineage"].get("text_hash") != asset.text_hash
+                    or len(tts_snapshot["cues"]) != 1 or tts_snapshot["cues"][0]["text"] != event.text):
+                subtitle_missing = True
+                continue
+            cues.append({"start": str(segment["clip_start"]),
+                         "end": str(round(segment["clip_start"] + segment["duration"], 3)),
+                         "text": event.text or "", "audio_event_id": event.id,
+                         "tts_asset_id": asset.id, "text_hash": asset.text_hash})
+
         final_result = self._render_clip_audio(final_segments, final_path, clip_duration)
         if not final_result.get("success"):
             return final_result
+        final_sources = {segment["source_path"]: segment for segment in final_segments}
+        for segment in drive_segments:
+            source = final_sources[segment["source_path"]]
+            segment.update({key: source[key] for key in ("source_sha256", "speech_level") if key in source})
         drive_result = self._render_clip_audio(drive_segments, drive_path, clip_duration)
         if not drive_result.get("success"):
             return drive_result
+
+        if any(fingerprint(s["source_path"]) != s["source_sha256"] for s in final_segments):
+            return {"success": False, "status_code": 409, "message": "TTS source changed during Clip Audio rendering; retry the explicit build."}
+        render_metadata = {
+            "renderId": render_id,
+            "profile": dict(CLIP_AUDIO_RENDER_PROFILE),
+            "sourceLevels": [{"audioEventId": segment["audio_event_id"],
+                              "ttsAssetId": segment["tts_asset_id"],
+                              "sourceSha256": segment["source_sha256"],
+                              **segment.get("speech_level", {})} for segment in final_segments],
+        }
+        publish(final_path, cues, {"kind": "clip_audio", "timeline_id": timeline.id,
+                "timeline_revision": timeline_revision, "timeline_hash": timeline_hash,
+                "window_index": window_index, "clip_start": start, "clip_end": end,
+                "segments": final_segments, "render_metadata": render_metadata},
+                unavailable="TTS text/source binding could not be verified; regenerate TTS." if subtitle_missing else None)
 
         manifest = {
             "shot_id": shot_id,
@@ -925,6 +1077,7 @@ class AudioDriveService:
             "speaker_timeline": speaker_timeline,
             "final_segments": final_segments,
             "drive_segments": drive_segments,
+            "render_metadata": render_metadata,
             "generated_at": datetime.utcnow().isoformat(),
         }
         manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -957,17 +1110,43 @@ class AudioDriveService:
         }
 
         def mutate_audio_window(latest: dict) -> dict:
+            # Scalar reads bypass ORM identity-map state held while FFmpeg was running.
+            current_timeline = self.db.query(
+                ShotAudioTimeline.id, ShotAudioTimeline.revision,
+                ShotAudioTimeline.generated_from_hash, ShotAudioTimeline.status,
+            ).filter(ShotAudioTimeline.shot_id == shot_id).order_by(ShotAudioTimeline.revision.desc()).first()
+            current_windows = latest.get("window_plans") or latest.get("execution_windows") or []
+            current_window = next((item for item in current_windows if isinstance(item, dict)
+                                   and int(item.get("window_index") or item.get("index") or 0) == window_index), None)
+            if (current_timeline != starting_timeline or current_window is None
+                    or {key: current_window.get(key) for key in audio_window_keys} != starting_audio_window):
+                raise PlanRevisionConflict("Clip Audio render inputs changed")
+            try:
+                sources_match = all(fingerprint(s["source_path"]) == s["source_sha256"] for s in final_segments)
+            except OSError:
+                sources_match = False
+            if not sources_match:
+                raise PlanRevisionConflict("TTS source changed before Clip Audio publication")
             latest_windows = latest.get("window_plans") if isinstance(latest.get("window_plans"), list) else []
             for item in latest_windows:
                 if isinstance(item, dict) and int(item.get("window_index") or item.get("index") or 0) == window_index:
                     item.update(audio_fields)
                     break
             else:
-                latest_windows.append({**window, **audio_fields})
+                latest_windows.append({**current_window, **audio_fields})
             latest["window_plans"] = latest_windows
             return latest
 
-        VideoDirectorPlanService(self.db).mutate(shot_id, mutate_audio_window)
+        try:
+            self.db.expire(shot, ["video_director_plan", "video_director_plan_revision"])
+            # Retry only the publication CAS; every attempt rechecks audio inputs and
+            # merges into the latest plan without repeating either FFmpeg render.
+            VideoDirectorPlanService(self.db).mutate(shot_id, mutate_audio_window, max_retries=3)
+        except PlanRevisionConflict:
+            return {
+                "success": False, "status_code": 409,
+                "message": "Clip Audio inputs changed or the plan is still being updated. Refresh the timeline and window, then explicitly rebuild Clip Audio. The current selection was not replaced.",
+            }
         return {
             "success": True,
             "data": {
@@ -980,6 +1159,8 @@ class AudioDriveService:
                 "audioStatus": window["audio_status"],
                 "driveAudioUrl": window["drive_audio_url"],
                 "finalAudioUrl": window["final_audio_url"],
+                "renderMetadata": render_metadata,
+                "subtitleStatus": "UNAVAILABLE" if subtitle_missing else "READY",
                 "message": window["audio_message"],
             },
         }
@@ -1023,22 +1204,57 @@ class AudioDriveService:
             })
         return {"segments": segments, "expected_count": len(segments) + len(missing), "missing": missing}
 
-    def _render_clip_audio(self, segments: list, output_path: Path, duration: float) -> dict:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        if not segments:
-            cmd = [
-                "ffmpeg", "-y", "-v", "error",
-                "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo",
-                "-t", f"{duration:.3f}",
-                "-acodec", "pcm_s16le",
-                str(output_path),
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-            if result.returncode != 0:
-                return {"success": False, "status_code": 500, "message": result.stderr or "生成静音 Clip Audio 失败"}
-            return {"success": True}
+    @staticmethod
+    def _measure_speech_level(source_path: str) -> dict:
+        result = subprocess.run([
+            "ffmpeg", "-nostdin", "-hide_banner", "-v", "info", "-xerror", "-i", source_path,
+            "-map", "0:a:0", "-af", f"{SPEECH_FORMAT_FILTER},astats=reset=0:measure_perchannel=RMS_level+Peak_level:measure_overall=RMS_level+Peak_level",
+            "-f", "null", "-",
+        ], capture_output=True, text=True, check=False)
+        rms_match = re.findall(r"RMS level dB:\s*([^\s]+)", result.stderr)
+        peak_match = re.findall(r"Peak level dB:\s*([^\s]+)", result.stderr)
+        if result.returncode or not rms_match or not peak_match:
+            raise ValueError("Could not measure the full TTS source: " + result.stderr[-500:])
+        channels = len(re.findall(r"Channel:\s*\d+", result.stderr))
+        if channels not in (1, 2):
+            raise ValueError("Clip Audio speech sources must be mono or stereo")
+        rms, peak = float(rms_match[-1]), float(peak_match[-1])
+        profile = CLIP_AUDIO_RENDER_PROFILE
+        if rms == -math.inf and peak == -math.inf:
+            gain, reason = 0.0, "silence_guard"
+        elif not math.isfinite(rms) or not math.isfinite(peak):
+            raise ValueError("Non-finite TTS source level")
+        elif rms <= profile["silenceThresholdDbfs"]:
+            gain, reason = 0.0, "silence_guard"
+        else:
+            requested = profile["targetRmsDbfs"] - rms
+            bounded = max(profile["minGainDb"], min(profile["maxGainDb"], requested))
+            gain = max(profile["minGainDb"], min(bounded, profile["peakLimitDbfs"] - peak))
+            reason = "peak_headroom" if gain < bounded else "gain_bound" if bounded != requested else "target"
+        return {
+            "sourceChannels": channels,
+            "sourceRmsDbfs": round(rms, 6) if math.isfinite(rms) else None,
+            "sourcePeakDbfs": round(peak, 6) if math.isfinite(peak) else None,
+            "gainDb": round(gain, 6),
+            "gainReason": reason,
+        }
 
-        cmd = ["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
+    def _render_clip_audio(self, segments: list, output_path: Path, duration: float) -> dict:
+        from app.services.rendered_subtitles import fingerprint
+
+        levels = {}
+        try:
+            for segment in segments:
+                digest = segment.get("source_sha256") or fingerprint(segment["source_path"])
+                segment["source_sha256"] = digest
+                if digest not in levels:
+                    levels[digest] = segment.get("speech_level") or self._measure_speech_level(segment["source_path"])
+                segment["speech_level"] = levels[digest]
+        except (OSError, ValueError) as exc:
+            return {"success": False, "status_code": 500, "message": str(exc)}
+
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        cmd = ["ffmpeg", "-nostdin", "-n", "-v", "error", "-xerror", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo"]
         for segment in segments:
             cmd.extend(["-i", segment["source_path"]])
 
@@ -1048,14 +1264,22 @@ class AudioDriveService:
             delay_ms = int(round(float(segment["clip_start"]) * 1000))
             source_start = float(segment["source_start"])
             segment_duration = float(segment["duration"])
+            channel_filter = ",pan=stereo|c0=c0|c1=c0" if segment["speech_level"]["sourceChannels"] == 1 else ""
             label = f"a{index}"
             filters.append(
-                f"[{index}:a]atrim=start={source_start:.3f}:duration={segment_duration:.3f},"
-                f"asetpts=PTS-STARTPTS,aresample=44100,aformat=sample_fmts=s16:channel_layouts=stereo,"
+                f"[{index}:a]{SPEECH_FORMAT_FILTER}{channel_filter},atrim=start={source_start:.3f}:duration={segment_duration:.3f},"
+                f"asetpts=PTS-STARTPTS,volume={segment['speech_level']['gainDb']:.6f}dB,"
                 f"adelay={delay_ms}|{delay_ms}[{label}]"
             )
             mix_inputs.append(f"[{label}]")
-        filters.append(f"{''.join(mix_inputs)}amix=inputs={len(mix_inputs)}:duration=first:dropout_transition=0,atrim=0:{duration:.3f}[out]")
+        # A sample clamp only catches exceptional peaks/overlaps. Unlike a lookahead
+        # limiter it adds no latency, release tail or input-count-dependent gain.
+        ceiling = math.floor(32768 * 10 ** (CLIP_AUDIO_RENDER_PROFILE["peakLimitDbfs"] / 20)) / 32768
+        filters.append(
+            f"{''.join(mix_inputs)}amix=inputs={len(mix_inputs)}:duration=first:dropout_transition=0:normalize=0,"
+            f"aeval=exprs='clip(val(0),-{ceiling},{ceiling})|clip(val(1),-{ceiling},{ceiling})',"
+            f"atrim=0:{duration:.3f}[out]"
+        )
         cmd.extend(["-filter_complex", ";".join(filters), "-map", "[out]", "-acodec", "pcm_s16le", str(output_path)])
 
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)

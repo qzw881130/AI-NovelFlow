@@ -11,7 +11,7 @@
  */
 
 import { useState, useMemo, useEffect } from 'react';
-import { Copy } from 'lucide-react';
+import { Copy, Save } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { useChapterGenerateStore } from '../stores';
 import { toast } from '../../../stores/toastStore';
@@ -43,6 +43,7 @@ interface ShotFormProps {
   showDuration?: boolean;
   /** 保存快捷键回调 */
   onSave?: () => void | Promise<void>;
+  isSaving?: boolean;
 }
 
 const pauseAfterOptions: Array<{ value: AudioDriveEvent['pauseAfter']; label: string }> = [
@@ -64,6 +65,7 @@ export function ShotForm({
   showVideoDescription = false,
   showDuration = false,
   onSave,
+  isSaving = false,
 }: ShotFormProps) {
   const { t } = useTranslation();
   const currentShotIndex = useChapterGenerateStore((state) => state.currentShotIndex);
@@ -81,6 +83,9 @@ export function ShotForm({
   // 优先使用 props 中的 shotIndex 和 shotData，否则从 store 获取
   const shotIndex = propShotIndex || currentShotIndex;
   const shotData = propShotData || storeShots[shotIndex - 1];
+  const builtTimelineDuration = shotData?.audioStatus === 'READY' && shotData.videoDirectorPlan?.audio_timeline?.resolved_duration != null
+    ? Number(shotData.videoDirectorPlan?.audio_timeline?.resolved_duration)
+    : NaN;
 
   const mergeNames = (primary: string[], library: any[]) => {
     const names = library.map((item) => item?.name).filter(Boolean);
@@ -248,7 +253,7 @@ export function ShotForm({
     const newEvent: AudioDriveEvent = {
       id: `local-${Date.now()}-${audioEvents.length}`,
       shotId: shotData?.id || '',
-      order: audioEvents.length,
+      order: audioEvents.length + 1,
       type,
       voiceOwnerName: isNarration ? '旁白' : '',
       visibleSpeakerName: isNarration ? null : '',
@@ -262,7 +267,7 @@ export function ShotForm({
   };
 
   const removeAudioEvent = (index: number) => {
-    setAudioEvents(audioEvents.filter((_, i) => i !== index).map((event, order) => ({ ...event, order })));
+    setAudioEvents(audioEvents.filter((_, i) => i !== index).map((event, order) => ({ ...event, order: order + 1 })));
   };
 
   const updateAudioEvent = (index: number, field: keyof AudioDriveEvent, value: string | boolean) => {
@@ -306,7 +311,7 @@ export function ShotForm({
   const [dialoguesExpanded, setDialoguesExpanded] = useState(false);
 
   useEffect(() => {
-    if (!onSave) return;
+    if (!onSave || readOnly || isSaving) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();
@@ -315,7 +320,7 @@ export function ShotForm({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onSave]);
+  }, [onSave, readOnly, isSaving]);
 
   const dialogueDurationTotal = dialogues.reduce((total, dialogue) => (
     total + estimateDialogueSeconds(dialogueText(dialogue), dialogueEmotion(dialogue))
@@ -332,6 +337,18 @@ export function ShotForm({
 
   return (
     <div className="shot-form space-y-4">
+      {onSave && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-gray-800">{t('chapterGenerate.shotNumberLabel', { number: shotIndex })}</h3>
+          <button type="button" onClick={() => onSave()} disabled={readOnly || isSaving || !shotData}
+            aria-label={isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}
+            title={isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}
+            className="generate-icon-action inline-flex min-h-11 items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50">
+            <Save className="h-4 w-4" />
+            <span className="hidden lg:inline">{isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}</span>
+          </button>
+        </div>
+      )}
       {/* 分镜描述 */}
       <div className="shot-description-field">
         <div className="flex items-center justify-between mb-2">
@@ -601,7 +618,7 @@ export function ShotForm({
             className="input-field"
           />
           <p className="text-xs text-gray-500 mt-1">Shot Director 预估值，Audio Timeline READY 后以 resolved duration 为准。</p>
-          <p className="text-xs text-gray-500 mt-1">当前 resolved duration: {duration}{t('common.second')}</p>
+          <p className="text-xs text-gray-500 mt-1">已构建 Timeline 时长：{Number.isFinite(builtTimelineDuration) ? `${builtTimelineDuration}${t('common.second')}` : '尚未就绪'}。实测语音与留白请查看音频页的时长检查。</p>
         </div>
       )}
 
@@ -628,14 +645,14 @@ export function ShotForm({
       {showDialogues && (
         <div>
           <div className="mb-4 rounded-lg border border-cyan-100 bg-cyan-50/40 p-3">
-            <div className="flex items-center justify-between gap-3 mb-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
               <div>
                 <label className="text-sm font-medium text-gray-700">Audio Events</label>
                 <p className="text-xs text-gray-500 mt-1">
                   声音语义源：{audioEventCounts.eventCount} events · {audioEventCounts.visibleLipsyncCount} 口型 · {audioEventCounts.narrationCount} 旁白
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex shrink-0 gap-2">
                 <button
                   type="button"
                   onClick={() => addAudioEvent('DIALOGUE')}
@@ -768,8 +785,8 @@ export function ShotForm({
             </div>
           </div>
 
-          <div className="flex items-center justify-between mb-2">
-            <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <label className="text-sm font-medium text-gray-700 flex flex-wrap items-center gap-2">
               <span>{t('chapterGenerate.dialogues')}（兼容旧数据）</span>
               {dialogues.length > 0 && (
                 <span className={`rounded-full border px-2 py-0.5 text-xs font-normal ${dialogueWarning.style.className}`}>

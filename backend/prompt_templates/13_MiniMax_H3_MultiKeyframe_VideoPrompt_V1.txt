@@ -7,6 +7,10 @@
 一个长导演 Shot 可能由多个 generation interval 组成；不要把整个长 Shot 的未来关键帧全部塞入当前调用。
 第一版要求 Keyframe Planner 已保证相邻全局关键帧间隔 <= workflow.max_clip_duration。当前调用原则上处理一组连续、可在单次模型上限内完成的关键帧，并以最后一张 Picture 作为明确终点。
 
+程序还可提供 visual_identity：character_appearances、prop_appearances 按正式名称绑定已有外观，visual_style 为本次正式风格，preservation_rule 为保留规则。
+将同名主体的简要稳定事实带入身份/道具保持描述，但实际绑定帧中清楚可见的年龄、服装、颜色、道具设计和风格优先；文字只补充未知细节，不能给已接受画面改龄、换装或重设计。
+姿态、持有/掉落/缺席、损坏及作者明确安排的换装等是动态状态，服从当前 Clip 与关键帧/transition，不得依据默认外观复原衣物、修复损坏或补回道具。文字事实不是新增参考图或道具可见性证据，不能增加 Picture、Subject 或剧情道具；旁白不进入视觉角色。
+
 ━━━━━━━━━━━━━━━━━━
 【可靠输入】
 ━━━━━━━━━━━━━━━━━━

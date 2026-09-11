@@ -189,6 +189,11 @@ All visible characters remain silent and do not perform speech lip-sync througho
     "NONE，小马不产生说话口型，不做讲话口型。",
     "NONE，无任何可见人物产生说话口型。",
     "NONE，无可见角色做说话口型。",
+    "visible_speaker = NONE. All characters remain silent; none of the visible characters produces any lip-sync or talking mouth shape at any moment, including when narration audio is heard.",
+    "NONE: none of the visible characters produces any lip-sync or talking mouth shape at any moment.",
+    "NONE. No visible character performs lip-sync at any time.",
+    "NONE. No visible characters produce any speech or lip-sync.",
+    "NONE. Any voiced audio present in the final audio is off-screen non-lip-sync content and must not move any visible character's mouth.",
 ])
 def test_none_segment_negated_and_scoped_speech_passes(body):
     manifest, resolved, issues = _resolve(["小马", "老牛"], [
@@ -221,6 +226,12 @@ def test_none_segment_negated_and_scoped_speech_passes(body):
     "NONE，小马不仅说话，还张嘴。",
     "NONE，小马产生说话口型。",
     "NONE，小马做发声口型。",
+    "NONE: none of the visible characters produces any lip-sync or talking mouth shape, but <Subject 1> lip-syncs.",
+    "none: none of the visible characters produces any lip-sync or talking mouth shape, but <Subject 1> speaks.",
+    "none of the visible characters produces any lip-sync or talking mouth shape; visible_speaker=NONE: <Subject 1> speaks.",
+    "NONE. No visible character performs lip-sync, but <Subject 1> speaks.",
+    "NONE. No visible characters produce speech or lip-sync, but <Subject 1> mouth moves.",
+    "NONE. The narration is non-lip-sync content, but <Subject 1> lip-syncs.",
 ])
 def test_none_segment_mixed_negation_still_blocks_speech(body):
     manifest, resolved, issues = _resolve(["小马", "老牛"], [
@@ -345,7 +356,13 @@ def test_h3_prompt_builder_blocks_unknown_subject_before_submit(db_session, monk
 
     class FakeLLM:
         async def chat_completion(self, **_kwargs):
-            return {"success": True, "content": "<Subject 3> talks to camera."}
+            return {"success": True, "content": "\n\n".join([
+                "subject_definitions:\n<Subject 3> is the pony.",
+                "initial_state_anchor:\nThe pony stands beside a river.",
+                "summary:\n<Subject 3> talks to camera.",
+                "detailed_description:\nHold the camera steady while <Subject 3> speaks.",
+                "overall_soundscape:\nThe pony's voice and quiet river ambience.",
+            ])}
 
     monkeypatch.setattr("app.services.video_director_ai.LLMService", FakeLLM)
 

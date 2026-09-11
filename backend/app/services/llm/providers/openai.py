@@ -5,6 +5,7 @@ OpenAI 兼容的 LLM 提供商
 """
 import httpx
 import asyncio
+import json
 import os
 import time
 from typing import Dict, Any, Optional
@@ -41,7 +42,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
     def _build_request_body(
         self,
         system_prompt: str,
-        user_content: str,
+        user_content: str | list[Dict[str, Any]],
         temperature: float,
         max_tokens: int,
         response_format: Optional[str]
@@ -61,6 +62,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         is_deepseek_v4 = self.config.provider == "deepseek" and self.config.model in {
             "deepseek-v4-flash",
             "deepseek-v4-pro",
+            "deepseek-v4-flash-vision-exp",
         }
 
         if response_format == "json_object" and ("Doubao-Seed" not in self.config.model):
@@ -92,7 +94,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
     async def chat_completion(
         self,
         system_prompt: str,
-        user_content: str,
+        user_content: str | list[Dict[str, Any]],
         temperature: float = 0.7,
         max_tokens: int = 4000,
         response_format: Optional[str] = None,
@@ -131,13 +133,26 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         used_proxy = proxy is not None
 
         timeout = self.config.timeout or 600
+        log_body = body
+        log_user_content = user_content
+        if isinstance(user_content, list):
+            # Keep image URLs/base64 out of logs without changing the wire payload.
+            log_content = [
+                {"type": "image_url", "image_url": {"url": "[image omitted]"}}
+                if part.get("type") == "image_url" else part
+                for part in user_content
+            ]
+            log_user_content = json.dumps(log_content, ensure_ascii=False)
+            log_body = {**body, "messages": [
+                body["messages"][0], {"role": "user", "content": log_content}
+            ]}
         request_info = build_llm_request_info(
             provider=self.config.provider,
             base_url=self.config.api_url,
             endpoint=endpoint,
             model=self.config.model,
             headers=headers,
-            payload=body,
+            payload=log_body,
             proxy_url=proxy,
             timeout_seconds=timeout,
         )
@@ -155,6 +170,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             old_http_proxy = old_https_proxy = old_http_proxy_lower = old_https_proxy_lower = None
 
         log_id = None
+        response = None
         try:
             async with client:
                 print(f"[openai chat_completion] endpoint:{request_info['url']}, headers:{request_info['headers']}, timeout:{timeout}")
@@ -162,7 +178,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     provider=self.config.provider,
                     model=self.config.model,
                     system_prompt=system_prompt,
-                    user_prompt=user_content,
+                    user_prompt=log_user_content,
                     prompt_template_name=prompt_template_name,
                     task_type=task_type,
                     novel_id=novel_id,
@@ -194,26 +210,8 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             )
             raise
         except Exception as e:
-            import traceback
-            error_type = type(e).__name__
-            error_detail = str(e) if str(e) else "(无详细错误信息)"
-            error_msg = f"请求异常：[{error_type}] {error_detail}"
-            print(f"[OpenAICompatibleProvider] {error_msg}")
-            traceback.print_exc()
-
             duration = time.time() - start_time
-            update_llm_log(
-                log_id=log_id,
-                status="error",
-                error_message=error_msg,
-                duration=duration,
-            )
-
-            return LLMResponse(
-                success=False,
-                error=error_msg,
-                duration=duration
-            )
+            return self._exception_response(log_id, e, duration, response=response)
         finally:
             # 恢复环境变量
             if self.config.provider in ("ollama", "custom"):

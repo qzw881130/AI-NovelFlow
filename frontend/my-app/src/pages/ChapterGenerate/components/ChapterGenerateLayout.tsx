@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { useChapterGenerateStore } from '../stores';
 import { novelApi } from '../../../api/novels';
@@ -107,6 +107,7 @@ export function ChapterGenerateLayout({
   const [isSavingShots, setIsSavingShots] = useState(false);
   const [openVideoStatsKey, setOpenVideoStatsKey] = useState<string | null>(null);
   const [openAudioStatsKey, setOpenAudioStatsKey] = useState<string | null>(null);
+  const [mobileStatsExpanded, setMobileStatsExpanded] = useState(false);
   const initialShotHashAppliedRef = useRef(false);
   const pendingShotHashIndexRef = useRef<number | null>(null);
 
@@ -123,8 +124,6 @@ export function ChapterGenerateLayout({
   const markTabComplete = useChapterGenerateStore((state) => state.markTabComplete);
   const loadWorkflowState = useChapterGenerateStore((state) => state.loadWorkflowState);
   const setCurrentShot = useChapterGenerateStore((state) => state.setCurrentShot);
-  const setRightPanelCollapsed = useChapterGenerateStore((state) => state.setRightPanelCollapsed);
-  const setRightPanelWidth = useChapterGenerateStore((state) => state.setRightPanelWidth);
   const saveChapterResources = useChapterGenerateStore((state) => state.saveChapterResources);
   const storeShots = useChapterGenerateStore((state) => state.shots);
   const storeGeneratingShots = useChapterGenerateStore((state) => state.generatingShots);
@@ -235,64 +234,19 @@ export function ChapterGenerateLayout({
     incomplete: [] as any[],
   });
 
-  const renderAudioGenerationStats = () => {
-    if (currentTab !== 2 || shots.length === 0) return null;
-    const items = [
+  const renderGenerationStats = () => {
+    if ((currentTab !== 2 && currentTab !== 3) || shots.length === 0) return null;
+    const isAudio = currentTab === 2;
+    const openKey = isAudio ? openAudioStatsKey : openVideoStatsKey;
+    const setOpenKey = isAudio ? setOpenAudioStatsKey : setOpenVideoStatsKey;
+    const items = isAudio ? [
       ['ready', '已就绪', audioStats.ready, 'border-green-100 bg-green-50 text-green-700'],
       ['preparing', '准备中', audioStats.preparing, 'border-blue-100 bg-blue-50 text-blue-700'],
       ['pending', '等待中', audioStats.pending, 'border-cyan-100 bg-cyan-50 text-cyan-700'],
       ['stale', '已过期', audioStats.stale, 'border-amber-100 bg-amber-50 text-amber-700'],
       ['failed', '失败', audioStats.failed, 'border-red-100 bg-red-50 text-red-700'],
       ['incomplete', '未完成', audioStats.incomplete, 'border-gray-200 bg-gray-50 text-gray-600'],
-    ] as const;
-
-    return (
-      <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs shadow-sm">
-        <span className="font-medium text-gray-700">音频生成结果</span>
-        {items.map(([key, label, shotItems, className]) => (
-          <span key={key} className="relative inline-flex">
-            <button
-              type="button"
-              onClick={() => setOpenAudioStatsKey(openAudioStatsKey === key ? null : key)}
-              className={`rounded-full border px-2 py-0.5 ${className}`}
-            >
-              {label} {shotItems.length}
-            </button>
-            {openAudioStatsKey === key && (
-              <span className="absolute left-1/2 top-full z-[90] w-64 -translate-x-1/2 pt-2">
-                <span className="block rounded-lg border border-gray-200 bg-white p-2 text-left shadow-xl">
-                  <span className="mb-2 block text-xs font-medium text-gray-700">{label}分镜编号</span>
-                  {shotItems.length > 0 ? (
-                    <span className="block max-h-72 overflow-y-auto">
-                      {shotItems.map((shot: any) => (
-                        <button
-                          key={shot.id || shot.index}
-                          type="button"
-                          onClick={() => {
-                            setCurrentShot(String(shot.id), Number(shot.index || 1));
-                            setOpenAudioStatsKey(null);
-                          }}
-                          className="mr-1 mb-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                        >
-                          镜{shot.index || '-'}
-                        </button>
-                      ))}
-                    </span>
-                  ) : (
-                    <span className="block text-xs text-gray-400">暂无分镜</span>
-                  )}
-                </span>
-              </span>
-            )}
-          </span>
-        ))}
-      </div>
-    );
-  };
-
-  const renderVideoGenerationStats = () => {
-    if (currentTab !== 3 || shots.length === 0) return null;
-    const items = [
+    ] as const : [
       ['completed', '已完成', videoStats.completed, 'border-green-100 bg-green-50 text-green-700'],
       ['generating', '生成中', videoStats.generating, 'border-blue-100 bg-blue-50 text-blue-700'],
       ['needsMerge', '待合并', videoStats.needsMerge, 'border-amber-100 bg-amber-50 text-amber-700'],
@@ -300,47 +254,45 @@ export function ChapterGenerateLayout({
       ['incomplete', '未完成', videoStats.incomplete, 'border-gray-200 bg-gray-50 text-gray-600'],
       ['audioReady', '音频就绪', audioDriveReadyShots, 'border-cyan-100 bg-cyan-50 text-cyan-700'],
     ] as const;
+    const selectedItem = items.find(([key]) => key === openKey);
 
     return (
-      <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs shadow-sm">
-        <span className="font-medium text-gray-700">视频生成结果</span>
+      <div className="generate-stats flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1 text-xs shadow-sm">
+        <span className="font-medium text-gray-700">{isAudio ? '音频生成结果' : '视频生成结果'}</span>
         {items.map(([key, label, shotItems, className]) => (
-          <span key={key} className="relative inline-flex">
-            <button
-              type="button"
-              onClick={() => setOpenVideoStatsKey(openVideoStatsKey === key ? null : key)}
-              className={`rounded-full border px-2 py-0.5 ${className}`}
-            >
-              {label} {shotItems.length}
-            </button>
-            {openVideoStatsKey === key && (
-            <span className="absolute left-1/2 top-full z-[90] w-64 -translate-x-1/2 pt-2">
-              <span className="block rounded-lg border border-gray-200 bg-white p-2 text-left shadow-xl">
-                <span className="mb-2 block text-xs font-medium text-gray-700">{label}分镜编号</span>
-                {shotItems.length > 0 ? (
-                  <span className="block max-h-72 overflow-y-auto">
-                    {shotItems.map((shot: any) => (
-                      <button
-                        key={shot.id || shot.index}
-                        type="button"
-                        onClick={() => {
-                          setCurrentShot(String(shot.id), Number(shot.index || 1));
-                          setOpenVideoStatsKey(null);
-                        }}
-                        className="mr-1 mb-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
-                      >
-                        镜{shot.index || '-'}
-                      </button>
-                    ))}
-                  </span>
-                ) : (
-                  <span className="block text-xs text-gray-400">暂无分镜</span>
-                )}
-              </span>
-            </span>
-            )}
-          </span>
+          <button
+            key={key}
+            type="button"
+            onClick={() => setOpenKey(openKey === key ? null : key)}
+            aria-expanded={openKey === key}
+            aria-controls="generate-filtered-shots"
+            className={`whitespace-nowrap rounded-full border px-2 py-0.5 ${className}`}
+          >
+            {label} {shotItems.length}
+          </button>
         ))}
+        {selectedItem && (
+          <div id="generate-filtered-shots" className="w-full basis-full rounded-lg border border-gray-200 bg-white p-2 text-left">
+            <p className="mb-2 text-xs font-medium text-gray-700">{selectedItem[1]}分镜编号</p>
+            {selectedItem[2].length > 0 ? (
+              <div className="max-h-48 overflow-y-auto">
+                {selectedItem[2].map((shot: any) => (
+                  <button
+                    key={shot.id || shot.index}
+                    type="button"
+                    onClick={() => {
+                      setCurrentShot(String(shot.id), Number(shot.index || 1));
+                      setOpenKey(null);
+                    }}
+                    className="mr-1 mb-1 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                  >
+                    镜{shot.index || '-'}
+                  </button>
+                ))}
+              </div>
+            ) : <p className="text-xs text-gray-400">暂无分镜</p>}
+          </div>
+        )}
       </div>
     );
   };
@@ -367,7 +319,7 @@ export function ChapterGenerateLayout({
     ] as const;
 
     return (
-      <div className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-1 text-xs shadow-sm">
+      <div className="generate-stats flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1 text-xs shadow-sm">
         <span className="font-medium text-gray-700">台词时长预警</span>
         {items.map(([level, label]) => (
           <span key={level} className={`rounded-full px-2 py-0.5 ${DIALOGUE_WARNING_STYLES[level].badgeClassName}`}>
@@ -403,7 +355,7 @@ export function ChapterGenerateLayout({
             duration: shot.duration,
             continuity_mode: shot.continuity_mode || 'NORMAL',
             dialogues: shot.dialogues,
-            audio_events: shot.audioEvents || [],
+            audio_events: (shot.audioEvents || []).map((event, index) => ({ ...event, order: index + 1 })),
           }))
         );
         if (!result.success) {
@@ -492,6 +444,8 @@ export function ChapterGenerateLayout({
     }
   }, [id, cid, loadWorkflowState]);
 
+  useEffect(() => setMobileStatsExpanded(false), [currentTab]);
+
   useEffect(() => {
     if (!id) return;
     novelApi.fetchChapters(id).then((res) => {
@@ -500,12 +454,6 @@ export function ChapterGenerateLayout({
       console.error('加载章节列表失败:', error);
     });
   }, [id]);
-
-  useEffect(() => {
-    if (currentTab !== 0) return;
-    setRightPanelCollapsed(false);
-    setRightPanelWidth(760);
-  }, [currentTab, setRightPanelCollapsed, setRightPanelWidth]);
 
   useEffect(() => {
     initialShotHashAppliedRef.current = false;
@@ -564,20 +512,22 @@ export function ChapterGenerateLayout({
         type="button"
         onClick={() => goToChapter(previousChapter?.id)}
         disabled={!previousChapter}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap transition-colors"
-        title={previousChapter ? previousChapter.title : '已经是第一回'}
+        className="generate-icon-action inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap transition-colors"
+        aria-label="上一回"
+        title={`上一回 · ${previousChapter ? previousChapter.title : '已经是第一回'}`}
       >
         <ChevronLeft className="h-4 w-4 flex-shrink-0" />
-        上一回
+        <span className="hidden lg:inline">上一回</span>
       </button>
       <button
         type="button"
         onClick={() => goToChapter(nextChapter?.id)}
         disabled={!nextChapter}
-        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap transition-colors"
-        title={nextChapter ? nextChapter.title : '已经是最后一回'}
+        className="generate-icon-action inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap transition-colors"
+        aria-label="下一回"
+        title={`下一回 · ${nextChapter ? nextChapter.title : '已经是最后一回'}`}
       >
-        下一回
+        <span className="hidden lg:inline">下一回</span>
         <ChevronRight className="h-4 w-4 flex-shrink-0" />
       </button>
     </div>
@@ -686,7 +636,7 @@ export function ChapterGenerateLayout({
   const renderRightPanel = () => {
     if (currentTab === 0) {
       return (
-        <div className="h-full overflow-y-auto rounded-lg border border-gray-200 bg-white p-4">
+        <div className="generate-split-editor lg:h-full lg:overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 lg:p-4">
           {currentShot ? (
             <ShotForm
               shotIndex={currentShotIndex}
@@ -694,6 +644,7 @@ export function ChapterGenerateLayout({
               showVideoDescription={true}
               showDuration={true}
               onSave={saveShotSplitData}
+              isSaving={isSavingShots}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-gray-500">
@@ -707,6 +658,15 @@ export function ChapterGenerateLayout({
     return null;
   };
 
+  const stageStats = renderDialogueWarningStats() || renderGenerationStats();
+  const statsSummary = currentTab === 3
+    ? `视频生成结果 · 已完成 ${videoStats.completed.length}/${shots.length}`
+    : currentTab === 2
+      ? `音频生成结果 · 已就绪 ${audioStats.ready.length}/${shots.length}`
+      : currentTab === 0
+        ? `台词时长预警 · 正常 ${dialogueWarningStats.stats.normal || 0}/${dialogueWarningStats.checkedCount}`
+        : `待处理 · 分镜图 ${pendingShots.size} · 视频 ${pendingVideos.size}`;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -718,102 +678,27 @@ export function ChapterGenerateLayout({
     );
   }
 
-  // 音频生成 Tab 使用自己的三栏布局
-  if (currentTab === 2) {
-    return (
-      <div className="h-full min-h-0 overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4 min-w-0">
-              <Link
-                to={`/novels/${id}`}
-                className="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Link>
-              <div className="min-w-0">
-                <h1 className="text-xl font-bold text-gray-900 truncate">
-                  {chapter?.title || t('chapterGenerate.unnamedChapter')}
-                </h1>
-                <p className="text-sm text-gray-500 mt-1 truncate">{chapterSummary}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 flex-shrink-0">
-              {renderChapterSwitch()}
-              {/* 章节资源管理按钮 */}
-              <button
-                onClick={onResourcesManageClick}
-                className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 whitespace-nowrap flex-shrink-0"
-                title="管理本章节使用的角色、场景、道具"
-              >
-                <span>📦</span>
-                章节资源
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* TabNavigation */}
-        <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
-          <div className="relative">
-            <TabNavigation />
-            <div className="absolute left-1/2 top-1 z-[130] -translate-x-1/2">
-              {renderAudioGenerationStats()}
-            </div>
-            <div className="absolute right-0 top-1">
-              {renderQueueStats()}
-            </div>
-          </div>
-        </div>
-
-        {/* AudioGenTab 完全接管 */}
-        <div className="flex-1 min-h-0 overflow-hidden">
-          <AudioGenTab
-            novelId={id || ''}
-            chapterId={cid || ''}
-          />
-        </div>
-
-        {/* BottomNavigator */}
-        <BottomNavigator
-          shots={shots}
-          shotImages={shotImages}
-          generatingShots={generatingShots}
-          pendingShots={pendingShots}
-          shotVideos={shotVideos}
-          generatingVideos={generatingVideos}
-          pendingVideos={pendingVideos}
-          collapsed={bottomNavCollapsed}
-          onCollapsedChange={setBottomNavCollapsed}
-        />
-
-        {/* 为底部导航预留空间 */}
-        <div className={bottomNavCollapsed ? 'h-10' : 'h-48'} />
-      </div>
-    );
-  }
-
   return (
-    <div className="h-full min-h-0 overflow-hidden flex flex-col">
+    <div className="generate-layout min-w-0 flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden" data-nav-collapsed={bottomNavCollapsed}>
       {/* Header */}
       <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-4 min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-1 basis-full lg:basis-80 items-start lg:items-center gap-2 lg:gap-4 min-w-0">
             <Link
               to={`/novels/${id}`}
               className="p-2 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0"
+              aria-label={t('common.back')}
             >
               <ArrowLeft className="h-5 w-5" />
             </Link>
             <div className="min-w-0">
-              <h1 className="text-xl font-bold text-gray-900 truncate">
+              <h1 className="text-base lg:text-xl font-bold text-gray-900 break-words">
                 {chapter?.title || t('chapterGenerate.unnamedChapter')}
               </h1>
-                <p className="text-sm text-gray-500 mt-1 truncate">{chapterSummary}</p>
+              <p className="text-xs lg:text-sm text-gray-500 mt-1 break-words">{chapterSummary}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex flex-wrap items-center gap-2 lg:gap-3">
             {renderChapterSwitch()}
             {/* 章节资源管理按钮 */}
             <button
@@ -829,27 +714,35 @@ export function ChapterGenerateLayout({
       </div>
 
       {/* TabNavigation */}
-      <div className="relative z-[120] flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
-          <div className="relative">
-            <TabNavigation />
-            <div className="absolute left-1/2 top-1 z-[130] -translate-x-1/2">
-            {renderDialogueWarningStats() || renderVideoGenerationStats()}
-            </div>
-            <div className="absolute right-0 top-1">
-              {renderQueueStats()}
-          </div>
-        </div>
+      <div className="generate-stage-navigation flex-shrink-0 px-2 lg:px-4 py-2 bg-white border-b border-gray-200">
+        <TabNavigation />
       </div>
+      {(stageStats || hasQueueStats) && (
+        <section className="generate-statistics flex-shrink-0 px-2 lg:px-4 pb-2 bg-white border-b border-gray-200" data-expanded={mobileStatsExpanded} aria-label={statsSummary}>
+          <button type="button" className="generate-stat-summary flex w-full items-center justify-between gap-2 rounded-lg px-2 text-left text-xs text-gray-600 hover:bg-gray-50 lg:hidden"
+            aria-expanded={mobileStatsExpanded} aria-controls="generate-stat-details" title={statsSummary}
+            onClick={() => setMobileStatsExpanded(!mobileStatsExpanded)}>
+            <span>{statsSummary}</span>
+            <ChevronDown className={`h-4 w-4 shrink-0 ${mobileStatsExpanded ? 'rotate-180' : ''}`} />
+          </button>
+          <div id="generate-stat-details" className="generate-stat-details flex flex-wrap items-center gap-2">
+            {stageStats}
+            {renderQueueStats()}
+          </div>
+        </section>
+      )}
 
       {/* 三栏布局 */}
-      <div className="flex-1 min-h-0 pl-4 pr-0 py-2">
-        <ThreeColumnLayout
-          leftPanel={renderLeftPanel()}
-          centerContent={renderCenterContent()}
-          rightPanel={renderRightPanel()}
-          minRightWidth={currentTab === 0 ? 740 : 320}
-          maxRightWidth={currentTab === 0 ? 920 : 440}
-        />
+      <div className="generate-workspace min-w-0 lg:flex-1 lg:min-h-0 lg:pl-4 py-2">
+        {currentTab === 2 ? <AudioGenTab novelId={id || ''} chapterId={cid || ''} /> : (
+          <ThreeColumnLayout
+            leftPanel={renderLeftPanel()}
+            centerContent={renderCenterContent()}
+            rightPanel={renderRightPanel()}
+            minRightWidth={currentTab === 0 ? 740 : 320}
+            maxRightWidth={currentTab === 0 ? 920 : 440}
+          />
+        )}
       </div>
 
       {/* BottomNavigator */}
@@ -866,7 +759,7 @@ export function ChapterGenerateLayout({
       />
 
       {/* 为底部导航预留空间 */}
-      <div className={bottomNavCollapsed ? 'h-10' : 'h-48'} />
+      <div className={`generate-nav-space shrink-0 ${bottomNavCollapsed ? 'h-10' : 'h-48'}`} aria-hidden="true" />
     </div>
   );
 }

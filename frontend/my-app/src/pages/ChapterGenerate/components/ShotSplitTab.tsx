@@ -9,6 +9,7 @@
  */
 
 import { useRef, useState } from 'react';
+import { Download, FileJson, Save, Upload } from 'lucide-react';
 import { useChapterGenerateStore, useDataSlice } from '../stores';
 import { shotsApi } from '../../../api/shots';
 import { toast } from '../../../stores/toastStore';
@@ -121,7 +122,7 @@ export function ShotSplitTab({
             duration: shot.duration,
             continuity_mode: shot.continuity_mode || 'NORMAL',
             dialogues: shot.dialogues,
-            audio_events: shot.audioEvents || [],
+            audio_events: (shot.audioEvents || []).map((event, index) => ({ ...event, order: index + 1 })),
           }))
         );
 
@@ -546,68 +547,89 @@ export function ShotSplitTab({
   );
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="generate-split-tab h-full min-w-0 flex flex-col">
       {/* 操作栏 */}
-      <div className="flex-shrink-0 flex items-center justify-between mb-4 pb-4 border-b border-gray-200">
-        <div className="flex items-center gap-4">
+      <div className="flex-shrink-0 flex flex-wrap items-center justify-between gap-4 mb-4 pb-4 border-b border-gray-200">
+        <div className="generate-actions flex min-w-0 flex-wrap items-center gap-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap">
           <button
             onClick={handleSplit}
             disabled={isSplitting || !chapterId}
-            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="generate-short-action btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label={isSplitting ? t('chapterGenerate.splitting') : t('chapterGenerate.aiSplit')}
+            title={isSplitting ? t('chapterGenerate.splitting') : t('chapterGenerate.aiSplit')}
           >
-            {isSplitting ? t('chapterGenerate.splitting') : t('chapterGenerate.aiSplit')}
+            <span className="hidden lg:inline">{isSplitting ? t('chapterGenerate.splitting') : t('chapterGenerate.aiSplit')}</span>
+            <span className="lg:hidden" aria-hidden="true">{isSplitting ? '拆分中' : 'AI拆分'}</span>
           </button>
           <button
             onClick={handleAddShot}
             disabled={isAddingShot || !chapterId}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="generate-short-action px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-label={isAddingShot ? t('chapterGenerate.adding') : t('chapterGenerate.addShot')}
+            title={isAddingShot ? t('chapterGenerate.adding') : t('chapterGenerate.addShot')}
           >
-            {isAddingShot ? t('chapterGenerate.adding') : t('chapterGenerate.addShot')}
+            <span className="hidden lg:inline">{isAddingShot ? t('chapterGenerate.adding') : t('chapterGenerate.addShot')}</span>
+            <span className="lg:hidden" aria-hidden="true">{isAddingShot ? '添加中' : '添加'}</span>
           </button>
           <button
             onClick={handleSave}
             disabled={isSaving || !chapterId}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="generate-icon-action inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-label={isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}
+            title={isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}
           >
-            {isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}
+            <Save className="h-4 w-4" />
+            <span className="hidden lg:inline">{isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}</span>
           </button>
           <button
             onClick={openStructureEditor}
             disabled={!chapterId}
-            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="generate-icon-action btn-secondary gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="编辑结构数据"
+            title="编辑结构数据"
           >
-            编辑结构数据
+            <FileJson className="h-4 w-4" />
+            <span className="hidden lg:inline">编辑结构数据</span>
           </button>
           <button
             onClick={handleExport}
             disabled={isExporting || shots.length === 0}
-            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="generate-icon-action btn-secondary gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label={isExporting ? t('chapterGenerate.exporting') : t('chapterGenerate.exportShots')}
+            title={isExporting ? t('chapterGenerate.exporting') : t('chapterGenerate.exportShots')}
           >
-            {isExporting ? t('chapterGenerate.exporting') : t('chapterGenerate.exportShots')}
+            <Download className="h-4 w-4" />
+            <span className="hidden lg:inline">{isExporting ? t('chapterGenerate.exporting') : t('chapterGenerate.exportShots')}</span>
           </button>
           <button
             onClick={handleImport}
             disabled={isImporting || !chapterId}
-            className="btn-secondary disabled:opacity-50 disabled:cursor-not-allowed"
+            className="generate-icon-action btn-secondary gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label={isImporting ? t('chapterGenerate.importing') : t('chapterGenerate.importShots')}
+            title={isImporting ? t('chapterGenerate.importing') : t('chapterGenerate.importShots')}
           >
-            {isImporting ? t('chapterGenerate.importing') : t('chapterGenerate.importShots')}
+            <Upload className="h-4 w-4" />
+            <span className="hidden lg:inline">{isImporting ? t('chapterGenerate.importing') : t('chapterGenerate.importShots')}</span>
           </button>
           <button
             type="button"
             onClick={handleAutoFixCriticalDurations}
             disabled={isSaving || dialogueWarningStats.stats.critical === 0}
-            className="btn-secondary border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="generate-short-action btn-secondary border-red-200 text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="自动修正异常时长"
+            title="自动修正异常时长"
           >
-            自动修正异常时长
+            <span className="hidden lg:inline">自动修正异常时长</span>
+            <span className="lg:hidden" aria-hidden="true">修正时长</span>
           </button>
         </div>
-        <div className="text-sm text-gray-500">
+        <div className="shrink-0 whitespace-nowrap text-sm text-gray-500">
           {t('chapterGenerate.totalShots', { count: shots.length })}
         </div>
       </div>
 
       {/* 分镜列表 */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="generate-shot-list flex-1 min-h-0 overflow-hidden">
         {/* 分镜列表 */}
         <div className="h-full overflow-y-auto border border-gray-200 rounded-lg bg-white">
           {shots.map((shot: Shot, idx: number) => {

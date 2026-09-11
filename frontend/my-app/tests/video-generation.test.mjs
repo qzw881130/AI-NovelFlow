@@ -159,6 +159,30 @@ test('MULTI_KEYFRAME still selects window_plans rather than legacy clips', () =>
   s.videoDirectorPlan.window_plans = [{ ...audioClip(), audio_status: 'STALE' }];
   assert.equal(getAudioDriveReadiness(s).ready, false);
   assert.equal(mergeClipAudioWindows(s.videoDirectorPlan, 'MULTI_KEYFRAME'), s.videoDirectorPlan.window_plans);
+  s.videoDirectorPlan.window_plans = [];
+  assert.equal(getAudioDriveReadiness(s).ready, false); // Empty M windows must not fall back to old clips.
+});
+
+test('SINGLE recommendation and mode save keep READY audio in clips, including after reload', () => {
+  const s = shot();
+  Object.assign(s.videoDirectorPlan, {
+    selected_mode: 'SINGLE_FRAME', recommended_mode: 'SINGLE_FRAME', keyframes: [],
+    window_plans: [], execution_windows: [], clips: [audioClip()],
+  });
+  for (const current of [s, JSON.parse(JSON.stringify(s))]) {
+    const readiness = getAudioDriveReadiness(current);
+    assert.equal(readiness.ready, true);
+    assert.equal(readiness.clipCount, 1);
+    assert.equal(readiness.readyClipCount, 1);
+    assert.equal(mergeClipAudioWindows(current.videoDirectorPlan, 'SINGLE_FRAME')[0].final_audio_url, 'final.wav');
+  }
+  s.videoDirectorPlan.clips[0].audio_status = 'STALE';
+  assert.equal(getAudioDriveReadiness(s).ready, false);
+  delete s.videoDirectorPlan.clips[0].audio_status;
+  assert.equal(getAudioDriveReadiness(s).ready, false);
+  s.videoDirectorPlan.clips = [audioClip()];
+  s.videoDirectorPlan.window_plans = [{ ...audioClip(), audio_status: 'STALE' }];
+  assert.equal(getAudioDriveReadiness(s).ready, false); // Never bypass a present stale source.
 });
 
 const shot91 = () => {
@@ -260,6 +284,44 @@ test('keyframe polling tracks current task, includes queued and cancelled, and n
   const completedWrites = h.writes();
   await h.get().checkKeyframeTaskStatus('c'); assert.equal(h.writes(), completedWrites);
   assert.equal(h.get().shots[0].videoDirectorPlan.keyframes[1].image_url, 'new.png');
+});
+
+test('KF3 replacement survives historical task polling on reload and after later keyframes complete', async () => {
+  for (const tracked of [false, true]) {
+    const s = shot91();
+    s.id = 'shot13';
+    s.videoDirectorPlan.execution_windows = [[0, 4.137], [4.137, 10]].map(([start_time, end_time], i) => ({ window_index: i + 1, start_time, end_time }));
+    s.videoDirectorPlan.window_plans = s.videoDirectorPlan.execution_windows.map((w, i) => ({ ...w, keyframe_indexes: i ? [3, 4, 5] : [1, 2, 3] }));
+    s.videoDirectorPlan.keyframes = [0, 2, 4.137, 7, 10].map((time_seconds, i) => ({
+      index: i + 1, time_seconds, role: i === 0 ? 'START' : i === 4 ? 'END' : 'INTERMEDIATE',
+      description: `Pose ${i}`, image_url: i === 2 ? '/edits/KF2_edit.png' : `/frame${i}.png`, image_task_id: `task${i}`,
+    }));
+    if (tracked) {
+      s.videoDirectorPlan.keyframes[3].image_url = undefined;
+      s.videoDirectorPlan.keyframes[4].image_url = undefined;
+    }
+    s.keyframes = s.videoDirectorPlan.keyframes.slice(1).map((f, frame_index) => ({ ...f, frame_index, plan_keyframe_index: f.index }));
+    const tasks = [2, 3, 4].map(i => ({ id: `task${i}`, shotId: s.id, frameIndex: i - 1, status: 'completed', resultUrl: `/frame${i}.png` }));
+    const history = JSON.stringify(tasks);
+    const h = storeHarness(JSON.parse(JSON.stringify(s)), tasks);
+    if (tracked) h.set({ keyframeTasks: tasks.map(t => ({ shotId: s.id, frameIndex: t.frameIndex, taskId: t.id, status: t.id === 'task2' ? 'completed' : 'running' })) });
+    await h.get().checkKeyframeTaskStatus('c');
+    const current = h.get().shots[0];
+    const shared = current.videoDirectorPlan.keyframes[2];
+    for (const window of current.videoDirectorPlan.window_plans) {
+      assert.ok(window.keyframe_indexes.includes(shared.index));
+      assert.equal(helpers.videoKeyframeImage(current, shared), '/edits/KF2_edit.png');
+    }
+    assert.equal(current.keyframes[1].image_url, '/edits/KF2_edit.png');
+    assert.equal(current.videoDirectorPlan.keyframes[3].image_url, '/frame3.png');
+    assert.equal(current.videoDirectorPlan.keyframes[4].image_url, '/frame4.png');
+    assert.equal(h.get().keyframeImageUrls['shot13-1'], '/edits/KF2_edit.png');
+    assert.equal(current.keyframes[1].image_task_id, 'task2');
+    assert.equal(JSON.stringify(tasks), history);
+    const writes = h.writes();
+    await h.get().checkKeyframeTaskStatus('c');
+    assert.equal(h.writes(), writes);
+  }
 });
 test('failed regeneration stays failed even when previous video exists', async () => {
   const s = shot(); s.videoTaskId = 'task'; s.videoUrl = 'previous.mp4';

@@ -1,1 +1,1 @@
-character portrait, realistic style, photorealistic, highly detailed, {appearance}, single character, centered, professional photography, studio lighting, 8k
+character reference portrait, ##STYLE##, {appearance}, single character, centered, clean background, recognizable facial features and material details rendered in the selected style, consistent anatomy and proportions appropriate to that style

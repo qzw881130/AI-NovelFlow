@@ -1,1 +1,1 @@
-character portrait, anime style, high quality, detailed, {appearance}, single character, centered, clean background, professional artwork, 8k
+character reference portrait, ##STYLE##, {appearance}, single character, centered, clean background, clear identity-defining features and clothing details, consistent anatomy and proportions appropriate to the selected style

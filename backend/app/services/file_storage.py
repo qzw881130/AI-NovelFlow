@@ -48,6 +48,7 @@ class FileStorageService:
 
     def get_video_merge_signature(self, mode: str, segments: List[Dict[str, str]]) -> str:
         """根据实际参与合并的视频内容和顺序生成缓存签名。"""
+        from app.services.rendered_subtitles import sidecar, fingerprint
         manifest = []
         for segment in segments:
             content_hash = hashlib.sha256()
@@ -58,17 +59,18 @@ class FileStorageService:
                 "kind": segment["kind"],
                 "key": segment["key"],
                 "sha256": content_hash.hexdigest(),
+                "subtitle_sha256": fingerprint(sidecar(segment["path"])) if sidecar(segment["path"]).is_file() else None,
             })
 
         payload = json.dumps(
-            {"version": 2, "mode": mode, "segments": manifest},
+            {"version": 3, "mode": mode, "segments": manifest},
             sort_keys=True,
             separators=(",", ":"),
         )
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
     
     async def download_image(self, url: str, novel_id: str, character_name: str,
-                            image_type: str = "character", chapter_id: str = None) -> Optional[str]:
+                            image_type: str = "character", chapter_id: str = None, *, destination: Optional[Path] = None) -> Optional[str]:
         """
         下载图片并保存到指定目录
 
@@ -82,6 +84,21 @@ class FileStorageService:
         Returns:
             本地文件路径，失败返回 None
         """
+        if destination is not None:
+            try:
+                file_path = Path(destination).resolve()
+                if not file_path.is_relative_to(self.base_dir.resolve()) or file_path == self.base_dir.resolve():
+                    raise ValueError("Artifact destination must be inside file storage")
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(url, timeout=60.0)
+                    response.raise_for_status()
+                    with open(file_path, "xb") as output:
+                        output.write(response.content)
+                return str(file_path)
+            except Exception as exc:
+                print(f"[FileStorage] Failed to archive image: {exc}")
+                return None
         try:
             story_dir = self._get_story_dir(novel_id)
 
@@ -183,7 +200,7 @@ class FileStorageService:
             return None
     
     async def download_video(self, url: str, novel_id: str, chapter_id: str,
-                            shot_number: int) -> Optional[str]:
+                            shot_number: int, *, destination: Optional[Path] = None) -> Optional[str]:
         """
         下载视频并保存到指定目录
         
@@ -196,6 +213,21 @@ class FileStorageService:
         Returns:
             本地文件路径，失败返回 None
         """
+        if destination is not None:
+            try:
+                file_path = Path(destination).resolve()
+                if not file_path.is_relative_to(self.base_dir.resolve()) or file_path == self.base_dir.resolve():
+                    raise ValueError("Artifact destination must be inside file storage")
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(url, timeout=120.0)
+                    response.raise_for_status()
+                    with open(file_path, "xb") as output:
+                        output.write(response.content)
+                return str(file_path)
+            except Exception as exc:
+                print(f"[FileStorage] Failed to archive video: {exc}")
+                return None
         try:
             story_dir = self._get_story_dir(novel_id)
             
@@ -1035,6 +1067,10 @@ class FileStorageService:
             candidate_path = os.path.join(temp_normalized_dir, 'merged.mp4')
             normalized_paths = []
             segment_frames = []
+            from app.services.rendered_subtitles import load, fingerprint, compose, publish
+            source_hashes = [fingerprint(path) for path in final_video_list]
+            snapshots = [load(path) for path in final_video_list]
+            media_segments = []
 
             # 创建临时文件列表
             try:
@@ -1048,6 +1084,9 @@ class FileStorageService:
                 for index, video_path in enumerate(final_video_list):
                     normalized_path = os.path.join(temp_normalized_dir, f'normalized_{index:03d}.mov')
                     video_info = await _get_video_info(video_path)
+                    if not video_info['audio']:
+                        snapshots[index] = {"cues": [], "lineage": {"kind": "probed_no_audio"},
+                                            "media_sha256": source_hashes[index]}
                     video_start = Fraction(video_info['video'].get('start_time') or '0')
                     audio_start = Fraction((video_info['audio'] or {}).get('start_time') or video_start)
                     origin = min(video_start, audio_start)
@@ -1118,6 +1157,15 @@ class FileStorageService:
                     # PCM duration is sample-exact. Never cut speech to fit a shorter video.
                     audio_duration = Fraction(int(audio['duration_ts'])) * Fraction(audio['time_base']) if audio else 0
                     segment_frames.append((frames, max(frames, ceil(audio_duration * 24)), bool(audio)))
+                    target_frames = segment_frames[-1][1]
+                    media_segments.append({
+                        "source_path": str(video_path), "source_sha256": source_hashes[index],
+                        "origin": str(origin), "video_start": str(video_start), "audio_start": str(audio_start),
+                        "normalized_frames": frames, "target_frames": target_frames,
+                        "normalized_audio_samples": int(audio_duration * 48000),
+                        "target_samples": target_frames * 2000,
+                        "offset_samples": sum(item[1] * 2000 for item in segment_frames[:-1]),
+                    })
                     await report(15 + 50 * (index + 1) / count, step)
 
                 # Exact frame/sample boundaries, with only one AAC encode for the chapter.
@@ -1176,12 +1224,21 @@ class FileStorageService:
                 await _validate_video_decode(candidate_path)
 
                 await report(99, "发布合并视频")
+                if any(fingerprint(path) != expected for path, expected in zip(final_video_list, source_hashes)):
+                    raise RuntimeError("Source media changed during merge; retry")
+                cues, unavailable = compose(media_segments, snapshots)
+                snapshot = publish(candidate_path, cues, {"kind": "merge", "fps": 24, "sample_rate": 48000,
+                                   "segments": media_segments, "sources": snapshots}, unavailable=unavailable)
                 os.replace(candidate_path, output_path)
+                from app.services.rendered_subtitles import sidecar
+                os.replace(sidecar(candidate_path), sidecar(output_path))
                 await report(100, "合并视频已发布")
                 print(f"[FileStorage] Video merged successfully: {output_path}")
                 return {
                     "success": True,
                     "output_path": output_path,
+                    "subtitle_snapshot": snapshot,
+                    "media_segments": media_segments,
                     "message": f"合并完成，共 {len(final_video_list)} 个视频片段"
                 }
                 

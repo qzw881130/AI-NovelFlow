@@ -271,7 +271,7 @@ export default function ChapterGenerate() {
   };
 
   return (
-    <div className="h-[calc(100vh-3rem)] flex flex-col overflow-hidden">
+    <div className="chapter-generate min-w-0 flex flex-col lg:h-[calc(100vh-3rem)] lg:overflow-hidden">
       {/* 主布局组件 */}
       <ChapterGenerateLayout
         chapter={chapter}

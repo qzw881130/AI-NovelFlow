@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react';
-import { Film, Eye, Copy, Image, Loader2 } from 'lucide-react';
+import { Film, Eye, Copy, Image, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
 import { ImageEditModal } from '../../../components/ImageEditModal';
@@ -142,7 +142,7 @@ export function ShotImageList({
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="generate-shot-image-list h-full flex flex-col">
       {/* 标题 */}
       <div className="flex-shrink-0 pb-3 border-b border-gray-200">
         <h3 className="text-sm font-semibold text-gray-700">{t('chapterGenerate.shotResources')}</h3>
@@ -241,20 +241,26 @@ export function ShotImageList({
             </p>
 
             {/* 切换按钮 */}
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center justify-between gap-2">
               <button
                 onClick={handlePrevious}
                 disabled={currentShotIndex <= 1}
-                className="w-full sm:flex-1 min-h-10 px-3 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm text-gray-700 flex items-center justify-center gap-1 whitespace-nowrap transition-colors"
+                aria-label="上一个分镜"
+                title="上一个分镜"
+                className="generate-icon-action w-full sm:flex-1 min-h-10 px-3 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm text-gray-700 flex items-center justify-center gap-1 whitespace-nowrap transition-colors"
               >
-                上一个
+                <ChevronLeft className="h-4 w-4 lg:hidden" />
+                <span className="hidden lg:inline">上一个</span>
               </button>
               <button
                 onClick={handleNext}
                 disabled={currentShotIndex >= shots.length}
-                className="w-full sm:flex-1 min-h-10 px-3 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm text-gray-700 flex items-center justify-center gap-1 whitespace-nowrap transition-colors"
+                aria-label="下一个分镜"
+                title="下一个分镜"
+                className="generate-icon-action w-full sm:flex-1 min-h-10 px-3 py-2 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm text-gray-700 flex items-center justify-center gap-1 whitespace-nowrap transition-colors"
               >
-                下一个
+                <ChevronRight className="h-4 w-4 lg:hidden" />
+                <span className="hidden lg:inline">下一个</span>
               </button>
             </div>
           </div>
