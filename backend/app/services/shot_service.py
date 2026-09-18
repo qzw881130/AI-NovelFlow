@@ -258,36 +258,7 @@ class ShotService:
         Returns:
             创建的分镜响应列表
         """
-        # 先删除现有分镜
-        self.shot_repo.delete_by_chapter(chapter_id)
-
-        # 准备批量创建数据
-        create_data = []
-        for idx, shot_data in enumerate(shots_data, 1):
-            data = {
-                "chapter_id": chapter_id,
-                "index": idx,
-                "description": shot_data.get("description", ""),
-                "characters": shot_data.get("characters", []),
-                "scene": shot_data.get("scene", ""),
-                "props": shot_data.get("props", []),
-                "duration": shot_data.get("duration", 4),
-                "image_url": shot_data.get("image_url"),
-                "image_path": shot_data.get("image_path"),
-                "image_status": "completed" if shot_data.get("image_url") else "pending",
-                "image_task_id": shot_data.get("image_task_id"),
-                "video_url": shot_data.get("video_url"),
-                "video_status": "completed" if shot_data.get("video_url") else "pending",
-                "video_task_id": shot_data.get("video_task_id"),
-                "merged_character_image": shot_data.get("merged_character_image"),
-                "merged_prop_image": shot_data.get("merged_prop_image"),
-                "dialogues": shot_data.get("dialogues", []),
-            }
-            create_data.append(data)
-
-        # 批量创建
-        shots = self.shot_repo.bulk_create(create_data)
-        return [self.shot_repo.to_response(shot) for shot in shots]
+        raise RuntimeError('LEGACY_PARSED_DATA_IMPORT_RETIRED: 使用本章分镜资产拆分与来源校验')
 
     def get_pending_image_shots(self, chapter_id: str) -> List[Dict[str, Any]]:
         """

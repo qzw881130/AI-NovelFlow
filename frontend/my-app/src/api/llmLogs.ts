@@ -59,7 +59,7 @@ export const llmLogsApi = {
   },
 
   /** 获取日志详情 */
-  fetchDetail: (id: string) => api.get<LLMLog>(`/llm-logs/${id}`),
+  fetchDetail: (id: string, signal?: AbortSignal) => api.get<LLMLog>(`/llm-logs/${id}`, { signal }),
 
   /** 获取筛选选项 */
   fetchFilterOptions: () => api.get<FilterOptions>('/llm-logs/filters'),

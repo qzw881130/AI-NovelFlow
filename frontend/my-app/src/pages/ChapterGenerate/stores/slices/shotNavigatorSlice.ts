@@ -76,6 +76,11 @@ export const createShotNavigatorSlice: StateCreator<
   ShotNavigatorSlice
 > = (_set, _get) => {
   const state = getInitialState();
+  const selectIndex=(index:number)=>{
+    const shots=(_get() as ShotNavigatorSlice&{shots?:{id:string}[]}).shots||[];
+    const target=Number.isInteger(index)&&index>=1?shots[index-1]:undefined;
+    if(target)_set({currentShotId:target.id,currentShotIndex:index});
+  };
 
   return {
     ...state,
@@ -85,21 +90,15 @@ export const createShotNavigatorSlice: StateCreator<
     },
 
     setCurrentShotIndex: (index: number) => {
-      _set({ currentShotIndex: index, currentShotId: String(index) });
+      selectIndex(index);
     },
 
     previousShot: (totalShots: number) => {
-      _set((state) => ({
-        currentShotIndex: state.currentShotIndex > 1 ? state.currentShotIndex - 1 : state.currentShotIndex,
-        currentShotId: state.currentShotIndex > 1 ? String(state.currentShotIndex - 1) : state.currentShotId,
-      }));
+      selectIndex(Math.max(1,_get().currentShotIndex-1));
     },
 
     nextShot: (totalShots: number) => {
-      _set((state) => ({
-        currentShotIndex: state.currentShotIndex < totalShots ? state.currentShotIndex + 1 : state.currentShotIndex,
-        currentShotId: state.currentShotIndex < totalShots ? String(state.currentShotIndex + 1) : state.currentShotId,
-      }));
+      selectIndex(Math.min(totalShots,_get().currentShotIndex+1));
     },
 
     toggleShotSelection: (shotId: string) => {

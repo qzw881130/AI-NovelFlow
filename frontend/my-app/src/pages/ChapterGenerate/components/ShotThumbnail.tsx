@@ -21,6 +21,7 @@ export interface ShotThumbnailProps {
   thumbnailUrl?: string | null;
   /** 分镜状态 */
   status: ShotStatus;
+  statusLabel?: string;
   /** 是否被选中（批量模式） */
   isSelected?: boolean;
   /** 是否关联道具 */
@@ -42,6 +43,7 @@ export function ShotThumbnail({
   index,
   thumbnailUrl,
   status,
+  statusLabel,
   isSelected = false,
   hasProps = false,
   duration,
@@ -86,7 +88,7 @@ export function ShotThumbnail({
     },
   };
 
-  const config = statusConfig[status];
+  const config = {...statusConfig[status],label:statusLabel||statusConfig[status].label};
 
   // 处理右键菜单
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -165,6 +167,7 @@ export function ShotThumbnail({
       )}
 
       {/* 分镜编号 */}
+      {statusLabel&&thumbnailUrl&&!imageError&&<span className="absolute bottom-6 inset-x-1 bg-white/90 text-center rounded text-[10px] text-gray-700">{statusLabel}</span>}
       <div className={`absolute top-1 left-1 px-2 py-0.5 text-white text-xs rounded flex items-center gap-1 ${
         isSelected ? 'bg-blue-500' : 'bg-black/60'
       }`}>

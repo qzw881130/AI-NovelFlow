@@ -102,7 +102,8 @@ from app.services.video_director_ai import append_video_ai_call, strip_media_ref
 from app.core.database import SessionLocal
 from app.services.background_workers import worker_manager
 
-router = APIRouter()
+from app.services.runtime_gate import enforce_shot_entry
+router = APIRouter(dependencies=[Depends(enforce_shot_entry)])
 
 
 def _probe_video_duration(video_path: Path) -> Optional[float]:
@@ -130,6 +131,8 @@ shot_image_batch_locks = set()
 
 
 async def run_chapter_video_merge_task(task_id: str) -> None:
+    from app.services.chapter_video_merge_service import run_merge
+    return await run_merge(task_id)
     db = SessionLocal()
     try:
         task = db.query(Task).filter(Task.id == task_id).first()
@@ -434,7 +437,12 @@ async def _ensure_shot_ready_for_batch_video(
     shot,
     selected_mode: Optional[str],
     auto_complete: bool,
+    validation_memo=None,
 ) -> str:
+    from app.services.runtime_gate import video_batch_member
+    from app.services.rsa_media_contract import ValidationMemo
+    validation_memo = validation_memo or ValidationMemo()
+    video_batch_member(db, parent_task, shot.id, memo=validation_memo)
     shot_repo = ShotRepository(db)
     novel_repo = NovelRepository(db)
     chapter_repo = ChapterRepository(db)
@@ -467,29 +475,8 @@ async def _ensure_shot_ready_for_batch_video(
             )
             plan = result.get("data") or plan
             mode = plan.get("selected_mode") or plan.get("recommended_mode")
-        except Exception:
-            workflow = workflow_repo.get_active_by_type("video")
-            capability = _get_video_workflow_capability(workflow)
-            plan = _sync_latest_audio_timeline_into_plan(shot, shot_repo)
-            duration = _plan_resolved_duration(shot, plan)
-            mode = "MULTI_KEYFRAME" if duration > int(capability.get("max_clip_duration") or 15) else "SINGLE_FRAME"
-            previous_audio_windows = _collect_audio_clip_sources(plan)
-            plan.update({
-                "selected_mode": mode,
-                "recommended_mode": mode,
-                "recommended_label": VIDEO_MODE_LABELS.get(mode, mode),
-                "workflow_capability": capability,
-                "first_last_available": duration <= int(capability.get("max_clip_duration") or 15),
-                "execution_windows": _build_execution_windows(duration, int(capability.get("max_clip_duration") or 15), (plan.get("audio_timeline") or {}).get("events") or []) if mode == "MULTI_KEYFRAME" else [],
-            })
-            if mode == "MULTI_KEYFRAME":
-                plan["window_plans"] = _preserve_matching_clip_audio_fields([dict(window) for window in plan.get("execution_windows") or []], previous_audio_windows)
-                plan["clips"] = []
-                plan["keyframes"] = _build_minimal_keyframes(shot, mode, int(capability.get("max_clip_duration") or 15), duration=duration)
-            else:
-                plan["window_plans"] = []
-                plan["clips"] = _preserve_matching_clip_audio_fields(_build_clip_plan(duration, int(capability.get("max_clip_duration") or 15)), previous_audio_windows)
-            shot_repo.update(shot, video_director_plan=plan)
+        except Exception as exc:
+            raise RuntimeError('VIDEO_MODE_RECOMMENDATION_FAILED') from exc
 
     mode = mode or "SINGLE_FRAME"
     workflow_capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else {}
@@ -886,13 +873,6 @@ async def run_shot_video_batch_task(task_id: str) -> None:
                 failed_count += 1
                 continue
 
-            # Older persisted batches did not bind their queued shots to the parent.
-            if not shot.video_task_id and shot.video_status == "pending" and not shot.video_url:
-                db.query(Shot).filter(
-                    Shot.id == shot.id, Shot.video_task_id.is_(None),
-                    Shot.video_status == "pending", (Shot.video_url.is_(None) | (Shot.video_url == "")),
-                ).update({"video_task_id": task.id}, synchronize_session=False)
-                db.commit()
             db.refresh(shot)
             owner = db.query(Task).filter(Task.id == shot.video_task_id).first() if shot.video_task_id else None
             if shot.video_task_id != task.id and not (
@@ -909,12 +889,15 @@ async def run_shot_video_batch_task(task_id: str) -> None:
             db.commit()
 
             try:
+                from app.services.rsa_media_contract import ValidationMemo
+                validation_memo = ValidationMemo()
                 selected_mode = await _ensure_shot_ready_for_batch_video(
                     db,
                     task,
                     shot,
                     selected_modes.get(shot.id) or None,
                     auto_complete=auto_complete,
+                    validation_memo=validation_memo,
                 )
                 db.refresh(task)
                 if task.status != "running":
@@ -922,6 +905,8 @@ async def run_shot_video_batch_task(task_id: str) -> None:
                 db.refresh(shot)
                 if shot.video_task_id != failure_owner_id:
                     raise RuntimeError("Shot video task ownership changed during preflight")
+                from app.services.runtime_gate import video_batch_member
+                video_batch_member(db, task, shot.id, memo=validation_memo)
                 response = await _generate_shot_video(
                     task.novel_id,
                     task.chapter_id,
@@ -1476,6 +1461,17 @@ async def _prepare_and_enqueue_shot_image_generation(
             raise HTTPException(status_code=400, detail=f"分镜索引 {shot_id} 超出范围")
         raise HTTPException(status_code=404, detail=f"分镜 {shot_id} 不存在")
 
+    if purpose == "production":
+        if existing_task:
+            raise HTTPException(409,"LEGACY_IMAGE_BATCH_REQUIRES_NEW_RSA_TASKS")
+        from app.services.rsa_image_service import RsaImageService
+        try:
+            return RsaImageService(db).enqueue(shot.id,workflow_type=request.workflow_type if request else None,
+                prompt_text=request.prompt_text if request and request.prompt_text else None,
+                rsa_id=request.rsa_id if request else None,rsa_hash=request.rsa_hash if request else None)
+        except (ValueError,RuntimeError,KeyError) as exc:
+            raise HTTPException(409,str(exc)) from exc
+
     if purpose == "benchmark":
         shot = _private_benchmark_shot(db, shot)
         for model, names in ((Character, _safe_json_list(shot.characters)),
@@ -1543,65 +1539,7 @@ async def _prepare_and_enqueue_shot_image_generation(
         return {"success": True, "message": "分镜图生成任务已创建",
                 "data": {"taskId": task_id, "status": "pending", "promptText": final_prompt}}
 
-    final_prompt, prompt_template_name = await _resolve_shot_image_prompt_text(
-        db,
-        novel,
-        shot,
-        template_repo,
-        llm_service,
-        request.prompt_text if request else None,
-    )
-    shot = db.merge(shot)
-
-    # 清除旧的图片数据和文件
-    file_storage.delete_shot_image(novel_id, chapter_id, shot_index, shot_id=resolved_shot_id)
-
-    # 更新分镜图片状态为 generating，并清除旧图片数据
-    shot.image_url = None
-    shot.image_path = None
-    shot.image_task_id = None
-    shot_repo.update_image_status(shot, "generating")
-
-    db.commit()
-
-    # 使用 Repository 创建任务记录，或启动批量预创建的子任务。
-    task = existing_task or task_repo.create_shot_image_task(
-        novel_id=novel_id,
-        chapter_id=chapter_id,
-        shot_index=shot_index,
-        chapter_title=chapter_title,
-        workflow_id=workflow.id,
-        workflow_name=workflow.name,
-        shot_id=resolved_shot_id,
-    )
-    task.status = "pending"
-    task.progress = 0
-    task.current_step = "等待处理"
-    task.workflow_id = workflow.id
-    task.workflow_name = workflow.name
-    task.shot_id = resolved_shot_id
-    task.prompt_text = final_prompt
-    task.description = f"{task.description}；提示词模板：{prompt_template_name}"
-    shot.shot_image_prompt = final_prompt
-    db.commit()
-
-    print(f"[GenerateShot] Created task {task.id} for shot {resolved_shot_id}")
-
-    # 加入分镜图片专用 worker，避免批量生成时并发打 ComfyUI。
-    generate_shot_task(
-        task.id,
-        novel_id,
-        chapter_id,
-        shot_index,
-        final_prompt,
-        workflow.id,
-    )
-
-    return {
-        "success": True,
-        "message": "分镜图生成任务已创建",
-        "data": {"taskId": task.id, "status": "pending", "promptText": final_prompt},
-    }
+    raise HTTPException(409,"RSA_IMAGE_ADMISSION_REQUIRED")
 
 
 def enqueue_shot_image_batch_task(batch_task_id: str) -> None:
@@ -1646,6 +1584,11 @@ async def run_shot_image_batch_task(batch_task_id: str) -> None:
         batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
         if not batch_task or batch_task.type != "shot_image_batch" or batch_task.status not in {"pending", "running"}:
             return
+        if _safe_json_dict(batch_task.metadata_json).get("rsa_image_batch"):
+            return  # The persistent RSA worker owns children and batch settlement.
+        batch_task.status,batch_task.error_message,batch_task.completed_at="failed","LEGACY_IMAGE_BATCH_NEEDS_REBUILD",datetime.utcnow()
+        db.commit()
+        return
         reason = _batch_start_error(db, batch_task)
         if reason:
             _hold_batch_task(db, batch_task, reason)
@@ -1794,6 +1737,8 @@ async def generate_shot_images_batch(
     """创建可在页面关闭后继续执行的分镜图批量生成任务。"""
     if _request_execution_purpose(data) == "benchmark":
         raise HTTPException(status_code=400, detail="BENCHMARK_BATCH_UNSUPPORTED")
+    from app.services.rsa_image_service import enqueue_rsa_image_batch
+    return enqueue_rsa_image_batch(db,novel_id,chapter_id,data.shot_ids,data.skip_llm_when_prompt_exists)
     if not data.shot_ids:
         raise HTTPException(status_code=400, detail="请选择要生成的分镜")
     novel = novel_repo.get_by_id(novel_id)
@@ -1914,13 +1859,7 @@ def _safe_json_dict(value):
 
 def _resolve_shot_by_id_or_index(shot_repo: ShotRepository, chapter_id: str, shot_id_or_index: str):
     shot = shot_repo.get_by_id(shot_id_or_index)
-    if shot and shot.chapter_id == chapter_id:
-        return shot
-    try:
-        shot_index = int(shot_id_or_index)
-    except (TypeError, ValueError):
-        return None
-    return shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+    return shot if shot and shot.chapter_id==chapter_id else None
 
 
 def _get_video_workflow_capability(workflow: Optional[Workflow]) -> dict:
@@ -2146,23 +2085,8 @@ def _build_legacy_keyframes_from_plan(shot, keyframes: list) -> list:
 
 
 def _hydrate_plan_keyframes_from_legacy(shot, keyframes: list) -> list:
-    legacy_keyframes = _safe_json_list(shot.keyframes)
-    hydrated = []
-    for keyframe in keyframes or []:
-        if not isinstance(keyframe, dict):
-            continue
-        next_keyframe = dict(keyframe)
-        # Replanning can renumber frames; reuse their state, never the index alone.
-        legacy = next((item for item in legacy_keyframes if isinstance(item, dict) and item.get("image_url")
-                       and item.get("time_seconds") is not None and item.get("time_seconds") == next_keyframe.get("time_seconds")
-                       and item.get("role") in (None, next_keyframe.get("role"))
-                       and str(item.get("description") or "").strip() == str(next_keyframe.get("description") or shot.description or "").strip()), None)
-        if legacy:
-            for field in ("image_url", "image_task_id"):
-                if not next_keyframe.get(field) and legacy.get(field):
-                    next_keyframe[field] = legacy.get(field)
-        hydrated.append(next_keyframe)
-    return hydrated
+    # A newly planned frame never acquires an old image by time, text or index.
+    return [{k:v for k,v in frame.items() if k not in {'image_url','image_task_id','rsa_artifact_id'}} for frame in keyframes]
 
 
 def _get_video_director_keyframe_image_url(shot, keyframe: dict) -> Optional[str]:
@@ -2787,11 +2711,20 @@ def _assert_video_admission_parent(db, shot, purpose, novel_id, parent_task_id=N
 
 def _admit_video_execution(task_repo, shot, chapter, workflow, purpose, options, *, parent_task_id=None, batch_order=None):
     db = task_repo.db
+    if purpose!='production':raise HTTPException(410,'BENCHMARK_RUNTIME_RETIRED')
+    from app.services.runtime_gate import video_binding
+    from app.services.rsa_media_contract import ValidationMemo
+    validation_memo=ValidationMemo()
+    asset_binding=video_binding(db,shot,options.get('selected_mode'),options.get('only_window_index'),memo=validation_memo)
     parent = _assert_video_admission_parent(db, shot, purpose, chapter.novel_id, parent_task_id)
+    if parent:
+        from app.services.runtime_gate import video_batch_member
+        video_batch_member(db, parent, shot.id, memo=validation_memo)
     parent_metadata = parent.metadata_json if parent else None
     if task_repo.get_active_shot_task(chapter.novel_id, chapter.id, shot.index, "shot_video", shot_id=shot.id, execution_purpose=purpose):
         raise HTTPException(status_code=409, detail="VIDEO_ADMISSION_CONFLICT")
     frozen = create_execution_metadata(shot, purpose=purpose, request=options)
+    frozen['rsa_binding']=asset_binding
     source = frozen["execution"]["shot_snapshot"]
     task = task_repo.create_shot_video_task(
         novel_id=chapter.novel_id, chapter_id=chapter.id, shot_index=source["index"],
@@ -2927,6 +2860,7 @@ async def _plan_keyframe_transitions(
             append_video_ai_call(shot, {
                 "step": "10",
                 "task_type": "keyframe_transition",
+                "llm_log_id": result.get("llm_log_id"),
                 "prompt_template_name": template.name,
                 "status": "error",
                 "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
@@ -2940,6 +2874,7 @@ async def _plan_keyframe_transitions(
             append_video_ai_call(shot, {
                 "step": "10",
                 "task_type": "keyframe_transition",
+                "llm_log_id": result.get("llm_log_id"),
                 "prompt_template_name": template.name,
                 "status": "error",
                 "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
@@ -2961,6 +2896,7 @@ async def _plan_keyframe_transitions(
         append_video_ai_call(shot, {
             "step": "10",
             "task_type": "keyframe_transition",
+            "llm_log_id": result.get("llm_log_id"),
             "prompt_template_name": template.name,
             "status": "success",
             "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
@@ -3088,6 +3024,7 @@ async def recommend_video_mode(
     plan = append_video_ai_call(shot, {
         "step": "07",
         "task_type": "video_mode_recommender",
+        "llm_log_id": result.get("llm_log_id"),
         "prompt_template_name": template.name,
         "status": "success",
         "input_summary": f"Shot {shot.index} · duration {duration}s · max {max_clip_duration}s",
@@ -3217,25 +3154,12 @@ async def plan_video_keyframes(
     keyframes = []
     window_plans = []
     validation = {}
-    reused_stale_plan = None
-    existing_plan_error = str(plan.get("error_message") or plan.get("task_error_message") or "")
-    can_reuse_without_llm = (
-        plan.get("keyframe_planning_status") == "STALE"
-        or "401" in existing_plan_error
-        or "Authentication" in existing_plan_error
-        or "认证" in existing_plan_error
-    )
-    if selected_mode == "MULTI_KEYFRAME" and request.force and can_reuse_without_llm:
-        reused_stale_plan = _build_reused_three_frame_keyframe_plan(shot, plan_for_keyframe_reuse, execution_windows, duration)
-    if reused_stale_plan:
-        keyframes, window_plans, validation = reused_stale_plan
-        result = {"content": json.dumps({"validation": validation, "keyframes": keyframes, "window_plans": window_plans}, ensure_ascii=False)}
 
     template = _get_keyframe_planner_template(novel, template_repo)
     visual_style, _ = get_style(db, novel, "character")
     system_prompt = template.template.replace("##STYLE##", visual_style)
     max_attempts = 3
-    for attempt in ([] if reused_stale_plan else range(1, max_attempts + 1)):
+    for attempt in range(1, max_attempts + 1):
         user_content = _build_keyframe_planner_user_content(shot, plan, workflow_capability, previous_failures, visual_style=visual_style)
         result = await llm_service.chat_completion(
             system_prompt=system_prompt,
@@ -3255,6 +3179,7 @@ async def plan_video_keyframes(
             plan = append_video_ai_call(shot, {
                 "step": "08",
                 "task_type": "keyframe_planner",
+                "llm_log_id": result.get("llm_log_id"),
                 "prompt_template_name": template.name,
                 "status": "error",
                 "input_summary": input_summary,
@@ -3265,13 +3190,6 @@ async def plan_video_keyframes(
             previous_failures.append({"attempt": attempt, "error": error})
             if is_auth_error or attempt == max_attempts:
                 final_error = f"关键帧规划调用失败：{error}"
-                fallback = None
-                if selected_mode == "MULTI_KEYFRAME" and is_auth_error:
-                    fallback = _build_reused_three_frame_keyframe_plan(shot, plan_for_keyframe_reuse, execution_windows, duration)
-                if fallback:
-                    keyframes, window_plans, validation = fallback
-                    validation["fallback_error"] = error
-                    break
                 _mark_video_director_planning_failed(shot, shot_repo, plan, final_error)
                 raise HTTPException(status_code=500, detail=final_error)
             continue
@@ -3285,6 +3203,7 @@ async def plan_video_keyframes(
             plan = append_video_ai_call(shot, {
                 "step": "08",
                 "task_type": "keyframe_planner",
+                "llm_log_id": result.get("llm_log_id"),
                 "prompt_template_name": template.name,
                 "status": "error",
                 "input_summary": input_summary,
@@ -3334,6 +3253,7 @@ async def plan_video_keyframes(
     plan = append_video_ai_call(shot, {
         "step": "08",
         "task_type": "keyframe_planner",
+        "llm_log_id": result.get("llm_log_id"),
         "prompt_template_name": template.name,
         "status": "success",
         "input_summary": f"Shot {shot.index} · {selected_mode} · {len(execution_windows)} execution windows",
@@ -3924,6 +3844,22 @@ async def generate_shot_videos_batch(
     if invalid_ids:
         raise HTTPException(status_code=400, detail="选择的分镜不属于当前章节")
 
+    from app.services.runtime_gate import require_primary, source_pin
+    from app.services.rsa_media_contract import ValidationMemo
+    requested_ids = list(unique_shot_ids)
+    blocked, asset_pins, source_pins = [], {}, {}
+    validation_memo = ValidationMemo()
+    for sid in requested_ids:
+        try:
+            rsa, primary = require_primary(db, sid, memo=validation_memo)
+            source_pins[sid] = source_pin(db, sid)
+            asset_pins[sid] = {'rsa_id': rsa.id, 'rsa_hash': rsa.result_hash, 'primary_id': primary.id}
+        except HTTPException as exc:
+            blocked.append({'shotId': sid, 'status': 'BLOCKED', 'reason': exc.detail})
+    unique_shot_ids = list(asset_pins)
+    if not unique_shot_ids:
+        raise HTTPException(409, {'code': 'NO_READY_VIDEO_INPUTS', 'blocked': blocked})
+
     active_batches = db.query(Task).filter(
         Task.type == "shot_video_batch",
         Task.novel_id == novel_id,
@@ -3959,6 +3895,11 @@ async def generate_shot_videos_batch(
     metadata = {
         "execution_purpose": "production",
         "shot_ids": unique_shot_ids,
+        "requested_shot_ids": requested_ids,
+        "scope": "REQUESTED_READY_SUBSET",
+        "blocked": blocked,
+        "source_pins": source_pins,
+        "asset_pins": asset_pins,
         "selected_modes": request.selected_modes or {},
         "auto_complete": bool(request.auto_complete),
         "skip_llm_when_prompt_exists": bool(request.skip_llm_when_prompt_exists),
@@ -3996,7 +3937,7 @@ async def generate_shot_videos_batch(
     return {
         "success": True,
         "message": "批量视频生成任务已提交，可在任务列表查看进度。",
-        "data": {"taskId": task.id, "status": task.status, "shotIds": unique_shot_ids},
+        "data": {"taskId": task.id, "status": task.status, "shotIds": unique_shot_ids, "blocked": blocked, "scope": "REQUESTED_READY_SUBSET"},
     }
 
 
@@ -4418,6 +4359,9 @@ async def merge_chapter_videos(
         raise HTTPException(status_code=404, detail="章节不存在")
 
     mode = data.mode or ("shots_with_transitions" if data.include_transitions else "shots_only")
+    from app.services.chapter_video_merge_service import capture_merge
+    from app.services.chapter_asset_parse_service import digest as source_digest
+    merge_inputs = capture_merge(db, novel_id, chapter_id, data.shot_ids, mode)
 
     shots = shot_repo.get_by_chapter(chapter_id)
     selected_shot_ids = set(data.shot_ids or [])
@@ -4440,7 +4384,8 @@ async def merge_chapter_videos(
         description=f"合并章节 '{chapter.title or chapter.number}' 的 {selected_count} 个分镜视频",
         progress=0,
         current_step="等待合并章节视频...",
-        metadata_json=json.dumps({"mode": mode, "shot_ids": list(selected_shot_ids)}, ensure_ascii=False),
+        metadata_json=json.dumps({'execution_purpose': 'production', 'mode': mode, 'shot_ids': [v['shot_id'] for v in merge_inputs['videos']],
+                                  'merge_inputs': merge_inputs, 'input_hash': source_digest(merge_inputs)}, ensure_ascii=False),
     )
     db.add(task)
     db.commit()
@@ -5112,57 +5057,9 @@ async def batch_update_shots(
     Returns:
         更新结果
     """
-    novel = novel_repo.get_by_id(novel_id)
-    if not novel:
-        raise HTTPException(status_code=404, detail="小说不存在")
-
-    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
-    if not chapter:
-        raise HTTPException(status_code=404, detail="章节不存在")
-
-    updated_shots = []
-    for shot_data in data.shots:
-        shot_id = shot_data.get("id")
-        if not shot_id:
-            continue
-
-        if "estimatedDuration" in shot_data and "estimated_duration" not in shot_data:
-            shot_data["estimated_duration"] = shot_data["estimatedDuration"]
-
-        shot = shot_repo.get_by_id(shot_id)
-        if not shot or shot.chapter_id != chapter_id:
-            continue
-
-        # 构建更新数据
-        update_data = {}
-        if "video_director_plan" in shot_data:
-            raise HTTPException(status_code=400, detail="batch_update_shots 不允许整份写入 video_director_plan，请使用 Video Director 专用 patch 接口")
-
-        for key in ["description", "video_description", "shot_image_prompt", "characters", "scene", "props", "duration", "estimated_duration", "continuity_mode", "dialogues"]:
-            if key in shot_data:
-                update_data[key] = shot_data[key]
-
-        updated_shot = shot_repo.update(shot, **update_data) if update_data else shot
-        audio_events = shot_data.get("audio_events") if "audio_events" in shot_data else shot_data.get("audioEvents")
-        if isinstance(audio_events, list):
-            from app.repositories.audio_drive import AudioDriveRepository
-            audio_repo = AudioDriveRepository(shot_repo.db)
-            audio_repo.sync_events(shot.id, audio_events)
-            if audio_repo.last_sync_timeline_stale:
-                updated_shot.audio_status = "STALE"
-                shot_repo.db.commit()
-            shot_repo.db.refresh(updated_shot)
-        if update_data or isinstance(audio_events, list):
-            updated_shots.append(shot_repo.to_response(updated_shot))
-
-    return {
-        "success": True,
-        "data": {
-            "updated_count": len(updated_shots),
-            "shots": updated_shots,
-        },
-        "message": "批量更新分镜成功",
-    }
+    from app.services.shot_revision_service import ShotRevisionService
+    return ShotRevisionService(shot_repo.db).save_batch(novel_id, chapter_id,
+        [shot.model_dump(exclude_unset=True) for shot in data.shots])
 
 
 @router.get("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/download-llm-data", response_model=None)
@@ -5249,7 +5146,6 @@ async def get_shot(
 
     if shot.chapter_id != chapter_id:
         raise HTTPException(status_code=400, detail="分镜不属于该章节")
-
     active_video_tasks = db.query(Task).filter(
         Task.shot_id == shot_id,
         Task.type == "shot_video",
@@ -5287,37 +5183,10 @@ async def update_shot(
     Returns:
         更新后的分镜信息
     """
-    novel = novel_repo.get_by_id(novel_id)
-    if not novel:
-        raise HTTPException(status_code=404, detail="小说不存在")
-
-    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
-    if not chapter:
-        raise HTTPException(status_code=404, detail="章节不存在")
-
-    shot = shot_repo.get_by_id(shot_id)
-    if not shot:
-        raise HTTPException(status_code=404, detail="分镜不存在")
-
-    if shot.chapter_id != chapter_id:
-        raise HTTPException(status_code=400, detail="分镜不属于该章节")
-
-    update_data = data.model_dump(exclude_unset=True)
-
-    if not update_data:
-        return {
-            "success": True,
-            "data": shot_repo.to_response(shot),
-            "message": "没有需要更新的字段",
-        }
-
-    updated_shot = shot_repo.update(shot, **update_data)
-
-    return {
-        "success": True,
-        "data": shot_repo.to_response(updated_shot),
-        "message": "分镜更新成功",
-    }
+    from app.services.shot_revision_service import ShotRevisionService
+    result = ShotRevisionService(shot_repo.db).save_batch(novel_id, chapter_id,
+        [{'id':shot_id, **data.model_dump(exclude_unset=True)}])
+    return {'success':True, 'data':result['data']['shots'][0], 'message':result['message']}
 
 
 @router.patch("/{novel_id}/chapters/{chapter_id}/resources", response_model=dict)
@@ -5486,6 +5355,8 @@ async def delete_shot(
 
     if shot.chapter_id != chapter_id:
         raise HTTPException(status_code=400, detail="分镜不属于该章节")
+    if getattr(shot,'completion_disposition','NORMAL')=='DEGRADED_NARRATION_CARD':
+        raise HTTPException(409,'NARRATION_CARD_IMMUTABLE')
 
     deleted_index = shot.index
 
@@ -5612,6 +5483,15 @@ async def generate_keyframe_image(
 
     if shot.chapter_id != chapter_id:
         raise HTTPException(status_code=400, detail="分镜不属于该章节")
+
+    if purpose == "production":
+        from app.services.rsa_image_service import RsaImageService
+        try:
+            result=RsaImageService(db).enqueue(shot.id,stage="KEYFRAME",frame_index=frame_index,workflow_id=request.workflow_id,
+                skip_prompt=request.skip_llm_when_prompt_exists,rsa_id=request.rsa_id,rsa_hash=request.rsa_hash)
+            return {"success":True,"data":result["data"],"message":"已创建冻结RSA关键帧任务"}
+        except (ValueError,RuntimeError,KeyError) as exc:
+            raise HTTPException(409,str(exc)) from exc
 
     if purpose == "benchmark":
         shot = _private_benchmark_shot(db, shot)

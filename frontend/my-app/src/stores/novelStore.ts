@@ -12,6 +12,7 @@ interface NovelState {
   fetchNovel: (id: string) => Promise<void>;
   fetchChapters: (novelId: string) => Promise<void>;
   createNovel: (data: Partial<Novel>) => Promise<void>;
+  copyNovel: (sourceId: string, title: string) => Promise<Novel>;
   deleteNovel: (id: string) => Promise<void>;
   importNovel: (file: File) => Promise<void>;
   updateNovel: (id: string, data: Partial<Novel>) => Promise<void>;
@@ -68,6 +69,16 @@ export const useNovelStore = create<NovelState>((set, get) => ({
     } catch (error) {
       set({ error: '创建小说失败' });
     }
+  },
+
+  copyNovel: async (sourceId, title) => {
+    const response = await novelApi.copy(sourceId, title);
+    if (!response.success || !response.data) {
+      throw new Error(typeof response.message === 'string' ? response.message : '复制小说失败');
+    }
+    const copied = response.data;
+    set((state) => ({ novels: [copied, ...state.novels], error: null }));
+    return copied;
   },
 
   deleteNovel: async (id) => {

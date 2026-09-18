@@ -59,6 +59,6 @@ export const sceneApi = {
     api.post(`/scenes/clear-scenes-dir?novel_id=${novelId}`),
 
   /** 解析场景 */
-  parseScenes: (novelId: string, mode: 'incremental' | 'full') => 
-    api.post('/scenes/parse-scenes', { novel_id: novelId, chapter_ids: [], mode }),
+  parseScenes: (novelId: string, mode: 'incremental' | 'full', chapterIds: string[] = []) =>
+    api.post('/scenes/parse-scenes', { novel_id: novelId, chapter_ids: chapterIds, mode }),
 };

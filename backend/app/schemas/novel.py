@@ -18,6 +18,7 @@ class NovelBase(BaseModel):
     scene_prompt_template_id: Optional[str] = Field(None, alias="scenePromptTemplateId")  # 场景生成提示词模板
     prop_prompt_template_id: Optional[str] = Field(None, alias="propPromptTemplateId")  # 道具生成提示词模板
     chapter_split_prompt_template_id: Optional[str] = Field(None, alias="chapterSplitPromptTemplateId")  # 分镜拆分提示词模板
+    shot_contract_repair_prompt_template_id: Optional[str] = Field(None, alias="shotContractRepairPromptTemplateId")
     keyframe_description_prompt_template_id: Optional[str] = Field(None, alias="keyframeDescriptionPromptTemplateId")  # 关键帧描述提示词模板
     shot_image_prompt_template_id: Optional[str] = Field(None, alias="shotImagePromptTemplateId")  # 主分镜图提示词模板
     video_mode_recommender_prompt_template_id: Optional[str] = Field(None, alias="videoModeRecommenderPromptTemplateId")  # 视频模式推荐提示词模板
@@ -32,6 +33,12 @@ class NovelBase(BaseModel):
 
 class NovelCreate(NovelBase):
     pass
+
+
+class NovelCopy(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    title: str = Field(min_length=1)
 
 
 class NovelUpdate(NovelBase):

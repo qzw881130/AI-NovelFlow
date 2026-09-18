@@ -21,8 +21,8 @@ async function parseResponse<T>(res: Response): Promise<ApiResponse<T>> {
 }
 
 export const api = {
-  get: async <T>(url: string): Promise<ApiResponse<T>> => {
-    const res = await fetch(`${API_BASE}${url}`);
+  get: async <T>(url: string, options?: { signal?: AbortSignal }): Promise<ApiResponse<T>> => {
+    const res = await fetch(`${API_BASE}${url}`, options);
     return parseResponse<T>(res);
   },
 

@@ -16,6 +16,7 @@ import { toast } from '../../../stores/toastStore';
 import { useTranslation } from '../../../stores/i18nStore';
 import { getDialogueDurationWarningStats, getShotDialogueDurationWarning } from '../../../utils';
 import type { Shot } from '../../../api/shots';
+import { ShotSourcePanel } from './ShotSourcePanel';
 
 interface ShotSplitTabProps {
   chapter?: any;
@@ -39,15 +40,17 @@ export function ShotSplitTab({
   const markTabComplete = useChapterGenerateStore((state) => state.markTabComplete);
   const parsedDataFromStore = useChapterGenerateStore((state) => state.parsedData);
   const setParsedData = useChapterGenerateStore((state) => state.setParsedData);
-  const saveChapterResources = useChapterGenerateStore((state) => state.saveChapterResources);
   const splitChapter = useChapterGenerateStore((state) => state.splitChapter);
   const storeShots = useChapterGenerateStore((state) => state.shots);
   const setShots = useChapterGenerateStore((state) => state.setShots);
+  const invalidTreatmentDraft = useChapterGenerateStore(state => state.shots.some(shot => Boolean(state.shotTreatmentDrafts[shot.id]?.error)));
 
   // 使用 useDataSlice 获取方法
   const { initChapterResources, fetchShots } = useDataSlice();
 
   const [isSplitting, setIsSplitting] = useState(false);
+  const [scopeReady, setScopeReady] = useState(false);
+  const [preserveStructure, setPreserveStructure] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -84,7 +87,7 @@ export function ShotSplitTab({
     setShowSplitConfirm(false);
     setIsSplitting(true);
     try {
-      await splitChapter(novelId, chapterId);
+      await splitChapter(novelId, chapterId, {preserveStructure});
 
       if (useChapterGenerateStore.getState().shots.length > 0) {
         initChapterResources();
@@ -93,7 +96,7 @@ export function ShotSplitTab({
       }
     } catch (error) {
       console.error('AI 拆分失败:', error);
-      toast.error(t('chapterGenerate.aiSplitFailedRetry'));
+      // The store already displays the precise API failure and retains the old Shots.
     } finally {
       setIsSplitting(false);
     }
@@ -103,16 +106,15 @@ export function ShotSplitTab({
     if (!novelId || !chapterId) return;
     setIsSaving(true);
     try {
-      // 1. 保存章节资源（characters, scenes, props）
-      await saveChapterResources(novelId, chapterId);
-
-      // 2. 批量保存分镜数据到 Shot 表
+      // 正式章回关联由独立解析阶段维护。
       if (shotsToSave.length > 0) {
-        const result = await shotsApi.batchUpdateShots(
+        const savedShots = await useChapterGenerateStore.getState().saveShotRevisions(
           novelId,
           chapterId,
           shotsToSave.map((shot) => ({
             id: shot.id,
+            expected_revision: shot.sourceRevision,
+            source_treatments: shot.sourceTreatments,
             description: shot.description,
             video_description: shot.video_description,
             characters: shot.characters,
@@ -126,22 +128,16 @@ export function ShotSplitTab({
           }))
         );
 
-        if (result.success) {
-          const resultData = result.data as any;
-          console.log(t('chapterGenerate.shotsSaved', { count: resultData?.updated_count }));
-          markTabComplete(0);
-          toast.success(successMessage);
-        } else {
-          console.error(t('chapterGenerate.shotSaveFailed', { message: result.message || t('common.unknownError') }));
-          toast.error(t('chapterGenerate.shotSaveFailed', { message: result.message || t('common.unknownError') }));
-        }
+        console.log(t('chapterGenerate.shotsSaved', { count: savedShots.length }));
+        markTabComplete(0);
+        toast.success(successMessage);
       } else {
         markTabComplete(0);
         toast.success(t('chapterGenerate.chapterResourceSaved'));
       }
     } catch (error) {
       console.error(t('chapterGenerate.saveFailed') + ':', error);
-      toast.error(t('chapterGenerate.saveFailedRetry'));
+      toast.error(error instanceof Error ? error.message : t('chapterGenerate.saveFailedRetry'));
     } finally {
       setIsSaving(false);
     }
@@ -311,6 +307,8 @@ export function ShotSplitTab({
       continuity_mode: shot.continuity_mode || 'NORMAL',
       dialogues: shot.dialogues || [],
       audio_events: shot.audioEvents || [],
+      source_treatments: shot.sourceTreatments,
+      sourceRevision: shot.sourceRevision,
     }))
   });
 
@@ -319,9 +317,20 @@ export function ShotSplitTab({
     if (!structuredData || !Array.isArray(structuredData.shots)) {
       throw new Error(t('chapterGenerate.invalidJsonFormat'));
     }
+    const protectedFields=['source_contract','sourceContract','source_contract_version','sourceContractVersion',
+      'source_citations','sourceCitations','source_citation_ranges','sourceCitationRanges','source_ownership','sourceOwnership',
+      'source_evidence','sourceEvidence','source_ranges','sourceRanges','citation_evidence','citationEvidence','citation_ranges','citationRanges',
+      'ownership_evidence','ownershipEvidence','ownership_range','ownershipRange','source_start','sourceStart','source_end','sourceEnd',
+      'source_hash','sourceHash','source_run_id','sourceRunId','run_id','runId','evidence','ranges','bindings','assetBindings',
+      'offset','offset_unit','offsetUnit','source_seal','sourceSeal','base_seal','baseSeal'];
+    if (structuredData.shots.some((shot:any)=>Object.keys(shot).some(key=>protectedFields.includes(key)))) {
+      throw new Error('SHOT_REVISION_PROTECTED_FIELD');
+    }
 
     const shotsList = structuredData.shots.map((shot: any) => ({
       id: shot.id,
+      ...Object.fromEntries(['expected_revision','expectedRevision','sourceRevision'].filter(key => Object.prototype.hasOwnProperty.call(shot,key)).map(key => [key,shot[key]])),
+      source_treatments: shot.source_treatments ?? shot.sourceTreatments,
       description: shot.description || '',
       video_description: shot.video_description || '',
       characters: Array.isArray(shot.characters) ? shot.characters : [],
@@ -334,22 +343,7 @@ export function ShotSplitTab({
       audio_events: Array.isArray(shot.audio_events) ? shot.audio_events : Array.isArray(shot.audioEvents) ? shot.audioEvents : [],
     }));
 
-    const result = await shotsApi.batchUpdateShots(novelId, chapterId, shotsList);
-    if (!result.success) {
-      throw new Error(result.message || '保存失败');
-    }
-
-    if (structuredData.characters || structuredData.scenes || structuredData.props) {
-      setParsedData({
-        chapter: structuredData.chapter || '',
-        characters: Array.isArray(structuredData.characters) ? structuredData.characters : [],
-        scenes: Array.isArray(structuredData.scenes) ? structuredData.scenes : [],
-        props: Array.isArray(structuredData.props) ? structuredData.props : [],
-      });
-      await saveChapterResources(novelId, chapterId);
-    }
-
-    await fetchShots(novelId, chapterId);
+    await useChapterGenerateStore.getState().saveShotRevisions(novelId, chapterId, shotsList);
     initChapterResources();
     markTabComplete(0);
   };
@@ -548,12 +542,15 @@ export function ShotSplitTab({
 
   return (
     <div className="generate-split-tab h-full min-w-0 flex flex-col">
+      {novelId && chapterId && <ShotSourcePanel key={chapterId} novelId={novelId} chapterId={chapterId}
+        revision={`${isSplitting}:${isSaving}:${isImporting}:${isSavingStructure}:${JSON.stringify(shots.map(s=>[s.id,s.index,s.updatedAt,s.description,s.video_description,s.characters,s.scene,s.props,s.dialogues,s.audioEvents,s.continuity_mode,s.estimatedDuration]))}`}
+        onGate={setScopeReady}/>}
       {/* 操作栏 */}
       <div className="flex-shrink-0 flex flex-wrap items-center justify-between gap-4 mb-4 pb-4 border-b border-gray-200">
         <div className="generate-actions flex min-w-0 flex-wrap items-center gap-4 [&>button]:shrink-0 [&>button]:whitespace-nowrap">
           <button
             onClick={handleSplit}
-            disabled={isSplitting || !chapterId}
+            disabled={isSplitting || !chapterId || !scopeReady}
             className="generate-short-action btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label={isSplitting ? t('chapterGenerate.splitting') : t('chapterGenerate.aiSplit')}
             title={isSplitting ? t('chapterGenerate.splitting') : t('chapterGenerate.aiSplit')}
@@ -563,17 +560,17 @@ export function ShotSplitTab({
           </button>
           <button
             onClick={handleAddShot}
-            disabled={isAddingShot || !chapterId}
+            disabled
             className="generate-short-action px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             aria-label={isAddingShot ? t('chapterGenerate.adding') : t('chapterGenerate.addShot')}
-            title={isAddingShot ? t('chapterGenerate.adding') : t('chapterGenerate.addShot')}
+            title="分镜需由本章分镜资产拆分并建立正式原文来源"
           >
             <span className="hidden lg:inline">{isAddingShot ? t('chapterGenerate.adding') : t('chapterGenerate.addShot')}</span>
             <span className="lg:hidden" aria-hidden="true">{isAddingShot ? '添加中' : '添加'}</span>
           </button>
           <button
             onClick={handleSave}
-            disabled={isSaving || !chapterId}
+            disabled={isSaving || !chapterId || invalidTreatmentDraft}
             className="generate-icon-action inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             aria-label={isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}
             title={isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}
@@ -668,7 +665,7 @@ export function ShotSplitTab({
                   <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={() => handleInsertShot(shotNum)}
-                      disabled={isInsertingShot === shotNum}
+                      disabled
                       className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
                       title={t('chapterGenerate.insertShotBefore')}
                     >
@@ -819,6 +816,10 @@ export function ShotSplitTab({
             <p className="text-sm text-red-600 mb-6">
               {t('chapterGenerate.aiSplitClearWarning')}
             </p>
+            {shots.length>0&&<label className="mb-4 flex items-start gap-2 text-sm text-gray-700">
+              <input type="checkbox" checked={preserveStructure} onChange={e=>setPreserveStructure(e.target.checked)} className="mt-1"/>
+              <span>保留已有镜头结构与对白，仅重建原文处理合同和叙述性人声。锁定失败时明确报错。</span>
+            </label>}
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setShowSplitConfirm(false)}

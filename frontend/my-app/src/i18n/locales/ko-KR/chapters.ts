@@ -139,6 +139,8 @@ export default {
     tabShots: '샷 제작',
     tabCompose: '합성 및 내보내기',
     tabShotSplit: '샷 분할',
+    tabAssetPrepare: '소재 준비',
+    tabAssetPrepareShort: '소재',
     tabShotSplitShort: '분할',
     tabShotImageShort: '이미지',
     tabAudioGenShort: '음성',
@@ -522,7 +524,7 @@ export default {
 
     // 확인 다이얼로그
     confirmResplit: '샷 재분할을 확인하시겠습니까?',
-    resplitWarning: '이 장에는 생성된 콘텐츠가 있습니다. 재분할하면 다음 데이터가 지워집니다:',
+    resplitWarning: '새 샷 검증에 성공한 후에만 다음 결과를 교체합니다. 실패하면 기존 데이터를 보존하며 이전 미디어 파일도 유지합니다:',
     confirmResplitBtn: '재분할 확인',
     shotJsonData: '샷 JSON 데이터',
     generatedShotImages: '생성된 샷 이미지',
@@ -535,7 +537,7 @@ export default {
     aiSplitFailed: 'AI 분할 실패: {message}',
     aiSplitFailedRetry: 'AI 분할 실패, 다시 시도하세요',
     confirmAiSplit: 'AI 분할 확인?',
-    aiSplitClearWarning: '⚠️ AI 분할은 현재 장의 모든 샷 데이터를 지웁니다. 계속하시겠습니까?',
+    aiSplitClearWarning: '이 장에 공식 연결된 소재만 사용합니다. 검증 후 현재 샷을 교체하며 실패하면 기존 데이터를 보존합니다. 계속하시겠습니까?',
     confirmSplit: '분할 확인',
     splitting: '분할 중...',
     adding: '추가 중...',

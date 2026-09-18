@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Plus, Search, BookOpen, Loader2 } from 'lucide-react';
+import { Plus, Copy, Search, BookOpen, Loader2 } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import { useNovelsState } from './hooks/useNovelsState';
 import { NovelCard } from './components/NovelCard';
 import { CreateNovelModal } from './components/CreateNovelModal';
+import { CopyNovelModal } from './components/CopyNovelModal';
 import { EditNovelModal } from './components/EditNovelModal';
 import { ParseConfirmDialog } from './components/ParseConfirmDialog';
 import type { NovelFormData } from './types';
@@ -17,6 +18,8 @@ export default function Novels() {
     setSearchQuery,
     showCreateModal,
     setShowCreateModal,
+    showCopyModal,
+    setShowCopyModal,
     editingNovel,
     setEditingNovel,
     parsingNovelId,
@@ -28,6 +31,7 @@ export default function Novels() {
     templatesByType,
     filteredNovels,
     createNovel,
+    copyNovel,
     deleteNovel,
     updateNovel,
     openParseConfirm,
@@ -50,6 +54,7 @@ export default function Novels() {
     scenePromptTemplateId: '',
     propPromptTemplateId: '',
     chapterSplitPromptTemplateId: '',
+    shotContractRepairPromptTemplateId: '',
     keyframeDescriptionPromptTemplateId: '',
     shotImagePromptTemplateId: '',
     videoModeRecommenderPromptTemplateId: '',
@@ -78,6 +83,7 @@ export default function Novels() {
       scenePromptTemplateId: '',
       propPromptTemplateId: '',
       chapterSplitPromptTemplateId: '',
+      shotContractRepairPromptTemplateId: '',
       keyframeDescriptionPromptTemplateId: '',
       shotImagePromptTemplateId: '',
       videoModeRecommenderPromptTemplateId: '',
@@ -106,6 +112,7 @@ export default function Novels() {
       scenePromptTemplateId: editingNovel.scenePromptTemplateId,
       propPromptTemplateId: editingNovel.propPromptTemplateId,
       chapterSplitPromptTemplateId: editingNovel.chapterSplitPromptTemplateId,
+      shotContractRepairPromptTemplateId: editingNovel.shotContractRepairPromptTemplateId,
       keyframeDescriptionPromptTemplateId: editingNovel.keyframeDescriptionPromptTemplateId,
       shotImagePromptTemplateId: editingNovel.shotImagePromptTemplateId,
       videoModeRecommenderPromptTemplateId: editingNovel.videoModeRecommenderPromptTemplateId,
@@ -133,15 +140,23 @@ export default function Novels() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t('novels.title')}</h1>
           <p className="mt-1 text-sm text-gray-500">{t('novels.subtitle')}</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-3">
           <button onClick={() => setShowCreateModal(true)} className="btn-primary">
             <Plus className="mr-2 h-4 w-4" />
             {t('novels.createNovel')}
+          </button>
+          <button
+            onClick={() => setShowCopyModal(true)}
+            disabled={isLoading || novels.length === 0}
+            className="btn-secondary"
+          >
+            <Copy className="mr-2 h-4 w-4" />
+            {t('novels.copyNovel')}
           </button>
         </div>
       </div>
@@ -199,6 +214,14 @@ export default function Novels() {
         getTemplateDisplayName={getTemplateDisplayName}
         referenceNovels={novels}
       />
+
+      {showCopyModal && (
+        <CopyNovelModal
+          novels={novels}
+          onClose={() => setShowCopyModal(false)}
+          onCopy={copyNovel}
+        />
+      )}
 
       {/* Edit Modal */}
       <EditNovelModal

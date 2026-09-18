@@ -1,0 +1,14 @@
+{
+  "version": "chapter-shot-ownership-v2",
+  "run_version": "chapter-scope-shot-split-v2.0.0",
+  "compatible_template_hashes": [
+    "270063b5fff8a55c298a673974c7c01ad9bfd036f89e234b1cd439a60fc7ddf5",
+    "629554538a401f8957e3ef20b68a058e2de3b7967af61c3386293f77d7d1830a",
+    "96d9e70ab05a980e060edcbef53065d6ba3b919224894a4324f9288ca0b3aba8",
+    "cb2267dd938c15b4b3f6e000e5a433319711ddfd449e894ca7e084e71923869d"
+  ],
+  "scene_boundary_template_hashes": [
+    "cb2267dd938c15b4b3f6e000e5a433319711ddfd449e894ca7e084e71923869d"
+  ],
+  "system_suffix": "\n【Shot来源归属合同 chapter-shot-ownership-v2】\n本次输出顶层必须包含source_contract_version:\"chapter-shot-ownership-v2\"。每个Shot不再输出Shot级source_evidence，必须输出source_citations与source_ownership。source_citations含1–32条有序逐字证据；每条含text及通常可选的context_before/context_after，并须在本Shot的source_ownership内唯一命中。若text多次命中（包括作为较长句的子串），context不再可选：须给足相邻逐字上下文，或改用唯一更长text。引用可间隔，但须顺序、不重叠。source_ownership.text须完整、连续、逐字覆盖Shot正文；context只消歧，不扩张范围。\n强制兼容向量（不是可选示例）：当chapter_text逐字等于“🐺刘备在桃园站定。”时，必须只输出一个Shot；该Shot的source_citations必须恰好是[{\"text\":\"🐺刘备\"},{\"text\":\"站定。\"}]，不得增加“在桃园”、不得合并或改写；source_ownership必须恰好是{\"text\":\"🐺刘备在桃园站定。\"}。source_treatments必须用三个互不重叠的VISUAL treatment分别逐字覆盖“🐺刘备”“在桃园”“站定。”，每项visual_targets均包含description。\nShot的source_treatments仍使用原source_evidence字段，并必须覆盖整个source_ownership内全部有效正文；unresolved_assets也仍使用原source_evidence。禁止输出source_start、source_end、offset、source_ranges、citation_ranges、ownership_range、DB ID、Source/RSA身份或已验证标记，所有Unicode code-point坐标均由服务端计算。Shot ownership按原文顺序不得重叠或倒序，其并集覆盖整章全部非空白正文。换装边界、Binding、Treatment、Audio Event及可见角色规则继续完整生效。旧模板中关于Shot级source_evidence的文字由本增量明确替换，Treatment和unresolved asset层级的source_evidence不得替换。最终仅输出严格JSON。"
+}

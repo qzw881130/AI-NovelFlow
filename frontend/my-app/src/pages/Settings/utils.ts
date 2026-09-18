@@ -112,6 +112,7 @@ export const getTypeNames = (t: any) => ({
   audio: t('systemSettings.workflow.audio'),
   keyframe_image: t('systemSettings.workflow.keyframeImage'),
   single_image_edit: t('systemSettings.workflow.singleImageEdit'),
+  CHARACTER_APPEARANCE: '角色章回外观编辑',
   first_last_video: t('systemSettings.workflow.firstLastVideo'),
   three_frame_video: t('systemSettings.workflow.threeFrameVideo'),
   four_frame_video: t('systemSettings.workflow.fourFrameVideo')
@@ -302,6 +303,8 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
         keyframeMapping.reference_image_node_id &&
         keyframeMapping.reference_image_node_id !== 'auto'
       );
+    case 'CHARACTER_APPEARANCE':
+      return ['load_image_node_id','prompt_node_id','save_image_node_id','seed_node_id'].every(key => !!(mapping as any)[key] && (mapping as any)[key] !== 'auto');
     case 'single_image_edit':
       const singleImageEditMapping = mapping as any;
       return !!(

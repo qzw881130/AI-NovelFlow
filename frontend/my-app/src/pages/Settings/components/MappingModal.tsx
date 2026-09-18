@@ -5,6 +5,7 @@ import { workflowApi } from '../../../api/workflows';
 import type { Workflow, AvailableNodes } from '../types';
 
 interface MappingForm {
+  seedNodeId?: string;
   promptNodeId: string;
   saveImageNodeId: string;
   widthNodeId: string;
@@ -382,8 +383,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 keyframeNodes: [],
                 durationSecondsNodeId: ''
               });
-            } else if (wf.type === 'single_image_edit') {
+            } else if (['single_image_edit', 'CHARACTER_APPEARANCE'].includes(wf.type)) {
               setMappingForm({
+                seedNodeId: mapping.seed_node_id || '',
                 promptNodeId: mapping.prompt_node_id || '',
                 saveImageNodeId: mapping.save_image_node_id || '',
                 widthNodeId: '',
@@ -527,7 +529,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
         if (workflow.type !== 'shot_scene' && workflow.type !== 'shot_scene_prop') {
           nodeMapping.character_reference_image_node_id = mappingForm.characterReferenceImageNodeId || null;
         }
-        if (workflow.type === 'shot_scene_prop') {
+        if (workflow.type === 'shot_scene_prop' || workflow.type === 'shot') {
           nodeMapping.prop_reference_image_node_id = mappingForm.propReferenceImageNodeId || null;
         }
       } else if (workflow.type === 'voice_design') {
@@ -550,8 +552,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           save_image_node_id: mappingForm.saveImageNodeId || null,
           reference_image_node_id: mappingForm.referenceImageNodeId || null
         };
-      } else if (workflow.type === 'single_image_edit') {
+      } else if (['single_image_edit', 'CHARACTER_APPEARANCE'].includes(workflow.type)) {
         nodeMapping = {
+          ...(workflow.type === 'CHARACTER_APPEARANCE' ? {seed_node_id: mappingForm.seedNodeId || null} : {}),
           load_image_node_id: mappingForm.referenceImageNodeId || null,
           prompt_node_id: mappingForm.promptNodeId || null,
           save_image_node_id: mappingForm.saveImageNodeId || null
@@ -801,7 +804,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                       onFocus={handleNodeFocus}
                       t={t}
                     />
-                    {workflow.type === 'shot_scene_prop' && (
+                    {(workflow.type === 'shot_scene_prop' || workflow.type === 'shot') && (
                       <NodeSelectField
                         label={t('systemSettings.workflow.propReferenceNode')}
                         nodeTypeHint="LoadImage"
@@ -1250,8 +1253,10 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 </>
               )}
 
-              {workflow.type === 'single_image_edit' && (
+              {['single_image_edit', 'CHARACTER_APPEARANCE'].includes(workflow.type) && (
                 <>
+                  {workflow.type === 'CHARACTER_APPEARANCE' && <label className="block text-sm">Seed 节点 ID（RandomNoise / KSampler）
+                    <input required value={mappingForm.seedNodeId || ''} onChange={e=>handleNodeSelect(e.target.value,'seedNodeId')} className="input-field w-full mt-1"/></label>}
                   <NodeSelectField
                     label={t('systemSettings.workflow.loadImageNode')}
                     nodeTypeHint="LoadImage"

@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     LLM_MAX_TOKENS: Optional[int] = 393216  # 最大token数
     LLM_TEMPERATURE: Optional[str] = None  # 温度参数
     LLM_TIMEOUT: Optional[int] = 1800  # 请求超时（秒），默认 30 分钟
+    LLM_IMAGE_INPUT: Optional[bool] = None  # Explicit per-process model capability declaration.
     
     # Proxy Configuration (代理配置)
     PROXY_ENABLED: bool = False

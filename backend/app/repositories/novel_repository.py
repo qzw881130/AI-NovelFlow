@@ -4,6 +4,7 @@
 封装小说相关的数据库查询逻辑
 """
 from typing import List, Optional, Dict, Any
+from sqlalchemy import null
 from sqlalchemy.orm import Session, selectinload
 
 from app.models.novel import Novel, Chapter
@@ -91,6 +92,7 @@ class NovelRepository:
                 "scenePromptTemplateId": n.scene_prompt_template_id,
                 "propPromptTemplateId": n.prop_prompt_template_id,
                 "chapterSplitPromptTemplateId": n.chapter_split_prompt_template_id,
+                "shotContractRepairPromptTemplateId": n.shot_contract_repair_prompt_template_id,
                 "keyframeDescriptionPromptTemplateId": n.keyframe_description_prompt_template_id,
                 "shotImagePromptTemplateId": n.shot_image_prompt_template_id,
                 "videoModeRecommenderPromptTemplateId": n.video_mode_recommender_prompt_template_id,
@@ -154,6 +156,36 @@ class NovelRepository:
         self.db.refresh(novel)
         return novel
     
+    def copy_with_chapters(self, source: Novel, title: str) -> Novel:
+        """仅复制章回原文，以一个事务创建全新的小说和章回记录。"""
+        chapters = self.db.query(Chapter.number, Chapter.title, Chapter.content).filter(
+            Chapter.novel_id == source.id
+        ).order_by(Chapter.number, Chapter.id).all()
+
+        copied = Novel(
+            title=title,
+            chapter_count=len(chapters),
+            chapters=[
+                Chapter(
+                    number=chapter.number,
+                    title=chapter.title,
+                    content=chapter.content if chapter.content is not None else null(),
+                )
+                for chapter in chapters
+            ],
+        )
+        try:
+            self.db.add(copied)
+            from app.services.chapter_governance import register_new_chapter
+            for chapter in copied.chapters:
+                register_new_chapter(self.db, chapter)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        self.db.refresh(copied)
+        return copied
+
     def update(self, novel: Novel, **kwargs) -> Novel:
         """更新小说"""
         for key, value in kwargs.items():
@@ -201,6 +233,7 @@ class NovelRepository:
             "scenePromptTemplateId": novel.scene_prompt_template_id,
             "propPromptTemplateId": novel.prop_prompt_template_id,
             "chapterSplitPromptTemplateId": novel.chapter_split_prompt_template_id,
+            "shotContractRepairPromptTemplateId": novel.shot_contract_repair_prompt_template_id,
             "keyframeDescriptionPromptTemplateId": novel.keyframe_description_prompt_template_id,
             "shotImagePromptTemplateId": novel.shot_image_prompt_template_id,
             "videoModeRecommenderPromptTemplateId": novel.video_mode_recommender_prompt_template_id,

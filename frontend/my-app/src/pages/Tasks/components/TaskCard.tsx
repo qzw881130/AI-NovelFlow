@@ -3,7 +3,7 @@ import {
   Terminal, ChevronUp, ChevronDown, Play, Code, Trash2, Film, Image as ImageIcon, User, ListTodo, Music, Copy
 } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
-import type { Task, VideoDirectorTaskClip } from '../../../types';
+import type { ReviewFinding, Task, VideoDirectorTaskClip } from '../../../types';
 import type { ImageInfo } from '../types';
 import { formatUserFacingError } from '../../../utils';
 import { copyToClipboard } from '../../../utils/clipboard';
@@ -32,6 +32,18 @@ interface TaskCardProps {
   formatDate: (dateStr: string) => string;
 }
 
+const reviewFindingLocation = (finding: ReviewFinding) => [
+  finding.shotIndex !== null ? `Shot ${finding.shotIndex}` : finding.shotId ? `Shot ${finding.shotId}` : null,
+  finding.clipIndex !== null ? `Clip ${finding.clipIndex}` : null,
+  finding.frameIndex !== null ? `Frame ${finding.frameIndex}` : null,
+].filter(Boolean).join(' · ');
+
+const fallbackOutcomeDisplay = (outcome: ReviewFinding['fallbackOutcome']) => {
+  if (outcome === 'SUCCEEDED') return { label: '回退已恢复', className: 'bg-green-100 text-green-700' };
+  if (outcome === 'FAILED') return { label: '回退失败', className: 'bg-red-100 text-red-700' };
+  return { label: '回退处理中', className: 'bg-amber-100 text-amber-800' };
+};
+
 export function TaskCard({
   task,
   imageInfo,
@@ -58,18 +70,26 @@ export function TaskCard({
 
   const getTaskIcon = (type: Task['type']) => {
     switch (type) {
+      case 'chapter_asset_parse': return <ListTodo className="h-5 w-5" />;
+      case 'chapter_asset_resolution': return <ListTodo className="h-5 w-5" />;
+      case 'appearance_timeline': return <ListTodo className="h-5 w-5" />;
+      case 'chapter_shot_split': return <ListTodo className="h-5 w-5" />;
+      case 'shot_asset_resolution': return <ListTodo className="h-5 w-5" />;
+      case 'chapter_asset_rebuild': return <ListTodo className="h-5 w-5" />;
       case 'character_portrait': return <User className="h-5 w-5" />;
       case 'prop_image': return <ImageIcon className="h-5 w-5" />;
       case 'shot_image': return <ImageIcon className="h-5 w-5" />;
       case 'shot_image_batch': return <ImageIcon className="h-5 w-5" />;
       case 'keyframe_image': return <ImageIcon className="h-5 w-5" />;
       case 'single_image_edit': return <ImageIcon className="h-5 w-5" />;
+      case 'character_appearance_generation': return <ImageIcon className="h-5 w-5" />;
       case 'character_voice':
       case 'audio_event_tts':
       case 'character_audio':
       case 'narrator_audio': return <Music className="h-5 w-5" />;
       case 'shot_video':
       case 'shot_video_batch':
+      case 'narration_card_video':
       case 'chapter_video':
       case 'transition_video': return <Film className="h-5 w-5" />;
       default: return <ListTodo className="h-5 w-5" />;
@@ -90,8 +110,12 @@ export function TaskCard({
   const elapsedSeconds = getElapsedSeconds();
   const videoDirectorClips = task.videoDirectorClips || [];
   const hasMultiClipDetails = videoDirectorClips.length > 0;
+  const reviewFindings = task.reviewFindings || [];
   const isAudioResultTask = task.type === 'character_voice' || task.type === 'audio_event_tts' || task.type === 'character_audio' || task.type === 'narrator_audio';
+  const isImageResultTask = ['character_appearance_generation','character_portrait','shot_image','scene_image','prop_image','keyframe_image','single_image_edit'].includes(task.type)
+    || /\.(?:png|jpe?g|webp|gif|bmp|avif)(?:[?&#]|$)/i.test(task.resultUrl || '');
   const displayErrorMessage = formatUserFacingError(task.errorMessage) || task.errorMessage;
+  const completionResult=task.chapterCompletion;
   const copyTaskId = async () => {
     try {
       await copyToClipboard(task.id);
@@ -123,7 +147,7 @@ export function TaskCard({
   };
 
   return (
-    <div className={`min-w-0 [overflow-wrap:anywhere] p-3 sm:p-4 rounded-lg border ${getStatusColor(task.status)} transition-all hover:shadow-md`}>
+    <div data-task-id={task.id} className={`min-w-0 [overflow-wrap:anywhere] p-3 sm:p-4 rounded-lg border ${getStatusColor(task.status)} transition-all hover:shadow-md`}>
       <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-3 sm:gap-4 xl:grid-cols-[auto_minmax(0,1fr)_auto]">
         <div className="p-2 bg-white rounded-lg shadow-sm">{getTaskIcon(task.type)}</div>
         <div className="col-span-2 row-start-2 min-w-0 sm:col-span-1 sm:col-start-2 sm:row-start-1">
@@ -133,6 +157,11 @@ export function TaskCard({
             {task.workflowName && (
               <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full" title={t('tasks.workflowUsed')}>
                 📋 {getWorkflowDisplayName(task)}
+              </span>
+            )}
+            {reviewFindings.length > 0 && (
+              <span className="rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                ⚠ 需要人工复核
               </span>
             )}
           </div>
@@ -150,6 +179,32 @@ export function TaskCard({
             </button>
           </div>
           {task.description && <p className="text-sm mt-1 opacity-80">{getTaskDisplayDescription(task)}</p>}
+          {reviewFindings.length > 0 && (
+            <div className="mt-2 space-y-1.5 rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-950">
+              {reviewFindings.map((finding, index) => {
+                const outcome = fallbackOutcomeDisplay(finding.fallbackOutcome);
+                const location = reviewFindingLocation(finding);
+                return (
+                  <div key={`${finding.findingId}-${index}`} className="min-w-0 rounded-md bg-white/70 px-2 py-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {location && <span className="font-medium">{location}</span>}
+                      <code className="break-all rounded bg-amber-100 px-1 py-0.5 text-[11px] text-amber-900">{finding.code}</code>
+                    </div>
+                    <p className="mt-1 break-words"><span className="font-medium">原因：</span>{finding.message}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 text-amber-900">
+                      <span>回退动作：<code className="break-all">{finding.fallbackAction || '-'}</code></span>
+                      <span className={`rounded-full px-1.5 py-0.5 font-medium ${outcome.className}`}>
+                        {outcome.label}（{finding.fallbackOutcome}）
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="mt-2 text-xs"><a href={`/asset-debug?task_id=${encodeURIComponent(task.id)}`} className="text-blue-700 underline">Debug / 来源追踪</a>
+            {Object.entries(task.evidence||{}).filter(([,info])=>!['VALID','MISSING'].includes(info.state)).map(([field,info])=><p key={field} className="mt-1 text-amber-800 break-all">证据异常：{field} · {info.state}</p>)}
+          </div>
           {task.novelName && (
             <p className="text-xs mt-2">
               <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">📖 {task.novelName}</span>
@@ -317,9 +372,10 @@ export function TaskCard({
               </div>
             </div>
           )}
+          {completionResult?.outcome==='SUCCEEDED_WITH_DEGRADATION'&&<div className="mt-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900"><strong>Completed with degradation</strong><div>Normal {completionResult.normalCount||0} · Degraded {completionResult.degradedCount||0}</div>{completionResult.degradedRanges?.map((row,index)=><div key={index}>Shot {row.shotIndex} · source [{row.sourceRange[0]}, {row.sourceRange[1]})</div>)}</div>}
           {task.status === 'completed' && task.resultUrl && (
             <div className="mt-2">
-              {task.type === 'character_portrait' || task.type === 'shot_image' || task.type === 'scene_image' || task.type === 'prop_image' || task.type === 'keyframe_image' || task.type === 'single_image_edit' ? (
+              {isImageResultTask ? (
                 <div>
                   <div className="relative group inline-block max-w-full">
                     <img
@@ -347,7 +403,7 @@ export function TaskCard({
                     </div>
                   )}
                 </div>
-              ) : task.type === 'shot_video' || task.type === 'chapter_video' || task.type === 'transition_video' ? (
+              ) : task.type === 'shot_video' || task.type === 'narration_card_video' || task.type === 'chapter_video' || task.type === 'transition_video' ? (
                 <div>
                   <div className="relative group inline-block max-w-full cursor-pointer" onClick={() => task.resultUrl && onPreviewVideo(task.resultUrl)}>
                     <div className="h-32 w-48 max-w-full bg-gray-900 rounded-lg flex items-center justify-center overflow-hidden">

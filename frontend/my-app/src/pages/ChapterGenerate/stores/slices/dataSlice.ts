@@ -12,6 +12,9 @@ import type {
 import type { Character } from '../../types';
 import { API_BASE } from '../../constants';
 import { shotsApi } from '../../../../api/shots';
+import { assetResolutionsApi } from '../../../../api/assetResolutions';
+import type { ShotRevisionDraft } from '../../../../api/shotRevision';
+import {shotRevisionPatch,captureShotSaves,receiveShotSnapshots,normalizeKnownEventIdentities} from '../../../../api/shotRevision';
 
 export interface DataSlice extends DataSliceState {
   fetchNovel: (novelId: string) => Promise<void>;
@@ -25,12 +28,17 @@ export interface DataSlice extends DataSliceState {
   setEditableJson: (json: string) => void;
   setShots: (shots: Shot[]) => void;
   updateShot: (shotId: string, data: Partial<Shot>) => Promise<void>;
+  saveShotRevisions: (novelId: string, chapterId: string, drafts: ShotRevisionDraft[]) => Promise<Shot[]>;
+  shotTreatmentDrafts: Record<string, import('../../../../api/shotRevision').TreatmentDraft>;
+  shotServerHeads: Record<string, Shot>;
+  shotEventIdentities: Record<string, import('../../../../api/shotRevision').ShotEventIdentities>;
+  setShotTreatmentDraft: (shotId: string, draft: import('../../../../api/shotRevision').TreatmentDraft) => void;
   getCharacterImage: (name: string) => string | undefined;
   getSceneImage: (name: string) => string | null;
   getPropImage: (name: string) => string | null;
 
   // 章节资源管理
-  initChapterResources: () => void;
+  initChapterResources: () => Promise<void>;
   addResourceToChapter: (type: 'character' | 'scene' | 'prop', name: string) => void;
   removeResourceFromChapter: (type: 'character' | 'scene' | 'prop', name: string) => void;
   saveChapterResources: (novelId: string, chapterId: string) => Promise<void>;
@@ -52,6 +60,10 @@ export const createDataSlice: StateCreator<
   scenes: [],
   props: [],
   shots: [],
+  shotTreatmentDrafts: {},
+  shotServerHeads: {},
+  shotEventIdentities: {},
+  setShotTreatmentDraft: (shotId, draft) => set(state => ({shotTreatmentDrafts: {...state.shotTreatmentDrafts, [shotId]: draft}})),
   // 章节级资源初始化为空数组
   chapterCharacters: [],
   chapterScenes: [],
@@ -190,26 +202,8 @@ export const createDataSlice: StateCreator<
     try {
       const result = await shotsApi.getShots(novelId, chapterId);
       if (result.success) {
-        const shots = result.data;
-        set({ shots });
-
-        // 更新 shotImages 和 shotVideos 映射（使用 shot.id 作为 key）
-        const shotImages: Record<string, string> = {};
-        const shotVideos: Record<string, string> = {};
-
-        shots.forEach((shot) => {
-          if (shot.imageUrl) {
-            shotImages[shot.id] = shot.imageUrl;
-          }
-          if (shot.videoUrl) {
-            shotVideos[shot.id] = shot.videoUrl;
-          }
-        });
-
-        set({ shotImages, shotVideos });
-
-        // 初始化音频数据
-        get().initAudioFromShots(shots);
+        set(state => receiveShotSnapshots(state,result.data,{}, {},true));
+        get().initAudioFromShots(get().shots);
       }
     } catch (error) {
       console.error('获取分镜列表失败:', error);
@@ -220,27 +214,9 @@ export const createDataSlice: StateCreator<
     try {
       const result = await shotsApi.getShots(novelId, chapterId);
       if (result.success) {
-        const shots = result.data;
-
-        // 更新 shotImages 和 shotVideos 映射（使用 shot.id 作为 key）
-        const shotImages: Record<string, string> = {};
-        const shotVideos: Record<string, string> = {};
-
-        shots.forEach((shot) => {
-          if (shot.imageUrl) {
-            shotImages[shot.id] = shot.imageUrl;
-          }
-          if (shot.videoUrl) {
-            shotVideos[shot.id] = shot.videoUrl;
-          }
-        });
-
-        set({ shots, shotImages, shotVideos });
-
-        // 初始化音频数据
-        get().initAudioFromShots(shots);
-
-        return shots;
+        set(state => receiveShotSnapshots(state,result.data,{}, {},true));
+        get().initAudioFromShots(get().shots);
+        return get().shots;
       }
       return [];
     } catch (error) {
@@ -260,32 +236,56 @@ export const createDataSlice: StateCreator<
   },
 
   setShots: (shots: Shot[]) => {
-    set({ shots });
+    set(state=>{
+      shots=shots.map(shot=>normalizeKnownEventIdentities(state,shot));
+      const newer=shots.filter(shot=>{
+        const current=state.shots.find(value=>value.id===shot.id);
+        return current && (shot.sourceRevision ?? -1)>(current.sourceRevision ?? -1);
+      });
+      const accepted=receiveShotSnapshots(state,newer);
+      return {...accepted,shots:shots.map(shot=>{
+        const current=accepted.shots.find((value:Shot)=>value.id===shot.id);
+        return newer.some(value=>value.id===shot.id) || (current && (current.sourceRevision ?? -1)>(shot.sourceRevision ?? -1)) ? current : shot;
+      })};
+    });
   },
 
   updateShot: async (shotId: string, data: Partial<Shot>) => {
-    const { chapter, shots } = get();
+    const { chapter } = get();
     if (!chapter) return;
+    await get().saveShotRevisions(chapter.novelId, chapter.id, [{...data, id: shotId}]);
+  },
 
-    try {
-      const result = await shotsApi.updateShot(
-        chapter.novelId,
-        chapter.id,
-        shotId,
-        data
-      );
-
-      if (result.success) {
-        // 更新本地状态
-        set({
-          shots: shots.map((s) =>
-            s.id === shotId ? { ...s, ...result.data } : s
-          )
-        });
+  saveShotRevisions: async (novelId, chapterId, drafts) => {
+    const submittedDrafts = {...get().shotTreatmentDrafts};
+    for (const draft of drafts) {
+      const treatment = submittedDrafts[draft.id];
+      if (treatment?.error) throw new Error(`TREATMENT_DRAFT_INVALID: ${treatment.error}`);
+      if (treatment && JSON.stringify(draft.source_treatments ?? draft.sourceTreatments) !== JSON.stringify(JSON.parse(treatment.json))) {
+        throw new Error('TREATMENT_DRAFT_NOT_INCLUDED: 请先保存当前原文处理合同草稿');
       }
-    } catch (error) {
-      console.error('更新分镜失败:', error);
     }
+    const patches=drafts.map(draft=>shotRevisionPatch(normalizeKnownEventIdentities(get(),draft)));
+    const contexts=captureShotSaves(get(),patches);
+    const result = await shotsApi.batchUpdateShots(novelId, chapterId, patches);
+    if (!result.success) throw new Error(result.message || '保存分镜失败');
+    const saved = result.data?.shots;
+    if (!saved || saved.length !== drafts.length || patches.some(patch => !saved.some(shot => shot.id === patch.id && Number.isInteger(shot.sourceRevision) && shot.sourceRevision>=patch.expected_revision))) {
+      throw new Error('SHOT_REVISION_RESPONSE_INVALID');
+    }
+    if (get().chapter?.id === chapterId) {
+      set(state => {
+        const accepted=receiveShotSnapshots(state,saved,contexts,result.data?.eventIdMaps);
+        const shotTreatmentDrafts = {...state.shotTreatmentDrafts};
+        for (const shot of saved) {
+          const current=state.shots.find(value=>value.id===shot.id);
+          if ((current?.sourceRevision ?? -1)<=shot.sourceRevision && shotTreatmentDrafts[shot.id] === submittedDrafts[shot.id]) delete shotTreatmentDrafts[shot.id];
+        }
+        return {...accepted, shotTreatmentDrafts};
+      });
+      return saved.map(shot=>get().shots.find(current=>current.id===shot.id) || shot);
+    }
+    return saved;
   },
 
   // ========== 辅助方法 ==========
@@ -307,16 +307,19 @@ export const createDataSlice: StateCreator<
 
   // ========== 章节资源管理方法 ==========
 
-  /** 从 parsedData 初始化章节级资源 */
-  initChapterResources: () => {
-    const { parsedData } = get();
-    if (!parsedData) return;
-
-    const chapterCharacters = parsedData.characters || [];
-    const chapterScenes = parsedData.scenes || [];
-    const chapterProps = parsedData.props || [];
-
-    set({ chapterCharacters, chapterScenes, chapterProps });
+  /** 只从正式章回关联读取白名单，空列表不表示已确认空集。 */
+  initChapterResources: async () => {
+    const chapter=get().chapter;
+    set({chapterCharacters:[],chapterScenes:[],chapterProps:[]});
+    if(!chapter)return;
+    try {
+      const result=await assetResolutionsApi.bindings(chapter.novelId,chapter.id);
+      if(get().chapter?.id!==chapter.id||!result.success||!result.data)return;
+      const assets=result.data.assets;
+      set({chapterCharacters:assets.characters.status==='SUCCEEDED'?assets.characters.bindings.map(b=>b.name):[],
+        chapterScenes:assets.scenes.status==='SUCCEEDED'?assets.scenes.bindings.map(b=>b.name):[],
+        chapterProps:assets.props.status==='SUCCEEDED'?assets.props.bindings.map(b=>b.name):[]});
+    } catch(error) { console.error('读取正式章回关联失败',error); }
   },
 
   /** 添加资源到章节 */
@@ -339,44 +342,6 @@ export const createDataSlice: StateCreator<
 
   /** 保存章节资源到 parsedData 和后端 */
   saveChapterResources: async (novelId: string, chapterId: string) => {
-    const { chapterCharacters, chapterScenes, chapterProps, parsedData, chapter } = get();
-
-    if (!parsedData || !chapter) {
-      console.error('缺少 parsedData 或 chapter 数据');
-      return;
-    }
-
-    try {
-      // 更新 parsedData 中的资源列表
-      const updatedParsedData = {
-        ...parsedData,
-        characters: chapterCharacters,
-        scenes: chapterScenes,
-        props: chapterProps,
-      };
-
-      // 调用后端 API 保存
-      const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/resources`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          characters: chapterCharacters,
-          scenes: chapterScenes,
-          props: chapterProps,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        // 更新本地状态
-        set({ parsedData: updatedParsedData });
-        console.log('章节资源保存成功');
-      } else {
-        console.error('保存章节资源失败:', result.message);
-      }
-    } catch (error) {
-      console.error('保存章节资源失败:', error);
-    }
+    throw new Error('请在章回素材解析页修改正式关联；旧名字资源写入已停用');
   },
 });

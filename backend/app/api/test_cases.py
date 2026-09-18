@@ -236,22 +236,10 @@ async def run_test_case(
     if not tc:
         raise HTTPException(status_code=404, detail="测试用例不存在")
     
-    # 根据测试类型启动不同的任务 - 使用 asyncio.create_task 实现真正并发
+    # 测试入口也必须使用正式章回候选链。
     if tc.type in ["full", "character"]:
-        # 启动角色解析任务
-        import asyncio
-        asyncio.create_task(
-            parse_characters_task(tc.novel_id)
-        )
-    
-    return {
-        "success": True,
-        "message": f"测试用例 '{tc.name}' 已开始运行",
-        "data": {
-            "testCaseId": tc.id,
-            "type": tc.type,
-        }
-    }
+        return await parse_characters_task(tc.novel_id)
+    raise HTTPException(400, "该测试类型尚未接入章回候选解析")
 
 
 # 初始化预设测试用例
@@ -348,54 +336,13 @@ from app.api.deps import get_llm_service
 
 
 async def parse_characters_task(novel_id: str):
-    """后台任务：解析小说文本提取角色"""
+    """逐章解析候选，不另开测试专用的全局Character写入路径。"""
     from app.core.database import SessionLocal
-
+    from app.services.chapter_asset_pipeline import parse_and_resolve
     db = SessionLocal()
     try:
-        print(f"[测试任务] 开始解析小说 {novel_id} 的角色")
-        
-        # 获取所有章节内容
-        chapters = db.query(Chapter).filter(Chapter.novel_id == novel_id).all()
-        full_text = "\n\n".join([c.content for c in chapters if c.content])[:10000]
-        
-        # 调用 DeepSeek 解析文本
-        result = await get_llm_service().parse_novel_text(full_text)
-        
-        if "error" in result:
-            print(f"[测试任务] 解析失败: {result['error']}")
-            return
-        
-        characters_data = result.get("characters", [])
-        print(f"[测试任务] 识别到 {len(characters_data)} 个角色")
-        
-        # 创建角色
-        for char_data in characters_data:
-            name = char_data.get("name", "").strip()
-            if not name:
-                continue
-                
-            existing = db.query(Character).filter(
-                Character.novel_id == novel_id,
-                Character.name == name
-            ).first()
-            
-            if not existing:
-                character = Character(
-                    novel_id=novel_id,
-                    name=name,
-                    description=char_data.get("description", ""),
-                    appearance=char_data.get("appearance", ""),
-                )
-                db.add(character)
-                print(f"[测试任务] 创建角色: {name}")
-        
-        db.commit()
-        print(f"[测试任务] 完成！")
-        
-    except Exception as e:
-        print(f"[测试任务] 异常: {e}")
-        import traceback
-        traceback.print_exc()
+        chapters = db.query(Chapter).filter(Chapter.novel_id == novel_id).order_by(Chapter.number).all()
+        results = [await parse_and_resolve(db, novel_id, chapter.id, ["characters"]) for chapter in chapters]
+        return {"success": bool(results) and all(row["success"] for row in results), "data": results}
     finally:
         db.close()

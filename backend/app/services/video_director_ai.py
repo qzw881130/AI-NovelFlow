@@ -116,6 +116,7 @@ def append_video_ai_call(shot, call: dict) -> dict:
         "step": step,
         "title": call.get("title") or VIDEO_AI_STEP_LABELS.get(step, "AI 调用"),
         "task_type": call.get("task_type"),
+        "llm_log_id": call.get("llm_log_id"),
         "prompt_template_name": call.get("prompt_template_name"),
         "status": call.get("status") or "success",
         "error_message": call.get("error_message") or call.get("error") or "",
@@ -458,43 +459,8 @@ def audit_audiodrive_h3_prompt(final_prompt: str, speaker_timeline: list, subjec
             issues.append({"code": "UNKNOWN_SUBJECT_REFERENCE", "subject_ref": speaker, "blocking": True})
         if speaker != "NONE" and speaker in known_subjects and speaker not in prompt:
             issues.append({"code": "MISSING_SUBJECT_REFERENCE_IN_PROMPT", "subject_ref": speaker, "blocking": True})
-        if speaker == "NONE":
-            chinese_speech_action = r"张嘴|开口|说道|说话|讲话|发声|说\s*[:：]|(?:产生|做|进行)(?:任何)?(?:说话|讲话|发声)?口型"
-            speech_action = (
-                chinese_speech_action + r"|"
-                r"\bspeech\s+mouthing\b|"
-                r"\b(?:lip[- ]?sync(?:s|ing)?|speak(?:s|ing)?|talk(?:s|ing)?|say(?:s|ing)?)\b|"
-                r"\bmouth\s+(?:moves?|opens?)\b"
-            )
-            negatable_action = r"(?:" + speech_action + r"|\bspeech\b)"
-            negated_action = (
-                r"(?:不(?:得|要|会|能|可|再|允许)?|没有|未|禁止|无需|无)(?:任何|可|在|再)?"
-                r"(?:(?:可见)?(?:人物|角色|人))?\s*(?:" + speech_action + r")(?:" + chinese_speech_action + r")*|"
-                r"\b(?:no\s*(?:visible\s*)?characters?\s+(?:(?:performs?|produces?)\s+)?(?:any\s+)?|(?:no|not|never|without)\s+(?:any\s+)?)"
-                + negatable_action + r"(?:\s+(?:or|nor)\s+(?:any\s+)?" + negatable_action + r")*"
-                r"|\bnone\s+of\s+(?:the\s+)?(?:visible\s+)?characters\s+produces?\s+(?:any\s+)?"
-                + negatable_action + r"(?:\s+(?:or|nor)\s+(?:any\s+)?" + negatable_action + r")*"
-                r"|\bnon[- ]lip[- ]?sync\b"
-            )
-            explicit_dialogue = (
-                r"(?:台词|对白|(?<![A-Za-z0-9_])(?:exact_dialogue|dialogue))\s*[:：][ \t]*"
-                r"(?:[\"'“‘][ \t]*[^\"'“”‘’\s]|"
-                r"(?!(?:NONE|null|无(?:台词)?|没有台词|保持沉默)(?:[ \t]*[。；;,，]|\s*$))[^\W_])|"
-                r"<Subject\s+\d+>\s*[:：][ \t]*[\"'“‘][ \t]*[^\"'“”‘’\s]"
-            )
-            # End NONE scope at a new timed interval or speaker assignment, even on the same line.
-            scope_boundary = (
-                r"[\n。；;]|(?=\bvisible_speaker\s*[:=])|"
-                r"(?=\d+(?:\.\d+)?\s*(?:s|秒)?\s*(?:-|–|~|至|到|to)\s*\d+(?:\.\d+)?\s*(?:s|秒)?)"
-            )
-            # Ordinary "none of ..." is a negated subject, not a timeline sentinel.
-            for none_marker in re.finditer(r"(?<![A-Za-z0-9_])NONE(?![A-Za-z0-9_]|\s+of\b)", speech_prompt, re.IGNORECASE):
-                clause = re.split(scope_boundary, speech_prompt[none_marker.end():], maxsplit=1, flags=re.IGNORECASE)[0]
-                # Mask only negated predicates; keep other actions and explicit spoken text.
-                affirmative = re.sub(negated_action, lambda match: " " * len(match[0]), clause, flags=re.IGNORECASE)
-                if re.search(speech_action, affirmative, re.IGNORECASE) or re.search(explicit_dialogue, clause, re.IGNORECASE):
-                    issues.append({"code": "NONE_SEGMENT_LIPSYNC_CONTRADICTION", "blocking": True})
-                    break
+    from app.services.h3_speech_scope import speech_conflicts
+    issues.extend(speech_conflicts(speech_prompt,speaker_timeline,subject_manifest))
     speech_verbs = r"(speak|speaks|say|says|read|reads|朗读|说出|说：|台词|念出)"
     for text in dialogue_texts or []:
         text = str(text or "").strip()
@@ -638,13 +604,10 @@ def _build_deterministic_h3_prompt(
 
 
 def resolve_h3_prompt_subjects(db, novel_id, shot, clip, speaker_timeline, character_appearances):
-    character_refs = {}
-    shot_characters = safe_json_list(shot.characters)
-    if shot_characters:
-        from app.models.novel import Character
-        for character in db.query(Character).filter(Character.novel_id == novel_id, Character.name.in_(shot_characters)).all():
-            character_refs[character.name] = {"id": character.id, "name": character.name,
-                                              "is_narrator": bool(getattr(character, "is_narrator", False))}
+    from app.services.runtime_gate import require_rsa
+    rsa=require_rsa(db,shot.id)
+    character_refs={c['definition']['name']:{'id':c['character_id'],'name':c['definition']['name'],'is_narrator':False}
+                    for c in rsa.inputs['logical']['characters']}
     manifest = build_clip_subject_manifest(shot, speaker_timeline, character_appearances, character_refs)
     timeline, issues = resolve_speaker_timeline_for_h3(speaker_timeline, manifest, clip)
     return manifest, timeline, issues
@@ -802,7 +765,8 @@ async def build_h3_video_prompt(
     if reusable_prompt is None:
         from app.services.prompt_builder import get_style
         visual_style, _ = get_style(db, novel, "character")
-        visual_identity = build_visual_identity_context(db, novel.id, shot_characters, safe_json_list(shot.props), visual_style)
+        from app.services.runtime_gate import require_rsa,resolved_text_context
+        visual_identity={**resolved_text_context(require_rsa(db,shot.id)),"visual_style":visual_style}
         shot_characters = visual_identity["characters"]
         character_appearances = visual_identity["character_appearances"]
     subject_manifest, h3_speaker_timeline, resolution_issues = resolve_h3_prompt_subjects(
@@ -850,7 +814,12 @@ async def build_h3_video_prompt(
         payload["actual_state_handoff"] = _handoff_prompt_payload(effective_context)
         # One managed prefix keeps JSON speech scoping and prequeue reconstruction unchanged.
         handoff_continuity_lock = (_render_continuity_lock(shot, selected_mode, clip) or "shot_continuity_lock:") + "\n" + build_handoff_continuity_layer(effective_context)
-    user_content = "请基于以下 Video Director 规划数据，生成可直接用于 MiniMax H3 的最终视频提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+    user_content = (
+        "请基于以下 Video Director 规划数据，生成可直接用于 MiniMax H3 的最终视频提示词。\n"
+        "subject_manifest.subjects 是合法 <Subject N> 标记的穷尽清单；必须原样保持每个 subject_ref 与角色的映射，且只能使用清单中的标记。"
+        "场景和道具必须按名称引用，绝不能为其创建或分配 <Subject N>。\n\n"
+        + json.dumps(payload, ensure_ascii=False, indent=2)
+    )
     record = validation_record if validation_record is not None else {}
     record.update({"version": 1, "passed": False, "stage": "candidate", "origin": "reuse" if reusable_prompt is not None else "llm",
                    "llm_invoked": reusable_prompt is None, "clip_index": clip.get("clip_index"), "selected_mode": selected_mode})
@@ -886,7 +855,8 @@ async def build_h3_video_prompt(
             if prior_identity is not None:
                 from app.services.prompt_builder import get_style
                 visual_style, _ = get_style(db, novel, "character")
-                current_identity = build_visual_identity_context(db, novel.id, shot_characters, safe_json_list(shot.props), visual_style)
+                from app.services.runtime_gate import require_rsa,resolved_text_context
+                current_identity={**resolved_text_context(require_rsa(db,shot.id)),"visual_style":visual_style}
                 if current_identity != prior_identity:
                     raise H3PromptValidationError("VISUAL_IDENTITY_CHANGED", "Saved appearance/style facts changed; use LLM+ to request a new prompt.")
                 record["visual_identity"] = deepcopy(prior_identity)
@@ -918,6 +888,8 @@ async def build_h3_video_prompt(
                 )
                 result = {"success": False, "failure_kind": "TIMEOUT", "error": "H3 视频提示词生成超时"}
             record["llm_failure_kind"] = result.get("failure_kind")
+            record['llm_log_id'] = call['llm_log_id'] = result.get('llm_log_id')
+            record['prompt_snapshot'] = {'id':template.id,'name':template.name,'hash':prompt_digest(template.template)}
             if not result.get("success"):
                 error = result.get("error") or "H3 视频提示词生成失败"
                 record["diagnostic_content"] = result.get("diagnostic_content")

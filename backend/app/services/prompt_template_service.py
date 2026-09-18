@@ -4,6 +4,8 @@ PromptTemplate Service 层
 封装提示词模板相关的业务逻辑
 """
 import os
+import hashlib
+import json
 from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -15,6 +17,10 @@ from app.utils.time_utils import format_datetime
 
 # 模板文件目录 (位于 backend/prompt_templates/)
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'prompt_templates')
+LOCAL_PROMPT_FILES = {
+    "character_appearance_generation": ("character_appearance_edit.json", "角色换装提示词"),
+    "asset_identity_resolution": ("existing_asset_resolver.json", "已有角色归一化提示词"),
+}
 
 
 def load_template(filename: str) -> str:
@@ -209,6 +215,15 @@ SYSTEM_CHAPTER_SPLIT_TEMPLATES: List[Dict] = [
     }
 ]
 
+SYSTEM_SHOT_CONTRACT_REPAIR_TEMPLATES: List[Dict] = [
+    {
+        "name": "分镜契约自动修复 V1",
+        "description": "按程序生成的结构化 Repair Context 定向修复可自动处理的分镜契约错误",
+        "template": load_template("shot_contract_auto_repair_v1.txt"),
+        "type": "shot_contract_repair",
+    }
+]
+
 # 系统预设的分镜图提示词模板
 SYSTEM_SHOT_IMAGE_PROMPT_TEMPLATES: List[Dict] = [
     {
@@ -378,6 +393,7 @@ SYSTEM_PROMPT_TEMPLATES = (
     SYSTEM_SCENE_IMAGE_TEMPLATES +
     SYSTEM_PROP_TEMPLATES +
     SYSTEM_CHAPTER_SPLIT_TEMPLATES +
+    SYSTEM_SHOT_CONTRACT_REPAIR_TEMPLATES +
     SYSTEM_SHOT_IMAGE_PROMPT_TEMPLATES +
     SYSTEM_VIDEO_DIRECTOR_TEMPLATES +
     SYSTEM_KEYFRAME_DESCRIPTION_TEMPLATES +
@@ -436,12 +452,24 @@ class PromptTemplateService:
 
     def list_templates(self, template_type: Optional[str] = None) -> List[PromptTemplate]:
         """获取模板列表"""
-        if template_type:
-            return self.template_repo.list_by_type(template_type)
-        return self.template_repo.list_all()
+        rows = self.template_repo.list_by_type(template_type) if template_type else self.template_repo.list_all()
+        return rows + [self.local_template(kind) for kind in LOCAL_PROMPT_FILES if not template_type or kind == template_type]
+
+    @staticmethod
+    def local_template(kind: str) -> PromptTemplate:
+        filename, name = LOCAL_PROMPT_FILES[kind]
+        raw = load_template(filename)
+        definition = json.loads(raw)
+        row = PromptTemplate(id=f"local:{kind}", name=name, type=kind, template=raw, is_system=True, is_active=True,
+            description=f"{definition['version']} · 本地JSON模板，请直接维护 backend/prompt_templates/{filename}")
+        row.source_file = f"backend/prompt_templates/{filename}"
+        row.content_sha256 = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+        return row
 
     def get_template_by_id(self, template_id: str) -> Optional[PromptTemplate]:
         """根据 ID 获取模板"""
+        if template_id.startswith("local:") and template_id[6:] in LOCAL_PROMPT_FILES:
+            return self.local_template(template_id[6:])
         return self.template_repo.get_by_id(template_id)
 
     def create_template(
@@ -452,6 +480,8 @@ class PromptTemplateService:
         template_type: str = "character"
     ) -> PromptTemplate:
         """创建用户自定义模板"""
+        if template_type in LOCAL_PROMPT_FILES:
+            raise PermissionError("此类型使用本地JSON模板，请维护对应模板文件")
         new_template = PromptTemplate(
             name=name,
             description=description,
@@ -464,6 +494,8 @@ class PromptTemplateService:
 
     def copy_template(self, source_id: str) -> PromptTemplate:
         """复制系统模板为用户自定义模板"""
+        if source_id.startswith("local:"):
+            raise PermissionError("此类型使用本地JSON模板，请维护对应模板文件")
         source = self.template_repo.get_by_id(source_id)
         if not source:
             raise ValueError("源提示词模板不存在")
@@ -487,7 +519,9 @@ class PromptTemplateService:
         template_type: Optional[str] = None
     ) -> PromptTemplate:
         """更新模板（仅用户自定义可编辑）"""
-        template_obj = self.template_repo.get_by_id(template_id)
+        if template_type in LOCAL_PROMPT_FILES:
+            raise PermissionError("此类型使用本地JSON模板，请维护对应模板文件")
+        template_obj = self.get_template_by_id(template_id)
         if not template_obj:
             raise ValueError("提示词模板不存在")
 
@@ -507,7 +541,7 @@ class PromptTemplateService:
 
     def delete_template(self, template_id: str) -> None:
         """删除模板（仅用户自定义可删除）"""
-        template_obj = self.template_repo.get_by_id(template_id)
+        template_obj = self.get_template_by_id(template_id)
         if not template_obj:
             raise ValueError("提示词模板不存在")
 
@@ -518,6 +552,8 @@ class PromptTemplateService:
 
     def get_default_system_template(self, template_type: str = "character") -> Optional[PromptTemplate]:
         """获取默认的系统模板"""
+        if template_type in LOCAL_PROMPT_FILES:
+            return self.local_template(template_type)
         return self.template_repo.get_default_system_template(template_type)
 
     @staticmethod
@@ -534,4 +570,5 @@ class PromptTemplateService:
             "isSystem": template.is_system,
             "isActive": template.is_active,
             "createdAt": format_datetime(template.created_at),
+            **({"sourceFile": template.source_file, "contentSha256": template.content_sha256} if hasattr(template, "source_file") else {}),
         }

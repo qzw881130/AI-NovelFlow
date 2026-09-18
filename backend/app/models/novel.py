@@ -31,6 +31,7 @@ class Novel(Base):
     scene_prompt_template_id = Column(String, nullable=True)  # 场景生成提示词模板
     prop_prompt_template_id = Column(String, nullable=True)  # 道具生成提示词模板
     chapter_split_prompt_template_id = Column(String, nullable=True)  # 分镜拆分提示词模板
+    shot_contract_repair_prompt_template_id = Column(String, nullable=True)  # 分镜契约自动修复提示词模板
     keyframe_description_prompt_template_id = Column(String, nullable=True)  # 关键帧描述提示词模板
     shot_image_prompt_template_id = Column(String, nullable=True)  # 主分镜图提示词模板
     video_mode_recommender_prompt_template_id = Column(String, nullable=True)  # 视频模式推荐提示词模板
@@ -67,11 +68,20 @@ class Chapter(Base):
     shot_videos = Column(Text, nullable=True)
     transition_videos = Column(Text, nullable=True)
     final_video = Column(String, nullable=True)
+    final_video_task_id = Column(String, nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     novel = relationship("Novel", back_populates="chapters")
     shots = relationship("Shot", back_populates="chapter", cascade="all, delete-orphan")
+    asset_parse_runs = relationship("ChapterAssetParseRun", back_populates="chapter", cascade="all, delete-orphan")
+    resolution_runs = relationship("AssetResolutionRun", back_populates="chapter", cascade="all, delete-orphan")
+    character_bindings = relationship("ChapterCharacterBinding", cascade="all, delete-orphan")
+    scene_bindings = relationship("ChapterSceneBinding", cascade="all, delete-orphan")
+    prop_bindings = relationship("ChapterPropBinding", cascade="all, delete-orphan")
+    appearance_events = relationship("ChapterCharacterAppearanceEvent", cascade="all, delete-orphan")
+    appearance_timeline_runs = relationship("AppearanceTimelineRun", back_populates="chapter", cascade="all, delete-orphan")
+    shot_split_runs = relationship("ChapterShotSplitRun", back_populates="chapter", cascade="all, delete-orphan")
 
 
 # 复合索引：按小说查询章节时常用
@@ -112,6 +122,15 @@ class Character(Base):
     last_parsed_at = Column(DateTime(timezone=True), nullable=True)
 
     novel = relationship("Novel", back_populates="characters")
+    identity = relationship("CharacterIdentity", back_populates="character", uselist=False, cascade="all, delete-orphan")
+    appearances = relationship("CharacterAppearance", cascade="all, delete-orphan")
+    aliases = relationship("CharacterAlias", back_populates="character", cascade="all, delete-orphan")
+    chapter_bindings = relationship("ChapterCharacterBinding", cascade="all, delete-orphan")
+    appearance_events = relationship("ChapterCharacterAppearanceEvent", cascade="all, delete-orphan")
+
+    @property
+    def entity_type(self):
+        return self.identity.entity_type if self.identity else None
 
 
 # 复合索引：按小说+名称查询角色
@@ -145,6 +164,7 @@ class Scene(Base):
     last_parsed_at = Column(DateTime(timezone=True), nullable=True)
 
     novel = relationship("Novel", back_populates="scenes")
+    chapter_bindings = relationship("ChapterSceneBinding", cascade="all, delete-orphan")
 
 
 # 复合索引：按小说+名称查询场景
@@ -178,6 +198,7 @@ class Prop(Base):
     last_parsed_at = Column(DateTime(timezone=True), nullable=True)
 
     novel = relationship("Novel", back_populates="props")
+    chapter_bindings = relationship("ChapterPropBinding", cascade="all, delete-orphan")
 
 
 # 复合索引：按小说+名称查询道具

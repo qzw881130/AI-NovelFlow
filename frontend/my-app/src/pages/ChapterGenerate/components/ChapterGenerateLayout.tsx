@@ -3,14 +3,14 @@
  *
  * 整合：
  * - Header (返回按钮 + 章节标题)
- * - TabNavigation (四阶段 Tab)
+ * - TabNavigation (五阶段 Tab，共享当前 Shot)
  * - ThreeColumnLayout (三栏容器)
  * - BottomNavigator (底部导航)
  */
 
 import { useEffect, useRef, useState } from 'react';
 import type React from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { useChapterGenerateStore } from '../stores';
@@ -29,6 +29,11 @@ import { ShotForm } from './ShotForm';
 
 // Tab 页面组件
 import { ShotSplitTab } from './ShotSplitTab';
+import { AssetPreparationTab } from './AssetPreparationTab';
+import { AssetDependencySummary } from './AssetDependencySummary';
+import {STAGE} from '../productionStages';
+import type {AssetReadiness} from '../../../api/resolvedAssets';
+import {codePointSlice,normalizeCodePointRanges,sourceOwnershipRanges} from '../../../utils/sourceOwnership';
 import { AudioGenTab } from './AudioGenTab';
 import { ShotImageGenTab } from './ShotImageGenTab';
 import { VideoGenTab } from './VideoGenTab';
@@ -116,6 +121,9 @@ export function ChapterGenerateLayout({
   const storeChapter = useChapterGenerateStore((state) => state.chapter);
   const storeNovel = useChapterGenerateStore((state) => state.novel);
   const currentTab = useChapterGenerateStore((state) => state.currentTab);
+  const [assetReadiness,setAssetReadiness]=useState<AssetReadiness|null>(null);
+  useEffect(()=>setAssetReadiness(null),[id,cid]);
+  const [stageParams,setStageParams]=useSearchParams();
   const currentShotIndex = useChapterGenerateStore((state) => state.currentShotIndex);
   const currentShotId = useChapterGenerateStore((state) => state.currentShotId);
   const leftPanelCollapsed = useChapterGenerateStore((state) => state.leftPanelCollapsed);
@@ -235,8 +243,8 @@ export function ChapterGenerateLayout({
   });
 
   const renderGenerationStats = () => {
-    if ((currentTab !== 2 && currentTab !== 3) || shots.length === 0) return null;
-    const isAudio = currentTab === 2;
+    if ((currentTab !== STAGE.AUDIO && currentTab !== STAGE.VIDEO) || shots.length === 0) return null;
+    const isAudio = currentTab === STAGE.AUDIO;
     const openKey = isAudio ? openAudioStatsKey : openVideoStatsKey;
     const setOpenKey = isAudio ? setOpenAudioStatsKey : setOpenVideoStatsKey;
     const items = isAudio ? [
@@ -331,7 +339,7 @@ export function ChapterGenerateLayout({
   };
 
   const updateCurrentShot = (updates: Record<string, any>) => {
-    if (!currentShot) return;
+    if (!currentShot||currentShot.completionDisposition==='DEGRADED_NARRATION_CARD') return;
     setShots(shots.map((shot) => shot.id === currentShot.id ? { ...shot, ...updates } : shot));
   };
 
@@ -339,13 +347,15 @@ export function ChapterGenerateLayout({
     if (!id || !cid || isSavingShots) return;
     setIsSavingShots(true);
     try {
-      await saveChapterResources(id, cid);
-      if (shotsToSave.length > 0) {
-        const result = await shotsApi.batchUpdateShots(
+      const editableShots=shotsToSave.filter(shot=>shot.completionDisposition!=='DEGRADED_NARRATION_CARD');
+      if (editableShots.length > 0) {
+        await useChapterGenerateStore.getState().saveShotRevisions(
           id,
           cid,
-          shotsToSave.map((shot) => ({
+          editableShots.map((shot) => ({
             id: shot.id,
+            expected_revision: shot.sourceRevision,
+            source_treatments: shot.sourceTreatments,
             description: shot.description,
             video_description: shot.video_description,
             characters: shot.characters,
@@ -358,15 +368,12 @@ export function ChapterGenerateLayout({
             audio_events: (shot.audioEvents || []).map((event, index) => ({ ...event, order: index + 1 })),
           }))
         );
-        if (!result.success) {
-          throw new Error(result.message || t('common.unknownError'));
-        }
       }
       markTabComplete(0);
       toast.success(successMessage);
     } catch (error) {
       console.error(t('chapterGenerate.saveFailed') + ':', error);
-      toast.error(t('chapterGenerate.saveFailedRetry'));
+      toast.error(error instanceof Error ? error.message : t('chapterGenerate.saveFailedRetry'));
     } finally {
       setIsSavingShots(false);
     }
@@ -405,18 +412,12 @@ export function ChapterGenerateLayout({
 
   const renderChapterContent = () => {
     const content = chapter?.content || t('common.noContent');
-    const ranges = ((currentShot as any)?.sourceRanges || (currentShot as any)?.source_ranges || []) as { start: number; end: number }[];
+    const ranges = sourceOwnershipRanges(currentShot);
     if (!chapter?.content || !Array.isArray(ranges) || ranges.length === 0) {
       return <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{content}</div>;
     }
 
-    const normalizedRanges = ranges
-      .map((range) => ({
-        start: Math.max(0, Math.min(content.length, Number(range.start))),
-        end: Math.max(0, Math.min(content.length, Number(range.end))),
-      }))
-      .filter((range) => range.end > range.start)
-      .sort((a, b) => a.start - b.start);
+    const normalizedRanges = normalizeCodePointRanges(content,ranges);
 
     if (normalizedRanges.length === 0) {
       return <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{content}</div>;
@@ -425,15 +426,15 @@ export function ChapterGenerateLayout({
     const parts: React.ReactNode[] = [];
     let cursor = 0;
     normalizedRanges.forEach((range, index) => {
-      if (range.start > cursor) parts.push(content.slice(cursor, range.start));
+      if (range.start > cursor) parts.push(codePointSlice(content,cursor,range.start));
       parts.push(
         <mark key={`${range.start}-${range.end}-${index}`} className="bg-yellow-100 text-gray-900 rounded px-0.5">
-          {content.slice(range.start, range.end)}
+          {codePointSlice(content,range.start,range.end)}
         </mark>
       );
       cursor = range.end;
     });
-    if (cursor < content.length) parts.push(content.slice(cursor));
+    if (cursor < Array.from(content).length) parts.push(codePointSlice(content,cursor));
 
     return <div className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{parts}</div>;
   };
@@ -443,6 +444,11 @@ export function ChapterGenerateLayout({
       loadWorkflowState(id, cid);
     }
   }, [id, cid, loadWorkflowState]);
+  useEffect(()=>{
+    const value=stageParams.get('stage');
+    const stages:Record<string,number>={split:STAGE.SPLIT,assets:STAGE.ASSETS,image:STAGE.IMAGE,audio:STAGE.AUDIO,video:STAGE.VIDEO};
+    if(value&&value in stages){setCurrentTab(stages[value]);const next=new URLSearchParams(stageParams);next.delete('stage');navigate({pathname:window.location.pathname,search:next.toString(),hash:window.location.hash},{replace:true});}
+  },[stageParams,navigate,setCurrentTab]);
 
   useEffect(() => setMobileStatsExpanded(false), [currentTab]);
 
@@ -461,13 +467,13 @@ export function ChapterGenerateLayout({
   }, [cid]);
 
   useEffect(() => {
-    if (shots.length === 0) return;
+    if (shots.length === 0 || shots.some(shot=>shot.chapterId!==cid)) return;
     if (!initialShotHashAppliedRef.current) {
       initialShotHashAppliedRef.current = true;
       const hashShotIndex = parseShotHash();
       if (hashShotIndex && hashShotIndex <= shots.length) {
         const shot = shots[hashShotIndex - 1];
-        if (shot && currentShotIndex !== hashShotIndex) {
+        if (shot && (currentShotIndex !== hashShotIndex || currentShotId !== shot.id)) {
           pendingShotHashIndexRef.current = hashShotIndex;
           setCurrentShot(shot.id, hashShotIndex);
         }
@@ -482,15 +488,15 @@ export function ChapterGenerateLayout({
       return;
     }
     setCurrentShot(shots[0].id, 1);
-  }, [shots, currentShotId, currentShotIndex, setCurrentShot]);
+  }, [shots, cid, currentShotId, currentShotIndex, setCurrentShot]);
 
   useEffect(() => {
-    if (!currentShotIndex || shots.length === 0) return;
+    if (!currentShotIndex || shots.length === 0 || shots.some(shot=>shot.chapterId!==cid)) return;
     const pendingShotHashIndex = pendingShotHashIndexRef.current;
     if (pendingShotHashIndex && currentShotIndex !== pendingShotHashIndex) return;
     if (pendingShotHashIndex === currentShotIndex) pendingShotHashIndexRef.current = null;
     updateShotHash(currentShotIndex);
-  }, [currentShotIndex, shots.length]);
+  }, [currentShotIndex, shots, cid]);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -545,20 +551,17 @@ export function ChapterGenerateLayout({
             </div>
           </div>
         );
-      case 1: // 分镜图生成
+      case STAGE.IMAGE: // 分镜图生成
         return (
           <ResourcePanel
             currentShot={currentShot}
-            getCharacterImage={getCharacterImage}
-            getSceneImage={getSceneImage}
-            getPropImage={getPropImage}
             onImageClick={onImageClick}
           />
         );
-      case 2: // 音频生成
+      case STAGE.AUDIO: // 音频生成
         // 音频生成 Tab 有自己的三栏布局，左侧栏显示空
         return null;
-      case 3: // 视频生成
+      case STAGE.VIDEO: // 视频生成
         return (
           <ShotImageList
             shots={shots}
@@ -571,7 +574,7 @@ export function ChapterGenerateLayout({
             }}
             onImageClick={onImageClick}
             showVideoFields
-            onDurationChange={(duration) => updateCurrentShot({ duration })}
+            onDurationChange={(duration) => updateCurrentShot({ estimatedDuration: duration })}
             onVideoDescriptionChange={(video_description) => updateCurrentShot({ video_description })}
             onCopyVideoDescription={copyCurrentShotVideoDescription}
           />
@@ -592,7 +595,7 @@ export function ChapterGenerateLayout({
             chapterId={cid}
           />
         );
-      case 1: // 分镜图生成
+      case STAGE.IMAGE: // 分镜图生成
         return (
           <ShotImageGenTab
             chapter={chapter}
@@ -605,6 +608,7 @@ export function ChapterGenerateLayout({
             onImageClick={onImageClick}
           >
             <ShotForm
+              key={currentShot?.id}
               shotIndex={currentShotIndex}
               shotData={currentShot}
               showDialogues={false}
@@ -612,7 +616,7 @@ export function ChapterGenerateLayout({
             />
           </ShotImageGenTab>
         );
-      case 3: // 视频生成
+      case STAGE.VIDEO: // 视频生成
         return (
           <VideoGenTab
             chapter={chapter}
@@ -639,12 +643,14 @@ export function ChapterGenerateLayout({
         <div className="generate-split-editor lg:h-full lg:overflow-y-auto rounded-lg border border-gray-200 bg-white p-3 lg:p-4">
           {currentShot ? (
             <ShotForm
+              key={currentShot?.id}
               shotIndex={currentShotIndex}
               shotData={currentShot}
               showVideoDescription={true}
               showDuration={true}
               onSave={saveShotSplitData}
               isSaving={isSavingShots}
+              readOnly={isSavingShots}
             />
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-gray-500">
@@ -659,9 +665,9 @@ export function ChapterGenerateLayout({
   };
 
   const stageStats = renderDialogueWarningStats() || renderGenerationStats();
-  const statsSummary = currentTab === 3
+  const statsSummary = currentTab === STAGE.VIDEO
     ? `视频生成结果 · 已完成 ${videoStats.completed.length}/${shots.length}`
-    : currentTab === 2
+    : currentTab === STAGE.AUDIO
       ? `音频生成结果 · 已就绪 ${audioStats.ready.length}/${shots.length}`
       : currentTab === 0
         ? `台词时长预警 · 正常 ${dialogueWarningStats.stats.normal || 0}/${dialogueWarningStats.checkedCount}`
@@ -679,7 +685,7 @@ export function ChapterGenerateLayout({
   }
 
   return (
-    <div className="generate-layout min-w-0 flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden" data-nav-collapsed={bottomNavCollapsed}>
+    <div className="generate-layout min-w-0 flex flex-col lg:h-full lg:min-h-0 lg:overflow-hidden" data-nav-collapsed={bottomNavCollapsed} data-current-shot-id={currentShotId||''} data-current-shot-index={currentShotIndex} data-current-stage={currentTab}>
       {/* Header */}
       <div className="flex-shrink-0 px-4 py-2 border-b border-gray-200 bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -717,7 +723,7 @@ export function ChapterGenerateLayout({
       <div className="generate-stage-navigation flex-shrink-0 px-2 lg:px-4 py-2 bg-white border-b border-gray-200">
         <TabNavigation />
       </div>
-      {(stageStats || hasQueueStats) && (
+      {currentTab!==STAGE.ASSETS && (stageStats || hasQueueStats) && (
         <section className="generate-statistics flex-shrink-0 px-2 lg:px-4 pb-2 bg-white border-b border-gray-200" data-expanded={mobileStatsExpanded} aria-label={statsSummary}>
           <button type="button" className="generate-stat-summary flex w-full items-center justify-between gap-2 rounded-lg px-2 text-left text-xs text-gray-600 hover:bg-gray-50 lg:hidden"
             aria-expanded={mobileStatsExpanded} aria-controls="generate-stat-details" title={statsSummary}
@@ -733,8 +739,9 @@ export function ChapterGenerateLayout({
       )}
 
       {/* 三栏布局 */}
+      {id&&cid&&(currentTab===STAGE.IMAGE||currentTab===STAGE.VIDEO)&&<div className="px-2 lg:px-4 min-w-0"><AssetDependencySummary key={`${id}:${cid}:${currentTab}`} novelId={id} chapterId={cid} shot={currentShot} video={currentTab===STAGE.VIDEO}/></div>}
       <div className="generate-workspace min-w-0 lg:flex-1 lg:min-h-0 lg:pl-4 py-2">
-        {currentTab === 2 ? <AudioGenTab novelId={id || ''} chapterId={cid || ''} /> : (
+        {currentTab === STAGE.ASSETS ? <AssetPreparationTab novelId={id||''} chapterId={cid||''} onReadiness={setAssetReadiness}/> : currentTab === STAGE.AUDIO ? <AudioGenTab novelId={id || ''} chapterId={cid || ''} /> : (
           <ThreeColumnLayout
             leftPanel={renderLeftPanel()}
             centerContent={renderCenterContent()}
@@ -747,6 +754,7 @@ export function ChapterGenerateLayout({
 
       {/* BottomNavigator */}
       <BottomNavigator
+        assetStates={assetReadiness?Object.fromEntries(assetReadiness.shots.map(s=>[s.shotId,{ready:s.ready,status:s.effectiveStatus}])):undefined}
         shots={shots}
         shotImages={shotImages}
         generatingShots={generatingShots}

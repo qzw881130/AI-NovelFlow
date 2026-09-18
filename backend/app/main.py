@@ -4,7 +4,9 @@ from contextlib import asynccontextmanager
 import asyncio
 
 from app.api import audio_drive, characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props
-from app.api import novels, chapters, shots, chapter_subtitles
+from app.api import novels, chapters, shots, chapter_subtitles, chapter_asset_parses, asset_resolutions
+from app.api import appearance_timelines, appearance_generations, chapter_shot_splits, resolved_shot_assets, rsa_media, chapter_governance
+from app.api import asset_debug, system_logs
 from app.core.database import engine, Base
 from app.services.comfyui_monitor import init_monitor
 # 导入所有模型以确保创建表
@@ -22,7 +24,26 @@ from app.services.sqlite_schema_upgrade import upgrade_sqlite_schema
 def ensure_schema_updates():
     """补齐 create_all 不会自动添加的轻量字段。"""
     try:
+        from app.services.chapter_shot_split_schema import upgrade as upgrade_chapter_shot_split
+        try:upgrade_chapter_shot_split(engine)
+        except Exception as exc:raise RuntimeError('R_CD1_SCHEMA_UPGRADE_FAILED') from exc
         upgrade_sqlite_schema(engine)
+        from app.services.appearance_timeline_schema import upgrade as upgrade_appearance_timelines
+        upgrade_appearance_timelines(engine)
+        from app.services.appearance_generation_schema import upgrade as upgrade_appearance_generation
+        upgrade_appearance_generation(engine)
+        from app.services.resolved_shot_assets_schema import upgrade as upgrade_resolved_shot_assets
+        upgrade_resolved_shot_assets(engine)
+        from app.services.rsa_media_schema import upgrade as upgrade_rsa_media
+        upgrade_rsa_media(engine)
+        from app.services.chapter_governance_schema import upgrade as upgrade_governance
+        upgrade_governance(engine)
+        from app.services.shot_revision_schema import upgrade as upgrade_shot_revisions
+        upgrade_shot_revisions(engine)
+    except RuntimeError as exc:
+        if str(exc).startswith(("EXTERNAL_FAILURE_OBSERVATION_","R_CD1_")):
+            raise
+        print(f"[Startup] Failed to ensure schema updates: {exc}")
     except Exception as exc:
         print(f"[Startup] Failed to ensure schema updates: {exc}")
 
@@ -44,6 +65,9 @@ async def reconcile_active_tasks_loop():
                     print(f"[TaskReconcile] Updated {updated_count} stale active task(s)")
             from app.services.audio_drive_service import AudioDriveService
             AudioDriveService.resume_active_tts_tasks()
+            from app.services.narration_card_service import settle_stale_render_tasks
+            from app.services.chapter_video_merge_service import settle_stale_completion_tasks
+            settle_stale_render_tasks();settle_stale_completion_tasks()
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -98,11 +122,63 @@ async def shot_video_batch_worker_loop():
         await asyncio.sleep(1 if consumed else 3)
 
 
+async def shot_video_worker_loop():
+    """Resume only durably admitted video jobs that have never started execution."""
+    from app.services.external_failure_observation_service import run_next_video_task_with_observation
+    while True:
+        try:
+            consumed = await run_next_video_task_with_observation()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            print(f'[ShotVideoWorker] {exc}')
+            consumed = False
+        await asyncio.sleep(1 if consumed else 3)
+
+
+async def appearance_worker_loop():
+    from app.services.appearance_generation_service import run_next_appearance_task
+    while True:
+        try:
+            consumed = await run_next_appearance_task()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            print(f"[AppearanceWorker] {exc}")
+            consumed = False
+        await asyncio.sleep(1 if consumed else 3)
+
+
+async def rsa_image_worker_loop():
+    from app.services.rsa_image_service import run_next_rsa_image_task
+    while True:
+        try:
+            consumed=await run_next_rsa_image_task()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            print(f"[RsaImageWorker] {exc}")
+            consumed=False
+        await asyncio.sleep(1 if consumed else 3)
+
+
+async def chapter_rebuild_worker_loop():
+    from app.services.chapter_rebuild_service import run_next_rebuild
+    while True:
+        try:consumed=await run_next_rebuild()
+        except asyncio.CancelledError:raise
+        except Exception as exc:
+            print(f"[ChapterRebuildWorker] {exc}");consumed=False
+        await asyncio.sleep(1 if consumed else 3)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     Base.metadata.create_all(bind=engine)
     ensure_schema_updates()
+    from app.services.external_failure_observation_service import run_observation_retention_best_effort
+    run_observation_retention_best_effort()
     
     # 初始化预设数据和系统配置
     from app.api.test_cases import init_preset_test_cases
@@ -130,6 +206,10 @@ async def lifespan(app: FastAPI):
     from app.services.audio_drive_service import AudioDriveService
     AudioDriveService.resume_active_tts_tasks()
     AudioDriveService.resume_active_audio_prepare_tasks()
+    from app.services.narration_card_service import resume_pending_render_tasks
+    resume_pending_render_tasks()
+    from app.services.chapter_video_merge_service import resume_completion_tasks
+    resume_completion_tasks()
     task_reconcile_task = asyncio.create_task(reconcile_active_tasks_loop())
     app.state.task_reconcile_task = task_reconcile_task
     audio_drive_tts_task = asyncio.create_task(audio_drive_tts_worker_loop())
@@ -138,6 +218,14 @@ async def lifespan(app: FastAPI):
     app.state.audio_drive_prepare_task = audio_drive_prepare_task
     shot_video_batch_task = asyncio.create_task(shot_video_batch_worker_loop())
     app.state.shot_video_batch_task = shot_video_batch_task
+    shot_video_task = asyncio.create_task(shot_video_worker_loop())
+    app.state.shot_video_task = shot_video_task
+    appearance_task = asyncio.create_task(appearance_worker_loop())
+    app.state.appearance_task = appearance_task
+    rsa_image_task=asyncio.create_task(rsa_image_worker_loop())
+    app.state.rsa_image_task=rsa_image_task
+    rebuild_task=asyncio.create_task(chapter_rebuild_worker_loop())
+    app.state.rebuild_task=rebuild_task
     
     yield
     
@@ -146,6 +234,22 @@ async def lifespan(app: FastAPI):
     audio_drive_tts_task.cancel()
     audio_drive_prepare_task.cancel()
     shot_video_batch_task.cancel()
+    shot_video_task.cancel()
+    appearance_task.cancel()
+    rsa_image_task.cancel()
+    rebuild_task.cancel()
+    try:await shot_video_task
+    except asyncio.CancelledError:pass
+    try:await rebuild_task
+    except asyncio.CancelledError:pass
+    try:
+        await rsa_image_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await appearance_task
+    except asyncio.CancelledError:
+        pass
     try:
         await task_reconcile_task
     except asyncio.CancelledError:
@@ -194,6 +298,16 @@ app.include_router(config.router, prefix="/api/config", tags=["config"])
 # 小说相关路由（拆分为多个模块）
 app.include_router(novels.router, prefix="/api/novels", tags=["novels"])
 app.include_router(chapters.router, prefix="/api/novels", tags=["novels"])
+app.include_router(chapter_asset_parses.router, prefix="/api/novels", tags=["chapter-assets"])
+app.include_router(asset_resolutions.router, prefix="/api/novels", tags=["asset-resolution"])
+app.include_router(appearance_timelines.router, prefix="/api/novels", tags=["appearance-timeline"])
+app.include_router(appearance_generations.router, prefix="/api/novels", tags=["character-appearance"])
+app.include_router(chapter_shot_splits.router, prefix="/api/novels", tags=["chapter-shot-split"])
+app.include_router(resolved_shot_assets.router, prefix="/api/novels", tags=["resolved-shot-assets"])
+app.include_router(rsa_media.router, prefix="/api/novels", tags=["rsa-image-lineage"])
+app.include_router(chapter_governance.router, prefix="/api/novels", tags=["chapter-governance"])
+app.include_router(asset_debug.router, prefix="/api", tags=["asset-debug"])
+app.include_router(system_logs.router, prefix="/api/system-logs", tags=["system-logs"])
 app.include_router(chapter_subtitles.router, prefix="/api/novels", tags=["audio-drive"])
 app.include_router(shots.router, prefix="/api/novels", tags=["novels"])
 app.include_router(characters.router, prefix="/api/characters", tags=["characters"])

@@ -85,6 +85,7 @@ class VideoDirectorPlanService:
         expected_revision: Optional[int] = None,
         require_revision: bool = False,
         max_retries: int = 3,
+        commit: bool = True,
     ) -> tuple[dict, int]:
         for _ in range(max_retries):
             shot = self.db.query(Shot).filter(Shot.id == shot_id).first()
@@ -111,9 +112,14 @@ class VideoDirectorPlanService:
                 "video_director_plan_revision": next_revision,
             }, synchronize_session=False)
             if updated == 1:
-                self.db.commit()
+                if commit:
+                    self.db.commit()
+                else:
+                    self.db.flush()
                 self.db.refresh(shot)
                 return next_plan, next_revision
+            if not commit:
+                raise PlanRevisionConflict("Video Director Plan 并发更新，请重试")
             self.db.rollback()
 
         raise PlanRevisionConflict("Video Director Plan 并发更新，请重试")

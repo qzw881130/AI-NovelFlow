@@ -1,12 +1,12 @@
 /**
  * Workflow Slice - 工作流状态管理
  *
- * 管理四阶段工作流的状态：
- * - currentTab: 当前选中的 Tab 索引 (0-3)
+ * 管理五阶段工作流，迁移旧四阶段存储索引。
  * - tabProgress: 各 Tab 的完成状态
  */
 
 import { StateCreator } from 'zustand';
+import {restoreProductionStages,WORKFLOW_STATE_VERSION} from '../../productionStages';
 
 const WORKFLOW_STORAGE_PREFIX = 'chapterGenerate_workflow';
 
@@ -28,7 +28,7 @@ const getWorkflowStorageKey = (novelId?: string, chapterId?: string) => {
 // ========== Types ==========
 
 export interface WorkflowSliceState {
-  /** 当前 Tab 索引 (0-3) */
+  /** 当前 Tab 索引 (0-4) */
   currentTab: number;
 
   /** 各 Tab 的完成状态 */
@@ -62,10 +62,7 @@ const getInitialState = (): WorkflowSliceState => {
     const saved = localStorage.getItem(getWorkflowStorageKey());
     if (saved) {
       const parsed = JSON.parse(saved);
-      return {
-        currentTab: parsed.currentTab ?? 0,
-        tabProgress: parsed.tabProgress ?? {},
-      };
+      return restoreProductionStages(parsed);
     }
   } catch (e) {
     console.warn('Failed to restore workflow state from localStorage:', e);
@@ -91,6 +88,7 @@ export const createWorkflowSlice: StateCreator<
     ...state,
 
     setCurrentTab: (index: number) => {
+      if(!Number.isInteger(index)||index<0||index>4)return;
       _set({ currentTab: index });
       _get().saveWorkflowState();
     },
@@ -116,7 +114,7 @@ export const createWorkflowSlice: StateCreator<
         const { currentTab, tabProgress } = _get();
         localStorage.setItem(
           getWorkflowStorageKey(),
-          JSON.stringify({ currentTab, tabProgress })
+          JSON.stringify({ version:WORKFLOW_STATE_VERSION,currentTab, tabProgress })
         );
       } catch (e) {
         console.warn('Failed to save workflow state to localStorage:', e);
@@ -128,10 +126,9 @@ export const createWorkflowSlice: StateCreator<
         const saved = localStorage.getItem(getWorkflowStorageKey(novelId, chapterId));
         if (saved) {
           const parsed = JSON.parse(saved);
-          _set({
-            currentTab: parsed.currentTab ?? 0,
-            tabProgress: parsed.tabProgress ?? {},
-          });
+          const restored=restoreProductionStages(parsed);
+          _set(restored);
+          localStorage.setItem(getWorkflowStorageKey(novelId,chapterId),JSON.stringify({version:WORKFLOW_STATE_VERSION,...restored}));
           return;
         }
       } catch (e) {

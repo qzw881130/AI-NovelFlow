@@ -5,6 +5,7 @@ import { toast } from '../../../stores/toastStore';
 import { promptTemplateApi } from '../../../api/promptTemplates';
 import { sceneApi } from '../../../api/scenes';
 import { propApi } from '../../../api/props';
+import { novelApi } from '../../../api/novels';
 import type { PromptTemplate } from '../../../types';
 import type { ChapterRange, ConfirmDialogState, ParseType } from '../types';
 
@@ -18,6 +19,7 @@ const TEMPLATE_TYPES = [
   'scene',
   'prop',
   'chapter_split',
+  'shot_contract_repair',
   'keyframe_description',
   'shot_image_prompt',
   'video_mode_recommender',
@@ -32,10 +34,11 @@ type TemplateType = typeof TEMPLATE_TYPES[number];
 
 export function useNovelsState() {
   const { t } = useTranslation();
-  const { novels, isLoading, fetchNovels, createNovel, deleteNovel, importNovel, updateNovel } = useNovelStore();
+  const { novels, isLoading, fetchNovels, createNovel, copyNovel: copyNovelRequest, deleteNovel, importNovel, updateNovel } = useNovelStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCopyModal, setShowCopyModal] = useState(false);
   const [editingNovel, setEditingNovel] = useState<any>(null);
   const [importing, setImporting] = useState(false);
   const [parsingNovelId, setParsingNovelId] = useState<string | null>(null);
@@ -95,12 +98,28 @@ export function useNovelsState() {
       novel.author.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const copyNovel = async (sourceId: string, title: string) => {
+    const copied = await copyNovelRequest(sourceId, title);
+    setSearchQuery('');
+    toast.success(t('novels.copySuccess', { title: copied.title, count: copied.chapterCount }));
+  };
+
   const openParseConfirm = (novelId: string, type: ParseType = 'characters') => {
     setConfirmDialog({ isOpen: true, novelId, type });
   };
 
   const closeParseConfirm = () => {
     setConfirmDialog({ isOpen: false, novelId: null, type: 'characters' });
+  };
+
+  const showCandidateResults = (data: any, novelId: string) => {
+    const runs = Array.isArray(data.data) ? data.data : [];
+    const first = runs.find((run: any) => !run.phase1Ready || run.phase2Ready === false) || runs[0];
+    if (!first) { toast.error(data.message || t('novels.parseFailed')); return; }
+    const message = t('novels.candidateParseResult', { count: data.statistics?.candidates || 0 });
+    if (data.success) toast.success(message);
+    else toast.warning(data.message || message);
+    window.location.href = `/novels/${novelId}/chapters/${first.chapterId}`;
   };
 
   const confirmParseCharacters = async () => {
@@ -122,22 +141,7 @@ export function useNovelsState() {
         method: 'POST',
       });
       const data = await res.json();
-      if (data.success) {
-        const stats = data.statistics || {};
-        let message = '';
-        if (stats.created > 0) {
-          message += t('novels.parseResult', { created: stats.created, updated: stats.updated });
-        }
-        if (message) {
-          toast.success(message);
-        } else {
-          toast.warning(t('novels.noNewCharacters'));
-        }
-        setChapterRange({ startChapter: null, endChapter: null, isIncremental: false });
-        window.location.href = `/characters?novel=${novelId}`;
-      } else {
-        toast.error(t('novels.parseError') + ': ' + data.message);
-      }
+      showCandidateResults(data, novelId);
     } catch (error) {
       console.error(t('novels.parseFailed') + ':', error);
       toast.error(t('novels.parseNetworkError'));
@@ -154,23 +158,15 @@ export function useNovelsState() {
     setParsingScenesNovelId(novelId);
     
     try {
-      const data = await sceneApi.parseScenes(novelId, chapterRange.isIncremental ? 'incremental' : 'full');
-      if (data.success) {
-        const stats = (data.data as { statistics?: { created?: number; updated?: number } })?.statistics || {};
-        let message = '';
-        if ((stats.created ?? 0) > 0 || (stats.updated ?? 0) > 0) {
-          message = t('novels.parseScenesResult', { created: stats.created || 0, updated: stats.updated || 0 });
-        }
-        if (message) {
-          toast.success(message);
-        } else {
-          toast.info(t('novels.noNewScenes'));
-        }
-        setChapterRange({ startChapter: null, endChapter: null, isIncremental: false });
-        window.location.href = `/scenes?novel=${novelId}`;
-      } else {
-        toast.error(t('novels.parseError') + ': ' + data.message);
-      }
+      const chapters = await novelApi.fetchChapters(novelId);
+      if (!chapters.success || !chapters.data) throw new Error('读取章回失败');
+      const ids = chapters.data.filter(chapter =>
+        (chapterRange.startChapter == null || chapter.number >= chapterRange.startChapter) &&
+        (chapterRange.endChapter == null || chapter.number <= chapterRange.endChapter)
+      ).map(chapter => chapter.id);
+      if (!ids.length) { toast.error('所选范围内没有章回'); return; }
+      const data = await sceneApi.parseScenes(novelId, 'incremental', ids);
+      showCandidateResults(data, novelId);
     } catch (error) {
       console.error(t('novels.parseFailed') + ':', error);
       toast.error(t('novels.parseNetworkError'));
@@ -192,22 +188,7 @@ export function useNovelsState() {
         endChapter: chapterRange.endChapter ?? undefined,
         isIncremental: chapterRange.isIncremental
       });
-      if (data.success) {
-        const stats = (data.data as any)?.statistics || { created: 0, updated: 0 };
-        let message = '';
-        if ((stats.created ?? 0) > 0 || (stats.updated ?? 0) > 0) {
-          message = t('novels.parsePropsResult', { created: stats.created || 0, updated: stats.updated || 0 });
-        }
-        if (message) {
-          toast.success(message);
-        } else {
-          toast.info(t('novels.noNewProps'));
-        }
-        setChapterRange({ startChapter: null, endChapter: null, isIncremental: false });
-        window.location.href = `/props?novel=${novelId}`;
-      } else {
-        toast.error(t('novels.parseError') + ': ' + data.message);
-      }
+      showCandidateResults(data, novelId);
     } catch (error) {
       console.error(t('novels.parseFailed') + ':', error);
       toast.error(t('novels.parseNetworkError'));
@@ -232,6 +213,8 @@ export function useNovelsState() {
     setSearchQuery,
     showCreateModal,
     setShowCreateModal,
+    showCopyModal,
+    setShowCopyModal,
     editingNovel,
     setEditingNovel,
     importing,
@@ -247,6 +230,7 @@ export function useNovelsState() {
     // Actions
     fetchNovels,
     createNovel,
+    copyNovel,
     deleteNovel,
     updateNovel,
     handleImport,

@@ -4,9 +4,11 @@ Google Gemini 提供商
 支持 Google Gemini API 格式。
 """
 import httpx
+import asyncio
 import time
 from typing import Dict, Any, Optional
 from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
+from ..multimodal import canonical_log, native_content, redacted_wire, wire_evidence
 
 
 class GeminiProvider(BaseLLMProvider):
@@ -17,6 +19,7 @@ class GeminiProvider(BaseLLMProvider):
     """
 
     PROVIDER_NAME = "gemini"
+    MULTIMODAL_WIRE = 'gemini-parts'
 
     def _get_endpoint(self) -> str:
         """获取 API 端点 URL"""
@@ -33,16 +36,16 @@ class GeminiProvider(BaseLLMProvider):
     def _build_request_body(
         self,
         system_prompt: str,
-        user_content: str,
+        user_content: str | list[Dict[str, Any]],
         temperature: float,
         max_tokens: int,
         response_format: Optional[str]
     ) -> Dict[str, Any]:
         """构建请求体"""
+        self.preflight_content(user_content)
         body = {
-            "contents": [
-                {"role": "user", "parts": [{"text": system_prompt + "\n\n" + user_content}]}
-            ],
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
+            "contents": [{"role": "user", "parts": native_content(user_content, self.MULTIMODAL_WIRE)}],
             "generationConfig": {
                 "temperature": temperature,
                 "maxOutputTokens": max_tokens,
@@ -54,17 +57,26 @@ class GeminiProvider(BaseLLMProvider):
 
     def _parse_response(self, response_data: Dict[str, Any]) -> str:
         """解析响应"""
-        try:
-            if "candidates" in response_data and response_data["candidates"]:
-                return response_data["candidates"][0]["content"]["parts"][0]["text"]
-        except (KeyError, IndexError, TypeError):
-            pass
-        return ""
+        if not response_data.get("candidates"):
+            return ""
+        parts = response_data["candidates"][0]["content"]["parts"]
+        if not isinstance(parts, list):
+            raise TypeError("Gemini response parts must be a list")
+        texts = []
+        for part in parts:
+            if not isinstance(part, dict):
+                raise TypeError("Gemini response part must be an object")
+            if part.get('thought') is True:
+                continue
+            if not isinstance(part.get('text'), str):
+                raise TypeError("Gemini final response must contain text parts")
+            texts.append(part['text'])
+        return ''.join(texts)
 
     async def chat_completion(
         self,
         system_prompt: str,
-        user_content: str,
+        user_content: str | list[Dict[str, Any]],
         temperature: float = 0.7,
         max_tokens: int = 4000,
         response_format: Optional[str] = None,
@@ -108,10 +120,13 @@ class GeminiProvider(BaseLLMProvider):
             endpoint=endpoint,
             model=self.config.model,
             headers=headers,
-            payload=body,
+            payload=redacted_wire(body),
             proxy_url=proxy,
             timeout_seconds=timeout,
         )
+        evidence = wire_evidence(self.config, user_content, body, self.MULTIMODAL_WIRE)
+        if evidence:
+            request_info['multimodal'] = evidence
 
         client = httpx.AsyncClient(proxy=proxy, timeout=timeout)
 
@@ -123,7 +138,7 @@ class GeminiProvider(BaseLLMProvider):
                     provider=self.config.provider,
                     model=self.config.model,
                     system_prompt=system_prompt,
-                    user_prompt=user_content,
+                    user_prompt=canonical_log(user_content),
                     prompt_template_name=prompt_template_name,
                     task_type=task_type,
                     novel_id=novel_id,
@@ -146,6 +161,9 @@ class GeminiProvider(BaseLLMProvider):
                 return self._complete_response(log_id, data, duration)
             else:
                 return self._http_error_response(log_id, response, duration)
+        except asyncio.CancelledError:
+            update_llm_log(log_id, status="error", error_message="请求被取消或超时，调用方已停止等待", duration=time.time() - start_time)
+            raise
         except Exception as e:
             duration = time.time() - start_time
             return self._exception_response(log_id, e, duration, response=response)

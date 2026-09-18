@@ -11,6 +11,7 @@ import { characterApi } from '../../api/characters';
 import { promptTemplateApi } from '../../api/promptTemplates';
 import { api } from '../../api';
 import { ImagePreviewModal, CharacterCard } from './components';
+import { AppearanceModal } from './components/AppearanceModal';
 import { ASPECT_RATIO_CLASSES, ALLOWED_IMAGE_TYPES, ALLOWED_AUDIO_TYPES, MAX_AUDIO_SIZE, POLL_CONFIG } from './constants';
 import type { CharacterPrompt, PreviewImageState, DeleteAllConfirmDialog } from './types';
 import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
@@ -20,6 +21,7 @@ export default function Characters() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [characters, setCharacters] = useState<Character[]>([]);
+  const [appearanceCharacter, setAppearanceCharacter] = useState<Character|null>(null);
   const [novels, setNovels] = useState<Novel[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -111,7 +113,7 @@ export default function Characters() {
         setCharacters(data.data || []);
         const chars = data.data || [];
         for (const char of chars) {
-          fetchCharacterPrompt(char.id);
+          if (!char.isNarrator) fetchCharacterPrompt(char.id);
         }
       }
     } catch (error) {
@@ -124,11 +126,12 @@ export default function Characters() {
   const fetchCharacterPrompt = async (characterId: string) => {
     try {
       const data = await characterApi.fetchPrompt(characterId);
-      if (data.success) {
+      if (data.success && data.data?.applicable !== false && typeof data.data?.prompt === 'string') {
+        const prompt=data.data.prompt;
         setCharacterPrompts(prev => ({
           ...prev,
           [characterId]: {
-            prompt: data.data!.prompt,
+            prompt,
             templateName: data.data!.templateName,
             templateId: data.data!.templateId,
             isSystem: data.data!.isSystem
@@ -1024,12 +1027,14 @@ export default function Characters() {
               onImageClick={openImagePreview}
               onGenerateVoice={generateVoice}
               onUploadAudio={triggerAudioUpload}
+              onViewAppearances={setAppearanceCharacter}
             />
           ))}
         </div>
       )}
 
       {/* Hidden file input */}
+      {appearanceCharacter && <AppearanceModal key={appearanceCharacter.id} character={appearanceCharacter} onClose={() => setAppearanceCharacter(null)}/>}
       <input
         ref={fileInputRef}
         type="file"

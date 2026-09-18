@@ -28,6 +28,7 @@ class Shot(Base):
     duration = Column(Integer, default=4)  # 时长（秒）
     audio_status = Column(String, default="NOT_READY", index=True)  # AudioDrive: NOT_READY/READY/STALE/FAILED
     continuity_mode = Column(String, default="NORMAL")  # NORMAL/CONTINUOUS_TAKE
+    completion_disposition = Column(String, nullable=False, default="NORMAL", index=True)
     video_director_plan = Column(Text, default="{}")  # 视频导演模式推荐、关键帧、转场和 Clips
     video_director_plan_revision = Column(Integer, default=0, nullable=False)
 
@@ -66,6 +67,15 @@ class Shot(Base):
 
     # 关系
     chapter = relationship("Chapter", back_populates="shots")
+    source_record = relationship("ShotSource", uselist=False, cascade="all, delete-orphan")
+
+    @property
+    def source_start(self):
+        return self.source_record.source_start if self.source_record else None
+
+    @property
+    def source_end(self):
+        return self.source_record.source_end if self.source_record else None
 
 
 # 复合索引：按章节查询分镜时常用

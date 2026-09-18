@@ -1,65 +1,13 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Save, Loader2, Play, Trash2, Sparkles, MapPin, Film, Package } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Play, Trash2, Film } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import type { Chapter, Novel } from '../../types';
-import type { ParseResultData } from './types';
 import { useChapterDetailState } from './hooks/useChapterDetailState';
 import { ImagePreviewModal } from './components/ImagePreviewModal';
 import { getStatusInfo } from './utils/getStatusInfo';
-
-function ParseResultCard({ result, type, onViewClick }: { result: ParseResultData; type: 'characters' | 'scenes' | 'props'; onViewClick: () => void }) {
-  const { t } = useTranslation();
-  const isCharacter = type === 'characters';
-  const isScene = type === 'scenes';
-  const isProp = type === 'props';
-
-  let bgClass = 'bg-purple-50 border-purple-200';
-  let iconBgClass = 'bg-purple-100';
-  let iconClass = 'text-purple-600';
-  let textClass = 'text-purple-800';
-  let subTextClass = 'text-purple-600';
-  let btnClass = 'bg-purple-600 hover:bg-purple-700';
-  let Icon = Sparkles;
-  let labelKey = 'chapterDetail.parseComplete';
-  let btnKey = 'chapterDetail.viewCharacters';
-
-  if (isScene) {
-    bgClass = 'bg-teal-50 border-teal-200';
-    iconBgClass = 'bg-teal-100';
-    iconClass = 'text-teal-600';
-    textClass = 'text-teal-800';
-    subTextClass = 'text-teal-600';
-    btnClass = 'bg-teal-600 hover:bg-teal-700';
-    Icon = MapPin;
-    labelKey = 'chapterDetail.parseScenesComplete';
-    btnKey = 'chapterDetail.viewScenes';
-  } else if (isProp) {
-    bgClass = 'bg-amber-50 border-amber-200';
-    iconBgClass = 'bg-amber-100';
-    iconClass = 'text-amber-600';
-    textClass = 'text-amber-800';
-    subTextClass = 'text-amber-600';
-    btnClass = 'bg-amber-600 hover:bg-amber-700';
-    Icon = Package;
-    labelKey = 'chapterDetail.parsePropsComplete';
-    btnKey = 'chapterDetail.viewProps';
-  }
-
-  return (
-    <div className={`card ${bgClass}`}>
-      <div className="flex items-center gap-3">
-        <div className={`p-2 ${iconBgClass} rounded-full`}><Icon className={`h-5 w-5 ${iconClass}`} /></div>
-        <div>
-          <p className={`font-medium ${textClass}`}>{t(labelKey)}</p>
-          <p className={`text-sm ${subTextClass}`}>{t('chapterDetail.parseResult', { created: result.created, updated: result.updated })}</p>
-        </div>
-        <button onClick={onViewClick} className={`ml-auto btn-primary ${btnClass} text-sm`}>
-          {t(btnKey)}
-        </button>
-      </div>
-    </div>
-  );
-}
+import { AssetCandidatePanel } from './components/AssetCandidatePanel';
+import { AppearanceUsagePanel } from './components/AppearanceUsagePanel';
+import { ShotSourcePanel } from '../ChapterGenerate/components/ShotSourcePanel';
 
 function GeneratedAssets({ chapter, onImageClick }: { chapter: Chapter; onImageClick: (url: string, idx: number, imgs: string[]) => void }) {
   const { t } = useTranslation();
@@ -139,15 +87,7 @@ export default function ChapterDetail() {
           <button onClick={state.handleSave} disabled={state.isSaving} className="btn-primary whitespace-nowrap flex-shrink-0">
             {state.isSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin flex-shrink-0" /> : <Save className="h-4 w-4 mr-2 flex-shrink-0" />}{t('common.save')}
           </button>
-          <button onClick={state.handleParseCharacters} className="btn-secondary text-purple-600 border-purple-200 hover:bg-purple-50 disabled:opacity-50 whitespace-nowrap flex-shrink-0">
-            {state.parsingChapter ? <Loader2 className="h-4 w-4 mr-2 animate-spin flex-shrink-0" /> : <Sparkles className="h-4 w-4 mr-2 flex-shrink-0" />}{t('chapterDetail.parseCharacters')}
-          </button>
-          <button onClick={state.handleParseScenes} className="btn-secondary text-teal-600 border-teal-200 hover:bg-teal-50 disabled:opacity-50 whitespace-nowrap flex-shrink-0" disabled={state.parsingScenes}>
-            {state.parsingScenes ? <Loader2 className="h-4 w-4 mr-2 animate-spin flex-shrink-0" /> : <MapPin className="h-4 w-4 mr-2 flex-shrink-0" />}{t('chapterDetail.parseScenes')}
-          </button>
-          <button onClick={state.handleParseProps} className="btn-secondary text-amber-600 border-amber-200 hover:bg-amber-50 disabled:opacity-50 whitespace-nowrap flex-shrink-0" disabled={state.parsingProps}>
-            {state.parsingProps ? <Loader2 className="h-4 w-4 mr-2 animate-spin flex-shrink-0" /> : <Package className="h-4 w-4 mr-2 flex-shrink-0" />}{t('chapterDetail.parseProps')}
-          </button>
+          <a href="#chapter-asset-candidates" className="btn-secondary whitespace-nowrap flex-shrink-0">章回素材解析 V3.1.2</a>
           <button onClick={state.handleGenerate} className="btn-primary bg-green-600 hover:bg-green-700 whitespace-nowrap flex-shrink-0" disabled={state.chapter.status !== 'pending' && state.chapter.status !== 'failed'}>
             <Play className="h-4 w-4 mr-2 flex-shrink-0" />{t('chapterDetail.generateVideo')}
           </button>
@@ -172,12 +112,15 @@ export default function ChapterDetail() {
         </div>
       </div>
 
-      {/* Parse Results */}
-      {state.parseResult && <ParseResultCard result={state.parseResult} type="characters" onViewClick={() => window.location.href = `/characters?novel=${state.id}&highlight=new`} />}
-      {state.parseScenesResult && <ParseResultCard result={state.parseScenesResult} type="scenes" onViewClick={() => window.location.href = `/scenes?novel=${state.id}&highlight=new`} />}
-      {state.parsePropsResult && <ParseResultCard result={state.parsePropsResult} type="props" onViewClick={() => window.location.href = `/props?novel=${state.id}&highlight=new`} />}
+      <AssetCandidatePanel key={state.cid} novelId={state.id!} chapterId={state.cid!}
+        sourceVersion={`${state.chapter.title}\n${state.chapter.content || ''}`}
+        dirty={state.title !== state.chapter.title || state.content !== (state.chapter.content || '')} />
 
       {/* Content Editor */}
+      <ShotSourcePanel key={`source-${state.cid}`} novelId={state.id!} chapterId={state.cid!} revision={`${state.chapter.title}\n${state.chapter.content||''}`}/>
+      <div className="card text-sm">角色外观缺图、分镜最终资产解析与资产就绪检查已集中到制作页。
+        <Link className="text-blue-700 underline ml-2" to={`/novels/${state.id}/chapters/${state.cid}/generate?stage=assets`}>前往资产准备</Link>
+      </div>
       <div className="card">
         <div className="space-y-4">
           <div>

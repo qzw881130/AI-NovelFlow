@@ -251,16 +251,50 @@ class TaskService:
         if (TaskService.format_execution_purpose(task)["execution_purpose"] != "production"
                 or task.status not in {"failed", "cancelled"}):
             return
+        if task.type in {"shot_image","keyframe_image"}:
+            from app.models.rsa_media import RsaImageAttempt
+            if db.get(RsaImageAttempt,task.id):
+                from app.services.rsa_image_service import settle_terminal
+                settle_terminal(db,task)
+                return
         if has_video_execution(task):
             settle_terminated_video(db, task)
+            return
+        if task.type == "character_appearance_generation":
+            from app.services.appearance_generation_service import settle_terminal
+            settle_terminal(db, task)
+            return
+        if task.type == "chapter_shot_split":
+            from app.models.chapter_shot_split import ChapterShotSplitRun
+            run=db.query(ChapterShotSplitRun).filter_by(task_id=task.id,status='RUNNING').first()
+            if run and ((run.inputs.get('auto_repair') or {}).get('governance') or {}).get('version'):
+                from app.services.chapter_shot_split_service import _interrupted_repair_issue,mark_repair_interruption
+                run.status,run.issues,run.completed_at='NEEDS_REVIEW',[
+                    _interrupted_repair_issue(run,task.error_message or 'TASK_TERMINATED')],datetime.utcnow()
+                mark_repair_interruption(task,run,task.error_message or 'TASK_TERMINATED')
+            elif run:
+                run.status,run.issues,run.completed_at='FAILED',[{
+                    'code':'TASK_TERMINATED','message':task.error_message}],datetime.utcnow()
+            return
+        if task.type == "shot_asset_resolution":
+            from app.services.resolved_shot_assets_service import expire_rsa_task
+            expire_rsa_task(db,task,commit=False)
+            return
+        if task.type == 'chapter_asset_rebuild':
+            from app.services.chapter_rebuild_service import settle_rebuild
+            settle_rebuild(db, task)
+            return
+        if task.type == 'audio_event_tts':
+            from app.services.audio_drive_service import settle_audio_task
+            settle_audio_task(db, task)
             return
         from app.models.shot import Shot
 
         task_condition = db.query(Task.id).filter(*[
             getattr(Task, key) == value for key, value in TaskService._task_snapshot(task).items()
         ]).exists()
-        if task.type in {"shot_video", "shot_image"} and task.shot_id:
-            prefix = "video" if task.type == "shot_video" else "image"
+        if task.type in {"shot_video", "narration_card_video", "shot_image"} and task.shot_id:
+            prefix = "video" if task.type in {"shot_video","narration_card_video"} else "image"
             conditions = [Shot.id == task.shot_id, getattr(Shot, prefix + "_task_id") == task.id,
                           getattr(Shot, prefix + "_status").in_(["pending", "generating"]), task_condition]
             with db.no_autoflush:
@@ -340,6 +374,28 @@ class TaskService:
                         remote_unconfirmed |= submit.get("state") in {"submitting", "unknown"}
                         if submit.get("state") == "acknowledged":
                             bindings.append((submit["endpoint"], submit["prompt_id"]))
+                elif task.type == "character_appearance_generation":
+                    from app.models.appearance_generation import AppearanceGeneration
+                    from app.services.chapter_asset_parse_service import digest
+                    generation = db.get(AppearanceGeneration, task.id)
+                    if not generation or digest(generation.inputs) != generation.input_hash:
+                        raise ExecutionConflict("APPEARANCE_CANCELLATION_UNVERIFIED")
+                    submit = generation.execution.get("submit") or {}
+                    remote_unconfirmed = submit.get("state") in {"ATTEMPTED", "UNKNOWN"}
+                    if submit.get("state") == "SUBMITTED":
+                        bindings.append((generation.inputs["endpoint"], submit["prompt_id"]))
+                elif task.type in {"shot_image","keyframe_image"} and purpose == "production":
+                    from app.models.rsa_media import RsaImageAttempt
+                    attempt=db.get(RsaImageAttempt,task.id)
+                    if attempt:
+                        from app.services.chapter_asset_parse_service import digest as media_digest
+                        if media_digest(attempt.inputs)!=attempt.input_hash:raise ExecutionConflict("RSA_MEDIA_INPUTS_CHANGED")
+                        submit=attempt.execution.get("submit",{})
+                        remote_unconfirmed=submit.get("state") in {"ATTEMPTED","UNKNOWN"}
+                        if submit.get("state")=="SUBMITTED":bindings.append((attempt.inputs["endpoint"],submit["prompt_id"]))
+                    elif task.comfyui_prompt_id:
+                        remote_unconfirmed=True
+                        diagnostic="LEGACY_IMAGE_ENDPOINT_UNVERIFIED"
                 elif task.type == "keyframe_image":
                     contract = read_contract(task)
                     remote_unconfirmed = bool(contract and contract.get("submit", {}).get("state") in {"attempted", "unknown"})
@@ -441,7 +497,7 @@ class TaskService:
             return {"success": True, "message": "任务不是进行中状态，无需取消", "task": task,
                     "terminal_snapshot": self._task_snapshot(task), "details": {"skipped": True}}
         tasks = [task]
-        is_batch = task.type in {"shot_image_batch", "shot_video_batch"}
+        is_batch = task.type in {"shot_image_batch", "shot_video_batch", "audio_prepare", "chapter_asset_rebuild"}
         if is_batch:
             purpose = self.format_execution_purpose(task)["execution_purpose"]
             tasks.extend(child for child in db.query(Task).filter(Task.parent_task_id == task.id).all()
@@ -481,7 +537,19 @@ class TaskService:
 
         if task.status not in ["failed", "completed"]:
             return {"success": False, "message": "只能重试失败或已完成的任务", "status_code": 400}
+        if task.type in {"shot_image","keyframe_image"}:
+            return {"success":False,"message":"请从Shot或关键帧发起新的RSA生成任务，原图与lineage证据保留","status_code":409}
+        if task.type in {'chapter_asset_rebuild', 'audio_event_tts', 'audio_prepare', 'chapter_video', 'transition_video', 'shot_image_batch', 'shot_video_batch'}:
+            return {'success': False, 'status_code': 409, 'message': '请从对应制作入口新建任务并重新校验来源，原执行证据保留'}
 
+        if task.type == "chapter_shot_split":
+            return {"success": False, "message": "请从章回重新拆分；原分镜来源和任务证据已保留", "status_code": 409}
+        if task.type == "shot_asset_resolution":
+            return {"success":False,"message":"请显式重新解析分镜资产，新建冻结版本；原RSA证据保留","status_code":409}
+        if task.type in {"chapter_asset_parse", "chapter_asset_resolution", "appearance_timeline", "shot_revision"}:
+            return {"success": False, "message": "请从章回重新解析；原候选来源和任务证据已保留", "status_code": 400}
+        if task.type == "character_appearance_generation":
+            return {"success": False, "message": "请从角色外观列表重新生成，原任务和图像版本证据已保留", "status_code": 409}
         if task.type == "keyframe_image":
             return {"success": False, "message": "关键帧任务不支持重试，请从关键帧重新发起生成；原任务的参考合同与结果证据已保留", "status_code": 400}
 
@@ -650,6 +718,44 @@ class TaskService:
         updated_count, legacy_tasks = 0, []
         for task in active_tasks:
             expected = self._task_snapshot(task)
+            if self.format_execution_purpose(task)['execution_purpose'] != 'production' or task.type == 'transition_video':
+                updated_count += int(self._transition_task_terminal(task, db, message='LEGACY_RUNTIME_RETIRED', step='旧执行入口已停用', expected=expected))
+                continue
+            task_meta=metadata(task)
+            if (task.type in {'chapter_asset_rebuild', 'audio_event_tts', 'audio_prepare', 'shot_image_batch',
+                    'shot_video_batch','narration_card_video'}
+                    or (task.type=='chapter_video' and task_meta.get('delivery_mode')=='CHAPTER_COMPLETION')):
+                continue  # Their source-pinned persistent workers own settlement; generic URL recovery cannot adopt outputs.
+            if task.type == 'shot_video' and not has_video_execution(task):
+                updated_count += int(self._transition_task_terminal(task, db, message='VIDEO_EXECUTION_AND_RSA_REQUIRED', step='请重新提交视频任务', expected=expected))
+                continue
+            if task.type in {"shot_image","keyframe_image"} and self.format_execution_purpose(task)["execution_purpose"] == "production":
+                from app.models.rsa_media import RsaImageAttempt
+                if not db.get(RsaImageAttempt,task.id):
+                    updated_count += int(self._transition_task_terminal(task,db,message="LEGACY_IMAGE_REQUIRES_RSA_LINEAGE",step="需重新通过RSA Gate",expected=expected))
+                continue
+            if task.type == "character_appearance_generation":
+                continue  # Its persistent worker owns recovery and image publication.
+            if task.type == "chapter_shot_split":
+                from app.services.chapter_shot_split_service import expire_split_task
+                updated_count += int(expire_split_task(db, task))
+                continue
+            if task.type == "shot_asset_resolution":
+                from app.services.resolved_shot_assets_service import expire_rsa_task
+                updated_count += int(expire_rsa_task(db,task))
+                continue
+            if task.type == "chapter_asset_parse":
+                from app.services.chapter_asset_parse_service import expire_run_for_task
+                updated_count += int(expire_run_for_task(db, task))
+                continue
+            if task.type == "chapter_asset_resolution":
+                from app.services.asset_resolution_service import expire_resolution_task
+                updated_count += int(expire_resolution_task(db, task))
+                continue
+            if task.type == "appearance_timeline":
+                from app.services.appearance_timeline_service import expire_timeline_task
+                updated_count += int(expire_timeline_task(db, task))
+                continue
             try:
                 if task.type == "shot_video":
                     handled = await reconcile_video_execution(db, task)
@@ -720,7 +826,8 @@ class TaskService:
 
             pending_start_timeout = 600 if task.type == "keyframe_image" else 1800
             is_batch_waiting_child = bool(getattr(task, "parent_task_id", None))
-            db_backed_task = task.type in {"audio_event_tts", "audio_prepare", "shot_video_batch"}
+            db_backed_task = task.type in {"audio_event_tts", "audio_prepare", "shot_video_batch", "narration_card_video"} or (
+                task.type=='chapter_video' and metadata(task).get('delivery_mode')=='CHAPTER_COMPLETION')
             if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type != "shot_image_batch" and not is_batch_waiting_child and not db_backed_task:
                 fail_task("任务长期未启动，后台内存队列可能已因服务重启或热更新丢失，请重新提交", "任务未启动")
                 continue
@@ -817,12 +924,18 @@ class TaskService:
 
     async def _recover_completed_shot_image_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
         """Recover a completed shot image prompt when the worker missed persistence."""
+        return False  # Sole recovery owner: RsaImageService, including acknowledged remote submissions.
         purpose = self.format_execution_purpose(task)["execution_purpose"]
         if purpose == "benchmark":
             from app.services.shot_image_service import recover_benchmark_shot_image
             return await recover_benchmark_shot_image(db, task, prompt_history)
         if purpose != "production":
             return False
+        # Production recovery is exclusive to the persistent RSA image worker.
+        from app.models.rsa_media import RsaImageAttempt
+        if not db.get(RsaImageAttempt,task.id):
+            self._transition_task_terminal(task,db,message="LEGACY_SHOT_IMAGE_REQUIRES_RSA",step="缺少RSA lineage")
+        return False
         if task.type != "shot_image" or not task.shot_id or not prompt_history:
             return False
         expected = self._task_snapshot(task)
@@ -881,6 +994,7 @@ class TaskService:
         return True
 
     async def _recover_completed_keyframe_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
+        return False  # Historical keyframe contracts are read-only; new images use the RSA ledger.
         """Recover only the acknowledged, task-owned #09 graph and unchanged target."""
         if task.type != "keyframe_image":
             return False
@@ -895,6 +1009,10 @@ class TaskService:
             self._transition_task_terminal(task, db, message="#09 LEGACY_CONTRACT_UNVERIFIED: invalid execution purpose",
                                             step="关键帧恢复被阻止")
             return False
+        from app.models.rsa_media import RsaImageAttempt
+        if not db.get(RsaImageAttempt,task.id):
+            self._transition_task_terminal(task,db,message="LEGACY_KEYFRAME_REQUIRES_RSA_LINEAGE",step="缺少RSA lineage")
+        return False
 
         try:
             contract = read_contract(task)
@@ -1142,54 +1260,27 @@ class TaskService:
         import json
 
         shots = shots or {}
+        from app.services.evidence_reader import decode_evidence, public_evidence, safe_value, task_field
+        from app.services.task_execution import public_review_findings
 
         def parse_reference_images(value: str):
-            if not value:
-                return []
-            try:
-                parsed = json.loads(value)
-                return parsed if isinstance(parsed, list) else []
-            except Exception:
-                return []
+            return safe_value(task_field(value,'reference_images')['value'])
 
         def parse_metadata(value: str):
-            if not value:
-                return {}
-            try:
-                parsed = json.loads(value)
-                return parsed if isinstance(parsed, dict) else {}
-            except Exception:
-                return {}
+            return safe_value(decode_evidence(value,dict)['value'])
 
         def format_video_director_clips(task: Task):
             if task.type != "shot_video":
                 return []
-            window_plans = []
-            if task.video_director_clips:
-                try:
-                    parsed = json.loads(task.video_director_clips)
-                    window_plans = parsed if isinstance(parsed, list) else []
-                except Exception:
-                    window_plans = []
-            if not window_plans:
-                if has_video_execution(task) or TaskService.format_execution_purpose(task)["execution_purpose"] != "production":
-                    return []
-                shot = shots.get(task.shot_id) if task.shot_id else None
-                if not shot or not shot.video_director_plan:
-                    return []
-                try:
-                    plan = json.loads(shot.video_director_plan)
-                except Exception:
-                    return []
-                window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+            window_plans = task_field(task.video_director_clips,'video_director_clips')['value']
+            if window_plans is None:
+                return None
             clips = []
             for window in window_plans:
                 if not isinstance(window, dict):
                     continue
                 video_url = window.get("video_url")
                 status = window.get("status")
-                if task.status != "running" and str(status or "").upper() in {"PROMPT_BUILDING", "QUEUED", "RUNNING"}:
-                    status = "SUCCEEDED" if video_url else ("FAILED" if task.status == "failed" else None)
                 clips.append({
                     "windowIndex": window.get("window_index"),
                     "status": status,
@@ -1200,7 +1291,7 @@ class TaskService:
                     "promptId": window.get("prompt_id"),
                     "promptText": window.get("prompt_text"),
                     "hasWorkflowJson": window.get("workflow_json") is not None,
-                    "referenceImages": window.get("reference_images") if isinstance(window.get("reference_images"), list) else [],
+                    "referenceImages": parse_reference_images(window.get("reference_images")),
                     "videoUrl": video_url,
                     "sourceVideoUrl": window.get("source_video_url"),
                     "audioStatus": window.get("audio_status"),
@@ -1214,6 +1305,17 @@ class TaskService:
                 })
             return clips
 
+        def chapter_completion(task):
+            if task.type!='chapter_video':return None
+            value=parse_metadata(getattr(task,'metadata_json',None)) or {};result=value.get('result') or {}
+            manifest=value.get('completion_manifest')
+            from app.services.chapter_asset_parse_service import digest
+            if (task.status!='completed' or task.result_url!=result.get('url')
+                    or value.get('execution_purpose')!='production' or value.get('delivery_mode')!='CHAPTER_COMPLETION'
+                    or not isinstance(manifest,dict) or digest(manifest)!=value.get('manifest_hash')
+                    or result.get('manifestHash')!=value.get('manifest_hash')
+                    or result.get('outcome') not in {'SUCCEEDED','SUCCEEDED_WITH_DEGRADATION'}):return None
+            return {key:result.get(key) for key in ('outcome','manifestHash','normalCount','degradedCount','degradedRanges')}
         return [
             {
                 "id": t.id,
@@ -1244,7 +1346,12 @@ class TaskService:
                 "shotId": t.shot_id,
                 "parentTaskId": getattr(t, "parent_task_id", None),
                 "batchOrder": getattr(t, "batch_order", None),
-                "metadata": parse_metadata(getattr(t, "metadata_json", None)) if t.type in {"shot_video_batch", "shot_image_batch", "audio_prepare"} else {},
+                "reviewFindings": public_review_findings(t),
+                "metadata": parse_metadata(getattr(t, "metadata_json", None)) if t.type in {
+                    "shot_video_batch", "shot_image_batch", "audio_prepare"} else None,
+                "chapterCompletion":chapter_completion(t),
+                "evidence": {field:public_evidence(task_field(getattr(t,field,None),field),False)
+                             for field,expected in [('metadata_json',dict),('reference_images',list),('video_director_clips',list)]},
                 "createdAt": format_datetime(t.created_at),
                 "startedAt": format_datetime(t.started_at),
                 "completedAt": format_datetime(t.completed_at),
@@ -1263,16 +1370,11 @@ class TaskService:
         Returns:
             格式化后的任务详情
         """
-        import json
-
-        try:
-            reference_images = json.loads(task.reference_images) if task.reference_images else []
-        except Exception:
-            reference_images = []
-        try:
-            metadata = json.loads(task.metadata_json) if task.metadata_json else {}
-        except Exception:
-            metadata = {}
+        from app.services.evidence_reader import task_evidence,public_evidence,safe_value
+        from app.services.task_execution import public_review_findings
+        evidence=task_evidence(task)
+        reference_images=safe_value(evidence['reference_images']['value'])
+        metadata=safe_value(evidence['metadata_json']['value'])
 
         return {
             "id": task.id,
@@ -1288,10 +1390,11 @@ class TaskService:
             "errorMessage": task.error_message,
             "workflowId": task.workflow_id,
             "workflowName": task.workflow_name,
-            "workflowJson": task.workflow_json,
-            "promptText": task.prompt_text,
+            "workflowJson": safe_value(task.workflow_json),
+            "promptText": safe_value(task.prompt_text),
             "referenceImages": reference_images,
             "metadata": metadata,
+            "evidence": {key:public_evidence(value,False) for key,value in evidence.items()},
             "novelId": task.novel_id,
             "chapterId": task.chapter_id,
             "characterId": task.character_id,
@@ -1299,6 +1402,7 @@ class TaskService:
             "shotId": task.shot_id,
             "parentTaskId": getattr(task, "parent_task_id", None),
             "batchOrder": getattr(task, "batch_order", None),
+            "reviewFindings": public_review_findings(task),
             "comfyuiPromptId": task.comfyui_prompt_id,
             "createdAt": format_datetime(task.created_at),
             "startedAt": format_datetime(task.started_at),

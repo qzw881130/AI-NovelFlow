@@ -300,6 +300,7 @@ export default function LLMLogs() {
 
       {state.selectedLog && (
         <LogDetailModal log={state.selectedLog} activeTab={state.activePromptTab} onTabChange={state.setActivePromptTab}
+          loading={state.detailLoading} loadError={state.detailError} onRetry={state.retryLogDetail}
           onClose={state.closeModal} formatDate={state.formatDate} getTaskTypeLabel={state.getTaskTypeLabel}
           getDisplayDuration={state.getDisplayDuration} getStatusBadgeConfig={state.getStatusBadgeConfig} />
       )}

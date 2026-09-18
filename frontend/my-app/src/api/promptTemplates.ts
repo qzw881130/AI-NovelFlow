@@ -6,6 +6,8 @@ import type { PromptTemplate } from '../types';
 
 // 提示词模板类型
 export type TemplateType =
+  | 'asset_identity_resolution'
+  | 'character_appearance_generation'
   | 'style'
   | 'character_parse'
   | 'scene_parse'
@@ -14,6 +16,7 @@ export type TemplateType =
   | 'scene'
   | 'prop'
   | 'chapter_split'
+  | 'shot_contract_repair'
   | 'shot_image_prompt'
   | 'video_mode_recommender'
   | 'keyframe_description'

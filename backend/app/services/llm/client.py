@@ -96,6 +96,8 @@ class LLMClient:
             }
         """
         try:
+            if not isinstance(user_content, str):
+                self._provider.preflight_content(user_content)
             result = await self._provider.chat_completion(
                 system_prompt=system_prompt,
                 user_content=user_content,
@@ -117,6 +119,7 @@ class LLMClient:
                 "success": True,
                 "content": result.content,
                 "raw_response": result.raw_response,
+                "llm_log_id": result.log_id,
                 "failure_kind": None,
                 "diagnostic_content": result.diagnostic_content,
                 "diagnostic_type": result.diagnostic_type,
@@ -132,6 +135,7 @@ class LLMClient:
                 "error": result.error,
                 "content": "",
                 "failure_kind": result.failure_kind or "UNKNOWN_ERROR",
+                "llm_log_id": result.log_id,
                 "diagnostic_content": diagnostic_content,
                 "diagnostic_type": diagnostic_type,
             }

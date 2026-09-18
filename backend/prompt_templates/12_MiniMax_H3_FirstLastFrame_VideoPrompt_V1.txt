@@ -152,7 +152,7 @@ transition_description 是中间动态最高权威导演意图。
 speaker_timeline 是当前 Clip 可见人物说话状态的唯一合法时间依据，由程序根据真实 TTS duration 与 Audio Timeline 确定性生成，时间均为 Clip-local 0→duration。
 
 - visible_speaker=<Subject N>：只有该 Subject 允许产生说话口型；嘴唇、面部表情、呼吸与轻微身体动作自然跟随 drive_audio。
-- visible_speaker=NONE：所有可见人物必须保持嘴唇闭合，只允许自然呼吸、眨眼、视线、表情和非语言动作。
+- visible_speaker=NONE：禁止可见人物的说话口型；允许自然呼吸、眨眼、视线、表情及非语音口部/身体动作。NONE不表示final_audio没有人声。
 - 未轮到说话的 Subject 不得跟随其他人的声音做口型。
 - A→B→A 等 speaker re-entry 必须严格服从精确时间区间。
 - final_audio 中可能存在旁白、心理活动或画外对白；这些声音不等于可见人物对白，不得据此额外驱动人物口型。
@@ -167,14 +167,14 @@ Prompt 负责 WHO + HOW；Audio 负责 WHAT + WHEN。
 
 必须写：
 
-All characters remain silent throughout the entire clip. No speaking, no dialogue, no whispering, no murmuring, no shouting, no laughter, no human vocalization. Mouths remain naturally closed except for subtle expressions or breathing.
+All visible subjects remain silent with no speech lip-sync throughout the entire clip. Preserve the supplied final_audio, including offscreen narration or internal voice. Do not generate new voices or make a visible subject mouth those offscreen words. Natural non-speech expressions and breathing are allowed.
 
 overall_soundscape：
 
 No visible character speech or lip-sync. All visible characters remain silent.
 
-禁止任何暗示人物发声的描述。
-只保留环境声与动作声。
+禁止给可见Subject添加违反speaker_timeline的发声描述；合法画外旁白说明不属于可见发声。
+保留已有final_audio（包括旁白/心理/画外对白）；只可新增环境声与动作声，不新增人物人声。
 
 ━━━━━━━━━━━━━━━━━━
 【画面文字】

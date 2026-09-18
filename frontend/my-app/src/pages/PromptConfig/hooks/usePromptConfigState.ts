@@ -8,6 +8,8 @@ import { DEFAULT_CHARACTER_TEMPLATE, DEFAULT_CHAPTER_SPLIT_TEMPLATE, DEFAULT_STY
 
 // 模板类型配置
 export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descKey: string; defaultTemplate: string }> = {
+  asset_identity_resolution: {nameKey:'promptConfig.types.assetIdentityResolution',descKey:'promptConfig.types.assetIdentityResolutionDesc',defaultTemplate:''},
+  character_appearance_generation: {nameKey:'promptConfig.types.characterAppearanceGeneration',descKey:'promptConfig.types.characterAppearanceGenerationDesc',defaultTemplate:''},
   style: { nameKey: 'promptConfig.types.style', descKey: 'promptConfig.types.styleDesc', defaultTemplate: DEFAULT_STYLE_TEMPLATE },
   character_parse: { nameKey: 'promptConfig.types.characterParse', descKey: 'promptConfig.types.characterParseDesc', defaultTemplate: '' },
   scene_parse: { nameKey: 'promptConfig.types.sceneParse', descKey: 'promptConfig.types.sceneParseDesc', defaultTemplate: '' },
@@ -16,6 +18,7 @@ export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descK
   scene: { nameKey: 'promptConfig.types.scene', descKey: 'promptConfig.types.sceneDesc', defaultTemplate: '' },
   prop: { nameKey: 'promptConfig.types.prop', descKey: 'promptConfig.types.propDesc', defaultTemplate: '' },
   chapter_split: { nameKey: 'promptConfig.types.chapterSplit', descKey: 'promptConfig.types.chapterSplitDesc', defaultTemplate: DEFAULT_CHAPTER_SPLIT_TEMPLATE },
+  shot_contract_repair: { nameKey: 'promptConfig.types.shotContractRepair', descKey: 'promptConfig.types.shotContractRepairDesc', defaultTemplate: '' },
   shot_image_prompt: { nameKey: 'promptConfig.types.shotImagePrompt', descKey: 'promptConfig.types.shotImagePromptDesc', defaultTemplate: '' },
   video_mode_recommender: { nameKey: 'promptConfig.types.videoModeRecommender', descKey: 'promptConfig.types.videoModeRecommenderDesc', defaultTemplate: '' },
   keyframe_description: { nameKey: 'promptConfig.types.keyframeDescription', descKey: 'promptConfig.types.keyframeDescriptionDesc', defaultTemplate: '' },
@@ -28,6 +31,8 @@ export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descK
 };
 
 export const TEMPLATE_TYPES: TemplateType[] = [
+  'asset_identity_resolution',
+  'character_appearance_generation',
   'style',
   'character_parse',
   'scene_parse',
@@ -36,6 +41,7 @@ export const TEMPLATE_TYPES: TemplateType[] = [
   'scene',
   'prop',
   'chapter_split',
+  'shot_contract_repair',
   'shot_image_prompt',
   'video_mode_recommender',
   'keyframe_description',
@@ -52,6 +58,8 @@ export function usePromptConfigState() {
 
   // 各类型模板状态
   const [templatesByType, setTemplatesByType] = useState<Record<TemplateType, PromptTemplate[]>>({
+    asset_identity_resolution: [],
+    character_appearance_generation: [],
     style: [],
     character_parse: [],
     scene_parse: [],
@@ -60,6 +68,7 @@ export function usePromptConfigState() {
     scene: [],
     prop: [],
     chapter_split: [],
+    shot_contract_repair: [],
     shot_image_prompt: [],
     video_mode_recommender: [],
     keyframe_description: [],
@@ -71,6 +80,8 @@ export function usePromptConfigState() {
     h3_multi_keyframe_prompt: [],
   });
   const [loadingByType, setLoadingByType] = useState<Record<TemplateType, boolean>>({
+    asset_identity_resolution: true,
+    character_appearance_generation: true,
     style: true,
     character_parse: true,
     scene_parse: true,
@@ -79,6 +90,7 @@ export function usePromptConfigState() {
     scene: true,
     prop: true,
     chapter_split: true,
+    shot_contract_repair: true,
     shot_image_prompt: true,
     video_mode_recommender: true,
     keyframe_description: true,

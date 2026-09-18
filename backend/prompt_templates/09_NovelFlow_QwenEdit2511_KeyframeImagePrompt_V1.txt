@@ -226,10 +226,12 @@ shot.characters 是全部可见人物封闭集合。
 【输出格式】
 ━━━━━━━━━━━━━━━━━━
 
-只输出最终图像编辑提示词正文。
-不要 JSON。
+只输出冻结资产协议要求的 JSON 对象，必须完整包含 status、final_prompt、conflicts 三项，不能省略 conflicts。
+无冲突时 status 为 READY，final_prompt 放置完整的图像编辑提示词正文，conflicts 必须为 []；存在资产冲突时 status 为 ASSET_CONFLICT，final_prompt 为 null，conflicts 列出具体原因。
 不要 Markdown。
 不要解释。
 
 推荐顺序：
 参考图职责 → 保持项 → 本帧唯一变化 → 逐角色位置/朝向 → 场景道具连续性 → 摄影机 → 风格质量 → 禁止项。
+【Phase7 Resolved Character Appearance】
+当前角色外观由持久化冻结 RSA 决定。必须与 #06 使用同一 RSA、Appearance ID 和图片版本；主图/前帧须有可回溯该 RSA 的 lineage。关键帧只表达允许的姿态、动作、表情、空间和临时道具状态。持续换装应在上游 Event/Shot 拆分解决，不能在此设计。引用 manifest 或当前描述与冻结身份/持续衣装冲突时，按上游资产冲突返回，不能换参考、使用基础图或折中。

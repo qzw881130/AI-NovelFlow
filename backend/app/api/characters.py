@@ -85,6 +85,8 @@ async def list_characters(
             "endChapter": c.end_chapter,
             "isIncremental": c.is_incremental,
             "isNarrator": c.is_narrator or False,
+            "entityType": c.entity_type,
+            "groupSizeHint": c.identity.group_size_hint if c.identity else None,
             "sourceRange": c.source_range,
             "lastParsedAt": format_datetime(c.last_parsed_at),
             "createdAt": format_datetime(c.created_at),
@@ -134,6 +136,8 @@ async def get_character(character_id: str, novel_repo: NovelRepository = Depends
             "endChapter": character.end_chapter,
             "isIncremental": character.is_incremental,
             "isNarrator": character.is_narrator or False,
+            "entityType": character.entity_type,
+            "groupSizeHint": character.identity.group_size_hint if character.identity else None,
             "sourceRange": character.source_range,
             "lastParsedAt": format_datetime(character.last_parsed_at),
             "createdAt": format_datetime(character.created_at),
@@ -281,6 +285,11 @@ async def get_character_prompt(
     character = character_repo.get_by_id(character_id)
     if not character:
         raise HTTPException(status_code=404, detail="角色不存在")
+    if character.is_narrator:
+        return {'success':True,'data':{'applicable':False,'reason':'AUDIO_ONLY_NARRATOR',
+            'prompt':None,'templateName':'','templateId':None,'isSystem':False}}
+    if not isinstance(character.appearance,str) or not character.appearance.strip():
+        raise HTTPException(409,{'code':'CHARACTER_APPEARANCE_REQUIRED','characterId':character.id})
     
     # 获取角色所属小说
     novel = novel_repo.get_by_id(character.novel_id)
@@ -309,6 +318,7 @@ async def get_character_prompt(
     return {
         "success": True,
         "data": {
+            "applicable": True,
             "prompt": prompt,
             "templateName": template.name if template else "默认模板",
             "templateId": template.id if template else None,

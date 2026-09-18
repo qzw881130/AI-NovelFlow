@@ -143,6 +143,8 @@ class ShotRepository:
         """
         from app.repositories.audio_drive import AudioDriveRepository
         AudioDriveRepository(self.db).cleanup_shot_audio_drive(shot.id, commit=False)
+        from app.models.chapter_shot_split import ShotSource
+        self.db.query(ShotSource).filter_by(shot_id=shot.id).delete(synchronize_session=False)
         self.db.delete(shot)
         self.db.commit()
 
@@ -160,6 +162,8 @@ class ShotRepository:
         count = len(shots)
         from app.repositories.audio_drive import AudioDriveRepository
         AudioDriveRepository(self.db).cleanup_shots_audio_drive([shot.id for shot in shots], commit=False)
+        from app.models.chapter_shot_split import ShotSource
+        self.db.query(ShotSource).filter(ShotSource.shot_id.in_([shot.id for shot in shots])).delete(synchronize_session=False)
         self.db.query(Shot).filter(Shot.chapter_id == chapter_id).delete()
         self.db.commit()
         return count
@@ -327,10 +331,14 @@ class ShotRepository:
         except Exception:
             audio_events = []
 
+        from app.services.shot_treatment_contract import saved_contract
+        contract=saved_contract(self.db,shot.id)
+        treatment_refs={b['event_id']:b['treatment_ref'] for b in (contract or {}).get('event_bindings',[])}
         audio_event_items = [
             {
                 "id": event.id,
                 "shotId": event.shot_id,
+                "treatmentRef": treatment_refs.get(event.id),
                 "order": event.event_order,
                 "type": event.event_type,
                 "voiceOwnerCharacterId": event.voice_owner_character_id,
@@ -355,8 +363,17 @@ class ShotRepository:
             "ttsFailedCount": len([event for event in audio_event_items if event["ttsStatus"] == "FAILED"]),
         }
 
+        from app.models.shot_revision import ShotRevisionHead
+        revision = self.db.get(ShotRevisionHead, shot.id)
         return {
             "id": shot.id,
+            "sourceRevision": revision.revision if revision else 0,
+            "sourceRevisionId": revision.revision_id if revision else None,
+            "sourceTreatments": contract.get('treatments') if contract else None,
+            "treatmentContractVersion": contract.get('version') if contract else None,
+            "sourceStart": shot.source_start,
+            "sourceEnd": shot.source_end,
+            "sourceRunId": shot.source_record.run_id if shot.source_record else None,
             "chapterId": shot.chapter_id,
             "index": shot.index,
             "description": shot.description,
@@ -371,6 +388,7 @@ class ShotRepository:
             "audioEvents": audio_event_items,
             "audioEventsSummary": audio_summary,
             "continuity_mode": shot.continuity_mode or "NORMAL",
+            "completionDisposition": getattr(shot,"completion_disposition","NORMAL") or "NORMAL",
             "videoDirectorPlan": json.loads(shot.video_director_plan) if shot.video_director_plan else {},
             "videoDirectorPlanRevision": shot.video_director_plan_revision or 0,
             "imageUrl": shot.image_url,

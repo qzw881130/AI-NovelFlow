@@ -32,7 +32,7 @@
 visual_identity 是本次读取的具名文字事实：character_appearances 与 prop_appearances 按正式名称绑定已有外观，visual_style 为正式风格，preservation_rule 为保留规则。
 - 每条外观只属于同名角色或道具，不能串用；只提取与当前画面有关的稳定年龄感、面部、基础服装、材质、颜色和形制。
 - 实际绑定图片中清楚可见的身份、服装、道具设计和风格优先；文字只补充未知稳定细节，不得据此给已接受图片中的人物改龄、换装或重设计。
-- shot.description 中明确的当前姿态、持有/掉落/缺席、损坏及作者指定的换装等状态变化优先于外观文字里的默认状态；不得复原损坏或给空手角色重新配发物品。
+- shot.description 中明确的当前姿态、持有/掉落/缺席及临时道具损坏状态优先于默认状态；不得复原损坏或给空手角色重新配发物品。持续换装由冻结 RSA 指定，冲突必须报错，不能由本 Prompt 重设计。
 - 外观文字不是额外参考图，也不证明道具当前可见；不得扩展 reference_image_manifest、可见角色或道具集合，旁白不是视觉角色。
 
 3. reference_image_manifest
@@ -62,7 +62,7 @@ visual_identity 是本次读取的具名文字事实：character_appearances 与
 - 仅当当前 Shot 有实际需要并具有可用参考图的道具时存在。
 - 多道具参考图由上游程序合并为一张道具合并图。
 - members 表示本次合并图中实际包含的正式道具名称集合。
-- 无道具或无可用道具参考图时，不传空图占位，也不在 manifest 中创建该项。
+- 无道具时不传空图占位；已绑定道具缺图由上游 Gate 阻断，不能静默省略。
 
 动态紧凑编号规则：
 
@@ -162,7 +162,7 @@ MERGED_PROP：
 - members 只能来自 shot.props。
 - 只用于 members 中道具的外观、材质与形制。
 - 不得把合并图中的排版、背景、展示台或未列物体带入最终画面。
-- 若 shot.props 非空但 manifest 中 MERGED_PROP.members 只覆盖部分 props，只有 members 中道具允许声称继承参考图外观；其他 props 只能服从 shot.description 和已有正式文本信息。
+- 若 shot.props 非空但 manifest 中 MERGED_PROP.members 未完整覆盖，必须报上游资产冲突，不能以文字替代缺失正式参考。
 
 输入中的 Shot 与 reference_image_manifest 均已由上游正式保存/构建。
 
@@ -485,8 +485,8 @@ shot.characters 是全部可见人物封闭集合。
 【输出格式】
 ━━━━━━━━━━━━━━━━━━
 
-只输出最终 Qwen-Image-Edit-2511 提示词正文。
-不要 JSON。
+只输出冻结资产协议要求的 JSON 对象，必须完整包含 status、final_prompt、conflicts 三项，不能省略 conflicts。
+无冲突时 status 为 READY，final_prompt 放置完整的 Qwen-Image-Edit-2511 提示词正文，conflicts 必须为 []；存在资产冲突时 status 为 ASSET_CONFLICT，final_prompt 为 null，conflicts 列出具体原因。
 不要 Markdown。
 不要解释。
 不要输出“以下是提示词”等前缀。

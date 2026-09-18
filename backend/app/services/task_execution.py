@@ -1,6 +1,7 @@
 """Explicit publication purpose and private working state for generation attempts."""
 from copy import deepcopy
 from datetime import datetime
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -9,6 +10,24 @@ from uuid import uuid4
 
 
 _TASK_EVIDENCE_FIELDS = ("workflow_id", "workflow_name", "comfyui_prompt_id", "prompt_text", "workflow_json", "reference_images", "video_director_clips")
+_REVIEW_FINDINGS_KEY = "review_findings"
+_REVIEW_FINDINGS_VERSION = 1
+_REVIEW_CODE = "UNBOUND_ASSET_REFERENCE"
+_REVIEW_ACTION = "RETRY_PROMPT_ONCE_SAME_FROZEN_INPUTS"
+_REVIEW_MESSAGE = "Fresh keyframe prompt contained an asset reference not bound to the frozen manifest."
+_REVIEW_EVIDENCE_FIELDS = (
+    "attempt_execution_path", "first_failed_llm_log_id", "first_response_sha256",
+    "frozen_input_sha256", "manifest_sha256", "rsa_hash", "template_sha256",
+)
+_REVIEW_EVIDENCE_PUBLIC_FIELDS = (
+    ("attemptExecutionPath", "attempt_execution_path"),
+    ("firstFailedLlmLogId", "first_failed_llm_log_id"),
+    ("firstResponseSha256", "first_response_sha256"),
+    ("frozenInputSha256", "frozen_input_sha256"),
+    ("manifestSha256", "manifest_sha256"),
+    ("rsaHash", "rsa_hash"),
+    ("templateSha256", "template_sha256"),
+)
 
 
 class ExecutionConflict(RuntimeError):
@@ -24,6 +43,137 @@ def metadata(task):
     if not isinstance(value, dict):
         raise ExecutionConflict("INVALID_EXECUTION_METADATA")
     return deepcopy(value)
+
+
+def upsert_review_finding(db, task_id, *, code, message=None, evidence=None,
+                          fallback_outcome="PENDING", claim_token=None, terminal=False, commit=True):
+    """Store the sole v1 review finding without accepting caller-owned scope IDs."""
+    from app.models.rsa_media import RsaImageAttempt
+    from app.models.shot import Shot
+    from app.models.task import Task
+
+    if code != _REVIEW_CODE or fallback_outcome not in {"PENDING", "SUCCEEDED", "FAILED"}:
+        raise ExecutionConflict("REVIEW_FINDING_NOT_ALLOWED")
+    task = db.get(Task, task_id)
+    attempt = db.get(RsaImageAttempt, task_id)
+    if (not task or not attempt or attempt.id != task.id or attempt.shot_id != task.shot_id
+            or attempt.novel_id != task.novel_id or attempt.chapter_id != task.chapter_id
+            or attempt.stage != "KEYFRAME" or type(attempt.frame_index) is not int or attempt.frame_index < 0):
+        raise ExecutionConflict("REVIEW_FINDING_SCOPE_UNVERIFIED")
+    shot = db.get(Shot, task.shot_id) if task.shot_id else None
+    stable_scope = {
+        "book_id": task.novel_id,
+        "chapter_id": task.chapter_id,
+        "shot_id": task.shot_id,
+        "clip_index": None,
+        "frame_index": attempt.frame_index,
+        "task_id": task.id,
+    }
+    identity = json.dumps({**stable_scope, "attempt_id": attempt.id, "code": code}, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    finding_id = "review-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:32]
+    old_metadata = task.metadata_json
+    saved = metadata(task)
+    envelope = saved.get(_REVIEW_FINDINGS_KEY, {"version": _REVIEW_FINDINGS_VERSION, "items": []})
+    if (not isinstance(envelope, dict) or set(envelope) != {"version", "items"}
+            or envelope.get("version") != _REVIEW_FINDINGS_VERSION or not isinstance(envelope.get("items"), list)):
+        raise ExecutionConflict("INVALID_REVIEW_FINDINGS")
+    findings = envelope["items"]
+    matches = [item for item in findings if isinstance(item, dict) and item.get("id") == finding_id]
+    if len(matches) > 1:
+        raise ExecutionConflict("DUPLICATE_REVIEW_FINDING")
+    existing = matches[0] if matches else None
+    if claim_token is not None:
+        if (terminal or task.status != "running" or attempt.status != "RUNNING"
+                or task.claim_token != claim_token or attempt.claim_token != claim_token):
+            raise ExecutionConflict("REVIEW_FINDING_OWNERSHIP_CHANGED")
+    elif terminal:
+        if task.status not in {"failed", "cancelled"} or attempt.status not in {"PENDING", "RUNNING"} or not existing:
+            raise ExecutionConflict("REVIEW_FINDING_TERMINAL_SCOPE_CHANGED")
+    elif not existing or existing.get("fallback_outcome") != fallback_outcome:
+        raise ExecutionConflict("REVIEW_FINDING_OWNER_REQUIRED")
+    if evidence is not None:
+        if (not isinstance(evidence, dict) or set(evidence) != set(_REVIEW_EVIDENCE_FIELDS)
+                or evidence.get("attempt_execution_path") != "RsaImageAttempt.execution.prompt_attempts[0]"
+                or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", evidence.get("first_failed_llm_log_id", ""))
+                or any(not re.fullmatch(r"[0-9a-f]{64}", evidence.get(key, "")) for key in
+                       ("first_response_sha256", "frozen_input_sha256", "manifest_sha256", "rsa_hash", "template_sha256"))):
+            raise ExecutionConflict("INVALID_REVIEW_FINDING_EVIDENCE")
+        evidence = deepcopy(evidence)
+    if existing:
+        immutable = {**stable_scope, "id": finding_id, "severity": "REVIEW_REQUIRED", "code": code,
+                     "message": _REVIEW_MESSAGE, "fallback_action": _REVIEW_ACTION, "status": "OPEN"}
+        if any(existing.get(key) != value for key, value in immutable.items()):
+            raise ExecutionConflict("REVIEW_FINDING_SCOPE_CHANGED")
+        if message is not None and message != _REVIEW_MESSAGE:
+            raise ExecutionConflict("REVIEW_FINDING_MESSAGE_CHANGED")
+        if evidence is not None and existing.get("evidence") != evidence:
+            raise ExecutionConflict("REVIEW_FINDING_EVIDENCE_CHANGED")
+        previous = existing.get("fallback_outcome")
+        if previous not in {"PENDING", "SUCCEEDED", "FAILED"} or (previous != "PENDING" and previous != fallback_outcome):
+            raise ExecutionConflict("REVIEW_FINDING_OUTCOME_CHANGED")
+        finding = {**existing, "fallback_outcome": fallback_outcome}
+    else:
+        if not shot or fallback_outcome != "PENDING" or message != _REVIEW_MESSAGE or evidence is None:
+            raise ExecutionConflict("REVIEW_FINDING_INITIAL_STATE_INVALID")
+        finding = {
+            "id": finding_id,
+            **stable_scope,
+            "shot_index": shot.index,
+            "severity": "REVIEW_REQUIRED",
+            "code": code,
+            "message": _REVIEW_MESSAGE,
+            "evidence": evidence,
+            "fallback_action": _REVIEW_ACTION,
+            "status": "OPEN",
+            "fallback_outcome": "PENDING",
+        }
+    if existing and existing == finding:
+        return deepcopy(finding)
+    saved[_REVIEW_FINDINGS_KEY] = {
+        "version": _REVIEW_FINDINGS_VERSION,
+        "items": [item for item in findings if not (isinstance(item, dict) and item.get("id") == finding_id)] + [finding],
+    }
+    encoded = json.dumps(saved, ensure_ascii=False, allow_nan=False)
+    query = db.query(Task).filter(Task.id == task.id, Task.metadata_json == old_metadata)
+    if claim_token is not None:
+        query = query.filter(Task.status == "running", Task.claim_token == claim_token)
+    elif terminal:
+        query = query.filter(Task.status.in_(["failed", "cancelled"]))
+    if query.update({"metadata_json": encoded}, synchronize_session=False) != 1:
+        raise ExecutionConflict("REVIEW_FINDING_WRITE_CONFLICT")
+    db.expire(task, ["metadata_json"])
+    if commit:
+        db.commit()
+        db.refresh(task)
+    return deepcopy(finding)
+
+
+def public_review_findings(task):
+    """Project only the compact review contract, never arbitrary metadata fields."""
+    try:
+        envelope = metadata(task).get(_REVIEW_FINDINGS_KEY, {"version": _REVIEW_FINDINGS_VERSION, "items": []})
+    except ExecutionConflict:
+        return []
+    if (not isinstance(envelope, dict) or envelope.get("version") != _REVIEW_FINDINGS_VERSION
+            or not isinstance(envelope.get("items"), list)):
+        return []
+    fields = (
+        ("findingId", "id"), ("bookId", "book_id"), ("chapterId", "chapter_id"),
+        ("shotId", "shot_id"), ("shotIndex", "shot_index"), ("clipIndex", "clip_index"),
+        ("frameIndex", "frame_index"), ("taskId", "task_id"), ("severity", "severity"),
+        ("code", "code"), ("message", "message"), ("fallbackAction", "fallback_action"),
+        ("status", "status"), ("fallbackOutcome", "fallback_outcome"),
+    )
+    result = []
+    for finding in envelope["items"]:
+        if not isinstance(finding, dict):
+            continue
+        evidence = finding.get("evidence")
+        result.append({**{public: finding.get(saved) for public, saved in fields},
+                       "evidence": {public: evidence.get(saved) for public, saved in _REVIEW_EVIDENCE_PUBLIC_FIELDS}
+                       if isinstance(evidence, dict) else {}})
+    from app.services.evidence_reader import safe_value
+    return safe_value(result)
 
 
 def execution_purpose(task):

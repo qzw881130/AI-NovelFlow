@@ -22,7 +22,7 @@ import KeyframesManager from '../../../components/KeyframesManager';
 import AudioReferenceSelector from '../../../components/AudioReferenceSelector';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { ImageEditModal } from '../../../components/ImageEditModal';
-import type { KeyframeData } from '../../../types';
+import type { KeyframeData, ReviewFinding } from '../../../types';
 import type { VideoAiCall, VideoDirectorPlan, VideoMode } from '../../../api/shots';
 import { dialogueEmotion, dialogueSpeaker, dialogueText, estimateDialogueSeconds, formatUserFacingError, getClipDialoguesForDisplay, numberOrNull } from '../../../utils';
 
@@ -55,6 +55,12 @@ const VIDEO_MODE_LABELS: Record<VideoMode, string> = {
   SINGLE_FRAME: '单帧',
   FIRST_LAST_FRAME: '首尾帧',
   MULTI_KEYFRAME: '多关键帧',
+};
+
+const reviewFallbackOutcomeDisplay = (outcome: ReviewFinding['fallbackOutcome']) => {
+  if (outcome === 'SUCCEEDED') return { label: '回退已恢复', className: 'bg-green-100 text-green-700' };
+  if (outcome === 'FAILED') return { label: '回退失败', className: 'bg-red-100 text-red-700' };
+  return { label: '回退处理中', className: 'bg-amber-100 text-amber-800' };
 };
 
 const getVideoModeLabel = (mode?: VideoMode) => mode ? VIDEO_MODE_LABELS[mode] : '-';
@@ -1774,6 +1780,16 @@ export function VideoGenTab({
   // 获取当前分镜的关键帧数据
   const currentKeyframes: KeyframeData[] = currentShotData?.keyframes || [];
   const currentShotId = currentShotData?.id ? String(currentShotData.id) : String(selectedVideo);
+  const currentKeyframeReviewFindings = Array.from(new Map<string, ReviewFinding>(
+    storeKeyframeTasks
+      .filter((task) => {
+        if (String(task.shotId) !== currentShotId || !task.reviewFindings?.length) return false;
+        const keyframe = currentKeyframes.find((item) => Number(item.frame_index) === Number(task.frameIndex));
+        return !keyframe?.image_task_id || String(keyframe.image_task_id) === String(task.taskId);
+      })
+      .flatMap((task) => task.reviewFindings || [])
+      .map((finding): [string, ReviewFinding] => [finding.findingId, finding])
+  ).values());
   // 优先从 shot.imageUrl 获取，其次从 shotImages 映射获取
   const currentShotImageUrl = currentShotData?.imageUrl || shotImages[currentShotId];
 
@@ -2072,6 +2088,7 @@ export function VideoGenTab({
 
   const handleRecommendVideoMode = useCallback(async (force = false) => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+    if (currentShotData?.completionDisposition==='DEGRADED_NARRATION_CARD') return;
     const audioReadiness = getAudioDriveReadiness(currentShotData);
     if (!audioReadiness.ready) {
       if (force) toast.error(audioReadiness.reason || 'AudioDrive 未 READY，请先到音频生成页完成音频准备。');
@@ -2246,6 +2263,7 @@ export function VideoGenTab({
 
   useEffect(() => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+    if (currentShotData?.completionDisposition==='DEGRADED_NARRATION_CARD') return;
     if (currentVideoDirectorPlan.recommended_mode || currentVideoDirectorPlan.selected_mode || recommendingShotId === currentShotId) return;
     if (!currentAudioDriveReadiness.ready) return;
     const key = `${effectiveChapterId}:${currentShotId}`;
@@ -2409,7 +2427,7 @@ export function VideoGenTab({
       await generateShotVideo(effectiveNovelId, effectiveChapterId, currentShotId, selectedMode, {
         skipLlmWhenPromptExists: mode === 'video_only',
       });
-      markTabComplete(3);
+      markTabComplete(4);
     } catch (error) {
       console.error(t('chapterGenerate.videoGenerateFailed') + ':', error);
       toast.error(formatUserFacingError(error instanceof Error ? error.message : t('chapterGenerate.videoGenerateFailed')));
@@ -2841,19 +2859,16 @@ export function VideoGenTab({
       }
 
       // 调用批量更新接口
-      const result = await shotsApi.batchUpdateShots(effectiveNovelId, effectiveChapterId, [{
+      await useChapterGenerateStore.getState().saveShotRevisions(effectiveNovelId, effectiveChapterId, [{
         id: currentShotData.id,
+        sourceRevision: currentShotData.sourceRevision,
         video_description: currentShotData.video_description,
-        duration: currentShotData.duration,
+        estimated_duration: currentShotData.estimatedDuration ?? currentShotData.duration,
       }]);
-
-      if (result.success) {
-        console.log(t('chapterGenerate.shotSaveSuccess'));
-      } else {
-        console.error(t('chapterGenerate.shotSaveFailed') + ':', result.message);
-      }
+      toast.success(t('chapterGenerate.shotSaveSuccess'));
     } catch (error) {
       console.error(t('chapterGenerate.shotSaveFailed') + ':', error);
+      toast.error(error instanceof Error ? error.message : t('chapterGenerate.shotSaveFailed'));
     } finally {
       setIsSaving(false);
     }
@@ -2940,7 +2955,7 @@ export function VideoGenTab({
   };
 
   const mergeReadyShotIds = () => shotsList
-    .filter((shot: any) => !!shot?.id && !!getMergeShotVideoUrl(shot))
+    .filter((shot: any) => !!shot?.id && shot.completionDisposition!=='DEGRADED_NARRATION_CARD' && !!getMergeShotVideoUrl(shot))
     .map((shot: any) => String(shot.id));
 
   const handleOpenMergeSelect = () => {
@@ -3195,6 +3210,39 @@ export function VideoGenTab({
       <div className="generate-video-content flex-1 min-h-0 flex flex-col lg:flex-row gap-4 overflow-hidden">
         {/* 中间：视频提示词编辑 + 视频导演 */}
         <div className="video-main-column flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto pr-1">
+          {currentKeyframeReviewFindings.length > 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 font-medium text-amber-800">⚠ 需要人工复核</span>
+                <span className="text-amber-800">当前 Shot 关键帧存在 Review Finding</span>
+              </div>
+              <div className="space-y-1.5">
+                {currentKeyframeReviewFindings.map((finding) => {
+                  const outcome = reviewFallbackOutcomeDisplay(finding.fallbackOutcome);
+                  const location = [
+                    finding.shotIndex !== null ? `Shot ${finding.shotIndex}` : `Shot ${currentShotData?.index || selectedVideo}`,
+                    finding.clipIndex !== null ? `Clip ${finding.clipIndex}` : null,
+                    finding.frameIndex !== null ? `Frame ${finding.frameIndex}` : null,
+                  ].filter(Boolean).join(' · ');
+                  return (
+                    <div key={finding.findingId} className="min-w-0 rounded-md bg-white/70 px-2 py-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-medium">{location}</span>
+                        <code className="break-all rounded bg-amber-100 px-1 py-0.5 text-[11px] text-amber-900">{finding.code}</code>
+                      </div>
+                      <p className="mt-1 break-words"><span className="font-medium">原因：</span>{finding.message}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        <span>回退动作：<code className="break-all">{finding.fallbackAction || '-'}</code></span>
+                        <span className={`rounded-full px-1.5 py-0.5 font-medium ${outcome.className}`}>
+                          {outcome.label}（{finding.fallbackOutcome}）
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
           <VideoDirectorPanel
             shot={currentShotData}
             shotImageUrl={currentShotImageUrl}

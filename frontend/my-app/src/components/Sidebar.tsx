@@ -12,6 +12,7 @@ import {
   FlaskConical,
   FileText,
   ScrollText,
+  Activity,
   Globe,
   ChevronLeft,
   ChevronRight,
@@ -60,6 +61,7 @@ export default function Sidebar() {
     { name: t('nav.promptConfig'), href: '/prompt-config', icon: FileText },
     { name: t('nav.uiConfig'), href: '/ui-config', icon: Globe },
     { name: t('nav.llmLogs'), href: '/llm-logs', icon: ScrollText },
+    { name: t('nav.systemLogs'), href: '/system-logs', icon: Activity },
   ];
 
   const navigationLinks = (collapsed: boolean) => (

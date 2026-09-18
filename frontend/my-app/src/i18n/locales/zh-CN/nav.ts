@@ -13,5 +13,6 @@ export default {
     promptConfig: '提示词配置',
     uiConfig: '界面配置',
     llmLogs: '大模型日志',
+    systemLogs: '系统日志',
   },
 };

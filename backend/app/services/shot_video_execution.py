@@ -7,13 +7,17 @@ import asyncio
 from copy import deepcopy
 from datetime import datetime, timedelta
 import hashlib
+import inspect
 from io import BytesIO
 import json
 from pathlib import Path
 import shutil
+from time import monotonic
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlencode, urlsplit
 from uuid import uuid4
+
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.shot import Shot
 from app.models.task import Task
@@ -34,10 +38,75 @@ RESULT_KEYS = {
     "prompt_id", "workflow_json", "video_url", "local_path", "source_video_url",
     "generated_at", "generated_by_task_id", "error_message", "h3_prompt_gate_failed",
 }
+BINDING_STATE_ATTR = "_video_binding_validation_state"
 
 
 def digest(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
+
+
+def _binding_reason():
+    frame=inspect.currentframe().f_back
+    skipped={'_binding_reason','_validate_or_reuse_binding','check_current','_write',
+             'mutate_private_plan','save_gate_record','refresh_private_shot'}
+    while frame and frame.f_code.co_name in skipped:frame=frame.f_back
+    return f"{Path(frame.f_code.co_filename).name}:{frame.f_code.co_name}:{frame.f_lineno}" if frame else 'unknown'
+
+
+def _new_binding_state(handle):
+    return {'version':1,'task_id':handle['task_id'],'run_id':handle['run_id'],'claim_token':handle['claim_token'],'attempt':handle['attempt'],
+        'proof':None,'full_validations':0,'proof_reuses':0,'invalidations':0,'events':[]}
+
+
+def _binding_state(task,handle):
+    state=getattr(task,BINDING_STATE_ATTR,None)
+    if (not isinstance(state,dict) or state.get('version')!=1 or state.get('run_id')!=handle['run_id']
+            or state.get('claim_token')!=handle['claim_token'] or state.get('attempt')!=handle['attempt']):
+        state=_new_binding_state(handle);setattr(task,BINDING_STATE_ATTR,state)
+    return state
+
+
+def _record_binding_event(state,kind,reason,proof=None,elapsed=None):
+    event={'at':datetime.utcnow().isoformat(),'kind':kind,'reason':reason,
+           'bindingFingerprint':(proof or {}).get('bindingFingerprint'),
+           'dependencyFingerprint':(proof or {}).get('dependencyFingerprint')}
+    if elapsed is not None:event['elapsed_ms']=max(0,int(elapsed*1000))
+    state['events'].append(event)
+    print('[BindingProof] '+json.dumps({'task_id':state['task_id'],**event,
+        'full_validations':state['full_validations'],'proof_reuses':state['proof_reuses'],
+        'invalidations':state['invalidations']},ensure_ascii=True,sort_keys=True))
+
+
+def invalidate_binding_proof(owner,reason):
+    state=getattr(owner,BINDING_STATE_ATTR,None)
+    if isinstance(state,dict) and state.get('proof') is not None:
+        proof=state.pop('proof');state['proof']=None;state['invalidations']+=1
+        _record_binding_event(state,'invalidated',reason,proof)
+
+
+def binding_validation_report(owner):
+    state=getattr(owner,BINDING_STATE_ATTR,None)
+    return deepcopy(state) if isinstance(state,dict) else None
+
+
+def _validate_or_reuse_binding(db,task,data,handle,reason=None):
+    from app.services.runtime_gate import validate_video_binding,validated_binding_proof_current
+    state=_binding_state(task,handle);reason=reason or _binding_reason();proof=state.get('proof')
+    started=monotonic();proof_current=(proof is not None and validated_binding_proof_current(db,task,data.get('rsa_binding'),proof))
+    if proof_current:
+        state['proof_reuses']+=1;_record_binding_event(state,'reused',reason,proof,monotonic()-started)
+        from app.models.resolved_shot_assets import ResolvedShotAssets
+        row=db.get(ResolvedShotAssets,data['rsa_binding']['rsa_id'])
+        if row is not None:return row
+        invalidate_binding_proof(task,'validated-rsa-row-missing')
+    elif proof is not None:
+        invalidate_binding_proof(task,'dependency-changed:'+reason)
+    next_proof={};state['full_validations']+=1;started=monotonic()
+    try:row=validate_video_binding(db,task,data.get('rsa_binding'),validation_proof=next_proof)
+    except Exception:
+        _record_binding_event(state,'full_validation_failed',reason,next_proof,monotonic()-started);raise
+    state['proof']=next_proof;_record_binding_event(state,'full_validation',reason,next_proof,monotonic()-started)
+    return row
 
 
 def file_digest(path):
@@ -123,7 +192,8 @@ def _handle(task, data):
     run = data["video_run"]
     return {"task_id": task.id, "run_id": run["run_id"], "claim_token": task.claim_token, "attempt": task.attempt,
             "target": deepcopy(run["target"]), "expected_hash": run["expected_hash"],
-            "attempts": {key: slot["attempt_id"] for key, slot in run["clips"].items()},
+             "attempts": {key: slot["attempt_id"] for key, slot in run["clips"].items()},
+             "rsa_binding_hash": digest(data.get("rsa_binding")),
             "request_hash": digest(run["request"]), "purpose": execution_purpose(task), "directory": run["directory"]}
 
 
@@ -137,7 +207,8 @@ def _check_data(task, data, handle):
             or any(getattr(task, key) != value for key, value in handle["target"].items())
             or task.claim_token != handle["claim_token"] or task.attempt != handle["attempt"]
             or run.get("expected_hash") != handle["expected_hash"] or digest(run.get("expected")) != handle["expected_hash"]
-            or digest(run.get("request")) != handle["request_hash"] or record.get("request") != run.get("request")
+             or digest(run.get("request")) != handle["request_hash"] or record.get("request") != run.get("request")
+             or digest(data.get("rsa_binding")) != handle["rsa_binding_hash"]
             or {key: slot.get("attempt_id") for key, slot in run.get("clips", {}).items()} != handle["attempts"]):
         raise ExecutionConflict("VIDEO_EXECUTION_REPLACED")
     if task.status != "running" or run.get("phase") not in {"running", "merging"} or run.get("superseded_by"):
@@ -166,13 +237,16 @@ def _conditions(db, task, data, *, target=True, compare_metadata=True, parent_ac
     return conditions
 
 
-def check_current(db, handle, *, target=True, parent_active=True):
+def check_current(db, handle, *, target=True, parent_active=True, binding_reason=None):
     with db.no_autoflush:
         task = db.query(Task).filter(Task.id == handle["task_id"]).populate_existing().first()
         if not task:
             raise ExecutionConflict("VIDEO_TASK_REMOVED")
         data = metadata(task)
         _check_data(task, data, handle)
+        if target:
+            try:_validate_or_reuse_binding(db,task,data,handle,binding_reason)
+            except Exception as exc:raise ExecutionConflict(f'VIDEO_ASSET_GATE: {exc}') from exc
         if db.query(Task.id).filter(*_conditions(db, task, data, target=target, compare_metadata=False, parent_active=parent_active)).first() is None:
             raise ExecutionConflict("VIDEO_TARGET_OR_PARENT_REPLACED")
         return task, data
@@ -295,27 +369,140 @@ def observe(db, handle, kind, value):
         if not isinstance(observations, list):
             return event
         observations.append(event)
-        count = db.query(Task).filter(Task.id == task.id, Task.status == task.status,
-                                     Task.metadata_json == task.metadata_json).update(
-            {"metadata_json": json.dumps(data, ensure_ascii=False, allow_nan=False)}, synchronize_session=False)
-        if count == 1:
-            db.commit()
+        try:
+            count = db.query(Task).filter(Task.id == task.id, Task.status == task.status,
+                                         Task.metadata_json == task.metadata_json).update(
+                {"metadata_json": json.dumps(data, ensure_ascii=False, allow_nan=False)}, synchronize_session=False)
+            if count == 1:
+                try:
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                return event
+            db.rollback()
+        except Exception:
+            db.rollback()
             return event
-        db.rollback()
     return event
 
 
-def fail_execution(db, handle, message, *, clip_index=None, gate_failed=False, extra_conditions=()):
-    capture(handle, "failure", {"message": str(message), "clip_index": clip_index, "run_id": handle["run_id"]})
-    def fail(data):
+def _observe_external_failure(db, handle, task, shot, slot, clip_index, result, *, reference_url=None):
+    """Archive a trusted-scope diagnostic; observation errors never decide failure."""
+    from app.services.external_failure_diagnostic import (
+        ExternalFailureDiagnostic, REDACTION_VERSION, canonical_json_bytes,
+    )
+
+    source = result.get("external_failure")
+    if not isinstance(source, dict):
+        return None
+    reference = source.get("reference") if isinstance(source.get("reference"), dict) else {}
+    reference_index = reference.get("reference_index")
+    saved = metadata(task)
+    binding = saved.get("rsa_binding") if isinstance(saved.get("rsa_binding"), dict) else {}
+    bound_images = binding.get("images") if isinstance(binding.get("images"), list) else []
+    matches = [item for item in bound_images if isinstance(item, dict)
+               and item.get("sha256") == reference.get("sha256")
+               and (reference_url is None or item.get("url") == reference_url)]
+    bound_image = matches[0] if len(matches) == 1 else None
+    trusted_source_id = (bound_image.get("id") if bound_image else
+                         "frozen-sha256:" + reference["sha256"] if reference.get("sha256") else None)
+    scope = {
+        "book_id": task.novel_id,
+        "chapter_id": task.chapter_id,
+        "shot_id": task.shot_id,
+        "shot_index": shot.index,
+        "clip_index": clip_index,
+        "frame_index": None,
+        "reference_index": reference_index,
+        "task_id": task.id,
+        "attempt_kind": "VIDEO_CLIP",
+        "attempt_id": slot["attempt_id"],
+        "attempt_no": handle["attempt"],
+        "retry_no": None,
+    }
+    submission = {
+        "queue_called": False,
+        "submitted": False,
+        "state": "NOT_SUBMITTED",
+        "cid": None,
+        "queue_seen": False,
+        "remote_upload_effect": "UNKNOWN",
+    }
+    try:
+        detailed = ExternalFailureDiagnostic.rebind(
+            source,
+            operation_key={
+                "task_id": handle["task_id"],
+                "attempt_id": slot["attempt_id"],
+                "operation": "UPLOAD_IMAGE",
+                "reference_index": reference_index,
+                "invocation_no": 1,
+            },
+            scope=scope,
+            reference={"reference_index": reference_index,
+                       "source_id": trusted_source_id},
+            upstream={"rsa_id": binding.get("rsa_id"), "rsa_hash": binding.get("rsa_hash"),
+                      "manifest_hash": binding.get("seal")},
+            submission=submission,
+            evidence={"redaction_version": REDACTION_VERSION},
+            error_code="VALIDATED_REFERENCE_UPLOAD_FAILED",
+            maximum=30 * 1024,
+        )
+    except (TypeError, ValueError):
+        try:
+            observe(db, handle, "worker-result", {
+                "clip_index": clip_index,
+                "attempt_id": slot["attempt_id"],
+                "result": {key: result.get(key) for key in ("success", "failure_kind", "message")},
+            })
+        except Exception:
+            pass
+        return None
+    evidence_result = {key: deepcopy(value) for key, value in result.items() if key != "external_failure"}
+    evidence_result["external_failure"] = detailed
+    evidence_value = {
+        "clip_index": clip_index, "attempt_id": slot["attempt_id"], "result": evidence_result,
+    }
+    canonical_evidence_sha256 = hashlib.sha256(canonical_json_bytes(evidence_value)).hexdigest()
+    try:
+        event = observe(db, handle, "worker-result", evidence_value)
+        evidence_path = Path(event["evidence"]["path"])
+        evidence = {
+            "evidence_id": "ev1_" + canonical_evidence_sha256,
+            "path": evidence_path.name,
+            "sha256": event["evidence"]["sha256"],
+            "bytes": evidence_path.stat().st_size,
+            "truncated": detailed.get("truncated") is True,
+            "redaction_version": REDACTION_VERSION,
+        }
+    except Exception:
+        evidence = None
+    try:
+        return ExternalFailureDiagnostic.compact(detailed, evidence=evidence)
+    except (TypeError, ValueError):
+        return None
+
+
+def fail_execution(db, handle, message, *, clip_index=None, gate_failed=False, external_failure=None,
+                   extra_conditions=()):
+    try:
+        capture(handle, "failure", {"message": str(message), "clip_index": clip_index, "run_id": handle["run_id"]})
+    except Exception:
+        pass
+    def fail(data, diagnostic):
         run = data["video_run"]
-        run.update(phase="failed", failure={"message": str(message), "clip_index": clip_index})
+        failure = {"message": str(message), "clip_index": clip_index}
+        if diagnostic is not None:
+            failure["external_failure_id"] = diagnostic["diagnostic_id"]
+        run.update(phase="failed", failure=failure)
         for slot in run["clips"].values():
             if slot["submission"]["state"] == "submitting":
                 slot["submission"]["state"] = "unknown"
             if slot["spec"]["clip_index"] == clip_index and slot["receipt"] is None:
                 slot["state"] = "FAILED"
                 slot["gate_failed"] = gate_failed
+                if diagnostic is not None:
+                    slot["external_failure"] = deepcopy(diagnostic)
         working = data["execution"]["working_shot"]
         working["video_status"] = "failed"
         plan = json.loads(working.get("video_director_plan") or "{}")
@@ -331,12 +518,31 @@ def fail_execution(db, handle, message, *, clip_index=None, gate_failed=False, e
         return {"status": "failed", "error_message": str(message), "current_step": "Video execution failed",
                 "video_director_clips": json.dumps(_clip_projection(data), ensure_ascii=False),
                 "completed_at": datetime.utcnow()}
+    def settle(diagnostic):
+        _write(db, handle, lambda data: fail(data, diagnostic), target=False, parent_active=False,
+               extra_conditions=extra_conditions)
+
+    def settle_without_diagnostic():
+        try:
+            settle(None)
+            return True
+        except ExecutionConflict:
+            observe(db, handle, "late-failure", {"message": str(message), "clip_index": clip_index})
+            return False
+
     try:
-        _write(db, handle, fail, target=False, parent_active=False, extra_conditions=extra_conditions)
+        settle(external_failure)
         return True
     except ExecutionConflict:
+        if external_failure is not None:
+            return settle_without_diagnostic()
         observe(db, handle, "late-failure", {"message": str(message), "clip_index": clip_index})
         return False
+    except SQLAlchemyError:
+        if external_failure is None:
+            raise
+        db.rollback()
+        return settle_without_diagnostic()
 
 
 def refresh_private_shot(db, shot):
@@ -390,6 +596,19 @@ def claim_video_execution(db, task_id):
         raise ExecutionConflict("NOT_A_VIDEO_TASK")
     data = metadata(task)
     record = execution_record(task)
+    if execution_purpose(task)!='production':raise ExecutionConflict('BENCHMARK_RUNTIME_RETIRED')
+    if (any(getattr(task, field) is not None for field in ('started_at','completed_at','claimed_at','heartbeat_at','claim_token','worker_id',
+                                                          'comfyui_prompt_id','workflow_json','result_url','video_director_clips'))
+            or task.attempt or task.progress or set(data) != {'execution_purpose','execution','rsa_binding'}
+            or not record or record['revision'] != 0 or record['working_shot'] != record['shot_snapshot']):
+        raise ExecutionConflict('VIDEO_TASK_NOT_UNSTARTED: new explicit execution required')
+    parent_error = pending_parent_error(db, task)
+    if parent_error:
+        raise ExecutionConflict(parent_error)
+    from app.services.runtime_gate import validate_video_binding
+    binding_proof={};binding_started=monotonic()
+    try:validate_video_binding(db,task,data.get('rsa_binding'),validation_proof=binding_proof)
+    except Exception as exc:raise ExecutionConflict(f'VIDEO_ASSET_GATE: {exc}') from exc
     if not record or "video_run" in data:
         raise ExecutionConflict("VIDEO_RUN_ALREADY_STARTED_OR_MISSING")
     request = record.get("request")
@@ -440,6 +659,9 @@ def claim_video_execution(db, task_id):
     if request["only_window_index"] is not None and request["auto_merge_clips"]:
         data["video_run"]["auto_merge_note"] = "Clip-only artifact; old clips are not eligible for whole-shot publication"
     conditions = _conditions(db, task, data)
+    from sqlalchemy.orm import aliased
+    other_video = aliased(Task)
+    conditions.append(~db.query(other_video.id).filter(other_video.type=='shot_video',other_video.status=='running',other_video.id!=task.id).exists())
     count = db.query(Task).filter(*conditions).update({
         "status": "running", "claim_token": token, "worker_id": f"shot-video-{token}",
         "attempt": int(task.attempt or 0) + 1, "claimed_at": now, "heartbeat_at": now, "started_at": now,
@@ -456,7 +678,38 @@ def claim_video_execution(db, task_id):
     handle = _handle(task, data)
     shot = load_execution_shot(task)
     task._video_execution = shot._video_execution = handle
+    binding_state=_new_binding_state(handle);binding_state.update(proof=binding_proof,full_validations=1)
+    _record_binding_event(binding_state,'full_validation','claim_video_execution',binding_proof,monotonic()-binding_started)
+    setattr(task,BINDING_STATE_ATTR,binding_state);setattr(shot,BINDING_STATE_ATTR,binding_state)
     return task, shot, handle
+
+
+def pending_parent_error(db, task):
+    if not task.parent_task_id:
+        return None
+    parent=db.query(Task).filter_by(id=task.parent_task_id).populate_existing().first()
+    if not parent or parent.status != 'running':
+        return f'VIDEO_PARENT_NOT_ACTIVE: {task.parent_task_id}; 父批次已终止，请新建视频执行'
+    if (parent.type!='shot_video_batch' or parent.novel_id!=task.novel_id or parent.chapter_id!=task.chapter_id
+            or execution_purpose(parent)!='production'):
+        return 'VIDEO_PARENT_SCOPE_MISMATCH'
+    return None
+
+
+async def run_next_persistent_video_task():
+    """Consume a durably admitted, genuinely unstarted task. Never replay an attempted run."""
+    from app.core.database import SessionLocal
+    db=SessionLocal()
+    try:
+        if db.query(Task.id).filter_by(type='shot_video',status='running').first():
+            return False
+        task=db.query(Task).filter_by(type='shot_video',status='pending').order_by(Task.created_at,Task.id).first()
+        if not task:
+            return False
+        await run_video_execution(db,task.id)
+        return True
+    finally:
+        db.close()
 
 
 def frozen_client(endpoint):
@@ -558,17 +811,20 @@ def begin_merge(db, handle):
 
 def publish_result(db, handle, merge, path):
     from app.utils.path_utils import local_path_to_url
+    from app.services.rendered_subtitles import load
     if not Path(path).resolve().is_relative_to(Path(handle["directory"]).resolve()) or not Path(path).stat().st_size:
         raise ExecutionConflict("RESULT_ARTIFACT_NOT_OWNED_OR_EMPTY")
+    subtitle_snapshot=load(path,require_ready=False)
     result = {"path": str(path), "url": local_path_to_url(str(path)), "sha256": file_digest(path), "bytes": Path(path).stat().st_size,
-              "manifest_hash": merge["manifest_hash"]}
+              "manifest_hash": merge["manifest_hash"],"subtitle_snapshot_hash":digest(subtitle_snapshot) if subtitle_snapshot else None}
     _, current = check_current(db, handle)
     purpose = execution_purpose(SimpleNamespace(metadata_json=current))
     attach = purpose == "production" and current["video_run"]["scope"] == "whole_shot"
     def complete(data):
         run = data["video_run"]
         if (run["phase"] != "merging" or run["merge"] != merge or digest(completion_manifest(data)) != merge["manifest_hash"]
-                or file_digest(path) != result["sha256"]):
+                or file_digest(path) != result["sha256"]
+                or (digest(load(path,require_ready=False)) if load(path,require_ready=False) else None)!=result['subtitle_snapshot_hash']):
             raise ExecutionConflict("MERGE_OWNERSHIP_OR_INPUTS_CHANGED")
         result.update(kind=run["scope"], attachment="archived" if purpose == "benchmark" else "attached" if attach else "detached")
         run.update(phase="completed", result=result)
@@ -587,6 +843,11 @@ def completed_video_artifact(db, task_id, *, shot_id=None):
         if not task or not has_video_execution(task) or task.status != "completed" or execution_purpose(task) != "production":
             raise ExecutionConflict("COMPLETED_PRODUCTION_VIDEO_RUN_REQUIRED")
         record, data = execution_record(task), metadata(task)
+        from app.services.runtime_gate import validate_video_binding
+        try:
+            validate_video_binding(db, task, data.get('rsa_binding'))
+        except Exception as exc:
+            raise ExecutionConflict(f'VIDEO_ASSET_GATE: {exc}') from exc
         run = data["video_run"]
         result = run["result"]
         mode, expected = _expected_clips(SimpleNamespace(**record["shot_snapshot"]), record["request"])
@@ -611,7 +872,7 @@ async def _heartbeat(handle, session_factory):
         await asyncio.sleep(HEARTBEAT_SECONDS)
         db = session_factory()
         try:
-            _write(db, handle, lambda data: {})
+            _write(db, handle, lambda data: {}, target=False)
         except ExecutionConflict:
             return
         except Exception as error:
@@ -637,6 +898,10 @@ async def reconcile_video_execution(db, task, *, now=None, lease_timeout_seconds
     data = metadata(task)
     heartbeat = task.heartbeat_at
     clock = now or datetime.utcnow()
+    if task.status=='pending' and pending_parent_error(db,task):
+        from app.services.task_service import TaskService
+        return TaskService._transition_task_terminal(task,db,message=pending_parent_error(db,task),
+            step='父批次已终止，等待任务已结束',expected=TaskService._task_snapshot(task))
     if not data.get("video_run"):
         started = task.started_at or task.created_at
         timeout = 1800 if task.status == "pending" else lease_timeout_seconds
@@ -906,23 +1171,18 @@ async def run_video_execution(db, task_id):
         if not novel or not chapter:
             raise ExecutionConflict("VIDEO_TARGET_NOT_FOUND")
         plan = video.safe_json_dict(shot.video_director_plan)
-        frames = video._hydrate_plan_keyframes_from_legacy(shot, plan.get("keyframes") or [])
+        from app.services.runtime_gate import verified_plan_images,resolved_text_context
+        from app.models.resolved_shot_assets import ResolvedShotAssets
+        rsa=db.get(ResolvedShotAssets,data['rsa_binding']['rsa_id'])
+        if not rsa:raise ExecutionConflict('VIDEO_RSA_BINDING_MISSING_AFTER_VALIDATION')
+        required_indexes = ({i for spec in run['expected'] for i in spec.get('keyframe_indexes', [])} if mode=='MULTI_KEYFRAME'
+                            else {f.get('index') for f in plan.get('keyframes', []) if f.get('role')=='END'} if mode=='FIRST_LAST_FRAME' else set())
+        frames = verified_plan_images(db,shot,plan.get("keyframes") or [],required_indexes)
         mutate_private_plan(db, shot, lambda current: {**current, "keyframes": frames})
-        appearances = {character.name: character.appearance for character in db.query(Character).filter(
-            Character.novel_id == novel.id, Character.name.in_(video.safe_json_list(shot.characters))).all() if character.appearance}
-        style, scene_setting, prop_appearances = "", None, {}
-        if novel.style_prompt_template_id:
-            from app.models.prompt_template import PromptTemplate
-            template = db.query(PromptTemplate).filter(PromptTemplate.id == novel.style_prompt_template_id).first()
-            style = template.template if template else ""
-        if shot.scene:
-            from app.models.novel import Scene
-            scene = db.query(Scene).filter(Scene.novel_id == novel.id, Scene.name == shot.scene).first()
-            scene_setting = scene.setting if scene else None
-        if video.safe_json_list(shot.props):
-            from app.models.novel import Prop
-            prop_appearances = {prop.name: prop.appearance for prop in db.query(Prop).filter(
-                Prop.novel_id == novel.id, Prop.name.in_(video.safe_json_list(shot.props))).all() if prop.appearance}
+        from app.models.chapter_shot_split import ChapterShotSplitRun
+        text_context=resolved_text_context(rsa)
+        appearances,scene_setting,prop_appearances=text_context['character_appearances'],text_context['scene_setting'],text_context['prop_appearances']
+        style=db.get(ChapterShotSplitRun,rsa.inputs['logical']['source']['split_run_id']).inputs['basis']['style']['text']
         workflows = {}
         multi = mode == "MULTI_KEYFRAME" and len(video.safe_json_list(plan.get("window_plans"))) > 1
         for spec in run["expected"]:
@@ -963,8 +1223,17 @@ async def run_video_execution(db, task_id):
             workflow = SimpleNamespace(**workflows[key])
             inputs = visual_inputs.get(key) or _video_reference_inputs(
                 video, shot, plan, frames, mode, multi, clip, video.safe_json_dict(workflow.node_mapping))
+            allowed={image['url']:image['sha256'] for image in data['rsa_binding']['images']}
+            if any(ref.get('url') not in allowed for ref in inputs['references']):raise ExecutionConflict('VIDEO_REFERENCE_OUTSIDE_RSA_LINEAGE')
             effective_context = None
             clip_frozen = frozen_images.get(key)
+            if clip_frozen is None:
+                from app.services.rsa_media_contract import files,IMAGE_POLICY
+                clip_frozen=[]
+                for index,ref in enumerate(inputs['references']):
+                    payload,info=files.image_bytes(ref['url'],IMAGE_POLICY)
+                    if info['sha256']!=allowed[ref['url']]:raise ExecutionConflict('VIDEO_RSA_IMAGE_BYTES_CHANGED')
+                    clip_frozen.append({'reference_index':index,'source_path':files.url_to_local_path(ref['url']),'payload':payload,'sha256':info['sha256']})
             clip_visual_evidence, visual_root = visual_evidence, "visual_state_validation"
             if handoff_enabled and clip_index == 2:
                 # Route metadata is part of the base H3 context. Normalize it
@@ -995,7 +1264,7 @@ async def run_video_execution(db, task_id):
                 skip_llm_when_prompt_exists=request["skip_llm_when_prompt_exists"],
                 **({"effective_context": effective_context} if effective_context is not None else {}),
             )
-            check_current(db, handle)
+            check_current(db, handle, binding_reason='pre-reference-upload')
             service = video.ComfyUIService()
             endpoint = service.client.base_url
             service.client = frozen_client(endpoint)
@@ -1009,16 +1278,20 @@ async def run_video_execution(db, task_id):
                         or binding["bytes"] != len(item["payload"]) for binding, item in zip(bindings, expected))):
                     raise ExecutionConflict("VISUAL_STATE_UPLOAD_BINDING_MISMATCH")
                 def save(current):
-                    visual = current[visual_root]
-                    if visual["evidence"] != clip_visual_evidence or visual["decision"] == "BLOCK":
-                        raise ExecutionConflict("VISUAL_STATE_EVIDENCE_CHANGED")
-                    visual["uploads"][key] = deepcopy(bindings)
+                    if clip_visual_evidence is not None:
+                        visual = current[visual_root]
+                        if visual["evidence"] != clip_visual_evidence or visual["decision"] == "BLOCK":
+                            raise ExecutionConflict("VISUAL_STATE_EVIDENCE_CHANGED")
+                        visual["uploads"][key] = deepcopy(bindings)
+                    current['video_run']['clips'][key]['rsa_uploads']=deepcopy(bindings)
                 _write(db, handle, save)
                 bound_images.extend(deepcopy(bindings))
 
             def before_submit(graph):
                 gate(graph)
                 def prepare(current):
+                    if not bound_images or any(graph.get(item['node_id'],{}).get('inputs',{}).get(item['field'])!=item['upload']['filename'] for item in bound_images):
+                        raise ExecutionConflict('VIDEO_RSA_UPLOAD_BINDING_MISSING')
                     if clip_visual_evidence is not None:
                         visual = current[visual_root]
                         if (not bound_images or visual["evidence"] != clip_visual_evidence or visual["uploads"].get(key) != bound_images
@@ -1063,13 +1336,26 @@ async def run_video_execution(db, task_id):
                 reference_audio_path=video.url_to_local_path(shot.reference_audio_url) if request["use_reference_audio"] and not audio.get("enabled") else None,
                 drive_audio_path=audio.get("drive_audio_path"), final_audio_path=audio.get("final_audio_path"), keyframe_paths=keyframe_paths,
                 on_before_submit=before_submit, on_prompt_queued=on_queued,
-                **({"frozen_image_inputs": clip_frozen, "on_image_inputs_bound": images_bound} if clip_visual_evidence else {}),
+                frozen_image_inputs=clip_frozen,on_image_inputs_bound=images_bound,
             )
-            observe(db, handle, "worker-result", {"clip_index": clip_index, "attempt_id": slot["attempt_id"], "result": result})
+            external_failure = None
+            if not result.get("success") and isinstance(result.get("external_failure"), dict):
+                failure_reference = result["external_failure"].get("reference") or {}
+                failure_index = failure_reference.get("reference_index")
+                reference_url = (inputs["references"][failure_index].get("url")
+                                 if type(failure_index) is int and 0 <= failure_index < len(inputs["references"]) else None)
+                external_failure = _observe_external_failure(
+                    db, handle, task, shot, slot, clip_index, result, reference_url=reference_url,
+                )
+            else:
+                observe(db, handle, "worker-result", {"clip_index": clip_index, "attempt_id": slot["attempt_id"], "result": result})
             if not result.get("success"):
                 video._save_h3_prompt_gate(db, task, gate.validation_record, error=result.get("message") or "Generation failed",
                                           failure_kind=result.get("failure_kind"))
-                fail_execution(db, handle, result.get("message") or "Generation failed", clip_index=clip_index)
+                settled = fail_execution(db, handle, result.get("message") or "Generation failed", clip_index=clip_index,
+                                         external_failure=external_failure)
+                if settled and isinstance(result.get("external_failure"), dict) and not ack.get("prompt_id"):
+                    return
             if not ack.get("prompt_id"):
                 raise ExecutionConflict("CLIP_ACK_UNKNOWN: no automatic resubmission")
             if result.get("prompt_id") not in (None, ack["prompt_id"]):

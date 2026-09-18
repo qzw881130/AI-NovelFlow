@@ -14,9 +14,11 @@ export interface AudioEventTtsAsset {
 }
 
 export interface AudioDriveEvent {
+  sourceRevision?: number;
   id: string;
   shotId: string;
   order: number;
+  treatmentRef?: string | null;
   type: AudioEventType;
   voiceOwnerCharacterId?: string | null;
   voiceOwnerName: string;
@@ -94,8 +96,8 @@ export interface AudioDriveExecutionWindow {
 }
 
 export const audioDriveApi = {
-  fetchEvents: (shotId: string) => api.get<{ shotId: string; audioStatus: string; events: AudioDriveEvent[] }>(`/shots/${shotId}/audio-events`),
-  updateEvent: (eventId: string, data: Partial<AudioDriveEvent>) => api.patch<AudioDriveEvent>(`/audio-events/${eventId}`, data),
+  fetchEvents: (shotId: string) => api.get<{ shotId: string; sourceRevision: number; audioStatus: string; events: AudioDriveEvent[] }>(`/shots/${shotId}/audio-events`),
+  updateEvent: (eventId: string, data: Partial<AudioDriveEvent> & {expectedRevision: number}) => api.patch<AudioDriveEvent & {shot: import('./shots').Shot}>(`/audio-events/${eventId}`, data),
   generateEventTts: (eventId: string, force = false) => api.post<{ eventId: string; taskId?: string; status?: string }>(`/audio-events/${eventId}/tts`, { force }),
   generateShotTts: (shotId: string, data: { eventIds?: string[]; onlyStale?: boolean; force?: boolean } = {}) => api.post<{ tasks: Array<{ eventId: string; taskId?: string }> }>(`/shots/${shotId}/audio/tts/generate`, data),
   fetchTimeline: (shotId: string) => api.get<AudioTimeline | null>(`/shots/${shotId}/audio-timeline`),

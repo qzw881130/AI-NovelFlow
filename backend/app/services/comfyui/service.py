@@ -24,6 +24,10 @@ class H3PromptSubmissionError(ValueError):
 class VisualReferenceSubmissionError(ValueError):
     """The opted-in, observed image bytes were not bound to the requested inputs."""
 
+    def __init__(self, message: str, external_failure=None):
+        super().__init__(message)
+        self.external_failure = external_failure
+
 
 def is_h3_workflow(workflow: Dict[str, Any]) -> bool:
     """Detect H3 by executable node classes, not names, mappings or prompt text."""
@@ -425,13 +429,62 @@ class ComfyUIService:
                             or item.get("sha256") != sha256(payload).hexdigest()):
                         raise VisualReferenceSubmissionError("VALIDATED_REFERENCE_PAYLOAD_MISMATCH")
                 for index, (item, path, node) in enumerate(zip(frozen_image_inputs, paths, nodes)):
+                    upload_name = f"visual-state-{uuid4().hex}.png"
                     uploaded = await self.client.upload_image(path, payload=item["payload"],
-                                                              upload_name=f"visual-state-{uuid4().hex}.png")
-                    if (uploaded.get("success") is not True or uploaded.get("type") != "input"
-                            or not isinstance(uploaded.get("filename"), str) or not uploaded["filename"]
-                            or uploaded.get("payload_sha256") != item["sha256"]
-                            or type(uploaded.get("payload_size")) is not int or uploaded["payload_size"] != len(item["payload"])):
-                        raise VisualReferenceSubmissionError("VALIDATED_REFERENCE_UPLOAD_FAILED")
+                                                              upload_name=upload_name)
+                    receipt_violation = None
+                    if not isinstance(uploaded, dict):
+                        receipt_violation = "SERVICE_UPLOAD_RESULT_NOT_OBJECT"
+                        uploaded = {}
+                    elif uploaded.get("success") is not True:
+                        receipt_violation = "SERVICE_UPLOAD_FAILURE_WITHOUT_DIAGNOSTIC"
+                    elif uploaded.get("type") != "input":
+                        receipt_violation = "SERVICE_RECEIPT_TYPE_NOT_INPUT"
+                    elif not isinstance(uploaded.get("filename"), str) or not uploaded["filename"]:
+                        receipt_violation = "SERVICE_RECEIPT_FILENAME_MISSING"
+                    elif uploaded.get("payload_sha256") != item["sha256"]:
+                        receipt_violation = "SERVICE_RECEIPT_PAYLOAD_SHA256_MISMATCH"
+                    elif type(uploaded.get("payload_size")) is not int:
+                        receipt_violation = "SERVICE_RECEIPT_PAYLOAD_SIZE_INVALID"
+                    elif uploaded["payload_size"] != len(item["payload"]):
+                        receipt_violation = "SERVICE_RECEIPT_PAYLOAD_SIZE_MISMATCH"
+                    if receipt_violation is not None:
+                        from app.services.external_failure_diagnostic import ExternalFailureDiagnostic
+                        operation_key = {"operation": "UPLOAD_IMAGE", "reference_sha256": item["sha256"],
+                                         "reference_index": index, "invocation_no": 1}
+                        reference = {"reference_index": index, "filename": upload_name,
+                                     "bytes": len(item["payload"]), "sha256": item["sha256"]}
+                        submission = {"queue_called": False, "submitted": False, "state": "NOT_SUBMITTED",
+                                      "cid": None, "queue_seen": False, "remote_upload_effect": "UNKNOWN"}
+                        source = uploaded.get("external_failure")
+                        if uploaded.get("success") is not True and isinstance(source, dict):
+                            try:
+                                external_failure = ExternalFailureDiagnostic.rebind(
+                                    source, operation_key=operation_key, scope={"reference_index": index},
+                                    reference=reference, submission=submission,
+                                    error_code="VALIDATED_REFERENCE_UPLOAD_FAILED",
+                                )
+                            except (TypeError, ValueError):
+                                source = None
+                        if uploaded.get("success") is True or not isinstance(source, dict):
+                            fallback_class = ("UNKNOWN" if receipt_violation == "SERVICE_UPLOAD_FAILURE_WITHOUT_DIAGNOSTIC"
+                                              else "INVALID_RECEIPT")
+                            external_failure = ExternalFailureDiagnostic.build(
+                                operation_key=operation_key, error_code="VALIDATED_REFERENCE_UPLOAD_FAILED",
+                                failure_class=fallback_class,
+                                stage="REFERENCE_UPLOAD", operation="UPLOAD_IMAGE", service="comfyui",
+                                provider="comfyui", scope={"reference_index": index}, reference=reference,
+                                external_call={
+                                    "endpoint": f"{getattr(self.client, 'base_url', '')}/upload/image"
+                                    if getattr(self.client, "base_url", None) else None,
+                                    "method": "POST", "timeout_ms": 30000,
+                                    "receipt_status": "INVALID", "receipt_violation": receipt_violation,
+                                },
+                                submission=submission,
+                            )
+                        raise VisualReferenceSubmissionError(
+                            "VALIDATED_REFERENCE_UPLOAD_FAILED", external_failure=external_failure,
+                        )
                     workflow[node]["inputs"]["image"] = uploaded["filename"]
                     image_bindings.append({"reference_index": index, "source_path": path,
                                            "sha256": item["sha256"], "bytes": len(item["payload"]),
@@ -599,7 +652,10 @@ class ComfyUIService:
             }
             
         except VisualReferenceSubmissionError as exc:
-            return {"success": False, "failure_kind": "VISUAL_STATE_REFERENCE_REJECTED", "message": str(exc)}
+            result = {"success": False, "failure_kind": "VISUAL_STATE_REFERENCE_REJECTED", "message": str(exc)}
+            if exc.external_failure is not None:
+                result["external_failure"] = exc.external_failure
+            return result
         except H3PromptSubmissionError as exc:
             return {"success": False, "failure_kind": "H3_PROMPT_SUBMISSION_REJECTED", "message": str(exc)}
         except Exception as e:

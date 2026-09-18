@@ -50,6 +50,7 @@ class InvalidationService:
         level: InvalidationLevel = "AUDIO_TIMING_CHANGED",
         mark_audio_stale: bool = True,
         mark_timeline_stale: bool = True,
+        commit: bool = True,
     ) -> dict:
         shot = self.db.query(Shot).filter(Shot.id == shot_id).first()
         if not shot:
@@ -63,6 +64,7 @@ class InvalidationService:
 
         if shot.chapter:
             shot.chapter.final_video = None
+            shot.chapter.final_video_task_id = None
 
         latest = self.db.query(ShotAudioTimeline).filter(
             ShotAudioTimeline.shot_id == shot_id
@@ -99,7 +101,7 @@ class InvalidationService:
                         item["status"] = "PENDING"
             return plan
 
-        VideoDirectorPlanService(self.db).mutate(shot_id, mutate)
+        VideoDirectorPlanService(self.db).mutate(shot_id, mutate, commit=commit)
         self.db.flush()
         return {"changed": True, "reason": reason, "level": level}
 

@@ -14,6 +14,9 @@ export const novelApi = {
   /** 创建小说 */
   create: (data: Partial<Novel>) => api.post<Novel>('/novels/', data),
 
+  /** 仅复制所有章回标题和正文到新小说 */
+  copy: (id: string, title: string) => api.post<Novel>(`/novels/${id}/copy`, { title }),
+
   /** 更新小说 */
   update: (id: string, data: Partial<Novel>) => api.put<Novel>(`/novels/${id}/`, data),
 

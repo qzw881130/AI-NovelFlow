@@ -26,16 +26,21 @@ router = APIRouter(tags=["prompt_templates"])
 PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
     ("素材解析", [
         ("character_parse", "角色解析提示词"),
+        ("asset_identity_resolution", "已有角色归一化提示词"),
         ("scene_parse", "场景解析提示词"),
         ("prop_parse", "道具解析提示词"),
     ]),
     ("素材生成", [
         ("character", "角色生成提示词"),
+        ("character_appearance_generation", "角色换装提示词"),
         ("scene", "场景生成提示词"),
         ("prop", "道具生成提示词"),
     ]),
     ("风格设计", [("style", "风格提示词")]),
-    ("分镜规划", [("chapter_split", "分镜拆分提示词")]),
+    ("分镜规划", [
+        ("chapter_split", "分镜拆分提示词"),
+        ("shot_contract_repair", "分镜契约自动修复提示词"),
+    ]),
     ("分镜生图", [("shot_image_prompt", "主分镜图生成提示词构建")]),
     ("视频导演", [
         ("video_mode_recommender", "视频生成模式推荐"),
@@ -107,6 +112,9 @@ def export_all_prompt_templates(
     templates_by_type = {}
     for template in repo.list_all():
         templates_by_type.setdefault(template.type, []).append(template)
+    from app.services.prompt_template_service import LOCAL_PROMPT_FILES
+    for kind in LOCAL_PROMPT_FILES:
+        templates_by_type.setdefault(kind, []).append(PromptTemplateService.local_template(kind))
 
     buffer = BytesIO()
     used_paths: set[str] = set()
@@ -163,12 +171,10 @@ def create_prompt_template(
     service: PromptTemplateService = Depends(get_template_service)
 ):
     """创建用户自定义提示词模板"""
-    template = service.create_template(
-        name=data.name,
-        description=data.description,
-        template=data.template,
-        template_type=data.type
-    )
+    try:
+        template = service.create_template(name=data.name, description=data.description, template=data.template, template_type=data.type)
+    except PermissionError as exc:
+        raise HTTPException(403, str(exc)) from exc
 
     return {
         "success": True,
@@ -185,6 +191,8 @@ def copy_prompt_template(
     """复制系统提示词模板为用户自定义模板"""
     try:
         new_template = service.copy_template(template_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 

@@ -164,7 +164,7 @@ export function ShotImageList({
                     <label className="text-sm font-medium text-gray-700">时长</label>
                     <input
                       type="number"
-                      value={currentShot?.duration || 5}
+                      value={currentShot?.estimatedDuration ?? currentShot?.duration ?? 5}
                       onChange={(event) => onDurationChange?.(Math.min(180, Math.max(1, parseInt(event.target.value) || 5)))}
                       min={1}
                       max={180}

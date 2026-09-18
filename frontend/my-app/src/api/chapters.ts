@@ -76,7 +76,7 @@ export const chapterApi = {
 
   /** 拆分章节 */
   split: (novelId: string, chapterId: string) =>
-    api.post<Chapter[]>(`/novels/${novelId}/chapters/${chapterId}/split/`),
+    api.post<Chapter[]>(`/novels/${novelId}/chapters/${chapterId}/split/?sourceContractVersion=chapter-shot-ownership-v2`),
 
   /** 清理章节资源 */
   clearResources: (novelId: string, chapterId: string) =>

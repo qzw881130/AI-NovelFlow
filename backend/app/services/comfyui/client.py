@@ -73,9 +73,72 @@ class ComfyUIClient:
         The hash proves the request payload, not the contents of remote storage.
         """
         if upload_name is None and payload is not None:
-            return {"success": False, "message": "payload requires upload_name"}
+            from app.services.external_failure_diagnostic import ExternalFailureDiagnostic
+            return {
+                "success": False,
+                "message": "payload requires upload_name",
+                "external_failure": ExternalFailureDiagnostic.build(
+                    operation_key={"operation": "UPLOAD_IMAGE", "reference_sha256": None,
+                                   "reference_bytes": len(payload) if isinstance(payload, bytes) else None,
+                                   "invocation_no": 1},
+                    error_code="VALIDATED_REFERENCE_UPLOAD_FAILED", failure_class="VALIDATION",
+                    stage="REFERENCE_UPLOAD", operation="UPLOAD_IMAGE", service="comfyui", provider="comfyui",
+                    reference={"bytes": len(payload) if isinstance(payload, bytes) else None},
+                    external_call={"method": "POST", "timeout_ms": 30000, "receipt_status": "NOT_ATTEMPTED"},
+                    submission={"queue_called": False, "submitted": False, "state": "NOT_SUBMITTED",
+                                "cid": None, "queue_seen": False, "remote_upload_effect": None},
+                ),
+            }
 
         if upload_name is not None:
+            from datetime import datetime, timezone
+            from time import monotonic
+            from app.services.external_failure_diagnostic import (
+                ExternalFailureDiagnostic, exception_evidence, response_body_evidence,
+            )
+
+            started_at = datetime.now(timezone.utc)
+            started = monotonic()
+            payload_sha256 = None
+            payload_size = len(payload) if isinstance(payload, bytes) else None
+            endpoint = None
+
+            def failure(message, failure_class, *, error=None, response=None, receipt_status=None,
+                        receipt_violation=None, include_excerpt=True):
+                finished_at = datetime.now(timezone.utc)
+                external_call = {
+                    "endpoint": endpoint,
+                    "method": "POST",
+                    "timeout_ms": 30000,
+                    "receipt_status": receipt_status,
+                    "receipt_violation": receipt_violation,
+                }
+                if error is not None:
+                    external_call.update({key: value for key, value in exception_evidence(error).items()
+                                          if key != "truncated"})
+                if response is not None:
+                    external_call.update(response_body_evidence(
+                        response.content, response.headers.get("content-type"), include_excerpt=include_excerpt,
+                    ))
+                    external_call["http_status"] = response.status_code
+                diagnostic = ExternalFailureDiagnostic.build(
+                    operation_key={"operation": "UPLOAD_IMAGE", "reference_sha256": payload_sha256,
+                                   "reference_bytes": payload_size, "invocation_no": 1},
+                    error_code="VALIDATED_REFERENCE_UPLOAD_FAILED", failure_class=failure_class,
+                    stage="REFERENCE_UPLOAD", operation="UPLOAD_IMAGE", service="comfyui", provider="comfyui",
+                    timing={
+                        "started_at": started_at.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+                        "finished_at": finished_at.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+                        "elapsed_ms": max(0, int((monotonic() - started) * 1000)),
+                    },
+                    reference={"filename": upload_name if isinstance(upload_name, str) else None,
+                               "bytes": payload_size, "sha256": payload_sha256},
+                    external_call=external_call,
+                    submission={"queue_called": False, "submitted": False, "state": "NOT_SUBMITTED",
+                                "cid": None, "queue_seen": False, "remote_upload_effect": "UNKNOWN"},
+                )
+                return {"success": False, "message": message, "external_failure": diagnostic}
+
             try:
                 import hashlib
                 import os
@@ -83,43 +146,63 @@ class ComfyUIClient:
 
                 component = re.compile(r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*")
                 if not isinstance(upload_name, str) or not component.fullmatch(upload_name):
-                    return {"success": False, "message": "Invalid upload_name: expected a safe ASCII basename"}
+                    return failure("Invalid upload_name: expected a safe ASCII basename", "VALIDATION",
+                                   receipt_status="NOT_ATTEMPTED")
 
                 if payload is None:
                     if not os.path.isfile(image_path):
-                        return {"success": False, "message": f"Image path is not a local file: {image_path}"}
-                    with open(image_path, "rb") as f:
-                        payload = f.read()
+                        return failure(f"Image path is not a local file: {image_path}", "VALIDATION",
+                                       receipt_status="NOT_ATTEMPTED")
+                    try:
+                        with open(image_path, "rb") as f:
+                            payload = f.read()
+                    except OSError as error:
+                        return failure(f"Image upload failed: {str(error)}", "VALIDATION", error=error,
+                                       receipt_status="NOT_ATTEMPTED")
 
                 if not isinstance(payload, bytes) or not payload:
-                    return {"success": False, "message": "payload must be nonempty bytes"}
+                    return failure("payload must be nonempty bytes", "VALIDATION", receipt_status="NOT_ATTEMPTED")
 
                 payload_sha256 = hashlib.sha256(payload).hexdigest()
+                payload_size = len(payload)
+                endpoint = f"{self.base_url}/upload/image"
                 async with self._client() as client:
                     response = await client.post(
-                        f"{self.base_url}/upload/image",
+                        endpoint,
                         files={"image": (upload_name, payload, "image/png")},
                         data={"type": "input", "overwrite": "true"},
                         timeout=30.0,
                     )
 
                 if response.status_code != 200:
-                    return {"success": False, "message": f"Image upload failed (HTTP {response.status_code})"}
+                    return failure(f"Image upload failed (HTTP {response.status_code})", "HTTP_ERROR",
+                                   response=response, receipt_status="HTTP_ERROR")
 
-                result = response.json()
+                try:
+                    result = response.json()
+                except (ValueError, UnicodeDecodeError, RecursionError) as error:
+                    return failure(f"Image upload failed: {str(error)}", "INVALID_RESPONSE", error=error,
+                                   response=response, receipt_status="INVALID_RESPONSE")
                 if not isinstance(result, dict):
-                    return {"success": False, "message": "Invalid image upload receipt: expected an object"}
+                    return failure("Invalid image upload receipt: expected an object", "INVALID_RESPONSE",
+                                   response=response, receipt_status="INVALID_RESPONSE")
 
                 name = result.get("name")
                 if not isinstance(name, str) or not component.fullmatch(name):
-                    return {"success": False, "message": "Invalid image upload receipt: unsafe or missing name"}
+                    return failure("Invalid image upload receipt: unsafe or missing name", "INVALID_RECEIPT",
+                                    response=response, receipt_status="INVALID",
+                                    receipt_violation="IMAGE_RECEIPT_NAME_MISSING_OR_UNSAFE")
                 if result.get("type") != "input":
-                    return {"success": False, "message": "Invalid image upload receipt: type must be input"}
+                    return failure("Invalid image upload receipt: type must be input", "INVALID_RECEIPT",
+                                    response=response, receipt_status="INVALID",
+                                    receipt_violation="IMAGE_RECEIPT_TYPE_NOT_INPUT")
                 subfolder = result.get("subfolder")
                 if not isinstance(subfolder, str) or (
                     subfolder and any(not component.fullmatch(part) for part in subfolder.split("/"))
                 ):
-                    return {"success": False, "message": "Invalid image upload receipt: unsafe or missing subfolder"}
+                    return failure("Invalid image upload receipt: unsafe or missing subfolder", "INVALID_RECEIPT",
+                                    response=response, receipt_status="INVALID",
+                                    receipt_violation="IMAGE_RECEIPT_SUBFOLDER_MISSING_OR_UNSAFE")
 
                 return {
                     "success": True,
@@ -131,7 +214,13 @@ class ComfyUIClient:
                     "message": "上传成功",
                 }
             except Exception as e:
-                return {"success": False, "message": f"Image upload failed: {str(e)}"}
+                failure_class = "INVALID_RESPONSE" if isinstance(e, httpx.DecodingError) else (
+                    "TIMEOUT" if isinstance(e, (TimeoutError, httpx.TimeoutException)) else (
+                        "CONNECTION" if isinstance(e, (httpx.TransportError, ConnectionError)) else "UNKNOWN"
+                    )
+                )
+                return failure(f"Image upload failed: {str(e)}", failure_class, error=e,
+                               receipt_status="NOT_RECEIVED")
 
         try:
             import os
@@ -432,12 +521,12 @@ class ComfyUIClient:
                             outputs = prompt_history.get("outputs", {})
                             status = prompt_history.get("status", {})
 
-                            if outputs:
+                            if outputs and self._is_completed_status(status):
                                 result = self._parse_audio_outputs(
                                     outputs, workflow, save_audio_node_id
                                 )
                                 if result:
-                                    return result
+                                    return {**result,"prompt_id":prompt_id,"history":prompt_history,"status":status}
 
                                 if self._is_completed_status(status):
                                     return {
@@ -697,7 +786,7 @@ class ComfyUIClient:
                         print(f"[ComfyUI] Found audio output node {node_id} output: {filename}")
                         break
 
-                    if best_audio is None:
+                    if best_audio is None and not save_audio_node_id:
                         best_audio = audio_data
                         best_node_id = node_id
 
@@ -717,6 +806,8 @@ class ComfyUIClient:
             return {
                 "success": True,
                 "audio_url": audio_url,
+                "output_node_id": str(best_node_id),
+                "output": best_audio,
                 "message": "生成成功"
             }
 

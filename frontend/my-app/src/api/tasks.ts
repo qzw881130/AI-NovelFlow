@@ -2,6 +2,7 @@
  * 任务相关 API
  */
 import { api } from './index';
+import type { ReviewFinding } from '../types';
 
 export interface Task {
   id: string;
@@ -28,18 +29,19 @@ export interface Task {
   workflow_id?: string;
   currentStep?: string;
   errorMessage?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, any> | null;
+  reviewFindings?: ReviewFinding[] | null;
 }
 
 export const taskApi = {
   /** 获取任务列表 */
-  fetchList: (limit = 1000) => api.get<Task[]>(`/tasks/?limit=${limit}`),
+  fetchList: (limit = 1000, signal?: AbortSignal) => api.get<Task[]>(`/tasks/?limit=${limit}`, { signal }),
 
   /** 获取单个任务 */
-  fetch: (id: string) => api.get<Task>(`/tasks/${id}/`),
+  fetch: (id: string) => api.get<Task>(`/tasks/${id}`),
 
   /** 删除任务 */
-  delete: (id: string) => api.delete(`/tasks/${id}/`),
+  delete: (id: string) => api.delete(`/tasks/${id}`),
 
   /** 取消任务 */
   cancel: (id: string) => api.post(`/tasks/${id}/cancel`),
@@ -48,11 +50,11 @@ export const taskApi = {
   cancelAll: () => api.post('/tasks/cancel-all/'),
 
   /** 获取任务工作流 */
-  fetchWorkflow: (id: string) => api.get(`/tasks/${id}/workflow/`),
+  fetchWorkflow: (id: string, signal?: AbortSignal) => api.get(`/tasks/${id}/workflow`, { signal }),
 
   /** 获取多 Clip 任务中单个 Clip 的实际工作流 */
-  fetchClipWorkflow: (id: string, windowIndex: number) => api.get(`/tasks/${id}/clips/${windowIndex}/workflow/`),
+  fetchClipWorkflow: (id: string, windowIndex: number, signal?: AbortSignal) => api.get(`/tasks/${id}/clips/${windowIndex}/workflow`, { signal }),
 
   /** 重试任务 */
-  retry: (id: string) => api.post(`/tasks/${id}/retry/`),
+  retry: (id: string) => api.post(`/tasks/${id}/retry`),
 };

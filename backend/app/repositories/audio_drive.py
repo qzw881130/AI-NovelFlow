@@ -97,12 +97,13 @@ class AudioDriveRepository:
             AudioEventTTSAsset.is_current == True,
         ).update({"is_current": False, "status": "STALE"})
 
-    def _mark_shot_audio_stale(self, shot_id: str, level: str = "AUDIO_TIMING_CHANGED") -> None:
+    def _mark_shot_audio_stale(self, shot_id: str, level: str = "AUDIO_TIMING_CHANGED", *, commit: bool = True) -> None:
         from app.services.invalidation_service import InvalidationService
         InvalidationService(self.db).invalidate_audio_downstream(
             shot_id,
             reason="Audio Event 变更，AudioDrive 下游产物已失效",
             level=level,
+            commit=commit,
         )
 
     def _delete_event_references(self, event: ShotAudioEvent) -> None:
@@ -115,7 +116,7 @@ class AudioDriveRepository:
             Task.metadata_json.contains(event.id),
         ).update({"status": "cancelled", "error_message": "Audio Event 已删除"}, synchronize_session=False)
 
-    def sync_events(self, shot_id: str, events: list) -> List[ShotAudioEvent]:
+    def sync_events(self, shot_id: str, events: list, *, commit: bool = True) -> List[ShotAudioEvent]:
         self.last_sync_changed = False
         self.last_sync_timeline_stale = False
         existing = {
@@ -127,12 +128,15 @@ class AudioDriveRepository:
         timeline_stale = False
         invalidation_level = "SPEAKER_BINDING_CHANGED"
         result = []
+        created_clients = {}
+        self.last_sync_id_map = {}
 
         for index, item in enumerate(events or [], 1):
             if not isinstance(item, dict):
                 continue
 
             event_id = item.get("id") or item.get("audioEventId") or item.get("audio_event_id")
+            client_id = event_id
             if isinstance(event_id, str) and event_id.startswith("local-"):
                 event_id = None
             values = self._normalize_event_payload(item, index)
@@ -163,6 +167,8 @@ class AudioDriveRepository:
                 **values,
             )
             self.db.add(event)
+            if isinstance(client_id,str) and client_id.startswith('local-'):
+                created_clients[client_id] = event
             result.append(event)
             changed = True
             timeline_stale = True
@@ -177,16 +183,17 @@ class AudioDriveRepository:
             invalidation_level = "AUDIO_TIMING_CHANGED"
 
         if timeline_stale:
-            self._mark_shot_audio_stale(shot_id, invalidation_level)
+            self._mark_shot_audio_stale(shot_id, invalidation_level, commit=commit)
         self.last_sync_changed = changed
         self.last_sync_timeline_stale = timeline_stale
 
-        if changed:
+        if changed and commit:
             self.db.commit()
         else:
             self.db.flush()
         for event in result:
             self.db.refresh(event)
+        self.last_sync_id_map = {client_id: row.id for client_id,row in created_clients.items()}
         return self.list_events(shot_id)
 
     def replace_events(self, shot_id: str, events: list) -> List[ShotAudioEvent]:

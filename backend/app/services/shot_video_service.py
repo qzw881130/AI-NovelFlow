@@ -372,37 +372,7 @@ def _parse_iso_datetime(value: str):
 
 
 def _hydrate_plan_keyframes_from_legacy(shot, plan_keyframes: list) -> list:
-    try:
-        legacy_keyframes = json.loads(shot.keyframes) if shot.keyframes else []
-    except Exception:
-        legacy_keyframes = []
-    legacy_by_plan_index = {
-        int(keyframe.get("plan_keyframe_index")): keyframe
-        for keyframe in legacy_keyframes
-        if isinstance(keyframe, dict) and keyframe.get("plan_keyframe_index") is not None
-    }
-    hydrated = []
-    changed = False
-    for keyframe in plan_keyframes:
-        if not isinstance(keyframe, dict):
-            continue
-        next_keyframe = dict(keyframe)
-        plan_index = next_keyframe.get("index")
-        try:
-            legacy_keyframe = legacy_by_plan_index.get(int(plan_index)) if plan_index is not None else None
-        except Exception:
-            legacy_keyframe = None
-        if legacy_keyframe:
-            for field in ("image_url", "image_task_id"):
-                if not next_keyframe.get(field) and legacy_keyframe.get(field):
-                    next_keyframe[field] = legacy_keyframe.get(field)
-                    changed = True
-        hydrated.append(next_keyframe)
-    if changed:
-        plan = safe_json_dict(shot.video_director_plan)
-        plan["keyframes"] = hydrated
-        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-    return hydrated
+    raise RuntimeError('LEGACY_KEYFRAME_HYDRATION_RETIRED: 使用显式生产者lineage')
 
 
 def _h3_prompt_clip(plan: dict, selected_mode: str, clip: dict) -> dict:
@@ -539,6 +509,9 @@ def _h3_prompt_context(db, shot, selected_mode: str, clip: dict, audio_drive_ena
         "invalidation": {field: plan.get(field) for field in ("invalidation_reason", "invalidation_level")},
         "planning_stale": plan.get("keyframe_planning_status") == "STALE",
     }
+    from app.services.runtime_gate import require_rsa
+    rsa = require_rsa(db, shot.id)
+    context["resolved_shot_assets"] = {"id": rsa.id, "hash": rsa.result_hash}
     first_index = (current_clip["keyframe_indexes"] or [None])[0]
     first_keyframe = next((item for item in keyframes if isinstance(item, dict) and item.get("index") == first_index), {})
     uses_shot_image = (not multi_executor
@@ -856,6 +829,9 @@ async def _build_h3_prompt_for_worker(*, db, task, novel, shot, selected_mode, c
                 raise H3PromptValidationError("REUSABLE_PROMPT_MISSING")
         record["raw_candidate"] = reusable_prompt
         _save_h3_prompt_gate(db, task, record)
+        if reusable_prompt is None and hasattr(task, "_video_execution"):
+            from app.services.shot_video_execution import invalidate_binding_proof
+            invalidate_binding_proof(task, "h3-llm-await")
         prompt = await build_h3_video_prompt(
             db=db, novel=novel, shot=shot, selected_mode=selected_mode, clip=clip,
             workflow_capability=workflow_capability, workflow_type=workflow.type, workflow_name=workflow.name,
@@ -902,10 +878,8 @@ async def _build_h3_prompt_for_worker(*, db, task, novel, shot, selected_mode, c
                    for node in submitted_workflow.values()) and not enabled:
                 raise H3PromptValidationError("AUDIODRIVE_REQUIRED_BY_GRAPH")
             current = check_current()
-            from app.models.novel import Character
-            appearances = {character.name: character.appearance for character in db.query(Character).filter(
-                Character.novel_id == novel.id, Character.name.in_(safe_json_list(shot.characters)),
-            ).populate_existing().all() if character.appearance}
+            from app.services.runtime_gate import require_rsa, resolved_text_context
+            appearances = resolved_text_context(require_rsa(db, shot.id))["character_appearances"]
             manifest, timeline, issues = resolve_h3_prompt_subjects(
                 db, novel.id, shot, clip, current.get("audio", {}).get("speaker_timeline", []), appearances,
             )
@@ -951,23 +925,9 @@ def enqueue_shot_video_task(
     skip_llm_when_prompt_exists: bool = False,
 ) -> None:
     """Queue shot video generation in its dedicated serial worker."""
-    worker_manager.worker("shot_video").enqueue(
-        lambda: generate_shot_video_task(
-            task_id,
-            novel_id,
-            chapter_id,
-            shot_id,
-            shot_index,
-            workflow_id,
-            shot_image_url,
-            use_keyframes=use_keyframes,
-            use_reference_audio=use_reference_audio,
-            selected_mode=selected_mode,
-            only_window_index=only_window_index,
-            auto_merge_clips=auto_merge_clips,
-            skip_llm_when_prompt_exists=skip_llm_when_prompt_exists,
-        )
-    )
+    # Admission already persisted the complete execution request. The DB-backed
+    # worker is the sole queue owner, including after process restarts.
+    return None
 
 
 async def generate_shot_video_task(
@@ -1006,6 +966,12 @@ async def generate_shot_video_task(
             return
         if task.status not in {"pending", "running"}:
             return
+        from app.services.shot_video_execution import run_video_execution
+        strict_execution=True
+        await run_video_execution(db,task_id)
+        from app.services.external_failure_observation_service import record_task_external_failures_best_effort
+        record_task_external_failures_best_effort(task_id)
+        return
 
         try:
             execution_metadata = json.loads(task.metadata_json) if task.metadata_json else {}
@@ -1016,6 +982,8 @@ async def generate_shot_video_task(
             from app.services.shot_video_execution import run_video_execution
             strict_execution = True
             await run_video_execution(db, task_id)
+            from app.services.external_failure_observation_service import record_task_external_failures_best_effort
+            record_task_external_failures_best_effort(task_id)
             return
 
         started = db.query(Task).filter(Task.id == task_id, Task.status == task.status).update({

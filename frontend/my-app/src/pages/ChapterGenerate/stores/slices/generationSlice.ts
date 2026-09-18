@@ -13,6 +13,7 @@ import type {
   ReferenceAudioMergeTask,
 } from './types';
 import type { VideoMode } from '../../../../api/shots';
+import type { ReviewFinding } from '../../../../types';
 import { shotsApi } from '../../../../api/shots';
 import { chapterApi } from '../../../../api/chapters';
 import { formatUserFacingError } from '../../../../utils';
@@ -66,6 +67,18 @@ const valuesEqual = (left: unknown, right: unknown): boolean => {
   } catch {
     return false;
   }
+};
+
+const dedupeReviewFindings = (value: unknown): ReviewFinding[] => {
+  if (!Array.isArray(value)) return [];
+  const findingsById = new Map<string, ReviewFinding>();
+  value.forEach((candidate) => {
+    if (!candidate || typeof candidate !== 'object') return;
+    const finding = candidate as ReviewFinding;
+    if (!finding.findingId) return;
+    findingsById.set(String(finding.findingId), finding);
+  });
+  return Array.from(findingsById.values());
 };
 
 const mergeShotIfChanged = (shot: Shot, patch: Partial<Shot>): Shot => {
@@ -1390,7 +1403,7 @@ export const createGenerationSlice: StateCreator<
     if (pollingKeyframeTaskChapters.has(chapterId)) return;
     pollingKeyframeTaskChapters.add(chapterId);
     try {
-      const response = await fetch(`/api/tasks/?chapter_id=${chapterId}&type=keyframe_image`);
+      const response = await fetch(`/api/tasks/?chapter_id=${chapterId}&type=keyframe_image&limit=500`);
       const result = await response.json();
       if (get().chapter?.id !== chapterId) return;
 
@@ -1414,7 +1427,10 @@ export const createGenerationSlice: StateCreator<
           const nameMatch = task.name?.match(/关键帧.*?([a-f0-9-]{36})-(\d+)/i);
           const fallbackMatch = task.name?.match(/分镜\s*(\d+)\s*-\s*帧\s*(\d+)/);
           let shotId = task.shotId || nameMatch?.[1];
-          let frameIndex = Number(task.metadata?.frame_index ?? task.frameIndex ?? (nameMatch ? nameMatch[2] : fallbackMatch ? fallbackMatch[2] : NaN));
+          const findingFrameIndex = Array.isArray(task.reviewFindings)
+            ? task.reviewFindings.find((finding: ReviewFinding) => finding.shotId === shotId)?.frameIndex
+            : undefined;
+          let frameIndex = Number(task.metadata?.frame_index ?? task.frameIndex ?? findingFrameIndex ?? (nameMatch ? nameMatch[2] : fallbackMatch ? fallbackMatch[2] : NaN));
           if (!shotId && fallbackMatch) {
             const shotIndex = parseInt(fallbackMatch[1], 10);
             const shot = updatedShots.find(s => s.index === shotIndex);
@@ -1432,18 +1448,34 @@ export const createGenerationSlice: StateCreator<
             if (seenFrames.has(keyframeKey)) return;
             seenFrames.add(keyframeKey);
             const taskBelongsToCurrentKeyframe = (legacyKeyframe?.image_task_id || (legacyKeyframe as any)?.imageTaskId) === task.id;
+            const incomingReviewFindings = Array.isArray(task.reviewFindings)
+              ? dedupeReviewFindings(task.reviewFindings)
+              : null;
 
             // 更新任务状态
             const taskIndex = newKeyframeTasks.findIndex(t => t.taskId === task.id);
-            if (taskIndex >= 0 && newKeyframeTasks[taskIndex].status !== task.status) {
-              newKeyframeTasks[taskIndex] = { ...newKeyframeTasks[taskIndex], status: task.status };
-              keyframeTasksUpdated = true;
-            } else if (taskIndex < 0 && ['pending', 'queued', 'running'].includes(task.status)) {
+            if (taskIndex >= 0) {
+              const existingTask = newKeyframeTasks[taskIndex];
+              const findingsChanged = incomingReviewFindings !== null
+                && !valuesEqual(existingTask.reviewFindings || [], incomingReviewFindings);
+              if (existingTask.status !== task.status || findingsChanged) {
+                newKeyframeTasks[taskIndex] = {
+                  ...existingTask,
+                  status: task.status,
+                  ...(incomingReviewFindings !== null ? { reviewFindings: incomingReviewFindings } : {}),
+                };
+                keyframeTasksUpdated = true;
+              }
+            } else if (
+              ['pending', 'queued', 'running'].includes(task.status)
+              || (taskBelongsToCurrentKeyframe && (incomingReviewFindings?.length || 0) > 0)
+            ) {
               newKeyframeTasks.push({
                 shotId,
                 frameIndex,
                 taskId: task.id,
                 status: task.status,
+                reviewFindings: incomingReviewFindings || [],
               });
               keyframeTasksUpdated = true;
             }
@@ -1574,6 +1606,7 @@ export const createGenerationSlice: StateCreator<
           frameIndex,
           taskId: result.data.task_id,
           status: 'pending',
+          reviewFindings: [],
         };
         set(state => ({
           keyframeTasks: [...state.keyframeTasks, newTask]

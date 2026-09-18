@@ -16,6 +16,9 @@ export interface ImageInfo {
 export interface WorkflowData {
   workflow: any;
   prompt: string;
+  note?: string;
+  workflowSource?: string;
+  evidence?: Record<string,{state:string;error?:string|null;sha256?:string|null}>;
 }
 
 export interface TaskStats {

@@ -1,7 +1,7 @@
 /**
  * ChapterGenerate Store 类型定义
  */
-import type { Chapter, Novel, Character, DialogueData, KeyframeData } from '../../../../types';
+import type { Chapter, Novel, Character, DialogueData, KeyframeData, ReviewFinding } from '../../../../types';
 import type { Scene, Prop } from '../../types';
 // 从 API 模块导入 Shot 类型，确保类型统一
 import type { Shot as ApiShot } from '../../../../api/shots';
@@ -67,6 +67,7 @@ export interface KeyframeTask {
   frameIndex: number;
   taskId: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
+  reviewFindings?: ReviewFinding[];
 }
 
 // 参考音频合并任务
@@ -221,7 +222,7 @@ export interface ChapterActionsState {
   handleSplitChapter: (novelId: string, chapterId: string) => Promise<void>;
   handleSaveJson: (novelId: string, chapterId: string, json: string) => Promise<void>;
   clearChapterResources: (novelId: string, chapterId: string) => Promise<void>;
-  splitChapter: (novelId: string, chapterId: string) => Promise<void>;
+  splitChapter: (novelId: string, chapterId: string, options?: {preserveStructure?:boolean}) => Promise<void>;
   // Navigation actions
   navigateToCharacter: (characterName: string) => void;
   navigateToScene: (sceneName: string) => void;
@@ -304,13 +305,18 @@ export interface ChapterGenerateStore
   setEditableJson: (json: string) => void;
   setShots: (shots: Shot[]) => void;
   updateShot: (shotId: string, data: Partial<Shot>) => Promise<void>;
+  saveShotRevisions: (novelId: string, chapterId: string, drafts: import('../../../../api/shotRevision').ShotRevisionDraft[]) => Promise<Shot[]>;
+  shotTreatmentDrafts: Record<string, import('../../../../api/shotRevision').TreatmentDraft>;
+  shotServerHeads: Record<string, Shot>;
+  shotEventIdentities: Record<string, import('../../../../api/shotRevision').ShotEventIdentities>;
+  setShotTreatmentDraft: (shotId: string, draft: import('../../../../api/shotRevision').TreatmentDraft) => void;
   getCharacterImage: (name: string) => string | undefined;
   getSceneImage: (name: string) => string | null;
   getPropImage: (name: string) => string | null;
 
   // ========== Chapter Resource Actions ==========
   /** 从 parsedData 初始化章节级资源 */
-  initChapterResources: () => void;
+  initChapterResources: () => Promise<void>;
   /** 添加资源到章节 */
   addResourceToChapter: (type: 'character' | 'scene' | 'prop', name: string) => void;
   /** 从章节移除资源 */

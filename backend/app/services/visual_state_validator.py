@@ -58,7 +58,9 @@ class VisualObservationProvider(Protocol):
 
 
 def get_visual_state_observer() -> VisualObservationProvider | None:
-    return None
+    from app.services.visual_state_observer import get_configured_visual_state_observer
+
+    return get_configured_visual_state_observer()
 
 
 def capability_for(requirement: StateRequirement) -> dict:

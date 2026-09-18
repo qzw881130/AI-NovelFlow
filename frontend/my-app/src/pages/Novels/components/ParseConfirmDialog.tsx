@@ -75,12 +75,6 @@ export function ParseConfirmDialog({
     return 'bg-amber-600 hover:bg-amber-700';
   };
 
-  const getCheckboxColor = () => {
-    if (isCharacters) return 'text-purple-600 focus:ring-purple-500';
-    if (isScenes) return 'text-teal-600 focus:ring-teal-500';
-    return 'text-amber-600 focus:ring-amber-500';
-  };
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
@@ -132,21 +126,7 @@ export function ParseConfirmDialog({
             <p className="text-xs text-gray-500 mt-1">{t('novels.parseEntireNovel')}</p>
           </div>
 
-          <div>
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={chapterRange.isIncremental}
-                onChange={(e) => onChapterRangeChange({
-                  ...chapterRange,
-                  isIncremental: e.target.checked
-                })}
-                className={`rounded focus:ring-0 ${getCheckboxColor()}`}
-              />
-              <span className="text-sm text-gray-700">{t('novels.incrementalUpdate')}</span>
-            </label>
-            <p className="text-xs text-gray-500 mt-1">{t('novels.incrementalUpdateDesc')}</p>
-          </div>
+          <p className="rounded bg-blue-50 p-3 text-sm text-blue-800">按章回保存独立候选和来源证据，等待身份归并。此次解析不会覆盖、补写或删除全局角色/场景/道具。</p>
         </div>
 
         <p className="text-sm text-gray-500 mb-6">{t('novels.parseConfirmHint')}</p>

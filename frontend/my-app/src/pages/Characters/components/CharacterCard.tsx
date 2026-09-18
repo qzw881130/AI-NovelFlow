@@ -27,6 +27,7 @@ interface CharacterCardProps {
   onImageClick: (url: string, name: string, characterId: string) => void;
   onGenerateVoice: (character: Character) => void;
   onUploadAudio: (characterId: string) => void;
+  onViewAppearances: (character: Character) => void;
 }
 
 export function CharacterCard({
@@ -48,6 +49,7 @@ export function CharacterCard({
   onImageClick,
   onGenerateVoice,
   onUploadAudio,
+  onViewAppearances,
 }: CharacterCardProps) {
   const { t } = useTranslation();
   const aspectClass = ASPECT_RATIO_CLASSES[aspectRatio] || 'aspect-video';
@@ -224,6 +226,7 @@ export function CharacterCard({
           </span>
         </div>
 
+        {!character.isNarrator && <button className="btn-secondary text-sm mt-3 w-full" onClick={() => onViewAppearances(character)}>章回外观 · 查看 / 生成</button>}
         {/* 角色描述 */}
         {character.description && (
           <div className="mt-3">

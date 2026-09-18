@@ -17,7 +17,7 @@ import { useChapterGenerateStore } from '../stores';
 import { toast } from '../../../stores/toastStore';
 import { dialogueEmotion, dialogueText, estimateDialogueSeconds, getDialogueDurationWarning } from '../../../utils';
 import type { DialogueData } from '../types';
-import type { Shot } from '../../../api/shots';
+import type { Shot, SourceTreatment } from '../../../api/shots';
 import type { AudioDriveEvent, AudioEventType } from '../../../api/audioDrive';
 
 interface ShotFormProps {
@@ -53,6 +53,9 @@ const pauseAfterOptions: Array<{ value: AudioDriveEvent['pauseAfter']; label: st
   { value: 'LONG', label: 'LONG · 1.2s' },
 ];
 
+import { editAudioEvent } from '../audioEventDraft';
+import { parseTreatmentDraft } from '../../../api/shotRevision';
+
 export function ShotForm({
   shotIndex: propShotIndex,
   shotData: propShotData,
@@ -71,6 +74,7 @@ export function ShotForm({
   const currentShotIndex = useChapterGenerateStore((state) => state.currentShotIndex);
   const storeShots = useChapterGenerateStore((state) => state.shots);
   const setShots = useChapterGenerateStore((state) => state.setShots);
+  const treatmentDrafts = useChapterGenerateStore((state) => state.shotTreatmentDrafts);
 
   // 从 store 获取章节级资源
   const chapterCharacters = useChapterGenerateStore((state) => state.chapterCharacters);
@@ -108,6 +112,16 @@ export function ShotForm({
   const [continuityMode, setContinuityMode] = useState(shotData?.continuity_mode || 'NORMAL');
   const [dialogues, setDialogues] = useState<DialogueData[]>(shotData?.dialogues || []);
   const [audioEvents, setAudioEvents] = useState<AudioDriveEvent[]>(shotData?.audioEvents || []);
+  const [treatmentJson,setTreatmentJson]=useState(treatmentDrafts[shotData?.id || '']?.json ?? JSON.stringify(shotData?.sourceTreatments || [],null,2));
+  const treatmentInput=useMemo(()=>parseTreatmentDraft(treatmentJson),[treatmentJson]);
+  useEffect(()=>setTreatmentJson(useChapterGenerateStore.getState().shotTreatmentDrafts[shotData?.id || '']?.json ?? JSON.stringify(shotData?.sourceTreatments || [],null,2)),
+    [shotData?.id,shotData?.sourceRevision,shotData?.treatmentContractVersion]);
+  const changeTreatmentJson = (json: string) => {
+    setTreatmentJson(json);
+    if (shotData?.id) useChapterGenerateStore.getState().setShotTreatmentDraft(shotData.id, {
+      json, error: parseTreatmentDraft(json).error, sourceRevision: shotData.sourceRevision,
+    });
+  };
 
   // 当 shotIndex 或 shotData 变化时，同步本地状态
   useEffect(() => {
@@ -167,6 +181,7 @@ export function ShotForm({
       continuity_mode: continuityMode,
       dialogues,
       audioEvents,
+      ...(treatmentInput.value ? {sourceTreatments:treatmentInput.value} : {}),
     };
     onChange?.(newShotData);
   };
@@ -188,6 +203,7 @@ export function ShotForm({
               continuity_mode: continuityMode,
               dialogues,
               audioEvents,
+              ...(treatmentInput.value ? {sourceTreatments:treatmentInput.value} : {}),
             }
           : shot
       );
@@ -199,7 +215,7 @@ export function ShotForm({
   useEffect(() => {
     handleChange();
     syncToStore();
-  }, [description, videoDescription, selectedCharacters, selectedScene, selectedProps, estimatedDuration, duration, continuityMode, dialogues, audioEvents]);
+  }, [description, videoDescription, selectedCharacters, selectedScene, selectedProps, estimatedDuration, duration, continuityMode, dialogues, audioEvents, treatmentInput]);
 
   // 处理角色选择切换
   const toggleCharacter = (charName: string) => {
@@ -272,15 +288,7 @@ export function ShotForm({
 
   const updateAudioEvent = (index: number, field: keyof AudioDriveEvent, value: string | boolean) => {
     const nextEvents = [...audioEvents];
-    nextEvents[index] = { ...nextEvents[index], [field]: value };
-    if (field === 'type') {
-      const type = value as AudioEventType;
-      nextEvents[index].requiresVisibleLipsync = type === 'DIALOGUE';
-      if (type === 'NARRATION') {
-        nextEvents[index].voiceOwnerName = nextEvents[index].voiceOwnerName || '旁白';
-        nextEvents[index].visibleSpeakerName = null;
-      }
-    }
+    nextEvents[index] = editAudioEvent(nextEvents[index], field, value);
     setAudioEvents(nextEvents);
   };
 
@@ -315,12 +323,13 @@ export function ShotForm({
     const handleKeyDown = (event: KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
         event.preventDefault();
+        if (treatmentInput.error) {toast.error(`TREATMENT_DRAFT_INVALID: ${treatmentInput.error}`); return;}
         onSave();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onSave, readOnly, isSaving]);
+  }, [onSave, readOnly, isSaving, treatmentInput.error]);
 
   const dialogueDurationTotal = dialogues.reduce((total, dialogue) => (
     total + estimateDialogueSeconds(dialogueText(dialogue), dialogueEmotion(dialogue))
@@ -340,7 +349,7 @@ export function ShotForm({
       {onSave && (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-sm font-semibold text-gray-800">{t('chapterGenerate.shotNumberLabel', { number: shotIndex })}</h3>
-          <button type="button" onClick={() => onSave()} disabled={readOnly || isSaving || !shotData}
+          <button type="button" onClick={() => onSave()} disabled={readOnly || isSaving || !shotData || Boolean(treatmentInput.error)}
             aria-label={isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}
             title={isSaving ? t('common.saving') : t('chapterGenerate.saveShots')}
             className="generate-icon-action inline-flex min-h-11 items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700 disabled:opacity-50">
@@ -644,6 +653,15 @@ export function ShotForm({
       {/* 角色台词 */}
       {showDialogues && (
         <div>
+          <details className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50/30 p-3">
+            <summary className="cursor-pointer text-sm font-medium">原文处理合同 · Revision {shotData?.sourceRevision ?? 0}</summary>
+            <p className="my-2 text-xs text-gray-600">由本次Director或正式用户修订决定DIALOGUE / NARRATION / VISUAL。VISUAL目标只证明表达归属，不证明画面语义完整。</p>
+            {!shotData?.treatmentContractVersion&&<p className="mb-2 text-xs text-amber-700">CONTRACT_UNAVAILABLE：旧分镜需显式重新拆分/重建合同，不自动推断。</p>}
+            <textarea aria-label="原文处理合同 JSON" value={treatmentJson} onChange={e=>changeTreatmentJson(e.target.value)} disabled={readOnly}
+              rows={10} className="input-field w-full font-mono text-xs"/>
+            {treatmentInput.error&&<p role="alert" className="mt-1 text-xs text-red-700">{treatmentInput.error}</p>}
+            <p className="mt-1 text-xs text-gray-500">新增人声需明确Treatment及原文evidence，再为Event选择对应key。删除事件不会自动把原文改为VISUAL。</p>
+          </details>
           <div className="mb-4 rounded-lg border border-cyan-100 bg-cyan-50/40 p-3">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
               <div>
@@ -688,6 +706,14 @@ export function ShotForm({
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs text-gray-500 mb-1">原文 Treatment</label>
+                      <select aria-label={`Event ${idx+1} Treatment`} value={event.treatmentRef || ''}
+                        onChange={e=>updateAudioEvent(idx,'treatmentRef',e.target.value)} disabled={readOnly} className="input-field text-sm">
+                        <option value="">选择明确的原文处理key</option>
+                        {(treatmentInput.value || []).filter(item=>item.type!=='VISUAL').map(item=><option key={item.key} value={item.key}>{item.key} · {item.type} {item.audio_type || ''}</option>)}
+                      </select>
+                    </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">类型</label>
                       <select
@@ -721,7 +747,7 @@ export function ShotForm({
                       <select
                         value={event.visibleSpeakerName || ''}
                         onChange={(e) => updateAudioEvent(idx, 'visibleSpeakerName', e.target.value)}
-                        disabled={readOnly || event.type === 'NARRATION'}
+                        disabled={readOnly || event.type !== 'DIALOGUE'}
                         className="input-field text-sm"
                       >
                         <option value="">无可见说话人</option>
@@ -748,7 +774,7 @@ export function ShotForm({
                       type="checkbox"
                       checked={event.requiresVisibleLipsync}
                       onChange={(e) => updateAudioEvent(idx, 'requiresVisibleLipsync', e.target.checked)}
-                      disabled={readOnly || event.type === 'NARRATION'}
+                      disabled={readOnly || event.type !== 'DIALOGUE'}
                       className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
                     />
                     requires visible lipsync
@@ -780,7 +806,7 @@ export function ShotForm({
               ))}
 
               {audioEvents.length === 0 && (
-                <p className="text-xs text-gray-500 text-center py-4 bg-white rounded border border-dashed border-gray-200">暂无 Audio Events。旧章节可继续使用下方兼容台词，或新增声音事件。</p>
+                <p className="text-xs text-gray-500 text-center py-4 bg-white rounded border border-dashed border-gray-200">暂无 Audio Events。明确VISUAL可以无语音；有声Treatment缺事件必须补齐，旧缺合同数据需显式重建。</p>
               )}
             </div>
           </div>

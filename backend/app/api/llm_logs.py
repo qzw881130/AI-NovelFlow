@@ -18,9 +18,9 @@ router = APIRouter()
 
 LLM_LOG_TASK_CATEGORY_TYPES = {
     "style_design": ["style"],
-    "asset_parse": ["parse_characters", "parse_scenes", "parse_props"],
-    "asset_generation": ["generate_character_appearance"],
-    "shot_planning": ["split_chapter"],
+    "asset_parse": ["parse_characters", "parse_scenes", "parse_props", "asset_identity_resolution"],
+    "asset_generation": ["generate_character_appearance", "character_appearance_generation"],
+    "shot_planning": ["split_chapter", "shot_contract_auto_repair"],
     "shot_image": ["shot_image_prompt"],
     "video_director": ["video_mode_recommender", "keyframe_description", "keyframe_planner", "keyframe_transition"],
     "keyframe_image": ["keyframe_image_prompt"],
@@ -146,6 +146,7 @@ def get_llm_logs(
                     "used_proxy": log.used_proxy,
                     "duration": log.duration,
                     "metrics": log.usage_metrics,
+                    "execution_metadata": log.execution_metadata,
                 }
                 for log in logs
             ],
@@ -279,5 +280,6 @@ def get_llm_log_detail(
             "used_proxy": log.used_proxy,
             "duration": log.duration,
             "metrics": log.usage_metrics,
+            "execution_metadata": log.execution_metadata,
         }
     }

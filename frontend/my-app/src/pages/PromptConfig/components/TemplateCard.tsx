@@ -42,6 +42,7 @@ export function TemplateCard({
           )}
         </div>
         <p className="text-sm text-gray-500 truncate">{getDisplayDescription(template)}</p>
+        {template.sourceFile && <p className="text-xs text-blue-700 break-all mt-1">{template.sourceFile}</p>}
         <p className="text-xs text-gray-400 mt-1 truncate font-mono">
           {template.template.substring(0, type === 'chapter_split' ? 120 : 80)}...
         </p>
@@ -55,9 +56,9 @@ export function TemplateCard({
             <button onClick={handleDownload} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded transition-colors" title={t('common.download')}>
               <Download className="h-4 w-4" />
             </button>
-            <button onClick={() => onCopy(template)} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-100 rounded transition-colors" title={t('promptConfig.copyAsUser')}>
+            {!template.sourceFile && <button onClick={() => onCopy(template)} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-100 rounded transition-colors" title={t('promptConfig.copyAsUser')}>
               <Copy className="h-4 w-4" />
-            </button>
+            </button>}
           </>
         ) : (
           <>

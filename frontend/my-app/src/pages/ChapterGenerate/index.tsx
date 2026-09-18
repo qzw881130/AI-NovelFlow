@@ -266,7 +266,7 @@ export default function ChapterGenerate() {
 
   const doSplitChapter = async () => {
     if (id && cid) {
-      await handleSplitChapter(id, cid);
+      try { await handleSplitChapter(id, cid); } catch { /* Store already displays the API failure. */ }
     }
   };
 

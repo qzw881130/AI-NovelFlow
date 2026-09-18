@@ -108,6 +108,8 @@ export default {
     tabShots: '分镜制作',
     tabCompose: '合成导出',
     tabShotSplit: '分镜拆分',
+    tabAssetPrepare: '资产准备',
+    tabAssetPrepareShort: '资产',
     tabShotSplitShort: '拆分',
     tabShotImageShort: '生图',
     tabAudioGenShort: '音频',
@@ -260,7 +262,7 @@ export default {
     batchShotImageGenerateFailed: '批量分镜图生成失败',
     shotDataNotExist: '分镜数据不存在',
     // 章节资源管理
-    chapterResourceManagement: '章节资源管理',
+    chapterResourceManagement: '本章分镜资产',
     selectedCharacters: '已选角色 ({count})',
     noCharacters: '暂无角色',
     clickToClose: '点击关闭',
@@ -519,7 +521,7 @@ export default {
     videoList: '视频列表',
     selectStage: '请选择一个阶段',
     manageChapterResources: '管理本章节使用的角色、场景、道具',
-    chapterResources: '章节资源',
+    chapterResources: '本章分镜资产',
 
     // 场景验证
     sceneValidation: {
@@ -557,7 +559,7 @@ export default {
 
     // 确认对话框
     confirmResplit: '确认重新拆分分镜头？',
-    resplitWarning: '该章节已有生成的内容，重新拆分将清除以下数据：',
+    resplitWarning: '新分镜通过完整校验后才替换以下当前结果；失败时保留旧数据，历史媒体文件保留：',
     confirmResplitBtn: '确认重新拆分',
     shotJsonData: '分镜头 JSON 数据',
     generatedShotImages: '已生成的分镜头图片',
@@ -570,7 +572,7 @@ export default {
     aiSplitFailed: 'AI 拆分失败：{message}',
     aiSplitFailedRetry: 'AI 拆分失败，请重试',
     confirmAiSplit: '确认AI拆分？',
-    aiSplitClearWarning: '⚠️ AI拆分将清空当前章节的全部分镜数据，确认继续吗？',
+    aiSplitClearWarning: 'AI拆分仅使用本章正式绑定素材。新结果通过校验后替换当前分镜，失败时保留旧数据。确认继续吗？',
     confirmSplit: '确认拆分',
     splitting: '拆分中...',
     adding: '添加中...',

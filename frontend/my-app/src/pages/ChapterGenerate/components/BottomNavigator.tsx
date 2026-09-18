@@ -18,6 +18,7 @@ import type { Shot } from '../stores/slices/types';
 import { useTranslation } from '../../../stores/i18nStore';
 
 interface BottomNavigatorProps {
+  assetStates?: Record<string,{ready:boolean;status:string}>;
   /** 分镜列表数据 */
   shots?: Shot[];
   /** 分镜图片映射（key 为 shotId） */
@@ -48,6 +49,7 @@ export function BottomNavigator({
   pendingVideos = new Set(),
   collapsed = false,
   onCollapsedChange,
+  assetStates,
 }: BottomNavigatorProps) {
   const { t } = useTranslation();
   const store = useChapterGenerateStore();
@@ -74,7 +76,7 @@ export function BottomNavigator({
   const goToShot = (index: number) => {
     if (index < 1 || index > shots.length) return;
     const shot = shots[index - 1];
-    setCurrentShot(String(shot?.id || index), index);
+    if(shot?.id)setCurrentShot(shot.id, index);
   };
 
   const goToPreviousShot = () => goToShot(currentShotIndex - 1);
@@ -93,8 +95,12 @@ export function BottomNavigator({
     const imageIsGenerating = generatingShots.has(shotId) || shot.imageStatus === 'generating';
     const videoIsGenerating = generatingVideos.has(shotId) || shot.videoStatus === 'generating';
     const videoIsQueued = pendingVideos.has(shotId) || (!!shot.videoTaskId && shot.videoStatus === 'pending');
+    if(currentTab===1){
+      const state=assetStates?.[shotId];
+      return state?.ready?'completed':state?.status==='FAILED'?'failed':state?.status==='RUNNING'?'generating':'pending';
+    }
 
-    if (currentTab === 2) {
+    if (currentTab === 3) {
       if (preparingAudioShots.has(shotId)) return 'generating';
       if (pendingAudioPrepareShots.has(shotId)) return 'queued';
       const plan: any = shot.videoDirectorPlan || {};
@@ -116,24 +122,24 @@ export function BottomNavigator({
       return 'pending';
     }
 
-    if (currentTab === 1 && imageIsGenerating && !hasImageResult) return 'generating';
-    if (currentTab === 3 && videoIsGenerating) return 'generating';
-    if (currentTab === 3 && videoIsQueued) return 'queued';
+    if (currentTab === 2 && imageIsGenerating && !hasImageResult) return 'generating';
+    if (currentTab === 4 && videoIsGenerating) return 'generating';
+    if (currentTab === 4 && videoIsQueued) return 'queued';
     if (isCurrentShot) return 'current';
-    if (currentTab === 1 && hasImageResult) return 'completed';
-    if (currentTab === 3 && hasVideoResult) return 'completed';
+    if (currentTab === 2 && hasImageResult && shot.imageStatus==='completed') return 'completed';
+    if (currentTab === 4 && hasVideoResult && shot.videoStatus==='completed') return 'completed';
     if (generatingShots.has(shotId) || generatingVideos.has(shotId) || shot.imageStatus === 'generating' || shot.videoStatus === 'generating') {
       return 'generating';
     }
     if (pendingShots.has(shotId) || pendingVideos.has(shotId)) {
       return 'queued';
     }
-    if (currentTab === 3 && shot.videoStatus === 'failed' && !hasVideoResult) return 'failed';
-    if (currentTab === 1 && shot.imageStatus === 'failed') return 'failed';
-    if (currentTab === 3) {
+    if (currentTab === 4 && shot.videoStatus === 'failed') return 'failed';
+    if (currentTab === 2 && shot.imageStatus === 'failed') return 'failed';
+    if (currentTab === 4) {
       return (shot.videoUrl || shotVideos[shotId]) ? 'completed' : 'pending';
     }
-    if (currentTab === 1) {
+    if (currentTab === 2) {
       return (shot.imageUrl || shotImages[shotId]) ? 'completed' : 'pending';
     }
     if (shotImages[shotId] || shotVideos[shotId]) {
@@ -307,21 +313,23 @@ export function BottomNavigator({
             >
               {shots.map((shot: Shot, index: number) => {
                 const shotNum = index + 1;
-                const shotIdStr = String(shot.id || shotNum);
+                if(!shot.id)return null;
+                const shotIdStr = shot.id;
                 const thumbnailUrl = shot.imageUrl || shotImages[shotIdStr];
                 const isCurrentShot = shot.id ? shot.id === currentShotId : shotNum === currentShotIndex;
-                const isSelected = bulkMode ? selectedShotIds.includes(shotIdStr) : isCurrentShot;
+                const isSelected = currentTab===1?isCurrentShot:bulkMode ? selectedShotIds.includes(shotIdStr) : isCurrentShot;
                 return (
                   <ShotThumbnail
-                    key={shot.id || `shot-${index}`}
+                    key={shot.id}
                     shotId={shotIdStr}
                     index={shotNum}
                     thumbnailUrl={thumbnailUrl}
                     status={getShotStatus(shot, shotIdStr, shotNum)}
+                    statusLabel={currentTab===1?(assetStates?.[shotIdStr]?.ready?'已就绪':assetStates?.[shotIdStr]?.status==='FAILED'?'失败':assetStates?.[shotIdStr]?.status==='RUNNING'?'处理中':'依赖未就绪'):undefined}
                     isSelected={isSelected}
                     hasProps={Array.isArray(shot.props) && shot.props.length > 0}
                     duration={shot.duration}
-                    onClick={() => handleShotClick(shotIdStr, shotNum)}
+                    onClick={() => currentTab===1?setCurrentShot(shotIdStr,shotNum):handleShotClick(shotIdStr, shotNum)}
                     onDoubleClick={() => handleShotDoubleClick(shot)}
                     onContextMenu={() => handleShotContextMenu(shotIdStr, shotNum)}
                     onViewLarge={() => handleViewLarge(shot)}

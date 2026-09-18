@@ -6,11 +6,12 @@ import hashlib
 import json
 import httpx
 import shutil
+from copy import deepcopy
 from pathlib import Path
 from typing import Optional, List, Dict, Any, Callable, Awaitable
 from datetime import datetime
 
-from app.utils.path_utils import url_to_local_path
+from app.utils.path_utils import url_to_local_path, get_storage_root
 
 
 class FileStorageService:
@@ -25,7 +26,7 @@ class FileStorageService:
         """
         if base_dir is None:
             # 默认存储在 backend/user_story
-            self.base_dir = Path(__file__).parent.parent.parent / "user_story"
+            self.base_dir = Path(get_storage_root())
         else:
             self.base_dir = Path(base_dir)
         
@@ -1055,13 +1056,6 @@ class FileStorageService:
                 if result.returncode != 0 or stderr:
                     raise RuntimeError(f"视频解码校验失败 ({video_path}): {stderr[:300] or f'ffmpeg exit {result.returncode}'}")
 
-            target_info = await _get_video_info(final_video_list[0])
-            target_width = target_info['width']
-            target_height = target_info['height']
-
-            if target_width <= 0 or target_height <= 0:
-                return {"success": False, "message": "无法读取目标视频分辨率"}
-
             # Keep candidates on the destination filesystem for atomic publication.
             temp_normalized_dir = tempfile.mkdtemp(prefix='.novelflow_merge_', dir=str(Path(output_path).resolve().parent))
             candidate_path = os.path.join(temp_normalized_dir, 'merged.mp4')
@@ -1074,14 +1068,23 @@ class FileStorageService:
 
             # 创建临时文件列表
             try:
+                frozen_video_list=[]
+                for index,(video_path,expected_hash) in enumerate(zip(final_video_list,source_hashes)):
+                    suffix=Path(video_path).suffix or '.mp4';frozen_path=os.path.join(temp_normalized_dir,f'frozen_{index:03d}{suffix}')
+                    shutil.copyfile(video_path,frozen_path)
+                    if fingerprint(frozen_path)!=expected_hash:raise RuntimeError('Source media changed while freezing merge inputs')
+                    frozen_video_list.append(frozen_path)
+                target_info = await _get_video_info(frozen_video_list[0])
+                target_width,target_height=target_info['width'],target_info['height']
+                if target_width<=0 or target_height<=0:return {"success":False,"message":"无法读取目标视频分辨率"}
                 # Reject corrupt sources before a decoder can conceal their errors.
                 count = len(final_video_list)
-                for index, video_path in enumerate(final_video_list):
+                for index, video_path in enumerate(frozen_video_list):
                     await report(15 * index / count, f"校验源视频 {index + 1}/{count}")
                     await _validate_video_decode(video_path)
                     await report(15 * (index + 1) / count, f"校验源视频 {index + 1}/{count}")
 
-                for index, video_path in enumerate(final_video_list):
+                for index, video_path in enumerate(frozen_video_list):
                     normalized_path = os.path.join(temp_normalized_dir, f'normalized_{index:03d}.mov')
                     video_info = await _get_video_info(video_path)
                     if not video_info['audio']:
@@ -1159,7 +1162,7 @@ class FileStorageService:
                     segment_frames.append((frames, max(frames, ceil(audio_duration * 24)), bool(audio)))
                     target_frames = segment_frames[-1][1]
                     media_segments.append({
-                        "source_path": str(video_path), "source_sha256": source_hashes[index],
+                        "source_path": str(final_video_list[index]), "source_sha256": source_hashes[index],
                         "origin": str(origin), "video_start": str(video_start), "audio_start": str(audio_start),
                         "normalized_frames": frames, "target_frames": target_frames,
                         "normalized_audio_samples": int(audio_duration * 48000),
@@ -1222,6 +1225,21 @@ class FileStorageService:
 
                 await report(95, "校验合并视频")
                 await _validate_video_decode(candidate_path)
+                decoded_seconds=0.0
+                async def capture_audio_extent(seconds):
+                    nonlocal decoded_seconds
+                    decoded_seconds=max(decoded_seconds,seconds)
+                decoded_audio=await self._run_merge_process(['ffmpeg','-v','error','-xerror','-i',candidate_path,
+                    '-map','0:a:0','-ar','48000','-ac','1','-f','null','-'],capture_audio_extent)
+                if decoded_audio.returncode!=0:
+                    raise RuntimeError('Merged chapter audio extent could not be decoded')
+                candidate_info=await _get_video_info(candidate_path,count_frames=True)
+                expected_frames=sum(item[1] for item in segment_frames);expected_samples=expected_frames*2000
+                actual_frames=int(candidate_info['video'].get('nb_read_frames') or 0)
+                actual_samples=round(decoded_seconds*48000)
+                if (actual_frames!=expected_frames or actual_samples<expected_samples or actual_samples>=expected_samples+1024
+                        or candidate_info['width']!=target_width or candidate_info['height']!=target_height):
+                    raise RuntimeError('Merged chapter extent differs from frozen frame/sample manifest')
 
                 await report(99, "发布合并视频")
                 if any(fingerprint(path) != expected for path, expected in zip(final_video_list, source_hashes)):
@@ -1252,6 +1270,80 @@ class FileStorageService:
             print(f"[FileStorage] Failed to merge videos: {e}")
             traceback.print_exc()
             return {"success": False, "message": f"合并失败: {str(e)}"}
+
+
+    async def render_narration_card(self, audio_path: str, output_path: str, duration: float,
+                                    profile: Dict[str, Any], lineage: Dict[str, Any], *,
+                                    expected_audio_sha256: str, expected_snapshot_hash: str,
+                                    progress_callback=None) -> Dict[str, Any]:
+        """Render a model-free neutral card with one verified narration track."""
+        import json
+        import os
+        import tempfile
+        from app.services.rendered_subtitles import fingerprint,load,publish,sidecar
+        source=Path(audio_path);destination=Path(output_path)
+        if not source.is_file() or duration<=0:return {"success":False,"message":"NARRATION_CARD_AUDIO_INVALID"}
+        if destination.exists() or sidecar(destination).exists():
+            return {"success":False,"message":"NARRATION_CARD_DESTINATION_EXISTS"}
+        destination.parent.mkdir(parents=True,exist_ok=True)
+        workspace=Path(tempfile.mkdtemp(prefix='.narration_card_',dir=str(destination.parent)))
+        candidate=workspace/'candidate.mp4';frozen_audio=workspace/f'source_audio{source.suffix}'
+        shutil.copyfile(source,frozen_audio)
+        if fingerprint(frozen_audio)!=expected_audio_sha256:
+            shutil.rmtree(workspace,ignore_errors=True);return {"success":False,"message":"NARRATION_CARD_AUDIO_COPY_FAILED"}
+        snapshot=load(source)
+        from app.services.chapter_asset_parse_service import digest
+        if not snapshot or snapshot.get('unavailable') or digest(snapshot)!=expected_snapshot_hash:
+            shutil.rmtree(workspace,ignore_errors=True);return {"success":False,"message":"NARRATION_CARD_CAPTURED_AUDIO_CHANGED"}
+        source_hash=expected_audio_sha256
+        width,height,fps=int(profile['width']),int(profile['height']),int(profile['fps'])
+        target_frames=max(1,__import__('math').ceil(float(duration)*fps));exact_duration=target_frames/fps
+        cmd=['ffmpeg','-v','error','-xerror','-f','lavfi','-i',
+            f"color=c={profile['color']}:s={width}x{height}:r={fps}:d={exact_duration}",
+            '-i',str(frozen_audio),'-map','0:v:0','-map','1:a:0','-frames:v',str(target_frames),
+            '-c:v',profile['video_codec'],'-pix_fmt',profile['pixel_format'],'-preset','medium','-crf','18',
+            '-c:a',profile['audio_codec'],'-ar',str(profile['audio_rate']),'-ac',str(profile['audio_channels']),
+            '-af',f"apad=whole_dur={exact_duration},atrim=end={exact_duration}",'-movflags','+faststart','-y',str(candidate)]
+        try:
+            rendered=await self._run_merge_process(cmd,progress_callback)
+            if rendered.returncode!=0 or not candidate.is_file():
+                return {"success":False,"message":"NARRATION_CARD_RENDER_FAILED: "+(rendered.stderr or '')[:300]}
+            probe=await self._run_merge_process(['ffprobe','-v','error','-count_frames',
+                '-show_entries','stream=codec_type,codec_name,pix_fmt,width,height,avg_frame_rate,nb_read_frames,sample_rate,channels,duration_ts,time_base:format=duration',
+                '-of','json',str(candidate)])
+            decoded=await self._run_merge_process(['ffmpeg','-v','error','-xerror','-i',str(candidate),
+                '-map','0:v:0','-map','0:a:0','-f','null','-'])
+            if probe.returncode!=0 or decoded.returncode!=0 or (decoded.stderr or '').strip():
+                return {"success":False,"message":"NARRATION_CARD_VALIDATION_FAILED"}
+            info=json.loads(probe.stdout or '{}');streams=info.get('streams') or []
+            video=next((row for row in streams if row.get('codec_type')=='video'),None)
+            audio=next((row for row in streams if row.get('codec_type')=='audio'),None)
+            from fractions import Fraction
+            try:audio_duration=float(Fraction(int(audio['duration_ts']))*Fraction(audio['time_base'])) if audio else 0
+            except (KeyError,TypeError,ValueError,ZeroDivisionError):audio_duration=0
+            if (not video or not audio or int(video.get('width') or 0)!=width or int(video.get('height') or 0)!=height
+                    or int(video.get('nb_read_frames') or 0)!=target_frames
+                    or video.get('codec_name')!='h264' or video.get('pix_fmt')!=profile['pixel_format']
+                    or video.get('avg_frame_rate')!=f'{fps}/1'
+                    or int(audio.get('sample_rate') or 0)!=int(profile['audio_rate'])
+                    or int(audio.get('channels') or 0)!=int(profile['audio_channels'])
+                    or audio_duration+0.001<float(duration)
+                    or abs(float((info.get('format') or {}).get('duration') or 0)-exact_duration)>0.05):
+                return {"success":False,"message":"NARRATION_CARD_MEDIA_CONTRACT_FAILED"}
+            current_snapshot=load(source)
+            if (fingerprint(source)!=source_hash or not current_snapshot
+                    or digest(current_snapshot)!=expected_snapshot_hash):
+                return {"success":False,"message":"NARRATION_CARD_AUDIO_CHANGED"}
+            media_lineage={**deepcopy(lineage),'kind':'narration_card','profile':profile,
+                'source_audio_sha256':source_hash,'source_audio_snapshot':snapshot,
+                'target_frames':target_frames,'duration':exact_duration}
+            published=publish(candidate,deepcopy(snapshot.get('cues') or []),media_lineage)
+            os.replace(candidate,destination);os.replace(sidecar(candidate),sidecar(destination))
+            return {'success':True,'output_path':str(destination),'sha256':fingerprint(destination),
+                'bytes':destination.stat().st_size,'duration':exact_duration,'frames':target_frames,
+                'subtitle_snapshot':published}
+        finally:
+            shutil.rmtree(workspace,ignore_errors=True)
 
 
     def delete_chapter_directory(self, novel_id: str, chapter_id: str) -> bool:
@@ -1605,6 +1697,12 @@ class FileStorageService:
         save_dir.mkdir(parents=True, exist_ok=True)
         safe_kind = self._sanitize_filename(kind)
         return save_dir / f"clip_{window_index:03d}_{safe_kind}{ext}"
+
+    def get_narration_card_video_path(self, novel_id: str, chapter_id: str, shot_id: str, attempt_id: str) -> Path:
+        story_dir=self._get_story_dir(novel_id);chapter_short=chapter_id[:8] if chapter_id else 'unknown'
+        save_dir=story_dir/f'chapter_{chapter_short}'/'narration_cards'/f'shot_{shot_id[:8]}'
+        save_dir.mkdir(parents=True,exist_ok=True)
+        return save_dir/f'card_{attempt_id}.mp4'
 
 
 # 全局实例

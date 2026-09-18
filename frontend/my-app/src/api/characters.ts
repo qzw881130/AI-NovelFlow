@@ -31,7 +31,7 @@ export const characterApi = {
 
   /** 获取角色提示词 */
   fetchPrompt: (characterId: string) => 
-    api.get<{ prompt: string; templateName: string; templateId?: string; isSystem?: boolean }>(`/characters/${characterId}/prompt/`),
+    api.get<{ applicable?: boolean; reason?: string; prompt: string | null; templateName: string; templateId?: string; isSystem?: boolean }>(`/characters/${characterId}/prompt/`),
 
   /** 生成外貌描述 */
   generateAppearance: (characterId: string) => 

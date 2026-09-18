@@ -80,6 +80,8 @@ export default {
     tabShots: '分鏡製作',
     tabCompose: '合成匯出',
     tabShotSplit: '分鏡拆分',
+    tabAssetPrepare: '資產準備',
+    tabAssetPrepareShort: '資產',
     tabShotSplitShort: '拆分',
     tabShotImageShort: '生圖',
     tabAudioGenShort: '音訊',
@@ -463,7 +465,7 @@ export default {
 
     // 確認對話框
     confirmResplit: '確認重新拆分分鏡頭？',
-    resplitWarning: '該章節已有生成的內容，重新拆分將清除以下數據：',
+    resplitWarning: '新分鏡通過完整驗證後才替換以下目前結果；失敗時保留舊資料，歷史媒體檔案保留：',
     confirmResplitBtn: '確認重新拆分',
     shotJsonData: '分鏡頭 JSON 數據',
     generatedShotImages: '已生成的分鏡頭圖片',
@@ -476,7 +478,7 @@ export default {
     aiSplitFailed: 'AI 拆分失敗：{message}',
     aiSplitFailedRetry: 'AI 拆分失敗，請重試',
     confirmAiSplit: '確認AI拆分？',
-    aiSplitClearWarning: '⚠️ AI拆分將清空當前章節的全部分鏡數據，確認繼續嗎？',
+    aiSplitClearWarning: 'AI拆分僅使用本章正式綁定素材。新結果通過驗證後替換目前分鏡，失敗時保留舊資料。確認繼續嗎？',
     confirmSplit: '確認拆分',
     splitting: '拆分中...',
     adding: '添加中...',

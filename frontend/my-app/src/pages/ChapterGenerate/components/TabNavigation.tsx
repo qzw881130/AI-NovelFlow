@@ -1,5 +1,5 @@
 /**
- * TabNavigation - 四阶段工作流 Tab 导航
+ * TabNavigation - 五阶段制作导航
  *
  * 显示四个阶段的标签，支持：
  * - 显示阶段标签和图标
@@ -9,11 +9,11 @@
  */
 
 import React from 'react';
-import { Check, Image, Film, Mic, FileText } from 'lucide-react';
+import { Check, Image, Film, Mic, FileText, PackageCheck } from 'lucide-react';
 import { useChapterGenerateStore } from '../stores';
 import { useTranslation } from '../../../stores/i18nStore';
 
-export type StageTab = 'shot_split' | 'shot_image' | 'audio_gen' | 'video_gen';
+export type StageTab = 'shot_split' | 'asset_prepare' | 'shot_image' | 'audio_gen' | 'video_gen';
 
 interface TabConfig {
   key: StageTab;
@@ -32,25 +32,32 @@ const tabs: TabConfig[] = [
     index: 0,
   },
   {
+    key: 'asset_prepare',
+    labelKey: 'chapterGenerate.tabAssetPrepare',
+    mobileLabelKey: 'chapterGenerate.tabAssetPrepareShort',
+    icon: <PackageCheck className="w-4 h-4" />,
+    index: 1,
+  },
+  {
     key: 'shot_image',
     labelKey: 'chapterGenerate.tabShotImage',
     mobileLabelKey: 'chapterGenerate.tabShotImageShort',
     icon: <Image className="w-4 h-4" />,
-    index: 1,
+    index: 2,
   },
   {
     key: 'audio_gen',
     labelKey: 'chapterGenerate.tabAudioGen',
     mobileLabelKey: 'chapterGenerate.tabAudioGenShort',
     icon: <Mic className="w-4 h-4" />,
-    index: 2,
+    index: 3,
   },
   {
     key: 'video_gen',
     labelKey: 'chapterGenerate.tabVideoGen',
     mobileLabelKey: 'chapterGenerate.tabVideoGenShort',
     icon: <Film className="w-4 h-4" />,
-    index: 3,
+    index: 4,
   },
 ];
 
@@ -83,12 +90,14 @@ export function TabNavigation() {
         e.preventDefault();
         setCurrentTab(3);
         break;
+      case '5':
+        e.preventDefault();setCurrentTab(4);break;
     }
   };
 
   return (
     <div onKeyDown={handleKeyDown} tabIndex={0} className="outline-none">
-      <div className="generate-tabs grid grid-cols-4 lg:flex gap-1 lg:gap-2 lg:mb-2 border-b border-gray-200">
+      <div className="generate-tabs grid grid-cols-5 lg:flex gap-1 lg:gap-2 lg:mb-2 border-b border-gray-200" role="tablist" aria-label="制作阶段">
         {tabs.map((tab) => {
           const isActive = currentTab === tab.index;
           const isCompleted = tabProgress[tab.index];
@@ -97,6 +106,8 @@ export function TabNavigation() {
             <button
               key={tab.key}
               type="button"
+              role="tab"
+              aria-selected={isActive}
               aria-pressed={isActive}
               aria-label={t(tab.labelKey)}
               title={t(tab.labelKey)}
@@ -117,7 +128,7 @@ export function TabNavigation() {
               </span>
 
               {/* 标签 */}
-              <span className="hidden lg:inline">{t(tab.labelKey)}</span>
+              <span className="hidden lg:inline">{tab.index+1}. {t(tab.labelKey)}</span>
               <span className="lg:hidden" aria-hidden="true">{t(tab.mobileLabelKey)}</span>
 
               {/* 完成状态标记 */}

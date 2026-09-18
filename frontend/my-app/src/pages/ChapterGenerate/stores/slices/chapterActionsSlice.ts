@@ -54,59 +54,15 @@ export const createChapterActionsSlice: StateCreator<
     await get().splitChapter(novelId, chapterId);
   },
 
-  splitChapter: async (novelId: string, chapterId: string) => {
+  splitChapter: async (novelId: string, chapterId: string, options?: {preserveStructure?:boolean}) => {
     const t = useI18nStore.getState().t;
-    const emptyParsedData = {
-      chapter: get().chapter?.title,
-      characters: [],
-      scenes: [],
-      props: [],
-    };
-
     set({
       splitConfirmDialog: { isOpen: false, hasResources: false },
       isSplitting: true,
-      shots: [],
-      parsedData: emptyParsedData,
-      editableJson: JSON.stringify(emptyParsedData, null, 2),
-      shotImages: {},
-      shotVideos: {},
-      transitionVideos: {},
-      mergedImage: null,
-      currentShotId: null,
-      currentShotIndex: 1,
-      selectedShotIds: [],
-      bulkMode: false,
-      generatingShots: new Set<string>(),
-      pendingShots: new Set<string>(),
-      generatingVideos: new Set<string>(),
-      pendingVideos: new Set<string>(),
-      generatingTransitions: new Set<string>(),
-      generatingAudios: new Set<string>(),
-      audioWarnings: [],
-      audioTasks: [],
-      audioUrls: {},
-      audioSources: {},
-      uploadingAudios: new Set<string>(),
-      generatingKeyframes: new Set<string>(),
-      keyframeTasks: [],
-      keyframeImageUrls: {},
-      mergingReferenceAudios: new Set<string>(),
-      uploadingReferenceAudios: new Set<string>(),
-      referenceAudioMergeTasks: [],
     });
 
-    // 清除旧资源
     try {
-      await fetch(`${API_BASE}/novels/${novelId}/chapters/${chapterId}/clear-resources`, {
-        method: 'POST',
-      });
-    } catch (error) {
-      console.error('清除资源请求失败:', error);
-    }
-
-    try {
-      const res = await fetch(`${API_BASE}/novels/${novelId}/chapters/${chapterId}/split/`, {
+      const res = await fetch(`${API_BASE}/novels/${novelId}/chapters/${chapterId}/split?preserve_structure=${Boolean(options?.preserveStructure)}&sourceContractVersion=chapter-shot-ownership-v2`, {
         method: 'POST',
       });
       const data = await res.json();
@@ -120,6 +76,16 @@ export const createChapterActionsSlice: StateCreator<
 
         set({
           shots: typedShots,
+          currentShotId: typedShots[0]?.id || null,
+          currentShotIndex: 1,
+          selectedShotIds: [],
+          bulkMode: false,
+          generatingShots: new Set<string>(), pendingShots: new Set<string>(),
+          generatingVideos: new Set<string>(), pendingVideos: new Set<string>(),
+          generatingTransitions: new Set<string>(), generatingAudios: new Set<string>(),
+          audioWarnings: [], audioTasks: [], audioUrls: {}, audioSources: {}, uploadingAudios: new Set<string>(),
+          generatingKeyframes: new Set<string>(), keyframeTasks: [], keyframeImageUrls: {},
+          mergingReferenceAudios: new Set<string>(), uploadingReferenceAudios: new Set<string>(), referenceAudioMergeTasks: [],
           shotImages: {},  // 清空已生成的图片（重新拆分后）
           shotVideos: {},  // 清空已生成的视频（重新拆分后）
           transitionVideos: {},
@@ -131,11 +97,12 @@ export const createChapterActionsSlice: StateCreator<
         toast.success(t('chapterGenerate.splitSuccess'));
         // 注意：不再调用 fetchChapter，因为它会覆盖 parsedData（数据库中的 parsed_data 不包含 shots）
       } else {
-        toast.error(data.message || t('chapterGenerate.splitFailed'));
+        throw new Error(data.message || (data.detail ? (typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)) : t('chapterGenerate.splitFailed')));
       }
     } catch (error) {
       console.error('拆分章节失败:', error);
-      toast.error(t('chapterGenerate.splitFailedCheckNetwork'));
+      toast.error(error instanceof Error ? error.message : t('chapterGenerate.splitFailedCheckNetwork'));
+      throw error;
     } finally {
       set({ isSplitting: false });
     }

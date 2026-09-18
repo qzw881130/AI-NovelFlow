@@ -115,13 +115,14 @@ export function ShotImageGenTab({
   const hasCurrentPromptText = currentPromptText.trim().length > 0;
   const isShotQueuedOrGenerating = (shotId: string) => generatingShots.has(shotId) || pendingShots.has(shotId);
   const selectableShotIds = shots
-    .filter((shot) => !isShotQueuedOrGenerating(shot.id))
+    .filter((shot) => shot.completionDisposition!=='DEGRADED_NARRATION_CARD'&&!isShotQueuedOrGenerating(shot.id))
     .map((shot) => shot.id);
   const selectedRunnableShotIds = Array.from(selectedShotIds).filter((shotId) => !isShotQueuedOrGenerating(shotId));
 
   // 处理单张分镜图生成
   const handleGenerateShot = async (mode: 'llm' | 'image_only' = 'llm') => {
     if (!novelId || !chapterId || !currentShotId) return;
+    if (currentShotObj?.completionDisposition==='DEGRADED_NARRATION_CARD') return;
     if (isGeneratingCurrent) return;
     if (mode === 'image_only' && !hasCurrentPromptText) return;
     setShowGenerateMenu(false);
@@ -267,14 +268,6 @@ export function ShotImageGenTab({
     batchCancelRequestedRef.current = false;
     batchShotIdsRef.current = selectedIds;
     setShowBatchSelectModal(false);
-    useChapterGenerateStore.setState(state => ({
-      pendingShots: new Set([...state.pendingShots, ...selectedIds]),
-      shots: state.shots.map(shot => (
-        selectedIds.includes(shot.id)
-          ? { ...shot, imageStatus: 'pending' as const, imageTaskId: null }
-          : shot
-      )),
-    }));
 
     try {
       const result = await shotsApi.generateImagesBatch(novelId, chapterId, {
@@ -282,24 +275,14 @@ export function ShotImageGenTab({
         skip_llm_when_prompt_exists: skipBatchLlmWhenPromptExists,
       });
       if (!result.success) {
-        throw new Error(result.detail || result.message || '批量生成分镜图失败');
+        throw new Error(result.message || result.detail || '批量生成分镜图失败');
       }
+      const admitted=result.data?.tasks.map(task=>task.shotId)||[];
+      useChapterGenerateStore.setState(state=>({pendingShots:new Set([...state.pendingShots,...admitted])}));
       await checkShotTaskStatus(chapterId);
-      toast.success(result.message || '批量分镜图任务已创建，关闭页面后会继续执行');
+      toast.success(`已提交 ${admitted.length} 个 Shot；依赖未就绪 ${result.data?.blocked?.length||0} 个`);
     } catch (error) {
       console.error(t('chapterGenerate.batchShotImageGenerateFailed') + ':', error);
-      useChapterGenerateStore.setState(state => {
-        const selectedSet = new Set(selectedIds);
-        const nextPendingShots = new Set(state.pendingShots);
-        selectedIds.forEach(shotId => nextPendingShots.delete(shotId));
-        return {
-          pendingShots: nextPendingShots,
-          shots: state.shots.map(shot => {
-            if (!selectedSet.has(shot.id)) return shot;
-            return { ...shot, imageStatus: shot.imageUrl ? 'completed' as const : 'pending' as const };
-          }),
-        };
-      });
       toast.error(error instanceof Error ? error.message : '批量生成分镜图失败');
     } finally {
       setIsGeneratingAll(false);
@@ -390,19 +373,15 @@ export function ShotImageGenTab({
       }
 
       // 调用批量更新接口
-      const result = await shotsApi.batchUpdateShots(novelId, chapterId, [{
+      await useChapterGenerateStore.getState().saveShotRevisions(novelId, chapterId, [{
         ...currentShotData,
         shot_image_prompt: currentPromptText,
       }]);
 
-      if (result.success) {
-        console.log(t('chapterGenerate.shotSaveSuccess'));
-        // 可以添加 toast 提示
-      } else {
-        console.error(t('chapterGenerate.shotSaveFailed') + ':', result.message);
-      }
+      toast.success(t('chapterGenerate.shotSaveSuccess'));
     } catch (error) {
       console.error(t('chapterGenerate.shotSaveFailed') + ':', error);
+      toast.error(error instanceof Error ? error.message : t('chapterGenerate.shotSaveFailed'));
     } finally {
       setIsSaving(false);
     }

@@ -204,7 +204,7 @@ FIRST_LAST_FRAME 的 window_plans 输出空数组 []。
 END description 必须：
 - 与 START 保持相同人物身份；
 - 不增加角色；
-- 保持场景一致，除非 Shot 本身明确发生场景边界变化且仍属于同一个导演 Shot；
+- 保持 shot.scene 对应的同一个 canonical Scene asset，禁止在 Shot 内切换到另一个 Scene asset；
 - 明确最终人物位置、朝向、视线、姿态、道具状态；
 - 是静态瞬间；
 - 不写连续过程。
@@ -392,7 +392,8 @@ Action：
 【场景、道具与稳定身份】
 ━━━━━━━━━━━━━━━━━━
 
-- scene 必须保持 shot.scene。
+- 【R-SC1 / Single-Scene Shot】scene 必须始终保持 shot.scene；全部关键帧只能发生在这一个 canonical Scene asset 中。
+- 同一 Scene asset 内的子区域移动可以正常表现；不得因 video_description、execution_window、tracking shot、montage 或 match cut 引入第二个 Scene asset。
 - props 只能来自 shot.props。
 - 原始 Shot 未发生换装时，关键帧不得自行换装。
 - 不得自动给角色增加著名武器、包裹或其他道具。

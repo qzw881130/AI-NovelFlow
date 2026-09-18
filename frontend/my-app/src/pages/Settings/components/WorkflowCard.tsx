@@ -21,7 +21,8 @@ const typeIcons: Record<string, typeof User> = {
   voice_design: Mic,
   audio: Music,
   keyframe_image: Clapperboard,
-  single_image_edit: ImageIcon
+  single_image_edit: ImageIcon,
+  CHARACTER_APPEARANCE: ImageIcon
 };
 
 const typeColors: Record<string, string> = {
@@ -40,7 +41,8 @@ const typeColors: Record<string, string> = {
   voice_design: 'bg-cyan-100 text-cyan-600',
   audio: 'bg-indigo-100 text-indigo-600',
   keyframe_image: 'bg-teal-100 text-teal-600',
-  single_image_edit: 'bg-violet-100 text-violet-600'
+  single_image_edit: 'bg-violet-100 text-violet-600',
+  CHARACTER_APPEARANCE: 'bg-violet-100 text-violet-600'
 };
 
 interface WorkflowCardProps {

@@ -24,6 +24,9 @@ export default function Tasks() {
     viewingWorkflow,
     workflowData,
     loadingWorkflow,
+    workflowError,
+    closeWorkflow,
+    retryWorkflow,
     previewImage,
     previewImages,
     previewImageIndex,
@@ -103,6 +106,13 @@ export default function Tasks() {
 
   const getTaskTypeName = (type: Task['type']) => {
     const names: Record<string, string> = {
+      'chapter_asset_parse': '章回素材解析',
+      'chapter_asset_resolution': '章回身份归并',
+      'appearance_timeline': '外观事件定位与时间线',
+      'character_appearance_generation': '角色章回外观图',
+      'chapter_shot_split': '本章分镜资产与拆分',
+      'shot_asset_resolution': '分镜最终资产解析',
+      'chapter_asset_rebuild': '章回资产显式重建',
       'character_portrait': t('tasks.types.characterPortrait'),
       'character_voice': t('tasks.types.characterVoice'),
       'audio_event_tts': t('tasks.types.audioEventTts'),
@@ -117,6 +127,7 @@ export default function Tasks() {
       'single_image_edit': t('tasks.types.singleImageEdit'),
       'shot_video': t('tasks.types.shotVideo'),
       'shot_video_batch': t('tasks.types.shotVideoBatch'),
+      'narration_card_video': 'Narration card video',
       'chapter_video': t('tasks.types.chapterVideo'),
       'transition_video': t('tasks.types.transitionVideo'),
     };
@@ -125,6 +136,13 @@ export default function Tasks() {
 
   const taskTypeOptions = useMemo(() => {
     const supportedTypes: Task['type'][] = [
+      'chapter_asset_parse',
+      'chapter_asset_resolution',
+      'appearance_timeline',
+      'character_appearance_generation',
+      'chapter_shot_split',
+      'shot_asset_resolution',
+      'chapter_asset_rebuild',
       'character_portrait',
       'character_voice',
       'audio_event_tts',
@@ -139,6 +157,7 @@ export default function Tasks() {
       'single_image_edit',
       'shot_video',
       'shot_video_batch',
+      'narration_card_video',
       'transition_video',
       'chapter_video',
     ];
@@ -356,7 +375,9 @@ export default function Tasks() {
         viewingWorkflow={viewingWorkflow}
         workflowData={workflowData}
         loadingWorkflow={loadingWorkflow}
-        onClose={() => { setViewingWorkflow(null); setWorkflowData(null); }}
+        loadError={workflowError}
+        onRetry={retryWorkflow}
+        onClose={closeWorkflow}
         onPreviewImages={openImageGallery}
         convertShotName={convertShotName}
       />

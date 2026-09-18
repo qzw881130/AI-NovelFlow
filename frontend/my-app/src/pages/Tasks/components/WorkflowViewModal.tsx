@@ -9,6 +9,8 @@ interface WorkflowViewModalProps {
   viewingWorkflow: Task | null;
   workflowData: WorkflowData | null;
   loadingWorkflow: boolean;
+  loadError: string;
+  onRetry: () => void;
   onClose: () => void;
   onPreviewImages: (images: Array<{ label?: string; url: string }>, index: number) => void;
   convertShotName: (name: string) => string;
@@ -18,6 +20,8 @@ export function WorkflowViewModal({
   viewingWorkflow,
   workflowData,
   loadingWorkflow,
+  loadError,
+  onRetry,
   onClose,
   onPreviewImages,
   convertShotName,
@@ -88,7 +92,7 @@ export function WorkflowViewModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4" role="dialog" aria-modal="true" aria-label={t('tasks.workflowDetails')}>
       <div className="bg-white rounded-lg w-full min-w-0 max-w-4xl max-h-[calc(100dvh-1rem)] sm:max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden">
         <div className="flex items-start justify-between gap-2 p-3 sm:p-6 border-b border-gray-100 flex-shrink-0 bg-white">
           <h3 className="min-w-0 text-lg font-semibold text-gray-900">
@@ -102,11 +106,20 @@ export function WorkflowViewModal({
 
         <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-6">
           {loadingWorkflow ? (
-            <div className="flex justify-center py-12">
+            <div role="status" className="flex items-center justify-center gap-2 py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
+              <span>正在读取已保存的工作流…</span>
+            </div>
+          ) : loadError ? (
+            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <p className="break-all">{loadError}</p>
+              <button type="button" className="btn-secondary mt-3" onClick={onRetry}>重新读取工作流详情</button>
             </div>
           ) : workflowData ? (
             <div className="space-y-4">
+              <a className="text-sm text-blue-700 underline" href={`/asset-debug?task_id=${encodeURIComponent(viewingWorkflow.id)}`}>查看完整来源与当前准入</a>
+              {workflowData.note&&<p className="text-sm text-gray-600">{workflowData.note}</p>}
+              {Object.entries(workflowData.evidence||{}).filter(([,info])=>!['VALID','MISSING'].includes(info.state)).map(([field,info])=><p key={field} className="text-sm text-amber-800 break-all">证据异常：{field} · {info.state} · {info.error}</p>)}
               {!!viewingWorkflow.referenceImages?.length && (
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 mb-2">{t('tasks.referenceImages')}</h4>

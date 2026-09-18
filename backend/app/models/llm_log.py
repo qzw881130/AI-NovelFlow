@@ -50,3 +50,4 @@ class LLMLog(Base):
     # 请求耗时（秒）
     duration = Column(Float, nullable=True)  # 请求耗时，单位秒
     usage_metrics = Column(JSON, nullable=True)
+    execution_metadata = Column(JSON, nullable=True)  # 业务执行上下文与调用后判定

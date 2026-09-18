@@ -13,6 +13,8 @@ import { toast } from '../../stores/toastStore';
 
 // 图标映射
 const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
+  asset_identity_resolution: <Users className="h-4 w-4" />,
+  character_appearance_generation: <Image className="h-4 w-4" />,
   style: <Palette className="h-4 w-4" />,
   character_parse: <Users className="h-4 w-4" />,
   scene_parse: <MapPin className="h-4 w-4" />,
@@ -21,6 +23,7 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
   scene: <Image className="h-4 w-4" />,
   prop: <Box className="h-4 w-4" />,
   chapter_split: <BookOpen className="h-4 w-4" />,
+  shot_contract_repair: <SlidersHorizontal className="h-4 w-4" />,
   shot_image_prompt: <Image className="h-4 w-4" />,
   video_mode_recommender: <SlidersHorizontal className="h-4 w-4" />,
   keyframe_description: <Film className="h-4 w-4" />,
@@ -34,6 +37,8 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
 
 // Tab 标签页颜色映射
 const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; border: string }> = {
+  asset_identity_resolution: {active:'text-blue-600 bg-blue-50 border-blue-200',inactive:'text-gray-500 hover:text-blue-600',border:'border-blue-200'},
+  character_appearance_generation: {active:'text-purple-600 bg-purple-50 border-purple-200',inactive:'text-gray-500 hover:text-purple-600',border:'border-purple-200'},
   style: { active: 'text-pink-600 bg-pink-50 border-pink-200', inactive: 'text-gray-500 hover:text-pink-600', border: 'border-pink-200' },
   character_parse: { active: 'text-blue-600 bg-blue-50 border-blue-200', inactive: 'text-gray-500 hover:text-blue-600', border: 'border-blue-200' },
   scene_parse: { active: 'text-green-600 bg-green-50 border-green-200', inactive: 'text-gray-500 hover:text-green-600', border: 'border-green-200' },
@@ -42,6 +47,7 @@ const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; borde
   scene: { active: 'text-orange-600 bg-orange-50 border-orange-200', inactive: 'text-gray-500 hover:text-orange-600', border: 'border-orange-200' },
   prop: { active: 'text-amber-600 bg-amber-50 border-amber-200', inactive: 'text-gray-500 hover:text-amber-600', border: 'border-amber-200' },
   chapter_split: { active: 'text-cyan-600 bg-cyan-50 border-cyan-200', inactive: 'text-gray-500 hover:text-cyan-600', border: 'border-cyan-200' },
+  shot_contract_repair: { active: 'text-teal-600 bg-teal-50 border-teal-200', inactive: 'text-gray-500 hover:text-teal-600', border: 'border-teal-200' },
   shot_image_prompt: { active: 'text-sky-600 bg-sky-50 border-sky-200', inactive: 'text-gray-500 hover:text-sky-600', border: 'border-sky-200' },
   video_mode_recommender: { active: 'text-violet-600 bg-violet-50 border-violet-200', inactive: 'text-gray-500 hover:text-violet-600', border: 'border-violet-200' },
   keyframe_description: { active: 'text-indigo-600 bg-indigo-50 border-indigo-200', inactive: 'text-gray-500 hover:text-indigo-600', border: 'border-indigo-200' },
@@ -55,9 +61,9 @@ const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; borde
 
 const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: TemplateType[] }> = {
   style_design: { nameKey: 'promptConfig.categories.styleDesign', types: ['style'] },
-  asset_parse: { nameKey: 'promptConfig.categories.assetParse', types: ['character_parse', 'scene_parse', 'prop_parse'] },
-  asset_generation: { nameKey: 'promptConfig.categories.assetGeneration', types: ['character', 'scene', 'prop'] },
-  shot_planning: { nameKey: 'promptConfig.categories.shotPlanning', types: ['chapter_split'] },
+  asset_parse: { nameKey: 'promptConfig.categories.assetParse', types: ['character_parse', 'asset_identity_resolution', 'scene_parse', 'prop_parse'] },
+  asset_generation: { nameKey: 'promptConfig.categories.assetGeneration', types: ['character', 'character_appearance_generation', 'scene', 'prop'] },
+  shot_planning: { nameKey: 'promptConfig.categories.shotPlanning', types: ['chapter_split', 'shot_contract_repair'] },
   shot_image: { nameKey: 'promptConfig.categories.shotImage', types: ['shot_image_prompt'] },
   video_director: { nameKey: 'promptConfig.categories.videoDirector', types: ['video_mode_recommender', 'keyframe_planner', 'keyframe_transition'] },
   keyframe_image: { nameKey: 'promptConfig.categories.keyframeImage', types: ['keyframe_image_prompt'] },
@@ -171,10 +177,10 @@ function TemplateSection({
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">{t(config.descKey)}</p>
-        <button onClick={() => onEdit(type)}
+        {!['asset_identity_resolution','character_appearance_generation'].includes(type) && <button onClick={() => onEdit(type)}
           className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-primary-600 hover:text-primary-700 hover:bg-primary-50 rounded-md transition-colors">
           <Plus className="h-4 w-4" />{t('promptConfig.newPrompt')}
-        </button>
+        </button>}
       </div>
       <TemplateList templates={templates} loading={loading} type={type}
         onView={onView} onEdit={onEdit} onCopy={onCopy} onDelete={onDelete}

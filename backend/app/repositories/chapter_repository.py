@@ -72,6 +72,8 @@ class ChapterRepository:
             content=content,
         )
         self.db.add(chapter)
+        from app.services.chapter_governance import register_new_chapter
+        register_new_chapter(self.db, chapter)
         self.db.commit()
         self.db.refresh(chapter)
         return chapter
@@ -122,6 +124,24 @@ class ChapterRepository:
 
     def get_final_chapter_video_info(self, chapter: Chapter) -> Optional[dict]:
         """获取章节最终视频信息；只有全分镜合并才算最终视频。"""
+        if not chapter.final_video_task_id:return None
+        if chapter.final_video_task_id:
+            from app.services.chapter_video_merge_service import current_completion
+            result=current_completion(self.db,chapter.novel_id,chapter.id)
+            producer=self.db.get(Task,chapter.final_video_task_id)
+            if result:
+                video_path=url_to_local_path(chapter.final_video) if chapter.final_video.startswith('/api/files/') else None
+                if not chapter.final_video.startswith('/api/files/') or (video_path and os.path.isfile(video_path)):
+                    return {'finalVideo':chapter.final_video,'chapterVideoUrl':chapter.final_video,
+                        'chapterVideoDuration':self._probe_video_duration(video_path) if video_path else None,
+                        'chapterVideoSize':result.get('bytes'),'chapterVideoShotCount':result.get('normalCount',0)+result.get('degradedCount',0),
+                        'chapterVideoTaskId':producer.id,'chapterVideoCompletedAt':producer.completed_at.isoformat() if producer.completed_at else None,
+                        'chapterVideoOutcome':result.get('outcome'),'chapterVideoManifestHash':result.get('manifestHash'),
+                        'chapterVideoNormalCount':result.get('normalCount',0),'chapterVideoDegradedCount':result.get('degradedCount',0),
+                        'chapterVideoDegradedRanges':result.get('degradedRanges') or []}
+            return None
+        if not chapter.final_video:
+            return None
         total_shots = self.db.query(Shot).filter(Shot.chapter_id == chapter.id).count()
         tasks = self.db.query(Task).filter(
             Task.chapter_id == chapter.id,
@@ -150,11 +170,6 @@ class ChapterRepository:
                 # 兼容旧的全章合并任务：旧任务没有 shot_ids/shots_count，但空 shot_ids 表示按当时全部分镜合并。
                 is_final_task = not metadata.get("shot_ids") and bool(task_video_url)
             if final_video_url and task_video_url == final_video_url:
-                final_task = task
-                final_metadata = metadata
-                break
-            if not final_video_url and is_final_task and task_video_url:
-                final_video_url = task_video_url
                 final_task = task
                 final_metadata = metadata
                 break
@@ -224,6 +239,7 @@ class ChapterRepository:
         # 从 parsed_data 获取 transition_videos（已迁移到 parsed_data 中）
         parsed_data = json.loads(chapter.parsed_data) if chapter.parsed_data else {}
         transition_videos = parsed_data.get("transition_videos", {})
+        video_info=self.get_final_chapter_video_info(chapter)
 
         response = {
             "id": chapter.id,
@@ -237,9 +253,10 @@ class ChapterRepository:
             "shotImages": shot_images,
             "shotVideos": shot_videos,
             "transitionVideos": transition_videos,
-            "finalVideo": chapter.final_video,
+            "finalVideo": video_info.get('finalVideo') if video_info else None,
             "createdAt": chapter.created_at.isoformat() if chapter.created_at else None,
         }
+        if video_info:response.update(video_info)
 
         # 从 Shot 表获取分镜数据
         if include_shots:
@@ -348,6 +365,8 @@ class ChapterRepository:
                         content=ch['content'],
                     )
                     self.db.add(new_ch)
+                    from app.services.chapter_governance import register_new_chapter
+                    register_new_chapter(self.db, new_ch)
                     created += 1
             except Exception as e:
                 failed += 1

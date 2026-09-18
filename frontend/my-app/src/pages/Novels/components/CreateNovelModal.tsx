@@ -14,6 +14,7 @@ const TEMPLATE_FIELDS = [
   { key: 'scenePromptTemplateId', labelKey: 'novels.scenePromptLabel', hintKey: 'novels.scenePromptHint', templateType: 'scene', category: 'asset_generation' },
   { key: 'propPromptTemplateId', labelKey: 'novels.propPromptLabel', hintKey: 'novels.propPromptHint', templateType: 'prop', category: 'asset_generation' },
   { key: 'chapterSplitPromptTemplateId', labelKey: 'novels.splitPromptLabel', hintKey: 'novels.splitPromptHint', templateType: 'chapter_split', category: 'shot_planning' },
+  { key: 'shotContractRepairPromptTemplateId', labelKey: 'novels.shotContractRepairPromptLabel', hintKey: 'novels.shotContractRepairPromptHint', templateType: 'shot_contract_repair', category: 'shot_planning' },
   { key: 'keyframeDescriptionPromptTemplateId', labelKey: 'novels.keyframeDescriptionPromptLabel', hintKey: 'novels.keyframeDescriptionPromptHint', templateType: 'keyframe_description', category: 'shot_planning' },
   { key: 'shotImagePromptTemplateId', labelKey: 'novels.shotImagePromptLabel', hintKey: 'novels.shotImagePromptHint', templateType: 'shot_image_prompt', category: 'shot_image' },
   { key: 'videoModeRecommenderPromptTemplateId', labelKey: 'novels.videoModeRecommenderPromptLabel', hintKey: 'novels.videoModeRecommenderPromptHint', templateType: 'video_mode_recommender', category: 'video_director' },

@@ -81,6 +81,7 @@ export interface Novel {
   scenePromptTemplateId?: string;  // 场景生成提示词模板
   propPromptTemplateId?: string;  // 道具生成提示词模板
   chapterSplitPromptTemplateId?: string;  // 分镜拆分提示词模板
+  shotContractRepairPromptTemplateId?: string;  // 分镜契约自动修复提示词模板
   keyframeDescriptionPromptTemplateId?: string;  // 关键帧描述提示词模板
   shotImagePromptTemplateId?: string;  // 主分镜图提示词模板
   videoModeRecommenderPromptTemplateId?: string;  // 视频模式推荐提示词模板
@@ -116,6 +117,11 @@ export interface Chapter {
   chapterVideoShotCount?: number | null;
   chapterVideoTaskId?: string;
   chapterVideoCompletedAt?: string | null;
+  chapterVideoOutcome?: 'SUCCEEDED' | 'SUCCEEDED_WITH_DEGRADATION';
+  chapterVideoManifestHash?: string;
+  chapterVideoNormalCount?: number;
+  chapterVideoDegradedCount?: number;
+  chapterVideoDegradedRanges?: Array<{shotId:string;shotIndex:number;sourceRange:[number,number]}>;
 }
 
 export interface ParsedData {
@@ -274,9 +280,27 @@ export interface VideoDirectorTaskClip {
   dialogueCount?: number | null;
 }
 
+export interface ReviewFinding {
+  findingId: string;
+  bookId: string | null;
+  chapterId: string | null;
+  shotId: string | null;
+  shotIndex: number | null;
+  clipIndex: number | null;
+  frameIndex: number | null;
+  taskId: string;
+  severity: string;
+  code: string;
+  message: string;
+  evidence: Record<string, unknown> | null;
+  fallbackAction: string | null;
+  status: string;
+  fallbackOutcome: 'PENDING' | 'SUCCEEDED' | 'FAILED';
+}
+
 export interface Task {
   id: string;
-  type: 'character_portrait' | 'character_voice' | 'audio_event_tts' | 'audio_prepare' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'chapter_video' | 'transition_video' | 'prop_image';
+  type: 'chapter_asset_rebuild' | 'shot_asset_resolution' | 'chapter_shot_split' | 'character_appearance_generation' | 'appearance_timeline' | 'chapter_asset_resolution' | 'chapter_asset_parse' | 'character_portrait' | 'character_voice' | 'audio_event_tts' | 'audio_prepare' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'narration_card_video' | 'chapter_video' | 'transition_video' | 'prop_image';
   name: string;
   description?: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -289,8 +313,12 @@ export interface Task {
   workflowIsSystem?: boolean;
   hasWorkflowJson?: boolean;
   hasPromptText?: boolean;
-  referenceImages?: Array<{ label?: string; url: string }>;
-  videoDirectorClips?: VideoDirectorTaskClip[];
+  referenceImages?: Array<{ label?: string; url: string }> | null;
+  videoDirectorClips?: VideoDirectorTaskClip[] | null;
+  evidence?: Record<string,{state:string;sha256?:string|null;error?:string|null;emptyConfirmed?:boolean}>;
+  reviewFindings?: ReviewFinding[] | null;
+  metadata?: Record<string,unknown> | null;
+  chapterCompletion?: {outcome:'SUCCEEDED'|'SUCCEEDED_WITH_DEGRADATION';manifestHash:string;normalCount:number;degradedCount:number;degradedRanges:Array<{shotId:string;shotIndex:number;sourceRange:[number,number]}>}|null;
   novelId?: string;
   novelName?: string;
   chapterId?: string;
@@ -309,6 +337,7 @@ export interface ApiResponse<T> {
 
 // 提示词模板
 export interface PromptTemplate {
+  sourceFile?: string;
   id: string;
   name: string;
   nameKey?: string;
@@ -372,4 +401,22 @@ export interface LLMLog {
   used_proxy: boolean;
   duration: number | null;  // 请求耗时，单位秒
   metrics?: LLMLogMetrics | null;
+  execution_metadata?: {
+    operation?: string;
+    repairType?: string;
+    attempt?: number;
+    budget?: number;
+    violationsBefore?: number | null;
+    violationsAfter?: number | null;
+    resolved?: number;
+    introduced?: number;
+    outcome?: string;
+    beforeHash?: string;
+    afterHash?: string | null;
+    parentRunId?: string;
+    originalResponseHash?: string;
+    repairResponseHash?: string;
+    template?: { id?: string; name?: string; version?: string; hash?: string };
+    validatorError?: string | null;
+  } | null;
 }

@@ -8,7 +8,8 @@
  * - 点击背景或按 ESC 关闭
  */
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ImagePreviewModalProps {
@@ -44,10 +45,21 @@ export function ImagePreviewModal({
   onNext,
 }: ImagePreviewModalProps) {
   const [imageSize, setImageSize] = useState<{ width: number; height: number } | null>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setImageSize(null);
   }, [url]);
+
+  useEffect(() => {
+    if (!isOpen || !url) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeButton.current?.focus();
+    return () => { document.body.style.overflow = overflow; previousFocus?.focus(); };
+  }, [isOpen, url]);
 
   // 键盘事件处理
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -55,19 +67,27 @@ export function ImagePreviewModal({
 
     if (e.key === 'Escape') {
       e.preventDefault();
+      e.stopImmediatePropagation();
       onClose();
-    } else if (showNavigation && e.key === 'ArrowLeft' && onPrev) {
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
       e.preventDefault();
-      onPrev();
-    } else if (showNavigation && e.key === 'ArrowRight' && onNext) {
-      e.preventDefault();
-      onNext();
+      e.stopImmediatePropagation();
+      if (showNavigation) {
+        if (e.key === 'ArrowLeft') onPrev?.();
+        else onNext?.();
+      }
+    } else if (e.key === 'Tab') {
+      const buttons = dialog.current?.querySelectorAll<HTMLButtonElement>('button:not([disabled])');
+      if (!buttons?.length) return;
+      const first = buttons[0], last = buttons[buttons.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
     }
   }, [isOpen, onClose, showNavigation, onPrev, onNext]);
 
   useEffect(() => {
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [handleKeyDown]);
 
   // 下载图片
@@ -76,6 +96,7 @@ export function ImagePreviewModal({
 
     try {
       const response = await fetch(url);
+      if (!response.ok) throw new Error('图片下载失败');
       const blob = await response.blob();
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -97,17 +118,21 @@ export function ImagePreviewModal({
   // 是否显示导航按钮
   const shouldShowNavButtons = showNavigation && totalCount && totalCount > 1;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90"
+      ref={dialog}
+      role="dialog"
+      aria-modal="true"
+      aria-label="图片预览"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-3 sm:p-6"
       onClick={onClose}
     >
-      <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center">
+      <div className="relative min-w-0 max-w-full max-h-[calc(100dvh-6rem)] flex flex-col items-center" onClick={e=>e.stopPropagation()}>
         {/* 图片 */}
         <img
           src={url}
           alt={name || 'Preview'}
-          className="max-w-full max-h-[80vh] object-contain rounded-lg"
+          className="min-h-0 max-w-full max-h-[75dvh] shrink object-contain rounded-lg"
           onLoad={(event) => {
             setImageSize({
               width: event.currentTarget.naturalWidth,
@@ -121,12 +146,16 @@ export function ImagePreviewModal({
         {shouldShowNavButtons && (
           <>
             <button
+              type="button"
+              aria-label="上一张图片"
               onClick={(e) => { e.stopPropagation(); onPrev?.(); }}
               className="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors"
             >
               <ChevronLeft className="h-6 w-6" />
             </button>
             <button
+              type="button"
+              aria-label="下一张图片"
               onClick={(e) => { e.stopPropagation(); onNext?.(); }}
               className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors"
             >
@@ -137,12 +166,13 @@ export function ImagePreviewModal({
 
         {/* 标题栏 */}
         {(name || imageSize || showDownload) && (
-          <div className="mt-3 flex flex-col items-center gap-2 text-white">
-            {name && <div className="text-lg font-medium">{name}</div>}
+          <div className="mt-3 max-w-full max-h-[15dvh] shrink-0 overflow-y-auto flex flex-col items-center gap-2 text-white">
+            {name && <div className="text-sm sm:text-lg font-medium text-center [overflow-wrap:anywhere]">{name}</div>}
             <div className="flex items-center gap-3 text-sm text-white/70">
               {imageSize && <span>{imageSize.width} x {imageSize.height} px</span>}
               {showDownload && (
                 <button
+                  type="button"
                   onClick={(e) => { e.stopPropagation(); handleDownload(); }}
                   className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-white transition-colors hover:bg-white/25"
                 >
@@ -156,14 +186,17 @@ export function ImagePreviewModal({
 
         {/* 关闭按钮 */}
         <button
+          ref={closeButton}
+          type="button"
+          aria-label="关闭图片预览"
           onClick={onClose}
-          className="absolute -top-12 right-0 p-2 text-white hover:text-gray-300 transition-colors"
+          className="fixed top-3 right-3 min-h-[44px] min-w-[44px] p-2 rounded-full bg-black/40 text-white hover:text-gray-300 transition-colors"
         >
           <X className="h-6 w-6" />
         </button>
 
       </div>
-    </div>
+    </div>, document.body
   );
 }
 

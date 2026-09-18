@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import { taskApi } from '../../../api/tasks';
@@ -16,6 +16,11 @@ export function useTasksState() {
   const [viewingWorkflow, setViewingWorkflow] = useState<Task | null>(null);
   const [workflowData, setWorkflowData] = useState<WorkflowData | null>(null);
   const [loadingWorkflow, setLoadingWorkflow] = useState(false);
+  const [workflowError, setWorkflowError] = useState('');
+  const workflowRequestRef = useRef(0);
+  const workflowAbortRef = useRef<AbortController|null>(null);
+  const workflowTargetRef = useRef<{task:Task;clip?:VideoDirectorTaskClip}|null>(null);
+  const taskListAbortRef = useRef<AbortController|null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewImages, setPreviewImages] = useState<Array<{ label?: string; url: string }>>([]);
   const [previewImageIndex, setPreviewImageIndex] = useState(0);
@@ -81,24 +86,47 @@ export function useTasksState() {
   };
 
   const fetchTasks = useCallback(async () => {
+    if (taskListAbortRef.current) return;
+    const controller = new AbortController();
+    taskListAbortRef.current = controller;
     try {
-      const data = await taskApi.fetchList(1000);
-      if (data.success && data.data) {
+      const data = await taskApi.fetchList(1000, controller.signal);
+      if (!controller.signal.aborted && data.success && data.data) {
         setTasks(data.data as unknown as Task[]);
       }
     } catch (error) {
-      console.error('获取任务失败:', error);
+      if (!controller.signal.aborted) console.error('获取任务失败:', error);
     } finally {
-      setIsLoading(false);
-      setRefreshing(false);
+      if (taskListAbortRef.current === controller) {
+        taskListAbortRef.current = null;
+        setIsLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    fetchTasks();
-    const interval = setInterval(fetchTasks, 3000);
-    return () => clearInterval(interval);
-  }, [fetchTasks]);
+    if (viewingWorkflow) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      await fetchTasks();
+      if (!stopped) timer = setTimeout(poll, 3000);
+    };
+    void poll();
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      taskListAbortRef.current?.abort();
+      taskListAbortRef.current = null;
+    };
+  }, [fetchTasks, !!viewingWorkflow]);
+
+  useEffect(() => () => {
+    workflowRequestRef.current++;
+    workflowAbortRef.current?.abort();
+    taskListAbortRef.current?.abort();
+  }, []);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -151,26 +179,56 @@ export function useTasksState() {
     });
   };
 
-  const handleViewWorkflow = async (task: Task) => {
-    if (!task.hasWorkflowJson && !task.hasPromptText) {
-      toast.info(t('tasks.noWorkflowInfo'));
-      return;
-    }
-    setViewingWorkflow(task);
+  const loadWorkflow = async (task: Task, clip?: VideoDirectorTaskClip) => {
+    const requestId = ++workflowRequestRef.current;
+    workflowAbortRef.current?.abort();
+    const controller = new AbortController();
+    workflowAbortRef.current = controller;
+    workflowTargetRef.current = {task,clip};
+    setViewingWorkflow(clip ? {...task,name:`${task.name} · Clip ${clip.windowIndex}`,
+      workflowName:clip.workflowName||task.workflowName,hasWorkflowJson:clip.hasWorkflowJson,
+      hasPromptText:Boolean(clip.promptText),referenceImages:clip.referenceImages||[]} : task);
+    setWorkflowData(null);
+    setWorkflowError('');
     setLoadingWorkflow(true);
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {timedOut=true;controller.abort();},30000);
     try {
-      const data = await taskApi.fetchWorkflow(task.id);
-      if (data.success) {
-        setWorkflowData(data.data as WorkflowData);
-      } else {
-        toast.error(data.message || t('tasks.failedToGetWorkflow'));
-      }
+      const data = clip?.windowIndex ? await taskApi.fetchClipWorkflow(task.id,clip.windowIndex,controller.signal)
+        : await taskApi.fetchWorkflow(task.id,controller.signal);
+      if (requestId !== workflowRequestRef.current) return;
+      if (!data.success || !data.data) throw new Error(String(data.message || t('tasks.failedToGetWorkflow')));
+      setWorkflowData(data.data as WorkflowData);
     } catch (error) {
-      console.error('获取工作流失败:', error);
-      toast.error(t('tasks.failedToGetWorkflow'));
+      if (requestId !== workflowRequestRef.current) return;
+      setWorkflowError(timedOut?'读取工作流详情超时，请重试':error instanceof Error?error.message:t('tasks.failedToGetWorkflow'));
     } finally {
-      setLoadingWorkflow(false);
+      window.clearTimeout(timeout);
+      if (requestId === workflowRequestRef.current) {
+        setLoadingWorkflow(false);
+        workflowAbortRef.current = null;
+      }
     }
+  };
+
+  const closeWorkflow = () => {
+    workflowRequestRef.current++;
+    workflowAbortRef.current?.abort();
+    workflowAbortRef.current = null;
+    workflowTargetRef.current = null;
+    setViewingWorkflow(null);
+    setWorkflowData(null);
+    setWorkflowError('');
+    setLoadingWorkflow(false);
+  };
+  const retryWorkflow = () => {
+    const target=workflowTargetRef.current;
+    if(target)void loadWorkflow(target.task,target.clip);
+  };
+
+  const handleViewWorkflow = async (task: Task) => {
+    if (!task.hasWorkflowJson && !task.hasPromptText) {toast.info(t('tasks.noWorkflowInfo'));return;}
+    await loadWorkflow(task);
   };
 
   const handleViewClipWorkflow = async (task: Task, clip: VideoDirectorTaskClip) => {
@@ -182,28 +240,7 @@ export function useTasksState() {
       toast.info(t('tasks.noWorkflowInfo'));
       return;
     }
-    setViewingWorkflow({
-      ...task,
-      name: `${task.name} · Clip ${clip.windowIndex}`,
-      workflowName: clip.workflowName || task.workflowName,
-      hasWorkflowJson: clip.hasWorkflowJson,
-      hasPromptText: Boolean(clip.promptText),
-      referenceImages: clip.referenceImages || [],
-    });
-    setLoadingWorkflow(true);
-    try {
-      const data = await taskApi.fetchClipWorkflow(task.id, clip.windowIndex);
-      if (data.success) {
-        setWorkflowData(data.data as WorkflowData);
-      } else {
-        toast.error(data.message || t('tasks.failedToGetWorkflow'));
-      }
-    } catch (error) {
-      console.error('获取 Clip 工作流失败:', error);
-      toast.error(t('tasks.failedToGetWorkflow'));
-    } finally {
-      setLoadingWorkflow(false);
-    }
+    await loadWorkflow(task,clip);
   };
 
   const handleRetry = async (taskId: string) => {
@@ -243,6 +280,7 @@ export function useTasksState() {
     viewingWorkflow,
     workflowData,
     loadingWorkflow,
+    workflowError,
     previewImage,
     previewImages,
     previewImageIndex,
@@ -258,6 +296,8 @@ export function useTasksState() {
     toggleErrorDetail,
     handleViewWorkflow,
     handleViewClipWorkflow,
+    closeWorkflow,
+    retryWorkflow,
     handleRetry,
     fetchImageInfo,
     openImagePreview,

@@ -12,5 +12,6 @@ export default {
     promptConfig: '提示詞組態',
     uiConfig: '介面組態',
     llmLogs: '大模型日誌',
+    systemLogs: '系統日誌',
   },
 };

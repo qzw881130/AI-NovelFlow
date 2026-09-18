@@ -26,6 +26,7 @@ WORKFLOW_TYPES = {
     "audio": "音频生成",
     "keyframe_image": "关键帧生图",
     "single_image_edit": "单图编辑",
+    "CHARACTER_APPEARANCE": "角色持续外观编辑",
     "first_last_video": "首尾帧生视频",
     "three_frame_video": "三帧生视频",
     "four_frame_video": "四帧生视频",
@@ -46,6 +47,7 @@ DEFAULT_WORKFLOWS = {
     "audio": "Qwen3-TTS-Voice-Clone.json",  # 音频生成工作流（带参考音频的语音克隆）
     "keyframe_image": "keyframe_flux2_klein.json",
     "single_image_edit": "single_image_edit_flux2_klein.json",
+    "CHARACTER_APPEARANCE": "character_appearance_flux2_klein.json",
     "first_last_video": "first_last_video_minimax_h3_audiodrive.json",
     "three_frame_video": "three_frame_video_minimax_h3_audiodrive.json",
     "four_frame_video": "four_frame_video_minimax_h3_audiodrive.json",
@@ -56,6 +58,12 @@ DEFAULT_WORKFLOWS = {
 # 用于指定工作流中各功能节点的ID，便于动态替换参数
 # 注意：CR Prompt Text 节点使用 prompt 字段存储文本内容
 DEFAULT_WORKFLOW_NODE_MAPPINGS = {
+    "CHARACTER_APPEARANCE": {
+        "load_image_node_id": "76",
+        "prompt_node_id": "117",
+        "save_image_node_id": "9",
+        "seed_node_id": "102",
+    },
     "voice_design": {
         # 音色提示词节点 (CR Prompt Text 节点，prompt 字段 -> instruct)
         "voice_prompt_node_id": "53",
@@ -244,7 +252,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "nameKey": f"{NAME_KEY_PREFIX}.Flux2_Klein_9B_三图参考编辑 API",
         "description": "Flux2 Klein 三图参考编辑工作流，使用角色、场景和自定义参考图生成分镜图",
         "descriptionKey": f"{DESC_KEY_PREFIX}.Flux2 Klein 三图参考编辑工作流，使用角色、场景和自定义参考图生成分镜图",
-        "node_mapping": {"prompt_node_id": "117", "save_image_node_id": "9", "width_node_id": "123", "height_node_id": "125", "scene_reference_image_node_id": "127", "character_reference_image_node_id": "76", "custom_reference_image_node_1": "132"},
+        "node_mapping": {"prompt_node_id": "117", "save_image_node_id": "9", "width_node_id": "123", "height_node_id": "125", "scene_reference_image_node_id": "127", "character_reference_image_node_id": "76", "prop_reference_image_node_id": "132"},
     },
     # 双图参考工作流（角色图+场景图）作为分镜生图的默认工作流
     {

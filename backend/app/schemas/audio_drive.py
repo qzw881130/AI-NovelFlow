@@ -1,9 +1,10 @@
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
+from app.schemas.shot_revision import RevisionRequest
 
 
-class AudioEventPatchRequest(BaseModel):
+class AudioEventPatchRequest(RevisionRequest):
     voiceOwnerCharacterId: Optional[str] = None
     voiceOwnerName: Optional[str] = None
     visibleSpeakerCharacterId: Optional[str] = None

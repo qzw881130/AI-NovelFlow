@@ -1,7 +1,7 @@
 """
 章节路由 - 章节 CRUD 和批量导入相关接口
 """
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -56,9 +56,11 @@ async def create_chapter(
         content=data.get("content", ""),
     )
     db.add(chapter)
+    from app.services.chapter_governance import register_new_chapter
+    register_new_chapter(db,chapter)
     
     # 更新章节数
-    novel.chapter_count = chapter_repo.count_by_novel(novel_id) + 1
+    novel.chapter_count = chapter_repo.count_by_novel(novel_id)
     
     db.commit()
     db.refresh(chapter)
@@ -101,12 +103,14 @@ async def update_chapter(
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
     
+    if "parsedData" in data or "parsed_data" in data:
+        raise HTTPException(410,"LEGACY_PARSED_DATA_WRITE_RETIRED: 请使用正式章回资产重建/解析入口")
     if "title" in data:
         chapter.title = data["title"]
     if "content" in data:
         chapter.content = data["content"]
-    if "parsedData" in data:
-        chapter.parsed_data = data["parsedData"]
+    if "title" in data or "content" in data:
+        chapter.final_video=chapter.final_video_task_id=None
     
     db.commit()
     db.refresh(chapter)
@@ -269,7 +273,10 @@ async def split_chapter(
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     character_repo: CharacterRepository = Depends(get_character_repo),
     scene_repo: SceneRepository = Depends(get_scene_repo),
-    prop_repo: PropRepository = Depends(get_prop_repo)
+    prop_repo: PropRepository = Depends(get_prop_repo),
+    repair_previous: bool = True,
+    preserve_structure: bool = False,
+    source_contract_version: str = Query('chapter-shot-ownership-v2', alias='sourceContractVersion'),
 ):
     """使用小说配置的拆分提示词将章节拆分为分镜"""
     from app.services.novel_service import NovelService
@@ -283,19 +290,12 @@ async def split_chapter(
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
     
-    # 获取当前小说的所有角色、场景和道具列表
-    character_names = character_repo.get_names_by_novel(novel_id)
-    scene_names = scene_repo.get_names_by_novel(novel_id)
-    prop_names = prop_repo.get_names_by_novel(novel_id)
-    
     service = NovelService(db)
-    return await service.split_chapter(
-        novel=novel,
-        chapter=chapter,
-        character_names=character_names,
-        scene_names=scene_names,
-        prop_names=prop_names
-    )
+    if not repair_previous or preserve_structure:
+        from app.services.chapter_shot_split_service import ChapterShotSplitService
+        return await ChapterShotSplitService(db,service.get_llm_service()).split(novel_id,chapter_id,
+            repair_previous=repair_previous,preserve_structure=preserve_structure,source_contract_version=source_contract_version)
+    return await service.split_chapter(novel=novel, chapter=chapter, source_contract_version=source_contract_version)
 
 
 # ==================== 批量导入 ====================

@@ -4,6 +4,9 @@ from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
 from app.core.database import Base
+from app.models.external_failure_observation import (
+    ensure_external_failure_observation_schema,
+)
 
 
 def _is_sqlite(engine: Engine) -> bool:
@@ -37,6 +40,7 @@ def upgrade_sqlite_schema(engine: Engine) -> None:
 
     Base.metadata.create_all(bind=engine)
     with engine.begin() as conn:
+        ensure_external_failure_observation_schema(conn)
         if _table_exists(conn, "shots"):
             _add_column_if_missing(conn, "shots", "merged_prop_image", "merged_prop_image VARCHAR")
             _add_column_if_missing(conn, "shots", "continuity_mode", "continuity_mode VARCHAR DEFAULT 'NORMAL'")
@@ -52,6 +56,7 @@ def upgrade_sqlite_schema(engine: Engine) -> None:
         if _table_exists(conn, "novels"):
             for column in [
                 "keyframe_description_prompt_template_id",
+                "shot_contract_repair_prompt_template_id",
                 "shot_image_prompt_template_id",
                 "video_mode_recommender_prompt_template_id",
                 "keyframe_planner_prompt_template_id",
@@ -80,6 +85,7 @@ def upgrade_sqlite_schema(engine: Engine) -> None:
             _add_column_if_missing(conn, "llm_logs", "duration", "duration FLOAT")
             _add_column_if_missing(conn, "llm_logs", "request_info", "request_info TEXT")
             _add_column_if_missing(conn, "llm_logs", "prompt_template_name", "prompt_template_name VARCHAR")
+            _add_column_if_missing(conn, "llm_logs", "execution_metadata", "execution_metadata JSON")
             _create_index(conn, "CREATE INDEX IF NOT EXISTS ix_llm_logs_created_at_id ON llm_logs (created_at, id)")
             _create_index(conn, "CREATE INDEX IF NOT EXISTS ix_llm_logs_status_created_at ON llm_logs (status, created_at)")
 

@@ -108,6 +108,8 @@ export default {
     tabShots: 'Shot Production',
     tabCompose: 'Compose & Export',
     tabShotSplit: 'Shot Split',
+    tabAssetPrepare: 'Asset Preparation',
+    tabAssetPrepareShort: 'Assets',
     tabShotSplitShort: 'Split',
     tabShotImageShort: 'Image',
     tabAudioGenShort: 'Audio',
@@ -555,7 +557,7 @@ export default {
 
     // Confirm Dialog
     confirmResplit: 'Confirm re-split shots?',
-    resplitWarning: 'This chapter has generated content, re-splitting will clear the following data:',
+    resplitWarning: 'The following current results are replaced only after the new Shots pass validation. Failure preserves existing data; historical media files are retained:',
     confirmResplitBtn: 'Confirm Re-split',
     shotJsonData: 'Shot JSON Data',
     generatedShotImages: 'Generated Shot Images',
@@ -568,7 +570,7 @@ export default {
     aiSplitFailed: 'AI split failed: {message}',
     aiSplitFailedRetry: 'AI split failed, please retry',
     confirmAiSplit: 'Confirm AI Split?',
-    aiSplitClearWarning: '⚠️ AI split will clear all shot data for the current chapter. Continue?',
+    aiSplitClearWarning: 'AI splitting uses only assets formally bound to this chapter. Validated results replace current Shots; failure preserves existing data. Continue?',
     confirmSplit: 'Confirm Split',
     splitting: 'Splitting...',
     adding: 'Adding...',

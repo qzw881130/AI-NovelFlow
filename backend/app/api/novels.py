@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.models.novel import Chapter, Novel
 from app.models.shot import Shot
-from app.schemas.novel import NovelCreate
+from app.schemas.novel import NovelCopy, NovelCreate
 from app.repositories import NovelRepository, ChapterRepository, CharacterRepository, PromptTemplateRepository
 from app.services.novel_service import NovelService
 from app.repositories.audio_drive import AudioDriveRepository
@@ -33,6 +33,7 @@ PROMPT_TEMPLATE_EXPORT_FIELDS = [
     {"api_key": "scenePromptTemplateId", "attr": "scene_prompt_template_id", "label": "场景生成提示词", "type": "scene"},
     {"api_key": "propPromptTemplateId", "attr": "prop_prompt_template_id", "label": "道具生成提示词", "type": "prop"},
     {"api_key": "chapterSplitPromptTemplateId", "attr": "chapter_split_prompt_template_id", "label": "分镜拆分提示词模板", "type": "chapter_split"},
+    {"api_key": "shotContractRepairPromptTemplateId", "attr": "shot_contract_repair_prompt_template_id", "label": "分镜契约自动修复提示词模板", "type": "shot_contract_repair"},
     {"api_key": "keyframeDescriptionPromptTemplateId", "attr": "keyframe_description_prompt_template_id", "label": "关键帧描述提示词模板", "type": "keyframe_description"},
     {"api_key": "shotImagePromptTemplateId", "attr": "shot_image_prompt_template_id", "label": "主分镜图提示词模板", "type": "shot_image_prompt"},
     {"api_key": "videoModeRecommenderPromptTemplateId", "attr": "video_mode_recommender_prompt_template_id", "label": "视频生成模式推荐提示词模板", "type": "video_mode_recommender"},
@@ -98,6 +99,7 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
         scene_prompt_template_id=novel.scene_prompt_template_id,
         prop_prompt_template_id=novel.prop_prompt_template_id,
         chapter_split_prompt_template_id=novel.chapter_split_prompt_template_id,
+        shot_contract_repair_prompt_template_id=novel.shot_contract_repair_prompt_template_id,
         keyframe_description_prompt_template_id=novel.keyframe_description_prompt_template_id,
         shot_image_prompt_template_id=novel.shot_image_prompt_template_id,
         video_mode_recommender_prompt_template_id=novel.video_mode_recommender_prompt_template_id,
@@ -130,6 +132,7 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
             "scenePromptTemplateId": db_novel.scene_prompt_template_id,
             "propPromptTemplateId": db_novel.prop_prompt_template_id,
             "chapterSplitPromptTemplateId": db_novel.chapter_split_prompt_template_id,
+            "shotContractRepairPromptTemplateId": db_novel.shot_contract_repair_prompt_template_id,
             "keyframeDescriptionPromptTemplateId": db_novel.keyframe_description_prompt_template_id,
             "shotImagePromptTemplateId": db_novel.shot_image_prompt_template_id,
             "videoModeRecommenderPromptTemplateId": db_novel.video_mode_recommender_prompt_template_id,
@@ -143,6 +146,21 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
             "createdAt": format_datetime(db_novel.created_at),
         }
     }
+
+
+@router.post("/{novel_id}/copy", response_model=dict)
+async def copy_novel(
+    novel_id: str,
+    data: NovelCopy,
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+):
+    """创建新小说，仅复制来源小说的所有章回标题、正文和章回顺序。"""
+    source = novel_repo.get_by_id(novel_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="来源小说不存在")
+
+    copied = novel_repo.copy_with_chapters(source, data.title)
+    return {"success": True, "data": novel_repo.to_response(copied)}
 
 
 @router.get("/{novel_id}", response_model=dict)
@@ -257,6 +275,7 @@ async def update_novel(
         "scenePromptTemplateId": "scene_prompt_template_id",
         "propPromptTemplateId": "prop_prompt_template_id",
         "chapterSplitPromptTemplateId": "chapter_split_prompt_template_id",
+        "shotContractRepairPromptTemplateId": "shot_contract_repair_prompt_template_id",
         "keyframeDescriptionPromptTemplateId": "keyframe_description_prompt_template_id",
         "shotImagePromptTemplateId": "shot_image_prompt_template_id",
         "videoModeRecommenderPromptTemplateId": "video_mode_recommender_prompt_template_id",

@@ -54,6 +54,8 @@ class GenerateShotImageRequest(ExecutionRequest):
     """生成分镜图片请求"""
 
     prompt_text: Optional[str] = Field(None, description="已确认的最终生图提示词；为空时由 LLM 生成")
+    rsa_id: Optional[str] = None
+    rsa_hash: Optional[str] = None
     workflow_type: Optional[Literal["shot", "shot_scene", "shot_character_scene", "shot_scene_prop"]] = Field(
         None, description="分镜生图工作流类型；为空时使用角色+场景+道具"
     )
@@ -105,16 +107,23 @@ class MergeVideosRequest(BaseModel):
     shot_ids: Optional[List[str]] = Field(None, description="要参与合并的分镜 ID 列表；为空时合并所有已有视频的分镜")
 
 
-class ShotUpdate(BaseModel):
+from app.schemas.shot_revision import RevisionRequest
+
+
+class ShotUpdate(RevisionRequest):
     """分镜更新请求"""
 
+    model_config = ConfigDict(populate_by_name=True)
+    estimated_duration: Optional[int] = Field(None, ge=1, le=3600, alias='estimatedDuration')
+    audio_events: Optional[List[dict]] = Field(None, alias='audioEvents')
+    source_treatments: Optional[List[dict]] = Field(None, alias='sourceTreatments')
     description: Optional[str] = Field(None, description="分镜描述")
     video_description: Optional[str] = Field(None, description="视频生成提示词")
     shot_image_prompt: Optional[str] = Field(None, description="主分镜图最终生图提示词")
     characters: Optional[List[str]] = Field(None, description="角色名称列表")
     scene: Optional[str] = Field(None, description="场景名称")
     props: Optional[List[str]] = Field(None, description="道具名称列表")
-    duration: Optional[int] = Field(None, ge=1, le=180, description="时长（秒）")
+    duration: Optional[int] = Field(None, ge=1, le=3600, description="导演Shot时长（秒），不受单Clip长度限制")
     continuity_mode: Optional[Literal["NORMAL", "CONTINUOUS_TAKE"]] = Field(
         None, description="连续模式：NORMAL 或 CONTINUOUS_TAKE"
     )
@@ -139,6 +148,7 @@ class ShotResponse(BaseModel):
     props: List[str]
     duration: int
     continuity_mode: str = "NORMAL"
+    completionDisposition: Literal["NORMAL", "DEGRADED_NARRATION_CARD"] = "NORMAL"
     videoDirectorPlan: dict = {}
     videoDirectorPlanRevision: int = 0
     imageUrl: Optional[str] = None
@@ -168,10 +178,15 @@ class PatchChapterResourcesRequest(BaseModel):
     props: List[str] = Field(default_factory=list, description="道具名称列表")
 
 
+class BatchShotUpdate(ShotUpdate):
+    model_config = ConfigDict(populate_by_name=True, extra='allow')
+    id: str
+
+
 class BatchShotsUpdateRequest(BaseModel):
     """批量分镜更新请求"""
 
-    shots: List[dict] = Field(..., description="分镜数据列表，每个包含 id 和要更新的字段")
+    shots: List[BatchShotUpdate] = Field(..., description="分镜数据列表，每个包含 id、客户端修订号和要更新的字段")
 
 
 class GenerateKeyframeDescriptionsRequest(BaseModel):
@@ -184,6 +199,8 @@ class GenerateKeyframeImageRequest(ExecutionRequest):
     """生成关键帧图片请求"""
 
     workflow_id: Optional[str] = Field(None, description="指定工作流ID")
+    rsa_id: Optional[str] = None
+    rsa_hash: Optional[str] = None
     skip_llm_when_prompt_exists: bool = Field(False, description="已有关键帧生图提示词时跳过 LLM，直接提交工作流")
 
 

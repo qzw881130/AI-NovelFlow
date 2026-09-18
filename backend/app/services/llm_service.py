@@ -45,6 +45,7 @@ class LLMService:
         self.max_tokens = getattr(current_settings, 'LLM_MAX_TOKENS', None)  # 从配置中获取 max_tokens
         self.temperature = getattr(current_settings, 'LLM_TEMPERATURE', None)  # 从配置中获取 temperature
         self.timeout = getattr(current_settings, 'LLM_TIMEOUT', None)  # 从配置中获取请求超时（秒）
+        self.image_input = getattr(current_settings, 'LLM_IMAGE_INPUT', None)
 
         # 代理配置
         self.proxy_enabled = current_settings.PROXY_ENABLED
@@ -80,6 +81,7 @@ class LLMService:
             proxy_enabled=self.proxy_enabled,
             http_proxy=self.http_proxy,
             https_proxy=self.https_proxy,
+            image_input=self.image_input,
         )
         return LLMClient(config)
 
@@ -158,51 +160,8 @@ class LLMService:
     # ============== 业务方法 ==============
 
     async def parse_novel_text(self, text: str, novel_id: str = None, source_range: str = None) -> Dict[str, Any]:
-        """解析小说文本，提取角色、场景、分镜信息（支持章节范围）"""
-        # 获取当前配置
-        from app.core.config import get_settings
-        settings = get_settings()
-        system_prompt = settings.PARSE_CHARACTERS_PROMPT or DEFAULT_PARSE_CHARACTERS_PROMPT
-
-        # 替换章节范围占位符
-        if source_range:
-            system_prompt = system_prompt.replace(CHAPTER_RANGE_PLACEHOLDER, source_range)
-        else:
-            system_prompt = system_prompt.replace(CHAPTER_RANGE_PLACEHOLDER, DEFAULT_CHAPTER_RANGE_DESCRIPTION)
-
-        result = await self.chat_completion(
-            system_prompt=system_prompt,
-            user_content=f"请解析以下小说文本：\n\n{text}",
-            temperature=DEFAULT_TEMPERATURE,
-            max_tokens=NOVEL_TEXT_MAX_LENGTH,
-            response_format="json_object",
-            task_type="parse_characters",
-            prompt_template_name="系统配置角色解析提示词",
-            novel_id=novel_id
-        )
-
-        if result["success"]:
-            data = safe_parse_llm_json(result["content"], default=None)
-            if not data:
-                print(f"[parse_novel_text] JSON 解析失败，原始内容：{result['content'][:500]}")
-                return {
-                    "error": "JSON 解析失败",
-                    "characters": [],
-                    "scenes": [],
-                    "shots": []
-                }
-            return {
-                "characters": data.get("characters", []),
-                "scenes": data.get("scenes", []),
-                "shots": data.get("shots", [])
-            }
-        else:
-            return {
-                "error": result.get("error", "未知错误"),
-                "characters": [],
-                "scenes": [],
-                "shots": []
-            }
+        """旧无章回快照的解析已停用。"""
+        raise RuntimeError("CHAPTER_CONTEXT_REQUIRED: use ChapterAssetParseService")
 
     async def generate_character_appearance(
         self,
@@ -227,9 +186,11 @@ class LLMService:
         )
 
         if result["success"]:
-            return clean_llm_response(result["content"]).strip()
+            value=clean_llm_response(result["content"]).strip()
+            if not value:raise RuntimeError('CHARACTER_APPEARANCE_TEXT_EMPTY')
+            return value
         else:
-            return DEFAULT_CHARACTER_APPEARANCE_FALLBACK.format(character_name=character_name)
+            raise RuntimeError(result.get('error') or 'CHARACTER_APPEARANCE_TEXT_FAILED')
 
     async def expand_video_prompt(self, prompt: str, duration: int = DEFAULT_VIDEO_DURATION) -> str:
         """扩写视频生成提示词"""
@@ -449,92 +410,13 @@ class LLMService:
         character_names: List[str] = None,
         scene_names: List[str] = None,
         prop_names: List[str] = None,
-        style: str = "anime style, high quality, detailed",
+        style: str = "",
         novel_id: str = None,
         chapter_id: str = None,
         prompt_template_name: str = None
     ) -> Dict[str, Any]:
-        """使用自定义提示词将章节拆分为分镜数据结构"""
-
-        # 替换提示词模板中的占位符
-        system_prompt = prompt_template.replace(
-            "{每个分镜对应拆分故事字数}", str(word_count)
-        ).replace(
-            "{图像风格}", style
-        ).replace(
-            "##STYLE##", style
-        )
-
-        # 构建 allowed_characters 行
-        allowed_characters_line = ""
-        if character_names:
-            allowed_characters_line = f"allowed_characters: {', '.join(character_names)}\n"
-
-        # 构建 allowed_scenes 行
-        allowed_scenes_line = ""
-        if scene_names:
-            allowed_scenes_line = f"allowed_scenes: {', '.join(scene_names)}\n"
-
-        # 构建 allowed_props 行
-        allowed_props_line = ""
-        if prop_names:
-            allowed_props_line = f"allowed_props: {', '.join(prop_names)}\n"
-
-        # 合并白名单行
-        whitelist_lines = ""
-        if allowed_characters_line or allowed_scenes_line or allowed_props_line:
-            whitelist_lines = allowed_characters_line + allowed_scenes_line + allowed_props_line + "\n"
-
-        user_content = f"""{whitelist_lines}章节标题：{chapter_title}
-
-章节内容：
-{chapter_content[:CHAPTER_CONTENT_MAX_LENGTH]}
-
-请将以上章节内容拆分为分镜数据结构。"""
-
-        result = await self.chat_completion(
-            system_prompt=system_prompt,
-            user_content=user_content,
-            temperature=DEFAULT_TEMPERATURE,
-            max_tokens=CHAPTER_CONTENT_MAX_LENGTH,
-            response_format="json_object",
-            task_type="split_chapter",
-            prompt_template_name=prompt_template_name or "分镜拆分提示词模板",
-            novel_id=novel_id,
-            chapter_id=chapter_id
-        )
-
-        if result["success"]:
-            content = result["content"]
-            data = safe_parse_llm_json(content)
-
-            if not data:
-                print(f"[split_chapter] JSON 解析失败")
-                print(f"[split_chapter] 原始内容: {result['content'][:500]}")
-                return {
-                    "error": "JSON 解析失败",
-                    "chapter": chapter_title,
-                    "characters": [],
-                    "scenes": [],
-                    "shots": []
-                }
-
-            # 确保返回格式正确
-            return {
-                "chapter": data.get("chapter", chapter_title),
-                "characters": data.get("characters", []),
-                "scenes": data.get("scenes", []),
-                "props": data.get("props", []),
-                "shots": data.get("shots", [])
-            }
-        else:
-            return {
-                "error": result.get("error", "未知错误"),
-                "chapter": chapter_title,
-                "characters": [],
-                "scenes": [],
-                "shots": []
-            }
+        """Deprecated: an arbitrary name array cannot establish a Chapter scope."""
+        raise RuntimeError("CHAPTER_SCOPE_REQUIRED: use ChapterShotSplitService with persisted Chapter Bindings")
 
 
 def get_llm_service() -> LLMService:

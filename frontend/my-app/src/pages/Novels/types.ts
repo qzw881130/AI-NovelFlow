@@ -13,6 +13,7 @@ export interface NovelFormData {
   scenePromptTemplateId: string;
   propPromptTemplateId: string;
   chapterSplitPromptTemplateId: string;
+  shotContractRepairPromptTemplateId: string;
   keyframeDescriptionPromptTemplateId: string;
   shotImagePromptTemplateId: string;
   videoModeRecommenderPromptTemplateId: string;

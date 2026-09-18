@@ -40,6 +40,7 @@ class AnthropicProvider(BaseLLMProvider):
         response_format: Optional[str]
     ) -> Dict[str, Any]:
         """构建请求体"""
+        self.preflight_content(user_content)
         return {
             "model": self.config.model,
             "messages": [

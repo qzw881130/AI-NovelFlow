@@ -11,6 +11,7 @@ import json
 import uuid
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 from .metrics import normalize_metrics
+from .multimodal import MultimodalInputError, preflight
 
 
 def _sanitize_url(url):
@@ -204,6 +205,7 @@ class LLMConfig:
     proxy_enabled: bool = False
     http_proxy: Optional[str] = None
     https_proxy: Optional[str] = None
+    image_input: Optional[bool] = None  # Explicit model declaration; no DB migration required.
 
 
 @dataclass
@@ -217,6 +219,7 @@ class LLMResponse:
     failure_kind: Optional[str] = None
     diagnostic_content: Any = None  # Candidate or undecodable response body, never prompt content.
     diagnostic_type: Optional[str] = None
+    log_id: Optional[str] = None
 
 
 class BaseLLMProvider(ABC):
@@ -234,6 +237,11 @@ class BaseLLMProvider(ABC):
         # 初始化 API Key 轮询
         if config.api_key:
             self._api_keys = [k.strip() for k in config.api_key.split(',') if k.strip()]
+
+    MULTIMODAL_WIRE = None
+
+    def preflight_content(self, content):
+        return preflight(self.config, content, self.MULTIMODAL_WIRE)
 
     def _complete_response(self, log_id, data, duration):
         metrics = normalize_metrics(self.config.provider, data, duration)
@@ -273,6 +281,7 @@ class BaseLLMProvider(ABC):
             failure_kind="INVALID_OUTPUT" if error else None,
             diagnostic_content=candidate if error else None,
             diagnostic_type=diagnostic_type,
+            log_id=log_id,
         )
 
     def _http_error_response(self, log_id, response, duration):
@@ -283,11 +292,13 @@ class BaseLLMProvider(ABC):
             pass
         error = f"API 错误 ({response.status_code}): {response.text}"
         update_llm_log(log_id, status="error", error_message=error, duration=duration, metrics=metrics)
-        return LLMResponse(success=False, error=error, duration=duration, failure_kind="SERVICE_ERROR")
+        return LLMResponse(success=False, error=error, duration=duration, failure_kind="SERVICE_ERROR", log_id=log_id)
 
     def _exception_response(self, log_id, exc, duration, response=None):
         diagnostic_content = None
-        if isinstance(exc, (TimeoutError, httpx.TimeoutException)):
+        if isinstance(exc, MultimodalInputError):
+            failure_kind = 'INPUT_ERROR'
+        elif isinstance(exc, (TimeoutError, httpx.TimeoutException)):
             failure_kind = "TIMEOUT"
         elif isinstance(exc, (httpx.HTTPError, ConnectionError)):
             failure_kind = "SERVICE_ERROR"
@@ -313,6 +324,7 @@ class BaseLLMProvider(ABC):
             success=False, error=error, duration=duration, failure_kind=failure_kind,
             diagnostic_content=diagnostic_content,
             diagnostic_type="str" if diagnostic_content is not None else None,
+            log_id=log_id,
         )
 
     @property

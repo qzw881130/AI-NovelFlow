@@ -12,5 +12,6 @@ export default {
     promptConfig: 'プロンプト設定',
     uiConfig: 'UI設定',
     llmLogs: 'LLMログ',
+    systemLogs: 'システムログ',
   },
 };

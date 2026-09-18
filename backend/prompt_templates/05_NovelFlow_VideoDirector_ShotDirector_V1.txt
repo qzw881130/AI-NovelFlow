@@ -15,21 +15,26 @@
 - 是剧情、动作、台词、人物出场与场景变化的唯一原文依据。
 
 2. allowed_characters
-- 已正式保存到 Character DB 的本章可用角色标准名称数组。
+- 当前 ChapterCharacterBinding 正式绑定的角色标准名称数组，不是 Book 全库。
 - 所有可见角色名、实际人物说话者名称必须来自这里。
 - “旁白”若存在，只能作为非视觉音频角色使用，不得加入 shots[].characters。
 
 3. allowed_scenes
-- 已正式保存到 Scene DB 的本章可用场景标准名称数组。
+- 当前 ChapterSceneBinding 正式绑定的场景标准名称数组，不是 Book 全库。
 - shots[].scene 必须严格来自这里。
 
 4. allowed_props
-- 已正式保存到 Prop DB 的本章可用道具标准名称数组。
+- 当前 ChapterPropBinding 正式绑定的道具标准名称数组，不是 Book 全库。
 - shots[].props 及 description/video_description 中明确命名的剧情道具必须来自这里。
+
+5. source_windows（输入存在时）
+- 程序根据已确认 Appearance Timeline 生成的逐角色 Source Window 事实。
+- 包含 version、scope、offset_unit、end_exclusive、hard_boundaries、character/window mapping、window_id 及 start/end。
+- 这些窗口是机器事实；不得改写 offset、Appearance state 或 window_id。
 
 注意：
 - 第一版不提供 Book State。
-- 第一版不提供 Character State。
+- 第一版不让分镜 LLM 决定 Character Appearance ID；程序提供的 Appearance boundary / source window 是必须遵守的硬规划约束。
 - 第一版不提供前序 Shot continuity。
 - 不得假设这些未提供的信息存在。
 - 不得自行创造不在可靠输入中的角色、场景或道具实体。
@@ -102,6 +107,31 @@ audio_events 元素格式：
 
 10. source_evidence
 当前 Shot 对应的原文证据锚点。LLM 只返回可在 chapter_text 中逐字找到的原文片段，不计算字符 offset。后处理程序负责 exact matching 并生成正式 source_ranges。
+
+━━━━━━━━━━━━━━━━━━
+【R-SC1 / Single-Scene Shot 硬约束】
+━━━━━━━━━━━━━━━━━━
+
+- 一个 Shot 必须只绑定且只发生在一个 canonical Scene asset 中，shots[].scene 必须是该唯一场景。
+- 若当前拟定 Shot 的原文范围从一个 allowed_scenes 场景转入另一个独立 allowed_scenes 场景，必须在转场处拆成不同 Shots。
+- 同一 canonical Scene asset 内的子区域移动合法，例如庄内到庄门、城内到城门附近、同一营寨内帐外到帐内；这些移动本身不要求拆 Shot。
+- tracking shot、CONTINUOUS_TAKE、montage、match cut、长时长、对白连续或减少 Shot 数，都不能作为跨两个独立 Scene assets 合并成一个 Shot 的理由。
+- 原文只表明离开或前往、但目标 Scene 不明确时，不得猜测目标 Scene，也不得把出发前与未明确地点的后续内容强行合并来规避拆分或 unresolved review。
+
+━━━━━━━━━━━━━━━━━━
+【Appearance-aware Source Window 硬约束】
+━━━━━━━━━━━━━━━━━━
+
+仅当输入包含 source_windows 时执行本节：
+
+- Source Window 是逐角色约束，不是全章统一切点。只有实际出现在当前 shots[].characters 中、并列于 source_windows.characters 的角色才约束当前 Shot。
+- 未出现在当前 Shot 的角色不施加 window constraint；仅作为 voice_owner、画外对白或旁白存在的角色也不产生视觉 window constraint。
+- 对每个 relevant visible character，当前 Shot 的完整 source_ownership 必须完全落在该角色唯一一个 [start,end) window 内。
+- Window 使用 UNICODE_CODE_POINT、左闭右开语义。Boundary 恰好等于 Shot start 或 Shot end 合法；start < boundary < end 才是真正 crossing。
+- True crossing 必须在该 boundary 拆成不同 Shot。不得为了叙事连续、时长或减少 Shot 数而合并跨 Appearance 状态的原文。
+- 不得通过删除可见角色、把角色改成画外、篡改剧情、缩短或改写 source evidence/source ownership 来规避 window constraint。
+- 仍然只进行一次全章 Shot Split 调用，并保持全章节奏、Shot 连续编号、完整来源覆盖、场景连续性、Audio Events 与 Source Treatments。
+- 不要输出 source_window_bindings、window_id、offset 或 Appearance ID。程序会在重新定位完整 source range 后自动推导并封存 source_window_bindings；无法唯一归入窗口时直接拒绝。
 
 ━━━━━━━━━━━━━━━━━━
 【导演 Shot 与底层生成时长必须分离】
@@ -192,7 +222,7 @@ order 必须从 1 开始严格递增，用于后续程序确定性保持对白�
 规则：
 - text 必须逐字复制 chapter_text 中实际存在的连续原文，不得改写、摘要、补字。
 - 优先选择足以唯一定位该 Shot 的最小连续原文范围。
-- 若一个 Shot 确实依赖多个不连续原文区段，可输出多个 evidence item。
+- 多个 evidence item 只允许相接或由原文空白分隔；不同的非连续剧情应拆为不同 Shot。
 - 禁止由 LLM 输出 start/end/offset；字符位置由程序 exact matching 后生成正式 source_ranges。
 - source_evidence 仅用于 grounding，不得把它当成新的剧情来源。
 - 输出前确认每个 source_evidence[].text 都能在 chapter_text 中原样找到。

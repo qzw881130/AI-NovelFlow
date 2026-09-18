@@ -139,6 +139,8 @@ export default {
     tabShots: 'ショット制作',
     tabCompose: '合成・出力',
     tabShotSplit: 'ショット分割',
+    tabAssetPrepare: '素材準備',
+    tabAssetPrepareShort: '素材',
     tabShotSplitShort: '分割',
     tabShotImageShort: '画像',
     tabAudioGenShort: '音声',
@@ -522,7 +524,7 @@ export default {
 
     // 確認ダイアログ
     confirmResplit: 'ショットの再分割を確認しますか？',
-    resplitWarning: 'この章には生成されたコンテンツがあります。再分割すると以下のデータがクリアされます：',
+    resplitWarning: '新しいショットの検証成功後にのみ次の結果を置換します。失敗時は既存データを保持し、過去のメディアファイルも保持します：',
     confirmResplitBtn: '再分割を確認',
     shotJsonData: 'ショット JSON データ',
     generatedShotImages: '生成されたショット画像',
@@ -535,7 +537,7 @@ export default {
     aiSplitFailed: 'AI 分割失敗：{message}',
     aiSplitFailedRetry: 'AI 分割失敗、再試行してください',
     confirmAiSplit: 'AI 分割を確認？',
-    aiSplitClearWarning: '⚠️ AI分割により現在の章のすべてのショットデータが消去されます。続行しますか？',
+    aiSplitClearWarning: 'この章に正式に紐づく素材だけで分割します。検証成功後に置換し、失敗時は既存データを保持します。続行しますか？',
     confirmSplit: '分割を確認',
     splitting: '分割中...',
     adding: '追加中...',

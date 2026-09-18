@@ -71,6 +71,9 @@ export function NovelCard({
       </div>
       <div className="p-4">
         <h3 className="text-lg font-semibold text-gray-900 truncate">{novel.title}</h3>
+        <p className="mt-1 break-all text-xs text-gray-500">
+          {t('novels.novelId')}: <span className="select-all font-mono">{novel.id}</span>
+        </p>
         <p className="text-sm text-gray-500 mt-1">{novel.author}</p>
         <p className="text-sm text-gray-600 mt-2 line-clamp-2 h-10">
           {novel.description || t('novels.noDescription')}

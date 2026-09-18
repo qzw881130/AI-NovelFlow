@@ -3,6 +3,14 @@
  */
 import { api } from './index';
 import type { AudioDriveEvent } from './audioDrive';
+import { shotRevisionPatch } from './shotRevision';
+
+async function imageTaskResponse(response: Response) {
+  const data=await response.json();
+  if(response.ok)return data;
+  const reason=data.message||data.detail||`请求失败 (${response.status})`;
+  return {...data,success:false,message:typeof reason==='string'?reason:JSON.stringify(reason)};
+}
 
 // 分镜台词数据
 export interface DialogueData {
@@ -16,8 +24,23 @@ export interface DialogueData {
 }
 
 // 分镜数据（从后端 Shot 模型映射）
+export interface SourceTreatment {
+  key: string;
+  type: 'DIALOGUE' | 'NARRATION' | 'VISUAL';
+  source_evidence: Array<{text:string;context_before?:string|null;context_after?:string|null}>;
+  visual_targets?: Array<'description'|'video_description'>;
+  audio_type?: 'NARRATION'|'INNER_MONOLOGUE'|null;
+}
+
 export interface Shot {
   id: string;
+  sourceStart?: number | null;
+  sourceEnd?: number | null;
+  sourceRunId?: string | null;
+  sourceRevision?: number;
+  sourceRevisionId?: string | null;
+  sourceTreatments?: SourceTreatment[] | null;
+  treatmentContractVersion?: string | null;
   chapterId: string;
   index: number;
   description: string;
@@ -40,11 +63,12 @@ export interface Shot {
     ttsFailedCount: number;
   };
   continuity_mode?: string;
+  completionDisposition?: 'NORMAL' | 'DEGRADED_NARRATION_CARD';
   videoDirectorPlan?: VideoDirectorPlan;
   videoDirectorPlanRevision?: number;
   imageUrl: string | null;
   imagePath: string | null;
-  imageStatus: 'pending' | 'generating' | 'completed' | 'failed';
+  imageStatus: 'pending' | 'generating' | 'completed' | 'failed' | 'not_required';
   imageTaskId: string | null;
   videoUrl: string | null;
   videoStatus: 'pending' | 'generating' | 'completed' | 'failed';
@@ -168,6 +192,10 @@ export interface KeyframeData {
 
 // 分镜更新请求
 export interface ShotUpdateRequest {
+  sourceRevision?: number;
+  expected_revision?: number;
+  expectedRevision?: number;
+  sourceTreatments?: SourceTreatment[];
   description?: string;
   video_description?: string;
   shot_image_prompt?: string;
@@ -278,24 +306,24 @@ export const shotsApi = {
     novelId: string,
     chapterId: string,
     shotId: string,
-    options?: { prompt_text?: string; workflow_type?: 'shot' | 'shot_scene' | 'shot_character_scene' | 'shot_scene_prop' }
+    options?: { prompt_text?: string; workflow_type?: 'shot' | 'shot_scene' | 'shot_character_scene' | 'shot_scene_prop'; rsa_id?: string; rsa_hash?: string }
   ): Promise<{ success: boolean; data?: { taskId: string; status: string; promptText?: string | null }; message?: string }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/generate/`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt_text: options?.prompt_text || null, workflow_type: options?.workflow_type || null }),
+        body: JSON.stringify({ prompt_text: options?.prompt_text || null, workflow_type: options?.workflow_type || null, rsa_id:options?.rsa_id, rsa_hash:options?.rsa_hash }),
       }
     );
-    return response.json();
+    return imageTaskResponse(response);
   },
 
   generateImagesBatch: async (
     novelId: string,
     chapterId: string,
     options: { shot_ids: string[]; skip_llm_when_prompt_exists?: boolean }
-  ): Promise<{ success: boolean; data?: { batchTaskId: string; tasks: Array<{ taskId: string; shotId: string; status: string }> }; message?: string; detail?: string }> => {
+  ): Promise<{ success: boolean; data?: { batchTaskId: string|null; tasks: Array<{ taskId: string; shotId: string; status: string }>; blocked?: Array<{shotId:string;code:string}> }; message?: string; detail?: string }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shot-images/batch`,
       {
@@ -307,7 +335,7 @@ export const shotsApi = {
         }),
       }
     );
-    return response.json();
+    return imageTaskResponse(response);
   },
 
   /**
@@ -674,16 +702,16 @@ export const shotsApi = {
     novelId: string,
     chapterId: string,
     shots: any[]
-  ): Promise<{ success: boolean; data?: { updated_count: number; shots: any[] }; message?: string }> => {
+  ): Promise<{ success: boolean; data?: { updated_count: number; shots: any[]; eventIdMaps?: Record<string,Record<string,string>> }; message?: string }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/batch`,
       {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shots }),
+        body: JSON.stringify({ shots: shots.map(shotRevisionPatch) }),
       }
     );
-    return response.json();
+    return imageTaskResponse(response);
   },
 
   /**
@@ -760,13 +788,15 @@ export const shotsApi = {
     shotId: string,
     frameIndex: number,
     workflowId?: string,
-    options?: { skip_llm_when_prompt_exists?: boolean }
+    options?: { skip_llm_when_prompt_exists?: boolean; rsa_id?: string; rsa_hash?: string }
   ): Promise<{ success: boolean; data?: { task_id: string }; message?: string; detail?: string }> => {
     const body: any = {};
     if (workflowId) body.workflow_id = workflowId;
     if (options?.skip_llm_when_prompt_exists !== undefined) {
-      body.skip_llm_when_prompt_exists = options.skip_llm_when_prompt_exists;
+        body.skip_llm_when_prompt_exists = options.skip_llm_when_prompt_exists;
     }
+    if (options?.rsa_id !== undefined) body.rsa_id=options.rsa_id;
+    if (options?.rsa_hash !== undefined) body.rsa_hash=options.rsa_hash;
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/keyframes/${frameIndex}/generate-image`,
       {
@@ -775,7 +805,7 @@ export const shotsApi = {
         body: JSON.stringify(body),
       }
     );
-    return response.json();
+    return imageTaskResponse(response);
   },
 
   /**

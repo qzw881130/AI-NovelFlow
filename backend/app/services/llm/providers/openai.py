@@ -10,6 +10,7 @@ import os
 import time
 from typing import Dict, Any, Optional
 from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
+from ..multimodal import canonical_log, native_content, redacted_wire, wire_evidence
 
 
 class OpenAICompatibleProvider(BaseLLMProvider):
@@ -20,6 +21,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
     """
 
     PROVIDER_NAME = "openai_compatible"
+    MULTIMODAL_WIRE = 'openai-chat'
 
     def _get_endpoint(self) -> str:
         """获取 API 端点 URL"""
@@ -48,11 +50,12 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         response_format: Optional[str]
     ) -> Dict[str, Any]:
         """构建请求体"""
+        self.preflight_content(user_content)
         body = {
             "model": self.config.model,
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_content}
+                {"role": "user", "content": native_content(user_content, self.MULTIMODAL_WIRE)}
             ],
             "temperature": temperature,
             "max_tokens": max_tokens,
@@ -133,19 +136,8 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         used_proxy = proxy is not None
 
         timeout = self.config.timeout or 600
-        log_body = body
-        log_user_content = user_content
-        if isinstance(user_content, list):
-            # Keep image URLs/base64 out of logs without changing the wire payload.
-            log_content = [
-                {"type": "image_url", "image_url": {"url": "[image omitted]"}}
-                if part.get("type") == "image_url" else part
-                for part in user_content
-            ]
-            log_user_content = json.dumps(log_content, ensure_ascii=False)
-            log_body = {**body, "messages": [
-                body["messages"][0], {"role": "user", "content": log_content}
-            ]}
+        log_body = redacted_wire(body)
+        log_user_content = canonical_log(user_content)
         request_info = build_llm_request_info(
             provider=self.config.provider,
             base_url=self.config.api_url,
@@ -156,6 +148,9 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             proxy_url=proxy,
             timeout_seconds=timeout,
         )
+        evidence = wire_evidence(self.config, user_content, body, self.MULTIMODAL_WIRE)
+        if evidence:
+            request_info['multimodal'] = evidence
         # Ollama 和 custom 不需要代理
         if self.config.provider in ("ollama", "custom"):
             old_http_proxy = os.environ.pop('HTTP_PROXY', None)

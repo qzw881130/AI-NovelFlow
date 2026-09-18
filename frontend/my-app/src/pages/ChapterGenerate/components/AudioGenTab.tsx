@@ -7,6 +7,7 @@ import { useChapterGenerateStore, useShotNavigatorSlice } from '../stores';
 import { BatchShotOption } from './BatchShotOption';
 import { GenerateDialog } from './GenerateDialog';
 import { AudioTimingReview } from './AudioTimingReview';
+import { editAudioEvent } from '../audioEventDraft';
 
 interface AudioGenTabProps {
   novelId: string;
@@ -210,7 +211,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
   const generatingCount = events.filter((event) => event.ttsStatus === 'GENERATING').length;
   const visibleSpeakerSelectValue = editingEvent?.visibleSpeakerCharacterId || (editingEvent?.visibleSpeakerName ? `name:${editingEvent.visibleSpeakerName}` : '');
   const audioReadyShotIds = useMemo(() => new Set(shots.filter(isShotAudioReady).map((shot: any) => String(shot.id))), [shots]);
-  const selectableBatchShots = useMemo(() => shots.filter((shot: any) => Boolean(shot.id)), [shots]);
+  const selectableBatchShots = useMemo(() => shots.filter((shot: any) => Boolean(shot.id)&&shot.completionDisposition!=='DEGRADED_NARRATION_CARD'), [shots]);
   const selectedBatchShots = useMemo(() => selectableBatchShots.filter((shot: any) => selectedBatchShotIds.has(String(shot.id))), [selectableBatchShots, selectedBatchShotIds]);
 
   const getRunningPrepareShotId = (step: string) => {
@@ -241,7 +242,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
         audioDriveApi.fetchTimeline(currentShot.id),
       ]);
       if (request !== loadRequestRef.current) return;
-      const nextEvents = eventsRes.data?.events || [];
+      const nextEvents = (eventsRes.data?.events || []).map(event => ({...event, sourceRevision: eventsRes.data?.sourceRevision}));
       setEvents(nextEvents);
       setAudioStatus(eventsRes.data?.audioStatus || 'NOT_READY');
       setTimeline(timelineRes.data || null);
@@ -290,17 +291,14 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
     setSaving(true);
     setMessage('');
     try {
-      const res = await audioDriveApi.updateEvent(editingEvent.id, {
-        voiceOwnerCharacterId: editingEvent.voiceOwnerCharacterId,
-        voiceOwnerName: editingEvent.voiceOwnerName,
-        visibleSpeakerCharacterId: editingEvent.visibleSpeakerCharacterId,
-        visibleSpeakerName: editingEvent.visibleSpeakerName,
-        requiresVisibleLipsync: editingEvent.requiresVisibleLipsync,
-        text: editingEvent.text,
-        emotionPrompt: editingEvent.emotionPrompt,
-        pauseAfter: editingEvent.pauseAfter,
-      });
-      if (!res.success) throw new Error(res.message || '保存失败');
+      const saved = await useChapterGenerateStore.getState().saveShotRevisions(novelId, chapterId, [{
+        id: editingEvent.shotId,
+        sourceRevision: editingEvent.sourceRevision,
+        audio_events: events.map(event => event.id === editingEvent.id ? editingEvent : event),
+      }]);
+      const next = (saved[0].audioEvents || []).map(event => ({...event, sourceRevision: saved[0].sourceRevision}));
+      setEvents(next);
+      setEditingEvent(next.find(event => event.id === editingEvent.id) || null);
       await loadAudioDrive();
       setMessage('Audio Event 已保存，下游状态已按规则标记');
     } catch (error) {
@@ -598,6 +596,9 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
   if (!currentShot) {
     return <div className="flex h-full items-center justify-center text-sm text-gray-500">请选择分镜</div>;
   }
+  if (currentShot.completionDisposition==='DEGRADED_NARRATION_CARD') {
+    return <div className="flex h-full items-center justify-center p-6 text-center text-sm text-amber-800">此条目是受控 NARRATION_CARD。请在“分镜来源”面板使用 exact-source 旁白准备与中性卡片渲染；普通 AudioDrive 编辑已冻结。</div>;
+  }
 
   return (
     <div className="generate-audio-tab flex h-full min-w-0 flex-col bg-white">
@@ -725,7 +726,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
                     </div>
                     <StatusBadge status={editingEvent.ttsStatus} />
                   </div>
-                  <div className="space-y-4">
+                  <fieldset disabled={saving} className="space-y-4">
                     <label className="block">
                       <span className="mb-1 block text-sm font-medium text-gray-700">文本</span>
                       <textarea value={editingEvent.text || ''} onChange={(e) => setEditingEvent({ ...editingEvent, text: e.target.value })} rows={4} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500" />
@@ -745,7 +746,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
                         <span className="mb-1 block text-sm font-medium text-gray-700">Voice Owner</span>
                         <select value={editingEvent.voiceOwnerCharacterId || ''} onChange={(e) => {
                           const character = characters.find((item) => item.id === e.target.value);
-                          setEditingEvent({ ...editingEvent, voiceOwnerCharacterId: character?.id || null, voiceOwnerName: character?.name || editingEvent.voiceOwnerName });
+                          setEditingEvent(editAudioEvent(editingEvent, 'voiceOwnerName', character?.name || editingEvent.voiceOwnerName));
                         }} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
                           <option value="">按名称：{editingEvent.voiceOwnerName}</option>
                           {sortedCharacters.map((character) => <option key={character.id} value={character.id}>{character.name}</option>)}
@@ -755,12 +756,12 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
                         <span className="mb-1 block text-sm font-medium text-gray-700">Visible Speaker</span>
                         <select value={visibleSpeakerSelectValue} onChange={(e) => {
                           if (!e.target.value) {
-                            setEditingEvent({ ...editingEvent, visibleSpeakerCharacterId: null, visibleSpeakerName: null, requiresVisibleLipsync: false });
+                            setEditingEvent(editAudioEvent(editingEvent, 'visibleSpeakerName', ''));
                             return;
                           }
                           const character = characters.find((item) => item.id === e.target.value);
                           if (character) {
-                            setEditingEvent({ ...editingEvent, visibleSpeakerCharacterId: character.id, visibleSpeakerName: character.name, requiresVisibleLipsync: true });
+                            setEditingEvent(editAudioEvent(editingEvent, 'visibleSpeakerName', character.name));
                           }
                         }} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
                           <option value="">NONE</option>
@@ -772,7 +773,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
                       </label>
                     </div>
                     <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <input type="checkbox" checked={editingEvent.requiresVisibleLipsync} onChange={(e) => setEditingEvent({ ...editingEvent, requiresVisibleLipsync: e.target.checked })} />
+                      <input type="checkbox" disabled={editingEvent.type !== 'DIALOGUE'} checked={editingEvent.requiresVisibleLipsync} onChange={(e) => setEditingEvent(editAudioEvent(editingEvent, 'requiresVisibleLipsync', e.target.checked))} />
                       需要可见口型驱动
                     </label>
                     <div className="generate-actions flex flex-wrap gap-2">
@@ -785,7 +786,7 @@ export function AudioGenTab({ novelId, chapterId }: AudioGenTabProps) {
                         {editingEvent.ttsStatus === 'READY' ? '重新生成 TTS' : '生成 TTS'}
                       </button>
                     </div>
-                  </div>
+                  </fieldset>
                 </div>
                 <div className="rounded-xl border border-gray-200 bg-white p-4">
                   <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-900"><Volume2 className="h-4 w-4" />TTS 结果</div>

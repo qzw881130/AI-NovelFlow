@@ -53,6 +53,9 @@ class PromptBuilder:
         # 从小说关联的风格模板获取
         if novel and novel.style_prompt_template_id:
             style_template = repo.get_by_id(novel.style_prompt_template_id)
+            if (not style_template or style_template.type != 'style' or not style_template.is_active
+                    or not style_template.template or not style_template.template.strip()):
+                raise ValueError('CONFIGURED_STYLE_TEMPLATE_INVALID')
         
         # 如果没有找到，使用默认系统风格模板
         if not style_template:
@@ -86,6 +89,8 @@ class PromptBuilder:
         Returns:
             构建完成的提示词
         """
+        if not isinstance(appearance, str) or not appearance.strip():
+            raise ValueError('CHARACTER_APPEARANCE_REQUIRED')
         if template:
             # 使用模板构建提示词，只使用 appearance，不使用 description
             prompt = template.replace("{appearance}", appearance or "").replace("{description}", "")
@@ -135,6 +140,8 @@ class PromptBuilder:
         Returns:
             构建完成的提示词
         """
+        if not isinstance(setting, str) or not setting.strip():
+            raise ValueError('SCENE_SETTING_REQUIRED')
         if template:
             # 使用模板构建提示词，只使用 setting，忽略 description
             prompt = template.replace("{setting}", setting or "").replace("{description}", "").replace("{name}",
@@ -183,6 +190,8 @@ class PromptBuilder:
         Returns:
             构建完成的提示词
         """
+        if not any(isinstance(value, str) and value.strip() for value in (appearance, description)):
+            raise ValueError('PROP_DEFINITION_REQUIRED')
         if template:
             # 使用模板构建提示词
             prompt = template.replace("{appearance}", appearance or "").replace("{description}", description or "").replace("{name}", name or "")

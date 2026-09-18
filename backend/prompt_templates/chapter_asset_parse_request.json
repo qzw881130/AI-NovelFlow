@@ -1,0 +1,12 @@
+{
+  "version": "chapter-asset-request-v1",
+  "range_placeholder": "{章节范围说明}",
+  "range_template": "第{chapter_number}章《{chapter_title}》",
+  "user_template": "{instructions}\n当前章回ID：{chapter_id}\n章回标题：{chapter_title}\n仅解析以下完整章回正文：\n\n{chapter_content}",
+  "common_instructions": "输出前自检：source_evidence.text必须是正文中的连续原样子串，不得补引号、补标点、改写或拼接。",
+  "instructions_by_kind": {
+    "characters": "移除仅提及且未出场的人物，不要把‘不应输出该角色’的说明写进候选数组。亲属背景、曾经赠礼或本章尚未见到的探望对象，不等于本章出场；只有独立演出的回忆场景才纳入。基础appearance保留正文明确的长期身份穿戴；不要从规则示例搬用时代或世界观。换装appearance_description仅写更换/穿上/戴上的穿戴物，不复制原句里的姿态、动作、位置或场景；原句中的这些动作只保留在source_evidence，不进入换装说明。",
+    "scenes": "",
+    "props": ""
+  }
+}

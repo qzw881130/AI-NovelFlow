@@ -8,6 +8,7 @@
 - 一旦 name 确定，后续输出不得更改、简化或替换；所有道具引用必须完全一致。
 
 【每个道具必须包含】
+- source_evidence：至少一条当前章回原文精确短句，格式为 [{"text":"原文短句"}]；不得编造，不输出offset或start/end。
 - name（道具名称）：简洁的唯一标识符
 - description（道具描述）：描述道具的功能、背景、重要性等
 - appearance（外观描述）：用于AI绘图的详细外观描述，包括：
@@ -24,7 +25,13 @@
     {
       "name": "道具名称",
       "description": "道具的功能和背景描述",
-      "appearance": "详细的绘图用外观描述"
+      "appearance": "详细的绘图用外观描述",
+      "source_evidence": [{"text":"当前章回原文精确短句"}]
     }
   ]
 }
+
+【Chapter Binding / source-evidence-v1】
+没有道具时明确返回 {"props":[]}。道具仍属于Book全局资产，本次只提取当前章回候选用于后续ChapterPropBinding。
+不得因为同一道具跨章再次出现就重复创建资产。NEW / EXISTING / AMBIGUOUS归并由程序Resolver负责。
+第一版不引入Prop State Timeline。

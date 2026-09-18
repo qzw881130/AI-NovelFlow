@@ -1,0 +1,31 @@
+{
+  "version": "chapter-controlled-degradation-v1",
+  "kind": "NARRATION_CARD",
+  "completion_disposition": "DEGRADED_NARRATION_CARD",
+  "max_cards": 1,
+  "repair_attempt": 1,
+  "repair_budget": 1,
+  "allowed_parent_error": "SHOT_CROSSES_APPEARANCE_BOUNDARY",
+  "allowed_terminal_errors": [
+    "SHOT_CONTRACT_REPAIR_SCENE_CHANGED",
+    "SHOT_CONTRACT_REPAIR_SCENE_UNRESOLVED"
+  ],
+  "treatment_key": "r_cd1_exact_source_narration",
+  "description": "R-CD1 deterministic neutral narration card; no canonical Scene, Character, Appearance, prop, RSA, image-model, keyframe, or H3 claim.",
+  "video_description": "Render a deterministic neutral solid-color card while exact canonical source narration plays; do not depict story locations, people, appearances, props, text, or inferred events.",
+  "emotion_prompt": "平静、清晰、忠实原文地叙述",
+  "pause_after": "NONE",
+  "audio_max_clip_duration": 3600,
+  "render": {
+    "version": "narration-card-render-v1",
+    "width": 1280,
+    "height": 720,
+    "fps": 24,
+    "color": "0x171A21",
+    "video_codec": "libx264",
+    "pixel_format": "yuv420p",
+    "audio_codec": "aac",
+    "audio_rate": 48000,
+    "audio_channels": 2
+  }
+}

@@ -7,8 +7,8 @@ export type PromptTab = 'params' | 'system' | 'user' | 'response';
 
 const TASK_CATEGORY_TYPES: Record<string, string[]> = {
   style_design: ['style'],
-  asset_parse: ['parse_characters', 'parse_scenes', 'parse_props'],
-  asset_generation: ['generate_character_appearance'],
+  asset_parse: ['parse_characters', 'parse_scenes', 'parse_props', 'asset_identity_resolution'],
+  asset_generation: ['generate_character_appearance', 'character_appearance_generation'],
   shot_planning: ['split_chapter'],
   shot_image: ['shot_image_prompt'],
   video_director: ['video_mode_recommender', 'keyframe_description', 'keyframe_planner', 'keyframe_transition'],
@@ -35,6 +35,8 @@ export function useLLMLogsState() {
   const [filters, setFilters] = useState<LLMLogFilters>({ provider: '', model: '', category: '', task_type: '', status: '' });
   const [filterOptions, setFilterOptions] = useState<FilterOptions>({ providers: [], models: [], task_types: [] });
   const [selectedLog, setSelectedLog] = useState<LLMLog | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
   const [activePromptTab, setActivePromptTab] = useState<PromptTab>('user');
   const [autoRefreshInterval, setAutoRefreshInterval] = useState(5000);
   const [showStatsModal, setShowStatsModal] = useState(false);
@@ -44,12 +46,29 @@ export function useLLMLogsState() {
   const [statsLoading, setStatsLoading] = useState(false);
   const [durationNow, setDurationNow] = useState(() => Date.now());
   const fetchLogsRequestRef = useRef(0);
+  const detailRequestRef = useRef(0);
+  const detailAbortRef = useRef<AbortController | null>(null);
+
+  const closeModal = useCallback(() => {
+    detailRequestRef.current++;
+    detailAbortRef.current?.abort();
+    detailAbortRef.current = null;
+    setSelectedLog(null);
+    setDetailLoading(false);
+    setDetailError('');
+    setActivePromptTab('user');
+  }, []);
+
+  useEffect(() => () => {
+    detailRequestRef.current++;
+    detailAbortRef.current?.abort();
+  }, []);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape' && selectedLog) setSelectedLog(null); };
+    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape' && selectedLog) closeModal(); };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedLog]);
+  }, [selectedLog, closeModal]);
 
   const fetchLogs = useCallback(async (options?: { silent?: boolean }) => {
     const requestId = fetchLogsRequestRef.current + 1;
@@ -128,14 +147,35 @@ export function useLLMLogsState() {
     : filterOptions.task_types;
 
   const openLogDetail = async (log: LLMLog) => {
+    const requestId = ++detailRequestRef.current;
+    detailAbortRef.current?.abort();
+    const controller = new AbortController();
+    detailAbortRef.current = controller;
+    // The list contains a 500-character preview, never the detail body.
+    setDetailLoading(true);
+    setDetailError('');
     setSelectedLog(log);
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => { timedOut = true; controller.abort(); }, 30000);
     try {
-      const data = await llmLogsApi.fetchDetail(log.id);
-      if (data.success && data.data) setSelectedLog(data.data);
+      const data = await llmLogsApi.fetchDetail(log.id, controller.signal);
+      if (requestId !== detailRequestRef.current) return;
+      if (!data.success || !data.data) throw new Error(String(data.message || '完整日志详情加载失败'));
+      if (data.data.id !== log.id) throw new Error('返回的日志与当前选择不一致，请重试');
+      setSelectedLog(data.data);
     } catch (error) {
-      console.error('加载日志详情失败:', error);
+      if (requestId !== detailRequestRef.current) return;
+      setDetailError(timedOut ? '加载完整日志超时，请重试' : error instanceof Error ? error.message : '完整日志详情加载失败');
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (requestId === detailRequestRef.current) {
+        setDetailLoading(false);
+        detailAbortRef.current = null;
+      }
     }
   };
+
+  const retryLogDetail = () => { if (selectedLog) void openLogDetail(selectedLog); };
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return '-';
@@ -180,10 +220,13 @@ export function useLLMLogsState() {
       'parse_characters': '素材解析',
       'parse_scenes': '素材解析',
       'parse_props': '素材解析',
+      'asset_identity_resolution': '素材解析',
+      'character_appearance_generation': '素材生成',
       'style': '风格设计',
       'generate_character_appearance': '素材生成',
       'shot_image_prompt': '分镜生图',
       'split_chapter': '分镜规划',
+      'shot_contract_auto_repair': '分镜规划',
       'video_mode_recommender': '视频导演',
       'keyframe_description': '视频导演',
       'keyframe_planner': '视频导演',
@@ -201,8 +244,11 @@ export function useLLMLogsState() {
     const labels: Record<string, string> = {
       'parse_characters': t('llmLogs.parseCharacters'), 'parse_scenes': t('llmLogs.parseScenes'),
       'parse_props': t('llmLogs.parseProps'),
+      'asset_identity_resolution': t('promptConfig.types.assetIdentityResolution'),
+      'character_appearance_generation': t('promptConfig.types.characterAppearanceGeneration'),
       'style': '风格提示词',
       'split_chapter': t('llmLogs.splitShots'), 'generate_character_appearance': t('llmLogs.generateAppearance'),
+      'shot_contract_auto_repair': '分镜契约自动修复',
       'expand_video_prompt': t('llmLogs.expandVideoPrompt'),
       'shot_image_prompt': '主分镜图提示词',
       'video_mode_recommender': '视频模式推荐',
@@ -230,8 +276,6 @@ export function useLLMLogsState() {
     if (status === 'pending') return { bg: 'bg-amber-100', text: 'text-amber-700', label: t('llmLogs.pending') };
     return { bg: 'bg-red-100', text: 'text-red-700', label: t('common.failed') };
   };
-
-  const closeModal = () => { setSelectedLog(null); setActivePromptTab('user'); };
 
   const fetchStats = useCallback(async (groupBy = statsGroupBy, rangeValue = statsRangeValue) => {
     setStatsLoading(true);
@@ -268,6 +312,7 @@ export function useLLMLogsState() {
 
   return {
     logs, pagination, loading, filters, filterOptions, taskCategoryOptions: TASK_CATEGORY_OPTIONS, taskTypeOptions, selectedLog, activePromptTab, autoRefreshInterval,
+    detailLoading, detailError, retryLogDetail,
     setPagination, setSelectedLog, setActivePromptTab, handleFilterChange, applyFilters, resetFilters, openLogDetail,
     setAutoRefreshInterval, fetchLogs, formatDate, truncateText, getDisplayDuration, getTaskTypeLabel, getTaskTypeNameLabel, getTaskTypeCategoryLabel, getStatusBadgeConfig, closeModal,
     showStatsModal, statsGroupBy, statsRangeValue, statsData, statsLoading, openStatsModal, closeStatsModal, changeStatsGroupBy, changeStatsRangeValue, fetchStats,
