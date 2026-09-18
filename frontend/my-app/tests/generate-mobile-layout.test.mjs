@@ -36,6 +36,7 @@ function load(name, imports = {}, globals = {}) {
     '../../../stores/toastStore': { toast: {} },
     '../../../api/shots': { shotsApi: {} },
     '../../../api/novels': { novelApi: {} },
+    '../../../utils/sourceOwnership': { sourceOwnershipRanges: () => [], normalizeCodePointRanges: () => [], codePointSlice: value => value },
     '../../../contexts/SidebarContext': { useSidebar: () => ({ sidebarWidth: 0 }) },
     'react-router-dom': { useParams: () => ({ id: 'n', cid: 'c' }), useNavigate: () => {}, Link: ({ children }) => element('a', null, children) },
     '../../../utils': {

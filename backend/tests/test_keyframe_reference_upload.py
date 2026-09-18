@@ -5,16 +5,21 @@ import asyncio
 from contextlib import asynccontextmanager
 import hashlib
 import importlib.util
+import json
 import os
 from pathlib import Path
-from types import SimpleNamespace
+import sys
+from types import ModuleType, SimpleNamespace
 from unittest.mock import AsyncMock, Mock, mock_open
 
 import httpx
 import pytest
 
 
+pytestmark = pytest.mark.PURE
+
 CLIENT_PATH = Path(__file__).resolve().parents[1] / "app/services/comfyui/client.py"
+DIAGNOSTIC_PATH = Path(__file__).resolve().parents[1] / "app/services/external_failure_diagnostic.py"
 UPLOAD_NAME = "keyframe_0123456789abcdef.png"
 PAYLOAD = b"\x89PNG\r\n\x1a\nresolved snapshot\x00\xff"
 UPLOADED = "\u4e0a\u4f20\u6210\u529f"
@@ -32,6 +37,25 @@ UNSAFE_NAMES = [
 @pytest.fixture
 def boundary(monkeypatch):
     # Load only the real client module, bypassing app/services package imports.
+    app = sys.modules.get("app")
+    if app is None:
+        app = ModuleType("app")
+        app.__path__ = [str(CLIENT_PATH.parents[3] / "app")]
+        monkeypatch.setitem(sys.modules, "app", app)
+    services = sys.modules.get("app.services")
+    if services is None:
+        services = ModuleType("app.services")
+        services.__path__ = [str(CLIENT_PATH.parents[1])]
+        monkeypatch.setitem(sys.modules, "app.services", services)
+        monkeypatch.setattr(app, "services", services, raising=False)
+    diagnostic_spec = importlib.util.spec_from_file_location(
+        "app.services.external_failure_diagnostic", DIAGNOSTIC_PATH,
+    )
+    diagnostic_module = importlib.util.module_from_spec(diagnostic_spec)
+    monkeypatch.setitem(sys.modules, diagnostic_spec.name, diagnostic_module)
+    diagnostic_spec.loader.exec_module(diagnostic_module)
+    monkeypatch.setattr(services, "external_failure_diagnostic", diagnostic_module, raising=False)
+
     spec = importlib.util.spec_from_file_location("_keyframe_upload_client", CLIENT_PATH)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -41,6 +65,7 @@ def boundary(monkeypatch):
         response=httpx.Response(200, json=RECEIPT),
         error=None,
         calls=[],
+        diagnostics=diagnostic_module,
     )
 
     async def post(url, *, files, data, timeout):
@@ -64,10 +89,16 @@ def boundary(monkeypatch):
     return state
 
 
-def assert_failure(result):
-    assert set(result) == {"success", "message"}
+def assert_failure(result, failure_class=None):
+    assert set(result) == {"success", "message", "external_failure"}
     assert result["success"] is False
     assert isinstance(result["message"], str) and result["message"]
+    diagnostic = result["external_failure"]
+    assert diagnostic["version"] == 1
+    assert diagnostic["error_code"] == "VALIDATED_REFERENCE_UPLOAD_FAILED"
+    if failure_class:
+        assert diagnostic["failure_class"] == failure_class
+    assert len(json.dumps(diagnostic, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()) <= 32 * 1024
 
 
 @pytest.mark.parametrize("source_state", ["deleted", "changed"])
@@ -202,7 +233,10 @@ def test_legacy_failed_http_error_unchanged(boundary, tmp_path):
 @pytest.mark.parametrize("payload", [PAYLOAD, b"", "not bytes", bytearray(b"x")])
 def test_payload_requires_opt_in_name(boundary, payload):
     result = asyncio.run(boundary.client.upload_image("missing.png", payload=payload))
-    assert result == {"success": False, "message": "payload requires upload_name"}
+    assert {key: result[key] for key in ("success", "message")} == {
+        "success": False, "message": "payload requires upload_name",
+    }
+    assert_failure(result, "VALIDATION")
     boundary.factory.assert_not_called()
 
 
@@ -218,7 +252,8 @@ def test_invalid_upload_name_stops_before_filesystem_or_http(boundary, monkeypat
     monkeypatch.setattr("builtins.open", no_filesystem)
     monkeypatch.setattr(os.path, "isfile", no_filesystem)
     result = asyncio.run(boundary.client.upload_image("missing.png", upload_name=upload_name))
-    assert result == {"success": False, "message": "Invalid upload_name: expected a safe ASCII basename"}
+    assert result["message"] == "Invalid upload_name: expected a safe ASCII basename"
+    assert_failure(result, "VALIDATION")
     no_filesystem.assert_not_called()
     boundary.factory.assert_not_called()
 
@@ -231,7 +266,8 @@ def test_invalid_payload_stops_without_filesystem_or_http(boundary, monkeypatch,
     result = asyncio.run(boundary.client.upload_image(
         "missing.png", upload_name=UPLOAD_NAME, payload=payload,
     ))
-    assert result == {"success": False, "message": "payload must be nonempty bytes"}
+    assert result["message"] == "payload must be nonempty bytes"
+    assert_failure(result, "VALIDATION")
     no_filesystem.assert_not_called()
     boundary.factory.assert_not_called()
 
@@ -248,7 +284,7 @@ def test_local_file_failures_stop_before_http(boundary, monkeypatch, tmp_path, k
 
     result = asyncio.run(boundary.client.upload_image(str(path), upload_name=UPLOAD_NAME))
 
-    assert_failure(result)
+    assert_failure(result, "VALIDATION")
     boundary.factory.assert_not_called()
 
 
@@ -258,7 +294,9 @@ def test_bad_server_name_fails_without_planned_name_fallback(boundary, name):
     result = asyncio.run(boundary.client.upload_image(
         "missing.png", upload_name=UPLOAD_NAME, payload=PAYLOAD,
     ))
-    assert result == {"success": False, "message": "Invalid image upload receipt: unsafe or missing name"}
+    assert result["message"] == "Invalid image upload receipt: unsafe or missing name"
+    assert_failure(result, "INVALID_RECEIPT")
+    assert result["external_failure"]["external_call"]["receipt_violation"] == "IMAGE_RECEIPT_NAME_MISSING_OR_UNSAFE"
     boundary.factory.assert_called_once_with()
     boundary.post.assert_awaited_once()
 
@@ -276,7 +314,7 @@ def test_invalid_receipt_type_or_subfolder_fails_closed(boundary, field, value):
     result = asyncio.run(boundary.client.upload_image(
         "missing.png", upload_name=UPLOAD_NAME, payload=PAYLOAD,
     ))
-    assert_failure(result)
+    assert_failure(result, "INVALID_RECEIPT")
     assert field in result["message"]
     boundary.factory.assert_called_once_with()
     boundary.post.assert_awaited_once()
@@ -288,40 +326,141 @@ def test_missing_receipt_fields_fail_closed(boundary, field):
     result = asyncio.run(boundary.client.upload_image(
         "missing.png", upload_name=UPLOAD_NAME, payload=PAYLOAD,
     ))
-    assert_failure(result)
+    assert_failure(result, "INVALID_RECEIPT")
     assert field in result["message"]
+    assert result["external_failure"]["external_call"]["response_excerpt"] is not None
     boundary.post.assert_awaited_once()
 
 
-@pytest.mark.parametrize("response", [
-    httpx.Response(201, json=RECEIPT),
-    httpx.Response(302, text="redirect"),
-    httpx.Response(500, json=RECEIPT),
-    httpx.Response(200, text="not JSON"),
-    httpx.Response(200, text="null"),
-    httpx.Response(200, json=[]),
-    httpx.Response(200, json="not an object"),
-    httpx.Response(200, json={}),
+@pytest.mark.parametrize("response,failure_class", [
+    (httpx.Response(201, json=RECEIPT), "HTTP_ERROR"),
+    (httpx.Response(302, text="redirect"), "HTTP_ERROR"),
+    (httpx.Response(500, json=RECEIPT), "HTTP_ERROR"),
+    (httpx.Response(200, text="not JSON"), "INVALID_RESPONSE"),
+    (httpx.Response(200, text="null"), "INVALID_RESPONSE"),
+    (httpx.Response(200, json=[]), "INVALID_RESPONSE"),
+    (httpx.Response(200, json="not an object"), "INVALID_RESPONSE"),
+    (httpx.Response(200, json={}), "INVALID_RECEIPT"),
 ])
-def test_failed_http_or_malformed_receipt_stops_without_retry(boundary, response):
+def test_failed_http_or_malformed_receipt_stops_without_retry(boundary, response, failure_class):
     boundary.response = response
     result = asyncio.run(boundary.client.upload_image(
         "missing.png", upload_name=UPLOAD_NAME, payload=PAYLOAD,
     ))
-    assert_failure(result)
+    assert_failure(result, failure_class)
     boundary.factory.assert_called_once_with()
     boundary.post.assert_awaited_once()
 
 
-@pytest.mark.parametrize("error", [httpx.ConnectError("offline"), httpx.ReadTimeout("timed out")])
-def test_transport_failure_is_structured_without_retry(boundary, error):
+@pytest.mark.parametrize("error,failure_class", [
+    (httpx.ConnectError("offline"), "CONNECTION"),
+    (httpx.ReadTimeout("timed out"), "TIMEOUT"),
+])
+def test_transport_failure_is_structured_without_retry(boundary, error, failure_class):
     boundary.error = error
     result = asyncio.run(boundary.client.upload_image(
         "missing.png", upload_name=UPLOAD_NAME, payload=PAYLOAD,
     ))
-    assert_failure(result)
+    assert_failure(result, failure_class)
+    assert result["message"] == f"Image upload failed: {str(error)}"
     boundary.factory.assert_called_once_with()
     boundary.post.assert_awaited_once()
+
+
+def test_http_503_preserves_body_identity_but_bounds_and_redacts_excerpt(boundary):
+    boundary.response = httpx.Response(503, json={
+        "error": "temporarily unavailable",
+        "authorization": "Bearer body-secret",
+        "nested": {"api_token": "token-secret", "password": "password-secret"},
+        "payload": "A" * 20000,
+    })
+    expected_body = boundary.response.content
+
+    result = asyncio.run(boundary.client.upload_image(
+        "missing.png", upload_name=UPLOAD_NAME, payload=PAYLOAD,
+    ))
+
+    assert result["message"] == "Image upload failed (HTTP 503)"
+    assert_failure(result, "HTTP_ERROR")
+    call = result["external_failure"]["external_call"]
+    assert call["http_status"] == 503
+    assert call["response_body_sha256"] == hashlib.sha256(expected_body).hexdigest()
+    assert call["response_body_bytes"] == len(expected_body)
+    assert call["response_content_type"] == "application/json"
+    assert len(call["response_excerpt"].encode()) <= 8 * 1024
+    assert "temporarily unavailable" not in call["response_excerpt"]
+    assert "[TEXT_RESPONSE_OMITTED" in call["response_excerpt"]
+    assert "body-secret" not in call["response_excerpt"]
+    assert "token-secret" not in call["response_excerpt"]
+    assert "password-secret" not in call["response_excerpt"]
+    assert "A" * 128 not in call["response_excerpt"]
+
+
+def test_authorization_token_canary_is_removed_but_http_facts_remain(boundary):
+    body = b"upstream denied request\nAuthorization: Token STAGE_A_AUTH_CANARY_9465"
+    boundary.response = httpx.Response(503, content=body, headers={"content-type": "text/plain"})
+    result = asyncio.run(boundary.client.upload_image(
+        "missing.png", upload_name=UPLOAD_NAME, payload=PAYLOAD,
+    ))
+    assert_failure(result, "HTTP_ERROR")
+    diagnostic = result["external_failure"]
+    call = diagnostic["external_call"]
+    assert call["http_status"] == 503
+    assert call["response_body_bytes"] == len(body)
+    assert call["response_body_sha256"] == hashlib.sha256(body).hexdigest()
+    assert call["response_content_type"] == "text/plain"
+    assert "STAGE_A_AUTH_CANARY_9465" not in json.dumps(diagnostic)
+    assert diagnostic["redacted"] is True and diagnostic["truncated"] is True
+
+
+def test_invalid_receipt_redacts_windows_absolute_path(boundary):
+    receipt = {"name": r"C:\ComfyUI\private-project\reference.png", "subfolder": "", "type": "input"}
+    boundary.response = httpx.Response(200, json=receipt)
+    body = boundary.response.content
+    result = asyncio.run(boundary.client.upload_image(
+        "missing.png", upload_name=UPLOAD_NAME, payload=PAYLOAD,
+    ))
+    assert_failure(result, "INVALID_RECEIPT")
+    call = result["external_failure"]["external_call"]
+    assert call["http_status"] == 200
+    assert call["response_body_bytes"] == len(body)
+    assert call["response_body_sha256"] == hashlib.sha256(body).hexdigest()
+    assert r"C:\ComfyUI\private-project\reference.png" not in call["response_excerpt"]
+    assert "[LOCAL_PATH]" in call["response_excerpt"]
+
+
+def test_malformed_json_is_invalid_response_with_full_body_evidence(boundary):
+    boundary.response = httpx.Response(200, content=b'{"broken":', headers={"content-type": "application/json"})
+    result = asyncio.run(boundary.client.upload_image(
+        "missing.png", upload_name=UPLOAD_NAME, payload=PAYLOAD,
+    ))
+    assert_failure(result, "INVALID_RESPONSE")
+    call = result["external_failure"]["external_call"]
+    assert call["response_body_sha256"] == hashlib.sha256(b'{"broken":').hexdigest()
+    assert call["response_body_bytes"] == len(b'{"broken":')
+    assert call["response_excerpt"] == "[MALFORMED_JSON_OMITTED]"
+
+
+def test_excessively_nested_json_is_invalid_response_not_unknown(boundary):
+    response = Mock(status_code=200, content=b"[[[[too deep]]]]", headers={"content-type": "application/json"})
+    response.json.side_effect = RecursionError("maximum JSON depth exceeded")
+    boundary.response = response
+    result = asyncio.run(boundary.client.upload_image(
+        "missing.png", upload_name=UPLOAD_NAME, payload=PAYLOAD,
+    ))
+    assert_failure(result, "INVALID_RESPONSE")
+    call = result["external_failure"]["external_call"]
+    assert call["http_status"] == 200
+    assert call["response_body_sha256"] == hashlib.sha256(response.content).hexdigest()
+
+
+def test_httpx_decoding_error_is_invalid_response_not_unknown(boundary):
+    boundary.error = httpx.DecodingError("invalid compressed response")
+    result = asyncio.run(boundary.client.upload_image(
+        "missing.png", upload_name=UPLOAD_NAME, payload=PAYLOAD,
+    ))
+    assert_failure(result, "INVALID_RESPONSE")
+    assert result["external_failure"]["external_call"]["exception_type"] == "DecodingError"
 
 
 @pytest.mark.parametrize("mode", ["legacy", "snapshot", "file"])

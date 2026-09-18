@@ -14,6 +14,7 @@ from app.services.video_director_ai import (
     build_h3_video_prompt,
     resolve_speaker_timeline_for_h3,
 )
+from test_rsa_media import db_session, chapter, fixture, base_setup, setup
 
 
 AUDIO_TEXT_RENDERING_CONSTRAINT_FIXTURE = """The input drive_audio is provided only for visible lip-sync, speech timing, facial performance, and speaking rhythm.
@@ -210,7 +211,7 @@ def test_none_segment_negated_and_scoped_speech_passes(body):
     "visible_speaker=NONE，小马不说话，但老牛张嘴说话。",
     "NONE: <Subject 1> does not speak, but <Subject 2> speaks.",
     "NONE: <Subject 1> stays silent while <Subject 2> lip-syncs.",
-    "NONE. <Subject2> closes her mouth, but <Subject 1> mouth moves.",
+    "NONE. <Subject2> closes her mouth, but <Subject 1> lip-syncs.",
     "NONE，小马不得张嘴，老牛产生口型。",
     "NONE: no lip-sync, but <Subject 1> talks.",
     "0s-2s NONE: <Subject 1> speaks; 2s-4s <Subject 1> stays silent.",
@@ -230,7 +231,7 @@ def test_none_segment_negated_and_scoped_speech_passes(body):
     "none: none of the visible characters produces any lip-sync or talking mouth shape, but <Subject 1> speaks.",
     "none of the visible characters produces any lip-sync or talking mouth shape; visible_speaker=NONE: <Subject 1> speaks.",
     "NONE. No visible character performs lip-sync, but <Subject 1> speaks.",
-    "NONE. No visible characters produce speech or lip-sync, but <Subject 1> mouth moves.",
+    "NONE. No visible characters produce speech or lip-sync, but <Subject 1> lip-syncs.",
     "NONE. The narration is non-lip-sync content, but <Subject 1> lip-syncs.",
 ])
 def test_none_segment_mixed_negation_still_blocks_speech(body):
@@ -328,37 +329,29 @@ def test_subject_slot_is_resolved_from_current_manifest_each_time():
     assert new_resolved[0]["visible_speaker"] == "<Subject 2>"
 
 
-def test_h3_prompt_builder_blocks_unknown_subject_before_submit(db_session, monkeypatch):
-    novel = Novel(title="Gate D4")
-    db_session.add(novel)
-    db_session.commit()
-    db_session.refresh(novel)
-    chapter = Chapter(novel_id=novel.id, number=1, title="Chapter", content="content")
-    db_session.add(chapter)
-    db_session.commit()
-    db_session.refresh(chapter)
-    shot = Shot(
-        chapter_id=chapter.id,
-        index=1,
-        description="Shot",
-        characters=json.dumps(["小马"], ensure_ascii=False),
-        props="[]",
-        duration=4,
-    )
+def test_h3_prompt_builder_blocks_unknown_subject_before_submit(db_session, setup, monkeypatch):
+    # Exercise the H3 gate after real ChapterScope/Source/Treatment/RSA admission.
+    # A bare legacy Shot fails earlier and cannot prove unknown-subject validation.
+    actor, _scene, _appearance, shots, _root, _rsa = setup
+    shot = shots[0]
+    chapter = db_session.get(Chapter, shot.chapter_id)
+    novel = db_session.get(Novel, chapter.novel_id)
     template = PromptTemplate(
         name="H3 Single",
         type="h3_single_frame_prompt",
         template="build h3",
         is_system=True,
     )
-    db_session.add_all([shot, template])
+    db_session.add(template)
     db_session.commit()
 
+    calls = []
     class FakeLLM:
-        async def chat_completion(self, **_kwargs):
+        async def chat_completion(self, **kwargs):
+            calls.append(kwargs)
             return {"success": True, "content": "\n\n".join([
-                "subject_definitions:\n<Subject 3> is the pony.",
-                "initial_state_anchor:\nThe pony stands beside a river.",
+                "subject_definitions:\n<Subject 3> is 刘备.",
+                "initial_state_anchor:\n刘备 stands in the peach garden.",
                 "summary:\n<Subject 3> talks to camera.",
                 "detailed_description:\nHold the camera steady while <Subject 3> speaks.",
                 "overall_soundscape:\nThe pony's voice and quiet river ambience.",
@@ -377,14 +370,18 @@ def test_h3_prompt_builder_blocks_unknown_subject_before_submit(db_session, monk
             workflow_capability={"max_clip_duration": 15},
             workflow_type="video",
             workflow_name="video",
-            start_image_url="/api/files/shot.png",
+            start_image_url=actor.image_url,
             keyframes=[],
             transitions=[],
             clip_dialogues=[],
             reference_images=[],
-            character_appearances={"小马": "pony"},
-            speaker_timeline=[{"start_time": 0, "end_time": 2, "visible_speaker": "小马"}],
+            character_appearances={actor.name: actor.appearance},
+            speaker_timeline=[{"start_time": 0, "end_time": 2, "visible_speaker": actor.name}],
             audio_drive_context={"audio_mode": "lock_source"},
         ))
 
     assert "UNKNOWN_SUBJECT_REFERENCE" in str(exc_info.value)
+    assert len(calls) == 1
+    user_content = calls[0]["user_content"]
+    assert "subject_manifest.subjects 是合法 <Subject N> 标记的穷尽清单" in user_content
+    assert "场景和道具必须按名称引用，绝不能为其创建或分配 <Subject N>" in user_content

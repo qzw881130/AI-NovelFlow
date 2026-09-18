@@ -322,7 +322,6 @@ class TestShotAPI:
         assert data["data"]["imageUrl"] == "/api/files/test.png"
         assert data["data"]["imageStatus"] == "completed"
 
-    @pytest.mark.skip(reason="需要在完整测试环境中运行，当前测试框架配置不支持 lifespan 隔离")
     def test_update_shot(self, client, db_session):
         """
         测试更新分镜

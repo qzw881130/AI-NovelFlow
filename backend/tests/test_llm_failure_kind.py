@@ -48,6 +48,14 @@ def test_response_defaults(boundary):
     assert result.diagnostic_type is None
 
 
+def test_log_id_propagates_to_client_result(boundary, monkeypatch):
+    async def completed(**kwargs):
+        return boundary.base.LLMResponse(success=True, content='{"characters":[]}', log_id="exact-log-id")
+    monkeypatch.setattr(boundary.client._provider, "chat_completion", completed)
+    result = asyncio.run(boundary.client.chat_completion("system", "user"))
+    assert result["llm_log_id"] == "exact-log-id"
+
+
 @pytest.mark.parametrize("candidate", ["", " \n\t", None, {}, {"shots": []}, [], ["prompt"], 0, 42, False])
 def test_invalid_candidates_are_diagnostics_not_content(boundary, monkeypatch, candidate):
     provider = boundary.client._provider
@@ -141,6 +149,7 @@ def test_valid_strings_and_metrics_are_unchanged(boundary, monkeypatch, candidat
     assert result == {
         "success": True, "content": candidate, "raw_response": data,
         "failure_kind": None, "diagnostic_content": None, "diagnostic_type": None,
+        "llm_log_id": "test-log",
     }
     assert response.duration == 2.0
     log = boundary.logs[0]

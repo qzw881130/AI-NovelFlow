@@ -48,10 +48,15 @@ def test_measured_progress_and_publication(tmp_path, monkeypatch, failure):
 
     async def run(cmd, on_time=None):
         if cmd[0] == "ffprobe":
+            merged = Path(cmd[-1]).name == "merged.mp4"
             streams = [{"codec_type": "video", "width": 64, "height": 64,
-                        "start_time": "0", "duration_ts": "48", "time_base": "1/24", "nb_read_frames": "48"},
+                        "start_time": "0", "duration_ts": "60" if merged else "48",
+                        "time_base": "1/24", "nb_read_frames": "60" if merged else "48"},
                        {"codec_type": "audio", "start_time": "0.5", "duration_ts": "120000", "time_base": "1/48000"}]
             return subprocess.CompletedProcess(cmd, 0, json.dumps({"streams": streams}), "")
+        if on_time and "0:a:0" in cmd and cmd[-2:] == ["null", "-"]:
+            await on_time(2.5)
+            return subprocess.CompletedProcess(cmd, 0, "", "")
         if on_time:
             if failure == "cancel":
                 raise asyncio.CancelledError()
@@ -60,7 +65,8 @@ def test_measured_progress_and_publication(tmp_path, monkeypatch, failure):
             Path(cmd[-1]).write_bytes(b"new")
             stage = "normalize" if "-vf" in cmd else "encode"
         else:
-            stage = "source" if str(source) in cmd else "validate"
+            input_path = Path(cmd[cmd.index("-i") + 1]) if "-i" in cmd else None
+            stage = "source" if input_path and input_path.name == "frozen_000.mov" else "validate"
         return subprocess.CompletedProcess(cmd, int(stage == failure), "", "bad" if stage == failure else "")
 
     monkeypatch.setattr(storage, "_run_merge_process", run)

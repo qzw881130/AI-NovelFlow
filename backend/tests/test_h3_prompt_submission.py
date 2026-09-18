@@ -12,6 +12,8 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 
+pytestmark = pytest.mark.PURE
+
 BACKEND = Path(__file__).resolve().parents[1]
 PROMPT = "subject_definitions:\n<Subject 1>\nsummary:\nThe approved shot."
 
@@ -20,7 +22,7 @@ PROMPT = "subject_definitions:\n<Subject 1>\nsummary:\nThe approved shot."
 def boundary(monkeypatch):
     # Standalone modules avoid app/services startup and the real HTTP client.
     package_name = "_isolated_h3_prompt_submission"
-    for name in ("app", "app.utils", package_name):
+    for name in ("app", "app.utils", "app.services", package_name):
         package = ModuleType(name)
         package.__path__ = []
         monkeypatch.setitem(sys.modules, name, package)
@@ -33,8 +35,13 @@ def boundary(monkeypatch):
         return module
 
     load("app.utils.workflow_disconnect", BACKEND / "app/utils/workflow_disconnect.py")
+    state_diagnostics = load(
+        "app.services.external_failure_diagnostic",
+        BACKEND / "app/services/external_failure_diagnostic.py",
+    )
+    monkeypatch.setattr(sys.modules["app.services"], "external_failure_diagnostic", state_diagnostics, raising=False)
     load(f"{package_name}.workflows", BACKEND / "app/services/comfyui/workflows.py")
-    state = SimpleNamespace(events=[], built=[], queued=[], allowed=True)
+    state = SimpleNamespace(events=[], built=[], queued=[], allowed=True, diagnostics=state_diagnostics)
 
     async def upload_image(path):
         state.events.append(f"image:{path}")
@@ -420,3 +427,146 @@ def test_h3_transition_submission_is_outside_this_guard(boundary):
     assert boundary.queued[0]["51"]["inputs"]["prompt"] == "old prompt"
     boundary.callback.assert_not_called()
     boundary.client.queue_prompt.assert_awaited_once()
+
+
+def diagnostic(boundary, failure_class="TIMEOUT"):
+    return boundary.diagnostics.ExternalFailureDiagnostic.build(
+        operation_key={"operation": "UPLOAD_IMAGE", "reference_sha256": "0" * 64, "invocation_no": 1},
+        error_code="VALIDATED_REFERENCE_UPLOAD_FAILED", failure_class=failure_class,
+        stage="REFERENCE_UPLOAD", operation="UPLOAD_IMAGE", service="comfyui", provider="comfyui",
+        reference={"filename": "visual-state-test.png", "bytes": 7, "sha256": "0" * 64},
+        external_call={
+            "endpoint": "http://comfy.test/upload/image", "method": "POST", "timeout_ms": 30000,
+            "exception_type": "ReadTimeout", "exception_message": "timed out", "receipt_status": "NOT_RECEIVED",
+        },
+        submission={
+            "queue_called": False, "submitted": False, "state": "NOT_SUBMITTED", "cid": None,
+            "queue_seen": False, "remote_upload_effect": "UNKNOWN",
+        },
+    )
+
+
+def test_strict_second_reference_failure_preserves_business_error_and_stops_all_later_work(boundary):
+    payloads = [b"primary", b"keyframe"]
+    bound = Mock()
+
+    async def upload(path, *, upload_name, payload):
+        boundary.events.append(f"strict-image:{path}")
+        if path == "keyframe.png":
+            return {"success": False, "message": "Image upload failed: timed out",
+                    "external_failure": diagnostic(boundary)}
+        return {
+            "success": True, "filename": upload_name, "subfolder": "", "type": "input",
+            "payload_sha256": __import__("hashlib").sha256(payload).hexdigest(), "payload_size": len(payload),
+            "message": "uploaded",
+        }
+
+    boundary.client.upload_image.side_effect = upload
+    result = submit(
+        boundary,
+        character_reference_path="reference.png",
+        keyframe_paths=["keyframe.png"],
+        drive_audio_path="drive.wav",
+        final_audio_path="final.wav",
+        frozen_image_inputs=[
+            {"reference_index": index, "source_path": path, "payload": payload,
+             "sha256": __import__("hashlib").sha256(payload).hexdigest()}
+            for index, (path, payload) in enumerate(zip(("reference.png", "keyframe.png"), payloads))
+        ],
+        on_image_inputs_bound=bound,
+    )
+
+    assert {key: result[key] for key in ("success", "failure_kind", "message")} == {
+        "success": False,
+        "failure_kind": "VISUAL_STATE_REFERENCE_REJECTED",
+        "message": "VALIDATED_REFERENCE_UPLOAD_FAILED",
+    }
+    failure = result["external_failure"]
+    assert failure["failure_class"] == "TIMEOUT"
+    assert failure["scope"]["reference_index"] == failure["reference"]["reference_index"] == 1
+    assert failure["submission"] == {
+        "queue_called": False, "submitted": False, "state": "NOT_SUBMITTED", "cid": None,
+        "queue_seen": False, "remote_upload_effect": "UNKNOWN",
+    }
+    assert boundary.client.upload_image.await_count == 2
+    boundary.client.upload_audio.assert_not_awaited()
+    bound.assert_not_called()
+    boundary.callback.assert_not_called()
+    boundary.client.queue_prompt.assert_not_awaited()
+    boundary.client.wait_for_result.assert_not_awaited()
+
+
+@pytest.mark.parametrize("changes,expected_class,violation", [
+    ({"success": False}, "UNKNOWN", "SERVICE_UPLOAD_FAILURE_WITHOUT_DIAGNOSTIC"),
+    ({"type": "output"}, "INVALID_RECEIPT", "SERVICE_RECEIPT_TYPE_NOT_INPUT"),
+    ({"filename": ""}, "INVALID_RECEIPT", "SERVICE_RECEIPT_FILENAME_MISSING"),
+    ({"payload_sha256": "0" * 64}, "INVALID_RECEIPT", "SERVICE_RECEIPT_PAYLOAD_SHA256_MISMATCH"),
+    ({"payload_size": True}, "INVALID_RECEIPT", "SERVICE_RECEIPT_PAYLOAD_SIZE_INVALID"),
+    ({"payload_size": 1}, "INVALID_RECEIPT", "SERVICE_RECEIPT_PAYLOAD_SIZE_MISMATCH"),
+])
+def test_service_receipt_predicates_emit_only_fixed_violation_codes(boundary, changes, expected_class, violation):
+    payload = b"primary-reference"
+    bound = Mock()
+
+    async def upload(path, *, upload_name, payload):
+        receipt = {
+            "success": True, "filename": upload_name, "subfolder": "", "type": "input",
+            "payload_sha256": __import__("hashlib").sha256(payload).hexdigest(), "payload_size": len(payload),
+            "arbitrary_receipt_dump": "must-not-persist",
+        }
+        receipt.update(changes)
+        return receipt
+
+    boundary.client.upload_image.side_effect = upload
+    result = submit(
+        boundary,
+        character_reference_path="reference.png",
+        drive_audio_path="drive.wav",
+        frozen_image_inputs=[{
+            "reference_index": 0, "source_path": "reference.png", "payload": payload,
+            "sha256": __import__("hashlib").sha256(payload).hexdigest(),
+        }],
+        on_image_inputs_bound=bound,
+    )
+
+    assert result["success"] is False
+    assert result["failure_kind"] == "VISUAL_STATE_REFERENCE_REJECTED"
+    assert result["message"] == "VALIDATED_REFERENCE_UPLOAD_FAILED"
+    failure = result["external_failure"]
+    assert failure["failure_class"] == expected_class
+    assert failure["external_call"]["receipt_violation"] == violation
+    assert "must-not-persist" not in json.dumps(failure)
+    assert failure["submission"]["cid"] is None
+    boundary.client.upload_audio.assert_not_awaited()
+    bound.assert_not_called()
+    boundary.callback.assert_not_called()
+    boundary.client.queue_prompt.assert_not_awaited()
+    boundary.client.wait_for_result.assert_not_awaited()
+
+
+@pytest.mark.parametrize("receipt", [None, [], "not-a-receipt"])
+def test_non_object_upload_result_keeps_validated_business_error(boundary, receipt):
+    payload = b"primary-reference"
+    async def upload(path, *, upload_name, payload):
+        return receipt
+    boundary.client.upload_image.side_effect = upload
+    result = submit(
+        boundary,
+        character_reference_path="reference.png",
+        frozen_image_inputs=[{
+            "reference_index": 0, "source_path": "reference.png", "payload": payload,
+            "sha256": __import__("hashlib").sha256(payload).hexdigest(),
+        }],
+        on_image_inputs_bound=Mock(),
+    )
+    assert {key: result[key] for key in ("success", "failure_kind", "message")} == {
+        "success": False,
+        "failure_kind": "VISUAL_STATE_REFERENCE_REJECTED",
+        "message": "VALIDATED_REFERENCE_UPLOAD_FAILED",
+    }
+    assert result["external_failure"]["failure_class"] == "INVALID_RECEIPT"
+    assert result["external_failure"]["external_call"]["receipt_violation"] == "SERVICE_UPLOAD_RESULT_NOT_OBJECT"
+    boundary.client.upload_audio.assert_not_awaited()
+    boundary.callback.assert_not_called()
+    boundary.client.queue_prompt.assert_not_awaited()
+    boundary.client.wait_for_result.assert_not_awaited()

@@ -1,10 +1,14 @@
 """OpenAI-compatible LLM provider tests."""
 
 import json
+import asyncio
+import base64
+from io import BytesIO
 from types import SimpleNamespace
 
 import httpx
 import pytest
+from PIL import Image
 from sqlalchemy.orm import sessionmaker
 
 from app.services.llm.base import LLMConfig, build_llm_request_info
@@ -12,6 +16,12 @@ from app.services.llm.providers.openai import OpenAICompatibleProvider
 
 
 V4_MODELS = ["deepseek-v4-flash", "deepseek-v4-pro", "deepseek-v4-flash-vision-exp"]
+
+
+def inline_png():
+    buffer = BytesIO()
+    Image.new('RGB', (16, 12), 'blue').save(buffer, format='PNG')
+    return 'data:image/png;base64,' + base64.b64encode(buffer.getvalue()).decode()
 
 
 def make_provider(model="deepseek-v4-flash"):
@@ -104,11 +114,10 @@ def test_deepseek_v4_text_request_does_not_force_thinking(model):
     assert body["stream"] is False
 
 
-@pytest.mark.asyncio
-async def test_deepseek_vision_preset():
+def test_deepseek_vision_preset():
     from app.api.config import get_llm_presets
 
-    presets = await get_llm_presets()
+    presets = asyncio.run(get_llm_presets())
     deepseek = next(item for item in presets["data"] if item["id"] == "deepseek")
     assert deepseek["defaultApiUrl"] == "https://api.deepseek.com"
     assert deepseek["models"][0]["id"] == "deepseek-v4-flash"
@@ -135,13 +144,13 @@ def test_deepseek_v4_output_limit(model, requested, expected):
     assert service._normalize_max_tokens(requested) == expected
 
 
-@pytest.mark.asyncio
-@pytest.mark.parametrize("model,image_url", [
-    *[(model, None) for model in V4_MODELS],
-    ("deepseek-v4-flash-vision-exp", "https://example.test/image.png?token=image-secret"),
-    ("deepseek-v4-flash-vision-exp", "data:image/png;base64,aW1hZ2Utc2VjcmV0"),
+@pytest.mark.parametrize("model,image_url,valid", [
+    *[(model, None, True) for model in V4_MODELS],
+    ("deepseek-v4-flash-vision-exp", inline_png(), True),
+    ("deepseek-v4-flash-vision-exp", "https://example.test/image.png?token=image-secret", False),
+    ("deepseek-v4-flash-vision-exp", "data:image/png;base64,aW1hZ2Utc2VjcmV0", False),
 ])
-async def test_deepseek_service_sends_text_and_images(db_engine, monkeypatch, capsys, model, image_url):
+def test_deepseek_service_sends_text_and_images(db_engine, monkeypatch, capsys, model, image_url, valid):
     from app.core import database
     from app.models.llm_log import LLMLog
     from app.services.llm_service import LLMService
@@ -180,7 +189,15 @@ async def test_deepseek_service_sends_text_and_images(db_engine, monkeypatch, ca
         async_client(transport=httpx.MockTransport(respond), timeout=kwargs["timeout"]))
 
     # Exercise service -> client -> provider -> JSON transport, not just body construction.
-    result = await LLMService().chat_completion("You are helpful.", content)
+    result = asyncio.run(LLMService().chat_completion("You are helpful.", content))
+    if not valid:
+        # F52 now requires frozen inline image bytes, not a mutable URL or fake PNG.
+        assert result['success'] is False and result['failure_kind'] == 'INPUT_ERROR'
+        assert not requests
+        with sessions() as db:
+            assert db.query(LLMLog).count() == 0
+        assert image_url not in capsys.readouterr().out
+        return
     assert result["success"] is True
     assert result["content"] == "ok"
     assert len(requests) == 1  # Image input was not rejected before transport.

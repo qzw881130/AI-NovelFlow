@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import test from 'node:test';
 import ts from 'typescript';
+import {revisionStore,savedResponse} from './helpers/revision-harness.mjs';
 
 // Execute the real component handlers without React mounting or network I/O.
 function loadHandler(file, name, globals) {
@@ -81,9 +82,14 @@ test('saving legacy [1, 1] serializes UI order and retains IDs, text, owners, an
   ]);
   let request;
   const saving = [], completed = [], messages = [];
+  const shots=[{ id: 'shot-id', sourceRevision:0, duration: 5, audioEvents: events }, { id: 'empty-shot-id', sourceRevision:0, duration: 5 }];
+  const store=revisionStore({chapter:{id:'chapter-id',novelId:'novel-id'},shots},async(url,options)=>{
+    const body=JSON.parse(options.body);request={novelId:'novel-id',chapterId:'chapter-id',shots:body.shots};return savedResponse(body.shots);
+  });
   const save = loadHandler('ShotSplitTab.tsx', 'saveShotsData', {
     novelId: 'novel-id', chapterId: 'chapter-id', t: key => key,
     setIsSaving: value => saving.push(value), saveChapterResources: async () => {},
+    useChapterGenerateStore:store,
     shotsApi: { batchUpdateShots: async (novelId, chapterId, shots) => {
       request = JSON.parse(JSON.stringify({ novelId, chapterId, shots }));
       return { success: true, data: { updated_count: shots.length } };
@@ -92,7 +98,7 @@ test('saving legacy [1, 1] serializes UI order and retains IDs, text, owners, an
     toast: { success: message => messages.push(message), error: message => messages.push(message) },
     console: { log() {}, error() {} },
   });
-  await save([{ id: 'shot-id', duration: 5, audioEvents: events }, { id: 'empty-shot-id', duration: 5 }]);
+  await save(shots);
   assert.equal(request.novelId, 'novel-id');
   assert.equal(request.chapterId, 'chapter-id');
   assert.equal(request.shots[0].id, 'shot-id');
@@ -106,18 +112,22 @@ test('saving legacy [1, 1] serializes UI order and retains IDs, text, owners, an
 
 test('layout save used by the visible editor button and shortcut preserves contiguous 1-based audio order', async () => {
   const events = Object.freeze([readyEvent('first', 1), readyEvent('second', 1), readyEvent('third', 9)]);
-  const shot = Object.freeze({ id: 'shot-id', duration: 10, estimatedDuration: 8, audioEvents: events });
+  const shot = Object.freeze({ id: 'shot-id', sourceRevision:0, duration: 10, estimatedDuration: 8, audioEvents: events });
   let request;
   const saving = [];
+  const store=revisionStore({chapter:{id:'c',novelId:'n'},shots:[shot]},async(url,options)=>{
+    request=JSON.parse(options.body).shots;return savedResponse(request);
+  });
   const save = loadHandler('ChapterGenerateLayout.tsx', 'saveShotSplitData', {
     id: 'n', cid: 'c', isSavingShots: false, shots: [shot], t: key => key,
     setIsSavingShots: value => saving.push(value), saveChapterResources: async () => {},
+    useChapterGenerateStore:store,
     shotsApi: { batchUpdateShots: async (_n, _c, shots) => { request = shots; return { success: true }; } },
     markTabComplete() {}, toast: { success() {}, error: assert.fail }, console,
   });
   await save();
   assert.deepEqual(JSON.parse(JSON.stringify(request[0].audio_events)), events.map((event, i) => ({ ...event, order: i + 1 })));
-  assert.equal(request[0].duration, 10);
+  assert.equal(request[0].duration, undefined); // Measured runtime duration is not an authored edit.
   assert.equal(request[0].estimated_duration, 8);
   assert.deepEqual(events.map(event => event.order), [1, 1, 9]);
   assert.deepEqual(saving, [true, false]);

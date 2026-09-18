@@ -1,4 +1,4 @@
-"""Admission tests: --noconftest, ephemeral SQLite, no app startup or generation I/O."""
+"""CANONICAL_DB admission tests with ephemeral SQLite and isolated generation I/O."""
 import asyncio
 from copy import deepcopy
 from datetime import datetime, timedelta
@@ -19,8 +19,26 @@ import pytest
 from fastapi import FastAPI, HTTPException
 from pydantic import ValidationError
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import Session, declarative_base
+from sqlalchemy.orm import Session
 from sqlalchemy.pool import QueuePool
+
+from app.core.database import Base as APP_BASE
+import app.models.audio_drive as _audio_drive
+import app.models.llm_log as _llm_log
+import app.models.novel as _novel
+import app.models.prompt_template as _prompt_template
+import app.models.shot as _shot
+import app.models.system_config as _system_config
+import app.models.task as _task
+import app.models.test_case as _test_case
+import app.models.workflow as _workflow
+
+
+pytestmark = pytest.mark.CANONICAL_DB
+_API_MODELS = {
+    "novel": _novel, "shot": _shot, "task": _task, "workflow": _workflow,
+    "llm_log": _llm_log, "prompt_template": _prompt_template, "audio_drive": _audio_drive,
+}
 
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -39,12 +57,54 @@ VISUAL_STATE_VALIDATION = {
 
 
 @pytest.fixture
-def api(monkeypatch, tmp_path):
+def api(monkeypatch, tmp_path, request):
+    module_snapshot = {
+        name: module for name, module in sys.modules.items()
+        if name == "app" or name.startswith("app.")
+    }
+
+    def restore_modules():
+        for name in tuple(sys.modules):
+            if (name == "app" or name.startswith("app.")) and name not in module_snapshot:
+                sys.modules.pop(name, None)
+        sys.modules.update(module_snapshot)
+
+    request.addfinalizer(restore_modules)
+
     def forbidden(*args, **kwargs):
         raise AssertionError("Real application I/O is forbidden")
 
     monkeypatch.setattr(socket.socket, "connect", forbidden)
     monkeypatch.setattr(socket.socket, "connect_ex", forbidden)
+    base = APP_BASE
+    models = dict(_API_MODELS)
+    engine = create_engine(f"sqlite:///file:api-{uuid4().hex}?mode=memory&cache=shared&uri=true",
+                           connect_args={"check_same_thread": False}, poolclass=QueuePool)
+    base.metadata.create_all(engine)
+    db = Session(engine, autoflush=False)
+
+    def close_private_database():
+        db.close()
+        engine.dispose()
+
+    request.addfinalizer(close_private_database)
+    legal_marker = request.node.get_closest_marker("c03_legal")
+    legal_mode = legal_marker.args[0] if legal_marker else None
+    if legal_mode not in {None, "api"}:
+        raise RuntimeError(f"Unknown C03 API fixture mode: {legal_mode}")
+    legal_chain = None
+    if legal_mode:
+        from r5_c03_support import build_legal_chain
+
+        legal_chain = build_legal_chain(db, tmp_path, monkeypatch)
+
+    isolated_prefixes = ("app.api", "app.repositories", "app.schemas", "app.services", "app.utils")
+    for name in tuple(sys.modules):
+        if any(name == prefix or name.startswith(prefix + ".") for prefix in isolated_prefixes):
+            if name in module_snapshot:
+                monkeypatch.delitem(sys.modules, name)
+            else:
+                sys.modules.pop(name, None)
 
     def stub(name, **attributes):
         module = ModuleType(name)
@@ -54,8 +114,8 @@ def api(monkeypatch, tmp_path):
             monkeypatch.setattr(sys.modules[name.rsplit(".", 1)[0]], name.rsplit(".", 1)[1], module, raising=False)
         return module
 
-    for name in ("app", "app.api", "app.core", "app.models", "app.schemas", "app.services", "app.repositories", "app.utils"):
-        stub(name, __path__=[])
+    for name in ("app.api", "app.schemas", "app.services", "app.repositories", "app.utils"):
+        stub(name, __path__=[str(BACKEND.joinpath(*name.split(".")))])
 
     def load(name, relative):
         spec = importlib.util.spec_from_file_location(name, BACKEND / relative)
@@ -65,17 +125,13 @@ def api(monkeypatch, tmp_path):
         monkeypatch.setattr(sys.modules[name.rsplit(".", 1)[0]], name.rsplit(".", 1)[1], module, raising=False)
         return module
 
-    base = declarative_base()
-    database = stub("app.core.database", Base=base, SessionLocal=forbidden, get_db=forbidden)
-    models = {}
-    for name in ("novel", "shot", "task", "workflow", "llm_log", "prompt_template", "audio_drive"):
-        models[name] = load("app.models." + name, "app/models/" + name + ".py")
-    engine = create_engine(f"sqlite:///file:api-{uuid4().hex}?mode=memory&cache=shared&uri=true",
-                           connect_args={"check_same_thread": False}, poolclass=QueuePool)
-    base.metadata.create_all(engine)
-    db = Session(engine, autoflush=False)
+    def isolated_get_db():
+        yield db
+
+    database = stub("app.core.database", Base=base, SessionLocal=forbidden, get_db=isolated_get_db)
     state = SimpleNamespace(db=db, engine=engine, models=SimpleNamespace(**models), forbidden=forbidden,
                             writes_forbidden=True, shot_updates=[], inserts=[], queued=[], enqueue_hook=None)
+    state.chain = legal_chain
     state.foundation = load("app.services.task_execution", "app/services/task_execution.py")
     state.execution = load("app.services.shot_video_execution", "app/services/shot_video_execution.py")
     load("app.services.duration_contract", "app/services/duration_contract.py")
@@ -109,18 +165,22 @@ def api(monkeypatch, tmp_path):
     state.workflow_repo = state.WorkflowRepository(db)
     state.llm = SimpleNamespace(chat_completion=AsyncMock(return_value={"success": True, "content": "literal final prompt\n"}))
     stub("app.services.llm_service", LLMService=lambda: state.llm)
-    stub("app.services.prompt_builder", get_style=lambda *args: ("", ""))
-    stub("app.services.comfyui", __path__=[], ComfyUIService=lambda: SimpleNamespace())
+    stub("app.services.prompt_builder", get_style=lambda *args: (
+        legal_chain.style_text if legal_chain else "", None if legal_chain else "",
+    ))
+    stub("app.services.comfyui", __path__=[str(BACKEND / "app/services/comfyui")],
+         ComfyUIService=lambda: SimpleNamespace())
     stub("app.services.comfyui.service", is_h3_workflow=lambda graph: False)
 
     def delete(*args, **kwargs):
         if state.writes_forbidden:
             forbidden()
 
-    state.storage = SimpleNamespace(base_dir=tmp_path, delete_shot_image=Mock(side_effect=delete),
+    media_root = legal_chain.root if legal_chain else tmp_path
+    state.storage = SimpleNamespace(base_dir=media_root, delete_shot_image=Mock(side_effect=delete),
                                     delete_shot_video=Mock(side_effect=forbidden), merge_videos=AsyncMock(side_effect=forbidden))
     stub("app.services.file_storage", file_storage=state.storage)
-    state.storage._get_story_dir = lambda novel_id: tmp_path / novel_id
+    state.storage._get_story_dir = lambda novel_id: media_root / novel_id
 
     def enqueue(*args, **kwargs):
         state.queued.append((args, kwargs))
@@ -137,13 +197,16 @@ def api(monkeypatch, tmp_path):
     for name, cls in (("shot_service", "ShotService"), ("audio_reference_service", "AudioReferenceService"),
                       ("single_image_edit_service", "SingleImageEditService")):
         stub("app.services." + name, **{cls: forbidden})
-    stub("app.services.task_service", TaskService=SimpleNamespace(validate_workflow_node_mapping=Mock(return_value=(True, ""))))
+    stub("app.services.task_service", TaskService=(
+        legal_chain.task_service_class if legal_chain
+        else SimpleNamespace(validate_workflow_node_mapping=Mock(return_value=(True, "")))
+    ))
     stub("app.core.config", get_settings=forbidden)
-    stub("app.services.llm", __path__=[])
+    stub("app.services.llm", __path__=[str(BACKEND / "app/services/llm")])
     stub("app.services.llm.base", mark_matching_pending_llm_logs_error=forbidden)
     load("app.services.h3_prompt_validation", "app/services/h3_prompt_validation.py")
     load("app.services.video_director_ai", "app/services/video_director_ai.py")
-    stub("app.utils.path_utils", url_to_local_path=lambda value: str(tmp_path / value.rsplit("/", 1)[-1]) if value else None,
+    stub("app.utils.path_utils", url_to_local_path=lambda value: str(media_root / value.removeprefix("/api/files/")) if value else None,
          local_path_to_url=lambda value: "/api/files/" + Path(value).name)
     stub("app.utils.time_utils", format_datetime=lambda value: str(value))
     state.keyframes = load("app.services.shot_keyframe_service", "app/services/shot_keyframe_service.py")
@@ -184,18 +247,27 @@ def api(monkeypatch, tmp_path):
         return asyncio.run(send())
 
     state.post = post
-    state.novel = Novel(id="novel", title="Novel")
-    state.chapter = Chapter(id="chapter", novel_id="novel", number=1, title="Chapter", parsed_data="{}")
-    state.shot = ShotModel(id="shot", chapter_id="chapter", index=7, description="Source description", duration=4,
-                           image_url="/api/files/start.png", image_path="/api/files/start.png", image_status="completed",
-                           image_task_id="active-image", shot_image_prompt="Old primary prompt", video_url="/old.mp4",
-                           video_status="completed", video_task_id="old-video", video_director_plan="{}")
-    db.add_all([state.novel, state.chapter, state.shot])
+    if legal_chain:
+        state.novel, state.chapter, state.shot = legal_chain.novel, legal_chain.chapter, legal_chain.shot
+    else:
+        state.novel = Novel(id="novel", title="Novel")
+        state.chapter = Chapter(id="chapter", novel_id="novel", number=1, title="Chapter", parsed_data="{}")
+        state.shot = ShotModel(id="shot", chapter_id="chapter", index=7, description="Source description", duration=4,
+                               image_url="/api/files/start.png", image_path="/api/files/start.png", image_status="completed",
+                               image_task_id="active-image", shot_image_prompt="Old primary prompt", video_url="/old.mp4",
+                               video_status="completed", video_task_id="old-video", video_director_plan="{}")
+        db.add_all([state.novel, state.chapter, state.shot])
     for kind in ("shot", "video", "first_last_video", "three_frame_video", "four_frame_video"):
-        db.add(models["workflow"].Workflow(id=kind, type=kind, name=kind, is_active=True, workflow_json="{}", node_mapping="{}"))
+        definition = legal_chain.video_workflow if legal_chain and kind == "video" else None
+        db.add(models["workflow"].Workflow(
+            id=kind, type=kind, name=kind, is_active=True,
+            workflow_json=definition["graph"] if definition else "{}",
+            node_mapping=json.dumps(definition["mapping"]) if definition else "{}",
+            extension=json.dumps(definition["extension"]) if definition else None,
+        ))
     db.commit()
     for name in ("start.png", "end.png", "mid.png", "boundary.png", "mid2.png", "drive.wav", "final.wav"):
-        (tmp_path / name).write_bytes(b"isolated fixture")
+        (media_root / name).write_bytes(b"isolated fixture")
 
     def configure(mode="SINGLE_FRAME", audio=False):
         state.writes_forbidden = False
@@ -270,6 +342,7 @@ def api(monkeypatch, tmp_path):
 
     yield state
     event.remove(Task, "after_insert", inserted)
+    event.remove(engine, "before_cursor_execute", guard)
     db.close()
     engine.dispose()
 
@@ -934,6 +1007,7 @@ def test_active_purpose_collision_never_reuses_or_reparents_other_purpose(api, r
     assert first.parent_task_id is second.parent_task_id is None
 
 
+@pytest.mark.c03_legal("api")
 def test_production_cleanup_preserves_benchmark_failure_history(api):
     Task = api.models.task.Task
     benchmark = Task(id="failed-benchmark", type="shot_video", name="benchmark", status="failed", shot_id="shot",

@@ -1,141 +1,187 @@
-"""
-测试配置和共享 fixtures
-"""
+"""Shared pytest profiles with process-private application resources."""
+
+from contextlib import asynccontextmanager
+import inspect
 import os
 import sys
-import pytest
 import tempfile
-import json
 from pathlib import Path
-from unittest.mock import AsyncMock, patch, MagicMock
 
-# 添加项目根目录到路径
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
+BACKEND = Path(__file__).resolve().parents[1]
+_CONFTEST = Path(__file__).resolve()
+sys.path.insert(0, str(BACKEND))
+
+_early_application_modules = {
+    "app.core.config", "app.core.database", "app.services.file_storage", "app.main",
+}.intersection(sys.modules)
+if _early_application_modules:
+    raise RuntimeError(f"Application imported before pytest isolation: {sorted(_early_application_modules)}")
+
+_sandbox_handle = tempfile.TemporaryDirectory(prefix="novelflow-pytest-", dir="/tmp")
+_sandbox = Path(_sandbox_handle.name).resolve()
+# Override hostile or production-looking caller values before importing any app module.
+os.environ["DATABASE_URL"] = f"sqlite:///{_sandbox / 'bootstrap.sqlite3'}"
+os.environ["NOVELFLOW_STORAGE_ROOT"] = str(_sandbox / "storage")
+
+import pytest
 from fastapi.testclient import TestClient
-
-from app.core.database import Base, get_db
-from app.main import app
-from app.api.deps import (
-    get_novel_repo,
-    get_chapter_repo,
-    get_character_repo,
-    get_scene_repo,
-    get_prop_repo,
-    get_task_repo,
-    get_workflow_repo,
-    get_shot_repo,
-)
-from app.repositories import (
-    NovelRepository,
-    ChapterRepository,
-    CharacterRepository,
-    SceneRepository,
-    PropRepository,
-    TaskRepository,
-    WorkflowRepository,
-    ShotRepository,
-)
-
-# 显式导入所有模型，确保 Base.metadata 包含所有表
-from app.models.novel import Novel, Chapter, Character, Scene, Prop
-from app.models.shot import Shot
-from app.models.task import Task
-from app.models.workflow import Workflow
-from app.models.prompt_template import PromptTemplate
-from app.models.test_case import TestCase
-from app.models.system_config import SystemConfig
-from app.models.audio_drive import AudioEventTTSAsset, ShotAudioEvent, ShotAudioTimeline, ShotAudioTimelineEvent
+from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 
 
-# 使用内存数据库进行测试
+_CANONICAL_FIXTURES = {"canonical_storage_root", "db_engine", "db_session", "client"}
+
+
+def pytest_configure(config):
+    challenge = os.environ.get("R5_RUNNER_GUARD_CHALLENGE")
+    if challenge:
+        os.environ["R5_RUNNER_CONFTEST_RESPONSE"] = challenge
+        os.environ["R5_RUNNER_GUARD_SOURCE"] = str(_CONFTEST)
+
+
+def _uses_shared_canonical_fixture(item):
+    fixture_info = getattr(item, "_fixtureinfo", None)
+    if fixture_info is None:
+        return False
+    for name in _CANONICAL_FIXTURES:
+        definitions = fixture_info.name2fixturedefs.get(name) or ()
+        if definitions:
+            source = inspect.getsourcefile(definitions[-1].func)
+            if source and Path(source).resolve() == _CONFTEST:
+                return True
+    return False
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(items):
+    for item in items:
+        declared = {name for name in ("PURE", "CANONICAL_DB") if item.get_closest_marker(name)}
+        uses_canonical = _uses_shared_canonical_fixture(item)
+        if len(declared) > 1:
+            raise pytest.UsageError(f"{item.nodeid} declares both R5 profiles")
+        if declared == {"PURE"} and uses_canonical:
+            raise pytest.UsageError(f"{item.nodeid} is PURE but resolves a shared canonical fixture")
+        if not declared and uses_canonical:
+            item.add_marker("CANONICAL_DB")
+    challenge = os.environ.get("R5_RUNNER_GUARD_CHALLENGE")
+    if challenge:
+        os.environ["R5_RUNNER_GUARD_RESPONSE"] = challenge
+
+
+def pytest_unconfigure(config):
+    database = sys.modules.get("app.core.database")
+    engine = getattr(database, "engine", None)
+    if engine is not None:
+        engine.dispose()
+    _sandbox_handle.cleanup()
+
+
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
 
-@pytest.fixture(scope="function")
-def db_engine():
-    """创建测试数据库引擎"""
+@pytest.fixture
+def canonical_storage_root(tmp_path, monkeypatch):
+    from app.services.file_storage import file_storage
+
+    root = (tmp_path / "storage").resolve()
+    root.mkdir()
+    monkeypatch.setenv("NOVELFLOW_STORAGE_ROOT", str(root))
+    monkeypatch.setattr(file_storage, "base_dir", root)
+    return root
+
+
+@pytest.fixture
+def db_engine(canonical_storage_root, monkeypatch):
+    """Create one complete-registry engine isolated from application storage."""
+    from app.core import database
+    from app import main as main_module
+
     engine = create_engine(
         SQLALCHEMY_DATABASE_URL,
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    # 创建所有表
-    Base.metadata.create_all(bind=engine)
-    yield engine
-    Base.metadata.drop_all(bind=engine)
+    session_factory = database.SessionLocal
+    previous_bind = session_factory.kw.get("bind")
+    session_factory.configure(bind=engine)
+    monkeypatch.setenv("DATABASE_URL", SQLALCHEMY_DATABASE_URL)
+    monkeypatch.setattr(database.settings, "DATABASE_URL", SQLALCHEMY_DATABASE_URL)
+    monkeypatch.setattr(database, "engine", engine)
+    monkeypatch.setattr(main_module, "engine", engine)
+    database.Base.metadata.create_all(bind=engine)
+    try:
+        yield engine
+    finally:
+        database.Base.metadata.drop_all(bind=engine)
+        session_factory.configure(bind=previous_bind)
+        engine.dispose()
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture
 def db_session(db_engine):
-    """创建测试数据库会话"""
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
-    session = TestingSessionLocal()
+    """Yield a session from the same rebound SessionLocal seen by app aliases."""
+    from app.core import database
+
+    session = database.SessionLocal()
+    assert session.bind is db_engine
     try:
         yield session
     finally:
         session.close()
 
 
-@pytest.fixture(scope="function")
-def client(db_session, db_engine):
-    """创建测试客户端"""
+@pytest.fixture
+def client(db_session, monkeypatch):
+    """Run the full router under a test-only lifespan with no monitor or workers."""
+    from app.core.database import get_db
+    from app.main import app
+    from app.api.config import init_system_config
+    from app.api.prompt_templates import init_system_prompt_templates
+    from app.api.test_cases import init_preset_test_cases
+    from app.services import background_workers
+
+    class IsolatedWorker:
+        def __init__(self):
+            self.jobs = []
+
+        def enqueue(self, job_factory):
+            self.jobs.append(job_factory)
+
+    class IsolatedWorkerManager:
+        def __init__(self):
+            self.workers = {}
+
+        def worker(self, name):
+            return self.workers.setdefault(name, IsolatedWorker())
+
+    production_worker_manager = background_workers.worker_manager
+    isolated_worker_manager = IsolatedWorkerManager()
+    monkeypatch.setattr(background_workers, "worker_manager", isolated_worker_manager)
+    for module in tuple(sys.modules.values()):
+        if getattr(module, "worker_manager", None) is production_worker_manager:
+            monkeypatch.setattr(module, "worker_manager", isolated_worker_manager)
+    monkeypatch.setattr(app.state, "pytest_worker_manager", isolated_worker_manager, raising=False)
+
     def override_get_db():
-        try:
-            yield db_session
-        finally:
-            pass
-    
-    # 覆盖 get_db 依赖
-    app.dependency_overrides[get_db] = override_get_db
-    
-    # 创建 Repository 工厂函数
-    def make_repo_factory(repo_class):
-        def factory():
-            return repo_class(db_session)
-        return factory
-    
-    # 覆盖所有 Repository 依赖
-    app.dependency_overrides[get_novel_repo] = make_repo_factory(NovelRepository)
-    app.dependency_overrides[get_chapter_repo] = make_repo_factory(ChapterRepository)
-    app.dependency_overrides[get_character_repo] = make_repo_factory(CharacterRepository)
-    app.dependency_overrides[get_scene_repo] = make_repo_factory(SceneRepository)
-    app.dependency_overrides[get_prop_repo] = make_repo_factory(PropRepository)
-    app.dependency_overrides[get_task_repo] = make_repo_factory(TaskRepository)
-    app.dependency_overrides[get_workflow_repo] = make_repo_factory(WorkflowRepository)
-    app.dependency_overrides[get_shot_repo] = make_repo_factory(ShotRepository)
-    
-    # Mock lifespan 中的启动逻辑，避免连接真实数据库和 ComfyUI
-    from app.main import lifespan
-    
-    async def mock_lifespan(app):
-        # 使用测试数据库初始化数据
-        from app.api.test_cases import init_preset_test_cases
-        from app.api.prompt_templates import init_system_prompt_templates
-        from app.api.config import init_system_config
-        
-        # 使用测试 session
+        yield db_session
+
+    @asynccontextmanager
+    async def isolated_lifespan(_app):
         init_system_config(db_session)
         init_system_prompt_templates(db_session)
         await init_preset_test_cases(db_session)
-        
-        # Mock ComfyUI 监控器
-        mock_monitor = MagicMock()
-        mock_monitor.start = AsyncMock()
-        mock_monitor.stop = AsyncMock()
-        
         yield
-    
-    # 使用 patch 来 mock lifespan 中的依赖
-    with patch('app.main.init_monitor', return_value=MagicMock(start=AsyncMock(), stop=AsyncMock())):
-        with patch('app.core.database.SessionLocal', return_value=db_session):
-            with TestClient(app) as c:
-                yield c
-    
-    app.dependency_overrides.clear()
+
+    previous_overrides = app.dependency_overrides.copy()
+    app.dependency_overrides[get_db] = override_get_db
+    monkeypatch.setattr(app.router, "lifespan_context", isolated_lifespan)
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(previous_overrides)
 
 
 @pytest.fixture

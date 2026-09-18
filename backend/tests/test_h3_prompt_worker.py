@@ -1,4 +1,4 @@
-"""Isolated worker tests: --noconftest, no app startup, disk media, or network."""
+"""CANONICAL_DB worker tests with isolated engine, services, media, and network."""
 
 import asyncio
 from copy import deepcopy
@@ -11,8 +11,21 @@ from types import ModuleType, SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
 import pytest
-from sqlalchemy import Boolean, Column, String, create_engine
-from sqlalchemy.orm import Session, declarative_base, relationship
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+
+from app.core import database as app_database
+from app.models import Chapter, Character, Novel, Prop, Shot
+from app.models.audio_drive import ShotAudioTimeline
+import app.models.llm_log as _llm_log
+import app.models.prompt_template as _prompt_template
+import app.models.system_config as _system_config
+import app.models.test_case as _test_case
+from app.models.task import Task
+from app.models.workflow import Workflow
+
+
+pytestmark = pytest.mark.CANONICAL_DB
 
 
 BACKEND = Path(__file__).resolve().parents[1]
@@ -32,21 +45,58 @@ MISSING = object()
 
 
 @pytest.fixture
-def worker(monkeypatch):
+def worker(monkeypatch, request, tmp_path):
+    module_snapshot = {
+        name: module for name, module in sys.modules.items()
+        if name == "app" or name.startswith("app.")
+    }
+
+    def restore_modules():
+        for name in tuple(sys.modules):
+            if (name == "app" or name.startswith("app.")) and name not in module_snapshot:
+                sys.modules.pop(name, None)
+        sys.modules.update(module_snapshot)
+
+    request.addfinalizer(restore_modules)
+
     def forbidden(*args, **kwargs):
         raise AssertionError("Real application I/O is forbidden")
 
     monkeypatch.setattr(socket.socket, "connect", forbidden)
+    base = app_database.Base
+    engine = create_engine("sqlite:///:memory:")
+    base.metadata.create_all(engine)
+    db = Session(engine)
+    request.addfinalizer(engine.dispose)
+    request.addfinalizer(lambda: Session.close(db))
+    legal_marker = request.node.get_closest_marker("c03_legal")
+    legal_mode = legal_marker.args[0] if legal_marker else None
+    if legal_mode not in {None, "claimed", "pending"}:
+        raise RuntimeError(f"Unknown C03 worker fixture mode: {legal_mode}")
+    legal_chain = None
+    if legal_mode:
+        from r5_c03_support import build_legal_chain
+
+        legal_chain = build_legal_chain(db, tmp_path, monkeypatch)
+
+    isolated_prefixes = ("app.repositories", "app.schemas", "app.services", "app.utils")
+    for name in tuple(sys.modules):
+        if any(name == prefix or name.startswith(prefix + ".") for prefix in isolated_prefixes):
+            if name in module_snapshot:
+                monkeypatch.delitem(sys.modules, name)
+            else:
+                sys.modules.pop(name, None)
 
     def stub(name, **attributes):
         module = ModuleType(name)
         module.__dict__.update(attributes)
         monkeypatch.setitem(sys.modules, name, module)
+        if "." in name and name.rsplit(".", 1)[0] in sys.modules:
+            monkeypatch.setattr(sys.modules[name.rsplit(".", 1)[0]], name.rsplit(".", 1)[1], module, raising=False)
         return module
 
-    for name in ("app", "app.models", "app.core", "app.repositories", "app.services",
-                 "app.services.llm", "app.services.comfyui", "app.utils"):
-        stub(name, __path__=[])
+    for name in ("app.repositories", "app.schemas", "app.services", "app.services.llm", "app.services.comfyui", "app.utils"):
+        stub(name, __path__=[str(BACKEND.joinpath(*name.split(".")))])
 
     def load(name, relative):
         spec = importlib.util.spec_from_file_location(name, BACKEND / relative)
@@ -55,61 +105,33 @@ def worker(monkeypatch):
         spec.loader.exec_module(module)
         return module
 
-    base = declarative_base()
-    stub("app.core.database", Base=base, SessionLocal=forbidden)
-
-    class Novel(base):
-        __tablename__ = "novels"
-        id = Column(String, primary_key=True)
-        aspect_ratio = Column(String, default="16:9")
-        style_prompt_template_id = Column(String)
-
-    class Chapter(base):
-        __tablename__ = "chapters"
-        id = Column(String, primary_key=True)
-        novel_id = Column(String)
-        shots = relationship("Shot", back_populates="chapter")
-
-    class Character(base):
-        __tablename__ = "characters"
-        id = Column(String, primary_key=True)
-        novel_id = Column(String)
-        name = Column(String)
-        appearance = Column(String)
-        is_narrator = Column(Boolean, default=False)
-
-    class Prop(base):
-        __tablename__ = "props"
-        id = Column(String, primary_key=True)
-        novel_id = Column(String)
-        name = Column(String)
-        appearance = Column(String)
-
-    stub("app.models.novel", Novel=Novel, Chapter=Chapter, Character=Character, Prop=Prop)
-    shot_model = load("app.models.shot", "app/models/shot.py").Shot
-    task_model = load("app.models.task", "app/models/task.py").Task
-    workflow_model = load("app.models.workflow", "app/models/workflow.py").Workflow
-    timeline_model = load("app.models.audio_drive", "app/models/audio_drive.py").ShotAudioTimeline
-    engine = create_engine("sqlite:///:memory:")
-    base.metadata.create_all(engine)
-    db = Session(engine)
-    monkeypatch.setattr(sys.modules["app.core.database"], "SessionLocal", lambda: db)
+    monkeypatch.setattr(app_database, "SessionLocal", forbidden)
+    shot_model, task_model, workflow_model, timeline_model = Shot, Task, Workflow, ShotAudioTimeline
+    monkeypatch.setattr(app_database, "SessionLocal", lambda: db)
     monkeypatch.setattr(db, "close", lambda: None)
     state = SimpleNamespace(db=db, engine=engine, events=[], queued=[], prequeue=[], files={}, upload_hook=None,
                             queue_error=None, queue_failure=False, upload_failure=False, wait_failure=False)
-    state.novel = Novel(id="novel")
-    state.shot = shot_model(id="shot", chapter_id="chapter", index=1, description="Two people wait beside a gate.",
-                            characters=json.dumps(["Ada", "Bea"]), props="[]", duration=4, estimated_duration=4,
-                            video_description="The camera moves towards the gate.", image_url="/api/files/start.png",
-                            audio_status="READY", video_task_id="task", video_url="/old-shot.mp4")
-    state.task = task_model(id="task", type="shot_video", status="running", name="Test video", description="Test",
-                            novel_id="novel", chapter_id="chapter", shot_id="shot", workflow_id="workflow",
-                            metadata_json=json.dumps({"unrelated": "keep"}), comfyui_prompt_id="previous-task-prompt")
+    state.chain = legal_chain
+    state.novel = legal_chain.novel if legal_chain else Novel(id="novel", title="Isolated novel")
+    state.shot = legal_chain.shot if legal_chain else shot_model(
+        id="shot", chapter_id="chapter", index=1, description="Two people wait beside a gate.",
+        characters=json.dumps(["Ada", "Bea"]), props="[]", duration=4, estimated_duration=4,
+        video_description="The camera moves towards the gate.", image_url="/api/files/start.png",
+        audio_status="READY", video_task_id="task", video_url="/old-shot.mp4",
+    )
+    state.task = None if legal_chain else task_model(
+        id="task", type="shot_video", status="running", name="Test video", description="Test",
+        novel_id="novel", chapter_id="chapter", shot_id="shot", workflow_id="workflow",
+        metadata_json=json.dumps({"unrelated": "keep"}), comfyui_prompt_id="previous-task-prompt",
+    )
     state.workflow = workflow_model(id="workflow", name="Not a graph classification hint", type="video", workflow_json="{}")
     state.timeline = timeline_model(id="timeline", shot_id="shot", revision=1, status="READY", generated_from_hash="hash")
-    db.add_all([state.novel, Chapter(id="chapter", novel_id="novel"), state.shot, state.task, state.workflow,
-                state.timeline, Character(id="ada", novel_id="novel", name="Ada", appearance="blue coat"),
-                Character(id="bea", novel_id="novel", name="Bea", appearance="red coat")])
+    if legal_chain:
+        db.add_all([state.workflow, state.timeline])
+    else:
+        db.add_all([state.novel, Chapter(id="chapter", novel_id="novel", number=1, title="Isolated chapter"), state.shot, state.task, state.workflow,
+                    state.timeline, Character(id="ada", novel_id="novel", name="Ada", appearance="blue coat"),
+                    Character(id="bea", novel_id="novel", name="Bea", appearance="red coat")])
     db.commit()
 
     load("app.services.duration_contract", "app/services/duration_contract.py")
@@ -117,14 +139,37 @@ def worker(monkeypatch):
     state.plans = load("app.services.video_director_plan_service", "app/services/video_director_plan_service.py")
     stub("app.core.config", get_settings=lambda: SimpleNamespace(LLM_TIMEOUT=1))
     stub("app.repositories.prompt_template", PromptTemplateRepository=forbidden)
-    stub("app.services.prompt_builder", get_style=lambda *args: ("isolated painterly style", None))
+    stub("app.services.prompt_builder", get_style=lambda *args: (
+        legal_chain.style_text if legal_chain else "isolated painterly style", None,
+    ))
     stub("app.services.llm.base", mark_matching_pending_llm_logs_error=Mock())
-    state.llm = AsyncMock(return_value={"success": True, "content": PROMPT})
+    if legal_chain:
+        state.llm_response = {"success": True, "content": PROMPT}
+        state.llm_responder = None
+
+        async def legal_llm(**kwargs):
+            result = await state.llm_responder(**kwargs) if state.llm_responder else state.llm_response
+            if not result.get("success"):
+                return result
+            from r5_c03_support import logged_completion
+
+            return await logged_completion(
+                legal_chain.llm_runtime, result["content"], "r5-c03-h3", **kwargs,
+            )
+
+        state.llm = AsyncMock(side_effect=legal_llm)
+        state.set_llm_response = lambda content: setattr(
+            state, "llm_response", {"success": True, "content": content},
+        )
+        state.set_llm_responder = lambda responder: setattr(state, "llm_responder", responder)
+    else:
+        state.llm = AsyncMock(return_value={"success": True, "content": PROMPT})
     stub("app.services.llm_service", LLMService=lambda: SimpleNamespace(chat_completion=state.llm))
     load("app.services.h3_prompt_validation", "app/services/h3_prompt_validation.py")
     state.ai = load("app.services.video_director_ai", "app/services/video_director_ai.py")
     state.template = SimpleNamespace(
-        name="Isolated template", template="\u3010Audio Drive \u6587\u672c\u6e32\u67d3\u7981\u4ee4\u3011\n" + CONSTRAINT,
+        id="h3-template", name="Isolated template",
+        template="\u3010Audio Drive \u6587\u672c\u6e32\u67d3\u7981\u4ee4\u3011\n" + CONSTRAINT,
     )
     monkeypatch.setattr(state.ai, "resolve_prompt_template", lambda *args: state.template)
 
@@ -154,16 +199,20 @@ def worker(monkeypatch):
     load("app.services.comfyui.workflows", "app/services/comfyui/workflows.py")
     state.comfy = load("app.services.comfyui.service", "app/services/comfyui/service.py")
     monkeypatch.setattr(sys.modules["app.services.comfyui"], "ComfyUIService", state.comfy.ComfyUIService, raising=False)
-    state.storage = SimpleNamespace(base_dir=Path("/virtual"), download_video=AsyncMock(return_value="/virtual/generated.mp4"),
-                                    merge_videos=AsyncMock(side_effect=forbidden), _get_story_dir=forbidden)
+    state.storage = SimpleNamespace(
+        base_dir=legal_chain.root if legal_chain else Path("/virtual"),
+        download_video=AsyncMock(return_value="/virtual/generated.mp4"),
+        merge_videos=AsyncMock(side_effect=forbidden),
+        _get_story_dir=(lambda novel_id: legal_chain.root / f"story_{novel_id[:8]}") if legal_chain else forbidden,
+    )
     stub("app.services.file_storage", file_storage=state.storage)
     state.matches_sources = Mock(return_value=True)
     stub("app.services.rendered_subtitles", load=lambda path: None, lock_generated_audio=AsyncMock(),
          matches_sources=state.matches_sources)
     stub("app.services.background_workers", worker_manager=SimpleNamespace(worker=forbidden))
     stub("app.services.audio_drive_service", AudioDriveService=forbidden)
-    stub("app.utils.path_utils", url_to_local_path=lambda value: value.replace("/api/files/", "/virtual/") if value else None,
-         local_path_to_url=lambda value: value.replace("/virtual/", "/api/files/") if value else None)
+    stub("app.utils.path_utils", url_to_local_path=lambda value: str(legal_chain.root / value.removeprefix("/api/files/")) if legal_chain and value and value.startswith("/api/files/") else value.replace("/api/files/", "/virtual/") if value else None,
+          local_path_to_url=lambda value: value.replace("/virtual/", "/api/files/") if value else None)
     state.module = load("app.services.shot_video_service", "app/services/shot_video_service.py")
     state.builder = AsyncMock(wraps=state.module.build_h3_video_prompt)
     monkeypatch.setattr(state.module, "build_h3_video_prompt", state.builder)
@@ -205,6 +254,8 @@ def worker(monkeypatch):
         state.mapping = {"prompt_node_id": "text", "video_save_node_id": "out", "reference_image_node_id": "image",
                          "first_image_node_id": "image", "last_image_node_id": "kf1",
                          "keyframe_node_1": "kf1", "keyframe_node_2": "kf2", "keyframe_node_3": "kf3"}
+        if legal_chain:
+            state.mapping.update(megapixels_node_id="image", megapixels_value="0.4")
         if audio:
             state.mapping.update(drive_audio_node_id="drive", final_audio_node_id="final")
         state.workflow.workflow_json = json.dumps(state.graph)
@@ -240,16 +291,37 @@ def worker(monkeypatch):
                 **{field: item.pop(field) for field in list(item)
                    if field.startswith(("audio_", "drive_audio_", "final_audio_", "clip_audio_", "speaker_"))},
             } for item in items]
-        state.shot.video_director_plan = json.dumps(plan)
-        db.commit()
+        if hasattr(state.shot, "_execution_task_id"):
+            state.module._mutate_video_plan(db, state.shot, lambda current: deepcopy(plan))
+        else:
+            state.shot.video_director_plan = json.dumps(plan)
+            db.commit()
         state.clip = {**items[0], "clip_index": 1}
         state.audio = state.module._resolve_audio_drive_for_h3(json.loads(state.shot.video_director_plan), state.clip, state.mapping)
 
     state.configure = configure
-    configure()
+    configure(audio=legal_mode != "pending")
+    if legal_chain:
+        from r5_c03_support import admit_legal_video
+
+        def admit_task():
+            state.task = admit_legal_video(db, legal_chain, state.workflow)
+            return state.task
+
+        state.admit_task = admit_task
+        if legal_mode == "claimed":
+            from app.services.shot_video_execution import claim_video_execution
+
+            claimed = claim_video_execution(db, admit_task().id)
+            assert claimed is not None
+            state.task, state.shot, state.handle = claimed
     yield state
-    Session.close(db)
-    engine.dispose()
+    if legal_chain:
+        from app.models.llm_log import LLMLog
+
+        h3_logs = db.query(LLMLog).filter_by(model="r5-c03-h3").all()
+        assert len(h3_logs) == state.llm.await_count
+        assert all(log.status == "success" and log.request_info for log in h3_logs)
 
 
 def records(worker, clip_index=None):
@@ -291,11 +363,34 @@ def submit(worker, prompt, callback):
 
 
 def run_worker(worker, *, reuse=False, only_window=None, auto_merge=False):
+    if worker.task is None:
+        worker.admit_task()
     asyncio.run(worker.module.generate_shot_video_task(
         worker.task.id, "novel", "chapter", "shot", 1, "workflow", "/api/files/start.png",
         selected_mode=worker.mode, only_window_index=only_window, skip_llm_when_prompt_exists=reuse,
         auto_merge_clips=auto_merge,
     ))
+    if worker.chain:
+        worker.db.expire_all()
+        worker.task = worker.db.get(worker.models.Task, "task")
+        worker.shot = worker.db.get(worker.models.Shot, "shot")
+
+
+@pytest.mark.c03_legal("pending")
+def test_formal_video_execution_reuses_binding_proof_through_preupload_boundary(worker,monkeypatch):
+    worker.configure("SINGLE_FRAME",audio=False)
+    worker.client.base_url="http://comfy.test"
+    worker.upload_failure=True
+    from app.services import shot_video_execution as execution
+    monkeypatch.setattr(execution,"frozen_client",lambda endpoint:worker.client)
+    run_worker(worker)
+    report=execution.binding_validation_report(worker.task)
+    assert worker.task.status=="failed" and worker.task.comfyui_prompt_id is None
+    assert report["full_validations"]==2
+    assert report["proof_reuses"]>0 and report["invalidations"]==1
+    full_reasons=[event["reason"] for event in report["events"] if event["kind"]=="full_validation"]
+    assert full_reasons[0]=="claim_video_execution" and "_record_h3_prompt_call" in full_reasons[1]
+    assert any(event["kind"]=="reused" and event["reason"]=="pre-reference-upload" for event in report["events"])
 
 
 def save_prior_fallback_task(worker, record):
@@ -604,12 +699,13 @@ def test_progress_ai_calls_and_other_clip_edits_do_not_invalidate_semantics(work
     assert record["prequeue_validation"]["final_hash"] == record["final_hash"]
 
 
+@pytest.mark.c03_legal("pending")
 def test_edit_during_llm_is_not_overwritten(worker):
     async def complete(**kwargs):
         edit_plan(worker, lambda plan: plan["clips"][0].update(prompt_text="new manual input", video_url="/new-fact.mp4"))
         return {"success": True, "content": PROMPT}
 
-    worker.llm.side_effect = complete
+    worker.set_llm_responder(complete)
     run_worker(worker)
     plan = json.loads(worker.shot.video_director_plan)
     assert plan["clips"][0]["prompt_text"] == "new manual input"
@@ -618,6 +714,7 @@ def test_edit_during_llm_is_not_overwritten(worker):
     worker.client.queue_prompt.assert_not_awaited()
 
 
+@pytest.mark.c03_legal("claimed")
 def test_genuine_direct_has_nonapplicable_audio_audit(worker):
     worker.configure(audio=False)
     prompt, callback = build(worker)
@@ -777,6 +874,29 @@ def test_prequeue_preparation_must_match_original_text_and_hash(worker, monkeypa
     assert submit(worker, prompt, callback)["success"] is False
     assert records(worker, 1)[0]["errors"][0]["code"] == "PREQUEUE_PROMPT_CHANGED"
     worker.client.queue_prompt.assert_not_awaited()
+
+
+@pytest.mark.c03_legal("pending")
+def test_prequeue_uses_same_rsa_selected_appearances_as_build(worker, monkeypatch):
+    from app.services import runtime_gate
+    from app.services.shot_video_execution import claim_video_execution
+
+    worker.configure("SINGLE_FRAME", audio=False)
+    task = worker.admit_task()
+    worker.task, worker.shot, worker.handle = claim_video_execution(worker.db, task.id)
+
+    original = runtime_gate.resolved_text_context
+
+    def selected_appearances(rsa):
+        context = original(rsa)
+        context["character_appearances"] = {name: "full armor" for name in context["characters"]}
+        return context
+
+    monkeypatch.setattr(runtime_gate, "resolved_text_context", selected_appearances)
+    prompt, callback = build(worker)
+    assert {item["appearance"] for item in callback.validation_record["subject_manifest"]["subjects"]} == {"full armor"}
+    assert submit(worker, prompt, callback)["success"] is True
+    assert callback.validation_record["prequeue_validation"]["subject_manifest"] == callback.validation_record["subject_manifest"]
 
 
 @pytest.mark.parametrize("mode", ["SINGLE_FRAME", "MULTI_KEYFRAME"])
@@ -1242,10 +1362,11 @@ def test_non_h3_callback_rejects_a_graph_that_becomes_h3(worker):
 
 
 @pytest.mark.parametrize("reuse", [False, True])
+@pytest.mark.c03_legal("pending")
 def test_actual_h3_graph_still_rejects_free_prose(worker, reuse):
     prose = "A quiet gate, with a slow camera move."
     worker.configure(audio=False, prompt=prose)
-    worker.llm.return_value = {"success": True, "content": prose}
+    worker.set_llm_response(prose)
     run_worker(worker, reuse=reuse)
     assert worker.task.status == "failed"
     assert records(worker, 1)[0]["errors"][0]["code"] == "UNSUPPORTED_DIRECTOR_FORMAT"

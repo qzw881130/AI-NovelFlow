@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "sourceHash": "09f14b27943324fc8da0e4848a6886dd3e96e987b6973326360874231107452e",
+  "chapterLength": 4741,
+  "sceneBindingCount": 13,
+  "targetStart": 2495,
+  "before": "玄德谢别二客，便命良匠打造双股剑。云长造青龙偃月刀，又名“冷艳锯”，重八十二斤。张飞造丈八点钢矛。",
+  "after": "各置全身铠甲。共聚乡勇五百余人，来见邹靖。邹靖引见太守刘焉。三人参见毕，各通姓名。玄德说起宗派，刘焉大喜，遂认玄德为侄。",
+  "characters": ["刘备", "关羽", "张飞"],
+  "parentScene": "张飞庄",
+  "prefixScene": "涿县",
+  "replacementScenes": ["张飞庄", "涿县"],
+  "legacyStrictV1": {
+    "preserve": ["story", "exact_target_source_coverage", "source_order", "total_duration", "visible_character_union", "prop_union", "scene", "all_non_target_shots", "all_non_target_fields"],
+    "forbidden": ["omit_target_source", "overlap_source", "cross_hard_boundary", "add_story", "add_character_or_prop", "delete_original_visible_character", "change_scene", "change_total_duration", "change_non_target_shot"],
+    "delta": {"version": "shot-contract-auto-repair-v1", "repairType": "SHOT_CROSSES_APPEARANCE_BOUNDARY", "attempt": 1, "budget": 1, "changed": true, "violationsBefore": 1, "violationsAfter": 0, "resolved": 1, "introduced": 0, "outcome": "REPAIRED", "validatorError": null}
+  },
+  "sceneBindings": [
+    {"name": "大兴山", "evidence": "玄德等欣然领军前进，直至大兴山下，与贼相见。", "range": [2648, 2670]},
+    {"name": "巨鹿郡", "evidence": "时巨鹿郡有兄弟三人，一名张角，一名张宝，一名张梁。", "range": [623, 648]},
+    {"name": "广宗", "evidence": "近闻中郎将卢植与贼首张角战于广宗", "range": [3234, 3250]},
+    {"name": "张飞庄", "evidence": "同到张飞庄上，共议大事。", "range": [2095, 2107]},
+    {"name": "村店", "evidence": "遂与同入村店中饮酒。", "range": [1896, 1906]},
+    {"name": "桃园", "evidence": "次日，于桃园中，备下乌牛白马祭礼等项，三人焚香再拜而说誓曰", "range": [2174, 2203]},
+    {"name": "楼桑村", "evidence": "家住本县楼桑村。其家之东南，有一大桑树，高五丈余，遥望之，童童如车盖。", "range": [1525, 1560]},
+    {"name": "洛阳", "evidence": "建宁四年二月，洛阳地震", "range": [377, 388]},
+    {"name": "涿县", "evidence": "榜文行到涿县，引出涿县中一个英雄。", "range": [1331, 1348]},
+    {"name": "温德殿", "evidence": "帝御温德殿。方升座，殿角狂风骤起。", "range": [288, 305]},
+    {"name": "青州城", "evidence": "言黄巾贼围城将陷，乞赐救援。", "range": [2923, 2937]},
+    {"name": "颍川", "evidence": "时皇甫嵩、朱儁领军拒贼，贼战不利，退入长社，依草结营。", "range": [3427, 3454]},
+    {"name": "高冈", "evidence": "玄德引关、张纵马上高冈望之，见汉军大败", "range": [4500, 4519]}
+  ],
+  "expectedSceneDecisions": [
+    {
+      "version": "source-span-aware-scene-v1",
+      "replacementId": 1,
+      "sourceRange": [2495, 2544],
+      "parentScene": "张飞庄",
+      "proposedScene": "张飞庄",
+      "state": "SAME_SCENE",
+      "reason": "PARENT_SUBSPAN_INHERITANCE",
+      "sceneAssetId": "scene-张飞庄",
+      "supportedScenes": []
+    },
+    {
+      "version": "source-span-aware-scene-v1",
+      "replacementId": 2,
+      "sourceRange": [2544, 2604],
+      "parentScene": "张飞庄",
+      "proposedScene": "涿县",
+      "state": "SCENE_UNRESOLVED",
+      "reason": "NO_UNIQUE_CHILD_SPAN_SCENE_SUPPORT",
+      "sceneAssetId": null,
+      "supportedScenes": []
+    }
+  ]
+}

@@ -286,6 +286,46 @@ test('keyframe polling tracks current task, includes queued and cancelled, and n
   assert.equal(h.get().shots[0].videoDirectorPlan.keyframes[1].image_url, 'new.png');
 });
 
+test('completed current keyframe findings hydrate after reload, dedupe, and no-op unchanged polling', async () => {
+  const s = shot();
+  s.keyframes[0].image_task_id = 'review-task';
+  const finding = {
+    findingId: 'finding-1', bookId: 'n', chapterId: 'c', shotId: '46', shotIndex: 46,
+    clipIndex: null, frameIndex: 0, taskId: 'review-task', severity: 'REVIEW_REQUIRED',
+    code: 'UNBOUND_ASSET_REFERENCE', message: 'Reference was not bound to the current asset.',
+    evidence: { firstFailedLlmLogId: 'log-1' }, fallbackAction: 'RETRY_PROMPT_ONCE_SAME_FROZEN_INPUTS', status: 'OPEN',
+    fallbackOutcome: 'SUCCEEDED',
+  };
+  const tasks = [{
+    id: 'review-task', shotId: '46',
+    name: '关键帧 aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa-0', status: 'completed', resultUrl: 'recovered.png',
+    reviewFindings: [{ ...finding, fallbackOutcome: 'PENDING' }, finding],
+  }];
+  const h = storeHarness(s, tasks);
+
+  await h.get().checkKeyframeTaskStatus('c');
+  const restored = h.get().keyframeTasks.find(task => task.taskId === 'review-task');
+  assert.ok(restored);
+  assert.equal(restored.status, 'completed');
+  assert.equal(restored.reviewFindings.length, 1);
+  assert.equal(restored.reviewFindings[0].code, 'UNBOUND_ASSET_REFERENCE');
+  assert.equal(restored.reviewFindings[0].fallbackOutcome, 'SUCCEEDED');
+
+  const writes = h.writes();
+  await h.get().checkKeyframeTaskStatus('c');
+  assert.equal(h.writes(), writes);
+  assert.ok(source('stores/slices/generationSlice.ts').includes('type=keyframe_image&limit=500'));
+});
+
+test('TaskCard keeps review labels and Asset Debug access', () => {
+  const taskCard = readFileSync(new URL('../src/pages/Tasks/components/TaskCard.tsx', import.meta.url), 'utf8');
+  for (const label of ['⚠ 需要人工复核', '回退已恢复', '回退失败', 'Debug / 来源追踪']) {
+    assert.ok(taskCard.includes(label), label);
+  }
+  assert.match(taskCard, /finding\.fallbackAction/);
+  assert.match(taskCard, /finding\.fallbackOutcome/);
+});
+
 test('KF3 replacement survives historical task polling on reload and after later keyframes complete', async () => {
   for (const tracked of [false, true]) {
     const s = shot91();

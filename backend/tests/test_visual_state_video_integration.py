@@ -12,11 +12,12 @@ import sys
 from types import ModuleType, SimpleNamespace
 from unittest.mock import AsyncMock
 
+import httpx
 from PIL import Image
 import pytest
 from sqlalchemy.orm import Session
 
-from test_h3_prompt_worker import PROMPT
+from test_h3_prompt_worker import PROMPT, run_worker
 from test_shot_video_execution import change_task, execution, run, worker
 
 
@@ -142,6 +143,158 @@ def unchanged_shot(state):
     state.db.refresh(state.shot)
     assert {key: getattr(state.shot, key) for key in state.before_shot} == state.before_shot
     assert state.shot_updates == []
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("pending")
+def test_strict_upload_timeout_stops_legal_video_before_binding_audio_queue_cid_or_wait(worker, monkeypatch):
+    state = worker
+    execution_module = __import__("app.services.shot_video_execution", fromlist=["shot_video_execution"])
+    diagnostic_module = __import__(
+        "app.services.external_failure_diagnostic", fromlist=["external_failure_diagnostic"],
+    )
+    state.client.base_url = "http://comfy.test"
+    monkeypatch.setattr(execution_module, "frozen_client", lambda endpoint: state.client)
+
+    async def timeout(path, *, upload_name, payload):
+        assert isinstance(upload_name, str) and type(payload) is bytes and payload
+        payload_hash = sha256(payload).hexdigest()
+        return {
+            "success": False,
+            "message": "Image upload failed: timed out",
+            "external_failure": diagnostic_module.ExternalFailureDiagnostic.build(
+                operation_key={"operation": "UPLOAD_IMAGE", "reference_sha256": payload_hash,
+                               "reference_index": 999, "invocation_no": 1},
+                error_code="VALIDATED_REFERENCE_UPLOAD_FAILED", failure_class="TIMEOUT",
+                stage="REFERENCE_UPLOAD", operation="UPLOAD_IMAGE", service="comfyui", provider="comfyui",
+                scope={"book_id": "client-controlled", "task_id": "client-controlled", "reference_index": 999},
+                reference={"reference_index": 999, "filename": upload_name, "bytes": len(payload),
+                           "sha256": payload_hash},
+                external_call={
+                    "endpoint": "http://comfy.test/upload/image", "method": "POST", "timeout_ms": 30000,
+                    "exception_type": "ReadTimeout", "exception_message": "timed out",
+                    "receipt_status": "NOT_RECEIVED",
+                },
+                submission={
+                    "queue_called": False, "submitted": False, "state": "NOT_SUBMITTED", "cid": None,
+                    "queue_seen": False, "remote_upload_effect": "UNKNOWN",
+                },
+            ),
+        }
+
+    state.client.upload_image.side_effect = timeout
+    run_worker(state)
+    task = state.task
+    data = json.loads(task.metadata_json)
+    slot = data["video_run"]["clips"]["1"]
+    failure = slot["external_failure"]
+    assert (task.status, task.error_message, task.comfyui_prompt_id) == (
+        "failed", "VALIDATED_REFERENCE_UPLOAD_FAILED", None,
+    )
+    assert data["video_run"]["failure"]["external_failure_id"] == failure["diagnostic_id"]
+    assert slot["state"] == "FAILED" and slot["submission"] == {"state": "not_submitted"}
+    assert slot["receipt"] is None and "rsa_uploads" not in slot
+    assert failure["failure_class"] == "TIMEOUT"
+    assert failure["scope"]["book_id"] == task.novel_id != "client-controlled"
+    assert failure["scope"]["task_id"] == task.id != "client-controlled"
+    assert failure["scope"]["clip_index"] == 1
+    assert failure["scope"]["reference_index"] == failure["reference"]["reference_index"] == 0
+    binding = data["rsa_binding"]
+    assert failure["upstream"] == {
+        "rsa_id": binding["rsa_id"], "rsa_hash": binding["rsa_hash"], "manifest_hash": binding["seal"],
+    }
+    expected_source = next(item for item in binding["images"]
+                           if item["sha256"] == failure["reference"]["sha256"]
+                           and item["url"] == data["execution"]["working_shot"]["image_url"])
+    assert failure["reference"]["source_id"] == expected_source["id"]
+    assert failure["submission"] == {
+        "queue_called": False, "submitted": False, "state": "NOT_SUBMITTED", "cid": None,
+        "queue_seen": False, "remote_upload_effect": "UNKNOWN",
+    }
+    event = next(item for item in data["video_observations"] if item["kind"] == "worker-result")
+    path = Path(event["evidence"]["path"])
+    assert sha256(path.read_bytes()).hexdigest() == event["evidence"]["sha256"] == failure["evidence"]["sha256"]
+    assert path.stat().st_size <= 32 * 1024
+    canonical_evidence = json.dumps(
+        json.loads(path.read_text()), ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False,
+    ).encode()
+    assert failure["evidence"]["evidence_id"] == "ev1_" + sha256(canonical_evidence).hexdigest()
+    state.client.upload_image.assert_awaited_once()
+    state.client.upload_audio.assert_not_awaited()
+    state.client.queue_prompt.assert_not_awaited()
+    state.client.wait_for_result.assert_not_awaited()
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("pending")
+@pytest.mark.parametrize("case", ["authorization-token", "windows-path"])
+def test_real_client_service_worker_persistence_redacts_reviewer_canaries(worker, monkeypatch, case):
+    state = worker
+    execution_module = __import__("app.services.shot_video_execution", fromlist=["shot_video_execution"])
+    client_path = Path(__file__).resolve().parents[1] / "app/services/comfyui/client.py"
+    client_spec = importlib.util.spec_from_file_location("_stage_a_real_comfy_client", client_path)
+    client_module = importlib.util.module_from_spec(client_spec)
+    client_spec.loader.exec_module(client_module)
+    seen = {}
+    auth_canary = "STAGE_A_AUTH_CANARY_9465"
+    windows_canary = r"C:\ComfyUI\private project\reference.png"
+
+    def handler(request):
+        if case == "authorization-token":
+            response = httpx.Response(
+                503,
+                content=("upstream denied request\nAuthorization: Token " + auth_canary).encode(),
+                headers={"content-type": "text/plain"},
+            )
+        else:
+            response = httpx.Response(
+                200, json={"name": windows_canary, "subfolder": "", "type": "input"},
+            )
+        seen["status"] = response.status_code
+        seen["body"] = response.content
+        seen["content_type"] = response.headers.get("content-type")
+        return response
+
+    transport = httpx.MockTransport(handler)
+
+    class ProbeClient(client_module.ComfyUIClient):
+        @property
+        def base_url(self):
+            return "http://comfy.test"
+
+        def _client(self):
+            return httpx.AsyncClient(transport=transport, trust_env=False)
+
+    probe = ProbeClient()
+    state.client.base_url = "http://comfy.test"
+    state.client.upload_image.side_effect = probe.upload_image
+    monkeypatch.setattr(execution_module, "frozen_client", lambda endpoint: state.client)
+    run_worker(state)
+
+    task = state.task
+    data = json.loads(task.metadata_json)
+    compact = data["video_run"]["clips"]["1"]["external_failure"]
+    event = next(item for item in data["video_observations"] if item["kind"] == "worker-result")
+    evidence_path = Path(event["evidence"]["path"])
+    evidence_text = evidence_path.read_text()
+    detailed = json.loads(evidence_text)["result"]["external_failure"]
+    for canary in (auth_canary, windows_canary):
+        assert canary not in evidence_text
+        assert canary not in json.dumps(compact, ensure_ascii=False)
+    call = detailed["external_call"]
+    assert call["http_status"] == seen["status"]
+    assert call["response_body_bytes"] == len(seen["body"])
+    assert call["response_body_sha256"] == sha256(seen["body"]).hexdigest()
+    assert call["response_content_type"] == seen["content_type"]
+    assert detailed["redacted"] is True
+    assert compact["external_call"]["response_body_sha256"] == call["response_body_sha256"]
+    assert (task.status, task.error_message, task.comfyui_prompt_id) == (
+        "failed", "VALIDATED_REFERENCE_UPLOAD_FAILED", None,
+    )
+    assert data["video_run"]["clips"]["1"]["submission"] == {"state": "not_submitted"}
+    state.client.upload_audio.assert_not_awaited()
+    state.client.queue_prompt.assert_not_awaited()
+    state.client.wait_for_result.assert_not_awaited()
 
 
 def no_generation(state, task, *, prompt_started=False, uploads=0):

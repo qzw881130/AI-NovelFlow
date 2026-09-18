@@ -134,6 +134,9 @@ def test_fresh_init_is_idempotent_and_keeps_anime_fallback(isolated, autoflush):
     s.service.init_system_templates()
     first = snapshot(s.db.query(s.template).all())
     assert len(first) == len(s.catalog.SYSTEM_PROMPT_TEMPLATES)
+    repair=s.service.get_default_system_template('shot_contract_repair')
+    assert repair.name=='分镜契约自动修复 V1' and repair.is_system and repair.is_active
+    assert '[version: shot-contract-auto-repair-v1]' in repair.template
     styles = s.service.list_templates("style")
     assert len(styles) == 12
     assert all(style.is_system and style.is_active for style in styles)
@@ -214,7 +217,7 @@ def test_upgrade_preserves_ids_bindings_customs_and_effective_fallback(isolated,
     s.service.init_system_templates()
     s.db.expire_all()
     assert len(s.service.list_templates("style")) == 12 + 13
-    assert s.db.query(s.template).count() == len(legacy_rows) + len(customs) + 1 + 8
+    assert s.db.query(s.template).count() == len(legacy_rows) + len(customs) + 1 + 9
     assert snapshot(customs + [other_type] + novels + saved_assets) == protected
     catalog_by_key = {(data["name"], data["type"]): data for data in s.catalog.SYSTEM_PROMPT_TEMPLATES}
     for row in legacy_rows:

@@ -32,16 +32,19 @@ def test_merge_validation_and_atomic_publication(tmp_path, monkeypatch, failure,
         if cmd[0] == "ffprobe":
             if failure == "probe":
                 return subprocess.CompletedProcess(cmd, 1, "", "probe failed")
-            streams = [{"codec_type": "video", "width": 64, "height": 64, "nb_read_frames": "24"}]
-            if has_audio:
-                streams.append({"codec_type": "audio", "duration_ts": "24000", "time_base": "1/48000"})
+            merged = Path(cmd[-1]).name == "merged.mp4"
+            streams = [{"codec_type": "video", "width": 64, "height": 64,
+                        "nb_read_frames": "48" if merged else "24"}]
+            if has_audio or merged:
+                streams.append({"codec_type": "audio", "duration_ts": "96000" if merged else "24000",
+                                "time_base": "1/48000"})
             return subprocess.CompletedProcess(cmd, 0, json.dumps({"streams": streams}), "")
         if cmd[-2:] == ["null", "-"]:
             path = Path(cmd[cmd.index("-i") + 1])
             error = ""
-            if path in sources and failure == "source":
+            if path.name == "frozen_000.mp4" and failure == "source":
                 error = "Invalid NAL unit; non-existing PPS; decode_slice_header error"
-            if path.name == "merged.mp4":
+            if path.name == "merged.mp4" and "0:v:0" in cmd:
                 candidate_validations += 1
                 if failure == "decode":
                     error = "Invalid NAL unit"
@@ -53,6 +56,8 @@ def test_merge_validation_and_atomic_publication(tmp_path, monkeypatch, failure,
         return subprocess.CompletedProcess(cmd, code, "", "encoder failed" if code else "")
 
     async def run_process(self, cmd, on_time=None):
+        if on_time is not None and "0:a:0" in cmd and cmd[-2:] == ["null", "-"]:
+            await on_time(2.0)
         return run(cmd)
 
     monkeypatch.setattr(FileStorageService, "_run_merge_process", run_process)
@@ -72,7 +77,10 @@ def test_merge_validation_and_atomic_publication(tmp_path, monkeypatch, failure,
     normalizations = [cmd for cmd in calls if "-vf" in cmd]
     if failure in {"source", "missing", "probe"}:
         assert not normalizations
-        assert str(sources[1 if failure == "missing" else 0]) in result["message"]
+        if failure == "missing":
+            assert str(sources[1]) in result["message"]
+        else:
+            assert "frozen_000.mp4" in result["message"]
     else:
         assert len(normalizations) == (1 if failure == "normalize" else 2)
         for cmd in normalizations:

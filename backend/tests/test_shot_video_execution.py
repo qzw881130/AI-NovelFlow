@@ -2,6 +2,7 @@
 import asyncio
 from copy import deepcopy
 from datetime import datetime, timedelta
+import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -11,7 +12,8 @@ from uuid import uuid4
 
 import pytest
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import Session
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import Query, Session
 from sqlalchemy.pool import QueuePool
 
 from test_h3_prompt_worker import worker, PROMPT
@@ -507,6 +509,352 @@ def test_artifact_captures_are_unique_and_never_deleted_on_failure(execution):
     assert all(path.parent == Path(handle["directory"]) for path in destinations)
 
 
+def external_upload_failure():
+    from app.services.external_failure_diagnostic import ExternalFailureDiagnostic
+    payload = b"frozen-reference"
+    return ExternalFailureDiagnostic.build(
+        operation_key={"operation": "UPLOAD_IMAGE", "reference_sha256": hashlib.sha256(payload).hexdigest(),
+                       "reference_index": 0, "invocation_no": 1},
+        error_code="VALIDATED_REFERENCE_UPLOAD_FAILED", failure_class="TIMEOUT",
+        stage="REFERENCE_UPLOAD", operation="UPLOAD_IMAGE", service="comfyui", provider="comfyui",
+        scope={"book_id": "client-controlled", "task_id": "client-controlled", "reference_index": 0},
+        reference={"reference_index": 0, "filename": "visual-state-test.png", "bytes": len(payload),
+                   "sha256": hashlib.sha256(payload).hexdigest()},
+        external_call={
+            "endpoint": "http://user:password@comfy.test/upload/image?token=secret#fragment",
+            "method": "POST", "timeout_ms": 30000, "exception_type": "ReadTimeout",
+            "exception_message": "timed out", "receipt_status": "NOT_RECEIVED",
+        },
+        submission={
+            "queue_called": False, "submitted": False, "state": "NOT_SUBMITTED", "cid": None,
+            "queue_seen": False, "remote_upload_effect": "UNKNOWN",
+        },
+    )
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("claimed")
+def test_external_upload_failure_archives_detail_and_commits_compact_with_terminal_cas(worker):
+    state = worker
+    module = sys.modules["app.services.shot_video_execution"]
+    task, shot, handle = state.task, state.shot, state.handle
+    data = module.check_current(state.db, handle)[1]
+    slot = deepcopy(data["video_run"]["clips"]["1"])
+    result = {
+        "success": False,
+        "failure_kind": "VISUAL_STATE_REFERENCE_REJECTED",
+        "message": "VALIDATED_REFERENCE_UPLOAD_FAILED",
+        "external_failure": external_upload_failure(),
+    }
+
+    compact = module._observe_external_failure(state.db, handle, task, shot, slot, 1, result)
+    assert compact is not None
+    assert module.fail_execution(
+        state.db, handle, result["message"], clip_index=1, external_failure=compact,
+    ) is True
+
+    state.db.refresh(task)
+    saved = json.loads(task.metadata_json)
+    saved_slot = saved["video_run"]["clips"]["1"]
+    assert (task.status, task.error_message, task.comfyui_prompt_id) == (
+        "failed", "VALIDATED_REFERENCE_UPLOAD_FAILED", None,
+    )
+    assert saved["video_run"]["failure"] == {
+        "message": "VALIDATED_REFERENCE_UPLOAD_FAILED", "clip_index": 1,
+        "external_failure_id": compact["diagnostic_id"],
+    }
+    assert saved_slot["external_failure"] == compact
+    assert saved_slot["submission"] == {"state": "not_submitted"}
+    assert saved_slot["receipt"] is None and "rsa_uploads" not in saved_slot
+    assert compact["scope"] == {
+        "book_id": task.novel_id, "chapter_id": task.chapter_id, "shot_id": task.shot_id,
+        "shot_index": shot.index, "clip_index": 1, "frame_index": None, "reference_index": 0,
+        "task_id": task.id, "attempt_kind": "VIDEO_CLIP", "attempt_id": slot["attempt_id"],
+        "attempt_no": handle["attempt"], "retry_no": None,
+    }
+    assert compact["submission"] == {
+        "queue_called": False, "submitted": False, "state": "NOT_SUBMITTED", "cid": None,
+        "queue_seen": False, "remote_upload_effect": "UNKNOWN",
+    }
+    assert compact["reference"]["source_id"] is not None
+    assert len(json.dumps(compact, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()) <= 4 * 1024
+    event = next(item for item in saved["video_observations"] if item["kind"] == "worker-result")
+    path = Path(event["evidence"]["path"])
+    assert path.is_file() and path.stat().st_size <= 32 * 1024
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == event["evidence"]["sha256"] == compact["evidence"]["sha256"]
+    assert compact["evidence"]["path"] == path.name
+    evidence_value = json.loads(path.read_text())
+    canonical_evidence = json.dumps(
+        evidence_value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False,
+    ).encode()
+    assert compact["evidence"]["evidence_id"] == "ev1_" + hashlib.sha256(canonical_evidence).hexdigest()
+    detailed = evidence_value["result"]["external_failure"]
+    assert len(json.dumps(detailed, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()) <= 32 * 1024
+    assert detailed["diagnostic_id"] == compact["diagnostic_id"]
+    assert detailed["scope"]["task_id"] == task.id != "client-controlled"
+    assert detailed["external_call"]["endpoint"] == "http://comfy.test/upload/image"
+    state.client.upload_image.assert_not_awaited()
+    state.client.upload_audio.assert_not_awaited()
+    state.client.queue_prompt.assert_not_awaited()
+    state.client.wait_for_result.assert_not_awaited()
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("claimed")
+def test_external_failure_owner_loss_keeps_only_detached_evidence(worker):
+    state = worker
+    module = sys.modules["app.services.shot_video_execution"]
+    task, shot, handle = state.task, state.shot, state.handle
+    slot = deepcopy(module.check_current(state.db, handle)[1]["video_run"]["clips"]["1"])
+    result = {
+        "success": False, "failure_kind": "VISUAL_STATE_REFERENCE_REJECTED",
+        "message": "VALIDATED_REFERENCE_UPLOAD_FAILED", "external_failure": external_upload_failure(),
+    }
+    compact = module._observe_external_failure(state.db, handle, task, shot, slot, 1, result)
+    evidence_path = Path(next(
+        item for item in json.loads(task.metadata_json)["video_observations"] if item["kind"] == "worker-result"
+    )["evidence"]["path"])
+    with Session(state.engine) as editor:
+        replacement = editor.get(state.models.Task, task.id)
+        replacement.claim_token = "new-owner"
+        replacement.attempt = 8
+        replacement.current_step = "Replacement owns task"
+        editor.commit()
+
+    assert module.fail_execution(
+        state.db, handle, result["message"], clip_index=1, external_failure=compact,
+    ) is False
+    state.db.refresh(task)
+    saved = json.loads(task.metadata_json)
+    assert (task.status, task.claim_token, task.attempt, task.current_step) == (
+        "running", "new-owner", 8, "Replacement owns task",
+    )
+    assert "external_failure" not in saved["video_run"]["clips"]["1"]
+    assert "failure" not in saved["video_run"]
+    assert evidence_path.is_file()
+    assert hashlib.sha256(evidence_path.read_bytes()).hexdigest() == compact["evidence"]["sha256"]
+    state.client.queue_prompt.assert_not_awaited()
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("claimed")
+def test_worker_result_observation_failure_cannot_replace_business_terminal_state(worker, monkeypatch):
+    state = worker
+    module = sys.modules["app.services.shot_video_execution"]
+    task, shot, handle = state.task, state.shot, state.handle
+    slot = deepcopy(module.check_current(state.db, handle)[1]["video_run"]["clips"]["1"])
+    original_observe = module.observe
+
+    def fail_worker_result(db, current_handle, kind, value):
+        if kind == "worker-result":
+            raise OSError("observation store unavailable")
+        return original_observe(db, current_handle, kind, value)
+
+    monkeypatch.setattr(module, "observe", fail_worker_result)
+    result = {
+        "success": False, "failure_kind": "VISUAL_STATE_REFERENCE_REJECTED",
+        "message": "VALIDATED_REFERENCE_UPLOAD_FAILED", "external_failure": external_upload_failure(),
+    }
+    compact = module._observe_external_failure(state.db, handle, task, shot, slot, 1, result)
+    assert compact is not None and compact["evidence"]["sha256"] is None
+    assert module.fail_execution(
+        state.db, handle, result["message"], clip_index=1, external_failure=compact,
+    ) is True
+    state.db.refresh(task)
+    saved = json.loads(task.metadata_json)
+    assert task.status == "failed"
+    assert task.error_message == "VALIDATED_REFERENCE_UPLOAD_FAILED"
+    assert saved["video_run"]["failure"]["message"] == "VALIDATED_REFERENCE_UPLOAD_FAILED"
+    assert saved["video_run"]["clips"]["1"]["external_failure"]["diagnostic_id"] == compact["diagnostic_id"]
+    assert not any(item["kind"] == "worker-result" for item in saved.get("video_observations", []))
+    state.client.upload_audio.assert_not_awaited()
+    state.client.queue_prompt.assert_not_awaited()
+    state.client.wait_for_result.assert_not_awaited()
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("claimed")
+def test_observation_commit_failure_rolls_back_and_business_failure_still_settles(worker, monkeypatch):
+    state = worker
+    module = sys.modules["app.services.shot_video_execution"]
+    task, shot, handle = state.task, state.shot, state.handle
+    slot = deepcopy(module.check_current(state.db, handle)[1]["video_run"]["clips"]["1"])
+    result = {
+        "success": False, "failure_kind": "VISUAL_STATE_REFERENCE_REJECTED",
+        "message": "VALIDATED_REFERENCE_UPLOAD_FAILED", "external_failure": external_upload_failure(),
+    }
+    dialect = state.db.get_bind().dialect
+    original_do_commit = dialect.do_commit
+    failed = []
+
+    def fail_once(dbapi_connection):
+        if not failed:
+            failed.append(True)
+            raise OperationalError("COMMIT", {}, RuntimeError("synthetic observation commit failure"))
+        return original_do_commit(dbapi_connection)
+
+    monkeypatch.setattr(dialect, "do_commit", fail_once)
+    compact = module._observe_external_failure(state.db, handle, task, shot, slot, 1, result)
+    monkeypatch.setattr(dialect, "do_commit", original_do_commit)
+    assert failed and compact is not None
+    assert module.fail_execution(
+        state.db, handle, result["message"], clip_index=1, external_failure=compact,
+    ) is True
+    state.db.refresh(task)
+    saved = json.loads(task.metadata_json)
+    production_shot = state.db.get(state.models.Shot, task.shot_id)
+    assert (task.status, task.error_message, production_shot.video_status) == (
+        "failed", "VALIDATED_REFERENCE_UPLOAD_FAILED", "failed",
+    )
+    assert saved["video_run"]["clips"]["1"]["submission"] == {"state": "not_submitted"}
+    assert task.comfyui_prompt_id is None
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("claimed")
+def test_real_metadata_cas_exhaustion_drops_compact_not_business_failure(worker, monkeypatch):
+    state = worker
+    module = sys.modules["app.services.shot_video_execution"]
+    task, shot, handle = state.task, state.shot, state.handle
+    slot = deepcopy(module.check_current(state.db, handle)[1]["video_run"]["clips"]["1"])
+    result = {
+        "success": False, "failure_kind": "VISUAL_STATE_REFERENCE_REJECTED",
+        "message": "VALIDATED_REFERENCE_UPLOAD_FAILED", "external_failure": external_upload_failure(),
+    }
+    compact = module._observe_external_failure(state.db, handle, task, shot, slot, 1, result)
+    original_update = Query.update
+    conflicts = []
+
+    def update_with_real_conflict(query, values, *args, **kwargs):
+        encoded = values.get("metadata_json") if isinstance(values, dict) else None
+        if (isinstance(encoded, str) and compact["diagnostic_id"] in encoded and len(conflicts) < 4):
+            with Session(state.engine) as editor:
+                current = editor.get(state.models.Task, task.id)
+                data = json.loads(current.metadata_json)
+                data["independent_metadata_counter"] = len(conflicts) + 1
+                current.metadata_json = json.dumps(data)
+                editor.commit()
+            conflicts.append(True)
+        return original_update(query, values, *args, **kwargs)
+
+    monkeypatch.setattr(Query, "update", update_with_real_conflict)
+    assert module.fail_execution(
+        state.db, handle, result["message"], clip_index=1, external_failure=compact,
+    ) is True
+    state.db.refresh(task)
+    saved = json.loads(task.metadata_json)
+    production_shot = state.db.get(state.models.Shot, task.shot_id)
+    assert len(conflicts) == 4 and saved["independent_metadata_counter"] == 4
+    assert (task.status, task.error_message, production_shot.video_status) == (
+        "failed", "VALIDATED_REFERENCE_UPLOAD_FAILED", "failed",
+    )
+    assert "CLIP_ACK_UNKNOWN" not in task.error_message
+    assert "external_failure" not in saved["video_run"]["clips"]["1"]
+    assert "external_failure_id" not in saved["video_run"]["failure"]
+    assert saved["video_run"]["clips"]["1"]["submission"] == {"state": "not_submitted"}
+    assert task.comfyui_prompt_id is None
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("claimed")
+def test_compact_task_update_operational_error_retries_original_business_failure(worker, monkeypatch):
+    state = worker
+    module = sys.modules["app.services.shot_video_execution"]
+    task, shot, handle = state.task, state.shot, state.handle
+    slot = deepcopy(module.check_current(state.db, handle)[1]["video_run"]["clips"]["1"])
+    result = {
+        "success": False, "failure_kind": "VISUAL_STATE_REFERENCE_REJECTED",
+        "message": "VALIDATED_REFERENCE_UPLOAD_FAILED", "external_failure": external_upload_failure(),
+    }
+    compact = module._observe_external_failure(state.db, handle, task, shot, slot, 1, result)
+    dialect = state.db.get_bind().dialect
+    original_do_execute = dialect.do_execute
+    injected = []
+
+    def fail_compact_update_once(cursor, statement, parameters, context=None):
+        if (not injected and statement.lstrip().upper().startswith("UPDATE TASKS")
+                and compact["diagnostic_id"] in str(parameters)):
+            injected.append(True)
+            raise OperationalError(statement, parameters, RuntimeError("synthetic compact UPDATE failure"))
+        return original_do_execute(cursor, statement, parameters, context)
+
+    monkeypatch.setattr(dialect, "do_execute", fail_compact_update_once)
+    assert module.fail_execution(
+        state.db, handle, result["message"], clip_index=1, external_failure=compact,
+    ) is True
+    state.db.refresh(task)
+    saved = json.loads(task.metadata_json)
+    production_shot = state.db.get(state.models.Shot, task.shot_id)
+    assert injected == [True]
+    assert (task.status, task.error_message, production_shot.video_status) == (
+        "failed", "VALIDATED_REFERENCE_UPLOAD_FAILED", "failed",
+    )
+    assert "external_failure" not in saved["video_run"]["clips"]["1"]
+    assert "external_failure_id" not in saved["video_run"]["failure"]
+    assert saved["video_run"]["clips"]["1"]["submission"] == {"state": "not_submitted"}
+    assert task.comfyui_prompt_id is None
+    assert "CLIP_ACK_UNKNOWN" not in task.error_message
+    assert not any(item.get("kind") == "history-observed" for item in saved.get("video_observations", []))
+    state.client.queue_prompt.assert_not_awaited()
+    state.client.wait_for_result.assert_not_awaited()
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("claimed")
+def test_second_business_terminal_database_error_is_not_silently_ignored(worker, monkeypatch):
+    state = worker
+    module = sys.modules["app.services.shot_video_execution"]
+    task, shot, handle = state.task, state.shot, state.handle
+    slot = deepcopy(module.check_current(state.db, handle)[1]["video_run"]["clips"]["1"])
+    result = {
+        "success": False, "failure_kind": "VISUAL_STATE_REFERENCE_REJECTED",
+        "message": "VALIDATED_REFERENCE_UPLOAD_FAILED", "external_failure": external_upload_failure(),
+    }
+    compact = module._observe_external_failure(state.db, handle, task, shot, slot, 1, result)
+    dialect = state.db.get_bind().dialect
+    original_do_execute = dialect.do_execute
+    failures = []
+
+    def fail_both_task_updates(cursor, statement, parameters, context=None):
+        if statement.lstrip().upper().startswith("UPDATE TASKS"):
+            failures.append(str(parameters))
+            raise OperationalError(statement, parameters, RuntimeError("persistent Task UPDATE failure"))
+        return original_do_execute(cursor, statement, parameters, context)
+
+    monkeypatch.setattr(dialect, "do_execute", fail_both_task_updates)
+    with pytest.raises(OperationalError, match="persistent Task UPDATE failure"):
+        module.fail_execution(
+            state.db, handle, result["message"], clip_index=1, external_failure=compact,
+        )
+    state.db.rollback();state.db.refresh(task)
+    assert len(failures) == 2
+    assert task.status == "running" and task.error_message is None
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("claimed")
+def test_failure_sidecar_write_failure_cannot_block_business_terminal_state(worker, monkeypatch):
+    state = worker
+    module = sys.modules["app.services.shot_video_execution"]
+    task, handle = state.task, state.handle
+    original_capture = module.capture
+
+    def fail_failure_capture(current_handle, kind, value):
+        if kind == "failure":
+            raise OSError("failure evidence unavailable")
+        return original_capture(current_handle, kind, value)
+
+    monkeypatch.setattr(module, "capture", fail_failure_capture)
+    assert module.fail_execution(
+        state.db, handle, "VALIDATED_REFERENCE_UPLOAD_FAILED", clip_index=1,
+    ) is True
+    state.db.refresh(task)
+    saved = json.loads(task.metadata_json)
+    assert task.status == "failed"
+    assert task.error_message == "VALIDATED_REFERENCE_UPLOAD_FAILED"
+    assert saved["video_run"]["clips"]["1"]["state"] == "FAILED"
+
+
 def test_recovery_wins_during_worker_download_and_both_captures_survive(execution):
     state, module = execution, execution.execution
     interrupted = []
@@ -548,21 +896,108 @@ def test_recovery_expiry_cas_loses_to_renewed_heartbeat(execution, monkeypatch):
     execution.client.get_prompt_state.assert_not_awaited()
 
 
-def test_heartbeat_uses_a_separate_session_and_stops_on_terminal(execution, monkeypatch):
-    module = execution.execution
-    task, shot, handle = module.claim_video_execution(execution.db, "task")
-    change_task(execution, heartbeat_at=datetime.utcnow() - timedelta(seconds=20))
-    original = execution.db.get(execution.models.Task, "task").heartbeat_at
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("claimed")
+def test_heartbeat_uses_a_separate_session_and_stops_on_terminal(worker, monkeypatch):
+    state = worker
+    module = sys.modules["app.services.shot_video_execution"]
+    task, handle = state.task, state.handle
+    change_task(state, heartbeat_at=datetime.utcnow() - timedelta(seconds=20))
+    original = state.db.get(state.models.Task, "task").heartbeat_at
+    monkeypatch.setattr(
+        sys.modules["app.services.runtime_gate"], "validate_video_binding",
+        lambda *args, **kwargs: pytest.fail("heartbeat must not rerun the full asset gate"),
+    )
     monkeypatch.setattr(module, "HEARTBEAT_SECONDS", 0.001)
     async def exercise():
-        heartbeat = asyncio.create_task(module._heartbeat(handle, lambda: Session(execution.engine)))
+        heartbeat = asyncio.create_task(module._heartbeat(handle, lambda: Session(state.engine)))
         await asyncio.sleep(0.025)
-        change_task(execution, status="cancelled")
+        change_task(state, status="cancelled")
         await asyncio.wait_for(heartbeat, timeout=1)
     asyncio.run(exercise())
-    execution.db.refresh(task)
+    state.db.refresh(task)
     assert task.status == "cancelled"
     assert task.heartbeat_at > original
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("claimed")
+def test_execution_binding_proof_reuses_unchanged_state_and_external_boundary(worker):
+    state=worker;module=sys.modules["app.services.shot_video_execution"]
+    report=module.binding_validation_report(state.task)
+    assert report["full_validations"]==1 and report["proof_reuses"]==0
+
+    module.check_current(state.db,state.handle)
+    module.check_current(state.db,state.handle,binding_reason="pre-reference-upload")
+    report=module.binding_validation_report(state.task)
+    assert report["full_validations"]==1 and report["proof_reuses"]==2 and report["invalidations"]==0
+    assert report["events"][-1]["reason"]=="pre-reference-upload"
+
+    module.invalidate_binding_proof(state.task,"synthetic-await")
+    module.check_current(state.db,state.handle)
+    report=module.binding_validation_report(state.task)
+    assert report["full_validations"]==2 and report["invalidations"]==1
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("claimed")
+@pytest.mark.parametrize("mutation",["bytes","appearance","manifest","parent"])
+def test_execution_binding_proof_invalidates_changed_dependencies(worker,mutation):
+    state=worker;module=sys.modules["app.services.shot_video_execution"]
+    runtime=sys.modules["app.services.runtime_gate"]
+    binding=json.loads(state.task.metadata_json)["rsa_binding"]
+    proof=module.binding_validation_report(state.task)["proof"]
+    assert runtime.validated_binding_proof_current(state.db,state.task,binding,proof)
+
+    if mutation=="bytes":
+        path=state.chain.root/binding["images"][0]["url"].removeprefix("/api/files/")
+        path.write_bytes(b"changed-image-bytes")
+    elif mutation=="appearance":
+        state.chain.actors[0].appearance+=" changed";state.db.commit()
+    elif mutation=="manifest":
+        artifact=state.chain.primary;data=deepcopy(artifact.data)
+        data["manifest"][0]["composition"]["method"]="TAMPERED";artifact.data=data;artifact.seal=module.digest(data);state.db.commit()
+    else:
+        from app.models.resolved_shot_assets import ResolvedImageVersion
+        identity=state.chain.primary.data["parents"][0]["reference"]["image_revision_id"]
+        parent=state.db.get(ResolvedImageVersion,identity);data=deepcopy(parent.data)
+        data["snapshot"]={**data["snapshot"],"sha256":"0"*64};parent.data=data;state.db.commit()
+
+    assert not runtime.validated_binding_proof_current(state.db,state.task,binding,proof)
+    with pytest.raises(module.ExecutionConflict,match="VIDEO_ASSET_GATE"):
+        module.check_current(state.db,state.handle)
+    report=module.binding_validation_report(state.task)
+    assert report["invalidations"]==1 and report["full_validations"]==2
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("claimed")
+def test_execution_binding_proof_does_not_bypass_manual_edit_or_owner_change(worker):
+    state=worker;module=sys.modules["app.services.shot_video_execution"]
+    with Session(state.engine) as editor:
+        shot=editor.get(state.models.Shot,"shot");shot.description+=" manual edit";editor.commit()
+    with pytest.raises(module.ExecutionConflict):
+        module.check_current(state.db,state.handle)
+
+    state.db.rollback();state.db.expire_all()
+    with Session(state.engine) as editor:
+        task=editor.get(state.models.Task,"task");task.claim_token="replacement-owner";editor.commit()
+    with pytest.raises(module.ExecutionConflict,match="VIDEO_EXECUTION_REPLACED"):
+        module.check_current(state.db,state.handle)
+
+
+@pytest.mark.CANONICAL_DB
+@pytest.mark.c03_legal("claimed")
+def test_execution_binding_proof_is_memory_only_across_fresh_session(worker):
+    state=worker;module=sys.modules["app.services.shot_video_execution"]
+    assert module.binding_validation_report(state.task)["full_validations"]==1
+    with Session(state.engine) as resumed:
+        task=resumed.get(state.models.Task,"task");data=module.metadata(task);handle=module._handle(task,data)
+        task._video_execution=handle
+        assert module.binding_validation_report(task) is None
+        module.check_current(resumed,handle)
+        report=module.binding_validation_report(task)
+        assert report["full_validations"]==1 and report["proof_reuses"]==0
 
 
 @pytest.mark.parametrize("execution", [{"reuse": False, "mode": "SINGLE_FRAME"}], indirect=True)

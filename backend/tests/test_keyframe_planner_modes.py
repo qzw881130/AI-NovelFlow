@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from app.api import shots
 from app.models.shot import Shot
+from app.services.prompt_template_service import SYSTEM_PROMPT_TEMPLATES
 
 
 def planner_result(mode, count=3, duration=14.3):
@@ -22,6 +23,18 @@ def planner_result(mode, count=3, duration=14.3):
             {"window_index": 1, "selected_frame_count": count, "keyframe_indexes": list(range(1, count + 1))}
         ],
     }
+
+
+def test_active_keyframe_registry_freezes_single_scene_shot_contract():
+    directors=[item for item in SYSTEM_PROMPT_TEMPLATES if item['type']=='chapter_split']
+    assert len(directors)==1
+    assert '【R-SC1 / Single-Scene Shot 硬约束】' in directors[0]['template']
+    planners=[item for item in SYSTEM_PROMPT_TEMPLATES if item['type']=='keyframe_planner']
+    assert len(planners)==1
+    prompt=planners[0]['template']
+    assert '【R-SC1 / Single-Scene Shot】' in prompt
+    assert '全部关键帧只能发生在这一个 canonical Scene asset 中' in prompt
+    assert '除非 Shot 本身明确发生场景边界变化且仍属于同一个导演 Shot' not in prompt
 
 
 @pytest.mark.parametrize("windows", [[], [{"window_index": 1, "audio_status": "READY"}]])

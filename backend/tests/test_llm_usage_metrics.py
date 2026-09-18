@@ -154,14 +154,19 @@ def test_sqlite_upgrade_is_idempotent_and_preserves_old_rows():
     with engine.begin() as conn:
         conn.execute(text("CREATE TABLE llm_logs (id VARCHAR PRIMARY KEY, response TEXT, created_at DATETIME, status VARCHAR)"))
         conn.execute(text("INSERT INTO llm_logs (id, response) VALUES ('old', 'keep')"))
+        conn.execute(text("CREATE TABLE novels (id VARCHAR PRIMARY KEY, title VARCHAR NOT NULL)"))
+        conn.execute(text("INSERT INTO novels (id, title) VALUES ('old-novel', 'keep novel')"))
     upgrade_sqlite_schema(engine)
     upgrade_sqlite_schema(engine)
     assert [column["name"] for column in inspect(engine).get_columns("llm_logs")].count("usage_metrics") == 1
+    assert [column["name"] for column in inspect(engine).get_columns("llm_logs")].count("execution_metadata") == 1
+    assert [column["name"] for column in inspect(engine).get_columns("novels")].count("shot_contract_repair_prompt_template_id") == 1
     indexes = {index["name"]: index["column_names"] for index in inspect(engine).get_indexes("llm_logs")}
     assert indexes["ix_llm_logs_created_at_id"] == ["created_at", "id"]
     assert indexes["ix_llm_logs_status_created_at"] == ["status", "created_at"]
     with engine.begin() as conn:
-        assert conn.execute(text("SELECT response, usage_metrics, duration FROM llm_logs")).one() == ("keep", None, None)
+        assert conn.execute(text("SELECT response, usage_metrics, duration, execution_metadata FROM llm_logs")).one() == ("keep", None, None, None)
+        assert conn.execute(text("SELECT title, shot_contract_repair_prompt_template_id FROM novels")).one() == ("keep novel", None)
     engine.dispose()
 
 
@@ -173,7 +178,7 @@ def test_list_and_detail_api_metrics(db_session):
     metrics = normalize_metrics("openai", response_data("openai"), 2)
     db_session.add_all([
         LLMLog(id="new", provider="openai", model="test", user_prompt="user", status="success",
-               duration=2, usage_metrics=metrics),
+               duration=2, usage_metrics=metrics,execution_metadata={"outcome":"REPAIRED"}),
         LLMLog(id="old", provider="openai", model="test", user_prompt="user", status="success"),
     ])
     db_session.commit()
@@ -181,4 +186,5 @@ def test_list_and_detail_api_metrics(db_session):
         items = client.get("/logs/").json()["data"]["items"]
         assert {item["id"]: item["metrics"] for item in items} == {"new": metrics, "old": None}
         assert client.get("/logs/new").json()["data"]["metrics"] == metrics
+        assert client.get("/logs/new").json()["data"]["execution_metadata"] == {"outcome":"REPAIRED"}
         assert client.get("/logs/old").json()["data"]["metrics"] is None

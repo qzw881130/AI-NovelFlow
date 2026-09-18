@@ -643,7 +643,16 @@ def test_disabled_or_unconstrained_never_calls_provider(reference, requested, re
     assert observer.calls == []
 
 
-def test_no_default_observer_and_unconstrained_reference_not_certified(reference):
+def test_configured_observer_factory_and_unconstrained_reference_not_certified(reference, monkeypatch):
+    services = ModuleType("app.services")
+    services.__path__ = []
+    observer_module = ModuleType("app.services.visual_state_observer")
+    configured = object()
+    observer_module.get_configured_visual_state_observer = lambda: configured
+    monkeypatch.setitem(sys.modules, "app.services", services)
+    monkeypatch.setitem(sys.modules, "app.services.visual_state_observer", observer_module)
+    assert gate.get_visual_state_observer() is configured
+    observer_module.get_configured_visual_state_observer = lambda: None
     assert gate.get_visual_state_observer() is None
     result = validate(plan(requirement()), [reference])
     assert result["decision"] == "UNKNOWN"
