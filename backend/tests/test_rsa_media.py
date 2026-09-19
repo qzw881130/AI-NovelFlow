@@ -1,6 +1,7 @@
 """#06/#09 shared business RSA, exact actual graphs and immutable physical lineage."""
 import asyncio
 from copy import deepcopy
+from datetime import datetime, timedelta
 import hashlib
 from io import BytesIO
 import json
@@ -11,6 +12,7 @@ import pytest
 from PIL import Image
 from fastapi import HTTPException,FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 from app.core.database import get_db
 from app.models.task import Task
 from app.models.workflow import Workflow
@@ -73,7 +75,9 @@ class LLM:
 
 
 class Remote:
-    def __init__(self,fault=None,during=None):self.fault,self.during,self.submits=fault,during,0
+    def __init__(self,fault=None,during=None):
+        self.fault,self.during,self.submits=fault,during,0
+        self.client_id='test-client-'+str(uuid4());self.jobs={};self.discoveries=0
     async def upload_image(self,path,*,upload_name,payload):
         self.payload=payload
         return {'success':True,'filename':upload_name,'subfolder':'','type':'input','payload_sha256':hashlib.sha256(payload).hexdigest(),'payload_size':len(payload)}
@@ -83,13 +87,27 @@ class Remote:
     async def queue_prompt(self,graph):
         self.submits+=1;self.graph=deepcopy(graph)
         if self.fault=='cid':return {'success':True,'prompt_id':123}
-        return {'success':False} if self.fault=='ack' else {'success':True,'prompt_id':'remote-'+str(self.submits)}
+        cid='remote-'+str(self.submits)
+        prefix=graph['9']['inputs']['filename_prefix']
+        self.jobs[cid]={'prompt':[self.submits,cid,deepcopy(graph),{'client_id':self.client_id},['9']],
+            'status':{'completed':True,'status_str':'success'},
+            'outputs':{'9':{'images':[{'filename':prefix+'_00001_.png','subfolder':'','type':'output'}]}}}
+        return {'success':False} if self.fault=='ack' else {'success':True,'prompt_id':cid}
     async def get_prompt_state(self,cid):
         if self.during:self.during()
         if self.fault=='interrupt':raise asyncio.CancelledError()
-        graph=deepcopy(self.graph)
-        if self.fault=='graph':graph['117']['inputs']['text']='changed'
-        return {'state':'completed','history':{'prompt':[1,cid,graph],'status':{'completed':True,'status_str':'success'},'outputs':{'9':{'images':[{'filename':'image.png','subfolder':'','type':'output'}]}}}}
+        history=deepcopy(self.jobs[cid])
+        if self.fault=='graph':history['prompt'][2]['117']['inputs']['text']='changed'
+        return {'state':'completed','history':history}
+    async def discover_prompt_by_client_id(self,client_id,**_kwargs):
+        self.discoveries+=1
+        matches=[(cid,deepcopy(history)) for cid,history in self.jobs.items() if history['prompt'][3].get('client_id')==client_id]
+        if not matches:return {'state':'missing'}
+        if len(matches)!=1:return {'state':'ambiguous','prompt_ids':[cid for cid,_ in matches]}
+        cid,history=matches[0]
+        graph=deepcopy(history['prompt'][2])
+        if self.fault=='discover_graph':graph['117']['inputs']['text']='changed'
+        return {'state':'found','prompt_id':cid,'graph':graph,'locations':['history'],'history':history,'client_id':client_id}
 
 
 def enqueue(db,shot,**kwargs):
@@ -104,6 +122,43 @@ def run(db,tid,*,llm=None,remote=None,recover=False):
     llm,remote=llm or LLM(db),remote or Remote()
     asyncio.run(service.RsaImageService(db,llm=llm,client=remote).execute(tid,token,recover=recover));db.expire_all()
     return db.get(Attempt,tid),llm,remote
+
+
+def lost_ack_attempt(db,setup,remote,*,with_parent=False,terminal=True):
+    shot=setup[3][0]
+    primary,_,_=run(db,enqueue(db,shot));assert primary.status=='SUCCEEDED'
+    parent=None
+    if with_parent:
+        parent=Task(id=str(uuid4()),type='shot_video_batch',status='running',novel_id=shot.chapter.novel_id,
+            chapter_id=shot.chapter_id,name='interrupted video batch',started_at=datetime.utcnow(),
+            metadata_json=json.dumps({'execution_purpose':'production','shot_ids':[shot.id],
+                'requested_shot_ids':[shot.id],'scope':'REQUESTED_READY_SUBSET','blocked':[],
+                'source_pins':{},'asset_pins':{},'selected_modes':{},'auto_complete':True,
+                'skip_llm_when_prompt_exists':False,'results':{}},ensure_ascii=False))
+        db.add(parent);shot.video_task_id=parent.id;shot.video_status='pending';db.commit()
+    tid=enqueue(db,shot,stage='KEYFRAME',frame_index=0,parent_task_id=parent.id if parent else None)
+    row,task=db.get(Attempt,tid),db.get(Task,tid);token=str(uuid4())
+    row.status,row.claim_token='RUNNING',token;task.status,task.claim_token,task.attempt='running',token,1;db.commit()
+    worker=service.RsaImageService(db,llm=LLM(db),client=remote);saved=worker.save
+
+    def lose_ack(task_id,claim_token,execution,step,**fields):
+        if fields.get('comfyui_prompt_id'):
+            db.rollback();current=db.get(Attempt,tid);owner=db.get(Task,tid)
+            assert current.execution['submit']['state']=='ATTEMPTED' and owner.comfyui_prompt_id is None
+            if terminal:
+                current.status,current.error,current.completed_at='FAILED','UNCONFIRMED_RSA_MEDIA_NOT_REPLAYED',datetime.utcnow()
+                owner.status,owner.error_message,owner.current_step,owner.completed_at=(
+                    'failed',current.error,'RSA图像生成失败',datetime.utcnow())
+                service._frame_patch(db,db.get(type(shot),shot.id),0,{'image_task_id':tid,'image_status':'failed'})
+            else:
+                owner.heartbeat_at=datetime.utcnow()-timedelta(seconds=120)
+            db.commit()
+            raise OperationalError('UPDATE tasks',{},RuntimeError('database is locked'))
+        return saved(task_id,claim_token,execution,step,**fields)
+
+    worker.save=lose_ack
+    asyncio.run(worker.execute(tid,token));db.expire_all()
+    return (tid,parent.id) if parent else tid
 
 
 UNBOUND_KEYFRAME_PROMPT='<Picture 1> 是主分镜图。使用角色参考图保持衣装，并改变姿态。'
@@ -286,6 +341,147 @@ def test_acknowledged_restart_only_polls_original_submission(db_session,setup):
     row,llm,_=run(db_session,tid,remote=remote,recover=True)
     assert row.status=='SUCCEEDED',row.error
     assert remote.submits==1 and not llm.calls
+
+
+def test_acknowledged_restart_with_parent_publishes_resume_receipt(db_session,setup,monkeypatch):
+    from app.api.shots import _verified_batch_resume_receipt
+    shot=setup[3][0];primary,_,_=run(db_session,enqueue(db_session,shot));assert primary.status=='SUCCEEDED'
+    parent=Task(id=str(uuid4()),type='shot_video_batch',status='running',novel_id=shot.chapter.novel_id,
+        chapter_id=shot.chapter_id,name='interrupted acknowledged batch',started_at=datetime.utcnow(),
+        metadata_json=json.dumps({'execution_purpose':'production','shot_ids':[shot.id],
+            'requested_shot_ids':[shot.id],'scope':'REQUESTED_READY_SUBSET','blocked':[],
+            'source_pins':{},'asset_pins':{},'selected_modes':{},'auto_complete':True,
+            'skip_llm_when_prompt_exists':False,'results':{}},ensure_ascii=False))
+    db_session.add(parent);shot.video_task_id=parent.id;shot.video_status='pending';db_session.commit()
+    tid=enqueue(db_session,shot,stage='KEYFRAME',frame_index=0,parent_task_id=parent.id);remote=Remote('interrupt')
+    with pytest.raises(asyncio.CancelledError):run(db_session,tid,remote=remote)
+    remote.fault=None;monkeypatch.setattr(service,'frozen_keyframe_client',lambda _endpoint:remote)
+    assert asyncio.run(service.run_next_rsa_image_task(db_session)) is True
+    db_session.expire_all();row=db_session.get(Attempt,tid);parent=db_session.get(Task,parent.id)
+    metadata=json.loads(parent.metadata_json)
+    assert row.status=='SUCCEEDED' and row.execution['adoption']['source']=='ACKNOWLEDGED_RESTART'
+    assert parent.status=='pending' and _verified_batch_resume_receipt(db_session,parent,metadata) is True
+    assert remote.submits==1
+
+
+def test_lost_ack_stale_recovery_discovers_remote_success_without_duplicate_submit(db_session,setup):
+    remote=Remote();tid=lost_ack_attempt(db_session,setup,remote,terminal=False)
+    row,task=db_session.get(Attempt,tid),db_session.get(Task,tid)
+    assert row.status=='RUNNING' and task.status=='running' and row.execution['submit']['state']=='ATTEMPTED'
+    assert task.comfyui_prompt_id is None and remote.submits==1
+    token=str(uuid4());row.claim_token=task.claim_token=token;task.attempt+=1;task.heartbeat_at=datetime.utcnow();db_session.commit()
+    recovery_llm=LLM(db_session)
+    asyncio.run(service.RsaImageService(db_session,llm=recovery_llm,client=remote).execute(tid,token,recover=True))
+    db_session.expire_all();row,task=db_session.get(Attempt,tid),db_session.get(Task,tid)
+    assert row.status=='SUCCEEDED' and task.status=='completed' and task.comfyui_prompt_id=='remote-1'
+    assert row.execution['submit']['ack_source']=='DISCOVERY_V1'
+    assert remote.submits==1 and remote.discoveries==1 and not recovery_llm.calls
+    assert db_session.query(Artifact).filter_by(task_id=tid).count()==1
+
+
+def test_running_attempted_restart_recovers_before_batch_hold(db_session,setup,monkeypatch):
+    from app.api.shots import _batch_waiting_for_rsa_adoption,_verified_batch_resume_receipt
+    remote=Remote();tid,parent_id=lost_ack_attempt(db_session,setup,remote,with_parent=True,terminal=False)
+    parent=db_session.get(Task,parent_id)
+    assert _batch_waiting_for_rsa_adoption(db_session,parent) is True
+    monkeypatch.setattr(service,'frozen_keyframe_client',lambda _endpoint:remote)
+    assert asyncio.run(service.run_next_rsa_image_task(db_session)) is True
+    db_session.expire_all();row=db_session.get(Attempt,tid);parent=db_session.get(Task,parent_id)
+    metadata=json.loads(parent.metadata_json)
+    assert row.status=='SUCCEEDED' and parent.status=='pending'
+    assert _verified_batch_resume_receipt(db_session,parent,metadata) is True
+    assert remote.submits==1 and remote.discoveries==1
+
+
+def test_completed_adoption_crash_window_reconciles_parent_receipt(db_session,setup):
+    from app.api.shots import _verified_batch_resume_receipt
+    remote=Remote();tid,parent_id=lost_ack_attempt(db_session,setup,remote,with_parent=True,terminal=False)
+    row,task=db_session.get(Attempt,tid),db_session.get(Task,tid);token=str(uuid4())
+    row.claim_token=task.claim_token=token;task.attempt+=1;task.heartbeat_at=datetime.utcnow();db_session.commit()
+    asyncio.run(service.RsaImageService(db_session,client=remote).execute(tid,token,recover=True))
+    db_session.expire_all();assert db_session.get(Attempt,tid).status=='SUCCEEDED'
+    assert db_session.get(Task,parent_id).status=='running'
+    assert asyncio.run(service.reconcile_failed_unacknowledged_tasks(db_session))==1
+    db_session.expire_all();parent=db_session.get(Task,parent_id);metadata=json.loads(parent.metadata_json)
+    assert parent.status=='pending' and _verified_batch_resume_receipt(db_session,parent,metadata) is True
+    assert remote.submits==1
+
+
+def test_lost_submit_ack_adopts_one_verified_remote_result_without_resubmit(db_session,setup):
+    remote=Remote();tid=lost_ack_attempt(db_session,setup,remote)
+    failed=db_session.get(Attempt,tid);task=db_session.get(Task,tid)
+    assert failed.status=='FAILED' and failed.execution['submit']['state']=='ATTEMPTED'
+    assert task.status=='failed' and task.comfyui_prompt_id is None and remote.submits==1
+    result=asyncio.run(service.RsaImageService(db_session,client=remote).reconcile_failed_unacknowledged(tid,'remote-1'))
+    db_session.expire_all();row,task=db_session.get(Attempt,tid),db_session.get(Task,tid)
+    assert row.status=='SUCCEEDED' and task.status=='completed' and task.comfyui_prompt_id=='remote-1'
+    assert result['artifactId']==row.artifact_id and remote.submits==1 and remote.discoveries==1
+    assert db_session.query(Artifact).filter_by(task_id=tid).count()==1
+    assert row.execution['submit']['ack_source']=='DISCOVERY_V1'
+    contract.artifact_proof(db_session,row.artifact_id,rsa_id=row.rsa_id,rsa_hash=row.rsa_hash)
+
+
+def test_verified_adoption_authorizes_orphaned_batch_to_resume(db_session,setup,monkeypatch):
+    from app.api.shots import _verified_batch_resume_receipt,settle_stranded_video_batches
+    remote=Remote();tid,parent_id=lost_ack_attempt(db_session,setup,remote,with_parent=True)
+    parent=db_session.get(Task,parent_id);parent.heartbeat_at=datetime.utcnow()-timedelta(minutes=5);db_session.commit()
+    assert settle_stranded_video_batches(db_session,stale_seconds=0)==[]
+    monkeypatch.setattr(service,'frozen_keyframe_client',lambda _endpoint:remote)
+    assert asyncio.run(service.reconcile_failed_unacknowledged_tasks(db_session))==1
+    db_session.expire_all();parent=db_session.get(Task,parent_id);metadata=json.loads(parent.metadata_json)
+    assert parent.status=='pending' and parent.current_step=='Verified child adopted; resume remaining shots'
+    assert metadata['verified_resume']['recoveredTaskIds']==[tid]
+    assert _verified_batch_resume_receipt(db_session,parent,metadata) is True
+    assert remote.submits==1 and db_session.query(Artifact).filter_by(task_id=tid).count()==1
+
+
+def test_verified_adoption_revives_restart_held_batch(db_session,setup,monkeypatch):
+    from app.api.shots import _verified_batch_resume_receipt
+    remote=Remote();tid,parent_id=lost_ack_attempt(db_session,setup,remote,with_parent=True)
+    parent=db_session.get(Task,parent_id)
+    parent.status='failed'
+    parent.error_message='BATCH_EXECUTION_REVIEW_REQUIRED: child attempt or result evidence exists'
+    parent.completed_at=datetime.utcnow()
+    db_session.commit()
+    monkeypatch.setattr(service,'frozen_keyframe_client',lambda _endpoint:remote)
+    assert asyncio.run(service.reconcile_failed_unacknowledged_tasks(db_session))==1
+    db_session.expire_all();parent=db_session.get(Task,parent_id);metadata=json.loads(parent.metadata_json)
+    assert parent.status=='pending' and parent.error_message is None and parent.completed_at is None
+    assert _verified_batch_resume_receipt(db_session,parent,metadata) is True
+    assert remote.submits==1 and db_session.query(Artifact).filter_by(task_id=tid).count()==1
+
+
+def test_unverified_adoption_budget_expires_to_batch_hold(db_session,setup):
+    from app.api.shots import _batch_waiting_for_rsa_adoption,settle_stranded_video_batches
+    remote=Remote();tid,parent_id=lost_ack_attempt(db_session,setup,remote,with_parent=True)
+    old=datetime.utcnow()-timedelta(minutes=16);row=db_session.get(Attempt,tid);task=db_session.get(Task,tid)
+    parent=db_session.get(Task,parent_id);row.completed_at=task.completed_at=old;parent.heartbeat_at=old;db_session.commit()
+    assert _batch_waiting_for_rsa_adoption(db_session,parent) is False
+    assert settle_stranded_video_batches(db_session,stale_seconds=0)==[parent_id]
+    assert db_session.get(Task,parent_id).status=='failed'
+
+
+def test_failed_adoption_scan_has_no_oldest_eight_starvation(db_session):
+    now=datetime.utcnow()
+    for index in range(9):
+        task_id=str(uuid4());inputs={'index':index}
+        db_session.add(Task(id=task_id,type='keyframe_image',status='failed',name='failed adoption',
+            error_message='UNCONFIRMED_RSA_MEDIA_NOT_REPLAYED',metadata_json='{}'))
+        db_session.add(Attempt(id=task_id,novel_id='novel',chapter_id='chapter',shot_id=f'shot-{index}',
+            stage='KEYFRAME',frame_index=index,rsa_id='rsa',rsa_hash='hash',status='FAILED',inputs=inputs,
+            input_hash=digest(inputs),execution={'submit':{'state':'ATTEMPTED'}},
+            error='UNCONFIRMED_RSA_MEDIA_NOT_REPLAYED',completed_at=now))
+    db_session.commit()
+    assert len(service.failed_unacknowledged_attempt_ids(db_session))==9
+
+
+def test_lost_submit_ack_rejects_mismatched_remote_graph_without_publication(db_session,setup):
+    remote=Remote(fault='discover_graph');tid=lost_ack_attempt(db_session,setup,remote)
+    with pytest.raises(RuntimeError,match='RSA_MEDIA_ADOPTION_GRAPH_MISMATCH'):
+        asyncio.run(service.RsaImageService(db_session,client=remote).reconcile_failed_unacknowledged(tid,'remote-1'))
+    db_session.expire_all();row,task=db_session.get(Attempt,tid),db_session.get(Task,tid)
+    assert row.status=='FAILED' and row.artifact_id is None and task.status=='failed' and task.comfyui_prompt_id is None
+    assert remote.submits==1 and remote.discoveries==1 and db_session.query(Artifact).filter_by(task_id=tid).count()==0
 
 
 def test_primary_rsa_change_prevents_keyframe_reinterpretation(db_session,setup):

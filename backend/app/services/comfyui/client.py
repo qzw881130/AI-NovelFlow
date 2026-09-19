@@ -832,6 +832,62 @@ class ComfyUIClient:
             print(f"[ComfyUI] Get queue error: {e}")
             return {"queue_running": [], "queue_pending": []}
 
+    async def discover_prompt_by_client_id(self, client_id: str, *, max_history: int = 200) -> Dict[str, Any]:
+        """Strictly discover one existing prompt without creating or cancelling remote work."""
+        if not isinstance(client_id, str) or not client_id.strip():
+            return {"state": "unknown", "message": "invalid client_id"}
+        try:
+            async with self._client() as client:
+                queue_response, history_response = await asyncio.gather(
+                    client.get(f"{self.base_url}/queue", timeout=10.0),
+                    client.get(f"{self.base_url}/history", params={"max_items": max_history}, timeout=30.0),
+                )
+            if queue_response.status_code != 200 or history_response.status_code != 200:
+                return {"state": "unknown", "message": (
+                    f"queue HTTP {queue_response.status_code}; history HTTP {history_response.status_code}"
+                )}
+            queue, histories = queue_response.json(), history_response.json()
+            if not isinstance(queue, dict) or not isinstance(histories, dict):
+                return {"state": "unknown", "message": "malformed queue/history response"}
+            candidates = {}
+
+            def add_prompt(prompt_id, graph, extra, location, history=None):
+                if not isinstance(extra, dict) or extra.get("client_id") != client_id:
+                    return
+                if not isinstance(prompt_id, str) or not prompt_id or not isinstance(graph, dict):
+                    raise ValueError("malformed correlated prompt")
+                current = candidates.setdefault(prompt_id, {"prompt_id": prompt_id, "graph": graph,
+                    "locations": [], "history": None, "client_id": client_id})
+                if current["graph"] != graph:
+                    raise ValueError("conflicting graph for correlated prompt")
+                current["locations"].append(location)
+                if history is not None:
+                    if current["history"] is not None and current["history"] != history:
+                        raise ValueError("conflicting history for correlated prompt")
+                    current["history"] = history
+
+            for location, key in (("running", "queue_running"), ("pending", "queue_pending")):
+                rows = queue.get(key) or []
+                if not isinstance(rows, list):
+                    raise ValueError("malformed queue rows")
+                for row in rows:
+                    if isinstance(row, list) and len(row) >= 4:
+                        add_prompt(row[1], row[2], row[3], location)
+            for prompt_id, history in histories.items():
+                prompt = history.get("prompt") if isinstance(history, dict) else None
+                if isinstance(prompt, list) and len(prompt) >= 4:
+                    if prompt[1] != prompt_id:
+                        raise ValueError("history prompt identity mismatch")
+                    add_prompt(prompt_id, prompt[2], prompt[3], "history", history)
+            values = list(candidates.values())
+            if not values:
+                return {"state": "missing"}
+            if len(values) != 1:
+                return {"state": "ambiguous", "prompt_ids": sorted(candidates)}
+            return {"state": "found", **values[0]}
+        except Exception as exc:
+            return {"state": "unknown", "message": str(exc)}
+
     async def get_prompt_state(self, prompt_id: str, queue_info: Dict[str, Any] = None) -> Dict[str, Any]:
         """查询 prompt 当前在 ComfyUI 的状态。"""
         queue_info = queue_info if queue_info is not None else await self.get_queue_info()

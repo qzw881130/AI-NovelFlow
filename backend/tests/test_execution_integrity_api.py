@@ -1448,6 +1448,28 @@ def test_pending_batch_cannot_bypass_restart_guard_or_retry_a_strict_failed_chil
     assert_unchanged(api)
 
 
+def test_terminal_children_cannot_leave_parent_permanently_running(api):
+    api.writes_forbidden = False
+    Task = api.models.task.Task
+    parent = Task(id="stranded-parent", type="shot_video_batch", status="running", name="stranded",
+        novel_id="novel", chapter_id="chapter", started_at=datetime(2026, 9, 7),
+        metadata_json=json.dumps({"execution_purpose":"production","shot_ids":["shot"],"selected_modes":{},
+            "auto_complete":True,"skip_llm_when_prompt_exists":False,"results":{}}))
+    child = Task(id="terminal-child", type="shot_video", status="failed", name="terminal",
+        novel_id="novel", chapter_id="chapter", shot_id="shot", parent_task_id=parent.id,batch_order=1,
+        error_message="preserve child diagnostic",completed_at=datetime(2026,9,7))
+    api.db.add_all([parent,child]);api.db.commit()
+    before_child = {column.key: getattr(child, column.key) for column in api.models.task.Task.__table__.columns}
+    api.writes_forbidden = True;api.inserts.clear();api.queued.clear()
+    settled = api.module.settle_stranded_video_batches(api.db, stale_seconds=0)
+    api.db.refresh(parent);api.db.refresh(child)
+    assert settled == [parent.id] and parent.status == "failed"
+    assert parent.error_message.startswith("BATCH_WORKER_INTERRUPTED")
+    assert {column.key: getattr(child, column.key) for column in api.models.task.Task.__table__.columns} == before_child
+    assert api.db.query(api.models.task.Task).count() == 2
+    assert api.inserts == api.queued == []
+
+
 @pytest.mark.parametrize("legacy", [False, True])
 def test_restart_only_recovers_unattempted_batch_with_explicit_options(api, monkeypatch, legacy):
     api.writes_forbidden = False

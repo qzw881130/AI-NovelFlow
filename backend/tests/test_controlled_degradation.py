@@ -24,6 +24,7 @@ from app.services.controlled_degradation_service import (DISPOSITION,admit,compo
 from app.services.file_storage import file_storage
 from app.services.narration_card_service import capture as capture_card
 from app.services.rendered_subtitles import fingerprint,load,publish
+from app.services.shot_video_execution import digest as video_digest
 from app.services.runtime_gate import source_pin
 from app.services.audio_drive_service import AudioDriveService
 from app.utils.path_utils import local_path_to_url
@@ -255,13 +256,26 @@ def test_completion_manifest_is_server_ordered_and_has_no_skipped(db_session,cha
     card,normal=shots;audio=tmp_path/'final.wav';ready_card_audio(db_session,card,audio)
     import app.services.chapter_video_merge_service as completion
     normal_path=tmp_path/'normal.mp4';normal_path.write_bytes(b'normal')
-    normal_snapshot={'kind':'normal'};card_snapshot={'kind':'card'}
+    normal_snapshot={'kind':'normal','cue':'中文字幕'};card_snapshot={'kind':'card','cue':'旁白卡'}
+    assert video_digest(normal_snapshot)!=digest(normal_snapshot)
+    monkeypatch.setattr(completion,'_proof',lambda _db,_shot,_task,kind,_media,*_args,**_kwargs:{
+        'version':completion.ENTRY_PROOF_VERSION,'kind':kind,'fence':{'shot':{
+            'index':_shot.index,'completion_disposition':_shot.completion_disposition,
+            'image_url':_shot.image_url,'image_path':_shot.image_path,'image_status':_shot.image_status,
+            'image_task_id':_shot.image_task_id,
+            'video_task_id':_shot.video_task_id,'video_status':_shot.video_status,
+            'video_url':_shot.video_url,'video_director_plan_revision':_shot.video_director_plan_revision}},
+        'proof_hash':'test'})
     monkeypatch.setattr(completion,'video_receipt',lambda db,shot,**_kwargs:{'shot_id':shot.id,'path':str(normal_path),
-        'sha256':fingerprint(normal_path),'subtitle_snapshot_hash':digest(normal_snapshot),'source_pin':source_pin(db,shot.id),'task_id':'normal-task','run_id':'run','rsa_binding':{},'result':{}})
+        'sha256':fingerprint(normal_path),'bytes':normal_path.stat().st_size,'subtitle_snapshot_hash':video_digest(normal_snapshot),
+        'subtitle_receipt':{'snapshot_hash':video_digest(normal_snapshot)},'source_pin':source_pin(db,shot.id),
+        'task_id':'normal-task','run_id':'run','rsa_binding':{},'result':{}})
     import app.services.narration_card_service as cards
     card_path=tmp_path/'card.mp4';card_path.write_bytes(b'card')
     monkeypatch.setattr(cards,'completed_artifact',lambda db,shot:{'shot_id':shot.id,'path':str(card_path),
-        'sha256':fingerprint(card_path),'subtitle_snapshot_hash':digest(card_snapshot),'source_pin':source_pin(db,shot.id),'task_id':'card-task','source_range':[0,card.source_end]})
+        'sha256':fingerprint(card_path),'bytes':card_path.stat().st_size,'subtitle_snapshot_hash':digest(card_snapshot),
+        'subtitle_receipt':{'snapshot_hash':digest(card_snapshot)},'source_pin':source_pin(db,shot.id),
+        'task_id':'card-task','source_range':[0,card.source_end]})
     manifest=completion.capture_completion(db_session,chapter.novel_id,chapter.id)
     assert [row['kind'] for row in manifest['entries']]==['DEGRADED_NARRATION_CARD','NORMAL_VIDEO']
     assert [row['ordinal'] for row in manifest['entries']]==[1,2]
@@ -277,22 +291,49 @@ def test_manifest_only_assembly_publishes_succeeded_with_degradation(db_session,
     card_path=tmp_path/'card.mp4';normal_path=tmp_path/'normal.mp4';card_path.write_bytes(b'card');normal_path.write_bytes(b'normal')
     import app.services.chapter_video_merge_service as completion
     import app.services.narration_card_service as cards
-    normal_snapshot={'kind':'normal'};card_snapshot={'kind':'card'}
+    normal_snapshot={'kind':'normal','cue':'中文字幕'};card_snapshot={'kind':'card','cue':'旁白卡'}
+    assert video_digest(normal_snapshot)!=digest(normal_snapshot)
+    monkeypatch.setattr(completion,'_proof',lambda _db,_shot,_task,kind,_media,*_args,**_kwargs:{
+        'version':completion.ENTRY_PROOF_VERSION,'kind':kind,'fence':{'shot':{
+            'index':_shot.index,'completion_disposition':_shot.completion_disposition,
+            'image_url':_shot.image_url,'image_path':_shot.image_path,'image_status':_shot.image_status,
+            'image_task_id':_shot.image_task_id,
+            'video_task_id':_shot.video_task_id,'video_status':_shot.video_status,
+            'video_url':_shot.video_url,'video_director_plan_revision':_shot.video_director_plan_revision}},
+        'proof_hash':'test'})
+    original_content=chapter.content
+    def verify_manifest(db,_novel_id,chapter_id,_manifest,*_args,**_kwargs):
+        if db.get(type(chapter),chapter_id).content!=original_content:
+            raise HTTPException(409,'CHAPTER_COMPLETION_SOURCE_CHANGED')
+        return True
+    monkeypatch.setattr(completion,'verify_completion_manifest',verify_manifest)
     monkeypatch.setattr(completion,'video_receipt',lambda db,shot,**_kwargs:{'shot_id':shot.id,'path':str(normal_path),
-        'sha256':fingerprint(normal_path),'subtitle_snapshot_hash':digest(normal_snapshot),'source_pin':source_pin(db,shot.id),'task_id':'normal-task','run_id':'run','rsa_binding':{},'result':{}})
+        'sha256':fingerprint(normal_path),'bytes':normal_path.stat().st_size,'subtitle_snapshot_hash':video_digest(normal_snapshot),
+        'subtitle_receipt':{'snapshot_hash':video_digest(normal_snapshot)},'source_pin':source_pin(db,shot.id),
+        'task_id':'normal-task','run_id':'run','rsa_binding':{},'result':{}})
     monkeypatch.setattr(cards,'completed_artifact',lambda db,shot:{'shot_id':shot.id,'path':str(card_path),
-        'sha256':fingerprint(card_path),'subtitle_snapshot_hash':digest(card_snapshot),'source_pin':source_pin(db,shot.id),'task_id':'card-task','source_range':[0,card.source_end]})
+        'sha256':fingerprint(card_path),'bytes':card_path.stat().st_size,'subtitle_snapshot_hash':digest(card_snapshot),
+        'subtitle_receipt':{'snapshot_hash':digest(card_snapshot)},'source_pin':source_pin(db,shot.id),
+        'task_id':'card-task','source_range':[0,card.source_end]})
     manifest=completion.capture_completion(db_session,chapter.novel_id,chapter.id);manifest_hash=digest(manifest)
+    request={'test':'completion'}
     task=Task(type='chapter_video',status='pending',novel_id=chapter.novel_id,chapter_id=chapter.id,name='complete',
-        metadata_json=json.dumps({'execution_purpose':'production','delivery_mode':'CHAPTER_COMPLETION','completion_manifest':manifest,
-            'manifest_hash':manifest_hash}))
+        metadata_json=json.dumps({'execution_purpose':'production','delivery_mode':'CHAPTER_COMPLETION',
+            'request_snapshot':request,'request_hash':digest(request),'capture_state':'PENDING'}))
     db_session.add(task);db_session.commit()
+    capture_calls=[]
+    def capture_once(*_args,metrics=None,**_kwargs):
+        capture_calls.append(True)
+        if metrics is not None:metrics.update({'full_video_receipt_count':1,'full_degraded_receipt_count':1})
+        return manifest
+    monkeypatch.setattr(completion,'capture_completion',capture_once)
     async def fake_merge(paths,destination,**_kwargs):
         Path(destination).parent.mkdir(parents=True,exist_ok=True);Path(destination).write_bytes(b'chapter')
         segments=[{'source_sha256':fingerprint(path)} for path in paths]
         snapshot=publish(destination,[],{'kind':'merge','sources':[card_snapshot,normal_snapshot],'segments':segments})
         return {'success':True,'output_path':destination,'media_segments':segments,
-            'subtitle_snapshot':snapshot}
+            'subtitle_snapshot':snapshot,'output_sha256':fingerprint(destination),'output_bytes':Path(destination).stat().st_size,
+            'output_stat':completion._file_stat(destination),'metrics':{}}
     monkeypatch.setattr(file_storage,'merge_videos',fake_merge)
     from app.core import database
     class SessionProxy:
@@ -302,7 +343,8 @@ def test_manifest_only_assembly_publishes_succeeded_with_degradation(db_session,
     monkeypatch.setattr(database,'SessionLocal',lambda:SessionProxy(db_session))
     asyncio.run(completion.run_completion(task.id));db_session.expire_all()
     saved=db_session.get(Task,task.id);saved_chapter=db_session.get(type(chapter),chapter.id);meta=json.loads(saved.metadata_json)
-    assert saved.status=='completed' and meta['result']['outcome']=='SUCCEEDED_WITH_DEGRADATION'
+    assert saved.status=='completed' and meta['result']['outcome']=='SUCCEEDED_WITH_DEGRADATION',(saved.error_message,meta)
+    assert len(capture_calls)==1
     assert meta['result']['normalCount']==meta['result']['degradedCount']==1
     assert saved_chapter.final_video_task_id==task.id and saved_chapter.final_video==saved.result_url
     assert completion.current_completion(db_session,chapter.novel_id,chapter.id)['manifestHash']==manifest_hash

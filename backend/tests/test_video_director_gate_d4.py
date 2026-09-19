@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import re
 
 import pytest
 
@@ -329,6 +330,35 @@ def test_subject_slot_is_resolved_from_current_manifest_each_time():
     assert new_resolved[0]["visible_speaker"] == "<Subject 2>"
 
 
+def test_zero_subject_namespace_accepts_no_token_and_rejects_negative_reference():
+    manifest = {"subjects": []}
+    timeline = [{"start_time": 0.0, "end_time": 4.0, "visible_speaker": "NONE"}]
+    clean = _prompt("subject_definitions:\nNo visible subjects.\ndetailed_description:\nAn empty city remains still.")
+    invalid = _prompt("subject_definitions:\nNo visible subjects. <Subject 1> is not present.")
+    assert audit_audiodrive_h3_prompt(clean, timeline, manifest)["passed"] is True
+    issues = audit_audiodrive_h3_prompt(invalid, timeline, manifest)["issues"]
+    assert [issue["code"] for issue in issues] == ["UNKNOWN_SUBJECT_REFERENCE"]
+
+
+def test_scene_picture_and_prop_names_never_expand_subject_namespace():
+    manifest = {"subjects": [{"subject_ref": "<Subject 1>", "character_name": "曹操"}]}
+    timeline = [{"start_time": 0.0, "end_time": 4.0, "visible_speaker": "NONE"}]
+    clean = _prompt("subject_definitions:\n<Subject 1> is 曹操.\ndetailed_description:\n<Picture 1> shows 洛阳 and Prop: 五色棒.")
+    assert audit_audiodrive_h3_prompt(clean, timeline, manifest)["passed"] is True
+    issues = audit_audiodrive_h3_prompt(clean + "\n<Subject 2> is 五色棒.", timeline, manifest)["issues"]
+    assert any(issue["code"] == "UNKNOWN_SUBJECT_REFERENCE" and issue["subject_ref"] == "<Subject 2>" for issue in issues)
+
+
+@pytest.mark.parametrize("filename", [
+    "11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt",
+    "12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt",
+    "13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt",
+])
+def test_h3_system_templates_never_embed_concrete_subject_tokens(filename):
+    raw = (Path(__file__).parents[1] / "prompt_templates" / filename).read_text(encoding="utf-8")
+    assert re.search(r"<Subject\s+\d+>", raw) is None
+
+
 def test_h3_prompt_builder_blocks_unknown_subject_before_submit(db_session, setup, monkeypatch):
     # Exercise the H3 gate after real ChapterScope/Source/Treatment/RSA admission.
     # A bare legacy Shot fails earlier and cannot prove unknown-subject validation.
@@ -339,10 +369,12 @@ def test_h3_prompt_builder_blocks_unknown_subject_before_submit(db_session, setu
     template = PromptTemplate(
         name="H3 Single",
         type="h3_single_frame_prompt",
-        template="build h3",
+        template="build h3\n【Audio Drive 文本渲染禁令】\n" + AUDIO_TEXT_RENDERING_CONSTRAINT_FIXTURE,
         is_system=True,
     )
     db_session.add(template)
+    db_session.flush()
+    novel.h3_single_frame_prompt_template_id = template.id
     db_session.commit()
 
     calls = []
@@ -352,9 +384,9 @@ def test_h3_prompt_builder_blocks_unknown_subject_before_submit(db_session, setu
             return {"success": True, "content": "\n\n".join([
                 "subject_definitions:\n<Subject 3> is 刘备.",
                 "initial_state_anchor:\n刘备 stands in the peach garden.",
-                "summary:\n<Subject 3> talks to camera.",
-                "detailed_description:\nHold the camera steady while <Subject 3> speaks.",
-                "overall_soundscape:\nThe pony's voice and quiet river ambience.",
+                "summary:\nThe camera holds on <Subject 3>.",
+                "detailed_description:\n<Subject 3> remains still and silent.",
+                "overall_soundscape:\nQuiet garden ambience with no visible speech.",
             ])}
 
     monkeypatch.setattr("app.services.video_director_ai.LLMService", FakeLLM)
@@ -376,12 +408,71 @@ def test_h3_prompt_builder_blocks_unknown_subject_before_submit(db_session, setu
             clip_dialogues=[],
             reference_images=[],
             character_appearances={actor.name: actor.appearance},
-            speaker_timeline=[{"start_time": 0, "end_time": 2, "visible_speaker": actor.name}],
+            speaker_timeline=[{"start_time": 0, "end_time": 4, "visible_speaker": "NONE"}],
             audio_drive_context={"audio_mode": "lock_source"},
         ))
 
     assert "UNKNOWN_SUBJECT_REFERENCE" in str(exc_info.value)
-    assert len(calls) == 1
+    assert len(calls) == 2
     user_content = calls[0]["user_content"]
-    assert "subject_manifest.subjects 是合法 <Subject N> 标记的穷尽清单" in user_content
-    assert "场景和道具必须按名称引用，绝不能为其创建或分配 <Subject N>" in user_content
+    assert "allowed_subject_refs 是本请求允许的具体 <Subject N> token 穷尽清单" in user_content
+    assert "Scene、Prop、Picture、Keyframe、PRIMARY_STORYBOARD、PREVIOUS_KEYFRAME" in user_content
+    payload = json.loads(user_content.split("\n\n", 1)[1])
+    assert payload["allowed_subject_refs"] == ["<Subject 1>"]
+    assert payload["zero_subject_mode"] is False
+    assert "Picture" in payload["non_subject_namespaces"]
+    repair = json.loads(calls[1]["user_content"])
+    assert repair["operation"] == "H3_SUBJECT_NAMESPACE_REPAIR_V1"
+    assert repair["offending_refs"] == ["<Subject 3>"]
+
+
+def test_fresh_unknown_subject_gets_one_bounded_repair(db_session, setup, monkeypatch):
+    actor, _scene, _appearance, shots, _root, _rsa = setup
+    shot = shots[0]
+    chapter = db_session.get(Chapter, shot.chapter_id)
+    novel = db_session.get(Novel, chapter.novel_id)
+    template = PromptTemplate(name="H3 Repair", type="h3_single_frame_prompt",
+                              template="build h3\n【Audio Drive 文本渲染禁令】\n" + AUDIO_TEXT_RENDERING_CONSTRAINT_FIXTURE,
+                              is_system=True)
+    db_session.add(template)
+    db_session.flush()
+    novel.h3_single_frame_prompt_template_id = template.id
+    db_session.commit()
+    invalid = "\n\n".join([
+        "subject_definitions:\n<Subject 3> is 刘备.",
+        "initial_state_anchor:\n刘备 stands in the peach garden.",
+        "summary:\nThe camera holds on <Subject 3>.",
+        "detailed_description:\n<Subject 3> remains still and silent.",
+        "overall_soundscape:\nQuiet garden ambience with no visible speech.",
+    ])
+    repaired = "\n\n".join([
+        "subject_definitions:\n<Subject 1> is 刘备.",
+        "initial_state_anchor:\n<Picture 1> is the authoritative initial state.",
+        "summary:\nThe camera holds on the garden.",
+        "detailed_description:\n[Shot 1] <Subject 1> remains still and silent; visible_speaker=NONE.",
+        "overall_soundscape:\nNo visible character speech or lip-sync. Quiet garden ambience.",
+    ])
+    calls = []
+
+    class FakeLLM:
+        async def chat_completion(self, **kwargs):
+            calls.append(kwargs)
+            return {"success": True, "content": invalid if len(calls) == 1 else repaired,
+                    "llm_log_id": f"log-{len(calls)}"}
+
+    monkeypatch.setattr("app.services.video_director_ai.LLMService", FakeLLM)
+    record = {}
+    import asyncio
+    prompt = asyncio.run(build_h3_video_prompt(
+        db=db_session, novel=novel, shot=shot, selected_mode="SINGLE_FRAME",
+        clip={"clip_index": 1, "start_time": 0, "end_time": 4},
+        workflow_capability={"max_clip_duration": 15}, workflow_type="video", workflow_name="video",
+        start_image_url=actor.image_url, keyframes=[], transitions=[], clip_dialogues=[], reference_images=[],
+        character_appearances={actor.name: actor.appearance},
+        speaker_timeline=[{"start_time": 0, "end_time": 4, "visible_speaker": "NONE"}],
+        audio_drive_context={"audio_mode": "lock_source"}, validation_record=record,
+    ))
+    assert len(calls) == 2 and prompt.startswith("subject_definitions:")
+    assert record["subject_namespace_repair"]["outcome"] == "REPAIRED"
+    assert record["subject_namespace_repair"]["max_attempts"] == 1
+    assert record["subject_manifest"]["subjects"][0]["subject_ref"] == "<Subject 1>"

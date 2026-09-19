@@ -30,6 +30,10 @@ def _digest(data):
     return hashlib.sha256(json.dumps(data, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()).hexdigest()
 
 
+def snapshot_digest(data):
+    return _digest(data)
+
+
 def publish(path, cues, lineage, *, unavailable=None):
     data = {"version": VERSION, "media_sha256": fingerprint(path),
             "cues": cues, "lineage": lineage, "unavailable": unavailable}
@@ -48,12 +52,12 @@ def publish(path, cues, lineage, *, unavailable=None):
     return data
 
 
-def load(path, *, require_ready=True):
+def load_against_receipt(path, expected_media_sha256, *, require_ready=True):
     try:
         envelope = json.loads(sidecar(path).read_text(encoding="utf-8"))
         data = envelope["snapshot"]
         if (data["version"] != VERSION or envelope["sha256"] != _digest(data)
-                or data["media_sha256"] != fingerprint(path)
+                or data["media_sha256"] != expected_media_sha256
                 or not isinstance(data["lineage"], dict)):
             return None
         previous = Fraction(0)
@@ -66,6 +70,13 @@ def load(path, *, require_ready=True):
             return None
         return data
     except (OSError, ValueError, KeyError, TypeError, ZeroDivisionError):
+        return None
+
+
+def load(path, *, require_ready=True):
+    try:
+        return load_against_receipt(path, fingerprint(path), require_ready=require_ready)
+    except OSError:
         return None
 
 

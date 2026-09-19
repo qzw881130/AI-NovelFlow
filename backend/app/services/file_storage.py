@@ -960,7 +960,8 @@ class FileStorageService:
 
     async def merge_videos(self, video_paths: List[str], output_path: str,
                           transition_videos: List[str] = None,
-                          progress_callback: Optional[Callable[[float, str], Awaitable[None]]] = None) -> Dict[str, Any]:
+                          progress_callback: Optional[Callable[[float, str], Awaitable[None]]] = None,
+                          source_receipts: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
         """
         合并多个视频文件（使用 ffmpeg）
         
@@ -969,7 +970,8 @@ class FileStorageService:
             output_path: 输出文件路径
             transition_videos: 转场视频路径列表（可选），长度应为 len(video_paths) - 1
             progress_callback: Awaited (percent, step); monotonic 0..100. Source validation
-                0..15, normalization 15..65, encoding 65..95, final validation 95,
+                0..15, normalization 15..65, encoding 65..95, video validation 95,
+                audio validation 97,
                 atomic publication 99, published 100. Unknown durations advance only
                 on completion. Callback failures abort; cancellation propagates.
             
@@ -988,6 +990,13 @@ class FileStorageService:
             from math import ceil
 
             last_progress = 0.0
+            merge_metrics = {"source_sha256_count": 0, "source_sha256_bytes": 0,
+                             "verified_receipt_reuses": 0}
+
+            def file_stat(path):
+                value=Path(path);stat=value.stat()
+                return {"path":str(value.resolve()),"device":stat.st_dev,"inode":stat.st_ino,
+                        "size":stat.st_size,"mtime_ns":stat.st_mtime_ns,"ctime_ns":stat.st_ctime_ns}
 
             async def report(percent, step):
                 nonlocal last_progress
@@ -1047,10 +1056,10 @@ class FileStorageService:
                     'duration': (data.get('format') or {}).get('duration'),
                 }
 
-            async def _validate_video_decode(video_path: str):
+            async def _validate_video_decode(video_path: str, progress=None):
                 result = await self._run_merge_process(
                     ['ffmpeg', '-v', 'error', '-xerror', '-i', video_path,
-                     '-map', '0:v:0', '-map', '0:a:0?', '-f', 'null', '-'],
+                     '-map', '0:v:0', '-map', '0:a:0?', '-f', 'null', '-'], progress,
                 )
                 stderr = (result.stderr or '').strip()
                 if result.returncode != 0 or stderr:
@@ -1058,12 +1067,27 @@ class FileStorageService:
 
             # Keep candidates on the destination filesystem for atomic publication.
             temp_normalized_dir = tempfile.mkdtemp(prefix='.novelflow_merge_', dir=str(Path(output_path).resolve().parent))
+            cleanup_workspace = True
             candidate_path = os.path.join(temp_normalized_dir, 'merged.mp4')
             normalized_paths = []
             segment_frames = []
-            from app.services.rendered_subtitles import load, fingerprint, compose, publish
-            source_hashes = [fingerprint(path) for path in final_video_list]
-            snapshots = [load(path) for path in final_video_list]
+            from app.services.rendered_subtitles import load,load_against_receipt,fingerprint,compose,publish
+            if source_receipts is not None:
+                if (len(source_receipts)!=len(final_video_list)
+                        or [str(Path(row.get('path','')).resolve()) for row in source_receipts]!=[
+                            str(Path(path).resolve()) for path in final_video_list]):
+                    raise RuntimeError('Completion source receipt membership changed')
+                if any(file_stat(path)!=row.get('stat') for path,row in zip(final_video_list,source_receipts)):
+                    raise RuntimeError('Completion source receipt freshness changed')
+                source_hashes=[row['sha256'] for row in source_receipts]
+                snapshots=[load_against_receipt(path,row['sha256']) for path,row in zip(final_video_list,source_receipts)]
+                if any(snapshot is None for snapshot in snapshots):raise RuntimeError('Completion source subtitle receipt changed')
+                merge_metrics['verified_receipt_reuses']=len(source_receipts)
+            else:
+                source_hashes = [fingerprint(path) for path in final_video_list]
+                snapshots = [load(path) for path in final_video_list]
+                merge_metrics['source_sha256_count']+=len(final_video_list)
+                merge_metrics['source_sha256_bytes']+=sum(Path(path).stat().st_size for path in final_video_list)
             media_segments = []
 
             # 创建临时文件列表
@@ -1073,6 +1097,8 @@ class FileStorageService:
                     suffix=Path(video_path).suffix or '.mp4';frozen_path=os.path.join(temp_normalized_dir,f'frozen_{index:03d}{suffix}')
                     shutil.copyfile(video_path,frozen_path)
                     if fingerprint(frozen_path)!=expected_hash:raise RuntimeError('Source media changed while freezing merge inputs')
+                    merge_metrics['source_sha256_count']+=1
+                    merge_metrics['source_sha256_bytes']+=Path(frozen_path).stat().st_size
                     frozen_video_list.append(frozen_path)
                 target_info = await _get_video_info(frozen_video_list[0])
                 target_width,target_height=target_info['width'],target_info['height']
@@ -1224,11 +1250,14 @@ class FileStorageService:
                     }
 
                 await report(95, "校验合并视频")
-                await _validate_video_decode(candidate_path)
+                async def validate_video_progress(_seconds):
+                    await report(95, "校验合并视频")
+                await _validate_video_decode(candidate_path, validate_video_progress)
                 decoded_seconds=0.0
                 async def capture_audio_extent(seconds):
                     nonlocal decoded_seconds
                     decoded_seconds=max(decoded_seconds,seconds)
+                    await report(97, "校验合并音频")
                 decoded_audio=await self._run_merge_process(['ffmpeg','-v','error','-xerror','-i',candidate_path,
                     '-map','0:a:0','-ar','48000','-ac','1','-f','null','-'],capture_audio_extent)
                 if decoded_audio.returncode!=0:
@@ -1242,28 +1271,55 @@ class FileStorageService:
                     raise RuntimeError('Merged chapter extent differs from frozen frame/sample manifest')
 
                 await report(99, "发布合并视频")
-                if any(fingerprint(path) != expected for path, expected in zip(final_video_list, source_hashes)):
+                if source_receipts is not None:
+                    if any(file_stat(path)!=row.get('stat') for path,row in zip(final_video_list,source_receipts)):
+                        raise RuntimeError("Source media changed during merge; retry")
+                elif any(fingerprint(path) != expected for path, expected in zip(final_video_list, source_hashes)):
                     raise RuntimeError("Source media changed during merge; retry")
                 cues, unavailable = compose(media_segments, snapshots)
                 snapshot = publish(candidate_path, cues, {"kind": "merge", "fps": 24, "sample_rate": 48000,
                                    "segments": media_segments, "sources": snapshots}, unavailable=unavailable)
-                os.replace(candidate_path, output_path)
                 from app.services.rendered_subtitles import sidecar
-                os.replace(sidecar(candidate_path), sidecar(output_path))
-                await report(100, "合并视频已发布")
+                previous_media=Path(temp_normalized_dir)/'previous-output.mp4'
+                previous_sidecar=Path(temp_normalized_dir)/'previous-output.subtitles.json'
+                media_backed_up=sidecar_backed_up=media_published=sidecar_published=False
+                try:
+                    if Path(output_path).exists():
+                        os.replace(output_path,previous_media);media_backed_up=True
+                    if sidecar(output_path).exists():
+                        os.replace(sidecar(output_path),previous_sidecar);sidecar_backed_up=True
+                    os.replace(candidate_path, output_path)
+                    media_published=True
+                    os.replace(sidecar(candidate_path), sidecar(output_path))
+                    sidecar_published=True
+                    await report(100, "合并视频已发布")
+                except Exception:
+                    if media_published:Path(output_path).unlink(missing_ok=True)
+                    if sidecar_published:sidecar(output_path).unlink(missing_ok=True)
+                    try:
+                        if media_backed_up and previous_media.exists():os.replace(previous_media,output_path)
+                        if sidecar_backed_up and previous_sidecar.exists():os.replace(previous_sidecar,sidecar(output_path))
+                    except Exception:
+                        cleanup_workspace=False
+                        raise
+                    raise
                 print(f"[FileStorage] Video merged successfully: {output_path}")
                 return {
                     "success": True,
                     "output_path": output_path,
+                    "output_sha256": snapshot["media_sha256"],
+                    "output_bytes": Path(output_path).stat().st_size,
+                    "output_stat": file_stat(output_path),
                     "subtitle_snapshot": snapshot,
                     "media_segments": media_segments,
+                    "metrics": merge_metrics,
                     "message": f"合并完成，共 {len(final_video_list)} 个视频片段"
                 }
                 
             except Exception as e:
                 raise e
             finally:
-                shutil.rmtree(temp_normalized_dir, ignore_errors=True)
+                if cleanup_workspace:shutil.rmtree(temp_normalized_dir, ignore_errors=True)
             
         except Exception as e:
             import traceback

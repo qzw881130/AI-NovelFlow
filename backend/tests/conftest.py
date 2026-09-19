@@ -144,9 +144,17 @@ def client(db_session, monkeypatch):
     class IsolatedWorker:
         def __init__(self):
             self.jobs = []
+            self.keys = set()
 
         def enqueue(self, job_factory):
             self.jobs.append(job_factory)
+
+        def enqueue_once(self, key, job_factory):
+            if key in self.keys:
+                return False
+            self.keys.add(key)
+            self.jobs.append(job_factory)
+            return True
 
     class IsolatedWorkerManager:
         def __init__(self):

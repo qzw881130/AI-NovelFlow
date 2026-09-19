@@ -221,6 +221,36 @@ def build_clip_subject_manifest(shot, speaker_timeline: list, character_appearan
     return {"subjects": subjects}
 
 
+def build_subject_namespace_contract(shot, subject_manifest: dict) -> dict:
+    allowed = [
+        subject["subject_ref"]
+        for subject in (subject_manifest or {}).get("subjects") or []
+        if isinstance(subject, dict) and isinstance(subject.get("subject_ref"), str)
+    ]
+    scene = str(getattr(shot, "scene", "") or "").strip()
+    non_subject_entities = ([{"namespace": "SCENE", "name": scene}] if scene else []) + [
+        {"namespace": "PROP", "name": str(name)} for name in safe_json_list(getattr(shot, "props", None))
+    ]
+    return {
+        "allowed_subject_refs": allowed,
+        "non_subject_entities": non_subject_entities,
+        "non_subject_namespaces": [
+            "Scene", "Prop", "Picture", "Keyframe", "PRIMARY_STORYBOARD", "PREVIOUS_KEYFRAME",
+        ],
+        "zero_subject_mode": not allowed,
+    }
+
+
+def _unknown_subject_refs(error: H3PromptValidationError) -> list[str]:
+    details = error.details
+    if error.code != "AUDIODRIVE_AUDIT_FAILED" or not isinstance(details, list) or not details:
+        return []
+    if any(not isinstance(issue, dict) or issue.get("code") != "UNKNOWN_SUBJECT_REFERENCE"
+           or issue.get("blocking") is not True for issue in details):
+        return []
+    return sorted({str(issue.get("subject_ref")) for issue in details if issue.get("subject_ref")})
+
+
 def resolve_speaker_timeline_for_h3(speaker_timeline: list, subject_manifest: dict, clip: dict) -> tuple[list, list]:
     issues = []
     clip_start = float((clip or {}).get("start_time") or 0)
@@ -772,6 +802,7 @@ async def build_h3_video_prompt(
     subject_manifest, h3_speaker_timeline, resolution_issues = resolve_h3_prompt_subjects(
         db, novel.id, shot, clip, speaker_timeline, character_appearances,
     )
+    subject_namespace = build_subject_namespace_contract(shot, subject_manifest)
     if resolution_issues:
         audit = audit_audiodrive_h3_prompt("", h3_speaker_timeline, subject_manifest, resolution_issues)
         raise RuntimeError(json.dumps(audit, ensure_ascii=False))
@@ -794,6 +825,7 @@ async def build_h3_video_prompt(
         "motion_directive": clip_motion_directive,
         "speaker_timeline": h3_speaker_timeline,
         "subject_manifest": subject_manifest,
+        **subject_namespace,
         "audio_drive_context": audio_drive_context,
         "audio_drive_text_rendering_constraint": audio_text_rendering_constraint,
         "frames": frames,
@@ -816,13 +848,17 @@ async def build_h3_video_prompt(
         handoff_continuity_lock = (_render_continuity_lock(shot, selected_mode, clip) or "shot_continuity_lock:") + "\n" + build_handoff_continuity_layer(effective_context)
     user_content = (
         "请基于以下 Video Director 规划数据，生成可直接用于 MiniMax H3 的最终视频提示词。\n"
-        "subject_manifest.subjects 是合法 <Subject N> 标记的穷尽清单；必须原样保持每个 subject_ref 与角色的映射，且只能使用清单中的标记。"
-        "场景和道具必须按名称引用，绝不能为其创建或分配 <Subject N>。\n\n"
+        "allowed_subject_refs 是本请求允许的具体 <Subject N> token 穷尽清单；不得推测、补全、顺延或创建任何其他 Subject token。"
+        "必须原样保持 subject_manifest 中每个 subject_ref 与角色的映射。"
+        "当 zero_subject_mode=true 时，最终正文任何位置都不得出现具体 <Subject 数字>，包括否定或未分配语境。"
+        "non_subject_entities 及 Scene、Prop、Picture、Keyframe、PRIMARY_STORYBOARD、PREVIOUS_KEYFRAME 必须保持独立 namespace，绝不能转为 Subject。\n\n"
         + json.dumps(payload, ensure_ascii=False, indent=2)
     )
     record = validation_record if validation_record is not None else {}
     record.update({"version": 1, "passed": False, "stage": "candidate", "origin": "reuse" if reusable_prompt is not None else "llm",
-                   "llm_invoked": reusable_prompt is None, "clip_index": clip.get("clip_index"), "selected_mode": selected_mode})
+                   "llm_invoked": reusable_prompt is None, "clip_index": clip.get("clip_index"), "selected_mode": selected_mode,
+                   "subject_manifest": deepcopy(subject_manifest), "speaker_timeline": deepcopy(h3_speaker_timeline),
+                   "subject_namespace": deepcopy(subject_namespace)})
     if visual_identity is not None:
         record["visual_identity"] = deepcopy(visual_identity)
         record["input_hash"] = prompt_digest(payload)
@@ -909,12 +945,79 @@ async def build_h3_video_prompt(
         record["raw_candidate"] = candidate
         record["stage"] = "core"
         if core_gate_required:
-            prepared = prepare_h3_prompt(
-                candidate, constraint=audio_text_rendering_constraint,
-                continuity_lock=handoff_continuity_lock if effective_context is not None else _render_continuity_lock(shot, selected_mode, clip),
-                subject_manifest=subject_manifest, speaker_timeline=h3_speaker_timeline,
-                audio_drive_enabled=audio_drive_enabled, fallback_context=fallback_context,
-            )
+            continuity_lock = handoff_continuity_lock if effective_context is not None else _render_continuity_lock(shot, selected_mode, clip)
+            try:
+                prepared = prepare_h3_prompt(
+                    candidate, constraint=audio_text_rendering_constraint, continuity_lock=continuity_lock,
+                    subject_manifest=subject_manifest, speaker_timeline=h3_speaker_timeline,
+                    audio_drive_enabled=audio_drive_enabled, fallback_context=fallback_context,
+                )
+            except H3PromptValidationError as first_error:
+                offending_refs = _unknown_subject_refs(first_error)
+                if reusable_prompt is not None or record.get("origin") != "llm" or not offending_refs:
+                    raise
+                repair_request = {
+                    "operation": "H3_SUBJECT_NAMESPACE_REPAIR_V1",
+                    **subject_namespace,
+                    "offending_refs": offending_refs,
+                    "candidate_sha256": prompt_digest(candidate),
+                    "candidate": candidate,
+                    "instruction": (
+                        "Return the complete corrected H3 prompt only. Remove or correct every illegal concrete "
+                        "Subject token using the exact allowed_subject_refs. Never create, infer, renumber, or bind "
+                        "a Scene, Prop, Picture, Keyframe, PRIMARY_STORYBOARD, or PREVIOUS_KEYFRAME as a Subject."
+                    ),
+                }
+                repair_system = template.template + (
+                    "\n\n【Subject Namespace constrained repair】\n"
+                    "This is the only repair attempt. Preserve the full prompt except for illegal Subject references. "
+                    "Use only exact tokens in allowed_subject_refs. If zero_subject_mode is true, emit no concrete "
+                    "<Subject number> token anywhere, including negative or unassigned statements."
+                )
+                repair_result = await asyncio.wait_for(
+                    LLMService().chat_completion(
+                        system_prompt=repair_system,
+                        user_content=json.dumps(repair_request, ensure_ascii=False, indent=2),
+                        temperature=0.1,
+                        max_tokens=1800,
+                        task_type=template_type,
+                        prompt_template_name=template.name,
+                        novel_id=novel.id,
+                        chapter_id=shot.chapter_id,
+                    ),
+                    timeout=max(1, int(getattr(get_settings(), "LLM_TIMEOUT", 600) or 600)),
+                )
+                repair = {
+                    "version": "h3-subject-namespace-repair-v1",
+                    "attempt": 1,
+                    "max_attempts": 1,
+                    "allowed_subject_refs": deepcopy(subject_namespace["allowed_subject_refs"]),
+                    "non_subject_entities": deepcopy(subject_namespace["non_subject_entities"]),
+                    "zero_subject_mode": subject_namespace["zero_subject_mode"],
+                    "offending_refs": offending_refs,
+                    "first_llm_log_id": record.get("llm_log_id"),
+                    "first_candidate_sha256": prompt_digest(candidate),
+                    "repair_llm_log_id": repair_result.get("llm_log_id"),
+                }
+                record["subject_namespace_repair"] = repair
+                if not repair_result.get("success") or not isinstance(repair_result.get("content"), str) or not repair_result["content"].strip():
+                    repair["outcome"] = "REPAIR_CALL_FAILED"
+                    raise H3PromptValidationError("SUBJECT_NAMESPACE_REPAIR_FAILED", repair_result.get("error"))
+                candidate = repair_result["content"].strip()
+                repair["repair_candidate_sha256"] = prompt_digest(candidate)
+                record["raw_candidate"] = candidate
+                record["origin"] = "subject_namespace_repair"
+                error = str(first_error)
+                try:
+                    prepared = prepare_h3_prompt(
+                        candidate, constraint=audio_text_rendering_constraint, continuity_lock=continuity_lock,
+                        subject_manifest=subject_manifest, speaker_timeline=h3_speaker_timeline,
+                        audio_drive_enabled=audio_drive_enabled, fallback_context=fallback_context,
+                    )
+                except H3PromptValidationError:
+                    repair["outcome"] = "STILL_INVALID"
+                    raise
+                repair["outcome"] = "REPAIRED"
         else:
             # This builder was already shared with non-H3 video workflows. Keep
             # their existing composition/audit behavior outside the new gate.
@@ -934,7 +1037,7 @@ async def build_h3_video_prompt(
             record["fallback_error"] = error
         _record_h3_prompt_call(db, shot, {
             **call, "status": "success", "error_message": error,
-            "response": candidate if record["origin"] == "llm" else error,
+            "response": candidate if record["origin"] in {"llm", "subject_namespace_repair"} else error,
             "parsed_result": dict(record), "final_prompt": prepared["final_prompt"],
         })
         db.commit()

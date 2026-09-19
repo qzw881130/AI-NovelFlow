@@ -13,10 +13,25 @@ class AsyncWorker:
         self.name = name
         self._queue: asyncio.Queue[JobFactory] = asyncio.Queue()
         self._runner: Optional[asyncio.Task] = None
+        self._keys: set[str] = set()
 
     def enqueue(self, job_factory: JobFactory) -> None:
         self._ensure_started()
         self._queue.put_nowait(job_factory)
+
+    def enqueue_once(self, key: str, job_factory: JobFactory) -> bool:
+        if key in self._keys:
+            return False
+        self._keys.add(key)
+
+        async def guarded() -> None:
+            try:
+                await job_factory()
+            finally:
+                self._keys.discard(key)
+
+        self.enqueue(guarded)
+        return True
 
     def _ensure_started(self) -> None:
         if self._runner and not self._runner.done():

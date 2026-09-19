@@ -9,7 +9,7 @@ import secrets
 import re
 from uuid import uuid4
 from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy import or_
 from app.models.rsa_media import RsaImageAttempt as Attempt, RsaMediaArtifact as Artifact
 from app.models.shot import Shot
@@ -28,10 +28,17 @@ from app.services.llm_service import LLMService
 from app.services import rsa_media_contract as contract
 from app.services.rsa_media_graph import prepare_graph,inspect_graph
 from app.services.appearance_image_contract import output_receipt,receipt_url
+from app.services.keyframe_reference_graph import semantic_graph_digest
 from app.services.resolved_asset_images import IMAGE_POLICY
 from app.services.task_execution import ExecutionConflict, upsert_review_finding
 
 WORKER_ID='rsa-media-'+uuid4().hex
+UNACKNOWLEDGED_ERROR='UNCONFIRMED_RSA_MEDIA_NOT_REPLAYED'
+RECOVERABLE_VIDEO_BATCH_ERRORS={
+    'BATCH_EXECUTION_REVIEW_REQUIRED: child attempt or result evidence exists',
+    'BATCH_WORKER_INTERRUPTED: terminal child evidence preserved; automatic resubmission disabled',
+}
+ADOPTION_RECOVERY_SECONDS=900
 
 
 def _frame_patch(db,shot,index,fields):
@@ -51,6 +58,15 @@ def _frame_patch(db,shot,index,fields):
     db.expire(shot)
 
 
+def _submission_graph(inputs, uploads, prompt, task_id):
+    graph=deepcopy(inputs['workflow']['graph']);mapping=inputs['workflow']['mapping'];nodes=inputs['workflow']['reference_nodes']
+    WorkflowBuilder()._set_prompt(graph,str(mapping['prompt_node_id']),prompt)
+    for node,receipt in zip(nodes,uploads):graph[node]['inputs']['image']=receipt['filename']
+    graph[str(mapping['save_image_node_id'])]['inputs']['filename_prefix']='rsa-'+task_id
+    proof=inspect_graph(graph,mapping,nodes,filenames=[u['filename'] for u in uploads],prompt=prompt)
+    return graph,proof
+
+
 def settle_terminal(db,task):
     row=db.get(Attempt,task.id)
     if row and row.status in {'PENDING','RUNNING'} and task.status in {'failed','cancelled'}:
@@ -66,6 +82,59 @@ def settle_terminal(db,task):
             frames=json.loads(shot.keyframes or '[]')
             if row.frame_index<len(frames) and frames[row.frame_index].get('image_task_id')==task.id:
                 _frame_patch(db,shot,row.frame_index,{'image_status':'failed'})
+
+
+def failed_unacknowledged_attempt_ids(db,parent_task_id=None,limit=None,now=None):
+    cutoff=(now or datetime.utcnow())-timedelta(seconds=ADOPTION_RECOVERY_SECONDS)
+    query=(db.query(Attempt).join(Task,Task.id==Attempt.id)
+        .filter(Attempt.status=='FAILED',Attempt.error==UNACKNOWLEDGED_ERROR,
+            Attempt.artifact_id.is_(None),Attempt.completed_at>=cutoff,
+            Task.status=='failed',Task.error_message==UNACKNOWLEDGED_ERROR))
+    if parent_task_id is not None:query=query.filter(Task.parent_task_id==parent_task_id)
+    result=[]
+    for row in query.order_by(Attempt.created_at,Attempt.id).all():
+        if (row.execution or {}).get('submit',{}).get('state')=='ATTEMPTED':
+            result.append(row.id)
+            if limit is not None and len(result)>=limit:break
+    return result
+
+
+def completed_unreceipted_adoption_ids(db,parent_task_id=None,limit=None,now=None):
+    cutoff=(now or datetime.utcnow())-timedelta(seconds=ADOPTION_RECOVERY_SECONDS)
+    query=(db.query(Attempt).join(Task,Task.id==Attempt.id)
+        .filter(Attempt.status=='SUCCEEDED',Attempt.artifact_id.is_not(None),
+            Attempt.completed_at>=cutoff,Task.status=='completed',Task.parent_task_id.is_not(None)))
+    if parent_task_id is not None:query=query.filter(Task.parent_task_id==parent_task_id)
+    result=[]
+    for row in query.order_by(Attempt.completed_at,Attempt.id).all():
+        adoption=(row.execution or {}).get('adoption') or {};task=db.get(Task,row.id);parent=db.get(Task,task.parent_task_id)
+        receipt=(json.loads(parent.metadata_json or '{}').get('verified_resume') or {}) if parent else {}
+        if (adoption.get('version')=='rsa-media-verified-adoption-v1'
+                and row.id not in (receipt.get('recoveredTaskIds') or [])):
+            result.append(row.id)
+            if limit is not None and len(result)>=limit:break
+    return result
+
+
+def rsa_recovery_attempt_ids(db,parent_task_id,limit=8):
+    result=failed_unacknowledged_attempt_ids(db,parent_task_id=parent_task_id,limit=limit)
+    if len(result)<limit:
+        rows=(db.query(Attempt).join(Task,Task.id==Attempt.id)
+            .filter(Attempt.status=='RUNNING',Task.status=='running',Task.parent_task_id==parent_task_id)
+            .order_by(Attempt.created_at,Attempt.id).all())
+        for row in rows:
+            if (row.execution or {}).get('submit',{}).get('state') in {'ATTEMPTED','SUBMITTED'}:
+                result.append(row.id)
+                if len(result)>=limit:break
+    if len(result)<limit:
+        for task_id in completed_unreceipted_adoption_ids(db,parent_task_id=parent_task_id,limit=limit-len(result)):
+            if task_id not in result:result.append(task_id)
+    return result
+
+
+def _recoverable_video_batch_parent(parent):
+    return bool(parent and parent.type=='shot_video_batch' and parent.status=='failed'
+        and parent.error_message in RECOVERABLE_VIDEO_BATCH_ERRORS)
 
 
 class RsaImageService:
@@ -223,6 +292,126 @@ class RsaImageService:
                 if parent.id!=row.inputs['manifest'][0]['artifact_id'] or kind!=row.inputs['manifest'][0]['type']:raise RuntimeError('KEYFRAME_LINEAGE_CHANGED')
         return row,task,shot
 
+    async def discover_submission(self,tid,inputs,execution,client,*,prompt_id=None):
+        submit=execution.get('submit') or {};durable_client_id=submit.get('client_id')
+        if prompt_id:
+            state=await client.get_prompt_state(prompt_id)
+            history=state.get('history') if state.get('state') in {'completed','history'} else None
+            prompt=history.get('prompt') if isinstance(history,dict) else None
+            if not isinstance(prompt,list) or len(prompt)<4 or prompt[1]!=prompt_id or not isinstance(prompt[3],dict):
+                raise RuntimeError('RSA_MEDIA_ADOPTION_UNVERIFIED')
+            discovered=await client.discover_prompt_by_client_id(prompt[3].get('client_id'))
+            if discovered.get('state')!='found' or discovered.get('prompt_id')!=prompt_id:
+                raise RuntimeError('RSA_MEDIA_ADOPTION_AMBIGUOUS' if discovered.get('state')=='ambiguous' else 'RSA_MEDIA_ADOPTION_UNVERIFIED')
+        else:
+            if not durable_client_id:raise RuntimeError('UNCONFIRMED_RSA_MEDIA_NOT_REPLAYED')
+            discovered=await client.discover_prompt_by_client_id(durable_client_id)
+            if discovered.get('state')=='ambiguous':raise RuntimeError('RSA_MEDIA_ADOPTION_AMBIGUOUS')
+            if discovered.get('state')!='found':raise RuntimeError('UNCONFIRMED_RSA_MEDIA_NOT_REPLAYED')
+        if durable_client_id and discovered.get('client_id')!=durable_client_id:
+            raise RuntimeError('RSA_MEDIA_ADOPTION_CLIENT_MISMATCH')
+        manifest=execution.get('manifest');prompt_record=execution.get('prompt');uploads=execution.get('uploads')
+        if not isinstance(manifest,list) or not isinstance(prompt_record,dict) or not isinstance(uploads,list):
+            raise RuntimeError('RSA_MEDIA_ADOPTION_LOCAL_EVIDENCE_MISSING')
+        contract.validate_manifest(inputs,manifest,memo=self.memo)
+        contract.verify_prompt_record(self.db,inputs,prompt_record,memo=self.memo)
+        if len(uploads)!=len(manifest):raise RuntimeError('RSA_MEDIA_ADOPTION_UPLOAD_SET_CHANGED')
+        for index,(upload,reference) in enumerate(zip(uploads,manifest),1):
+            if (upload.get('picture_index')!=index or upload.get('payload_sha256')!=reference['image']['sha256']
+                    or upload.get('remote_sha256')!=reference['image']['sha256']
+                    or upload.get('manifest_hash')!=digest(reference)):
+                raise RuntimeError('RSA_MEDIA_ADOPTION_UPLOAD_CHANGED')
+        expected_graph,expected_proof=_submission_graph(inputs,uploads,prompt_record['text'],tid)
+        graph=execution.get('graph');proof=execution.get('graph_proof')
+        if (graph!=expected_graph or proof!=expected_proof or submit.get('graph_hash')!=digest(expected_graph)):
+            raise RuntimeError('RSA_MEDIA_ADOPTION_LOCAL_GRAPH_CHANGED')
+        remote_graph=discovered.get('graph')
+        try:remote_proof=inspect_graph(remote_graph,inputs['workflow']['mapping'],inputs['workflow']['reference_nodes'],
+            filenames=[u['filename'] for u in uploads],prompt=prompt_record['text'])
+        except Exception as exc:raise RuntimeError('RSA_MEDIA_ADOPTION_GRAPH_MISMATCH') from exc
+        if remote_proof!=expected_proof or semantic_graph_digest(remote_graph)!=semantic_graph_digest(expected_graph):
+            raise RuntimeError('RSA_MEDIA_ADOPTION_GRAPH_MISMATCH')
+        history=discovered.get('history')
+        if history is not None:
+            receipt=output_receipt(history,discovered['prompt_id'],expected_graph,inputs['workflow']['mapping']['save_image_node_id'])
+            filename=receipt['image']['filename']
+            if not filename.startswith('rsa-'+tid+'_'):
+                raise RuntimeError('RSA_MEDIA_ADOPTION_OUTPUT_IDENTITY_MISMATCH')
+        return discovered,expected_graph
+
+    async def reconcile_failed_unacknowledged(self,tid,prompt_id):
+        db=self.db;row,task=db.get(Attempt,tid),db.get(Task,tid)
+        if (not row or not task or row.status!='FAILED' or task.status!='failed' or row.artifact_id
+                or row.error!='UNCONFIRMED_RSA_MEDIA_NOT_REPLAYED' or task.error_message!=row.error
+                or (row.execution or {}).get('submit',{}).get('state')!='ATTEMPTED'):
+            raise RuntimeError('RSA_MEDIA_ADOPTION_NOT_ELIGIBLE')
+        inputs,execution=deepcopy(row.inputs),deepcopy(row.execution);meta=json.loads(task.metadata_json or '{}')
+        if (digest(inputs)!=row.input_hash or meta.get('rsa_media_attempt')!=row.id or meta.get('input_hash')!=row.input_hash
+                or meta.get('execution_purpose')!='production' or task.shot_id!=row.shot_id or task.novel_id!=row.novel_id
+                or task.chapter_id!=row.chapter_id or task.workflow_id!=inputs['workflow']['id']
+                or task.parent_task_id!=inputs['parent_task_id'] or db.query(Artifact.id).filter_by(task_id=tid).first()):
+            raise RuntimeError('RSA_MEDIA_ADOPTION_TASK_BINDING_CHANGED')
+        shot=db.get(Shot,row.shot_id)
+        if not shot:raise RuntimeError('RSA_MEDIA_SHOT_REMOVED')
+        from app.services.chapter_governance import require_source
+        require_source(db,row.shot_id)
+        rsa=require_frozen_rsa(db,row.shot_id,row.rsa_id,row.rsa_hash,memo=self.memo)
+        contract.validate_inputs_rsa(db,inputs,rsa,memo=self.memo)
+        if row.stage=='SHOT':
+            if shot.image_task_id!=tid or shot.image_status!='failed' or shot.image_url!=inputs['target']['image_url']:
+                raise RuntimeError('RSA_MEDIA_ADOPTION_TARGET_CHANGED')
+        else:
+            target=snapshot_target(shot,row.frame_index);expected=inputs['target']
+            if (target_semantics(target)!=target_semantics(expected) or target['draft']!=expected['draft']
+                    or target['images']!=expected['images'] or target['owners']['legacy']!=tid
+                    or (expected['plan_keyframe_index'] is not None and target['owners']['plan']!=tid)):
+                raise RuntimeError('RSA_MEDIA_ADOPTION_TARGET_CHANGED')
+        client=self.client or frozen_keyframe_client(inputs['endpoint'])
+        discovered,graph=await self.discover_submission(tid,inputs,execution,client,prompt_id=prompt_id)
+        if discovered.get('history') is None:raise RuntimeError('RSA_MEDIA_ADOPTION_RESULT_NOT_COMPLETE')
+        parent=db.get(Task,task.parent_task_id) if task.parent_task_id else None
+        recover_parent=_recoverable_video_batch_parent(parent)
+        if parent and parent.status not in {'pending','running'} and not recover_parent:
+            raise RuntimeError('RSA_MEDIA_PARENT_TERMINATED')
+        old_task=(task.status,task.claim_token,task.attempt,task.error_message,task.comfyui_prompt_id,task.metadata_json)
+        old_row=(row.status,row.claim_token,row.error,deepcopy(row.execution),row.artifact_id)
+        token=str(uuid4());now=datetime.utcnow()
+        execution['submit'].update(state='SUBMITTED',prompt_id=discovered['prompt_id'],ack_source='DISCOVERY_V1')
+        execution['phase']='SUBMITTED';execution['adoption']={
+            'version':'rsa-media-verified-adoption-v1','client_id':discovered['client_id'],
+            'prompt_id':discovered['prompt_id'],'locations':discovered['locations'],
+            'graph_hash':digest(graph),'semantic_graph_hash':semantic_graph_digest(graph),
+            'reconciled_at':now.isoformat()}
+        parent_count=1
+        if recover_parent:
+            conditions=[getattr(Task,column.key)==getattr(parent,column.key) for column in Task.__table__.columns
+                if column.key not in {'created_at','updated_at'}]
+            parent_count=db.query(Task).filter(*conditions).update({'status':'running','error_message':None,
+                'completed_at':None,'current_step':'Verified child adoption in progress','heartbeat_at':now},
+                synchronize_session=False)
+        task_count=db.query(Task).filter(Task.id==tid,Task.status==old_task[0],Task.claim_token==old_task[1],
+            Task.attempt==old_task[2],Task.error_message==old_task[3],Task.comfyui_prompt_id.is_(None),
+            Task.metadata_json==old_task[5]).update({'status':'running','claim_token':token,'worker_id':WORKER_ID,
+                'heartbeat_at':now,'attempt':old_task[2]+1,'error_message':None,'completed_at':None,
+                'current_step':'已验证远端提交，继续回收结果','comfyui_prompt_id':discovered['prompt_id'],
+                'workflow_json':json.dumps(graph,ensure_ascii=False)},synchronize_session=False)
+        row_count=db.query(Attempt).filter(Attempt.id==tid,Attempt.status==old_row[0],Attempt.claim_token==old_row[1],
+            Attempt.error==old_row[2],Attempt.execution==old_row[3],Attempt.artifact_id.is_(None)).update({
+                'status':'RUNNING','claim_token':token,'error':None,'completed_at':None,'execution':execution},synchronize_session=False)
+        if parent_count!=1 or task_count!=1 or row_count!=1:
+            db.rollback();raise RuntimeError('RSA_MEDIA_ADOPTION_FENCED')
+        db.expire_all();shot=db.get(Shot,row.shot_id)
+        if row.stage=='SHOT':shot.image_status='generating'
+        else:_frame_patch(db,shot,row.frame_index,{'image_task_id':tid,'image_status':'generating'})
+        db.commit()
+        await self.execute(tid,token,recover=True)
+        db.expire_all();row,task=db.get(Attempt,tid),db.get(Task,tid)
+        if not row or row.status!='SUCCEEDED' or not task or task.status!='completed' or not row.artifact_id:
+            raise RuntimeError('RSA_MEDIA_ADOPTION_PUBLICATION_FAILED')
+        authorize_completed_adoption(db,tid)
+        return {'taskId':tid,'promptId':discovered['prompt_id'],'artifactId':row.artifact_id,
+            'status':row.status,'adoption':execution['adoption']}
+
     def save(self,tid,token,execution,step,*,review_finding=None,**fields):
         self.guard(tid,token,dependencies=False)
         finding=None
@@ -374,27 +563,44 @@ class RsaImageService:
                     uploads.append({**receipt,'remote_sha256':info['sha256'],'picture_index':index,'manifest_hash':digest(m)})
                     execution['uploads']=deepcopy(uploads)
                     self.save(tid,token,execution,f'已验证参考图上传 {index}/{len(manifest)}')
-                graph=deepcopy(inputs['workflow']['graph']);mapping=inputs['workflow']['mapping'];nodes=inputs['workflow']['reference_nodes']
-                WorkflowBuilder()._set_prompt(graph,str(mapping['prompt_node_id']),prompt)
-                for node,receipt in zip(nodes,uploads):graph[node]['inputs']['image']=receipt['filename']
-                graph[str(mapping['save_image_node_id'])]['inputs']['filename_prefix']='rsa-'+tid
-                proof=inspect_graph(graph,mapping,nodes,filenames=[u['filename'] for u in uploads],prompt=prompt)
+                graph,proof=_submission_graph(inputs,uploads,prompt,tid);nodes=inputs['workflow']['reference_nodes']
                 if inputs['stage']=='KEYFRAME':
                     contract.validate_reference_prompt(proof['effective_prompt'],inputs['manifest'][0]['type'])
                 elif set(re.findall(r'<Picture\s+(\d+)>',proof['effective_prompt']))!={str(i) for i in range(1,len(nodes)+1)}:
                     raise RuntimeError('WORKFLOW_PROMPT_MANIFEST_CONFLICT')
-                execution.update(phase='SUBMITTING',uploads=uploads,graph=graph,graph_proof=proof,submit={'state':'ATTEMPTED','graph_hash':digest(graph)})
+                execution.update(phase='SUBMITTING',uploads=uploads,graph=graph,graph_proof=proof,
+                    submit={'state':'ATTEMPTED','graph_hash':digest(graph),'client_id':client.client_id})
                 self.save(tid,token,execution,'提交冻结RSA图像工作流',prompt_text=prompt)
                 self.guard(tid,token);contract.validate_manifest(inputs,manifest,memo=self.memo)
                 contract.verify_prompt_record(self.db,inputs,prompt_record,memo=self.memo)
                 queued=await self.waiting(client.queue_prompt(graph),tid,token)
                 if not queued.get('success') or not isinstance(queued.get('prompt_id'),str) or not queued['prompt_id'].strip():
                     execution['submit']['state']='UNKNOWN';raise RuntimeError('RSA_MEDIA_SUBMISSION_UNCONFIRMED')
-                execution['submit'].update(state='SUBMITTED',prompt_id=queued['prompt_id']);execution['phase']='SUBMITTED'
-                self.save(tid,token,execution,'ComfyUI生成中',comfyui_prompt_id=queued['prompt_id'],workflow_json=json.dumps(graph,ensure_ascii=False))
+                execution['submit'].update(state='SUBMITTED',prompt_id=queued['prompt_id'],ack_source='QUEUE_RESPONSE');execution['phase']='SUBMITTED'
+                try:
+                    self.save(tid,token,execution,'ComfyUI生成中',comfyui_prompt_id=queued['prompt_id'],workflow_json=json.dumps(graph,ensure_ascii=False))
+                except OperationalError:
+                    # Remote admission may already be durable. Leave the last local
+                    # ATTEMPTED envelope intact for stale-owner verified discovery.
+                    self.db.rollback();return
             else:
-                if execution.get('submit',{}).get('state')!='SUBMITTED':raise RuntimeError('UNCONFIRMED_RSA_MEDIA_NOT_REPLAYED')
-                graph=execution['graph']
+                submit_state=execution.get('submit',{}).get('state')
+                if submit_state=='ATTEMPTED':
+                    discovered,graph=await self.discover_submission(tid,inputs,execution,client)
+                    execution['submit'].update(state='SUBMITTED',prompt_id=discovered['prompt_id'],ack_source='DISCOVERY_V1')
+                    execution['phase']='SUBMITTED';execution['adoption']={
+                        'version':'rsa-media-verified-adoption-v1','client_id':discovered['client_id'],
+                        'prompt_id':discovered['prompt_id'],'locations':discovered['locations'],
+                        'graph_hash':digest(graph),'semantic_graph_hash':semantic_graph_digest(graph)}
+                    self.save(tid,token,execution,'已验证远端提交，继续回收结果',comfyui_prompt_id=discovered['prompt_id'],workflow_json=json.dumps(graph,ensure_ascii=False))
+                elif submit_state=='SUBMITTED':
+                    graph=execution['graph']
+                    if recover:
+                        execution['adoption']={'version':'rsa-media-verified-adoption-v1',
+                            'source':'ACKNOWLEDGED_RESTART','client_id':execution['submit'].get('client_id'),
+                            'prompt_id':execution['submit']['prompt_id'],'graph_hash':digest(graph),
+                            'semantic_graph_hash':semantic_graph_digest(graph)}
+                else:raise RuntimeError('UNCONFIRMED_RSA_MEDIA_NOT_REPLAYED')
                 if digest(graph)!=execution['submit']['graph_hash']:raise RuntimeError('RSA_MEDIA_SAVED_GRAPH_CHANGED')
                 contract.validate_manifest(inputs,execution['manifest'],memo=self.memo)
             cid=execution['submit']['prompt_id'];deadline=asyncio.get_running_loop().time()+7200;missing=None
@@ -448,9 +654,23 @@ class RsaImageService:
         except Exception as exc:self.fail(tid,token,execution,exc)
 
 
-async def run_next_rsa_image_task():
+def authorize_completed_adoption(db,task_id):
+    row,task=db.get(Attempt,task_id),db.get(Task,task_id)
+    adoption=(row.execution or {}).get('adoption') if row and isinstance(row.execution,dict) else None
+    if (not row or row.status!='SUCCEEDED' or not row.artifact_id or not task or task.status!='completed'
+            or not task.parent_task_id or not isinstance(adoption,dict)
+            or adoption.get('version')!='rsa-media-verified-adoption-v1'):
+        return False
+    parent=db.get(Task,task.parent_task_id);receipt=(json.loads(parent.metadata_json or '{}').get('verified_resume') or {}) if parent else {}
+    if task_id in (receipt.get('recoveredTaskIds') or []):return False
+    from app.api.shots import authorize_verified_video_batch_resume
+    authorize_verified_video_batch_resume(db,task.parent_task_id,task.id)
+    return True
+
+
+async def run_next_rsa_image_task(db=None):
     from app.core.database import SessionLocal
-    db=SessionLocal()
+    owned=db is None;db=db or SessionLocal()
     try:
         settle_batches(db)
         for row in db.query(Attempt).filter(Attempt.status.in_(['PENDING','RUNNING'])).all():
@@ -474,9 +694,40 @@ async def run_next_rsa_image_task():
             db.rollback();return False
         pending.status,pending.claim_token='RUNNING',token;db.commit()
         await RsaImageService(db).execute(tid,token,recover=recover)
+        db.expire_all();authorize_completed_adoption(db,tid)
         settle_batches(db)
         return True
-    finally:db.close()
+    finally:
+        if owned:db.close()
+
+
+async def reconcile_failed_unacknowledged_tasks(db=None,limit=None):
+    from app.core.database import SessionLocal
+    owned=db is None;lookup=db or SessionLocal()
+    try:
+        task_ids=failed_unacknowledged_attempt_ids(lookup,limit=limit)
+        completed_ids=completed_unreceipted_adoption_ids(lookup,limit=limit)
+    finally:
+        if owned:lookup.close()
+    adopted=0
+    for task_id in task_ids:
+        session=SessionLocal() if owned else db
+        try:
+            await RsaImageService(session).reconcile_failed_unacknowledged(task_id,None)
+            adopted+=1
+        except (HTTPException,RuntimeError,ValueError,KeyError,TypeError,OSError):
+            session.rollback()
+        finally:
+            if owned:session.close()
+    for task_id in completed_ids:
+        session=SessionLocal() if owned else db
+        try:
+            if authorize_completed_adoption(session,task_id):adopted+=1
+        except (HTTPException,RuntimeError,ValueError,KeyError,TypeError,OSError):
+            session.rollback()
+        finally:
+            if owned:session.close()
+    return adopted
 
 
 def settle_batches(db):

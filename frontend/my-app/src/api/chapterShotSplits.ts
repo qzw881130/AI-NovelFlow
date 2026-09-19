@@ -10,7 +10,7 @@ export interface SplitState {canSplit:boolean;splitBlocker:unknown;phase5Ready:b
   scope:Record<string,{status:string;emptyConfirmed:boolean;bindings:{id:string;assetId:string;name:string;entityType:string|null}[]}>|null;
   shots:{shotId:string;index:number;status:string;issue:unknown;completionDisposition:'NORMAL'|'DEGRADED_NARRATION_CARD';source:ShotSourceProof|null}[]}
 export interface CompletionEntry {shotId:string;shotIndex:number;completionDisposition:'NORMAL'|'DEGRADED_NARRATION_CARD';sourceRange:[number,number]|null;ready:boolean;blocker:unknown}
-export interface CompletionReadiness {ready:boolean;manifestHash:string|null;counts:{normal:number;degraded:number;total:number};entries:CompletionEntry[];blocker:unknown}
+export interface CompletionReadiness {ready:boolean;manifestHash:string|null;counts:{normal:number;degraded:number;total:number};entries:CompletionEntry[];blocker:unknown;latestTask?:{taskId:string;status:string;error:string|null}|null}
 export interface ChapterCompletion {taskId:string;outcome:'SUCCEEDED'|'SUCCEEDED_WITH_DEGRADATION';manifestHash:string;url:string;normalCount:number;degradedCount:number;degradedRanges:{shotId:string;shotIndex:number;sourceRange:[number,number]}[]}
 const root=(n:string,c:string)=>`/novels/${n}/chapters/${c}`;
 export const chapterShotSplitsApi={
@@ -23,6 +23,6 @@ export const chapterShotSplitsApi={
   narrationCard:(n:string,c:string,s:string)=>api.get<unknown>(`${root(n,c)}/shots/${s}/narration-card`),
   completionReadiness:(n:string,c:string)=>api.get<CompletionReadiness>(`${root(n,c)}/completion-readiness`),
   completion:(n:string,c:string)=>api.get<ChapterCompletion|null>(`${root(n,c)}/completion`),
-  complete:(n:string,c:string,manifestHash:string)=>api.post<{taskId:string;status:string;manifestHash:string;counts:{normal:number;degraded:number;total:number}}>(`${root(n,c)}/completion?expectedManifestHash=${encodeURIComponent(manifestHash)}`),
+  complete:(n:string,c:string,manifestHash:string,retryFailedTaskId?:string)=>api.post<{taskId:string;status:string;manifestHash:string|null;counts:{normal:number;degraded:number;total:number}|null;reused:boolean;retryRequired:boolean}>(`${root(n,c)}/completion?expectedManifestHash=${encodeURIComponent(manifestHash)}${retryFailedTaskId?`&retryFailedTaskId=${encodeURIComponent(retryFailedTaskId)}`:''}`),
   validateTreatments:(n:string,c:string,s:string)=>api.get<{status:string;visual_semantics_verified:false;counts?:Record<string,number>;issues:unknown[]}>(`${root(n,c)}/shots/${s}/treatment-validation`),
 };

@@ -17,11 +17,12 @@ LINK = r'(?:(?:do|does|did|is|are|was|were|will|would|must|should|can|could|both
 NEGATABLE = r'(?:'+SPEECH+r'|\bspeech\b)'
 GENERIC = r'(?:visible\s+)?(?:characters?|animals?|subjects?|persons?|people|one)'
 NEGATION = re.compile(
-    r'(?:不(?:得|要|会|能|可|再|允许)?|没有|未|禁止|无需|无)(?:任何|可|在|再)?(?:(?:可见)?(?:人物|角色|人))?\s*(?:'+CN+r')(?:(?:'+CN+r'))*|'
-    r'\b(?:no\s+'+GENERIC+r'(?:\s+(?:or|nor)\s+'+GENERIC+r')*\s+|none\s+of\s+(?:the\s+)?'+GENERIC+r'\s+|(?:no|not|never|without)\s+(?!only\b|just\b|merely\b))'+LINK+NEGATABLE+
+    r'(?:不(?:得|要|会|能|可|再|允许)?|没有|未|禁止|无需|无)(?:任何|可|在|再)?(?:(?:可见)?(?:人物|角色|人))?(?:的)?\s*(?:'+CN+r')(?:(?:'+CN+r'))*|'
+    r'\b(?:no(?:\s*visible)?character\s+|no\s+'+GENERIC+r'(?:\s+(?:or|nor)\s+'+GENERIC+r')*\s+|none\s+of\s+(?:the\s+)?'+GENERIC+r'\s+|(?:no|not|never|without)\s+(?!only\b|just\b|merely\b))'+LINK+NEGATABLE+
     r'(?:\s+(?:or|nor)\s+(?:any\s+)?'+NEGATABLE+r')*|\bnon[- ]lip[- ]?sync\b',re.I)
 EXCEPTION = re.compile(r'\b(?:except(?:\s+for)?|unless|apart\s+from|other\s+than)\b',re.I)
 OTHER_ACTION = re.compile(r'\b(?:remain|stay|wave|walk|run|look|stand|move|turn|graze|breathe|hold|smile)(?:s|d|ed|ing)?\b',re.I)
+COORDINATED_MOUTH = re.compile(r'\b(?:and|but|while|whereas|yet)\s+(?:<Subject\s*\d+>\s+)?mouth\s+(?:moves?|opens?)\b',re.I)
 EXPLICIT_TEXT = re.compile(
     r'(?:台词|对白|(?<![A-Za-z0-9_])(?:exact_dialogue|dialogue))\s*[:：][ \t]*'
     r'(?:[\"\'“‘][ \t]*[^\"\'“”‘’\s]|(?!(?:NONE|null|无(?:台词)?|没有台词|保持沉默)(?:[ \t]*[。；;,，]|\s*$))[^\W_])|'
@@ -40,27 +41,34 @@ MARKERS = re.compile(
 def scoped_text(prompt,timeline):
     silent=[(float(s.get('start_time',0)),float(s.get('end_time',0))) for s in timeline if isinstance(s,dict) and (s.get('visible_speaker') or 'NONE')=='NONE']
     all_silent=bool(timeline) and all((s.get('visible_speaker') or 'NONE')=='NONE' for s in timeline if isinstance(s,dict))
-    active=all_silent;interval=None;cursor=0
+    active=all_silent;interval=None;declared_none=False;cursor=0
     for marker in MARKERS.finditer(prompt):
-        yield prompt[cursor:marker.start()],active,interval
+        block=prompt[cursor:marker.start()]
+        yield block,active,interval,declared_none
         if marker.group('time') or marker.group('t_time'):
             interval=(float(marker.group('start') or marker.group('t_start')),float(marker.group('end') or marker.group('t_end')))
             active=all_silent or any(a<interval[1] and interval[0]<b for a,b in silent)
+            declared_none=False
         elif marker.group('section'):
-            interval=None;active=all_silent
+            interval=None;active=all_silent;declared_none=False
         elif marker.group('assignment'):
             # A prompt's speaker claim cannot override an actual silent interval.
             active=all_silent or marker.group('speaker').upper()=='NONE' or bool(interval and any(a<interval[1] and interval[0]<b for a,b in silent))
-        else:active=True
+            declared_none=marker.group('speaker').upper()=='NONE'
+        else:
+            active=True
+            # Infer an omitted actor only when NONE itself starts the local
+            # timeline clause, not when prose merely discusses the token.
+            declared_none=not re.search(r'\w',block.rsplit('\n',1)[-1])
         cursor=marker.end()
-    yield prompt[cursor:],active,interval
+    yield prompt[cursor:],active,interval,declared_none
 
 
 def clauses(text):
     # Coordinated clauses with a new subject have their own predicates. In
     # particular, "and all remain still except X" does not modify "no speech".
     subject_start=r'(?:<Subject|all\b|no\b|the\b|any\b|none\b|everyone\b)'
-    boundary=r'\n[ \t]*\n|[。！？；;]|(?<=[.!?])\s+|(?:,\s*|\s+)(?:and|but|while|whereas|yet)\s+(?='+subject_start+r')'
+    boundary=r'\n[ \t]*\n|[。！？；;]|(?<=[.!?])\s+|，(?:但|其他人)|(?:,\s*|\s+)(?:and|but|while|whereas|yet)\s+(?='+subject_start+r')'
     return re.split(boundary,text,flags=re.I)
 
 
@@ -69,7 +77,16 @@ def speech_conflicts(prompt,timeline,manifest):
     names=[re.escape(s['character_name']) for s in (manifest or {}).get('subjects',[]) if isinstance(s,dict) and s.get('character_name')]
     actors=re.compile(SUBJECT+('|'+'|'.join(names) if names else ''),re.I)
     by_name={s.get('character_name'):s.get('subject_ref') for s in (manifest or {}).get('subjects',[]) if isinstance(s,dict)}
-    for block,is_silent,interval in scoped_text(prompt,timeline):
+    for block,is_silent,interval,declared_none in scoped_text(prompt,timeline):
+        local_none=re.split(r'\n[ \t]*\n',block,maxsplit=1)[0] if declared_none else ''
+        local_negated=list(NEGATION.finditer(local_none))
+        if any(not any(negative.start()<=action.start()<negative.end() for negative in local_negated)
+               for action in ACTION.finditer(local_none)):
+            return [{'code':'NONE_SEGMENT_LIPSYNC_CONTRADICTION','blocking':True}]
+        # A bare mouth movement remains non-speech. It becomes contradictory
+        # when coordinated against a speech/lip-sync negation in a NONE scope.
+        if local_negated and COORDINATED_MOUTH.search(local_none):
+            return [{'code':'NONE_SEGMENT_LIPSYNC_CONTRADICTION','blocking':True}]
         for clause in clauses(block):
             # Explicit whole-clip instructions also overlap silent portions of a mixed timeline.
             whole=bool(re.search(r'throughout\s+(?:the\s+)?entire\s+clip|全程|整段',clause,re.I))

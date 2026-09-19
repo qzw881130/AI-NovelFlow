@@ -1,14 +1,16 @@
 import asyncio
 import json
+import os
 import subprocess
 from pathlib import Path
 
 import pytest
 
 from app.services.file_storage import FileStorageService
+from app.services.rendered_subtitles import load,publish,sidecar
 
 
-@pytest.mark.parametrize("failure", [None, "decode", "encode", "normalize", "source", "missing", "no_output", "probe"])
+@pytest.mark.parametrize("failure", [None, "decode", "encode", "normalize", "source", "missing", "no_output", "probe", "sidecar_publish", "backup_sidecar"])
 @pytest.mark.parametrize("has_audio", [True, False])
 @pytest.mark.parametrize("existing_output", [True, False])
 def test_merge_validation_and_atomic_publication(tmp_path, monkeypatch, failure, has_audio, existing_output):
@@ -20,6 +22,7 @@ def test_merge_validation_and_atomic_publication(tmp_path, monkeypatch, failure,
     output = tmp_path / "published.mp4"
     if existing_output:
         output.write_bytes(b"previous valid output")
+        publish(output,[],{"kind":"previous"})
     calls = []
     candidate_validations = 0
 
@@ -61,11 +64,23 @@ def test_merge_validation_and_atomic_publication(tmp_path, monkeypatch, failure,
         return run(cmd)
 
     monkeypatch.setattr(FileStorageService, "_run_merge_process", run_process)
+    if failure in {"sidecar_publish","backup_sidecar"}:
+        replace=os.replace
+        def fail_sidecar(source,destination):
+            if failure=="sidecar_publish" and Path(source).name=="merged.mp4.subtitles.json":
+                raise OSError("sidecar publish failed")
+            if failure=="backup_sidecar" and ((existing_output and Path(source)==sidecar(output))
+                    or (not existing_output and Path(source).name=="merged.mp4.subtitles.json")):
+                raise OSError("sidecar backup failed")
+            return replace(source,destination)
+        monkeypatch.setattr(os,"replace",fail_sidecar)
     result = asyncio.run(FileStorageService(str(tmp_path)).merge_videos([str(p) for p in sources], str(output)))
     assert result["success"] == (failure is None)
     assert output.exists() == (result["success"] or existing_output)
     if output.exists():
         assert output.read_bytes() == (b"candidate" if result["success"] else b"previous valid output")
+    if failure in {"sidecar_publish","backup_sidecar"} and existing_output:assert load(output)["lineage"]["kind"]=="previous"
+    if failure in {"sidecar_publish","backup_sidecar"} and not existing_output:assert not sidecar(output).exists()
     assert not list(tmp_path.glob(".novelflow_merge_*"))
     filters = [cmd for cmd in calls if "-filter_complex" in cmd]
     assert len(filters) == int(failure not in {"source", "missing", "normalize", "probe"})

@@ -29,6 +29,7 @@ def _load(name, path):
 
 
 gate = _load("_isolated_h3_prompt_core", BACKEND / "app/services/h3_prompt_validation.py")
+speech_scope = _load("_isolated_h3_speech_scope", BACKEND / "app/services/h3_speech_scope.py")
 
 
 def _forbidden(*args, **kwargs):
@@ -63,6 +64,7 @@ def director_ai(monkeypatch):
     stub("app.services.llm.base", mark_matching_pending_llm_logs_error=_forbidden)
     stub("app.services.llm_service", LLMService=_forbidden)
     monkeypatch.setitem(sys.modules, "app.services.h3_prompt_validation", gate)
+    monkeypatch.setitem(sys.modules, "app.services.h3_speech_scope", speech_scope)
     return _load("_isolated_h3_director_audit", BACKEND / "app/services/video_director_ai.py")
 
 
@@ -588,7 +590,8 @@ def test_negation_does_not_bypass_subject_checks_or_exact_dialogue_leakage(direc
         HISTORY["cases"]["53C1"]["subject_manifest"], dialogue_texts=["Hello"],
     )
     assert {issue["code"] for issue in audit["blocking_issues"]} == {
-        "UNKNOWN_SUBJECT_REFERENCE", "MISSING_SUBJECT_REFERENCE_IN_PROMPT", "DIALOGUE_TEXT_LEAKAGE",
+        "UNKNOWN_SUBJECT_REFERENCE", "MISSING_SUBJECT_REFERENCE_IN_PROMPT",
+        "NONE_SEGMENT_LIPSYNC_CONTRADICTION", "DIALOGUE_TEXT_LEAKAGE",
     }
 
 

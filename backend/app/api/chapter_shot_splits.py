@@ -113,25 +113,14 @@ def chapter_completion(novel_id:str,chapter_id:str,db:Session=Depends(get_db)):
 
 
 @router.post('/{novel_id}/chapters/{chapter_id}/completion')
-async def complete_chapter(novel_id:str,chapter_id:str,expectedManifestHash:str|None=None,db:Session=Depends(get_db)):
-    from app.services.chapter_asset_parse_service import digest
-    from app.services.chapter_video_merge_service import capture_completion,run_completion
-    if db.query(Chapter).filter_by(id=chapter_id,novel_id=novel_id).update({'id':chapter_id},synchronize_session=False)!=1:
-        raise HTTPException(404,'章回不存在')
-    db.expire_all()
-    manifest=capture_completion(db,novel_id,chapter_id);manifest_hash=digest(manifest)
-    if expectedManifestHash and expectedManifestHash!=manifest_hash:
-        raise HTTPException(409,'CHAPTER_COMPLETION_MANIFEST_CHANGED')
-    active=db.query(Task).filter_by(type='chapter_video',chapter_id=chapter_id).filter(Task.status.in_(['pending','running'])).first()
-    if active:raise HTTPException(409,'CHAPTER_COMPLETION_TASK_ACTIVE')
-    task=Task(type='chapter_video',status='pending',novel_id=novel_id,chapter_id=chapter_id,
-        name='完成章回视频',description='按 immutable Chapter Completion Manifest 合并全部 NORMAL/NARRATION_CARD entries',
-        progress=0,current_step='等待章回完整交付',metadata_json=json.dumps({
-            'execution_purpose':'production','delivery_mode':'CHAPTER_COMPLETION','completion_manifest':manifest,
-            'manifest_hash':manifest_hash,'previous_final_video':db.get(Chapter,chapter_id).final_video,
-            'previous_final_video_task_id':db.get(Chapter,chapter_id).final_video_task_id},ensure_ascii=False))
-    db.add(task);db.commit();db.refresh(task)
+async def complete_chapter(novel_id:str,chapter_id:str,expectedManifestHash:str|None=None,
+        retryFailedTaskId:str|None=None,db:Session=Depends(get_db)):
+    from app.services.chapter_video_merge_service import admit_completion,run_completion
+    task,created=admit_completion(db,novel_id,chapter_id,expected_manifest_hash=expectedManifestHash,
+        retry_failed_task_id=retryFailedTaskId)
     from app.services.background_workers import worker_manager
-    worker_manager.worker('chapter_video').enqueue(lambda:run_completion(task.id))
-    return {'success':True,'data':{'taskId':task.id,'status':task.status,'manifestHash':manifest_hash,
-        'counts':manifest['counts']}}
+    if task.status=='pending':worker_manager.worker('chapter_video').enqueue_once(task.id,lambda:run_completion(task.id))
+    value=json.loads(task.metadata_json or '{}');manifest=value.get('completion_manifest') or {}
+    return {'success':True,'data':{'taskId':task.id,'status':task.status,
+        'manifestHash':value.get('manifest_hash'),'counts':manifest.get('counts'),
+        'reused':not created,'retryRequired':task.status=='failed'}}

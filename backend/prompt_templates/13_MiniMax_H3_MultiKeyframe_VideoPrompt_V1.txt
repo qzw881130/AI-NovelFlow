@@ -57,7 +57,7 @@ Picture 2 → Picture 3
   {
     "start_time": 2.800,
     "end_time": 6.200,
-    "visible_speaker": "<Subject 1>"
+    "visible_speaker": "<Subject N>"
   }
 ]
 

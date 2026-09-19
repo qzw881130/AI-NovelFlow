@@ -68,6 +68,9 @@ async def reconcile_active_tasks_loop():
             from app.services.narration_card_service import settle_stale_render_tasks
             from app.services.chapter_video_merge_service import settle_stale_completion_tasks
             settle_stale_render_tasks();settle_stale_completion_tasks()
+            from app.services.rsa_image_service import reconcile_failed_unacknowledged_tasks
+            adopted=await reconcile_failed_unacknowledged_tasks()
+            if adopted:print(f"[TaskReconcile] Adopted {adopted} verified RSA submission(s)")
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -200,6 +203,8 @@ async def lifespan(app: FastAPI):
     
     monitor = init_monitor(settings.COMFYUI_HOST)
     await monitor.start()
+    from app.services.rsa_image_service import reconcile_failed_unacknowledged_tasks
+    await reconcile_failed_unacknowledged_tasks()
     from app.api.shots import resume_active_shot_image_batches, resume_active_shot_video_batches
     resume_active_shot_image_batches()
     resume_active_shot_video_batches()

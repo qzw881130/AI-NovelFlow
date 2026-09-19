@@ -54,9 +54,10 @@ def test_measured_progress_and_publication(tmp_path, monkeypatch, failure):
                         "time_base": "1/24", "nb_read_frames": "60" if merged else "48"},
                        {"codec_type": "audio", "start_time": "0.5", "duration_ts": "120000", "time_base": "1/48000"}]
             return subprocess.CompletedProcess(cmd, 0, json.dumps({"streams": streams}), "")
-        if on_time and "0:a:0" in cmd and cmd[-2:] == ["null", "-"]:
+        if on_time and cmd[-2:] == ["null", "-"]:
             await on_time(2.5)
-            return subprocess.CompletedProcess(cmd, 0, "", "")
+            stage = "validate"
+            return subprocess.CompletedProcess(cmd, int(stage == failure), "", "bad" if stage == failure else "")
         if on_time:
             if failure == "cancel":
                 raise asyncio.CancelledError()
@@ -85,7 +86,7 @@ def test_measured_progress_and_publication(tmp_path, monkeypatch, failure):
         # Source common timeline is 3s; normalized final timeline is 2.5s.
         assert 40 in values  # 15 + 50 * 1.5 / 3
         assert 83 in values  # 65 + 30 * 1.5 / 2.5
-        assert values[-3:] == [95, 99, 100]
+        assert values[-3:] == [97, 99, 100]
     assert not list(tmp_path.glob(".novelflow_merge_*"))
     assert output.read_bytes() == (b"new" if failure is None else b"old")
 
@@ -138,95 +139,15 @@ def test_real_small_merge_progress(tmp_path):
     assert result["success"], result
     values = [value for value, _ in events]
     assert values == sorted(values)
-    assert values[-3:] == [95, 99, 100]
+    assert values[-3:] == [97, 99, 100]
     assert any(65 < value < 95 for value in values)
     assert any("3/3" in step for _, step in events)
 
 
-@pytest.mark.parametrize("outcome", ["success", "cache", "publish_failure"])
-def test_chapter_task_throttling_cache_and_final_publish(db_session, tmp_path, monkeypatch, outcome):
+def test_chapter_task_delegates_to_governed_merge(monkeypatch):
     from app.api import shots as api
-    from app.models.novel import Novel, Chapter
-    from app.models.shot import Shot
-    from app.models.task import Task
-
-    novel = Novel(title="Progress")
-    db_session.add(novel)
-    db_session.flush()
-    chapter = Chapter(novel_id=novel.id, number=1, title="Progress", content="test")
-    db_session.add(chapter)
-    db_session.flush()
-    shot = Shot(chapter_id=chapter.id, index=1, description="test", video_url="/api/files/source.mp4")
-    task = Task(type="chapter_video", status="pending", name="merge",
-                novel_id=novel.id, chapter_id=chapter.id)
-    db_session.add_all([shot, task])
-    db_session.commit()
-    task_id = task.id
-    storage = FileStorageService(str(tmp_path))
-    source = tmp_path / "source.mp4"
-    source.write_bytes(b"source")
-    signature = storage.get_video_merge_signature("shots_only", [{"kind": "shot", "key": "1", "path": str(source)}])
-    directory = storage._get_story_dir(novel.id) / f"chapter_{chapter.id[:8]}" / "merged-videos"
-    directory.mkdir(parents=True)
-    published = directory / f"shots_only-{signature}.mp4"
-    if outcome == "cache":
-        published.write_bytes(b"cached")
-        from app.services.rendered_subtitles import publish
-        publish(published, [], {"kind": "merge"}, unavailable="Legacy source has no subtitle binding")
-    monkeypatch.setattr(api, "SessionLocal", lambda: db_session)
-    monkeypatch.setattr(api, "file_storage", storage)
-    monkeypatch.setattr(api, "url_to_local_path", lambda url: str(source))
-    monkeypatch.setattr(api, "_probe_video_duration", lambda path: 1.0)
-    clock = [10.0]
-    monkeypatch.setattr(api, "monotonic", lambda: clock[0])
-    writes = []
-    commit = db_session.commit
-
-    def record_commit():
-        writes.append((task.progress, task.current_step))
-        if task.progress == 100:
-            assert published.is_file()
-        commit()
-
-    monkeypatch.setattr(db_session, "commit", record_commit)
-
-    async def merge(paths, output, transitions, progress_callback):
-        assert outcome != "cache"
-        await progress_callback(0, "source 1/1")
-        await progress_callback(15, "normalize 1/1")
-        before = len(writes)
-        for percent in range(16, 60):
-            await progress_callback(percent, "normalize 1/1")
-        assert len(writes) == before
-        clock[0] += 1
-        await progress_callback(60, "normalize 1/1")
-        assert writes[-1][0] == 67
-        await progress_callback(65, "encode")
-        await progress_callback(95, "validate")
-        await progress_callback(99, "publish")
-        Path(output).write_bytes(b"new")
-        await progress_callback(100, "published")
-        assert task.progress == 99
-        assert not published.exists()
-        return {"success": True}
-
-    mocked_merge = AsyncMock(side_effect=merge)
-    monkeypatch.setattr(storage, "merge_videos", mocked_merge)
-    if outcome == "publish_failure":
-        def fail_publish(*args):
-            raise OSError("publish failed")
-        monkeypatch.setattr(api.os, "replace", fail_publish)
-    asyncio.run(api.run_chapter_video_merge_task(task_id))
-    saved = db_session.get(Task, task_id)
-    values = [value for value, _ in writes]
-    assert values == sorted(values)
-    assert saved.status == ("failed" if outcome == "publish_failure" else "completed")
-    assert (100 in values) == (outcome != "publish_failure")
-    assert not list(directory.glob(".*.tmp.mp4"))
-    if outcome == "cache":
-        mocked_merge.assert_not_awaited()
-        assert values == [5, 20, 100]
-        assert json.loads(saved.metadata_json)["cache_hit"] is True
-    else:
-        mocked_merge.assert_awaited_once()
-        assert len(writes) <= 11
+    from app.services import chapter_video_merge_service as service
+    governed = AsyncMock(return_value=None)
+    monkeypatch.setattr(service, "run_merge", governed)
+    asyncio.run(api.run_chapter_video_merge_task("task-id"))
+    governed.assert_awaited_once_with("task-id")

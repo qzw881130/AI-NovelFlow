@@ -48,7 +48,7 @@
   {
     "start_time": 2.800,
     "end_time": 6.200,
-    "visible_speaker": "<Subject 1>"
+    "visible_speaker": "<Subject N>"
   }
 ]
 
@@ -266,8 +266,7 @@ The video must contain no subtitles, no captions, and no audio transcription.
 
 subject_definitions:
 
-<Subject 1> is ...
-<Subject 2> is ...
+<Subject N> is ...（仅对本次 allowed_subject_refs 中实际存在的 token 逐项输出）
 
 official_character_identity_lock:
 

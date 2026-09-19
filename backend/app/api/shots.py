@@ -672,12 +672,13 @@ def _batch_start_error(db: Session, task: Task) -> Optional[str]:
         return str(exc)
     if "execution" in saved or "video_run" in saved:
         return "BATCH_EXECUTION_REVIEW_REQUIRED: unexpected batch execution contract"
+    verified_resume = task.type == "shot_video_batch" and _verified_batch_resume_receipt(db, task, saved)
     if task.type == "shot_video_batch":
         # A missing CID does not prove that ComfyUI rejected a submission. Even
         # a pending strict child already owns an attempt; recovery must not replace it.
-        if children or saved.get("results", {}) != {}:
+        if not verified_resume and (children or saved.get("results", {}) != {}):
             return "BATCH_EXECUTION_REVIEW_REQUIRED: child attempt or result evidence exists"
-        if (task.started_at or task.completed_at or task.claim_token or task.claimed_at or task.heartbeat_at
+        if not verified_resume and (task.started_at or task.completed_at or task.claim_token or task.claimed_at or task.heartbeat_at
                 or task.worker_id or task.attempt or task.progress or task.comfyui_prompt_id
                 or task.result_url or task.workflow_json or task.prompt_text or task.error_message):
             return "BATCH_EXECUTION_REVIEW_REQUIRED: parent has already started"
@@ -691,6 +692,86 @@ def _batch_start_error(db: Session, task: Task) -> Optional[str]:
                 or any(type(saved[key]) is not bool for key in ("auto_complete", "skip_llm_when_prompt_exists"))):
             return "BATCH_EXPLICIT_OPTIONS_REQUIRED"
     return None
+
+
+def _batch_waiting_for_rsa_adoption(db,task):
+    if not task or task.type!='shot_video_batch':return False
+    from app.services.rsa_image_service import rsa_recovery_attempt_ids
+    return bool(rsa_recovery_attempt_ids(db,parent_task_id=task.id,limit=1))
+
+
+VERIFIED_BATCH_RESUME_VERSION = "shot-video-batch-verified-resume-v1"
+
+
+def _batch_resume_evidence(db, parent, metadata, recovered_task_ids):
+    from app.models.rsa_media import RsaImageAttempt, RsaMediaArtifact
+    from app.services.chapter_asset_parse_service import digest
+    children=db.query(Task).filter_by(parent_task_id=parent.id).order_by(Task.created_at,Task.id).all()
+    if any(child.status in {"pending","queued","running"} for child in children):return None
+    results=metadata.get("results") if isinstance(metadata.get("results"),dict) else {}
+    terminal={"completed","failed","cancelled"}
+    for child in children:
+        if child.type!='shot_video':continue
+        result=results.get(child.shot_id) if isinstance(results.get(child.shot_id),dict) else None
+        if child.status not in terminal or not result or result.get("taskId")!=child.id:
+            return None
+        expected="completed" if child.status=="completed" else "failed"
+        if result.get("status")!=expected:return None
+    recovered=[]
+    for task_id in recovered_task_ids:
+        child=db.get(Task,task_id);attempt=db.get(RsaImageAttempt,task_id)
+        artifact=db.get(RsaMediaArtifact,attempt.artifact_id) if attempt and attempt.artifact_id else None
+        if (not child or child.parent_task_id!=parent.id or child.type!='keyframe_image' or child.status!='completed'
+                or not attempt or attempt.status!='SUCCEEDED' or not artifact or artifact.task_id!=task_id
+                or artifact.seal!=digest(artifact.data) or artifact.data.get('id')!=artifact.id):
+            return None
+        recovered.append({'taskId':task_id,'shotId':child.shot_id,'artifactId':artifact.id,'artifactSeal':artifact.seal})
+    shot_ids=metadata.get("shot_ids") if isinstance(metadata.get("shot_ids"),list) else []
+    next_shot_id=next((shot_id for shot_id in shot_ids
+        if not isinstance(results.get(shot_id),dict) or results[shot_id].get("status") not in {"completed","failed"}),None)
+    if next_shot_id and db.query(Task.id).filter_by(parent_task_id=parent.id,shot_id=next_shot_id,type='shot_video').first():return None
+    child_state=[{'id':child.id,'type':child.type,'shotId':child.shot_id,'status':child.status,
+        'resultUrl':child.result_url,'error':child.error_message} for child in children]
+    evidence={'version':VERIFIED_BATCH_RESUME_VERSION,'parentId':parent.id,'recovered':recovered,
+        'resultsHash':digest(results),'childrenHash':digest(child_state),'nextShotId':next_shot_id}
+    return evidence
+
+
+def _verified_batch_resume_receipt(db,parent,metadata):
+    receipt=metadata.get('verified_resume') if isinstance(metadata,dict) else None
+    if not isinstance(receipt,dict) or receipt.get('version')!=VERIFIED_BATCH_RESUME_VERSION:return False
+    task_ids=receipt.get('recoveredTaskIds')
+    if not isinstance(task_ids,list) or not task_ids or any(not isinstance(value,str) or not value for value in task_ids):return False
+    evidence=_batch_resume_evidence(db,parent,metadata,task_ids)
+    return bool(evidence and receipt.get('evidence')==evidence and receipt.get('evidenceHash')==__import__(
+        'app.services.chapter_asset_parse_service',fromlist=['digest']).digest(evidence))
+
+
+def authorize_verified_video_batch_resume(db,parent_task_id,recovered_task_id):
+    from app.services.chapter_asset_parse_service import digest
+    from app.services.rsa_image_service import RECOVERABLE_VIDEO_BATCH_ERRORS
+    parent=db.query(Task).filter_by(id=parent_task_id,type='shot_video_batch').populate_existing().first()
+    recoverable=bool(parent and parent.status=='failed' and parent.error_message in RECOVERABLE_VIDEO_BATCH_ERRORS)
+    if not parent or parent.status!='running' and not recoverable:raise RuntimeError('VIDEO_BATCH_RESUME_PARENT_NOT_RUNNING')
+    metadata=json.loads(parent.metadata_json or '{}');results=metadata.get('results') if isinstance(metadata.get('results'),dict) else {}
+    for child in db.query(Task).filter_by(parent_task_id=parent.id,type='shot_video').all():
+        if child.status not in {'completed','failed','cancelled'}:raise RuntimeError('VIDEO_BATCH_RESUME_CHILD_ACTIVE')
+        if child.shot_id not in results:
+            results[child.shot_id]={'status':'completed' if child.status=='completed' else 'failed','taskId':child.id,
+                'resultUrl':child.result_url,'message':child.error_message}
+    metadata['results']=results
+    evidence=_batch_resume_evidence(db,parent,metadata,[recovered_task_id])
+    if not evidence or not evidence.get('nextShotId'):raise RuntimeError('VIDEO_BATCH_RESUME_EVIDENCE_INVALID')
+    metadata['verified_resume']={'version':VERIFIED_BATCH_RESUME_VERSION,'recoveredTaskIds':[recovered_task_id],
+        'evidence':evidence,'evidenceHash':digest(evidence),'authorizedAt':datetime.utcnow().isoformat()}
+    conditions=[getattr(Task,column.key)==getattr(parent,column.key) for column in Task.__table__.columns
+        if column.key not in {'created_at','updated_at'}]
+    active=db.query(Task.id).filter(Task.parent_task_id==parent.id,Task.status.in_(['pending','queued','running'])).exists()
+    count=db.query(Task).filter(*conditions,~active).update({'status':'pending','current_step':'Verified child adopted; resume remaining shots',
+        'error_message':None,'completed_at':None,'claim_token':None,'worker_id':None,'claimed_at':None,
+        'heartbeat_at':None,'metadata_json':json.dumps(metadata,ensure_ascii=False)},synchronize_session=False)
+    if count!=1:db.rollback();raise RuntimeError('VIDEO_BATCH_RESUME_FENCED')
+    db.commit();return {'parentTaskId':parent.id,'nextShotId':evidence['nextShotId'],'status':'pending'}
 
 
 def _hold_batch_task(db: Session, task: Task, reason: str) -> None:
@@ -711,14 +792,33 @@ def _hold_batch_task(db: Session, task: Task, reason: str) -> None:
         db.rollback()
 
 
+def settle_stranded_video_batches(db:Session,*,stale_seconds:int=90):
+    cutoff=datetime.utcnow()-timedelta(seconds=stale_seconds);settled=[]
+    parents=db.query(Task).filter(Task.type=='shot_video_batch',Task.status=='running').all()
+    for parent in parents:
+        if _batch_waiting_for_rsa_adoption(db,parent):continue
+        children=db.query(Task).filter_by(parent_task_id=parent.id).all()
+        activity=parent.heartbeat_at or parent.updated_at or parent.started_at
+        if (not children or any(child.status in {'pending','queued','running'} for child in children)
+                or any(child.status not in {'completed','failed','cancelled'} for child in children)
+                or not activity or activity>=cutoff):
+            continue
+        _hold_batch_task(db,parent,'BATCH_WORKER_INTERRUPTED: terminal child evidence preserved; automatic resubmission disabled')
+        db.refresh(parent)
+        if parent.status=='failed':settled.append(parent.id)
+    return settled
+
+
 def resume_active_shot_video_batches() -> None:
     db = SessionLocal()
     try:
+        settle_stranded_video_batches(db)
         active_tasks = db.query(Task).filter(
             Task.type == "shot_video_batch",
             Task.status.in_(["pending", "running"]),
         ).all()
         for task in active_tasks:
+            if _batch_waiting_for_rsa_adoption(db,task):continue
             reason = _batch_start_error(db, task)
             if reason:
                 _hold_batch_task(db, task, reason)
@@ -737,17 +837,19 @@ def resume_active_shot_video_batches() -> None:
 async def run_next_persistent_shot_video_batch_task() -> bool:
     db = SessionLocal()
     try:
-        task = db.query(Task).filter(
+        settle_stranded_video_batches(db)
+        tasks = db.query(Task).filter(
             Task.type == "shot_video_batch",
             Task.status == "pending",
-        ).order_by(Task.created_at.asc()).first()
+        ).order_by(Task.created_at.asc()).all()
+        task=next((candidate for candidate in tasks if not _batch_waiting_for_rsa_adoption(db,candidate)),None)
         if not task:
             return False
-
-        await run_shot_video_batch_task(task.id)
-        return True
+        task_id = task.id
     finally:
         db.close()
+    await run_shot_video_batch_task(task_id)
+    return True
 
 
 def _persist_batch_video_failure(db: Session, shot_id: str, owner_id: str, message: str) -> None:
@@ -810,6 +912,7 @@ async def run_shot_video_batch_task(task_id: str) -> None:
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task or task.type != "shot_video_batch" or task.status != "pending":
             return
+        if _batch_waiting_for_rsa_adoption(db,task):return
 
         reason = _batch_start_error(db, task)
         if reason:
@@ -819,8 +922,12 @@ async def run_shot_video_batch_task(task_id: str) -> None:
         child = aliased(Task)
         conditions = [getattr(Task, column.key) == getattr(task, column.key) for column in Task.__table__.columns
                       if column.key not in {"created_at", "updated_at"}]
-        count = db.query(Task).filter(*conditions, ~db.query(child.id).filter(child.parent_task_id == task.id).exists()).update({
-            "status": "running", "started_at": datetime.utcnow(), "current_step": "准备批量生成视频...",
+        metadata_at_claim=json.loads(task.metadata_json or '{}')
+        claim_query=db.query(Task).filter(*conditions)
+        if not _verified_batch_resume_receipt(db,task,metadata_at_claim):
+            claim_query=claim_query.filter(~db.query(child.id).filter(child.parent_task_id == task.id).exists())
+        count = claim_query.update({
+            "status": "running", "started_at": task.started_at or datetime.utcnow(), "current_step": "准备批量生成视频...",
         }, synchronize_session=False)
         if count != 1:
             db.rollback()
@@ -862,6 +969,9 @@ async def run_shot_video_batch_task(task_id: str) -> None:
             existing_result = results.get(shot_id) if isinstance(results.get(shot_id), dict) else None
             if existing_result and existing_result.get("status") == "completed":
                 success_count += 1
+                continue
+            if existing_result and existing_result.get("status") == "failed":
+                failed_count += 1
                 continue
 
             if db.query(Task.id).filter(Task.parent_task_id == task.id, Task.shot_id == shot_id, Task.type == "shot_video").first():

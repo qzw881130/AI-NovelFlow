@@ -836,7 +836,7 @@ def publish_result(db, handle, merge, path):
     return result
 
 
-def completed_video_artifact(db, task_id, *, shot_id=None):
+def completed_video_artifact(db, task_id, *, shot_id=None, validation_metrics=None):
     """Manual-merge interface: validate an attached result, never compose live URLs."""
     try:
         task = db.query(Task).filter(Task.id == task_id).populate_existing().first()
@@ -844,25 +844,45 @@ def completed_video_artifact(db, task_id, *, shot_id=None):
             raise ExecutionConflict("COMPLETED_PRODUCTION_VIDEO_RUN_REQUIRED")
         record, data = execution_record(task), metadata(task)
         from app.services.runtime_gate import validate_video_binding
+        binding_metrics = {};binding_proof = {}
         try:
-            validate_video_binding(db, task, data.get('rsa_binding'))
+            validate_video_binding(db, task, data.get('rsa_binding'), validation_metrics=binding_metrics,
+                validation_proof=binding_proof)
         except Exception as exc:
             raise ExecutionConflict(f'VIDEO_ASSET_GATE: {exc}') from exc
         run = data["video_run"]
         result = run["result"]
         mode, expected = _expected_clips(SimpleNamespace(**record["shot_snapshot"]), record["request"])
+        completed_manifest = completion_manifest(data)
+        result_path = Path(result["path"])
+        result_sha256 = file_digest(result_path)
         if (run["phase"] != "completed" or run["scope"] != "whole_shot" or run["run_id"] != record["attempt_id"]
                 or record["request"].get("only_window_index") is not None or run["request"] != record["request"]
-                or run["expected"] != expected or run["mode"] != mode or run["merge"]["manifest"] != completion_manifest(data)
+                or run["expected"] != expected or run["mode"] != mode or run["merge"]["manifest"] != completed_manifest
                 or result["attachment"] != "attached" or result["url"] != task.result_url
-                or result["manifest_hash"] != digest(completion_manifest(data)) or file_digest(result["path"]) != result["sha256"]
+                or result["manifest_hash"] != digest(completed_manifest) or result_sha256 != result["sha256"]
                 or (shot_id is not None and task.shot_id != shot_id)):
             raise ExecutionConflict("INVALID_COMPLETED_VIDEO_RECEIPT")
         shot = db.query(Shot).filter(Shot.id == task.shot_id).populate_existing().first()
         if not shot or shot.video_task_id != task.id or shot.video_url != result["url"]:
             raise ExecutionConflict("VIDEO_PUBLICATION_SUPERSEDED")
+        if validation_metrics is not None:
+            receipt_paths=[]
+            for slot in run.get('clips',{}).values():
+                receipt=slot.get('receipt') or {};history=receipt.get('history') or {}
+                if receipt.get('path'):receipt_paths.append(Path(receipt['path']))
+                if history.get('path'):receipt_paths.append(Path(history['path']))
+            validation_metrics.clear();validation_metrics.update({
+                "validate_video_binding_count": 1,
+                "video_sha256_count": 1+len(receipt_paths),
+                "video_sha256_bytes": result_path.stat().st_size+sum(path.stat().st_size for path in receipt_paths),
+                "lineage_proof_reconstruction_count": 1,
+                "binding_validation": binding_metrics,
+            })
         return {"success": True, "skipped": True, "video_url": result["url"], "run_id": run["run_id"],
-                "plan": json.loads(shot.video_director_plan or "{}")}
+                "plan": json.loads(shot.video_director_plan or "{}"), "result": deepcopy(result),
+                "rsa_binding": deepcopy(data.get("rsa_binding")), "binding_validation_proof":binding_proof,
+                "producer_metadata": deepcopy(data)}
     except (ExecutionConflict, KeyError, TypeError, ValueError, OSError) as error:
         return {"success": False, "message": str(error)}
 

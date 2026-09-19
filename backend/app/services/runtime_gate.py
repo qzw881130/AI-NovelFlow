@@ -77,7 +77,8 @@ def _live_asset_state(db,rsa):
 
 def _semantic_dependency_fingerprint(snapshot):
     from app.services.rsa_media_contract import ValidationMemo
-    return ValidationMemo.fingerprint({key:value for key,value in snapshot.items() if key!='database'})
+    return ValidationMemo.fingerprint({key:value for key,value in snapshot.items()
+        if key not in {'database','processId'}})
 
 
 def binding_dependency_snapshot(db,task,binding,file_dependencies):
