@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
   // 优先使用环境变量 VITE_API_URL
   // 如果没有设置，开发模式下使用当前访问的 IP:8000（支持局域网访问）
   // 这样可以避免硬编码 localhost 导致其他设备无法访问
-  const apiUrl = env.VITE_API_URL || 'http://localhost:8000'
+  const apiUrl = env.VITE_API_URL || 'http://192.168.50.3:8000'
   console.log('apiUrl', apiUrl)
   return {
     plugins: [react()],
