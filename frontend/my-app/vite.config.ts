@@ -19,7 +19,9 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': {
           target: apiUrl,
-          changeOrigin: true,
+          // Preserve the browser-visible host so FastAPI slash redirects keep
+          // using the Vite proxy instead of exposing 127.0.0.1 to LAN clients.
+          changeOrigin: false,
           // 重写路径，确保后端接收正确的路径
           rewrite: (path) => path,
           // 配置 WebSocket 支持（如果需要实时通信）

@@ -47,6 +47,14 @@ def safe_json_list(value: Any) -> list:
 
 
 MEDIA_REF_KEYS = {"image_url", "image_path", "image_task_id", "reference_image_url", "reference_url", "url", "path"}
+CLIP_LLM_EXCLUDED_KEYS = {
+    "prompt_text",
+    "video_url",
+    "local_path",
+    "source_video_url",
+    "generated_at",
+    "generated_by_task_id",
+}
 
 
 def strip_media_refs(value: Any) -> Any:
@@ -60,6 +68,15 @@ def strip_media_refs(value: Any) -> Any:
             if key not in MEDIA_REF_KEYS
         }
     return value
+
+
+def strip_clip_generation_data(clip: dict) -> dict:
+    """Remove generated Clip artifacts before serializing an LLM request."""
+    return {
+        key: value
+        for key, value in (clip or {}).items()
+        if key not in CLIP_LLM_EXCLUDED_KEYS
+    }
 
 
 def append_video_ai_call(shot, call: dict) -> dict:
@@ -102,20 +119,48 @@ def resolve_prompt_template(db: Session, novel: Novel, template_attr: str, templ
     return template
 
 
-def _build_clip_motion_directive(shot, clip: dict, transitions: list, clip_dialogues: list) -> str:
+def _strip_voice_rules_from_text(value: Any) -> str:
+    """Keep visual direction while removing dialogue authority from motion text."""
+    clauses = re.split(r"[，,。！？；;\n]+", str(value or ""))
+    voice_rule_patterns = (
+        r"(?:所有|全部|其他|其余)?(?:可见)?人物.*保持沉默",
+        r"(?:所有|全部|其他|其余)?(?:可见)?角色.*保持沉默",
+        r"不说话",
+        r"不低语",
+        r"不发出(?:任何)?人物语音",
+        r"只保留(?:必要的|同步)?环境声",
+        r"(?:all|other) characters?.*remain silent",
+        r"do not speak",
+        r"no (?:dialogue|human voice|voices)",
+        r"environmental sounds? only",
+    )
+    visual_clauses = [
+        clause.strip()
+        for clause in clauses
+        if clause.strip() and not any(re.search(pattern, clause, re.IGNORECASE) for pattern in voice_rule_patterns)
+    ]
+    visual_text = "；".join(visual_clauses)
+    return visual_text.replace("低声说话", "嘴巴微张，表现低声交谈的视觉状态")
+
+
+def _sanitize_transitions_for_h3(transitions: list) -> list:
+    sanitized = strip_media_refs(transitions) or []
+    for transition in sanitized:
+        if isinstance(transition, dict) and "transition_description" in transition:
+            transition["transition_description"] = _strip_voice_rules_from_text(transition.get("transition_description"))
+    return sanitized
+
+
+def _build_clip_motion_directive(shot, clip: dict, transitions: list) -> str:
     clip_label = f"Clip {clip.get('clip_index') or '-'} {clip.get('start_time', '-')}-{clip.get('end_time', '-')}s"
     transition_text = "\n".join(
         f"- {transition.get('transition_description')}"
         for transition in transitions or []
         if isinstance(transition, dict) and transition.get("transition_description")
     )
-    dialogue_rule = "本 Clip 允许的人物语音只来自 clip_dialogues。"
-    if not clip_dialogues:
-        dialogue_rule = "本 Clip 所有人物保持沉默，不说话、不低语、不发出人物语音。"
     return "\n".join([
         f"当前只生成 {clip_label}，不要引入 Clip 时间窗之外的 Shot 级台词或未来状态。",
-        dialogue_rule,
-        "视觉动作与镜头运动以当前 Clip 的关键帧和相邻 transition 为准。",
+        "这里只描述视觉动作与镜头运动，以当前 Clip 的关键帧和相邻 transition 为准。",
         transition_text or "无额外 transition 描述。",
     ])
 
@@ -149,7 +194,7 @@ def _float_or_none(value: Any) -> Optional[float]:
         return None
 
 
-def _build_dialogue_timeline(clip: dict, clip_dialogues: list) -> tuple[list, list]:
+def _build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: list) -> tuple[list, list]:
     clip_start = float(clip.get("start_time") or 0)
     clip_end = float(clip.get("end_time") or clip_start)
     if clip_end <= clip_start:
@@ -198,9 +243,16 @@ def _build_dialogue_timeline(clip: dict, clip_dialogues: list) -> tuple[list, li
         })
         cursor = min(clip_end, end + 0.4)
 
-    speakers = {item["speaker"] for item in assigned}
-    visible_characters = safe_json_list(getattr(clip, "characters", None)) if not isinstance(clip, dict) else []
-    silent_characters = [name for name in visible_characters if name not in speakers]
+    authorized_speakers = {
+        item["speaker"]
+        for item in assigned
+        if item.get("speaker") and item["speaker"] != "旁白"
+    }
+    silent_characters = [
+        character
+        for character in shot_characters
+        if character not in authorized_speakers
+    ]
     return assigned, silent_characters
 
 
@@ -318,20 +370,25 @@ async def build_h3_video_prompt(
         }
     ]
     is_multi_clip = selected_mode == "MULTI_KEYFRAME"
-    assigned_dialogues, silent_characters = _build_dialogue_timeline(clip, clip_dialogues) if is_multi_clip else ([], [])
+    shot_characters = safe_json_list(shot.characters)
+    assigned_dialogues, silent_characters = _build_dialogue_timeline(clip, clip_dialogues, shot_characters)
     dialogue_payload = [
         {key: value for key, value in item.items() if key != "text"}
         for item in assigned_dialogues
     ]
-    shot_characters = safe_json_list(shot.characters)
     character_appearances = character_appearances or {}
-    clip_motion_directive = _build_clip_motion_directive(shot, clip, transitions, clip_dialogues) if is_multi_clip else (shot.video_description or shot.description or "")
+    sanitized_transitions = _sanitize_transitions_for_h3(transitions)
+    clip_motion_directive = (
+        _build_clip_motion_directive(shot, clip, sanitized_transitions)
+        if is_multi_clip
+        else _strip_voice_rules_from_text(shot.video_description or shot.description or "")
+    )
     payload = {
         "shot": {
             "id": shot.id,
             "index": shot.index,
             "description": shot.description or "",
-            "video_description": "" if is_multi_clip else (shot.video_description or ""),
+            "video_description": "" if is_multi_clip else _strip_voice_rules_from_text(shot.video_description or ""),
             "duration": shot.duration or 4,
             "continuity_mode": shot.continuity_mode or "NORMAL",
             "characters": shot_characters,
@@ -341,14 +398,14 @@ async def build_h3_video_prompt(
             "dialogues": dialogue_payload if is_multi_clip else safe_json_list(shot.dialogues),
         },
         "selected_mode": selected_mode,
-        "clip": clip,
+        "clip": strip_clip_generation_data(clip),
         "motion_directive": clip_motion_directive,
         "clip_dialogues": dialogue_payload if is_multi_clip else clip_dialogues,
-        "dialogue_timeline_source": assigned_dialogues if is_multi_clip else [],
+        "dialogue_timeline_source": assigned_dialogues,
         "silent_characters": silent_characters,
         "frames": frames,
         "keyframes": sanitized_keyframes,
-        "transitions": strip_media_refs(transitions),
+        "transitions": sanitized_transitions,
         "workflow_capability": strip_media_refs(workflow_capability),
         "workflow_type": workflow_type,
         "workflow_name": workflow_name,

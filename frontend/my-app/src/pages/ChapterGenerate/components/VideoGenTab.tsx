@@ -58,6 +58,15 @@ const VIDEO_MODE_LABELS: Record<VideoMode, string> = {
 const getVideoModeLabel = (mode?: VideoMode) => mode ? VIDEO_MODE_LABELS[mode] : '-';
 const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
+const getLatestH3FinalPrompt = (plan: VideoDirectorPlan, clipIndex?: number) => {
+  const call = [...(plan.ai_calls || [])].reverse().find((item) => {
+    if (!['11', '12', '13'].includes(String(item?.step || ''))) return false;
+    if (!String(item?.final_prompt || '').trim()) return false;
+    return clipIndex === undefined || Number(item?.clip_index) === clipIndex;
+  });
+  return String(call?.final_prompt || '');
+};
+
 const formatAiCallValue = (value: any) => {
   if (value === null || value === undefined || value === '') return '-';
   if (typeof value === 'string') return value;
@@ -1482,8 +1491,10 @@ export function VideoGenTab({
   const currentVideoDirectorPlan: VideoDirectorPlan = currentShotData?.videoDirectorPlan || {};
   const currentSelectedVideoMode = currentVideoDirectorPlan.selected_mode || currentVideoDirectorPlan.recommended_mode || 'SINGLE_FRAME';
   const hasReusableVideoPrompt = currentSelectedVideoMode === 'MULTI_KEYFRAME'
-    ? !!currentVideoDirectorPlan.window_plans?.length && currentVideoDirectorPlan.window_plans.every((windowPlan: any) => String(windowPlan?.prompt_text || '').trim().length > 0)
-    : [...(currentVideoDirectorPlan.ai_calls || [])].reverse().some((call: any) => String(call?.final_prompt || '').trim().length > 0);
+    ? !!currentVideoDirectorPlan.window_plans?.length && currentVideoDirectorPlan.window_plans.every((windowPlan: any) => (
+      String(windowPlan?.prompt_text || getLatestH3FinalPrompt(currentVideoDirectorPlan, Number(windowPlan?.window_index))).trim().length > 0
+    ))
+    : getLatestH3FinalPrompt(currentVideoDirectorPlan).trim().length > 0;
   const currentEndPlanKeyframe = (currentVideoDirectorPlan.keyframes || []).find((keyframe: any) => keyframe.role === 'END');
   const currentEndLegacyKeyframe = (currentShotData?.keyframes || []).find((keyframe: any) => (
     Number(keyframe.plan_keyframe_index) === Number(currentEndPlanKeyframe?.index || 2)
@@ -1676,16 +1687,18 @@ export function VideoGenTab({
 
   const buildVideoPromptDrafts = useCallback((plan: VideoDirectorPlan): VideoPromptDraft[] => {
     const selectedMode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
-    const latestPromptCall = [...(plan.ai_calls || [])].reverse().find((call: any) => String(call?.final_prompt || '').trim().length > 0);
-    const latestFinalPrompt = String(latestPromptCall?.final_prompt || '');
+    const latestFinalPrompt = getLatestH3FinalPrompt(plan);
     if (selectedMode === 'MULTI_KEYFRAME' && plan.window_plans?.length) {
-      return plan.window_plans.map((clip: any, index: number) => ({
-        key: `window-${clip.window_index || index + 1}`,
-        label: `C${clip.window_index || index + 1} · ${clip.start_time ?? 0}-${clip.end_time ?? currentShotData?.duration ?? 0}s`,
-        prompt: String(clip.prompt_text || ''),
-        source: 'window_plan' as const,
-        index,
-      }));
+      return plan.window_plans.map((clip: any, index: number) => {
+        const clipIndex = Number(clip.window_index || index + 1);
+        return {
+          key: `window-${clipIndex}`,
+          label: `C${clipIndex} · ${clip.start_time ?? 0}-${clip.end_time ?? currentShotData?.duration ?? 0}s`,
+          prompt: String(clip.prompt_text || getLatestH3FinalPrompt(plan, clipIndex)),
+          source: 'window_plan' as const,
+          index,
+        };
+      });
     }
 
     if (plan.clips?.length) {
