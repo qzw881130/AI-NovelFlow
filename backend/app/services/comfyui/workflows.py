@@ -533,8 +533,8 @@ class WorkflowBuilder:
             inputs = node.get("inputs", {})
             class_type = node.get("class_type", "")
             
-            # 设置 SaveImage 节点的 filename_prefix
-            if class_type == "SaveImage" and save_prefix:
+            # 设置标准或 Advanced 图片保存节点的 filename_prefix
+            if class_type in {"SaveImage", "SaveImageAdvanced"} and save_prefix:
                 if not save_image_node_id or str(node_id) == save_image_node_id:
                     inputs["filename_prefix"] = save_prefix
             

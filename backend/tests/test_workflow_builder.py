@@ -41,6 +41,27 @@ def test_inject_prompt_preserves_mapped_style_placeholder_template():
     )
 
 
+def test_inject_prompt_updates_advanced_save_image_prefix():
+    builder = load_workflow_builder()()
+    workflow = {
+        "494": {
+            "inputs": {"filename_prefix": "Qwen_image_2.1", "images": ["481", 0]},
+            "class_type": "SaveImageAdvanced",
+        },
+        "117": {"inputs": {"text": "old"}, "class_type": "CLIPTextEncode"},
+    }
+
+    result = builder.build_character_workflow(
+        prompt="new prompt",
+        workflow_json=json.dumps(workflow),
+        novel_id="novel-id",
+        character_name="角色A",
+        node_mapping={"prompt_node_id": "117", "save_image_node_id": "494"},
+    )
+
+    assert result["494"]["inputs"]["filename_prefix"] == "story_novel-id/角色A"
+
+
 def test_inject_prompt_overwrites_mapped_prompt_without_style_placeholder():
     builder = load_workflow_builder()()
     workflow = {

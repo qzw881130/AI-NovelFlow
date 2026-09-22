@@ -156,7 +156,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
 
                 if (classType === 'CLIPTextEncode' || classType === 'CR Text' || isStringValueNode(classType, metaTitle, (node as any).inputs)) {
                   clipTextEncode.push(`${nodeId} (${metaTitle || classType})`);
-                } else if (classType === 'SaveImage') {
+                } else if (isImageSaveNode(classType)) {
                   saveImage.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'easy int' || classType === 'JWInteger' || classType === 'INTConstant') {
                   easyInt.push(`${nodeId} (${metaTitle || classType})`);
@@ -703,7 +703,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.imageSaveNode')}
-                    nodeTypeHint="SaveImage"
+                    nodeTypeHint="SaveImage, Save Image (Advanced)"
                     value={mappingForm.saveImageNodeId}
                     options={availableNodes.saveImage}
                     onChange={(v) => handleNodeSelect(v, 'saveImageNodeId')}
@@ -726,7 +726,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.imageSaveNode')}
-                    nodeTypeHint="SaveImage"
+                    nodeTypeHint="SaveImage, Save Image (Advanced)"
                     value={mappingForm.saveImageNodeId}
                     options={availableNodes.saveImage}
                     onChange={(v) => handleNodeSelect(v, 'saveImageNodeId')}
@@ -1160,7 +1160,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.imageSaveNode')}
-                    nodeTypeHint="SaveImage"
+                    nodeTypeHint="SaveImage, Save Image (Advanced)"
                     value={mappingForm.saveImageNodeId}
                     options={availableNodes.saveImage}
                     onChange={(v) => handleNodeSelect(v, 'saveImageNodeId')}
@@ -1201,7 +1201,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.imageSaveNode')}
-                    nodeTypeHint="SaveImage"
+                    nodeTypeHint="SaveImage, Save Image (Advanced)"
                     value={mappingForm.saveImageNodeId}
                     options={availableNodes.saveImage}
                     onChange={(v) => handleNodeSelect(v, 'saveImageNodeId')}
@@ -1279,6 +1279,10 @@ function isFloatValueNode(classType: string, metaTitle: string, inputs: Record<s
     titleLower.includes('megapixels') ||
     titleLower.includes('duration')
   );
+}
+
+function isImageSaveNode(classType: string) {
+  return classType === 'SaveImage' || classType === 'SaveImageAdvanced';
 }
 
 function isStringValueNode(classType: string, metaTitle: string, inputs: Record<string, any> = {}) {

@@ -429,13 +429,13 @@ class ComfyUIClient:
         def is_video_filename(filename: str) -> bool:
             return str(filename or "").lower().split("?")[0].endswith((".mp4", ".webm", ".mov", ".mkv"))
 
-        # 查找工作流中的所有 SaveImage 节点
+        # 查找工作流中的所有标准或 Advanced 图片保存节点
         saveimage_nodes = set()
         if workflow:
             for node_id, node in workflow.items():
-                if isinstance(node, dict) and node.get("class_type") == "SaveImage":
+                if isinstance(node, dict) and node.get("class_type") in {"SaveImage", "SaveImageAdvanced"}:
                     saveimage_nodes.add(str(node_id))
-            print(f"[ComfyUI] SaveImage nodes in workflow: {saveimage_nodes}")
+            print(f"[ComfyUI] image save nodes in workflow: {saveimage_nodes}")
         
         # 优先使用配置的保存节点。视频工作流可能同时有高清/低清 SaveVideo，遍历第一个会取错。
         if save_image_node_id:
