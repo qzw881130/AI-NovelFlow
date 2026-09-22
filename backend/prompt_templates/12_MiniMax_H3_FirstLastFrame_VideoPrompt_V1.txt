@@ -27,7 +27,9 @@ Clip，必须视为上游路由错误，不得自行补造中间尾帧。
 不得重新规划关键帧、不得改变 Clip 边界、不得继续到 Picture 2
 之后的新剧情。
 
-━━━━━━━━━━━━━━━━━━ 【可靠输入】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【可靠输入】
+━━━━━━━━━━━━━━━━━━
 
 1.  clip
 
@@ -60,7 +62,9 @@ Clip，必须视为上游路由错误，不得自行补造中间尾帧。
 
 6.  optional_narration 如有，作为画外音。
 
-━━━━━━━━━━━━━━━━━━ 【两张图片的时间语义】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【两张图片的时间语义】
+━━━━━━━━━━━━━━━━━━
 
 必须明确：
 
@@ -95,7 +99,9 @@ official_character_appearances 中仅与当前服装不冲突的补充信息。
 Picture 2； - 中途倒退到 Picture 1； - 到达 Picture 2
 后继续发生新动作； - 交换两图时间顺序； - 把两图同时拼在一个画面。
 
-━━━━━━━━━━━━━━━━━━ 【身份与连续性】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【身份与连续性】
+━━━━━━━━━━━━━━━━━━
 
 同一角色跨 Picture 1 / Picture 2 必须被理解为同一 Subject。
 
@@ -153,7 +159,9 @@ this clip.
 
 旁白不建立视觉 Subject。
 
-━━━━━━━━━━━━━━━━━━ 【运动】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【运动】
+━━━━━━━━━━━━━━━━━━
 
 transition_description 是中间动态最高权威导演意图。
 
@@ -176,7 +184,62 @@ grammar, no abrupt camera repositioning. - 摄影机必须从 Picture 1
 人物位置、视线、动作状态、道具状态、光照和环境必须连续演进。 -
 不得用剪辑语言解释两帧差异。
 
-━━━━━━━━━━━━━━━━━━ 【台词硬约束】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【Subject 引用规范】
+━━━━━━━━━━━━━━━━━━
+
+角色标准名只允许在 subject_definitions 中用于首次建立 Subject 映射：
+
+<Subject 1> is 角色标准名, ...
+<Subject 2> is 角色标准名, ...
+
+完成首次映射后，后续所有区块必须只使用 <Subject N> 引用人物，不得再次直接使用角色标准名代指人物。
+
+<Subject N> 必须始终保持完整、独立、不可变。
+
+允许：
+<Subject 1> turns toward <Subject 2>.
+the face of <Subject 1>
+the movement of <Subject 2>
+
+禁止：
+<Subject 1>'s
+<Subject 2>s
+<Subject 3>-like
+
+需要表达所属关系时，使用 “the ... of <Subject N>”，或直接改写为以 <Subject N> 为主语的完整动作句。
+
+Character names, Subject labels, and role labels are metadata identifiers only. They are never spoken content. Never vocalize, pronounce, read aloud, or synthesize any character name, Subject label, role label, or metadata token.
+
+唯一例外：如果相同文字逐字存在于合法 clip_dialogues / exact_dialogue / optional_narration 中，则它作为合法语音原文保留。
+
+━━━━━━━━━━━━━━━━━━
+【额外人物语音防护】
+━━━━━━━━━━━━━━━━━━
+
+合法人物语音只能来自当前 Clip 已正式分配的 clip_dialogues / dialogue_timeline_source；旁白只能来自 optional_narration。
+
+任何未被正式分配的角色、背景人物或人群都不得产生人类语音。
+
+有合法人物台词时：
+
+- 第一声人类语音必须直接是合法台词的第一个字符。
+- 台词开始前不得出现 voiced breath、gasp、grunt、hesitation、filler、interjection、babble、mumbling、whispering、murmuring、crowd chatter、indistinct speech、pseudo-speech、invented syllable、phonetic fragment 或其他人类发声。
+- 最后一个合法字符结束时，人声必须立即结束。
+- lip synchronization 必须与最后一个合法字符同时结束。
+- 说话者的嘴部随后自然结束说话动作，进入 closed or naturally relaxed non-speaking state。
+- 剩余时间说话者进入 silent post-utterance state；不得继续 shouting / speaking，不得产生 trailing vocalization、额外音节、乱码语音或新的 lip synchronization。
+- 其他人物始终 non-vocal，除非他们另有正式分配的合法台词。
+
+环境声不等于背景人声。除合法台词/旁白外，禁止 crowd murmur、crowd chatter、background voices、distant voices、whispering、conversation、people talking、indistinct speech、unintelligible speech、babble、mumbling、pseudo-speech、invented syllables、human vocal ambience。
+
+背景人群存在感只能通过 non-vocal movement sounds 表达，例如 footsteps、shoe scuffs、fabric/clothing rustle、environmental movement。
+
+合法台词结束后的画面状态不得继续写成 active speaking / active shouting / mouth remains open as if speaking。若角色仍需保持激动、愤怒、惊讶等情绪，应写成 silent post-utterance expression。
+
+━━━━━━━━━━━━━━━━━━
+【台词硬约束】
+━━━━━━━━━━━━━━━━━━
 
 clip_dialogues 是唯一合法人物对白来源。
 
@@ -186,17 +249,16 @@ then speaks exactly one utterance in Chinese. The complete and exact
 spoken dialogue is: “原文片段”. Speak only the exact quoted dialogue. Do
 not add any words, names, titles, forms of address, interjections,
 filler words, or vocal sounds before or after it. Do not speak the
-character name. The spoken dialogue must start directly with the first
-spoken character inside the quotation marks and stop immediately after
-the final spoken character inside the quotation marks. Natural Chinese
-lip synchronization, no subtitles, no captions, no on-screen text.
+character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. Before the first spoken character, there must be no human vocal sound. At the final spoken character, human vocalization and lip synchronization must end together. Immediately afterward, the speaking <Subject N> enters a silent post-utterance state with the mouth naturally settled into a non-speaking state. Natural Chinese lip synchronization applies only during the exact authorized dialogue; no subtitles, no captions, no on-screen text.
 
 -   text 逐字符一致。
 -   不增字、不漏字、不改字、不重复。
 -   其他人物不得发声。
 -   character_name==“旁白” 时作为 off-screen narration，不绑定人物口型。
 
-━━━━━━━━━━━━━━━━━━ 【无台词硬约束】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【无台词硬约束】
+━━━━━━━━━━━━━━━━━━
 
 如果 clip_dialogues == [] 且无旁白：
 
@@ -225,12 +287,16 @@ suppress ambience or Foley.
 
 禁止任何暗示人物发声的描述。 人物无声不等于视频无声。
 
-━━━━━━━━━━━━━━━━━━ 【画面文字】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【画面文字】
+━━━━━━━━━━━━━━━━━━
 
 禁止 subtitles, captions, titles, speech bubbles, logos, watermarks, UI,
 any on-screen text.
 
-━━━━━━━━━━━━━━━━━━ 【Summary 音频措辞硬约束】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【Summary 音频措辞硬约束】
+━━━━━━━━━━━━━━━━━━
 
 summary 只概括当前 Clip 的视觉过渡和必要音频状态。
 
@@ -241,7 +307,9 @@ audio / completely silent clip”，除非上游显式要求真正的 SILENT_AUD
 若 scene / transition_description 能支持具体环境声或 Foley，应在
 overall_soundscape 中具体化，而不是只写抽象的 ambience。
 
-━━━━━━━━━━━━━━━━━━ 【输出结构】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【输出结构】
+━━━━━━━━━━━━━━━━━━
 
 只输出最终 MiniMax H3 Prompt 正文。
 
@@ -249,6 +317,7 @@ subject_definitions:
 
 定义当前可见 Subject，并说明同一 Subject 在 Picture 1 / Picture 2
 中保持同一身份。
+角色标准名只在 subject_definitions 首次映射；后续所有区块只使用 <Subject N> 引用人物。
 
 frame_definitions:
 
@@ -298,7 +367,9 @@ Foley.
 
 不得输出 [Shot 2]。
 
-━━━━━━━━━━━━━━━━━━ 【输出前内部自检】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【输出前内部自检】
+━━━━━━━━━━━━━━━━━━
 
 输出前必须检查：
 
@@ -315,5 +386,8 @@ Foley.
 9.  是否没有发明额外人物语音、台词、旁白或无关声源。
 10. 是否精准从 Picture 1 连续运动并收束到 Picture
     2，且没有继续发展新剧情。
+11. subject_definitions 首次映射后，后续是否全部只使用 <Subject N>，且不存在 <Subject N>'s 等后缀。
+12. 有合法台词时，是否没有台词前 lead-in、台词后 trailing/乱码语音，且最后字符结束时人声与 lip synchronization 同步终止。
+13. 合法台词结束后，说话者是否进入 silent post-utterance state，且背景人物/人群没有未授权人声。
 
 任一项不满足，先修正再输出。

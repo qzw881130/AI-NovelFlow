@@ -26,7 +26,9 @@ interval 组成；不要把整个长 Shot 的未来关键帧全部塞入当前�
 workflow.max_clip_duration。当前调用原则上处理一组连续、可在单次模型上限内完成的关键帧，并以最后一张
 Picture 作为明确终点。
 
-━━━━━━━━━━━━━━━━━━ 【可靠输入】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【可靠输入】
+━━━━━━━━━━━━━━━━━━
 
 1.  clip
 
@@ -60,7 +62,9 @@ Picture 作为明确终点。
 
 不得使用当前 Clip 范围外的未来状态。
 
-━━━━━━━━━━━━━━━━━━ 【关键帧时间语义】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【关键帧时间语义】
+━━━━━━━━━━━━━━━━━━
 
 每张 Picture 都是一个 Temporal State
 Anchor，不是平级参考图，也不是整个视频永久锁定的构图模板。
@@ -84,7 +88,9 @@ Picture 3 → … → Final Picture
 把多关键帧理解成多参考身份图； - 把每张 Picture
 理解为整个视频永久锁定的构图、站位或姿态。
 
-━━━━━━━━━━━━━━━━━━ 【人物身份连续性】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【人物身份连续性】
+━━━━━━━━━━━━━━━━━━
 
 同一角色跨所有 Picture 必须保持同一 Subject 身份。
 
@@ -136,7 +142,8 @@ shot.characters）； - 左右关系无依据镜像翻转； - 场景无依据�
 
 群体角色始终作为群体。
 
-━━━━━━━━━━━━━━━━━━ 【当前服装权威 / Current Costume Authority】
+━━━━━━━━━━━━━━━━━━
+【当前服装权威 / Current Costume Authority】
 ━━━━━━━━━━━━━━━━━━
 
 稳定 Character Identity 与 Current Costume 必须分离。
@@ -158,7 +165,9 @@ Picture
 时间顺序连续变化；不得提前出现后续服装，不得把前后两套服装混穿或融合。 -
 official_character_appearances 无权制造关键帧中不存在的换装。
 
-━━━━━━━━━━━━━━━━━━ 【过渡】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【过渡】
+━━━━━━━━━━━━━━━━━━
 
 每个 transition 只负责其相邻两张 Picture 之间。
 
@@ -198,7 +207,9 @@ Clip 的结束状态，当前 Clip 的结尾必须为下一 Clip 留出连续衔
 如果 shot.continuity_mode == “NORMAL”： - 可使用普通镜头语言，但仍要服从
 Picture 顺序、人物身份和空间连续性。
 
-━━━━━━━━━━━━━━━━━━ 【长 Shot / 多 Clip】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【长 Shot / 多 Clip】
+━━━━━━━━━━━━━━━━━━
 
 当前 Prompt 只处理当前 generation clip。
 
@@ -211,7 +222,62 @@ MultiKeyframe 调用。 - 不得引用后续 Clip 的剧情。 - 若当前 Clip
 
 这保证： 上一 Clip END → 当前 Clip START 连续衔接。
 
-━━━━━━━━━━━━━━━━━━ 【台词硬约束】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【Subject 引用规范】
+━━━━━━━━━━━━━━━━━━
+
+角色标准名只允许在 subject_definitions 中用于首次建立 Subject 映射：
+
+<Subject 1> is 角色标准名, ...
+<Subject 2> is 角色标准名, ...
+
+完成首次映射后，后续所有区块必须只使用 <Subject N> 引用人物，不得再次直接使用角色标准名代指人物。
+
+<Subject N> 必须始终保持完整、独立、不可变。
+
+允许：
+<Subject 1> turns toward <Subject 2>.
+the face of <Subject 1>
+the movement of <Subject 2>
+
+禁止：
+<Subject 1>'s
+<Subject 2>s
+<Subject 3>-like
+
+需要表达所属关系时，使用 “the ... of <Subject N>”，或直接改写为以 <Subject N> 为主语的完整动作句。
+
+Character names, Subject labels, and role labels are metadata identifiers only. They are never spoken content. Never vocalize, pronounce, read aloud, or synthesize any character name, Subject label, role label, or metadata token.
+
+唯一例外：如果相同文字逐字存在于合法 clip_dialogues / exact_dialogue / optional_narration 中，则它作为合法语音原文保留。
+
+━━━━━━━━━━━━━━━━━━
+【额外人物语音防护】
+━━━━━━━━━━━━━━━━━━
+
+合法人物语音只能来自当前 Clip 已正式分配的 clip_dialogues / dialogue_timeline_source；旁白只能来自 optional_narration。
+
+任何未被正式分配的角色、背景人物或人群都不得产生人类语音。
+
+有合法人物台词时：
+
+- 第一声人类语音必须直接是合法台词的第一个字符。
+- 台词开始前不得出现 voiced breath、gasp、grunt、hesitation、filler、interjection、babble、mumbling、whispering、murmuring、crowd chatter、indistinct speech、pseudo-speech、invented syllable、phonetic fragment 或其他人类发声。
+- 最后一个合法字符结束时，人声必须立即结束。
+- lip synchronization 必须与最后一个合法字符同时结束。
+- 说话者的嘴部随后自然结束说话动作，进入 closed or naturally relaxed non-speaking state。
+- 剩余时间说话者进入 silent post-utterance state；不得继续 shouting / speaking，不得产生 trailing vocalization、额外音节、乱码语音或新的 lip synchronization。
+- 其他人物始终 non-vocal，除非他们另有正式分配的合法台词。
+
+环境声不等于背景人声。除合法台词/旁白外，禁止 crowd murmur、crowd chatter、background voices、distant voices、whispering、conversation、people talking、indistinct speech、unintelligible speech、babble、mumbling、pseudo-speech、invented syllables、human vocal ambience。
+
+背景人群存在感只能通过 non-vocal movement sounds 表达，例如 footsteps、shoe scuffs、fabric/clothing rustle、environmental movement。
+
+合法台词结束后的画面状态不得继续写成 active speaking / active shouting / mouth remains open as if speaking。若角色仍需保持激动、愤怒、惊讶等情绪，应写成 silent post-utterance expression。
+
+━━━━━━━━━━━━━━━━━━
+【台词硬约束】
+━━━━━━━━━━━━━━━━━━
 
 dialogue_timeline 是当前 Clip 唯一合法人物对白正文源。
 
@@ -229,9 +295,10 @@ dialogue_timeline_source 的 start_time/end_time 执行。
 
 对于每条实际人物台词：
 
-只在 dialogue_timeline 中写： : speaks from s to s. exact_dialogue:
-“原文片段”. Speak only the exact_dialogue text. Do not speak the
-character name. No subtitles, captions, or on-screen text.
+speaker / character_name 只用于程序解析到对应 <Subject N>。最终 Prompt 的 dialogue_timeline 中必须使用 <Subject N> 作为说话者，不得再次输出角色标准名。
+
+只在 dialogue_timeline 中写： <Subject N>: speaks from s to s. exact_dialogue:
+“原文片段”. Speak only the exact_dialogue text. Do not speak the character name or Subject label. The first human vocal sound must be the first character of exact_dialogue. At the final character of exact_dialogue, human vocalization and lip synchronization must end together. Immediately afterward, <Subject N> enters a silent post-utterance state with the mouth naturally settled into a non-speaking state. No subtitles, captions, or on-screen text.
 
 规则： - 逐字符一致； - 不新增、删减、改写； - 不读角色名； -
 不添加称谓、感叹词、填充词； - 只有 clip_dialogues
@@ -242,7 +309,9 @@ overall_soundscape 复述 exact_dialogue 原文。
 如果多条 dialogues： - 按输入顺序与当前 Clip 的合法时序分别写； -
 不交换说话者； - 不合并文本。
 
-━━━━━━━━━━━━━━━━━━ 【无台词硬约束】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【无台词硬约束】
+━━━━━━━━━━━━━━━━━━
 
 如果 clip_dialogues == [] 且没有旁白：
 
@@ -270,12 +339,16 @@ suppress ambience or Foley.
 只保留同步环境声与动作声，但必须清楚可听且符合场景空间。
 人物无声不等于视频无声。
 
-━━━━━━━━━━━━━━━━━━ 【画面文字】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【画面文字】
+━━━━━━━━━━━━━━━━━━
 
 禁止： - subtitles - captions - titles - speech bubbles - logos -
 watermarks - UI - any on-screen text
 
-━━━━━━━━━━━━━━━━━━ 【Summary 与音频措辞硬约束】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【Summary 与音频措辞硬约束】
+━━━━━━━━━━━━━━━━━━
 
 当 clip_dialogues == [] 且无旁白： - NO_VOICE 只限制人物发声。 - 严禁写
 “The entire clip is silent.”、“complete silence”、“silent
@@ -285,13 +358,16 @@ silent。 - overall_soundscape 必须明确 The audio track must NOT be
 silent，并具体保留与场景和动作一致的 ambience / room tone / Foley。 -
 不得凭空增加与画面无关的声源或音乐。
 
-━━━━━━━━━━━━━━━━━━ 【输出结构】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【输出结构】
+━━━━━━━━━━━━━━━━━━
 
 只输出最终 MiniMax H3 Prompt 正文，不输出 JSON，不解释。
 
 subject_definitions:
 
 逐一锁定当前 Clip 的可见 Subject，并说明跨全部 Picture 身份一致。
+角色标准名只在 subject_definitions 首次映射；后续所有区块只使用 <Subject N> 引用人物。
 必须引用 official_character_appearances
 中用于防漂移的关键身份信息，尤其是脸、年龄、体型比例、发型/鬃毛、毛色/肤色、稳定身份配饰和独特标记；当前服装不得从历史/默认角色描述恢复，必须服从对应时间锚点
 Picture 与当前 Shot Appearance/costume
@@ -359,7 +435,9 @@ audible；Character silence must NOT suppress ambience or Foley.
 
 不得输出 [Shot 2]。
 
-━━━━━━━━━━━━━━━━━━ 【输出前内部自检】 ━━━━━━━━━━━━━━━━━━
+━━━━━━━━━━━━━━━━━━
+【输出前内部自检】
+━━━━━━━━━━━━━━━━━━
 
 1.  稳定 Character Identity 与 Current Costume 是否已经分离。
 2.  当前服装是否服从权威时间锚点 Picture，而不是历史/默认服装描述。
@@ -372,3 +450,6 @@ audible；Character silence must NOT suppress ambience or Foley.
     边界。
 9.  多关键帧服装是否严格按 Picture
     时间顺序演化，未提前出现后续服装、未混穿前后服装。
+10. subject_definitions 首次映射后，后续是否全部只使用 <Subject N>，且不存在 <Subject N>'s 等后缀。
+11. 有合法台词时，是否没有台词前 lead-in、台词后 trailing/乱码语音，且最后字符结束时人声与 lip synchronization 同步终止。
+12. 合法台词结束后，说话者是否进入 silent post-utterance state，且背景人物/人群没有未授权人声。
