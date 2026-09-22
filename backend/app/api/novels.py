@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.models.novel import Novel
-from app.schemas.novel import NovelCreate
+from app.schemas.novel import NovelCopy, NovelCreate
 from app.repositories import NovelRepository, ChapterRepository, CharacterRepository, PromptTemplateRepository
 from app.services.novel_service import NovelService
 from app.api.deps import get_novel_repo, get_chapter_repo, get_character_repo
@@ -141,6 +141,21 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
             "createdAt": format_datetime(db_novel.created_at),
         }
     }
+
+
+@router.post("/{novel_id}/copy", response_model=dict)
+async def copy_novel(
+    novel_id: str,
+    data: NovelCopy,
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+):
+    """复制小说的章回标题、正文和顺序，不复制解析或生成资产。"""
+    source = novel_repo.get_by_id(novel_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="来源小说不存在")
+
+    copied = novel_repo.copy_with_chapters(source, data.title)
+    return {"success": True, "data": novel_repo.to_response(copied)}
 
 
 @router.get("/{novel_id}", response_model=dict)

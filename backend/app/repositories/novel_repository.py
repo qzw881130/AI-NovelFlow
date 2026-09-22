@@ -153,6 +153,28 @@ class NovelRepository:
         self.db.commit()
         self.db.refresh(novel)
         return novel
+
+    def copy_with_chapters(self, source: Novel, title: str) -> Novel:
+        """Create a clean novel containing only copied chapter source text."""
+        chapters = self.db.query(Chapter).filter(
+            Chapter.novel_id == source.id
+        ).order_by(Chapter.number, Chapter.id).all()
+        copied = Novel(
+            title=title,
+            chapter_count=len(chapters),
+            chapters=[
+                Chapter(number=chapter.number, title=chapter.title, content=chapter.content or "")
+                for chapter in chapters
+            ],
+        )
+        try:
+            self.db.add(copied)
+            self.db.commit()
+        except Exception:
+            self.db.rollback()
+            raise
+        self.db.refresh(copied)
+        return copied
     
     def update(self, novel: Novel, **kwargs) -> Novel:
         """更新小说"""

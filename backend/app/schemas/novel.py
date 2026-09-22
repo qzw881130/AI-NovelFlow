@@ -34,6 +34,12 @@ class NovelCreate(NovelBase):
     pass
 
 
+class NovelCopy(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    title: str = Field(min_length=1)
+
+
 class NovelUpdate(NovelBase):
     pass
 

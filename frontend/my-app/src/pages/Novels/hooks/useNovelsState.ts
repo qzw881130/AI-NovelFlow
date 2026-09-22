@@ -32,10 +32,11 @@ type TemplateType = typeof TEMPLATE_TYPES[number];
 
 export function useNovelsState() {
   const { t } = useTranslation();
-  const { novels, isLoading, fetchNovels, createNovel, deleteNovel, importNovel, updateNovel } = useNovelStore();
+  const { novels, isLoading, fetchNovels, createNovel, copyNovel: copyNovelRequest, deleteNovel, importNovel, updateNovel } = useNovelStore();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showCopyModal, setShowCopyModal] = useState(false);
   const [editingNovel, setEditingNovel] = useState<any>(null);
   const [importing, setImporting] = useState(false);
   const [parsingNovelId, setParsingNovelId] = useState<string | null>(null);
@@ -94,6 +95,12 @@ export function useNovelsState() {
       novel.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       novel.author.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const copyNovel = async (sourceId: string, title: string) => {
+    const copied = await copyNovelRequest(sourceId, title);
+    setSearchQuery('');
+    toast.success(t('novels.copySuccess', { title: copied.title, count: copied.chapterCount }));
+  };
 
   const openParseConfirm = (novelId: string, type: ParseType = 'characters') => {
     setConfirmDialog({ isOpen: true, novelId, type });
@@ -232,6 +239,8 @@ export function useNovelsState() {
     setSearchQuery,
     showCreateModal,
     setShowCreateModal,
+    showCopyModal,
+    setShowCopyModal,
     editingNovel,
     setEditingNovel,
     importing,
@@ -247,6 +256,7 @@ export function useNovelsState() {
     // Actions
     fetchNovels,
     createNovel,
+    copyNovel,
     deleteNovel,
     updateNovel,
     handleImport,
