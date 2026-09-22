@@ -312,8 +312,8 @@ function VideoAiCallsPanel({
         })}
       </div>}
     </div>
-    {viewingData && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingData(null)}>
+    {viewingData && createPortal((
+      <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingData(null)}>
         <div className="w-full max-w-5xl max-h-[86vh] overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
             <div className="min-w-0">
@@ -334,7 +334,7 @@ function VideoAiCallsPanel({
           </div>
         </div>
       </div>
-    )}
+    ), document.body)}
     </>
   );
 }
@@ -360,8 +360,8 @@ function VideoPromptModal({
 
   const hasDrafts = drafts.length > 0;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+  return createPortal((
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 px-4">
       <div className="flex max-h-[86vh] w-full max-w-5xl flex-col rounded-xl bg-white shadow-2xl">
         <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4">
           <div>
@@ -424,7 +424,7 @@ function VideoPromptModal({
         </div>
       </div>
     </div>
-  );
+  ), document.body);
 }
 
 interface VideoDirectorPanelProps {
@@ -1282,8 +1282,8 @@ function VideoDirectorPanel({
         )}
       </div>
     </div>
-    {viewingPromptClip?.prompt_text && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingPromptClip(null)}>
+    {viewingPromptClip?.prompt_text && createPortal((
+      <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingPromptClip(null)}>
         <div className="flex max-h-[86vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-5 py-4">
             <div className="min-w-0">
@@ -1309,7 +1309,7 @@ function VideoDirectorPanel({
           </div>
         </div>
       </div>
-    )}
+    ), document.body)}
     </>
   );
 }

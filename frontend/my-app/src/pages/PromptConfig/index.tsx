@@ -304,6 +304,7 @@ export default function PromptConfig() {
               >
                 {TYPE_ICONS[type]}
                 {t(TEMPLATE_TYPE_CONFIG[type].nameKey)}
+                {TEMPLATE_TYPE_CONFIG[type].fileNumber ? `(#${TEMPLATE_TYPE_CONFIG[type].fileNumber})` : ''}
               </button>
             );
           })}

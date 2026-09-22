@@ -92,6 +92,24 @@ execution_windows 由程序根据 shot.duration 与 workflow_capability.multi_ke
 
 未提供的限制不得自行假设为硬限制。
 
+6. dialogue_timeline_source
+程序提供的正式 Dialogue Timeline。
+每项至少包含：
+- id
+- speaker
+- text
+- start_time
+- end_time
+- duration
+- emotion_prompt
+
+它是判断关键帧时间点是否处于 speaking state 的唯一时间权威。
+shot.dialogues 只表示 Shot 包含哪些对白，不提供关键帧 speaking-state 的时间判断依据。
+
+7. existing_keyframes（若提供）
+仅包含旧规划的 index / role / time_seconds，用作非权威结构参考。
+旧 description 不属于可靠输入，不得据此延续 speaking state，也不得覆盖 dialogue_timeline_source。
+
 ━━━━━━━━━━━━━━━━━━
 【职责边界】
 ━━━━━━━━━━━━━━━━━━
@@ -383,6 +401,30 @@ Action：
 - execution_window 边界不能被当作剧情换场理由。
 
 ━━━━━━━━━━━━━━━━━━
+【Dialogue Timeline 与可见说话状态】
+━━━━━━━━━━━━━━━━━━
+关键帧不做逐字口型规划，但必须遵守正式 dialogue 时间窗。
+
+必须使用 dialogue_timeline_source：
+
+- 关键帧时间落在某角色合法 dialogue 时间窗内：
+  可以表现自然 speaking state，例如嘴部自然处于说话状态。
+  不需要匹配具体汉字口型。
+
+- 关键帧时间早于该角色 dialogue.start_time：
+  不得表现该角色已经在说话。
+  可以表现准备开口、看向听者、吸引注意等非发声前置状态。
+
+- 关键帧时间晚于 dialogue.end_time：
+  不得继续表现 speaking / whispering / shouting / lip-sync 状态。
+  嘴部必须回到自然非说话状态。
+  可以继续保持台词结束后的情绪、视线和身体反应。
+
+- 若角色后续还有新的合法 dialogue，则仅在新的 dialogue 时间窗重新进入 speaking state。
+
+- 背景群众没有正式 dialogue 时，不得因为“交头接耳、骚动、议论扩散”等剧情语义而设计集体 speaking mouth state。
+
+━━━━━━━━━━━━━━━━━━
 【台词与无台词】
 ━━━━━━━━━━━━━━━━━━
 
@@ -396,7 +438,7 @@ dialogues == []：
 
 dialogues 非空：
 - 关键帧仍不复制台词正文；
-- 第一版不做逐字对白 timing；
+- 第一版不做逐字 phoneme/lip timing，但必须遵守 dialogue start_time / end_time 的 speaking-state 边界；
 - 不假设关键帧一定处于某个具体字的发音时刻；
 - 只根据视频导演意图规划视觉状态；
 - 长对话可使用自然微动作和克制镜头变化形成 3/4 帧锚点。
@@ -420,6 +462,34 @@ MULTI_KEYFRAME 额外必须满足：
 - 相邻 window 必须共享同一个边界 keyframe。
 - 不得产生未被任何 window 使用的孤立关键帧。
 - 所有 window 连续覆盖整个 Shot，不得产生时间空洞。
+
+━━━━━━━━━━━━━━━━━━
+【冲突裁决硬约束】
+━━━━━━━━━━━━━━━━━━
+
+dialogue_timeline_source 是 speaking-state 的最高且唯一时间权威。
+
+当 shot.description、video_description、existing state 或其他自然语言描述中的“说话、低语、喊叫、开口、嘴巴微张、说话口型”等状态，与 dialogue_timeline_source 的 start_time / end_time 冲突时，必须无条件服从 dialogue_timeline_source。
+
+不得因为 video_description 描述某角色“说话”“低语”或“开口”，就把该 speaking state 延续到 dialogue.end_time 之后。
+
+对每个非 START keyframe，在写 description 前必须先执行：
+
+1. 读取 keyframe.time_seconds。
+2. 检查该角色是否存在覆盖此时间点的合法 dialogue interval。
+3. 只有存在覆盖该时间点的 interval，才允许写 speaking / whispering / shouting / speaking-mouth state。
+4. 若不存在覆盖该时间点的 interval，必须写 non-speaking state，不得写“正在说话”“低语”“说话口型”“嘴巴微张处于说话状态”。
+
+此规则优先于 shot.description 和 video_description 中所有 speaking-state 自然语言。
+
+若 keyframe.time_seconds > dialogue.end_time，
+则该 keyframe 中不得出现：
+“正在说话”
+“低声说话”
+“正在低语”
+“维持说话口型”
+“嘴巴微张处于说话状态”
+或任何等价 speaking-state 描述。
 
 ━━━━━━━━━━━━━━━━━━
 【validation】

@@ -37,6 +37,12 @@
 
 输入的两帧均为正式关键帧状态。
 
+4. dialogue_timeline_source
+程序提供的完整 Shot Dialogue Timeline，每项至少包含 id、speaker、text、start_time、end_time、duration、emotion_prompt。
+它是判断当前 Segment 内 speaking state 的唯一时间权威。
+segment_dialogue_state 会给出当前 Segment 的时间范围、重叠 dialogue IDs 和重叠时间线条目。
+shot.dialogues 只表示 Shot 包含哪些对白，不提供 speaking-state 的时间判断依据。
+
 ━━━━━━━━━━━━━━━━━━
 【核心目标】
 ━━━━━━━━━━━━━━━━━━
@@ -146,18 +152,39 @@ continuity_mode == "NORMAL" 时：
 - 不得复述或改写台词正文。
 - 不得发明任何对白。
 
-当 shot.dialogues == []：
-transition_description 必须明确：
-“所有人物在该过渡全过程保持沉默，不说话、不低语、不发出人物语音；只保留必要的环境声和动作声。”
+transition_description 只描述视觉动作，不输出“谁允许发声”“所有人物保持沉默”“只保留环境声”等声音权限语句。
 
-当 shot.dialogues 非空：
-- 可以描述与讲话相容的自然可见动作，例如说话者保持面对目标、听者保持注视；
+- 可以描述与合法时间窗相容的自然可见动作，例如说话者保持面对目标、听者保持注视；
 - 但不得写具体台词正文；
 - 不得新增谁说了什么；
-- 具体发声由下游 clip_dialogues 决定。
+- speaking mouth state 只能由 dialogue_timeline_source 的时间范围决定。
 
 旁白：
 - 不绑定任何可见人物口型。
+
+━━━━━━━━━━━━━━━━━━
+【Dialogue Timeline Priority】
+━━━━━━━━━━━━━━━━━━
+
+必须使用 dialogue_timeline_source：
+
+transition_description 中任何 speaking / whispering / shouting / mouth-speaking state 必须服从合法 dialogue 时间窗。
+
+一个 transition 与 dialogue 时间窗部分重叠时，不得把 speaking state 描述为覆盖整个 transition。
+
+例如：
+Transition = 0–5s
+Dialogue D1 = 1–3.99s
+
+应理解为：
+0–1s：非说话状态；
+1–3.99s：允许自然说话视觉状态；
+3.99–5s：台词结束后的非说话反应状态。
+
+如果 transition 完全位于 dialogue.end_time 之后：
+不得描述该角色“继续说话”“持续低语”“维持说话口型”。
+
+transition_description 不负责复制台词正文。
 
 ━━━━━━━━━━━━━━━━━━
 【长 Shot】

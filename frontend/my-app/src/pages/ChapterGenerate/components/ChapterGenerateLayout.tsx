@@ -328,9 +328,24 @@ export function ChapterGenerateLayout({
     const content = currentShot?.video_description || '';
     if (!content) return;
     try {
-      await navigator.clipboard.writeText(content);
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(content);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = content;
+        textarea.style.position = 'fixed';
+        textarea.style.left = '-9999px';
+        textarea.style.top = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        if (!copied) throw new Error('Copy command was rejected');
+      }
       toast.success('已复制视频描述');
-    } catch {
+    } catch (error) {
+      console.error('复制视频描述失败:', error);
       toast.error('复制视频描述失败');
     }
   };

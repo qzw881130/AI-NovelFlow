@@ -7,7 +7,7 @@ import type { TemplateType, PromptForm } from '../types';
 import { DEFAULT_CHARACTER_TEMPLATE, DEFAULT_CHAPTER_SPLIT_TEMPLATE, DEFAULT_STYLE_TEMPLATE } from '../constants';
 
 // 模板类型配置
-export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descKey: string; defaultTemplate: string }> = {
+export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descKey: string; defaultTemplate: string; fileNumber?: string }> = {
   style: { nameKey: 'promptConfig.types.style', descKey: 'promptConfig.types.styleDesc', defaultTemplate: DEFAULT_STYLE_TEMPLATE },
   character_parse: { nameKey: 'promptConfig.types.characterParse', descKey: 'promptConfig.types.characterParseDesc', defaultTemplate: '' },
   scene_parse: { nameKey: 'promptConfig.types.sceneParse', descKey: 'promptConfig.types.sceneParseDesc', defaultTemplate: '' },
@@ -15,16 +15,16 @@ export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descK
   character: { nameKey: 'promptConfig.types.character', descKey: 'promptConfig.types.characterDesc', defaultTemplate: DEFAULT_CHARACTER_TEMPLATE },
   scene: { nameKey: 'promptConfig.types.scene', descKey: 'promptConfig.types.sceneDesc', defaultTemplate: '' },
   prop: { nameKey: 'promptConfig.types.prop', descKey: 'promptConfig.types.propDesc', defaultTemplate: '' },
-  chapter_split: { nameKey: 'promptConfig.types.chapterSplit', descKey: 'promptConfig.types.chapterSplitDesc', defaultTemplate: DEFAULT_CHAPTER_SPLIT_TEMPLATE },
-  shot_image_prompt: { nameKey: 'promptConfig.types.shotImagePrompt', descKey: 'promptConfig.types.shotImagePromptDesc', defaultTemplate: '' },
-  video_mode_recommender: { nameKey: 'promptConfig.types.videoModeRecommender', descKey: 'promptConfig.types.videoModeRecommenderDesc', defaultTemplate: '' },
+  chapter_split: { nameKey: 'promptConfig.types.chapterSplit', descKey: 'promptConfig.types.chapterSplitDesc', defaultTemplate: DEFAULT_CHAPTER_SPLIT_TEMPLATE, fileNumber: '05' },
+  shot_image_prompt: { nameKey: 'promptConfig.types.shotImagePrompt', descKey: 'promptConfig.types.shotImagePromptDesc', defaultTemplate: '', fileNumber: '06' },
+  video_mode_recommender: { nameKey: 'promptConfig.types.videoModeRecommender', descKey: 'promptConfig.types.videoModeRecommenderDesc', defaultTemplate: '', fileNumber: '07' },
   keyframe_description: { nameKey: 'promptConfig.types.keyframeDescription', descKey: 'promptConfig.types.keyframeDescriptionDesc', defaultTemplate: '' },
-  keyframe_planner: { nameKey: 'promptConfig.types.keyframePlanner', descKey: 'promptConfig.types.keyframePlannerDesc', defaultTemplate: '' },
-  keyframe_image_prompt: { nameKey: 'promptConfig.types.keyframeImagePrompt', descKey: 'promptConfig.types.keyframeImagePromptDesc', defaultTemplate: '' },
-  keyframe_transition: { nameKey: 'promptConfig.types.keyframeTransition', descKey: 'promptConfig.types.keyframeTransitionDesc', defaultTemplate: '' },
-  h3_single_frame_prompt: { nameKey: 'promptConfig.types.h3SingleFramePrompt', descKey: 'promptConfig.types.h3SingleFramePromptDesc', defaultTemplate: '' },
-  h3_first_last_frame_prompt: { nameKey: 'promptConfig.types.h3FirstLastFramePrompt', descKey: 'promptConfig.types.h3FirstLastFramePromptDesc', defaultTemplate: '' },
-  h3_multi_keyframe_prompt: { nameKey: 'promptConfig.types.h3MultiKeyframePrompt', descKey: 'promptConfig.types.h3MultiKeyframePromptDesc', defaultTemplate: '' },
+  keyframe_planner: { nameKey: 'promptConfig.types.keyframePlanner', descKey: 'promptConfig.types.keyframePlannerDesc', defaultTemplate: '', fileNumber: '08' },
+  keyframe_image_prompt: { nameKey: 'promptConfig.types.keyframeImagePrompt', descKey: 'promptConfig.types.keyframeImagePromptDesc', defaultTemplate: '', fileNumber: '09' },
+  keyframe_transition: { nameKey: 'promptConfig.types.keyframeTransition', descKey: 'promptConfig.types.keyframeTransitionDesc', defaultTemplate: '', fileNumber: '10' },
+  h3_single_frame_prompt: { nameKey: 'promptConfig.types.h3SingleFramePrompt', descKey: 'promptConfig.types.h3SingleFramePromptDesc', defaultTemplate: '', fileNumber: '11' },
+  h3_first_last_frame_prompt: { nameKey: 'promptConfig.types.h3FirstLastFramePrompt', descKey: 'promptConfig.types.h3FirstLastFramePromptDesc', defaultTemplate: '', fileNumber: '12' },
+  h3_multi_keyframe_prompt: { nameKey: 'promptConfig.types.h3MultiKeyframePrompt', descKey: 'promptConfig.types.h3MultiKeyframePromptDesc', defaultTemplate: '', fileNumber: '13' },
 };
 
 export const TEMPLATE_TYPES: TemplateType[] = [

@@ -30,7 +30,7 @@ from app.services.novel_service import (
     generate_transition_video_task,
 )
 from app.services.shot_image_service import enqueue_shot_image_task
-from app.services.shot_video_service import enqueue_shot_video_task, merge_video_director_clip_videos, _clip_dialogues_for_prompt
+from app.services.shot_video_service import enqueue_shot_video_task, merge_video_director_clip_videos
 
 generate_shot_task = enqueue_shot_image_task
 generate_shot_video_task = enqueue_shot_video_task
@@ -83,7 +83,7 @@ from app.utils.time_utils import format_datetime
 from app.services.prompt_builder import get_style
 from app.services.llm_service import LLMService
 from app.repositories import PromptTemplateRepository
-from app.services.video_director_ai import append_video_ai_call, strip_media_refs
+from app.services.video_director_ai import append_video_ai_call, build_dialogue_timeline, strip_media_refs
 from app.core.database import SessionLocal
 from app.services.background_workers import worker_manager
 
@@ -1399,6 +1399,21 @@ def _get_keyframe_planner_template(novel: Novel, template_repo: PromptTemplateRe
 
 def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: dict, previous_failures: list = None) -> str:
     selected_mode = plan.get("selected_mode") or "MULTI_KEYFRAME"
+    shot_dialogues = _safe_json_list(shot.dialogues)
+    dialogue_timeline_source, _ = build_dialogue_timeline(
+        {"start_time": 0, "end_time": shot.duration or 4},
+        shot_dialogues,
+        _safe_json_list(shot.characters),
+    )
+    existing_keyframes = [
+        {
+            "index": keyframe.get("index"),
+            "role": keyframe.get("role"),
+            "time_seconds": keyframe.get("time_seconds"),
+        }
+        for keyframe in (plan.get("keyframes") or [])
+        if isinstance(keyframe, dict)
+    ]
     payload = {
         "shot": {
             "id": shot.id,
@@ -1410,12 +1425,14 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
             "props": _safe_json_list(shot.props),
             "duration": shot.duration or 4,
             "continuity_mode": shot.continuity_mode or "NORMAL",
-            "dialogues": _safe_json_list(shot.dialogues),
+            "dialogues": shot_dialogues,
         },
+        "dialogue_timeline_source": dialogue_timeline_source,
         "selected_mode": selected_mode,
         "execution_windows": plan.get("execution_windows") or [],
         "workflow_capability": strip_media_refs(workflow_capability),
-        "existing_keyframes": strip_media_refs(plan.get("keyframes") or []),
+        "existing_keyframes": existing_keyframes,
+        "existing_keyframes_policy": "旧规划仅作为 index/role/time_seconds 结构参考；旧 description 已刻意移除，不得覆盖 dialogue_timeline_source 或约束新的静态视觉状态。",
         "continuity_requirements": _build_continuity_requirements(shot),
         "requirements": {
             "output_top_level_keys": ["validation", "keyframes", "window_plans"],
@@ -1534,23 +1551,34 @@ def _transition_keyframe_payload(shot, keyframe: dict) -> dict:
     })
 
 
-def _build_segment_dialogue_state(shot, from_keyframe: dict, to_keyframe: dict) -> dict:
+def _build_segment_dialogue_state(shot, from_keyframe: dict, to_keyframe: dict, dialogue_timeline_source: list) -> dict:
     segment = {
         "start_time": from_keyframe.get("time_seconds") or 0,
         "end_time": to_keyframe.get("time_seconds") or shot.duration or 0,
     }
-    segment_dialogues = _clip_dialogues_for_prompt(_safe_json_list(shot.dialogues), segment, float(shot.duration or 0))
+    segment_dialogues = [
+        dialogue
+        for dialogue in dialogue_timeline_source
+        if float(dialogue.get("start_time") or 0) < float(segment["end_time"])
+        and float(dialogue.get("end_time") or 0) > float(segment["start_time"])
+    ]
     return {
         "start_time": segment["start_time"],
         "end_time": segment["end_time"],
         "has_dialogue": bool(segment_dialogues),
-        "segment_dialogues": segment_dialogues,
-        "speech_rule": "仅 segment_dialogues 中的人物可发声。" if segment_dialogues else "本 segment 所有人物保持沉默，不说话、不低语、不发出人物语音。",
+        "overlapping_dialogue_ids": [dialogue.get("id") for dialogue in segment_dialogues],
+        "dialogue_timeline_source": segment_dialogues,
     }
 
 
 def _build_keyframe_transition_user_content(shot, from_keyframe: dict, to_keyframe: dict, segment_index: int) -> str:
-    dialogue_state = _build_segment_dialogue_state(shot, from_keyframe, to_keyframe)
+    shot_dialogues = _safe_json_list(shot.dialogues)
+    dialogue_timeline_source, _ = build_dialogue_timeline(
+        {"start_time": 0, "end_time": shot.duration or 4},
+        shot_dialogues,
+        _safe_json_list(shot.characters),
+    )
+    dialogue_state = _build_segment_dialogue_state(shot, from_keyframe, to_keyframe, dialogue_timeline_source)
     payload = {
         "shot": {
             "id": shot.id,
@@ -1562,8 +1590,9 @@ def _build_keyframe_transition_user_content(shot, from_keyframe: dict, to_keyfra
             "props": _safe_json_list(shot.props),
             "duration": shot.duration or 4,
             "continuity_mode": shot.continuity_mode or "NORMAL",
-            "dialogues": dialogue_state["segment_dialogues"],
+            "dialogues": shot_dialogues,
         },
+        "dialogue_timeline_source": dialogue_timeline_source,
         "segment_index": segment_index,
         "segment_dialogue_state": dialogue_state,
         "continuity_requirements": _build_continuity_requirements(shot),

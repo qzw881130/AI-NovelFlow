@@ -194,7 +194,7 @@ def _float_or_none(value: Any) -> Optional[float]:
         return None
 
 
-def _build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: list) -> tuple[list, list]:
+def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: list) -> tuple[list, list]:
     clip_start = float(clip.get("start_time") or 0)
     clip_end = float(clip.get("end_time") or clip_start)
     if clip_end <= clip_start:
@@ -212,15 +212,31 @@ def _build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: 
             continue
         emotion_prompt = str(dialogue.get("emotion_prompt") or dialogue.get("emotion") or "")
         min_duration = _estimate_dialogue_seconds(text, emotion_prompt)
-        raw_start = _float_or_none(dialogue.get("start_time") or dialogue.get("start") or dialogue.get("time") or dialogue.get("timestamp"))
-        raw_end = _float_or_none(dialogue.get("end_time") or dialogue.get("end"))
+        raw_start = next((
+            parsed
+            for key in ("start_time", "start", "time", "timestamp")
+            if (parsed := _float_or_none(dialogue.get(key))) is not None
+        ), None)
+        raw_end = next((
+            parsed
+            for key in ("end_time", "end")
+            if (parsed := _float_or_none(dialogue.get(key))) is not None
+        ), None)
+        raw_duration = _float_or_none(dialogue.get("duration"))
         start = raw_start if raw_start is not None else cursor
         if start < clip_start:
             start = clip_start
         if start > clip_end:
             start = max(clip_start, clip_end - min_duration)
-        end = raw_end if raw_end is not None and raw_end > start else start + min_duration
-        if end - start < min_duration:
+        has_authoritative_end = raw_end is not None and raw_end > start
+        has_authoritative_duration = raw_duration is not None and raw_duration > 0
+        if has_authoritative_end:
+            end = raw_end
+        elif has_authoritative_duration:
+            end = start + raw_duration
+        else:
+            end = start + min_duration
+        if not has_authoritative_end and not has_authoritative_duration and end - start < min_duration:
             end = start + min_duration
         if end > clip_end:
             end = clip_end
@@ -371,7 +387,7 @@ async def build_h3_video_prompt(
     ]
     is_multi_clip = selected_mode == "MULTI_KEYFRAME"
     shot_characters = safe_json_list(shot.characters)
-    assigned_dialogues, silent_characters = _build_dialogue_timeline(clip, clip_dialogues, shot_characters)
+    assigned_dialogues, silent_characters = build_dialogue_timeline(clip, clip_dialogues, shot_characters)
     dialogue_payload = [
         {key: value for key, value in item.items() if key != "text"}
         for item in assigned_dialogues
