@@ -3,13 +3,14 @@ import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import { taskApi } from '../../../api/tasks';
 import type { Task, VideoDirectorTaskClip } from '../../../types';
-import type { TaskFilter, ImageInfo, WorkflowData, TaskStats } from '../types';
+import type { TaskFilter, TaskTypeFilter, ImageInfo, WorkflowData, TaskStats } from '../types';
 
 export function useTasksState() {
   const { t } = useTranslation();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<TaskFilter>('all');
+  const [typeFilter, setTypeFilter] = useState<TaskTypeFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
   const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
   const [viewingWorkflow, setViewingWorkflow] = useState<Task | null>(null);
@@ -217,16 +218,17 @@ export function useTasksState() {
     }
   };
 
+  const typeFilteredTasks = typeFilter === 'all' ? tasks : tasks.filter(task => task.type === typeFilter);
   const stats: TaskStats = {
-    all: tasks.length,
-    pending: tasks.filter(t => t.status === 'pending').length,
-    running: tasks.filter(t => t.status === 'running').length,
-    completed: tasks.filter(t => t.status === 'completed').length,
-    failed: tasks.filter(t => t.status === 'failed').length,
-    cancelled: tasks.filter(t => t.status === 'cancelled').length,
+    all: typeFilteredTasks.length,
+    pending: typeFilteredTasks.filter(t => t.status === 'pending').length,
+    running: typeFilteredTasks.filter(t => t.status === 'running').length,
+    completed: typeFilteredTasks.filter(t => t.status === 'completed').length,
+    failed: typeFilteredTasks.filter(t => t.status === 'failed').length,
+    cancelled: typeFilteredTasks.filter(t => t.status === 'cancelled').length,
   };
 
-  const filteredTasks = filter === 'all' ? tasks : tasks.filter(t => t.status === filter);
+  const filteredTasks = filter === 'all' ? typeFilteredTasks : typeFilteredTasks.filter(t => t.status === filter);
 
   return {
     // State
@@ -234,6 +236,8 @@ export function useTasksState() {
     isLoading,
     filter,
     setFilter,
+    typeFilter,
+    setTypeFilter,
     refreshing,
     expandedErrors,
     viewingWorkflow,

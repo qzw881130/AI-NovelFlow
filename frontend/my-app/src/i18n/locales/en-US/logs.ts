@@ -2,6 +2,16 @@
 export default {
   // LLM Logs
   llmLogs: {
+    speed: 'Speed (tokens/s)',
+    tokenDetails: 'Token Usage and Speed',
+    inputTokens: 'Input Tokens',
+    outputTokens: 'Output Tokens',
+    totalTokens: 'Total Tokens',
+    cachedInputTokens: 'Cached Input Tokens',
+    reasoningTokens: 'Reasoning Tokens',
+    finishReason: 'Finish Reason',
+    averageOutputThroughput: 'Average Output Throughput (including wait)',
+    throughputExplanation: 'Output tokens divided by total request duration, including wait time; this is not the model decoding rate.',
     title: 'LLM Logs',
     subtitle: 'View LLM call log records',
     clearLogs: 'Clear Logs',

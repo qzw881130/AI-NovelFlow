@@ -9,6 +9,7 @@ import time
 import json
 from typing import Dict, Any, Optional
 from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
+from ..metrics import normalize_metrics
 
 
 class OpenAICompatibleProvider(BaseLLMProvider):
@@ -194,6 +195,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 data = response.json()
                 content = self._parse_response(data)
                 finish_reason = self._get_finish_reason(data)
+                metrics = normalize_metrics(self.config.provider, data, duration)
 
                 if not content:
                     raw_response = json.dumps(data, ensure_ascii=False)
@@ -205,6 +207,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                         status="error",
                         error_message=error_msg,
                         duration=duration,
+                        metrics=metrics,
                     )
 
                     return LLMResponse(
@@ -223,6 +226,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                         status="error",
                         error_message=error_msg,
                         duration=duration,
+                        metrics=metrics,
                     )
 
                     return LLMResponse(
@@ -238,6 +242,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     response=content,
                     status="success",
                     duration=duration,
+                    metrics=metrics,
                 )
 
                 return LLMResponse(

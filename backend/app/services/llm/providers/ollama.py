@@ -9,6 +9,7 @@ import re
 import time
 from typing import Dict, Any, Optional, List
 from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
+from ..metrics import normalize_metrics
 
 
 class OllamaProvider(BaseLLMProvider):
@@ -168,12 +169,14 @@ class OllamaProvider(BaseLLMProvider):
             if response.status_code == 200:
                 data = response.json()
                 content = self._parse_response(data)
+                metrics = normalize_metrics(self.config.provider, data, duration)
 
                 update_llm_log(
                     log_id=log_id,
                     response=content,
                     status="success",
                     duration=duration,
+                    metrics=metrics,
                 )
 
                 return LLMResponse(

@@ -23,7 +23,8 @@ def test_llm_log_is_created_pending_then_updated_in_place(db_engine, monkeypatch
         assert pending.status == "pending"
         assert pending.duration is None
 
-    update_llm_log(log_id, status="success", response="done", duration=1.25)
+    metrics = {"output_tokens": 25, "output_tokens_per_second": 20.0}
+    update_llm_log(log_id, status="success", response="done", duration=1.25, metrics=metrics)
 
     with testing_session() as db:
         logs = db.query(LLMLog).all()
@@ -32,6 +33,7 @@ def test_llm_log_is_created_pending_then_updated_in_place(db_engine, monkeypatch
         assert logs[0].status == "success"
         assert logs[0].response == "done"
         assert logs[0].duration == 1.25
+        assert logs[0].usage_metrics == metrics
 
 
 @pytest.mark.asyncio

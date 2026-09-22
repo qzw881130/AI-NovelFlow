@@ -3,6 +3,8 @@ import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import type { LLMLog } from '../../../api/llmLogs';
 import type { PromptTab } from '../hooks/useLLMLogsState';
+import { ProviderLogo } from '../../../components/ProviderLogo';
+import { LogSpeed } from './LogSpeed';
 
 interface LogDetailModalProps {
   log: LLMLog;
@@ -113,13 +115,19 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
         <div className="flex min-h-0 flex-1 flex-col">
           <div className="flex-shrink-0 space-y-4 px-6 pt-6">
             <div className="flex items-center gap-4 text-sm">
-              <span className="text-gray-500">{t('llmLogs.provider')}:</span><span className="font-medium">{log.provider}</span>
+              <span className="text-gray-500">{t('llmLogs.provider')}:</span>
+              <span className="inline-flex items-center gap-1.5 font-medium">
+                <ProviderLogo provider={log.provider} label={log.provider} className="h-5 w-5" />
+                {log.provider}
+              </span>
               <span className="text-gray-500">{t('llmLogs.model')}:</span><span className="font-medium">{log.model}</span>
               <span className="text-gray-500">{t('llmLogs.task')}:</span><span className="font-medium">{getTaskTypeLabel(log.task_type)}</span>
               <span className={`px-2 py-1 text-xs ${getStatusBadgeConfig(log.status).bg} ${getStatusBadgeConfig(log.status).text} rounded-full`}>{getStatusBadgeConfig(log.status).label}</span>
               <span className="text-gray-500">{t('llmLogs.proxy')}:</span><span className="font-medium">{log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}</span>
               <span className="text-gray-500">{t('llmLogs.duration')}:</span>
               <span className="font-medium">{getDisplayDuration(log)}</span>
+              <span className="text-gray-500">{t('llmLogs.speed')}:</span>
+              <LogSpeed log={log} />
             </div>
             <div className="flex items-center gap-2 text-sm">
               <span className="text-gray-500">{t('llmLogs.promptTemplateName')}:</span>

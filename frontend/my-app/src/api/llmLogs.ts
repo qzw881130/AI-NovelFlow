@@ -21,6 +21,18 @@ export interface LLMLog {
   character_id: string | null;
   used_proxy: boolean;
   duration: number | null;
+  metrics?: LLMLogMetrics | null;
+}
+
+export interface LLMLogMetrics {
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  total_tokens?: number | null;
+  cached_input_tokens?: number | null;
+  reasoning_tokens?: number | null;
+  finish_reason?: string | null;
+  output_tokens_per_second?: number | null;
+  raw_usage?: Record<string, unknown> | null;
 }
 
 export interface Pagination {

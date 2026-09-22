@@ -96,6 +96,7 @@ def update_llm_log(
     response: str = None,
     error_message: str = None,
     duration: float = None,
+    metrics: Dict[str, Any] = None,
 ) -> None:
     """请求结束后更新同一条 LLM 调用日志。"""
     if not log_id:
@@ -117,6 +118,7 @@ def update_llm_log(
             log.status = status
             log.error_message = error_message[:LOG_ERROR_MESSAGE_MAX_LENGTH] if error_message else None
             log.duration = duration
+            log.usage_metrics = metrics
             db.commit()
         except Exception:
             db.rollback()

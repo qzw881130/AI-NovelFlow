@@ -16,6 +16,9 @@ export default function Tasks() {
     isLoading,
     filter,
     setFilter,
+    typeFilter,
+    setTypeFilter,
+    tasks,
     refreshing,
     expandedErrors,
     viewingWorkflow,
@@ -53,7 +56,7 @@ export default function Tasks() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, pageSize]);
+  }, [filter, typeFilter, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) setCurrentPage(totalPages);
@@ -101,7 +104,14 @@ export default function Tasks() {
   const getTaskTypeName = (type: Task['type']) => {
     const names: Record<string, string> = {
       'character_portrait': t('tasks.types.characterPortrait'),
+      'character_voice': t('tasks.types.characterVoice', { defaultValue: '音色设计' }),
+      'character_audio': t('tasks.types.characterAudio', { defaultValue: '角色音频' }),
+      'narrator_audio': t('tasks.types.narratorAudio', { defaultValue: '旁白音频' }),
+      'scene_image': t('tasks.types.sceneImage'),
+      'prop_image': t('tasks.types.propImage', { defaultValue: '道具图片' }),
       'shot_image': t('tasks.types.shotImage'),
+      'shot_image_batch': t('tasks.types.shotImageBatch', { defaultValue: '批量分镜图片' }),
+      'keyframe_image': t('tasks.types.keyframeImage', { defaultValue: '关键帧图片' }),
       'single_image_edit': t('tasks.types.singleImageEdit'),
       'shot_video': t('tasks.types.shotVideo'),
       'chapter_video': t('tasks.types.chapterVideo'),
@@ -109,6 +119,15 @@ export default function Tasks() {
     };
     return names[type] || type;
   };
+
+  const taskTypeOptions = useMemo(() => {
+    const supportedTypes: Task['type'][] = [
+      'character_portrait', 'character_voice', 'character_audio', 'narrator_audio',
+      'scene_image', 'prop_image', 'shot_image', 'shot_image_batch', 'keyframe_image',
+      'single_image_edit', 'shot_video', 'transition_video', 'chapter_video',
+    ];
+    return Array.from(new Set<string>([...supportedTypes, ...tasks.map(task => task.type).filter(Boolean)]));
+  }, [tasks]);
 
   const getWorkflowDisplayName = (task: Task): string => {
     if (!task.workflowName) return '';
@@ -194,7 +213,7 @@ export default function Tasks() {
 
       <ComfyUIStatus />
 
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6 sm:gap-4">
         {[
           { key: 'all', label: t('tasks.allTasks'), color: 'bg-gray-100' },
           { key: 'pending', label: t('tasks.pending'), color: 'bg-yellow-100 text-yellow-800' },
@@ -217,9 +236,23 @@ export default function Tasks() {
       </div>
 
       <div className="card">
-        <div className="mb-4 flex items-center justify-between gap-4">
+        <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <h2 className="text-lg font-semibold text-gray-900">{t('tasks.taskList')}</h2>
-          <div className="flex items-center gap-3 text-sm text-gray-600">
+          <div className="flex min-w-0 flex-wrap items-center gap-3 text-sm text-gray-600">
+            <div className="flex min-w-0 items-center gap-2">
+              <label htmlFor="task-type-filter" className="whitespace-nowrap">{t('tasks.taskType')}</label>
+              <select
+                id="task-type-filter"
+                value={typeFilter}
+                onChange={(event) => setTypeFilter(event.target.value)}
+                className="min-h-10 min-w-0 max-w-[240px] rounded-lg border border-gray-300 bg-white px-3 py-1 text-gray-700 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="all">{t('tasks.allTypes', { defaultValue: '全部类型' })}</option>
+                {taskTypeOptions.map(type => (
+                  <option key={type} value={type}>{getTaskTypeName(type as Task['type'])}</option>
+                ))}
+              </select>
+            </div>
             <span>每页</span>
             <select
               value={pageSize}
@@ -242,7 +275,7 @@ export default function Tasks() {
           <div className="text-center py-12">
             <ListTodo className="mx-auto h-12 w-12 text-gray-300" />
             <h3 className="mt-4 text-lg font-medium text-gray-900">{t('tasks.noTasks')}</h3>
-            <p className="mt-1 text-sm text-gray-500">{filter === 'all' ? t('tasks.noTasksCreated') : t('tasks.noTasksInStatus')}</p>
+            <p className="mt-1 text-sm text-gray-500">{filter === 'all' && typeFilter === 'all' ? t('tasks.noTasksCreated') : t('tasks.noTasksInStatus')}</p>
           </div>
         ) : (
           <>

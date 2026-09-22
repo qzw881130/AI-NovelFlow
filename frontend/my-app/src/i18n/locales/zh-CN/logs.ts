@@ -2,6 +2,16 @@
 export default {
   // 大模型日志
   llmLogs: {
+    speed: '速度 (tokens/s)',
+    tokenDetails: 'Token 用量与速度',
+    inputTokens: '输入 Token',
+    outputTokens: '输出 Token',
+    totalTokens: '总 Token',
+    cachedInputTokens: '缓存输入 Token',
+    reasoningTokens: '推理 Token',
+    finishReason: '结束原因',
+    averageOutputThroughput: '平均输出吞吐量（含等待时间）',
+    throughputExplanation: '输出 Token 数除以请求总耗时，包含等待时间，并非模型实际生成速率。',
     title: '大模型日志',
     subtitle: '查看大模型调用的日志记录',
     clearLogs: '清空日志',

@@ -3,6 +3,8 @@ import { useTranslation } from '../../stores/i18nStore';
 import type { LLMLog } from '../../api/llmLogs';
 import { useLLMLogsState } from './hooks/useLLMLogsState';
 import { LogDetailModal } from './components/LogDetailModal';
+import { LogSpeed } from './components/LogSpeed';
+import { ProviderLogo } from '../../components/ProviderLogo';
 
 function StatsModal({ state }: { state: ReturnType<typeof useLLMLogsState> }) {
   const maxCount = Math.max(1, ...(state.statsData?.items || []).map(item => item.count));
@@ -112,7 +114,12 @@ function LogTableRow({ log, onView, formatDate, truncateText, getTaskTypeLabel, 
   return (
     <tr className="hover:bg-gray-50">
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{formatDate(log.created_at)}</td>
-      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{log.provider}</td>
+      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+        <span className="inline-flex items-center gap-2" title={log.provider}>
+          <ProviderLogo provider={log.provider} label={log.provider} className="h-6 w-6" />
+          <span>{log.provider}</span>
+        </span>
+      </td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.model}</td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{getTaskTypeLabel(log.task_type)}</td>
       <td className="px-4 py-3 text-sm text-gray-600 max-w-[180px]">
@@ -121,6 +128,7 @@ function LogTableRow({ log, onView, formatDate, truncateText, getTaskTypeLabel, 
       <td className="px-4 py-3 whitespace-nowrap"><span className={`px-2 py-1 text-xs ${badge.bg} ${badge.text} rounded-full`}>{badge.label}</span></td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}</td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{getDisplayDuration(log)}</td>
+      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600"><LogSpeed log={log} /></td>
       <td className="px-4 py-3 text-sm text-gray-600 max-w-[150px]">
         <div className="truncate" title={log.user_prompt}>{truncateText(log.user_prompt, 50)}</div>
       </td>
@@ -238,7 +246,7 @@ export default function LLMLogs() {
                 <tr>
                   {[
                     t('llmLogs.timestamp'), t('llmLogs.llmProvider'), t('llmLogs.model'), t('llmLogs.taskType'),
-                    t('llmLogs.promptTemplateName'), t('common.status'), t('llmLogs.proxy'), t('llmLogs.duration'), t('llmLogs.promptPreview'), t('common.actions')
+                    t('llmLogs.promptTemplateName'), t('common.status'), t('llmLogs.proxy'), t('llmLogs.duration'), t('llmLogs.speed'), t('llmLogs.promptPreview'), t('common.actions')
                   ].map((h, i) => (
                     <th key={i} className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
                   ))}

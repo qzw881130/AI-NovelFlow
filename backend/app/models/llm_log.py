@@ -45,3 +45,4 @@ class LLMLog(Base):
     
     # 请求耗时（秒）
     duration = Column(Float, nullable=True)  # 请求耗时，单位秒
+    usage_metrics = Column(JSON, nullable=True)

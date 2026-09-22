@@ -69,6 +69,8 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE llm_logs ADD COLUMN request_info TEXT"))
             if "prompt_template_name" not in llm_log_columns:
                 conn.execute(text("ALTER TABLE llm_logs ADD COLUMN prompt_template_name VARCHAR"))
+            if "usage_metrics" not in llm_log_columns:
+                conn.execute(text("ALTER TABLE llm_logs ADD COLUMN usage_metrics JSON"))
             conn.commit()
         except Exception as exc:
             print(f"[Startup] Failed to ensure schema updates: {exc}")

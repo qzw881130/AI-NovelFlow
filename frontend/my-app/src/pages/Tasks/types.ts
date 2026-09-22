@@ -3,6 +3,7 @@ import type { Task } from '../../types';
 export type TaskFilter = 'all' | 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export type TaskType = Task['type'];
+export type TaskTypeFilter = 'all' | TaskType | string;
 
 export type TaskStatus = Task['status'];
 

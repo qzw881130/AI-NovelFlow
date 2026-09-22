@@ -56,7 +56,7 @@ export function EditModal({ show, onClose, onSave, modalType, editingPrompt, for
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('promptConfig.promptTemplate')}
               <span className="text-xs text-gray-500 ml-2">
-                {modalType === 'character' ? t('promptConfig.placeholderTip') : t('promptConfig.placeholderTipChapter')}
+                {modalType === 'style' ? t('promptConfig.placeholderTipStyle') : modalType === 'character' ? t('promptConfig.placeholderTip') : t('promptConfig.placeholderTipChapter')}
               </span>
             </label>
             {/* 仅对返回 JSON 结构的模板类型显示警告 */}
@@ -72,10 +72,10 @@ export function EditModal({ show, onClose, onSave, modalType, editingPrompt, for
             )}
             <textarea rows={form.template.length > 1200 ? 12 : 6} required value={form.template}
               onChange={(e) => setForm({ ...form, template: e.target.value })} className="input-field font-mono text-sm"
-              placeholder={modalType === 'character' ? t('promptConfig.templatePlaceholderCharacter') : t('promptConfig.templatePlaceholderChapter')}
+              placeholder={modalType === 'style' ? t('promptConfig.templatePlaceholderStyle') : modalType === 'character' ? t('promptConfig.templatePlaceholderCharacter') : t('promptConfig.templatePlaceholderChapter')}
               readOnly={editingPrompt?.isSystem} />
-            <div className="flex justify-between items-center mt-1">
-              <p className="text-xs text-gray-500">{modalType === 'character' ? t('promptConfig.tipCharacter') : t('promptConfig.tipChapter')}</p>
+            <div className="flex flex-wrap justify-between items-center gap-2 mt-1">
+              <p className="text-xs text-gray-500">{modalType === 'style' ? t('promptConfig.tipStyle') : modalType === 'character' ? t('promptConfig.tipCharacter') : t('promptConfig.tipChapter')}</p>
               <p className="text-xs text-gray-500">{t('promptConfig.charCount')}: {form.template.length}</p>
             </div>
           </div>
