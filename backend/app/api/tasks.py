@@ -18,6 +18,49 @@ from app.api.deps import get_task_repo
 router = APIRouter()
 
 
+def _extract_character_prompt_items(task, workflow_obj: dict, node_mapping: dict) -> list[dict]:
+    if task.type != "character_portrait" or not isinstance(workflow_obj, dict):
+        return []
+
+    mapped_roles = {
+        str(node_mapping.get("appearance_node_id")): ("appearance", "人物外貌") if node_mapping.get("appearance_node_id") else None,
+        str(node_mapping.get("style_node_id")): ("style", "视觉风格") if node_mapping.get("style_node_id") else None,
+    }
+    mapped_roles = {node_id: role for node_id, role in mapped_roles.items() if role}
+    items = []
+    role_order = {"layout": 0, "style": 1, "appearance": 2}
+
+    for node_id, node in workflow_obj.items():
+        if not isinstance(node, dict) or node.get("class_type") != "CR Prompt Text":
+            continue
+        inputs = node.get("inputs") if isinstance(node.get("inputs"), dict) else {}
+        content = next((inputs.get(key) for key in ("prompt", "text", "value") if isinstance(inputs.get(key), str) and inputs.get(key).strip()), None)
+        if not content:
+            continue
+        title = str(node.get("_meta", {}).get("title") or node.get("class_type") or node_id)
+        mapped = mapped_roles.get(str(node_id))
+        title_lower = title.lower()
+        if mapped:
+            role, label = mapped
+        elif any(keyword in title_lower for keyword in ("人物形象", "外貌", "appearance", "character appearance")):
+            role, label = "appearance", "人物外貌"
+        elif title_lower.strip() == "style" or title_lower.endswith(" style") or "#490 style" in title_lower:
+            role, label = "style", "视觉风格"
+        elif any(keyword in title_lower for keyword in ("四视图", "布局", "turnaround", "reference sheet")):
+            role, label = "layout", "角色图布局"
+        else:
+            continue
+        items.append({
+            "nodeId": str(node_id),
+            "role": role,
+            "label": label,
+            "nodeTitle": title,
+            "content": content,
+        })
+
+    return sorted(items, key=lambda item: (role_order[item["role"]], item["nodeId"]))
+
+
 def get_task_service(db: Session = Depends(get_db)) -> TaskService:
     """获取 TaskService 实例"""
     return TaskService(db)
@@ -163,7 +206,8 @@ async def retry_task(
 @router.get("/{task_id}/workflow", response_model=dict)
 async def get_task_workflow(
     task_id: str, 
-    task_repo: TaskRepository = Depends(get_task_repo)
+    task_repo: TaskRepository = Depends(get_task_repo),
+    db: Session = Depends(get_db),
 ):
     """获取任务提交给ComfyUI的工作流JSON"""
     import json
@@ -176,11 +220,17 @@ async def get_task_workflow(
     if task.workflow_json:
         try:
             workflow_obj = json.loads(task.workflow_json)
+            workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first() if task.workflow_id else None
+            try:
+                node_mapping = json.loads(workflow.node_mapping or "{}") if workflow else {}
+            except Exception:
+                node_mapping = {}
             return {
                 "success": True,
                 "data": {
                     "workflow": workflow_obj,
-                    "prompt": task.prompt_text or "未保存提示词"
+                    "prompt": task.prompt_text or "未保存提示词",
+                    "promptItems": _extract_character_prompt_items(task, workflow_obj, node_mapping),
                 }
             }
         except Exception as e:
@@ -188,7 +238,8 @@ async def get_task_workflow(
                 "success": True,
                 "data": {
                     "workflow": task.workflow_json,
-                    "prompt": task.prompt_text or "未保存提示词"
+                    "prompt": task.prompt_text or "未保存提示词",
+                    "promptItems": [],
                 }
             }
 
@@ -198,6 +249,7 @@ async def get_task_workflow(
         "data": {
             "workflow": None,
             "prompt": task.prompt_text or "未保存提示词",
+            "promptItems": [],
             "note": "工作流尚未提交到ComfyUI或执行未完成，请稍后查看"
         }
     }

@@ -146,7 +146,12 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
   const mapping = workflow.nodeMapping;
 
   switch (workflow.type) {
-    case 'character':
+    case 'character': {
+      const hasLegacyPrompt = mapping.prompt_node_id && mapping.prompt_node_id !== 'auto';
+      const hasSplitInputs = mapping.appearance_node_id && mapping.appearance_node_id !== 'auto'
+        && mapping.style_node_id && mapping.style_node_id !== 'auto';
+      return !!(mapping.save_image_node_id && mapping.save_image_node_id !== 'auto' && (hasSplitInputs || hasLegacyPrompt));
+    }
     case 'scene':
     case 'prop':
       return !!(

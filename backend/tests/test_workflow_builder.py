@@ -5,6 +5,9 @@ WorkflowBuilder 单元测试
 import json
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
+
+from app.services.task_service import TaskService
 
 
 def load_workflow_builder():
@@ -100,6 +103,67 @@ def test_inject_prompt_sets_cr_prompt_text_appearance_node_prompt_field():
     )
 
     assert result["137"]["inputs"]["prompt"] == "温柔的年轻母亲，系着围裙，神情关切"
+
+
+def test_split_character_nodes_receive_appearance_and_style_without_duplication():
+    builder = load_workflow_builder()()
+    appearance = "一位欧洲童话王国男性骗子，深蓝粗布外套"
+    style = "stylized 3D animation rendering"
+    workflow = {
+        "489": {
+            "inputs": {"prompt": ""},
+            "class_type": "CR Prompt Text",
+            "_meta": {"title": "#489 CR Prompt Text（选这个，人物形象）"},
+        },
+        "490": {
+            "inputs": {"prompt": ""},
+            "class_type": "CR Prompt Text",
+            "_meta": {"title": "#490 STYLE"},
+        },
+        "492": {
+            "inputs": {"prompt": "固定四视图布局"},
+            "class_type": "CR Prompt Text",
+            "_meta": {"title": "#492 四视图"},
+        },
+    }
+
+    result = builder.build_character_workflow(
+        prompt=style,
+        workflow_json=json.dumps(workflow, ensure_ascii=False),
+        node_mapping={"prompt_node_id": "489"},
+        style=style,
+        character_appearance=appearance,
+    )
+
+    assert result["489"]["inputs"]["prompt"] == appearance
+    assert result["490"]["inputs"]["prompt"] == style
+    assert result["492"]["inputs"]["prompt"] == "固定四视图布局"
+    assert appearance not in result["490"]["inputs"]["prompt"]
+
+
+def test_character_mapping_accepts_new_split_contract_and_legacy_prompt_mapping():
+    split_workflow = SimpleNamespace(
+        name="split",
+        node_mapping=json.dumps({
+            "appearance_node_id": "489",
+            "style_node_id": "490",
+            "save_image_node_id": "487",
+        }),
+    )
+    legacy_workflow = SimpleNamespace(
+        name="legacy",
+        node_mapping=json.dumps({"prompt_node_id": "489", "save_image_node_id": "487"}),
+    )
+    incomplete_workflow = SimpleNamespace(
+        name="incomplete",
+        node_mapping=json.dumps({"appearance_node_id": "489", "save_image_node_id": "487"}),
+    )
+
+    assert TaskService.validate_workflow_node_mapping(split_workflow, "character") == (True, "")
+    assert TaskService.validate_workflow_node_mapping(legacy_workflow, "character") == (True, "")
+    valid, message = TaskService.validate_workflow_node_mapping(incomplete_workflow, "character")
+    assert valid is False
+    assert "人物外貌节点和风格节点" in message
 
 
 def test_inject_prompt_keeps_explicit_horn_appearance():

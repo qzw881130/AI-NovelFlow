@@ -523,7 +523,20 @@ class WorkflowBuilder:
         # 获取节点映射
         prompt_node_id = str(node_mapping.get("prompt_node_id", "")) if node_mapping else ""
         appearance_node_id = str(node_mapping.get("appearance_node_id", "")) if node_mapping else ""
+        style_node_id = str(node_mapping.get("style_node_id", "")) if node_mapping else ""
         save_image_node_id = str(node_mapping.get("save_image_node_id", "")) if node_mapping else ""
+
+        # 兼容尚未保存新映射的旧工作流：根据稳定节点标题识别专用输入。
+        if not appearance_node_id:
+            appearance_node_id = next((
+                str(node_id) for node_id, node in api_workflow.items()
+                if isinstance(node, dict) and self._is_character_appearance_node(node)
+            ), "")
+        if not style_node_id:
+            style_node_id = next((
+                str(node_id) for node_id, node in api_workflow.items()
+                if isinstance(node, dict) and self._is_character_style_node(node)
+            ), "")
         
         # 遍历所有节点进行修改
         for node_id, node in api_workflow.items():
@@ -561,10 +574,11 @@ class WorkflowBuilder:
                     if appearance_node_id and node_id_str == appearance_node_id:
                         inputs[prompt_field] = self._apply_character_appearance_constraints(character_appearance or prompt)
                         modified_count += 1
+                    elif style_node_id and node_id_str == style_node_id:
+                        inputs[prompt_field] = style or ""
+                        modified_count += 1
                     elif prompt_node_id and node_id_str == prompt_node_id:
-                        prompt_value = character_appearance if character_appearance and self._is_character_appearance_node(node) else prompt
-                        if character_appearance and self._is_character_appearance_node(node):
-                            prompt_value = self._apply_character_appearance_constraints(prompt_value)
+                        prompt_value = prompt
                         if "##STYLE##" in current_text:
                             inputs[prompt_field] = current_text.replace("##STYLE##", style or prompt_value)
                             print(f"[Workflow] Replaced ##STYLE## in mapped prompt node {node_id_str}")
@@ -574,7 +588,7 @@ class WorkflowBuilder:
                     elif "{CHARACTER_PROMPT}" in current_text:
                         inputs[prompt_field] = prompt
                         modified_count += 1
-                    elif current_text == "" or current_text == "prompt here":
+                    elif not prompt_node_id and not appearance_node_id and not style_node_id and modified_count == 0 and (current_text == "" or current_text == "prompt here"):
                         inputs[prompt_field] = prompt
                         modified_count += 1
         
@@ -904,6 +918,11 @@ class WorkflowBuilder:
         """判断节点是否用于接收角色外貌/人物形象描述。"""
         title = str(node.get("_meta", {}).get("title", "")).lower()
         return any(keyword in title for keyword in ["人物形象", "外貌", "appearance", "character appearance"])
+
+    def _is_character_style_node(self, node: Dict[str, Any]) -> bool:
+        """判断节点是否用于接收纯视觉风格描述。"""
+        title = str(node.get("_meta", {}).get("title", "")).strip().lower()
+        return title == "style" or title.endswith(" style") or "#490 style" in title
 
     def _apply_character_appearance_constraints(self, appearance: str) -> str:
         """返回角色外貌描述。"""

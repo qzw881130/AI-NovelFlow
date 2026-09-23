@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
+from app.models.novel import Novel
 from app.models.prompt_template import PromptTemplate
 from app.repositories import PromptTemplateRepository
 from app.utils.time_utils import format_datetime
@@ -185,27 +186,9 @@ SYSTEM_CHARACTER_PARSE_TEMPLATES: List[Dict] = [
 # 系统预设的人设提示词模板（角色生成）
 SYSTEM_CHARACTER_TEMPLATES: List[Dict] = [
     {
-        "name": "标准动漫人设",
-        "description": "适合大多数动漫角色的标准人设生成",
+        "name": "标准角色生成",
+        "description": "使用小说设定的视觉风格和角色外貌生成标准人设图",
         "template": load_template("standard_anime.txt"),
-        "type": "character"
-    },
-    {
-        "name": "写实人设",
-        "description": "写实风格的角色人设",
-        "template": load_template("realistic.txt"),
-        "type": "character"
-    },
-    {
-        "name": "Q版人设",
-        "description": "可爱Q版卡通风格的角色人设",
-        "template": load_template("chibi_cartoon.txt"),
-        "type": "character"
-    },
-    {
-        "name": "水墨人设",
-        "description": "中国传统水墨画风格的角色人设",
-        "template": load_template("ink_painting.txt"),
         "type": "character"
     }
 ]
@@ -442,6 +425,32 @@ class PromptTemplateService:
                     is_active=True
                 )
                 self.db.add(template)
+
+        # 测试和部分脚本会关闭 autoflush，先确保新系统模板可被后续同步查询到。
+        self.db.flush()
+
+        # 角色视觉风格由小说的 style 模板注入，只保留一个通用角色生成系统模板。
+        canonical_character_template = self.template_repo.get_by_name_and_type(
+            SYSTEM_CHARACTER_TEMPLATES[0]["name"],
+            "character",
+            is_system=True,
+        )
+        if canonical_character_template:
+            obsolete_templates = self.db.query(PromptTemplate).filter(
+                PromptTemplate.type == "character",
+                PromptTemplate.is_system == True,
+                PromptTemplate.id != canonical_character_template.id,
+            ).all()
+            obsolete_ids = [template.id for template in obsolete_templates]
+            if obsolete_ids:
+                self.db.query(Novel).filter(
+                    Novel.prompt_template_id.in_(obsolete_ids)
+                ).update(
+                    {Novel.prompt_template_id: canonical_character_template.id},
+                    synchronize_session=False,
+                )
+                for template in obsolete_templates:
+                    self.db.delete(template)
 
         self.db.commit()
         print("[初始化] 系统预设提示词模板更新完成")

@@ -16,6 +16,13 @@ export interface ImageInfo {
 export interface WorkflowData {
   workflow: any;
   prompt: string;
+  promptItems?: Array<{
+    nodeId: string;
+    role: 'layout' | 'style' | 'appearance';
+    label: string;
+    nodeTitle: string;
+    content: string;
+  }>;
 }
 
 export interface TaskStats {

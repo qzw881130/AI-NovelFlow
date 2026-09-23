@@ -614,27 +614,17 @@ class CharacterService:
             except Exception:
                 return False, f"工作流 '{workflow.name}' 的节点映射配置格式无效"
 
-        # 根据任务类型检查必需的字段
-        required_fields = {
-            "character": ["prompt_node_id", "save_image_node_id"],
-        }
-
-        fields = required_fields.get(task_type)
-        if not fields:
+        if task_type != "character":
             return True, ""
 
-        missing_fields = []
-        field_names = {
-            "prompt_node_id": "提示词输入节点",
-            "save_image_node_id": "图片保存节点",
-        }
-
-        for field in fields:
-            if not node_mapping.get(field):
-                missing_fields.append(field_names.get(field, field))
-
-        if missing_fields:
-            return False, f"工作流 '{workflow.name}' 的映射配置不完整，缺少以下必需字段：{', '.join(missing_fields)}。请在【系统配置-ComfyUI工作流】中配置完整后再试。"
+        has_save = bool(node_mapping.get("save_image_node_id"))
+        has_legacy_prompt = bool(node_mapping.get("prompt_node_id"))
+        has_split_inputs = bool(node_mapping.get("appearance_node_id") and node_mapping.get("style_node_id"))
+        if not has_save or not (has_split_inputs or has_legacy_prompt):
+            return False, (
+                f"工作流 '{workflow.name}' 的映射配置不完整。人设生成需要图片保存节点，"
+                "并配置人物外貌节点和风格节点；旧工作流可继续使用原提示词输入节点。"
+            )
 
         return True, ""
 

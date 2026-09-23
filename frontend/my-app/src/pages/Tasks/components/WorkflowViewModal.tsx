@@ -64,14 +64,14 @@ export function WorkflowViewModal({
     URL.revokeObjectURL(url);
   };
 
-  const copyPrompt = async () => {
-    if (!workflowData?.prompt) return;
+  const copyText = async (content: string) => {
+    if (!content) return;
     try {
       if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(workflowData.prompt);
+        await navigator.clipboard.writeText(content);
       } else {
         const textarea = document.createElement('textarea');
-        textarea.value = workflowData.prompt;
+        textarea.value = content;
         textarea.style.position = 'fixed';
         textarea.style.left = '-9999px';
         document.body.appendChild(textarea);
@@ -86,6 +86,8 @@ export function WorkflowViewModal({
       toast.error(t('common.copyFailed'));
     }
   };
+
+  const promptItems = workflowData?.promptItems || [];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -137,20 +139,37 @@ export function WorkflowViewModal({
               )}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-sm font-medium text-gray-700">{t('tasks.generationPrompt')}</h4>
-                  <button
-                    type="button"
-                    onClick={copyPrompt}
-                    className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50"
-                    title={t('common.copy')}
-                    aria-label={t('common.copy')}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </button>
+                  <h4 className="text-sm font-medium text-gray-700">
+                    {t('tasks.generationPrompt')}{promptItems.length > 0 ? `（${promptItems.length} 项）` : ''}
+                  </h4>
+                  {promptItems.length === 0 && (
+                    <button type="button" onClick={() => void copyText(workflowData.prompt)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50" title={t('common.copy')} aria-label={t('common.copy')}>
+                      <Copy className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
-                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 h-72 overflow-y-auto">
-                  <p className="text-sm text-gray-600 font-mono whitespace-pre-wrap break-all">{workflowData.prompt}</p>
-                </div>
+                {promptItems.length > 0 ? (
+                  <div className="space-y-3">
+                    {promptItems.map((item) => (
+                      <div key={`${item.nodeId}-${item.role}`} className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                        <div className="flex items-center justify-between gap-3 border-b border-gray-200 bg-white px-3 py-2">
+                          <div className="min-w-0">
+                            <span className="text-sm font-medium text-gray-800">{item.label}</span>
+                            <span className="ml-2 text-xs text-gray-400">Node {item.nodeId} · {item.nodeTitle}</span>
+                          </div>
+                          <button type="button" onClick={() => void copyText(item.content)} className="shrink-0 rounded p-1.5 text-gray-400 hover:bg-blue-50 hover:text-blue-600" title={`复制${item.label}`}>
+                            <Copy className="h-4 w-4" />
+                          </button>
+                        </div>
+                        <pre className="max-h-56 overflow-y-auto whitespace-pre-wrap break-words p-3 font-mono text-sm text-gray-600">{item.content}</pre>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 h-72 overflow-y-auto">
+                    <p className="text-sm text-gray-600 font-mono whitespace-pre-wrap break-all">{workflowData.prompt}</p>
+                  </div>
+                )}
               </div>
               {workflowData.workflow && (
                 <div>

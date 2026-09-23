@@ -41,3 +41,12 @@ def test_system_style_templates_are_expanded_and_existing_rows_are_updated(db_se
     assert "{{novel_name}}" in story_context.template
     assert "{{novel_description}}" in story_context.template
     assert '"allow_time_travel": false' in story_context.template
+
+    character_template = db_session.query(PromptTemplate).filter(
+        PromptTemplate.type == "character",
+        PromptTemplate.is_system == True,
+        PromptTemplate.name == "标准角色生成",
+    ).one()
+    assert character_template.template.strip() == (
+        "##STYLE##, {appearance}, single character, centered, clean background, professional artwork, 8k"
+    )

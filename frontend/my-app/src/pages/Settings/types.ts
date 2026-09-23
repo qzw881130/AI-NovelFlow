@@ -73,6 +73,8 @@ export interface SettingsFormData {
 
 export interface MappingForm {
   promptNodeId: string;
+  appearanceNodeId?: string;
+  styleNodeId?: string;
   saveImageNodeId: string;
   widthNodeId: string;
   heightNodeId: string;

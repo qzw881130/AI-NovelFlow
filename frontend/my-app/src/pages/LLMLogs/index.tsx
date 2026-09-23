@@ -164,6 +164,7 @@ function TokenStatsModal({ state }: { state: ReturnType<typeof useLLMLogsState> 
               <div className="flex flex-wrap gap-4 text-sm font-medium">
                 <span className="inline-flex items-center gap-1.5 text-blue-700"><span className="h-2.5 w-2.5 rounded-sm bg-blue-500" />输入 {state.tokenStatsData ? formatTokenCount(state.tokenStatsData.total_input_tokens) : '-'}</span>
                 <span className="inline-flex items-center gap-1.5 text-violet-700"><span className="h-2.5 w-2.5 rounded-sm bg-violet-500" />输出 {state.tokenStatsData ? formatTokenCount(state.tokenStatsData.total_output_tokens) : '-'}</span>
+                <span className="inline-flex items-center gap-1.5 text-gray-800"><span className="h-2.5 w-2.5 rounded-sm bg-gray-700" />总计 {state.tokenStatsData ? formatTokenCount(state.tokenStatsData.total_input_tokens + state.tokenStatsData.total_output_tokens) : '-'}</span>
               </div>
               <div className="text-xs text-gray-500">单位：Token</div>
             </div>
@@ -179,7 +180,7 @@ function TokenStatsModal({ state }: { state: ReturnType<typeof useLLMLogsState> 
                   {items.map((item) => (
                     <div key={item.key} className="group relative flex min-w-0 flex-1 items-end justify-center gap-px">
                       <div className="absolute bottom-full z-10 mb-2 hidden rounded bg-gray-900 px-2 py-1 text-xs text-white shadow group-hover:block whitespace-nowrap">
-                        {item.key} · 输入 {formatTokenCount(item.input_tokens)} · 输出 {formatTokenCount(item.output_tokens)}
+                        {item.key} · 输入 {formatTokenCount(item.input_tokens)} · 输出 {formatTokenCount(item.output_tokens)} · 总计 {formatTokenCount(item.input_tokens + item.output_tokens)}
                       </div>
                       <div
                         className="w-[45%] max-w-4 rounded-t bg-blue-500"

@@ -73,7 +73,6 @@ class TaskService:
 
         # 根据任务类型检查必需的字段
         required_fields = {
-            "character": ["prompt_node_id", "save_image_node_id"],
             "scene": ["prompt_node_id", "save_image_node_id"],
             "shot_scene": ["prompt_node_id", "save_image_node_id", "width_node_id", "height_node_id", "scene_reference_image_node_id"],
             "shot_character_scene": ["prompt_node_id", "save_image_node_id", "width_node_id", "height_node_id", "character_reference_image_node_id", "scene_reference_image_node_id"],
@@ -86,6 +85,17 @@ class TaskService:
             "transition": ["first_image_node_id", "last_image_node_id", "video_save_node_id"],
             "character_audio": ["reference_audio_node_id", "text_node_id"]
         }
+
+        if task_type == "character":
+            has_save = bool(node_mapping.get("save_image_node_id"))
+            has_legacy_prompt = bool(node_mapping.get("prompt_node_id"))
+            has_split_inputs = bool(node_mapping.get("appearance_node_id") and node_mapping.get("style_node_id"))
+            if has_save and (has_split_inputs or has_legacy_prompt):
+                return True, ""
+            return False, (
+                f"工作流 '{workflow.name}' 的映射配置不完整。人设生成需要图片保存节点，"
+                "并配置人物外貌节点和风格节点；旧工作流可继续使用原提示词输入节点。"
+            )
 
         fields = required_fields.get(task_type)
         if task_type == "shot" and node_mapping.get("output_node_id"):

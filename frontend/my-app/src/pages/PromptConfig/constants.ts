@@ -66,7 +66,7 @@ export const DEFAULT_PARSE_CHARACTERS_PROMPT = `你是一个专业的小说解�
 - appearance 必须是纯字符串的一段话（一个 string），不得是对象、数组、或多段分行结构。`;
 
 // 默认人设提示词模板
-export const DEFAULT_CHARACTER_TEMPLATE = "character portrait, anime style, high quality, detailed, {appearance}, {description}, single character, centered, clean background, professional artwork, 8k";
+export const DEFAULT_CHARACTER_TEMPLATE = "##STYLE##, {appearance}, single character, centered, clean background, professional artwork, 8k";
 
 // 默认章节拆分提示词模板
 export const DEFAULT_CHAPTER_SPLIT_TEMPLATE = `你是一名资深影视导演、分镜设计师、动画脚本结构专家。

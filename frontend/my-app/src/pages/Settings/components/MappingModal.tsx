@@ -6,6 +6,8 @@ import type { Workflow, AvailableNodes } from '../types';
 
 interface MappingForm {
   promptNodeId: string;
+  appearanceNodeId?: string;
+  styleNodeId?: string;
   saveImageNodeId: string;
   widthNodeId: string;
   heightNodeId: string;
@@ -72,6 +74,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
   const { t } = useTranslation();
   const [mappingForm, setMappingForm] = useState<MappingForm>({
     promptNodeId: '',
+    appearanceNodeId: '',
+    styleNodeId: '',
     saveImageNodeId: '',
     widthNodeId: '',
     heightNodeId: '',
@@ -185,6 +189,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
             }
 
             setAvailableNodes({ clipTextEncode, saveImage, easyInt, easyFloat, crPromptText, vhsVideoCombine, saveVideo, loadImage, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
+            const inferredAppearanceNodeId = crPromptText.find((item) => /人物形象|外貌|appearance/i.test(item))?.split(' ')[0] || '';
+            const inferredStyleNodeId = crPromptText.find((item) => /\bSTYLE\b/i.test(item))?.split(' ')[0] || '';
             
             // 提取自定义参考图节点
             const customReferenceImageNodes: string[] = [];
@@ -395,6 +401,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
             } else {
               setMappingForm({
                 promptNodeId: mapping.prompt_node_id || '',
+                appearanceNodeId: mapping.appearance_node_id || (wf.type === 'character' ? inferredAppearanceNodeId : ''),
+                styleNodeId: mapping.style_node_id || (wf.type === 'character' ? inferredStyleNodeId : ''),
                 saveImageNodeId: mapping.save_image_node_id || '',
                 widthNodeId: '',
                 heightNodeId: '',
@@ -527,6 +535,12 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
         nodeMapping = {
           load_image_node_id: mappingForm.referenceImageNodeId || null,
           prompt_node_id: mappingForm.promptNodeId || null,
+          save_image_node_id: mappingForm.saveImageNodeId || null
+        };
+      } else if (workflow.type === 'character') {
+        nodeMapping = {
+          appearance_node_id: mappingForm.appearanceNodeId || null,
+          style_node_id: mappingForm.styleNodeId || null,
           save_image_node_id: mappingForm.saveImageNodeId || null
         };
       } else {
@@ -692,15 +706,39 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               {/* 根据工作流类型显示不同的映射字段 */}
               {(workflow.type === 'character' || workflow.type === 'scene' || workflow.type === 'prop') && (
                 <>
-                  <NodeSelectField
-                    label={t('systemSettings.workflow.promptInputNode')}
-                    nodeTypeHint="CLIPTextEncode, CR Text"
-                    value={mappingForm.promptNodeId}
-                    options={[...availableNodes.clipTextEncode, ...availableNodes.crPromptText]}
-                    onChange={(v) => handleNodeSelect(v, 'promptNodeId')}
-                    onFocus={handleNodeFocus}
-                    t={t}
-                  />
+                  {workflow.type !== 'character' && (
+                    <NodeSelectField
+                      label={t('systemSettings.workflow.promptInputNode')}
+                      nodeTypeHint="CLIPTextEncode, CR Text"
+                      value={mappingForm.promptNodeId}
+                      options={[...availableNodes.clipTextEncode, ...availableNodes.crPromptText]}
+                      onChange={(v) => handleNodeSelect(v, 'promptNodeId')}
+                      onFocus={handleNodeFocus}
+                      t={t}
+                    />
+                  )}
+                  {workflow.type === 'character' && (
+                    <>
+                      <NodeSelectField
+                        label="人物外貌节点"
+                        nodeTypeHint="CR Prompt Text（人物形象 / Appearance）"
+                        value={mappingForm.appearanceNodeId || ''}
+                        options={availableNodes.crPromptText}
+                        onChange={(v) => handleNodeSelect(v, 'appearanceNodeId')}
+                        onFocus={handleNodeFocus}
+                        t={t}
+                      />
+                      <NodeSelectField
+                        label="风格节点"
+                        nodeTypeHint="CR Prompt Text（STYLE）"
+                        value={mappingForm.styleNodeId || ''}
+                        options={availableNodes.crPromptText}
+                        onChange={(v) => handleNodeSelect(v, 'styleNodeId')}
+                        onFocus={handleNodeFocus}
+                        t={t}
+                      />
+                    </>
+                  )}
                   <NodeSelectField
                     label={t('systemSettings.workflow.imageSaveNode')}
                     nodeTypeHint="SaveImage, Save Image (Advanced)"
