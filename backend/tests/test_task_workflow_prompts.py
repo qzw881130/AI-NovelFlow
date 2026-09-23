@@ -1,6 +1,9 @@
 from types import SimpleNamespace
+import json
 
 from app.api.tasks import _extract_character_prompt_items
+from app.models.task import Task
+from app.services.task_service import TaskService
 
 
 def test_extract_character_prompt_items_in_concat_order():
@@ -39,3 +42,27 @@ def test_extract_character_prompt_items_in_concat_order():
         ("style", "490", "视觉风格文本"),
         ("appearance", "489", "人物外貌文本"),
     ]
+
+
+def test_task_list_exposes_task_and_clip_seeds():
+    task = Task(
+        id="video-task",
+        type="shot_video",
+        name="生成视频",
+        status="completed",
+        progress=100,
+        seed=12345,
+        video_director_clips=json.dumps([
+            {"window_index": 1, "seed": 111, "status": "SUCCEEDED"},
+            {
+                "window_index": 2,
+                "status": "SUCCEEDED",
+                "workflow_json": {"8": {"inputs": {"noise_seed": 222}}},
+            },
+        ]),
+    )
+
+    formatted = TaskService.format_task_list([task], {}, {}, {})[0]
+
+    assert formatted["seed"] == 12345
+    assert [clip["seed"] for clip in formatted["videoDirectorClips"]] == [111, 222]

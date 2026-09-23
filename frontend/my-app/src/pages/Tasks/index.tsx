@@ -114,6 +114,7 @@ export default function Tasks() {
       'keyframe_image': t('tasks.types.keyframeImage', { defaultValue: '关键帧图片' }),
       'single_image_edit': t('tasks.types.singleImageEdit'),
       'shot_video': t('tasks.types.shotVideo'),
+      'shot_video_batch': t('tasks.types.shotVideoBatch', { defaultValue: '批量分镜视频' }),
       'chapter_video': t('tasks.types.chapterVideo'),
       'transition_video': t('tasks.types.transitionVideo'),
     };
@@ -124,7 +125,7 @@ export default function Tasks() {
     const supportedTypes: Task['type'][] = [
       'character_portrait', 'character_voice', 'character_audio', 'narrator_audio',
       'scene_image', 'prop_image', 'shot_image', 'shot_image_batch', 'keyframe_image',
-      'single_image_edit', 'shot_video', 'transition_video', 'chapter_video',
+      'single_image_edit', 'shot_video', 'shot_video_batch', 'transition_video', 'chapter_video',
     ];
     return Array.from(new Set<string>([...supportedTypes, ...tasks.map(task => task.type).filter(Boolean)]));
   }, [tasks]);

@@ -113,6 +113,7 @@ def _probe_video_duration(video_path: Path) -> Optional[float]:
 comfyui_service = ComfyUIService()
 merge_video_locks = {}
 shot_image_batch_locks = set()
+shot_video_batch_locks = set()
 
 
 async def run_chapter_video_merge_task(task_id: str) -> None:
@@ -267,6 +268,13 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
 class BatchShotImageRequest(BaseModel):
     shot_ids: list[str]
     skip_llm_when_prompt_exists: bool = True
+
+
+class BatchShotVideoRequest(BaseModel):
+    shot_ids: list[str]
+    auto_complete_details: bool = True
+    use_reference_audio: bool = True
+    skip_llm_when_prompt_exists: bool = False
 
 
 def _safe_filename_part(value: str) -> str:
@@ -2102,6 +2110,446 @@ async def merge_video_director_clips(
     return {"success": True, "data": {"videoUrl": result.get("video_url"), "videoDirectorPlan": result.get("plan"), "skipped": result.get("skipped", False)}}
 
 
+
+
+async def _wait_for_persistent_task(db: Session, task_id: str, timeout_iterations: int = 720) -> str:
+    for _ in range(timeout_iterations):
+        db.expire_all()
+        task = db.query(Task).filter(Task.id == task_id).first()
+        if not task:
+            return "failed"
+        if task.status in {"completed", "failed", "cancelled"}:
+            return task.status
+        await asyncio.sleep(5)
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if task and task.status in {"pending", "running"}:
+        task.status = "failed"
+        task.error_message = "等待任务完成超时"
+        task.current_step = "任务超时"
+        db.commit()
+    return "failed"
+
+
+async def _prepare_batch_video_details(db: Session, batch_task: Task, child_task: Task) -> str:
+    novel_repo = NovelRepository(db)
+    chapter_repo = ChapterRepository(db)
+    shot_repo = ShotRepository(db)
+    workflow_repo = WorkflowRepository(db)
+    template_repo = PromptTemplateRepository(db)
+    llm_service = LLMService()
+    shot = shot_repo.get_by_id(child_task.shot_id)
+    if not shot or shot.chapter_id != child_task.chapter_id:
+        raise ValueError("批量任务对应的分镜不存在")
+
+    plan = _safe_json_dict(shot.video_director_plan)
+    selected_mode = plan.get("selected_mode") or plan.get("recommended_mode")
+    if not selected_mode:
+        await recommend_video_mode(
+            child_task.novel_id,
+            child_task.chapter_id,
+            child_task.shot_id,
+            RecommendVideoModeRequest(force=False),
+            db,
+            novel_repo,
+            chapter_repo,
+            shot_repo,
+            workflow_repo,
+            template_repo,
+            llm_service,
+        )
+        db.expire_all()
+        shot = shot_repo.get_by_id(child_task.shot_id)
+        plan = _safe_json_dict(shot.video_director_plan)
+        selected_mode = plan.get("selected_mode") or plan.get("recommended_mode")
+
+    if selected_mode == "FIRST_LAST_FRAME":
+        capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else {}
+        max_clip_duration = int(capability.get("max_clip_duration") or 15)
+        if (shot.duration or 4) > max_clip_duration:
+            await recommend_video_mode(
+                child_task.novel_id,
+                child_task.chapter_id,
+                child_task.shot_id,
+                RecommendVideoModeRequest(force=True),
+                db,
+                novel_repo,
+                chapter_repo,
+                shot_repo,
+                workflow_repo,
+                template_repo,
+                llm_service,
+            )
+            db.expire_all()
+            shot = shot_repo.get_by_id(child_task.shot_id)
+            plan = _safe_json_dict(shot.video_director_plan)
+            selected_mode = plan.get("selected_mode") or plan.get("recommended_mode")
+
+    if selected_mode in {"FIRST_LAST_FRAME", "MULTI_KEYFRAME"}:
+        needs_plan = (
+            selected_mode == "MULTI_KEYFRAME" and not plan.get("window_plans")
+        ) or (
+            selected_mode == "FIRST_LAST_FRAME" and (not plan.get("keyframes") or not plan.get("transitions"))
+        )
+        if needs_plan:
+            await plan_video_keyframes(
+                child_task.novel_id,
+                child_task.chapter_id,
+                child_task.shot_id,
+                PlanVideoKeyframesRequest(force=False),
+                db,
+                novel_repo,
+                chapter_repo,
+                shot_repo,
+                workflow_repo,
+                template_repo,
+                llm_service,
+            )
+            db.expire_all()
+            shot = shot_repo.get_by_id(child_task.shot_id)
+
+        keyframes = _safe_json_list(shot.keyframes)
+        keyframe_service = ShotKeyframeService()
+        for frame_index, keyframe in enumerate(keyframes):
+            image_url = keyframe.get("image_url") if isinstance(keyframe, dict) else None
+            if image_url and url_to_local_path(image_url):
+                continue
+
+            task_name = f"生成关键帧图片: {shot.id}-{frame_index}"
+            active_keyframe_task = db.query(Task).filter(
+                Task.type == "keyframe_image",
+                Task.name == task_name,
+                Task.status.in_(["pending", "running"]),
+            ).order_by(Task.created_at.desc()).first()
+            if active_keyframe_task and not active_keyframe_task.comfyui_prompt_id:
+                active_keyframe_task.status = "failed"
+                active_keyframe_task.error_message = "批量视频恢复时重新提交未启动的关键帧任务"
+                active_keyframe_task.current_step = "等待重新提交"
+                db.commit()
+
+            success, keyframe_task_id, message = await keyframe_service.generate_keyframe_image(
+                db,
+                shot.id,
+                frame_index,
+                skip_llm_when_prompt_exists=True,
+            )
+            if not success or not keyframe_task_id:
+                raise ValueError(message or f"关键帧 {frame_index} 生成任务创建失败")
+            keyframe_task = db.query(Task).filter(Task.id == keyframe_task_id).first()
+            if keyframe_task and not keyframe_task.parent_task_id:
+                keyframe_task.parent_task_id = batch_task.id
+                db.commit()
+            status = await _wait_for_persistent_task(db, keyframe_task_id)
+            if status != "completed":
+                raise ValueError(f"关键帧 {frame_index} 生成{status}")
+            db.expire_all()
+            shot = shot_repo.get_by_id(child_task.shot_id)
+
+    return selected_mode or "SINGLE_FRAME"
+
+
+def _prepare_and_enqueue_batch_video_child(
+    db: Session,
+    child_task: Task,
+    selected_mode: str,
+    use_reference_audio: bool,
+    skip_llm_when_prompt_exists: bool,
+) -> None:
+    novel_repo = NovelRepository(db)
+    chapter_repo = ChapterRepository(db)
+    shot_repo = ShotRepository(db)
+    workflow_repo = WorkflowRepository(db)
+    novel = novel_repo.get_by_id(child_task.novel_id)
+    chapter = chapter_repo.get_by_id(child_task.chapter_id, child_task.novel_id)
+    shot = shot_repo.get_by_id(child_task.shot_id)
+    if not novel or not chapter or not shot or shot.chapter_id != chapter.id:
+        raise ValueError("批量任务对应的小说、章节或分镜不存在")
+    if not shot.image_url:
+        raise ValueError("该分镜尚未生成图片，请先生成分镜图片")
+
+    plan = _safe_json_dict(shot.video_director_plan)
+    workflow_type = "video"
+    if selected_mode == "FIRST_LAST_FRAME":
+        workflow_type = "first_last_video"
+    elif selected_mode == "MULTI_KEYFRAME":
+        valid_plan, plan_error, first_frame_count = _validate_multi_keyframe_plan_for_execution(shot, plan)
+        if not valid_plan:
+            raise ValueError(f"视频生成前置检查失败：{plan_error}")
+        needed_types = {
+            "three_frame_video" if int(window.get("selected_frame_count") or 0) == 3 else "four_frame_video"
+            for window in (plan.get("window_plans") or [])
+        }
+        for needed_type in needed_types:
+            needed_workflow = workflow_repo.get_active_by_type(needed_type)
+            if not needed_workflow:
+                raise ValueError(f"未配置 {needed_type} 视频生成工作流")
+            valid, error = TaskService.validate_workflow_node_mapping(needed_workflow, needed_type)
+            if not valid:
+                raise ValueError(error)
+        workflow_type = "three_frame_video" if first_frame_count == 3 else "four_frame_video"
+
+    workflow = workflow_repo.get_active_by_type(workflow_type)
+    if not workflow:
+        raise ValueError(f"未配置 {workflow_type} 视频生成工作流")
+    valid, error = TaskService.validate_workflow_node_mapping(workflow, workflow_type)
+    if not valid:
+        raise ValueError(error)
+    if selected_mode == "FIRST_LAST_FRAME":
+        max_duration = _get_video_workflow_capability(workflow)["max_clip_duration"]
+        if (shot.duration or 4) > max_duration:
+            raise ValueError(f"首尾帧模式当前仅支持不超过 {max_duration}s 的 Shot")
+        end_keyframe = next((item for item in (plan.get("keyframes") or []) if item.get("role") == "END"), None)
+        end_image_url = _get_video_director_keyframe_image_url(shot, end_keyframe)
+        if not end_image_url or not url_to_local_path(end_image_url):
+            raise ValueError("首尾帧模式需要先生成 END 关键帧图片")
+
+    file_storage.delete_shot_video(child_task.novel_id, child_task.chapter_id, shot.index)
+    shot.video_url = None
+    child_task.workflow_id = workflow.id
+    child_task.workflow_name = workflow.name
+    child_task.status = "pending"
+    child_task.started_at = None
+    child_task.current_step = "等待视频生成 Worker"
+    child_task.description = (
+        f"为章节 '{chapter.title}' 的分镜 {shot.index} 生成视频 (时长: {shot.duration or 4}s)；"
+        f"视频模式：{VIDEO_MODE_LABELS.get(selected_mode, selected_mode)}"
+    )
+    shot_repo.update_video_status(shot, "generating", task_id=child_task.id)
+    db.commit()
+    generate_shot_video_task(
+        child_task.id,
+        child_task.novel_id,
+        child_task.chapter_id,
+        shot.index,
+        workflow.id,
+        shot.image_url,
+        use_keyframes=True,
+        use_reference_audio=use_reference_audio,
+        selected_mode=selected_mode,
+        skip_llm_when_prompt_exists=skip_llm_when_prompt_exists,
+    )
+
+
+def enqueue_shot_video_batch_task(batch_task_id: str) -> None:
+    if batch_task_id in shot_video_batch_locks:
+        return
+    shot_video_batch_locks.add(batch_task_id)
+    worker_manager.worker("shot_video_batch").enqueue(lambda: run_shot_video_batch_task(batch_task_id))
+
+
+async def run_shot_video_batch_task(batch_task_id: str) -> None:
+    db = SessionLocal()
+    try:
+        batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
+        if not batch_task or batch_task.status == "cancelled":
+            return
+        metadata = _safe_json_dict(batch_task.metadata_json)
+        auto_complete = bool(metadata.get("auto_complete_details", True))
+        use_reference_audio = bool(metadata.get("use_reference_audio", True))
+        skip_llm = bool(metadata.get("skip_llm_when_prompt_exists", False))
+        batch_task.status = "running"
+        batch_task.started_at = batch_task.started_at or datetime.utcnow()
+        batch_task.current_step = "批量分镜视频生成中"
+        db.commit()
+
+        child_ids = [row[0] for row in db.query(Task.id).filter(
+            Task.parent_task_id == batch_task_id,
+            Task.type == "shot_video",
+        ).order_by(Task.batch_order.asc(), Task.created_at.asc()).all()]
+        total = len(child_ids)
+        completed = failed = cancelled = 0
+        for index, child_id in enumerate(child_ids, start=1):
+            db.expire_all()
+            batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
+            child = db.query(Task).filter(Task.id == child_id).first()
+            if not batch_task or batch_task.status == "cancelled":
+                for remaining in db.query(Task).filter(
+                    Task.parent_task_id == batch_task_id,
+                    Task.type == "shot_video",
+                    Task.status == "pending",
+                ).all():
+                    remaining.status = "cancelled"
+                    remaining.current_step = "批量任务已取消"
+                db.commit()
+                return
+            if not child:
+                failed += 1
+                continue
+            if child.status == "completed":
+                completed += 1
+                continue
+            if child.status == "failed":
+                failed += 1
+                continue
+            if child.status == "cancelled":
+                cancelled += 1
+                continue
+            if child.status == "running" and child.comfyui_prompt_id:
+                status = await _wait_for_persistent_task(db, child.id)
+            else:
+                if child.status == "running":
+                    child.status = "pending"
+                    child.started_at = None
+                child.status = "running"
+                child.started_at = datetime.utcnow()
+                child.current_step = "自动补齐视频生成细节" if auto_complete else "检查视频生成条件"
+                batch_task.current_step = f"正在处理 {index}/{total}：镜{db.query(Shot).filter(Shot.id == child.shot_id).first().index}"
+                db.commit()
+                try:
+                    shot = db.query(Shot).filter(Shot.id == child.shot_id).first()
+                    plan = _safe_json_dict(shot.video_director_plan) if shot else {}
+                    selected_mode = (
+                        await _prepare_batch_video_details(db, batch_task, child)
+                        if auto_complete
+                        else (plan.get("selected_mode") or plan.get("recommended_mode") or "SINGLE_FRAME")
+                    )
+                    db.expire_all()
+                    child = db.query(Task).filter(Task.id == child_id).first()
+                    _prepare_and_enqueue_batch_video_child(db, child, selected_mode, use_reference_audio, skip_llm)
+                    status = await _wait_for_persistent_task(db, child.id)
+                except Exception as exc:
+                    child = db.query(Task).filter(Task.id == child_id).first()
+                    if child:
+                        detail = exc.detail if isinstance(exc, HTTPException) else str(exc)
+                        child.status = "failed"
+                        child.error_message = str(detail)
+                        child.current_step = "批量视频子任务失败"
+                        child.completed_at = datetime.utcnow()
+                        shot = db.query(Shot).filter(Shot.id == child.shot_id).first()
+                        if shot:
+                            shot.video_status = "failed"
+                        db.commit()
+                    status = "failed"
+            if status == "completed":
+                completed += 1
+            elif status == "cancelled":
+                cancelled += 1
+            else:
+                failed += 1
+            batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
+            if batch_task:
+                batch_task.progress = int(index / total * 100) if total else 100
+                batch_task.current_step = f"已处理 {index}/{total} 个分镜视频"
+                db.commit()
+
+        batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
+        if batch_task:
+            batch_task.status = "completed" if failed == 0 and cancelled == 0 else "failed"
+            batch_task.progress = 100
+            batch_task.completed_at = datetime.utcnow()
+            batch_task.current_step = f"完成：成功 {completed}，失败 {failed}，取消 {cancelled}"
+            batch_task.error_message = None if failed == 0 and cancelled == 0 else batch_task.current_step
+            db.commit()
+    except Exception as exc:
+        batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
+        if batch_task:
+            batch_task.status = "failed"
+            batch_task.error_message = str(exc)
+            batch_task.current_step = "批量视频生成失败"
+            batch_task.completed_at = datetime.utcnow()
+            db.commit()
+        print(f"[ShotVideoBatch] task {batch_task_id} failed: {exc}")
+    finally:
+        shot_video_batch_locks.discard(batch_task_id)
+        db.close()
+
+
+def resume_active_shot_video_batches() -> None:
+    db = SessionLocal()
+    try:
+        active_batches = db.query(Task).filter(
+            Task.type == "shot_video_batch",
+            Task.status.in_(["pending", "running"]),
+        ).order_by(Task.created_at.asc()).all()
+        for batch_task in active_batches:
+            enqueue_shot_video_batch_task(batch_task.id)
+    finally:
+        db.close()
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/shot-videos/batch", response_model=dict)
+async def generate_shot_videos_batch(
+    novel_id: str,
+    chapter_id: str,
+    data: BatchShotVideoRequest,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """创建持久化批量视频任务；页面关闭或服务重启后可继续。"""
+    shot_ids = list(dict.fromkeys(data.shot_ids))
+    if not shot_ids:
+        raise HTTPException(status_code=400, detail="请选择要生成视频的分镜")
+    novel = novel_repo.get_by_id(novel_id)
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    if not novel or not chapter:
+        raise HTTPException(status_code=404, detail="小说或章节不存在")
+
+    validated = []
+    for order, shot_id in enumerate(shot_ids, start=1):
+        shot = shot_repo.get_by_id(shot_id)
+        if not shot or shot.chapter_id != chapter_id:
+            raise HTTPException(status_code=404, detail=f"分镜不存在：{shot_id}")
+        if not shot.image_url:
+            raise HTTPException(status_code=400, detail=f"分镜 {shot.index} 尚未生成主分镜图")
+        active = db.query(Task).filter(
+            Task.type == "shot_video",
+            Task.shot_id == shot.id,
+            Task.status.in_(["pending", "running"]),
+        ).order_by(Task.created_at.desc()).first()
+        if active and active.parent_task_id:
+            raise HTTPException(status_code=400, detail=f"分镜 {shot.index} 已在批量视频队列中")
+        validated.append((order, shot, active))
+
+    batch_task = Task(
+        type="shot_video_batch",
+        status="pending",
+        name="批量生成分镜视频",
+        description=f"为章节 '{chapter.title}' 批量生成 {len(validated)} 个分镜视频",
+        novel_id=novel_id,
+        chapter_id=chapter_id,
+        progress=0,
+        current_step="等待处理",
+        metadata_json=json.dumps({
+            "shot_ids": shot_ids,
+            "auto_complete_details": data.auto_complete_details,
+            "use_reference_audio": data.use_reference_audio,
+            "skip_llm_when_prompt_exists": data.skip_llm_when_prompt_exists,
+        }, ensure_ascii=False),
+    )
+    db.add(batch_task)
+    db.flush()
+    children = []
+    for order, shot, active in validated:
+        child = active or Task(
+            type="shot_video",
+            name=f"生成视频: 镜{shot.index}",
+            description=f"为章节 '{chapter.title}' 的分镜 {shot.index} 生成视频 (时长: {shot.duration or 4}s)",
+            novel_id=novel_id,
+            chapter_id=chapter_id,
+            shot_id=shot.id,
+            status="pending",
+            current_step="等待批量处理",
+        )
+        if not active:
+            db.add(child)
+            db.flush()
+        child.parent_task_id = batch_task.id
+        child.batch_order = order
+        shot.video_status = "pending"
+        shot.video_task_id = child.id
+        children.append(child)
+    db.flush()
+    db.commit()
+    enqueue_shot_video_batch_task(batch_task.id)
+    return {
+        "success": True,
+        "message": f"已创建 {len(children)} 个持久化分镜视频任务，关闭页面后会继续执行",
+        "data": {
+            "batchTaskId": batch_task.id,
+            "tasks": [{"taskId": task.id, "shotId": task.shot_id, "status": task.status} for task in children],
+        },
+    }
 
 
 @router.post(

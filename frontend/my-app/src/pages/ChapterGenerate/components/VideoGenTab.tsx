@@ -56,7 +56,6 @@ const VIDEO_MODE_LABELS: Record<VideoMode, string> = {
 };
 
 const getVideoModeLabel = (mode?: VideoMode) => mode ? VIDEO_MODE_LABELS[mode] : '-';
-const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 const getLatestH3FinalPrompt = (plan: VideoDirectorPlan, clipIndex?: number) => {
   const call = [...(plan.ai_calls || [])].reverse().find((item) => {
@@ -1147,6 +1146,7 @@ function VideoDirectorPanel({
                       <div className="mt-1 text-xs text-gray-500">
                         {clipFrameLabel}
                         {clip.workflow_key ? ` · ${clip.workflow_key}` : ''}
+                        {clip.seed != null ? ` · Seed ${clip.seed}` : ''}
                       </div>
                     </div>
                     <span className={`rounded-md border px-2 py-1 text-xs ${getClipStatusClass(clipStatus)}`}>{getClipStatusLabel(clipStatus)}</span>
@@ -1551,6 +1551,7 @@ export function VideoGenTab({
     const shotId = shot?.id ? String(shot.id) : '';
     if (!shotId) return { selectable: false, reason: '缺少分镜 ID' };
     if (generatingVideos.has(shotId) || shot?.videoStatus === 'generating') return { selectable: false, reason: '视频生成中' };
+    if (storePendingVideos.has(shotId)) return { selectable: false, reason: '视频队列中' };
 
     const shotImageUrl = getShotImageUrl(shot);
     if (autoCompleteOverride) {
@@ -1594,7 +1595,7 @@ export function VideoGenTab({
     }
 
     return { selectable: false, reason: '生成模式不支持' };
-  }, [autoCompleteDetails, generatingVideos, getShotImageUrl, getVideoDirectorKeyframeImageUrl]);
+  }, [autoCompleteDetails, generatingVideos, getShotImageUrl, getVideoDirectorKeyframeImageUrl, storePendingVideos]);
 
   const selectableShotIndexes = useCallback(() => shotsList
     .map((shot: any, idx: number) => getBatchShotEligibility(shot).selectable ? idx + 1 : null)
@@ -1602,7 +1603,7 @@ export function VideoGenTab({
 
   // 检查当前分镜是否正在生成
   const isGeneratingCurrent = currentShotId ? generatingVideos.has(currentShotId) || currentShotData?.videoStatus === 'generating' : false;
-  const isCurrentVideoPending = currentShotId ? storePendingVideos.has(currentShotId) || currentShotData?.videoStatus === 'pending' : false;
+  const isCurrentVideoPending = currentShotId ? storePendingVideos.has(currentShotId) : false;
   const latestFailedAiCallError = currentVideoDirectorPlan?.ai_calls
     ? [...currentVideoDirectorPlan.ai_calls].reverse().find((call: any) => String(call?.status || '').toLowerCase() !== 'success' && String(call?.error_message || '').trim())?.error_message
     : '';
@@ -1630,7 +1631,7 @@ export function VideoGenTab({
 
     if (isGeneratingCurrent || isCurrentVideoPending) {
       return {
-        label: isCurrentVideoPending ? '排队中' : '生成中',
+        label: isCurrentVideoPending ? '队列中' : '生成中',
         className: 'border-blue-100 bg-blue-50 text-blue-700',
         detail: clipCount > 0 ? `Clip ${completedClipCount}/${clipCount}` : '正在生成当前 Shot 视频',
       };
@@ -2405,204 +2406,6 @@ export function VideoGenTab({
     }));
   };
 
-  const updateShotInStore = useCallback((updatedShot: any) => {
-    setShots(useChapterGenerateStore.getState().shots.map((shot: any) => (
-      String(shot.id) === String(updatedShot.id) ? { ...shot, ...updatedShot } : shot
-    )));
-    if (updatedShot?.imageUrl || updatedShot?.image_url) {
-      setShotImages((images: Record<string, string>) => ({
-        ...images,
-        [String(updatedShot.id)]: updatedShot.imageUrl || updatedShot.image_url,
-      }));
-    }
-  }, [setShotImages, setShots]);
-
-  const refreshBatchShot = useCallback(async (shotId: string) => {
-    if (!effectiveNovelId || !effectiveChapterId) return null;
-    const result = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, shotId);
-    if (result.success && result.data) {
-      updateShotInStore(result.data);
-      return result.data;
-    }
-    return null;
-  }, [effectiveChapterId, effectiveNovelId, updateShotInStore]);
-
-  const getBatchKeyframeFrameIndex = useCallback((shot: any, plan: VideoDirectorPlan, keyframe: any) => {
-    if (!keyframe || keyframe.role === 'START') return undefined;
-    const legacyKeyframes = shot?.keyframes || [];
-    const legacyKeyframe = legacyKeyframes.find((item: any) => Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(keyframe.index));
-    if (legacyKeyframe?.frame_index !== undefined) return Number(legacyKeyframe.frame_index);
-    const nonStartIndex = (plan.keyframes || [])
-      .filter((item: any) => item.role !== 'START')
-      .findIndex((item: any) => Number(item.index) === Number(keyframe.index));
-    return nonStartIndex >= 0 ? nonStartIndex : undefined;
-  }, []);
-
-  const getMissingBatchKeyframes = useCallback((shot: any, mode: VideoMode, plan: VideoDirectorPlan) => {
-    const keyframes = plan.keyframes || [];
-    const requiredKeyframes = mode === 'FIRST_LAST_FRAME'
-      ? keyframes.filter((keyframe: any) => keyframe.role === 'END')
-      : keyframes.filter((keyframe: any) => keyframe.role !== 'START');
-    return requiredKeyframes
-      .filter((keyframe: any) => !getVideoDirectorKeyframeImageUrl(shot, keyframe))
-      .map((keyframe: any) => ({ keyframe, frameIndex: getBatchKeyframeFrameIndex(shot, plan, keyframe) }))
-      .filter((item: any) => item.frameIndex !== undefined);
-  }, [getBatchKeyframeFrameIndex, getVideoDirectorKeyframeImageUrl]);
-
-  const waitForBatchKeyframeImages = useCallback(async (shotId: string, mode: VideoMode) => {
-    for (let attempt = 0; attempt < 180; attempt += 1) {
-      const latestShot = await refreshBatchShot(shotId);
-      const latestPlan: VideoDirectorPlan = latestShot?.videoDirectorPlan || {};
-      if (latestShot && getMissingBatchKeyframes(latestShot, mode, latestPlan).length === 0) {
-        return latestShot;
-      }
-      await sleep(2000);
-    }
-    throw new Error('等待关键帧图片生成超时');
-  }, [getMissingBatchKeyframes, refreshBatchShot]);
-
-  const prepareShotForAutoBatchVideo = useCallback(async (shot: any) => {
-    if (!effectiveNovelId || !effectiveChapterId || !shot?.id) return null;
-    let latestShot = await refreshBatchShot(String(shot.id)) || shot;
-    let plan: VideoDirectorPlan = latestShot.videoDirectorPlan || {};
-
-    if (!getShotImageUrl(latestShot)) {
-      throw new Error('缺少主分镜图');
-    }
-
-    if (!plan.selected_mode && !plan.recommended_mode) {
-      setRecommendingShotId(String(shot.id));
-      const recommendResult = await shotsApi.recommendVideoMode(effectiveNovelId, effectiveChapterId, String(shot.id), false);
-      setRecommendingShotId(null);
-      if (!recommendResult.success || !recommendResult.data) {
-        throw new Error(recommendResult.message || '视频模式推荐失败');
-      }
-      plan = recommendResult.data;
-      latestShot = { ...latestShot, videoDirectorPlan: plan };
-      updateShotInStore(latestShot);
-    }
-
-    let mode = (plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME') as VideoMode;
-    const maxClipDuration = plan.workflow_capability?.max_clip_duration || 15;
-    if (mode === 'FIRST_LAST_FRAME' && Number(latestShot.duration || 0) > maxClipDuration) {
-      mode = 'MULTI_KEYFRAME';
-    }
-    if (plan.selected_mode !== mode) {
-      const saveResult = await shotsApi.saveVideoDirectorPlan(effectiveNovelId, effectiveChapterId, String(shot.id), { selected_mode: mode });
-      if (!saveResult.success || !saveResult.data) {
-        throw new Error(saveResult.message || '保存视频模式失败');
-      }
-      plan = saveResult.data;
-      latestShot = { ...latestShot, videoDirectorPlan: plan };
-      updateShotInStore(latestShot);
-    }
-
-    if (mode !== 'SINGLE_FRAME') {
-      const duration = Number(latestShot.duration || 0);
-      const planWindowsMismatch = mode === 'MULTI_KEYFRAME' && !videoPlanWindowsMatchDuration(plan, duration, maxClipDuration);
-      const needsPlan = !(plan.keyframes || []).length || (mode === 'MULTI_KEYFRAME' && (!(plan.window_plans || []).length || planWindowsMismatch));
-      if (needsPlan) {
-        setPlanningKeyframesShotId(String(shot.id));
-        const planResult = await shotsApi.planVideoKeyframes(effectiveNovelId, effectiveChapterId, String(shot.id), planWindowsMismatch);
-        setPlanningKeyframesShotId(null);
-        if (!planResult.success || !planResult.data) {
-          throw new Error(planResult.message || planResult.detail || '关键帧规划失败');
-        }
-        plan = planResult.data;
-        latestShot = { ...latestShot, videoDirectorPlan: plan };
-        updateShotInStore(latestShot);
-      }
-
-      const missingKeyframes = getMissingBatchKeyframes(latestShot, mode, plan);
-      if (missingKeyframes.length > 0) {
-        setGeneratingMissingKeyframesShotId(String(shot.id));
-        try {
-          for (const item of missingKeyframes) {
-            await generateKeyframeImage(effectiveNovelId, effectiveChapterId, String(shot.id), Number(item.frameIndex));
-          }
-          latestShot = await waitForBatchKeyframeImages(String(shot.id), mode);
-        } finally {
-          setGeneratingMissingKeyframesShotId(null);
-        }
-      }
-    }
-
-    return { shot: latestShot, mode };
-  }, [effectiveChapterId, effectiveNovelId, generateKeyframeImage, getMissingBatchKeyframes, getShotImageUrl, refreshBatchShot, updateShotInStore, waitForBatchKeyframeImages]);
-
-  const submitBatchShotVideo = useCallback(async (shotId: string, mode: VideoMode) => {
-    if (!effectiveNovelId || !effectiveChapterId) return null;
-    useChapterGenerateStore.setState((state) => ({
-      generatingVideos: new Set([...state.generatingVideos, shotId]),
-      shotVideos: Object.fromEntries(Object.entries(state.shotVideos).filter(([key]) => key !== shotId)),
-      shots: state.shots.map((shot: any) => (
-        String(shot.id) === shotId
-          ? { ...shot, videoUrl: null, videoStatus: 'generating' as const, videoTaskId: null }
-          : shot
-      )),
-    }));
-
-    try {
-      const result = await shotsApi.generateVideo(effectiveNovelId, effectiveChapterId, shotId, { selected_mode: mode });
-      if (!result.success) {
-        throw new Error(result.message || result.detail || '生成失败');
-      }
-      useChapterGenerateStore.setState((state) => ({
-        generatingVideos: new Set([...state.generatingVideos, shotId]),
-        shots: state.shots.map((shot: any) => (
-          String(shot.id) === shotId
-            ? { ...shot, videoUrl: null, videoStatus: 'generating' as const, videoTaskId: result.data?.taskId || null }
-            : shot
-        )),
-      }));
-      checkVideoTaskStatus(effectiveChapterId);
-      return result.data?.taskId || null;
-    } catch (error) {
-      const errorMessage = formatUserFacingError(error instanceof Error ? error.message : '生成失败');
-      useChapterGenerateStore.setState((state) => {
-        const next = new Set(state.generatingVideos);
-        next.delete(shotId);
-        return {
-          generatingVideos: next,
-          shots: state.shots.map((shot: any) => (
-            String(shot.id) === shotId
-              ? {
-                  ...shot,
-                  videoStatus: 'failed' as const,
-                  videoDirectorPlan: {
-                    ...(shot.videoDirectorPlan || {}),
-                    task_error_message: errorMessage,
-                    error_message: errorMessage,
-                  },
-                }
-              : shot
-          )),
-        };
-      });
-      throw error;
-    }
-  }, [checkVideoTaskStatus, effectiveChapterId, effectiveNovelId]);
-
-  const waitForBatchShotVideoCompletion = useCallback(async (shotId: string, taskId: string | null) => {
-    if (!effectiveChapterId || !taskId) return;
-    for (let attempt = 0; attempt < 360; attempt += 1) {
-      await checkVideoTaskStatus(effectiveChapterId);
-      const result = await taskApi.fetch(taskId);
-      const task = result.success ? (result.data as any) : null;
-      const status = task?.status;
-      if (status === 'completed') {
-        await refreshBatchShot(shotId);
-        return;
-      }
-      if (status === 'failed' || status === 'cancelled') {
-        await refreshBatchShot(shotId);
-        throw new Error(formatUserFacingError(task?.errorMessage || task?.error_message) || (status === 'cancelled' ? '视频任务已取消' : '视频任务失败'));
-      }
-      await sleep(2000);
-    }
-    throw new Error('等待视频生成完成超时');
-  }, [checkVideoTaskStatus, effectiveChapterId, refreshBatchShot]);
-
   // 处理批量视频生成
   const handleGenerateAll = async () => {
     if (!effectiveNovelId || !effectiveChapterId) return;
@@ -2617,71 +2420,42 @@ export function VideoGenTab({
 
     setIsGeneratingAll(true);
     setShowBatchSelectModal(false);
-    let successCount = 0;
-    let failedCount = 0;
     const selectedShotIds = selectedShotList.map((shot: any) => String(shot.id)).filter(Boolean);
     useChapterGenerateStore.setState((state) => ({
-      generatingVideos: new Set([...state.generatingVideos, ...selectedShotIds]),
+      pendingVideos: new Set([...state.pendingVideos, ...selectedShotIds]),
       shotVideos: Object.fromEntries(Object.entries(state.shotVideos).filter(([key]) => !selectedShotIds.includes(key))),
       shots: state.shots.map((shot: any) => (
         selectedShotIds.includes(String(shot.id))
-          ? { ...shot, videoStatus: 'generating' as const, videoUrl: null }
+          ? { ...shot, videoStatus: 'pending' as const, videoUrl: null }
           : shot
       )),
     }));
     try {
-      // 依次生成选中的分镜
-      for (const shot of selectedShotList) {
-        if (!shot?.id) continue;
-        try {
-          const prepared = autoCompleteDetails ? await prepareShotForAutoBatchVideo(shot) : null;
-          const effectiveShot = prepared?.shot || shot;
-          const plan = effectiveShot.videoDirectorPlan || {};
-          const taskId = await submitBatchShotVideo(
-            String(effectiveShot.id),
-            (prepared?.mode || plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME') as VideoMode
-          );
-          await waitForBatchShotVideoCompletion(String(effectiveShot.id), taskId);
-          successCount += 1;
-        } catch (error) {
-          failedCount += 1;
-          const errorMessage = formatUserFacingError(error instanceof Error ? error.message : '未知错误') || '未知错误';
-          console.error(`批量生成分镜 ${shot.index || shot.id} 失败:`, error);
-          toast.error(`镜${shot.index || ''} 自动处理失败：${errorMessage}`);
-          const refreshedShot = await refreshBatchShot(String(shot.id));
-          useChapterGenerateStore.setState((state) => {
-            const nextGeneratingVideos = new Set(state.generatingVideos);
-            const nextPendingVideos = new Set(state.pendingVideos);
-            nextGeneratingVideos.delete(String(shot.id));
-            nextPendingVideos.delete(String(shot.id));
-            return {
-              generatingVideos: nextGeneratingVideos,
-              pendingVideos: nextPendingVideos,
-              shots: state.shots.map((item: any) => (
-                String(item.id) === String(shot.id)
-                  ? {
-                      ...item,
-                      ...(refreshedShot || {}),
-                      videoStatus: 'failed' as const,
-                      videoDirectorPlan: {
-                        ...(item.videoDirectorPlan || {}),
-                        ...((refreshedShot as any)?.videoDirectorPlan || {}),
-                        task_error_message: formatUserFacingError(((refreshedShot as any)?.videoDirectorPlan as any)?.task_error_message) || errorMessage,
-                      },
-                    }
-                  : item
-              )),
-            };
-          });
-        }
+      const result = await shotsApi.generateVideosBatch(effectiveNovelId, effectiveChapterId, {
+        shot_ids: selectedShotIds,
+        auto_complete_details: autoCompleteDetails,
+        use_reference_audio: true,
+        skip_llm_when_prompt_exists: false,
+      });
+      if (!result.success) {
+        throw new Error(result.detail || result.message || '批量生成视频失败');
       }
-      if (successCount > 0) {
-        toast.success(`已提交 ${successCount} 个分镜视频任务${failedCount ? `，${failedCount} 个失败` : ''}`);
-      } else if (failedCount > 0) {
-        toast.error('批量生成视频未提交成功任务');
-      }
+      await checkVideoTaskStatus(effectiveChapterId);
+      toast.success(result.message || `已创建 ${selectedShotIds.length} 个持久化分镜视频任务`);
     } catch (error) {
       console.error(t('chapterGenerate.batchVideoGenerateFailed') + ':', error);
+      const errorMessage = formatUserFacingError(error instanceof Error ? error.message : '批量生成视频失败');
+      useChapterGenerateStore.setState((state) => {
+        const nextPendingVideos = new Set(state.pendingVideos);
+        selectedShotIds.forEach((shotId) => nextPendingVideos.delete(shotId));
+        return {
+          pendingVideos: nextPendingVideos,
+          shots: state.shots.map((shot: any) => selectedShotIds.includes(String(shot.id))
+            ? { ...shot, videoStatus: shot.videoUrl ? 'completed' as const : 'pending' as const }
+            : shot),
+        };
+      });
+      toast.error(errorMessage || '批量生成视频失败');
     } finally {
       setIsGeneratingAll(false);
     }
@@ -3001,7 +2775,7 @@ export function VideoGenTab({
           )}
           <button
             onClick={handleOpenBatchSelect}
-            disabled={isGeneratingAll || !effectiveChapterId}
+            disabled={!effectiveChapterId}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             批量生成视频
@@ -3257,6 +3031,11 @@ export function VideoGenTab({
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-gray-600">
                   已选择 {selectedShots.size} / 可选 {selectableShotIndexes().length} / 共 {shotsList.length} 个分镜
+                  {' · '}生成中 {shotsList.filter((shot: any) => {
+                    const shotId = shot?.id ? String(shot.id) : '';
+                    return !!shotId && (generatingVideos.has(shotId) || shot?.videoStatus === 'generating');
+                  }).length}
+                  {' · '}队列中 {shotsList.filter((shot: any) => shot?.id && storePendingVideos.has(String(shot.id))).length}
                 </span>
                 <div className="flex items-center gap-3">
                   <button
@@ -3279,10 +3058,11 @@ export function VideoGenTab({
               <div className="grid grid-cols-4 gap-3">
                 {shotsList.map((shot: any, idx: number) => {
                   const shotIndex = idx + 1;
-                  const shotId = shot.id;
+                  const shotId = shot.id ? String(shot.id) : '';
                   const isSelected = selectedShots.has(shotIndex);
                   const hasVideo = hasShotVideo(shot);
-                  const isGenerating = shotId ? generatingVideos.has(shotId) : false;
+                  const isGenerating = !!shotId && (generatingVideos.has(shotId) || shot?.videoStatus === 'generating');
+                  const isQueued = !!shotId && storePendingVideos.has(shotId);
                   const eligibility = getBatchShotEligibility(shot);
                   const isSelectable = eligibility.selectable;
 
@@ -3330,6 +3110,8 @@ export function VideoGenTab({
                           <Film className="w-8 h-8 text-green-600" />
                         ) : isGenerating ? (
                           <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                        ) : isQueued ? (
+                          <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
                         ) : (
                           <Film className="w-8 h-8 text-gray-300" />
                         )}
@@ -3337,7 +3119,13 @@ export function VideoGenTab({
 
                       {/* 状态标签 */}
                       <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg truncate">
-                        {isSelectable ? (hasVideo ? t('chapterGenerate.generated') : t('chapterGenerate.pending')) : eligibility.reason}
+                        {isGenerating
+                          ? '生成中'
+                          : isQueued
+                            ? '队列中'
+                            : isSelectable
+                              ? (hasVideo ? t('chapterGenerate.generated') : t('chapterGenerate.pending'))
+                              : eligibility.reason}
                       </div>
                     </div>
                   );
@@ -3357,7 +3145,7 @@ export function VideoGenTab({
                     const selectableIndexes = shotsList
                       .map((shot: any, idx: number) => {
                         const shotId = shot?.id ? String(shot.id) : '';
-                        if (!shotId || generatingVideos.has(shotId) || shot?.videoStatus === 'generating') return null;
+                        if (!shotId || generatingVideos.has(shotId) || storePendingVideos.has(shotId) || shot?.videoStatus === 'generating') return null;
                         if (!getShotImageUrl(shot)) return null;
                         if (checked) return idx + 1;
                         return getBatchShotEligibility(shot, checked).selectable ? idx + 1 : null;

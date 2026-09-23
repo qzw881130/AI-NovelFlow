@@ -211,6 +211,7 @@ async def get_task_workflow(
 ):
     """获取任务提交给ComfyUI的工作流JSON"""
     import json
+    from app.utils.workflow_seed import extract_workflow_seed
     
     task = task_repo.get_by_id(task_id)
     if not task:
@@ -229,6 +230,7 @@ async def get_task_workflow(
                 "success": True,
                 "data": {
                     "workflow": workflow_obj,
+                    "seed": task.seed or extract_workflow_seed(workflow_obj),
                     "prompt": task.prompt_text or "未保存提示词",
                     "promptItems": _extract_character_prompt_items(task, workflow_obj, node_mapping),
                 }
@@ -238,6 +240,7 @@ async def get_task_workflow(
                 "success": True,
                 "data": {
                     "workflow": task.workflow_json,
+                    "seed": task.seed or extract_workflow_seed(task.workflow_json),
                     "prompt": task.prompt_text or "未保存提示词",
                     "promptItems": [],
                 }
@@ -248,6 +251,7 @@ async def get_task_workflow(
         "success": True,
         "data": {
             "workflow": None,
+            "seed": task.seed,
             "prompt": task.prompt_text or "未保存提示词",
             "promptItems": [],
             "note": "工作流尚未提交到ComfyUI或执行未完成，请稍后查看"
@@ -264,6 +268,7 @@ async def get_task_clip_workflow(
 ):
     """获取多 Clip 视频任务中单个 Clip 实际提交的工作流JSON。"""
     import json
+    from app.utils.workflow_seed import extract_workflow_seed
 
     task = task_repo.get_by_id(task_id)
     if not task:
@@ -321,6 +326,7 @@ async def get_task_clip_workflow(
         "success": True,
         "data": {
             "workflow": workflow_json,
+            "seed": clip.get("seed") or extract_workflow_seed(workflow_json),
             "prompt": clip.get("prompt_text") or "未保存提示词",
             "referenceImages": clip.get("reference_images") if isinstance(clip.get("reference_images"), list) else [],
             "note": None if clip.get("workflow_json") else "该 Clip 尚未保存实际提交的工作流 JSON",

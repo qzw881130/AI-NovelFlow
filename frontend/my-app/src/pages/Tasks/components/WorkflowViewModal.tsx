@@ -109,6 +109,11 @@ export function WorkflowViewModal({
             </div>
           ) : workflowData ? (
             <div className="space-y-4">
+              {workflowData.seed != null && (
+                <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                  Seed: <span className="font-mono font-medium">{workflowData.seed}</span>
+                </div>
+              )}
               {!!viewingWorkflow.referenceImages?.length && (
                 <div>
                   <h4 className="text-sm font-medium text-gray-700 mb-2">{t('tasks.referenceImages')}</h4>

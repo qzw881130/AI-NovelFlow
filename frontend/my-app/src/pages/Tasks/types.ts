@@ -16,6 +16,7 @@ export interface ImageInfo {
 export interface WorkflowData {
   workflow: any;
   prompt: string;
+  seed?: number | null;
   promptItems?: Array<{
     nodeId: string;
     role: 'layout' | 'style' | 'appearance';

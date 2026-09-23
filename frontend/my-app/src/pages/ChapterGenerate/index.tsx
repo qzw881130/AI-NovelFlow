@@ -279,6 +279,7 @@ export default function ChapterGenerate() {
         generatingShots={generatingShots}
         pendingShots={pendingShots}
         generatingVideos={generatingVideos}
+        pendingVideos={pendingVideos}
         generatingTransitions={generatingTransitions}
         loading={loading}
         getCharacterImage={getCharacterImage}

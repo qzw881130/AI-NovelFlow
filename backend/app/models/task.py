@@ -45,6 +45,7 @@ class Task(Base):
     workflow_id = Column(String, nullable=True)
     workflow_name = Column(String, nullable=True)
     workflow_json = Column(Text, nullable=True)
+    seed = Column(Integer, nullable=True)
     prompt_text = Column(Text, nullable=True)
     reference_images = Column(Text, nullable=True)
     video_director_clips = Column(Text, nullable=True)

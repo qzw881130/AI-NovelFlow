@@ -4,6 +4,7 @@
 封装分镜视频生成的后台任务逻辑
 """
 import json
+import random
 from datetime import datetime
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from app.repositories.shot_repository import ShotRepository
 from app.services.background_workers import worker_manager
 from app.services.video_director_ai import build_h3_video_prompt, safe_json_dict, safe_json_list
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
+from app.utils.workflow_seed import extract_workflow_seed
 
 
 def _filter_transitions_for_keyframe_indexes(transitions: list, keyframe_indexes: list) -> list:
@@ -237,6 +239,7 @@ def _reset_multi_clip_window_plans_for_task(db, task, shot, only_window_index: i
         "generated_at",
         "generated_by_task_id",
         "error_message",
+        "seed",
     ]
     if not preserve_prompt_text:
         reset_keys.insert(1, "prompt_text")
@@ -715,6 +718,7 @@ async def generate_shot_video_task(
 
         task.current_step = "正在调用 ComfyUI 生成视频..."
         task.progress = 30
+        seed = random.randint(1, 2**32)
         if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
             _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "RUNNING", db, task=task)
         db.commit()
@@ -725,6 +729,13 @@ async def generate_shot_video_task(
             task.comfyui_prompt_id = prompt_id
             if submitted_workflow:
                 task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+                actual_seed = extract_workflow_seed(submitted_workflow)
+                task.seed = actual_seed
+                if actual_seed is not None:
+                    if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
+                        _update_window_plan(shot, int(clip.get("clip_index") or 1), {"seed": actual_seed}, db, task=task)
+                    else:
+                        _update_clip_result(shot, clip, {"seed": actual_seed}, db)
             if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
                 fields = {"status": "RUNNING", "prompt_id": prompt_id}
                 if submitted_workflow:
@@ -752,6 +763,7 @@ async def generate_shot_video_task(
             prop_appearances=prop_appearances,
             reference_audio_path=reference_audio_path,
             keyframe_paths=keyframe_paths,
+            seed=seed,
             on_prompt_queued=save_prompt_id
         )
         if _is_task_cancelled(db, task):
@@ -977,6 +989,7 @@ async def _generate_multi_clip_video_task(
         raw_frame_count = int(fps * clip_duration)
         clip_frame_count = ((raw_frame_count // 8) * 8) + 1
         node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
+        seed = random.randint(1, 2**32)
 
         def save_prompt_id(prompt_id: str, submitted_workflow: dict = None):
             task.comfyui_prompt_id = prompt_id
@@ -984,6 +997,9 @@ async def _generate_multi_clip_video_task(
             if submitted_workflow:
                 task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
                 fields["workflow_json"] = submitted_workflow
+                actual_seed = extract_workflow_seed(submitted_workflow)
+                if actual_seed is not None:
+                    fields["seed"] = actual_seed
             _update_window_plan(shot, window_index, fields, db, task=task)
             db.commit()
             print(f"[VideoTask {task_id}] Clip {clip_position} ComfyUI prompt_id: {prompt_id}")
@@ -1005,6 +1021,7 @@ async def _generate_multi_clip_video_task(
             prop_appearances=prop_appearances,
             reference_audio_path=reference_audio_path,
             keyframe_paths=keyframe_paths,
+            seed=seed,
             on_prompt_queued=save_prompt_id,
         )
         if _is_task_cancelled(db, task):

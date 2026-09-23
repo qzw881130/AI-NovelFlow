@@ -232,6 +232,7 @@ export function TaskCard({
                         <span>{clip.startTime ?? '-'}s - {clip.endTime ?? '-'}s</span>
                         {clip.workflowName && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-blue-700">{clip.workflowName}</span>}
                         {clip.promptId && <span className="text-gray-500">{t('tasks.promptId', { id: clip.promptId })}</span>}
+                        {clip.seed != null && <span className="font-mono text-gray-500">Seed: {clip.seed}</span>}
                         {clip.dialogueCount !== undefined && clip.dialogueCount !== null && <span className="text-gray-500">{t('tasks.dialogueCount', { count: clip.dialogueCount })}</span>}
                       </div>
                       {(clip.hasWorkflowJson || clip.promptText) && (
@@ -349,6 +350,7 @@ export function TaskCard({
             </div>
           )}
           <div className="mt-2 text-xs opacity-60">
+            {task.seed != null && <span className="mr-2 font-mono">Seed: {task.seed}</span>}
             {t('common.createdAt')}: {formatDate(task.createdAt)}
             {task.completedAt && ` · ${t('tasks.completedAt')}: ${formatDate(task.completedAt)}`}
             {elapsedSeconds !== null && ` · 耗时: ${elapsedSeconds} 秒`}

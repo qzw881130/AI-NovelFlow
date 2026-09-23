@@ -253,7 +253,7 @@ class TaskService:
                 "details": {"skipped": True},
             }
 
-        if task.type == "shot_image_batch":
+        if task.type in {"shot_image_batch", "shot_video_batch"}:
             child_tasks = db.query(Task).filter(Task.parent_task_id == task.id).all()
             details = {"children_cancelled": 0, "children_requested": len(child_tasks)}
             for child in child_tasks:
@@ -431,6 +431,7 @@ class TaskService:
         task.completed_at = None
         task.comfyui_prompt_id = None
         task.workflow_json = None
+        task.seed = None
         db.commit()
 
         # 根据任务类型重新执行
@@ -614,7 +615,7 @@ class TaskService:
 
             pending_start_timeout = 600 if task.type == "keyframe_image" else 1800
             is_batch_waiting_child = bool(getattr(task, "parent_task_id", None))
-            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type != "shot_image_batch" and not is_batch_waiting_child:
+            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type not in {"shot_image_batch", "shot_video_batch"} and not is_batch_waiting_child:
                 task.status = "failed"
                 task.error_message = "任务长期未启动，后台内存队列可能已因服务重启或热更新丢失，请重新提交"
                 task.current_step = "任务未启动"
@@ -1150,6 +1151,7 @@ class TaskService:
             格式化后的任务列表
         """
         import json
+        from app.utils.workflow_seed import extract_workflow_seed
 
         shots = shots or {}
 
@@ -1199,6 +1201,7 @@ class TaskService:
                     "workflowType": window.get("workflow_type"),
                     "workflowName": window.get("workflow_name"),
                     "promptId": window.get("prompt_id"),
+                    "seed": window.get("seed") or extract_workflow_seed(window.get("workflow_json")),
                     "promptText": window.get("prompt_text"),
                     "hasWorkflowJson": window.get("workflow_json") is not None,
                     "referenceImages": window.get("reference_images") if isinstance(window.get("reference_images"), list) else [],
@@ -1227,6 +1230,7 @@ class TaskService:
                     t.workflow_id).is_system if t.workflow_id and t.workflow_id in workflows else False,
                 "hasWorkflowJson": t.workflow_json is not None,
                 "hasPromptText": t.prompt_text is not None,
+                "seed": t.seed or extract_workflow_seed(t.workflow_json),
                 "referenceImages": parse_reference_images(t.reference_images),
                 "videoDirectorClips": format_video_director_clips(t),
                 "novelId": t.novel_id,
@@ -1257,6 +1261,7 @@ class TaskService:
             格式化后的任务详情
         """
         import json
+        from app.utils.workflow_seed import extract_workflow_seed
 
         try:
             reference_images = json.loads(task.reference_images) if task.reference_images else []
@@ -1276,6 +1281,7 @@ class TaskService:
             "workflowId": task.workflow_id,
             "workflowName": task.workflow_name,
             "workflowJson": task.workflow_json,
+            "seed": task.seed or extract_workflow_seed(task.workflow_json),
             "promptText": task.prompt_text,
             "referenceImages": reference_images,
             "novelId": task.novel_id,

@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from app.services.task_service import TaskService
+from app.utils.workflow_seed import extract_workflow_seed
 
 
 def load_workflow_builder():
@@ -16,6 +17,35 @@ def load_workflow_builder():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module.WorkflowBuilder
+
+
+def test_video_workflow_uses_one_explicit_seed_for_all_seed_nodes():
+    builder = load_workflow_builder()()
+    workflow = {
+        "1": {"inputs": {"text": "old"}, "class_type": "CLIPTextEncode"},
+        "2": {"inputs": {"seed": 1}, "class_type": "KSampler"},
+        "3": {"inputs": {"noise_seed": 2}, "class_type": "RandomNoise"},
+    }
+
+    result = builder.build_video_workflow(
+        prompt="video prompt",
+        workflow_json=json.dumps(workflow),
+        node_mapping={"prompt_node_id": "1"},
+        seed=4294967296,
+    )
+
+    assert result["2"]["inputs"]["seed"] == 4294967296
+    assert result["3"]["inputs"]["noise_seed"] == 4294967296
+    assert extract_workflow_seed(result) == 4294967296
+
+
+def test_workflow_seed_extraction_rejects_ambiguous_values():
+    workflow = {
+        "1": {"inputs": {"seed": 10}},
+        "2": {"inputs": {"noise_seed": 20}},
+    }
+
+    assert extract_workflow_seed(workflow) is None
 
 
 def test_inject_prompt_preserves_mapped_style_placeholder_template():

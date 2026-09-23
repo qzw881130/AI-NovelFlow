@@ -65,6 +65,7 @@ export default {
       narratorAudio: 'Narrator Audio',
       shotImage: 'Shot Image',
       shotImageBatch: 'Batch Shot Images',
+      shotVideoBatch: 'Batch Shot Videos',
       keyframeImage: 'Keyframe Image',
       propImage: 'Prop Image',
       shotVideo: 'Shot Video',

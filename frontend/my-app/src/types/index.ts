@@ -257,6 +257,7 @@ export interface VideoDirectorTaskClip {
   workflowName?: string;
   promptId?: string;
   promptText?: string;
+  seed?: number | null;
   hasWorkflowJson?: boolean;
   referenceImages?: Array<{ label?: string; url: string }>;
   videoUrl?: string;
@@ -268,7 +269,7 @@ export interface VideoDirectorTaskClip {
 
 export interface Task {
   id: string;
-  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'chapter_video' | 'transition_video' | 'prop_image';
+  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'chapter_video' | 'transition_video' | 'prop_image';
   name: string;
   description?: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -281,6 +282,7 @@ export interface Task {
   workflowIsSystem?: boolean;
   hasWorkflowJson?: boolean;
   hasPromptText?: boolean;
+  seed?: number | null;
   referenceImages?: Array<{ label?: string; url: string }>;
   videoDirectorClips?: VideoDirectorTaskClip[];
   novelId?: string;

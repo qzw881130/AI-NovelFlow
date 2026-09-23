@@ -142,14 +142,14 @@ export function ShotThumbnail({
       {status === 'generating' && thumbnailUrl && !imageError && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-950/45 text-white backdrop-blur-[1px]">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="mt-1 rounded bg-blue-600/90 px-1.5 py-0.5 text-[11px] font-medium leading-none shadow">处理中</span>
+          <span className="mt-1 rounded bg-blue-600/90 px-1.5 py-0.5 text-[11px] font-medium leading-none shadow">生成中</span>
         </div>
       )}
 
       {status === 'queued' && thumbnailUrl && !imageError && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-blue-950/35 text-white backdrop-blur-[1px]">
           <Loader2 className="h-5 w-5 animate-spin" />
-          <span className="mt-1 rounded bg-blue-600/90 px-1.5 py-0.5 text-[11px] font-medium leading-none shadow">等待中</span>
+          <span className="mt-1 rounded bg-blue-600/90 px-1.5 py-0.5 text-[11px] font-medium leading-none shadow">队列中</span>
         </div>
       )}
 

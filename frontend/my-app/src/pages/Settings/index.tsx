@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { Save, Loader2, Bot, Network, Server, CheckCircle, Activity } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../stores/i18nStore';
 import { toast } from '../../stores/toastStore';
 import LLMConfig from './components/LLMConfig';
@@ -13,16 +14,48 @@ import type { SettingsFormData } from './types';
 import { configApi } from '../../api/config';
 import { DEFAULT_CONFIG } from '../../constants';
 
+type SettingsTab = 'llm' | 'proxy' | 'comfyui' | 'systemStatus' | 'workflows';
+
+const TAB_HASHES: Record<SettingsTab, string> = {
+  llm: 'llm',
+  proxy: 'proxy',
+  comfyui: 'comfyui',
+  workflows: 'workflows',
+  systemStatus: 'system-status',
+};
+
+const getTabFromHash = (hash: string): SettingsTab => {
+  const normalized = hash.replace(/^#/, '').toLowerCase();
+  const match = (Object.entries(TAB_HASHES) as Array<[SettingsTab, string]>)
+    .find(([, value]) => value === normalized);
+  return match?.[0] || 'llm';
+};
+
 export default function Settings() {
   const { t } = useTranslation();
+  const location = useLocation();
+  const navigate = useNavigate();
   
   // 表单数据
   const [formData, setFormData] = useState<SettingsFormData>(DEFAULT_CONFIG);
   
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [activeTab, setActiveTab] = useState<'llm' | 'proxy' | 'comfyui' | 'systemStatus' | 'workflows'>('llm');
+  const [activeTab, setActiveTab] = useState<SettingsTab>(() => getTabFromHash(window.location.hash));
   const isUserModifiedRef = useRef(false);
+
+  useEffect(() => {
+    setActiveTab(getTabFromHash(location.hash));
+  }, [location.hash]);
+
+  const selectTab = (tab: SettingsTab) => {
+    setActiveTab(tab);
+    navigate({
+      pathname: location.pathname,
+      search: location.search,
+      hash: TAB_HASHES[tab],
+    });
+  };
 
   // 从后端加载配置
   useEffect(() => {
@@ -132,7 +165,7 @@ export default function Settings() {
         <div className="flex border-b border-gray-200 mb-6">
           <button
             type="button"
-            onClick={() => setActiveTab('llm')}
+            onClick={() => selectTab('llm')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'llm'
                 ? 'border-blue-500 text-blue-600'
@@ -146,7 +179,7 @@ export default function Settings() {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('proxy')}
+            onClick={() => selectTab('proxy')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'proxy'
                 ? 'border-blue-500 text-blue-600'
@@ -160,7 +193,7 @@ export default function Settings() {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('comfyui')}
+            onClick={() => selectTab('comfyui')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'comfyui'
                 ? 'border-blue-500 text-blue-600'
@@ -174,7 +207,7 @@ export default function Settings() {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('workflows')}
+            onClick={() => selectTab('workflows')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'workflows'
                 ? 'border-blue-500 text-blue-600'
@@ -188,7 +221,7 @@ export default function Settings() {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('systemStatus')}
+            onClick={() => selectTab('systemStatus')}
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
               activeTab === 'systemStatus'
                 ? 'border-blue-500 text-blue-600'

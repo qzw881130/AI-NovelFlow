@@ -304,6 +304,36 @@ export const shotsApi = {
     return response.json();
   },
 
+  generateVideosBatch: async (
+    novelId: string,
+    chapterId: string,
+    options: {
+      shot_ids: string[];
+      auto_complete_details?: boolean;
+      use_reference_audio?: boolean;
+      skip_llm_when_prompt_exists?: boolean;
+    }
+  ): Promise<{ success: boolean; data?: { batchTaskId: string; tasks: Array<{ taskId: string; shotId: string; status: string }> }; message?: string; detail?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shot-videos/batch`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          shot_ids: options.shot_ids,
+          auto_complete_details: options.auto_complete_details ?? true,
+          use_reference_audio: options.use_reference_audio ?? true,
+          skip_llm_when_prompt_exists: options.skip_llm_when_prompt_exists ?? false,
+        }),
+      }
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || '批量生成视频失败', detail: data?.detail };
+    }
+    return data;
+  },
+
   /**
    * 生成分镜视频
    */

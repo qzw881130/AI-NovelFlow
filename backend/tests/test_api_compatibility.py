@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from app.models.novel import Novel, Chapter, Character, Scene
 from app.models.shot import Shot
+from app.models.task import Task
 
 
 class TestChapterDetailAPI:
@@ -783,6 +784,59 @@ class TestShotVideoGeneration:
 
         assert response.status_code == 400
         assert "尚未生成图片" in response.json()["detail"]
+
+    @patch("app.api.shots.enqueue_shot_video_batch_task")
+    def test_generate_shot_videos_batch_persists_parent_and_children(
+        self, mock_enqueue, client, db_session
+    ):
+        novel = Novel(title="批量视频测试小说")
+        db_session.add(novel)
+        db_session.commit()
+        chapter = Chapter(
+            novel_id=novel.id,
+            number=1,
+            title="批量视频章节",
+            content="内容",
+        )
+        db_session.add(chapter)
+        db_session.commit()
+        shots = [
+            Shot(
+                chapter_id=chapter.id,
+                index=index,
+                description=f"分镜{index}",
+                characters="[]",
+                props="[]",
+                duration=4,
+                image_url=f"/api/files/test/image-{index}.png",
+                image_status="completed",
+                video_status="pending",
+            )
+            for index in (1, 2)
+        ]
+        db_session.add_all(shots)
+        db_session.commit()
+
+        response = client.post(
+            f"/api/novels/{novel.id}/chapters/{chapter.id}/shot-videos/batch",
+            json={"shot_ids": [shot.id for shot in shots], "auto_complete_details": True},
+        )
+
+        assert response.status_code == 200
+        data = response.json()["data"]
+        parent = db_session.query(Task).filter(Task.id == data["batchTaskId"]).one()
+        children = db_session.query(Task).filter(
+            Task.parent_task_id == parent.id,
+            Task.type == "shot_video",
+        ).order_by(Task.batch_order).all()
+        assert parent.type == "shot_video_batch"
+        assert parent.status == "pending"
+        assert json.loads(parent.metadata_json)["auto_complete_details"] is True
+        assert [child.shot_id for child in children] == [shot.id for shot in shots]
+        assert [child.batch_order for child in children] == [1, 2]
+        assert all(child.status == "pending" for child in children)
+        assert [shot.video_task_id for shot in shots] == [child.id for child in children]
+        mock_enqueue.assert_called_once_with(parent.id)
 
     @patch("app.api.shots.generate_shot_video_task")
     @patch("app.repositories.workflow_repository.WorkflowRepository.get_active_by_type")
