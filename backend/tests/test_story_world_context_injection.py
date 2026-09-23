@@ -123,4 +123,5 @@ def test_default_asset_parse_prompts_contain_domain_rules():
     assert "material_culture.architecture" in scene
     assert "现代灯具" not in scene
     assert "【示例输出】" not in scene
+    assert "不得使用可能产生跨时代理解的模糊名称" in scene
     assert "material_culture.objects" in prop

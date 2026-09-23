@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '../../../stores/toastStore';
 import { useTranslation } from '../../../stores/i18nStore';
-import { llmLogsApi, type LLMLog, type Pagination, type FilterOptions, type LLMLogFilters, type LLMLogStatsGroupBy, type LLMLogStatsResponse } from '../../../api/llmLogs';
+import { llmLogsApi, type LLMLog, type Pagination, type FilterOptions, type LLMLogFilters, type LLMLogStatsGroupBy, type LLMLogStatsResponse, type LLMLogTokenStatsResponse } from '../../../api/llmLogs';
 
 export type PromptTab = 'params' | 'system' | 'user' | 'response';
 
@@ -44,6 +44,11 @@ export function useLLMLogsState() {
   const [statsRangeValue, setStatsRangeValue] = useState(1);
   const [statsData, setStatsData] = useState<LLMLogStatsResponse | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
+  const [showTokenStatsModal, setShowTokenStatsModal] = useState(false);
+  const [tokenStatsGroupBy, setTokenStatsGroupBy] = useState<LLMLogStatsGroupBy>('hour');
+  const [tokenStatsRangeValue, setTokenStatsRangeValue] = useState(1);
+  const [tokenStatsData, setTokenStatsData] = useState<LLMLogTokenStatsResponse | null>(null);
+  const [tokenStatsLoading, setTokenStatsLoading] = useState(false);
   const [durationNow, setDurationNow] = useState(() => Date.now());
   const fetchLogsRequestRef = useRef(0);
 
@@ -270,10 +275,45 @@ export function useLLMLogsState() {
     fetchStats(statsGroupBy, rangeValue);
   };
 
+  const fetchTokenStats = useCallback(async (groupBy = tokenStatsGroupBy, rangeValue = tokenStatsRangeValue) => {
+    setTokenStatsLoading(true);
+    try {
+      const data = await llmLogsApi.fetchTokenStats(groupBy, rangeValue, filters);
+      if (data.success && data.data) setTokenStatsData(data.data);
+      else toast.error(data.message || '加载 Token 消耗失败');
+    } catch (error) {
+      console.error('加载 Token 消耗失败:', error);
+      toast.error('加载 Token 消耗失败');
+    } finally {
+      setTokenStatsLoading(false);
+    }
+  }, [filters, tokenStatsGroupBy, tokenStatsRangeValue]);
+
+  const openTokenStatsModal = () => {
+    setShowTokenStatsModal(true);
+    fetchTokenStats();
+  };
+
+  const closeTokenStatsModal = () => setShowTokenStatsModal(false);
+
+  const changeTokenStatsGroupBy = (groupBy: LLMLogStatsGroupBy) => {
+    const defaultRange = groupBy === 'day' ? 7 : 1;
+    setTokenStatsGroupBy(groupBy);
+    setTokenStatsRangeValue(defaultRange);
+    fetchTokenStats(groupBy, defaultRange);
+  };
+
+  const changeTokenStatsRangeValue = (rangeValue: number) => {
+    setTokenStatsRangeValue(rangeValue);
+    fetchTokenStats(tokenStatsGroupBy, rangeValue);
+  };
+
   return {
     logs, pagination, loading, filters, filterOptions, taskCategoryOptions: TASK_CATEGORY_OPTIONS, taskTypeOptions, selectedLog, activePromptTab, autoRefreshInterval,
     setPagination, setSelectedLog, setActivePromptTab, handleFilterChange, applyFilters, resetFilters, openLogDetail,
     setAutoRefreshInterval, fetchLogs, formatDate, truncateText, getDisplayDuration, getTaskTypeLabel, getTaskTypeNameLabel, getTaskTypeCategoryLabel, getStatusBadgeConfig, closeModal,
     showStatsModal, statsGroupBy, statsRangeValue, statsData, statsLoading, openStatsModal, closeStatsModal, changeStatsGroupBy, changeStatsRangeValue, fetchStats,
+    showTokenStatsModal, tokenStatsGroupBy, tokenStatsRangeValue, tokenStatsData, tokenStatsLoading,
+    openTokenStatsModal, closeTokenStatsModal, changeTokenStatsGroupBy, changeTokenStatsRangeValue, fetchTokenStats,
   };
 }

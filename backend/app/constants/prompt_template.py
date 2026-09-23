@@ -11,6 +11,7 @@ from typing import Dict, List
 
 class PromptTemplateType:
     """提示词模板类型"""
+    STORY_WORLD_CONTEXT_RECOMMENDER = "story_world_context_recommender"
     # 风格提示词 - 用于图片生成的风格描述（独立模板类型，不再是属性）
     STYLE = "style"
     # 角色解析提示词 - 用于从小说文本中解析角色信息
@@ -49,6 +50,7 @@ class PromptTemplateType:
 
 # 所有提示词模板类型列表（按使用顺序排列）
 PROMPT_TEMPLATE_TYPES: List[str] = [
+    PromptTemplateType.STORY_WORLD_CONTEXT_RECOMMENDER,
     PromptTemplateType.STYLE,
     PromptTemplateType.CHARACTER_PARSE,
     PromptTemplateType.SCENE_PARSE,
@@ -71,53 +73,68 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
 
 # 提示词模板类型配置（包含显示名称和描述的国际化键）
 PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
+    PromptTemplateType.STORY_WORLD_CONTEXT_RECOMMENDER: {
+        "name_key": "promptConfig.types.storyWorldContextRecommender",
+        "desc_key": "promptConfig.types.storyWorldContextRecommenderDesc",
+        "icon": "Globe2",
+        "color": "teal",
+        "file_number": "01",
+    },
     PromptTemplateType.STYLE: {
         "name_key": "promptConfig.types.style",
         "desc_key": "promptConfig.types.styleDesc",
         "icon": "Palette",
         "color": "pink",
+        "file_number": "02",
     },
     PromptTemplateType.CHARACTER_PARSE: {
         "name_key": "promptConfig.types.characterParse",
         "desc_key": "promptConfig.types.characterParseDesc",
         "icon": "Users",
         "color": "blue",
+        "file_number": "03",
     },
     PromptTemplateType.SCENE_PARSE: {
         "name_key": "promptConfig.types.sceneParse",
         "desc_key": "promptConfig.types.sceneParseDesc",
         "icon": "MapPin",
         "color": "green",
+        "file_number": "03",
     },
     PromptTemplateType.CHARACTER: {
         "name_key": "promptConfig.types.character",
         "desc_key": "promptConfig.types.characterDesc",
         "icon": "User",
         "color": "purple",
+        "file_number": "04",
     },
     PromptTemplateType.SCENE: {
         "name_key": "promptConfig.types.scene",
         "desc_key": "promptConfig.types.sceneDesc",
         "icon": "Image",
         "color": "orange",
+        "file_number": "04",
     },
     PromptTemplateType.PROP_PARSE: {
         "name_key": "promptConfig.types.propParse",
         "desc_key": "promptConfig.types.propParseDesc",
         "icon": "Package",
         "color": "yellow",
+        "file_number": "03",
     },
     PromptTemplateType.CHAPTER_SPLIT: {
         "name_key": "promptConfig.types.chapterSplit",
         "desc_key": "promptConfig.types.chapterSplitDesc",
         "icon": "BookOpen",
         "color": "cyan",
+        "file_number": "05",
     },
     PromptTemplateType.PROP: {
         "name_key": "promptConfig.types.prop",
         "desc_key": "promptConfig.types.propDesc",
         "icon": "Box",
         "color": "amber",
+        "file_number": "04",
     },
     PromptTemplateType.KEYFRAME_DESCRIPTION: {
         "name_key": "promptConfig.types.keyframeDescription",
@@ -130,49 +147,63 @@ PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
         "desc_key": "promptConfig.types.shotImagePromptDesc",
         "icon": "Image",
         "color": "cyan",
+        "file_number": "06",
     },
     PromptTemplateType.VIDEO_MODE_RECOMMENDER: {
         "name_key": "promptConfig.types.videoModeRecommender",
         "desc_key": "promptConfig.types.videoModeRecommenderDesc",
         "icon": "SlidersHorizontal",
         "color": "violet",
+        "file_number": "07",
     },
     PromptTemplateType.KEYFRAME_PLANNER: {
         "name_key": "promptConfig.types.keyframePlanner",
         "desc_key": "promptConfig.types.keyframePlannerDesc",
         "icon": "Film",
         "color": "indigo",
+        "file_number": "08",
     },
     PromptTemplateType.KEYFRAME_IMAGE_PROMPT: {
         "name_key": "promptConfig.types.keyframeImagePrompt",
         "desc_key": "promptConfig.types.keyframeImagePromptDesc",
         "icon": "Images",
         "color": "emerald",
+        "file_number": "09",
     },
     PromptTemplateType.KEYFRAME_TRANSITION: {
         "name_key": "promptConfig.types.keyframeTransition",
         "desc_key": "promptConfig.types.keyframeTransitionDesc",
         "icon": "Route",
         "color": "violet",
+        "file_number": "10",
     },
     PromptTemplateType.H3_SINGLE_FRAME_PROMPT: {
         "name_key": "promptConfig.types.h3SingleFramePrompt",
         "desc_key": "promptConfig.types.h3SingleFramePromptDesc",
         "icon": "Video",
         "color": "rose",
+        "file_number": "11",
     },
     PromptTemplateType.H3_FIRST_LAST_FRAME_PROMPT: {
         "name_key": "promptConfig.types.h3FirstLastFramePrompt",
         "desc_key": "promptConfig.types.h3FirstLastFramePromptDesc",
         "icon": "Video",
         "color": "rose",
+        "file_number": "12",
     },
     PromptTemplateType.H3_MULTI_KEYFRAME_PROMPT: {
         "name_key": "promptConfig.types.h3MultiKeyframePrompt",
         "desc_key": "promptConfig.types.h3MultiKeyframePromptDesc",
         "icon": "Video",
         "color": "rose",
+        "file_number": "13",
     },
+}
+
+PROMPT_TEMPLATE_FILE_NUMBERS = {
+    template_type: config["file_number"]
+    for template_type, config in PROMPT_TEMPLATE_TYPE_CONFIG.items()
+    if config.get("file_number")
 }
 
 

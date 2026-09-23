@@ -21,7 +21,7 @@ COMMON_RULES = """【故事世界上下文（必须严格遵守）】
 
 DOMAIN_RULES = {
     "parse_characters": "角色的外貌补全、服装、发式、冠帽、饰品和身份视觉表现，必须符合时代、地域、文化体系及 material_culture.clothing。",
-    "parse_scenes": "场景的建筑、街道、室内空间、陈设、照明和环境视觉补全，必须符合时代、地域、文化体系、technology_level 及 material_culture.architecture。",
+    "parse_scenes": "场景的建筑、街道、室内空间、陈设、照明和环境视觉补全，必须符合时代、地域、文化体系、technology_level 及 material_culture.architecture。对照明、交通、机械设施、城市设施等时代敏感元素，不得使用可能产生跨时代理解的模糊名称；如需补全，必须明确为符合当前技术水平的具体形态，无法可靠确定时不主动补充。",
     "parse_props": "道具的形制、材质、工艺、用途和技术表现，必须符合时代、地域、文化体系、technology_level 及 material_culture.objects。",
 }
 

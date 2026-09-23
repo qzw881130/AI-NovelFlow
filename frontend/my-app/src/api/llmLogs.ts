@@ -1,7 +1,7 @@
 /**
  * LLM 日志相关 API
  */
-import { api } from './index';
+import { api, API_BASE } from './index';
 
 export interface LLMLog {
   id: string;
@@ -76,6 +76,21 @@ export interface LLMLogStatsResponse {
   items: LLMLogStatsItem[];
 }
 
+export interface LLMLogTokenStatsItem {
+  key: string;
+  label: string;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface LLMLogTokenStatsResponse {
+  group_by: LLMLogStatsGroupBy;
+  range_value: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  items: LLMLogTokenStatsItem[];
+}
+
 export const llmLogsApi = {
   /** 获取日志列表 */
   fetchList: (page: number, pageSize: number, filters: LLMLogFilters) => {
@@ -103,5 +118,40 @@ export const llmLogsApi = {
       if (value) params.append(key, value);
     });
     return api.get<LLMLogStatsResponse>(`/llm-logs/stats?${params}`);
+  },
+
+  /** 获取 Token 消耗统计 */
+  fetchTokenStats: (groupBy: LLMLogStatsGroupBy, rangeValue: number, filters: LLMLogFilters) => {
+    const params = new URLSearchParams();
+    params.append('group_by', groupBy);
+    params.append('range_value', String(rangeValue));
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.append(key, value);
+    });
+    return api.get<LLMLogTokenStatsResponse>(`/llm-logs/token-stats?${params}`);
+  },
+
+  /** 打包下载所选日志的完整 LLM 参数与响应 */
+  downloadSelected: async (ids: string[]) => {
+    const response = await fetch(`${API_BASE}/llm-logs/export-selected`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.detail || data.message || '打包下载失败');
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const filename = disposition.match(/filename="?([^";]+)"?/)?.[1] || 'llm_logs.zip';
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   },
 };

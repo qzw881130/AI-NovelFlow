@@ -1,10 +1,13 @@
-import { ScrollText, ChevronLeft, ChevronRight, Filter, Eye, RefreshCw, BarChart3, X, Loader2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { ScrollText, ChevronLeft, ChevronRight, Filter, Eye, RefreshCw, BarChart3, X, Loader2, Download } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import type { LLMLog } from '../../api/llmLogs';
 import { useLLMLogsState } from './hooks/useLLMLogsState';
 import { LogDetailModal } from './components/LogDetailModal';
 import { LogSpeed } from './components/LogSpeed';
 import { ProviderLogo } from '../../components/ProviderLogo';
+import { llmLogsApi } from '../../api/llmLogs';
+import { toast } from '../../stores/toastStore';
 
 function StatsModal({ state }: { state: ReturnType<typeof useLLMLogsState> }) {
   const maxCount = Math.max(1, ...(state.statsData?.items || []).map(item => item.count));
@@ -103,8 +106,113 @@ function StatsModal({ state }: { state: ReturnType<typeof useLLMLogsState> }) {
   );
 }
 
-function LogTableRow({ log, onView, formatDate, truncateText, getTaskTypeLabel, getDisplayDuration, getStatusBadgeConfig }: {
+const formatTokenCount = (value: number) => new Intl.NumberFormat('zh-CN').format(value);
+
+function TokenStatsModal({ state }: { state: ReturnType<typeof useLLMLogsState> }) {
+  const items = state.tokenStatsData?.items || [];
+  const maxTokens = Math.max(1, ...items.flatMap(item => [item.input_tokens, item.output_tokens]));
+  const visibleTickEvery = state.tokenStatsGroupBy === 'minute' ? 10 : state.tokenStatsGroupBy === 'hour' ? 4 : 1;
+  const rangeOptions = state.tokenStatsGroupBy === 'day'
+    ? [{ value: 7, label: '最近 7 天' }, { value: 31, label: '最近 31 天' }]
+    : state.tokenStatsGroupBy === 'hour'
+      ? [{ value: 1, label: '最近 1 天' }, { value: 3, label: '最近 3 天' }]
+      : [{ value: 1, label: '最近 1 小时' }];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={state.closeTokenStatsModal}>
+      <div className="w-full max-w-5xl rounded-xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Token 消耗</h2>
+            <p className="text-sm text-gray-500">按当前筛选条件统计输入和输出 Token</p>
+          </div>
+          <button type="button" onClick={state.closeTokenStatsModal} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4 p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2">
+              {(['day', 'hour', 'minute'] as const).map(groupBy => (
+                <button
+                  key={groupBy}
+                  type="button"
+                  onClick={() => state.changeTokenStatsGroupBy(groupBy)}
+                  className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${state.tokenStatsGroupBy === groupBy ? 'bg-primary-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                >
+                  {groupBy === 'day' ? '按天' : groupBy === 'hour' ? '按小时' : '按分钟'}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={state.tokenStatsRangeValue}
+                onChange={(event) => state.changeTokenStatsRangeValue(Number(event.target.value))}
+                className="h-9 w-32 rounded-lg border border-gray-300 bg-white px-3 py-0 text-sm leading-9 text-gray-700 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                {rangeOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+              <button type="button" onClick={() => state.fetchTokenStats()} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">
+                <RefreshCw className="h-4 w-4" />刷新
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-xl bg-gray-50 p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap gap-4 text-sm font-medium">
+                <span className="inline-flex items-center gap-1.5 text-blue-700"><span className="h-2.5 w-2.5 rounded-sm bg-blue-500" />输入 {state.tokenStatsData ? formatTokenCount(state.tokenStatsData.total_input_tokens) : '-'}</span>
+                <span className="inline-flex items-center gap-1.5 text-violet-700"><span className="h-2.5 w-2.5 rounded-sm bg-violet-500" />输出 {state.tokenStatsData ? formatTokenCount(state.tokenStatsData.total_output_tokens) : '-'}</span>
+              </div>
+              <div className="text-xs text-gray-500">单位：Token</div>
+            </div>
+            {state.tokenStatsLoading ? (
+              <div className="flex h-80 items-center justify-center text-gray-500">
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />加载 Token 消耗中...
+              </div>
+            ) : !state.tokenStatsData || items.every(item => item.input_tokens === 0 && item.output_tokens === 0) ? (
+              <div className="flex h-80 items-center justify-center text-gray-500">暂无 Token 消耗数据</div>
+            ) : (
+              <div className="h-80">
+                <div className="flex h-64 items-end gap-1 border-b border-gray-300 px-1 pt-6">
+                  {items.map((item) => (
+                    <div key={item.key} className="group relative flex min-w-0 flex-1 items-end justify-center gap-px">
+                      <div className="absolute bottom-full z-10 mb-2 hidden rounded bg-gray-900 px-2 py-1 text-xs text-white shadow group-hover:block whitespace-nowrap">
+                        {item.key} · 输入 {formatTokenCount(item.input_tokens)} · 输出 {formatTokenCount(item.output_tokens)}
+                      </div>
+                      <div
+                        className="w-[45%] max-w-4 rounded-t bg-blue-500"
+                        style={{ height: `${Math.max(item.input_tokens > 0 ? 4 : 1, (item.input_tokens / maxTokens) * 220)}px` }}
+                      />
+                      <div
+                        className="w-[45%] max-w-4 rounded-t bg-violet-500"
+                        style={{ height: `${Math.max(item.output_tokens > 0 ? 4 : 1, (item.output_tokens / maxTokens) * 220)}px` }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 flex gap-1 px-1 text-[11px] text-gray-500">
+                  {items.map((item, index) => (
+                    <div key={item.key} className="min-w-0 flex-1 text-center">
+                      {index % visibleTickEvery === 0 || index === items.length - 1 ? <span className="truncate block">{item.label}</span> : null}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LogTableRow({ log, selected, onSelectionStart, onSelectionEnter, onView, formatDate, truncateText, getTaskTypeLabel, getDisplayDuration, getStatusBadgeConfig }: {
   log: LLMLog; onView: () => void; formatDate: (d: string) => string;
+  selected: boolean;
+  onSelectionStart: (id: string) => void;
+  onSelectionEnter: (id: string) => void;
   truncateText: (t: string, m?: number) => string; getTaskTypeLabel: (t: string | null) => string;
   getDisplayDuration: (log: LLMLog) => string;
   getStatusBadgeConfig: (s: string) => { bg: string; text: string; label: string };
@@ -112,7 +220,21 @@ function LogTableRow({ log, onView, formatDate, truncateText, getTaskTypeLabel, 
   const { t } = useTranslation();
   const badge = getStatusBadgeConfig(log.status);
   return (
-    <tr className="hover:bg-gray-50">
+    <tr
+      className={selected ? 'bg-blue-50/60 hover:bg-blue-50' : 'hover:bg-gray-50'}
+      onPointerEnter={() => onSelectionEnter(log.id)}
+    >
+      <td
+        className="w-14 cursor-pointer select-none px-4 py-3 text-center"
+        onPointerDown={(event) => {
+          if (event.button !== 0) return;
+          event.preventDefault();
+          onSelectionStart(log.id);
+        }}
+        title="按住鼠标并拖过其他行可连续选择"
+      >
+        <input type="checkbox" checked={selected} readOnly tabIndex={-1} className="pointer-events-none h-4 w-4 rounded border-gray-300 text-primary-600" aria-label={`选择日志 ${log.id}`} />
+      </td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{formatDate(log.created_at)}</td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
         <span className="inline-flex items-center gap-2" title={log.provider}>
@@ -144,6 +266,69 @@ function LogTableRow({ log, onView, formatDate, truncateText, getTaskTypeLabel, 
 export default function LLMLogs() {
   const { t } = useTranslation();
   const state = useLLMLogsState();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [isDownloading, setIsDownloading] = useState(false);
+  const dragSelectionValue = useRef<boolean | null>(null);
+
+  useEffect(() => {
+    const stopDragging = () => {
+      dragSelectionValue.current = null;
+      document.body.style.userSelect = '';
+    };
+    window.addEventListener('pointerup', stopDragging);
+    window.addEventListener('pointercancel', stopDragging);
+    window.addEventListener('blur', stopDragging);
+    return () => {
+      window.removeEventListener('pointerup', stopDragging);
+      window.removeEventListener('pointercancel', stopDragging);
+      window.removeEventListener('blur', stopDragging);
+      document.body.style.userSelect = '';
+    };
+  }, []);
+
+  const updateSelection = (id: string, selected: boolean) => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (selected) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const beginDragSelection = (id: string) => {
+    const shouldSelect = !selectedIds.has(id);
+    dragSelectionValue.current = shouldSelect;
+    document.body.style.userSelect = 'none';
+    updateSelection(id, shouldSelect);
+  };
+
+  const continueDragSelection = (id: string) => {
+    if (dragSelectionValue.current !== null) updateSelection(id, dragSelectionValue.current);
+  };
+
+  const pageIds = state.logs.map((log) => log.id);
+  const allPageSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.has(id));
+  const toggleCurrentPage = () => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (allPageSelected) pageIds.forEach((id) => next.delete(id));
+      else pageIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const downloadSelected = async () => {
+    if (!selectedIds.size) return;
+    setIsDownloading(true);
+    try {
+      await llmLogsApi.downloadSelected(Array.from(selectedIds));
+      toast.success(`已打包 ${selectedIds.size} 条大模型日志`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '打包下载失败');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -223,14 +408,36 @@ export default function LLMLogs() {
 
       {/* Logs Table */}
       <div className="card overflow-hidden">
-        <div className="flex items-center justify-end border-b border-gray-100 px-4 py-3">
-          <button
-            type="button"
-            onClick={state.openStatsModal}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-          >
-            <BarChart3 className="h-4 w-4" />查看调用统计
-          </button>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3">
+          <div className="flex items-center gap-3 text-sm text-gray-600">
+            <span>已选择 {selectedIds.size} 条</span>
+            {selectedIds.size > 0 && <button type="button" onClick={() => setSelectedIds(new Set())} className="text-gray-500 hover:text-gray-800">清空选择</button>}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void downloadSelected()}
+              disabled={!selectedIds.size || isDownloading}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {isDownloading ? '打包中...' : '打包下载'}
+            </button>
+            <button
+              type="button"
+              onClick={state.openStatsModal}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <BarChart3 className="h-4 w-4" />查看调用统计
+            </button>
+            <button
+              type="button"
+              onClick={state.openTokenStatsModal}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+            >
+              <BarChart3 className="h-4 w-4" />查看 Token 消耗
+            </button>
+          </div>
         </div>
         {state.loading ? (
           <div className="flex justify-center py-12"><div className="animate-spin h-6 w-6 border-2 border-primary-600 border-t-transparent rounded-full" /></div>
@@ -244,6 +451,12 @@ export default function LLMLogs() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="w-14 px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">
+                    <label className="inline-flex cursor-pointer flex-col items-center gap-1 normal-case">
+                      <input type="checkbox" checked={allPageSelected} onChange={toggleCurrentPage} className="h-4 w-4 rounded border-gray-300 text-primary-600" />
+                      <span>选择</span>
+                    </label>
+                  </th>
                   {[
                     t('llmLogs.timestamp'), t('llmLogs.llmProvider'), t('llmLogs.model'), t('llmLogs.taskType'),
                     t('llmLogs.promptTemplateName'), t('common.status'), t('llmLogs.proxy'), t('llmLogs.duration'), t('llmLogs.speed'), t('llmLogs.promptPreview'), t('common.actions')
@@ -254,7 +467,9 @@ export default function LLMLogs() {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {state.logs.map((log) => (
-                  <LogTableRow key={log.id} log={log} onView={() => state.openLogDetail(log)}
+                  <LogTableRow key={log.id} log={log} selected={selectedIds.has(log.id)}
+                    onSelectionStart={beginDragSelection} onSelectionEnter={continueDragSelection}
+                    onView={() => state.openLogDetail(log)}
                     formatDate={state.formatDate} truncateText={state.truncateText}
                     getDisplayDuration={state.getDisplayDuration}
                     getTaskTypeLabel={state.getTaskTypeLabel} getStatusBadgeConfig={state.getStatusBadgeConfig} />
@@ -290,6 +505,7 @@ export default function LLMLogs() {
           getDisplayDuration={state.getDisplayDuration} getStatusBadgeConfig={state.getStatusBadgeConfig} />
       )}
       {state.showStatsModal && <StatsModal state={state} />}
+      {state.showTokenStatsModal && <TokenStatsModal state={state} />}
     </div>
   );
 }
