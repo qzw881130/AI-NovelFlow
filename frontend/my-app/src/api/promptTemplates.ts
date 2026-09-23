@@ -6,6 +6,7 @@ import type { PromptTemplate } from '../types';
 
 // 提示词模板类型
 export type TemplateType =
+  | 'story_world_context_recommender'
   | 'style'
   | 'character_parse'
   | 'scene_parse'

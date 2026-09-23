@@ -24,6 +24,7 @@ router = APIRouter(tags=["prompt_templates"])
 
 
 PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
+    ("故事上下文", [("story_world_context_recommender", "故事世界上下文推荐")]),
     ("素材解析", [
         ("character_parse", "角色解析提示词"),
         ("scene_parse", "场景解析提示词"),

@@ -33,6 +33,22 @@ class NovelService:
     def get_llm_service(self) -> LLMService:
         """获取 LLMService 实例（每次调用创建新实例以获取最新配置）"""
         return LLMService()
+
+    def _resolve_parse_template(self, novel_id: str, template_type: str):
+        novel = self.db.query(Novel).filter(Novel.id == novel_id).first()
+        attr_by_type = {
+            "character_parse": "character_parse_prompt_template_id",
+            "scene_parse": "scene_parse_prompt_template_id",
+            "prop_parse": "prop_parse_prompt_template_id",
+        }
+        configured_id = getattr(novel, attr_by_type[template_type], None) if novel else None
+        template = self.db.query(PromptTemplate).filter(PromptTemplate.id == configured_id).first() if configured_id else None
+        if not template:
+            template = self.db.query(PromptTemplate).filter(
+                PromptTemplate.type == template_type,
+                PromptTemplate.is_system == True,
+            ).order_by(PromptTemplate.created_at.asc()).first()
+        return template
     
     # ==================== 角色解析 ====================
     
@@ -72,7 +88,14 @@ class NovelService:
         
         try:
             # 调用 LLM 解析文本提取角色
-            result = await self.get_llm_service().parse_novel_text(full_text, novel_id=novel_id, source_range=source_range)
+            template = self._resolve_parse_template(novel_id, "character_parse")
+            result = await self.get_llm_service().parse_novel_text(
+                full_text,
+                novel_id=novel_id,
+                source_range=source_range,
+                prompt_template=template.template if template else None,
+                prompt_template_name=template.name if template else None,
+            )
             
             if "error" in result:
                 return {"success": False, "message": f"解析失败: {result['error']}"}
@@ -244,17 +267,14 @@ class NovelService:
         try:
             # 获取道具解析提示词模板
             prompt_template = None
-            template = self.db.query(PromptTemplate).filter(
-                PromptTemplate.type == 'prop_parse',
-                PromptTemplate.is_system == True
-            ).order_by(PromptTemplate.created_at.asc()).first()
+            template = self._resolve_parse_template(novel_id, "prop_parse")
 
             if template:
                 prompt_template = template.template
 
             # 如果没有系统模板，使用默认模板文件
             if not prompt_template:
-                template_path = os.path.join(os.path.dirname(__file__), '..', 'prompt_templates', 'prop_parse.txt')
+                template_path = os.path.join(os.path.dirname(__file__), '..', '..', 'prompt_templates', 'prop_parse.txt')
                 if os.path.exists(template_path):
                     with open(template_path, "r", encoding="utf-8") as f:
                         prompt_template = f.read()
@@ -262,6 +282,7 @@ class NovelService:
             # 调用 LLM 解析文本提取道具
             result = await self.get_llm_service().parse_props(
                 text=full_text[:150000],  # 限制长度
+                novel_id=novel_id,
                 prompt_template=prompt_template,
                 prompt_template_name=template.name if template else "默认道具解析提示词"
             )
@@ -404,11 +425,10 @@ class NovelService:
         # 获取场景解析提示词模板
         prompt_template = None
         prompt_template_name = None
-        if prompt_template_repo:
-            templates = prompt_template_repo.list_by_type('scene_parse')
-            if templates:
-                prompt_template = templates[0].template
-                prompt_template_name = templates[0].name
+        template = self._resolve_parse_template(novel_id, "scene_parse")
+        if template:
+            prompt_template = template.template
+            prompt_template_name = template.name
         
         try:
             # 调用 LLM 解析场景
@@ -527,10 +547,7 @@ class NovelService:
             return {"success": False, "message": "章节内容为空"}
         
         # 获取场景解析提示词模板
-        template = self.db.query(PromptTemplate).filter(
-            PromptTemplate.type == 'scene_parse',
-            PromptTemplate.is_system == True
-        ).order_by(PromptTemplate.created_at.asc()).first()
+        template = self._resolve_parse_template(novel_id, "scene_parse")
         
         prompt_template = template.template if template else None
         

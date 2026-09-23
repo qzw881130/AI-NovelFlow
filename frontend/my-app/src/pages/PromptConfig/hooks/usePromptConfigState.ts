@@ -8,6 +8,7 @@ import { DEFAULT_CHARACTER_TEMPLATE, DEFAULT_CHAPTER_SPLIT_TEMPLATE, DEFAULT_STY
 
 // 模板类型配置
 export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descKey: string; defaultTemplate: string; fileNumber?: string }> = {
+  story_world_context_recommender: { nameKey: 'promptConfig.types.storyWorldContextRecommender', descKey: 'promptConfig.types.storyWorldContextRecommenderDesc', defaultTemplate: '', fileNumber: '01' },
   style: { nameKey: 'promptConfig.types.style', descKey: 'promptConfig.types.styleDesc', defaultTemplate: DEFAULT_STYLE_TEMPLATE },
   character_parse: { nameKey: 'promptConfig.types.characterParse', descKey: 'promptConfig.types.characterParseDesc', defaultTemplate: '' },
   scene_parse: { nameKey: 'promptConfig.types.sceneParse', descKey: 'promptConfig.types.sceneParseDesc', defaultTemplate: '' },
@@ -28,6 +29,7 @@ export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descK
 };
 
 export const TEMPLATE_TYPES: TemplateType[] = [
+  'story_world_context_recommender',
   'style',
   'character_parse',
   'scene_parse',
@@ -52,6 +54,7 @@ export function usePromptConfigState() {
 
   // 各类型模板状态
   const [templatesByType, setTemplatesByType] = useState<Record<TemplateType, PromptTemplate[]>>({
+    story_world_context_recommender: [],
     style: [],
     character_parse: [],
     scene_parse: [],
@@ -71,6 +74,7 @@ export function usePromptConfigState() {
     h3_multi_keyframe_prompt: [],
   });
   const [loadingByType, setLoadingByType] = useState<Record<TemplateType, boolean>>({
+    story_world_context_recommender: true,
     style: true,
     character_parse: true,
     scene_parse: true,

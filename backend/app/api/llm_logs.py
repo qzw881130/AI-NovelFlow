@@ -17,6 +17,7 @@ from app.repositories import LLMLogRepository
 router = APIRouter()
 
 LLM_LOG_TASK_CATEGORY_TYPES = {
+    "story_context": ["story_world_context_recommender"],
     "style_design": ["style"],
     "asset_parse": ["parse_characters", "parse_scenes", "parse_props"],
     "asset_generation": ["generate_character_appearance"],

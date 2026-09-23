@@ -124,6 +124,9 @@ class LLMService:
         if final_max_tokens is None:
             final_max_tokens = DEFAULT_MAX_TOKENS
         final_max_tokens = self._normalize_max_tokens(final_max_tokens)
+        from app.services.story_world_context import ensure_story_world_context_rules, inject_locked_story_world_context
+        system_prompt = ensure_story_world_context_rules(system_prompt, task_type)
+        user_content = inject_locked_story_world_context(novel_id, task_type, user_content)
         print(f"[chat_completion] url: {self.api_url}, model: {self.model}, temperature: {final_temperature}, max_tokens: {final_max_tokens} \n system_prompt: {system_prompt}\n user_content: {user_content}")
 
         client = self._get_client()
@@ -155,12 +158,19 @@ class LLMService:
 
     # ============== 业务方法 ==============
 
-    async def parse_novel_text(self, text: str, novel_id: str = None, source_range: str = None) -> Dict[str, Any]:
+    async def parse_novel_text(
+        self,
+        text: str,
+        novel_id: str = None,
+        source_range: str = None,
+        prompt_template: str = None,
+        prompt_template_name: str = None,
+    ) -> Dict[str, Any]:
         """解析小说文本，提取角色、场景、分镜信息（支持章节范围）"""
         # 获取当前配置
         from app.core.config import get_settings
         settings = get_settings()
-        system_prompt = settings.PARSE_CHARACTERS_PROMPT or DEFAULT_PARSE_CHARACTERS_PROMPT
+        system_prompt = prompt_template or settings.PARSE_CHARACTERS_PROMPT or DEFAULT_PARSE_CHARACTERS_PROMPT
 
         # 替换章节范围占位符
         if source_range:
@@ -175,7 +185,7 @@ class LLMService:
             max_tokens=NOVEL_TEXT_MAX_LENGTH,
             response_format="json_object",
             task_type="parse_characters",
-            prompt_template_name="系统配置角色解析提示词",
+            prompt_template_name=prompt_template_name or ("小说配置角色解析提示词" if prompt_template else "系统配置角色解析提示词"),
             novel_id=novel_id
         )
 
@@ -375,6 +385,7 @@ class LLMService:
     async def parse_props(
         self,
         text: str,
+        novel_id: str = None,
         prompt_template: str = None,
         prompt_template_name: str = None
     ) -> Dict[str, Any]:
@@ -391,7 +402,7 @@ class LLMService:
         # 使用提供的模板或默认模板
         if not prompt_template:
             import os
-            template_path = os.path.join(os.path.dirname(__file__), '..', 'prompt_templates', 'prop_parse.txt')
+            template_path = os.path.join(os.path.dirname(__file__), '..', '..', 'prompt_templates', 'prop_parse.txt')
             if os.path.exists(template_path):
                 with open(template_path, "r", encoding="utf-8") as f:
                     prompt_template = f.read()
@@ -403,7 +414,8 @@ class LLMService:
             max_tokens=4000,
             response_format="json_object",
             task_type="parse_props",
-            prompt_template_name=prompt_template_name or ("自定义道具解析提示词" if prompt_template else "默认道具解析提示词")
+            prompt_template_name=prompt_template_name or ("自定义道具解析提示词" if prompt_template else "默认道具解析提示词"),
+            novel_id=novel_id,
         )
 
         if result["success"]:

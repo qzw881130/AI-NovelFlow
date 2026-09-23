@@ -10,6 +10,7 @@ import type { ChapterRange, ConfirmDialogState, ParseType } from '../types';
 
 // 模板类型列表
 const TEMPLATE_TYPES = [
+  'story_world_context_recommender',
   'style',
   'character_parse',
   'scene_parse',

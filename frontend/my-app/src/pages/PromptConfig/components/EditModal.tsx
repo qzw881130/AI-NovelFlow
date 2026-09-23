@@ -4,6 +4,7 @@ import type { PromptTemplate } from '../../../types';
 import type { TemplateType, PromptForm } from '../types';
 
 const JSON_OUTPUT_TEMPLATE_TYPES: TemplateType[] = [
+  'story_world_context_recommender',
   'character_parse',
   'scene_parse',
   'prop_parse',

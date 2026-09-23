@@ -5,6 +5,7 @@ export interface NovelFormData {
   author: string;
   description: string;
   // 提示词模板关联（每种类型可选择不同模板）
+  storyWorldContextPromptTemplateId: string;
   stylePromptTemplateId: string;
   characterParsePromptTemplateId: string;
   sceneParsePromptTemplateId: string;

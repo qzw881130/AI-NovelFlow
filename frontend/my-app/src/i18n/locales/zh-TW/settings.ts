@@ -155,8 +155,15 @@ export default {
     viewPrompt: '檢視提示詞範本',
     systemPresetReadonly: '系統預設（唯讀）',
 
+    categories: {
+      ...zhCN.promptConfig.categories,
+      storyContext: '故事上下文',
+    },
+
     // 提示詞模板類型
     types: {
+      storyWorldContextRecommender: '故事世界上下文推薦',
+      storyWorldContextRecommenderDesc: '依小說名稱和描述推薦統一的時代、地域、文化、技術與物質世界邊界',
       style: '風格提示詞',
       styleDesc: '可選的渲染風格預設。「系統預設」表示內建來源，並非全部啟用；實際風格依小說選擇或既有後備規則決定。',
       characterParse: '角色解析提示詞',
@@ -183,6 +190,7 @@ export default {
     tipStyle: '僅描述媒介、線條、色彩、材質和光影；保留角色、道具和世界觀，不指定鏡頭、動作或對白。',
     templatePlaceholderStyle: '2D anime rendering, clean linework, flat colors, crisp cel shading',
     templateNames: {
+      '故事世界上下文推荐': '故事世界上下文推薦',
       '标准动漫风格': '標準動漫風格',
       '写实风格': '寫實風格',
       'Q版卡通': 'Q版卡通',
@@ -208,6 +216,7 @@ export default {
       '标准角色解析': '標準角色解析',
     },
     templateDescriptions: {
+      '故事世界上下文推荐': '依小說名稱和描述推薦統一的時代、地域、文化與物質世界邊界',
       '标准动漫风格': '適合大多數動漫角色的標準人設生成',
       '写实风格': '電影級寫實質感，自然光影與可信材質，時代和世界觀遵循故事',
       'Q版卡通': '可愛Q版卡通風格',

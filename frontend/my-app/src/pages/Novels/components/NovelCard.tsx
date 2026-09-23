@@ -1,5 +1,6 @@
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Trash2, Edit2, Users, MapPin, Play, Sparkles, Loader2, Package } from 'lucide-react';
+import { BookOpen, Trash2, Edit2, Users, MapPin, Play, Sparkles, Loader2, Package, Globe2, ChevronDown } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Novel, PromptTemplate } from '../../../types';
 
@@ -11,6 +12,7 @@ interface NovelCardProps {
   parsingPropsNovelId: string | null;
   onDelete: (id: string) => void;
   onEdit: (novel: Novel) => void;
+  onStoryContext: (novel: Novel) => void;
   onParseConfirm: (novelId: string, type: 'characters' | 'scenes' | 'props') => void;
   getTemplateDisplayName: (template: PromptTemplate | undefined) => string;
 }
@@ -29,10 +31,26 @@ export function NovelCard({
   parsingPropsNovelId,
   onDelete,
   onEdit,
+  onStoryContext,
   onParseConfirm,
   getTemplateDisplayName,
 }: NovelCardProps) {
   const { t } = useTranslation();
+  const [isParseMenuOpen, setIsParseMenuOpen] = useState(false);
+  const parseMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isParseMenuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!parseMenuRef.current?.contains(event.target as Node)) {
+        setIsParseMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [isParseMenuOpen]);
 
   // 获取各类型模板
   const styleTemplate = getTemplate(templatesByType, 'style', novel.stylePromptTemplateId);
@@ -75,7 +93,7 @@ export function NovelCard({
         <p className="text-sm text-gray-600 mt-2 line-clamp-2 h-10">
           {novel.description || t('novels.noDescription')}
         </p>
-        <div className="mt-3 flex flex-wrap gap-1.5 h-16 content-start">
+        <div className="mt-3 flex flex-wrap content-start gap-1.5">
           <span className="inline-flex items-center gap-1 px-2 py-1 bg-pink-50 text-pink-600 text-xs rounded whitespace-nowrap">
             <span className="font-medium">{t('novels.stylePrompt')}</span>
             <span className="truncate max-w-[80px]">{getTemplateDisplayName(styleTemplate)}</span>
@@ -99,45 +117,79 @@ export function NovelCard({
         </div>
         <div className="flex flex-col sm:flex-row sm:items-center justify-end mt-4 pt-4 border-t border-gray-100 gap-3">
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => onParseConfirm(novel.id, 'characters')}
-              disabled={parsingNovelId === novel.id}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors disabled:opacity-50 text-sm"
-              title={t('novels.aiParseCharacters')}
-            >
-              {parsingNovelId === novel.id ? (
-                <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
-              ) : (
-                <Sparkles className="h-4 w-4 flex-shrink-0" />
+            <div ref={parseMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setIsParseMenuOpen(open => !open)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors text-sm"
+                aria-haspopup="menu"
+                aria-expanded={isParseMenuOpen}
+              >
+                {(parsingNovelId === novel.id || parsingScenesNovelId === novel.id || parsingPropsNovelId === novel.id) ? (
+                  <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
+                ) : (
+                  <Sparkles className="h-4 w-4 flex-shrink-0" />
+                )}
+                <span>{t('novels.aiParseActions')}</span>
+                <ChevronDown className={`h-4 w-4 transition-transform ${isParseMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {isParseMenuOpen && (
+                <div className="absolute bottom-full left-0 z-30 mb-1 w-60 rounded-lg border border-gray-200 bg-white py-1 shadow-lg" role="menu">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsParseMenuOpen(false);
+                      onStoryContext(novel);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-cyan-700 hover:bg-cyan-50"
+                    role="menuitem"
+                  >
+                    <Globe2 className="h-4 w-4 flex-shrink-0" />
+                    <span className="flex-1">{t('novels.parseStoryWorldContext')}</span>
+                    {novel.storyWorldContextLocked && <span className="rounded bg-cyan-50 px-1 text-[10px]">已锁定</span>}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsParseMenuOpen(false);
+                      onParseConfirm(novel.id, 'characters');
+                    }}
+                    disabled={parsingNovelId === novel.id}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-purple-700 hover:bg-purple-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    role="menuitem"
+                  >
+                    {parsingNovelId === novel.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    {t('novels.aiParseCharacters')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsParseMenuOpen(false);
+                      onParseConfirm(novel.id, 'scenes');
+                    }}
+                    disabled={parsingScenesNovelId === novel.id}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-teal-700 hover:bg-teal-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    role="menuitem"
+                  >
+                    {parsingScenesNovelId === novel.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    {t('novels.aiParseScenes')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsParseMenuOpen(false);
+                      onParseConfirm(novel.id, 'props');
+                    }}
+                    disabled={parsingPropsNovelId === novel.id}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-amber-700 hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    role="menuitem"
+                  >
+                    {parsingPropsNovelId === novel.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    {t('novels.aiParseProps')}
+                  </button>
+                </div>
               )}
-              <span>{t('novels.aiParseCharacters')}</span>
-            </button>
-            <button
-              onClick={() => onParseConfirm(novel.id, 'scenes')}
-              disabled={parsingScenesNovelId === novel.id}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-teal-100 text-teal-600 hover:bg-teal-200 transition-colors disabled:opacity-50 text-sm"
-              title={t('novels.aiParseScenes')}
-            >
-              {parsingScenesNovelId === novel.id ? (
-                <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
-              ) : (
-                <Sparkles className="h-4 w-4 flex-shrink-0" />
-              )}
-              <span>{t('novels.aiParseScenes')}</span>
-            </button>
-            <button
-              onClick={() => onParseConfirm(novel.id, 'props')}
-              disabled={parsingPropsNovelId === novel.id}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-amber-100 text-amber-600 hover:bg-amber-200 transition-colors disabled:opacity-50 text-sm"
-              title={t('novels.aiParseProps')}
-            >
-              {parsingPropsNovelId === novel.id ? (
-                <Loader2 className="h-4 w-4 animate-spin flex-shrink-0" />
-              ) : (
-                <Sparkles className="h-4 w-4 flex-shrink-0" />
-              )}
-              <span>{t('novels.aiParseProps')}</span>
-            </button>
+            </div>
             <Link
               to={`/characters?novel=${novel.id}`}
               className="flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-gray-100 transition-colors flex-shrink-0"

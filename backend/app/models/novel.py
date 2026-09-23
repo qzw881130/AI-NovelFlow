@@ -23,6 +23,10 @@ class Novel(Base):
     is_preset = Column(Boolean, default=False, index=True)  # 预设过滤
     
     # 提示词模板关联（每种类型可选择不同模板）
+    story_world_context_prompt_template_id = Column(String, nullable=True)  # 故事世界上下文推荐提示词模板
+    story_world_context = Column(Text, nullable=True)  # 已确认的故事世界上下文 JSON
+    story_world_context_locked = Column(Boolean, default=False)  # 是否已由用户确认锁定
+    story_world_context_updated_at = Column(DateTime(timezone=True), nullable=True)
     style_prompt_template_id = Column(String, nullable=True)  # 风格提示词模板
     character_parse_prompt_template_id = Column(String, nullable=True)  # 角色解析提示词模板
     scene_parse_prompt_template_id = Column(String, nullable=True)  # 场景解析提示词模板

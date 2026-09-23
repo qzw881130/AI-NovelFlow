@@ -6,6 +6,7 @@ import { llmLogsApi, type LLMLog, type Pagination, type FilterOptions, type LLML
 export type PromptTab = 'params' | 'system' | 'user' | 'response';
 
 const TASK_CATEGORY_TYPES: Record<string, string[]> = {
+  story_context: ['story_world_context_recommender'],
   style_design: ['style'],
   asset_parse: ['parse_characters', 'parse_scenes', 'parse_props'],
   asset_generation: ['generate_character_appearance'],
@@ -17,6 +18,7 @@ const TASK_CATEGORY_TYPES: Record<string, string[]> = {
 };
 
 const TASK_CATEGORY_OPTIONS = [
+  { value: 'story_context', labelKey: 'promptConfig.categories.storyContext' },
   { value: 'style_design', labelKey: 'promptConfig.categories.styleDesign' },
   { value: 'asset_parse', labelKey: 'promptConfig.categories.assetParse' },
   { value: 'asset_generation', labelKey: 'promptConfig.categories.assetGeneration' },
@@ -177,6 +179,7 @@ export function useLLMLogsState() {
 
   const getTaskTypeCategoryLabel = (type: string | null) => {
     const categories: Record<string, string> = {
+      'story_world_context_recommender': '故事上下文',
       'parse_characters': '素材解析',
       'parse_scenes': '素材解析',
       'parse_props': '素材解析',
@@ -199,6 +202,7 @@ export function useLLMLogsState() {
 
   const getTaskTypeNameLabel = (type: string | null) => {
     const labels: Record<string, string> = {
+      'story_world_context_recommender': '故事世界上下文推荐',
       'parse_characters': t('llmLogs.parseCharacters'), 'parse_scenes': t('llmLogs.parseScenes'),
       'parse_props': t('llmLogs.parseProps'),
       'style': '风格提示词',

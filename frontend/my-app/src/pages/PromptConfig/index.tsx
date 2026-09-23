@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Loader2, Plus, FileText, BookOpen, Palette, Users, MapPin, Image, Package, Box, Film, SlidersHorizontal, Route, Video, Download } from 'lucide-react';
+import { Loader2, Plus, FileText, BookOpen, Palette, Users, MapPin, Image, Package, Box, Film, SlidersHorizontal, Route, Video, Download, Globe2 } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import type { PromptTemplate } from '../../types';
 import type { TemplateCategory, TemplateType } from './types';
@@ -13,6 +13,7 @@ import { toast } from '../../stores/toastStore';
 
 // 图标映射
 const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
+  story_world_context_recommender: <Globe2 className="h-4 w-4" />,
   style: <Palette className="h-4 w-4" />,
   character_parse: <Users className="h-4 w-4" />,
   scene_parse: <MapPin className="h-4 w-4" />,
@@ -34,6 +35,7 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
 
 // Tab 标签页颜色映射
 const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; border: string }> = {
+  story_world_context_recommender: { active: 'text-teal-600 bg-teal-50 border-teal-200', inactive: 'text-gray-500 hover:text-teal-600', border: 'border-teal-200' },
   style: { active: 'text-pink-600 bg-pink-50 border-pink-200', inactive: 'text-gray-500 hover:text-pink-600', border: 'border-pink-200' },
   character_parse: { active: 'text-blue-600 bg-blue-50 border-blue-200', inactive: 'text-gray-500 hover:text-blue-600', border: 'border-blue-200' },
   scene_parse: { active: 'text-green-600 bg-green-50 border-green-200', inactive: 'text-gray-500 hover:text-green-600', border: 'border-green-200' },
@@ -54,6 +56,7 @@ const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; borde
 };
 
 const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: TemplateType[] }> = {
+  story_context: { nameKey: 'promptConfig.categories.storyContext', types: ['story_world_context_recommender'] },
   style_design: { nameKey: 'promptConfig.categories.styleDesign', types: ['style'] },
   asset_parse: { nameKey: 'promptConfig.categories.assetParse', types: ['character_parse', 'scene_parse', 'prop_parse'] },
   asset_generation: { nameKey: 'promptConfig.categories.assetGeneration', types: ['character', 'scene', 'prop'] },
@@ -64,9 +67,10 @@ const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: Templa
   video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt'] },
 };
 
-const CATEGORIES: TemplateCategory[] = ['style_design', 'asset_parse', 'asset_generation', 'shot_planning', 'shot_image', 'video_director', 'keyframe_image', 'video_generation'];
+const CATEGORIES: TemplateCategory[] = ['story_context', 'style_design', 'asset_parse', 'asset_generation', 'shot_planning', 'shot_image', 'video_director', 'keyframe_image', 'video_generation'];
 const DEFAULT_ACTIVE_CATEGORY: TemplateCategory = 'asset_parse';
 const DEFAULT_TAB_BY_CATEGORY: Record<TemplateCategory, TemplateType> = {
+  story_context: 'story_world_context_recommender',
   style_design: 'style',
   asset_parse: 'character_parse',
   asset_generation: 'character',

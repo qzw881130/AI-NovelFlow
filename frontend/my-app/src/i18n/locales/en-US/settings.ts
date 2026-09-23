@@ -262,8 +262,22 @@ export default {
     viewPrompt: 'View Prompt Template',
     systemPresetReadonly: 'System Preset (Read-only)',
 
+    categories: {
+      storyContext: 'Story Context',
+      styleDesign: 'Style Design',
+      assetParse: 'Asset Parsing',
+      assetGeneration: 'Asset Generation',
+      shotPlanning: 'Shot Planning',
+      shotImage: 'Shot Image',
+      videoDirector: 'Video Director',
+      keyframeImage: 'Keyframe Image',
+      videoGeneration: 'Video Generation',
+    },
+
     // Prompt template types
     types: {
+      storyWorldContextRecommender: 'Story World Context Recommendation',
+      storyWorldContextRecommenderDesc: 'Recommend consistent era, geography, culture, technology, and material-world boundaries from the novel title and description',
       style: 'Style Prompt',
       styleDesc: 'Selectable rendering presets. “System Default” means built-in, not all active; the novel selection or existing fallback determines the style.',
       characterParse: 'Character Parse Prompt',
@@ -306,6 +320,7 @@ export default {
     resetSuccess: 'Reset to default prompt',
     resetSuccessFrontend: 'Reset to default prompt (frontend only)',
     templateNames: {
+      '故事世界上下文推荐': 'Story World Context Recommendation',
       '标准动漫风格': 'Standard Anime Style',
       '写实风格': 'Realistic Style',
       'Q版卡通': 'Chibi Cartoon',
@@ -331,6 +346,7 @@ export default {
       '标准角色解析': 'Standard Character Parse',
     },
     templateDescriptions: {
+      '故事世界上下文推荐': 'Recommend consistent era, geography, culture, and material-world boundaries from the novel title and description',
       '标准动漫风格': 'Standard character generation for most anime characters',
       '写实风格': 'Cinematic realism with natural light and believable materials; era and world follow the story',
       'Q版卡通': 'Cute chibi cartoon style',

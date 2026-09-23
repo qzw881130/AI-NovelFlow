@@ -6,6 +6,7 @@ import type { NovelFormData } from '../types';
 
 // 模板类型配置
 const TEMPLATE_FIELDS = [
+  { key: 'storyWorldContextPromptTemplateId', labelKey: 'novels.storyWorldContextPromptLabel', hintKey: 'novels.storyWorldContextPromptHint', templateType: 'story_world_context_recommender', category: 'story_context' },
   { key: 'stylePromptTemplateId', labelKey: 'novels.stylePromptLabel', hintKey: 'novels.stylePromptHint', templateType: 'style', category: 'style_design' },
   { key: 'characterParsePromptTemplateId', labelKey: 'novels.characterParsePromptLabel', hintKey: 'novels.characterParsePromptHint', templateType: 'character_parse', category: 'asset_parse' },
   { key: 'sceneParsePromptTemplateId', labelKey: 'novels.sceneParsePromptLabel', hintKey: 'novels.sceneParsePromptHint', templateType: 'scene_parse', category: 'asset_parse' },
@@ -26,6 +27,7 @@ const TEMPLATE_FIELDS = [
 ] as const;
 
 const TEMPLATE_CATEGORIES = [
+  { key: 'story_context', labelKey: 'promptConfig.categories.storyContext' },
   { key: 'style_design', labelKey: 'promptConfig.categories.styleDesign' },
   { key: 'asset_parse', labelKey: 'promptConfig.categories.assetParse' },
   { key: 'asset_generation', labelKey: 'promptConfig.categories.assetGeneration' },

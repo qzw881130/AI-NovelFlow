@@ -10,6 +10,7 @@ class NovelBase(BaseModel):
     author: str = ""
     description: str = ""
     # 提示词模板关联（每种类型可选择不同模板）
+    story_world_context_prompt_template_id: Optional[str] = Field(None, alias="storyWorldContextPromptTemplateId")
     style_prompt_template_id: Optional[str] = Field(None, alias="stylePromptTemplateId")  # 风格提示词模板
     character_parse_prompt_template_id: Optional[str] = Field(None, alias="characterParsePromptTemplateId")  # 角色解析提示词模板
     scene_parse_prompt_template_id: Optional[str] = Field(None, alias="sceneParsePromptTemplateId")  # 场景解析提示词模板
@@ -38,6 +39,28 @@ class NovelCopy(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
     title: str = Field(min_length=1)
+
+
+class StoryWorldMaterialCulture(BaseModel):
+    clothing: str = Field(min_length=1)
+    architecture: str = Field(min_length=1)
+    objects: str = Field(min_length=1)
+
+
+class StoryWorldContext(BaseModel):
+    world_type: str = Field(min_length=1)
+    era: str = Field(min_length=1)
+    historical_period: str = Field(min_length=1)
+    geographic_scope: str = Field(min_length=1)
+    cultural_system: str = Field(min_length=1)
+    technology_level: str = Field(min_length=1)
+    allow_time_travel: bool = False
+    material_culture: StoryWorldMaterialCulture
+    visual_exclusions: List[str] = Field(min_length=2, max_length=5)
+
+
+class StoryWorldContextSave(BaseModel):
+    context: StoryWorldContext
 
 
 class NovelUpdate(NovelBase):

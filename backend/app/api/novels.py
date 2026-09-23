@@ -3,6 +3,7 @@
 """
 import json
 import zipfile
+from datetime import datetime
 from io import BytesIO
 from urllib.parse import quote
 
@@ -13,16 +14,19 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.models.novel import Novel
-from app.schemas.novel import NovelCopy, NovelCreate
+from app.schemas.novel import NovelCopy, NovelCreate, StoryWorldContext, StoryWorldContextSave
 from app.repositories import NovelRepository, ChapterRepository, CharacterRepository, PromptTemplateRepository
 from app.services.novel_service import NovelService
-from app.api.deps import get_novel_repo, get_chapter_repo, get_character_repo
+from app.api.deps import get_novel_repo, get_chapter_repo, get_character_repo, get_llm_service
+from app.services.llm_service import LLMService
+from app.utils.json_parser import safe_parse_llm_json
 from app.utils.time_utils import format_datetime
 
 router = APIRouter()
 
 
 PROMPT_TEMPLATE_EXPORT_FIELDS = [
+    {"api_key": "storyWorldContextPromptTemplateId", "attr": "story_world_context_prompt_template_id", "label": "故事世界上下文推荐提示词", "type": "story_world_context_recommender"},
     {"api_key": "stylePromptTemplateId", "attr": "style_prompt_template_id", "label": "风格提示词", "type": "style"},
     {"api_key": "characterParsePromptTemplateId", "attr": "character_parse_prompt_template_id", "label": "角色解析提示词", "type": "character_parse"},
     {"api_key": "sceneParsePromptTemplateId", "attr": "scene_parse_prompt_template_id", "label": "场景解析提示词", "type": "scene_parse"},
@@ -88,6 +92,7 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
         title=novel.title,
         author=novel.author,
         description=novel.description,
+        story_world_context_prompt_template_id=novel.story_world_context_prompt_template_id,
         style_prompt_template_id=style_prompt_template_id,
         character_parse_prompt_template_id=novel.character_parse_prompt_template_id,
         scene_parse_prompt_template_id=novel.scene_parse_prompt_template_id,
@@ -120,6 +125,7 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
             "cover": db_novel.cover,
             "status": db_novel.status,
             "chapterCount": db_novel.chapter_count,
+            "storyWorldContextPromptTemplateId": db_novel.story_world_context_prompt_template_id,
             "stylePromptTemplateId": db_novel.style_prompt_template_id,
             "characterParsePromptTemplateId": db_novel.character_parse_prompt_template_id,
             "sceneParsePromptTemplateId": db_novel.scene_parse_prompt_template_id,
@@ -156,6 +162,103 @@ async def copy_novel(
 
     copied = novel_repo.copy_with_chapters(source, data.title)
     return {"success": True, "data": novel_repo.to_response(copied)}
+
+
+def _story_world_context_data(novel: Novel) -> dict:
+    try:
+        context = json.loads(novel.story_world_context) if novel.story_world_context else None
+    except (TypeError, json.JSONDecodeError):
+        context = None
+    return {
+        "context": context,
+        "locked": bool(novel.story_world_context_locked),
+        "updatedAt": format_datetime(novel.story_world_context_updated_at),
+    }
+
+
+@router.get("/{novel_id}/story-world-context", response_model=dict)
+async def get_story_world_context(
+    novel_id: str,
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+):
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    return {"success": True, "data": _story_world_context_data(novel)}
+
+
+@router.post("/{novel_id}/story-world-context/recommend", response_model=dict)
+async def recommend_story_world_context(
+    novel_id: str,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    llm_service: LLMService = Depends(get_llm_service),
+):
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    template_repo = PromptTemplateRepository(db)
+    template = template_repo.get_by_id(novel.story_world_context_prompt_template_id) if novel.story_world_context_prompt_template_id else None
+    if not template:
+        template = template_repo.get_default_system_template("story_world_context_recommender")
+    if not template:
+        raise HTTPException(status_code=400, detail="未配置故事世界上下文推荐提示词模板")
+
+    novel_name = (novel.title or "").strip()
+    novel_description = (novel.description or "").strip() or novel_name
+    system_prompt = (template.template or "").replace("{{novel_name}}", novel_name).replace("{{novel_description}}", novel_description)
+    user_content = json.dumps({
+        "novel_name": novel_name,
+        "novel_description": novel_description,
+    }, ensure_ascii=False, indent=2)
+    result = await llm_service.chat_completion(
+        system_prompt=system_prompt,
+        user_content=user_content,
+        temperature=0.2,
+        max_tokens=1800,
+        response_format="json_object",
+        task_type="story_world_context_recommender",
+        prompt_template_name=template.name,
+        novel_id=novel.id,
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error") or "故事世界上下文推荐失败")
+
+    parsed = safe_parse_llm_json(result.get("content") or "", default=None)
+    try:
+        context = StoryWorldContext.model_validate(parsed)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"#01 返回的故事世界上下文格式无效：{exc}") from exc
+
+    return {
+        "success": True,
+        "data": {
+            "context": context.model_dump(),
+            "locked": False,
+            "source": {"novelName": novel_name, "novelDescription": novel_description},
+            "promptTemplateName": template.name,
+        },
+    }
+
+
+@router.put("/{novel_id}/story-world-context", response_model=dict)
+async def save_story_world_context(
+    novel_id: str,
+    data: StoryWorldContextSave,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+):
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    novel.story_world_context = json.dumps(data.context.model_dump(), ensure_ascii=False)
+    novel.story_world_context_locked = True
+    novel.story_world_context_updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(novel)
+    return {"success": True, "data": _story_world_context_data(novel)}
 
 
 @router.get("/{novel_id}", response_model=dict)
@@ -262,6 +365,7 @@ async def update_novel(
         "title": "title",
         "author": "author", 
         "description": "description",
+        "storyWorldContextPromptTemplateId": "story_world_context_prompt_template_id",
         "stylePromptTemplateId": "style_prompt_template_id",
         "characterParsePromptTemplateId": "character_parse_prompt_template_id",
         "sceneParsePromptTemplateId": "scene_parse_prompt_template_id",

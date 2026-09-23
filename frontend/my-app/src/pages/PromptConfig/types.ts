@@ -2,6 +2,7 @@ import type { PromptTemplate } from '../../types';
 
 // 提示词模板类型（与后端保持一致）
 export type TemplateType =
+  | 'story_world_context_recommender'
   | 'style'
   | 'character_parse'
   | 'scene_parse'
@@ -21,6 +22,7 @@ export type TemplateType =
   | 'h3_multi_keyframe_prompt';
 
 export type TemplateCategory =
+  | 'story_context'
   | 'style_design'
   | 'asset_parse'
   | 'asset_generation'

@@ -5,6 +5,7 @@ import { useNovelsState } from './hooks/useNovelsState';
 import { NovelCard } from './components/NovelCard';
 import { CreateNovelModal } from './components/CreateNovelModal';
 import { CopyNovelModal } from './components/CopyNovelModal';
+import { StoryWorldContextModal } from './components/StoryWorldContextModal';
 import { EditNovelModal } from './components/EditNovelModal';
 import { ParseConfirmDialog } from './components/ParseConfirmDialog';
 import type { NovelFormData } from './types';
@@ -30,6 +31,7 @@ export default function Novels() {
     setChapterRange,
     templatesByType,
     filteredNovels,
+    fetchNovels,
     createNovel,
     copyNovel,
     deleteNovel,
@@ -46,6 +48,7 @@ export default function Novels() {
     title: '',
     author: '',
     description: '',
+    storyWorldContextPromptTemplateId: '',
     stylePromptTemplateId: '',
     characterParsePromptTemplateId: '',
     sceneParsePromptTemplateId: '',
@@ -65,6 +68,7 @@ export default function Novels() {
     h3MultiKeyframePromptTemplateId: '',
     aspectRatio: '16:9'
   });
+  const [storyContextNovel, setStoryContextNovel] = useState<(typeof novels)[number] | null>(null);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,6 +78,7 @@ export default function Novels() {
       title: '',
       author: '',
       description: '',
+      storyWorldContextPromptTemplateId: '',
       stylePromptTemplateId: '',
       characterParsePromptTemplateId: '',
       sceneParsePromptTemplateId: '',
@@ -102,6 +107,7 @@ export default function Novels() {
       title: editingNovel.title,
       author: editingNovel.author,
       description: editingNovel.description,
+      storyWorldContextPromptTemplateId: editingNovel.storyWorldContextPromptTemplateId,
       stylePromptTemplateId: editingNovel.stylePromptTemplateId,
       characterParsePromptTemplateId: editingNovel.characterParsePromptTemplateId,
       sceneParsePromptTemplateId: editingNovel.sceneParsePromptTemplateId,
@@ -178,7 +184,7 @@ export default function Novels() {
           <p className="mt-1 text-sm text-gray-500">{t('novels.noNovelsSubtitle')}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
           {filteredNovels.map((novel) => (
             <NovelCard
               key={novel.id}
@@ -189,6 +195,7 @@ export default function Novels() {
               parsingPropsNovelId={parsingPropsNovelId}
               onDelete={handleDeleteNovel}
               onEdit={setEditingNovel}
+              onStoryContext={setStoryContextNovel}
               onParseConfirm={openParseConfirm}
               getTemplateDisplayName={getTemplateDisplayName}
             />
@@ -210,6 +217,14 @@ export default function Novels() {
 
       {showCopyModal && (
         <CopyNovelModal novels={novels} onClose={() => setShowCopyModal(false)} onCopy={copyNovel} />
+      )}
+
+      {storyContextNovel && (
+        <StoryWorldContextModal
+          novel={storyContextNovel}
+          onClose={() => setStoryContextNovel(null)}
+          onSaved={fetchNovels}
+        />
       )}
 
       {/* Edit Modal */}

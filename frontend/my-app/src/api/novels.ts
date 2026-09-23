@@ -4,6 +4,30 @@
 import { api, API_BASE } from './index';
 import type { Novel, Chapter } from '../types';
 
+export interface StoryWorldContext {
+  world_type: string;
+  era: string;
+  historical_period: string;
+  geographic_scope: string;
+  cultural_system: string;
+  technology_level: string;
+  allow_time_travel: boolean;
+  material_culture: {
+    clothing: string;
+    architecture: string;
+    objects: string;
+  };
+  visual_exclusions: string[];
+}
+
+export interface StoryWorldContextData {
+  context: StoryWorldContext | null;
+  locked: boolean;
+  updatedAt?: string | null;
+  source?: { novelName: string; novelDescription: string };
+  promptTemplateName?: string;
+}
+
 export const novelApi = {
   /** 获取小说列表 */
   fetchList: () => api.get<Novel[]>('/novels/'),
@@ -16,6 +40,15 @@ export const novelApi = {
 
   /** 仅复制所有章回标题、正文和顺序到新小说 */
   copy: (id: string, title: string) => api.post<Novel>(`/novels/${id}/copy`, { title }),
+
+  /** 获取已锁定的小说级故事世界上下文 */
+  fetchStoryWorldContext: (id: string) => api.get<StoryWorldContextData>(`/novels/${id}/story-world-context`),
+
+  /** 调用 #01 推荐故事世界上下文草稿 */
+  recommendStoryWorldContext: (id: string) => api.post<StoryWorldContextData>(`/novels/${id}/story-world-context/recommend`),
+
+  /** 保存并锁定人工确认后的故事世界上下文 */
+  saveStoryWorldContext: (id: string, context: StoryWorldContext) => api.put<StoryWorldContextData>(`/novels/${id}/story-world-context`, { context }),
 
   /** 更新小说 */
   update: (id: string, data: Partial<Novel>) => api.put<Novel>(`/novels/${id}/`, data),

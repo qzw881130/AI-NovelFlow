@@ -32,3 +32,12 @@ def test_system_style_templates_are_expanded_and_existing_rows_are_updated(db_se
     assert "剪纸艺术风格" in by_name
     assert "黏土定格风格" in by_name
     assert "国风工笔风格" in by_name
+
+    story_context = db_session.query(PromptTemplate).filter(
+        PromptTemplate.type == "story_world_context_recommender",
+        PromptTemplate.is_system == True,
+    ).one()
+    assert story_context.name == "故事世界上下文推荐"
+    assert "{{novel_name}}" in story_context.template
+    assert "{{novel_description}}" in story_context.template
+    assert '"allow_time_travel": false' in story_context.template

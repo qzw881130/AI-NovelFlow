@@ -27,6 +27,17 @@ def load_template(filename: str) -> str:
         raise FileNotFoundError(f"Template file not found: {filepath}")
 
 
+# 系统预设的故事世界上下文推荐模板
+SYSTEM_STORY_CONTEXT_TEMPLATES: List[Dict] = [
+    {
+        "name": "故事世界上下文推荐",
+        "description": "根据小说名称和描述推荐统一的时代、地域、文化与物质世界边界",
+        "template": load_template("01_NovelFlow_StoryWorldContext_Recommender_V1.txt"),
+        "type": "story_world_context_recommender",
+    }
+]
+
+
 # 系统预设的风格提示词模板（独立类型，用于图片生成的风格描述）
 SYSTEM_STYLE_TEMPLATES: List[Dict] = [
     {
@@ -370,6 +381,7 @@ SYSTEM_KEYFRAME_DESCRIPTION_TEMPLATES: List[Dict] = [
 
 # 合并所有系统模板
 SYSTEM_PROMPT_TEMPLATES = (
+    SYSTEM_STORY_CONTEXT_TEMPLATES +
     SYSTEM_STYLE_TEMPLATES +
     SYSTEM_CHARACTER_PARSE_TEMPLATES +
     SYSTEM_SCENE_PARSE_TEMPLATES +

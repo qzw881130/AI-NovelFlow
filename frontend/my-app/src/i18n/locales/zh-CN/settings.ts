@@ -265,6 +265,7 @@ export default {
     systemPresetReadonly: '系统预设（只读）',
 
     categories: {
+      storyContext: '故事上下文',
       styleDesign: '风格设计',
       assetParse: '素材解析',
       assetGeneration: '素材生成',
@@ -277,6 +278,8 @@ export default {
 
     // 提示词模板类型
     types: {
+      storyWorldContextRecommender: '故事世界上下文推荐',
+      storyWorldContextRecommenderDesc: '根据小说名称和描述推荐统一的时代、地域、文化、技术与物质世界边界',
       style: '风格提示词',
       styleDesc: '可选的渲染风格预设。“系统默认”表示内置来源，并非全部启用；实际风格遵循小说选择或既有回退。',
       characterParse: '角色解析提示词',
@@ -335,6 +338,7 @@ export default {
     resetSuccess: '已恢复默认提示词',
     resetSuccessFrontend: '已恢复默认提示词（仅前端）',
     templateNames: {
+      '故事世界上下文推荐': '故事世界上下文推荐',
       '标准动漫风格': '标准动漫风格',
       '写实风格': '写实风格',
       'Q版卡通': 'Q版卡通',
@@ -369,6 +373,7 @@ export default {
       'MiniMax H3 多关键帧视频提示词构建': 'MiniMax H3 多关键帧视频提示词构建',
     },
     templateDescriptions: {
+      '故事世界上下文推荐': '根据小说名称和描述推荐统一的时代、地域、文化与物质世界边界',
       '标准动漫风格': '适合大多数动漫角色的标准人设生成',
       '写实风格': '电影级写实质感，自然光影与可信材质，时代和世界观遵循故事',
       'Q版卡通': '可爱Q版卡通风格',

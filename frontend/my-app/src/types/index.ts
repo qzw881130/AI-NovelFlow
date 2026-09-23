@@ -71,6 +71,9 @@ export interface Novel {
   chapterCount: number;
   status: 'pending' | 'processing' | 'completed';
   // 提示词模板关联（每种类型可选择不同模板）
+  storyWorldContextPromptTemplateId?: string;
+  hasStoryWorldContext?: boolean;
+  storyWorldContextLocked?: boolean;
   stylePromptTemplateId?: string;  // 风格提示词模板
   characterParsePromptTemplateId?: string;  // 角色解析提示词模板
   sceneParsePromptTemplateId?: string;  // 场景解析提示词模板
