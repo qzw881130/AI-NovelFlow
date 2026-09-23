@@ -142,6 +142,7 @@ export default {
     tabShotImage: 'ショット画像生成',
     tabAudioGen: 'オーディオ生成',
     tabVideoGen: 'ビデオ生成',
+    tabHdRepaint: 'HD再描画',
 
     // ステップ
     stepContent: '原文コンテンツ',

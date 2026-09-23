@@ -24,6 +24,7 @@ class Task(Base):
     scene_id = Column(String, nullable=True, index=True)
     prop_id = Column(String, nullable=True, index=True)
     parent_task_id = Column(String, nullable=True, index=True)
+    source_task_id = Column(String, nullable=True, index=True)
     batch_order = Column(Integer, nullable=True)
 
     # 任务详情

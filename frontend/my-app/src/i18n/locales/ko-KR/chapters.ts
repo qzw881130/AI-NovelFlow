@@ -142,6 +142,7 @@ export default {
     tabShotImage: '샷 이미지 생성',
     tabAudioGen: '오디오 생성',
     tabVideoGen: '비디오 생성',
+    tabHdRepaint: 'HD 리페인트',
 
     // 단계
     stepContent: '원문 내용',

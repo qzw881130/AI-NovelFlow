@@ -56,6 +56,7 @@ def format_novel_video_merge(task: Task) -> dict:
         "duration": metadata.get("duration"),
         "cacheHit": bool(metadata.get("cache_hit")),
         "chapters": metadata.get("chapters") or [],
+        "videoVariant": metadata.get("video_variant") or "draft",
         "createdAt": format_datetime(task.created_at),
         "completedAt": format_datetime(task.completed_at),
     }
@@ -80,6 +81,7 @@ async def run_novel_video_merge_task(task_id: str) -> None:
         except (TypeError, json.JSONDecodeError):
             metadata = {}
         chapter_ids = list(dict.fromkeys(metadata.get("chapter_ids") or []))
+        video_variant = metadata.get("video_variant") or "draft"
         chapters = db.query(Chapter).filter(
             Chapter.novel_id == task.novel_id,
             Chapter.id.in_(chapter_ids),
@@ -91,8 +93,8 @@ async def run_novel_video_merge_task(task_id: str) -> None:
         segments = []
         chapter_snapshot = []
         for chapter in chapters:
-            video_info = chapter_repo.get_final_chapter_video_info(chapter)
-            video_url = (video_info or {}).get("chapterVideoUrl")
+            video_info = chapter_repo.get_final_chapter_video_info(chapter, video_variant)
+            video_url = (video_info or {}).get("hdChapterVideoUrl" if video_variant == "hd" else "chapterVideoUrl")
             video_path = url_to_local_path(video_url) if video_url else None
             if not video_path or not Path(video_path).is_file():
                 raise RuntimeError(f"第 {chapter.number} 章《{chapter.title}》没有可用的章回视频")
@@ -113,10 +115,10 @@ async def run_novel_video_merge_task(task_id: str) -> None:
 
         signature = await asyncio.to_thread(
             file_storage.get_video_merge_signature,
-            "novel_chapters",
+            f"novel_chapters:{video_variant}",
             segments,
         )
-        output_dir = file_storage._get_story_dir(task.novel_id) / "novel-merged-videos"
+        output_dir = file_storage._get_story_dir(task.novel_id) / ("novel-hd-merged-videos" if video_variant == "hd" else "novel-merged-videos")
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / f"novel-{signature}.mp4"
         lock = _merge_locks.setdefault(str(output_path), asyncio.Lock())
@@ -148,6 +150,7 @@ async def run_novel_video_merge_task(task_id: str) -> None:
         metadata.update({
             "chapter_ids": [chapter.id for chapter in chapters],
             "chapters": chapter_snapshot,
+            "video_variant": video_variant,
             "signature": signature,
             "cache_hit": cache_hit,
             "video_url": video_url,

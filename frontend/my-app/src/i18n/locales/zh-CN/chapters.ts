@@ -111,6 +111,7 @@ export default {
     tabShotImage: '分镜图生成',
     tabAudioGen: '音频生成',
     tabVideoGen: '视频生成',
+    tabHdRepaint: '高清重绘',
 
     // 步骤
     stepContent: '原文内容',

@@ -42,6 +42,7 @@ export function WorkflowViewModal({
       case 'shot_image':
         return t('tasks.taskNames.shotImage', { name: localizedName });
       case 'shot_video':
+      case 'shot_video_hd':
         return t('tasks.taskNames.shotVideo', { name: localizedName });
       case 'transition_video':
         return t('tasks.taskNames.transitionVideo', { from: localizedName, to: '' });

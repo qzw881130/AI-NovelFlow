@@ -66,6 +66,8 @@ export default {
       shotImage: 'Shot Image',
       shotImageBatch: 'Batch Shot Images',
       shotVideoBatch: 'Batch Shot Videos',
+      shotVideoHd: 'HD Repaint',
+      shotVideoHdBatch: 'Batch HD Repaint',
       keyframeImage: 'Keyframe Image',
       propImage: 'Prop Image',
       shotVideo: 'Shot Video',

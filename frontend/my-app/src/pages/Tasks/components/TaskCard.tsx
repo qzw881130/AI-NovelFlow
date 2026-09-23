@@ -64,6 +64,8 @@ export function TaskCard({
       case 'character_audio':
       case 'narrator_audio': return <Music className="h-5 w-5" />;
       case 'shot_video':
+      case 'shot_video_hd':
+      case 'shot_video_hd_batch':
       case 'chapter_video':
       case 'transition_video': return <Film className="h-5 w-5" />;
       default: return <ListTodo className="h-5 w-5" />;
@@ -303,7 +305,7 @@ export function TaskCard({
                     </div>
                   )}
                 </div>
-              ) : task.type === 'shot_video' || task.type === 'chapter_video' || task.type === 'transition_video' ? (
+              ) : task.type === 'shot_video' || task.type === 'shot_video_hd' || task.type === 'chapter_video' || task.type === 'transition_video' ? (
                 <div>
                   <div className="relative group inline-block cursor-pointer" onClick={() => task.resultUrl && onPreviewVideo(task.resultUrl)}>
                     <div className="h-32 w-48 bg-gray-900 rounded-lg flex items-center justify-center overflow-hidden">
@@ -351,6 +353,7 @@ export function TaskCard({
           )}
           <div className="mt-2 text-xs opacity-60">
             {task.seed != null && <span className="mr-2 font-mono">Seed: {task.seed}</span>}
+            {task.sourceTaskId && <span className="mr-2 font-mono">Source: {task.sourceTaskId}</span>}
             {t('common.createdAt')}: {formatDate(task.createdAt)}
             {task.completedAt && ` · ${t('tasks.completedAt')}: ${formatDate(task.completedAt)}`}
             {elapsedSeconds !== null && ` · 耗时: ${elapsedSeconds} 秒`}

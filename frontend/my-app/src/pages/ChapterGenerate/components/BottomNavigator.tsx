@@ -90,21 +90,27 @@ export function BottomNavigator({
     const hasVideoResult = !!(shot.videoUrl || shotVideos[shotId]);
     const imageIsGenerating = generatingShots.has(shotId) || shot.imageStatus === 'generating';
     const videoIsGenerating = generatingVideos.has(shotId) || shot.videoStatus === 'generating';
+    const hdVideoIsGenerating = shot.hdVideoStatus === 'generating';
 
     if (currentTab === 1 && imageIsGenerating && !hasImageResult) return 'generating';
     if (currentTab === 3 && videoIsGenerating && !hasVideoResult) return 'generating';
+    if (currentTab === 4 && hdVideoIsGenerating) return 'generating';
+    if (currentTab === 4 && shot.hdVideoStatus === 'pending' && shot.hdVideoTaskId) return 'queued';
     if (pendingShots.has(shotId) || pendingVideos.has(shotId)) return 'queued';
     if (isCurrentShot) return 'current';
     if (currentTab === 1 && hasImageResult) return 'completed';
     if (currentTab === 3 && hasVideoResult) return 'completed';
+    if (currentTab === 4 && shot.hdVideoUrl) return 'completed';
     if (generatingShots.has(shotId) || generatingVideos.has(shotId) || shot.imageStatus === 'generating' || shot.videoStatus === 'generating') {
       return 'generating';
     }
     if (currentTab === 3 && shot.videoStatus === 'failed' && !hasVideoResult) return 'failed';
+    if (currentTab === 4 && shot.hdVideoStatus === 'failed') return 'failed';
     if (currentTab === 1 && shot.imageStatus === 'failed') return 'failed';
     if (currentTab === 3) {
       return (shot.videoUrl || shotVideos[shotId]) ? 'completed' : 'pending';
     }
+    if (currentTab === 4) return shot.hdVideoUrl ? 'completed' : 'pending';
     if (currentTab === 1) {
       return (shot.imageUrl || shotImages[shotId]) ? 'completed' : 'pending';
     }

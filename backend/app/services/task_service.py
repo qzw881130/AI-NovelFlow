@@ -171,6 +171,10 @@ class TaskService:
             shot = ShotRepository(db).get_by_id(task.shot_id)
             if shot and shot.video_task_id == task.id:
                 shot.video_status = "failed"
+        elif task.type == "shot_video_hd" and task.shot_id:
+            shot = ShotRepository(db).get_by_id(task.shot_id)
+            if shot and shot.hd_video_task_id == task.id:
+                shot.hd_video_status = "failed"
 
     @staticmethod
     def _cleanup_cancelled_video_task(task: Task, db: Session) -> None:
@@ -253,7 +257,7 @@ class TaskService:
                 "details": {"skipped": True},
             }
 
-        if task.type in {"shot_image_batch", "shot_video_batch"}:
+        if task.type in {"shot_image_batch", "shot_video_batch", "shot_video_hd_batch"}:
             child_tasks = db.query(Task).filter(Task.parent_task_id == task.id).all()
             details = {"children_cancelled": 0, "children_requested": len(child_tasks)}
             for child in child_tasks:
@@ -550,6 +554,29 @@ class TaskService:
                 selected_mode=video_director_plan.get("selected_mode") or "SINGLE_FRAME",
             )
             restarted = True
+        elif task.type == "shot_video_hd" and task.shot_id:
+            from app.services.hd_repaint_service import enqueue_hd_repaint_task
+
+            shot = ShotRepository(db).get_by_id(task.shot_id)
+            if not shot:
+                task.status = "failed"
+                task.error_message = "重试失败：找不到关联分镜"
+                task.current_step = "重试失败"
+                db.commit()
+                return {"success": False, "message": task.error_message, "status_code": 400}
+            metadata = json.loads(task.metadata_json or "{}")
+            task.workflow_json = json.dumps(metadata.get("source_workflow_json"), ensure_ascii=False) if metadata.get("source_workflow_json") else None
+            clips = json.loads(task.video_director_clips or "[]")
+            for clip in clips:
+                for key in ["replay_workflow_json", "repaint_prompt_id", "video_url", "local_path", "source_video_url", "generated_at", "seed"]:
+                    clip.pop(key, None)
+                clip["status"] = "PENDING"
+            task.video_director_clips = json.dumps(clips, ensure_ascii=False) if clips else None
+            shot.hd_video_status = "pending"
+            shot.hd_video_task_id = task.id
+            db.commit()
+            enqueue_hd_repaint_task(task.id)
+            restarted = True
 
         if not restarted:
             task.status = "failed"
@@ -610,12 +637,14 @@ class TaskService:
                     return
                 if task.type == "shot_video":
                     ShotRepository(db).update(shot, video_status="failed")
+                elif task.type == "shot_video_hd":
+                    ShotRepository(db).update(shot, hd_video_status="failed")
                 elif task.type == "shot_image":
                     ShotRepository(db).update(shot, image_status="failed")
 
             pending_start_timeout = 600 if task.type == "keyframe_image" else 1800
             is_batch_waiting_child = bool(getattr(task, "parent_task_id", None))
-            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type not in {"shot_image_batch", "shot_video_batch"} and not is_batch_waiting_child:
+            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type not in {"shot_image_batch", "shot_video_batch", "shot_video_hd", "shot_video_hd_batch"} and not is_batch_waiting_child:
                 task.status = "failed"
                 task.error_message = "任务长期未启动，后台内存队列可能已因服务重启或热更新丢失，请重新提交"
                 task.current_step = "任务未启动"
@@ -1165,7 +1194,7 @@ class TaskService:
                 return []
 
         def format_video_director_clips(task: Task):
-            if task.type != "shot_video":
+            if task.type not in {"shot_video", "shot_video_hd"}:
                 return []
             window_plans = []
             if task.video_director_clips:
@@ -1203,7 +1232,7 @@ class TaskService:
                     "promptId": window.get("prompt_id"),
                     "seed": window.get("seed") or extract_workflow_seed(window.get("workflow_json")),
                     "promptText": window.get("prompt_text"),
-                    "hasWorkflowJson": window.get("workflow_json") is not None,
+                    "hasWorkflowJson": any(window.get(key) is not None for key in ("workflow_json", "replay_workflow_json", "source_workflow_json")),
                     "referenceImages": window.get("reference_images") if isinstance(window.get("reference_images"), list) else [],
                     "videoUrl": video_url,
                     "sourceVideoUrl": window.get("source_video_url"),
@@ -1241,6 +1270,7 @@ class TaskService:
                 "sceneId": t.scene_id,
                 "shotId": t.shot_id,
                 "parentTaskId": getattr(t, "parent_task_id", None),
+                "sourceTaskId": getattr(t, "source_task_id", None),
                 "batchOrder": getattr(t, "batch_order", None),
                 "createdAt": format_datetime(t.created_at),
                 "startedAt": format_datetime(t.started_at),
@@ -1290,6 +1320,7 @@ class TaskService:
             "sceneId": task.scene_id,
             "shotId": task.shot_id,
             "parentTaskId": getattr(task, "parent_task_id", None),
+            "sourceTaskId": getattr(task, "source_task_id", None),
             "batchOrder": getattr(task, "batch_order", None),
             "comfyuiPromptId": task.comfyui_prompt_id,
             "createdAt": format_datetime(task.created_at),

@@ -99,6 +99,7 @@ class ChapterResponse(ChapterBase):
     shot_images: Optional[str] = None
     shot_videos: Optional[str] = None
     final_video: Optional[str] = None
+    hd_final_video: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 

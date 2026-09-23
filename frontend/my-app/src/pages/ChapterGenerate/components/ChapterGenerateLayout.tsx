@@ -32,6 +32,7 @@ import { ShotSplitTab } from './ShotSplitTab';
 import { AudioGenTab } from './AudioGenTab';
 import { ShotImageGenTab } from './ShotImageGenTab';
 import { VideoGenTab } from './VideoGenTab';
+import { HdRepaintTab } from './HdRepaintTab';
 import { ShotImageList } from './ShotImageList';
 
 interface ChapterGenerateLayoutProps {
@@ -531,6 +532,7 @@ export function ChapterGenerateLayout({
         // 音频生成 Tab 有自己的三栏布局，左侧栏显示空
         return null;
       case 3: // 视频生成
+      case 4: // 高清重绘
         return (
           <ShotImageList
             shots={shots}
@@ -596,6 +598,14 @@ export function ChapterGenerateLayout({
             currentShot={currentShotIndex}
             novelId={id}
             chapterId={cid}
+            shots={shots}
+          />
+        );
+      case 4: // 高清重绘
+        return (
+          <HdRepaintTab
+            novelId={id || ''}
+            chapterId={cid || ''}
             shots={shots}
           />
         );

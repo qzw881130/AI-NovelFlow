@@ -111,6 +111,7 @@ export default {
     tabShotImage: 'Shot Image Generation',
     tabAudioGen: 'Audio Generation',
     tabVideoGen: 'Video Generation',
+    tabHdRepaint: 'HD Repaint',
 
     // Steps
     stepContent: 'Original Content',

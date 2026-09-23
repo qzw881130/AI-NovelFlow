@@ -273,7 +273,7 @@ async def get_task_clip_workflow(
     task = task_repo.get_by_id(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
-    if task.type != "shot_video" or not task.shot_id:
+    if task.type not in {"shot_video", "shot_video_hd"} or not task.shot_id:
         raise HTTPException(status_code=400, detail="该任务不是分镜视频任务")
 
     window_plans = []
@@ -298,7 +298,7 @@ async def get_task_clip_workflow(
     if not clip:
         raise HTTPException(status_code=404, detail="Clip 不存在")
 
-    workflow_json = clip.get("workflow_json")
+    workflow_json = clip.get("workflow_json") or clip.get("replay_workflow_json") or clip.get("source_workflow_json")
     if not workflow_json and clip.get("prompt_id"):
         prompt_state = await TaskService(db).comfyui_service.client.get_prompt_state(str(clip.get("prompt_id")))
         prompt_history = prompt_state.get("history") if prompt_state.get("state") in {"history", "completed"} else None

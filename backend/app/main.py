@@ -5,7 +5,7 @@ from sqlalchemy import text
 import asyncio
 
 from app.api import characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props, novel_videos
-from app.api import novels, chapters, shots
+from app.api import novels, chapters, shots, hd_repaint
 from app.core.database import engine, Base
 from app.services.comfyui_monitor import init_monitor
 # 导入所有模型以确保创建表
@@ -32,6 +32,18 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE shots ADD COLUMN video_director_plan TEXT DEFAULT '{}'"))
             if "shot_image_prompt" not in shot_columns:
                 conn.execute(text("ALTER TABLE shots ADD COLUMN shot_image_prompt TEXT DEFAULT ''"))
+            if "hd_video_url" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN hd_video_url VARCHAR"))
+            if "hd_video_status" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN hd_video_status VARCHAR DEFAULT 'pending'"))
+            if "hd_video_task_id" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN hd_video_task_id VARCHAR"))
+            if "hd_video_source_task_id" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN hd_video_source_task_id VARCHAR"))
+            if "hd_video_megapixels" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN hd_video_megapixels REAL"))
+            if "current_video_variant" not in shot_columns:
+                conn.execute(text("ALTER TABLE shots ADD COLUMN current_video_variant VARCHAR DEFAULT 'draft'"))
 
             result = conn.execute(text("PRAGMA table_info(props)"))
             prop_columns = [row[1] for row in result.fetchall()]
@@ -84,6 +96,11 @@ def ensure_schema_updates():
             if "story_world_context_updated_at" not in novel_columns:
                 conn.execute(text("ALTER TABLE novels ADD COLUMN story_world_context_updated_at DATETIME"))
 
+            result = conn.execute(text("PRAGMA table_info(chapters)"))
+            chapter_columns = [row[1] for row in result.fetchall()]
+            if "hd_final_video" not in chapter_columns:
+                conn.execute(text("ALTER TABLE chapters ADD COLUMN hd_final_video VARCHAR"))
+
             result = conn.execute(text("PRAGMA table_info(tasks)"))
             task_columns = [row[1] for row in result.fetchall()]
             if "reference_images" not in task_columns:
@@ -98,6 +115,8 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN metadata_json TEXT"))
             if "seed" not in task_columns:
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN seed INTEGER"))
+            if "source_task_id" not in task_columns:
+                conn.execute(text("ALTER TABLE tasks ADD COLUMN source_task_id VARCHAR"))
 
             result = conn.execute(text("PRAGMA table_info(llm_logs)"))
             llm_log_columns = [row[1] for row in result.fetchall()]
@@ -162,11 +181,14 @@ async def lifespan(app: FastAPI):
     
     monitor = init_monitor(settings.COMFYUI_HOST)
     await monitor.start()
-    from app.api.shots import resume_active_shot_image_batches, resume_active_shot_video_batches
+    from app.api.shots import resume_active_shot_image_batches, resume_active_shot_video_batches, resume_active_chapter_video_merges
     resume_active_shot_image_batches()
     resume_active_shot_video_batches()
+    resume_active_chapter_video_merges()
     from app.services.novel_video_merge_service import resume_active_novel_video_merges
     resume_active_novel_video_merges()
+    from app.services.hd_repaint_service import resume_active_hd_repaints
+    resume_active_hd_repaints()
     task_reconcile_task = asyncio.create_task(reconcile_active_tasks_loop())
     app.state.task_reconcile_task = task_reconcile_task
     
@@ -211,6 +233,7 @@ app.include_router(config.router, prefix="/api/config", tags=["config"])
 app.include_router(novels.router, prefix="/api/novels", tags=["novels"])
 app.include_router(chapters.router, prefix="/api/novels", tags=["novels"])
 app.include_router(shots.router, prefix="/api/novels", tags=["novels"])
+app.include_router(hd_repaint.router, prefix="/api/novels", tags=["hd-repaint"])
 app.include_router(characters.router, prefix="/api/characters", tags=["characters"])
 app.include_router(scenes.router, prefix="/api/scenes", tags=["scenes"])
 app.include_router(props.router, prefix="/api/props", tags=["props"])

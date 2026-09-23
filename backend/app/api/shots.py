@@ -137,6 +137,7 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
         novel_id = task.novel_id
         chapter_id = task.chapter_id
         mode = metadata.get("mode") or "shots_only"
+        video_variant = metadata.get("video_variant") or "draft"
         include_transitions = mode == "shots_with_transitions"
         selected_shot_ids = set(metadata.get("shot_ids") or [])
 
@@ -152,9 +153,9 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
                 raise RuntimeError("选择的分镜不属于当前章节")
 
         generated_shots = [
-            (shot.index, shot.video_url)
+            (shot.index, shot.hd_video_url if video_variant == "hd" else shot.video_url)
             for shot in shots
-            if shot.video_url and (not selected_shot_ids or shot.id in selected_shot_ids)
+            if (shot.hd_video_url if video_variant == "hd" else shot.video_url) and (not selected_shot_ids or shot.id in selected_shot_ids)
         ]
         if not generated_shots:
             raise RuntimeError("没有选中的分镜视频可以合并" if selected_shot_ids else "没有分镜视频可以合并")
@@ -193,10 +194,10 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
                         segments.append({"kind": "transition", "key": key, "path": full_path})
                 trans_paths.append(trans_path)
 
-        signature = await asyncio.to_thread(file_storage.get_video_merge_signature, mode, segments)
+        signature = await asyncio.to_thread(file_storage.get_video_merge_signature, f"{mode}:{video_variant}", segments)
         story_dir = file_storage._get_story_dir(novel_id)
         chapter_short = chapter_id[:8] if chapter_id else "unknown"
-        output_dir = story_dir / f"chapter_{chapter_short}" / "merged-videos"
+        output_dir = story_dir / f"chapter_{chapter_short}" / ("hd-merged-videos" if video_variant == "hd" else "merged-videos")
         output_dir.mkdir(parents=True, exist_ok=True)
         output_path = output_dir / f"{mode}-{signature}.mp4"
 
@@ -229,11 +230,16 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
         relative_path = str(output_path).replace(str(file_storage.base_dir), "").replace("\\", "/")
         video_url = f"/api/files/{relative_path.lstrip('/')}"
         all_shot_ids = {shot.id for shot in shots}
-        valid_shot_ids = {shot.id for shot in shots if shot.video_url and (not selected_shot_ids or shot.id in selected_shot_ids)}
+        valid_shot_ids = {
+            shot.id for shot in shots
+            if (shot.hd_video_url if video_variant == "hd" else shot.video_url)
+            and (not selected_shot_ids or shot.id in selected_shot_ids)
+        }
         is_final_video = bool(all_shot_ids) and valid_shot_ids == all_shot_ids and len(valid_shots) == len(all_shot_ids)
         metadata.update({
             "cache_hit": cache_hit,
             "mode": mode,
+            "video_variant": video_variant,
             "video_url": video_url,
             "segments_count": len(segments),
             "shots_count": len(valid_shots),
@@ -243,7 +249,10 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
             "duration": _probe_video_duration(output_path),
         })
         if is_final_video:
-            chapter.final_video = video_url
+            if video_variant == "hd":
+                chapter.hd_final_video = video_url
+            else:
+                chapter.final_video = video_url
         task.status = "completed"
         task.progress = 100
         task.result_url = video_url
@@ -261,6 +270,19 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
             task.current_step = "合并失败"
             task.completed_at = datetime.utcnow()
             db.commit()
+    finally:
+        db.close()
+
+
+def resume_active_chapter_video_merges() -> None:
+    db = SessionLocal()
+    try:
+        tasks = db.query(Task).filter(
+            Task.type == "chapter_video",
+            Task.status.in_(["pending", "running"]),
+        ).order_by(Task.created_at.asc()).all()
+        for task in tasks:
+            worker_manager.worker("chapter_video").enqueue(lambda task_id=task.id: run_chapter_video_merge_task(task_id))
     finally:
         db.close()
 
@@ -3156,7 +3178,12 @@ async def merge_chapter_videos(
         if invalid_shot_ids:
             return {"success": False, "message": "选择的分镜不属于当前章节"}
 
-    selected_count = len(selected_shot_ids) or len([shot for shot in shots if shot.video_url])
+    video_variant = data.video_variant
+    selected = [shot for shot in shots if not selected_shot_ids or shot.id in selected_shot_ids]
+    missing = [shot.index for shot in selected if not (shot.hd_video_url if video_variant == "hd" else shot.video_url)]
+    if missing:
+        return {"success": False, "message": f"以下分镜缺少{'高清' if video_variant == 'hd' else '初稿'}视频：{', '.join(map(str, missing))}"}
+    selected_count = len(selected)
     if selected_count == 0:
         return {"success": False, "message": "没有分镜视频可以合并"}
 
@@ -3166,10 +3193,10 @@ async def merge_chapter_videos(
         novel_id=novel_id,
         chapter_id=chapter_id,
         name=f"合并章节视频: {chapter.title or chapter.number}",
-        description=f"合并章节 '{chapter.title or chapter.number}' 的 {selected_count} 个分镜视频",
+        description=f"合并章节 '{chapter.title or chapter.number}' 的 {selected_count} 个{'高清' if video_variant == 'hd' else '初稿'}分镜视频",
         progress=0,
         current_step="等待合并章节视频...",
-        metadata_json=json.dumps({"mode": mode, "shot_ids": list(selected_shot_ids)}, ensure_ascii=False),
+        metadata_json=json.dumps({"mode": mode, "shot_ids": list(selected_shot_ids), "video_variant": video_variant}, ensure_ascii=False),
     )
     db.add(task)
     db.commit()
@@ -3178,7 +3205,7 @@ async def merge_chapter_videos(
 
     return {
         "success": True,
-        "data": {"taskId": task.id, "status": task.status, "mode": mode},
+        "data": {"taskId": task.id, "status": task.status, "mode": mode, "videoVariant": video_variant},
         "message": "章节视频合并任务已提交，可在任务列表查看进度。",
     }
 

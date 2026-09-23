@@ -83,6 +83,7 @@ export default {
     tabShotImage: '分鏡圖生成',
     tabAudioGen: '音頻生成',
     tabVideoGen: '影片生成',
+    tabHdRepaint: '高清重繪',
 
     // 步驟
     stepContent: '原文內容',

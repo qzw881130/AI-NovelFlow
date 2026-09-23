@@ -35,6 +35,12 @@ export interface Shot {
   videoUrl: string | null;
   videoStatus: 'pending' | 'generating' | 'completed' | 'failed';
   videoTaskId: string | null;
+  hdVideoUrl: string | null;
+  hdVideoStatus: 'pending' | 'generating' | 'completed' | 'failed';
+  hdVideoTaskId: string | null;
+  hdVideoSourceTaskId: string | null;
+  hdVideoMegapixels: number | null;
+  currentVideoVariant: 'draft' | 'hd';
   mergedCharacterImage: string | null;
   mergedPropImage: string | null;
   dialogues: DialogueData[];
@@ -830,6 +836,68 @@ export const shotsApi = {
         body: JSON.stringify({ keyframes }),
       }
     );
+    return response.json();
+  },
+
+  getHdRepaintSource: async (novelId: string, chapterId: string, shotId: string) => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/hd-repaint/source`);
+    const data = await response.json();
+    if (!response.ok) return { success: false, message: data?.detail || '无法读取 Replay Source' };
+    return data;
+  },
+
+  createHdRepaint: async (novelId: string, chapterId: string, shotId: string, targetMegapixels: number) => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/hd-repaint`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_megapixels: targetMegapixels }),
+    });
+    const data = await response.json();
+    if (!response.ok) return { success: false, message: data?.detail || '高清重绘任务创建失败' };
+    return data;
+  },
+
+  createHdRepaintBatch: async (novelId: string, chapterId: string, shotIds: string[], targetMegapixels: number) => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/hd-repaints/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shot_ids: shotIds, target_megapixels: targetMegapixels }),
+    });
+    const data = await response.json();
+    if (!response.ok) return { success: false, message: data?.detail || '批量高清重绘任务创建失败' };
+    return data;
+  },
+
+  getLatestHdRepaintBatch: async (novelId: string, chapterId: string) =>
+    api.get<any>(`/novels/${novelId}/chapters/${chapterId}/hd-repaints/latest`),
+
+  retryFailedHdRepaints: async (novelId: string, chapterId: string, batchId: string) =>
+    api.post(`/novels/${novelId}/chapters/${chapterId}/hd-repaints/${batchId}/retry-failed`),
+
+  setCurrentVideoVariant: async (novelId: string, chapterId: string, shotId: string, variant: 'draft' | 'hd') => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/current-video`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ variant }),
+    });
+    const data = await response.json();
+    if (!response.ok) return { success: false, message: data?.detail || '切换当前视频失败' };
+    return data;
+  },
+
+  setAllHdCurrent: async (novelId: string, chapterId: string) => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/current-video/hd-all`, { method: 'POST' });
+    const data = await response.json();
+    if (!response.ok) return { success: false, message: data?.detail || '批量设置高清视频失败' };
+    return data;
+  },
+
+  mergeChapterVideos: async (novelId: string, chapterId: string, shotIds: string[], videoVariant: 'draft' | 'hd') => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/merge-videos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'shots_only', shot_ids: shotIds, video_variant: videoVariant }),
+    });
     return response.json();
   },
 

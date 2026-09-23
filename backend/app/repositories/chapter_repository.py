@@ -118,9 +118,12 @@ class ChapterRepository:
         chapter_video = self.get_final_chapter_video_info(chapter)
         if chapter_video:
             response.update(chapter_video)
+        hd_chapter_video = self.get_final_chapter_video_info(chapter, "hd")
+        if hd_chapter_video:
+            response.update(hd_chapter_video)
         return response
 
-    def get_final_chapter_video_info(self, chapter: Chapter) -> Optional[dict]:
+    def get_final_chapter_video_info(self, chapter: Chapter, video_variant: str = "draft") -> Optional[dict]:
         """获取章节最终视频信息；只有全分镜合并才算最终视频。"""
         total_shots = self.db.query(Shot).filter(Shot.chapter_id == chapter.id).count()
         tasks = self.db.query(Task).filter(
@@ -129,18 +132,20 @@ class ChapterRepository:
             Task.status == "completed",
         ).order_by(Task.completed_at.desc(), Task.created_at.desc()).all()
 
-        final_video_url = chapter.final_video
+        final_video_url = chapter.hd_final_video if video_variant == "hd" else chapter.final_video
         final_task = None
         final_metadata = {}
         generated_shots_count = self.db.query(Shot).filter(
             Shot.chapter_id == chapter.id,
-            Shot.video_url.isnot(None),
+            (Shot.hd_video_url if video_variant == "hd" else Shot.video_url).isnot(None),
         ).count()
         for task in tasks:
             try:
                 metadata = json.loads(task.metadata_json or "{}")
             except Exception:
                 metadata = {}
+            if (metadata.get("video_variant") or "draft") != video_variant:
+                continue
             task_video_url = task.result_url or metadata.get("video_url")
             is_final_task = bool(metadata.get("is_final_video"))
             if not is_final_task and total_shots > 0:
@@ -175,14 +180,15 @@ class ChapterRepository:
 
         shot_count = final_metadata.get("shots_count") or total_shots
 
+        prefix = "hdChapterVideo" if video_variant == "hd" else "chapterVideo"
         return {
-            "finalVideo": final_video_url,
-            "chapterVideoUrl": final_video_url,
-            "chapterVideoDuration": duration,
-            "chapterVideoSize": file_size,
-            "chapterVideoShotCount": shot_count,
-            "chapterVideoTaskId": final_task.id if final_task else None,
-            "chapterVideoCompletedAt": final_task.completed_at.isoformat() if final_task and final_task.completed_at else None,
+            ("hdFinalVideo" if video_variant == "hd" else "finalVideo"): final_video_url,
+            f"{prefix}Url": final_video_url,
+            f"{prefix}Duration": duration,
+            f"{prefix}Size": file_size,
+            f"{prefix}ShotCount": shot_count,
+            f"{prefix}TaskId": final_task.id if final_task else None,
+            f"{prefix}CompletedAt": final_task.completed_at.isoformat() if final_task and final_task.completed_at else None,
         }
 
     @staticmethod
@@ -238,6 +244,7 @@ class ChapterRepository:
             "shotVideos": shot_videos,
             "transitionVideos": transition_videos,
             "finalVideo": chapter.final_video,
+            "hdFinalVideo": chapter.hd_final_video,
             "createdAt": chapter.created_at.isoformat() if chapter.created_at else None,
         }
 

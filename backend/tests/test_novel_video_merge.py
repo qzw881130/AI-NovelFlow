@@ -81,6 +81,47 @@ def test_novel_video_merge_rejects_chapters_without_final_video(client, db_sessi
     assert "没有可用的章回视频" in response.json()["detail"]
 
 
+def test_create_hd_novel_video_merge_uses_only_hd_chapter_videos(client, db_session, monkeypatch, tmp_path):
+    novel = Novel(title="高清章回合并")
+    db_session.add(novel)
+    db_session.flush()
+    chapters = [
+        Chapter(novel_id=novel.id, number=index, title=f"第{index}章", final_video=f"/api/files/draft-{index}.mp4", hd_final_video=f"/api/files/hd-{index}.mp4")
+        for index in (1, 2)
+    ]
+    db_session.add_all(chapters)
+    db_session.flush()
+    paths = {}
+    for chapter in chapters:
+        path = tmp_path / f"hd-{chapter.number}.mp4"
+        path.write_bytes(b"hd")
+        paths[chapter.hd_final_video] = str(path)
+        db_session.add(Task(
+            type="chapter_video",
+            status="completed",
+            novel_id=novel.id,
+            chapter_id=chapter.id,
+            result_url=chapter.hd_final_video,
+            name=f"hd chapter {chapter.number}",
+            metadata_json='{"video_variant":"hd","is_final_video":true,"shots_count":1}',
+        ))
+    db_session.commit()
+    monkeypatch.setattr("app.api.novel_videos.url_to_local_path", lambda url: paths.get(url))
+    monkeypatch.setattr("app.repositories.chapter_repository.url_to_local_path", lambda url: paths.get(url))
+    worker = MagicMock()
+    monkeypatch.setattr("app.api.novel_videos.worker_manager.worker", lambda _: worker)
+
+    response = client.post(
+        f"/api/novels/{novel.id}/video-merges",
+        json={"chapter_ids": [chapter.id for chapter in chapters], "video_variant": "hd"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["videoVariant"] == "hd"
+    assert [item["videoUrl"] for item in data["chapters"]] == [chapter.hd_final_video for chapter in chapters]
+
+
 @pytest.mark.asyncio
 async def test_novel_video_merge_task_orders_chapters_and_persists_history(db_session, db_engine, monkeypatch, tmp_path):
     novel = Novel(title="测试小说")
@@ -120,7 +161,7 @@ async def test_novel_video_merge_task_orders_chapters_and_persists_history(db_se
     monkeypatch.setattr("app.services.novel_video_merge_service.url_to_local_path", lambda url: paths.get(url))
     monkeypatch.setattr(
         "app.services.novel_video_merge_service.ChapterRepository.get_final_chapter_video_info",
-        lambda self, chapter: {"chapterVideoUrl": chapter.final_video},
+        lambda self, chapter, video_variant="draft": {"chapterVideoUrl": chapter.final_video},
     )
     monkeypatch.setattr("app.services.novel_video_merge_service.file_storage._get_story_dir", lambda _: tmp_path / "story")
     monkeypatch.setattr("app.services.novel_video_merge_service.file_storage.merge_videos", fake_merge)

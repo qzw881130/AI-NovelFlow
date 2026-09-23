@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, Integer, Text, ForeignKey, Index
+from sqlalchemy import Column, String, DateTime, Integer, Float, Text, ForeignKey, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import uuid
@@ -39,6 +39,12 @@ class Shot(Base):
     video_url = Column(String, nullable=True)
     video_status = Column(String, default="pending", index=True)  # pending/generating/completed/failed
     video_task_id = Column(String, nullable=True)
+    hd_video_url = Column(String, nullable=True)
+    hd_video_status = Column(String, default="pending", index=True)
+    hd_video_task_id = Column(String, nullable=True)
+    hd_video_source_task_id = Column(String, nullable=True)
+    hd_video_megapixels = Column(Float, nullable=True)
+    current_video_variant = Column(String, default="draft")
 
     # 角色图
     merged_character_image = Column(String, nullable=True)

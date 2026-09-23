@@ -3,6 +3,7 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from typing import Literal
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -19,6 +20,7 @@ router = APIRouter()
 
 class MergeChapterVideosRequest(BaseModel):
     chapter_ids: list[str] = Field(min_length=2)
+    video_variant: Literal["draft", "hd"] = "draft"
 
 
 @router.post("/novels/{novel_id}/video-merges")
@@ -44,8 +46,8 @@ async def create_novel_video_merge(
     chapter_repo = ChapterRepository(db)
     snapshots = []
     for chapter in chapters:
-        video_info = chapter_repo.get_final_chapter_video_info(chapter)
-        video_url = (video_info or {}).get("chapterVideoUrl")
+        video_info = chapter_repo.get_final_chapter_video_info(chapter, request.video_variant)
+        video_url = (video_info or {}).get("hdChapterVideoUrl" if request.video_variant == "hd" else "chapterVideoUrl")
         if not video_url or not url_to_local_path(video_url):
             raise HTTPException(status_code=400, detail=f"第 {chapter.number} 章《{chapter.title}》没有可用的章回视频")
         snapshots.append({
@@ -65,6 +67,7 @@ async def create_novel_video_merge(
         metadata_json=json.dumps({
             "chapter_ids": [chapter.id for chapter in chapters],
             "chapters": snapshots,
+            "video_variant": request.video_variant,
         }, ensure_ascii=False),
     )
     db.add(task)

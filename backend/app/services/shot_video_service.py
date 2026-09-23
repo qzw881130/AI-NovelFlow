@@ -748,6 +748,13 @@ async def generate_shot_video_task(
         if workflow.type == "first_last_video":
             effective_node_mapping["reference_image_node_id"] = node_mapping.get("first_image_node_id")
             effective_node_mapping["keyframe_node_1"] = node_mapping.get("last_image_node_id")
+        task_metadata = safe_json_dict(task.metadata_json)
+        task_metadata.update({
+            "megapixels_node_id": effective_node_mapping.get("megapixels_node_id"),
+            "video_save_node_id": effective_node_mapping.get("video_save_node_id"),
+        })
+        task.metadata_json = json.dumps(task_metadata, ensure_ascii=False)
+        db.commit()
 
         result = await comfyui_service.generate_shot_video_with_workflow(
             prompt=shot_prompt,
@@ -944,6 +951,9 @@ async def _generate_multi_clip_video_task(
             "status": "RUNNING" if reusable_clip_prompt else "PROMPT_BUILDING",
             "workflow_type": workflow_type,
             "workflow_name": workflow.name,
+            "workflow_id": workflow.id,
+            "megapixels_node_id": node_mapping.get("megapixels_node_id"),
+            "video_save_node_id": node_mapping.get("video_save_node_id"),
             "reference_images": reference_images,
             "clip_dialogues": clip_dialogues,
             "error_message": None,

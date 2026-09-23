@@ -66,6 +66,8 @@ export default {
       shotImage: '分镜图片',
       shotImageBatch: '批量分镜图片',
       shotVideoBatch: '批量分镜视频',
+      shotVideoHd: '高清重绘',
+      shotVideoHdBatch: '批量高清重绘',
       keyframeImage: '关键帧图片',
       propImage: '道具图片',
       singleImageEdit: '单图编辑',

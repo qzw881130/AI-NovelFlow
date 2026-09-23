@@ -9,11 +9,11 @@
  */
 
 import React from 'react';
-import { Check, Image, Film, Mic, FileText } from 'lucide-react';
+import { Check, Image, Film, Mic, FileText, Sparkles } from 'lucide-react';
 import { useChapterGenerateStore } from '../stores';
 import { useTranslation } from '../../../stores/i18nStore';
 
-export type StageTab = 'shot_split' | 'shot_image' | 'audio_gen' | 'video_gen';
+export type StageTab = 'shot_split' | 'shot_image' | 'audio_gen' | 'video_gen' | 'hd_repaint';
 
 interface TabConfig {
   key: StageTab;
@@ -47,6 +47,12 @@ const tabs: TabConfig[] = [
     icon: <Film className="w-4 h-4" />,
     index: 3,
   },
+  {
+    key: 'hd_repaint',
+    labelKey: 'chapterGenerate.tabHdRepaint',
+    icon: <Sparkles className="w-4 h-4" />,
+    index: 4,
+  },
 ];
 
 export function TabNavigation() {
@@ -77,6 +83,10 @@ export function TabNavigation() {
       case '4':
         e.preventDefault();
         setCurrentTab(3);
+        break;
+      case '5':
+        e.preventDefault();
+        setCurrentTab(4);
         break;
     }
   };

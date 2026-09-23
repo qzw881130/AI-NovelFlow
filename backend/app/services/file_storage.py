@@ -183,7 +183,7 @@ class FileStorageService:
             return None
     
     async def download_video(self, url: str, novel_id: str, chapter_id: str,
-                            shot_number: int) -> Optional[str]:
+                            shot_number: int, variant: str = "draft", filename_suffix: str = "") -> Optional[str]:
         """
         下载视频并保存到指定目录
         
@@ -201,12 +201,13 @@ class FileStorageService:
             
             # 创建章节视频目录
             chapter_short = chapter_id[:8] if chapter_id else "unknown"
-            save_dir = story_dir / f"chapter_{chapter_short}" / "videos"
+            save_dir = story_dir / f"chapter_{chapter_short}" / ("hd-videos" if variant == "hd" else "videos")
             save_dir.mkdir(parents=True, exist_ok=True)
             
             # 生成文件名
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"shot_{shot_number:03d}_{timestamp}.mp4"
+            suffix = f"_{filename_suffix}" if filename_suffix else ""
+            filename = f"shot_{shot_number:03d}{suffix}_{timestamp}.mp4"
             file_path = save_dir / filename
             
             # 下载视频
