@@ -28,6 +28,28 @@ export interface StoryWorldContextData {
   promptTemplateName?: string;
 }
 
+export interface NovelVideoMergeChapter {
+  id: string;
+  number: number;
+  title: string;
+  videoUrl: string;
+}
+
+export interface NovelVideoMergeHistory {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  progress: number;
+  currentStep?: string | null;
+  errorMessage?: string | null;
+  videoUrl?: string | null;
+  fileSize?: number | null;
+  duration?: number | null;
+  cacheHit: boolean;
+  chapters: NovelVideoMergeChapter[];
+  createdAt?: string | null;
+  completedAt?: string | null;
+}
+
 export const novelApi = {
   /** 获取小说列表 */
   fetchList: () => api.get<Novel[]>('/novels/'),
@@ -84,6 +106,14 @@ export const novelApi = {
 
   /** 获取章节列表 */
   fetchChapters: (novelId: string) => api.get<Chapter[]>(`/novels/${novelId}/chapters/`),
+
+  /** 合并选中的章回最终视频 */
+  mergeChapterVideos: (novelId: string, chapterIds: string[]) =>
+    api.post<NovelVideoMergeHistory>(`/novels/${novelId}/video-merges`, { chapter_ids: chapterIds }),
+
+  /** 获取小说章回视频合并历史 */
+  fetchVideoMergeHistory: (novelId: string) =>
+    api.get<NovelVideoMergeHistory[]>(`/novels/${novelId}/video-merges`),
 
   /** 导入小说 */
   import: async (file: File) => {

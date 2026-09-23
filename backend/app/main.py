@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy import text
 import asyncio
 
-from app.api import characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props
+from app.api import characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props, novel_videos
 from app.api import novels, chapters, shots
 from app.core.database import engine, Base
 from app.services.comfyui_monitor import init_monitor
@@ -162,6 +162,8 @@ async def lifespan(app: FastAPI):
     await monitor.start()
     from app.api.shots import resume_active_shot_image_batches
     resume_active_shot_image_batches()
+    from app.services.novel_video_merge_service import resume_active_novel_video_merges
+    resume_active_novel_video_merges()
     task_reconcile_task = asyncio.create_task(reconcile_active_tasks_loop())
     app.state.task_reconcile_task = task_reconcile_task
     
@@ -214,6 +216,7 @@ app.include_router(test_cases.router, prefix="/api/test-cases", tags=["test-case
 app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"])
 app.include_router(files.router, prefix="/api/files", tags=["files"])
 app.include_router(prompt_templates.router, prefix="/api/prompt-templates", tags=["prompt-templates"])
+app.include_router(novel_videos.router, prefix="/api", tags=["novel-videos"])
 app.include_router(llm_logs.router, prefix="/api/llm-logs", tags=["llm-logs"])
 
 

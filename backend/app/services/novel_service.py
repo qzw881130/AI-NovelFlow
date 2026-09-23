@@ -703,6 +703,12 @@ class NovelService:
         Returns:
             拆分结果
         """
+        from app.services.story_world_context import StoryWorldContextRequiredError, get_locked_story_world_context
+        try:
+            story_world_context = get_locked_story_world_context(novel.id).model_dump()
+        except StoryWorldContextRequiredError as exc:
+            return {"success": False, "message": str(exc)}
+
         # 检查 LLM 配置
         llm_service = self.get_llm_service()
         if not llm_service.api_key and llm_service.provider != "ollama":
@@ -773,7 +779,8 @@ class NovelService:
             style=style,
             novel_id=novel.id,
             chapter_id=chapter.id,
-            prompt_template_name=prompt_template.name
+            prompt_template_name=prompt_template.name,
+            story_world_context=story_world_context,
         )
 
         # 检查是否有错误

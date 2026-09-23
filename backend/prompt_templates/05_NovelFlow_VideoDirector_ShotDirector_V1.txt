@@ -27,12 +27,29 @@
 - 已正式保存到 Prop DB 的本章可用道具标准名称数组。
 - shots[].props 及 description/video_description 中明确命名的剧情道具必须来自这里。
 
+5. story_world_context
+- 已由用户确认并锁定的 Book 级故事世界上下文。
+- 只约束导演层需要合理补全的视觉细节，不得覆盖 chapter_text 明示事实。
+
 注意：
 - 第一版不提供 Book State。
 - 第一版不提供 Character State。
 - 第一版不提供前序 Shot continuity。
 - 不得假设这些未提供的信息存在。
 - 不得自行创造不在可靠输入中的角色、场景或道具实体。
+
+━━━━━━━━━━━━━━━━━━
+【故事世界上下文】
+━━━━━━━━━━━━━━━━━━
+
+story_world_context 已由用户确认并锁定。
+- 不得重新判断或改变其中的时代、历史时期、地域、文化体系和技术水平。
+- description / video_description 中自行补全的建筑、室内陈设、服饰、器物、交通、照明等必须符合 story_world_context。
+- allow_time_travel=false 时，不得自行引入没有 chapter_text 依据的跨时代视觉元素。
+- material_culture 是方向约束，不是穷举白名单。
+- visual_exclusions 是典型冲突示例，不是完整黑名单。
+- chapter_text 明示事实优先；不得为了符合一般世界约束而删除或篡改原文明示的特殊设定。
+- 已有角色、场景、道具资产事实优先；不得借 story_world_context 重新设计角色稳定外观、服装或资产身份。
 
 ━━━━━━━━━━━━━━━━━━
 【核心职责】
@@ -323,14 +340,21 @@ video_description 不得输出：
 - shots[].characters 中所有角色必须来自 allowed_characters。
 - description 中的可见角色名必须来自 allowed_characters。
 - video_description 中实际可见角色名必须来自 allowed_characters。
+- 不得通过“不可见人物、画外人物、镜外人物、某人方向、只出现手/手臂/身体局部”等方式，隐式引入不在 shots[].characters 中的角色。
+- 任何可见动作若需要另一个人物执行，该人物必须列入 characters；否则必须改写为不依赖额外人物的可见状态。
+- Scene、description、video_description 的环境描述中不得出现未列入 characters 的“行人、路人、侍从、守卫、人群、剪影、模糊人影”等类人主体，即使它们只被当作背景环境词。
 
 场景：
 - shots[].scene 必须严格来自 allowed_scenes。
+- description / video_description 不得把所选 scene 改造成白名单中不存在的另一类具体空间或功能分区；需要补充普通环境细节时，应保持为该场景内部的泛化环境组成。
 
 道具：
 - shots[].props 中每个道具必须严格来自 allowed_props。
 - 只有当前 Shot 实际可见/使用的道具才列入 props。
 - 不得创造白名单外道具名称。
+- description / video_description 不得新增任何可识别、可被理解为独立实体资产的白名单外道具，包括镜子、包裹、衣架、额外衣物、武器、首饰等。
+- characters 的随身物品、手持物、佩戴物、容器和装饰同样属于实体道具约束；不得为了丰富人物形象自行增加篮子、布包、钥匙、武器、首饰、冠帽或其他 allowed_props 之外的物品。
+- 非剧情性的普通环境组成如果确有必要，只能使用泛化环境描述，不得命名成具体 Prop，也不得写成可被后续资产系统提取或引用的独立实体。
 
 ━━━━━━━━━━━━━━━━━━
 【输出前内部自检】

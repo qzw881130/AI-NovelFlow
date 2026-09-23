@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Loader2, FileText, Trash2, Edit3, CheckCircle, AlertCircle, Clock, Wand2, Upload, Play, Download, Video, X, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, FileText, Trash2, Edit3, CheckCircle, AlertCircle, Clock, Wand2, Upload, Play, Download, Video, X, RefreshCw, Combine } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import type { Chapter } from '../../types';
 import { useNovelDetailState } from './hooks/useNovelDetailState';
 import { CreateChapterModal } from './components/CreateChapterModal';
 import { BatchImportModal } from './components/BatchImportModal';
+import { MergeChapterVideosModal } from './components/MergeChapterVideosModal';
 
 function StatusIcon({ status, iconInfo }: { status: Chapter['status']; iconInfo: { icon: string; color: string; spin?: boolean } }) {
   if (iconInfo.icon === 'check') return <CheckCircle className={`h-5 w-5 ${iconInfo.color}`} />;
@@ -100,6 +101,7 @@ export default function NovelDetail() {
   const state = useNovelDetailState();
   const [playingChapter, setPlayingChapter] = useState<Chapter | null>(null);
   const [selectedChapterIds, setSelectedChapterIds] = useState<string[]>([]);
+  const [showMergeModal, setShowMergeModal] = useState(false);
 
   if (state.isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary-600" /></div>;
   if (!state.novel) {
@@ -122,6 +124,9 @@ export default function NovelDetail() {
           </div>
         </div>
         <div className="flex gap-2">
+          <button onClick={() => setShowMergeModal(true)} className="btn-secondary">
+            <Combine className="h-4 w-4 mr-2" />合并所有章回视频
+          </button>
           <button
             onClick={() => state.setShowCreateModal(true)}
             className="btn-primary"
@@ -201,6 +206,9 @@ export default function NovelDetail() {
         onClose={() => state.setShowCreateModal(false)} onSubmit={state.handleCreateChapter} setNewChapter={state.setNewChapter} />
       <BatchImportModal show={state.showBatchImportModal} novelId={state.id!}
         onClose={() => state.setShowBatchImportModal(false)} onImportComplete={state.handleBatchImportComplete} />
+      {showMergeModal && (
+        <MergeChapterVideosModal novelId={state.id!} chapters={state.chapters} onClose={() => setShowMergeModal(false)} />
+      )}
       {playingChapter && getChapterVideoUrl(playingChapter) && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-4xl rounded-xl bg-white shadow-2xl">

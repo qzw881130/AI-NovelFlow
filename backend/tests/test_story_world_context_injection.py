@@ -2,8 +2,11 @@ import json
 
 import pytest
 from sqlalchemy.orm import sessionmaker
+from unittest.mock import AsyncMock
 
-from app.models.novel import Novel
+from app.models.novel import Chapter, Novel
+from app.models.shot import Shot
+from app.services.novel_service import NovelService
 from app.services import story_world_context
 from app.services.story_world_context import (
     StoryWorldContextRequiredError,
@@ -127,3 +130,74 @@ def test_default_asset_parse_prompts_contain_domain_rules():
     assert "material_culture.objects" in prop
     assert "FICTIONAL_OR_NONEXISTENT" in prop
     assert "被提及不等于实际存在" in prop
+
+
+@pytest.mark.asyncio
+async def test_split_chapter_gate_preserves_existing_shots(db_session, monkeypatch):
+    testing_session = sessionmaker(bind=db_session.bind)
+    monkeypatch.setattr(story_world_context, "SessionLocal", testing_session)
+    novel = Novel(title="未锁定小说")
+    db_session.add(novel)
+    db_session.commit()
+    chapter = Chapter(novel_id=novel.id, number=1, title="第一章", content="正文")
+    db_session.add(chapter)
+    db_session.commit()
+    shot = Shot(chapter_id=chapter.id, index=1, description="已有分镜")
+    db_session.add(shot)
+    db_session.commit()
+
+    result = await NovelService(db_session).split_chapter(
+        novel=novel,
+        chapter=chapter,
+        character_names=[],
+        scene_names=[],
+        prop_names=[],
+    )
+
+    assert result == {"success": False, "message": "请先确认并锁定故事世界上下文"}
+    assert db_session.query(Shot).filter(Shot.id == shot.id).one().description == "已有分镜"
+
+
+@pytest.mark.asyncio
+async def test_split_chapter_user_prompt_contains_compact_world_context():
+    from app.services.llm_service import LLMService
+
+    service = LLMService.__new__(LLMService)
+    captured = {}
+    service.chat_completion = AsyncMock(side_effect=lambda **kwargs: captured.update(kwargs) or {
+        "success": True,
+        "content": '{"chapter":"第一章","characters":[],"scenes":[],"props":[],"shots":[]}',
+    })
+
+    result = await service.split_chapter_with_prompt(
+        chapter_title="第一章",
+        chapter_content="皇帝命令骗子制作新衣。",
+        prompt_template="系统规则",
+        character_names=["皇帝", "骗子1"],
+        scene_names=["皇宫大殿"],
+        prop_names=["织机"],
+        novel_id="novel-id",
+        chapter_id="chapter-id",
+        story_world_context=CONTEXT,
+    )
+
+    user_content = captured["user_content"]
+    assert result["shots"] == []
+    assert user_content.startswith("story_world_context:\n{")
+    assert '"world_type": "童话"' in user_content
+    assert "allowed_props: 织机" in user_content
+    assert "章节内容：\n皇帝命令骗子制作新衣。" in user_content
+    assert captured["task_type"] == "split_chapter"
+
+
+def test_shot_director_prompt_has_world_context_and_strict_prop_whitelist_rules():
+    from pathlib import Path
+
+    prompt = (Path(__file__).parent.parent / "prompt_templates" / "05_NovelFlow_VideoDirector_ShotDirector_V1.txt").read_text(encoding="utf-8")
+    assert "5. story_world_context" in prompt
+    assert "不得借 story_world_context 重新设计角色稳定外观" in prompt
+    assert "不得新增任何可识别、可被理解为独立实体资产的白名单外道具" in prompt
+    assert "只能使用泛化环境描述" in prompt
+    assert "不得通过“不可见人物、画外人物、镜外人物" in prompt
+    assert "行人、路人、侍从、守卫、人群、剪影、模糊人影" in prompt
+    assert "随身物品、手持物、佩戴物、容器和装饰同样属于实体道具约束" in prompt

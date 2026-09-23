@@ -3,6 +3,7 @@ LLM 服务封装 - 支持多厂商调用 (DeepSeek, OpenAI, Gemini, Anthropic, A
 
 对外暴露的服务层，内部使用 LLMClient 实现底层调用。
 """
+import json
 from typing import Dict, Any, List, Optional
 from app.core.config import get_settings
 from app.services.llm import LLMClient, LLMConfig
@@ -462,7 +463,8 @@ class LLMService:
         style: str = "anime style, high quality, detailed",
         novel_id: str = None,
         chapter_id: str = None,
-        prompt_template_name: str = None
+        prompt_template_name: str = None,
+        story_world_context: Dict[str, Any] = None,
     ) -> Dict[str, Any]:
         """使用自定义提示词将章节拆分为分镜数据结构"""
 
@@ -495,7 +497,15 @@ class LLMService:
         if allowed_characters_line or allowed_scenes_line or allowed_props_line:
             whitelist_lines = allowed_characters_line + allowed_scenes_line + allowed_props_line + "\n"
 
-        user_content = f"""{whitelist_lines}章节标题：{chapter_title}
+        if story_world_context is None:
+            from app.services.story_world_context import get_locked_story_world_context
+            story_world_context = get_locked_story_world_context(novel_id).model_dump()
+        story_context_json = json.dumps(story_world_context, ensure_ascii=False, indent=2)
+
+        user_content = f"""story_world_context:
+{story_context_json}
+
+{whitelist_lines}章节标题：{chapter_title}
 
 章节内容：
 {chapter_content[:CHAPTER_CONTENT_MAX_LENGTH]}
