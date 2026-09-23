@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from app.models.novel import Prop
+from app.constants.prop import PROP_EXISTENCE_REAL
 
 
 class PropRepository:
@@ -33,6 +34,13 @@ class PropRepository:
             Prop.novel_id == novel_id
         ).all()
         return [r[0] for r in results]
+
+    def get_visual_names_by_novel(self, novel_id: str) -> List[str]:
+        results = self.db.query(Prop.name).filter(
+            Prop.novel_id == novel_id,
+            Prop.existence == PROP_EXISTENCE_REAL,
+        ).all()
+        return [row[0] for row in results]
     
     def get_dict_by_novel(self, novel_id: str) -> Dict[str, Prop]:
         """
@@ -46,13 +54,15 @@ class PropRepository:
     
     def create(self, novel_id: str, name: str, description: str = "", 
                appearance: str = "", start_chapter: int = None, 
-               end_chapter: int = None, source_range: str = None) -> Prop:
+               end_chapter: int = None, source_range: str = None,
+               existence: str = PROP_EXISTENCE_REAL) -> Prop:
         """创建道具"""
         prop = Prop(
             novel_id=novel_id,
             name=name,
             description=description,
             appearance=appearance,
+            existence=existence,
             start_chapter=start_chapter,
             end_chapter=end_chapter,
             source_range=source_range,

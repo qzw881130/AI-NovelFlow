@@ -26,6 +26,7 @@ from app.services.file_storage import file_storage
 from app.services.background_workers import worker_manager
 from app.services.prompt_builder import get_style
 from app.services.video_director_ai import append_video_ai_call, strip_media_refs
+from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.workflow_disconnect import (
     disconnect_reference_chain,
@@ -144,10 +145,10 @@ class ShotKeyframeService:
                 manifest.append({"picture_index": picture_index, "type": "SCENE", "name": shot.scene})
                 picture_index += 1
 
-        prop_names = json.loads(shot.props) if shot.props else []
+        prop_names = get_visual_prop_names(db, novel.id, json.loads(shot.props) if shot.props else [])
         prop_members = []
         for name in prop_names:
-            prop = db.query(Prop).filter(Prop.novel_id == novel.id, Prop.name == name).first()
+            prop = db.query(Prop).filter(Prop.novel_id == novel.id, Prop.name == name, Prop.existence == PROP_EXISTENCE_REAL).first()
             if prop and prop.image_url:
                 prop_members.append(name)
         if prop_members:
@@ -168,6 +169,7 @@ class ShotKeyframeService:
             return keyframe.get("description") or shot.description or ""
 
         visual_style, _ = get_style(db, novel, "character")
+        prop_names = get_visual_prop_names(db, novel.id, json.loads(shot.props) if shot.props else [])
         payload = {
             "shot": {
                 "id": shot.id,
@@ -176,7 +178,7 @@ class ShotKeyframeService:
                 "video_description": shot.video_description or "",
                 "characters": json.loads(shot.characters) if shot.characters else [],
                 "scene": shot.scene or "",
-                "props": json.loads(shot.props) if shot.props else [],
+                "props": prop_names,
                 "duration": shot.duration or 4,
                 "continuity_mode": shot.continuity_mode or "NORMAL",
                 "dialogues": json.loads(shot.dialogues) if shot.dialogues else [],

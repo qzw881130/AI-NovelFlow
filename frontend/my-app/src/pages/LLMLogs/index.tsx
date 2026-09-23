@@ -237,9 +237,8 @@ function LogTableRow({ log, selected, onSelectionStart, onSelectionEnter, onView
       </td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{formatDate(log.created_at)}</td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-        <span className="inline-flex items-center gap-2" title={log.provider}>
+        <span className="inline-flex items-center" title={log.provider}>
           <ProviderLogo provider={log.provider} label={log.provider} className="h-6 w-6" />
-          <span>{log.provider}</span>
         </span>
       </td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.model}</td>

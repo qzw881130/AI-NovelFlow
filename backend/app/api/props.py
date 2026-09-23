@@ -17,6 +17,7 @@ from app.services.file_storage import file_storage
 from app.services.prompt_builder import build_prop_prompt, get_style
 from app.api.deps import get_prop_repo, get_novel_repo, get_llm_service, get_prompt_template_repo, get_task_repo
 from app.services.prop_image_service import PropService
+from app.services.prop_policy import PROP_EXISTENCE_NONEXISTENT, invalidate_nonexistent_prop_references, normalize_prop_existence, is_prop_visual_eligible
 from app.schemas.prop import PropCreate, PropUpdate, PropImageEditRequest, PropImageReplaceRequest
 from app.services.single_image_edit_service import SingleImageEditService
 from app.utils.path_utils import url_to_local_path
@@ -61,6 +62,7 @@ async def get_props(
                 "name": p.name,
                 "description": p.description,
                 "appearance": p.appearance,
+                "existence": p.existence,
                 "imageUrl": p.image_url,
                 "generatingStatus": p.generating_status,
                 "propTaskId": p.prop_task_id,
@@ -106,6 +108,7 @@ async def get_prop(
             "name": prop.name,
             "description": prop.description,
             "appearance": prop.appearance,
+            "existence": prop.existence,
             "imageUrl": prop.image_url,
             "generatingStatus": prop.generating_status,
             "propTaskId": prop.prop_task_id,
@@ -142,7 +145,8 @@ async def create_prop(
         novel_id=data.novel_id,
         name=data.name,
         description=data.description or "",
-        appearance=data.appearance or ""
+        appearance=data.appearance or "",
+        existence=data.existence,
     )
 
     return {
@@ -153,6 +157,7 @@ async def create_prop(
             "name": prop.name,
             "description": prop.description,
             "appearance": prop.appearance,
+            "existence": prop.existence,
             "imageUrl": prop.image_url,
             "novelName": novel.title,
             "createdAt": format_datetime(prop.created_at),
@@ -186,6 +191,11 @@ async def update_prop(
         update_data["description"] = data.description
     if data.appearance is not None:
         update_data["appearance"] = data.appearance
+    if data.existence is not None:
+        update_data["existence"] = data.existence
+        if data.existence == "FICTIONAL_OR_NONEXISTENT":
+            update_data["generating_status"] = None
+            invalidate_nonexistent_prop_references(db, prop.novel_id)
 
     prop = prop_repo.update(prop, **update_data)
 
@@ -197,6 +207,7 @@ async def update_prop(
             "name": prop.name,
             "description": prop.description,
             "appearance": prop.appearance,
+            "existence": prop.existence,
             "imageUrl": prop.image_url
         },
         "message": "道具更新成功"
@@ -259,6 +270,8 @@ async def upload_prop_image(
     prop = prop_repo.get_by_id(prop_id)
     if not prop:
         raise HTTPException(status_code=404, detail="道具不存在")
+    if not is_prop_visual_eligible(prop):
+        raise HTTPException(status_code=400, detail="该道具在故事中不存在，不能上传实体参考图")
     
     # 验证文件类型
     allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/webp"]
@@ -322,6 +335,8 @@ async def edit_prop_image(
     prop = prop_repo.get_by_id(prop_id)
     if not prop:
         raise HTTPException(status_code=404, detail="道具不存在")
+    if not is_prop_visual_eligible(prop):
+        raise HTTPException(status_code=400, detail="该道具在故事中不存在，不能编辑实体参考图")
     if not prop.image_url:
         raise HTTPException(status_code=400, detail="道具暂无图片，无法编辑")
 
@@ -351,6 +366,8 @@ async def replace_prop_image(
     prop = prop_repo.get_by_id(prop_id)
     if not prop:
         raise HTTPException(status_code=404, detail="道具不存在")
+    if not is_prop_visual_eligible(prop):
+        raise HTTPException(status_code=400, detail="该道具在故事中不存在，不能替换实体参考图")
     if not url_to_local_path(data.image_url):
         raise HTTPException(status_code=400, detail="图片文件不存在或不是本地图片")
 
@@ -447,6 +464,11 @@ async def parse_props(
                     existing_prop,
                     description=prop_data.get("description", ""),
                     appearance=prop_data.get("appearance", ""),
+                    existence=normalize_prop_existence(
+                        prop_data.get("existence"),
+                        prop_data.get("description", ""),
+                        prop_data.get("appearance", ""),
+                    ),
                     start_chapter=start_chapter or existing_prop.start_chapter,
                     end_chapter=end_chapter or existing_prop.end_chapter,
                     source_range=source_range,
@@ -460,11 +482,20 @@ async def parse_props(
                     name=prop_data["name"],
                     description=prop_data.get("description", ""),
                     appearance=prop_data.get("appearance", ""),
+                    existence=normalize_prop_existence(
+                        prop_data.get("existence"),
+                        prop_data.get("description", ""),
+                        prop_data.get("appearance", ""),
+                    ),
                     start_chapter=start_chapter,
                     end_chapter=end_chapter,
                     source_range=source_range
                 )
                 created_props.append(new_prop)
+
+        if any(prop.existence == PROP_EXISTENCE_NONEXISTENT for prop in created_props + updated_props):
+            invalidate_nonexistent_prop_references(db, novel_id)
+            db.commit()
         
         # 构造响应
         message_parts = []
@@ -481,6 +512,7 @@ async def parse_props(
                     "name": p.name,
                     "description": p.description,
                     "appearance": p.appearance,
+                    "existence": p.existence,
                     "startChapter": p.start_chapter,
                     "endChapter": p.end_chapter,
                     "isIncremental": p.is_incremental,
@@ -591,6 +623,8 @@ async def generate_prop_appearance(
     prop = prop_repo.get_by_id(prop_id)
     if not prop:
         raise HTTPException(status_code=404, detail="道具不存在")
+    if not is_prop_visual_eligible(prop):
+        raise HTTPException(status_code=400, detail="该道具在故事中不存在，不生成视觉外观资产")
 
     if not prop.description:
         return {

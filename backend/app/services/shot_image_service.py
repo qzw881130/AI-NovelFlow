@@ -15,6 +15,7 @@ from app.core.database import SessionLocal
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import get_style
+from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.image_utils import merge_character_images, merge_prop_images
 from app.repositories.shot_repository import ShotRepository
@@ -115,7 +116,7 @@ async def generate_shot_image_task(
         # 从 Shot 模型获取分镜数据
         shot_characters = json.loads(shot.characters) if shot.characters else []
         shot_scene = shot.scene or ""
-        shot_props = json.loads(shot.props) if shot.props else []
+        shot_props = get_visual_prop_names(db, novel_id, json.loads(shot.props) if shot.props else [])
 
         print(
             f"[ShotTask {task_id}] Novel: {novel_id}, Chapter: {chapter_id}, Shot: {shot_index}"
@@ -155,6 +156,8 @@ async def generate_shot_image_task(
         )
 
         # 处理道具图
+        if shot.merged_prop_image:
+            shot_repo.update(shot, merged_prop_image=None)
         prop_reference_paths = await _process_prop_references(
             db, task, novel_id, chapter_id, shot_index, shot_props, task_id, shot_repo
         )
@@ -193,7 +196,7 @@ async def generate_shot_image_task(
         for prop_name in shot_props:
             prop = (
                 db.query(Prop)
-                .filter(Prop.novel_id == novel_id, Prop.name == prop_name)
+                .filter(Prop.novel_id == novel_id, Prop.name == prop_name, Prop.existence == PROP_EXISTENCE_REAL)
                 .first()
             )
             if prop and prop.appearance:
@@ -450,7 +453,7 @@ async def _process_prop_references(
     for prop_name in shot_props:
         prop = (
             db.query(Prop)
-            .filter(Prop.novel_id == novel_id, Prop.name == prop_name)
+            .filter(Prop.novel_id == novel_id, Prop.name == prop_name, Prop.existence == PROP_EXISTENCE_REAL)
             .first()
         )
 

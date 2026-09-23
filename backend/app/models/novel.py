@@ -163,6 +163,7 @@ class Prop(Base):
     name = Column(String, nullable=False, index=True)  # 道具名称
     description = Column(Text, default="")  # 道具描述
     appearance = Column(Text, default="")  # 道具外观描述（用于生成参考图）
+    existence = Column(String, default="REAL", nullable=False, index=True)  # REAL / FICTIONAL_OR_NONEXISTENT
     image_url = Column(String, nullable=True)  # 参考图URL
     
     # 章节范围信息

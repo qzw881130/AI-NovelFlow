@@ -18,6 +18,7 @@ from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import build_prop_prompt, get_style
 from app.services.background_workers import worker_manager
+from app.services.prop_policy import is_prop_visual_eligible
 
 
 def enqueue_prop_image_task(
@@ -70,6 +71,8 @@ class PropService:
         prop = prop_repo.get_by_id(prop_id)
         if not prop:
             return {"success": False, "message": "道具不存在"}
+        if not is_prop_visual_eligible(prop):
+            return {"success": False, "message": "该道具在故事中不存在，不能生成实体参考图"}
 
         # 检查是否已有进行中的任务
         existing_task = task_repo.get_active_by_prop(prop_id)
@@ -165,6 +168,16 @@ class PropService:
                 return
             if task.status not in ["pending", "running"]:
                 print(f"[PropTask] Skip prop task {task_id}, status={task.status}")
+                return
+
+            prop = prop_repo.get_by_id(prop_id)
+            if not is_prop_visual_eligible(prop):
+                task.status = "failed"
+                task.error_message = "该道具在故事中不存在，不能生成实体参考图"
+                task.current_step = "已阻止不存在道具实体化"
+                if prop:
+                    prop.generating_status = None
+                db.commit()
                 return
 
             # 获取当前激活的工作流（优先 prop，其次 scene）
@@ -353,6 +366,7 @@ class PropService:
         targets = [
             prop for prop in props
             if (not prop.image_url or prop.generating_status == "failed")
+            and is_prop_visual_eligible(prop)
             and not task_repo.get_active_by_prop(prop.id)
         ]
 

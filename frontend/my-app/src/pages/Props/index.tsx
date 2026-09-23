@@ -52,6 +52,7 @@ export default function Props() {
     name: '',
     description: '',
     appearance: '',
+    existence: 'REAL' as Prop['existence'],
     novelId: '',
   });
 
@@ -174,11 +175,12 @@ export default function Props() {
         name: formData.name,
         description: formData.description,
         appearance: formData.appearance,
+        existence: formData.existence,
       });
       if (data.success) {
         setProps([data.data!, ...props]);
         setShowCreateModal(false);
-        setFormData({ name: '', description: '', appearance: '', novelId: '' });
+        setFormData({ name: '', description: '', appearance: '', existence: 'REAL', novelId: '' });
         toast.success(t('common.create') + t('common.success'));
       }
     } catch (error) {
@@ -239,6 +241,10 @@ export default function Props() {
   };
 
   const generateAppearance = async (prop: Prop) => {
+    if (prop.existence === 'FICTIONAL_OR_NONEXISTENT') {
+      toast.warning('故事中不存在的道具不会生成视觉资产');
+      return;
+    }
     if (!prop.description) {
       toast.warning(t('props.appearanceTip'));
       return;
@@ -264,6 +270,10 @@ export default function Props() {
   };
 
   const generatePropImage = async (prop: Prop) => {
+    if (prop.existence === 'FICTIONAL_OR_NONEXISTENT') {
+      toast.warning('故事中不存在的道具不能生成实体参考图');
+      return;
+    }
     if (prop.generatingStatus === 'pending' || prop.generatingStatus === 'running') {
       toast.info(t('props.generatingStatus'));
       return;
@@ -329,7 +339,7 @@ export default function Props() {
       return;
     }
 
-    const propsToGenerate = filteredProps.filter(p => p.generatingStatus !== 'pending' && p.generatingStatus !== 'running');
+    const propsToGenerate = filteredProps.filter(p => p.existence !== 'FICTIONAL_OR_NONEXISTENT' && p.generatingStatus !== 'pending' && p.generatingStatus !== 'running');
 
     if (propsToGenerate.length === 0) {
       toast.info(t('props.generatingStatus'));
@@ -387,6 +397,7 @@ export default function Props() {
     if (!selectedNovel) return;
     const propsToGenerate = props.filter(prop => (
       (!prop.imageUrl || prop.generatingStatus === 'failed') &&
+      prop.existence !== 'FICTIONAL_OR_NONEXISTENT' &&
       prop.generatingStatus !== 'pending' &&
       prop.generatingStatus !== 'running'
     ));
@@ -440,6 +451,11 @@ export default function Props() {
   };
 
   const triggerFileUpload = (propId: string) => {
+    const prop = props.find((item) => item.id === propId);
+    if (prop?.existence === 'FICTIONAL_OR_NONEXISTENT') {
+      toast.warning('故事中不存在的道具不能上传实体参考图');
+      return;
+    }
     setCurrentUploadPropId(propId);
     if (fileInputRef.current) {
       fileInputRef.current.click();
@@ -648,7 +664,7 @@ export default function Props() {
           )}
           <button
             onClick={() => {
-              setFormData({ name: '', description: '', appearance: '', novelId: selectedNovel });
+              setFormData({ name: '', description: '', appearance: '', existence: 'REAL', novelId: selectedNovel });
               setShowCreateModal(true);
             }}
             className="btn-primary"
@@ -829,6 +845,11 @@ export default function Props() {
                   rows={3}
                   placeholder={t('props.appearancePlaceholder')}
                 />
+                <label className="mt-3 block text-sm font-medium text-gray-700">存在性</label>
+                <select value={formData.existence} onChange={(e) => setFormData({ ...formData, existence: e.target.value as Prop['existence'] })} className="input-field mt-1">
+                  <option value="REAL">真实存在</option>
+                  <option value="FICTIONAL_OR_NONEXISTENT">故事中虚构/不存在</option>
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">{t('props.novel')} *</label>
@@ -891,6 +912,11 @@ export default function Props() {
                   rows={3}
                   placeholder={t('props.appearancePlaceholder')}
                 />
+                <label className="mt-3 block text-sm font-medium text-gray-700">存在性</label>
+                <select value={editingProp.existence || 'REAL'} onChange={(e) => setEditingProp({ ...editingProp, existence: e.target.value as Prop['existence'] })} className="input-field mt-1">
+                  <option value="REAL">真实存在</option>
+                  <option value="FICTIONAL_OR_NONEXISTENT">故事中虚构/不存在</option>
+                </select>
               </div>
               <div className="flex justify-end gap-2 pt-4">
                 <button type="button" onClick={() => setEditingProp(null)} className="btn-secondary">{t('common.cancel')}</button>

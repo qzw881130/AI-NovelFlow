@@ -17,6 +17,7 @@ from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.repositories.shot_repository import ShotRepository
 from app.services.background_workers import worker_manager
 from app.services.video_director_ai import build_h3_video_prompt, safe_json_dict, safe_json_list
+from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 
 
 def _filter_transitions_for_keyframe_indexes(transitions: list, keyframe_indexes: list) -> list:
@@ -458,7 +459,7 @@ async def generate_shot_video_task(
         # 从 Shot 模型直接获取角色、场景、道具
         shot_characters = json.loads(shot.characters) if shot.characters else []
         shot_scene = shot.scene or ""
-        shot_props = json.loads(shot.props) if shot.props else []
+        shot_props = get_visual_prop_names(db, novel_id, json.loads(shot.props) if shot.props else [])
 
         # 获取角色外貌描述（从 Character 表中获取）
         character_appearances = {}
@@ -489,7 +490,8 @@ async def generate_shot_video_task(
             for prop_name in shot_props:
                 prop = db.query(Prop).filter(
                     Prop.novel_id == novel_id,
-                    Prop.name == prop_name
+                    Prop.name == prop_name,
+                    Prop.existence == PROP_EXISTENCE_REAL,
                 ).first()
                 if prop and prop.appearance:
                     prop_appearances[prop_name] = prop.appearance

@@ -302,7 +302,7 @@ export const createDataSlice: StateCreator<
 
   getPropImage: (name: string): string | null => {
     const prop = get().props.find((p) => p.name === name);
-    return prop?.imageUrl || null;
+    return prop?.existence === 'FICTIONAL_OR_NONEXISTENT' ? null : prop?.imageUrl || null;
   },
 
   // ========== 章节资源管理方法 ==========

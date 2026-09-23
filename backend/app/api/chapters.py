@@ -282,7 +282,7 @@ async def split_chapter(
     # 获取当前小说的所有角色、场景和道具列表
     character_names = character_repo.get_names_by_novel(novel_id)
     scene_names = scene_repo.get_names_by_novel(novel_id)
-    prop_names = prop_repo.get_names_by_novel(novel_id)
+    prop_names = prop_repo.get_visual_names_by_novel(novel_id)
     
     service = NovelService(db)
     return await service.split_chapter(

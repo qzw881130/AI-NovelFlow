@@ -84,6 +84,7 @@ from app.services.prompt_builder import get_style
 from app.services.llm_service import LLMService
 from app.repositories import PromptTemplateRepository
 from app.services.video_director_ai import append_video_ai_call, build_dialogue_timeline, strip_media_refs
+from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.core.database import SessionLocal
 from app.services.background_workers import worker_manager
 
@@ -393,7 +394,7 @@ def _get_shot_image_prompt_template(novel: Novel, template_repo: PromptTemplateR
 
 def _build_shot_image_reference_manifest(db: Session, novel: Novel, shot):
     shot_characters = _safe_json_list(shot.characters)
-    shot_props = _safe_json_list(shot.props)
+    shot_props = get_visual_prop_names(db, novel.id, _safe_json_list(shot.props))
 
     manifest = []
     picture_index = 1
@@ -437,7 +438,7 @@ def _build_shot_image_reference_manifest(db: Session, novel: Novel, shot):
     for name in shot_props:
         prop = (
             db.query(Prop)
-            .filter(Prop.novel_id == novel.id, Prop.name == name)
+            .filter(Prop.novel_id == novel.id, Prop.name == name, Prop.existence == PROP_EXISTENCE_REAL)
             .first()
         )
         if prop and prop.image_url and url_to_local_path(prop.image_url):
@@ -473,7 +474,7 @@ def _resolve_shot_image_workflow_type(db: Session, novel: Novel, shot) -> str:
 
 def _build_shot_image_reference_bundle(db: Session, novel: Novel, shot):
     shot_characters = _safe_json_list(shot.characters)
-    shot_props = _safe_json_list(shot.props)
+    shot_props = get_visual_prop_names(db, novel.id, _safe_json_list(shot.props))
 
     character_members = []
     for name in shot_characters:
@@ -502,7 +503,7 @@ def _build_shot_image_reference_bundle(db: Session, novel: Novel, shot):
     for name in shot_props:
         prop = (
             db.query(Prop)
-            .filter(Prop.novel_id == novel.id, Prop.name == name)
+            .filter(Prop.novel_id == novel.id, Prop.name == name, Prop.existence == PROP_EXISTENCE_REAL)
             .first()
         )
         if prop and prop.image_url and url_to_local_path(prop.image_url):
@@ -525,7 +526,7 @@ def _build_shot_image_reference_bundle(db: Session, novel: Novel, shot):
 
 def _build_shot_image_prompt_input(db: Session, novel: Novel, shot, template_body: str) -> str:
     shot_characters = _safe_json_list(shot.characters)
-    shot_props = _safe_json_list(shot.props)
+    shot_props = get_visual_prop_names(db, novel.id, _safe_json_list(shot.props))
     shot_dialogues = _safe_json_list(shot.dialogues)
     visual_style, _ = get_style(db, novel, "character")
 

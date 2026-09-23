@@ -225,6 +225,7 @@ export interface Prop {
   name: string;
   description: string;
   appearance: string;
+  existence: 'REAL' | 'FICTIONAL_OR_NONEXISTENT';
   imageUrl?: string;
   generatingStatus?: 'pending' | 'running' | 'completed' | 'failed';
   propTaskId?: string;

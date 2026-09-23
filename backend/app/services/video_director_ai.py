@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.novel import Novel
 from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.llm_service import LLMService
+from app.services.prop_policy import get_visual_prop_names
 
 
 VIDEO_AI_STEP_LABELS = {
@@ -410,7 +411,7 @@ async def build_h3_video_prompt(
             "characters": shot_characters,
             "official_character_appearances": character_appearances,
             "scene": shot.scene or "",
-            "props": safe_json_list(shot.props),
+            "props": get_visual_prop_names(db, novel.id, safe_json_list(shot.props)),
             "dialogues": dialogue_payload if is_multi_clip else safe_json_list(shot.dialogues),
         },
         "selected_mode": selected_mode,

@@ -21,6 +21,7 @@ from app.services.prompt_builder import get_style
 from app.utils.path_utils import url_to_local_path
 from app.utils.image_utils import load_chinese_font, merge_character_images
 from app.repositories.shot_repository import ShotRepository
+from app.services.prop_policy import PROP_EXISTENCE_NONEXISTENT, invalidate_nonexistent_prop_references, normalize_prop_existence
 
 
 class NovelService:
@@ -300,6 +301,7 @@ class NovelService:
 
             # 获取现有道具
             existing_props = prop_repo.get_dict_by_novel(novel_id)
+            has_nonexistent_props = False
 
             for prop_data in props_data:
                 name = prop_data.get("name", "").strip()
@@ -315,6 +317,12 @@ class NovelService:
                             existing.description = prop_data.get("description")
                         if not existing.appearance and prop_data.get("appearance"):
                             existing.appearance = prop_data.get("appearance")
+                        existing.existence = normalize_prop_existence(
+                            prop_data.get("existence"),
+                            prop_data.get("description", existing.description),
+                            prop_data.get("appearance", existing.appearance),
+                        )
+                        has_nonexistent_props = has_nonexistent_props or existing.existence == PROP_EXISTENCE_NONEXISTENT
                         if source_range:
                             if existing.source_range:
                                 existing.source_range += f", {source_range}"
@@ -323,6 +331,10 @@ class NovelService:
                     else:
                         existing.description = prop_data.get("description", existing.description)
                         existing.appearance = prop_data.get("appearance", existing.appearance)
+                        existing.existence = normalize_prop_existence(
+                            prop_data.get("existence"), existing.description, existing.appearance
+                        )
+                        has_nonexistent_props = has_nonexistent_props or existing.existence == PROP_EXISTENCE_NONEXISTENT
                         existing.source_range = source_range
 
                     existing.last_parsed_at = datetime.utcnow()
@@ -334,6 +346,11 @@ class NovelService:
                         name=name,
                         description=prop_data.get("description", ""),
                         appearance=prop_data.get("appearance", ""),
+                        existence=normalize_prop_existence(
+                            prop_data.get("existence"),
+                            prop_data.get("description", ""),
+                            prop_data.get("appearance", ""),
+                        ),
                         start_chapter=start_chapter,
                         end_chapter=end_chapter,
                         is_incremental=is_incremental,
@@ -341,8 +358,11 @@ class NovelService:
                         last_parsed_at=datetime.utcnow()
                     )
                     self.db.add(prop)
+                    has_nonexistent_props = has_nonexistent_props or prop.existence == PROP_EXISTENCE_NONEXISTENT
                     created_props.append(prop)
 
+            if has_nonexistent_props:
+                invalidate_nonexistent_prop_references(self.db, novel_id)
             self.db.commit()
 
             # 刷新对象以获取 ID
@@ -364,6 +384,7 @@ class NovelService:
                         "name": p.name,
                         "description": p.description,
                         "appearance": p.appearance,
+                        "existence": p.existence,
                         "startChapter": p.start_chapter,
                         "endChapter": p.end_chapter,
                         "isIncremental": p.is_incremental,

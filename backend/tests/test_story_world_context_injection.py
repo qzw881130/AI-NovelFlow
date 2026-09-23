@@ -125,3 +125,5 @@ def test_default_asset_parse_prompts_contain_domain_rules():
     assert "【示例输出】" not in scene
     assert "不得使用可能产生跨时代理解的模糊名称" in scene
     assert "material_culture.objects" in prop
+    assert "FICTIONAL_OR_NONEXISTENT" in prop
+    assert "被提及不等于实际存在" in prop

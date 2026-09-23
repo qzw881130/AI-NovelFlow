@@ -33,6 +33,33 @@ def ensure_schema_updates():
             if "shot_image_prompt" not in shot_columns:
                 conn.execute(text("ALTER TABLE shots ADD COLUMN shot_image_prompt TEXT DEFAULT ''"))
 
+            result = conn.execute(text("PRAGMA table_info(props)"))
+            prop_columns = [row[1] for row in result.fetchall()]
+            if "existence" not in prop_columns:
+                conn.execute(text("ALTER TABLE props ADD COLUMN existence VARCHAR NOT NULL DEFAULT 'REAL'"))
+            conn.execute(text("""
+                UPDATE props
+                SET existence = 'FICTIONAL_OR_NONEXISTENT'
+                WHERE existence = 'REAL'
+                  AND (
+                    description LIKE '%不存在%'
+                    OR description LIKE '%并不真实%'
+                    OR description LIKE '%仅为谎言%'
+                  )
+            """))
+            conn.execute(text("""
+                UPDATE shots
+                SET merged_prop_image = NULL
+                WHERE chapter_id IN (
+                    SELECT chapters.id
+                    FROM chapters
+                    WHERE chapters.novel_id IN (
+                        SELECT DISTINCT novel_id FROM props
+                        WHERE existence = 'FICTIONAL_OR_NONEXISTENT'
+                    )
+                )
+            """))
+
             result = conn.execute(text("PRAGMA table_info(novels)"))
             novel_columns = [row[1] for row in result.fetchall()]
             novel_prompt_columns = [

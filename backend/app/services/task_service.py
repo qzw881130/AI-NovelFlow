@@ -456,7 +456,8 @@ class TaskService:
 
             prop_repo = PropRepository(db)
             prop = prop_repo.get_by_id(task.prop_id)
-            if prop:
+            from app.services.prop_policy import is_prop_visual_eligible
+            if prop and is_prop_visual_eligible(prop):
                 enqueue_prop_image_task(
                     task.id,
                     prop.id,
