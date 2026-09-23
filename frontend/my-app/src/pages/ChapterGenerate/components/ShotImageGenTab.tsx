@@ -260,6 +260,9 @@ export function ShotImageGenTab({
     setIsGeneratingAll(true);
     batchCancelRequestedRef.current = false;
     batchShotIdsRef.current = selectedIds;
+    setShotImagePrompts(current => Object.fromEntries(
+      Object.entries(current).filter(([shotId]) => !selectedIds.includes(shotId))
+    ));
     setShowBatchSelectModal(false);
     useChapterGenerateStore.setState(state => ({
       pendingShots: new Set([...state.pendingShots, ...selectedIds]),

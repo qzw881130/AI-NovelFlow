@@ -182,7 +182,8 @@ export function ChapterGenerateLayout({
     const mode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
     const clips = mode === 'MULTI_KEYFRAME' && Array.isArray(plan.window_plans) ? plan.window_plans : [];
     const hasShotVideo = !!(shot.videoUrl || shotVideos[shotId] || plan.merged_video_url);
-    const isGenerating = generatingVideos.has(shotId) || pendingVideos.has(shotId) || shot.videoStatus === 'generating' || shot.videoStatus === 'pending';
+    const isGenerating = generatingVideos.has(shotId) || shot.videoStatus === 'generating';
+    const isQueued = pendingVideos.has(shotId);
     const isFailed = shot.videoStatus === 'failed';
     const allClipsReady = clips.length > 0 && clips.every((clip: any) => !!(clip.video_url || clip.local_path));
     const latestClipGeneratedAt = Math.max(0, ...clips.map((clip: any) => parsePlanTime(clip.generated_at)));
@@ -190,21 +191,23 @@ export function ChapterGenerateLayout({
     const needsMerge = mode === 'MULTI_KEYFRAME' && allClipsReady && (!hasShotVideo || !mergedAt || latestClipGeneratedAt > mergedAt);
 
     if (isGenerating) stats.generating.push(shot);
+    else if (isQueued) stats.queued.push(shot);
     else if (needsMerge) stats.needsMerge.push(shot);
     else if (hasShotVideo) stats.completed.push(shot);
     else if (isFailed) stats.failed.push(shot);
-    else stats.incomplete.push(shot);
+    else stats.pending.push(shot);
     return stats;
-  }, { completed: [] as any[], generating: [] as any[], failed: [] as any[], needsMerge: [] as any[], incomplete: [] as any[] });
+  }, { completed: [] as any[], generating: [] as any[], queued: [] as any[], failed: [] as any[], needsMerge: [] as any[], pending: [] as any[] });
 
   const renderVideoGenerationStats = () => {
     if (currentTab !== 3 || shots.length === 0) return null;
     const items = [
       ['completed', '已完成', videoStats.completed, 'border-green-100 bg-green-50 text-green-700'],
       ['generating', '生成中', videoStats.generating, 'border-blue-100 bg-blue-50 text-blue-700'],
+      ['queued', '队列中', videoStats.queued, 'border-purple-100 bg-purple-50 text-purple-700'],
       ['needsMerge', '待合并', videoStats.needsMerge, 'border-amber-100 bg-amber-50 text-amber-700'],
       ['failed', '失败', videoStats.failed, 'border-red-100 bg-red-50 text-red-700'],
-      ['incomplete', '未完成', videoStats.incomplete, 'border-gray-200 bg-gray-50 text-gray-600'],
+      ['pending', '待生成', videoStats.pending, 'border-gray-200 bg-gray-50 text-gray-600'],
     ] as const;
 
     return (
@@ -255,10 +258,10 @@ export function ChapterGenerateLayout({
     return (
       <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
         <span className="rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-blue-700">
-          生成分镜图：待处理 {pendingShots.size} 个
+          生成分镜图：队列中 {pendingShots.size} 个
         </span>
         <span className="rounded-full border border-purple-100 bg-purple-50 px-2.5 py-1 text-purple-700">
-          生成视频：待处理 {pendingVideos.size} 个
+          生成视频：队列中 {pendingVideos.size} 个
         </span>
       </div>
     );

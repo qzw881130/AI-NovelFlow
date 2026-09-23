@@ -3482,6 +3482,225 @@ async def download_shot_llm_data(
     )
 
 
+@router.get("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/download-video-materials", response_model=None)
+async def download_shot_video_materials(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    db: Session = Depends(get_db),
+):
+    """打包当前 Shot 生视频所需图片与实际提交的 ComfyUI 工作流。"""
+    novel = db.query(Novel).filter(Novel.id == novel_id).first()
+    chapter = db.query(Chapter).filter(Chapter.id == chapter_id, Chapter.novel_id == novel_id).first()
+    shot = db.query(Shot).filter(Shot.id == shot_id, Shot.chapter_id == chapter_id).first()
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+    if not chapter:
+        raise HTTPException(status_code=404, detail="章节不存在")
+    if not shot:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    def safe_json(value, default):
+        if isinstance(value, (dict, list)):
+            return value
+        if not value:
+            return default
+        try:
+            return json.loads(value)
+        except (TypeError, json.JSONDecodeError):
+            return default
+
+    def resolve_path(value) -> Optional[Path]:
+        if not value:
+            return None
+        local_path = url_to_local_path(str(value))
+        path = Path(local_path or str(value))
+        return path if path.is_file() else None
+
+    zip_buffer = BytesIO()
+    manifest = {
+        "version": 1,
+        "novel_id": novel_id,
+        "chapter_id": chapter_id,
+        "shot_id": shot.id,
+        "shot_index": shot.index,
+        "generated_at": datetime.utcnow().isoformat(),
+        "assets": [],
+        "workflows": [],
+    }
+    used_names = set()
+    asset_count = 0
+
+    def unique_name(arcname: str) -> str:
+        if arcname not in used_names:
+            used_names.add(arcname)
+            return arcname
+        path = Path(arcname)
+        index = 2
+        while True:
+            candidate = str(path.with_name(f"{path.stem}_{index}{path.suffix}"))
+            if candidate not in used_names:
+                used_names.add(candidate)
+                return candidate
+            index += 1
+
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        def add_asset(value, arcname: str, kind: str, label: str) -> Optional[str]:
+            nonlocal asset_count
+            path = resolve_path(value)
+            if not path:
+                return None
+            final_name = unique_name(f"{arcname}{path.suffix or '.png'}")
+            zip_file.write(path, final_name)
+            manifest["assets"].append({"kind": kind, "label": label, "path": final_name})
+            asset_count += 1
+            return final_name
+
+        def add_workflow(value, arcname: str, label: str) -> None:
+            if not value:
+                return
+            parsed = safe_json(value, value)
+            content = json.dumps(parsed, ensure_ascii=False, indent=2) if not isinstance(parsed, str) else parsed
+            final_name = unique_name(arcname)
+            zip_file.writestr(final_name, content)
+            manifest["workflows"].append({"label": label, "path": final_name})
+
+        def padded_index(value, fallback: int) -> str:
+            try:
+                return f"{int(value):03d}"
+            except (TypeError, ValueError):
+                return _safe_filename_part(value or fallback)
+
+        primary_value = shot.image_url or shot.image_path
+        primary_path = add_asset(primary_value, "frames/主分镜图", "primary_frame", "主分镜图/单帧图")
+
+        plan = safe_json(shot.video_director_plan, {})
+        plan_keyframes = plan.get("keyframes") if isinstance(plan.get("keyframes"), list) else []
+        legacy_keyframes = safe_json(shot.keyframes, [])
+        represented_legacy_indexes = set()
+
+        for position, keyframe in enumerate(plan_keyframes, 1):
+            if not isinstance(keyframe, dict):
+                continue
+            keyframe_index = keyframe.get("index", position)
+            role = str(keyframe.get("role") or "KEYFRAME").upper()
+            image_value = (
+                keyframe.get("image_url") or keyframe.get("imageUrl") or
+                keyframe.get("image_path") or keyframe.get("imagePath") or
+                keyframe.get("local_path") or keyframe.get("localPath") or
+                keyframe.get("generated_image_url") or keyframe.get("generatedImageUrl")
+            )
+            if role == "START" and not image_value:
+                image_value = primary_value
+            if not image_value:
+                legacy = next((item for item in legacy_keyframes if isinstance(item, dict) and (
+                    item.get("plan_keyframe_index") == keyframe_index or
+                    item.get("planKeyframeIndex") == keyframe_index
+                )), None)
+                if legacy:
+                    represented_legacy_indexes.add(id(legacy))
+                    image_value = legacy.get("image_url") or legacy.get("imageUrl") or legacy.get("image_path") or legacy.get("imagePath")
+            add_asset(
+                image_value,
+                f"frames/keyframes/KF{padded_index(keyframe_index, position)}_{_safe_filename_part(role)}",
+                "keyframe",
+                f"关键帧 {keyframe_index} {role}",
+            )
+
+        for position, keyframe in enumerate(legacy_keyframes, 1):
+            if not isinstance(keyframe, dict) or id(keyframe) in represented_legacy_indexes:
+                continue
+            image_value = keyframe.get("image_url") or keyframe.get("imageUrl") or keyframe.get("image_path") or keyframe.get("imagePath")
+            frame_index = keyframe.get("plan_keyframe_index") or keyframe.get("planKeyframeIndex") or keyframe.get("frame_index") or position
+            add_asset(image_value, f"frames/keyframes/KF{padded_index(frame_index, position)}", "keyframe", f"关键帧 {frame_index}")
+
+        character_names = _safe_json_list(shot.characters)
+        for index, name in enumerate(character_names, 1):
+            character = db.query(Character).filter(Character.novel_id == novel_id, Character.name == name).first()
+            add_asset(character.image_url if character else None, f"characters/{index:02d}_{_safe_filename_part(name)}", "character", str(name))
+        add_asset(shot.merged_character_image, "characters/合并角色图", "merged_character", "合并角色图")
+
+        if shot.scene:
+            scene = db.query(Scene).filter(Scene.novel_id == novel_id, Scene.name == shot.scene).first()
+            add_asset(scene.image_url if scene else None, f"scene/{_safe_filename_part(shot.scene)}", "scene", shot.scene)
+
+        prop_names = get_visual_prop_names(db, novel_id, _safe_json_list(shot.props))
+        for index, name in enumerate(prop_names, 1):
+            prop = db.query(Prop).filter(
+                Prop.novel_id == novel_id,
+                Prop.name == name,
+                Prop.existence == PROP_EXISTENCE_REAL,
+            ).first()
+            add_asset(prop.image_url if prop else None, f"props/{index:02d}_{_safe_filename_part(name)}", "prop", str(name))
+        add_asset(shot.merged_prop_image, "props/合并道具图", "merged_prop", "合并道具图")
+
+        image_task = None
+        if shot.image_task_id:
+            image_task = db.query(Task).filter(Task.id == shot.image_task_id, Task.shot_id == shot.id).first()
+        if not image_task or not image_task.workflow_json:
+            image_task = db.query(Task).filter(
+                Task.shot_id == shot.id,
+                Task.type == "shot_image",
+                Task.workflow_json.isnot(None),
+            ).order_by(Task.created_at.desc()).first()
+        add_workflow(image_task.workflow_json if image_task else None, "workflows/images/主分镜图_ComfyUI.json", "主分镜图实际工作流")
+
+        current_keyframe_task_ids = {
+            str(item.get("image_task_id") or item.get("imageTaskId"))
+            for item in plan_keyframes + legacy_keyframes
+            if isinstance(item, dict) and (item.get("image_task_id") or item.get("imageTaskId"))
+        }
+        keyframe_query = db.query(Task).filter(
+            Task.shot_id == shot.id,
+            Task.type == "keyframe_image",
+            Task.workflow_json.isnot(None),
+        )
+        if current_keyframe_task_ids:
+            keyframe_query = keyframe_query.filter(Task.id.in_(current_keyframe_task_ids))
+        keyframe_tasks = keyframe_query.order_by(Task.created_at.asc()).all()
+        for index, task in enumerate(keyframe_tasks, 1):
+            add_workflow(task.workflow_json, f"workflows/keyframes/KF{index:03d}_{task.id[:8]}_ComfyUI.json", f"关键帧图实际工作流 {index}")
+
+        video_task = None
+        if shot.video_task_id:
+            video_task = db.query(Task).filter(Task.id == shot.video_task_id, Task.shot_id == shot.id).first()
+        if not video_task or not video_task.workflow_json:
+            video_task = db.query(Task).filter(
+                Task.shot_id == shot.id,
+                Task.type == "shot_video",
+                Task.workflow_json.isnot(None),
+            ).order_by(Task.created_at.desc()).first()
+        add_workflow(video_task.workflow_json if video_task else None, "workflows/video/Shot视频_ComfyUI.json", "视频实际工作流")
+
+        window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+        clips = plan.get("clips") if isinstance(plan.get("clips"), list) else []
+        task_clips = safe_json(video_task.video_director_clips, []) if video_task else []
+        seen_windows = set()
+        for position, window in enumerate(window_plans + clips + task_clips, 1):
+            if not isinstance(window, dict) or not window.get("workflow_json"):
+                continue
+            window_index = window.get("window_index") or window.get("clip_index") or position
+            if window_index in seen_windows:
+                continue
+            seen_windows.add(window_index)
+            add_workflow(
+                window.get("workflow_json"),
+                f"workflows/video/clip_{padded_index(window_index, position)}_ComfyUI.json",
+                f"视频 Clip {window_index} 实际工作流",
+            )
+
+        if asset_count == 0 and not manifest["workflows"]:
+            raise HTTPException(status_code=404, detail="当前分镜没有可打包的视频素材")
+        zip_file.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="shot_{shot.index:03d}_video_materials.zip"'},
+    )
+
+
 @router.get("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}", response_model=dict)
 async def get_shot(
     novel_id: str,

@@ -1427,6 +1427,7 @@ export function VideoGenTab({
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDownloadingVideoMaterials, setIsDownloadingVideoMaterials] = useState(false);
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
   const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
   const [batchSelectionMode, setBatchSelectionMode] = useState<BatchSelectionMode>(null);
@@ -2831,6 +2832,20 @@ export function VideoGenTab({
     }
   };
 
+  const handleDownloadVideoMaterials = async () => {
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+    setIsDownloadingVideoMaterials(true);
+    try {
+      await shotsApi.downloadShotVideoMaterialsPackage(effectiveNovelId, effectiveChapterId, currentShotId);
+      toast.success('视频素材包已开始下载');
+    } catch (error) {
+      console.error('下载视频素材失败:', error);
+      toast.error(error instanceof Error ? error.message : '下载视频素材失败');
+    } finally {
+      setIsDownloadingVideoMaterials(false);
+    }
+  };
+
   const getMergeShotVideoUrl = (shot: any) => {
     const shotId = shot?.id ? String(shot.id) : '';
     return shot?.videoUrl || (shotId ? shotVideos[shotId] : undefined) || shot?.videoDirectorPlan?.merged_video_url;
@@ -3024,6 +3039,14 @@ export function VideoGenTab({
                 {t('chapterGenerate.downloadMaterials')}
               </>
             )}
+          </button>
+          <button
+            onClick={handleDownloadVideoMaterials}
+            disabled={isDownloadingVideoMaterials || !effectiveChapterId || !currentShotId}
+            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+          >
+            {isDownloadingVideoMaterials ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+            {isDownloadingVideoMaterials ? '打包中...' : '下载视频素材'}
           </button>
           <button
             onClick={handleOpenMergeSelect}

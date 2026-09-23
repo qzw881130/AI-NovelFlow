@@ -752,6 +752,7 @@ export const createGenerationSlice: StateCreator<
         const newShotImages = { ...shotImages };
         const newGeneratingShots = new Set(generatingShots);
         const newPendingShots = new Set(pendingShots);
+        const refreshShotIds = new Set<string>();
 
         const taskTime = (task: any) => {
           const value = task.completedAt || task.startedAt || task.createdAt;
@@ -780,6 +781,11 @@ export const createGenerationSlice: StateCreator<
             // 检查是否有任何任务正在运行或等待批量处理
             const hasRunningTask = activeIsCurrent && ['running', 'queued'].includes(String(latestActiveTask.status || '').toLowerCase());
             const hasPendingTask = activeIsCurrent && String(latestActiveTask.status || '').toLowerCase() === 'pending';
+            if ((activeIsCurrent && latestActiveTask.hasPromptText) || (completedIsCurrent && (
+              shot.imageTaskId !== latestCompletedTask.id || shot.imageUrl !== latestCompletedUrl
+            ))) {
+              refreshShotIds.add(shot.id);
+            }
 
             // 如果有任务正在运行，确保在 generatingShots 中
             if (hasRunningTask && !newGeneratingShots.has(shot.id)) {
@@ -845,6 +851,23 @@ export const createGenerationSlice: StateCreator<
         } else {
           set({ shots: updatedShots });
           console.log('[checkShotTaskStatus] Only shots updated');
+        }
+
+        const novelId = get().chapter?.novelId || get().novel?.id;
+        if (novelId && refreshShotIds.size > 0) {
+          const refreshedShots = await Promise.all(
+            Array.from(refreshShotIds).map(shotId => shotsApi.getShot(novelId, chapterId, shotId))
+          );
+          set(state => {
+            const nextShotImages = { ...state.shotImages };
+            const nextShots = state.shots.map(shot => {
+              const refreshed = refreshedShots.find(response => response.success && response.data?.id === shot.id)?.data;
+              if (!refreshed) return shot;
+              if (refreshed.imageUrl) nextShotImages[shot.id] = refreshed.imageUrl;
+              return { ...shot, ...refreshed };
+            });
+            return { shots: nextShots, shotImages: nextShotImages };
+          });
         }
       }
     } catch (error) {
@@ -919,8 +942,9 @@ export const createGenerationSlice: StateCreator<
               const isCompleted = task.status === 'completed';
               const isStaleFailedTask = (task.status === 'failed' || task.status === 'cancelled') && hasExistingVideo;
               const isFailed = (task.status === 'failed' || task.status === 'cancelled') && !isStaleFailedTask;
-            const isRunning = task.status === 'running' || task.status === 'queued';
-            const isPending = task.status === 'pending';
+            const normalizedStatus = String(task.status || '').toLowerCase();
+            const isRunning = normalizedStatus === 'running';
+            const isPending = normalizedStatus === 'pending' || normalizedStatus === 'queued';
             const isActive = isRunning || isPending;
             const videoStatus = isCompleted || isStaleFailedTask ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : shot.videoStatus;
             const taskErrorMessage = formatUserFacingError(task.errorMessage || task.error_message || task.error) || (task.status === 'cancelled' ? '视频任务已取消' : '');

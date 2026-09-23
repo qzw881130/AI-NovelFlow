@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { API_BASE } from '../../../api';
@@ -162,15 +163,19 @@ export function ImagePreviewModal({
   }, [isOpen, previewImageUrl]);
 
   useEffect(() => {
-    if (!isOpen || !canNavigate) return;
+    if (!isOpen) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'ArrowLeft') {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose();
+      } else if (canNavigate && event.key === 'ArrowLeft') {
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
         onNavigate('prev');
-      } else if (event.key === 'ArrowRight') {
+      } else if (canNavigate && event.key === 'ArrowRight') {
         event.preventDefault();
         event.stopPropagation();
         event.stopImmediatePropagation();
@@ -180,16 +185,16 @@ export function ImagePreviewModal({
 
     window.addEventListener('keydown', handleKeyDown, true);
     return () => window.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, canNavigate, onNavigate]);
+  }, [isOpen, canNavigate, onClose, onNavigate]);
 
   if (!isOpen || !previewImageUrl) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 bg-black bg-opacity-90 z-50 overflow-y-auto"
+      className="fixed inset-0 z-[300] overflow-y-auto bg-black/90"
       onClick={onClose}
     >
-      <div className="min-h-full flex items-center justify-center p-4 py-14">
+      <div className="flex min-h-full items-center justify-center p-4 py-12">
         <div className="relative w-full max-w-5xl flex items-center" onClick={e => e.stopPropagation()}>
         {/* 左导航按钮 */}
         {canNavigate && (
@@ -209,7 +214,8 @@ export function ImagePreviewModal({
           {/* 关闭按钮 */}
           <button
             onClick={onClose}
-            className="absolute -top-10 right-0 p-2 text-white hover:text-gray-300 z-10"
+            className="fixed right-5 top-5 z-20 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70 hover:text-gray-200"
+            aria-label="关闭图片预览"
           >
             <X className="h-6 w-6" />
           </button>
@@ -224,7 +230,7 @@ export function ImagePreviewModal({
                 height: event.currentTarget.naturalHeight,
               });
             }}
-            className="max-w-full h-auto object-contain rounded-lg mx-auto"
+            className="mx-auto max-h-[60vh] max-w-full rounded-lg object-contain"
           />
 
           <div className="mt-3 mx-auto w-full max-w-5xl rounded-lg bg-black/45 text-white px-4 py-3 backdrop-blur-sm">
@@ -237,7 +243,7 @@ export function ImagePreviewModal({
               )}
             </div>
             {previewShotDescription && (
-              <div className="text-sm text-gray-200 leading-relaxed whitespace-pre-wrap">
+              <div className="max-h-40 overflow-y-auto whitespace-pre-wrap pr-2 text-sm leading-relaxed text-gray-200 scrollbar-thin">
                 {previewShotDescription}
               </div>
             )}
@@ -282,7 +288,8 @@ export function ImagePreviewModal({
         )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

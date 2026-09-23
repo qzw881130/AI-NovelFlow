@@ -62,7 +62,7 @@ export function ShotThumbnail({
     queued: {
       color: 'border-blue-300 bg-blue-50',
       icon: <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />,
-      label: '等待处理',
+      label: '队列中',
     },
     generating: {
       color: 'border-blue-400 bg-blue-50',

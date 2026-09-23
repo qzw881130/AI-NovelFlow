@@ -201,3 +201,6 @@ def test_shot_director_prompt_has_world_context_and_strict_prop_whitelist_rules(
     assert "不得通过“不可见人物、画外人物、镜外人物" in prompt
     assert "行人、路人、侍从、守卫、人群、剪影、模糊人影" in prompt
     assert "随身物品、手持物、佩戴物、容器和装饰同样属于实体道具约束" in prompt
+    assert "allowed_scenes 表示视觉空间身份，不只是数据库标签" in prompt
+    assert "禁止以否定、缺席、占位或反事实描述的方式提及白名单外实体" in prompt
+    assert "镜子不存在" in prompt
