@@ -5,7 +5,6 @@ import { Loader2, Package, Trash2, Edit2, Upload, Wand2, Sparkles, ImagePlus } f
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Prop } from '../../../types';
 import type { PropPrompt } from '../types';
-import { ASPECT_RATIO_CLASSES } from '../constants';
 
 interface PropCardProps {
   prop: Prop;
@@ -27,7 +26,6 @@ interface PropCardProps {
 
 export function PropCard({
   prop,
-  aspectRatio,
   highlightedId,
   generatingId,
   generatingAppearanceId,
@@ -43,7 +41,6 @@ export function PropCard({
   onImageClick,
 }: PropCardProps) {
   const { t } = useTranslation();
-  const aspectClass = ASPECT_RATIO_CLASSES[aspectRatio] || 'aspect-square';
   const isNonexistent = prop.existence === 'FICTIONAL_OR_NONEXISTENT';
 
   return (
@@ -56,12 +53,12 @@ export function PropCard({
       }`}
     >
       {/* Prop Image */}
-      <div className={`${aspectClass} bg-gray-100 relative w-full`}>
+      <div className="relative aspect-[17/11] w-full bg-gray-100">
         {prop.imageUrl && !isNonexistent ? (
           <img
             src={prop.imageUrl}
             alt={prop.name}
-            className="w-full h-full object-cover cursor-pointer"
+            className="w-full h-full cursor-pointer"
             onClick={() => onImageClick(prop.imageUrl!, prop.name, prop.id)}
           />
         ) : (

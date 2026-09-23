@@ -51,12 +51,12 @@ export function SceneCard({
       }`}
     >
       {/* Scene Image */}
-      <div className="relative aspect-video bg-gray-100 w-full">
+      <div className="relative aspect-[17/11] w-full bg-gray-100">
         {scene.imageUrl ? (
           <img
             src={scene.imageUrl}
             alt={scene.name}
-            className="w-full h-full object-cover cursor-pointer"
+            className="w-full h-full cursor-pointer"
             onClick={() => onImageClick(scene.imageUrl!, scene.name, scene.id)}
           />
         ) : (

@@ -20,8 +20,9 @@ class PromptBuilder:
 道具名称或 description 中的人名、身份、所有者、使用者和剧情行为仅表示归属或剧情关系，不代表人物应出现在画面中。
 采用产品资产图或道具设定图：道具完整可见、唯一视觉中心、无人物、无手持、无佩戴、无使用动作、无剧情表演。
 衣服、首饰、冠帽、盔甲等可穿戴物只展示物品本身；禁止真人、角色或人体模特穿戴，优先使用平铺、悬挂、静物陈列或无人物语义的中性展示方式。
+必须保持当前道具的实体类别和加工阶段。原材料不得生成成由其制成的成品：布料不得变成服装，金属材料不得变成武器或首饰，木材不得变成家具；除非当前道具的 appearance 明确描述的就是对应成品。
 STORY_WORLD_CONTEXT 只约束道具形制、材质、工艺和文化体系，不得因此引入人物。
-PROP ONLY. ISOLATED OBJECT. NO CHARACTER. NO PERSON. NO HUMAN OR HUMANOID FIGURE. NO HANDS OR BODY PARTS."""
+PROP ONLY. ISOLATED OBJECT. PRESERVE THE PROP'S OBJECT CATEGORY AND PROCESSING STAGE. RAW MATERIAL MUST NOT BECOME A FINISHED PRODUCT. NO CHARACTER. NO PERSON. NO HUMAN OR HUMANOID FIGURE. NO HANDS OR BODY PARTS."""
 
     @staticmethod
     def get_style(

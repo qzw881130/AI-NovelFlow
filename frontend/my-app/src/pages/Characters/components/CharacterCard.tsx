@@ -6,7 +6,6 @@ import { useState, useRef } from 'react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Character } from '../../../types';
 import type { CharacterPrompt } from '../types';
-import { ASPECT_RATIO_CLASSES } from '../constants';
 
 interface CharacterCardProps {
   character: Character;
@@ -50,7 +49,6 @@ export function CharacterCard({
   onUploadAudio,
 }: CharacterCardProps) {
   const { t } = useTranslation();
-  const aspectClass = ASPECT_RATIO_CLASSES[aspectRatio] || 'aspect-video';
   const [isPlayingAudio, setIsPlayingAudio] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -82,12 +80,12 @@ export function CharacterCard({
       }`}
     >
       {/* Character Image */}
-      <div className={`${aspectClass} bg-gray-100 relative w-full`}>
+      <div className="relative aspect-[17/11] w-full bg-gray-100">
         {character.imageUrl ? (
           <img
             src={`${character.imageUrl}${character.updatedAt ? `${character.imageUrl.includes('?') ? '&' : '?'}v=${encodeURIComponent(character.updatedAt)}` : ''}`}
             alt={character.name}
-            className="w-full h-full object-cover cursor-pointer"
+            className="w-full h-full cursor-pointer"
             onClick={() => onImageClick(character.imageUrl!, character.name, character.id)}
           />
         ) : (

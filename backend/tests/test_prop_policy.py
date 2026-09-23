@@ -21,9 +21,18 @@ def test_prop_prompt_enforces_prop_only_even_when_name_contains_character():
     assert "画面唯一主体必须是当前道具本身" in prompt
     assert "禁止出现任何人物" in prompt
     assert "禁止真人、角色或人体模特穿戴" in prompt
+    assert "原材料不得生成成由其制成的成品" in prompt
     assert "PROP ONLY" in prompt
     assert "纯道具资产图约束" not in build_character_prompt("皇帝", "欧洲皇帝", template="{appearance}")
     assert "纯道具资产图约束" not in build_scene_prompt("广场", "石砌广场", template="{setting}")
+
+    material_prompt = build_prop_prompt(
+        name="绸缎",
+        appearance="一卷未经裁剪和缝制的紫色丝绸布匹",
+        template="{name}, {appearance}",
+    )
+    assert "布料不得变成服装" in material_prompt
+    assert "RAW MATERIAL MUST NOT BECOME A FINISHED PRODUCT" in material_prompt
 
 
 def test_prop_existence_normalizes_explicit_and_textual_nonexistence():
