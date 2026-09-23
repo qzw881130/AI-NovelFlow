@@ -21,6 +21,7 @@ router = APIRouter()
 class MergeChapterVideosRequest(BaseModel):
     chapter_ids: list[str] = Field(min_length=2)
     video_variant: Literal["draft", "hd"] = "draft"
+    target_megapixels: float | None = None
 
 
 @router.post("/novels/{novel_id}/video-merges")
@@ -44,9 +45,11 @@ async def create_novel_video_merge(
         raise HTTPException(status_code=400, detail="选择的章回不存在或不属于当前小说")
 
     chapter_repo = ChapterRepository(db)
+    if request.video_variant == "hd" and request.target_megapixels is None:
+        raise HTTPException(status_code=400, detail="合并高清章回必须选择明确的目标 MP")
     snapshots = []
     for chapter in chapters:
-        video_info = chapter_repo.get_final_chapter_video_info(chapter, request.video_variant)
+        video_info = chapter_repo.get_final_chapter_video_info(chapter, request.video_variant, request.target_megapixels)
         video_url = (video_info or {}).get("hdChapterVideoUrl" if request.video_variant == "hd" else "chapterVideoUrl")
         if not video_url or not url_to_local_path(video_url):
             raise HTTPException(status_code=400, detail=f"第 {chapter.number} 章《{chapter.title}》没有可用的章回视频")
@@ -55,6 +58,8 @@ async def create_novel_video_merge(
             "number": chapter.number,
             "title": chapter.title,
             "videoUrl": video_url,
+            "chapterMergeTaskId": (video_info or {}).get("hdChapterVideoTaskId" if request.video_variant == "hd" else "chapterVideoTaskId"),
+            "targetMegapixels": request.target_megapixels,
         })
 
     task = Task(
@@ -68,6 +73,7 @@ async def create_novel_video_merge(
             "chapter_ids": [chapter.id for chapter in chapters],
             "chapters": snapshots,
             "video_variant": request.video_variant,
+            "target_megapixels": request.target_megapixels,
         }, ensure_ascii=False),
     )
     db.add(task)

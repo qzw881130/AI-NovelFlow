@@ -2,14 +2,14 @@ import copy
 import json
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.models.novel import Chapter, Novel
 from app.models.shot import Shot
 from app.models.task import Task
-from app.schemas.shot import BatchHdRepaintRequest, HdRepaintRequest, SetCurrentVideoVariantRequest
+from app.schemas.shot import BatchHdRepaintRequest, HdRepaintRequest
 from app.services.hd_repaint_service import (
     ALLOWED_HD_MEGAPIXELS,
     build_hd_repaint_snapshot,
@@ -23,13 +23,14 @@ router = APIRouter()
 
 
 def _create_hd_task(db: Session, novel: Novel, chapter: Chapter, shot: Shot, target_mp: float, source_task_id: str | None = None, parent_id: str | None = None, order: int | None = None) -> Task:
-    active = db.query(Task).filter(
+    active_tasks = db.query(Task).filter(
         Task.type == "shot_video_hd",
         Task.shot_id == shot.id,
         Task.status.in_(["pending", "running"]),
-    ).first()
-    if active:
-        raise ValueError(f"镜{shot.index} 已有高清重绘任务")
+    ).all()
+    from app.services.hd_repaint_service import hd_task_megapixels
+    if any(hd_task_megapixels(task) == float(target_mp) for task in active_tasks):
+        raise ValueError(f"镜{shot.index} 的 {target_mp} MP 高清重绘已在队列中")
     source = resolve_source_video_task(db, shot, source_task_id)
     metadata, clips = build_hd_repaint_snapshot(db, shot, source, target_mp)
     task = Task(
@@ -75,12 +76,13 @@ def _format_batch(db: Session, batch: Task) -> dict:
 
 
 @router.get("/{novel_id}/chapters/{chapter_id}/hd-repaints/latest", response_model=dict)
-async def get_latest_hd_batch(novel_id: str, chapter_id: str, db: Session = Depends(get_db)):
-    batch = db.query(Task).filter(
+async def get_latest_hd_batch(novel_id: str, chapter_id: str, target_megapixels: float | None = Query(None), db: Session = Depends(get_db)):
+    batches = db.query(Task).filter(
         Task.type == "shot_video_hd_batch",
         Task.novel_id == novel_id,
         Task.chapter_id == chapter_id,
-    ).order_by(Task.created_at.desc()).first()
+    ).order_by(Task.created_at.desc()).all()
+    batch = next((item for item in batches if target_megapixels is None or float(json.loads(item.metadata_json or "{}").get("target_megapixels") or 0) == float(target_megapixels)), None)
     return {"success": True, "data": _format_batch(db, batch) if batch else None}
 
 
@@ -113,7 +115,6 @@ async def get_hd_repaint_source(novel_id: str, chapter_id: str, shot_id: str, db
             "hdVideoUrl": shot.hd_video_url,
             "hdVideoStatus": shot.hd_video_status,
             "hdMegapixels": float(shot.hd_video_megapixels) if shot.hd_video_megapixels else None,
-            "currentVideoVariant": shot.current_video_variant or "draft",
         },
     }
 
@@ -187,55 +188,33 @@ async def retry_failed_hd_repaints(novel_id: str, chapter_id: str, batch_id: str
     if not batch:
         raise HTTPException(status_code=404, detail="批量任务不存在")
     failed = db.query(Task).filter(Task.parent_task_id == batch.id, Task.type == "shot_video_hd", Task.status == "failed").all()
-    for task in failed:
-        task.status = "pending"
-        task.progress = 0
-        task.error_message = None
-        task.completed_at = None
-        task.comfyui_prompt_id = None
-        task.result_url = None
-        metadata = json.loads(task.metadata_json or "{}")
-        task.workflow_json = json.dumps(metadata.get("source_workflow_json"), ensure_ascii=False) if metadata.get("source_workflow_json") else None
-        clips = json.loads(task.video_director_clips or "[]")
-        for clip in clips:
-            for key in ["replay_workflow_json", "repaint_prompt_id", "video_url", "local_path", "source_video_url", "generated_at", "seed"]:
-                clip.pop(key, None)
-            clip["status"] = "PENDING"
-        task.video_director_clips = json.dumps(clips, ensure_ascii=False) if clips else None
-        shot = db.query(Shot).filter(Shot.id == task.shot_id).first()
+    if not failed:
+        return {"success": True, "message": "没有失败项需要重试"}
+    from app.services.hd_repaint_service import clone_hd_task_for_retry
+    source_metadata = json.loads(batch.metadata_json or "{}")
+    source_metadata["retry_of_batch_task_id"] = batch.id
+    retry_batch = Task(
+        type="shot_video_hd_batch",
+        status="pending",
+        name=batch.name,
+        description=batch.description,
+        novel_id=novel_id,
+        chapter_id=chapter_id,
+        metadata_json=json.dumps(source_metadata, ensure_ascii=False),
+        current_step="等待处理",
+    )
+    db.add(retry_batch)
+    db.flush()
+    retries = []
+    for order, source in enumerate(failed, 1):
+        retry = clone_hd_task_for_retry(db, source, retry_batch.id, order)
+        retries.append(retry)
+        shot = db.query(Shot).filter(Shot.id == source.shot_id).first()
         if shot:
             shot.hd_video_status = "pending"
-    batch.status = "pending"
-    batch.completed_at = None
-    batch.error_message = None
+            shot.hd_video_task_id = retry.id
     db.commit()
-    for task in failed:
+    for task in retries:
         enqueue_hd_repaint_task(task.id)
-    enqueue_hd_repaint_batch(batch.id)
-    return {"success": True, "message": f"已重新提交 {len(failed)} 个失败项"}
-
-
-@router.post("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/current-video", response_model=dict)
-async def set_current_video_variant(novel_id: str, chapter_id: str, shot_id: str, request: SetCurrentVideoVariantRequest, db: Session = Depends(get_db)):
-    shot = db.query(Shot).filter(Shot.id == shot_id, Shot.chapter_id == chapter_id).first()
-    if not shot:
-        raise HTTPException(status_code=404, detail="分镜不存在")
-    if request.variant == "hd" and not shot.hd_video_url:
-        raise HTTPException(status_code=400, detail="该分镜尚无高清视频")
-    if request.variant == "draft" and not shot.video_url:
-        raise HTTPException(status_code=400, detail="该分镜尚无初稿视频")
-    shot.current_video_variant = request.variant
-    db.commit()
-    return {"success": True, "data": {"currentVideoVariant": shot.current_video_variant}}
-
-
-@router.post("/{novel_id}/chapters/{chapter_id}/current-video/hd-all", response_model=dict)
-async def set_all_hd_current(novel_id: str, chapter_id: str, db: Session = Depends(get_db)):
-    shots = db.query(Shot).filter(Shot.chapter_id == chapter_id).order_by(Shot.index).all()
-    missing = [shot.index for shot in shots if not shot.hd_video_url]
-    if missing:
-        raise HTTPException(status_code=400, detail=f"以下分镜缺少高清视频：{', '.join(map(str, missing))}")
-    for shot in shots:
-        shot.current_video_variant = "hd"
-    db.commit()
-    return {"success": True, "data": {"updated": len(shots)}}
+    enqueue_hd_repaint_batch(retry_batch.id)
+    return {"success": True, "message": f"已创建新批次并重新提交 {len(retries)} 个失败项", "data": {"batchTaskId": retry_batch.id}}

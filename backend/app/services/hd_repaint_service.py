@@ -15,6 +15,7 @@ from app.services.background_workers import worker_manager
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.utils.path_utils import local_path_to_url, url_to_local_path
+from app.utils.time_utils import format_datetime
 from app.utils.workflow_seed import extract_workflow_seed
 
 
@@ -41,6 +42,108 @@ def _json_list(value) -> list:
         return parsed if isinstance(parsed, list) else []
     except Exception:
         return []
+
+
+def hd_task_megapixels(task: Task) -> Optional[float]:
+    value = _json_dict(task.metadata_json).get("target_megapixels")
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def format_hd_execution(task: Task) -> dict:
+    return {
+        "id": task.id,
+        "status": task.status,
+        "videoUrl": task.result_url,
+        "targetMegapixels": hd_task_megapixels(task),
+        "sourceTaskId": task.source_task_id,
+        "parentTaskId": task.parent_task_id,
+        "progress": task.progress or 0,
+        "currentStep": task.current_step,
+        "errorMessage": task.error_message,
+        "createdAt": format_datetime(task.created_at),
+        "startedAt": format_datetime(task.started_at),
+        "completedAt": format_datetime(task.completed_at),
+    }
+
+
+def get_hd_repaint_variants(db: Session, shot_id: str) -> list[dict]:
+    tasks = db.query(Task).filter(
+        Task.type == "shot_video_hd",
+        Task.shot_id == shot_id,
+    ).order_by(Task.created_at.desc(), Task.id.desc()).all()
+    grouped: dict[float, list[Task]] = {}
+    for task in tasks:
+        megapixels = hd_task_megapixels(task)
+        if megapixels is not None:
+            grouped.setdefault(megapixels, []).append(task)
+
+    variants = []
+    for megapixels in sorted(grouped):
+        executions = grouped[megapixels]
+        active = next((task for task in executions if task.status in {"pending", "running"}), None)
+        completed = [task for task in executions if task.status == "completed" and task.result_url]
+        latest_completed = max(completed, key=lambda task: task.completed_at or task.created_at or datetime.min) if completed else None
+        latest = executions[0]
+        status_task = active or latest_completed or latest
+        variants.append({
+            "targetMegapixels": megapixels,
+            "status": status_task.status,
+            "videoUrl": latest_completed.result_url if latest_completed else None,
+            "taskId": status_task.id,
+            "latestCompletedTaskId": latest_completed.id if latest_completed else None,
+            "sourceTaskId": (latest_completed or status_task).source_task_id,
+            "errorMessage": status_task.error_message,
+            "executions": [format_hd_execution(task) for task in executions],
+        })
+    return variants
+
+
+def get_latest_completed_hd_task(db: Session, shot_id: str, target_megapixels: float) -> Optional[Task]:
+    for task in db.query(Task).filter(
+        Task.type == "shot_video_hd",
+        Task.shot_id == shot_id,
+        Task.status == "completed",
+        Task.result_url.isnot(None),
+    ).order_by(Task.completed_at.desc(), Task.created_at.desc()).all():
+        if hd_task_megapixels(task) == float(target_megapixels):
+            return task
+    return None
+
+
+def clone_hd_task_for_retry(db: Session, source: Task, parent_task_id: str = None, batch_order: int = None) -> Task:
+    metadata = _json_dict(source.metadata_json)
+    metadata["retry_of_task_id"] = source.id
+    clips = _json_list(source.video_director_clips)
+    for clip in clips:
+        for key in ["replay_workflow_json", "repaint_prompt_id", "video_url", "local_path", "source_video_url", "generated_at", "seed"]:
+            clip.pop(key, None)
+        clip["status"] = "PENDING"
+    task = Task(
+        type="shot_video_hd",
+        status="pending",
+        name=source.name,
+        description=source.description,
+        novel_id=source.novel_id,
+        chapter_id=source.chapter_id,
+        shot_id=source.shot_id,
+        source_task_id=source.source_task_id,
+        parent_task_id=parent_task_id,
+        batch_order=batch_order,
+        workflow_id=source.workflow_id,
+        workflow_json=json.dumps(metadata.get("source_workflow_json"), ensure_ascii=False) if metadata.get("source_workflow_json") else None,
+        prompt_text=source.prompt_text,
+        reference_images=source.reference_images,
+        video_director_clips=json.dumps(clips, ensure_ascii=False) if clips else None,
+        seed=metadata.get("source_seed"),
+        metadata_json=json.dumps(metadata, ensure_ascii=False),
+        current_step="等待高清 Replay",
+    )
+    db.add(task)
+    db.flush()
+    return task
 
 
 def _workflow_mapping(db: Session, workflow_id: Optional[str] = None, workflow_type: Optional[str] = None, workflow_name: Optional[str] = None) -> tuple[Optional[Workflow], dict]:
@@ -80,6 +183,8 @@ def clone_workflow_for_hd(source_workflow: dict, megapixels_node_id: str, target
 def resolve_source_video_task(db: Session, shot: Shot, source_task_id: Optional[str] = None) -> Task:
     query = db.query(Task).filter(Task.type == "shot_video", Task.shot_id == shot.id, Task.status == "completed")
     source = query.filter(Task.id == source_task_id).first() if source_task_id else None
+    if source_task_id and not source:
+        raise ValueError("指定的初稿视频 Execution 不存在、未完成或不属于当前 Shot")
     if not source and shot.video_task_id:
         source = query.filter(Task.id == shot.video_task_id).first()
     if not source and shot.video_url:
@@ -192,10 +297,25 @@ async def run_hd_repaint_task(task_id: str) -> None:
         target_mp = float(metadata.get("target_megapixels") or 1.0)
         task.status = "running"
         task.started_at = task.started_at or datetime.utcnow()
+        task.completed_at = None
+        task.error_message = None
         task.current_step = "Replay 原视频 Execution"
         shot.hd_video_status = "generating"
         shot.hd_video_task_id = task.id
+        parent_batch_id = task.parent_task_id
+        if parent_batch_id:
+            parent_batch = db.query(Task).filter(
+                Task.id == parent_batch_id,
+                Task.type == "shot_video_hd_batch",
+            ).first()
+            if parent_batch and parent_batch.status in {"failed", "completed"}:
+                parent_batch.status = "running"
+                parent_batch.completed_at = None
+                parent_batch.error_message = None
+                parent_batch.current_step = "高清重绘恢复中"
         db.commit()
+        if parent_batch_id:
+            enqueue_hd_repaint_batch(parent_batch_id)
 
         clips = _json_list(task.video_director_clips)
         if metadata.get("replay_mode") == "multi_clip":
@@ -305,6 +425,7 @@ async def run_hd_repaint_task(task_id: str) -> None:
         task.result_url = final_url
         task.current_step = "高清重绘完成"
         task.completed_at = datetime.utcnow()
+        task.error_message = None
         task.comfyui_prompt_id = None
         shot.hd_video_url = final_url
         shot.hd_video_status = "completed"
@@ -383,6 +504,12 @@ def enqueue_hd_repaint_batch(batch_id: str) -> None:
 def resume_active_hd_repaints() -> None:
     db = SessionLocal()
     try:
+        db.query(Task).filter(
+            Task.type == "shot_video_hd",
+            Task.status == "completed",
+            Task.error_message.isnot(None),
+        ).update({Task.error_message: None}, synchronize_session=False)
+        db.commit()
         children = db.query(Task).filter(Task.type == "shot_video_hd", Task.status.in_(["pending", "running"])).order_by(Task.created_at.asc()).all()
         for task in children:
             enqueue_hd_repaint_task(task.id)

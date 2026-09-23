@@ -2,13 +2,11 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CheckCircle, Clock, Download, Film, Loader2, Play, RefreshCw, X, XCircle } from 'lucide-react';
 import { novelApi, type NovelVideoMergeHistory } from '../../../api/novels';
-import type { Chapter } from '../../../types';
+import type { Chapter, ChapterVideoAsset } from '../../../types';
 import { toast } from '../../../stores/toastStore';
 
 
-const getChapterVideoUrl = (chapter: Chapter, variant: 'draft' | 'hd') => variant === 'hd'
-  ? chapter.hdChapterVideoUrl || chapter.hdFinalVideo
-  : chapter.chapterVideoUrl || chapter.finalVideo;
+const chapterAssets = (chapter: Chapter): ChapterVideoAsset[] => chapter.videoAssets || [];
 
 const formatDuration = (seconds?: number | null) => {
   if (!seconds || seconds <= 0) return '--:--';
@@ -27,23 +25,20 @@ const formatDate = (value?: string | null) => value
   ? new Date(value).toLocaleString('zh-CN', { hour12: false })
   : '-';
 
-export function MergeChapterVideosModal({ novelId, chapters, initialVariant = 'draft', onClose }: {
+export function MergeChapterVideosModal({ novelId, chapters, initialProfile = { kind: 'draft' }, onClose }: {
   novelId: string;
   chapters: Chapter[];
-  initialVariant?: 'draft' | 'hd';
+  initialProfile?: { kind: 'draft' | 'hd'; targetMegapixels?: number };
   onClose: () => void;
 }) {
-  const [videoVariant, setVideoVariant] = useState<'draft' | 'hd'>(initialVariant);
-  const eligibleIds = chapters.filter(chapter => getChapterVideoUrl(chapter, videoVariant)).map(chapter => chapter.id);
+  const profileKey = initialProfile.kind === 'hd' ? `hd:${initialProfile.targetMegapixels}` : 'draft';
+  const findAsset = (chapter: Chapter) => chapterAssets(chapter).find(asset => asset.profileKey === profileKey);
+  const eligibleIds = chapters.filter(findAsset).map(chapter => chapter.id);
   const [selectedIds, setSelectedIds] = useState<string[]>(eligibleIds);
   const [history, setHistory] = useState<NovelVideoMergeHistory[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [playingItem, setPlayingItem] = useState<NovelVideoMergeHistory | null>(null);
-
-  useEffect(() => {
-    setSelectedIds(eligibleIds);
-  }, [videoVariant, chapters]);
 
   const refreshHistory = async (silent = false) => {
     if (!silent) setHistoryLoading(true);
@@ -79,7 +74,7 @@ export function MergeChapterVideosModal({ novelId, chapters, initialVariant = 'd
     if (selectedIds.length < 2) return;
     setSubmitting(true);
     try {
-      const response = await novelApi.mergeChapterVideos(novelId, selectedIds, videoVariant);
+      const response = await novelApi.mergeChapterVideos(novelId, selectedIds, initialProfile.kind, initialProfile.targetMegapixels);
       if (!response.success) {
         const detail = (response as typeof response & { detail?: string }).detail;
         throw new Error(response.message || detail || '提交合并任务失败');
@@ -110,9 +105,7 @@ export function MergeChapterVideosModal({ novelId, chapters, initialVariant = 'd
           <section className="flex min-h-0 flex-col border-b lg:border-b-0 lg:border-r">
             <div className="flex items-center justify-between border-b bg-gray-50 px-5 py-3">
               <h3 className="font-medium text-gray-900">选择章回视频</h3>
-              <select value={videoVariant} onChange={(event) => setVideoVariant(event.target.value as 'draft' | 'hd')} className="rounded-md border border-gray-300 bg-white px-2 py-1 text-sm">
-                <option value="draft">初稿</option><option value="hd">高清</option>
-              </select>
+              <span className="rounded-md bg-purple-50 px-2 py-1 text-sm font-medium text-purple-700">{initialProfile.kind === 'hd' ? `高清 ${initialProfile.targetMegapixels?.toFixed(1)} MP` : '初稿'}</span>
               <label className="flex items-center gap-2 text-sm text-gray-600">
                 <input type="checkbox" checked={allSelected} onChange={event => setSelectedIds(event.target.checked ? eligibleIds : [])} className="h-4 w-4 rounded border-gray-300 text-primary-600" />
                 全选可用章回
@@ -120,7 +113,8 @@ export function MergeChapterVideosModal({ novelId, chapters, initialVariant = 'd
             </div>
             <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-4">
               {chapters.map(chapter => {
-                const videoUrl = getChapterVideoUrl(chapter, videoVariant);
+                const asset = findAsset(chapter);
+                const videoUrl = asset?.videoUrl;
                 const selected = selectedIds.includes(chapter.id);
                 return (
                   <label key={chapter.id} className={`flex items-center gap-3 rounded-lg border p-3 ${videoUrl ? 'cursor-pointer border-gray-200 hover:bg-blue-50/50' : 'cursor-not-allowed border-gray-100 bg-gray-50 opacity-60'}`}>
@@ -134,7 +128,7 @@ export function MergeChapterVideosModal({ novelId, chapters, initialVariant = 'd
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium text-gray-900">第 {chapter.number} 章 · {chapter.title}</div>
                       <div className="mt-1 text-xs text-gray-500">
-                        {videoUrl ? `${formatDuration(videoVariant === 'hd' ? chapter.hdChapterVideoDuration : chapter.chapterVideoDuration)} · ${formatFileSize(videoVariant === 'hd' ? chapter.hdChapterVideoSize : chapter.chapterVideoSize)}` : `暂无${videoVariant === 'hd' ? '高清' : '初稿'}最终章回视频`}
+                        {videoUrl ? `${formatDuration(asset?.duration)} · ${formatFileSize(asset?.fileSize)}` : `缺少${initialProfile.kind === 'hd' ? ` ${initialProfile.targetMegapixels?.toFixed(1)} MP 高清` : '初稿'}章回视频`}
                       </div>
                     </div>
                     {videoUrl && <Film className="h-4 w-4 text-blue-500" />}
@@ -167,7 +161,7 @@ export function MergeChapterVideosModal({ novelId, chapters, initialVariant = 'd
                       <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
                         {item.status === 'completed' ? <CheckCircle className="h-4 w-4 text-green-600" /> : item.status === 'failed' ? <XCircle className="h-4 w-4 text-red-600" /> : <Loader2 className="h-4 w-4 animate-spin text-blue-600" />}
                         合并 {item.chapters.length} 个章回
-                        <span className={`rounded px-1.5 py-0.5 text-[10px] ${item.videoVariant === 'hd' ? 'bg-purple-50 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>{item.videoVariant === 'hd' ? '高清' : '初稿'}</span>
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] ${item.videoVariant === 'hd' ? 'bg-purple-50 text-purple-700' : 'bg-gray-100 text-gray-600'}`}>{item.videoVariant === 'hd' ? `高清 ${item.targetMegapixels?.toFixed(1)} MP` : '初稿'}</span>
                       </div>
                       <p className="mt-1 truncate text-xs text-gray-500" title={item.chapters.map(chapter => `第${chapter.number}章 ${chapter.title}`).join('、')}>
                         {item.chapters.map(chapter => `第${chapter.number}章`).join('、') || '章回信息不可用'}

@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -81,6 +82,36 @@ def test_novel_video_merge_rejects_chapters_without_final_video(client, db_sessi
     assert "没有可用的章回视频" in response.json()["detail"]
 
 
+def test_chapter_video_assets_are_grouped_by_target_megapixels(db_session, monkeypatch, tmp_path):
+    novel = Novel(title="多目标章回")
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title="第一章")
+    db_session.add(chapter)
+    db_session.flush()
+    from app.models.shot import Shot
+    db_session.add_all([
+        Shot(chapter_id=chapter.id, index=1),
+        Shot(chapter_id=chapter.id, index=2),
+    ])
+    paths = {}
+    for profile, target in [("draft", None), ("hd10", 1.0), ("hd12", 1.2)]:
+        path = tmp_path / f"{profile}.mp4"
+        path.write_bytes(profile.encode())
+        url = f"/api/files/{profile}.mp4"
+        paths[url] = str(path)
+        metadata = {"video_variant": "draft" if target is None else "hd", "target_megapixels": target, "is_final_video": True, "shots_count": 2}
+        db_session.add(Task(type="chapter_video", status="completed", name=profile, chapter_id=chapter.id, novel_id=novel.id, result_url=url, metadata_json=json.dumps(metadata)))
+    db_session.commit()
+    monkeypatch.setattr("app.repositories.chapter_repository.url_to_local_path", lambda url: paths.get(url))
+
+    from app.repositories.chapter_repository import ChapterRepository
+    assets = ChapterRepository(db_session).get_chapter_video_assets(chapter)
+
+    assert [asset["profileKey"] for asset in assets] == ["draft", "hd:1.0", "hd:1.2"]
+    assert [asset["label"] for asset in assets] == ["初稿", "高清 1 MP", "高清 1.2 MP"]
+
+
 def test_create_hd_novel_video_merge_uses_only_hd_chapter_videos(client, db_session, monkeypatch, tmp_path):
     novel = Novel(title="高清章回合并")
     db_session.add(novel)
@@ -103,7 +134,7 @@ def test_create_hd_novel_video_merge_uses_only_hd_chapter_videos(client, db_sess
             chapter_id=chapter.id,
             result_url=chapter.hd_final_video,
             name=f"hd chapter {chapter.number}",
-            metadata_json='{"video_variant":"hd","is_final_video":true,"shots_count":1}',
+            metadata_json='{"video_variant":"hd","target_megapixels":1.0,"is_final_video":true,"shots_count":1}',
         ))
     db_session.commit()
     monkeypatch.setattr("app.api.novel_videos.url_to_local_path", lambda url: paths.get(url))
@@ -113,7 +144,7 @@ def test_create_hd_novel_video_merge_uses_only_hd_chapter_videos(client, db_sess
 
     response = client.post(
         f"/api/novels/{novel.id}/video-merges",
-        json={"chapter_ids": [chapter.id for chapter in chapters], "video_variant": "hd"},
+        json={"chapter_ids": [chapter.id for chapter in chapters], "video_variant": "hd", "target_megapixels": 1.0},
     )
 
     assert response.status_code == 200
@@ -161,7 +192,7 @@ async def test_novel_video_merge_task_orders_chapters_and_persists_history(db_se
     monkeypatch.setattr("app.services.novel_video_merge_service.url_to_local_path", lambda url: paths.get(url))
     monkeypatch.setattr(
         "app.services.novel_video_merge_service.ChapterRepository.get_final_chapter_video_info",
-        lambda self, chapter, video_variant="draft": {"chapterVideoUrl": chapter.final_video},
+        lambda self, chapter, video_variant="draft", target_megapixels=None: {"chapterVideoUrl": chapter.final_video},
     )
     monkeypatch.setattr("app.services.novel_video_merge_service.file_storage._get_story_dir", lambda _: tmp_path / "story")
     monkeypatch.setattr("app.services.novel_video_merge_service.file_storage.merge_videos", fake_merge)

@@ -308,6 +308,11 @@ class ShotRepository:
         Returns:
             响应字典
         """
+        from app.services.hd_repaint_service import get_hd_repaint_variants
+
+        hd_variants = get_hd_repaint_variants(self.db, shot.id)
+        latest_completed_variants = [variant for variant in hd_variants if variant.get("videoUrl")]
+        latest_hd = latest_completed_variants[-1] if latest_completed_variants else None
         return {
             "id": shot.id,
             "chapterId": shot.chapter_id,
@@ -328,12 +333,12 @@ class ShotRepository:
             "videoUrl": shot.video_url,
             "videoStatus": shot.video_status,
             "videoTaskId": shot.video_task_id,
-            "hdVideoUrl": shot.hd_video_url,
-            "hdVideoStatus": shot.hd_video_status or "pending",
-            "hdVideoTaskId": shot.hd_video_task_id,
-            "hdVideoSourceTaskId": shot.hd_video_source_task_id,
-            "hdVideoMegapixels": float(shot.hd_video_megapixels) if shot.hd_video_megapixels else None,
-            "currentVideoVariant": shot.current_video_variant or "draft",
+            "hdVideoVariants": hd_variants,
+            "hdVideoUrl": latest_hd.get("videoUrl") if latest_hd else shot.hd_video_url,
+            "hdVideoStatus": latest_hd.get("status") if latest_hd else (shot.hd_video_status or "pending"),
+            "hdVideoTaskId": latest_hd.get("latestCompletedTaskId") if latest_hd else shot.hd_video_task_id,
+            "hdVideoSourceTaskId": latest_hd.get("sourceTaskId") if latest_hd else shot.hd_video_source_task_id,
+            "hdVideoMegapixels": latest_hd.get("targetMegapixels") if latest_hd else (float(shot.hd_video_megapixels) if shot.hd_video_megapixels else None),
             "mergedCharacterImage": shot.merged_character_image,
             "mergedPropImage": shot.merged_prop_image,
             "dialogues": json.loads(shot.dialogues) if shot.dialogues else [],

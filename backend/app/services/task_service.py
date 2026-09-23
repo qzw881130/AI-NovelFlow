@@ -426,6 +426,23 @@ class TaskService:
         if task.status not in ["failed", "completed"]:
             return {"success": False, "message": "只能重试失败或已完成的任务", "status_code": 400}
 
+        if task.type == "shot_video_hd" and task.shot_id:
+            from app.services.hd_repaint_service import clone_hd_task_for_retry, enqueue_hd_repaint_task
+
+            shot = ShotRepository(db).get_by_id(task.shot_id)
+            if not shot:
+                return {"success": False, "message": "重试失败：找不到关联分镜", "status_code": 400}
+            retry_task = clone_hd_task_for_retry(db, task)
+            shot.hd_video_status = "pending"
+            shot.hd_video_task_id = retry_task.id
+            db.commit()
+            enqueue_hd_repaint_task(retry_task.id)
+            return {
+                "success": True,
+                "message": "已创建新的高清重绘 Execution",
+                "data": {"taskId": retry_task.id, "retryOfTaskId": task.id, "status": "pending"},
+            }
+
         # 重置任务状态
         task.status = "pending"
         task.progress = 0
@@ -554,30 +571,6 @@ class TaskService:
                 selected_mode=video_director_plan.get("selected_mode") or "SINGLE_FRAME",
             )
             restarted = True
-        elif task.type == "shot_video_hd" and task.shot_id:
-            from app.services.hd_repaint_service import enqueue_hd_repaint_task
-
-            shot = ShotRepository(db).get_by_id(task.shot_id)
-            if not shot:
-                task.status = "failed"
-                task.error_message = "重试失败：找不到关联分镜"
-                task.current_step = "重试失败"
-                db.commit()
-                return {"success": False, "message": task.error_message, "status_code": 400}
-            metadata = json.loads(task.metadata_json or "{}")
-            task.workflow_json = json.dumps(metadata.get("source_workflow_json"), ensure_ascii=False) if metadata.get("source_workflow_json") else None
-            clips = json.loads(task.video_director_clips or "[]")
-            for clip in clips:
-                for key in ["replay_workflow_json", "repaint_prompt_id", "video_url", "local_path", "source_video_url", "generated_at", "seed"]:
-                    clip.pop(key, None)
-                clip["status"] = "PENDING"
-            task.video_director_clips = json.dumps(clips, ensure_ascii=False) if clips else None
-            shot.hd_video_status = "pending"
-            shot.hd_video_task_id = task.id
-            db.commit()
-            enqueue_hd_repaint_task(task.id)
-            restarted = True
-
         if not restarted:
             task.status = "failed"
             task.error_message = "当前任务类型暂不支持重试，或缺少必要关联数据"

@@ -275,17 +275,9 @@ class ComfyUIClient:
 
                             # 检查是否有错误
                             if status.get("status_str") == "error":
-                                error_msg = "未知错误"
-                                messages = status.get("messages")
-                                if messages and len(messages) > 0:
-                                    msg_item = messages[0]
-                                    if isinstance(msg_item, (list, tuple)) and len(msg_item) > 1:
-                                        error_msg = str(msg_item[1])
-                                    else:
-                                        error_msg = str(msg_item)
                                 return {
                                     "success": False,
-                                    "message": error_msg
+                                    "message": self._extract_status_error(status)
                                 }
 
                             if self._is_completed_status(status):
@@ -371,17 +363,9 @@ class ComfyUIClient:
 
                             # 检查是否有错误
                             if status.get("status_str") == "error":
-                                error_msg = "未知错误"
-                                messages = status.get("messages")
-                                if messages and len(messages) > 0:
-                                    msg_item = messages[0]
-                                    if isinstance(msg_item, (list, tuple)) and len(msg_item) > 1:
-                                        error_msg = str(msg_item[1])
-                                    else:
-                                        error_msg = str(msg_item)
                                 return {
                                     "success": False,
-                                    "message": error_msg
+                                    "message": self._extract_status_error(status)
                                 }
 
                             if self._is_completed_status(status):
@@ -559,9 +543,22 @@ class ComfyUIClient:
 
     def _extract_status_error(self, status: Dict[str, Any]) -> str:
         """提取 ComfyUI history status 中的错误信息。"""
-        messages = status.get("messages")
-        if messages and len(messages) > 0:
-            msg_item = messages[0]
+        messages = status.get("messages") or []
+        for msg_item in reversed(messages):
+            if not isinstance(msg_item, (list, tuple)) or len(msg_item) < 2:
+                continue
+            message_type, payload = msg_item[0], msg_item[1]
+            if message_type != "execution_error" and not (isinstance(payload, dict) and payload.get("exception_message")):
+                continue
+            if isinstance(payload, dict):
+                detail = str(payload.get("exception_message") or payload.get("error") or payload).strip()
+                node_type = payload.get("node_type")
+                node_id = payload.get("node_id")
+                node_label = f"{node_type or 'ComfyUI 节点'}（节点 {node_id}）" if node_id else str(node_type or "ComfyUI")
+                return f"{node_label}: {detail}"
+            return str(payload)
+        if messages:
+            msg_item = messages[-1]
             if isinstance(msg_item, (list, tuple)) and len(msg_item) > 1:
                 return str(msg_item[1])
             return str(msg_item)

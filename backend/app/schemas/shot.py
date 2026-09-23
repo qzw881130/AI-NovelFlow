@@ -96,6 +96,7 @@ class MergeVideosRequest(BaseModel):
     include_transitions: bool = Field(False, description="是否包含转场视频（兼容旧请求）")
     shot_ids: Optional[List[str]] = Field(None, description="要参与合并的分镜 ID 列表；为空时合并所有已有视频的分镜")
     video_variant: Literal["draft", "hd"] = Field("draft", description="视频版本：初稿或高清")
+    target_megapixels: Optional[float] = Field(None, description="高清视频目标 MP")
 
 
 class HdRepaintRequest(BaseModel):
@@ -106,10 +107,6 @@ class HdRepaintRequest(BaseModel):
 class BatchHdRepaintRequest(BaseModel):
     shot_ids: List[str]
     target_megapixels: float = Field(1.0, ge=0.5, le=2.0)
-
-
-class SetCurrentVideoVariantRequest(BaseModel):
-    variant: Literal["draft", "hd"]
 
 
 class ShotUpdate(BaseModel):

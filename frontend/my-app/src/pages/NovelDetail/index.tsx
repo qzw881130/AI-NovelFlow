@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Loader2, FileText, Trash2, Edit3, CheckCircle, AlertCircle, Clock, Wand2, Upload, Play, Download, Video, X, RefreshCw, Combine } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
-import type { Chapter } from '../../types';
+import type { Chapter, ChapterVideoAsset } from '../../types';
 import { useNovelDetailState } from './hooks/useNovelDetailState';
 import { CreateChapterModal } from './components/CreateChapterModal';
 import { BatchImportModal } from './components/BatchImportModal';
@@ -30,23 +30,24 @@ function formatFileSize(bytes?: number | null) {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
 }
 
-function getChapterVideoUrl(chapter: Chapter, variant: 'draft' | 'hd' = 'draft') {
-  return variant === 'hd' ? chapter.hdChapterVideoUrl || chapter.hdFinalVideo : chapter.chapterVideoUrl || chapter.finalVideo;
+function getChapterVideoAssets(chapter: Chapter): ChapterVideoAsset[] {
+  if (chapter.videoAssets?.length) return chapter.videoAssets;
+  const draftUrl = chapter.chapterVideoUrl || chapter.finalVideo;
+  return draftUrl ? [{ id: chapter.chapterVideoTaskId || 'draft', profileKey: 'draft', kind: 'draft', label: '初稿', videoUrl: draftUrl, duration: chapter.chapterVideoDuration, fileSize: chapter.chapterVideoSize, shotCount: chapter.chapterVideoShotCount }] : [];
 }
 
 function ChapterRow({ chapter, index, novelId, selected, onToggleSelect, getStatusIcon, getStatusText, onPlayVideo }: {
   chapter: Chapter; index: number; novelId: string; selected: boolean; onToggleSelect: () => void;
   getStatusIcon: (s: Chapter['status']) => { icon: string; color: string; spin?: boolean };
   getStatusText: (s: Chapter['status']) => string;
-  onPlayVideo: (chapter: Chapter, variant: 'draft' | 'hd') => void;
+  onPlayVideo: (chapter: Chapter, asset: ChapterVideoAsset) => void;
 }) {
   const { t } = useTranslation();
   const iconInfo = getStatusIcon(chapter.status);
   const contentLength = typeof chapter.contentLength === 'number'
     ? chapter.contentLength
     : (chapter.content || '').replace(/\s/g, '').length;
-  const videoUrl = getChapterVideoUrl(chapter, 'draft');
-  const hdVideoUrl = getChapterVideoUrl(chapter, 'hd');
+  const videoAssets = getChapterVideoAssets(chapter);
   return (
     <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
       <div className="flex items-center gap-4">
@@ -62,29 +63,26 @@ function ChapterRow({ chapter, index, novelId, selected, onToggleSelect, getStat
         <div>
           <h3 className="font-medium text-gray-900">{chapter.title}</h3>
           <p className="text-xs text-gray-500">{contentLength.toLocaleString()} 字 · {getStatusText(chapter.status)}{chapter.progress > 0 && ` · ${chapter.progress}%`}</p>
-          {(videoUrl || hdVideoUrl) && (
+          {videoAssets.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-gray-500">
-              {videoUrl && <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-1 text-blue-700"><Video className="h-3 w-3" />初稿 · {formatDuration(chapter.chapterVideoDuration)} · {formatFileSize(chapter.chapterVideoSize)}</span>}
-              {hdVideoUrl && <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-1 text-purple-700"><Video className="h-3 w-3" />高清 · {formatDuration(chapter.hdChapterVideoDuration)} · {formatFileSize(chapter.hdChapterVideoSize)}</span>}
+              {videoAssets.map(asset => <span key={asset.id} className={`inline-flex items-center gap-1 rounded-full px-2 py-1 ${asset.kind === 'hd' ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}><Video className="h-3 w-3" />{asset.label} · {formatDuration(asset.duration)} · {formatFileSize(asset.fileSize)}</span>)}
             </div>
           )}
         </div>
       </div>
       <div className="flex gap-2">
-        {(videoUrl || hdVideoUrl) && (
+        {videoAssets.length > 0 && (
           <>
             <details className="relative">
               <summary className="btn-secondary cursor-pointer list-none text-sm py-1.5 px-3"><Play className="h-3 w-3 mr-1" />播放 ▾</summary>
-              <div className="absolute right-0 z-30 mt-1 w-28 rounded-lg border bg-white p-1 shadow-lg">
-                <button disabled={!videoUrl} onClick={() => onPlayVideo(chapter, 'draft')} className="w-full rounded px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:text-gray-300">初稿</button>
-                <button disabled={!hdVideoUrl} onClick={() => onPlayVideo(chapter, 'hd')} className="w-full rounded px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:text-gray-300">高清</button>
+              <div className="absolute right-0 z-30 mt-1 w-40 rounded-lg border bg-white p-1 shadow-lg">
+                {videoAssets.map(asset => <button key={asset.id} onClick={() => onPlayVideo(chapter, asset)} className="w-full rounded px-3 py-2 text-left text-sm hover:bg-gray-50">{asset.label}</button>)}
               </div>
             </details>
             <details className="relative">
               <summary className="btn-secondary cursor-pointer list-none text-sm py-1.5 px-3"><Download className="h-3 w-3 mr-1" />下载 ▾</summary>
-              <div className="absolute right-0 z-30 mt-1 w-28 rounded-lg border bg-white p-1 shadow-lg">
-                {videoUrl ? <a href={videoUrl} download className="block rounded px-3 py-2 text-sm hover:bg-gray-50">初稿</a> : <span className="block px-3 py-2 text-sm text-gray-300">初稿</span>}
-                {hdVideoUrl ? <a href={hdVideoUrl} download className="block rounded px-3 py-2 text-sm hover:bg-gray-50">高清</a> : <span className="block px-3 py-2 text-sm text-gray-300">高清</span>}
+              <div className="absolute right-0 z-30 mt-1 w-40 rounded-lg border bg-white p-1 shadow-lg">
+                {videoAssets.map(asset => <a key={asset.id} href={asset.videoUrl} download className="block rounded px-3 py-2 text-sm hover:bg-gray-50">{asset.label}</a>)}
               </div>
             </details>
           </>
@@ -104,10 +102,11 @@ function ChapterRow({ chapter, index, novelId, selected, onToggleSelect, getStat
 export default function NovelDetail() {
   const { t } = useTranslation();
   const state = useNovelDetailState();
-  const [playingChapter, setPlayingChapter] = useState<{ chapter: Chapter; variant: 'draft' | 'hd' } | null>(null);
+  const [playingChapter, setPlayingChapter] = useState<{ chapter: Chapter; asset: ChapterVideoAsset } | null>(null);
   const [selectedChapterIds, setSelectedChapterIds] = useState<string[]>([]);
   const [showMergeModal, setShowMergeModal] = useState(false);
-  const [mergeVariant, setMergeVariant] = useState<'draft' | 'hd'>('draft');
+  const [mergeProfile, setMergeProfile] = useState<{ kind: 'draft' | 'hd'; targetMegapixels?: number }>({ kind: 'draft' });
+  const hdMergeTargets = Array.from(new Set(state.chapters.flatMap(chapter => getChapterVideoAssets(chapter).filter(asset => asset.kind === 'hd' && asset.targetMegapixels != null).map(asset => Number(asset.targetMegapixels))))).sort((a, b) => a - b);
 
   if (state.isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary-600" /></div>;
   if (!state.novel) {
@@ -133,8 +132,8 @@ export default function NovelDetail() {
           <details className="relative">
             <summary className="btn-secondary cursor-pointer list-none"><Combine className="h-4 w-4 mr-2" />合并所有章回视频 ▾</summary>
             <div className="absolute right-0 z-30 mt-1 w-40 rounded-lg border bg-white p-1 shadow-lg">
-              <button onClick={() => { setMergeVariant('draft'); setShowMergeModal(true); }} className="w-full rounded px-3 py-2 text-left text-sm hover:bg-gray-50">合并初稿</button>
-              <button onClick={() => { setMergeVariant('hd'); setShowMergeModal(true); }} className="w-full rounded px-3 py-2 text-left text-sm hover:bg-gray-50">合并高清</button>
+              <button onClick={() => { setMergeProfile({ kind: 'draft' }); setShowMergeModal(true); }} className="w-full rounded px-3 py-2 text-left text-sm hover:bg-gray-50">合并初稿</button>
+              {hdMergeTargets.map(mp => <button key={mp} onClick={() => { setMergeProfile({ kind: 'hd', targetMegapixels: mp }); setShowMergeModal(true); }} className="w-full rounded px-3 py-2 text-left text-sm hover:bg-gray-50">合并高清 {mp.toFixed(1)} MP</button>)}
             </div>
           </details>
           <button
@@ -206,7 +205,7 @@ export default function NovelDetail() {
                 selected={selectedChapterIds.includes(chapter.id)}
                 onToggleSelect={() => setSelectedChapterIds(prev => prev.includes(chapter.id) ? prev.filter(id => id !== chapter.id) : [...prev, chapter.id])}
                 getStatusIcon={state.getStatusIcon} getStatusText={state.getStatusText}
-                onPlayVideo={(chapter, variant) => setPlayingChapter({ chapter, variant })} />
+                onPlayVideo={(chapter, asset) => setPlayingChapter({ chapter, asset })} />
             ))}
           </div>
         )}
@@ -217,16 +216,16 @@ export default function NovelDetail() {
       <BatchImportModal show={state.showBatchImportModal} novelId={state.id!}
         onClose={() => state.setShowBatchImportModal(false)} onImportComplete={state.handleBatchImportComplete} />
       {showMergeModal && (
-        <MergeChapterVideosModal novelId={state.id!} chapters={state.chapters} initialVariant={mergeVariant} onClose={() => setShowMergeModal(false)} />
+        <MergeChapterVideosModal novelId={state.id!} chapters={state.chapters} initialProfile={mergeProfile} onClose={() => setShowMergeModal(false)} />
       )}
-      {playingChapter && getChapterVideoUrl(playingChapter.chapter, playingChapter.variant) && (
+      {playingChapter?.asset.videoUrl && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4">
           <div className="w-full max-w-4xl rounded-xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b px-5 py-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">{playingChapter.chapter.title} · {playingChapter.variant === 'hd' ? '高清' : '初稿'}</h3>
+                <h3 className="text-lg font-semibold text-gray-900">{playingChapter.chapter.title} · {playingChapter.asset.label}</h3>
                 <p className="text-xs text-gray-500">
-                   {formatDuration(playingChapter.variant === 'hd' ? playingChapter.chapter.hdChapterVideoDuration : playingChapter.chapter.chapterVideoDuration)} · {formatFileSize(playingChapter.variant === 'hd' ? playingChapter.chapter.hdChapterVideoSize : playingChapter.chapter.chapterVideoSize)} · {(playingChapter.variant === 'hd' ? playingChapter.chapter.hdChapterVideoShotCount : playingChapter.chapter.chapterVideoShotCount) || 0} 镜头
+                   {formatDuration(playingChapter.asset.duration)} · {formatFileSize(playingChapter.asset.fileSize)} · {playingChapter.asset.shotCount || 0} 镜头
                 </p>
               </div>
               <button onClick={() => setPlayingChapter(null)} className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
@@ -234,10 +233,10 @@ export default function NovelDetail() {
               </button>
             </div>
             <div className="bg-black">
-              <video src={getChapterVideoUrl(playingChapter.chapter, playingChapter.variant)} controls autoPlay className="max-h-[70vh] w-full" />
+              <video src={playingChapter.asset.videoUrl} controls autoPlay className="max-h-[70vh] w-full" />
             </div>
             <div className="flex justify-end gap-2 px-5 py-4">
-              <a href={getChapterVideoUrl(playingChapter.chapter, playingChapter.variant)} download className="btn-secondary text-sm py-1.5 px-3">
+              <a href={playingChapter.asset.videoUrl} download className="btn-secondary text-sm py-1.5 px-3">
                 <Download className="h-3 w-3 mr-1" />下载视频
               </a>
               <button onClick={() => setPlayingChapter(null)} className="btn-primary text-sm py-1.5 px-3">关闭</button>

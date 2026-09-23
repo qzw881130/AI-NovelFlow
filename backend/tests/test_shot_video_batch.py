@@ -100,3 +100,62 @@ async def test_video_batch_runner_completes_persisted_children_in_order(db_sessi
     assert refreshed_batch.status == "completed"
     assert refreshed_batch.progress == 100
     assert [child.status for child in refreshed_children] == ["completed", "completed"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("prompt_text, expected_skip", [(None, False), ("existing keyframe prompt", True)])
+async def test_batch_video_only_reuses_keyframe_prompt_when_it_exists(db_session, monkeypatch, prompt_text, expected_skip):
+    novel = Novel(title="关键帧提示词批量测试")
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title="第一章")
+    db_session.add(chapter)
+    db_session.flush()
+    keyframe = {
+        "frame_index": 0,
+        "plan_keyframe_index": 2,
+        "description": "尾帧描述",
+        "image_url": None,
+    }
+    if prompt_text:
+        keyframe["prompt_text"] = prompt_text
+    shot = Shot(
+        chapter_id=chapter.id,
+        index=1,
+        image_url="/api/files/shot.png",
+        characters="[]",
+        props="[]",
+        duration=8,
+        keyframes=json.dumps([keyframe]),
+        video_director_plan=json.dumps({
+            "selected_mode": "FIRST_LAST_FRAME",
+            "workflow_capability": {"max_clip_duration": 15},
+            "keyframes": [{"index": 1, "role": "START"}, {"index": 2, "role": "END", "description": "尾帧描述"}],
+            "transitions": [{"from_keyframe_index": 1, "to_keyframe_index": 2}],
+        }),
+    )
+    db_session.add(shot)
+    db_session.flush()
+    batch = Task(type="shot_video_batch", status="running", name="批量", novel_id=novel.id, chapter_id=chapter.id)
+    child = Task(type="shot_video", status="running", name="子任务", novel_id=novel.id, chapter_id=chapter.id, shot_id=shot.id, parent_task_id=batch.id)
+    keyframe_task = Task(type="keyframe_image", status="pending", name=f"生成关键帧图片: {shot.id}-0", novel_id=novel.id, chapter_id=chapter.id, shot_id=shot.id)
+    db_session.add_all([batch, child, keyframe_task])
+    db_session.commit()
+    observed = {}
+
+    async def fake_generate(self, db, shot_id, frame_index, workflow_id=None, skip_llm_when_prompt_exists=False):
+        observed["skip"] = skip_llm_when_prompt_exists
+        return True, keyframe_task.id, "created"
+
+    monkeypatch.setattr("app.services.shot_keyframe_service.ShotKeyframeService.generate_keyframe_image", fake_generate)
+    monkeypatch.setattr(shots_api, "_wait_for_persistent_task", lambda *args, **kwargs: _completed())
+
+    async def _run():
+        return await shots_api._prepare_batch_video_details(db_session, batch, child)
+
+    async def _completed():
+        return "completed"
+
+    await _run()
+
+    assert observed["skip"] is expected_skip

@@ -46,6 +46,7 @@ export interface NovelVideoMergeHistory {
   duration?: number | null;
   cacheHit: boolean;
   videoVariant: 'draft' | 'hd';
+  targetMegapixels?: number | null;
   chapters: NovelVideoMergeChapter[];
   createdAt?: string | null;
   completedAt?: string | null;
@@ -109,8 +110,8 @@ export const novelApi = {
   fetchChapters: (novelId: string) => api.get<Chapter[]>(`/novels/${novelId}/chapters/`),
 
   /** 合并选中的章回最终视频 */
-  mergeChapterVideos: (novelId: string, chapterIds: string[], videoVariant: 'draft' | 'hd' = 'draft') =>
-    api.post<NovelVideoMergeHistory>(`/novels/${novelId}/video-merges`, { chapter_ids: chapterIds, video_variant: videoVariant }),
+  mergeChapterVideos: (novelId: string, chapterIds: string[], videoVariant: 'draft' | 'hd' = 'draft', targetMegapixels?: number) =>
+    api.post<NovelVideoMergeHistory>(`/novels/${novelId}/video-merges`, { chapter_ids: chapterIds, video_variant: videoVariant, target_megapixels: targetMegapixels }),
 
   /** 获取小说章回视频合并历史 */
   fetchVideoMergeHistory: (novelId: string) =>

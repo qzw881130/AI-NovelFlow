@@ -274,8 +274,10 @@ export function useWorkflowSlice(): WorkflowSlice {
     // State
     currentTab: state.currentTab,
     tabProgress: state.tabProgress,
+    hdTargetMegapixels: state.hdTargetMegapixels,
     // Actions
     setCurrentTab: state.setCurrentTab,
+    setHdTargetMegapixels: state.setHdTargetMegapixels,
     markTabComplete: state.markTabComplete,
     resetTabProgress: state.resetTabProgress,
     saveWorkflowState: state.saveWorkflowState,

@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -9,7 +10,7 @@ from app.models.novel import Chapter, Novel
 from app.models.shot import Shot
 from app.models.task import Task
 from app.models.workflow import Workflow
-from app.services.hd_repaint_service import clone_workflow_for_hd
+from app.services.hd_repaint_service import clone_workflow_for_hd, enqueue_hd_repaint_task, get_hd_repaint_variants
 from app.services.hd_repaint_service import run_hd_repaint_task
 from app.services.comfyui.workflows import WorkflowBuilder
 
@@ -136,6 +137,110 @@ def test_batch_hd_repaint_persists_multi_clip_children(mock_enqueue_task, mock_e
     assert len(clips) == 2
     assert all(clip["target_megapixels"] == 1.2 for clip in clips)
     assert all(clip["source_workflow_json"]["10"]["inputs"]["value"] == 0.4 for clip in clips)
+
+
+def test_single_and_batch_children_share_the_same_serial_worker(monkeypatch):
+    queued_workers = []
+
+    class FakeWorker:
+        def enqueue(self, job):
+            queued_workers.append("shot_video_hd")
+
+    monkeypatch.setattr("app.services.hd_repaint_service.worker_manager.worker", lambda name: FakeWorker() if name == "shot_video_hd" else None)
+    monkeypatch.setattr("app.services.hd_repaint_service._active_hd_tasks", set())
+
+    enqueue_hd_repaint_task("single-task")
+    enqueue_hd_repaint_task("batch-child-1")
+    enqueue_hd_repaint_task("batch-child-2")
+
+    assert queued_workers == ["shot_video_hd", "shot_video_hd", "shot_video_hd"]
+
+
+def test_hd_variants_keep_multiple_targets_and_execution_history(db_session):
+    novel, chapter, shot, source = _seed_hd_source(db_session)
+    executions = [
+        Task(type="shot_video_hd", status="completed", name="1.0 A", shot_id=shot.id, source_task_id=source.id, result_url="/api/files/1a.mp4", completed_at=datetime.utcnow() - timedelta(minutes=1), metadata_json='{"target_megapixels":1.0}'),
+        Task(type="shot_video_hd", status="completed", name="1.0 B", shot_id=shot.id, source_task_id=source.id, result_url="/api/files/1b.mp4", completed_at=datetime.utcnow(), metadata_json='{"target_megapixels":1.0}'),
+        Task(type="shot_video_hd", status="failed", name="1.0 failed", shot_id=shot.id, source_task_id=source.id, error_message="failed", metadata_json='{"target_megapixels":1.0}'),
+        Task(type="shot_video_hd", status="completed", name="1.5", shot_id=shot.id, source_task_id=source.id, result_url="/api/files/15.mp4", metadata_json='{"target_megapixels":1.5}'),
+    ]
+    db_session.add_all(executions)
+    db_session.commit()
+
+    variants = get_hd_repaint_variants(db_session, shot.id)
+
+    assert [item["targetMegapixels"] for item in variants] == [1.0, 1.5]
+    one_mp = variants[0]
+    assert one_mp["videoUrl"] == "/api/files/1b.mp4"
+    assert len(one_mp["executions"]) == 3
+    assert variants[1]["videoUrl"] == "/api/files/15.mp4"
+
+
+def test_shot_response_does_not_expose_current_video_variant(db_session):
+    novel, chapter, shot, source = _seed_hd_source(db_session)
+    db_session.add(Task(
+        type="shot_video_hd",
+        status="completed",
+        name="1.0",
+        shot_id=shot.id,
+        source_task_id=source.id,
+        result_url="/api/files/hd.mp4",
+        metadata_json='{"target_megapixels":1.0}',
+    ))
+    db_session.commit()
+
+    from app.repositories.shot_repository import ShotRepository
+    response = ShotRepository(db_session).to_response(shot)
+
+    assert "currentVideoVariant" not in response
+    assert response["hdVideoVariants"][0]["targetMegapixels"] == 1.0
+
+
+@patch("app.api.shots.worker_manager.worker")
+def test_chapter_hd_merge_freezes_exact_target_executions(mock_worker, client, db_session):
+    novel = Novel(title="目标 MP 合并")
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title="第一章")
+    db_session.add(chapter)
+    db_session.flush()
+    shots = [Shot(chapter_id=chapter.id, index=index, characters="[]", props="[]") for index in (1, 2)]
+    db_session.add_all(shots)
+    db_session.flush()
+    executions = []
+    for shot in shots:
+        execution = Task(
+            type="shot_video_hd",
+            status="completed",
+            name=f"HD {shot.index}",
+            novel_id=novel.id,
+            chapter_id=chapter.id,
+            shot_id=shot.id,
+            result_url=f"/api/files/shot-{shot.index}-1mp.mp4",
+            metadata_json='{"target_megapixels":1.0}',
+        )
+        executions.append(execution)
+    db_session.add_all(executions)
+    db_session.commit()
+
+    response = client.post(
+        f"/api/novels/{novel.id}/chapters/{chapter.id}/merge-videos",
+        json={"video_variant": "hd", "target_megapixels": 1.0, "shot_ids": [shot.id for shot in shots]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    merge_task = db_session.query(Task).filter(Task.type == "chapter_video", Task.chapter_id == chapter.id).one()
+    metadata = json.loads(merge_task.metadata_json)
+    assert metadata["target_megapixels"] == 1.0
+    assert [item["execution_task_id"] for item in metadata["inputs"]] == [execution.id for execution in executions]
+
+    missing = client.post(
+        f"/api/novels/{novel.id}/chapters/{chapter.id}/merge-videos",
+        json={"video_variant": "hd", "target_megapixels": 1.2, "shot_ids": [shot.id for shot in shots]},
+    )
+    assert missing.json()["success"] is False
+    assert "1.2 MP" in missing.json()["message"]
 
 
 @pytest.mark.asyncio

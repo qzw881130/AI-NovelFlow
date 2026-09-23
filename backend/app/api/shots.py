@@ -138,6 +138,7 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
         chapter_id = task.chapter_id
         mode = metadata.get("mode") or "shots_only"
         video_variant = metadata.get("video_variant") or "draft"
+        target_megapixels = metadata.get("target_megapixels")
         include_transitions = mode == "shots_with_transitions"
         selected_shot_ids = set(metadata.get("shot_ids") or [])
 
@@ -152,11 +153,20 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
             if invalid_shot_ids:
                 raise RuntimeError("选择的分镜不属于当前章节")
 
-        generated_shots = [
-            (shot.index, shot.hd_video_url if video_variant == "hd" else shot.video_url)
-            for shot in shots
-            if (shot.hd_video_url if video_variant == "hd" else shot.video_url) and (not selected_shot_ids or shot.id in selected_shot_ids)
-        ]
+        frozen_inputs = metadata.get("inputs") if isinstance(metadata.get("inputs"), list) else []
+        generated_shots = (
+            [
+                (int(item["shot_index"]), item.get("video_url"))
+                for item in sorted(frozen_inputs, key=lambda item: int(item["shot_index"]))
+                if item.get("video_url")
+            ]
+            if frozen_inputs else
+            [
+                (shot.index, shot.hd_video_url if video_variant == "hd" else shot.video_url)
+                for shot in shots
+                if (shot.hd_video_url if video_variant == "hd" else shot.video_url) and (not selected_shot_ids or shot.id in selected_shot_ids)
+            ]
+        )
         if not generated_shots:
             raise RuntimeError("没有选中的分镜视频可以合并" if selected_shot_ids else "没有分镜视频可以合并")
 
@@ -194,7 +204,8 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
                         segments.append({"kind": "transition", "key": key, "path": full_path})
                 trans_paths.append(trans_path)
 
-        signature = await asyncio.to_thread(file_storage.get_video_merge_signature, f"{mode}:{video_variant}", segments)
+        profile_key = f"{video_variant}:{target_megapixels}" if video_variant == "hd" else "draft"
+        signature = await asyncio.to_thread(file_storage.get_video_merge_signature, f"{mode}:{profile_key}", segments)
         story_dir = file_storage._get_story_dir(novel_id)
         chapter_short = chapter_id[:8] if chapter_id else "unknown"
         output_dir = story_dir / f"chapter_{chapter_short}" / ("hd-merged-videos" if video_variant == "hd" else "merged-videos")
@@ -230,16 +241,17 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
         relative_path = str(output_path).replace(str(file_storage.base_dir), "").replace("\\", "/")
         video_url = f"/api/files/{relative_path.lstrip('/')}"
         all_shot_ids = {shot.id for shot in shots}
-        valid_shot_ids = {
+        valid_shot_ids = ({item.get("shot_id") for item in frozen_inputs} if frozen_inputs else {
             shot.id for shot in shots
             if (shot.hd_video_url if video_variant == "hd" else shot.video_url)
             and (not selected_shot_ids or shot.id in selected_shot_ids)
-        }
+        })
         is_final_video = bool(all_shot_ids) and valid_shot_ids == all_shot_ids and len(valid_shots) == len(all_shot_ids)
         metadata.update({
             "cache_hit": cache_hit,
             "mode": mode,
             "video_variant": video_variant,
+            "target_megapixels": target_megapixels,
             "video_url": video_url,
             "segments_count": len(segments),
             "shots_count": len(valid_shots),
@@ -2248,11 +2260,17 @@ async def _prepare_batch_video_details(db: Session, batch_task: Task, child_task
                 active_keyframe_task.current_step = "等待重新提交"
                 db.commit()
 
+            reusable_prompt = keyframe_service._get_reusable_keyframe_prompt(
+                db,
+                shot.id,
+                frame_index,
+                keyframe,
+            )
             success, keyframe_task_id, message = await keyframe_service.generate_keyframe_image(
                 db,
                 shot.id,
                 frame_index,
-                skip_llm_when_prompt_exists=True,
+                skip_llm_when_prompt_exists=bool(reusable_prompt),
             )
             if not success or not keyframe_task_id:
                 raise ValueError(message or f"关键帧 {frame_index} 生成任务创建失败")
@@ -3180,9 +3198,37 @@ async def merge_chapter_videos(
 
     video_variant = data.video_variant
     selected = [shot for shot in shots if not selected_shot_ids or shot.id in selected_shot_ids]
-    missing = [shot.index for shot in selected if not (shot.hd_video_url if video_variant == "hd" else shot.video_url)]
+    target_megapixels = data.target_megapixels
+    if video_variant == "hd" and target_megapixels is None:
+        return {"success": False, "message": "合并高清视频必须选择明确的目标 MP"}
+    if video_variant == "hd" and len(selected) != len(shots):
+        return {"success": False, "message": "高清章回视频必须包含本章全部 Shot"}
+
+    if video_variant == "hd":
+        from app.services.hd_repaint_service import get_latest_completed_hd_task
+        frozen_inputs = []
+        for shot in selected:
+            execution = get_latest_completed_hd_task(db, shot.id, target_megapixels)
+            if execution:
+                frozen_inputs.append({
+                    "shot_id": shot.id,
+                    "shot_index": shot.index,
+                    "execution_task_id": execution.id,
+                    "video_url": execution.result_url,
+                })
+        available_ids = {item["shot_id"] for item in frozen_inputs}
+        missing = [shot.index for shot in selected if shot.id not in available_ids]
+    else:
+        frozen_inputs = [{
+            "shot_id": shot.id,
+            "shot_index": shot.index,
+            "execution_task_id": shot.video_task_id,
+            "video_url": shot.video_url,
+        } for shot in selected if shot.video_url]
+        missing = [shot.index for shot in selected if not shot.video_url]
     if missing:
-        return {"success": False, "message": f"以下分镜缺少{'高清' if video_variant == 'hd' else '初稿'}视频：{', '.join(map(str, missing))}"}
+        label = f"高清 {target_megapixels} MP" if video_variant == "hd" else "初稿"
+        return {"success": False, "message": f"以下分镜缺少{label}视频：{', '.join(map(str, missing))}"}
     selected_count = len(selected)
     if selected_count == 0:
         return {"success": False, "message": "没有分镜视频可以合并"}
@@ -3193,10 +3239,16 @@ async def merge_chapter_videos(
         novel_id=novel_id,
         chapter_id=chapter_id,
         name=f"合并章节视频: {chapter.title or chapter.number}",
-        description=f"合并章节 '{chapter.title or chapter.number}' 的 {selected_count} 个{'高清' if video_variant == 'hd' else '初稿'}分镜视频",
+        description=f"合并章节 '{chapter.title or chapter.number}' 的 {selected_count} 个{f'高清 {target_megapixels} MP' if video_variant == 'hd' else '初稿'}分镜视频",
         progress=0,
         current_step="等待合并章节视频...",
-        metadata_json=json.dumps({"mode": mode, "shot_ids": list(selected_shot_ids), "video_variant": video_variant}, ensure_ascii=False),
+        metadata_json=json.dumps({
+            "mode": mode,
+            "shot_ids": [shot.id for shot in selected],
+            "video_variant": video_variant,
+            "target_megapixels": target_megapixels,
+            "inputs": frozen_inputs,
+        }, ensure_ascii=False),
     )
     db.add(task)
     db.commit()
@@ -3205,7 +3257,7 @@ async def merge_chapter_videos(
 
     return {
         "success": True,
-        "data": {"taskId": task.id, "status": task.status, "mode": mode, "videoVariant": video_variant},
+        "data": {"taskId": task.id, "status": task.status, "mode": mode, "videoVariant": video_variant, "targetMegapixels": target_megapixels},
         "message": "章节视频合并任务已提交，可在任务列表查看进度。",
     }
 

@@ -5,6 +5,7 @@
 
 import json
 import os
+import random
 import uuid
 import httpx
 from datetime import datetime
@@ -33,6 +34,18 @@ from app.utils.workflow_disconnect import (
     disconnect_unuploaded_reference_nodes,
     clear_unset_keyframe_reference_nodes,
 )
+
+
+def randomize_prompt_rewrite_seeds(workflow: dict) -> bool:
+    """Change only prompt-rewrite seeds before retrying a rewrite format failure."""
+    changed = False
+    for node in workflow.values():
+        if not isinstance(node, dict) or node.get("class_type") != "QwenPERewriteT8":
+            continue
+        inputs = node.get("inputs") if isinstance(node.get("inputs"), dict) else {}
+        inputs["seed"] = random.randint(1, 2**31 - 1)
+        changed = True
+    return changed
 
 
 class ShotKeyframeService:
@@ -639,6 +652,22 @@ class ShotKeyframeService:
             result = await comfyui_service.client.wait_for_result(
                 prompt_id, submitted_workflow, save_image_node_id, timeout=7200
             )
+            error_message = str(result.get("message") or "") if isinstance(result, dict) else ""
+            if not result.get("success") and (
+                "format validation" in error_message.lower() or
+                "thinking block" in error_message.lower()
+            ) and randomize_prompt_rewrite_seeds(submitted_workflow):
+                task.current_step = "提示词改写格式异常，正在更换 Seed 重试..."
+                db.commit()
+                retry_queue = await comfyui_service.client.queue_prompt(submitted_workflow)
+                if retry_queue.get("success") and retry_queue.get("prompt_id"):
+                    prompt_id = retry_queue["prompt_id"]
+                    task.comfyui_prompt_id = prompt_id
+                    task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+                    db.commit()
+                    result = await comfyui_service.client.wait_for_result(
+                        prompt_id, submitted_workflow, save_image_node_id, timeout=7200
+                    )
 
             if result.get("success") and result.get("image_url"):
                 image_url = result["image_url"]

@@ -57,6 +57,7 @@ def format_novel_video_merge(task: Task) -> dict:
         "cacheHit": bool(metadata.get("cache_hit")),
         "chapters": metadata.get("chapters") or [],
         "videoVariant": metadata.get("video_variant") or "draft",
+        "targetMegapixels": metadata.get("target_megapixels"),
         "createdAt": format_datetime(task.created_at),
         "completedAt": format_datetime(task.completed_at),
     }
@@ -82,6 +83,7 @@ async def run_novel_video_merge_task(task_id: str) -> None:
             metadata = {}
         chapter_ids = list(dict.fromkeys(metadata.get("chapter_ids") or []))
         video_variant = metadata.get("video_variant") or "draft"
+        target_megapixels = metadata.get("target_megapixels")
         chapters = db.query(Chapter).filter(
             Chapter.novel_id == task.novel_id,
             Chapter.id.in_(chapter_ids),
@@ -89,22 +91,20 @@ async def run_novel_video_merge_task(task_id: str) -> None:
         if len(chapters) != len(chapter_ids):
             raise RuntimeError("选择的章回不存在或不属于当前小说")
 
-        chapter_repo = ChapterRepository(db)
         segments = []
-        chapter_snapshot = []
+        chapter_snapshot = metadata.get("chapters") if isinstance(metadata.get("chapters"), list) else []
+        snapshot_by_id = {item.get("id"): item for item in chapter_snapshot}
+        chapter_repo = ChapterRepository(db)
         for chapter in chapters:
-            video_info = chapter_repo.get_final_chapter_video_info(chapter, video_variant)
-            video_url = (video_info or {}).get("hdChapterVideoUrl" if video_variant == "hd" else "chapterVideoUrl")
+            snapshot = snapshot_by_id.get(chapter.id) or {}
+            video_url = snapshot.get("videoUrl")
+            if not video_url:
+                legacy_info = chapter_repo.get_final_chapter_video_info(chapter, video_variant, target_megapixels)
+                video_url = (legacy_info or {}).get("hdChapterVideoUrl" if video_variant == "hd" else "chapterVideoUrl")
             video_path = url_to_local_path(video_url) if video_url else None
             if not video_path or not Path(video_path).is_file():
                 raise RuntimeError(f"第 {chapter.number} 章《{chapter.title}》没有可用的章回视频")
             segments.append({"kind": "chapter", "key": chapter.id, "path": video_path})
-            chapter_snapshot.append({
-                "id": chapter.id,
-                "number": chapter.number,
-                "title": chapter.title,
-                "videoUrl": video_url,
-            })
 
         if len(segments) < 2:
             raise RuntimeError("至少需要选择两个章回视频")
@@ -115,7 +115,7 @@ async def run_novel_video_merge_task(task_id: str) -> None:
 
         signature = await asyncio.to_thread(
             file_storage.get_video_merge_signature,
-            f"novel_chapters:{video_variant}",
+            f"novel_chapters:{video_variant}:{target_megapixels}",
             segments,
         )
         output_dir = file_storage._get_story_dir(task.novel_id) / ("novel-hd-merged-videos" if video_variant == "hd" else "novel-merged-videos")
@@ -151,6 +151,7 @@ async def run_novel_video_merge_task(task_id: str) -> None:
             "chapter_ids": [chapter.id for chapter in chapters],
             "chapters": chapter_snapshot,
             "video_variant": video_variant,
+            "target_megapixels": target_megapixels,
             "signature": signature,
             "cache_hit": cache_hit,
             "video_url": video_url,

@@ -124,6 +124,20 @@ export interface Chapter {
   hdChapterVideoShotCount?: number | null;
   hdChapterVideoTaskId?: string;
   hdChapterVideoCompletedAt?: string | null;
+  videoAssets?: ChapterVideoAsset[];
+}
+
+export interface ChapterVideoAsset {
+  id: string;
+  profileKey: string;
+  kind: 'draft' | 'hd';
+  targetMegapixels?: number | null;
+  label: string;
+  videoUrl: string;
+  duration?: number | null;
+  fileSize?: number | null;
+  shotCount?: number | null;
+  completedAt?: string | null;
 }
 
 export interface ParsedData {

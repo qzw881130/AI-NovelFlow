@@ -40,7 +40,7 @@ export interface Shot {
   hdVideoTaskId: string | null;
   hdVideoSourceTaskId: string | null;
   hdVideoMegapixels: number | null;
-  currentVideoVariant: 'draft' | 'hd';
+  hdVideoVariants: HdVideoVariant[];
   mergedCharacterImage: string | null;
   mergedPropImage: string | null;
   dialogues: DialogueData[];
@@ -49,6 +49,32 @@ export interface Shot {
   referenceAudioType?: string;
   createdAt: string | null;
   updatedAt: string | null;
+}
+
+export interface HdVideoExecution {
+  id: string;
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  videoUrl?: string | null;
+  targetMegapixels: number;
+  sourceTaskId?: string | null;
+  parentTaskId?: string | null;
+  progress: number;
+  currentStep?: string | null;
+  errorMessage?: string | null;
+  createdAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+}
+
+export interface HdVideoVariant {
+  targetMegapixels: number;
+  status: HdVideoExecution['status'];
+  videoUrl?: string | null;
+  taskId?: string | null;
+  latestCompletedTaskId?: string | null;
+  sourceTaskId?: string | null;
+  errorMessage?: string | null;
+  executions: HdVideoExecution[];
 }
 
 export type VideoMode = 'SINGLE_FRAME' | 'FIRST_LAST_FRAME' | 'MULTI_KEYFRAME';
@@ -868,35 +894,17 @@ export const shotsApi = {
     return data;
   },
 
-  getLatestHdRepaintBatch: async (novelId: string, chapterId: string) =>
-    api.get<any>(`/novels/${novelId}/chapters/${chapterId}/hd-repaints/latest`),
+  getLatestHdRepaintBatch: async (novelId: string, chapterId: string, targetMegapixels?: number) =>
+    api.get<any>(`/novels/${novelId}/chapters/${chapterId}/hd-repaints/latest${targetMegapixels == null ? '' : `?target_megapixels=${targetMegapixels}`}`),
 
   retryFailedHdRepaints: async (novelId: string, chapterId: string, batchId: string) =>
     api.post(`/novels/${novelId}/chapters/${chapterId}/hd-repaints/${batchId}/retry-failed`),
 
-  setCurrentVideoVariant: async (novelId: string, chapterId: string, shotId: string, variant: 'draft' | 'hd') => {
-    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/current-video`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ variant }),
-    });
-    const data = await response.json();
-    if (!response.ok) return { success: false, message: data?.detail || '切换当前视频失败' };
-    return data;
-  },
-
-  setAllHdCurrent: async (novelId: string, chapterId: string) => {
-    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/current-video/hd-all`, { method: 'POST' });
-    const data = await response.json();
-    if (!response.ok) return { success: false, message: data?.detail || '批量设置高清视频失败' };
-    return data;
-  },
-
-  mergeChapterVideos: async (novelId: string, chapterId: string, shotIds: string[], videoVariant: 'draft' | 'hd') => {
+  mergeChapterVideos: async (novelId: string, chapterId: string, shotIds: string[], videoVariant: 'draft' | 'hd', targetMegapixels?: number) => {
     const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/merge-videos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'shots_only', shot_ids: shotIds, video_variant: videoVariant }),
+      body: JSON.stringify({ mode: 'shots_only', shot_ids: shotIds, video_variant: videoVariant, target_megapixels: targetMegapixels }),
     });
     return response.json();
   },

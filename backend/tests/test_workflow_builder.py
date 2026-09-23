@@ -8,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from app.services.task_service import TaskService
+from app.services.shot_keyframe_service import randomize_prompt_rewrite_seeds
 from app.utils.workflow_seed import extract_workflow_seed
 
 
@@ -194,6 +195,18 @@ def test_character_mapping_accepts_new_split_contract_and_legacy_prompt_mapping(
     valid, message = TaskService.validate_workflow_node_mapping(incomplete_workflow, "character")
     assert valid is False
     assert "人物外貌节点和风格节点" in message
+
+
+def test_keyframe_rewrite_retry_changes_only_rewrite_seed():
+    workflow = {
+        "520": {"class_type": "QwenPERewriteT8", "inputs": {"seed": 42, "user_prompt": ["516", 0]}},
+        "482": {"class_type": "KSampler", "inputs": {"seed": 123}},
+    }
+
+    assert randomize_prompt_rewrite_seeds(workflow) is True
+    assert workflow["520"]["inputs"]["seed"] != 42
+    assert workflow["520"]["inputs"]["user_prompt"] == ["516", 0]
+    assert workflow["482"]["inputs"]["seed"] == 123
 
 
 def test_inject_prompt_keeps_explicit_horn_appearance():

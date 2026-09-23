@@ -62,6 +62,7 @@ export function BottomNavigator({
   const currentShotIndex = useChapterGenerateStore((state) => state.currentShotIndex);
   const currentShotId = useChapterGenerateStore((state) => state.currentShotId);
   const currentTab = useChapterGenerateStore((state) => state.currentTab);
+  const hdTargetMegapixels = useChapterGenerateStore((state) => state.hdTargetMegapixels);
   const selectedShotIds = useChapterGenerateStore((state) => state.selectedShotIds);
   const bulkMode = useChapterGenerateStore((state) => state.bulkMode);
   const setCurrentShot = useChapterGenerateStore((state) => state.setCurrentShot);
@@ -90,27 +91,29 @@ export function BottomNavigator({
     const hasVideoResult = !!(shot.videoUrl || shotVideos[shotId]);
     const imageIsGenerating = generatingShots.has(shotId) || shot.imageStatus === 'generating';
     const videoIsGenerating = generatingVideos.has(shotId) || shot.videoStatus === 'generating';
-    const hdVideoIsGenerating = shot.hdVideoStatus === 'generating';
+    const hdVariant = (shot.hdVideoVariants || []).find((variant) => Number(variant.targetMegapixels) === Number(hdTargetMegapixels));
 
+    if (currentTab === 4) {
+      if (hdVariant?.status === 'running') return 'generating';
+      if (hdVariant?.status === 'pending') return 'queued';
+      if (hdVariant?.videoUrl) return 'completed';
+      if (hdVariant?.status === 'failed') return 'failed';
+      return 'pending';
+    }
     if (currentTab === 1 && imageIsGenerating && !hasImageResult) return 'generating';
     if (currentTab === 3 && videoIsGenerating && !hasVideoResult) return 'generating';
-    if (currentTab === 4 && hdVideoIsGenerating) return 'generating';
-    if (currentTab === 4 && shot.hdVideoStatus === 'pending' && shot.hdVideoTaskId) return 'queued';
     if (pendingShots.has(shotId) || pendingVideos.has(shotId)) return 'queued';
     if (isCurrentShot) return 'current';
     if (currentTab === 1 && hasImageResult) return 'completed';
     if (currentTab === 3 && hasVideoResult) return 'completed';
-    if (currentTab === 4 && shot.hdVideoUrl) return 'completed';
     if (generatingShots.has(shotId) || generatingVideos.has(shotId) || shot.imageStatus === 'generating' || shot.videoStatus === 'generating') {
       return 'generating';
     }
     if (currentTab === 3 && shot.videoStatus === 'failed' && !hasVideoResult) return 'failed';
-    if (currentTab === 4 && shot.hdVideoStatus === 'failed') return 'failed';
     if (currentTab === 1 && shot.imageStatus === 'failed') return 'failed';
     if (currentTab === 3) {
       return (shot.videoUrl || shotVideos[shotId]) ? 'completed' : 'pending';
     }
-    if (currentTab === 4) return shot.hdVideoUrl ? 'completed' : 'pending';
     if (currentTab === 1) {
       return (shot.imageUrl || shotImages[shotId]) ? 'completed' : 'pending';
     }

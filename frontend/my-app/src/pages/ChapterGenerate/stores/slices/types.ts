@@ -240,6 +240,7 @@ export interface ChapterActionsState {
 export interface WorkflowSliceState {
   /** 当前 Tab 索引 (0-3) */
   currentTab: number;
+  hdTargetMegapixels: number;
 
   /** 各 Tab 的完成状态 */
   tabProgress: Record<number, boolean>;
@@ -401,6 +402,7 @@ export interface ChapterGenerateStore
 
   // ========== Workflow Actions ==========
   setCurrentTab: (index: number) => void;
+  setHdTargetMegapixels: (value: number) => void;
   markTabComplete: (tabIndex: number) => void;
   resetTabProgress: () => void;
   saveWorkflowState: () => void;
