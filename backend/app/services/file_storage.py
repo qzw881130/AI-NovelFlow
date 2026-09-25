@@ -873,6 +873,7 @@ class FileStorageService:
             import tempfile
             import os
             import json
+            import uuid
             
             if not video_paths or len(video_paths) == 0:
                 return {"success": False, "message": "没有视频文件"}
@@ -971,7 +972,7 @@ class FileStorageService:
                     '-ac', '2',
                     '-movflags', '+faststart',
                     '-y',
-                    output_path,
+                    working_output_path,
                 ])
                 print(f"[FileStorage] Running direct fallback ffmpeg: {' '.join(cmd)}")
 
@@ -988,6 +989,15 @@ class FileStorageService:
                 return {"success": False, "message": "无法读取目标视频分辨率"}
 
             temp_normalized_dir = tempfile.mkdtemp(prefix='novelflow_merge_')
+            output_file = Path(output_path)
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            # Every merge writes to its own sibling file and publishes it with
+            # one atomic replace only after a full decode check.  Concurrent
+            # recovery/batch paths can therefore never interleave bytes in the
+            # same MP4 and create invalid H.264 NAL units.
+            working_output_path = str(output_file.with_name(
+                f'.{output_file.stem}.{uuid.uuid4().hex}.assembling{output_file.suffix or ".mp4"}'
+            ))
             normalized_paths = []
             concat_file = None
 
@@ -1044,8 +1054,9 @@ class FileStorageService:
                     normalized_paths.append(normalized_path)
 
                 if len(normalized_paths) == 1:
-                    shutil.copy2(normalized_paths[0], output_path)
-                    await _validate_video_decode(output_path)
+                    shutil.copy2(normalized_paths[0], working_output_path)
+                    await _validate_video_decode(working_output_path)
+                    os.replace(working_output_path, output_path)
                     return {
                         "success": True,
                         "output_path": output_path,
@@ -1082,7 +1093,7 @@ class FileStorageService:
                     '-ac', '2',
                     '-movflags', '+faststart',
                     '-y',  # 覆盖输出文件
-                    output_path,
+                    working_output_path,
                 ])
                 
                 print(f"[FileStorage] Running ffmpeg: {' '.join(cmd)}")
@@ -1108,18 +1119,18 @@ class FileStorageService:
                     }
                 
                 # 检查输出文件是否存在
-                if not Path(output_path).exists():
+                if not Path(working_output_path).exists():
                     return {
                         "success": False,
                         "message": "输出文件未生成"
                     }
 
                 try:
-                    await _validate_video_decode(output_path)
+                    await _validate_video_decode(working_output_path)
                 except Exception as validation_error:
                     print(f"[FileStorage] Merged video validation failed, retrying fallback merge: {validation_error}")
-                    if Path(output_path).exists():
-                        Path(output_path).unlink()
+                    if Path(working_output_path).exists():
+                        Path(working_output_path).unlink()
                     fallback_cmd = [
                         'ffmpeg',
                         '-f', 'concat',
@@ -1134,7 +1145,7 @@ class FileStorageService:
                         '-ac', '2',
                         '-movflags', '+faststart',
                         '-y',
-                        output_path,
+                        working_output_path,
                     ]
                     print(f"[FileStorage] Running fallback ffmpeg: {' '.join(fallback_cmd)}")
 
@@ -1148,17 +1159,17 @@ class FileStorageService:
                             "success": False,
                             "message": f"视频合并自动修复失败: {fallback_result.stderr[:200]}"
                         }
-                    if not Path(output_path).exists():
+                    if not Path(working_output_path).exists():
                         return {
                             "success": False,
                             "message": "视频合并自动修复失败: 输出文件未生成"
                         }
                     try:
-                        await _validate_video_decode(output_path)
+                        await _validate_video_decode(working_output_path)
                     except Exception as fallback_validation_error:
                         print(f"[FileStorage] Fallback merged video validation failed, retrying direct merge: {fallback_validation_error}")
-                        if Path(output_path).exists():
-                            Path(output_path).unlink()
+                        if Path(working_output_path).exists():
+                            Path(working_output_path).unlink()
                         direct_result = await _run_direct_filter_merge()
                         if direct_result.returncode != 0:
                             print(f"[FileStorage] Direct fallback FFmpeg error: {direct_result.stderr}")
@@ -1166,12 +1177,14 @@ class FileStorageService:
                                 "success": False,
                                 "message": f"视频合并自动修复失败: {direct_result.stderr[:200]}"
                             }
-                        if not Path(output_path).exists():
+                        if not Path(working_output_path).exists():
                             return {
                                 "success": False,
                                 "message": "视频合并自动修复失败: 输出文件未生成"
                             }
-                        await _validate_video_decode(output_path)
+                        await _validate_video_decode(working_output_path)
+
+                os.replace(working_output_path, output_path)
 
                 print(f"[FileStorage] Video merged successfully: {output_path}")
                 return {
@@ -1185,6 +1198,8 @@ class FileStorageService:
             finally:
                 if concat_file and os.path.exists(concat_file):
                     os.unlink(concat_file)
+                if 'working_output_path' in locals() and os.path.exists(working_output_path):
+                    os.unlink(working_output_path)
                 shutil.rmtree(temp_normalized_dir, ignore_errors=True)
             
         except Exception as e:

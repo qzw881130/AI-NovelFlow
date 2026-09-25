@@ -25,6 +25,13 @@ from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.workflow_seed import extract_workflow_seed
 
 
+# A task can be observed by the batch runner and the reconciliation loop at the
+# same time.  Keep only one queued/running coroutine per persistent task id;
+# otherwise both coroutines may download the same Clip and start competing
+# merges for the same Shot output.
+_queued_shot_video_task_ids: set[str] = set()
+
+
 def _probe_video_duration(path: str) -> float | None:
     try:
         result = subprocess.run(
@@ -366,23 +373,37 @@ def enqueue_shot_video_task(
     clip_metadata: dict | None = None,
 ) -> None:
     """Queue shot video generation in its dedicated serial worker."""
-    worker_manager.worker("shot_video").enqueue(
-        lambda: generate_shot_video_task(
-            task_id,
-            novel_id,
-            chapter_id,
-            shot_index,
-            workflow_id,
-            shot_image_url,
-            use_keyframes=use_keyframes,
-            use_reference_audio=use_reference_audio,
-            selected_mode=selected_mode,
-            only_window_index=only_window_index,
-            auto_merge_clips=auto_merge_clips,
-            skip_llm_when_prompt_exists=skip_llm_when_prompt_exists,
-            clip_metadata=clip_metadata,
-        )
-    )
+    if task_id in _queued_shot_video_task_ids:
+        print(f"[VideoTask {task_id}] Duplicate enqueue ignored")
+        return
+
+    _queued_shot_video_task_ids.add(task_id)
+
+    async def _run_once():
+        try:
+            await generate_shot_video_task(
+                task_id,
+                novel_id,
+                chapter_id,
+                shot_index,
+                workflow_id,
+                shot_image_url,
+                use_keyframes=use_keyframes,
+                use_reference_audio=use_reference_audio,
+                selected_mode=selected_mode,
+                only_window_index=only_window_index,
+                auto_merge_clips=auto_merge_clips,
+                skip_llm_when_prompt_exists=skip_llm_when_prompt_exists,
+                clip_metadata=clip_metadata,
+            )
+        finally:
+            _queued_shot_video_task_ids.discard(task_id)
+
+    try:
+        worker_manager.worker("shot_video").enqueue(_run_once)
+    except Exception:
+        _queued_shot_video_task_ids.discard(task_id)
+        raise
 
 
 async def generate_shot_video_task(
@@ -1036,6 +1057,7 @@ async def _generate_multi_clip_video_task(
             _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
             return
+        node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
 
         keyframe_indexes = [int(index) for index in (window_plan.get("keyframe_indexes") or [])]
         start_keyframe = plan_keyframes_by_index.get(keyframe_indexes[0]) if keyframe_indexes else None
@@ -1160,7 +1182,6 @@ async def _generate_multi_clip_video_task(
         clip_duration = max(1, float(clip["end_time"]) - float(clip["start_time"]))
         raw_frame_count = int(fps * clip_duration)
         clip_frame_count = ((raw_frame_count // 8) * 8) + 1
-        node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
         seed = random.randint(1, 2**32)
 
         def save_prompt_id(prompt_id: str, submitted_workflow: dict = None):

@@ -7,6 +7,7 @@ import json
 import os
 import random
 import uuid
+from copy import deepcopy
 import httpx
 from datetime import datetime
 from pathlib import Path
@@ -46,6 +47,52 @@ def randomize_prompt_rewrite_seeds(workflow: dict) -> bool:
         inputs["seed"] = random.randint(1, 2**31 - 1)
         changed = True
     return changed
+
+
+def bypass_failed_prompt_rewrite_nodes(workflow: dict) -> bool:
+    """Route rewrite consumers to the original prompt when the rewriter stays invalid.
+
+    QwenPERewriteT8 can occasionally return malformed thinking tags even after its
+    own retry. The upstream #09 prompt is already a complete image prompt, so it
+    is safer to bypass only the failing rewrite node than to fail the whole image
+    task.
+    """
+    rewrite_sources = {}
+    for node_id, node in workflow.items():
+        if not isinstance(node, dict) or node.get("class_type") != "QwenPERewriteT8":
+            continue
+        inputs = node.get("inputs") if isinstance(node.get("inputs"), dict) else {}
+        if inputs.get("user_prompt") is not None:
+            rewrite_sources[str(node_id)] = deepcopy(inputs["user_prompt"])
+
+    if not rewrite_sources:
+        return False
+
+    replaced = False
+
+    def replace_links(value):
+        nonlocal replaced
+        if isinstance(value, list):
+            if len(value) == 2 and str(value[0]) in rewrite_sources and isinstance(value[1], int):
+                replaced = True
+                return deepcopy(rewrite_sources[str(value[0])])
+            return [replace_links(item) for item in value]
+        if isinstance(value, dict):
+            return {key: replace_links(item) for key, item in value.items()}
+        return value
+
+    for node_id, node in workflow.items():
+        if str(node_id) in rewrite_sources or not isinstance(node, dict):
+            continue
+        if isinstance(node.get("inputs"), dict):
+            node["inputs"] = replace_links(node["inputs"])
+
+    if not replaced:
+        return False
+
+    for node_id in rewrite_sources:
+        workflow.pop(node_id, None)
+    return True
 
 
 class ShotKeyframeService:
@@ -662,6 +709,23 @@ class ShotKeyframeService:
                 retry_queue = await comfyui_service.client.queue_prompt(submitted_workflow)
                 if retry_queue.get("success") and retry_queue.get("prompt_id"):
                     prompt_id = retry_queue["prompt_id"]
+                    task.comfyui_prompt_id = prompt_id
+                    task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+                    db.commit()
+                    result = await comfyui_service.client.wait_for_result(
+                        prompt_id, submitted_workflow, save_image_node_id, timeout=7200
+                    )
+
+            retry_error_message = str(result.get("message") or "") if isinstance(result, dict) else ""
+            if not result.get("success") and (
+                "format validation" in retry_error_message.lower() or
+                "thinking block" in retry_error_message.lower()
+            ) and bypass_failed_prompt_rewrite_nodes(submitted_workflow):
+                task.current_step = "提示词改写持续格式异常，已跳过改写节点重试..."
+                db.commit()
+                fallback_queue = await comfyui_service.client.queue_prompt(submitted_workflow)
+                if fallback_queue.get("success") and fallback_queue.get("prompt_id"):
+                    prompt_id = fallback_queue["prompt_id"]
                     task.comfyui_prompt_id = prompt_id
                     task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
                     db.commit()

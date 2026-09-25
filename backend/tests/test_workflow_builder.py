@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from app.services.task_service import TaskService
-from app.services.shot_keyframe_service import randomize_prompt_rewrite_seeds
+from app.services.shot_keyframe_service import bypass_failed_prompt_rewrite_nodes, randomize_prompt_rewrite_seeds
 from app.utils.workflow_seed import extract_workflow_seed
 
 
@@ -323,6 +323,30 @@ def test_keyframe_rewrite_retry_changes_only_rewrite_seed():
     assert workflow["520"]["inputs"]["seed"] != 42
     assert workflow["520"]["inputs"]["user_prompt"] == ["516", 0]
     assert workflow["482"]["inputs"]["seed"] == 123
+
+
+def test_keyframe_rewrite_fallback_routes_consumers_to_original_prompt():
+    workflow = {
+        "516": {"class_type": "CR Prompt Text", "inputs": {"prompt": "final prompt"}},
+        "520": {"class_type": "QwenPERewriteT8", "inputs": {"seed": 42, "user_prompt": ["516", 0]}},
+        "501": {"class_type": "easy showAnything", "inputs": {"anything": ["520", 0]}},
+        "485": {"class_type": "TextEncodeQwenImage21", "inputs": {"prompt": ["501", 0]}},
+    }
+
+    assert bypass_failed_prompt_rewrite_nodes(workflow) is True
+    assert "520" not in workflow
+    assert workflow["501"]["inputs"]["anything"] == ["516", 0]
+    assert workflow["485"]["inputs"]["prompt"] == ["501", 0]
+
+
+def test_keyframe_rewrite_fallback_does_not_remove_unreferenced_rewriter():
+    workflow = {
+        "516": {"class_type": "CR Prompt Text", "inputs": {"prompt": "final prompt"}},
+        "520": {"class_type": "QwenPERewriteT8", "inputs": {"seed": 42, "user_prompt": ["516", 0]}},
+    }
+
+    assert bypass_failed_prompt_rewrite_nodes(workflow) is False
+    assert "520" in workflow
 
 
 def test_inject_prompt_keeps_explicit_horn_appearance():

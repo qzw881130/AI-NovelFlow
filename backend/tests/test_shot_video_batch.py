@@ -7,6 +7,8 @@ from app.api import shots as shots_api
 from app.models.novel import Chapter, Novel
 from app.models.shot import Shot
 from app.models.task import Task
+from app.models.workflow import Workflow
+from app.repositories.shot_repository import ShotRepository
 
 
 def _create_video_batch(db_session, status="pending", child_count=2):
@@ -136,6 +138,108 @@ async def test_video_batch_runner_delegates_semantic_shot_and_waits_for_final(db
     assert calls[0]["batch_parent_task_id"] == batch.id
     assert refreshed_child.status == "completed"
     assert refreshed_batch.status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_multi_clip_video_initializes_node_mapping_before_plan_update(db_session, tmp_path, monkeypatch):
+    from app.services import shot_video_service
+
+    novel = Novel(title="multi clip mapping", aspect_ratio="16:9")
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title="chapter")
+    db_session.add(chapter)
+    db_session.flush()
+    window_plan = {
+        "window_index": 1,
+        "start_time": 0,
+        "end_time": 3,
+        "selected_frame_count": 3,
+        "keyframe_indexes": [1, 2, 3],
+    }
+    director_plan = {
+        "selected_mode": "MULTI_KEYFRAME",
+        "keyframes": [{"index": 1}, {"index": 2}, {"index": 3}],
+        "window_plans": [window_plan],
+    }
+    shot = Shot(
+        chapter_id=chapter.id,
+        index=1,
+        duration=3,
+        dialogues="[]",
+        video_director_plan=json.dumps(director_plan),
+    )
+    task = Task(
+        type="shot_video",
+        status="running",
+        name="multi clip",
+        novel_id=novel.id,
+        chapter_id=chapter.id,
+        shot_id=shot.id,
+    )
+    workflow = Workflow(
+        name="three frame",
+        type="three_frame_video",
+        workflow_json="{}",
+        node_mapping=json.dumps({"megapixels_node_id": "132", "video_save_node_id": "150"}),
+        is_active=True,
+    )
+    db_session.add_all([shot, task, workflow])
+    db_session.commit()
+
+    captured = {}
+
+    async def fake_build_prompt(**kwargs):
+        return "clip prompt"
+
+    async def fake_generate(self, **kwargs):
+        captured["node_mapping"] = kwargs["node_mapping"]
+        return {"success": True, "video_url": "http://comfy.test/clip.mp4"}
+
+    output_path = tmp_path / "clip.mp4"
+
+    async def fake_download(**kwargs):
+        output_path.write_bytes(b"video")
+        return str(output_path)
+
+    monkeypatch.setattr(shot_video_service, "build_h3_video_prompt", fake_build_prompt)
+    monkeypatch.setattr(shot_video_service.ComfyUIService, "generate_shot_video_with_workflow", fake_generate)
+    monkeypatch.setattr(shot_video_service.file_storage, "download_video", fake_download)
+    monkeypatch.setattr(shot_video_service, "url_to_local_path", lambda _url: str(tmp_path / "keyframe.png"))
+
+    await shot_video_service._generate_multi_clip_video_task(
+        db=db_session,
+        task=task,
+        novel=novel,
+        shot=shot,
+        shot_repo=ShotRepository(db_session),
+        novel_id=novel.id,
+        chapter_id=chapter.id,
+        shot_index=shot.index,
+        shot_image_url="/api/files/shot.png",
+        shot_image_path=str(tmp_path / "shot.png"),
+        plan_keyframes_by_index={
+            1: {"index": 1, "role": "START"},
+            2: {"index": 2, "image_url": "/api/files/kf2.png"},
+            3: {"index": 3, "image_url": "/api/files/kf3.png"},
+        },
+        window_plans=[window_plan],
+        video_director_plan=director_plan,
+        style="",
+        character_appearances={},
+        scene_setting="",
+        prop_appearances={},
+        reference_audio_path=None,
+        task_id=task.id,
+        only_window_index=1,
+    )
+
+    db_session.refresh(task)
+    refreshed_plan = json.loads(shot.video_director_plan)
+    assert captured["node_mapping"] == {"megapixels_node_id": "132", "video_save_node_id": "150"}
+    assert refreshed_plan["window_plans"][0]["megapixels_node_id"] == "132"
+    assert refreshed_plan["window_plans"][0]["video_save_node_id"] == "150"
+    assert task.status == "completed"
 
 
 @pytest.mark.asyncio

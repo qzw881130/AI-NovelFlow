@@ -1388,7 +1388,14 @@ export const createGenerationSlice: StateCreator<
           status: 'pending',
         };
         set(state => ({
-          keyframeTasks: [...state.keyframeTasks, newTask]
+          // 每个关键帧只保留当前任务。重新生成时若继续保留旧的已完成任务，
+          // 后续轮询可能会把旧结果再次写回并短暂覆盖新任务的结果。
+          keyframeTasks: [
+            ...state.keyframeTasks.filter(task => !(
+              task.shotId === shotId && Number(task.frameIndex) === Number(frameIndex)
+            )),
+            newTask,
+          ]
         }));
 
         // 更新 shot 的 keyframes

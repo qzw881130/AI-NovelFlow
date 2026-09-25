@@ -35,7 +35,7 @@ type VideoImageEditTarget = {
   frameIndex?: number;
 };
 
-function SemanticClipExecutionPanel({ shot, chapterId, onPreviewClip, onRegenerateClip, regeneratingClipKey, isShotVideoGenerating }: { shot: any; chapterId?: string; onPreviewClip: (clip: any | null) => void; onRegenerateClip: (clip: any, mode?: 'llm' | 'video_only') => void; regeneratingClipKey?: string | null; isShotVideoGenerating?: boolean }) {
+function SemanticClipExecutionPanel({ shot, chapterId, onPreviewClip, onRegenerateClip, onTasksChange, regeneratingClipKey, isShotVideoGenerating }: { shot: any; chapterId?: string; onPreviewClip: (clip: any | null) => void; onRegenerateClip: (clip: any, mode?: 'llm' | 'video_only') => void; onTasksChange?: (tasks: Task[]) => void; regeneratingClipKey?: string | null; isShotVideoGenerating?: boolean }) {
   const plan = (shot?.videoDirectorPlan || {}) as any;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
@@ -53,10 +53,17 @@ function SemanticClipExecutionPanel({ shot, chapterId, onPreviewClip, onRegenera
       setLoading(true);
       taskApi.fetchShotTasks(chapterId, String(shot.id))
         .then((response) => {
-          if (!cancelled) setTasks(Array.isArray(response.data) ? response.data : []);
+          if (!cancelled) {
+            const nextTasks = Array.isArray(response.data) ? response.data : [];
+            setTasks(nextTasks);
+            onTasksChange?.(nextTasks);
+          }
         })
         .catch(() => {
-          if (!cancelled) setTasks([]);
+          if (!cancelled) {
+            setTasks([]);
+            onTasksChange?.([]);
+          }
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -65,7 +72,7 @@ function SemanticClipExecutionPanel({ shot, chapterId, onPreviewClip, onRegenera
     refresh();
     const interval = window.setInterval(refresh, 2000);
     return () => { cancelled = true; window.clearInterval(interval); };
-  }, [chapterId, shot?.id, revision, clips.length]);
+  }, [chapterId, shot?.id, revision, clips.length, onTasksChange]);
 
   if (clips.length === 0) return null;
   return (
@@ -585,6 +592,7 @@ interface VideoDirectorPanelProps {
   onRecommend: (force?: boolean) => void;
   onPlanKeyframes: (force?: boolean) => void;
   onGenerateMissingKeyframes: () => void;
+  onGenerateKeyframe: (frameIndex: number) => void;
   onGenerateEndKeyframe: (mode?: 'llm' | 'image_only') => void;
   isGeneratingEndKeyframe?: boolean;
   isGeneratingMissingKeyframes?: boolean;
@@ -603,6 +611,7 @@ interface VideoDirectorPanelProps {
   isShotVideoGenerating?: boolean;
   semanticClipPlan?: any[];
   semanticClipPlanShot?: any;
+  onSemanticClipTasksChange?: (tasks: Task[]) => void;
   chapterId?: string;
 }
 
@@ -615,6 +624,7 @@ function VideoDirectorPanel({
   onRecommend,
   onPlanKeyframes,
   onGenerateMissingKeyframes,
+  onGenerateKeyframe,
   onGenerateEndKeyframe,
   isGeneratingEndKeyframe,
   isGeneratingMissingKeyframes,
@@ -633,6 +643,7 @@ function VideoDirectorPanel({
   isShotVideoGenerating,
   semanticClipPlan,
   semanticClipPlanShot,
+  onSemanticClipTasksChange,
   chapterId,
 }: VideoDirectorPanelProps) {
   const { t } = useTranslation();
@@ -701,6 +712,9 @@ function VideoDirectorPanel({
   const [isEndDescriptionExpanded, setIsEndDescriptionExpanded] = useState(false);
   const [viewingPromptClip, setViewingPromptClip] = useState<any | null>(null);
   const selectedKeyframe = keyframes[selectedKeyframeIndex] || keyframes[0];
+  const selectedKeyframeFrameIndex = getKeyframeFrameIndex(selectedKeyframe);
+  const selectedKeyframeImageUrl = getKeyframeImageUrl(selectedKeyframe);
+  const selectedKeyframeIsGenerating = isKeyframeGenerating(selectedKeyframe);
   const hasNextKeyframe = selectedKeyframeIndex < keyframes.length - 1;
   const transitions = plan.transitions || [];
   const previousTransition = transitions.find((transition) => (
@@ -1167,17 +1181,17 @@ function VideoDirectorPanel({
           <div className="grid grid-cols-[minmax(260px,45%)_1fr] gap-4">
             <div>
               <div className="relative aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
-                {isKeyframeGenerating(selectedKeyframe) ? (
+                {selectedKeyframeIsGenerating ? (
                   <div className="flex flex-col items-center gap-2 text-blue-500">
                     <Loader2 className="w-10 h-10 animate-spin" />
                     <div className="text-sm">{t('chapterGenerate.keyframeImageGenerating')}</div>
                   </div>
-                ) : getKeyframeImageUrl(selectedKeyframe) ? (
+                ) : selectedKeyframeImageUrl ? (
                   <>
-                    <img src={getKeyframeImageUrl(selectedKeyframe)!} alt={`KF${selectedKeyframe.index}`} className="w-full h-full object-cover" />
+                    <img src={selectedKeyframeImageUrl} alt={`KF${selectedKeyframe.index}`} className="w-full h-full object-cover" />
                     <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
-                      <button type="button" onClick={() => onPreviewImage(getKeyframeImageUrl(selectedKeyframe)!)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.viewLargeImage')}><Eye className="h-4 w-4" /></button>
-                      <button type="button" onClick={() => onEditImage({ type: selectedKeyframe?.role === 'START' ? 'shot' : 'keyframe', imageUrl: getKeyframeImageUrl(selectedKeyframe)!, itemName: `${t('chapterGenerate.shot')}${shot?.index || ''} KF${selectedKeyframe?.index || ''}`, frameIndex: getKeyframeFrameIndex(selectedKeyframe) })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.editImage')}><Image className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onPreviewImage(selectedKeyframeImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.viewLargeImage')}><Eye className="h-4 w-4" /></button>
+                      <button type="button" onClick={() => onEditImage({ type: selectedKeyframe?.role === 'START' ? 'shot' : 'keyframe', imageUrl: selectedKeyframeImageUrl, itemName: `${t('chapterGenerate.shot')}${shot?.index || ''} KF${selectedKeyframe?.index || ''}`, frameIndex: selectedKeyframeFrameIndex })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.editImage')}><Image className="h-4 w-4" /></button>
                     </div>
                   </>
                 ) : shotImageUrl && selectedKeyframe?.role === 'START' ? (
@@ -1192,11 +1206,35 @@ function VideoDirectorPanel({
                   <Image className="w-12 h-12 text-gray-300" />
                 )}
               </div>
-              <div className="mt-2 flex items-center justify-between">
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium text-gray-700">KF{selectedKeyframe?.index || 1} · {selectedKeyframe?.time_seconds || 0}s</span>
-                <span className={`text-xs ${getKeyframeImageUrl(selectedKeyframe) ? 'text-green-600' : 'text-amber-600'}`}>
-                  {isKeyframeGenerating(selectedKeyframe) ? t('chapterGenerate.imageGenerating') : getKeyframeImageUrl(selectedKeyframe) ? t('chapterGenerate.imageReady') : t('chapterGenerate.waitingImageGeneration')}
-                </span>
+                <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                  {selectedKeyframe?.role !== 'START' && (
+                    <button
+                      type="button"
+                      onClick={() => selectedKeyframeFrameIndex !== undefined && onGenerateKeyframe(selectedKeyframeFrameIndex)}
+                      disabled={selectedKeyframeFrameIndex === undefined || selectedKeyframeIsGenerating || isPlanningKeyframes || !!isShotVideoGenerating || !selectedKeyframe?.description}
+                      title={isShotVideoGenerating
+                        ? '当前 Shot 视频生成中，请等待完成后再生成关键帧'
+                        : !selectedKeyframe?.description
+                          ? '当前关键帧缺少描述，请先重新规划关键帧'
+                          : selectedKeyframeImageUrl
+                            ? '使用 LLM 重新构建提示词并生成当前关键帧'
+                            : '生成当前关键帧'}
+                      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-blue-200 bg-white px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {selectedKeyframeIsGenerating
+                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        : selectedKeyframeImageUrl
+                          ? <RefreshCw className="h-3.5 w-3.5" />
+                          : <Sparkles className="h-3.5 w-3.5" />}
+                      {selectedKeyframeIsGenerating ? '生成中...' : selectedKeyframeImageUrl ? '重新生成关键帧' : '生成关键帧'}
+                    </button>
+                  )}
+                  <span className={`text-xs ${selectedKeyframeIsGenerating ? 'text-blue-600' : selectedKeyframeImageUrl ? 'text-green-600' : 'text-amber-600'}`}>
+                    {selectedKeyframeIsGenerating ? t('chapterGenerate.imageGenerating') : selectedKeyframeImageUrl ? t('chapterGenerate.imageReady') : t('chapterGenerate.waitingImageGeneration')}
+                  </span>
+                </div>
               </div>
             </div>
             <div className="space-y-3">
@@ -1253,6 +1291,7 @@ function VideoDirectorPanel({
             chapterId={chapterId}
             onPreviewClip={onPreviewClip}
             onRegenerateClip={onRegenerateClip}
+            onTasksChange={onSemanticClipTasksChange}
             regeneratingClipKey={regeneratingClipKey}
             isShotVideoGenerating={isShotVideoGenerating}
           />
@@ -1623,6 +1662,7 @@ export function VideoGenTab({
   const [isRefreshingVideo, setIsRefreshingVideo] = useState(false);
   const [selectedPreviewClipKey, setSelectedPreviewClipKey] = useState<string | null>(null);
   const [selectedPreviewClipUrl, setSelectedPreviewClipUrl] = useState<string | null>(null);
+  const [semanticClipTasks, setSemanticClipTasks] = useState<Task[]>([]);
   const [regeneratingClipKey, setRegeneratingClipKey] = useState<string | null>(null);
   const [isMergingClips, setIsMergingClips] = useState(false);
   const [isCancellingVideo, setIsCancellingVideo] = useState(false);
@@ -1673,8 +1713,23 @@ export function VideoGenTab({
     ? generatingKeyframes.has(`${currentShotId}-${Number(currentEndFrameIndex)}`)
     : false;
   const getPlanClipKey = (clip: any) => String(clip?.clip_index || clip?.window_index || `${clip?.start_time}-${clip?.end_time}`);
+  const semanticClipPlanRevision = Number(currentVideoDirectorPlan.clip_plan_revision || 0);
+  const semanticClipTasksForRevision = semanticClipTasks.filter((task) => (
+    task.clipExecution?.execution_scope === 'CLIP'
+    && Number(task.clipExecution?.clip_plan_revision || 0) === semanticClipPlanRevision
+  ));
   const currentPlanClips: any[] = hasSemanticClipPlan
-    ? currentVideoDirectorPlan.clip_plan || []
+    ? (currentVideoDirectorPlan.clip_plan || []).map((clip: any) => {
+      const task = semanticClipTasksForRevision.find((item) => (
+        Number(item.clipExecution?.clip_index) === Number(clip.clip_index)
+      ));
+      const metadata = task?.clipExecution;
+      return {
+        ...clip,
+        video_url: metadata?.assembled_result?.url || task?.resultUrl || clip.video_url || null,
+        preview_task_status: task?.status,
+      };
+    })
     : currentSelectedVideoMode === 'MULTI_KEYFRAME' ? (currentVideoDirectorPlan.window_plans || []) : (currentVideoDirectorPlan.clips || []);
   const selectedPreviewClip: any | null = selectedPreviewClipKey
     ? currentPlanClips.find((clip: any) => getPlanClipKey(clip) === selectedPreviewClipKey)
@@ -2091,6 +2146,22 @@ export function VideoGenTab({
     }
   }, [currentShotData, currentShotId, currentVideoDirectorPlan, effectiveChapterId, effectiveNovelId, generateKeyframeImage, setShots, shotsList]);
 
+  const handleGenerateVideoKeyframe = useCallback(async (frameIndex: number) => {
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+    try {
+      await generateKeyframeImage(
+        effectiveNovelId,
+        effectiveChapterId,
+        currentShotId,
+        frameIndex,
+      );
+      toast.success('已提交关键帧图片任务');
+    } catch (error) {
+      console.error('生成关键帧失败:', error);
+      toast.error('生成关键帧失败');
+    }
+  }, [currentShotId, effectiveChapterId, effectiveNovelId, generateKeyframeImage]);
+
   const handleGenerateEndKeyframe = useCallback(async (mode: 'llm' | 'image_only' = 'llm') => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId || !currentShotData) return;
     const endPlanKeyframe = (currentVideoDirectorPlan.keyframes || []).find((keyframe: any) => keyframe.role === 'END');
@@ -2235,6 +2306,7 @@ export function VideoGenTab({
   useEffect(() => {
     setSelectedPreviewClipKey(null);
     setSelectedPreviewClipUrl(null);
+    setSemanticClipTasks([]);
     setRegeneratingClipKey(null);
   }, [currentShotId]);
 
@@ -2252,6 +2324,39 @@ export function VideoGenTab({
   const handleGenerateVideo = async (mode: 'llm' | 'video_only' = 'llm') => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
     if (mode === 'video_only' && !hasReusableVideoPrompt) return;
+
+    // MULTI_KEYFRAME needs the #08 window plan before the video task can be queued.
+    // Generate it here as well as from the explicit planning action so the main
+    // Generate button does not submit a task that the backend must reject.
+    if (currentSelectedVideoMode === 'MULTI_KEYFRAME' && !currentVideoDirectorPlan.window_plans?.length) {
+      setPlanningKeyframesShotId(currentShotId);
+      try {
+        const planResult = await shotsApi.planVideoKeyframes(
+          effectiveNovelId,
+          effectiveChapterId,
+          currentShotId,
+          true,
+        );
+        if (!planResult.success || !planResult.data) {
+          throw new Error(planResult.message || (planResult as any).detail || '关键帧时间轴规划失败');
+        }
+        const refreshed = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, currentShotId);
+        if (refreshed.success && refreshed.data) {
+          setShots(shotsList.map((shot: any) => (
+            String(shot.id) === currentShotId ? { ...shot, ...refreshed.data } : shot
+          )));
+        } else {
+          updateCurrentShotVideoDirectorPlan(planResult.data);
+        }
+      } catch (error) {
+        console.error('自动关键帧规划失败:', error);
+        toast.error(error instanceof Error ? error.message : '关键帧时间轴规划失败');
+        return;
+      } finally {
+        setPlanningKeyframesShotId(null);
+      }
+    }
+
     if (currentSelectedVideoMode === 'FIRST_LAST_FRAME' && !currentEndKeyframeImageUrl) {
       toast.error('首尾帧模式需要先生成 END 关键帧图片。');
       return;
@@ -3032,6 +3137,7 @@ export function VideoGenTab({
             onRecommend={handleRecommendVideoMode}
             onPlanKeyframes={handlePlanVideoKeyframes}
             onGenerateMissingKeyframes={handleGenerateMissingKeyframes}
+            onGenerateKeyframe={handleGenerateVideoKeyframe}
             onGenerateEndKeyframe={handleGenerateEndKeyframe}
             isGeneratingEndKeyframe={isGeneratingCurrentEndKeyframe}
             isGeneratingMissingKeyframes={generatingMissingKeyframesShotId === currentShotId}
@@ -3050,6 +3156,7 @@ export function VideoGenTab({
             isShotVideoGenerating={isGeneratingCurrent}
             semanticClipPlan={currentVideoDirectorPlan.clip_plan}
             semanticClipPlanShot={currentShotData}
+            onSemanticClipTasksChange={setSemanticClipTasks}
             chapterId={effectiveChapterId}
           />
 
@@ -3086,7 +3193,7 @@ export function VideoGenTab({
               </button>
             </div>
           </div>
-          {currentPlanClips.length > 0 && currentSelectedVideoMode === 'MULTI_KEYFRAME' && !hasSemanticClipPlan && (
+          {currentPlanClips.length > 0 && (hasSemanticClipPlan || currentSelectedVideoMode === 'MULTI_KEYFRAME') && (
             <div className="flex-shrink-0 border-b border-gray-200 bg-white px-3 py-2">
               <div className="flex gap-1 overflow-x-auto">
                 <button
@@ -3106,7 +3213,11 @@ export function VideoGenTab({
                       type="button"
                       onClick={() => { setSelectedPreviewClipKey(clipKey); setSelectedPreviewClipUrl(null); }}
                       disabled={!clip.video_url}
-                      title={!clip.video_url ? `C${clipIndex} 缺少可预览的视频记录` : `预览 C${clipIndex}`}
+                      title={!clip.video_url
+                        ? `C${clipIndex} 缺少可预览的视频记录`
+                        : hasSemanticClipPlan && ['VIDEO_CONTINUATION', 'TEMPORAL_EXTEND'].includes(String(clip.capability))
+                          ? `预览 C${clipIndex} 累计成片`
+                          : `预览 C${clipIndex}`}
                       className={`rounded-md border px-2 py-1 text-xs transition-colors ${selectedPreviewClipKey === clipKey ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'} disabled:opacity-50 disabled:cursor-not-allowed`}
                     >
                       C{clipIndex}
