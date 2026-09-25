@@ -73,6 +73,7 @@ async def list_tasks(
         status: Optional[str] = None,
         type: Optional[str] = None,
         chapter_id: Optional[str] = None,
+        shot_id: Optional[str] = None,
         limit: int = 50,
         db: Session = Depends(get_db),
         task_repo: TaskRepository = Depends(get_task_repo),
@@ -87,6 +88,8 @@ async def list_tasks(
             tasks = [t for t in tasks if t.type == type]
         if status:
             tasks = [t for t in tasks if t.status == status]
+        if shot_id:
+            tasks = [t for t in tasks if t.shot_id == shot_id]
     else:
         tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
 
@@ -99,6 +102,8 @@ async def list_tasks(
                     tasks = [t for t in tasks if t.type == type]
                 if status:
                     tasks = [t for t in tasks if t.status == status]
+                if shot_id:
+                    tasks = [t for t in tasks if t.shot_id == shot_id]
             else:
                 tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
 
@@ -230,6 +235,7 @@ async def get_task_workflow(
                 "success": True,
                 "data": {
                     "workflow": workflow_obj,
+                    "nodeMapping": node_mapping,
                     "seed": task.seed or extract_workflow_seed(workflow_obj),
                     "prompt": task.prompt_text or "未保存提示词",
                     "promptItems": _extract_character_prompt_items(task, workflow_obj, node_mapping),
@@ -240,6 +246,7 @@ async def get_task_workflow(
                 "success": True,
                 "data": {
                     "workflow": task.workflow_json,
+                    "nodeMapping": {},
                     "seed": task.seed or extract_workflow_seed(task.workflow_json),
                     "prompt": task.prompt_text or "未保存提示词",
                     "promptItems": [],
@@ -251,6 +258,7 @@ async def get_task_workflow(
         "success": True,
         "data": {
             "workflow": None,
+            "nodeMapping": {},
             "seed": task.seed,
             "prompt": task.prompt_text or "未保存提示词",
             "promptItems": [],
@@ -298,6 +306,13 @@ async def get_task_clip_workflow(
     if not clip:
         raise HTTPException(status_code=404, detail="Clip 不存在")
 
+    workflow_id = clip.get("workflow_id") or task.workflow_id
+    workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first() if workflow_id else None
+    try:
+        node_mapping = json.loads(workflow.node_mapping or "{}") if workflow else {}
+    except Exception:
+        node_mapping = {}
+
     workflow_json = clip.get("workflow_json") or clip.get("replay_workflow_json") or clip.get("source_workflow_json")
     if not workflow_json and clip.get("prompt_id"):
         prompt_state = await TaskService(db).comfyui_service.client.get_prompt_state(str(clip.get("prompt_id")))
@@ -326,6 +341,7 @@ async def get_task_clip_workflow(
         "success": True,
         "data": {
             "workflow": workflow_json,
+            "nodeMapping": node_mapping,
             "seed": clip.get("seed") or extract_workflow_seed(workflow_json),
             "prompt": clip.get("prompt_text") or "未保存提示词",
             "referenceImages": clip.get("reference_images") if isinstance(clip.get("reference_images"), list) else [],

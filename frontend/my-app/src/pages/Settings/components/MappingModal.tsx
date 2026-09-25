@@ -115,6 +115,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     easyFloat: [],
     crPromptText: [],
     vhsVideoCombine: [],
+    h3VideoOutputs: [],
     saveVideo: [],
     loadImage: [],
     qwen3TtsVoiceDesign: [],
@@ -163,6 +164,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
             const easyFloat: string[] = [];
             const crPromptText: string[] = [];
             const vhsVideoCombine: string[] = [];
+            const h3VideoOutputs: string[] = [];
             const saveVideo: string[] = [];
             const loadImage: string[] = [];
             const qwen3TtsVoiceDesign: string[] = [];
@@ -190,6 +192,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   crPromptText.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'VHS_VideoCombine') {
                   vhsVideoCombine.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'MiniMaxH3StreamLiveExtensionAVToVHS') {
+                  h3VideoOutputs.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'SaveVideo') {
                   saveVideo.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'LoadImage') {
@@ -212,7 +216,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               }
             }
 
-            setAvailableNodes({ clipTextEncode, saveImage, easyInt, easyFloat, crPromptText, vhsVideoCombine, saveVideo, loadImage, loadVideo, customKeyframes, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
+            setAvailableNodes({ clipTextEncode, saveImage, easyInt, easyFloat, crPromptText, vhsVideoCombine, h3VideoOutputs, saveVideo, loadImage, loadVideo, customKeyframes, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
             const inferredAppearanceNodeId = crPromptText.find((item) => /人物形象|外貌|appearance/i.test(item))?.split(' ')[0] || '';
             const inferredStyleNodeId = crPromptText.find((item) => /\bSTYLE\b/i.test(item))?.split(' ')[0] || '';
             
@@ -994,9 +998,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.videoSaveNode')}
-                    nodeTypeHint="VHS_VideoCombine"
+                    nodeTypeHint="VHS_VideoCombine, MiniMaxH3StreamLiveExtensionAVToVHS"
                     value={mappingForm.videoSaveNodeId}
-                    options={availableNodes.vhsVideoCombine}
+                    options={[...availableNodes.vhsVideoCombine, ...availableNodes.h3VideoOutputs]}
                     onChange={(v) => handleNodeSelect(v, 'videoSaveNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}
@@ -1035,9 +1039,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   />
                   <NodeSelectField
                     label={t('systemSettings.workflow.videoSaveNode')}
-                    nodeTypeHint="VHS_VideoCombine"
+                    nodeTypeHint="VHS_VideoCombine, MiniMaxH3StreamLiveExtensionAVToVHS"
                     value={mappingForm.videoSaveNodeId}
-                    options={availableNodes.vhsVideoCombine}
+                    options={[...availableNodes.vhsVideoCombine, ...availableNodes.h3VideoOutputs]}
                     onChange={(v) => handleNodeSelect(v, 'videoSaveNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}

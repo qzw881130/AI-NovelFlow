@@ -15,6 +15,7 @@ export interface ImageInfo {
 
 export interface WorkflowData {
   workflow: any;
+  nodeMapping?: Record<string, string | number | null>;
   prompt: string;
   seed?: number | null;
   promptItems?: Array<{

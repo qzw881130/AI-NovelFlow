@@ -343,6 +343,7 @@ export default function Tasks() {
         loadingWorkflow={loadingWorkflow}
         onClose={() => { setViewingWorkflow(null); setWorkflowData(null); }}
         onPreviewImages={openImageGallery}
+        onPreviewVideo={setPreviewVideo}
         convertShotName={convertShotName}
       />
       {previewImage && (

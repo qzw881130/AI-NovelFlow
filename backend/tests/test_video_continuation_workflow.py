@@ -21,10 +21,13 @@ def test_video_continuation_system_workflow_is_registered(db_session):
         "load_video_node_id": "66",
         "duration_seconds_node_id": "105",
         "prompt_node_id": "107",
-        "video_save_node_id": "39",
+        "video_save_node_id": "65",
     }
     assert extension == {"workflow_capability": "TEMPORAL_EXTEND"}
     assert workflow_json["66"]["class_type"] == "VHS_LoadVideoFFmpeg"
     assert workflow_json["105"]["class_type"] == "PrimitiveFloat"
     assert workflow_json["107"]["class_type"] == "CR Prompt Text"
     assert workflow_json["39"]["class_type"] == "VHS_VideoCombine"
+    assert workflow_json["65"]["class_type"] == "MiniMaxH3StreamLiveExtensionAVToVHS"
+    assert workflow_json["99"]["class_type"] == "MiniMaxH3FinalizeVHSOutput"
+    assert workflow_json["99"]["inputs"]["filenames"] == ["65", 0]

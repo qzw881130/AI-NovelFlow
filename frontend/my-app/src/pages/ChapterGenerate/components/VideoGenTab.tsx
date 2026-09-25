@@ -15,6 +15,7 @@ import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Ey
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
 import { taskApi } from '../../../api/tasks';
+import type { Task } from '../../../api/tasks';
 import { toast } from '../../../stores/toastStore';
 import KeyframesManager from '../../../components/KeyframesManager';
 import AudioReferenceSelector from '../../../components/AudioReferenceSelector';
@@ -33,6 +34,155 @@ type VideoImageEditTarget = {
   itemName: string;
   frameIndex?: number;
 };
+
+function SemanticClipExecutionPanel({ shot, chapterId, onPreviewClip, onRegenerateClip, regeneratingClipKey, isShotVideoGenerating }: { shot: any; chapterId?: string; onPreviewClip: (clip: any | null) => void; onRegenerateClip: (clip: any, mode?: 'llm' | 'video_only') => void; regeneratingClipKey?: string | null; isShotVideoGenerating?: boolean }) {
+  const plan = (shot?.videoDirectorPlan || {}) as any;
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(false);
+  const clips = Array.isArray(plan.clip_plan) ? [...plan.clip_plan].sort((a, b) => Number(a.clip_index) - Number(b.clip_index)) : [];
+  const revision = Number(plan.clip_plan_revision || 0);
+  const planTasks = tasks.filter((task) => task.clipExecution?.clip_plan_revision === revision && task.clipExecution?.execution_scope === 'CLIP');
+
+  useEffect(() => {
+    if (!chapterId || !shot?.id || clips.length === 0) {
+      setTasks([]);
+      return;
+    }
+    let cancelled = false;
+    const refresh = () => {
+      setLoading(true);
+      taskApi.fetchShotTasks(chapterId, String(shot.id))
+        .then((response) => {
+          if (!cancelled) setTasks(Array.isArray(response.data) ? response.data : []);
+        })
+        .catch(() => {
+          if (!cancelled) setTasks([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 2000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [chapterId, shot?.id, revision, clips.length]);
+
+  if (clips.length === 0) return null;
+  return (
+    <div>
+      <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
+        <span className="font-medium text-gray-700">Revision {revision}</span>
+        <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-blue-700">{plan.clip_plan_approval_mode || 'AUTO_APPROVE'}</span>
+        <span className={`rounded-full border px-2 py-0.5 ${plan.clip_plan_validation?.passed ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+          {plan.clip_plan_validation?.passed ? 'PASS' : '未验证'}
+        </span>
+        {loading && <span>正在读取执行结果…</span>}
+      </div>
+      <div className="space-y-1.5">
+        {clips.map((clip: any, index: number) => {
+          const task = planTasks.find((item) => Number(item.clipExecution?.clip_index) === Number(clip.clip_index));
+          const metadata = task?.clipExecution;
+          const approvalStatus = metadata?.approval_status || clip.execution_status || 'PLANNED';
+          const taskStatus = task?.status || clip.status;
+          const dialogueAssignment = metadata?.dialogue_assignment || clip.dialogue_assignment;
+          const previousClipIndex = clip.previous_clip_index || (index > 0 ? clips[index - 1]?.clip_index : null);
+          const isContinuation = ['VIDEO_CONTINUATION', 'TEMPORAL_EXTEND'].includes(String(metadata?.capability || clip.capability));
+          const cumulativeUrl = metadata?.assembled_result?.url || (isContinuation ? task?.resultUrl : null);
+          const cumulativeDuration = metadata?.assembled_result?.assembled_media_duration ?? metadata?.assembled_media_duration;
+          const clipKey = String(clip.clip_index);
+          const isRegenerating = regeneratingClipKey === clipKey;
+          const clipGenerationDisabled = !!isShotVideoGenerating || !!regeneratingClipKey;
+          return (
+            <div key={`${revision}-${clip.clip_index}`} className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <div className="flex min-w-[116px] items-center gap-2">
+                  <span className="text-sm font-semibold text-gray-900">C{clip.clip_index}</span>
+                  <span className="text-xs tabular-nums text-gray-600">{clip.start_time}–{clip.end_time}s</span>
+                </div>
+                <span className="rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-700">{clip.capability}</span>
+                {isContinuation && <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-indigo-700">CUMULATIVE</span>}
+                <span className="text-[11px] tabular-nums text-gray-600">
+                  {clip.planned_duration}s planned{isContinuation && cumulativeDuration != null ? ` · 累计成片 ${Number(cumulativeDuration).toFixed(3).replace(/\.000$/, '')}s` : !isContinuation && metadata?.actual_duration != null ? ` · ${metadata.actual_duration}s actual` : ''}
+                </span>
+                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${approvalStatus === 'APPROVED' ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+                  {approvalStatus}
+                </span>
+                {taskStatus && <span className="text-[10px] text-gray-500">{taskStatus}</span>}
+                {previousClipIndex && (
+                  <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700">
+                    ← Previous C{previousClipIndex}{metadata?.previous_approved_video_source === 'approved_assembled_result' ? ' 累计成片' : ''}
+                  </span>
+                )}
+                <div className="ml-auto flex items-center gap-2">
+                  {(cumulativeUrl || task?.resultUrl) && (
+                    <button type="button" onClick={() => onPreviewClip({ ...clip, clip_index: clip.clip_index, video_url: cumulativeUrl || task?.resultUrl })} className="rounded-md border border-blue-200 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50">
+                      {isContinuation ? '播放累计成片' : `播放 C${clip.clip_index}`}
+                    </button>
+                  )}
+                  <div className="relative inline-flex">
+                    <button
+                      type="button"
+                      onClick={() => onRegenerateClip({ ...clip, clip_index: clip.clip_index }, 'llm')}
+                      disabled={clipGenerationDisabled}
+                      className="inline-flex items-center gap-1 rounded-l-md border border-blue-200 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isRegenerating && <Loader2 className="h-3 w-3 animate-spin" />}
+                      {isRegenerating ? '生成中...' : 'LLM+生成Clip视频'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onRegenerateClip({ ...clip, clip_index: clip.clip_index }, 'video_only')}
+                      disabled={clipGenerationDisabled || !clip.prompt_text}
+                      title={!clip.prompt_text ? '缺少可复用的 Clip 视频最终 Prompt，请先使用 LLM+生成Clip视频' : undefined}
+                      className="rounded-r-md border border-l-0 border-blue-200 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      重新生成 Clip 视频
+                    </button>
+                  </div>
+                  {(task || metadata?.previous_approved_video_url) && (
+                    <details className="relative text-[11px] text-gray-500">
+                      <summary className="cursor-pointer">详情</summary>
+                      <div className="absolute z-10 mt-1 max-w-[min(90vw,32rem)] rounded-md border border-gray-200 bg-white p-2 shadow-lg">
+                        {task && <div>Task {task.id} · {task.resultUrl || '无结果文件'}</div>}
+                        {metadata?.previous_approved_video_url && <div className="mt-1 break-all">Previous AV: {metadata.previous_approved_video_url}</div>}
+                        {isContinuation && <div className="mt-1">结果类型：累计续生成 · 累计至：C{clip.clip_index}</div>}
+                        {isContinuation && <div>Capability：{metadata?.capability || clip.capability}</div>}
+                        {isContinuation && <div>Context：39 frames · Video overlap：39 frames · Source audio：Keep source audio</div>}
+                        {isContinuation && cumulativeDuration != null && <div>累计媒体时长：{cumulativeDuration}s</div>}
+                      </div>
+                    </details>
+                  )}
+                </div>
+              </div>
+              {Array.isArray(dialogueAssignment) && dialogueAssignment.length > 0 && (
+                <details className="mt-1.5 border-t border-gray-100 pt-1.5 text-[10px] text-gray-600">
+                  <summary className="cursor-pointer">对白分配 · {dialogueAssignment.length} 段</summary>
+                  <div className="mt-1 grid gap-1 sm:grid-cols-2">
+                    {dialogueAssignment.map((span: any, spanIndex: number) => (
+                      <div key={`${span.dialogue_id}-${span.segment_index}-${spanIndex}`} className="rounded bg-gray-50 px-2 py-1">
+                        <span className="font-medium text-gray-700">{span.dialogue_id}{span.segment_index > 1 ? `.part${span.segment_index}` : ''} · {span.speaker}:</span> {span.text}
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {(plan.merged_video_url || shot?.videoUrl) && (
+        <button type="button" onClick={() => onPreviewClip(null)} className="mt-2 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-[11px] font-medium text-gray-700 hover:bg-gray-100">
+          播放最终 Shot
+        </button>
+      )}
+      {plan.clip_plan_validation?.dialogue_ownership && (
+        <div className={`mt-3 rounded border px-2.5 py-2 text-[11px] ${plan.clip_plan_validation.dialogue_ownership.passed ? 'border-green-200 bg-green-50 text-green-900' : 'border-red-200 bg-red-50 text-red-900'}`}>
+          Dialogue text allocation: {plan.clip_plan_validation.dialogue_ownership.passed ? 'PASS' : 'FAILED'}
+        </div>
+      )}
+    </div>
+  );
+}
 
 type VideoPromptDraft = {
   key: string;
@@ -451,6 +601,9 @@ interface VideoDirectorPanelProps {
   regeneratingClipKey?: string | null;
   isMergingClips?: boolean;
   isShotVideoGenerating?: boolean;
+  semanticClipPlan?: any[];
+  semanticClipPlanShot?: any;
+  chapterId?: string;
 }
 
 function VideoDirectorPanel({
@@ -478,6 +631,9 @@ function VideoDirectorPanel({
   regeneratingClipKey,
   isMergingClips,
   isShotVideoGenerating,
+  semanticClipPlan,
+  semanticClipPlanShot,
+  chapterId,
 }: VideoDirectorPanelProps) {
   const { t } = useTranslation();
   const [showEndKeyframeMenu, setShowEndKeyframeMenu] = useState(false);
@@ -500,6 +656,7 @@ function VideoDirectorPanel({
   const firstLastAvailable = plan.first_last_available ?? ((shot?.duration || 0) <= maxClipDuration);
   const keyframes = plan.keyframes || [];
   const clips = selectedMode === 'MULTI_KEYFRAME' ? (plan.window_plans || []) : (plan.clips || []);
+  const hasSemanticClipPlan = Array.isArray(semanticClipPlan) && semanticClipPlan.length > 0;
   const hasWindowPlans = selectedMode === 'MULTI_KEYFRAME' && clips.length > 0;
   const legacyKeyframes = shot?.keyframes || [];
   const getKeyframeImageUrl = (kf: any) => {
@@ -1081,16 +1238,25 @@ function VideoDirectorPanel({
 
       <div className="rounded-lg border border-gray-200 bg-white p-3">
         <div className="flex items-center justify-between gap-3 mb-2">
-          <div className="text-sm font-semibold text-gray-700">{t('chapterGenerate.executionPlan')} · {clips.length} {t('chapterGenerate.clips')}</div>
-          <div className="text-xs text-gray-500">{t('chapterGenerate.estimatedH3Tasks', { count: clips.length })}</div>
+          <div className="text-sm font-semibold text-gray-700">{t('chapterGenerate.executionPlan')} · {hasSemanticClipPlan ? semanticClipPlan.length : clips.length} {t('chapterGenerate.clips')}</div>
+          <div className="text-xs text-gray-500">{t('chapterGenerate.estimatedH3Tasks', { count: hasSemanticClipPlan ? semanticClipPlan.length : clips.length })}</div>
         </div>
-        {selectedMode === 'MULTI_KEYFRAME' && (
+        {!hasSemanticClipPlan && selectedMode === 'MULTI_KEYFRAME' && (
           <div className="grid grid-cols-2 gap-2 text-sm mb-3">
             <div className="rounded-lg border border-gray-200 px-3 py-2 flex items-center justify-between">{t('chapterGenerate.threeFrameClips')} <span className="font-semibold text-gray-800">{threeFrameClipCount}</span></div>
             <div className="rounded-lg border border-gray-200 px-3 py-2 flex items-center justify-between">{t('chapterGenerate.fourFrameClips')} <span className="font-semibold text-gray-800">{fourFrameClipCount}</span></div>
           </div>
         )}
-        {clips.length > 0 ? (
+        {hasSemanticClipPlan ? (
+          <SemanticClipExecutionPanel
+            shot={semanticClipPlanShot || shot}
+            chapterId={chapterId}
+            onPreviewClip={onPreviewClip}
+            onRegenerateClip={onRegenerateClip}
+            regeneratingClipKey={regeneratingClipKey}
+            isShotVideoGenerating={isShotVideoGenerating}
+          />
+        ) : clips.length > 0 ? (
           <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-3">
             {clips.map((clip: any) => {
               const clipIndex = clip.clip_index || clip.window_index;
@@ -1456,6 +1622,7 @@ export function VideoGenTab({
   const [mergedVideoUrl, setMergedVideoUrl] = useState<string | null>(null);
   const [isRefreshingVideo, setIsRefreshingVideo] = useState(false);
   const [selectedPreviewClipKey, setSelectedPreviewClipKey] = useState<string | null>(null);
+  const [selectedPreviewClipUrl, setSelectedPreviewClipUrl] = useState<string | null>(null);
   const [regeneratingClipKey, setRegeneratingClipKey] = useState<string | null>(null);
   const [isMergingClips, setIsMergingClips] = useState(false);
   const [isCancellingVideo, setIsCancellingVideo] = useState(false);
@@ -1491,6 +1658,7 @@ export function VideoGenTab({
   const currentShotVideoUrl = currentShotData?.videoUrl || (currentShotId ? shotVideos[currentShotId] : undefined);
   const currentVideoDirectorPlan: VideoDirectorPlan = currentShotData?.videoDirectorPlan || {};
   const currentSelectedVideoMode = currentVideoDirectorPlan.selected_mode || currentVideoDirectorPlan.recommended_mode || 'SINGLE_FRAME';
+  const hasSemanticClipPlan = Array.isArray(currentVideoDirectorPlan.clip_plan) && currentVideoDirectorPlan.clip_plan.length > 0;
   const hasReusableVideoPrompt = currentSelectedVideoMode === 'MULTI_KEYFRAME'
     ? !!currentVideoDirectorPlan.window_plans?.length && currentVideoDirectorPlan.window_plans.every((windowPlan: any) => (
       String(windowPlan?.prompt_text || getLatestH3FinalPrompt(currentVideoDirectorPlan, Number(windowPlan?.window_index))).trim().length > 0
@@ -1505,13 +1673,15 @@ export function VideoGenTab({
     ? generatingKeyframes.has(`${currentShotId}-${Number(currentEndFrameIndex)}`)
     : false;
   const getPlanClipKey = (clip: any) => String(clip?.clip_index || clip?.window_index || `${clip?.start_time}-${clip?.end_time}`);
-  const currentPlanClips: any[] = currentSelectedVideoMode === 'MULTI_KEYFRAME' ? (currentVideoDirectorPlan.window_plans || []) : (currentVideoDirectorPlan.clips || []);
+  const currentPlanClips: any[] = hasSemanticClipPlan
+    ? currentVideoDirectorPlan.clip_plan || []
+    : currentSelectedVideoMode === 'MULTI_KEYFRAME' ? (currentVideoDirectorPlan.window_plans || []) : (currentVideoDirectorPlan.clips || []);
   const selectedPreviewClip: any | null = selectedPreviewClipKey
     ? currentPlanClips.find((clip: any) => getPlanClipKey(clip) === selectedPreviewClipKey)
     : null;
-  const previewVideoUrl = selectedPreviewClip?.video_url || currentShotVideoUrl;
+  const previewVideoUrl = selectedPreviewClipUrl || selectedPreviewClip?.video_url || currentShotVideoUrl;
   const previewVideoLabel = selectedPreviewClip ? `C${selectedPreviewClip.window_index || selectedPreviewClip.clip_index}` : 'Shot';
-  const previewClipMarkers = !selectedPreviewClip && currentSelectedVideoMode === 'MULTI_KEYFRAME'
+  const previewClipMarkers = !selectedPreviewClip && !hasSemanticClipPlan && currentSelectedVideoMode === 'MULTI_KEYFRAME'
     ? currentPlanClips
       .filter((clip: any) => Number(clip.window_index || clip.clip_index || 0) > 1)
       .map((clip: any) => ({
@@ -2064,6 +2234,7 @@ export function VideoGenTab({
 
   useEffect(() => {
     setSelectedPreviewClipKey(null);
+    setSelectedPreviewClipUrl(null);
     setRegeneratingClipKey(null);
   }, [currentShotId]);
 
@@ -2186,7 +2357,8 @@ export function VideoGenTab({
   }, [currentShotData?.videoTaskId, currentShotId, refreshCurrentShotData, setShots, shotsList, t]);
 
   const handlePreviewClip = useCallback((clip: any) => {
-    setSelectedPreviewClipKey(getPlanClipKey(clip));
+    setSelectedPreviewClipKey(clip ? getPlanClipKey(clip) : null);
+    setSelectedPreviewClipUrl(clip?.video_url || null);
   }, []);
 
   const handleRegenerateClip = useCallback(async (clip: any, mode: 'llm' | 'video_only' = 'llm') => {
@@ -2876,6 +3048,9 @@ export function VideoGenTab({
             regeneratingClipKey={regeneratingClipKey}
             isMergingClips={isMergingClips}
             isShotVideoGenerating={isGeneratingCurrent}
+            semanticClipPlan={currentVideoDirectorPlan.clip_plan}
+            semanticClipPlanShot={currentShotData}
+            chapterId={effectiveChapterId}
           />
 
         </div>
@@ -2911,16 +3086,16 @@ export function VideoGenTab({
               </button>
             </div>
           </div>
-          {currentPlanClips.length > 0 && currentSelectedVideoMode === 'MULTI_KEYFRAME' && (
+          {currentPlanClips.length > 0 && currentSelectedVideoMode === 'MULTI_KEYFRAME' && !hasSemanticClipPlan && (
             <div className="flex-shrink-0 border-b border-gray-200 bg-white px-3 py-2">
               <div className="flex gap-1 overflow-x-auto">
                 <button
                   type="button"
-                  onClick={() => setSelectedPreviewClipKey(null)}
+                  onClick={() => { setSelectedPreviewClipKey(null); setSelectedPreviewClipUrl(null); }}
                   disabled={!currentShotVideoUrl}
                   className={`rounded-md border px-2 py-1 text-xs transition-colors ${!selectedPreviewClip ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'} disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
-                  Shot 合并视频
+                   Shot 成片
                 </button>
                 {currentPlanClips.map((clip: any) => {
                   const clipKey = getPlanClipKey(clip);
@@ -2929,7 +3104,7 @@ export function VideoGenTab({
                     <button
                       key={`preview-tab-${clipKey}`}
                       type="button"
-                      onClick={() => setSelectedPreviewClipKey(clipKey)}
+                      onClick={() => { setSelectedPreviewClipKey(clipKey); setSelectedPreviewClipUrl(null); }}
                       disabled={!clip.video_url}
                       title={!clip.video_url ? `C${clipIndex} 缺少可预览的视频记录` : `预览 C${clipIndex}`}
                       className={`rounded-md border px-2 py-1 text-xs transition-colors ${selectedPreviewClipKey === clipKey ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'} disabled:opacity-50 disabled:cursor-not-allowed`}

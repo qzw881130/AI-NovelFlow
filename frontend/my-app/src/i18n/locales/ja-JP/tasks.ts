@@ -46,6 +46,7 @@ export default {
       cancelled: 'キャンセル済み',
     },
     referenceImages: '参照画像',
+    referenceVideo: '参照動画',
     referenceImage: '参照画像',
     types: {
       characterPortrait: 'キャラクター生成',
@@ -120,5 +121,8 @@ export default {
     workflowDetails: 'ワークフロー詳細',
     generationPrompt: '生成プロンプト',
     workflowJSON: 'ワークフローJSON',
+    boundWorkflowParameters: 'ワークフローのバインド済みパラメータ（{count}）',
+    showOnlyMappedNodes: 'ノードマッピング設定のノードのみ表示',
+    noMappedNodes: 'このワークフローには利用可能なノードマッピングがありません。',
   },
 };

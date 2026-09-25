@@ -1,4 +1,5 @@
-import { Copy, Download, Loader2, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronDown, ChevronUp, Copy, Download, Loader2, Play, X } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import JSONEditor from '../../../components/JSONEditor';
@@ -11,6 +12,7 @@ interface WorkflowViewModalProps {
   loadingWorkflow: boolean;
   onClose: () => void;
   onPreviewImages: (images: Array<{ label?: string; url: string }>, index: number) => void;
+  onPreviewVideo: (url: string) => void;
   convertShotName: (name: string) => string;
 }
 
@@ -20,9 +22,17 @@ export function WorkflowViewModal({
   loadingWorkflow,
   onClose,
   onPreviewImages,
+  onPreviewVideo,
   convertShotName,
 }: WorkflowViewModalProps) {
   const { t } = useTranslation();
+  const [showBoundParameters, setShowBoundParameters] = useState(false);
+  const [showOnlyMappedNodes, setShowOnlyMappedNodes] = useState(true);
+
+  useEffect(() => {
+    setShowBoundParameters(false);
+    setShowOnlyMappedNodes(true);
+  }, [viewingWorkflow?.id, viewingWorkflow?.name, workflowData]);
 
   if (!viewingWorkflow) return null;
 
@@ -89,6 +99,37 @@ export function WorkflowViewModal({
   };
 
   const promptItems = workflowData?.promptItems || [];
+  const workflowObject = typeof workflowData?.workflow === 'string'
+    ? (() => {
+        try { return JSON.parse(workflowData.workflow); } catch { return null; }
+      })()
+    : workflowData?.workflow;
+  const allBoundNodes = workflowObject && typeof workflowObject === 'object'
+    ? (Array.isArray(workflowObject.nodes)
+        ? workflowObject.nodes.map((node: any) => [String(node.id), node]).filter(([, node]: any) => node?.inputs)
+        : Object.entries(workflowObject).filter(([, node]: any) => node?.inputs))
+      .map(([id, node]: any) => {
+        const inputs = { ...node.inputs };
+        if (node.class_type === 'CR Prompt Text') {
+          delete inputs.prompt;
+          delete inputs.text;
+        }
+        return {
+          id,
+          title: node._meta?.title || node.title || node.class_type || node.type || `Node ${id}`,
+          inputs: Object.entries(inputs),
+        };
+      })
+      .filter((node: any) => node.inputs.length > 0)
+    : [];
+  const mappedNodeIds = new Set(
+    Object.values(workflowData?.nodeMapping || {})
+      .filter((nodeId): nodeId is string | number => typeof nodeId === 'string' || typeof nodeId === 'number')
+      .map(String),
+  );
+  const boundNodes = showOnlyMappedNodes
+    ? allBoundNodes.filter((node: any) => mappedNodeIds.has(node.id))
+    : allBoundNodes;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -115,11 +156,13 @@ export function WorkflowViewModal({
                   Seed: <span className="font-mono font-medium">{workflowData.seed}</span>
                 </div>
               )}
-              {!!viewingWorkflow.referenceImages?.length && (
+              {(!!viewingWorkflow.referenceImages?.length || viewingWorkflow.clipExecution?.previous_approved_video_url) && (
                 <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">{t('tasks.referenceImages')}</h4>
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">
+                    {viewingWorkflow.referenceImages?.length ? t('tasks.referenceImages') : t('tasks.referenceVideo')}
+                  </h4>
                   <div className="flex flex-wrap gap-2">
-                    {viewingWorkflow.referenceImages.map((image, index) => (
+                    {(viewingWorkflow.referenceImages || []).map((image, index) => (
                       <button
                         key={`${image.url}-${index}`}
                         type="button"
@@ -140,6 +183,22 @@ export function WorkflowViewModal({
                         <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
                       </button>
                     ))}
+                    {viewingWorkflow.clipExecution?.previous_approved_video_url && (
+                      <button
+                        type="button"
+                        onClick={() => onPreviewVideo(viewingWorkflow.clipExecution!.previous_approved_video_url!)}
+                        className="group relative h-20 w-32 overflow-hidden rounded-md border border-gray-200 bg-black"
+                        title={t('tasks.referenceVideo')}
+                      >
+                        <video src={viewingWorkflow.clipExecution.previous_approved_video_url} muted preload="metadata" className="h-full w-full object-cover" />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/15 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                          <Play className="h-6 w-6 fill-current" />
+                        </span>
+                        <span className="absolute bottom-0 left-0 right-0 truncate bg-black/55 px-1 py-0.5 text-xs text-white">
+                          {t('tasks.referenceVideo')}
+                        </span>
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -177,6 +236,55 @@ export function WorkflowViewModal({
                   </div>
                 )}
               </div>
+              {boundNodes.length > 0 && (
+                <section className="overflow-hidden rounded-lg border border-gray-200">
+                  <div className="flex items-center justify-between gap-3 bg-gray-50 px-3 py-2.5">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+                      <span className="text-sm font-medium text-gray-700">{t('tasks.boundWorkflowParameters', { count: boundNodes.reduce((total: number, node: any) => total + node.inputs.length, 0) })}</span>
+                      <label className="flex cursor-pointer items-center gap-1.5 text-xs font-normal text-gray-600">
+                        <input
+                          type="checkbox"
+                          checked={showOnlyMappedNodes}
+                          onChange={(event) => setShowOnlyMappedNodes(event.target.checked)}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                        />
+                        {t('tasks.showOnlyMappedNodes')}
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowBoundParameters(value => !value)}
+                      aria-expanded={showBoundParameters}
+                      aria-label={showBoundParameters ? t('common.collapse') : t('common.expand')}
+                      className="shrink-0 rounded p-1 text-gray-500 hover:bg-gray-200"
+                    >
+                      {showBoundParameters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {showBoundParameters && (
+                    <div className="max-h-96 space-y-2 overflow-y-auto p-3">
+                      {showOnlyMappedNodes && mappedNodeIds.size === 0 && (
+                        <p className="px-1 text-xs text-amber-700">{t('tasks.noMappedNodes')}</p>
+                      )}
+                      {boundNodes.map((node: any) => (
+                        <details key={node.id} className="rounded-md border border-gray-200" open={boundNodes.length <= 8}>
+                          <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-gray-700">
+                            <span className="mr-2 font-mono text-gray-400">#{node.id}</span>{node.title}
+                          </summary>
+                          <dl className="divide-y divide-gray-100 border-t border-gray-100">
+                            {node.inputs.map(([name, value]: [string, unknown]) => (
+                              <div key={name} className="grid grid-cols-[minmax(7rem,0.35fr)_minmax(0,1fr)] gap-3 px-3 py-2 text-xs">
+                                <dt className="break-all font-mono text-gray-500">{name}</dt>
+                                <dd className="break-all font-mono text-gray-700">{typeof value === 'string' ? value : JSON.stringify(value)}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        </details>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              )}
               {workflowData.workflow && (
                 <div>
                   <div className="flex items-center justify-between mb-2">

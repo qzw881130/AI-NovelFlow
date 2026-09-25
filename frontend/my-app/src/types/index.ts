@@ -288,6 +288,31 @@ export interface VideoDirectorTaskClip {
   dialogueCount?: number | null;
 }
 
+export interface ClipExecutionMetadata {
+  execution_scope?: string;
+  clip_id?: string;
+  clip_index?: number;
+  clip_plan_revision?: number;
+  capability?: string;
+  planned_duration?: number;
+  requested_duration?: number;
+  actual_duration?: number | null;
+  approval_status?: string;
+  approval_mode?: string;
+  previous_approved_task_id?: string | null;
+  previous_approved_video_url?: string | null;
+  temporal_anchor_ids?: string[];
+  dialogue_assignment?: Array<{
+    dialogue_id: string;
+    segment_index: number;
+    speaker: string;
+    text: string;
+    estimated_duration: number;
+    is_continuation: boolean;
+    continues_in_next_clip: boolean;
+  }>;
+}
+
 export interface Task {
   id: string;
   type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'shot_video_hd' | 'shot_video_hd_batch' | 'chapter_video' | 'transition_video' | 'prop_image';
@@ -305,6 +330,7 @@ export interface Task {
   hasPromptText?: boolean;
   seed?: number | null;
   referenceImages?: Array<{ label?: string; url: string }>;
+  clipExecution?: ClipExecutionMetadata | null;
   videoDirectorClips?: VideoDirectorTaskClip[];
   novelId?: string;
   novelName?: string;

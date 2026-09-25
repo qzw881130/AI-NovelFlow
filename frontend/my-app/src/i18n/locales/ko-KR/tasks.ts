@@ -46,6 +46,7 @@ export default {
       cancelled: '취소됨',
     },
     referenceImages: '참조 이미지',
+    referenceVideo: '참조 비디오',
     referenceImage: '참조 이미지',
     types: {
       characterPortrait: '캐릭터 생성',
@@ -120,5 +121,8 @@ export default {
     workflowDetails: '워크플로우 상세',
     generationPrompt: '생성 프롬프트',
     workflowJSON: '워크플로우 JSON',
+    boundWorkflowParameters: '워크플로 바인딩 매개변수 ({count})',
+    showOnlyMappedNodes: '노드 매핑에 설정된 노드만 표시',
+    noMappedNodes: '이 워크플로에는 사용 가능한 노드 매핑이 없습니다.',
   },
 };

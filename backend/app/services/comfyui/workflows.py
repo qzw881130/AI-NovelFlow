@@ -108,6 +108,23 @@ class WorkflowBuilder:
             )
         return workflow
 
+    def build_video_continuation_workflow(self, workflow_json, node_mapping, video_filename, duration_seconds, prompt, filename_prefix):
+        workflow = json.loads(workflow_json) if isinstance(workflow_json, str) else json.loads(json.dumps(workflow_json))
+        if not isinstance(workflow, dict):
+            raise ValueError("视频续生成工作流格式无效")
+        load_id = str(node_mapping.get("load_video_node_id") or "")
+        duration_id = str(node_mapping.get("duration_seconds_node_id") or "")
+        prompt_id = str(node_mapping.get("prompt_node_id") or "")
+        save_id = str(node_mapping.get("video_save_node_id") or "")
+        if any(node_id not in workflow for node_id in [load_id, duration_id, prompt_id, save_id]):
+            raise ValueError("视频续生成工作流映射不完整")
+        workflow[load_id].setdefault("inputs", {})["video"] = video_filename
+        workflow[duration_id].setdefault("inputs", {})["value"] = float(duration_seconds)
+        self._set_prompt(workflow, prompt_id, prompt)
+        workflow[save_id].setdefault("inputs", {})["filename_prefix"] = filename_prefix
+        workflow[save_id]["inputs"]["save_output"] = True
+        return workflow
+
     @staticmethod
     def _configure_temporal_extend_ui_workflow(workflow, mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt):
         nodes = {str(node.get("id")): node for node in workflow.get("nodes", []) if isinstance(node, dict)}
@@ -785,6 +802,16 @@ class WorkflowBuilder:
 
         return False
 
+    @staticmethod
+    def prepare_strict_reference_image(workflow: Dict[str, Any], filename: str | None = None) -> list[str]:
+        load_image_ids = [
+            str(node_id) for node_id, node in workflow.items()
+            if isinstance(node, dict) and node.get("class_type") == "LoadImage"
+        ]
+        for node_id in load_image_ids:
+            workflow[node_id].setdefault("inputs", {})["image"] = filename or ""
+        return load_image_ids
+
     # ==================== 参考图节点处理 ====================
 
     def disconnect_reference_chain(
@@ -1266,6 +1293,19 @@ class WorkflowBuilder:
                 if link and link in link_map:
                     source_node, source_slot, _, _ = link_map[link]
                     inputs[input_name] = [str(source_node), source_slot]
+
+                widget_name = (inp.get("widget") or {}).get("name") if isinstance(inp.get("widget"), dict) else None
+                if widget_name and input_name not in inputs:
+                    named_value = node.get("widgets_values_named", {}).get(widget_name)
+                    if named_value is not None:
+                        inputs[input_name] = named_value
+
+            named_widgets = node.get("widgets_values_named") or {}
+            for widget_name, value in named_widgets.items():
+                if widget_name in {"videopreview", "upload", "choose video to upload"}:
+                    continue
+                if isinstance(value, (str, int, float, bool)) and widget_name not in inputs:
+                    inputs[widget_name] = value
             
             # 处理特殊节点
             if node_type == "CheckpointLoaderSimple":

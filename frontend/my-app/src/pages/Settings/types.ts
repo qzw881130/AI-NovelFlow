@@ -114,6 +114,7 @@ export interface AvailableNodes {
   easyFloat: string[];
   crPromptText: string[];
   vhsVideoCombine: string[];
+  h3VideoOutputs: string[];
   saveVideo: string[];
   loadImage: string[];
   // 音色设计相关节点

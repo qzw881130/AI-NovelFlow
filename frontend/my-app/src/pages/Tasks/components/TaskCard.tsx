@@ -187,11 +187,13 @@ export function TaskCard({
               )}
             </div>
           )}
-          {!!task.referenceImages?.length && (
+          {(!!task.referenceImages?.length || task.clipExecution?.previous_approved_video_url) && (
             <div className="mt-3">
-              <div className="text-xs text-gray-500 mb-1">{t('tasks.referenceImages')}</div>
+              <div className="text-xs text-gray-500 mb-1">
+                {task.referenceImages?.length ? t('tasks.referenceImages') : t('tasks.referenceVideo')}
+              </div>
               <div className="flex flex-wrap gap-2">
-                {task.referenceImages.map((image, index) => (
+                {(task.referenceImages || []).map((image, index) => (
                   <button
                     key={`${image.url}-${index}`}
                     type="button"
@@ -215,6 +217,22 @@ export function TaskCard({
                     <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
                   </button>
                 ))}
+                {task.clipExecution?.previous_approved_video_url && (
+                  <button
+                    type="button"
+                    onClick={() => onPreviewVideo(task.clipExecution!.previous_approved_video_url!)}
+                    className="group relative h-16 w-24 overflow-hidden rounded-md border border-gray-200 bg-black"
+                    title={t('tasks.referenceVideo')}
+                  >
+                    <video src={task.clipExecution.previous_approved_video_url} muted preload="metadata" className="h-full w-full object-cover" />
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/15 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                      <Play className="h-5 w-5 fill-current" />
+                    </span>
+                    <span className="absolute bottom-0 left-0 right-0 truncate bg-black/55 px-1 py-0.5 text-[10px] text-white">
+                      {t('tasks.referenceVideo')}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
           )}

@@ -250,3 +250,11 @@ class PlanVideoKeyframesRequest(BaseModel):
     """规划视频关键帧时间轴请求"""
 
     force: bool = Field(False, description="是否强制重新规划关键帧时间轴")
+
+
+class PlanClipsRequest(BaseModel):
+    """Semantic Clip Planner request."""
+
+    temporal_anchors: List[dict] = Field(default_factory=list)
+    approval_mode: Literal["AUTO_APPROVE", "REVIEW_REQUIRED"] = "AUTO_APPROVE"
+    force: bool = False

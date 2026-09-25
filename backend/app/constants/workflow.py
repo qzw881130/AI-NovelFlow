@@ -31,6 +31,7 @@ WORKFLOW_TYPES = {
     "four_frame_video": "四帧生视频",
     "video_upscale": "高清放大",
     "TEMPORAL_EXTEND": "时序续生成",
+    "VIDEO_CONTINUATION": "视频续生成",
 }
 
 
@@ -188,7 +189,7 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
         "keyframe_node_7": "133",
         "keyframe_node_8": "134",
         "custom_keyframes_node_id": "116",
-        "video_save_node_id": "39",
+        "video_save_node_id": "65",
     },
 }
 
@@ -205,6 +206,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "description": "基于已有视频进行连续生成，可选使用 1～8 张时间锚点关键帧控制指定时刻的视觉状态。",
         "descriptionKey": f"{DESC_KEY_PREFIX}.基于已有视频进行连续生成，可选使用 1～8 张时间锚点关键帧控制指定时刻的视觉状态。",
         "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["TEMPORAL_EXTEND"],
+        "extension": {"workflow_capability": "TEMPORAL_EXTEND"},
     },
     {
         "filename": "video_continuation_h3_av_extend_minimal_v1_20260925.json",
@@ -217,7 +219,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
             "load_video_node_id": "66",
             "duration_seconds_node_id": "105",
             "prompt_node_id": "107",
-            "video_save_node_id": "39",
+            "video_save_node_id": "65",
         },
         "extension": {"workflow_capability": "TEMPORAL_EXTEND"},
     },

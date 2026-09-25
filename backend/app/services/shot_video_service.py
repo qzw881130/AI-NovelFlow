@@ -4,7 +4,9 @@
 封装分镜视频生成的后台任务逻辑
 """
 import json
+import os
 import random
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -18,8 +20,33 @@ from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.repositories.shot_repository import ShotRepository
 from app.services.background_workers import worker_manager
 from app.services.video_director_ai import build_h3_video_prompt, safe_json_dict, safe_json_list
+from app.services.dialogue_ownership import assign_dialogues_to_clips
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.workflow_seed import extract_workflow_seed
+
+
+def _probe_video_duration(path: str) -> float | None:
+    try:
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return float(result.stdout.strip()) if result.returncode == 0 else None
+    except Exception:
+        return None
+
+
+def _resolve_shot_image_asset(shot) -> tuple[str | None, str | None]:
+    image_url = shot.image_url
+    image_path = url_to_local_path(image_url) if image_url else None
+    if not image_path and shot.image_path:
+        image_path = shot.image_path
+        image_url = local_path_to_url(image_path)
+    if not image_path or not Path(image_path).is_file():
+        return None, None
+    return image_url, image_path
 
 
 def _filter_transitions_for_keyframe_indexes(transitions: list, keyframe_indexes: list) -> list:
@@ -336,6 +363,7 @@ def enqueue_shot_video_task(
     only_window_index: int | None = None,
     auto_merge_clips: bool = False,
     skip_llm_when_prompt_exists: bool = False,
+    clip_metadata: dict | None = None,
 ) -> None:
     """Queue shot video generation in its dedicated serial worker."""
     worker_manager.worker("shot_video").enqueue(
@@ -352,6 +380,7 @@ def enqueue_shot_video_task(
             only_window_index=only_window_index,
             auto_merge_clips=auto_merge_clips,
             skip_llm_when_prompt_exists=skip_llm_when_prompt_exists,
+            clip_metadata=clip_metadata,
         )
     )
 
@@ -369,6 +398,7 @@ async def generate_shot_video_task(
     only_window_index: int | None = None,
     auto_merge_clips: bool = False,
     skip_llm_when_prompt_exists: bool = False,
+    clip_metadata: dict | None = None,
 ):
     """
     后台任务：生成分镜视频
@@ -434,16 +464,44 @@ async def generate_shot_video_task(
             db.commit()
             return
 
+        if clip_metadata and clip_metadata.get("execution_scope") == "CLIP" and clip_metadata.get("capability") == "SINGLE_FRAME":
+            shot_image_url, shot_image_path = _resolve_shot_image_asset(shot)
+            if not shot_image_path:
+                task.status = "failed"
+                task.error_message = "semantic SINGLE_FRAME Clip 缺少当前 Shot 的有效分镜图，已阻止使用 workflow 默认图片。"
+                task.current_step = "缺少 Shot Image"
+                clip_metadata["reference_asset"] = None
+                metadata = safe_json_dict(task.metadata_json)
+                metadata.update(clip_metadata)
+                metadata["approval_status"] = "FAILED"
+                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+                _mark_shot_video_failed(shot, shot_repo, task.error_message)
+                db.commit()
+                return
+            clip_metadata["reference_asset"] = {
+                "source": "SHOT_IMAGE",
+                "shot_id": shot.id,
+                "url": shot_image_url,
+                "path": shot_image_path,
+            }
+
         # 视频生成优先由 11/12/13 Prompt Builder 产出最终 H3 prompt。
-        shot_prompt = (shot.video_description or "").strip() or (shot.description or "")
+        shot_prompt = (clip_metadata or {}).get("prompt_text") or (shot.video_description or "").strip() or (shot.description or "")
         video_director_plan = safe_json_dict(shot.video_director_plan)
         selected_mode = selected_mode or video_director_plan.get("selected_mode") or "SINGLE_FRAME"
 
         task.prompt_text = shot_prompt
+        if clip_metadata:
+            metadata = safe_json_dict(task.metadata_json)
+            metadata.update(clip_metadata)
+            metadata.setdefault("execution_scope", "CLIP")
+            metadata.setdefault("requested_duration", clip_metadata.get("planned_duration"))
+            metadata.setdefault("approval_status", "GENERATING")
+            task.metadata_json = json.dumps(metadata, ensure_ascii=False)
         task.description = f"{task.description}；视频模式：{selected_mode}"
         db.commit()
 
-        duration = shot.duration or 4
+        duration = float((clip_metadata or {}).get("requested_duration") or shot.duration or 4)
         fps = 25
         raw_frame_count = int(fps * duration)
         frame_count = ((raw_frame_count // 8) * 8) + 1
@@ -457,6 +515,17 @@ async def generate_shot_video_task(
                 print(f"[VideoTask {task_id}] Found shot image: {full_path}")
             else:
                 print(f"[VideoTask {task_id}] Shot image not found at: {shot_image_url}")
+
+        if clip_metadata and clip_metadata.get("execution_scope") == "CLIP" and clip_metadata.get("capability") == "SINGLE_FRAME":
+            if not character_reference_path:
+                task.status = "failed"
+                task.error_message = "semantic SINGLE_FRAME Clip 的 Shot Image 无法解析为本地资产，已阻止使用 workflow 默认图片。"
+                task.current_step = "Shot Image 无效"
+                db.commit()
+                return
+            task_metadata = safe_json_dict(task.metadata_json)
+            task_metadata["reference_asset"] = clip_metadata["reference_asset"]
+            task.metadata_json = json.dumps(task_metadata, ensure_ascii=False)
 
         # 获取占位符替换所需的资源数据
         # 从 Shot 模型直接获取角色、场景、道具
@@ -649,6 +718,24 @@ async def generate_shot_video_task(
         }
         window_plans = video_director_plan.get("window_plans") if isinstance(video_director_plan.get("window_plans"), list) else []
         clip = (video_director_plan.get("clips") or [{}])[0] if isinstance(video_director_plan.get("clips"), list) else {}
+        if clip_metadata and clip_metadata.get("execution_scope") == "CLIP":
+            semantic_clip = next((
+                item for item in video_director_plan.get("clip_plan", [])
+                if int(item.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0)
+            ), None)
+            if (
+                int(video_director_plan.get("clip_plan_revision") or 0) != int(clip_metadata.get("clip_plan_revision") or 0)
+                or not semantic_clip
+            ):
+                task.status = "failed"
+                task.error_message = "Clip 执行失败：Shot 中已不存在相同 revision/Clip identity"
+                task.current_step = "Clip 计划已变化"
+                db.commit()
+                return
+            clip = dict(semantic_clip)
+            clip["clip_index"] = int(clip_metadata["clip_index"])
+            clip["start_time"] = semantic_clip.get("start_time") if semantic_clip.get("start_time") is not None else 0
+            clip["end_time"] = semantic_clip.get("end_time") if semantic_clip.get("end_time") is not None else float(clip_metadata["planned_duration"])
         if selected_mode == "MULTI_KEYFRAME" and window_plans:
             window_plan = window_plans[0]
             clip = {
@@ -671,14 +758,36 @@ async def generate_shot_video_task(
         transitions_for_prompt = video_director_plan.get("transitions") if isinstance(video_director_plan.get("transitions"), list) else []
         if selected_mode == "MULTI_KEYFRAME" and clip.get("keyframe_indexes"):
             transitions_for_prompt = _filter_transitions_for_keyframe_indexes(transitions_for_prompt, clip.get("keyframe_indexes") or [])
-        clip_dialogues = _clip_dialogues_for_prompt(safe_json_list(shot.dialogues), clip, duration)
+        if clip_metadata and clip_metadata.get("execution_scope") == "CLIP":
+            semantic_clip = next((item for item in video_director_plan.get("clip_plan", []) if int(item.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0)), {})
+            clip_dialogues = (
+                clip_metadata["dialogue_assignment"]
+                if "dialogue_assignment" in clip_metadata
+                else semantic_clip.get("dialogue_assignment") or []
+            )
+            clip_metadata["dialogue_assignment"] = clip_dialogues
+            metadata = safe_json_dict(task.metadata_json)
+            metadata["dialogue_assignment"] = clip_dialogues
+            task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+            for planned_clip in video_director_plan.get("clip_plan", []):
+                if int(planned_clip.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0):
+                    planned_clip["dialogue_assignment"] = clip_dialogues
+                    break
+            shot.video_director_plan = json.dumps(video_director_plan, ensure_ascii=False)
+            db.commit()
+        else:
+            clip_dialogues = _clip_dialogues_for_prompt(safe_json_list(shot.dialogues), clip, duration)
 
-        reusable_prompt = _get_reusable_video_prompt(video_director_plan) if skip_llm_when_prompt_exists else ""
+        reusable_prompt = (
+            (clip_metadata or {}).get("prompt_text")
+            or (_get_reusable_video_prompt(video_director_plan) if skip_llm_when_prompt_exists else "")
+        )
         if skip_llm_when_prompt_exists and not reusable_prompt:
             task.status = "failed"
             task.error_message = "当前 Shot 没有可复用的视频最终 Prompt，请先使用 LLM+生成当前Shot视频。"
             task.current_step = "缺少视频最终 Prompt"
-            _mark_shot_video_failed(shot, shot_repo, task.error_message)
+            if not clip_metadata:
+                _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
             return
         if reusable_prompt:
@@ -756,7 +865,26 @@ async def generate_shot_video_task(
         task.metadata_json = json.dumps(task_metadata, ensure_ascii=False)
         db.commit()
 
-        result = await comfyui_service.generate_shot_video_with_workflow(
+        previous_video_path = url_to_local_path((clip_metadata or {}).get("previous_approved_video_url")) if clip_metadata else None
+        if clip_metadata and clip_metadata.get("capability") in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
+            if not previous_video_path:
+                raise ValueError("Clip continuation 缺少上一 Clip approved MP4")
+            result = await comfyui_service.generate_video_continuation_with_workflow(
+                prompt=shot_prompt,
+                workflow_json=workflow.workflow_json,
+                node_mapping=node_mapping,
+                previous_video_path=previous_video_path,
+                duration_seconds=duration,
+                filename_prefix=f"story_{novel_id}/chapter_{chapter_id[:8]}/clips/{task.id}",
+                capability=clip_metadata.get("capability"),
+                anchors=[
+                    anchor for anchor in safe_json_dict(shot.video_director_plan).get("temporal_anchors", [])
+                    if str(anchor.get("id")) in {str(anchor_id) for anchor_id in clip_metadata.get("temporal_anchor_ids", [])}
+                ],
+                on_prompt_queued=save_prompt_id,
+            )
+        else:
+            result = await comfyui_service.generate_shot_video_with_workflow(
             prompt=shot_prompt,
             workflow_json=workflow.workflow_json,
             node_mapping=effective_node_mapping,
@@ -767,12 +895,17 @@ async def generate_shot_video_task(
             style=style,
             character_appearances=character_appearances,
             scene_setting=scene_setting,
-            prop_appearances=prop_appearances,
-            reference_audio_path=reference_audio_path,
-            keyframe_paths=keyframe_paths,
-            seed=seed,
-            on_prompt_queued=save_prompt_id
-        )
+                prop_appearances=prop_appearances,
+                reference_audio_path=reference_audio_path,
+                keyframe_paths=keyframe_paths,
+                strict_reference_image=bool(
+                    clip_metadata
+                    and clip_metadata.get("execution_scope") == "CLIP"
+                    and clip_metadata.get("capability") == "SINGLE_FRAME"
+                ),
+                seed=seed,
+                on_prompt_queued=save_prompt_id
+            )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
             _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
@@ -797,11 +930,32 @@ async def generate_shot_video_task(
             if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
                 _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "FAILED", db, task=task)
             _mark_shot_video_failed(shot, shot_repo, task.error_message)
+            if clip_metadata and clip_metadata.get("execution_scope") == "CLIP":
+                failed_plan = safe_json_dict(shot.video_director_plan)
+                for semantic_clip in failed_plan.get("clip_plan", []):
+                    if int(semantic_clip.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0):
+                        semantic_clip["execution_status"] = "FAILED"
+                        semantic_clip["error_message"] = task.error_message
+                        break
+                shot.video_director_plan = json.dumps(failed_plan, ensure_ascii=False)
             db.commit()
             return
 
         # 下载并保存视频
-        await _save_generated_video(result, task, novel_id, chapter_id, shot_index, db, task_id, shot_repo, clip=clip)
+        await _save_generated_video(result, task, novel_id, chapter_id, shot_index, db, task_id, shot_repo, clip=clip, clip_metadata=clip_metadata, update_shot_result=not bool(clip_metadata))
+        if clip_metadata and task.status == "completed" and clip_metadata.get("approval_mode", "AUTO_APPROVE") == "AUTO_APPROVE":
+            if clip_metadata.get("is_clip_regeneration") and clip_metadata.get("auto_merge", True):
+                assembly_result = await merge_video_director_clip_videos(
+                    db, shot, shot_repo, novel_id, chapter_id, shot_index,
+                )
+                if not assembly_result.get("success"):
+                    task.status = "failed"
+                    task.error_message = assembly_result.get("message") or "Clip 累计成片 Assembly 失败"
+                    task.current_step = "Assembly 失败"
+                    _mark_shot_video_failed(shot, shot_repo, task.error_message)
+                    db.commit()
+            elif not clip_metadata.get("is_clip_regeneration"):
+                await _enqueue_next_clip_if_needed(db, task, shot, novel, clip_metadata)
         if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
             _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "SUCCEEDED", db, task=task)
 
@@ -816,6 +970,14 @@ async def generate_shot_video_task(
             task.current_step = "任务异常"
             if 'shot' in locals() and shot:
                 _mark_shot_video_failed(shot, shot_repo, task.error_message)
+                if clip_metadata and clip_metadata.get("execution_scope") == "CLIP":
+                    failed_plan = safe_json_dict(shot.video_director_plan)
+                    for semantic_clip in failed_plan.get("clip_plan", []):
+                        if int(semantic_clip.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0):
+                            semantic_clip["execution_status"] = "FAILED"
+                            semantic_clip["error_message"] = task.error_message
+                            break
+                    shot.video_director_plan = json.dumps(failed_plan, ensure_ascii=False)
             db.commit()
         except Exception:
             pass
@@ -1168,6 +1330,129 @@ async def _generate_multi_clip_video_task(
 
 async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, novel_id: str, chapter_id: str, shot_index: int) -> dict:
     plan = safe_json_dict(shot.video_director_plan)
+    semantic_clips = plan.get("clip_plan") if isinstance(plan.get("clip_plan"), list) else []
+    if semantic_clips:
+        revision = int(plan.get("clip_plan_revision") or 0)
+        approved_clips = []
+        missing_clips = []
+        for semantic_clip in sorted(semantic_clips, key=lambda item: int(item.get("clip_index") or 0)):
+            clip_index = int(semantic_clip.get("clip_index") or 0)
+            task = db.query(Task).filter(
+                Task.type == "shot_video",
+                Task.shot_id == shot.id,
+                Task.metadata_json.like(f'%%"clip_index": {clip_index}%%'),
+                Task.metadata_json.like(f'%%"clip_plan_revision": {revision}%%'),
+                Task.status == "completed",
+            ).order_by(Task.created_at.desc()).first()
+            metadata = safe_json_dict(task.metadata_json) if task else {}
+            if not task or metadata.get("approval_status") != "APPROVED" or not task.result_url:
+                missing_clips.append(f"C{clip_index}")
+                continue
+            local_path = url_to_local_path(task.result_url)
+            if not local_path or not Path(local_path).is_file():
+                missing_clips.append(f"C{clip_index}")
+                continue
+            approved_clips.append((semantic_clip, task, metadata, local_path))
+
+        if missing_clips:
+            return {"success": False, "message": f"缺少已批准的 semantic Clip 视频：{', '.join(missing_clips)}"}
+        if not approved_clips:
+            return {"success": False, "message": "semantic Clip Plan 没有可合并的视频"}
+
+        # A continuation output already contains its upstream AV chain. Keep only
+        # the final approved output of each contiguous continuation run.
+        assembly_units = []
+        pending_base = None
+        continuation_run = []
+        continuation_capabilities = {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}
+        for approved_clip in approved_clips:
+            if approved_clip[2].get("capability") in continuation_capabilities:
+                if pending_base:
+                    continuation_run.append(pending_base)
+                    pending_base = None
+                continuation_run.append(approved_clip)
+                continue
+            if continuation_run:
+                assembly_units.append(continuation_run[-1])
+                continuation_run = []
+            if pending_base:
+                assembly_units.append(pending_base)
+            pending_base = approved_clip
+        if continuation_run:
+            assembly_units.append(continuation_run[-1])
+        elif pending_base:
+            assembly_units.append(pending_base)
+        clip_video_paths = [item[3] for item in assembly_units]
+
+        story_dir = file_storage._get_story_dir(novel_id)
+        chapter_short = chapter_id[:8] if chapter_id else "unknown"
+        output_dir = story_dir / f"chapter_{chapter_short}" / "videos"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        final_unit = assembly_units[-1]
+        direct_continuation_result = len(assembly_units) == 1 and final_unit[2].get("capability") in continuation_capabilities
+        if direct_continuation_result:
+            local_url = final_unit[1].result_url
+            assembled_media_duration = _probe_video_duration(final_unit[3])
+            final_metadata = dict(final_unit[2])
+            final_metadata.update({
+                "assembled_result": {
+                    "status": "APPROVED",
+                    "url": local_url,
+                    "assembled_media_duration": assembled_media_duration,
+                    "clip_plan_revision": revision,
+                    "clip_index": int(final_unit[0].get("clip_index") or 0),
+                    "task_id": final_unit[1].id,
+                    "assembled_at": datetime.utcnow().isoformat(),
+                },
+                "assembled_media_duration": assembled_media_duration,
+                "actual_duration": None,
+            })
+            final_unit[1].metadata_json = json.dumps(final_metadata, ensure_ascii=False)
+        else:
+            output_path = Path(output_dir / f"shot_{shot_index:03d}_assembled_{timestamp}.mp4")
+            temporary_output = output_path.with_suffix(".assembling.mp4")
+            merge_result = await file_storage.merge_videos(clip_video_paths, str(temporary_output))
+            if not merge_result.get("success") or not temporary_output.is_file():
+                if temporary_output.exists():
+                    temporary_output.unlink()
+                return {"success": False, "message": merge_result.get("message") or "semantic Clip 拼接失败"}
+            os.replace(temporary_output, output_path)
+            local_url = _local_url_from_path(str(output_path))
+            assembled_media_duration = _probe_video_duration(str(output_path))
+        plan.update({
+            "merged_video_url": local_url,
+            "merged_at": datetime.utcnow().isoformat(),
+            "assembly_status": "COMPLETED",
+            "assembly_clip_plan_revision": revision,
+            "assembly_task_ids": [item[1].id for item in assembly_units],
+            "assembly_mode": "CONTINUATION_COLLAPSED" if len(assembly_units) < len(approved_clips) else "CONCAT",
+            "assembled_result": {
+                "status": "COMPLETED",
+                "url": local_url,
+                "clip_plan_revision": revision,
+                "clip_indexes": [int(item[0].get("clip_index") or 0) for item in assembly_units],
+                "task_ids": [item[1].id for item in assembly_units],
+                "assembled_media_duration": assembled_media_duration,
+                "assembled_at": datetime.utcnow().isoformat(),
+            },
+        })
+        if direct_continuation_result:
+            plan["assembled_result"].update({
+                "clip_indexes": [int(final_unit[0].get("clip_index") or 0)],
+                "task_ids": [final_unit[1].id],
+            })
+            for semantic_clip in plan.get("clip_plan", []):
+                if int(semantic_clip.get("clip_index") or 0) == int(final_unit[0].get("clip_index") or 0):
+                    semantic_clip["assembled_result"] = plan["assembled_result"]
+                    semantic_clip["assembled_media_duration"] = assembled_media_duration
+                    semantic_clip["actual_duration"] = None
+                    break
+        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+        _clear_shot_video_error(shot, shot_repo, video_url=local_url, video_status="completed", video_task_id=None)
+        db.commit()
+        return {"success": True, "video_url": local_url, "plan": plan}
+
     window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
     if not window_plans:
         return {"success": False, "message": "缺少 Clip 执行计划"}
@@ -1215,9 +1500,102 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
     return {"success": True, "video_url": local_url, "plan": plan}
 
 
+async def _enqueue_next_clip_if_needed(db, completed_task, shot, novel, clip_metadata: dict) -> None:
+    clips = safe_json_dict(shot.video_director_plan).get("clip_plan") or []
+    current_index = int(clip_metadata.get("clip_index") or 0)
+    next_clip = next((clip for clip in clips if int(clip.get("clip_index") or 0) == current_index + 1), None)
+    if not next_clip:
+        if clip_metadata.get("auto_merge", True):
+            assembly_result = await merge_video_director_clip_videos(
+                db, shot, ShotRepository(db), completed_task.novel_id,
+                completed_task.chapter_id, int(shot.index or 0),
+            )
+            if not assembly_result.get("success"):
+                completed_task.status = "failed"
+                completed_task.error_message = assembly_result.get("message") or "Semantic Shot Final Assembly 失败"
+                completed_task.current_step = "Assembly 失败"
+                _mark_shot_video_failed(shot, ShotRepository(db), completed_task.error_message)
+                failed_metadata = safe_json_dict(completed_task.metadata_json)
+                failed_metadata["approval_status"] = "FAILED"
+                completed_task.metadata_json = json.dumps(failed_metadata, ensure_ascii=False)
+                db.commit()
+        return
+    next_capability = next_clip.get("capability") or "VIDEO_CONTINUATION"
+    workflow_type = "video"
+    if next_capability in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
+        workflow_type = next_capability
+    workflow = db.query(Workflow).filter(Workflow.type == workflow_type, Workflow.is_active == True).first()
+    if not workflow:
+        completed_task.error_message = f"下一 Clip 缺少 {workflow_type} Workflow"
+        db.commit()
+        return
+    existing = db.query(Task).filter(
+        Task.type == "shot_video",
+        Task.shot_id == shot.id,
+        Task.metadata_json.like(f'%"clip_id": "{shot.id}:clip:{next_clip.get("clip_index")}"%'),
+        Task.metadata_json.like(f'%"clip_plan_revision": {safe_json_dict(shot.video_director_plan).get("clip_plan_revision", 1)}%'),
+        Task.status.in_(["pending", "running", "completed"]),
+    ).first()
+    if existing:
+        return
+    metadata = {
+        "execution_scope": "CLIP",
+        "clip_id": f"{shot.id}:clip:{next_clip.get('clip_index')}",
+        "clip_index": next_clip.get("clip_index"),
+        "clip_plan_revision": safe_json_dict(shot.video_director_plan).get("clip_plan_revision", 1),
+        "capability": next_capability,
+        "planned_duration": next_clip.get("planned_duration"),
+        "requested_duration": next_clip.get("planned_duration"),
+        "previous_approved_task_id": completed_task.id,
+        "previous_approved_video_url": (
+            safe_json_dict(completed_task.metadata_json).get("assembled_result", {}).get("url")
+            or completed_task.result_url
+        ),
+        "previous_approved_video_source": (
+            "approved_assembled_result"
+            if safe_json_dict(completed_task.metadata_json).get("assembled_result", {}).get("url")
+            else "approved_clip_result"
+        ),
+        "batch_parent_task_id": clip_metadata.get("batch_parent_task_id"),
+        "approval_mode": "AUTO_APPROVE",
+        "approval_status": "GENERATING",
+        "prompt_text": next_clip.get("prompt_text") or "",
+        "dialogue_assignment": next_clip.get("dialogue_assignment") or [],
+        "temporal_anchor_ids": next_clip.get("temporal_anchor_ids") or [],
+    }
+    next_task = Task(
+        type="shot_video",
+        status="pending",
+        name=f"生成视频 Clip: 镜{shot.index} · C{next_clip.get('clip_index')}",
+        description=f"自动生成 Shot {shot.index} 的下一 Clip",
+        novel_id=completed_task.novel_id,
+        chapter_id=completed_task.chapter_id,
+        shot_id=shot.id,
+        parent_task_id=clip_metadata.get("batch_parent_task_id"),
+        workflow_id=workflow.id,
+        workflow_name=workflow.name,
+        metadata_json=json.dumps(metadata, ensure_ascii=False),
+        prompt_text=metadata["prompt_text"] or None,
+    )
+    db.add(next_task)
+    db.commit()
+    enqueue_shot_video_task(
+        next_task.id,
+        completed_task.novel_id,
+        completed_task.chapter_id,
+        shot.index,
+        workflow.id,
+        shot.image_url or "",
+        selected_mode="SINGLE_FRAME",
+        clip_metadata=metadata,
+    )
+
+
 async def _save_generated_video(
     result: dict, task, novel_id: str, chapter_id: str,
-    shot_index: int, db, task_id: str, shot_repo: ShotRepository, clip: dict | None = None
+    shot_index: int, db, task_id: str, shot_repo: ShotRepository, clip: dict | None = None,
+    clip_metadata: dict | None = None,
+    update_shot_result: bool = True,
 ):
     """下载并保存生成的视频"""
     task.current_step = "正在下载生成的视频..."
@@ -1230,7 +1608,7 @@ async def _save_generated_video(
         task.error_message = "未获取到视频URL"
         task.current_step = "生成失败"
         shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
-        if shot:
+        if shot and update_shot_result:
             _mark_shot_video_failed(shot, shot_repo, task.error_message)
         db.commit()
         return
@@ -1251,7 +1629,7 @@ async def _save_generated_video(
             except Exception as exc:
                 print(f"[VideoTask {task_id}] Failed to delete cancelled downloaded video {local_path}: {exc}")
         shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
-        if shot:
+        if shot and update_shot_result:
             _mark_shot_video_failed(shot, shot_repo, "视频任务已取消")
         db.commit()
         return
@@ -1263,15 +1641,28 @@ async def _save_generated_video(
         # 更新 Shot 记录中的视频数据
         shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
         if shot:
-            _update_clip_result(shot, clip or {}, {
+            result_fields = {
                 "status": "SUCCEEDED",
                 "video_url": local_url,
                 "local_path": local_path,
                 "source_video_url": video_url,
                 "generated_at": datetime.utcnow().isoformat(),
                 "generated_by_task_id": task.id,
-            }, db)
-            _clear_shot_video_error(shot, shot_repo, video_url=local_url, video_status="completed")
+            }
+            if clip_metadata:
+                plan = safe_json_dict(shot.video_director_plan)
+                semantic_clips = plan.get("clip_plan") if isinstance(plan.get("clip_plan"), list) else []
+                for semantic_clip in semantic_clips:
+                    if int(semantic_clip.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0):
+                        semantic_clip.update(result_fields)
+                        semantic_clip["execution_status"] = "APPROVED"
+                        break
+                shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+                db.commit()
+            else:
+                _update_clip_result(shot, clip or {}, result_fields, db)
+            if update_shot_result:
+                _clear_shot_video_error(shot, shot_repo, video_url=local_url, video_status="completed")
             print(f"[VideoTask {task_id}] Shot video updated: {local_url}")
 
         task.status = "completed"
@@ -1279,6 +1670,38 @@ async def _save_generated_video(
         task.result_url = local_url
         task.current_step = "生成完成"
         task.completed_at = datetime.utcnow()
+        metadata = safe_json_dict(task.metadata_json)
+        if metadata.get("execution_scope") == "CLIP":
+            media_duration = _probe_video_duration(local_path)
+            if metadata.get("capability") in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
+                metadata["assembled_result"] = {
+                    "status": "APPROVED",
+                    "url": local_url,
+                    "assembled_media_duration": media_duration,
+                    "clip_plan_revision": metadata.get("clip_plan_revision"),
+                    "clip_index": metadata.get("clip_index"),
+                    "task_id": task.id,
+                    "assembled_at": datetime.utcnow().isoformat(),
+                }
+            metadata.update({
+                "requested_duration": metadata.get("requested_duration"),
+                "actual_duration": media_duration if metadata.get("capability") not in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"} else None,
+                "assembled_media_duration": media_duration if metadata.get("assembled_result") else None,
+                "actual_fps": 24,
+                "approval_status": "APPROVED",
+            })
+            task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+            if metadata.get("assembled_result"):
+                shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+                if shot:
+                    plan = safe_json_dict(shot.video_director_plan)
+                    for semantic_clip in plan.get("clip_plan", []):
+                        if int(semantic_clip.get("clip_index") or 0) == int(metadata.get("clip_index") or 0):
+                            semantic_clip["assembled_result"] = metadata["assembled_result"]
+                            semantic_clip["assembled_media_duration"] = metadata["assembled_media_duration"]
+                            semantic_clip["actual_duration"] = metadata["actual_duration"]
+                            break
+                    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
         db.commit()
 
         print(f"[VideoTask {task_id}] Video saved: {local_url}")
@@ -1287,6 +1710,6 @@ async def _save_generated_video(
         task.error_message = "下载视频失败"
         task.current_step = "下载失败"
         shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
-        if shot:
+        if shot and update_shot_result:
             _mark_shot_video_failed(shot, shot_repo, task.error_message)
         db.commit()

@@ -249,9 +249,61 @@
       "title": "#62 VAE Decode"
     }
   },
+  "65": {
+    "inputs": {
+      "input_count": 1,
+      "context_frames": 39,
+      "video_overlap_frames": 39,
+      "source_fps": 24,
+      "crop": "disabled",
+      "filename_prefix": "video/masked_av_extension",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": true,
+      "save_output": true,
+      "video-preview": "",
+      "video_vae": [
+        "30",
+        0
+      ],
+      "audio_vae": [
+        "102",
+        0
+      ],
+      "start_mode": [
+        "94",
+        0
+      ],
+      "source_frames": [
+        "67",
+        0
+      ],
+      "source_audio": [
+        "93",
+        0
+      ],
+      "preview_gate": [
+        "98",
+        0
+      ],
+      "active_extensions": [
+        "95",
+        0
+      ],
+      "extension_1": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3StreamLiveExtensionAVToVHS",
+    "_meta": {
+      "title": "#65 H3 Stream AV Extensions to VHS"
+    }
+  },
   "66": {
     "inputs": {
-      "video": "H3_Custom_Keyframes_example_00008_.mp4",
+      "video": "shot_004_20260925_151336.mp4",
       "force_rate": 24,
       "custom_width": 0,
       "custom_height": 0,
@@ -369,6 +421,15 @@
       "title": "#94 Start Mode — FIXED Existing Video"
     }
   },
+  "95": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "#95 Active Extensions — FIXED 1"
+    }
+  },
   "96": {
     "inputs": {
       "value": 8
@@ -385,6 +446,35 @@
     "class_type": "MiniMaxH3AVSourceAudioModeParam",
     "_meta": {
       "title": "#97 Source Audio — FIXED Keep source audio"
+    }
+  },
+  "98": {
+    "inputs": {
+      "input_count": 1,
+      "active_extensions": [
+        "95",
+        0
+      ],
+      "preview_1": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3LastActiveVHSPreviewBarrier",
+    "_meta": {
+      "title": "#98 H3 Last Active VHS Preview Barrier"
+    }
+  },
+  "99": {
+    "inputs": {
+      "filenames": [
+        "65",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3FinalizeVHSOutput",
+    "_meta": {
+      "title": "#99 H3 Final Stream Output Sink"
     }
   },
   "101": {
@@ -417,7 +507,7 @@
   },
   "104": {
     "inputs": {
-      "text": "{\n    \"source_fps\": 24.0,\n    \"source_frame_count\": 243.12,\n    \"source_duration\": 10.13,\n    \"source_width\": 864,\n    \"source_height\": 480,\n    \"loaded_fps\": 24.0,\n    \"loaded_frame_count\": 243,\n    \"loaded_duration\": 10.125,\n    \"loaded_width\": 864,\n    \"loaded_height\": 480\n}",
+      "text": "{\n    \"source_fps\": 24.0,\n    \"source_frame_count\": 345.12,\n    \"source_duration\": 14.38,\n    \"source_width\": 864,\n    \"source_height\": 480,\n    \"loaded_fps\": 24.0,\n    \"loaded_frame_count\": 345,\n    \"loaded_duration\": 14.375,\n    \"loaded_width\": 864,\n    \"loaded_height\": 480\n}",
       "anything": [
         "66",
         3
@@ -430,7 +520,7 @@
   },
   "105": {
     "inputs": {
-      "value": 10
+      "value": 14
     },
     "class_type": "PrimitiveFloat",
     "_meta": {
@@ -452,7 +542,7 @@
   },
   "107": {
     "inputs": {
-      "prompt": "Continue directly from the final moment of the selected start clip with no cut, reset, or re-establishment.\n\nThe incoming protected audiovisual prefix is authoritative for pose, motion, camera trajectory, lighting, environment, object state, voice, ambience, speaker identity, and timing.\n\nConnected reference images are identity/appearance references only; never pull any subject back toward a reference-image pose, expression, framing, or lighting.\n\n[Shot 1]\n\nContinue the exact motion, speech, and sound already in progress, then develop the next action naturally. Do not restart from rest.\n\nExactly the same three subjects remain present.\n\n<Subject 3>, the young child, is the speaker already speaking in the incoming audiovisual context. Continue that same speaker naturally.\n\n<Subject 1>, the adult male commoner, remains silent.\n<Subject 2>, the adult female commoner, remains silent.\n\nDo not transfer the ongoing speech to <Subject 1> or <Subject 2>.\n\n<Subject 3> continues the unfinished sentence and says exactly in Mandarin Chinese:\n\n“一个人明明什么都没有看见，却因为害怕别人说自己愚蠢，就假装看见了漂亮的衣服，那最后所有人不就都在说自己根本没有看见的东西了吗？”\n\nDo not repeat “如果”.\nDo not restart the sentence.\nDo not omit, paraphrase, repeat, reorder, or add any words.\n\nContinue the existing body motion, facial expression, gaze, camera movement, and environmental sound naturally from the incoming audiovisual context."
+      "prompt": "dialogue_timeline:\nThis is the only source of exact spoken text in this prompt.\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\n- D3: 皇帝 speaks from 15.0s to 20.18s (5.18s).\n  exact_dialogue: \"“我只需要穿上它，站在所有人面前。”\"\n  segment: complete assigned span.\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\n- D4: 皇帝 speaks from 20.57s to 26.38s (5.8s).\n  exact_dialogue: \"“看得见的人，自然会称赞它。看不见的人……”\"\n  segment: complete assigned span.\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\n- D5: 皇帝 speaks from 23.45s to 28.0s (4.55s).\n  exact_dialogue: \"“谁敢第一个承认自己看不见？”\"\n  segment: complete assigned span.\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\n- D6: 皇帝 speaks from 26.26s to 28.0s (1.74s).\n  exact_dialogue: \"“没有人。”\"\n  segment: complete assigned span.\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\n- D7: 皇帝 speaks from 15.32s to 28.0s (12.68s).\n  exact_dialogue: \"“因为只要他说自己看不见，就等于承认自己愚蠢，或者承认自己根本不配坐在现在的位置上。”\"\n  segment: complete assigned span.\n  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.\nsilent_characters: 官员1\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\n\nsubject_definitions:\n\n<Subject 1> is 皇帝, the middle-aged human male emperor in the purple long robe.\n<Subject 2> is 官员1, the middle-aged human male court official in the dark court official attire.\n\nCharacter names are mapped to Subject labels only in this block. Every later block refers to the people only as <Subject 1> and <Subject 2>.\n\nofficial_character_identity_lock:\n\nThe referenced Picture (<Picture 1>) is the primary visual authority for the currently established visual identity of every character in this clip. The official character descriptions are identity-preservation constraints used to prevent character drift across frames; they supplement the referenced Picture and must not override clearly visible identity features or the current costume established by the Picture.\n\n<Subject 1> is the emperor visible on the left side of <Picture 1>. The currently visible visual identity, face, age, body proportions, hair and current costume of <Subject 1> come primarily from <Picture 1>. The official description of <Subject 1> is used only as an anti-drift constraint and to supplement stable identity details that are occluded, distant or unclear in <Picture 1>: the small mole at the outer end of the left eyebrow, the silver-grey short curly hair with a slightly receded hairline, the light blue almond-shaped eyes with slightly drooping outer corners, the long face with a full forehead and slightly high cheekbones, the clear jawline, the thin lips and the habitually lifted corner of the mouth. Current costume is a separate continuity domain from stable character identity and is governed by <Picture 1> and the current Shot Appearance/costume binding: <Subject 1> wears the purple long robe established by the authoritative start frame. The dark red velvet long coat with gold embroidered trim, the white silk shirt with lace collar, the white tight trousers, the black leather short boots with gold buckles, the golden crown and the ruby ring belong to the historical/default ceremonial costume recorded only for identity reference and are not the current costume; they must not be restored, layered over, blended with, partially revealed under, or mixed into the purple robe at any moment of this clip.\n\n<Subject 2> is the court official visible on the right side of <Picture 1>. The currently visible visual identity, face, age, body proportions, hair and current costume of <Subject 2> come primarily from <Picture 1>. The official description of <Subject 2> is used only as an anti-drift constraint and to supplement stable identity details that are occluded, distant or unclear in <Picture 1>: the small mole above the right eyebrow, the brown short straight hair swept to one side with a little grey at the temples, the dark brown almond-shaped eyes with level outer corners, the square face with a broad forehead and flat cheekbones, the hard jawline, the square chin and the medium-thick lips. Current costume is governed by <Picture 1> and the current Shot Appearance/costume binding: <Subject 2> wears the dark court official attire established by the authoritative start frame. Any garment, cap, belt, trimming or accessory element that is not clearly visible in <Picture 1> must not be added, restored or blended in during the clip.\n\nFor both characters: do not redesign, reinterpret, beautify, age, de-age, recolor or replace the subject. Do not reinterpret shadows, dark lighting, color grading, distance, motion blur or environmental illumination as changes to skin color, hair color or the real color of the current costume. Temporary pose, expression, gaze direction, body orientation, spatial position and physically natural motion may change according to the motion described below. Stable identity features and the current costume must remain consistent from the first frame to the last frame of the clip.\n\ninitial_state_anchor:\n\n<Picture 1> defines the authoritative initial visual state and the initial composition, environment, lighting, camera framing, character positions, poses, costumes, props, and visual style for this clip. At the beginning of the clip, the frame must naturally continue from <Picture 1> without resetting, swapping, or arbitrarily repositioning the subjects. After motion begins, character positions, poses, gaze directions, body orientations, and framing may evolve naturally only as required by the described actions and camera movement. Stable character identity, body proportions, skin and hair colors, permanent markings, and identity-defining accessories must remain consistent throughout the clip. Current costume continuity is governed by the authoritative Picture and the current Shot Appearance/costume binding, not by conflicting historical/default costume descriptions.\n\nsummary:\n\nContinuing directly from <Picture 1>, <Subject 1> keeps the right hand raised in a halting gesture and holds the gaze on <Subject 2>, while <Subject 2> opens the mouth as if about to speak, is stopped by the gesture, slowly closes the mouth, freezes for a moment and then stays silent. <Subject 1> speaks the authorized lines in order while slowly pacing two steps from the left of the frame toward the center, then stops on the final line, turns the head toward <Subject 2> and smiles more deeply, while the camera follows and slowly pulls back from a medium shot to a two-person wide shot, ending on the standoff between the two subjects. No event outside this clip is introduced.\n\ndetailed_description:\n\n[Shot 1] The clip begins exactly from <Picture 1> at t=0. <Subject 1> stands on the left side of the frame in the purple long robe, body facing <Subject 2>, right hand already raised in the halting gesture, gaze fixed on <Subject 2>. <Subject 2> stands on the right side in the dark court official attire, body leaning slightly forward, mouth slightly open, watching <Subject 1>. There is no reset of positions, no identity swap, no added character, no change of costume, and no new prop. The scene is the dressing area of the palace hall, with soft mixed overhead and side light creating a light-and-shadow contrast between the two subjects, rendered in stylized 3D animation with clean modeled forms, readable volumes, smooth surface shading, soft bounced light, coherent contact shadows, controlled material roughness, restrained specular highlights, and consistent three-dimensional rendering across characters, environment and props.\n\n<Subject 2> begins to open the mouth as if about to speak, but <Subject 1> keeps the raised right hand steady in the stopping gesture and looks directly at <Subject 2>. <Subject 2> is halted by that gesture, slowly closes the mouth, freezes for a moment, and then remains silent for the rest of the clip. <Subject 2> remains completely non-vocal throughout the entire clip, with the mouth naturally closed and only subtle non-vocal breathing and micro-expressions.\n\n<Subject 1> speaks while slowly pacing two steps from the left side of the frame toward the center of the frame, the raised right hand gradually lowering into a relaxed, still position, and the gaze of <Subject 1> stays fixed on <Subject 2> throughout. On the final authorized line, <Subject 1> stops walking, turns the head of <Subject 1> toward <Subject 2>, and the smile of <Subject 1> deepens into a cold, satisfied expression held in silence. The camera follows the movement of <Subject 1> and slowly pulls back from a medium shot to a two-person wide shot, ending on the standoff between the two subjects as a stable, clearly visible final state. No cut, no hidden edit, no sudden camera repositioning, and no jump in framing, lighting or spatial direction occurs.\n\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D3 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. Before the first spoken character, there must be no human vocal sound. At the final spoken character, human vocalization and lip synchronization must end together. Natural Chinese lip synchronization applies only during this exact authorized dialogue; no subtitles, no captions, no on-screen text. Between authorized utterances, <Subject 1> remains non-vocal with no voiced breath, gasp, grunt, hesitation, filler, invented syllable or pseudo-speech.\n\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D4 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. At the final spoken character, human vocalization and lip synchronization must end together. Natural Chinese lip synchronization applies only during this exact authorized dialogue; no subtitles, no captions, no on-screen text.\n\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D5 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. At the final spoken character, human vocalization and lip synchronization must end together. Natural Chinese lip synchronization applies only during this exact authorized dialogue; no subtitles, no captions, no on-screen text.\n\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D6 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. At the final spoken character, human vocalization and lip synchronization must end together. Natural Chinese lip synchronization applies only during this exact authorized dialogue; no subtitles, no captions, no on-screen text.\n\nThen <Subject 1> speaks exactly one utterance in Chinese. The complete and exact spoken dialogue is: assigned dialogue D7 Speak only the exact quoted dialogue. Do not add any words, names, titles, forms of address, interjections, filler words, or vocal sounds before or after it. Do not speak the character name. The spoken dialogue must start directly with the first spoken character inside the quotation marks and stop immediately after the final spoken character inside the quotation marks. At the final spoken character, human vocalization and lip synchronization must end together. Immediately afterward, the speaking <Subject 1> enters a silent post-utterance state, with the mouth naturally settled into a non-speaking state while the cold, satisfied expression is held silently. Natural Chinese lip synchronization applies only during the exact authorized dialogue; no subtitles, no captions, no on-screen text.\n\n<Subject 2> never speaks and never produces any human vocal sound at any moment of the clip. No character name, Subject label, role label or metadata token is ever vocalized.\n\noverall_soundscape:\n\nInterior palace hall room tone with a soft, slightly reverberant pre-modern court ambience; synchronized Foley of cloth rustle from the purple long robe of <Subject 1>, soft footsteps on the stone floor while <Subject 1> paces two steps, subtle shifting of the dark official attire of <Subject 2>, and faint air movement in the large hall. The only human voice in the entire clip is the exact authorized Chinese dialogue of <Subject 1> listed above, delivered with confident, drawn-out, cold and satisfied delivery as marked, and ending immediately after the final authorized character with no trailing vocalization. No dialogue, no speech, no human vocalization from <Subject 2>, no background voices, no crowd murmur or chatter, no whispering, no laughter, no grunts, no sighs, no babble, no pseudo-speech and no invented syllables from any other source. No narration and no non-diegetic music. The audio track must NOT be silent: environmental ambience and synchronized natural action sounds remain audible throughout the clip, and character silence must NOT suppress ambience or Foley."
     },
     "class_type": "CR Prompt Text",
     "_meta": {
@@ -461,7 +551,7 @@
   },
   "108": {
     "inputs": {
-      "text": "243",
+      "text": "345",
       "anything": [
         "106",
         1

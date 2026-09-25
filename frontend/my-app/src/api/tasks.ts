@@ -17,11 +17,46 @@ export interface Task {
   created_at: string;
   updated_at: string;
   workflow_id?: string;
+  name?: string;
+  workflowName?: string;
+  resultUrl?: string | null;
+  completedAt?: string | null;
+  clipExecution?: {
+    execution_scope?: string;
+    clip_id?: string;
+    clip_index?: number;
+    clip_plan_revision?: number;
+    capability?: string;
+    planned_duration?: number;
+    requested_duration?: number;
+    actual_duration?: number | null;
+    assembled_media_duration?: number | null;
+    assembled_result?: { status?: string; url?: string; assembled_media_duration?: number | null; clip_index?: number; task_id?: string } | null;
+    approval_status?: string;
+    approval_mode?: string;
+    previous_approved_task_id?: string | null;
+    previous_approved_video_url?: string | null;
+    previous_approved_video_source?: string | null;
+    temporal_anchor_ids?: string[];
+    dialogue_assignment?: Array<{
+      dialogue_id: string;
+      segment_index: number;
+      speaker: string;
+      text: string;
+      estimated_duration: number;
+      is_continuation: boolean;
+      continues_in_next_clip: boolean;
+    }>;
+  } | null;
 }
 
 export const taskApi = {
   /** 获取任务列表 */
   fetchList: (limit = 1000) => api.get<Task[]>(`/tasks/?limit=${limit}`),
+
+  /** Get tasks attached to a single Shot, including Clip-scoped metadata. */
+  fetchShotTasks: (chapterId: string, shotId: string) =>
+    api.get<Task[]>(`/tasks/?chapter_id=${encodeURIComponent(chapterId)}&shot_id=${encodeURIComponent(shotId)}&type=shot_video&limit=100`),
 
   /** 获取单个任务 */
   fetch: (id: string) => api.get<Task>(`/tasks/${id}/`),

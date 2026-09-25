@@ -90,3 +90,25 @@ def test_deepseek_v4_text_request_does_not_force_thinking():
 
     assert "thinking" not in body
     assert body["stream"] is False
+
+
+def test_proxy_disabled_does_not_inherit_process_proxy_environment(monkeypatch):
+    import httpx
+
+    provider = make_provider()
+    captured = {}
+
+    def create_client(**kwargs):
+        captured.update(kwargs)
+        return object()
+
+    monkeypatch.setenv("HTTP_PROXY", "http://ambient-proxy.invalid:8888")
+    monkeypatch.setenv("HTTPS_PROXY", "http://ambient-proxy.invalid:8888")
+    monkeypatch.setattr(httpx, "AsyncClient", create_client)
+    provider.config.proxy_enabled = False
+
+    client = provider._build_http_client(timeout=600)
+
+    assert client is not None
+    assert captured["trust_env"] is False
+    assert "proxy" not in captured

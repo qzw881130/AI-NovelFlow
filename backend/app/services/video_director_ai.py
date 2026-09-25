@@ -207,7 +207,11 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
     for index, dialogue in enumerate(clip_dialogues or [], 1):
         if not isinstance(dialogue, dict):
             continue
-        text = _dialogue_text(dialogue)
+        text = (
+            str(dialogue.get("text") or dialogue.get("dialogue") or "")
+            if dialogue.get("dialogue_id")
+            else _dialogue_text(dialogue)
+        )
         speaker = _dialogue_speaker(dialogue)
         if not text or not speaker:
             continue
@@ -247,8 +251,8 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
             end = clip_end
 
         actual_duration = max(0, end - start)
-        assigned.append({
-            "id": f"D{index}",
+        timeline_item = {
+            "id": str(dialogue.get("dialogue_id") or f"D{index}"),
             "speaker": speaker,
             "text": text,
             "start_time": round(start, 2),
@@ -257,7 +261,12 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
             "min_required_duration": round(min_duration, 2),
             "duration_sufficient": actual_duration + 0.05 >= min_duration,
             "emotion_prompt": emotion_prompt,
-        })
+        }
+        if dialogue.get("dialogue_id"):
+            timeline_item["segment_index"] = int(dialogue.get("segment_index") or 1)
+            timeline_item["is_continuation"] = bool(dialogue.get("is_continuation"))
+            timeline_item["continues_in_next_clip"] = bool(dialogue.get("continues_in_next_clip"))
+        assigned.append(timeline_item)
         cursor = min(clip_end, end + 0.4)
 
     authorized_speakers = {
@@ -276,11 +285,18 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
 def _render_dialogue_timeline_block(assigned_dialogues: list, silent_characters: list) -> str:
     if not assigned_dialogues:
         return "dialogue_timeline:\nNo assigned dialogue. All characters remain silent throughout the entire clip."
-    lines = ["dialogue_timeline:", "This is the only source of exact spoken text in this prompt."]
+    lines = [
+        "dialogue_timeline:",
+        "This is the only source of exact spoken text in this prompt.",
+        "Speak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.",
+    ]
     for item in assigned_dialogues:
+        continuation = " This is a continuation of the same utterance; do not restart or repeat its earlier part." if item.get("is_continuation") else ""
+        next_continuation = " This utterance continues into the next Clip." if item.get("continues_in_next_clip") else ""
         lines.extend([
             f"- {item['id']}: {item['speaker']} speaks from {item['start_time']}s to {item['end_time']}s ({item['duration']}s).",
             f"  exact_dialogue: \"{item['text']}\"",
+            f"  segment: {item.get('segment_index', 1)}; {continuation.strip()}{next_continuation}" if item.get("segment_index", 1) > 1 or item.get("continues_in_next_clip") else "  segment: complete assigned span.",
             "  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.",
         ])
     if silent_characters:
@@ -387,17 +403,18 @@ async def build_h3_video_prompt(
         }
     ]
     is_multi_clip = selected_mode == "MULTI_KEYFRAME"
+    is_semantic_clip = bool(clip_dialogues and any(isinstance(item, dict) and item.get("dialogue_id") for item in clip_dialogues))
     shot_characters = safe_json_list(shot.characters)
     assigned_dialogues, silent_characters = build_dialogue_timeline(clip, clip_dialogues, shot_characters)
     dialogue_payload = [
-        {key: value for key, value in item.items() if key != "text"}
+        {key: value for key, value in item.items() if key not in {"text", "source_order"}}
         for item in assigned_dialogues
     ]
     character_appearances = character_appearances or {}
     sanitized_transitions = _sanitize_transitions_for_h3(transitions)
     clip_motion_directive = (
         _build_clip_motion_directive(shot, clip, sanitized_transitions)
-        if is_multi_clip
+        if is_multi_clip or is_semantic_clip
         else _strip_voice_rules_from_text(shot.video_description or shot.description or "")
     )
     payload = {
@@ -405,19 +422,19 @@ async def build_h3_video_prompt(
             "id": shot.id,
             "index": shot.index,
             "description": shot.description or "",
-            "video_description": "" if is_multi_clip else _strip_voice_rules_from_text(shot.video_description or ""),
+        "video_description": "" if is_multi_clip or is_semantic_clip else _strip_voice_rules_from_text(shot.video_description or ""),
             "duration": shot.duration or 4,
             "continuity_mode": shot.continuity_mode or "NORMAL",
             "characters": shot_characters,
             "official_character_appearances": character_appearances,
             "scene": shot.scene or "",
             "props": get_visual_prop_names(db, novel.id, safe_json_list(shot.props)),
-            "dialogues": dialogue_payload if is_multi_clip else safe_json_list(shot.dialogues),
+        "dialogues": dialogue_payload if is_multi_clip or is_semantic_clip else safe_json_list(shot.dialogues),
         },
         "selected_mode": selected_mode,
         "clip": strip_clip_generation_data(clip),
         "motion_directive": clip_motion_directive,
-        "clip_dialogues": dialogue_payload if is_multi_clip else clip_dialogues,
+        "clip_dialogues": dialogue_payload if is_multi_clip or is_semantic_clip else clip_dialogues,
         "dialogue_timeline_source": assigned_dialogues,
         "silent_characters": silent_characters,
         "frames": frames,
@@ -465,7 +482,7 @@ async def build_h3_video_prompt(
     if continuity_lock:
         final_prompt = f"{continuity_lock}\n\n{final_prompt}"
     dialogue_audit = None
-    if is_multi_clip:
+    if is_multi_clip or is_semantic_clip:
         timeline_block = _render_dialogue_timeline_block(assigned_dialogues, silent_characters)
         final_prompt = _remove_dialogue_text_outside_single_block(final_prompt, assigned_dialogues, timeline_block)
         dialogue_audit = _audit_final_h3_prompt(final_prompt, assigned_dialogues, silent_characters)

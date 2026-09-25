@@ -55,7 +55,7 @@ class ComfyUIClient:
                 "success": bool,
                 "filename": str,  # ComfyUI 中的文件名
                 "message": str
-            }
+             }
         """
         try:
             import os
@@ -99,6 +99,30 @@ class ComfyUIClient:
                 "success": False,
                 "message": f"上传图片失败: {str(e)}"
             }
+
+    async def upload_video(self, video_path: str) -> Dict[str, Any]:
+        """Upload a local video to ComfyUI input storage."""
+        try:
+            import os
+            if not os.path.exists(video_path):
+                return {"success": False, "message": f"视频文件不存在: {video_path}"}
+            filename = os.path.basename(video_path)
+            async with self._client() as client:
+                with open(video_path, "rb") as file:
+                    # ComfyUI's upload API accepts video files through the
+                    # same /upload/image endpoint used by its UI.
+                    response = await client.post(
+                        f"{self.base_url}/upload/image",
+                        files={"image": (filename, file, "video/mp4")},
+                        data={"type": "input", "overwrite": "true"},
+                        timeout=120.0,
+                    )
+                if response.status_code == 200:
+                    data = response.json()
+                    return {"success": True, "filename": data.get("name") or data.get("filename") or filename}
+                return {"success": False, "message": f"视频上传失败 (HTTP {response.status_code}): {response.text}"}
+        except Exception as exc:
+            return {"success": False, "message": f"视频上传失败: {exc}"}
 
     async def upload_audio(self, audio_path: str) -> Dict[str, Any]:
         """

@@ -164,6 +164,23 @@ export interface VideoDirectorPlan {
   }>;
   merged_video_url?: string;
   merged_at?: string;
+  clip_plan_revision?: number;
+  clip_plan_approval_mode?: string;
+  clip_plan_validation?: { passed?: boolean; findings?: Array<{ code?: string; severity?: string; message?: string }> };
+  clip_plan_findings?: Array<{ code?: string; severity?: string; message?: string }>;
+  clip_plan?: Array<{
+    clip_index: number;
+    start_time: number;
+    end_time: number;
+    planned_duration?: number;
+    capability: string;
+    previous_clip_index?: number | null;
+    temporal_anchor_ids?: string[];
+    execution_status?: string;
+    approval_mode?: string;
+    prompt_text?: string;
+    [key: string]: any;
+  }>;
   ai_calls?: VideoAiCall[];
   validation?: Record<string, any>;
 }

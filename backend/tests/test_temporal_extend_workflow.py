@@ -32,13 +32,15 @@ def test_temporal_extend_system_workflow_is_registered(db_session):
         "keyframe_node_7": "133",
         "keyframe_node_8": "134",
         "custom_keyframes_node_id": "116",
-        "video_save_node_id": "39",
+        "video_save_node_id": "65",
     }
     assert nodes["66"]["type"] == "VHS_LoadVideoFFmpeg"
     assert nodes["125"]["type"] == "PrimitiveFloat"
     assert [nodes[node_id]["type"] for node_id in ["117", "128", "129", "130", "131", "132", "133", "134"]] == ["LoadImage"] * 8
     assert nodes["116"]["type"] == "MiniMaxH3CustomKeyframes"
     assert nodes["39"]["type"] == "VHS_VideoCombine"
+    assert nodes["65"]["type"] == "MiniMaxH3StreamLiveExtensionAVToVHS"
+    assert nodes["99"]["type"] == "MiniMaxH3FinalizeVHSOutput"
 
 
 def _temporal_workflow_and_mapping():
@@ -56,7 +58,7 @@ def _temporal_workflow_and_mapping():
         "keyframe_node_7": "133",
         "keyframe_node_8": "134",
         "custom_keyframes_node_id": "116",
-        "video_save_node_id": "39",
+        "video_save_node_id": "65",
     }
     return workflow, mapping
 
@@ -72,7 +74,7 @@ def test_temporal_extend_builder_bypasses_custom_keyframes_for_zero_anchors():
     assert "116" not in node_ids
     assert not node_ids.intersection({"117", "128", "129", "130", "131", "132", "133", "134"})
     assert any(link[1] == 55 and link[3] == 2 and link[4] == 1 for link in result["links"])
-    save = next(node for node in result["nodes"] if node["id"] == 39)
+    save = next(node for node in result["nodes"] if node["id"] == 65)
     assert save["widgets_values_named"]["filename_prefix"] == "story_test/temporal_extend"
     assert save["widgets_values_named"]["save_output"] is True
 

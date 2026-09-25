@@ -38,6 +38,15 @@ SYSTEM_STORY_CONTEXT_TEMPLATES: List[Dict] = [
     }
 ]
 
+SYSTEM_CLIP_PLANNER_TEMPLATES: List[Dict] = [
+    {
+        "name": "Clip Execution Planner",
+        "description": "按自然剧情节拍将 Shot 编译为可执行 Generation Clips",
+        "template": load_template("clip_execution_planner.txt"),
+        "type": "clip_execution_planner",
+    }
+]
+
 
 # 系统预设的风格提示词模板（独立类型，用于图片生成的风格描述）
 SYSTEM_STYLE_TEMPLATES: List[Dict] = [
@@ -365,6 +374,7 @@ SYSTEM_KEYFRAME_DESCRIPTION_TEMPLATES: List[Dict] = [
 # 合并所有系统模板
 SYSTEM_PROMPT_TEMPLATES = (
     SYSTEM_STORY_CONTEXT_TEMPLATES +
+    SYSTEM_CLIP_PLANNER_TEMPLATES +
     SYSTEM_STYLE_TEMPLATES +
     SYSTEM_CHARACTER_PARSE_TEMPLATES +
     SYSTEM_SCENE_PARSE_TEMPLATES +

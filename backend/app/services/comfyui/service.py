@@ -4,6 +4,7 @@ ComfyUI 服务
 高级业务方法，组合客户端和工作流构建器
 """
 import inspect
+import json
 from typing import Dict, Any, Optional, List
 
 from .client import ComfyUIClient
@@ -280,6 +281,7 @@ class ComfyUIService:
         prop_appearances: Optional[Dict[str, str]] = None,
         reference_audio_path: Optional[str] = None,
         keyframe_paths: Optional[List[str]] = None,
+        strict_reference_image: bool = False,
         on_prompt_queued=None
     ) -> Dict[str, Any]:
         """使用指定工作流生成分镜视频 (LTX2)
@@ -304,6 +306,13 @@ class ComfyUIService:
                 prop_appearances=prop_appearances
             )
 
+            if strict_reference_image:
+                if not character_reference_path:
+                    return {"success": False, "message": "SINGLE_FRAME semantic Clip 缺少 Shot Image"}
+                load_image_nodes = self.builder.prepare_strict_reference_image(workflow)
+                if not load_image_nodes:
+                    return {"success": False, "message": "SINGLE_FRAME semantic Clip workflow 缺少 LoadImage 节点"}
+
             reference_image_node_id = node_mapping.get("reference_image_node_id", "12")
 
             # 上传参考图片
@@ -313,16 +322,28 @@ class ComfyUIService:
                 if upload_result.get("success"):
                     uploaded_filename = upload_result.get("filename")
 
-                    if reference_image_node_id in workflow:
-                        workflow[reference_image_node_id]["inputs"]["image"] = uploaded_filename
+                    if str(reference_image_node_id) in workflow and workflow[str(reference_image_node_id)].get("class_type") == "LoadImage":
+                        workflow[str(reference_image_node_id)]["inputs"]["image"] = uploaded_filename
                     else:
-                        # 自动查找 LoadImage 节点
-                        for node_id, node in workflow.items():
-                            if node.get("class_type") == "LoadImage":
-                                workflow[node_id]["inputs"]["image"] = uploaded_filename
-                                break
+                        load_image_ids = self.builder.prepare_strict_reference_image(workflow, uploaded_filename) if strict_reference_image else [
+                            str(node_id) for node_id, node in workflow.items()
+                            if node.get("class_type") == "LoadImage"
+                        ]
+                        targets = load_image_ids if strict_reference_image else load_image_ids[:1]
+                        for node_id in targets:
+                            workflow[node_id].setdefault("inputs", {})["image"] = uploaded_filename
                 else:
                     return {"success": False, "message": f"图片上传失败: {upload_result.get('message')}"}
+            elif strict_reference_image:
+                return {"success": False, "message": "SINGLE_FRAME semantic Clip 的 Shot Image 上传失败"}
+
+            if strict_reference_image and not any(
+                node.get("class_type") == "LoadImage"
+                and node.get("inputs", {}).get("image")
+                for node in workflow.values()
+                if isinstance(node, dict)
+            ):
+                return {"success": False, "message": "Shot Image 未注入 semantic Clip workflow"}
 
             # 上传参考音频并注入工作流
             if reference_audio_path:
@@ -419,6 +440,47 @@ class ComfyUIService:
         except Exception as e:
             print(f"[ComfyUI] Generate shot video failed: {e}")
             return {"success": False, "message": f"生成失败: {str(e)}"}
+
+    async def generate_video_continuation_with_workflow(self, prompt, workflow_json, node_mapping, previous_video_path, duration_seconds, filename_prefix, capability="VIDEO_CONTINUATION", anchors=None, on_prompt_queued=None):
+        try:
+            workflow_json = json.loads(workflow_json) if isinstance(workflow_json, str) else json.loads(json.dumps(workflow_json))
+            upload = await self.client.upload_video(previous_video_path)
+            if not upload.get("success"):
+                return {"success": False, "message": upload.get("message") or "Previous AV 上传失败"}
+            if capability == "TEMPORAL_EXTEND":
+                uploaded_anchors = []
+                for anchor in anchors or []:
+                    anchor_path = anchor.get("image_path") or anchor.get("image")
+                    if anchor_path and not str(anchor_path).startswith("http"):
+                        upload_anchor = await self.client.upload_image(anchor_path)
+                        if not upload_anchor.get("success"):
+                            return {"success": False, "message": f"Temporal Anchor 上传失败: {upload_anchor.get('message')}"}
+                        anchor = {**anchor, "image": upload_anchor.get("filename")}
+                    uploaded_anchors.append(anchor)
+                workflow = self.builder.build_temporal_extend_workflow(
+                    workflow_json, node_mapping, upload["filename"], duration_seconds, uploaded_anchors, filename_prefix, prompt
+                )
+                # Temporal Extend is stored as a ComfyUI UI graph; /prompt
+                # requires the API graph representation.
+                workflow = self.builder.convert_ui_to_api(workflow)
+            else:
+                workflow = self.builder.build_video_continuation_workflow(
+                    workflow_json,
+                    node_mapping,
+                    upload["filename"],
+                    duration_seconds,
+                    prompt,
+                    filename_prefix,
+                )
+            queued = await self.client.queue_prompt(workflow)
+            if not queued.get("success"):
+                return {"success": False, "message": queued.get("error") or "续生成任务提交失败"}
+            prompt_id = queued.get("prompt_id")
+            self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
+            result = await self.client.wait_for_result(prompt_id, workflow, node_mapping.get("video_save_node_id"), timeout=7200)
+            return {**result, "prompt_id": prompt_id, "submitted_workflow": workflow}
+        except Exception as exc:
+            return {"success": False, "message": str(exc)}
     
     async def generate_transition_video_with_workflow(
         self,

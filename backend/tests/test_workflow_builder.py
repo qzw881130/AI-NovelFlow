@@ -40,6 +40,122 @@ def test_video_workflow_uses_one_explicit_seed_for_all_seed_nodes():
     assert extract_workflow_seed(result) == 4294967296
 
 
+def test_strict_reference_image_clears_default_load_image_values_and_sets_all_nodes():
+    builder = load_workflow_builder()()
+    workflow = {
+        "137": {"class_type": "LoadImage", "inputs": {"image": "file1.png"}},
+        "138": {"class_type": "LoadImage", "inputs": {"image": "old.png"}},
+    }
+
+    node_ids = builder.prepare_strict_reference_image(workflow)
+    assert node_ids == ["137", "138"]
+    assert workflow["137"]["inputs"]["image"] == ""
+    assert workflow["138"]["inputs"]["image"] == ""
+
+    builder.prepare_strict_reference_image(workflow, "shot-image-upload.png")
+    assert workflow["137"]["inputs"]["image"] == "shot-image-upload.png"
+    assert workflow["138"]["inputs"]["image"] == "shot-image-upload.png"
+
+
+def test_video_continuation_keeps_source_audio_and_preserves_previous_video_input():
+    builder = load_workflow_builder()()
+    workflow = {
+        "66": {"class_type": "VHS_LoadVideoFFmpeg", "inputs": {"video": "old.mp4"}},
+        "105": {"class_type": "PrimitiveFloat", "inputs": {"value": 10}},
+        "107": {"class_type": "CR Prompt Text", "inputs": {"prompt": "old prompt"}},
+        "39": {"class_type": "VHS_VideoCombine", "inputs": {"filename_prefix": "old"}},
+        "97": {"class_type": "MiniMaxH3AVSourceAudioModeParam", "inputs": {"source_audio": "Keep source audio"}},
+        "93": {"class_type": "MiniMaxH3SourceAudioPolicy", "inputs": {}},
+    }
+
+    result = builder.build_video_continuation_workflow(
+        workflow,
+        {"load_video_node_id": "66", "duration_seconds_node_id": "105", "prompt_node_id": "107", "video_save_node_id": "39"},
+        "previous.mp4",
+        10,
+        "continue dialogue",
+        "clip-2",
+    )
+
+    assert result["66"]["inputs"]["video"] == "previous.mp4"
+    assert result["97"]["inputs"]["source_audio"] == "Keep source audio"
+    assert result["107"]["inputs"]["prompt"] == "continue dialogue"
+    assert "regenerated_latent" not in result["93"]["inputs"]
+
+
+def test_video_continuation_restores_formal_keep_audio_topology():
+    builder = load_workflow_builder()()
+    workflow = {
+        "66": {"inputs": {"video": "old.mp4"}, "class_type": "VHS_LoadVideoFFmpeg"},
+        "105": {"inputs": {"value": 10}, "class_type": "PrimitiveFloat"},
+        "107": {"inputs": {"prompt": "old"}, "class_type": "CR Prompt Text"},
+        "39": {"inputs": {"filename_prefix": "old"}, "class_type": "VHS_VideoCombine"},
+        "97": {"inputs": {"source_audio": "Keep source audio"}, "class_type": "MiniMaxH3AVSourceAudioModeParam"},
+        "93": {"inputs": {"mode": ["97", 0], "video_info": ["66", 3]}, "class_type": "MiniMaxH3SourceAudioPolicy"},
+        "23": {"inputs": {"source_audio": ["93", 0], "latent": ["55", 1]}, "class_type": "MiniMaxH3StartMaskedContext"},
+        "3": {"inputs": {"latent_image": ["23", 0]}, "class_type": "SamplerCustomAdvanced"},
+        "61": {"inputs": {"samples": ["3", 0]}, "class_type": "VAEDecodeAudio"},
+        "62": {"inputs": {"samples": ["3", 0]}, "class_type": "VAEDecode"},
+    }
+    result = builder.build_video_continuation_workflow(
+        workflow,
+        {"load_video_node_id": "66", "duration_seconds_node_id": "105", "prompt_node_id": "107", "video_save_node_id": "39"},
+        "c1-approved.mp4",
+        14,
+        "continuation prompt",
+        "clip-2",
+    )
+    assert result["66"]["inputs"]["video"] == "c1-approved.mp4"
+    assert result["97"]["inputs"]["source_audio"] == "Keep source audio"
+    assert "regenerated_latent" not in result["93"]["inputs"]
+    assert result["93"]["inputs"]["video_info"] == ["66", 3]
+    assert result["23"]["inputs"]["source_audio"] == ["93", 0]
+    assert result["23"]["inputs"]["latent"] == ["55", 1]
+    assert result["3"]["inputs"]["latent_image"] == ["23", 0]
+    assert result["61"]["inputs"]["samples"] == ["3", 0]
+    assert result["62"]["inputs"]["samples"] == ["3", 0]
+
+
+def test_temporal_extend_preserves_formal_keep_audio_mode_in_api_and_ui_workflows():
+    builder = load_workflow_builder()()
+    api_workflow = {
+        "66": {"class_type": "VHS_LoadVideoFFmpeg", "inputs": {"video": "old.mp4"}},
+        "105": {"class_type": "PrimitiveFloat", "inputs": {"value": 10}},
+        "107": {"class_type": "CR Prompt Text", "inputs": {"prompt": "old prompt"}},
+        "39": {"class_type": "VHS_VideoCombine", "inputs": {"filename_prefix": "old"}},
+        "97": {"class_type": "MiniMaxH3AVSourceAudioModeParam", "inputs": {"source_audio": "Keep source audio"}},
+        "custom": {"class_type": "CustomKeyframes", "inputs": {"conditioning": ["55", 0]}},
+        "55": {"class_type": "MiniMaxH3ReferenceToVideo", "inputs": {}},
+    }
+    mapping = {
+        "load_video_node_id": "66",
+        "duration_seconds_node_id": "105",
+        "prompt_node_id": "107",
+        "video_save_node_id": "39",
+        "custom_keyframes_node_id": "custom",
+    }
+    api_result = builder.build_temporal_extend_workflow(api_workflow, mapping, "previous.mp4", 10, [], "clip-next", "next speech")
+    assert api_result["66"]["inputs"]["video"] == "previous.mp4"
+    assert api_result["97"]["inputs"]["source_audio"] == "Keep source audio"
+
+    ui_workflow = {
+        "nodes": [
+            {"id": "66", "type": "VHS_LoadVideoFFmpeg", "widgets_values_named": {"video": "old.mp4"}, "widgets_values": ["old.mp4"]},
+            {"id": "105", "type": "PrimitiveFloat", "widgets_values_named": {"value": 10}, "widgets_values": [10]},
+            {"id": "107", "type": "CR Prompt Text", "widgets_values_named": {"prompt": "old prompt"}, "widgets_values": ["old prompt"]},
+            {"id": "39", "type": "VHS_VideoCombine", "widgets_values_named": {"filename_prefix": "old", "save_output": False}, "widgets_values": ["old"]},
+            {"id": "97", "type": "MiniMaxH3AVSourceAudioModeParam", "widgets_values_named": {"source_audio": "Keep source audio"}, "widgets_values": ["Keep source audio"]},
+            {"id": "custom", "type": "CustomKeyframes", "inputs": [], "widgets_values": []},
+        ],
+        "links": [],
+    }
+    ui_mapping = {**mapping, "custom_keyframes_node_id": "custom"}
+    ui_result = builder.build_temporal_extend_workflow(ui_workflow, ui_mapping, "previous.mp4", 10, [], "clip-next", "next speech")
+    ui_nodes = {str(node["id"]): node for node in ui_result["nodes"]}
+    assert ui_nodes["66"]["widgets_values_named"]["video"] == "previous.mp4"
+    assert ui_nodes["97"]["widgets_values_named"]["source_audio"] == "Keep source audio"
+
+
 def test_workflow_seed_extraction_rejects_ambiguous_values():
     workflow = {
         "1": {"inputs": {"seed": 10}},

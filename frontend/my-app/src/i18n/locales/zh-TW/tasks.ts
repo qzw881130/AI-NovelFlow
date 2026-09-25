@@ -60,6 +60,7 @@ export default {
       cancelled: '已取消',
     },
     referenceImages: '參考圖',
+    referenceVideo: '參考影片',
     referenceImage: '參考圖',
     types: {
       characterPortrait: '人設生成',
@@ -133,5 +134,8 @@ export default {
     workflowDetails: '工作流詳情',
     generationPrompt: '生成提示詞',
     workflowJSON: '工作流 JSON',
+    boundWorkflowParameters: '工作流綁定參數（{count} 項）',
+    showOnlyMappedNodes: '只顯示節點映射設定中的節點',
+    noMappedNodes: '此工作流沒有可用的節點映射設定。',
   },
 };

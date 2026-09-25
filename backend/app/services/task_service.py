@@ -15,7 +15,7 @@ from app.core.database import SessionLocal
 from app.core.config import get_settings
 from app.utils.time_utils import format_datetime
 from app.models.task import Task
-from app.models.novel import Novel
+from app.models.novel import Novel, Chapter
 from app.models.workflow import Workflow
 from app.models.llm_log import LLMLog
 from app.repositories import TaskRepository, WorkflowRepository
@@ -425,6 +425,108 @@ class TaskService:
 
         if task.status not in ["failed", "completed"]:
             return {"success": False, "message": "只能重试失败或已完成的任务", "status_code": 400}
+
+        try:
+            clip_metadata = json.loads(task.metadata_json or "{}")
+        except (TypeError, ValueError):
+            clip_metadata = {}
+        if task.type == "shot_video" and clip_metadata.get("execution_scope") == "CLIP":
+            required = (
+                "clip_id", "clip_index", "clip_plan_revision", "capability",
+                "planned_duration", "requested_duration", "dialogue_assignment",
+            )
+            if any(key not in clip_metadata for key in required):
+                return {"success": False, "message": "Clip 重试失败：semantic Clip metadata 不完整", "status_code": 400}
+            if not task.novel_id or not task.chapter_id or not task.shot_id or not task.workflow_id:
+                return {"success": False, "message": "Clip 重试失败：缺少 Novel、Chapter、Shot 或 Workflow 关联", "status_code": 400}
+
+            shot_repo = ShotRepository(db)
+            shot = shot_repo.get_by_id(task.shot_id)
+            chapter = db.query(Chapter).filter(Chapter.id == task.chapter_id).first()
+            if not shot or shot.chapter_id != task.chapter_id or not chapter or chapter.novel_id != task.novel_id:
+                return {"success": False, "message": "Clip 重试失败：Novel、Chapter 与 Shot 关联不一致", "status_code": 400}
+
+            try:
+                shot_plan = json.loads(shot.video_director_plan or "{}")
+            except (TypeError, ValueError):
+                shot_plan = {}
+            plan_clip = next((
+                item for item in shot_plan.get("clip_plan", [])
+                if int(item.get("clip_index") or 0) == int(clip_metadata["clip_index"])
+            ), None)
+            if (
+                int(shot_plan.get("clip_plan_revision") or 0) != int(clip_metadata["clip_plan_revision"])
+                or not plan_clip
+                or f"{shot.id}:clip:{clip_metadata['clip_index']}" != clip_metadata["clip_id"]
+            ):
+                return {"success": False, "message": "Clip 重试失败：Shot 中已不存在相同 revision/Clip identity", "status_code": 409}
+
+            capability = clip_metadata.get("capability")
+            workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
+            if not workflow or workflow.type != capability:
+                return {"success": False, "message": "Clip 重试失败：原 Workflow 不存在或与 Clip capability 不匹配", "status_code": 400}
+            if capability in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
+                previous_task_id = clip_metadata.get("previous_approved_task_id")
+                previous_video_url = clip_metadata.get("previous_approved_video_url")
+                previous_task = task_repo.get_by_id(previous_task_id) if previous_task_id else None
+                previous_metadata = {}
+                try:
+                    previous_metadata = json.loads(previous_task.metadata_json or "{}") if previous_task else {}
+                except (TypeError, ValueError):
+                    pass
+                previous_video_path = url_to_local_path(previous_video_url) if previous_video_url else None
+                previous_assembled_url = (previous_metadata.get("assembled_result") or {}).get("url")
+                valid_previous = (
+                    previous_task
+                    and previous_task.type == "shot_video"
+                    and previous_task.status == "completed"
+                    and previous_video_url in {previous_task.result_url, previous_assembled_url}
+                    and previous_task.shot_id == task.shot_id
+                    and previous_task.chapter_id == task.chapter_id
+                    and previous_task.novel_id == task.novel_id
+                    and previous_metadata.get("execution_scope") == "CLIP"
+                    and previous_metadata.get("clip_plan_revision") == clip_metadata.get("clip_plan_revision")
+                    and int(previous_metadata.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0) - 1
+                    and previous_metadata.get("approval_status") == "APPROVED"
+                    and previous_metadata.get("capability") in {"SINGLE_FRAME", "VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}
+                    and bool(previous_video_path and Path(previous_video_path).is_file())
+                )
+                if not valid_previous:
+                    return {"success": False, "message": "Clip 重试失败：原 Previous AV dependency 不再是有效的 upstream approved Clip", "status_code": 400}
+
+            # Retain semantic Clip identity and provenance; clear only attempt-specific state.
+            clip_metadata["prompt_text"] = ""
+            clip_metadata["approval_status"] = "GENERATING"
+            clip_metadata.pop("actual_duration", None)
+            task.status = "pending"
+            task.progress = 0
+            task.current_step = "等待重新处理同一 Clip"
+            task.error_message = None
+            task.result_url = None
+            task.completed_at = None
+            task.comfyui_prompt_id = None
+            task.workflow_json = None
+            task.seed = None
+            task.prompt_text = None
+            task.metadata_json = json.dumps(clip_metadata, ensure_ascii=False)
+            db.commit()
+
+            from app.services.shot_video_service import enqueue_shot_video_task
+            enqueue_shot_video_task(
+                task.id,
+                task.novel_id,
+                task.chapter_id,
+                shot.index,
+                task.workflow_id,
+                shot.image_url or "",
+                selected_mode="SINGLE_FRAME",
+                clip_metadata=clip_metadata,
+            )
+            return {
+                "success": True,
+                "message": "同一 semantic Clip 已重新启动",
+                "data": {"taskId": task.id, "status": "pending"},
+            }
 
         if task.type == "shot_video_hd" and task.shot_id:
             from app.services.hd_repaint_service import clone_hd_task_for_retry, enqueue_hd_repaint_task
@@ -1186,6 +1288,21 @@ class TaskService:
             except Exception:
                 return []
 
+        def clip_execution_metadata(task: Task):
+            try:
+                metadata = json.loads(task.metadata_json or "{}")
+            except Exception:
+                return None
+            if metadata.get("execution_scope") != "CLIP":
+                return None
+            keys = (
+                "execution_scope", "clip_id", "clip_index", "clip_plan_revision",
+                "capability", "planned_duration", "requested_duration", "actual_duration", "assembled_media_duration", "assembled_result",
+                "approval_status", "approval_mode", "previous_approved_task_id",
+                "previous_approved_video_url", "previous_approved_video_source", "temporal_anchor_ids", "dialogue_assignment",
+            )
+            return {key: metadata.get(key) for key in keys if key in metadata}
+
         def format_video_director_clips(task: Task):
             if task.type not in {"shot_video", "shot_video_hd"}:
                 return []
@@ -1245,6 +1362,7 @@ class TaskService:
                 "progress": t.progress,
                 "currentStep": t.current_step,
                 "resultUrl": t.result_url,
+                "clipExecution": clip_execution_metadata(t),
                 "errorMessage": t.error_message,
                 "workflowId": t.workflow_id,
                 "workflowName": t.workflow_name,
@@ -1290,6 +1408,16 @@ class TaskService:
             reference_images = json.loads(task.reference_images) if task.reference_images else []
         except Exception:
             reference_images = []
+        try:
+            metadata = json.loads(task.metadata_json or "{}")
+            clip_metadata = metadata if metadata.get("execution_scope") == "CLIP" else None
+        except Exception:
+            clip_metadata = None
+        try:
+            raw_metadata = json.loads(task.metadata_json or "{}")
+            clip_execution = raw_metadata if raw_metadata.get("execution_scope") == "CLIP" else None
+        except Exception:
+            clip_execution = None
 
         return {
             "id": task.id,
@@ -1300,6 +1428,8 @@ class TaskService:
             "progress": task.progress,
             "currentStep": task.current_step,
             "resultUrl": task.result_url,
+            "metadata": clip_metadata,
+            "clipExecution": clip_execution,
             "errorMessage": task.error_message,
             "workflowId": task.workflow_id,
             "workflowName": task.workflow_name,

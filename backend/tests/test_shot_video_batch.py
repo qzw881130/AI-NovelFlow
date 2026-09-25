@@ -103,6 +103,187 @@ async def test_video_batch_runner_completes_persisted_children_in_order(db_sessi
 
 
 @pytest.mark.asyncio
+async def test_video_batch_runner_delegates_semantic_shot_and_waits_for_final(db_session, monkeypatch):
+    testing_session = sessionmaker(bind=db_session.bind)
+    monkeypatch.setattr(shots_api, "SessionLocal", testing_session)
+    batch, children = _create_video_batch(db_session, child_count=1)
+    shot = db_session.query(Shot).filter(Shot.id == children[0].shot_id).one()
+    shot.video_director_plan = json.dumps({
+        "clip_plan_revision": 4,
+        "clip_plan_validation": {"passed": True},
+        "clip_plan_approval_mode": "AUTO_APPROVE",
+        "clip_plan": [{"clip_index": 1, "capability": "SINGLE_FRAME", "planned_duration": 8}],
+    })
+    db_session.commit()
+    calls = []
+
+    async def start_semantic(**kwargs):
+        calls.append(kwargs)
+
+    async def wait_for_final(db, child, shot, plan):
+        assert plan["clip_plan_revision"] == 4
+        return "completed"
+
+    monkeypatch.setattr(shots_api, "generate_clip_plan_video", start_semantic)
+    monkeypatch.setattr(shots_api, "_wait_for_semantic_shot_final", wait_for_final)
+
+    await shots_api.run_shot_video_batch_task(batch.id)
+
+    db_session.expire_all()
+    refreshed_batch = db_session.query(Task).filter(Task.id == batch.id).one()
+    refreshed_child = db_session.query(Task).filter(Task.id == children[0].id).one()
+    assert len(calls) == 1
+    assert calls[0]["batch_parent_task_id"] == batch.id
+    assert refreshed_child.status == "completed"
+    assert refreshed_batch.status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_semantic_batch_failure_does_not_block_other_shot_final(db_session, monkeypatch):
+    testing_session = sessionmaker(bind=db_session.bind)
+    monkeypatch.setattr(shots_api, "SessionLocal", testing_session)
+    batch, children = _create_video_batch(db_session, child_count=2)
+    for child in children:
+        shot = db_session.query(Shot).filter(Shot.id == child.shot_id).one()
+        shot.video_director_plan = json.dumps({
+            "clip_plan_revision": 2,
+            "clip_plan_validation": {"passed": True},
+            "clip_plan_approval_mode": "AUTO_APPROVE",
+            "clip_plan": [{"clip_index": 1, "capability": "SINGLE_FRAME", "planned_duration": 8}],
+        })
+    db_session.commit()
+
+    async def start_semantic(**kwargs):
+        return None
+
+    async def wait_for_final(db, child, shot, plan):
+        return "failed" if shot.index == 1 else "completed"
+
+    monkeypatch.setattr(shots_api, "generate_clip_plan_video", start_semantic)
+    monkeypatch.setattr(shots_api, "_wait_for_semantic_shot_final", wait_for_final)
+
+    await shots_api.run_shot_video_batch_task(batch.id)
+
+    db_session.expire_all()
+    refreshed_batch = db_session.query(Task).filter(Task.id == batch.id).one()
+    refreshed_children = db_session.query(Task).filter(
+        Task.parent_task_id == batch.id,
+        Task.batch_order.isnot(None),
+    ).order_by(Task.batch_order).all()
+    assert [child.status for child in refreshed_children] == ["failed", "completed"]
+    assert refreshed_batch.status == "failed"
+    assert "成功 1，失败 1" in refreshed_batch.current_step
+
+
+@pytest.mark.asyncio
+async def test_single_clip_semantic_execution_still_runs_final_assembly(db_session, tmp_path, monkeypatch):
+    from app.services import shot_video_service
+
+    novel = Novel(title="single semantic assembly")
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title="chapter")
+    db_session.add(chapter)
+    db_session.flush()
+    shot = Shot(
+        chapter_id=chapter.id, index=1, duration=8, image_url="/api/files/image.png",
+        video_director_plan=json.dumps({"clip_plan_revision": 1, "clip_plan": [{"clip_index": 1}]}),
+    )
+    task = Task(
+        id="single-clip-task", type="shot_video", status="completed", name="C1",
+        novel_id=novel.id, chapter_id=chapter.id, shot_id=shot.id,
+        metadata_json=json.dumps({
+            "execution_scope": "CLIP", "clip_index": 1, "clip_plan_revision": 1,
+            "capability": "SINGLE_FRAME", "approval_mode": "AUTO_APPROVE",
+        }),
+    )
+    db_session.add_all([shot, task])
+    db_session.commit()
+    image_path = tmp_path / "image.png"
+    image_path.write_bytes(b"image")
+    db_session.expire_all()
+    shot = db_session.query(Shot).filter(Shot.id == shot.id).one()
+    task = db_session.query(Task).filter(Task.id == task.id).one()
+
+    assembly_calls = []
+
+    async def fake_merge(db, current_shot, shot_repo, novel_id, chapter_id, shot_index):
+        assembly_calls.append(current_shot.id)
+        return {"success": True, "video_url": "/api/files/final.mp4"}
+
+    monkeypatch.setattr(shot_video_service, "merge_video_director_clip_videos", fake_merge)
+    monkeypatch.setattr(shot_video_service, "url_to_local_path", lambda url: str(image_path))
+    await shot_video_service._enqueue_next_clip_if_needed(
+        db_session, task, shot, novel, {"clip_index": 1, "capability": "SINGLE_FRAME"}
+    )
+    assert assembly_calls == [shot.id]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("previous_capability", ["SINGLE_FRAME", "VIDEO_CONTINUATION", "TEMPORAL_EXTEND"])
+async def test_semantic_continuation_enqueue_uses_previous_assembled_result_when_available(
+    db_session, tmp_path, monkeypatch, previous_capability,
+):
+    from app.models.workflow import Workflow
+    from app.services import shot_video_service
+
+    novel = Novel(title="continuation source")
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title="chapter")
+    db_session.add(chapter)
+    db_session.flush()
+    shot = Shot(
+        chapter_id=chapter.id, index=1,
+        video_director_plan=json.dumps({"clip_plan_revision": 7, "clip_plan": [
+            {"clip_index": 1, "capability": previous_capability},
+            {"clip_index": 2, "capability": "TEMPORAL_EXTEND", "planned_duration": 8},
+        ]}),
+    )
+    previous_file = tmp_path / "previous-assembled.mp4"
+    previous_file.write_bytes(b"approved previous")
+    previous_url = f"/api/files/{previous_file}"
+    previous_metadata = {
+        "execution_scope": "CLIP", "clip_index": 1, "clip_plan_revision": 7,
+        "capability": previous_capability, "approval_status": "APPROVED",
+    }
+    if previous_capability in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
+        previous_metadata["assembled_result"] = {"url": previous_url}
+    previous = Task(
+        id="previous-clip", type="shot_video", status="completed", name="C1",
+        novel_id=novel.id, chapter_id=chapter.id, shot_id=shot.id,
+        result_url="/api/files/independent-output.mp4",
+        metadata_json=json.dumps(previous_metadata),
+    )
+    workflow = Workflow(id="temporal-workflow", name="Temporal", type="TEMPORAL_EXTEND", workflow_json="{}", is_active=True)
+    completed = Task(
+        id="completed-clip", type="shot_video", status="completed", name="C1",
+        novel_id=novel.id, chapter_id=chapter.id, shot_id=shot.id,
+        result_url=previous_url,
+        metadata_json=json.dumps({"assembled_result": {"url": previous_url}}),
+    )
+    db_session.add_all([shot, previous, workflow, completed])
+    db_session.commit()
+    captured = {}
+
+    def enqueue(*args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(shot_video_service, "enqueue_shot_video_task", enqueue)
+    await shot_video_service._enqueue_next_clip_if_needed(
+        db_session, completed, shot, novel,
+        {"clip_index": 1, "capability": previous_capability, "batch_parent_task_id": None},
+    )
+    next_task = db_session.query(Task).filter(Task.id != completed.id, Task.shot_id == shot.id).order_by(Task.created_at.desc()).first()
+    next_metadata = json.loads(next_task.metadata_json)
+    assert next_metadata["capability"] == "TEMPORAL_EXTEND"
+    assert next_metadata["previous_approved_video_url"] == previous_url
+    if previous_capability in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
+        assert next_metadata["previous_approved_video_source"] == "approved_assembled_result"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("prompt_text, expected_skip", [(None, False), ("existing keyframe prompt", True)])
 async def test_batch_video_only_reuses_keyframe_prompt_when_it_exists(db_session, monkeypatch, prompt_text, expected_skip):
     novel = Novel(title="关键帧提示词批量测试")

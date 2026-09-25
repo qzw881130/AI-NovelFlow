@@ -21,6 +21,18 @@ class OpenAICompatibleProvider(BaseLLMProvider):
 
     PROVIDER_NAME = "openai_compatible"
 
+    def _build_http_client(self, timeout: int):
+        proxy = self._get_proxy_config()
+        if self.config.provider in ("ollama", "custom"):
+            return httpx.AsyncClient(
+                transport=httpx.AsyncHTTPTransport(proxy=None),
+                timeout=timeout,
+                trust_env=False,
+            )
+        if proxy is None:
+            return httpx.AsyncClient(timeout=timeout, trust_env=False)
+        return httpx.AsyncClient(proxy=proxy, timeout=timeout)
+
     def _get_endpoint(self) -> str:
         """获取 API 端点 URL"""
         base = self.config.api_url.rstrip("/")
@@ -142,18 +154,14 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             proxy_url=proxy,
             timeout_seconds=timeout,
         )
-        # Ollama 和 custom 不需要代理
         if self.config.provider in ("ollama", "custom"):
             old_http_proxy = os.environ.pop('HTTP_PROXY', None)
             old_https_proxy = os.environ.pop('HTTPS_PROXY', None)
             old_http_proxy_lower = os.environ.pop('http_proxy', None)
             old_https_proxy_lower = os.environ.pop('https_proxy', None)
-
-            transport = httpx.AsyncHTTPTransport(proxy=None)
-            client = httpx.AsyncClient(transport=transport, timeout=timeout)
         else:
-            client = httpx.AsyncClient(proxy=proxy, timeout=timeout)
             old_http_proxy = old_https_proxy = old_http_proxy_lower = old_https_proxy_lower = None
+        client = self._build_http_client(timeout)
 
         log_id = None
         try:
