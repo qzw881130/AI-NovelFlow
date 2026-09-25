@@ -73,6 +73,7 @@ export default {
       singleImageEdit: '单图编辑',
       shotVideo: '分镜视频',
       chapterVideo: '章节视频',
+      novelVideo: '合并小说章回视频',
       transitionVideo: '转场视频',
       sceneImage: '场景图片',
     },

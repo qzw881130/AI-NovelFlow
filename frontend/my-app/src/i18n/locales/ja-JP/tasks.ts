@@ -54,6 +54,7 @@ export default {
       shotImage: 'ショット画像',
       shotVideo: 'ショット動画',
       chapterVideo: 'チャプター動画',
+      novelVideo: '小説チャプター動画を結合',
       transitionVideo: 'トランジション動画',
     },
     viewWorkflow: 'ワークフローを表示',

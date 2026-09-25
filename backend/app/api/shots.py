@@ -312,6 +312,7 @@ class BatchShotVideoRequest(BaseModel):
     auto_complete_details: bool = True
     use_reference_audio: bool = True
     skip_llm_when_prompt_exists: bool = False
+    force_rerun: bool = True
 
 
 class SemanticClipGenerateRequest(BaseModel):
@@ -1892,6 +1893,7 @@ async def generate_clip_plan_video(
     novel_repo: NovelRepository = Depends(get_novel_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
     batch_parent_task_id: str | None = None,
+    force_rerun: bool = False,
 ):
     """Start the first validated semantic Clip through the existing Task pipeline."""
     novel = novel_repo.get_by_id(novel_id)
@@ -1944,6 +1946,7 @@ async def generate_clip_plan_video(
             "path": url_to_local_path(shot.image_url) if shot.image_url else shot.image_path,
         } if clip.get("capability") == "SINGLE_FRAME" else None,
         "batch_parent_task_id": batch_parent_task_id,
+        "batch_force_rerun": force_rerun,
     }
     task.metadata_json = json.dumps(clip_metadata, ensure_ascii=False)
     task.parent_task_id = batch_parent_task_id
@@ -2689,12 +2692,19 @@ async def _run_semantic_shot_for_batch(db, batch_task: Task, batch_child: Task, 
         raise RuntimeError("REVIEW_REQUIRED 尚未实现 Batch approval gate")
 
     revision = int(plan.get("clip_plan_revision") or 0)
+    batch_metadata = _safe_json_dict(batch_child.metadata_json)
+    force_rerun = bool(batch_metadata.get("batch_force_rerun"))
     tasks = db.query(Task).filter(
         Task.shot_id == shot.id,
         Task.type == "shot_video",
         Task.metadata_json.like('%"execution_scope": "CLIP"%'),
         Task.metadata_json.like(f'%"clip_plan_revision": {revision}%'),
     ).order_by(Task.created_at.asc()).all()
+    if force_rerun:
+        tasks = [
+            task for task in tasks
+            if _safe_json_dict(task.metadata_json).get("batch_parent_task_id") == batch_task.id
+        ]
     latest_by_index = {}
     for clip_task in tasks:
         index = int(_safe_json_dict(clip_task.metadata_json).get("clip_index") or 0)
@@ -2810,6 +2820,15 @@ async def _run_semantic_shot_for_batch(db, batch_task: Task, batch_child: Task, 
     batch_child.status = "running"
     batch_child.started_at = batch_child.started_at or datetime.utcnow()
     shot.video_status = "generating"
+    if force_rerun:
+        # Prevent the final waiter from treating the previous assembled Shot
+        # as the result of this new batch run.
+        plan.pop("assembly_status", None)
+        plan.pop("assembly_clip_plan_revision", None)
+        plan.pop("assembled_result", None)
+        plan.pop("merged_video_url", None)
+        plan.pop("merged_at", None)
+        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
     db.commit()
     await generate_clip_plan_video(
         novel_id=batch_child.novel_id,
@@ -2819,6 +2838,7 @@ async def _run_semantic_shot_for_batch(db, batch_task: Task, batch_child: Task, 
         novel_repo=NovelRepository(db),
         shot_repo=ShotRepository(db),
         batch_parent_task_id=batch_task.id,
+        force_rerun=force_rerun,
     )
     return await _wait_for_semantic_shot_final(db, batch_child, shot, plan)
 
@@ -2833,6 +2853,7 @@ async def run_shot_video_batch_task(batch_task_id: str) -> None:
         auto_complete = bool(metadata.get("auto_complete_details", True))
         use_reference_audio = bool(metadata.get("use_reference_audio", True))
         skip_llm = bool(metadata.get("skip_llm_when_prompt_exists", False))
+        force_rerun = bool(metadata.get("force_rerun", True))
         batch_task.status = "running"
         batch_task.started_at = batch_task.started_at or datetime.utcnow()
         batch_task.current_step = "批量分镜视频生成中"
@@ -3043,6 +3064,7 @@ async def generate_shot_videos_batch(
             "auto_complete_details": data.auto_complete_details,
             "use_reference_audio": data.use_reference_audio,
             "skip_llm_when_prompt_exists": data.skip_llm_when_prompt_exists,
+            "force_rerun": data.force_rerun,
         }, ensure_ascii=False),
     )
     db.add(batch_task)
@@ -3067,6 +3089,7 @@ async def generate_shot_videos_batch(
         child.metadata_json = json.dumps({
             **_safe_json_dict(child.metadata_json),
             "batch_shot_child": True,
+            "batch_force_rerun": data.force_rerun,
         }, ensure_ascii=False)
         shot.video_status = "pending"
         shot.video_task_id = child.id
@@ -3799,6 +3822,100 @@ async def clear_chapter_resources(
         + ("（包含物理文件）" if file_deleted else "（物理文件清除失败）"),
         "files_deleted": file_deleted,
     }
+
+
+@router.post("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/reset-video-data", response_model=dict)
+async def reset_shot_video_data(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    db: Session = Depends(get_db),
+):
+    """Reset one Shot's video stage while preserving its main image and shot data."""
+    shot = db.query(Shot).filter(Shot.id == shot_id, Shot.chapter_id == chapter_id).first()
+    if not db.query(Novel).filter(Novel.id == novel_id).first():
+        raise HTTPException(status_code=404, detail="小说不存在")
+    if not db.query(Chapter).filter(Chapter.id == chapter_id, Chapter.novel_id == novel_id).first():
+        raise HTTPException(status_code=404, detail="章节不存在")
+    if not shot:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+
+    def local_files_from_json(value) -> set[str]:
+        paths: set[str] = set()
+        items = value if isinstance(value, list) else []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            for key in ("image_url", "imageUrl", "image_path", "imagePath", "local_path", "localPath", "video_url", "videoUrl"):
+                local_path = url_to_local_path(item.get(key)) if item.get(key) else None
+                if local_path:
+                    paths.add(local_path)
+        return paths
+
+    plan = _safe_json_dict(shot.video_director_plan)
+    keyframes = _safe_json_list(shot.keyframes)
+    files_to_delete = local_files_from_json(plan.get("keyframes")) | local_files_from_json(keyframes)
+    files_to_delete.update(local_files_from_json(plan.get("clip_plan")))
+    files_to_delete.update(local_files_from_json(plan.get("window_plans")))
+    files_to_delete.update(local_files_from_json(plan.get("clips")))
+
+    tasks = db.query(Task).filter(Task.shot_id == shot.id, Task.type.in_(["shot_video", "keyframe_image"])).all()
+    for task in tasks:
+        if task.result_url:
+            local_path = url_to_local_path(task.result_url)
+            if local_path:
+                files_to_delete.add(local_path)
+        metadata = _safe_json_dict(task.metadata_json)
+        for key in ("previous_approved_video_url", "source_video_url"):
+            local_path = url_to_local_path(metadata.get(key)) if metadata.get(key) else None
+            if local_path:
+                files_to_delete.add(local_path)
+
+    # Delete only paths inside this novel's storage tree; never follow arbitrary URLs.
+    storage_root = file_storage._get_story_dir(novel_id).resolve()
+    for raw_path in files_to_delete:
+        try:
+            path = Path(raw_path).resolve()
+            if path.is_file() and (path == storage_root or storage_root in path.parents):
+                path.unlink()
+        except (OSError, RuntimeError):
+            pass
+    file_storage.delete_shot_video(novel_id, chapter_id, shot.index)
+    file_storage.delete_shot_video(novel_id, chapter_id, shot.index, variant="hd")
+
+    task_ids = {task.id for task in tasks}
+    parent_ids = {task.parent_task_id for task in tasks if task.parent_task_id}
+    for task in tasks:
+        db.delete(task)
+    db.flush()
+    # Remove empty batch parents, including the Shot-level child that may have
+    # owned semantic Clip tasks. Keep a batch parent if it still contains other Shots.
+    pending_parent_ids = set(parent_ids)
+    while pending_parent_ids:
+        parent_id = pending_parent_ids.pop()
+        parent = db.query(Task).filter(Task.id == parent_id).first()
+        if not parent:
+            continue
+        remaining = db.query(Task).filter(Task.parent_task_id == parent.id).count()
+        if remaining == 0:
+            ancestor_id = parent.parent_task_id
+            db.delete(parent)
+            db.flush()
+            if ancestor_id:
+                pending_parent_ids.add(ancestor_id)
+
+    shot.video_director_plan = json.dumps({}, ensure_ascii=False)
+    shot.keyframes = json.dumps([], ensure_ascii=False)
+    shot.video_url = None
+    shot.video_status = "pending"
+    shot.video_task_id = None
+    shot.hd_video_url = None
+    shot.hd_video_status = "pending"
+    shot.hd_video_task_id = None
+    shot.hd_video_source_task_id = None
+    shot.hd_video_megapixels = None
+    db.commit()
+    return {"success": True, "message": "当前 Shot 视频阶段已重置", "data": {"shotId": shot.id, "deletedTaskCount": len(task_ids)}}
 
 
 @router.post(
@@ -4575,14 +4692,14 @@ async def download_shot_video_materials(
             asset_count += 1
             return final_name
 
-        def add_workflow(value, arcname: str, label: str) -> None:
+        def add_workflow(value, arcname: str, label: str, **details) -> None:
             if not value:
                 return
             parsed = safe_json(value, value)
             content = json.dumps(parsed, ensure_ascii=False, indent=2) if not isinstance(parsed, str) else parsed
             final_name = unique_name(arcname)
             zip_file.writestr(final_name, content)
-            manifest["workflows"].append({"label": label, "path": final_name})
+            manifest["workflows"].append({"label": label, "path": final_name, **details})
 
         def padded_index(value, fallback: int) -> str:
             try:
@@ -4680,33 +4797,93 @@ async def download_shot_video_materials(
         for index, task in enumerate(keyframe_tasks, 1):
             add_workflow(task.workflow_json, f"workflows/keyframes/KF{index:03d}_{task.id[:8]}_ComfyUI.json", f"关键帧图实际工作流 {index}")
 
-        video_task = None
-        if shot.video_task_id:
-            video_task = db.query(Task).filter(Task.id == shot.video_task_id, Task.shot_id == shot.id).first()
-        if not video_task or not video_task.workflow_json:
-            video_task = db.query(Task).filter(
+        window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
+        clips = plan.get("clips") if isinstance(plan.get("clips"), list) else []
+        semantic_clips = plan.get("clip_plan") if isinstance(plan.get("clip_plan"), list) else []
+        if semantic_clips:
+            revision = int(plan.get("clip_plan_revision") or 0)
+            clip_tasks = db.query(Task).filter(
                 Task.shot_id == shot.id,
                 Task.type == "shot_video",
                 Task.workflow_json.isnot(None),
-            ).order_by(Task.created_at.desc()).first()
-        add_workflow(video_task.workflow_json if video_task else None, "workflows/video/Shot视频_ComfyUI.json", "视频实际工作流")
+            ).order_by(Task.created_at.desc()).all()
+            latest_task_by_clip = {}
+            tasks_by_id = {task.id: task for task in clip_tasks}
+            for task in clip_tasks:
+                metadata = safe_json(task.metadata_json, {})
+                if (
+                    metadata.get("execution_scope") != "CLIP"
+                    or int(metadata.get("clip_plan_revision") or 0) != revision
+                ):
+                    continue
+                clip_index = int(metadata.get("clip_index") or 0)
+                if clip_index and clip_index not in latest_task_by_clip:
+                    latest_task_by_clip[clip_index] = task
 
-        window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
-        clips = plan.get("clips") if isinstance(plan.get("clips"), list) else []
-        task_clips = safe_json(video_task.video_director_clips, []) if video_task else []
-        seen_windows = set()
-        for position, window in enumerate(window_plans + clips + task_clips, 1):
-            if not isinstance(window, dict) or not window.get("workflow_json"):
-                continue
-            window_index = window.get("window_index") or window.get("clip_index") or position
-            if window_index in seen_windows:
-                continue
-            seen_windows.add(window_index)
+            exported_task_ids = set()
+            for position, clip in enumerate(sorted(semantic_clips, key=lambda item: int(item.get("clip_index") or 0)), 1):
+                if not isinstance(clip, dict):
+                    continue
+                clip_index = int(clip.get("clip_index") or position)
+                generated_task_id = str(clip.get("generated_by_task_id") or "")
+                task = tasks_by_id.get(generated_task_id) or latest_task_by_clip.get(clip_index)
+                if not task or task.id in exported_task_ids:
+                    continue
+                exported_task_ids.add(task.id)
+                metadata = safe_json(task.metadata_json, {})
+                capability = str(metadata.get("capability") or clip.get("capability") or "VIDEO")
+                workflow_label = task.workflow_name or capability
+                previous_av_path = add_asset(
+                    metadata.get("previous_approved_video_url"),
+                    f"videos/references/C{padded_index(clip_index, position)}_PreviousAV",
+                    "previous_approved_video",
+                    f"视频 Clip {clip_index} Previous AV 输入",
+                )
+                workflow_details = {
+                    "task_id": task.id,
+                    "clip_index": clip_index,
+                    "clip_plan_revision": revision,
+                    "capability": capability,
+                    "workflow_name": task.workflow_name,
+                }
+                if previous_av_path:
+                    workflow_details["previous_av_path"] = previous_av_path
+                add_workflow(
+                    task.workflow_json,
+                    f"workflows/video/clips/C{padded_index(clip_index, position)}_{_safe_filename_part(capability)}_{task.id[:8]}_ComfyUI.json",
+                    f"视频 Clip {clip_index} 实际工作流 · {workflow_label}",
+                    **workflow_details,
+                )
+        else:
+            video_task = None
+            if shot.video_task_id:
+                video_task = db.query(Task).filter(Task.id == shot.video_task_id, Task.shot_id == shot.id).first()
+            if not video_task or not video_task.workflow_json:
+                video_task = db.query(Task).filter(
+                    Task.shot_id == shot.id,
+                    Task.type == "shot_video",
+                    Task.workflow_json.isnot(None),
+                ).order_by(Task.created_at.desc()).first()
             add_workflow(
-                window.get("workflow_json"),
-                f"workflows/video/clip_{padded_index(window_index, position)}_ComfyUI.json",
-                f"视频 Clip {window_index} 实际工作流",
+                video_task.workflow_json if video_task else None,
+                "workflows/video/Shot视频_ComfyUI.json",
+                "视频实际工作流",
             )
+
+            task_clips = safe_json(video_task.video_director_clips, []) if video_task else []
+            seen_windows = set()
+            for position, window in enumerate(window_plans + clips + task_clips, 1):
+                if not isinstance(window, dict) or not window.get("workflow_json"):
+                    continue
+                window_index = window.get("window_index") or window.get("clip_index") or position
+                if window_index in seen_windows:
+                    continue
+                seen_windows.add(window_index)
+                add_workflow(
+                    window.get("workflow_json"),
+                    f"workflows/video/clip_{padded_index(window_index, position)}_ComfyUI.json",
+                    f"视频 Clip {window_index} 实际工作流",
+                )
 
         if asset_count == 0 and not manifest["workflows"]:
             raise HTTPException(status_code=404, detail="当前分镜没有可打包的视频素材")

@@ -68,6 +68,7 @@ export default {
       shotImage: '分鏡圖片',
       shotVideo: '分鏡影片',
       chapterVideo: '章節影片',
+      novelVideo: '合併小說章回影片',
       transitionVideo: '轉場影片',
     },
     systemDefault: '系統預設',

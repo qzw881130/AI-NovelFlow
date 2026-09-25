@@ -72,6 +72,7 @@ export default {
       propImage: 'Prop Image',
       shotVideo: 'Shot Video',
       chapterVideo: 'Chapter Video',
+      novelVideo: 'Merge Novel Chapter Videos',
       transitionVideo: 'Transition Video',
       sceneImage: 'Scene Image',
     },

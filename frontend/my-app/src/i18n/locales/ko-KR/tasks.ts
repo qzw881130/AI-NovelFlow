@@ -54,6 +54,7 @@ export default {
       shotImage: '샷 이미지',
       shotVideo: '샷 비디오',
       chapterVideo: '챕터 비디오',
+      novelVideo: '소설 장별 비디오 병합',
       transitionVideo: '전환 비디오',
     },
     viewWorkflow: '워크플로우 보기',

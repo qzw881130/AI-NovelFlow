@@ -1556,7 +1556,15 @@ async def _enqueue_next_clip_if_needed(db, completed_task, shot, novel, clip_met
         Task.metadata_json.like(f'%"clip_id": "{shot.id}:clip:{next_clip.get("clip_index")}"%'),
         Task.metadata_json.like(f'%"clip_plan_revision": {safe_json_dict(shot.video_director_plan).get("clip_plan_revision", 1)}%'),
         Task.status.in_(["pending", "running", "completed"]),
-    ).first()
+    )
+    # A forced batch rerun must not reuse a completed Clip from an older run.
+    # The current batch parent identifies the execution chain being rebuilt.
+    batch_parent_task_id = clip_metadata.get("batch_parent_task_id")
+    if batch_parent_task_id:
+        existing = existing.filter(
+            Task.metadata_json.like(f'%"batch_parent_task_id": "{batch_parent_task_id}"%')
+        )
+    existing = existing.first()
     if existing:
         return
     metadata = {

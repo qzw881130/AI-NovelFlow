@@ -11,7 +11,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useChapterGenerateStore } from '../stores';
-import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info, ChevronLeft, ChevronRight, RefreshCw, Sparkles, PictureInPicture } from 'lucide-react';
+import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info, ChevronLeft, ChevronRight, RefreshCw, Sparkles, PictureInPicture, Trash2 } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
 import { taskApi } from '../../../api/tasks';
@@ -1633,6 +1633,8 @@ export function VideoGenTab({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDownloadingVideoMaterials, setIsDownloadingVideoMaterials] = useState(false);
+  const [showResetVideoDataConfirm, setShowResetVideoDataConfirm] = useState(false);
+  const [isResettingVideoData, setIsResettingVideoData] = useState(false);
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
   const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
   const [batchSelectionMode, setBatchSelectionMode] = useState<BatchSelectionMode>(null);
@@ -2713,6 +2715,7 @@ export function VideoGenTab({
         auto_complete_details: autoCompleteDetails,
         use_reference_audio: true,
         skip_llm_when_prompt_exists: false,
+        force_rerun: true,
       });
       if (!result.success) {
         throw new Error(result.detail || result.message || '批量生成视频失败');
@@ -2894,6 +2897,25 @@ export function VideoGenTab({
       toast.error(error instanceof Error ? error.message : '下载视频素材失败');
     } finally {
       setIsDownloadingVideoMaterials(false);
+    }
+  };
+
+  const handleResetShotVideoData = async () => {
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+    setIsResettingVideoData(true);
+    try {
+      await shotsApi.resetShotVideoData(effectiveNovelId, effectiveChapterId, currentShotId);
+      const refreshed = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, currentShotId);
+      if (refreshed.success && refreshed.data) {
+        setShots(shotsList.map((shot: any) => String(shot.id) === currentShotId ? { ...shot, ...refreshed.data } : shot));
+      }
+      setShotVideos((prev) => { const next = { ...prev }; delete next[currentShotId]; return next; });
+      setShowResetVideoDataConfirm(false);
+      toast.success('当前 Shot 视频阶段已重置');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '重置当前 Shot 视频数据失败');
+    } finally {
+      setIsResettingVideoData(false);
     }
   };
 
@@ -3100,6 +3122,15 @@ export function VideoGenTab({
             {isDownloadingVideoMaterials ? '打包中...' : '下载视频素材'}
           </button>
           <button
+            onClick={() => setShowResetVideoDataConfirm(true)}
+            disabled={!effectiveChapterId || !currentShotId || isGeneratingCurrent || isCurrentVideoPending}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            title="清除当前 Shot 的视频、关键帧、Clip 任务和执行计划"
+          >
+            <Trash2 className="w-4 h-4" />
+            重置视频阶段
+          </button>
+          <button
             onClick={handleOpenMergeSelect}
             disabled={mergingMode !== null || !effectiveChapterId || videoCount === 0}
             className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
@@ -3292,6 +3323,44 @@ export function VideoGenTab({
         </div>
 
       </div>
+
+      {showResetVideoDataConfirm && createPortal(
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4"
+          onClick={() => !isResettingVideoData && setShowResetVideoDataConfirm(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reset-shot-video-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h2 id="reset-shot-video-title" className="text-lg font-semibold text-gray-900">重置当前 Shot 视频阶段？</h2>
+            <p className="mt-3 text-sm leading-6 text-gray-600">
+              将删除当前 Shot 的视频、关键帧图片、Clip Tasks、Clip 执行计划和 Assembly 数据。Shot 主图、描述、台词及角色/场景/道具关联会保留。此操作不可撤销。
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowResetVideoDataConfirm(false)}
+                disabled={isResettingVideoData}
+                className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >取消</button>
+              <button
+                type="button"
+                onClick={handleResetShotVideoData}
+                disabled={isResettingVideoData}
+                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {isResettingVideoData && <Loader2 className="h-4 w-4 animate-spin" />}
+                {isResettingVideoData ? '正在重置...' : '确认重置'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {/* 批量选择分镜弹窗 */}
       {showBatchSelectModal && createPortal((

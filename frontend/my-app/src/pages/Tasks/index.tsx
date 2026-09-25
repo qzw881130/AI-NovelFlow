@@ -118,6 +118,7 @@ export default function Tasks() {
       'shot_video_hd': t('tasks.types.shotVideoHd', { defaultValue: '高清重绘' }),
       'shot_video_hd_batch': t('tasks.types.shotVideoHdBatch', { defaultValue: '批量高清重绘' }),
       'chapter_video': t('tasks.types.chapterVideo'),
+      'novel_video': t('tasks.types.novelVideo', { defaultValue: '合并小说章回视频' }),
       'transition_video': t('tasks.types.transitionVideo'),
     };
     return names[type] || type;
@@ -127,7 +128,7 @@ export default function Tasks() {
     const supportedTypes: Task['type'][] = [
       'character_portrait', 'character_voice', 'character_audio', 'narrator_audio',
       'scene_image', 'prop_image', 'shot_image', 'shot_image_batch', 'keyframe_image',
-      'single_image_edit', 'shot_video', 'shot_video_batch', 'shot_video_hd', 'shot_video_hd_batch', 'transition_video', 'chapter_video',
+      'single_image_edit', 'shot_video', 'shot_video_batch', 'shot_video_hd', 'shot_video_hd_batch', 'transition_video', 'chapter_video', 'novel_video',
     ];
     return Array.from(new Set<string>([...supportedTypes, ...tasks.map(task => task.type).filter(Boolean)]));
   }, [tasks]);
