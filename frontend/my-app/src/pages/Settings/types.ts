@@ -38,6 +38,10 @@ export interface Workflow {
     reference_audio_node_id?: string;
     text_node_id?: string;
     emotion_prompt_node_id?: string;
+    load_video_node_id?: string;
+    scale_node_id?: string;
+    scale_value?: string;
+    custom_keyframes_node_id?: string;
   };
   extension?: {
     [key: string]: any;
@@ -97,6 +101,10 @@ export interface MappingForm {
   referenceAudioNodeId: string;
   textNodeId: string;
   emotionPromptNodeId: string;
+  loadVideoNodeId?: string;
+  scaleNodeId?: string;
+  scaleValue?: string;
+  customKeyframesNodeId?: string;
 }
 
 export interface AvailableNodes {
@@ -115,4 +123,6 @@ export interface AvailableNodes {
   // 音频生成相关节点
   loadAudio: string[];
   qwen3TtsVoiceClone: string[];
+  loadVideo: string[];
+  customKeyframes: string[];
 }

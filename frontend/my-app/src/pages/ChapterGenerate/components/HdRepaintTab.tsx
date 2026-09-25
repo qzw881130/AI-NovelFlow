@@ -133,6 +133,7 @@ export function HdRepaintTab({ novelId, chapterId, shots }: HdRepaintTabProps) {
   };
 
   const eligibleShots = shots.filter((shot) => !!shot.videoUrl && !isHdActive(shot, targetMp));
+  const pendingHdShots = eligibleShots.filter((shot) => getHdDisplayStatus(shot, targetMp) === 'pending');
   const openBatchModal = () => {
     setSelectedBatchShotIds(new Set(eligibleShots.map((shot) => shot.id)));
     setShowBatchModal(true);
@@ -312,13 +313,22 @@ export function HdRepaintTab({ novelId, chapterId, shots }: HdRepaintTabProps) {
             </div>
             <div className="flex items-center justify-between border-b border-gray-100 pb-2">
               <span className="text-sm font-medium text-gray-700">选择分镜视频</span>
-              <button
-                type="button"
-                onClick={() => setSelectedBatchShotIds(selectedBatchShotIds.size === eligibleShots.length ? new Set() : new Set(eligibleShots.map((shot) => shot.id)))}
-                className="text-sm text-blue-600 hover:text-blue-800"
-              >
-                {selectedBatchShotIds.size === eligibleShots.length && eligibleShots.length > 0 ? '取消全选' : '全选可用'}
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedBatchShotIds(new Set(pendingHdShots.map((shot) => shot.id)))}
+                  className="text-sm text-purple-600 hover:text-purple-800"
+                >
+                  仅选择待生成
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedBatchShotIds(selectedBatchShotIds.size === eligibleShots.length ? new Set() : new Set(eligibleShots.map((shot) => shot.id)))}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  {selectedBatchShotIds.size === eligibleShots.length && eligibleShots.length > 0 ? '取消全选' : '全选可用'}
+                </button>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
               {shots.map((shot) => {

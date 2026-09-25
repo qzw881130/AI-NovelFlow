@@ -29,6 +29,8 @@ WORKFLOW_TYPES = {
     "first_last_video": "首尾帧生视频",
     "three_frame_video": "三帧生视频",
     "four_frame_video": "四帧生视频",
+    "video_upscale": "高清放大",
+    "TEMPORAL_EXTEND": "时序续生成",
 }
 
 
@@ -49,6 +51,8 @@ DEFAULT_WORKFLOWS = {
     "first_last_video": "first_last_video_minimax_h3_ref2va.json",
     "three_frame_video": "three_frame_video_minimax_h3_ref2va.json",
     "four_frame_video": "four_frame_video_minimax_h3_ref2va.json",
+    "video_upscale": "video_upscale_topaz_v1_api_20260923.json",
+    "TEMPORAL_EXTEND": "temporal_extend_h3_v1_20260925.json",
 }
 
 
@@ -165,6 +169,27 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
         "duration_seconds_node_id": "132",
         "reference_audio_node_id": "",
     },
+    "video_upscale": {
+        "load_video_node_id": "2",
+        "scale_node_id": "15",
+        "scale_value": "2x",
+        "video_save_node_id": "3",
+    },
+    "TEMPORAL_EXTEND": {
+        "load_video_node_id": "66",
+        "duration_seconds_node_id": "125",
+        "prompt_node_id": "120",
+        "keyframe_node_1": "117",
+        "keyframe_node_2": "128",
+        "keyframe_node_3": "129",
+        "keyframe_node_4": "130",
+        "keyframe_node_5": "131",
+        "keyframe_node_6": "132",
+        "keyframe_node_7": "133",
+        "keyframe_node_8": "134",
+        "custom_keyframes_node_id": "116",
+        "video_save_node_id": "39",
+    },
 }
 
 
@@ -172,6 +197,39 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
 # 注意：列表顺序决定默认激活优先级，每种类型的第一个工作流会成为默认激活
 # nameKey/descriptionKey: 翻译键，前端通过此键获取多语言文本
 EXTRA_SYSTEM_WORKFLOWS = [
+    {
+        "filename": "temporal_extend_h3_v1_20260925.json",
+        "type": "TEMPORAL_EXTEND",
+        "name": "NovelFlow H3 AV 时序续生成 V1",
+        "nameKey": f"{NAME_KEY_PREFIX}.NovelFlow H3 AV 时序续生成 V1",
+        "description": "基于已有视频进行连续生成，可选使用 1～8 张时间锚点关键帧控制指定时刻的视觉状态。",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.基于已有视频进行连续生成，可选使用 1～8 张时间锚点关键帧控制指定时刻的视觉状态。",
+        "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["TEMPORAL_EXTEND"],
+    },
+    {
+        "filename": "video_continuation_h3_av_extend_minimal_v1_20260925.json",
+        "type": "VIDEO_CONTINUATION",
+        "name": "NovelFlow H3 AV 视频续生成 Minimal V1",
+        "nameKey": f"{NAME_KEY_PREFIX}.NovelFlow H3 AV 视频续生成 Minimal V1",
+        "description": "基于已有视频连续生成，支持提示词控制并具备 TEMPORAL_EXTEND 能力。",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.基于已有视频连续生成，支持提示词控制并具备 TEMPORAL_EXTEND 能力。",
+        "node_mapping": {
+            "load_video_node_id": "66",
+            "duration_seconds_node_id": "105",
+            "prompt_node_id": "107",
+            "video_save_node_id": "39",
+        },
+        "extension": {"workflow_capability": "TEMPORAL_EXTEND"},
+    },
+    {
+        "filename": "video_upscale_topaz_v1_api_20260923.json",
+        "type": "video_upscale",
+        "name": "Topaz Video 星光放大 V1",
+        "nameKey": f"{NAME_KEY_PREFIX}.Topaz Video 星光放大 V1",
+        "description": "Topaz Video 高清放大工作流，支持 2x、4x、8x",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.Topaz Video 高清放大工作流，支持 2x、4x、8x",
+        "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["video_upscale"],
+    },
     {
         "filename": "character_single.json",
         "type": "character",

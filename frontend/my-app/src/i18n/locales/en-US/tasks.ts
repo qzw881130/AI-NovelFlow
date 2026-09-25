@@ -78,6 +78,9 @@ export default {
     systemDefault: 'System Default',
     custom: 'Custom',
     workflowNames: {
+      'Topaz Video 星光放大 V1': 'Topaz Video Upscale V1',
+      'NovelFlow H3 AV 时序续生成 V1': 'NovelFlow H3 AV Temporal Extension V1',
+      'NovelFlow H3 AV 视频续生成 Minimal V1': 'NovelFlow H3 AV Video Continuation Minimal V1',
       '系统默认-人设生成': 'System Default - Character',
       '系统默认-场景生成': 'System Default - Scene',
       '系统默认-分镜生图': 'System Default - Shot Image',
@@ -101,6 +104,9 @@ export default {
       'LTX2 遮挡转场视频': 'LTX2 Occlusion Transition',
     },
     workflowDescriptions: {
+      'Topaz Video 高清放大工作流，支持 2x、4x、8x': 'Topaz Video upscale workflow supporting 2x, 4x, and 8x',
+      '基于已有视频进行连续生成，可选使用 1～8 张时间锚点关键帧控制指定时刻的视觉状态。': 'Continue an existing video, optionally using 1 to 8 temporal anchor keyframes to control visual states at specified times.',
+      '基于已有视频连续生成，支持提示词控制并具备 TEMPORAL_EXTEND 能力。': 'Continue an existing video with prompt control and TEMPORAL_EXTEND capability.',
       '系统预设的人设生成工作流': 'System preset character generation workflow',
       '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）': 'System preset character generation workflow (Flux2 Klein 9B three-view)',
       '系统预设的场景生成工作流': 'System preset scene generation workflow',

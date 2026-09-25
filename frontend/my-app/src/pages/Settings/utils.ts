@@ -114,7 +114,10 @@ export const getTypeNames = (t: any) => ({
   single_image_edit: t('systemSettings.workflow.singleImageEdit'),
   first_last_video: t('systemSettings.workflow.firstLastVideo'),
   three_frame_video: t('systemSettings.workflow.threeFrameVideo'),
-  four_frame_video: t('systemSettings.workflow.fourFrameVideo')
+  four_frame_video: t('systemSettings.workflow.fourFrameVideo'),
+  video_upscale: t('systemSettings.workflow.videoUpscale', { defaultValue: '高清放大' }),
+  TEMPORAL_EXTEND: t('systemSettings.workflow.temporalExtend', { defaultValue: '时序续生成' }),
+  VIDEO_CONTINUATION: t('systemSettings.workflow.videoContinuation', { defaultValue: '视频续生成' })
 });
 
 /**
@@ -316,6 +319,31 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
         mapping.prompt_node_id !== 'auto' &&
         mapping.save_image_node_id &&
         mapping.save_image_node_id !== 'auto'
+      );
+    case 'video_upscale':
+      return !!(
+        mapping.load_video_node_id && mapping.load_video_node_id !== 'auto' &&
+        mapping.scale_node_id && mapping.scale_node_id !== 'auto' &&
+        ['2x', '4x', '8x'].includes(mapping.scale_value || '2x') &&
+        mapping.video_save_node_id && mapping.video_save_node_id !== 'auto'
+      );
+    case 'TEMPORAL_EXTEND':
+      return !!(
+        mapping.load_video_node_id && mapping.load_video_node_id !== 'auto' &&
+        mapping.duration_seconds_node_id && mapping.duration_seconds_node_id !== 'auto' &&
+        mapping.custom_keyframes_node_id && mapping.custom_keyframes_node_id !== 'auto' &&
+        mapping.video_save_node_id && mapping.video_save_node_id !== 'auto' &&
+        Array.from({ length: 8 }).every((_, index) => {
+          const nodeId = mapping[`keyframe_node_${index + 1}`];
+          return nodeId && nodeId !== 'auto';
+        })
+      );
+    case 'VIDEO_CONTINUATION':
+      return !!(
+        mapping.load_video_node_id && mapping.load_video_node_id !== 'auto' &&
+        mapping.duration_seconds_node_id && mapping.duration_seconds_node_id !== 'auto' &&
+        mapping.prompt_node_id && mapping.prompt_node_id !== 'auto' &&
+        mapping.video_save_node_id && mapping.video_save_node_id !== 'auto'
       );
     default:
       return false;

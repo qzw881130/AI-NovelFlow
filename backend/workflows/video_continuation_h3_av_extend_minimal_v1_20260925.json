@@ -1,0 +1,475 @@
+{
+  "1": {
+    "inputs": {
+      "noise_seed": 758007644453984
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#1 RandomNoise"
+    }
+  },
+  "2": {
+    "inputs": {
+      "model": [
+        "71",
+        0
+      ],
+      "conditioning": [
+        "55",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "#2 Basic Guider"
+    }
+  },
+  "3": {
+    "inputs": {
+      "noise": [
+        "1",
+        0
+      ],
+      "guider": [
+        "2",
+        0
+      ],
+      "sampler": [
+        "36",
+        0
+      ],
+      "sigmas": [
+        "70",
+        0
+      ],
+      "latent_image": [
+        "23",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#3 Extension 1 - SamplerCustomAdvanced"
+    }
+  },
+  "23": {
+    "inputs": {
+      "context_length": [
+        "37",
+        0
+      ],
+      "audio_feather_ticks": [
+        "96",
+        0
+      ],
+      "source_fps": 24,
+      "crop": "disabled",
+      "latent": [
+        "55",
+        1
+      ],
+      "vae": [
+        "30",
+        0
+      ],
+      "audio_vae": [
+        "102",
+        0
+      ],
+      "start_mode": [
+        "94",
+        0
+      ],
+      "source_frames": [
+        "67",
+        0
+      ],
+      "source_audio": [
+        "93",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3StartMaskedContext",
+    "_meta": {
+      "title": "#23 H3 Start Masked Context"
+    }
+  },
+  "29": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#29 Starter Clip - Load VAE"
+    }
+  },
+  "30": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#30 Starter Clip - Load VAE"
+    }
+  },
+  "31": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#31 Starter Clip - Load CLIP"
+    }
+  },
+  "32": {
+    "inputs": {
+      "unet_name": "minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#32 Starter Clip - Load Diffusion Model"
+    }
+  },
+  "36": {
+    "inputs": {
+      "sampler_name": "res_multistep"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "#36 KSamplerSelect"
+    }
+  },
+  "37": {
+    "inputs": {
+      "value": 39
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "#37 Int"
+    }
+  },
+  "39": {
+    "inputs": {
+      "frame_rate": 24,
+      "loop_count": 0,
+      "filename_prefix": "h3_preview/extension_01",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": true,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "62",
+        0
+      ],
+      "audio": [
+        "61",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "#39 Extension 1 - VHS Video Combine"
+    }
+  },
+  "55": {
+    "inputs": {
+      "prompt": [
+        "107",
+        0
+      ],
+      "width": 960,
+      "height": 544,
+      "length": [
+        "106",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "31",
+        0
+      ],
+      "vae": [
+        "30",
+        0
+      ],
+      "audio_vae": [
+        "102",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "#55 Extension 1 - MiniMax H3 Reference to Video"
+    }
+  },
+  "56": {
+    "inputs": {
+      "value": 8
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "#56 Int"
+    }
+  },
+  "61": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "102",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "#61 VAE Decode Audio"
+    }
+  },
+  "62": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "30",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#62 VAE Decode"
+    }
+  },
+  "66": {
+    "inputs": {
+      "video": "H3_Custom_Keyframes_example_00008_.mp4",
+      "force_rate": 24,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "start_time": 0,
+      "format": "AnimateDiff"
+    },
+    "class_type": "VHS_LoadVideoFFmpeg",
+    "_meta": {
+      "title": "#66 Load Video FFmpeg (Upload) 🎥🅥🅗🅢"
+    }
+  },
+  "67": {
+    "inputs": {
+      "images": [
+        "101",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3CropTo32",
+    "_meta": {
+      "title": "#67 H3 Crop Source To /32"
+    }
+  },
+  "70": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": [
+        "56",
+        0
+      ],
+      "denoise": 1,
+      "model": [
+        "71",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "#70 BasicScheduler"
+    }
+  },
+  "71": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "72",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "#71 ModelSamplingMiniMaxH3"
+    }
+  },
+  "72": {
+    "inputs": {
+      "lora_name": "minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+      "strength_model": 0.95,
+      "model": [
+        "73",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "#72 Starter Clip - LoraLoaderModelOnly"
+    }
+  },
+  "73": {
+    "inputs": {
+      "attention": "comfy kitchen attention",
+      "model": [
+        "32",
+        0
+      ]
+    },
+    "class_type": "ModelAttentionBackend",
+    "_meta": {
+      "title": "#73 Model Attention Backend"
+    }
+  },
+  "93": {
+    "inputs": {
+      "source_fps": 24,
+      "audio_vae": [
+        "102",
+        0
+      ],
+      "mode": [
+        "97",
+        0
+      ],
+      "source_frames": [
+        "67",
+        0
+      ],
+      "video_info": [
+        "66",
+        3
+      ]
+    },
+    "class_type": "MiniMaxH3SourceAudioPolicy",
+    "_meta": {
+      "title": "#93 H3 Source Audio Policy"
+    }
+  },
+  "94": {
+    "inputs": {
+      "start": "Existing Video"
+    },
+    "class_type": "MiniMaxH3AVStartModeParam",
+    "_meta": {
+      "title": "#94 Start Mode — FIXED Existing Video"
+    }
+  },
+  "96": {
+    "inputs": {
+      "value": 8
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "#96 Audio Feather — FIXED 8"
+    }
+  },
+  "97": {
+    "inputs": {
+      "source_audio": "Keep source audio"
+    },
+    "class_type": "MiniMaxH3AVSourceAudioModeParam",
+    "_meta": {
+      "title": "#97 Source Audio — FIXED Keep source audio"
+    }
+  },
+  "101": {
+    "inputs": {
+      "images": [
+        "66",
+        0
+      ],
+      "video_info": [
+        "66",
+        3
+      ]
+    },
+    "class_type": "MiniMaxH3Validate24FPSVideo",
+    "_meta": {
+      "title": "#101 H3 Validate 24 FPS Video"
+    }
+  },
+  "102": {
+    "inputs": {
+      "audio_vae": [
+        "29",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3AudioVAECompatibility",
+    "_meta": {
+      "title": "#102 H3 Audio VAE Compatibility"
+    }
+  },
+  "104": {
+    "inputs": {
+      "text": "{\n    \"source_fps\": 24.0,\n    \"source_frame_count\": 243.12,\n    \"source_duration\": 10.13,\n    \"source_width\": 864,\n    \"source_height\": 480,\n    \"loaded_fps\": 24.0,\n    \"loaded_frame_count\": 243,\n    \"loaded_duration\": 10.125,\n    \"loaded_width\": 864,\n    \"loaded_height\": 480\n}",
+      "anything": [
+        "66",
+        3
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#104 #-1 Show Any"
+    }
+  },
+  "105": {
+    "inputs": {
+      "value": 10
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "#105 Float(时长秒)"
+    }
+  },
+  "106": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "105",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "#106 Math Expression"
+    }
+  },
+  "107": {
+    "inputs": {
+      "prompt": "Continue directly from the final moment of the selected start clip with no cut, reset, or re-establishment.\n\nThe incoming protected audiovisual prefix is authoritative for pose, motion, camera trajectory, lighting, environment, object state, voice, ambience, speaker identity, and timing.\n\nConnected reference images are identity/appearance references only; never pull any subject back toward a reference-image pose, expression, framing, or lighting.\n\n[Shot 1]\n\nContinue the exact motion, speech, and sound already in progress, then develop the next action naturally. Do not restart from rest.\n\nExactly the same three subjects remain present.\n\n<Subject 3>, the young child, is the speaker already speaking in the incoming audiovisual context. Continue that same speaker naturally.\n\n<Subject 1>, the adult male commoner, remains silent.\n<Subject 2>, the adult female commoner, remains silent.\n\nDo not transfer the ongoing speech to <Subject 1> or <Subject 2>.\n\n<Subject 3> continues the unfinished sentence and says exactly in Mandarin Chinese:\n\n“一个人明明什么都没有看见，却因为害怕别人说自己愚蠢，就假装看见了漂亮的衣服，那最后所有人不就都在说自己根本没有看见的东西了吗？”\n\nDo not repeat “如果”.\nDo not restart the sentence.\nDo not omit, paraphrase, repeat, reorder, or add any words.\n\nContinue the existing body motion, facial expression, gaze, camera movement, and environmental sound naturally from the incoming audiovisual context."
+    },
+    "class_type": "CR Prompt Text",
+    "_meta": {
+      "title": "#107 #-1 ⚙️ CR Prompt Text(提示词)"
+    }
+  },
+  "108": {
+    "inputs": {
+      "text": "243",
+      "anything": [
+        "106",
+        1
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "#108 #-1 Show Any"
+    }
+  }
+}

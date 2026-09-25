@@ -101,6 +101,9 @@ export default {
       'LTX2 镜头转场视频': 'LTX2 镜头转场视频',
       'LTX2 光线转场视频': 'LTX2 光线转场视频',
       'LTX2 遮挡转场视频': 'LTX2 遮挡转场视频',
+      'Topaz Video 星光放大 V1': 'Topaz Video 星光放大 V1',
+      'NovelFlow H3 AV 时序续生成 V1': 'NovelFlow H3 AV 时序续生成 V1',
+      'NovelFlow H3 AV 视频续生成 Minimal V1': 'NovelFlow H3 AV 视频续生成 Minimal V1',
     },
     workflowDescriptions: {
       '系统预设的人设生成工作流': '系统预设的人设生成工作流',
@@ -121,6 +124,9 @@ export default {
       '适合：首尾帧是同一场景不同景别/角度': '适合：首尾帧是同一场景不同景别/角度',
       '适合：首尾帧颜色差很多，但场景/人物不变': '适合：首尾帧颜色差很多，但场景/人物不变',
       '适合：两张图差异大，想自然衔接': '适合：两张图差异大，想自然衔接',
+      'Topaz Video 高清放大工作流，支持 2x、4x、8x': 'Topaz Video 高清放大工作流，支持 2x、4x、8x',
+      '基于已有视频进行连续生成，可选使用 1～8 张时间锚点关键帧控制指定时刻的视觉状态。': '基于已有视频进行连续生成，可选使用 1～8 张时间锚点关键帧控制指定时刻的视觉状态。',
+      '基于已有视频连续生成，支持提示词控制并具备 TEMPORAL_EXTEND 能力。': '基于已有视频连续生成，支持提示词控制并具备 TEMPORAL_EXTEND 能力。',
     },
     workflowUsed: '使用的工作流',
     taskNames: {

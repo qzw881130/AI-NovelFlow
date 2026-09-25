@@ -81,6 +81,145 @@ class WorkflowBuilder:
             style=style,
             **kwargs
         )
+
+    def build_temporal_extend_workflow(
+        self,
+        workflow_json: Any,
+        node_mapping: Dict[str, Any],
+        video_filename: str,
+        duration_seconds: float,
+        anchors: list[Dict[str, Any]],
+        filename_prefix: str,
+        prompt: str = "",
+    ) -> Dict[str, Any]:
+        """Build a TEMPORAL_EXTEND workflow for zero to eight temporal anchors."""
+        if len(anchors) > 8:
+            raise ValueError("时序续生成最多支持 8 个 Temporal Anchor")
+        workflow = json.loads(workflow_json) if isinstance(workflow_json, str) else json.loads(json.dumps(workflow_json))
+        if not isinstance(workflow, dict):
+            raise ValueError("时序续生成工作流格式无效")
+        if isinstance(workflow.get("nodes"), list):
+            self._configure_temporal_extend_ui_workflow(
+                workflow, node_mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt
+            )
+        else:
+            self._configure_temporal_extend_api_workflow(
+                workflow, node_mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt
+            )
+        return workflow
+
+    @staticmethod
+    def _configure_temporal_extend_ui_workflow(workflow, mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt):
+        nodes = {str(node.get("id")): node for node in workflow.get("nodes", []) if isinstance(node, dict)}
+        load_video_id = str(mapping.get("load_video_node_id") or "")
+        duration_id = str(mapping.get("duration_seconds_node_id") or "")
+        custom_id = str(mapping.get("custom_keyframes_node_id") or "")
+        save_id = str(mapping.get("video_save_node_id") or "")
+        keyframe_ids = [str(mapping.get(f"keyframe_node_{index}") or "") for index in range(1, 9)]
+        required = [load_video_id, duration_id, custom_id, save_id]
+        if any(not node_id or node_id not in nodes for node_id in required):
+            raise ValueError("时序续生成工作流缺少加载视频、时长、关键帧控制或保存节点")
+
+        def set_widget(node, key, value):
+            named = node.setdefault("widgets_values_named", {})
+            named[key] = value
+            values = node.get("widgets_values")
+            if isinstance(values, dict):
+                values[key] = value
+
+        set_widget(nodes[load_video_id], "video", video_filename)
+        set_widget(nodes[duration_id], "value", float(duration_seconds))
+        if isinstance(nodes[duration_id].get("widgets_values"), list) and nodes[duration_id]["widgets_values"]:
+            nodes[duration_id]["widgets_values"][0] = float(duration_seconds)
+        set_widget(nodes[save_id], "filename_prefix", filename_prefix)
+        set_widget(nodes[save_id], "save_output", True)
+        prompt_id = str(mapping.get("prompt_node_id") or "")
+        if prompt and prompt_id in nodes:
+            set_widget(nodes[prompt_id], "prompt", prompt)
+            set_widget(nodes[prompt_id], "text", prompt)
+
+        custom_node = nodes[custom_id]
+        links = workflow.get("links", [])
+        if not anchors:
+            incoming = next((link for link in links if str(link[3]) == custom_id and int(link[4]) == 0), None)
+            if incoming:
+                for link in links:
+                    if str(link[1]) == custom_id:
+                        link[1], link[2] = incoming[1], incoming[2]
+            removed = {custom_id, *keyframe_ids}
+            workflow["nodes"] = [node for node in workflow["nodes"] if str(node.get("id")) not in removed]
+            workflow["links"] = [link for link in links if str(link[3]) not in removed and str(link[1]) not in removed]
+            return
+
+        positions = [int(anchor["position"]) for anchor in anchors]
+        state = json.dumps({"count": len(anchors), "positions": positions}, separators=(",", ":"))
+        set_widget(custom_node, "keyframe_state", state)
+        if isinstance(custom_node.get("widgets_values"), list):
+            if custom_node["widgets_values"]:
+                custom_node["widgets_values"][0] = state
+            else:
+                custom_node["widgets_values"] = [state, "1-based", "center"]
+        custom_node["inputs"] = [
+            item for item in custom_node.get("inputs", [])
+            if not re.match(r"keyframe_(image|position)_(\d+)$", str(item.get("name", "")))
+            or int(re.match(r"keyframe_(image|position)_(\d+)$", str(item.get("name", ""))).group(2)) <= len(anchors)
+        ]
+        unused_ids = set(keyframe_ids[len(anchors):])
+        workflow["nodes"] = [node for node in workflow["nodes"] if str(node.get("id")) not in unused_ids]
+        workflow["links"] = [link for link in links if str(link[1]) not in unused_ids and str(link[3]) not in unused_ids]
+        for index, anchor in enumerate(anchors):
+            node_id = keyframe_ids[index]
+            if not node_id or node_id not in nodes:
+                raise ValueError(f"时序续生成缺少关键帧 {index + 1} LoadImage 节点")
+            set_widget(nodes[node_id], "image", anchor["image"])
+            values = nodes[node_id].get("widgets_values")
+            if isinstance(values, list) and values:
+                values[0] = anchor["image"]
+
+    @staticmethod
+    def _configure_temporal_extend_api_workflow(workflow, mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt):
+        load_video_id = str(mapping.get("load_video_node_id") or "")
+        duration_id = str(mapping.get("duration_seconds_node_id") or "")
+        custom_id = str(mapping.get("custom_keyframes_node_id") or "")
+        save_id = str(mapping.get("video_save_node_id") or "")
+        keyframe_ids = [str(mapping.get(f"keyframe_node_{index}") or "") for index in range(1, 9)]
+        if any(node_id not in workflow for node_id in [load_video_id, duration_id, custom_id, save_id]):
+            raise ValueError("时序续生成 API 工作流节点映射不完整")
+        workflow[load_video_id].setdefault("inputs", {})["video"] = video_filename
+        workflow[duration_id].setdefault("inputs", {})["value"] = float(duration_seconds)
+        save_inputs = workflow[save_id].setdefault("inputs", {})
+        save_inputs["filename_prefix"] = filename_prefix
+        save_inputs["save_output"] = True
+        prompt_id = str(mapping.get("prompt_node_id") or "")
+        if prompt and prompt_id in workflow:
+            prompt_inputs = workflow[prompt_id].setdefault("inputs", {})
+            if "prompt" in prompt_inputs:
+                prompt_inputs["prompt"] = prompt
+            else:
+                prompt_inputs["text"] = prompt
+        custom_inputs = workflow[custom_id].setdefault("inputs", {})
+        conditioning = custom_inputs.get("conditioning")
+        if not anchors:
+            for node in workflow.values():
+                inputs = node.get("inputs", {}) if isinstance(node, dict) else {}
+                for key, value in list(inputs.items()):
+                    if value == [custom_id, 0] and conditioning:
+                        inputs[key] = conditioning
+            for node_id in [custom_id, *keyframe_ids]:
+                workflow.pop(node_id, None)
+            return
+        positions = [int(anchor["position"]) for anchor in anchors]
+        custom_inputs["keyframe_state"] = json.dumps({"count": len(anchors), "positions": positions}, separators=(",", ":"))
+        for index in range(1, 9):
+            if index <= len(anchors):
+                node_id = keyframe_ids[index - 1]
+                if node_id not in workflow:
+                    raise ValueError(f"时序续生成缺少关键帧 {index} LoadImage 节点")
+                workflow[node_id].setdefault("inputs", {})["image"] = anchors[index - 1]["image"]
+            else:
+                custom_inputs.pop(f"keyframe_image_{index}", None)
+                custom_inputs.pop(f"keyframe_position_{index}", None)
+                workflow.pop(keyframe_ids[index - 1], None)
     
     def build_shot_workflow(
         self,

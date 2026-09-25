@@ -73,6 +73,7 @@ uploads/
 
 # Local docs
 v2-doc/
+docs-v2/
 
 # Runtime files
 uvicorn.log

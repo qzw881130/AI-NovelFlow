@@ -35,6 +35,10 @@ interface MappingForm {
   keyframeNodes: string[];
   // 时长秒数节点（视频生成工作流）
   durationSecondsNodeId: string;
+  loadVideoNodeId?: string;
+  scaleNodeId?: string;
+  scaleValue?: string;
+  customKeyframesNodeId?: string;
 }
 
 interface MappingModalProps {
@@ -98,7 +102,11 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     textNodeId: '',
     emotionPromptNodeId: '',
     keyframeNodes: [],
-    durationSecondsNodeId: ''
+    durationSecondsNodeId: '',
+    loadVideoNodeId: '',
+    scaleNodeId: '',
+    scaleValue: '2x',
+    customKeyframesNodeId: ''
   });
   const [availableNodes, setAvailableNodes] = useState<AvailableNodes>({
     clipTextEncode: [],
@@ -113,7 +121,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     saveAudio: [],
     loadAudio: [],
     qwen3TtsVoiceClone: [],
-    previewAudio: []
+    previewAudio: [],
+    loadVideo: [],
+    customKeyframes: []
   });
   const [workflowJsonData, setWorkflowJsonData] = useState<Record<string, any>>({});
   const [selectedNodeId, setSelectedNodeId] = useState<string>('');
@@ -135,7 +145,15 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
         
         if (workflowJson) {
           try {
-            const workflowObj = typeof workflowJson === 'string' ? JSON.parse(workflowJson) : workflowJson;
+            const rawWorkflow = typeof workflowJson === 'string' ? JSON.parse(workflowJson) : workflowJson;
+            const workflowObj = Array.isArray(rawWorkflow?.nodes)
+              ? Object.fromEntries(rawWorkflow.nodes.map((node: any) => [String(node.id), {
+                  ...node,
+                  class_type: node.type,
+                  inputs: node.widgets_values_named || {},
+                  _meta: { title: node.title || node.type },
+                }]))
+              : rawWorkflow;
             
             setWorkflowJsonData(workflowObj);
             
@@ -152,6 +170,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
             const loadAudio: string[] = [];
             const qwen3TtsVoiceClone: string[] = [];
             const previewAudio: string[] = [];
+            const loadVideo: string[] = [];
+            const customKeyframes: string[] = [];
 
             for (const [nodeId, node] of Object.entries(workflowObj)) {
               if (typeof node === 'object' && node !== null) {
@@ -174,6 +194,10 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   saveVideo.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'LoadImage') {
                   loadImage.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'LoadVideo' || classType === 'VHS_LoadVideoFFmpeg') {
+                  loadVideo.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'MiniMaxH3CustomKeyframes') {
+                  customKeyframes.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'TDQwen3TTSVoiceDesign') {
                   qwen3TtsVoiceDesign.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'SaveAudio') {
@@ -188,7 +212,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               }
             }
 
-            setAvailableNodes({ clipTextEncode, saveImage, easyInt, easyFloat, crPromptText, vhsVideoCombine, saveVideo, loadImage, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
+            setAvailableNodes({ clipTextEncode, saveImage, easyInt, easyFloat, crPromptText, vhsVideoCombine, saveVideo, loadImage, loadVideo, customKeyframes, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
             const inferredAppearanceNodeId = crPromptText.find((item) => /人物形象|外貌|appearance/i.test(item))?.split(' ')[0] || '';
             const inferredStyleNodeId = crPromptText.find((item) => /\bSTYLE\b/i.test(item))?.split(' ')[0] || '';
             
@@ -208,7 +232,33 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               keyframeNodes.push(nodeId);
             }
 
-            if (isSingleFrameVideoType(wf.type)) {
+            if (wf.type === 'TEMPORAL_EXTEND') {
+              setMappingForm({
+                ...mappingForm,
+                loadVideoNodeId: mapping.load_video_node_id || '',
+                durationSecondsNodeId: mapping.duration_seconds_node_id || '',
+                promptNodeId: mapping.prompt_node_id || '',
+                keyframeNodes: Array.from({ length: 8 }, (_, index) => mapping[`keyframe_node_${index + 1}`] || ''),
+                customKeyframesNodeId: mapping.custom_keyframes_node_id || '',
+                videoSaveNodeId: mapping.video_save_node_id || '',
+              });
+            } else if (wf.type === 'VIDEO_CONTINUATION') {
+              setMappingForm({
+                ...mappingForm,
+                loadVideoNodeId: mapping.load_video_node_id || '',
+                durationSecondsNodeId: mapping.duration_seconds_node_id || '',
+                promptNodeId: mapping.prompt_node_id || '',
+                videoSaveNodeId: mapping.video_save_node_id || '',
+              });
+            } else if (wf.type === 'video_upscale') {
+              setMappingForm({
+                ...mappingForm,
+                loadVideoNodeId: mapping.load_video_node_id || '',
+                scaleNodeId: mapping.scale_node_id || '',
+                scaleValue: mapping.scale_value || '2x',
+                videoSaveNodeId: mapping.video_save_node_id || '',
+              });
+            } else if (isSingleFrameVideoType(wf.type)) {
               setMappingForm({
                 promptNodeId: mapping.prompt_node_id || '',
                 saveImageNodeId: '',
@@ -447,7 +497,32 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     try {
       let nodeMapping: Record<string, string | null> = {};
       
-      if (isSingleFrameVideoType(workflow.type)) {
+      if (workflow.type === 'TEMPORAL_EXTEND') {
+        nodeMapping = {
+          load_video_node_id: mappingForm.loadVideoNodeId || null,
+          duration_seconds_node_id: mappingForm.durationSecondsNodeId || null,
+          prompt_node_id: mappingForm.promptNodeId || null,
+          custom_keyframes_node_id: mappingForm.customKeyframesNodeId || null,
+          video_save_node_id: mappingForm.videoSaveNodeId || null,
+        };
+        Array.from({ length: 8 }).forEach((_, index) => {
+          nodeMapping[`keyframe_node_${index + 1}`] = mappingForm.keyframeNodes[index] || null;
+        });
+      } else if (workflow.type === 'VIDEO_CONTINUATION') {
+        nodeMapping = {
+          load_video_node_id: mappingForm.loadVideoNodeId || null,
+          duration_seconds_node_id: mappingForm.durationSecondsNodeId || null,
+          prompt_node_id: mappingForm.promptNodeId || null,
+          video_save_node_id: mappingForm.videoSaveNodeId || null,
+        };
+      } else if (workflow.type === 'video_upscale') {
+        nodeMapping = {
+          load_video_node_id: mappingForm.loadVideoNodeId || null,
+          scale_node_id: mappingForm.scaleNodeId || null,
+          scale_value: mappingForm.scaleValue || '2x',
+          video_save_node_id: mappingForm.videoSaveNodeId || null,
+        };
+      } else if (isSingleFrameVideoType(workflow.type)) {
         const hasMaxSide = Boolean(mappingForm.maxSideNodeId);
         const hasMegapixels = Boolean(mappingForm.megapixelsNodeId);
         if (hasMaxSide === hasMegapixels) {
@@ -861,6 +936,156 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                       </div>
                     ))}
                   </div>}
+                </>
+              )}
+
+              {workflow.type === 'TEMPORAL_EXTEND' && (
+                <>
+                  <NodeSelectField
+                    label="加载视频节点"
+                    nodeTypeHint="VHS_LoadVideoFFmpeg"
+                    value={mappingForm.loadVideoNodeId || ''}
+                    options={availableNodes.loadVideo}
+                    onChange={(v) => handleNodeSelect(v, 'loadVideoNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label="时长节点"
+                    nodeTypeHint="PrimitiveFloat"
+                    value={mappingForm.durationSecondsNodeId}
+                    options={availableNodes.easyFloat}
+                    onChange={(v) => handleNodeSelect(v, 'durationSecondsNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.promptInputNode')}
+                    nodeTypeHint="CLIPTextEncode, CR Prompt Text"
+                    value={mappingForm.promptNodeId}
+                    options={[...availableNodes.clipTextEncode, ...availableNodes.crPromptText]}
+                    onChange={(v) => handleNodeSelect(v, 'promptNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium text-gray-700">关键帧 1～8</div>
+                    {Array.from({ length: 8 }, (_, index) => (
+                      <NodeSelectField
+                        key={index}
+                        label={`关键帧 ${index + 1}`}
+                        nodeTypeHint="LoadImage"
+                        value={mappingForm.keyframeNodes[index] || ''}
+                        options={availableNodes.loadImage}
+                        onChange={(v) => handleKeyframeNodeChange(v, index)}
+                        onFocus={handleNodeFocus}
+                        t={t}
+                      />
+                    ))}
+                  </div>
+                  <NodeSelectField
+                    label="关键帧控制节点"
+                    nodeTypeHint="MiniMaxH3CustomKeyframes"
+                    value={mappingForm.customKeyframesNodeId || ''}
+                    options={availableNodes.customKeyframes}
+                    onChange={(v) => handleNodeSelect(v, 'customKeyframesNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.videoSaveNode')}
+                    nodeTypeHint="VHS_VideoCombine"
+                    value={mappingForm.videoSaveNodeId}
+                    options={availableNodes.vhsVideoCombine}
+                    onChange={(v) => handleNodeSelect(v, 'videoSaveNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                </>
+              )}
+
+              {workflow.type === 'VIDEO_CONTINUATION' && (
+                <>
+                  <NodeSelectField
+                    label="加载视频节点"
+                    nodeTypeHint="VHS_LoadVideoFFmpeg"
+                    value={mappingForm.loadVideoNodeId || ''}
+                    options={availableNodes.loadVideo}
+                    onChange={(v) => handleNodeSelect(v, 'loadVideoNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label="时长节点"
+                    nodeTypeHint="PrimitiveFloat"
+                    value={mappingForm.durationSecondsNodeId}
+                    options={availableNodes.easyFloat}
+                    onChange={(v) => handleNodeSelect(v, 'durationSecondsNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.promptInputNode')}
+                    nodeTypeHint="CLIPTextEncode, CR Prompt Text"
+                    value={mappingForm.promptNodeId}
+                    options={[...availableNodes.clipTextEncode, ...availableNodes.crPromptText]}
+                    onChange={(v) => handleNodeSelect(v, 'promptNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.videoSaveNode')}
+                    nodeTypeHint="VHS_VideoCombine"
+                    value={mappingForm.videoSaveNodeId}
+                    options={availableNodes.vhsVideoCombine}
+                    onChange={(v) => handleNodeSelect(v, 'videoSaveNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                </>
+              )}
+
+              {workflow.type === 'video_upscale' && (
+                <>
+                  <NodeSelectField
+                    label="Load Video 节点"
+                    nodeTypeHint="LoadVideo"
+                    value={mappingForm.loadVideoNodeId || ''}
+                    options={availableNodes.loadVideo}
+                    onChange={(v) => handleNodeSelect(v, 'loadVideoNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label="Scale 节点"
+                    nodeTypeHint="CR Text (Scale 2x 4x 8x)"
+                    value={mappingForm.scaleNodeId || ''}
+                    options={availableNodes.clipTextEncode}
+                    onChange={(v) => handleNodeSelect(v, 'scaleNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-gray-700">Scale</label>
+                    <select
+                      value={mappingForm.scaleValue || '2x'}
+                      onChange={(event) => setMappingForm({ ...mappingForm, scaleValue: event.target.value })}
+                      className="input-field"
+                    >
+                      <option value="2x">2x</option>
+                      <option value="4x">4x</option>
+                      <option value="8x">8x</option>
+                    </select>
+                  </div>
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.videoSaveNode')}
+                    nodeTypeHint="SaveVideo"
+                    value={mappingForm.videoSaveNodeId}
+                    options={availableNodes.saveVideo}
+                    onChange={(v) => handleNodeSelect(v, 'videoSaveNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
                 </>
               )}
 

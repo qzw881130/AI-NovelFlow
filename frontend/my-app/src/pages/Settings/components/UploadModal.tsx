@@ -104,6 +104,9 @@ export function UploadModal({ isOpen, onClose, onSuccess, extensionConfigs, type
               <option value="first_last_video">{typeNames.first_last_video}</option>
               <option value="three_frame_video">{typeNames.three_frame_video}</option>
               <option value="four_frame_video">{typeNames.four_frame_video}</option>
+              <option value="video_upscale">{typeNames.video_upscale}</option>
+              <option value="TEMPORAL_EXTEND">{typeNames.TEMPORAL_EXTEND}</option>
+              <option value="VIDEO_CONTINUATION">{typeNames.VIDEO_CONTINUATION}</option>
               <option value="transition">{typeNames.transition}</option>
               <option value="prop">{typeNames.prop}</option>
               <option value="voice_design">{typeNames.voice_design}</option>
