@@ -805,6 +805,7 @@ class NovelService:
                 scene=shot_data.get("scene", ""),
                 props=shot_data.get("props", []),
                 duration=shot_data.get("duration", 4),
+                continuity_mode=shot_data.get("continuity_mode") or "NORMAL",
                 dialogues=shot_data.get("dialogues", []),
             )
             created_shots.append(shot)
