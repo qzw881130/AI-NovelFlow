@@ -668,6 +668,14 @@ function VideoDirectorPanel({
   const keyframes = plan.keyframes || [];
   const clips = selectedMode === 'MULTI_KEYFRAME' ? (plan.window_plans || []) : (plan.clips || []);
   const hasSemanticClipPlan = Array.isArray(semanticClipPlan) && semanticClipPlan.length > 0;
+  const semanticPlanUsesKeyframes = hasSemanticClipPlan && semanticClipPlan.some((clip: any) => (
+    Array.isArray(clip?.keyframe_indexes) && clip.keyframe_indexes.length > 0
+  ));
+  // A legacy MULTI_KEYFRAME recommendation can coexist with a semantic plan
+  // compiled to SINGLE_FRAME/continuation. In that case its KF timeline is no
+  // longer an execution input and must not be presented as missing work.
+  const showKeyframeExecutionTimeline = selectedMode === 'MULTI_KEYFRAME'
+    && (!hasSemanticClipPlan || semanticPlanUsesKeyframes);
   const hasWindowPlans = selectedMode === 'MULTI_KEYFRAME' && clips.length > 0;
   const legacyKeyframes = shot?.keyframes || [];
   const getKeyframeImageUrl = (kf: any) => {
@@ -695,10 +703,10 @@ function VideoDirectorPanel({
       && ['pending', 'running'].includes(String(task.status))
     ));
   };
-  const activeMissingKeyframes = selectedMode === 'MULTI_KEYFRAME'
+  const activeMissingKeyframes = showKeyframeExecutionTimeline
     ? keyframes.filter((kf: any) => kf.role !== 'START' && !getKeyframeImageUrl(kf) && isKeyframeGenerating(kf))
     : [];
-  const missingKeyframes = selectedMode === 'MULTI_KEYFRAME'
+  const missingKeyframes = showKeyframeExecutionTimeline
     ? keyframes.filter((kf: any) => kf.role !== 'START' && !getKeyframeImageUrl(kf))
     : [];
   const hasGeneratingMissingKeyframes = missingKeyframes.some((kf: any) => isKeyframeGenerating(kf));
@@ -871,7 +879,7 @@ function VideoDirectorPanel({
         {renderModeButton('MULTI_KEYFRAME')}
       </div>
 
-      {selectedMode === 'MULTI_KEYFRAME' && (
+      {showKeyframeExecutionTimeline && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
           <div className="text-xs text-blue-700">
             #08 只规划关键帧时间轴和 3/4 帧 window_plans；关键帧图片需在规划后单独生成。
@@ -1101,7 +1109,7 @@ function VideoDirectorPanel({
         </div>
       )}
 
-      {selectedMode === 'MULTI_KEYFRAME' && (
+      {showKeyframeExecutionTimeline && (
         <div className="space-y-4">
           <div>
             <div className="flex items-center justify-between mb-2">

@@ -280,7 +280,9 @@ export const shotsApi = {
   },
 
   downloadShotVideoMaterialsPackage: async (novelId: string, chapterId: string, shotId: string): Promise<void> => {
-    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/download-video-materials`);
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/download-video-materials`, {
+      signal: AbortSignal.timeout(120_000),
+    });
     if (!response.ok) {
       const data = await response.json().catch(() => ({}));
       throw new Error(data.detail || data.message || '打包视频素材失败');
@@ -293,8 +295,11 @@ export const shotsApi = {
     const link = document.createElement('a');
     link.href = url;
     link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   },
 
   resetShotVideoData: async (novelId: string, chapterId: string, shotId: string): Promise<{ success: boolean; message?: string; detail?: string }> => {

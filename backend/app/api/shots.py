@@ -2694,6 +2694,59 @@ async def _run_semantic_shot_for_batch(db, batch_task: Task, batch_child: Task, 
     revision = int(plan.get("clip_plan_revision") or 0)
     batch_metadata = _safe_json_dict(batch_child.metadata_json)
     force_rerun = bool(batch_metadata.get("batch_force_rerun"))
+
+    if force_rerun:
+        # A batch rerun starts a fresh execution of the existing plan. Keep the
+        # planning contract, but remove every prior execution artifact so the
+        # UI and the final waiter cannot observe stale Clip results.
+        semantic_tasks = db.query(Task).filter(
+            Task.shot_id == shot.id,
+            Task.type == "shot_video",
+            Task.metadata_json.like('%%"execution_scope": "CLIP"%%'),
+        ).all()
+        for task in semantic_tasks:
+            metadata = _safe_json_dict(task.metadata_json)
+            for media_url in (
+                task.result_url,
+                metadata.get("previous_approved_video_url"),
+                (metadata.get("assembled_result") or {}).get("url"),
+            ):
+                media_path = url_to_local_path(media_url) if media_url else None
+                if media_path:
+                    try:
+                        path = Path(media_path)
+                        if path.is_file():
+                            path.unlink()
+                    except OSError:
+                        pass
+            if task.status in {"pending", "running", "queued"}:
+                task.status = "cancelled"
+                task.error_message = "被新的批量视频重跑取代"
+                task.current_step = "批量重跑已清除旧 Clip"
+            else:
+                db.delete(task)
+        for clip in plan.get("clip_plan", []):
+            if not isinstance(clip, dict):
+                continue
+            for key in (
+                "execution_status", "status", "video_url", "local_path",
+                "source_video_url", "generated_at", "generated_by_task_id",
+                "assembled_result", "assembled_media_duration", "actual_duration",
+                "error_message", "seed", "workflow_json", "prompt_id",
+            ):
+                clip.pop(key, None)
+            clip["execution_status"] = "PLANNED"
+        for key in (
+            "assembly_status", "assembly_clip_plan_revision", "assembly_task_ids",
+            "assembly_mode", "assembled_result", "merged_video_url", "merged_at",
+        ):
+            plan.pop(key, None)
+        shot.video_url = None
+        shot.video_status = "pending"
+        shot.video_task_id = batch_child.id
+        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+        db.flush()
+
     tasks = db.query(Task).filter(
         Task.shot_id == shot.id,
         Task.type == "shot_video",
@@ -2722,6 +2775,9 @@ async def _run_semantic_shot_for_batch(db, batch_task: Task, batch_child: Task, 
         continuation_metadata = _safe_json_dict(continuation_task.metadata_json)
         assembled = continuation_metadata.get("assembled_result") or {}
         assembled_duration = assembled.get("assembled_media_duration") or continuation_metadata.get("assembled_media_duration")
+        continuation_result_path = url_to_local_path(continuation_task.result_url) if continuation_task.result_url else None
+        if continuation_task.status == "completed" and continuation_result_path and Path(continuation_result_path).is_file():
+            continue
         previous_task = latest_by_index.get(clip_index - 1)
         previous_metadata = _safe_json_dict(previous_task.metadata_json) if previous_task else {}
         previous_duration = (
@@ -2805,6 +2861,35 @@ async def _run_semantic_shot_for_batch(db, batch_task: Task, batch_child: Task, 
             )
             if not result.get("success"):
                 raise RuntimeError(result.get("message") or "Semantic Shot Final Assembly 失败")
+        return "completed"
+
+    # Older continuation tasks can be completed with a valid result URL while
+    # their assembled_result metadata was not persisted. Rebuild Final Assembly
+    # from the completed Clip results instead of waiting forever or retrying.
+    completed_clip_results = all(
+        (clip_task := latest_by_index.get(int(clip.get("clip_index") or 0)))
+        and clip_task.status == "completed"
+        and clip_task.result_url
+        and (result_path := url_to_local_path(clip_task.result_url))
+        and Path(result_path).is_file()
+        for clip in clips
+    )
+    if completed_clip_results:
+        for clip in clips:
+            clip_task = latest_by_index.get(int(clip.get("clip_index") or 0))
+            if not clip_task or clip_task.status != "completed":
+                continue
+            metadata = _safe_json_dict(clip_task.metadata_json)
+            if metadata.get("approval_status") != "APPROVED":
+                metadata["approval_status"] = "APPROVED"
+                clip_task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+        db.commit()
+        result = await merge_video_director_clip_videos(
+            db, shot, ShotRepository(db), batch_child.novel_id,
+            batch_child.chapter_id, int(shot.index or 0),
+        )
+        if not result.get("success"):
+            raise RuntimeError(result.get("message") or "Semantic Shot Final Assembly 失败")
         return "completed"
 
     active = any(task.status in {"pending", "running"} for task in latest_by_index.values())
@@ -4619,7 +4704,7 @@ async def download_shot_llm_data(
 
 
 @router.get("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/download-video-materials", response_model=None)
-async def download_shot_video_materials(
+def download_shot_video_materials(
     novel_id: str,
     chapter_id: str,
     shot_id: str,
@@ -4680,7 +4765,10 @@ async def download_shot_video_materials(
                 return candidate
             index += 1
 
-    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+    # Images and video are already compressed formats. Store them verbatim and
+    # let FastAPI run this sync endpoint in its threadpool instead of blocking
+    # the event loop while recompressing multi-megabyte media files.
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_STORED) as zip_file:
         def add_asset(value, arcname: str, kind: str, label: str) -> Optional[str]:
             nonlocal asset_count
             path = resolve_path(value)
