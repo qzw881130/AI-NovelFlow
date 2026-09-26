@@ -195,6 +195,20 @@ def _float_or_none(value: Any) -> Optional[float]:
         return None
 
 
+def _clip_visible_characters(keyframes: list, shot_characters: list) -> list:
+    visible = []
+    for keyframe in keyframes or []:
+        description = str(keyframe.get("description") or "") if isinstance(keyframe, dict) else ""
+        match = re.search(r"(?:^|\n)Characters:\s*\n((?:[ \t]*-[^\n]+\n?)*)", description)
+        if not match:
+            continue
+        for character in re.findall(r"(?m)^\s*-\s*([^:\n]+):", match.group(1)):
+            name = character.strip()
+            if name and name not in visible:
+                visible.append(name)
+    return visible or shot_characters
+
+
 def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: list) -> tuple[list, list]:
     clip_start = float(clip.get("start_time") or 0)
     clip_end = float(clip.get("end_time") or clip_start)
@@ -284,7 +298,14 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
 
 def _render_dialogue_timeline_block(assigned_dialogues: list, silent_characters: list) -> str:
     if not assigned_dialogues:
-        return "dialogue_timeline:\nNo assigned dialogue. All characters remain silent throughout the entire clip."
+        lines = [
+            "dialogue_timeline:",
+            "No assigned dialogue. No character is authorized to speak throughout this clip.",
+        ]
+        if silent_characters:
+            lines.append("silent_characters: " + ", ".join(silent_characters))
+        lines.append("This human-voice restriction does not mute the audio track; environmental ambience and synchronized Foley remain audible.")
+        return "\n".join(lines)
     lines = [
         "dialogue_timeline:",
         "This is the only source of exact spoken text in this prompt.",
@@ -318,6 +339,11 @@ def _remove_dialogue_text_outside_single_block(prompt: str, assigned_dialogues: 
 
 def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_characters: list) -> dict:
     issues = []
+    subject_mappings = {
+        name.strip(): subject
+        for subject, name in re.findall(r"(<Subject\s+\d+>)\s+is\s+([^,\n.;]+)", final_prompt)
+        if name.strip()
+    }
     for item in assigned_dialogues:
         text = item.get("text") or ""
         speaker = item.get("speaker") or ""
@@ -331,7 +357,13 @@ def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_c
         if not item.get("duration_sufficient"):
             issues.append("DIALOGUE_DURATION_INSUFFICIENT")
     for character in silent_characters:
-        if character and character not in final_prompt:
+        subject = subject_mappings.get(character)
+        subject_is_silent = bool(subject and re.search(
+            rf"{re.escape(subject)}[^.!?\n]*\b(?:remain|remains|stay|stays)\s+(?:non-vocal|silent)\b",
+            final_prompt,
+            re.IGNORECASE,
+        ))
+        if character and character not in final_prompt and not subject_is_silent:
             issues.append("SILENT_CHARACTER_CONSTRAINT_MISSING")
     blocking_issues = [issue for issue in sorted(set(issues)) if issue != "DIALOGUE_DURATION_INSUFFICIENT"]
     return {
@@ -405,7 +437,8 @@ async def build_h3_video_prompt(
     is_multi_clip = selected_mode == "MULTI_KEYFRAME"
     is_semantic_clip = bool(clip_dialogues and any(isinstance(item, dict) and item.get("dialogue_id") for item in clip_dialogues))
     shot_characters = safe_json_list(shot.characters)
-    assigned_dialogues, silent_characters = build_dialogue_timeline(clip, clip_dialogues, shot_characters)
+    clip_visible_characters = _clip_visible_characters(sanitized_keyframes, shot_characters)
+    assigned_dialogues, silent_characters = build_dialogue_timeline(clip, clip_dialogues, clip_visible_characters)
     dialogue_payload = [
         {key: value for key, value in item.items() if key not in {"text", "source_order"}}
         for item in assigned_dialogues
@@ -435,6 +468,7 @@ async def build_h3_video_prompt(
         "clip": strip_clip_generation_data(clip),
         "motion_directive": clip_motion_directive,
         "clip_dialogues": dialogue_payload if is_multi_clip or is_semantic_clip else clip_dialogues,
+        "clip_visible_characters": clip_visible_characters,
         "dialogue_timeline_source": assigned_dialogues,
         "silent_characters": silent_characters,
         "frames": frames,

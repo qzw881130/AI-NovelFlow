@@ -27,6 +27,7 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
   keyframe_description: <Film className="h-4 w-4" />,
   keyframe_planner: <Film className="h-4 w-4" />,
   keyframe_image_prompt: <Image className="h-4 w-4" />,
+  temporal_reference_selector: <Image className="h-4 w-4" />,
   keyframe_transition: <Route className="h-4 w-4" />,
   h3_single_frame_prompt: <Video className="h-4 w-4" />,
   h3_first_last_frame_prompt: <Video className="h-4 w-4" />,
@@ -49,6 +50,7 @@ const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; borde
   keyframe_description: { active: 'text-indigo-600 bg-indigo-50 border-indigo-200', inactive: 'text-gray-500 hover:text-indigo-600', border: 'border-indigo-200' },
   keyframe_planner: { active: 'text-indigo-600 bg-indigo-50 border-indigo-200', inactive: 'text-gray-500 hover:text-indigo-600', border: 'border-indigo-200' },
   keyframe_image_prompt: { active: 'text-emerald-600 bg-emerald-50 border-emerald-200', inactive: 'text-gray-500 hover:text-emerald-600', border: 'border-emerald-200' },
+  temporal_reference_selector: { active: 'text-emerald-600 bg-emerald-50 border-emerald-200', inactive: 'text-gray-500 hover:text-emerald-600', border: 'border-emerald-200' },
   keyframe_transition: { active: 'text-violet-600 bg-violet-50 border-violet-200', inactive: 'text-gray-500 hover:text-violet-600', border: 'border-violet-200' },
   h3_single_frame_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
   h3_first_last_frame_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
@@ -63,7 +65,7 @@ const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: Templa
   shot_planning: { nameKey: 'promptConfig.categories.shotPlanning', types: ['chapter_split'] },
   shot_image: { nameKey: 'promptConfig.categories.shotImage', types: ['shot_image_prompt'] },
   video_director: { nameKey: 'promptConfig.categories.videoDirector', types: ['video_mode_recommender', 'keyframe_planner', 'keyframe_transition'] },
-  keyframe_image: { nameKey: 'promptConfig.categories.keyframeImage', types: ['keyframe_image_prompt'] },
+  keyframe_image: { nameKey: 'promptConfig.categories.keyframeImage', types: ['temporal_reference_selector', 'keyframe_image_prompt'] },
   video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt'] },
 };
 
@@ -77,7 +79,7 @@ const DEFAULT_TAB_BY_CATEGORY: Record<TemplateCategory, TemplateType> = {
   shot_planning: 'chapter_split',
   shot_image: 'shot_image_prompt',
   video_director: 'video_mode_recommender',
-  keyframe_image: 'keyframe_image_prompt',
+  keyframe_image: 'temporal_reference_selector',
   video_generation: 'h3_single_frame_prompt',
 };
 

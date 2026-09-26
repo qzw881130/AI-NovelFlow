@@ -94,6 +94,8 @@ export interface VideoAiCall {
   workflow_type?: string | null;
   workflow_name?: string | null;
   reference_images?: Array<{ label?: string; url?: string }> | null;
+  submitted_reference_bindings?: Array<{ picture?: number; sources?: string[]; node_id?: string; filename?: string }> | null;
+  task_id?: string;
   created_at?: string;
 }
 

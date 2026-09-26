@@ -247,6 +247,12 @@ SYSTEM_KEYFRAME_PLANNING_TEMPLATES: List[Dict] = [
         "type": "keyframe_planner"
     },
     {
+        "name": "Temporal Anchor Reference Selector V1",
+        "description": "为当前 Temporal Anchor 选择最小充分视觉参考集",
+        "template": load_template("09A_Temporal_Anchor_Reference_Selector_V1.txt"),
+        "type": "temporal_reference_selector"
+    },
+    {
         "name": "视频关键帧生图提示词构建",
         "description": "根据上一关键帧、主分镜图和参考资产构建下一关键帧生图提示词",
         "template": load_template("09_NovelFlow_QwenEdit2511_KeyframeImagePrompt_V1.txt"),

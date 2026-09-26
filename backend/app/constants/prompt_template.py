@@ -38,6 +38,7 @@ class PromptTemplateType:
     KEYFRAME_PLANNER = "keyframe_planner"
     # 关键帧生图提示词
     KEYFRAME_IMAGE_PROMPT = "keyframe_image_prompt"
+    TEMPORAL_REFERENCE_SELECTOR = "temporal_reference_selector"
     # 关键帧过渡规划提示词
     KEYFRAME_TRANSITION = "keyframe_transition"
     # MiniMax H3 单帧视频提示词
@@ -64,6 +65,7 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.KEYFRAME_DESCRIPTION,
     PromptTemplateType.KEYFRAME_PLANNER,
     PromptTemplateType.KEYFRAME_IMAGE_PROMPT,
+    PromptTemplateType.TEMPORAL_REFERENCE_SELECTOR,
     PromptTemplateType.KEYFRAME_TRANSITION,
     PromptTemplateType.H3_SINGLE_FRAME_PROMPT,
     PromptTemplateType.H3_FIRST_LAST_FRAME_PROMPT,
@@ -169,6 +171,13 @@ PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
         "icon": "Images",
         "color": "emerald",
         "file_number": "09",
+    },
+    PromptTemplateType.TEMPORAL_REFERENCE_SELECTOR: {
+        "name_key": "promptConfig.types.temporalReferenceSelector",
+        "desc_key": "promptConfig.types.temporalReferenceSelectorDesc",
+        "icon": "Images",
+        "color": "emerald",
+        "file_number": "09A",
     },
     PromptTemplateType.KEYFRAME_TRANSITION: {
         "name_key": "promptConfig.types.keyframeTransition",

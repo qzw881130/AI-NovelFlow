@@ -3,7 +3,7 @@
 from app.services.video_director_ai import _dialogue_text, _estimate_dialogue_seconds, _dialogue_speaker
 
 
-def assign_dialogues_to_clips(dialogues: list, clips: list) -> tuple[list[dict], dict]:
+def assign_dialogues_to_clips(dialogues: list, clips: list, dialogue_timeline_source: list | None = None) -> tuple[list[dict], dict]:
     indexed_dialogues = [(index, item) for index, item in enumerate(dialogues or []) if isinstance(item, dict) and _dialogue_text(item)]
     indexed_dialogues.sort(key=lambda pair: (pair[1].get("order") is None, pair[1].get("order", pair[0]), pair[0]))
     ordered_dialogues = [item for _, item in indexed_dialogues]
@@ -22,6 +22,11 @@ def assign_dialogues_to_clips(dialogues: list, clips: list) -> tuple[list[dict],
         cursor += duration
         boundaries.append((cursor / total_clip_duration, clip))
 
+    timeline_by_id = {
+        str(item.get("id")): item
+        for item in dialogue_timeline_source or []
+        if isinstance(item, dict) and item.get("id") is not None
+    }
     raw_items = []
     total_estimated_duration = 0.0
     for dialogue_index, dialogue in enumerate(ordered_dialogues, 1):
@@ -29,12 +34,48 @@ def assign_dialogues_to_clips(dialogues: list, clips: list) -> tuple[list[dict],
         text = str(raw_text) if str(raw_text).strip() else ""
         emotion = str(dialogue.get("emotion_prompt") or dialogue.get("emotion") or "")
         duration = _estimate_dialogue_seconds(text, emotion)
-        raw_items.append((dialogue_index, dialogue, text, duration))
-        total_estimated_duration += duration
+        dialogue_id = str(dialogue.get("id") or f"D{dialogue_index}")
+        timeline_item = timeline_by_id.get(dialogue_id)
+        try:
+            official_start = float(timeline_item.get("start_time")) if timeline_item else None
+            official_end = float(timeline_item.get("end_time")) if timeline_item else None
+        except (TypeError, ValueError):
+            official_start = official_end = None
+        if official_start is None or official_end is None or official_end <= official_start:
+            timeline_item = None
+            total_estimated_duration += duration
+        raw_items.append((dialogue_index, dialogue, text, duration, dialogue_id, timeline_item))
 
     assignments = {int(clip.get("clip_index") or index): [] for index, clip in enumerate(ordered_clips, 1)}
     timeline_cursor = 0.0
-    for dialogue_index, dialogue, text, estimated_duration in raw_items:
+    for dialogue_index, dialogue, text, estimated_duration, dialogue_id, timeline_item in raw_items:
+        if timeline_item:
+            official_start = float(timeline_item["start_time"])
+            official_end = float(timeline_item["end_time"])
+            for boundary_index, clip in enumerate(ordered_clips):
+                clip_start = float(clip.get("start_time") or 0)
+                clip_end = float(clip.get("end_time") or clip_start)
+                span_start = max(official_start, clip_start)
+                span_end = min(official_end, clip_end)
+                if span_end <= span_start:
+                    continue
+                clip_index = int(clip.get("clip_index") or boundary_index + 1)
+                segment_index = sum(1 for items in assignments.values() for item in items if item["dialogue_id"] == dialogue_id) + 1
+                assignments.setdefault(clip_index, []).append({
+                    "dialogue_id": dialogue_id,
+                    "segment_index": segment_index,
+                    "speaker": _dialogue_speaker(dialogue),
+                    "text": text,
+                    "emotion_prompt": str(dialogue.get("emotion_prompt") or dialogue.get("emotion") or ""),
+                    "estimated_duration": round(span_end - span_start, 2),
+                    "source_order": dialogue_index,
+                    "start_time": round(span_start, 2),
+                    "end_time": round(span_end, 2),
+                    "is_continuation": span_start > official_start,
+                    "continues_in_next_clip": span_end < official_end,
+                })
+            continue
+
         start_ratio = timeline_cursor / total_estimated_duration if total_estimated_duration else 0.0
         end_ratio = (timeline_cursor + estimated_duration) / total_estimated_duration if total_estimated_duration else 1.0
         text_cursor = 0
@@ -62,7 +103,6 @@ def assign_dialogues_to_clips(dialogues: list, clips: list) -> tuple[list[dict],
             span_text = text[start:end]
             text_cursor = end
             clip_index = int(clip.get("clip_index") or boundary_index + 1)
-            dialogue_id = str(dialogue.get("id") or f"D{dialogue_index}")
             segment_index = sum(1 for items in assignments.values() for item in items if item["dialogue_id"] == dialogue_id) + 1
             assignments.setdefault(clip_index, []).append({
                 "dialogue_id": dialogue_id,
@@ -75,7 +115,8 @@ def assign_dialogues_to_clips(dialogues: list, clips: list) -> tuple[list[dict],
                 "is_continuation": start > 0,
                 "continues_in_next_clip": end < len(text),
             })
-        timeline_cursor += estimated_duration
+        if not timeline_item:
+            timeline_cursor += estimated_duration
 
     flattened = [item for clip in ordered_clips for item in assignments.get(int(clip.get("clip_index") or 0), [])]
     reconstructed = {}
@@ -85,7 +126,7 @@ def assign_dialogues_to_clips(dialogues: list, clips: list) -> tuple[list[dict],
     findings = []
     if [item["source_order"] for item in flattened] != sorted(item["source_order"] for item in flattened):
         findings.append("DIALOGUE_ORDER_CHANGED")
-    if any(reconstructed.get(index) != text for index, _, text, _ in raw_items):
+    if any(reconstructed.get(index) != text for index, _, text, _, _, _ in raw_items):
         findings.append("DIALOGUE_TEXT_MISSING_OR_CHANGED")
     span_ids = [(item["dialogue_id"], item["segment_index"]) for item in flattened]
     if len(span_ids) != len(set(span_ids)):

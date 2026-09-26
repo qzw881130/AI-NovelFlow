@@ -97,13 +97,68 @@ def _dialogue_time_range(dialogue: dict):
     return start, end
 
 
-def _clip_dialogues_for_prompt(dialogues: list, clip: dict, shot_duration: float) -> list:
+def _dialogue_assignment_source(official_timeline: list | None) -> str:
+    has_valid_timeline = any(
+        isinstance(item, dict)
+        and item.get("id") is not None
+        and _to_float_or_none(item.get("start_time")) is not None
+        and _to_float_or_none(item.get("end_time")) is not None
+        and _to_float_or_none(item.get("end_time")) > _to_float_or_none(item.get("start_time"))
+        for item in official_timeline or []
+    )
+    return "official_timeline" if has_valid_timeline else "legacy_estimated_fallback"
+
+
+def _clip_dialogues_for_prompt(dialogues: list, clip: dict, shot_duration: float, official_timeline: list | None = None) -> list:
     if not dialogues:
         return []
     clip_start = _to_float_or_none(clip.get("start_time")) or 0
     clip_end = _to_float_or_none(clip.get("end_time")) or shot_duration or clip_start
     if clip_end <= clip_start:
         return dialogues
+
+    official_by_id = {
+        str(item.get("id")): item
+        for item in official_timeline or []
+        if isinstance(item, dict)
+        and item.get("id") is not None
+        and _to_float_or_none(item.get("start_time")) is not None
+        and _to_float_or_none(item.get("end_time")) is not None
+        and _to_float_or_none(item.get("end_time")) > _to_float_or_none(item.get("start_time"))
+    }
+    if official_by_id:
+        official_dialogues = []
+        fallback_dialogues = []
+        ordered_dialogues = sorted(
+            enumerate(dialogues),
+            key=lambda item: (
+                (_to_float_or_none(item[1].get("order")) if isinstance(item[1], dict) else None) is None,
+                _to_float_or_none(item[1].get("order")) if isinstance(item[1], dict) else None,
+                item[0],
+            ),
+        )
+        for index, dialogue in ordered_dialogues:
+            if not isinstance(dialogue, dict):
+                continue
+            dialogue_id = str(dialogue.get("id") or f"D{index + 1}")
+            official = official_by_id.get(dialogue_id)
+            if not official:
+                fallback_dialogues.append(dialogue)
+                continue
+            start = float(official["start_time"])
+            end = float(official["end_time"])
+            if start < clip_end and end > clip_start:
+                official_dialogues.append({
+                    **dialogue,
+                    "dialogue_id": dialogue_id,
+                    "segment_index": 1,
+                    "start_time": start,
+                    "end_time": end,
+                    "dialogue_timing_source": "official",
+                })
+        if fallback_dialogues:
+            official_dialogues.extend(_clip_dialogues_for_prompt(fallback_dialogues, clip, shot_duration))
+        return official_dialogues
 
     timed_dialogues = []
     has_timed_dialogue = False
@@ -797,7 +852,12 @@ async def generate_shot_video_task(
             shot.video_director_plan = json.dumps(video_director_plan, ensure_ascii=False)
             db.commit()
         else:
-            clip_dialogues = _clip_dialogues_for_prompt(safe_json_list(shot.dialogues), clip, duration)
+            clip_dialogues = _clip_dialogues_for_prompt(
+                safe_json_list(shot.dialogues),
+                clip,
+                duration,
+                video_director_plan.get("dialogue_timeline_source"),
+            )
 
         reusable_prompt = (
             (clip_metadata or {}).get("prompt_text")
@@ -1116,7 +1176,12 @@ async def _generate_multi_clip_video_task(
             if isinstance(keyframe, dict) and int(keyframe.get("index") or -1) in selected_indexes
         ]
         clip_transitions_for_prompt = _filter_transitions_for_keyframe_indexes(transitions_for_prompt, keyframe_indexes)
-        clip_dialogues = _clip_dialogues_for_prompt(all_dialogues, clip, float(shot.duration or 0))
+        clip_dialogues = _clip_dialogues_for_prompt(
+            all_dialogues,
+            clip,
+            float(shot.duration or 0),
+            video_director_plan.get("dialogue_timeline_source"),
+        )
 
         reusable_clip_prompt = (window_plan.get("prompt_text") or "").strip() if skip_llm_when_prompt_exists else ""
         if skip_llm_when_prompt_exists and not reusable_clip_prompt:
@@ -1140,6 +1205,9 @@ async def _generate_multi_clip_video_task(
             "video_save_node_id": node_mapping.get("video_save_node_id"),
             "reference_images": reference_images,
             "clip_dialogues": clip_dialogues,
+            "dialogue_assignment_source": _dialogue_assignment_source(
+                video_director_plan.get("dialogue_timeline_source")
+            ),
             "error_message": None,
         }, db, task=task)
         db.commit()

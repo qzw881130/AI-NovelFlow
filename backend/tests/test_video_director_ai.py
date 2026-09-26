@@ -6,6 +6,28 @@ import pytest
 from app.services import video_director_ai
 
 
+def test_silent_character_audit_accepts_non_vocal_subject_mapping():
+    prompt = """subject_definitions:
+<Subject 1> is 老大臣, an elderly court official.
+summary:
+<Subject 1> remains non-vocal throughout the entire clip.
+"""
+
+    audit = video_director_ai._audit_final_h3_prompt(prompt, [], ["老大臣"])
+
+    assert audit["passed"]
+    assert "SILENT_CHARACTER_CONSTRAINT_MISSING" not in audit["issues"]
+
+
+def test_clip_visible_characters_come_from_selected_keyframes():
+    keyframes = [{
+        "index": 3,
+        "description": "Scene: corridor\nCharacters:\n- 老大臣: stands at the door\nAction: prepares to knock",
+    }]
+
+    assert video_director_ai._clip_visible_characters(keyframes, ["老大臣", "骗子1", "骗子2"]) == ["老大臣"]
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     ("selected_mode", "expected_task_type"),

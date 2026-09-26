@@ -9,6 +9,7 @@ from app.services.llm_service import LLMService
 from app.services.prompt_template_service import PromptTemplateService
 from app.services.clip_validator import validate_clip_plan
 from app.services.dialogue_ownership import assign_dialogues_to_clips
+from app.services.video_director_ai import build_dialogue_timeline
 from app.utils.path_utils import url_to_local_path
 
 
@@ -140,7 +141,18 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
             clip["capability"] = "VIDEO_CONTINUATION" if index > 1 else ("SINGLE_FRAME" if plan_payload.get("shot_image") else "")
         if clip.get("capability") in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"} and index > 1 and not clip.get("previous_clip_index"):
             clip["previous_clip_index"] = int(clips[index - 2].get("clip_index") or index - 1)
-    assignments, dialogue_validation = assign_dialogues_to_clips(json.loads(shot.dialogues or "[]"), clips)
+    shot_dialogues = json.loads(shot.dialogues or "[]")
+    video_plan = json.loads(shot.video_director_plan or "{}")
+    dialogue_timeline_source = video_plan.get("dialogue_timeline_source")
+    if not isinstance(dialogue_timeline_source, list):
+        dialogue_timeline_source, _ = build_dialogue_timeline(
+            {"start_time": 0, "end_time": shot.duration or 4},
+            shot_dialogues,
+            json.loads(getattr(shot, "characters", "[]") or "[]"),
+        )
+    assignments, dialogue_validation = assign_dialogues_to_clips(
+        shot_dialogues, clips, dialogue_timeline_source
+    )
     assignments_by_index = {item["clip_index"]: item["dialogues"] for item in assignments}
     for clip in clips:
         clip["dialogue_assignment"] = assignments_by_index.get(clip["clip_index"], [])

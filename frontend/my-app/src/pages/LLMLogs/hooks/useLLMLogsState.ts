@@ -13,8 +13,8 @@ const TASK_CATEGORY_TYPES: Record<string, string[]> = {
   shot_planning: ['split_chapter'],
   shot_image: ['shot_image_prompt'],
   video_director: ['video_mode_recommender', 'keyframe_description', 'keyframe_planner', 'keyframe_transition'],
-  keyframe_image: ['keyframe_image_prompt'],
-  video_generation: ['expand_video_prompt', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt'],
+  keyframe_image: ['temporal_reference_selector', 'keyframe_image_prompt'],
+  video_generation: ['clip_execution_planner', 'expand_video_prompt', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt'],
 };
 
 const TASK_CATEGORY_OPTIONS = [
@@ -71,7 +71,7 @@ export function useLLMLogsState() {
     } catch (error) {
       console.error('加载日志失败:', error);
       if (requestId === fetchLogsRequestRef.current) {
-        toast.error('加载日志失败');
+        toast.error(t('llmLogs.loadFailed'));
       }
     } finally {
       if (requestId === fetchLogsRequestRef.current && !options?.silent) {
@@ -184,44 +184,39 @@ export function useLLMLogsState() {
 
   const getTaskTypeCategoryLabel = (type: string | null) => {
     const categories: Record<string, string> = {
-      'story_world_context_recommender': '故事上下文',
-      'parse_characters': '素材解析',
-      'parse_scenes': '素材解析',
-      'parse_props': '素材解析',
-      'style': '风格设计',
-      'generate_character_appearance': '素材生成',
-      'shot_image_prompt': '分镜生图',
-      'split_chapter': '分镜规划',
-      'video_mode_recommender': '视频导演',
-      'keyframe_description': '视频导演',
-      'keyframe_planner': '视频导演',
-      'keyframe_transition': '视频导演',
-      'keyframe_image_prompt': '关键帧生图',
-      'expand_video_prompt': '视频生成',
-      'h3_single_frame_prompt': '视频生成',
-      'h3_first_last_frame_prompt': '视频生成',
-      'h3_multi_keyframe_prompt': '视频生成',
+      story_world_context_recommender: 'storyContext',
+      parse_characters: 'assetParse', parse_scenes: 'assetParse', parse_props: 'assetParse',
+      style: 'styleDesign', generate_character_appearance: 'assetGeneration',
+      shot_image_prompt: 'shotImage', split_chapter: 'shotPlanning',
+      video_mode_recommender: 'videoDirector', keyframe_description: 'videoDirector',
+      keyframe_planner: 'videoDirector', keyframe_transition: 'videoDirector',
+      keyframe_image_prompt: 'keyframeImage', temporal_reference_selector: 'keyframeImage',
+      clip_execution_planner: 'videoGeneration', expand_video_prompt: 'videoGeneration', h3_single_frame_prompt: 'videoGeneration',
+      h3_first_last_frame_prompt: 'videoGeneration', h3_multi_keyframe_prompt: 'videoGeneration',
     };
-    return (type && categories[type]) || '其他';
+    return type && categories[type]
+      ? t(`promptConfig.categories.${categories[type]}`)
+      : t('llmLogs.other');
   };
 
   const getTaskTypeNameLabel = (type: string | null) => {
     const labels: Record<string, string> = {
-      'story_world_context_recommender': '故事世界上下文推荐',
-      'parse_characters': t('llmLogs.parseCharacters'), 'parse_scenes': t('llmLogs.parseScenes'),
-      'parse_props': t('llmLogs.parseProps'),
-      'style': '风格提示词',
-      'split_chapter': t('llmLogs.splitShots'), 'generate_character_appearance': t('llmLogs.generateAppearance'),
-      'expand_video_prompt': t('llmLogs.expandVideoPrompt'),
-      'shot_image_prompt': '主分镜图提示词',
-      'video_mode_recommender': '视频模式推荐',
-      'keyframe_description': '关键帧描述',
-      'keyframe_planner': '关键帧规划',
-      'keyframe_transition': '关键帧过渡规划',
-      'keyframe_image_prompt': '关键帧生图提示词',
-      'h3_single_frame_prompt': 'H3 单帧视频提示词',
-      'h3_first_last_frame_prompt': 'H3 首尾帧视频提示词',
-      'h3_multi_keyframe_prompt': 'H3 多关键帧视频提示词',
+      story_world_context_recommender: t('promptConfig.types.storyWorldContextRecommender'),
+      parse_characters: t('llmLogs.parseCharacters'), parse_scenes: t('llmLogs.parseScenes'),
+      parse_props: t('llmLogs.parseProps'), style: t('promptConfig.types.style'),
+      split_chapter: t('llmLogs.splitShots'), generate_character_appearance: t('llmLogs.generateAppearance'),
+      clip_execution_planner: t('llmLogs.clipExecutionPlanner'),
+      expand_video_prompt: t('llmLogs.expandVideoPrompt'),
+      shot_image_prompt: t('promptConfig.types.shotImagePrompt'),
+      video_mode_recommender: t('promptConfig.types.videoModeRecommender'),
+      keyframe_description: t('promptConfig.types.keyframeDescription'),
+      keyframe_planner: t('promptConfig.types.keyframePlanner'),
+      keyframe_transition: t('promptConfig.types.keyframeTransition'),
+      keyframe_image_prompt: t('promptConfig.types.keyframeImagePrompt'),
+      temporal_reference_selector: t('promptConfig.types.temporalReferenceSelector'),
+      h3_single_frame_prompt: t('promptConfig.types.h3SingleFramePrompt'),
+      h3_first_last_frame_prompt: t('promptConfig.types.h3FirstLastFramePrompt'),
+      h3_multi_keyframe_prompt: t('promptConfig.types.h3MultiKeyframePrompt'),
     };
     if (!type) return '-';
     return labels[type] || type;
@@ -247,10 +242,10 @@ export function useLLMLogsState() {
     try {
       const data = await llmLogsApi.fetchStats(groupBy, rangeValue, filters);
       if (data.success && data.data) setStatsData(data.data);
-      else toast.error(data.message || '加载调用统计失败');
+       else toast.error(data.message || t('llmLogs.statsLoadFailed'));
     } catch (error) {
       console.error('加载调用统计失败:', error);
-      toast.error('加载调用统计失败');
+      toast.error(t('llmLogs.statsLoadFailed'));
     } finally {
       setStatsLoading(false);
     }
@@ -280,10 +275,10 @@ export function useLLMLogsState() {
     try {
       const data = await llmLogsApi.fetchTokenStats(groupBy, rangeValue, filters);
       if (data.success && data.data) setTokenStatsData(data.data);
-      else toast.error(data.message || '加载 Token 消耗失败');
+       else toast.error(data.message || t('llmLogs.tokenStatsLoadFailed'));
     } catch (error) {
       console.error('加载 Token 消耗失败:', error);
-      toast.error('加载 Token 消耗失败');
+      toast.error(t('llmLogs.tokenStatsLoadFailed'));
     } finally {
       setTokenStatsLoading(false);
     }

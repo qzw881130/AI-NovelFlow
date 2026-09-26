@@ -16,6 +16,7 @@ export default {
     parseProps: '解析道具',
     splitShots: '拆分分鏡',
     generateAppearance: '生成外貌描述',
+    clipExecutionPlanner: '影片片段執行規劃',
     expandVideoPrompt: '擴寫影片提示詞',
     timestamp: '時間',
     novel: '小說',

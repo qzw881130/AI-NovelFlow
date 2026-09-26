@@ -30,7 +30,7 @@ from app.services.novel_service import (
     generate_transition_video_task,
 )
 from app.services.shot_image_service import enqueue_shot_image_task
-from app.services.shot_video_service import enqueue_shot_video_task, merge_video_director_clip_videos
+from app.services.shot_video_service import _clip_dialogues_for_prompt, _dialogue_assignment_source, enqueue_shot_video_task, merge_video_director_clip_videos
 
 generate_shot_task = enqueue_shot_image_task
 generate_shot_video_task = enqueue_shot_video_task
@@ -1500,6 +1500,48 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
     return "请基于以下正式保存的 Shot 与执行窗口，规划视频关键帧时间轴。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
 
 
+def _get_official_dialogue_timeline(db: Session, shot, fallback: list) -> list:
+    plan = _safe_json_dict(shot.video_director_plan)
+    persisted = plan.get("dialogue_timeline_source")
+    if isinstance(persisted, list) and _timeline_matches_shot_dialogues(persisted, fallback):
+        return persisted
+    logs = db.query(LLMLog).filter(
+        LLMLog.chapter_id == shot.chapter_id,
+        LLMLog.task_type == "keyframe_planner",
+    ).order_by(LLMLog.created_at.desc()).all()
+    for log in logs:
+        try:
+            payload = json.loads((log.user_prompt or "").split("\n\n", 1)[-1])
+        except (TypeError, json.JSONDecodeError):
+            continue
+        if payload.get("shot", {}).get("id") != shot.id:
+            continue
+        timeline = payload.get("dialogue_timeline_source")
+        if isinstance(timeline, list) and _timeline_matches_shot_dialogues(timeline, fallback):
+            return timeline
+    return fallback
+
+
+def _timeline_matches_shot_dialogues(timeline: list, shot_timeline: list) -> bool:
+    if not isinstance(timeline, list) or not timeline:
+        return False
+    official_by_id = {
+        str(item.get("id")): item
+        for item in timeline
+        if isinstance(item, dict) and item.get("id") is not None
+    }
+    for expected in shot_timeline:
+        official = official_by_id.get(str(expected.get("id")))
+        if not official or str(official.get("text") or "").strip() != str(expected.get("text") or "").strip():
+            return False
+        try:
+            if float(official["end_time"]) <= float(official["start_time"]):
+                return False
+        except (KeyError, TypeError, ValueError):
+            return False
+    return True
+
+
 def _mark_video_director_planning_failed(shot, shot_repo: ShotRepository, plan: dict, message: str) -> None:
     plan["task_error_message"] = message
     plan["error_message"] = message
@@ -1841,8 +1883,15 @@ async def plan_shot_clips(
     current_plan = _safe_json_dict(shot.video_director_plan)
     if current_plan.get("clip_plan") and not request.force:
         clips = current_plan["clip_plan"]
+        dialogue_timeline_source = current_plan.get("dialogue_timeline_source")
+        if not isinstance(dialogue_timeline_source, list):
+            dialogue_timeline_source, _ = build_dialogue_timeline(
+                {"start_time": 0, "end_time": shot.duration or 4},
+                _safe_json_list(shot.dialogues),
+                _safe_json_list(shot.characters),
+            )
         dialogue_assignments, dialogue_validation = assign_dialogues_to_clips(
-            _safe_json_list(shot.dialogues), clips
+            _safe_json_list(shot.dialogues), clips, dialogue_timeline_source
         )
         assignments_by_index = {item["clip_index"]: item["dialogues"] for item in dialogue_assignments}
         for clip in clips:
@@ -1987,7 +2036,33 @@ async def plan_video_keyframes(
     selected_mode = plan.get("selected_mode") or plan.get("recommended_mode")
     if selected_mode not in {"FIRST_LAST_FRAME", "MULTI_KEYFRAME"}:
         raise HTTPException(status_code=400, detail="当前模式不需要 #08 关键帧时间轴规划。")
+
+    fallback_dialogue_timeline, _ = build_dialogue_timeline(
+        {"start_time": 0, "end_time": shot.duration or 4},
+        _safe_json_list(shot.dialogues),
+        _safe_json_list(shot.characters),
+    )
+    dialogue_timeline_source = _get_official_dialogue_timeline(
+        db, shot, fallback_dialogue_timeline
+    )
+    if plan.get("dialogue_timeline_source") != dialogue_timeline_source:
+        plan["dialogue_timeline_source"] = dialogue_timeline_source
+        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+        db.commit()
+
     if selected_mode == "MULTI_KEYFRAME" and plan.get("window_plans") and not request.force:
+        for window in plan.get("window_plans") or []:
+            clip = {
+                "clip_index": window.get("window_index"),
+                "start_time": window.get("start_time"),
+                "end_time": window.get("end_time"),
+            }
+            window["clip_dialogues"] = _clip_dialogues_for_prompt(
+                _safe_json_list(shot.dialogues), clip, shot.duration or 4, dialogue_timeline_source
+            )
+            window["dialogue_assignment_source"] = _dialogue_assignment_source(dialogue_timeline_source)
+        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+        db.commit()
         return {"success": True, "data": plan}
     if selected_mode == "FIRST_LAST_FRAME" and plan.get("keyframes") and plan.get("transitions") and not request.force:
         return {"success": True, "data": plan}
@@ -1996,6 +2071,7 @@ async def plan_video_keyframes(
     workflow_capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else _get_video_workflow_capability(workflow)
     max_clip_duration = int(workflow_capability.get("max_clip_duration") or 15)
     duration = shot.duration or 4
+    plan["dialogue_timeline_source"] = dialogue_timeline_source
     if selected_mode == "FIRST_LAST_FRAME" and duration > max_clip_duration:
         raise HTTPException(status_code=400, detail=f"当前 Workflow 单次最大 {max_clip_duration}s，本 Shot {duration}s，请使用多关键帧。")
     execution_windows = plan.get("execution_windows") if isinstance(plan.get("execution_windows"), list) else []
@@ -2021,6 +2097,7 @@ async def plan_video_keyframes(
     validation = {}
     max_attempts = 3
     for attempt in range(1, max_attempts + 1):
+        plan["dialogue_timeline_source"] = dialogue_timeline_source
         user_content = _build_keyframe_planner_user_content(shot, plan, workflow_capability, previous_failures)
         result = await llm_service.chat_completion(
             system_prompt=template.template,
@@ -2083,7 +2160,18 @@ async def plan_video_keyframes(
         "window_plans": [] if selected_mode == "FIRST_LAST_FRAME" else window_plans,
         "clips": _build_first_last_clip_plan(duration) if selected_mode == "FIRST_LAST_FRAME" else [],
         "validation": validation,
+        "dialogue_timeline_source": dialogue_timeline_source,
     })
+    for window in plan.get("window_plans") or []:
+        clip = {
+            "clip_index": window.get("window_index"),
+            "start_time": window.get("start_time"),
+            "end_time": window.get("end_time"),
+        }
+        window["clip_dialogues"] = _clip_dialogues_for_prompt(
+            _safe_json_list(shot.dialogues), clip, duration, dialogue_timeline_source
+        )
+        window["dialogue_assignment_source"] = _dialogue_assignment_source(dialogue_timeline_source)
     plan.pop("task_error_message", None)
     plan.pop("error_message", None)
     plan.pop("merged_video_url", None)
@@ -4884,6 +4972,40 @@ def download_shot_video_materials(
         keyframe_tasks = keyframe_query.order_by(Task.created_at.asc()).all()
         for index, task in enumerate(keyframe_tasks, 1):
             add_workflow(task.workflow_json, f"workflows/keyframes/KF{index:03d}_{task.id[:8]}_ComfyUI.json", f"关键帧图实际工作流 {index}")
+            task_metadata = safe_json(task.metadata_json, {})
+            selector_evidence = {
+                "task_id": task.id,
+                "keyframe_task_status": task.status,
+                "reference_selector_input": task_metadata.get("reference_selector_input"),
+                "reference_selector_raw_response": task_metadata.get("reference_selector_raw_response"),
+                "reference_selector_result": task_metadata.get("reference_selector_result"),
+                "reference_manifest": task_metadata.get("reference_manifest"),
+                "submitted_reference_bindings": task_metadata.get("submitted_reference_bindings"),
+            }
+            if any(selector_evidence[key] is not None for key in (
+                "reference_selector_input",
+                "reference_selector_raw_response",
+                "reference_selector_result",
+                "reference_manifest",
+                "submitted_reference_bindings",
+            )):
+                evidence_name = f"workflows/keyframes/KF{index:03d}_{task.id[:8]}_reference_selector.json"
+                zip_file.writestr(evidence_name, json.dumps(selector_evidence, ensure_ascii=False, indent=2))
+                manifest["workflows"].append({
+                    "label": f"关键帧图 Reference Selector 审计 {index}",
+                    "path": evidence_name,
+                    "task_id": task.id,
+                    "kind": "reference_selector_evidence",
+                })
+                if task.prompt_text:
+                    prompt_name = f"prompts/keyframes/KF{index:03d}_{task.id[:8]}_Qwen.txt"
+                    zip_file.writestr(prompt_name, task.prompt_text)
+                    manifest["workflows"].append({
+                        "label": f"关键帧图最终 Qwen Prompt {index}",
+                        "path": prompt_name,
+                        "task_id": task.id,
+                        "kind": "keyframe_qwen_prompt",
+                    })
 
         window_plans = plan.get("window_plans") if isinstance(plan.get("window_plans"), list) else []
         clips = plan.get("clips") if isinstance(plan.get("clips"), list) else []

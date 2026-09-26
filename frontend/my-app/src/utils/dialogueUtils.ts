@@ -45,7 +45,7 @@ export const numberOrNull = (value: any): number | null => {
 };
 
 export const getClipDialoguesForDisplay = (shot: any, clip: any) => {
-  if (Array.isArray(clip?.clip_dialogues) && clip.clip_dialogues.length > 0) return clip.clip_dialogues;
+  if (Array.isArray(clip?.clip_dialogues)) return clip.clip_dialogues;
   const dialogues = Array.isArray(shot?.dialogues) ? shot.dialogues : [];
   if (!dialogues.length) return [];
 

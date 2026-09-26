@@ -8,6 +8,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models.shot import Shot
+from app.models.task import Task
 
 
 class ShotRepository:

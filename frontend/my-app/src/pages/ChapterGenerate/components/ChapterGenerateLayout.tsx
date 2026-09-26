@@ -758,10 +758,10 @@ export function ChapterGenerateLayout({
       </div>
 
       {/* TabNavigation */}
-      <div className="relative z-[120] flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
+      <div className="relative flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
           <div className="relative">
             <TabNavigation />
-            <div className="absolute left-1/2 top-1 z-[130] -translate-x-1/2">
+            <div className="absolute left-1/2 top-1 -translate-x-1/2">
             {renderDialogueWarningStats() || renderVideoGenerationStats()}
             </div>
             <div className="absolute right-0 top-1">

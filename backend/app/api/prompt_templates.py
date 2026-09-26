@@ -43,7 +43,10 @@ PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
         ("keyframe_planner", "关键帧时间轴规划"),
         ("keyframe_transition", "关键帧过渡规划"),
     ]),
-    ("关键帧生图", [("keyframe_image_prompt", "视频关键帧生图提示词构建")]),
+    ("关键帧生图", [
+        ("temporal_reference_selector", "Temporal Anchor Reference Selector V1"),
+        ("keyframe_image_prompt", "视频关键帧生图提示词构建"),
+    ]),
     ("视频生成", [
         ("h3_single_frame_prompt", "MiniMax H3 单帧视频提示词构建"),
         ("h3_first_last_frame_prompt", "MiniMax H3 首尾帧视频提示词构建"),

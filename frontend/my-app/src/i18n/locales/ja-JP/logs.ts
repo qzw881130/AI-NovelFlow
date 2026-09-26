@@ -16,6 +16,7 @@ export default {
     parseProps: '小道具解析',
     splitShots: 'ショット分割',
     generateAppearance: '外見を生成',
+    clipExecutionPlanner: 'クリップ実行プランナー',
     expandVideoPrompt: '動画プロンプトを展開',
     timestamp: 'タイムスタンプ',
     novel: '小説',

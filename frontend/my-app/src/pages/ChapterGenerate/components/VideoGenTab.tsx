@@ -223,6 +223,29 @@ const getLatestH3FinalPrompt = (plan: VideoDirectorPlan, clipIndex?: number) => 
   return String(call?.final_prompt || '');
 };
 
+const getKeyframeReferenceImages = (plan: VideoDirectorPlan, keyframeIndex?: number) => {
+  if (keyframeIndex === undefined) return [];
+  const keyframeLabel = new RegExp(`KF\\s*${keyframeIndex}\\b`);
+  const call = [...(plan.ai_calls || [])].reverse().find((item) => (
+    ['temporal_reference_selector', 'keyframe_image_prompt'].includes(String(item?.task_type || ''))
+    && keyframeLabel.test(String(item?.input_summary || ''))
+    && Array.isArray(item?.reference_images)
+    && item.reference_images.length > 0
+  ));
+  return (call?.reference_images || []).filter((image: any) => image?.url);
+};
+
+const getReferenceDisplayName = (reference: any) => {
+  const source = String(reference?.sources?.[0] || reference?.label || '');
+  const kind = String(reference?.kind || reference?.type || '');
+  if (kind === 'SCENE' || source.startsWith('SCENE:')) return `场景：${source.replace(/^SCENE:/, '') || '未命名'}`;
+  if (kind === 'CHARACTER_IDENTITY' || source.startsWith('CHAR:')) return `角色：${source.replace(/^CHAR:/, '') || '未命名'}`;
+  if (kind === 'DIRECTOR_VISUAL_ANCHOR' || source === 'SHOT_IMAGE') return '主分镜图';
+  if (kind === 'TEMPORAL_ANCHOR' || /^KF\d+$/.test(source)) return `时间锚点：${source}`;
+  if (kind === 'PROP' || source.startsWith('PROP:')) return `道具：${source.replace(/^PROP:/, '') || '未命名'}`;
+  return String(reference?.label || source || '参考图');
+};
+
 const formatAiCallValue = (value: any) => {
   if (value === null || value === undefined || value === '') return '-';
   if (typeof value === 'string') return value;
@@ -272,6 +295,24 @@ const copyText = async (text?: string | null) => {
   }
 };
 
+const parseAiCallTimestamp = (value?: string | null) => {
+  if (!value) return null;
+  const normalized = value.trim().replace(' ', 'T');
+  const timezoneAware = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized);
+  const date = new Date(timezoneAware ? normalized : `${normalized}Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatAiCallTimestamp = (value: string | null | undefined, language: string, timezone: string) => {
+  const date = parseAiCallTimestamp(value);
+  if (!date) return '-';
+  try {
+    return date.toLocaleString(language, { timeZone: timezone });
+  } catch {
+    return date.toLocaleString(language);
+  }
+};
+
 function VideoAiCallsPanel({
   calls = [],
   novelId,
@@ -287,15 +328,15 @@ function VideoAiCallsPanel({
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [panelOpen, setPanelOpen] = useState(true);
   const [expanded, setExpanded] = useState(true);
   const [openIndex, setOpenIndex] = useState(Math.max(0, calls.length - 1));
   const [viewingData, setViewingData] = useState<{ title: string; content: string } | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const sortedCalls = [...calls].sort((a, b) => {
-    const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+    const aTime = parseAiCallTimestamp(a.created_at)?.getTime() || 0;
+    const bTime = parseAiCallTimestamp(b.created_at)?.getTime() || 0;
     return aTime - bTime;
   });
   const latest = sortedCalls[sortedCalls.length - 1];
@@ -430,7 +471,7 @@ function VideoAiCallsPanel({
                 <div>
                   <div className="text-sm font-medium text-gray-800">#{call.step || '--'} {call.title || call.task_type || t('chapterGenerate.aiCall')}</div>
                   <div className="text-xs text-gray-500">
-                    {call.prompt_template_name || '-'} · {call.status || '-'} · {call.created_at ? new Date(call.created_at).toLocaleString() : '-'}
+                    {call.prompt_template_name || '-'} · {call.status || '-'} · {formatAiCallTimestamp(call.created_at, i18n.language, i18n.timezone)}
                     {call.clip_index ? ` · Clip ${call.clip_index}` : ''}
                   </div>
                 </div>
@@ -440,7 +481,7 @@ function VideoAiCallsPanel({
                 <div className="px-3 pb-3">
                   {call.input_summary && <div className="text-xs text-gray-500">{call.input_summary}</div>}
                   <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
-                  <div className="min-w-0">
+                   <div className="min-w-0">
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-medium text-gray-600">{t('chapterGenerate.returnResult')}</span>
                       <div className="flex items-center gap-2">
@@ -448,8 +489,23 @@ function VideoAiCallsPanel({
                         <button type="button" onClick={() => copyText(responseText)} className="text-blue-600 hover:text-blue-800" title={t('common.copy')}><Copy className="w-3 h-3" /></button>
                       </div>
                     </div>
-                    <pre className="max-h-40 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-100 whitespace-pre-wrap">{responseText}</pre>
-                  </div>
+                     <pre className="max-h-40 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-100 whitespace-pre-wrap">{responseText}</pre>
+                   </div>
+                   {call.parsed_result !== undefined && call.parsed_result !== null && (
+                     <div className="min-w-0">
+                       <div className="flex items-center justify-between mb-1">
+                         <span className="text-xs font-medium text-gray-600">解析结果</span>
+                         <button type="button" onClick={() => copyText(formatAiCallValue(call.parsed_result))} className="text-blue-600 hover:text-blue-800" title={t('common.copy')}><Copy className="w-3 h-3" /></button>
+                       </div>
+                       <pre className="max-h-40 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-100 whitespace-pre-wrap">{formatAiCallValue(call.parsed_result)}</pre>
+                     </div>
+                   )}
+                   {call.submitted_reference_bindings?.length ? (
+                     <div className="min-w-0">
+                       <div className="mb-1 text-xs font-medium text-gray-600">实际参考图绑定</div>
+                       <pre className="max-h-40 overflow-auto rounded bg-gray-900 p-2 text-xs text-gray-100 whitespace-pre-wrap">{formatAiCallValue(call.submitted_reference_bindings)}</pre>
+                     </div>
+                   ) : null}
                   <div className="min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span className="text-xs font-medium text-gray-600">{t('chapterGenerate.finalPrompt')}</span>
@@ -721,9 +777,11 @@ function VideoDirectorPanel({
   const [selectedClipKey, setSelectedClipKey] = useState<string | null>(null);
   const [isEndDescriptionExpanded, setIsEndDescriptionExpanded] = useState(false);
   const [viewingPromptClip, setViewingPromptClip] = useState<any | null>(null);
+  const [hoveredReferenceImage, setHoveredReferenceImage] = useState<any | null>(null);
   const selectedKeyframe = keyframes[selectedKeyframeIndex] || keyframes[0];
   const selectedKeyframeFrameIndex = getKeyframeFrameIndex(selectedKeyframe);
   const selectedKeyframeImageUrl = getKeyframeImageUrl(selectedKeyframe);
+  const selectedKeyframeReferenceImages = getKeyframeReferenceImages(plan, Number(selectedKeyframe?.index));
   const selectedKeyframeIsGenerating = isKeyframeGenerating(selectedKeyframe);
   const selectedLegacyKeyframe = legacyKeyframes.find((item: any) => (
     Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(selectedKeyframe?.index)
@@ -1204,30 +1262,54 @@ function VideoDirectorPanel({
 
           <div className="grid grid-cols-[minmax(260px,45%)_1fr] gap-4">
             <div>
-              <div className="relative aspect-video rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
-                {selectedKeyframeIsGenerating ? (
-                  <div className="flex flex-col items-center gap-2 text-blue-500">
-                    <Loader2 className="w-10 h-10 animate-spin" />
-                    <div className="text-sm">{t('chapterGenerate.keyframeImageGenerating')}</div>
+              <div className="flex items-stretch gap-2">
+                <div className="relative aspect-video min-w-0 flex-1 rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center">
+                  {selectedKeyframeIsGenerating ? (
+                    <div className="flex flex-col items-center gap-2 text-blue-500">
+                      <Loader2 className="w-10 h-10 animate-spin" />
+                      <div className="text-sm">{t('chapterGenerate.keyframeImageGenerating')}</div>
+                    </div>
+                  ) : selectedKeyframeImageUrl ? (
+                    <>
+                      <img src={selectedKeyframeImageUrl} alt={`KF${selectedKeyframe.index}`} className="w-full h-full object-cover" />
+                      <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                        <button type="button" onClick={() => onPreviewImage(selectedKeyframeImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.viewLargeImage')}><Eye className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => onEditImage({ type: selectedKeyframe?.role === 'START' ? 'shot' : 'keyframe', imageUrl: selectedKeyframeImageUrl, itemName: `${t('chapterGenerate.shot')}${shot?.index || ''} KF${selectedKeyframe?.index || ''}`, frameIndex: selectedKeyframeFrameIndex })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.editImage')}><Image className="h-4 w-4" /></button>
+                      </div>
+                    </>
+                  ) : shotImageUrl && selectedKeyframe?.role === 'START' ? (
+                    <>
+                      <img src={shotImageUrl} alt="START" className="w-full h-full object-cover" />
+                      <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
+                        <button type="button" onClick={() => onPreviewImage(shotImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.viewLargeImage')}><Eye className="h-4 w-4" /></button>
+                        <button type="button" onClick={() => onEditImage({ type: 'shot', imageUrl: shotImageUrl, itemName: `${t('chapterGenerate.shot')}${shot?.index || ''} START` })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.editImage')}><Image className="h-4 w-4" /></button>
+                      </div>
+                    </>
+                  ) : (
+                    <Image className="w-12 h-12 text-gray-300" />
+                  )}
+                </div>
+                {selectedKeyframeReferenceImages.length > 0 && (
+                  <div className="relative z-20 w-16 shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-1">
+                    <div className="h-full space-y-1 overflow-y-auto pr-0.5">
+                      {selectedKeyframeReferenceImages.map((reference: any, index: number) => (
+                        <div
+                          key={`${reference.url}-${index}`}
+                          onMouseEnter={() => setHoveredReferenceImage(reference)}
+                          onMouseLeave={() => setHoveredReferenceImage(null)}
+                          className="relative aspect-square cursor-zoom-in overflow-visible rounded border border-gray-200 bg-white"
+                        >
+                          <img src={reference.url} alt={reference.label || `Reference ${index + 1}`} className="h-full w-full rounded object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                    {hoveredReferenceImage && (
+                      <div className="pointer-events-none absolute left-full top-0 z-[100] ml-2 w-[28rem] rounded-lg border border-gray-200 bg-white p-2 shadow-xl">
+                        <img src={hoveredReferenceImage.url} alt={getReferenceDisplayName(hoveredReferenceImage)} className="max-h-[28rem] w-full rounded object-contain" />
+                        <div className="px-1 pt-2 text-sm font-medium text-gray-700">{getReferenceDisplayName(hoveredReferenceImage)}</div>
+                      </div>
+                    )}
                   </div>
-                ) : selectedKeyframeImageUrl ? (
-                  <>
-                    <img src={selectedKeyframeImageUrl} alt={`KF${selectedKeyframe.index}`} className="w-full h-full object-cover" />
-                    <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
-                      <button type="button" onClick={() => onPreviewImage(selectedKeyframeImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.viewLargeImage')}><Eye className="h-4 w-4" /></button>
-                      <button type="button" onClick={() => onEditImage({ type: selectedKeyframe?.role === 'START' ? 'shot' : 'keyframe', imageUrl: selectedKeyframeImageUrl, itemName: `${t('chapterGenerate.shot')}${shot?.index || ''} KF${selectedKeyframe?.index || ''}`, frameIndex: selectedKeyframeFrameIndex })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.editImage')}><Image className="h-4 w-4" /></button>
-                    </div>
-                  </>
-                ) : shotImageUrl && selectedKeyframe?.role === 'START' ? (
-                  <>
-                    <img src={shotImageUrl} alt="START" className="w-full h-full object-cover" />
-                    <div className="absolute top-2 right-2 z-10 flex items-center gap-2">
-                      <button type="button" onClick={() => onPreviewImage(shotImageUrl)} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.viewLargeImage')}><Eye className="h-4 w-4" /></button>
-                      <button type="button" onClick={() => onEditImage({ type: 'shot', imageUrl: shotImageUrl, itemName: `${t('chapterGenerate.shot')}${shot?.index || ''} START` })} className="p-2 rounded-full bg-black/70 text-white shadow-lg ring-1 ring-white/30 transition-all hover:bg-black/85 hover:text-blue-300" title={t('chapterGenerate.editImage')}><Image className="h-4 w-4" /></button>
-                    </div>
-                  </>
-                ) : (
-                  <Image className="w-12 h-12 text-gray-300" />
                 )}
               </div>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
@@ -1729,6 +1811,7 @@ export function VideoGenTab({
   const [selectedPreviewClipUrl, setSelectedPreviewClipUrl] = useState<string | null>(null);
   const [semanticClipTasks, setSemanticClipTasks] = useState<Task[]>([]);
   const [regeneratingClipKey, setRegeneratingClipKey] = useState<string | null>(null);
+  const regeneratingClipWasActiveRef = useRef(false);
   const [isMergingClips, setIsMergingClips] = useState(false);
   const [isCancellingVideo, setIsCancellingVideo] = useState(false);
   const [isRefreshingAiCalls, setIsRefreshingAiCalls] = useState(false);
@@ -1939,6 +2022,21 @@ export function VideoGenTab({
 
   // 检查当前分镜是否正在生成
   const isGeneratingCurrent = currentShotId ? generatingVideos.has(currentShotId) || currentShotData?.videoStatus === 'generating' : false;
+
+  useEffect(() => {
+    if (!regeneratingClipKey) {
+      regeneratingClipWasActiveRef.current = false;
+      return;
+    }
+    if (isGeneratingCurrent) {
+      regeneratingClipWasActiveRef.current = true;
+      return;
+    }
+    if (regeneratingClipWasActiveRef.current) {
+      regeneratingClipWasActiveRef.current = false;
+      setRegeneratingClipKey(null);
+    }
+  }, [isGeneratingCurrent, regeneratingClipKey]);
   const isCurrentVideoPending = currentShotId ? storePendingVideos.has(currentShotId) : false;
   const latestFailedAiCallError = currentVideoDirectorPlan?.ai_calls
     ? [...currentVideoDirectorPlan.ai_calls].reverse().find((call: any) => String(call?.status || '').toLowerCase() !== 'success' && String(call?.error_message || '').trim())?.error_message
@@ -2617,9 +2715,19 @@ export function VideoGenTab({
         skip_llm_when_prompt_exists: useExistingPrompt,
       });
       if (result.success) {
-        setShots(shotsList.map((shot: any) => (
-          String(shot.id) === currentShotId ? { ...shot, videoStatus: 'generating', videoTaskId: result.data?.taskId || shot.videoTaskId } : shot
-        )));
+        regeneratingClipWasActiveRef.current = true;
+        useChapterGenerateStore.setState((state) => {
+          const nextGeneratingVideos = new Set(state.generatingVideos);
+          nextGeneratingVideos.add(currentShotId);
+          return {
+            generatingVideos: nextGeneratingVideos,
+            shots: state.shots.map((shot: any) => (
+              String(shot.id) === currentShotId
+                ? { ...shot, videoStatus: 'generating', videoTaskId: result.data?.taskId || shot.videoTaskId }
+                : shot
+            )),
+          };
+        });
         toast.success(`C${windowIndex} 已提交${useExistingPrompt ? '仅生成视频' : 'LLM+生成视频'}，完成后会自动合并`);
       } else {
         setRegeneratingClipKey(null);
@@ -2630,7 +2738,7 @@ export function VideoGenTab({
       console.error('Clip 重新生成失败:', error);
       toast.error('Clip 重新生成失败');
     }
-  }, [currentShotId, effectiveChapterId, effectiveNovelId, setShots, shotsList]);
+  }, [currentShotId, effectiveChapterId, effectiveNovelId]);
 
   const handleMergeDirectorClips = useCallback(async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;

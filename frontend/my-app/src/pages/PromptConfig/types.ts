@@ -16,6 +16,7 @@ export type TemplateType =
   | 'keyframe_description'
   | 'keyframe_planner'
   | 'keyframe_image_prompt'
+  | 'temporal_reference_selector'
   | 'keyframe_transition'
   | 'h3_single_frame_prompt'
   | 'h3_first_last_frame_prompt'

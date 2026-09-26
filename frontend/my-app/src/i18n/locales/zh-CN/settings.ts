@@ -311,6 +311,8 @@ export default {
       keyframePlannerDesc: '用于为首尾帧或多关键帧 Shot 规划关键帧时间轴',
       keyframeImagePrompt: '视频关键帧生图提示词构建',
       keyframeImagePromptDesc: '用于根据上一关键帧和参考资产构建下一关键帧生图提示词',
+      temporalReferenceSelector: '时序锚点参考选择器',
+      temporalReferenceSelectorDesc: '用于在关键帧生图前动态选择最小充分视觉参考集',
       keyframeTransition: '关键帧过渡规划',
       keyframeTransitionDesc: '用于根据相邻关键帧生成 Segment 动态导演描述',
       h3SingleFramePrompt: 'MiniMax H3 单帧视频提示词构建',

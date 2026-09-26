@@ -171,3 +171,51 @@ def test_download_shot_video_materials_includes_each_current_semantic_clip_workf
     assert {item["clip_plan_revision"] for item in manifest["workflows"]} == {4}
     continuation = next(item for item in manifest["workflows"] if item["clip_index"] == 2)
     assert continuation["previous_av_path"] == "videos/references/C002_PreviousAV.mp4"
+
+
+def test_download_shot_video_materials_includes_reference_selector_audit(client, db_session, monkeypatch, tmp_path):
+    novel = Novel(title="Selector 审计导出")
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title="第一章")
+    db_session.add(chapter)
+    db_session.flush()
+
+    primary_path = tmp_path / "primary.png"
+    primary_path.write_bytes(b"primary")
+    task = Task(
+        type="keyframe_image", status="completed", name="KF2", shot_id=None,
+        workflow_json='{"keyframe": "actual"}', prompt_text="final qwen prompt",
+        metadata_json=json.dumps({
+            "reference_selector_input": {"current_anchor": {"id": "KF2"}},
+            "reference_selector_raw_response": '{"selected_references": []}',
+            "reference_selector_result": {"selected_references": []},
+            "reference_manifest": [],
+            "submitted_reference_bindings": [],
+        }),
+    )
+    db_session.add(task)
+    db_session.flush()
+    shot = Shot(
+        chapter_id=chapter.id, index=9, image_url="/api/files/primary.png",
+        video_director_plan=json.dumps({"keyframes": [{"index": 2, "image_task_id": task.id}]}),
+    )
+    db_session.add(shot)
+    db_session.flush()
+    task.shot_id = shot.id
+    db_session.commit()
+
+    monkeypatch.setattr("app.api.shots.url_to_local_path", lambda url: str(primary_path) if url == "/api/files/primary.png" else None)
+
+    response = client.get(
+        f"/api/novels/{novel.id}/chapters/{chapter.id}/shots/{shot.id}/download-video-materials"
+    )
+
+    assert response.status_code == 200
+    with ZipFile(BytesIO(response.content)) as archive:
+        names = set(archive.namelist())
+        evidence_name = next(name for name in names if name.endswith("_reference_selector.json"))
+        prompt_name = next(name for name in names if name.endswith("_Qwen.txt"))
+        evidence = json.loads(archive.read(evidence_name))
+        assert evidence["reference_selector_raw_response"] == '{"selected_references": []}'
+        assert archive.read(prompt_name).decode() == "final qwen prompt"

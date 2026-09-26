@@ -37,6 +37,12 @@ from app.utils.workflow_disconnect import (
 )
 
 
+REFERENCE_SELECTOR_PROMPT = """你是 Temporal Anchor Reference Selector。
+你的唯一任务是从 available_references 中选择生成 current_anchor 所需的最小充分视觉参考集合。
+只返回 JSON：{"selected_references":[{"type":"TEMPORAL_ANCHOR|DIRECTOR_VISUAL_ANCHOR|CHARACTER_IDENTITY|SCENE|PROP","ref_ids":["真实ref_id"],"purpose":"说明每组图提供的独立视觉信息"}]}。
+规则：Temporal Anchor 最多2张，只能选择当前 Anchor 之前的真实候选；允许0张；不得默认选择上一帧或凑数量；不得选择未来/current；只选当前画面实际需要的角色、场景、道具；不得输出 Picture 编号、评分、候选排序或不存在的 ref_id。"""
+
+
 def randomize_prompt_rewrite_seeds(workflow: dict) -> bool:
     """Change only prompt-rewrite seeds before retrying a rewrite format failure."""
     changed = False
@@ -148,6 +154,97 @@ class ShotKeyframeService:
         ).order_by(Task.created_at.desc()).first()
         return (latest_task.prompt_text or "").strip() if latest_task else ""
 
+    def _build_reference_candidates(self, db: Session, novel: Novel, shot: Shot, keyframes: list, frame_index: int) -> list:
+        candidates = []
+        current_description = str(keyframes[frame_index].get("description") or "")
+        for item in keyframes[:frame_index]:
+            image_url = item.get("image_url")
+            if image_url and url_to_local_path(image_url) and Path(url_to_local_path(image_url)).is_file():
+                candidates.append({"ref_id": f"KF{item.get('plan_keyframe_index') or item.get('frame_index')}", "type": "TEMPORAL_ANCHOR", "time_seconds": item.get("time_seconds"), "description": item.get("description") or ""})
+        if shot.image_url and url_to_local_path(shot.image_url):
+            candidates.append({"ref_id": "SHOT_IMAGE", "type": "DIRECTOR_VISUAL_ANCHOR", "description": shot.description or ""})
+        for name in json.loads(shot.characters or "[]"):
+            if name not in current_description:
+                continue
+            character = db.query(Character).filter(Character.novel_id == novel.id, Character.name == name).first()
+            if character and character.image_url and url_to_local_path(character.image_url):
+                candidates.append({"ref_id": f"CHAR:{name}", "type": "CHARACTER_IDENTITY", "description": name})
+        if shot.scene:
+            scene = db.query(Scene).filter(Scene.novel_id == novel.id, Scene.name == shot.scene).first()
+            if scene and scene.image_url and url_to_local_path(scene.image_url):
+                candidates.append({"ref_id": f"SCENE:{shot.scene}", "type": "SCENE", "description": shot.scene})
+        for name in get_visual_prop_names(db, novel.id, json.loads(shot.props or "[]")):
+            if name not in current_description:
+                continue
+            prop = db.query(Prop).filter(Prop.novel_id == novel.id, Prop.name == name, Prop.existence == PROP_EXISTENCE_REAL).first()
+            if prop and prop.image_url and url_to_local_path(prop.image_url):
+                candidates.append({"ref_id": f"PROP:{name}", "type": "PROP", "description": name})
+        return candidates
+
+    async def _select_references(self, db: Session, novel: Novel, shot: Shot, keyframe: dict, candidates: list) -> tuple[dict, str, dict]:
+        payload = {"shot": {"shot_id": shot.id, "duration": shot.duration, "continuity_mode": shot.continuity_mode or "NORMAL", "description": shot.description or "", "characters": json.loads(shot.characters or "[]"), "scene": shot.scene or "", "props": json.loads(shot.props or "[]")}, "current_anchor": {"anchor_id": f"KF{keyframe.get('plan_keyframe_index') or keyframe.get('frame_index')}", "index": keyframe.get("plan_keyframe_index") or keyframe.get("frame_index"), "time_seconds": keyframe.get("time_seconds"), "description": keyframe.get("description") or ""}, "available_references": candidates}
+        template = PromptTemplateRepository(db).get_default_system_template("temporal_reference_selector")
+        if not template:
+            raise RuntimeError("未配置 Temporal Anchor Reference Selector 提示词模板")
+        result = await self.llm_service.chat_completion(system_prompt=template.template, user_content=json.dumps(payload, ensure_ascii=False, indent=2), temperature=0.2, max_tokens=1200, response_format="json_object", task_type="temporal_reference_selector", prompt_template_name=template.name, novel_id=novel.id, chapter_id=shot.chapter_id)
+        if not result.get("success"):
+            raise RuntimeError(result.get("error") or "Temporal Anchor Reference Selector 调用失败")
+        raw = result.get("content") or ""
+        parsed = json.loads(raw or "{}")
+        allowed = {item["ref_id"]: item for item in candidates}
+        selected = []
+        temporal_count = 0
+        for group in parsed.get("selected_references", []) if isinstance(parsed, dict) else []:
+            if not isinstance(group, dict):
+                continue
+            refs = [
+                ref_id for ref_id in group.get("ref_ids", [])
+                if ref_id in allowed and allowed[ref_id].get("type") == group.get("type")
+            ]
+            if group.get("type") == "TEMPORAL_ANCHOR":
+                refs = refs[:max(0, 2 - temporal_count)]
+                temporal_count += len(refs)
+            if refs:
+                selected.append({"type": group.get("type"), "ref_ids": refs, "purpose": group.get("purpose") or "提供当前关键帧所需的独立视觉信息"})
+        return payload, raw, {"selected_references": selected}
+
+    def _resolve_reference_manifest(self, db: Session, novel: Novel, shot: Shot, selected: dict, candidates: list) -> list:
+        by_id = {item["ref_id"]: item for item in candidates}
+        manifest = []
+        for group in selected.get("selected_references", []):
+            ref_ids = group.get("ref_ids", [])
+            composed_url = None
+            if group.get("type") == "CHARACTER_IDENTITY" and len(ref_ids) > 1:
+                composed_url = shot.merged_character_image
+            elif group.get("type") == "PROP" and len(ref_ids) > 1:
+                composed_url = shot.merged_prop_image
+            composed_path = url_to_local_path(composed_url) if composed_url else None
+            if composed_path and Path(composed_path).is_file() and len(manifest) < 9:
+                picture = len(manifest) + 1
+                manifest.append({"picture": picture, "picture_index": picture, "kind": group.get("type"), "type": group.get("type"), "sources": ref_ids, "purpose": group.get("purpose"), "url": composed_url, "path": composed_path, "composed": True})
+                continue
+            for ref_id in ref_ids:
+                candidate = by_id.get(ref_id)
+                if not candidate:
+                    continue
+                url = None
+                if ref_id.startswith("KF"):
+                    index = int(ref_id[2:])
+                    source = next((x for x in json.loads(shot.keyframes or "[]") if int(x.get("plan_keyframe_index") or x.get("frame_index") or -1) == index), None)
+                    url = source.get("image_url") if source else None
+                elif ref_id == "SHOT_IMAGE": url = shot.image_url
+                elif ref_id.startswith("CHAR:"):
+                    x = db.query(Character).filter(Character.novel_id == novel.id, Character.name == ref_id[5:]).first(); url = x.image_url if x else None
+                elif ref_id.startswith("SCENE:"):
+                    x = db.query(Scene).filter(Scene.novel_id == novel.id, Scene.name == ref_id[6:]).first(); url = x.image_url if x else None
+                elif ref_id.startswith("PROP:"):
+                    x = db.query(Prop).filter(Prop.novel_id == novel.id, Prop.name == ref_id[5:], Prop.existence == PROP_EXISTENCE_REAL).first(); url = x.image_url if x else None
+                path = url_to_local_path(url) if url else None
+                if path and Path(path).is_file() and len(manifest) < 9:
+                    picture = len(manifest) + 1
+                    manifest.append({"picture": picture, "picture_index": picture, "kind": candidate["type"], "type": candidate["type"], "sources": [ref_id], "purpose": group.get("purpose"), "url": url, "path": path})
+        return manifest
+
     def _get_keyframe_image_prompt_template(self, db: Session, novel: Optional[Novel]) -> Optional[PromptTemplate]:
         template = None
         if novel and novel.keyframe_image_prompt_template_id:
@@ -223,6 +320,7 @@ class ShotKeyframeService:
         keyframe: dict,
         previous_keyframe: Optional[dict],
         task: Task,
+        reference_manifest: Optional[list] = None,
     ) -> str:
         template = self._get_keyframe_image_prompt_template(db, novel)
         if not template:
@@ -245,7 +343,7 @@ class ShotKeyframeService:
             },
             "current_keyframe": strip_media_refs(keyframe),
             "previous_keyframe": strip_media_refs(previous_keyframe) if previous_keyframe else None,
-            "reference_image_manifest": self._build_keyframe_reference_manifest(db, novel, shot, previous_keyframe),
+            "reference_image_manifest": strip_media_refs(reference_manifest) if reference_manifest is not None else self._build_keyframe_reference_manifest(db, novel, shot, previous_keyframe),
             "visual_style": visual_style,
         }
         user_content = "请基于以下关键帧规划与参考图语义清单，生成 Qwen-Image-Edit-2511 的最终编辑提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
@@ -586,8 +684,19 @@ class ShotKeyframeService:
                 # 获取默认关键帧工作流
                 workflow = db.query(Workflow).filter(
                     Workflow.type == "keyframe_image",
+                    Workflow.name.ilike("%任意数量参考图%"),
                     Workflow.is_active == True
                 ).first()
+                if not workflow:
+                    workflow = db.query(Workflow).filter(
+                        Workflow.type == "multi_image_edit",
+                        Workflow.is_active == True
+                    ).first()
+                if not workflow:
+                    workflow = db.query(Workflow).filter(
+                        Workflow.type == "keyframe_image",
+                        Workflow.is_active == True
+                    ).first()
                 if not workflow:
                     # 回退到分镜图片工作流
                     workflow = db.query(Workflow).filter(
@@ -601,6 +710,9 @@ class ShotKeyframeService:
                 raise ValueError("未找到可用的工作流")
 
             node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
+            task.workflow_id = workflow.id
+            task.workflow_name = workflow.name
+            db.commit()
 
             comfyui_service = ComfyUIService()
 
@@ -609,8 +721,47 @@ class ShotKeyframeService:
             reference_image_url = keyframe.get("reference_image_url")
             reference_label = "参考图"
             reference_path = None
+
+            use_selector = reference_mode == "auto_select" and (
+                "任意数量参考图" in (workflow.name or "") or workflow.type == "multi_image_edit"
+            )
+            reference_manifest = []
+            selector_input = None
+            selector_raw = ""
+            selector_result = None
+            if use_selector:
+                candidates = self._build_reference_candidates(db, novel, shot, keyframes, frame_index)
+                selector_input, selector_raw, selector_result = await self._select_references(
+                    db, novel, shot, keyframe, candidates
+                )
+                reference_manifest = self._resolve_reference_manifest(
+                    db, novel, shot, selector_result, candidates
+                )
+                metadata = json.loads(task.metadata_json or "{}") if task.metadata_json else {}
+                metadata.update({
+                    "reference_selector_input": selector_input,
+                    "reference_selector_raw_response": selector_raw,
+                    "reference_selector_result": selector_result,
+                    "reference_manifest": reference_manifest,
+                })
+                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+                append_video_ai_call(shot, {
+                    "step": "09R",
+                    "title": "Temporal Anchor Reference Selector",
+                    "task_type": "temporal_reference_selector",
+                    "prompt_template_name": "Temporal Anchor Reference Selector V1",
+                    "status": "success",
+                    "input_summary": f"Shot {shot.index} KF {keyframe.get('plan_keyframe_index') or keyframe.get('frame_index')}",
+                    "response": selector_raw,
+                    "parsed_result": selector_result,
+                    "reference_images": reference_manifest,
+                    "task_id": task.id,
+                })
+                db.commit()
+
             if reference_mode == "auto_select" and not reference_image_url:
-                reference_image_url, reference_label = self._get_auto_reference_image_with_label(shot, keyframes, frame_index)
+                if not reference_manifest:
+                    reference_image_url, reference_label = self._get_auto_reference_image_with_label(shot, keyframes, frame_index)
             elif reference_mode == "custom" and reference_image_url:
                 reference_label = "自定义参考图"
 
@@ -631,7 +782,10 @@ class ShotKeyframeService:
                 prompt = reusable_prompt
                 db.commit()
             else:
-                prompt = await self._build_qwen_keyframe_prompt(db, novel, shot, keyframe, previous_keyframe, task)
+                prompt = await self._build_qwen_keyframe_prompt(
+                    db, novel, shot, keyframe, previous_keyframe, task,
+                    reference_manifest=reference_manifest or None,
+                )
             keyframe["prompt_text"] = prompt
             self._sync_video_director_keyframe_fields(shot, keyframe, {"prompt_text": prompt})
             shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
@@ -648,6 +802,48 @@ class ShotKeyframeService:
                 aspect_ratio=novel.aspect_ratio or "16:9",
                 style=""
             )
+
+            submitted_reference_bindings = []
+            if reference_manifest:
+                load_nodes = [
+                    str(node_mapping[key]) for key in sorted(
+                        (key for key in node_mapping if key.startswith("load_image_node_")),
+                        key=lambda item: int(item.rsplit("_", 1)[-1]),
+                    )
+                ]
+                for index, reference in enumerate(reference_manifest):
+                    if index >= len(load_nodes):
+                        break
+                    upload_result = await comfyui_service.client.upload_image(reference["path"])
+                    if not upload_result.get("success"):
+                        raise ValueError(f"参考图上传失败: {upload_result.get('message')}")
+                    node_id = load_nodes[index]
+                    if node_id in submitted_workflow:
+                        submitted_workflow[node_id].setdefault("inputs", {})["image"] = upload_result.get("filename")
+                        submitted_reference_bindings.append({
+                            "picture": reference["picture"],
+                            "sources": reference["sources"],
+                            "node_id": node_id,
+                            "filename": upload_result.get("filename"),
+                        })
+                for node_id in load_nodes[len(reference_manifest):]:
+                    if node_id in submitted_workflow:
+                        for node in submitted_workflow.values():
+                            inputs = node.get("inputs") if isinstance(node, dict) else None
+                            if not isinstance(inputs, dict):
+                                continue
+                            for input_name, input_value in list(inputs.items()):
+                                if isinstance(input_value, list) and input_value and str(input_value[0]) == node_id:
+                                    inputs.pop(input_name, None)
+                        submitted_workflow.pop(node_id, None)
+                task.reference_images = json.dumps([
+                    {"label": f"Picture {item['picture']}", "url": item["url"], "sources": item["sources"]}
+                    for item in reference_manifest
+                ], ensure_ascii=False)
+                metadata = json.loads(task.metadata_json or "{}") if task.metadata_json else {}
+                metadata["submitted_reference_bindings"] = submitted_reference_bindings
+                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+                db.commit()
 
             # 处理参考图节点
             reference_image_node_id = node_mapping.get("reference_image_node_id")
@@ -666,16 +862,20 @@ class ShotKeyframeService:
                     reference_path = None
 
             # 清空未设置参考图的节点（工作流中可能有默认图片，需要清除才能正确断开下游）
-            clear_unset_keyframe_reference_nodes(
-                submitted_workflow,
-                node_mapping,
-                reference_path=reference_path
-            )
+            if not reference_manifest:
+                clear_unset_keyframe_reference_nodes(
+                    submitted_workflow,
+                    node_mapping,
+                    reference_path=reference_path
+                )
 
             # 检测并断开未上传图片的参考图节点的下游连接
             disconnect_unuploaded_reference_nodes(submitted_workflow, node_mapping)
 
             # 提交任务
+            task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+            task.prompt_text = prompt
+            db.commit()
             queue_result = await comfyui_service.client.queue_prompt(submitted_workflow)
 
             if not queue_result.get("success"):
@@ -689,10 +889,11 @@ class ShotKeyframeService:
             task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
             task.prompt_text = prompt
             task.current_step = "ComfyUI 关键帧生成中"
-            reference_url = local_path_to_url(reference_path) if reference_path else None
-            task.reference_images = json.dumps(
-                [{"label": reference_label, "url": reference_url}], ensure_ascii=False
-            ) if reference_url else None
+            if not reference_manifest:
+                reference_url = local_path_to_url(reference_path) if reference_path else None
+                task.reference_images = json.dumps(
+                    [{"label": reference_label, "url": reference_url}], ensure_ascii=False
+                ) if reference_url else None
             db.commit()
 
             # 等待结果
