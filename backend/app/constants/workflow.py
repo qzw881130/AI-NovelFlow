@@ -26,6 +26,7 @@ WORKFLOW_TYPES = {
     "audio": "音频生成",
     "keyframe_image": "关键帧生图",
     "single_image_edit": "单图编辑",
+    "multi_image_edit": "多图编辑",
     "first_last_video": "首尾帧生视频",
     "three_frame_video": "三帧生视频",
     "four_frame_video": "四帧生视频",
@@ -49,6 +50,7 @@ DEFAULT_WORKFLOWS = {
     "audio": "Qwen3-TTS-Voice-Clone.json",  # 音频生成工作流（带参考音频的语音克隆）
     "keyframe_image": "keyframe_flux2_klein.json",
     "single_image_edit": "single_image_edit_flux2_klein.json",
+    "multi_image_edit": "qwen_image_2_1_multi_image_edit_v20260926.json",
     "first_last_video": "first_last_video_minimax_h3_ref2va.json",
     "three_frame_video": "three_frame_video_minimax_h3_ref2va.json",
     "four_frame_video": "four_frame_video_minimax_h3_ref2va.json",
@@ -110,6 +112,21 @@ DEFAULT_WORKFLOW_NODE_MAPPINGS = {
         "prompt_node_id": "117",
         # 保存图片节点
         "save_image_node_id": "9",
+    },
+    "multi_image_edit": {
+        "prompt_node_id": "516",
+        "save_image_node_id": "515",
+        "width_node_id": "517",
+        "height_node_id": "518",
+        "load_image_node_1": "470",
+        "load_image_node_2": "510",
+        "load_image_node_3": "503",
+        "load_image_node_4": "520",
+        "load_image_node_5": "521",
+        "load_image_node_6": "522",
+        "load_image_node_7": "523",
+        "load_image_node_8": "524",
+        "load_image_node_9": "525",
     },
     "shot_scene": {
         "prompt_node_id": "184",
@@ -479,6 +496,15 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "description": "Flux2-Klein-9B 单图编辑工作流，支持 Load Image + 提示词 + Save Image",
         "descriptionKey": f"{DESC_KEY_PREFIX}.Flux2-Klein-9B 单图编辑工作流，支持 Load Image + 提示词 + Save Image",
         "node_mapping": {"load_image_node_id": "76", "prompt_node_id": "117", "save_image_node_id": "9"},
+    },
+    {
+        "filename": "qwen_image_2_1_multi_image_edit_v20260926.json",
+        "type": "multi_image_edit",
+        "name": "Qwen image 2.1图片编辑 (任意数量参考图) API V20260926.json",
+        "nameKey": f"{NAME_KEY_PREFIX}.Qwen image 2.1图片编辑 (任意数量参考图) API V20260926.json",
+        "description": "任意数目参考图编辑",
+        "descriptionKey": f"{DESC_KEY_PREFIX}.任意数目参考图编辑",
+        "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["multi_image_edit"],
     },
 ]
 

@@ -592,7 +592,7 @@ interface VideoDirectorPanelProps {
   onRecommend: (force?: boolean) => void;
   onPlanKeyframes: (force?: boolean) => void;
   onGenerateMissingKeyframes: () => void;
-  onGenerateKeyframe: (frameIndex: number) => void;
+  onGenerateKeyframe: (frameIndex: number, mode?: 'llm' | 'image_only') => void;
   onGenerateEndKeyframe: (mode?: 'llm' | 'image_only') => void;
   isGeneratingEndKeyframe?: boolean;
   isGeneratingMissingKeyframes?: boolean;
@@ -648,6 +648,7 @@ function VideoDirectorPanel({
 }: VideoDirectorPanelProps) {
   const { t } = useTranslation();
   const [showEndKeyframeMenu, setShowEndKeyframeMenu] = useState(false);
+  const [showSelectedKeyframeMenu, setShowSelectedKeyframeMenu] = useState(false);
   const [openClipGenerateMenuKey, setOpenClipGenerateMenuKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -660,6 +661,7 @@ function VideoDirectorPanel({
     if (isShotVideoGenerating) {
       setOpenClipGenerateMenuKey(null);
       setShowEndKeyframeMenu(false);
+      setShowSelectedKeyframeMenu(false);
     }
   }, [isShotVideoGenerating]);
   const selectedMode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
@@ -723,6 +725,12 @@ function VideoDirectorPanel({
   const selectedKeyframeFrameIndex = getKeyframeFrameIndex(selectedKeyframe);
   const selectedKeyframeImageUrl = getKeyframeImageUrl(selectedKeyframe);
   const selectedKeyframeIsGenerating = isKeyframeGenerating(selectedKeyframe);
+  const selectedLegacyKeyframe = legacyKeyframes.find((item: any) => (
+    Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(selectedKeyframe?.index)
+  ));
+  const hasReusableSelectedKeyframePrompt = !!String(
+    selectedKeyframe?.prompt_text || selectedLegacyKeyframe?.prompt_text || ''
+  ).trim();
   const hasNextKeyframe = selectedKeyframeIndex < keyframes.length - 1;
   const transitions = plan.transitions || [];
   const previousTransition = transitions.find((transition) => (
@@ -753,9 +761,17 @@ function VideoDirectorPanel({
   }, [showEndKeyframeMenu]);
 
   useEffect(() => {
+    if (!showSelectedKeyframeMenu) return;
+    const handleClick = () => setShowSelectedKeyframeMenu(false);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [showSelectedKeyframeMenu]);
+
+  useEffect(() => {
     setSelectedKeyframeIndex(0);
     setSelectedClipKey(null);
     setIsEndDescriptionExpanded(false);
+    setShowSelectedKeyframeMenu(false);
   }, [shot?.id, selectedMode]);
 
   const renderModeButton = (mode: VideoMode, disabled = false, title = '') => {
@@ -1218,26 +1234,65 @@ function VideoDirectorPanel({
                 <span className="text-sm font-medium text-gray-700">KF{selectedKeyframe?.index || 1} · {selectedKeyframe?.time_seconds || 0}s</span>
                 <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
                   {selectedKeyframe?.role !== 'START' && (
-                    <button
-                      type="button"
-                      onClick={() => selectedKeyframeFrameIndex !== undefined && onGenerateKeyframe(selectedKeyframeFrameIndex)}
-                      disabled={selectedKeyframeFrameIndex === undefined || selectedKeyframeIsGenerating || isPlanningKeyframes || !!isShotVideoGenerating || !selectedKeyframe?.description}
-                      title={isShotVideoGenerating
-                        ? '当前 Shot 视频生成中，请等待完成后再生成关键帧'
-                        : !selectedKeyframe?.description
-                          ? '当前关键帧缺少描述，请先重新规划关键帧'
+                    <div className="relative inline-flex">
+                      <button
+                        type="button"
+                        onClick={() => selectedKeyframeFrameIndex !== undefined && onGenerateKeyframe(selectedKeyframeFrameIndex, 'llm')}
+                        disabled={selectedKeyframeFrameIndex === undefined || selectedKeyframeIsGenerating || isPlanningKeyframes || !!isShotVideoGenerating || !selectedKeyframe?.description}
+                        title={isShotVideoGenerating
+                          ? '当前 Shot 视频生成中，请等待完成后再生成关键帧'
+                          : !selectedKeyframe?.description
+                            ? '当前关键帧缺少描述，请先重新规划关键帧'
+                            : '使用 LLM 构建新的生图提示词并生成当前关键帧'}
+                        className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-l-md border border-blue-200 bg-white px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {selectedKeyframeIsGenerating
+                          ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           : selectedKeyframeImageUrl
-                            ? '使用 LLM 重新构建提示词并生成当前关键帧'
-                            : '生成当前关键帧'}
-                      className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border border-blue-200 bg-white px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {selectedKeyframeIsGenerating
-                        ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        : selectedKeyframeImageUrl
-                          ? <RefreshCw className="h-3.5 w-3.5" />
-                          : <Sparkles className="h-3.5 w-3.5" />}
-                      {selectedKeyframeIsGenerating ? '生成中...' : selectedKeyframeImageUrl ? '重新生成关键帧' : '生成关键帧'}
-                    </button>
+                            ? <RefreshCw className="h-3.5 w-3.5" />
+                            : <Sparkles className="h-3.5 w-3.5" />}
+                        {selectedKeyframeIsGenerating ? '生成中...' : selectedKeyframeImageUrl ? 'LLM+重新生成关键帧' : 'LLM+生成关键帧'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setShowSelectedKeyframeMenu((open) => !open);
+                        }}
+                        disabled={selectedKeyframeFrameIndex === undefined || selectedKeyframeIsGenerating || isPlanningKeyframes || !!isShotVideoGenerating || !selectedKeyframe?.description}
+                        title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再选择关键帧生成模式' : undefined}
+                        className="inline-flex items-center rounded-r-md border border-l-0 border-blue-200 bg-white px-2 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="选择关键帧生成模式"
+                      >
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </button>
+                      {showSelectedKeyframeMenu && (
+                        <div className="absolute bottom-full right-0 z-[80] mb-1 w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowSelectedKeyframeMenu(false);
+                              if (selectedKeyframeFrameIndex !== undefined) onGenerateKeyframe(selectedKeyframeFrameIndex, 'llm');
+                            }}
+                            className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50"
+                          >
+                            {selectedKeyframeImageUrl ? 'LLM+重新生成关键帧' : 'LLM+生成关键帧'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowSelectedKeyframeMenu(false);
+                              if (selectedKeyframeFrameIndex !== undefined) onGenerateKeyframe(selectedKeyframeFrameIndex, 'image_only');
+                            }}
+                            disabled={!hasReusableSelectedKeyframePrompt || !!isShotVideoGenerating}
+                            title={!hasReusableSelectedKeyframePrompt ? '当前关键帧没有可复用的 AI 生图提示词，请先使用 LLM+生成' : undefined}
+                            className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-white"
+                          >
+                            {selectedKeyframeImageUrl ? '仅重新生成关键帧' : '仅生成关键帧'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   )}
                   <span className={`text-xs ${selectedKeyframeIsGenerating ? 'text-blue-600' : selectedKeyframeImageUrl ? 'text-green-600' : 'text-amber-600'}`}>
                     {selectedKeyframeIsGenerating ? t('chapterGenerate.imageGenerating') : selectedKeyframeImageUrl ? t('chapterGenerate.imageReady') : t('chapterGenerate.waitingImageGeneration')}
@@ -1778,6 +1833,52 @@ export function VideoGenTab({
     ));
     return legacyKeyframe?.image_url || legacyKeyframe?.imageUrl || null;
   }, [getShotImageUrl]);
+  const getMissingVideoKeyframeLabels = useCallback((shot: any, plan: VideoDirectorPlan) => {
+    const selectedMode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
+    const planKeyframes = Array.isArray(plan.keyframes) ? plan.keyframes : [];
+    const missingLabels: string[] = [];
+
+    if (selectedMode === 'SINGLE_FRAME') {
+      return getShotImageUrl(shot) ? missingLabels : ['KF1（主分镜图）'];
+    }
+
+    let requiredKeyframes = planKeyframes;
+    if (selectedMode === 'FIRST_LAST_FRAME') {
+      requiredKeyframes = planKeyframes.filter((keyframe: any) => (
+        keyframe.role === 'START' || keyframe.role === 'END'
+      ));
+    } else if (selectedMode === 'MULTI_KEYFRAME') {
+      const semanticClips = Array.isArray(plan.clip_plan) ? plan.clip_plan : [];
+      const windowPlans = Array.isArray(plan.window_plans) ? plan.window_plans : [];
+      const executionClips = semanticClips.length > 0 ? semanticClips : windowPlans;
+      const requiredIndexes = new Set<number>();
+      executionClips.forEach((clip: any) => {
+        (clip?.keyframe_indexes || []).forEach((index: number) => requiredIndexes.add(Number(index)));
+      });
+      if (requiredIndexes.size > 0) {
+        requiredKeyframes = planKeyframes.filter((keyframe: any) => requiredIndexes.has(Number(keyframe.index)));
+      } else if (semanticClips.length > 0) {
+        // 语义 Clip 计划若未引用关键帧，只要求主分镜图作为起始视觉输入。
+        requiredKeyframes = planKeyframes.filter((keyframe: any) => keyframe.role === 'START');
+      }
+    }
+
+    if (requiredKeyframes.length === 0) {
+      return getShotImageUrl(shot) ? missingLabels : ['KF1（主分镜图）'];
+    }
+
+    requiredKeyframes.forEach((keyframe: any, index: number) => {
+      if (!getVideoDirectorKeyframeImageUrl(shot, keyframe)) {
+        missingLabels.push(`KF${keyframe.index ?? index + 1}`);
+      }
+    });
+    return Array.from(new Set(missingLabels));
+  }, [getShotImageUrl, getVideoDirectorKeyframeImageUrl]);
+  const currentMissingVideoKeyframes = getMissingVideoKeyframeLabels(currentShotData, currentVideoDirectorPlan);
+  const currentVideoKeyframeBlockReason = currentMissingVideoKeyframes.length > 0
+    ? `缺少关键帧图片：${currentMissingVideoKeyframes.join('、')}，请先生成缺失关键帧图`
+    : '';
+  const isCurrentVideoGenerateDisabled = !effectiveChapterId || !currentShotId || !!currentVideoKeyframeBlockReason;
   const currentEndKeyframeImageUrl = currentEndPlanKeyframe
     ? getVideoDirectorKeyframeImageUrl(currentShotData, currentEndPlanKeyframe)
     : null;
@@ -2156,7 +2257,7 @@ export function VideoGenTab({
     }
   }, [currentShotData, currentShotId, currentVideoDirectorPlan, effectiveChapterId, effectiveNovelId, generateKeyframeImage, setShots, shotsList]);
 
-  const handleGenerateVideoKeyframe = useCallback(async (frameIndex: number) => {
+  const handleGenerateVideoKeyframe = useCallback(async (frameIndex: number, mode: 'llm' | 'image_only' = 'llm') => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
     try {
       await generateKeyframeImage(
@@ -2164,11 +2265,13 @@ export function VideoGenTab({
         effectiveChapterId,
         currentShotId,
         frameIndex,
+        undefined,
+        { skipLlmWhenPromptExists: mode === 'image_only' },
       );
-      toast.success('已提交关键帧图片任务');
+      toast.success(mode === 'image_only' ? '已使用现有提示词提交关键帧图片任务' : '已提交关键帧图片任务');
     } catch (error) {
       console.error('生成关键帧失败:', error);
-      toast.error('生成关键帧失败');
+      toast.error(error instanceof Error ? error.message : '生成关键帧失败');
     }
   }, [currentShotId, effectiveChapterId, effectiveNovelId, generateKeyframeImage]);
 
@@ -2333,6 +2436,10 @@ export function VideoGenTab({
 
   const handleGenerateVideo = async (mode: 'llm' | 'video_only' = 'llm') => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
+    if (currentVideoKeyframeBlockReason) {
+      toast.error(currentVideoKeyframeBlockReason);
+      return;
+    }
     if (mode === 'video_only' && !hasReusableVideoPrompt) return;
 
     // MULTI_KEYFRAME needs the #08 window plan before the video task can be queued.
@@ -2355,8 +2462,21 @@ export function VideoGenTab({
           setShots(shotsList.map((shot: any) => (
             String(shot.id) === currentShotId ? { ...shot, ...refreshed.data } : shot
           )));
+          const missingAfterPlanning = getMissingVideoKeyframeLabels(refreshed.data, refreshed.data.videoDirectorPlan || planResult.data);
+          if (missingAfterPlanning.length > 0) {
+            toast.info(`关键帧规划已完成，请先生成缺失关键帧图：${missingAfterPlanning.join('、')}`);
+            return;
+          }
         } else {
           updateCurrentShotVideoDirectorPlan(planResult.data);
+          const missingAfterPlanning = getMissingVideoKeyframeLabels(
+            { ...currentShotData, videoDirectorPlan: planResult.data },
+            planResult.data,
+          );
+          if (missingAfterPlanning.length > 0) {
+            toast.info(`关键帧规划已完成，请先生成缺失关键帧图：${missingAfterPlanning.join('、')}`);
+            return;
+          }
         }
       } catch (error) {
         console.error('自动关键帧规划失败:', error);
@@ -3040,7 +3160,8 @@ export function VideoGenTab({
             <div className="relative inline-flex">
               <button
                 onClick={() => handleGenerateVideo('llm')}
-                disabled={!effectiveChapterId || !currentShotId}
+                disabled={isCurrentVideoGenerateDisabled}
+                title={currentVideoKeyframeBlockReason || undefined}
                 className="px-4 py-2 bg-blue-600 text-white rounded-l-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
               >
                 <Film className="w-4 h-4" />
@@ -3052,7 +3173,8 @@ export function VideoGenTab({
                   event.stopPropagation();
                   setShowGenerateVideoMenu(prev => !prev);
                 }}
-                disabled={!effectiveChapterId || !currentShotId}
+                disabled={isCurrentVideoGenerateDisabled}
+                title={currentVideoKeyframeBlockReason || undefined}
                 className="px-2 py-2 bg-blue-600 text-white border-l border-blue-500 rounded-r-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
                 aria-label="选择视频生成方式"
               >

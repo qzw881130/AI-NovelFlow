@@ -100,6 +100,7 @@ export function UploadModal({ isOpen, onClose, onSuccess, extensionConfigs, type
               <option value="shot">{typeNames.shot}</option>
               <option value="keyframe_image">{typeNames.keyframe_image}</option>
               <option value="single_image_edit">{typeNames.single_image_edit}</option>
+              <option value="multi_image_edit">{typeNames.multi_image_edit}</option>
               <option value="video">{typeNames.video}</option>
               <option value="first_last_video">{typeNames.first_last_video}</option>
               <option value="three_frame_video">{typeNames.three_frame_video}</option>

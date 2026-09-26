@@ -265,7 +265,7 @@ export function BottomNavigator({
           </div>
 
           {/* 缩略图滚动区 - 为滚动条预留空间 */}
-          <div className="flex-1 overflow-hidden py-3">
+          <div className="flex-1 overflow-hidden py-1">
             <div
               ref={scrollRef}
               className="flex h-full items-center gap-2 overflow-x-auto overflow-y-hidden px-4 bottom-nav-scroll"

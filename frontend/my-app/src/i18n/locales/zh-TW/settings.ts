@@ -9,6 +9,8 @@ export default {
       ...zhCN.systemSettings.workflow,
       voiceDesign: '音色設計',
       keyframeImage: '關鍵幀生圖',
+      multiImageEdit: '多圖編輯',
+      loadImageNumber: '載入圖片{number}',
       shotScene: '分鏡生圖（場景）',
       shotCharacterScene: '分鏡生圖（角色+場景）',
       shotSceneProp: '分鏡生圖（場景+道具）',

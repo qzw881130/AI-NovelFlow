@@ -1248,6 +1248,7 @@ export const createGenerationSlice: StateCreator<
             const currentShot = shotIndex >= 0 ? updatedShots[shotIndex] : undefined;
             const legacyKeyframe = currentShot?.keyframes?.find((kf: any) => kf.frame_index === frameIndex);
             const taskBelongsToCurrentKeyframe = legacyKeyframe?.image_task_id === task.id || (legacyKeyframe as any)?.imageTaskId === task.id;
+            const taskPromptText = typeof task.promptText === 'string' ? task.promptText.trim() : '';
 
             // 更新任务状态
             const taskIndex = newKeyframeTasks.findIndex(t => t.taskId === task.id);
@@ -1269,6 +1270,37 @@ export const createGenerationSlice: StateCreator<
               generatingKeyframesUpdated = true;
             }
 
+            // #09 完成后，后端会在图片任务仍处于 running 时保存最终生图提示词。
+            // 将它立即同步到当前 Shot，避免“仅重新生成关键帧”必须刷新页面后才可用。
+            if (
+              taskPromptText
+              && (taskIndex >= 0 || taskBelongsToCurrentKeyframe)
+              && shotIndex >= 0
+              && currentShot
+              && legacyKeyframe?.prompt_text !== taskPromptText
+            ) {
+              const updatedKeyframes = (currentShot.keyframes || []).map((kf: any) => (
+                kf.frame_index === frameIndex
+                  ? { ...kf, prompt_text: taskPromptText }
+                  : kf
+              ));
+              const updatedLegacyKeyframe = updatedKeyframes.find((kf: any) => kf.frame_index === frameIndex);
+              const nonStartPlanKeyframes = (currentShot.videoDirectorPlan?.keyframes || []).filter((kf: any) => kf.role !== 'START');
+              const planKeyframeIndex = updatedLegacyKeyframe?.plan_keyframe_index ?? nonStartPlanKeyframes[frameIndex]?.index;
+              const videoDirectorPlan = currentShot.videoDirectorPlan && planKeyframeIndex !== undefined
+                ? {
+                  ...currentShot.videoDirectorPlan,
+                  keyframes: (currentShot.videoDirectorPlan.keyframes || []).map((kf: any) => (
+                    Number(kf.index) === Number(planKeyframeIndex)
+                      ? { ...kf, prompt_text: taskPromptText }
+                      : kf
+                  )),
+                }
+                : currentShot.videoDirectorPlan;
+              updatedShots[shotIndex] = { ...currentShot, keyframes: updatedKeyframes, videoDirectorPlan };
+              shotsUpdated = true;
+            }
+
             // 如果完成，更新图片URL
             if (task.status === 'completed' && task.resultUrl) {
               if (taskIndex < 0 && !taskBelongsToCurrentKeyframe) return;
@@ -1284,26 +1316,37 @@ export const createGenerationSlice: StateCreator<
               }
 
               // 更新 shot 的 keyframes
-              if (shotIndex >= 0 && currentShot) {
-                const updatedKeyframes = (currentShot.keyframes || []).map((kf: any) =>
+              if (shotIndex >= 0 && updatedShots[shotIndex]) {
+                const latestShot = updatedShots[shotIndex];
+                const updatedKeyframes = (latestShot.keyframes || []).map((kf: any) =>
                   kf.frame_index === frameIndex
-                    ? { ...kf, image_url: task.resultUrl, image_task_id: task.id }
+                    ? {
+                      ...kf,
+                      image_url: task.resultUrl,
+                      image_task_id: task.id,
+                      ...(taskPromptText ? { prompt_text: taskPromptText } : {}),
+                    }
                     : kf
                 );
                 const updatedLegacyKeyframe = updatedKeyframes.find((kf: any) => kf.frame_index === frameIndex);
-                const nonStartPlanKeyframes = (currentShot.videoDirectorPlan?.keyframes || []).filter((kf: any) => kf.role !== 'START');
+                const nonStartPlanKeyframes = (latestShot.videoDirectorPlan?.keyframes || []).filter((kf: any) => kf.role !== 'START');
                 const planKeyframeIndex = updatedLegacyKeyframe?.plan_keyframe_index ?? nonStartPlanKeyframes[frameIndex]?.index;
-                const videoDirectorPlan = currentShot.videoDirectorPlan && planKeyframeIndex !== undefined
+                const videoDirectorPlan = latestShot.videoDirectorPlan && planKeyframeIndex !== undefined
                   ? {
-                    ...currentShot.videoDirectorPlan,
-                    keyframes: (currentShot.videoDirectorPlan.keyframes || []).map((kf: any) => (
+                    ...latestShot.videoDirectorPlan,
+                    keyframes: (latestShot.videoDirectorPlan.keyframes || []).map((kf: any) => (
                       Number(kf.index) === Number(planKeyframeIndex)
-                        ? { ...kf, image_url: task.resultUrl, image_task_id: task.id }
+                        ? {
+                          ...kf,
+                          image_url: task.resultUrl,
+                          image_task_id: task.id,
+                          ...(taskPromptText ? { prompt_text: taskPromptText } : {}),
+                        }
                         : kf
                     )),
                   }
-                  : currentShot.videoDirectorPlan;
-                updatedShots[shotIndex] = { ...currentShot, keyframes: updatedKeyframes, videoDirectorPlan };
+                  : latestShot.videoDirectorPlan;
+                updatedShots[shotIndex] = { ...latestShot, keyframes: updatedKeyframes, videoDirectorPlan };
                 shotsUpdated = true;
               }
             } else if (task.status === 'failed') {

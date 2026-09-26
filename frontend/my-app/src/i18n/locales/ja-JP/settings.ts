@@ -125,6 +125,8 @@ export default {
       prop: 'プロップ生成',
       voiceDesign: '音色デザイン',
       keyframeImage: 'キーフレーム画像生成',
+      multiImageEdit: '複数画像編集',
+      loadImageNumber: '画像{number}を読み込む',
       type: 'ワークフロータイプ',
       name: 'ワークフロー名',
       file: 'ワークフローファイル',

@@ -8,6 +8,7 @@
  */
 
 import { cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useChapterGenerateStore } from '../stores';
 import { Box, ChevronDown, Download, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
 import { shotsApi } from '../../../api/shots';
@@ -801,8 +802,8 @@ export function ShotImageGenTab({
       </div>
 
       {/* 批量选择分镜弹窗 */}
-      {showBatchSelectModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      {showBatchSelectModal && createPortal((
+        <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
             {/* 弹窗头部 */}
             <div className="flex items-center justify-between p-4 border-b border-gray-200">
@@ -918,7 +919,12 @@ export function ShotImageGenTab({
 
                       {/* 状态标签 */}
                       <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg">
-                        {isGenerating ? t('chapterGenerate.generating') : isQueued ? '队列中' : hasShotImage ? t('chapterGenerate.generated') : t('chapterGenerate.pending')}
+                        <span>
+                          {isGenerating ? t('chapterGenerate.generating') : isQueued ? '队列中' : hasShotImage ? t('chapterGenerate.generated') : t('chapterGenerate.pending')}
+                        </span>
+                        <span className="absolute right-1 font-medium">
+                          {shot.duration}s
+                        </span>
                       </div>
                     </div>
                   );
@@ -965,7 +971,7 @@ export function ShotImageGenTab({
             </div>
           </div>
         </div>
-      )}
+      ), document.body)}
 
       {currentImageUrl && (
         <ImageEditModal

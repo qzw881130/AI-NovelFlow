@@ -145,7 +145,9 @@ export default {
       voiceDesign: '音色设计',
       keyframeImage: '关键帧生图',
       singleImageEdit: '单图编辑',
+      multiImageEdit: '多图编辑',
       loadImageNode: 'Load Image 节点',
+      loadImageNumber: '加载图片{number}',
       // 上传弹窗
       type: '工作流类型',
       name: '工作流名称',

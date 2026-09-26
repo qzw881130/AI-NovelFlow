@@ -144,6 +144,8 @@ export default {
       prop: 'Prop Generation',
       voiceDesign: 'Voice Design',
       keyframeImage: 'Keyframe Image Generation',
+      multiImageEdit: 'Multi-Image Editing',
+      loadImageNumber: 'Load Image {number}',
       // Upload Modal
       type: 'Workflow Type',
       name: 'Workflow Name',

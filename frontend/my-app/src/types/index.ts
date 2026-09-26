@@ -201,6 +201,7 @@ export interface KeyframeData {
   description: string;
   image_url?: string;
   image_task_id?: string;
+  prompt_text?: string;
   reference_image_url?: string | null;
   reference_mode?: 'auto_select' | 'custom' | 'none';
 }

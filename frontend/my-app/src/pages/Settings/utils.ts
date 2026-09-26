@@ -112,6 +112,7 @@ export const getTypeNames = (t: any) => ({
   audio: t('systemSettings.workflow.audio'),
   keyframe_image: t('systemSettings.workflow.keyframeImage'),
   single_image_edit: t('systemSettings.workflow.singleImageEdit'),
+  multi_image_edit: t('systemSettings.workflow.multiImageEdit'),
   first_last_video: t('systemSettings.workflow.firstLastVideo'),
   three_frame_video: t('systemSettings.workflow.threeFrameVideo'),
   four_frame_video: t('systemSettings.workflow.fourFrameVideo'),
@@ -319,6 +320,22 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
         mapping.prompt_node_id !== 'auto' &&
         mapping.save_image_node_id &&
         mapping.save_image_node_id !== 'auto'
+      );
+    case 'multi_image_edit':
+      const multiImageEditMapping = mapping as any;
+      return !!(
+        multiImageEditMapping.prompt_node_id &&
+        multiImageEditMapping.prompt_node_id !== 'auto' &&
+        multiImageEditMapping.save_image_node_id &&
+        multiImageEditMapping.save_image_node_id !== 'auto' &&
+        multiImageEditMapping.width_node_id &&
+        multiImageEditMapping.width_node_id !== 'auto' &&
+        multiImageEditMapping.height_node_id &&
+        multiImageEditMapping.height_node_id !== 'auto' &&
+        Array.from({ length: 9 }).every((_, index) => {
+          const nodeId = multiImageEditMapping[`load_image_node_${index + 1}`];
+          return nodeId && nodeId !== 'auto';
+        })
       );
     case 'video_upscale':
       return !!(

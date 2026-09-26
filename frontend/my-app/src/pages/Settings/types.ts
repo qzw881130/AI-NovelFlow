@@ -23,6 +23,15 @@ export interface Workflow {
     megapixels_value?: string;
     reference_image_node_id?: string;
     load_image_node_id?: string;
+    load_image_node_1?: string;
+    load_image_node_2?: string;
+    load_image_node_3?: string;
+    load_image_node_4?: string;
+    load_image_node_5?: string;
+    load_image_node_6?: string;
+    load_image_node_7?: string;
+    load_image_node_8?: string;
+    load_image_node_9?: string;
     frame_count_node_id?: string;
     duration_seconds_node_id?: string;
     first_image_node_id?: string;

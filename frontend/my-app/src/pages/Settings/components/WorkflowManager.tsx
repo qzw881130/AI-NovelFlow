@@ -34,9 +34,10 @@ const typeIcons: Record<string, typeof User> = {
   audio: Music,
   keyframe_image: Clapperboard,
   single_image_edit: ImageIcon,
+  multi_image_edit: ImageIcon,
 };
 
-const workflowTypeOrder = ['character', 'scene', 'prop', 'shot_scene', 'shot_character_scene', 'shot_scene_prop', 'shot', 'keyframe_image', 'single_image_edit', 'video', 'first_last_video', 'three_frame_video', 'four_frame_video', 'VIDEO_CONTINUATION', 'TEMPORAL_EXTEND', 'video_upscale', 'transition', 'voice_design', 'audio'] as const;
+const workflowTypeOrder = ['character', 'scene', 'prop', 'shot_scene', 'shot_character_scene', 'shot_scene_prop', 'shot', 'keyframe_image', 'single_image_edit', 'multi_image_edit', 'video', 'first_last_video', 'three_frame_video', 'four_frame_video', 'VIDEO_CONTINUATION', 'TEMPORAL_EXTEND', 'video_upscale', 'transition', 'voice_design', 'audio'] as const;
 
 interface WorkflowManagerProps {
   onRefresh?: () => void;

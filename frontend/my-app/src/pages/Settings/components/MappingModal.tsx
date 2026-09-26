@@ -23,6 +23,7 @@ interface MappingForm {
   sceneReferenceImageNodeId: string;
   propReferenceImageNodeId: string;
   customReferenceImageNodes: string[];
+  multiImageNodeIds?: string[];
   // 音色设计相关节点
   voicePromptNodeId: string;
   refTextNodeId: string;
@@ -95,6 +96,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     sceneReferenceImageNodeId: '',
     propReferenceImageNodeId: '',
     customReferenceImageNodes: [],
+    multiImageNodeIds: Array(9).fill(''),
     voicePromptNodeId: '',
     refTextNodeId: '',
     saveAudioNodeId: '',
@@ -315,6 +317,18 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 emotionPromptNodeId: '',
                 keyframeNodes: [],
                 durationSecondsNodeId: mapping.duration_seconds_node_id || ''
+              });
+            } else if (wf.type === 'multi_image_edit') {
+              setMappingForm({
+                ...mappingForm,
+                promptNodeId: mapping.prompt_node_id || '',
+                saveImageNodeId: mapping.save_image_node_id || '',
+                widthNodeId: mapping.width_node_id || '',
+                heightNodeId: mapping.height_node_id || '',
+                multiImageNodeIds: Array.from(
+                  { length: 9 },
+                  (_, index) => mapping[`load_image_node_${index + 1}`] || ''
+                ),
               });
             } else if (isShotImageType(wf.type)) {
               setMappingForm({
@@ -576,6 +590,16 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           megapixels_value: mappingForm.megapixelsNodeId ? mappingForm.megapixelsValue : null,
           video_save_node_id: mappingForm.videoSaveNodeId || null
         };
+      } else if (workflow.type === 'multi_image_edit') {
+        nodeMapping = {
+          prompt_node_id: mappingForm.promptNodeId || null,
+          save_image_node_id: mappingForm.saveImageNodeId || null,
+          width_node_id: mappingForm.widthNodeId || null,
+          height_node_id: mappingForm.heightNodeId || null,
+        };
+        Array.from({ length: 9 }).forEach((_, index) => {
+          nodeMapping[`load_image_node_${index + 1}`] = mappingForm.multiImageNodeIds?.[index] || null;
+        });
       } else if (isShotImageType(workflow.type)) {
         nodeMapping = {
           prompt_node_id: mappingForm.promptNodeId || null,
@@ -657,6 +681,13 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
 
   const handleNodeSelect = (value: string, field: keyof MappingForm) => {
     setMappingForm({ ...mappingForm, [field]: value });
+    if (value) setSelectedNodeId(value);
+  };
+
+  const handleMultiImageNodeSelect = (value: string, index: number) => {
+    const nextNodeIds = Array.from({ length: 9 }, (_, itemIndex) => mappingForm.multiImageNodeIds?.[itemIndex] || '');
+    nextNodeIds[index] = value;
+    setMappingForm({ ...mappingForm, multiImageNodeIds: nextNodeIds });
     if (value) setSelectedNodeId(value);
   };
 
@@ -827,6 +858,63 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onFocus={handleNodeFocus}
                     t={t}
                   />
+                </>
+              )}
+
+              {workflow.type === 'multi_image_edit' && (
+                <>
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.promptInputNode')}
+                    nodeTypeHint="CLIPTextEncode, CR Text, CR Prompt Text"
+                    value={mappingForm.promptNodeId}
+                    options={[...availableNodes.clipTextEncode, ...availableNodes.crPromptText]}
+                    onChange={(v) => handleNodeSelect(v, 'promptNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <NodeSelectField
+                    label={t('systemSettings.workflow.imageSaveNode')}
+                    nodeTypeHint="SaveImage, Save Image (Advanced)"
+                    value={mappingForm.saveImageNodeId}
+                    options={availableNodes.saveImage}
+                    onChange={(v) => handleNodeSelect(v, 'saveImageNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <NodeSelectField
+                      label={t('systemSettings.workflow.widthNode')}
+                      nodeTypeHint="easy int, JWInteger, INTConstant"
+                      value={mappingForm.widthNodeId}
+                      options={availableNodes.easyInt}
+                      onChange={(v) => handleNodeSelect(v, 'widthNodeId')}
+                      onFocus={handleNodeFocus}
+                      t={t}
+                    />
+                    <NodeSelectField
+                      label={t('systemSettings.workflow.heightNode')}
+                      nodeTypeHint="easy int, JWInteger, INTConstant"
+                      value={mappingForm.heightNodeId}
+                      options={availableNodes.easyInt}
+                      onChange={(v) => handleNodeSelect(v, 'heightNodeId')}
+                      onFocus={handleNodeFocus}
+                      t={t}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    {Array.from({ length: 9 }).map((_, index) => (
+                      <NodeSelectField
+                        key={index}
+                        label={t('systemSettings.workflow.loadImageNumber', { number: index + 1 })}
+                        nodeTypeHint="LoadImage"
+                        value={mappingForm.multiImageNodeIds?.[index] || ''}
+                        options={availableNodes.loadImage}
+                        onChange={(v) => handleMultiImageNodeSelect(v, index)}
+                        onFocus={handleNodeFocus}
+                        t={t}
+                      />
+                    ))}
+                  </div>
                 </>
               )}
 

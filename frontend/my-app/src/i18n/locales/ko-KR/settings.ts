@@ -117,6 +117,8 @@ export default {
       prop: '소품 생성',
       voiceDesign: '음성 디자인',
       keyframeImage: '키프레임 이미지 생성',
+      multiImageEdit: '다중 이미지 편집',
+      loadImageNumber: '이미지 {number} 불러오기',
       type: '워크플로우 타입',
       name: '워크플로우 이름',
       file: '워크플로우 파일',
