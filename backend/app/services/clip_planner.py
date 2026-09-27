@@ -9,7 +9,7 @@ from app.services.llm_service import LLMService
 from app.services.prompt_template_service import PromptTemplateService
 from app.services.clip_validator import validate_clip_plan
 from app.services.dialogue_ownership import assign_dialogues_to_clips
-from app.services.video_director_ai import build_dialogue_timeline
+from app.services.video_director_ai import align_clip_boundaries_to_dialogue_gaps, build_dialogue_timeline
 from app.utils.path_utils import url_to_local_path
 
 
@@ -82,6 +82,7 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
         },
         "available_generation_inputs": available_inputs,
         "director_mode": (json.loads(getattr(shot, "video_director_plan", None) or "{}").get("selected_mode") or "SINGLE_FRAME"),
+        "official_dialogue_timeline": (json.loads(getattr(shot, "video_director_plan", None) or "{}").get("dialogue_timeline_source") or []),
         "temporal_anchors": temporal_anchors,
         "capabilities": VIDEO_CAPABILITY_CONTRACTS,
         "planning_policy": planning_policy or {"min_story_clip_duration": 2.0, "approval_mode": "AUTO_APPROVE"},
@@ -144,14 +145,19 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
     shot_dialogues = json.loads(shot.dialogues or "[]")
     video_plan = json.loads(shot.video_director_plan or "{}")
     dialogue_timeline_source = video_plan.get("dialogue_timeline_source")
-    if not isinstance(dialogue_timeline_source, list):
-        dialogue_timeline_source, _, timeline_status = build_dialogue_timeline(
-            {"start_time": 0, "end_time": shot.duration or 4},
-            shot_dialogues,
-            json.loads(getattr(shot, "characters", "[]") or "[]"),
-        )
-        if timeline_status.get("status") == "overflow":
-            dialogue_timeline_source = []
+    generated_timeline, _, timeline_status = build_dialogue_timeline(
+        {"start_time": 0, "end_time": shot.duration or 4},
+        shot_dialogues,
+        json.loads(getattr(shot, "characters", "[]") or "[]"),
+    )
+    if timeline_status.get("status") == "ok" and generated_timeline:
+        dialogue_timeline_source = generated_timeline
+    elif not isinstance(dialogue_timeline_source, list):
+        dialogue_timeline_source = []
+    if shot_dialogues and not dialogue_timeline_source:
+        raise RuntimeError("DIALOGUE_TIMELINE_UNAVAILABLE: 有对白的 Shot 缺少合法 official dialogue timeline，不能静默降级生成视频。")
+    max_clip_duration = 15.0
+    clips = align_clip_boundaries_to_dialogue_gaps(clips, dialogue_timeline_source, max_clip_duration)
     assignments, dialogue_validation = assign_dialogues_to_clips(
         shot_dialogues, clips, dialogue_timeline_source
     )

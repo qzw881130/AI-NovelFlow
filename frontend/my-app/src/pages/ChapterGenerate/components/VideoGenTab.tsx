@@ -1487,13 +1487,19 @@ function VideoDirectorPanel({
                     speaker: dialogueSpeaker(dialogue) || '旁白',
                     text,
                     emotion,
-                    minRequiredSeconds: estimateDialogueSeconds(text, emotion),
+                    minRequiredSeconds: dialogue.projection_mode === 'intersection' || dialogue.dialogue_timing_source === 'official_projection'
+                      ? Number(dialogue.projected_duration ?? dialogue.end_time - dialogue.start_time) || 0
+                      : estimateDialogueSeconds(text, emotion),
+                    timingSource: dialogue.projection_mode === 'intersection' ? 'official_projection' : dialogue.dialogue_timing_source,
+                    localStart: dialogue.local_start_time,
+                    localEnd: dialogue.local_end_time,
                   };
                 })
                 .filter((dialogue: any) => dialogue.text);
               const clipDuration = Math.max(0, (numberOrNull(clip.end_time) ?? numberOrNull(shot?.duration) ?? 0) - (numberOrNull(clip.start_time) ?? 0));
               const totalMinDialogueSeconds = clipDialogues.reduce((sum: number, dialogue: any) => sum + dialogue.minRequiredSeconds, 0);
-              const dialogueGapSeconds = Math.max(0, clipDialogues.length - 1) * DIALOGUE_GAP_SECONDS;
+              const usesOfficialProjection = clipDialogues.length > 0 && clipDialogues.every((dialogue: any) => dialogue.timingSource === 'official_projection');
+              const dialogueGapSeconds = usesOfficialProjection ? 0 : Math.max(0, clipDialogues.length - 1) * DIALOGUE_GAP_SECONDS;
               const dialogueOccupancySeconds = totalMinDialogueSeconds + dialogueGapSeconds;
               const dialogueDurationInsufficient = clipDialogues.length > 0 && clipDuration > 0 && dialogueOccupancySeconds > clipDuration + 0.05;
               return (
@@ -1525,7 +1531,7 @@ function VideoDirectorPanel({
                     <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                       <span className="font-medium">Clip 台词</span>
                       <span className={dialogueDurationInsufficient ? 'text-red-700' : 'text-gray-500'}>
-                        预计对白发声约 {totalMinDialogueSeconds.toFixed(2)}s{clipDialogues.length > 1 ? ` · 加换人间隔约 ${dialogueGapSeconds.toFixed(2)}s，占用约 ${dialogueOccupancySeconds.toFixed(2)}s` : ''} / Clip {clipDuration ? `${clipDuration.toFixed(2)}s` : '-'}
+                        {usesOfficialProjection ? `Official timeline 实际覆盖 ${totalMinDialogueSeconds.toFixed(2)}s` : `预计对白发声约 ${totalMinDialogueSeconds.toFixed(2)}s${clipDialogues.length > 1 ? ` · 加换人间隔约 ${dialogueGapSeconds.toFixed(2)}s，占用约 ${dialogueOccupancySeconds.toFixed(2)}s` : ''}`} / Clip {clipDuration ? `${clipDuration.toFixed(2)}s` : '-'}
                       </span>
                     </div>
                     {clipDialogues.length > 0 ? (
@@ -1535,7 +1541,7 @@ function VideoDirectorPanel({
                             <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
                               <span className="font-medium text-gray-700">{dialogue.speaker}</span>
                               {dialogue.emotion && <span>情绪：{dialogue.emotion}</span>}
-                              <span>预计发声 {dialogue.minRequiredSeconds.toFixed(2)}s</span>
+                              <span>{dialogue.timingSource === 'official_projection' ? `覆盖 ${Number(dialogue.localStart ?? 0).toFixed(2)}–${Number(dialogue.localEnd ?? 0).toFixed(2)}s，实际投影 ${dialogue.minRequiredSeconds.toFixed(2)}s` : `预计发声 ${dialogue.minRequiredSeconds.toFixed(2)}s`}</span>
                             </div>
                             <div className="mt-0.5 text-gray-700">{dialogue.text}</div>
                           </div>

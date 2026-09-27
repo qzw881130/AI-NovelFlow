@@ -85,7 +85,7 @@ from app.services.prompt_builder import get_style
 from app.services.visual_style_authority import strip_embedded_visual_style
 from app.services.llm_service import LLMService
 from app.repositories import PromptTemplateRepository
-from app.services.video_director_ai import append_video_ai_call, build_dialogue_timeline, strip_media_refs
+from app.services.video_director_ai import align_clip_boundaries_to_dialogue_gaps, append_video_ai_call, build_dialogue_timeline, strip_media_refs
 from app.services.clip_planner import plan_clips
 from app.services.dialogue_ownership import assign_dialogues_to_clips
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
@@ -1289,13 +1289,19 @@ def _execution_windows_match_duration(execution_windows: list, duration: int, ma
     expected_windows = _build_execution_windows(duration, max_clip_duration)
     if len(execution_windows) != len(expected_windows):
         return False
-    for current, expected in zip(execution_windows, expected_windows):
-        if int(current.get("window_index") or 0) != int(expected.get("window_index") or 0):
+    previous_end = 0.0
+    for index, current in enumerate(execution_windows, 1):
+        if int(current.get("window_index") or 0) != index:
             return False
-        if float(current.get("start_time") or 0) != float(expected.get("start_time") or 0):
+        start = float(current.get("start_time") or 0)
+        end = float(current.get("end_time") or 0)
+        if abs(start - previous_end) > 1e-6:
             return False
-        if float(current.get("end_time") or 0) != float(expected.get("end_time") or 0):
+        if end <= start or end - start > max_clip_duration + 1e-6:
             return False
+        previous_end = end
+    if abs(previous_end - float(duration)) > 1e-6:
+        return False
     return True
 
 
@@ -2085,6 +2091,30 @@ async def plan_video_keyframes(
         plan["dialogue_timeline_status"] = fallback_timeline_status
         shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
         db.commit()
+
+    if selected_mode == "MULTI_KEYFRAME":
+        existing_windows = plan.get("execution_windows") if isinstance(plan.get("execution_windows"), list) else []
+        if existing_windows and dialogue_timeline_source:
+            aligned_windows = align_clip_boundaries_to_dialogue_gaps(
+                existing_windows,
+                dialogue_timeline_source,
+                float((plan.get("workflow_capability") or {}).get("max_clip_duration") or 15),
+            )
+            plan["execution_windows"] = aligned_windows
+            for window in plan.get("window_plans") or []:
+                match = next((item for item in aligned_windows if int(item.get("window_index") or 0) == int(window.get("window_index") or 0)), None)
+                if match:
+                    window["start_time"] = match["start_time"]
+                    window["end_time"] = match["end_time"]
+                    indexes = window.get("keyframe_indexes") or []
+                    if indexes:
+                        for keyframe in plan.get("keyframes") or []:
+                            if int(keyframe.get("index") or -1) == int(indexes[-1]):
+                                keyframe["time_seconds"] = match["end_time"]
+                            if int(keyframe.get("index") or -1) == int(indexes[0]) and int(window.get("window_index") or 0) > 1:
+                                keyframe["time_seconds"] = match["start_time"]
+            shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+            db.commit()
 
     if selected_mode == "MULTI_KEYFRAME" and plan.get("window_plans") and not request.force:
         for window in plan.get("window_plans") or []:

@@ -1,5 +1,6 @@
 from app.services.shot_video_service import _clip_dialogues_for_prompt, _dialogue_assignment_source
-from app.services.video_director_ai import build_dialogue_timeline
+from app.services.video_director_ai import align_clip_boundaries_to_dialogue_gaps, build_dialogue_timeline
+from app.services.shot_video_service import _clip_dialogues_for_prompt
 
 
 def test_h3_clip_dialogue_filter_prefers_official_timeline_over_position_fallback():
@@ -90,6 +91,50 @@ def test_overflow_returns_no_official_speaking_timeline():
     assert status["status"] == "overflow"
     assert status["estimated_speech_duration"] > 2
     assert status["overflow_seconds"] > 0
+
+
+def test_official_timeline_projects_into_clip_windows_without_repacking():
+    dialogues = [
+        {"character_name": "甲", "text": "第一句。"},
+        {"character_name": "乙", "text": "第二句。"},
+    ]
+    official = [
+        {"id": "D1", "speaker": "甲", "text": "第一句。", "start_time": 1.0, "end_time": 4.0},
+        {"id": "D2", "speaker": "乙", "text": "第二句。", "start_time": 14.2, "end_time": 16.95},
+    ]
+    c1 = _clip_dialogues_for_prompt(dialogues, {"start_time": 0, "end_time": 15}, 28, official)
+    c2 = _clip_dialogues_for_prompt(dialogues, {"start_time": 15, "end_time": 28}, 28, official)
+    assert [(item["dialogue_id"], item["start_time"], item["end_time"], item["local_end_time"]) for item in c1] == [
+        ("D1", 1.0, 4.0, 4.0), ("D2", 14.2, 15.0, 15.0)
+    ]
+    assert [(item["dialogue_id"], item["start_time"], item["end_time"], item["local_start_time"], item["local_end_time"]) for item in c2] == [
+        ("D2", 15.0, 16.95, 0.0, 1.95)
+    ]
+    timeline, _, status = build_dialogue_timeline({"start_time": 0, "end_time": 15}, c1, ["甲", "乙"])
+    assert [(item["id"], item["start_time"], item["end_time"], item["text"]) for item in timeline] == [
+        ("D1", 1.0, 4.0, "第一句。"), ("D2", 14.2, 15.0, "第二句。")
+    ]
+    assert status["source"] == "official_projection"
+
+    c2_timeline, _, _ = build_dialogue_timeline({"start_time": 15, "end_time": 28}, c2, ["甲", "乙"])
+    assert [(item["id"], item["start_time"], item["end_time"], item["shot_start_time"], item["shot_end_time"]) for item in c2_timeline] == [
+        ("D2", 0.0, 1.95, 15.0, 16.95)
+    ]
+
+
+def test_clip_boundary_moves_to_dialogue_gap():
+    clips = [
+        {"clip_index": 1, "start_time": 0, "end_time": 15},
+        {"clip_index": 2, "start_time": 15, "end_time": 28},
+    ]
+    official = [
+        {"id": "D6", "start_time": 13.0, "end_time": 14.0},
+        {"id": "D7", "start_time": 14.2, "end_time": 16.95},
+    ]
+    aligned = align_clip_boundaries_to_dialogue_gaps(clips, official, 15)
+    assert aligned[0]["end_time"] == 14.2
+    assert aligned[1]["start_time"] == 14.2
+    assert aligned[0]["end_time"] < official[1]["end_time"]
 
 
 def test_dialogue_assignment_source_preserves_official_provenance_for_matches():

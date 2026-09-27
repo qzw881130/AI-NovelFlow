@@ -176,3 +176,70 @@ async def test_multi_keyframe_payload_derives_silent_characters_and_visual_only_
     for forbidden in ("保持沉默", "不说话", "不低语", "不发出人物语音", "只保留必要的环境声"):
         assert forbidden not in transition_text
         assert forbidden not in payload["motion_directive"]
+
+
+@pytest.mark.asyncio
+async def test_projected_clip_dialogues_reappear_as_exact_chinese_text_in_h3_prompt(monkeypatch):
+    captured = {}
+
+    class FakeLLMService:
+        async def chat_completion(self, **kwargs):
+            captured.update(kwargs)
+            return {"success": True, "content": "camera follows the assigned dialogue."}
+
+    monkeypatch.setattr(video_director_ai, "LLMService", FakeLLMService)
+    monkeypatch.setattr(
+        video_director_ai,
+        "resolve_prompt_template",
+        lambda *_args: SimpleNamespace(template="system", name="template"),
+    )
+
+    text = "陛下，宫中最好的金丝库存……"
+    shot = SimpleNamespace(
+        id="shot-17",
+        index=17,
+        chapter_id="chapter-id",
+        description="皇帝与宫廷总管对话",
+        video_description="",
+        duration=28,
+        continuity_mode="NORMAL",
+        characters='["皇帝", "宫廷总管"]',
+        scene="宫殿",
+        props="[]",
+        dialogues="[]",
+        video_director_plan=None,
+    )
+    clip_dialogues = [{
+        "dialogue_id": "D7",
+        "character_name": "宫廷总管",
+        "text": text,
+        "start_time": 14.2,
+        "end_time": 15.0,
+        "local_start_time": 14.2,
+        "local_end_time": 15.0,
+        "projected_duration": 0.8,
+        "dialogue_timing_source": "official",
+        "projection_mode": "intersection",
+    }]
+
+    final_prompt = await video_director_ai.build_h3_video_prompt(
+        db=SimpleNamespace(commit=lambda: None),
+        novel=SimpleNamespace(id="novel-id"),
+        shot=shot,
+        selected_mode="MULTI_KEYFRAME",
+        clip={"clip_index": 1, "start_time": 0, "end_time": 15},
+        workflow_capability={},
+        workflow_type="video",
+        workflow_name="workflow",
+        start_image_url=None,
+        keyframes=[],
+        transitions=[],
+        clip_dialogues=clip_dialogues,
+        reference_images=[],
+    )
+
+    assert text in final_prompt
+    assert "No assigned dialogue" not in final_prompt
+    payload = json.loads(captured["user_content"].split("\n\n", 1)[1])
+    assert payload["dialogue_timeline_source"][0]["id"] == "D7"
+    assert payload["dialogue_timeline_source"][0]["duration"] == 0.8

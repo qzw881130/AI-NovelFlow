@@ -187,6 +187,48 @@ def _dialogue_speaker(dialogue: dict) -> str:
     return str(dialogue.get("character_name") or dialogue.get("speaker") or dialogue.get("character") or "").strip()
 
 
+def align_clip_boundaries_to_dialogue_gaps(clips: list, dialogue_timeline: list, max_clip_duration: float | None = None) -> list:
+    """Move generation boundaries out of active speech intervals when possible."""
+    if not isinstance(clips, list) or len(clips) < 2 or not dialogue_timeline:
+        return clips
+    intervals = []
+    for item in dialogue_timeline:
+        if not isinstance(item, dict):
+            continue
+        try:
+            start = float(item.get("start_time"))
+            end = float(item.get("end_time"))
+        except (TypeError, ValueError):
+            continue
+        if end > start:
+            intervals.append((start, end))
+    if not intervals:
+        return clips
+    intervals.sort()
+    ordered = sorted(clips, key=lambda item: float(item.get("start_time") or 0))
+    for left, right in zip(ordered, ordered[1:]):
+        boundary = float(left.get("end_time") or 0)
+        if not any(start < boundary < end for start, end in intervals):
+            continue
+        previous_start = float(left.get("start_time") or 0)
+        next_end = float(right.get("end_time") or boundary)
+        candidates = sorted({
+            endpoint
+            for start, end in intervals
+            for endpoint in (start, end)
+            if previous_start < endpoint < next_end
+        }, key=lambda endpoint: abs(endpoint - boundary))
+        for candidate in candidates:
+            left_duration = candidate - previous_start
+            right_duration = next_end - candidate
+            if max_clip_duration is not None and (left_duration > max_clip_duration + 1e-6 or right_duration > max_clip_duration + 1e-6):
+                continue
+            left["end_time"] = round(candidate, 2)
+            right["start_time"] = round(candidate, 2)
+            break
+    return clips
+
+
 def _estimate_dialogue_seconds(text: str, emotion_prompt: str = "") -> float:
     chinese_chars = len(re.findall(r"[\u4e00-\u9fff]", text or ""))
     other_words = len(re.findall(r"[A-Za-z0-9]+", text or ""))
@@ -227,6 +269,55 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
     if clip_end <= clip_start:
         clip_end = clip_start + max(1, float(clip.get("duration") or 1))
     clip_duration = max(0.1, clip_end - clip_start)
+
+    projected_dialogues = [
+        item for item in clip_dialogues or []
+        if isinstance(item, dict) and (item.get("projection_mode") == "intersection" or item.get("dialogue_timing_source") == "official_projection")
+    ]
+    if projected_dialogues:
+        assigned = []
+        for index, dialogue in enumerate(projected_dialogues, 1):
+            try:
+                shot_start = max(clip_start, float(dialogue.get("start_time")))
+                shot_end = min(clip_end, float(dialogue.get("end_time")))
+            except (TypeError, ValueError):
+                continue
+            if shot_end <= shot_start:
+                continue
+            start = float(dialogue.get("local_start_time")) if dialogue.get("local_start_time") is not None else shot_start - clip_start
+            end = float(dialogue.get("local_end_time")) if dialogue.get("local_end_time") is not None else shot_end - clip_start
+            speaker = _dialogue_speaker(dialogue)
+            text = _dialogue_text(dialogue)
+            if not speaker or not text:
+                continue
+            duration = round(end - start, 2)
+            assigned.append({
+                "id": str(dialogue.get("dialogue_id") or dialogue.get("id") or f"D{index}"),
+                "speaker": speaker,
+                "text": text,
+                "start_time": round(start, 2),
+                "end_time": round(end, 2),
+                "shot_start_time": round(shot_start, 2),
+                "shot_end_time": round(shot_end, 2),
+                "duration": duration,
+                "estimated_speech_duration": duration,
+                "min_required_duration": duration,
+                "duration_sufficient": True,
+                "emotion_prompt": str(dialogue.get("emotion_prompt") or dialogue.get("emotion") or ""),
+                "segment_index": int(dialogue.get("segment_index") or 1),
+                "is_continuation": bool(dialogue.get("is_continuation")),
+                "continues_in_next_clip": bool(dialogue.get("continues_in_next_clip")),
+            })
+        authorized_speakers = {item["speaker"] for item in assigned if item["speaker"] != "旁白"}
+        silent_characters = [character for character in shot_characters if character not in authorized_speakers]
+        return assigned, silent_characters, {
+            "status": "ok",
+            "source": "official_projection",
+            "estimated_speech_duration": round(sum(item["duration"] for item in assigned), 2),
+            "dialogue_gap_duration": 0.0,
+            "lead_in_duration": 0.0,
+            "overflow_seconds": 0.0,
+        }
 
     assigned = []
     lead_in = min(1.0, clip_duration * 0.1)
@@ -464,6 +555,13 @@ async def build_h3_video_prompt(
 
     template = resolve_prompt_template(db, novel, template_attr, template_type)
     sanitized_keyframes = _strip_keyframe_generation_prompt(strip_media_refs(keyframes))
+    clip_start_time = float(clip.get("start_time") or 0)
+    for keyframe in sanitized_keyframes:
+        if isinstance(keyframe, dict) and keyframe.get("time_seconds") is not None:
+            try:
+                keyframe["time_seconds"] = round(float(keyframe["time_seconds"]) - clip_start_time, 2)
+            except (TypeError, ValueError):
+                pass
     frames = sanitized_keyframes or [
         {
             "index": 1,

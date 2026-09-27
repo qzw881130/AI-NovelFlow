@@ -112,6 +112,11 @@ def _dialogue_assignment_source(official_timeline: list | None) -> str:
 def _clip_dialogues_for_prompt(dialogues: list, clip: dict, shot_duration: float, official_timeline: list | None = None) -> list:
     if not dialogues:
         return []
+    if official_timeline is not None and not official_timeline and any(
+        isinstance(dialogue, dict) and str(dialogue.get("text") or dialogue.get("dialogue") or "").strip()
+        for dialogue in dialogues
+    ):
+        raise ValueError("DIALOGUE_TIMELINE_UNAVAILABLE")
     clip_start = _to_float_or_none(clip.get("start_time")) or 0
     clip_end = _to_float_or_none(clip.get("end_time")) or shot_duration or clip_start
     if clip_end <= clip_start:
@@ -143,21 +148,30 @@ def _clip_dialogues_for_prompt(dialogues: list, clip: dict, shot_duration: float
             dialogue_id = str(dialogue.get("id") or f"D{index + 1}")
             official = official_by_id.get(dialogue_id)
             if not official:
-                fallback_dialogues.append(dialogue)
+                if str(dialogue.get("text") or dialogue.get("dialogue") or "").strip():
+                    fallback_dialogues.append(dialogue)
                 continue
             start = float(official["start_time"])
             end = float(official["end_time"])
-            if start < clip_end and end > clip_start:
+            overlap_start = max(start, clip_start)
+            overlap_end = min(end, clip_end)
+            if overlap_start < overlap_end:
                 official_dialogues.append({
                     **dialogue,
                     "dialogue_id": dialogue_id,
                     "segment_index": 1,
-                    "start_time": start,
-                    "end_time": end,
+                    "start_time": overlap_start,
+                    "end_time": overlap_end,
+                    "local_start_time": round(overlap_start - clip_start, 2),
+                    "local_end_time": round(overlap_end - clip_start, 2),
+                    "projected_duration": round(overlap_end - overlap_start, 2),
+                    "is_continuation": overlap_start > start,
+                    "continues_in_next_clip": overlap_end < end,
                     "dialogue_timing_source": "official",
+                    "projection_mode": "intersection",
                 })
         if fallback_dialogues:
-            official_dialogues.extend(_clip_dialogues_for_prompt(fallback_dialogues, clip, shot_duration))
+            raise ValueError("OFFICIAL_DIALOGUE_TIMELINE_INCOMPLETE")
         return official_dialogues
 
     timed_dialogues = []
