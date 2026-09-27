@@ -56,7 +56,7 @@
 ### description（静态构图）
 格式：单个字符串，换行分隔
 ```
-Scene: {场景环境}, {光线氛围}, {景别+机位}, {构图方式}, ##STYLE## 。
+Scene: {场景环境}, {光线氛围}, {景别+机位/方向}, {必要空间关系}。
 Characters:
 - {角色名}: 保持参考人设的面部、发型、体型比例与服装轮廓不变;不得改变年龄、体型与身份。{姿态动作}。
 - {角色名}: 保持参考人设的面部、发型、体型比例与服装轮廓不变;不得改变年龄、体型与身份。{姿态动作}。
@@ -69,6 +69,7 @@ Action: {核心动作概括}。
 - Action一句话概括，禁止心理描写
 - 长度100-160字
 - 禁止出现台词/引号内容
+- 不得写 visual_style、##STYLE##、style, high quality, detailed 或渲染风格套话
 
 ### video_description（动态时间）
 格式：单个字符串，换行分隔
@@ -190,7 +191,7 @@ Dialogue (spoken, no on-screen text):
     },
     {
       "id": 3,
-      "description": "Scene: 黄昏萧家大厅，暖光斜射入窗，中景镜头，纵深构图，##STYLE## style, high quality, detailed。\nCharacters:\n- 萧战: 端坐主位，神情严肃。\nAction: 萧战审阅家族事务文件。",
+      "description": "Scene: 黄昏萧家大厅，暖光斜射入窗，中景镜头，纵深构图。\nCharacters:\n- 萧战: 端坐主位，神情严肃。\nAction: 萧战审阅家族事务文件。",
       "video_description": "Character Constraints:\n- 萧战: 保持参考人设的面部、发型、体型比例与服装轮廓不变; 保持宋代服饰; 不得改变年龄、体型与身份。\nMotion: 萧战拿起文件缓缓展开，眉头微皱，目光扫过纸面，随后轻放桌面。固定镜头，起始端坐 → 展开 → 放下 → 结束平静。\nDialogue (spoken, no on-screen text): NONE",
       "characters": ["萧战"],
       "scene": "萧家大厅",

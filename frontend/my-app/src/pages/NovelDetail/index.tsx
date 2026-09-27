@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Loader2, FileText, Trash2, Edit3, CheckCircle, AlertCircle, Clock, Wand2, Upload, Play, Download, Video, X, RefreshCw, Combine } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
+import { toast } from '../../stores/toastStore';
+import { chapterApi } from '../../api/chapters';
 import type { Chapter, ChapterVideoAsset } from '../../types';
 import { useNovelDetailState } from './hooks/useNovelDetailState';
 import { CreateChapterModal } from './components/CreateChapterModal';
@@ -104,9 +106,29 @@ export default function NovelDetail() {
   const state = useNovelDetailState();
   const [playingChapter, setPlayingChapter] = useState<{ chapter: Chapter; asset: ChapterVideoAsset } | null>(null);
   const [selectedChapterIds, setSelectedChapterIds] = useState<string[]>([]);
+  const [isDownloadingOriginals, setIsDownloadingOriginals] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [mergeProfile, setMergeProfile] = useState<{ kind: 'draft' | 'hd'; targetMegapixels?: number }>({ kind: 'draft' });
   const hdMergeTargets = Array.from(new Set(state.chapters.flatMap(chapter => getChapterVideoAssets(chapter).filter(asset => asset.kind === 'hd' && asset.targetMegapixels != null).map(asset => Number(asset.targetMegapixels))))).sort((a, b) => a - b);
+
+  const handleDownloadOriginals = async () => {
+    if (!state.id || selectedChapterIds.length === 0 || isDownloadingOriginals) return;
+    setIsDownloadingOriginals(true);
+    try {
+      const blob = await chapterApi.downloadOriginals(state.id, selectedChapterIds);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${state.novel?.title || 'novel'}-原文.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('下载原文失败:', error);
+      toast.error(error instanceof Error ? error.message : '下载原文失败');
+    } finally {
+      setIsDownloadingOriginals(false);
+    }
+  };
 
   if (state.isLoading) return <div className="flex justify-center items-center h-64"><Loader2 className="h-8 w-8 animate-spin text-primary-600" /></div>;
   if (!state.novel) {
@@ -170,6 +192,15 @@ export default function NovelDetail() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleDownloadOriginals}
+              disabled={selectedChapterIds.length === 0 || isDownloadingOriginals}
+              className="btn-secondary text-sm py-1.5 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
+              title="下载选中的章回原文"
+            >
+              {isDownloadingOriginals ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Download className="h-3 w-3 mr-1" />}
+              下载原文{selectedChapterIds.length > 0 ? ` ${selectedChapterIds.length}` : ''}
+            </button>
             <button
               onClick={async () => {
                 await state.handleDeleteChapters(selectedChapterIds);

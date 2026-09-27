@@ -313,6 +313,8 @@ export default {
       keyframeImagePromptDesc: 'Build the next keyframe image prompt from the previous keyframe and reference assets',
       keyframeTransition: 'Keyframe Transition Planner',
       keyframeTransitionDesc: 'Generate dynamic director descriptions for segments from adjacent keyframes',
+      clipExecutionPlanner: 'Clip Execution Planner',
+      clipExecutionPlannerDesc: 'Convert a planned keyframe timeline into an executable video clip plan',
       h3SingleFramePrompt: 'MiniMax H3 Single-Frame Video Prompt Builder',
       h3SingleFramePromptDesc: 'Build the final MiniMax H3 image-to-video prompt for single-frame generation',
       h3FirstLastFramePrompt: 'MiniMax H3 First-Last-Frame Video Prompt Builder',

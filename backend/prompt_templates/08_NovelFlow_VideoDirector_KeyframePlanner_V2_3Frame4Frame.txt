@@ -354,7 +354,7 @@ Action: ...
 
 Scene：
 - 当前时间点环境、光线、摄影机景别/机位/方向、空间关系；
-- ##STYLE## style, high quality, detailed；
+- 只写当前静态视觉事实；不写 visual_style、##STYLE##、style, high quality, detailed 或渲染风格套话；
 - 只写静态空间，不写连续剧情。
 
 Characters：

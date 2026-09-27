@@ -21,7 +21,7 @@
    - Dialogue（spoken, no on-screen text：逐字保留原文台词）
 5. description 长度控制在 100–160 字
 6. video_description 长度控制在 90–220 字（包含 Dialogue 段）
-7. 所有视觉描述必须符合：##STYLE## style, high quality, detailed
+7. description 只记录当前画面事实；全局 visual_style 由生图/视频构建器在运行时读取，不写入 description
 8. 不允许普通叙事句
 9. 不允许心理描写
 10. 不允许解释性文字
@@ -65,7 +65,7 @@ description 必须输出为单个字符串，并且必须包含如下换行结�
 "Scene: ...\nCharacters:\n- 角色A: ...\n- 角色B: ...\nAction: ..."
 
 模板：
-Scene: {中文场景环境句子}, {光线描述}, {镜头类型与机位描述}, ##STYLE## style, high quality, detailed。
+Scene: {中文场景环境句子}, {光线描述}, {镜头类型与机位/方向描述}, {必要空间关系}。
 Characters:
 - {角色名1}: 保持参考人设的面部、发型、体型比例与服装轮廓不变; {宋代/对应时代服饰关键词}; {当前镜头动作}.
 - {角色名2}: 保持参考人设的面部、发型、体型比例与服装轮廓不变; {宋代/对应时代服饰关键词}; {当前镜头动作}.
@@ -76,6 +76,7 @@ Action: {一句话概括主要角色正在发生的动作行为}。
 - 不得缺失任何部分
 - description 中严禁出现任何台词文字或引号内容（台词只能在 video_description 的 Dialogue 段出现）
 - description 的每一部分必须分行，不得写在同一行
+- description 中不得写 visual_style、##STYLE##、style, high quality, detailed 或渲染风格套话
 
 ━━━━━━━━━━━━━━━━━━
 video_description 强制结构（LTX-2 优化版，含台词）

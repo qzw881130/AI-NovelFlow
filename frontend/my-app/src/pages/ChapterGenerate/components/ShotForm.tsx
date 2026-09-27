@@ -15,7 +15,7 @@ import { Copy } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { useChapterGenerateStore } from '../stores';
 import { toast } from '../../../stores/toastStore';
-import { dialogueEmotion, dialogueText, estimateDialogueSeconds, getDialogueDurationWarning } from '../../../utils';
+import { DIALOGUE_GAP_SECONDS, dialogueEmotion, dialogueText, estimateDialogueSeconds, getDialogueDurationWarning } from '../../../utils';
 import type { DialogueData } from '../types';
 import type { Shot } from '../../../api/shots';
 
@@ -268,7 +268,10 @@ export function ShotForm({
   const dialogueDurationTotal = dialogues.reduce((total, dialogue) => (
     total + estimateDialogueSeconds(dialogueText(dialogue), dialogueEmotion(dialogue))
   ), 0);
-  const dialogueWarning = getDialogueDurationWarning(duration, dialogueDurationTotal);
+  const dialogueCount = dialogues.filter((dialogue) => dialogueText(dialogue) && dialogue.character_name).length;
+  const dialogueGapTotal = Math.max(0, dialogueCount - 1) * DIALOGUE_GAP_SECONDS;
+  const dialogueOccupancyEstimate = dialogueDurationTotal + dialogueGapTotal;
+  const dialogueWarning = getDialogueDurationWarning(duration, dialogueOccupancyEstimate);
 
   return (
     <div className="shot-form space-y-4">
@@ -571,8 +574,9 @@ export function ShotForm({
               <span>{t('chapterGenerate.dialogues')}</span>
               {dialogues.length > 0 && (
                 <span className={`rounded-full border px-2 py-0.5 text-xs font-normal ${dialogueWarning.style.className}`}>
-                  {dialogueWarning.style.label} · 最低 {dialogueDurationTotal.toFixed(2)}s / 当前 {dialogueWarning.duration.toFixed(0)}s
-                  {dialogueWarning.level !== 'normal' && ` · 建议至少 ${dialogueWarning.suggestedDuration}s`}
+                  {dialogueWarning.style.label} · 预计对白发声约 {dialogueDurationTotal.toFixed(2)}s
+                  {dialogueCount > 1 && ` · 加 ${dialogueGapTotal.toFixed(2)}s 换人间隔，预计占用约 ${dialogueOccupancyEstimate.toFixed(2)}s`}
+                  {dialogueWarning.level !== 'normal' && ` / Shot ${dialogueWarning.duration.toFixed(0)}s`}
                 </span>
               )}
             </label>
@@ -595,7 +599,7 @@ export function ShotForm({
                   <span className="font-medium text-blue-600">{d.character_name || t('chapterGenerate.selectCharacter')}</span>
                   <span className="text-gray-600 flex-1">{d.text}</span>
                   <span className="text-gray-500 whitespace-nowrap">
-                    最低所需 {estimateDialogueSeconds(dialogueText(d), dialogueEmotion(d)).toFixed(2)}s
+                    预计发声约 {estimateDialogueSeconds(dialogueText(d), dialogueEmotion(d)).toFixed(2)}s
                   </span>
                 </div>
               ))}
@@ -611,7 +615,7 @@ export function ShotForm({
                     <span className="text-xs font-medium text-gray-500">
                       {t('chapterGenerate.dialogues')} {idx + 1}
                       <span className="ml-2 font-normal">
-                        最低所需 {estimateDialogueSeconds(dialogueText(dialogue), dialogueEmotion(dialogue)).toFixed(2)}s
+                        预计发声约 {estimateDialogueSeconds(dialogueText(dialogue), dialogueEmotion(dialogue)).toFixed(2)}s
                       </span>
                     </span>
                     <button

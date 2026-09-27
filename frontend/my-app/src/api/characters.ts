@@ -11,6 +11,25 @@ export const characterApi = {
     return res.json() as Promise<{ success: boolean; data?: Character[]; message?: string }>;
   },
 
+  /** 导出当前小说的全部角色信息 */
+  exportAll: async (novelId: string): Promise<void> => {
+    const response = await fetch(`${API_BASE}/characters/export?novel_id=${encodeURIComponent(novelId)}`);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.detail || data.message || '导出角色信息失败');
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get('content-disposition') || '';
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = filenameMatch?.[1] || `characters_${novelId.slice(0, 8)}.json`;
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  },
+
   /** 获取单个角色 */
   fetch: async (id: string) => {
     const res = await fetch(`${API_BASE}/characters/${id}`, { cache: 'no-store' });

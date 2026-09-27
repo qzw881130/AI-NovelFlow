@@ -71,6 +71,19 @@ def strip_media_refs(value: Any) -> Any:
     return value
 
 
+def _strip_keyframe_generation_prompt(value: Any) -> Any:
+    """Do not feed an old #09 image prompt back into H3 planning."""
+    if isinstance(value, list):
+        return [_strip_keyframe_generation_prompt(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _strip_keyframe_generation_prompt(item)
+            for key, item in value.items()
+            if key != "prompt_text"
+        }
+    return value
+
+
 def strip_clip_generation_data(clip: dict) -> dict:
     """Remove generated Clip artifacts before serializing an LLM request."""
     return {
@@ -180,10 +193,9 @@ def _estimate_dialogue_seconds(text: str, emotion_prompt: str = "") -> float:
     units = chinese_chars + other_words
     if units <= 0:
         return 0
-    chars_per_second = 3.2
-    if any(keyword in str(emotion_prompt or "") for keyword in ["庄严", "缓慢", "沉稳", "郑重", "肃穆", "solemn", "slow", "measured"]):
-        chars_per_second = 2.8
-    return max(1.5, (units / chars_per_second) + 0.8)
+    # This is a speech-only heuristic, calibrated against Qwen3-TTS samples.
+    # Reaction time and turn-taking gaps belong to timeline allocation.
+    return max(0.5, units / 4.0)
 
 
 def _float_or_none(value: Any) -> Optional[float]:
@@ -209,7 +221,7 @@ def _clip_visible_characters(keyframes: list, shot_characters: list) -> list:
     return visible or shot_characters
 
 
-def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: list) -> tuple[list, list]:
+def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: list) -> tuple[list, list, dict]:
     clip_start = float(clip.get("start_time") or 0)
     clip_end = float(clip.get("end_time") or clip_start)
     if clip_end <= clip_start:
@@ -217,7 +229,12 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
     clip_duration = max(0.1, clip_end - clip_start)
 
     assigned = []
-    cursor = clip_start + min(1.0, clip_duration * 0.1)
+    lead_in = min(1.0, clip_duration * 0.1)
+    cursor = clip_start + lead_in
+    overflow = False
+    overflow_seconds = 0.0
+    estimated_speech_total = 0.0
+    dialogue_count = 0
     for index, dialogue in enumerate(clip_dialogues or [], 1):
         if not isinstance(dialogue, dict):
             continue
@@ -231,6 +248,8 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
             continue
         emotion_prompt = str(dialogue.get("emotion_prompt") or dialogue.get("emotion") or "")
         min_duration = _estimate_dialogue_seconds(text, emotion_prompt)
+        estimated_speech_total += min_duration
+        dialogue_count += 1
         raw_start = next((
             parsed
             for key in ("start_time", "start", "time", "timestamp")
@@ -242,11 +261,15 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
             if (parsed := _float_or_none(dialogue.get(key))) is not None
         ), None)
         raw_duration = _float_or_none(dialogue.get("duration"))
-        start = raw_start if raw_start is not None else cursor
+        # Honor explicit times only when they do not overlap the preceding
+        # allocated dialogue (including its turn-taking gap).
+        start = max(cursor, raw_start) if raw_start is not None else cursor
         if start < clip_start:
             start = clip_start
         if start > clip_end:
-            start = max(clip_start, clip_end - min_duration)
+            overflow = True
+            overflow_seconds = max(overflow_seconds, start + min_duration - clip_end)
+            continue
         has_authoritative_end = raw_end is not None and raw_end > start
         has_authoritative_duration = raw_duration is not None and raw_duration > 0
         if has_authoritative_end:
@@ -258,8 +281,9 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
         if not has_authoritative_end and not has_authoritative_duration and end - start < min_duration:
             end = start + min_duration
         if end > clip_end:
-            end = clip_end
-            start = max(clip_start, end - min_duration)
+            overflow = True
+            overflow_seconds = max(overflow_seconds, end - clip_end)
+            continue
         if end <= start:
             start = clip_start
             end = clip_end
@@ -272,6 +296,8 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
             "start_time": round(start, 2),
             "end_time": round(end, 2),
             "duration": round(actual_duration, 2),
+            "estimated_speech_duration": round(min_duration, 2),
+            # Backward-compatible field for existing planner consumers.
             "min_required_duration": round(min_duration, 2),
             "duration_sufficient": actual_duration + 0.05 >= min_duration,
             "emotion_prompt": emotion_prompt,
@@ -281,7 +307,19 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
             timeline_item["is_continuation"] = bool(dialogue.get("is_continuation"))
             timeline_item["continues_in_next_clip"] = bool(dialogue.get("continues_in_next_clip"))
         assigned.append(timeline_item)
-        cursor = min(clip_end, end + 0.4)
+        cursor = end + 0.2
+
+    # Never return a partial or clamped timeline as an official speaking-state
+    # authority. Callers receive an explicit warning and an empty authority.
+    timeline_status = {
+        "status": "overflow" if overflow else "ok",
+        "estimated_speech_duration": round(estimated_speech_total, 2),
+        "dialogue_gap_duration": round(max(0, dialogue_count - 1) * 0.2, 2),
+        "lead_in_duration": round(lead_in, 2),
+        "overflow_seconds": round(overflow_seconds, 2),
+    }
+    if overflow:
+        assigned = []
 
     authorized_speakers = {
         item["speaker"]
@@ -293,7 +331,7 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
         for character in shot_characters
         if character not in authorized_speakers
     ]
-    return assigned, silent_characters
+    return assigned, silent_characters, timeline_status
 
 
 def _render_dialogue_timeline_block(assigned_dialogues: list, silent_characters: list) -> str:
@@ -425,7 +463,7 @@ async def build_h3_video_prompt(
         template_type = "h3_single_frame_prompt"
 
     template = resolve_prompt_template(db, novel, template_attr, template_type)
-    sanitized_keyframes = strip_media_refs(keyframes)
+    sanitized_keyframes = _strip_keyframe_generation_prompt(strip_media_refs(keyframes))
     frames = sanitized_keyframes or [
         {
             "index": 1,
@@ -438,7 +476,7 @@ async def build_h3_video_prompt(
     is_semantic_clip = bool(clip_dialogues and any(isinstance(item, dict) and item.get("dialogue_id") for item in clip_dialogues))
     shot_characters = safe_json_list(shot.characters)
     clip_visible_characters = _clip_visible_characters(sanitized_keyframes, shot_characters)
-    assigned_dialogues, silent_characters = build_dialogue_timeline(clip, clip_dialogues, clip_visible_characters)
+    assigned_dialogues, silent_characters, dialogue_timeline_status = build_dialogue_timeline(clip, clip_dialogues, clip_visible_characters)
     dialogue_payload = [
         {key: value for key, value in item.items() if key not in {"text", "source_order"}}
         for item in assigned_dialogues
@@ -470,6 +508,7 @@ async def build_h3_video_prompt(
         "clip_dialogues": dialogue_payload if is_multi_clip or is_semantic_clip else clip_dialogues,
         "clip_visible_characters": clip_visible_characters,
         "dialogue_timeline_source": assigned_dialogues,
+        "dialogue_timeline_status": dialogue_timeline_status,
         "silent_characters": silent_characters,
         "frames": frames,
         "keyframes": sanitized_keyframes,

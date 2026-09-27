@@ -42,6 +42,7 @@ PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
         ("video_mode_recommender", "视频生成模式推荐"),
         ("keyframe_planner", "关键帧时间轴规划"),
         ("keyframe_transition", "关键帧过渡规划"),
+        ("clip_execution_planner", "Clip Execution Planner"),
     ]),
     ("关键帧生图", [
         ("temporal_reference_selector", "Temporal Anchor Reference Selector V1"),

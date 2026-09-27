@@ -41,6 +41,8 @@ class PromptTemplateType:
     TEMPORAL_REFERENCE_SELECTOR = "temporal_reference_selector"
     # 关键帧过渡规划提示词
     KEYFRAME_TRANSITION = "keyframe_transition"
+    # 视频片段执行规划提示词
+    CLIP_EXECUTION_PLANNER = "clip_execution_planner"
     # MiniMax H3 单帧视频提示词
     H3_SINGLE_FRAME_PROMPT = "h3_single_frame_prompt"
     # MiniMax H3 首尾帧视频提示词
@@ -67,6 +69,7 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.KEYFRAME_IMAGE_PROMPT,
     PromptTemplateType.TEMPORAL_REFERENCE_SELECTOR,
     PromptTemplateType.KEYFRAME_TRANSITION,
+    PromptTemplateType.CLIP_EXECUTION_PLANNER,
     PromptTemplateType.H3_SINGLE_FRAME_PROMPT,
     PromptTemplateType.H3_FIRST_LAST_FRAME_PROMPT,
     PromptTemplateType.H3_MULTI_KEYFRAME_PROMPT,
@@ -185,6 +188,12 @@ PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
         "icon": "Route",
         "color": "violet",
         "file_number": "10",
+    },
+    PromptTemplateType.CLIP_EXECUTION_PLANNER: {
+        "name_key": "promptConfig.types.clipExecutionPlanner",
+        "desc_key": "promptConfig.types.clipExecutionPlannerDesc",
+        "icon": "Route",
+        "color": "violet",
     },
     PromptTemplateType.H3_SINGLE_FRAME_PROMPT: {
         "name_key": "promptConfig.types.h3SingleFramePrompt",

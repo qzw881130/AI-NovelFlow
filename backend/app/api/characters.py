@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -83,6 +84,60 @@ async def list_characters(
         character_repo.db.commit()
     
     return {"success": True, "data": result}
+
+
+@router.get("/export")
+async def export_characters(
+    novel_id: str = Query(...),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    character_repo: CharacterRepository = Depends(get_character_repo),
+):
+    """导出指定小说的全部角色信息 JSON。"""
+    novel = novel_repo.get_by_id(novel_id)
+    if not novel:
+        raise HTTPException(status_code=404, detail="小说不存在")
+
+    characters = character_repo.list_by_novel(novel_id)
+    payload = {
+        "version": 1,
+        "exportedAt": datetime.now(timezone.utc).isoformat(),
+        "novel": {
+            "id": novel.id,
+            "title": novel.title,
+            "author": novel.author,
+        },
+        "total": len(characters),
+        "characters": [
+            {
+                "id": character.id,
+                "novelId": character.novel_id,
+                "name": character.name,
+                "description": character.description,
+                "appearance": character.appearance,
+                "voicePrompt": character.voice_prompt,
+                "referenceAudioUrl": character.reference_audio_url,
+                "imageUrl": character.image_url,
+                "generatingStatus": character.generating_status,
+                "portraitTaskId": character.portrait_task_id,
+                "startChapter": character.start_chapter,
+                "endChapter": character.end_chapter,
+                "isIncremental": character.is_incremental,
+                "isNarrator": character.is_narrator or False,
+                "sourceRange": character.source_range,
+                "lastParsedAt": format_datetime(character.last_parsed_at),
+                "createdAt": format_datetime(character.created_at),
+                "updatedAt": format_datetime(character.updated_at),
+            }
+            for character in characters
+        ],
+    }
+    content = json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
+    filename = f"characters_{novel.id[:8]}.json"
+    return Response(
+        content=content,
+        media_type="application/json; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/generate-missing-portraits", response_model=dict)

@@ -261,6 +261,8 @@ export default {
       chapterSplitDesc: '章をショットに分割するプロンプトテンプレート',
       keyframeDescription: 'キーフレーム記述プロンプト',
       keyframeDescriptionDesc: 'ショットのキーフレーム記述を生成するプロンプトテンプレート',
+      clipExecutionPlanner: 'Clip Execution Planner',
+      clipExecutionPlannerDesc: '計画済みのキーフレームタイムラインを実行可能な動画 Clip 計画に分割します',
     },
 
     placeholderTip: '{appearance}と{description}をプレースホルダーとして使用',

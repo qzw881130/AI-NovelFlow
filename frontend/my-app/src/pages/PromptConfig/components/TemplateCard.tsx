@@ -2,6 +2,7 @@ import { Eye, Edit2, Trash2, Copy, Download } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { PromptTemplate } from '../../../types';
 import type { TemplateType } from '../types';
+import { TEMPLATE_TYPE_CONFIG } from '../hooks/usePromptConfigState';
 
 interface TemplateCardProps {
   template: PromptTemplate;
@@ -34,7 +35,10 @@ export function TemplateCard({
     <div className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-gray-300 bg-white transition-colors">
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <h4 className="font-medium text-gray-900">{getDisplayName(template)}</h4>
+          <h4 className="font-medium text-gray-900">
+            {getDisplayName(template)}
+            {(type === 'keyframe_transition' || type === 'clip_execution_planner') && TEMPLATE_TYPE_CONFIG[type].fileNumber ? ` (#${TEMPLATE_TYPE_CONFIG[type].fileNumber})` : ''}
+          </h4>
           {template.isSystem ? (
             <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full">{t('promptConfig.systemDefault')}</span>
           ) : (

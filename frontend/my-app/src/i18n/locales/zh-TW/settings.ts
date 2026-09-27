@@ -187,6 +187,8 @@ export default {
       chapterSplitDesc: '用於將章節拆分為分鏡的提示詞模板',
       keyframeDescription: '關鍵幀描述提示詞',
       keyframeDescriptionDesc: '用於生成分鏡關鍵幀描述的提示詞模板',
+      clipExecutionPlanner: 'Clip Execution Planner',
+      clipExecutionPlannerDesc: '用於將已規劃的關鍵幀時間軸拆分為可執行的影片 Clip 計畫',
     },
 
     placeholderTip: '使用 {appearance} 和 {description} 作為佔位符',

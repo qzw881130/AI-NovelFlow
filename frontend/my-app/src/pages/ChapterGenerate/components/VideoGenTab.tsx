@@ -23,7 +23,7 @@ import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { ImageEditModal } from '../../../components/ImageEditModal';
 import type { KeyframeData } from '../../../types';
 import type { VideoAiCall, VideoDirectorPlan, VideoMode } from '../../../api/shots';
-import { dialogueEmotion, dialogueSpeaker, dialogueText, estimateDialogueSeconds, formatUserFacingError, getClipDialoguesForDisplay, numberOrNull } from '../../../utils';
+import { DIALOGUE_GAP_SECONDS, dialogueEmotion, dialogueSpeaker, dialogueText, estimateDialogueSeconds, formatUserFacingError, getClipDialoguesForDisplay, numberOrNull } from '../../../utils';
 
 const VIDEO_TAB_UI_STORAGE_KEY = 'chapterGenerate_videoTab_ui';
 type MergeVideoMode = 'shots_only' | 'shots_with_transitions';
@@ -236,13 +236,19 @@ const getKeyframeReferenceImages = (plan: VideoDirectorPlan, keyframeIndex?: num
 };
 
 const getReferenceDisplayName = (reference: any) => {
-  const source = String(reference?.sources?.[0] || reference?.label || '');
+  const sources = Array.isArray(reference?.sources) ? reference.sources.map(String) : [];
+  const source = String(sources[0] || reference?.label || '');
   const kind = String(reference?.kind || reference?.type || '');
-  if (kind === 'SCENE' || source.startsWith('SCENE:')) return `场景：${source.replace(/^SCENE:/, '') || '未命名'}`;
-  if (kind === 'CHARACTER_IDENTITY' || source.startsWith('CHAR:')) return `角色：${source.replace(/^CHAR:/, '') || '未命名'}`;
+  const names = (prefix: string) => sources
+    .filter((item: string) => item.startsWith(prefix))
+    .map((item: string) => item.slice(prefix.length))
+    .filter(Boolean)
+    .join('、');
+  if (kind === 'SCENE' || source.startsWith('SCENE:')) return `场景：${names('SCENE:') || source.replace(/^SCENE:/, '') || '未命名'}`;
+  if (kind === 'CHARACTER_IDENTITY' || source.startsWith('CHAR:')) return `角色：${names('CHAR:') || source.replace(/^CHAR:/, '') || '未命名'}`;
   if (kind === 'DIRECTOR_VISUAL_ANCHOR' || source === 'SHOT_IMAGE') return '主分镜图';
   if (kind === 'TEMPORAL_ANCHOR' || /^KF\d+$/.test(source)) return `时间锚点：${source}`;
-  if (kind === 'PROP' || source.startsWith('PROP:')) return `道具：${source.replace(/^PROP:/, '') || '未命名'}`;
+  if (kind === 'PROP' || source.startsWith('PROP:')) return `道具：${names('PROP:') || source.replace(/^PROP:/, '') || '未命名'}`;
   return String(reference?.label || source || '参考图');
 };
 
@@ -1487,7 +1493,9 @@ function VideoDirectorPanel({
                 .filter((dialogue: any) => dialogue.text);
               const clipDuration = Math.max(0, (numberOrNull(clip.end_time) ?? numberOrNull(shot?.duration) ?? 0) - (numberOrNull(clip.start_time) ?? 0));
               const totalMinDialogueSeconds = clipDialogues.reduce((sum: number, dialogue: any) => sum + dialogue.minRequiredSeconds, 0);
-              const dialogueDurationInsufficient = clipDialogues.length > 0 && clipDuration > 0 && totalMinDialogueSeconds > clipDuration + 0.05;
+              const dialogueGapSeconds = Math.max(0, clipDialogues.length - 1) * DIALOGUE_GAP_SECONDS;
+              const dialogueOccupancySeconds = totalMinDialogueSeconds + dialogueGapSeconds;
+              const dialogueDurationInsufficient = clipDialogues.length > 0 && clipDuration > 0 && dialogueOccupancySeconds > clipDuration + 0.05;
               return (
                 <div key={`${clipIndex}-${clip.start_time}-${clip.end_time}`} className={`rounded-lg border p-3 ${isPreviewing ? 'border-blue-300 bg-blue-50 ring-2 ring-blue-100' : 'border-gray-200 bg-white'}`}>
                   <div className="flex items-start justify-between gap-3">
@@ -1517,7 +1525,7 @@ function VideoDirectorPanel({
                     <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                       <span className="font-medium">Clip 台词</span>
                       <span className={dialogueDurationInsufficient ? 'text-red-700' : 'text-gray-500'}>
-                        最低所需 {totalMinDialogueSeconds.toFixed(2)}s / Clip {clipDuration ? `${clipDuration.toFixed(2)}s` : '-'}
+                        预计对白发声约 {totalMinDialogueSeconds.toFixed(2)}s{clipDialogues.length > 1 ? ` · 加换人间隔约 ${dialogueGapSeconds.toFixed(2)}s，占用约 ${dialogueOccupancySeconds.toFixed(2)}s` : ''} / Clip {clipDuration ? `${clipDuration.toFixed(2)}s` : '-'}
                       </span>
                     </div>
                     {clipDialogues.length > 0 ? (
@@ -1527,7 +1535,7 @@ function VideoDirectorPanel({
                             <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
                               <span className="font-medium text-gray-700">{dialogue.speaker}</span>
                               {dialogue.emotion && <span>情绪：{dialogue.emotion}</span>}
-                              <span>最低 {dialogue.minRequiredSeconds.toFixed(2)}s</span>
+                              <span>预计发声 {dialogue.minRequiredSeconds.toFixed(2)}s</span>
                             </div>
                             <div className="mt-0.5 text-gray-700">{dialogue.text}</div>
                           </div>

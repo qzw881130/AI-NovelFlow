@@ -35,9 +35,9 @@ LLM_LOG_TASK_CATEGORY_TYPES = {
     "asset_generation": ["generate_character_appearance"],
     "shot_planning": ["split_chapter"],
     "shot_image": ["shot_image_prompt"],
-    "video_director": ["video_mode_recommender", "keyframe_description", "keyframe_planner", "keyframe_transition"],
+    "video_director": ["video_mode_recommender", "keyframe_description", "keyframe_planner", "keyframe_transition", "clip_execution_planner"],
     "keyframe_image": ["temporal_reference_selector", "keyframe_image_prompt"],
-    "video_generation": ["clip_execution_planner", "expand_video_prompt", "h3_single_frame_prompt", "h3_first_last_frame_prompt", "h3_multi_keyframe_prompt"],
+    "video_generation": ["expand_video_prompt", "h3_single_frame_prompt", "h3_first_last_frame_prompt", "h3_multi_keyframe_prompt"],
 }
 
 LLM_LOG_TASK_LABELS = {
@@ -55,7 +55,7 @@ LLM_LOG_TASK_LABELS = {
     "keyframe_image_prompt": "关键帧生图-关键帧生图提示词",
     "temporal_reference_selector": "分镜生图-Temporal Anchor Reference Selector",
     "keyframe_transition": "视频导演-关键帧过渡规划",
-    "clip_execution_planner": "视频生成-视频片段执行规划",
+    "clip_execution_planner": "视频导演-视频片段执行规划",
     "expand_video_prompt": "视频生成-扩写视频提示词",
     "h3_single_frame_prompt": "视频生成-H3单帧视频提示词",
     "h3_first_last_frame_prompt": "视频生成-H3首尾帧视频提示词",

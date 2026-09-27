@@ -13,6 +13,7 @@ const JSON_OUTPUT_TEMPLATE_TYPES: TemplateType[] = [
   'keyframe_description',
   'keyframe_planner',
   'keyframe_transition',
+  'clip_execution_planner',
 ];
 
 interface EditModalProps {

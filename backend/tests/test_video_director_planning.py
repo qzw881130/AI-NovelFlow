@@ -48,9 +48,10 @@ def test_keyframe_planner_receives_dialogue_timeline_without_old_descriptions():
         "speaker": "百姓1",
         "text": "他确实没穿衣服……",
         "start_time": 1.0,
-        "end_time": 3.99,
-        "duration": 2.99,
-        "min_required_duration": 2.99,
+        "end_time": 2.75,
+        "duration": 1.75,
+        "estimated_speech_duration": 1.75,
+        "min_required_duration": 1.75,
         "duration_sufficient": True,
         "emotion_prompt": "压低声音，带着犹豫和逐渐确信的不安",
     }
@@ -74,7 +75,7 @@ def test_transition_planner_receives_full_timeline_for_each_segment():
     ))
 
     assert first_segment["dialogue_timeline_source"][0]["start_time"] == 1.0
-    assert first_segment["dialogue_timeline_source"][0]["end_time"] == 3.99
+    assert first_segment["dialogue_timeline_source"][0]["end_time"] == 2.75
     assert first_segment["segment_dialogue_state"]["overlapping_dialogue_ids"] == ["D1"]
     assert second_segment["dialogue_timeline_source"][0]["id"] == "D1"
     assert second_segment["segment_dialogue_state"]["overlapping_dialogue_ids"] == []

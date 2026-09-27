@@ -1,7 +1,7 @@
 /**
  * 章节相关 API
  */
-import { api } from './index';
+import { api, API_BASE } from './index';
 import type { Chapter, Novel } from '../types';
 
 export interface ParseResult {
@@ -61,6 +61,20 @@ export const chapterApi = {
   /** 获取小说所有章节 */
   fetchByNovel: (novelId: string) =>
     api.get<Chapter[]>(`/novels/${novelId}/chapters/`),
+
+  /** 下载选中章回原文 ZIP */
+  downloadOriginals: async (novelId: string, chapterIds: string[]) => {
+    const response = await fetch(`${API_BASE}/novels/${encodeURIComponent(novelId)}/chapters/download-originals`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chapter_ids: chapterIds }),
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}));
+      throw new Error(typeof error.detail === 'string' ? error.detail : `原文下载失败 (${response.status})`);
+    }
+    return response.blob();
+  },
 
   /** 创建章节 */
   create: (novelId: string, data: Partial<Chapter>) =>

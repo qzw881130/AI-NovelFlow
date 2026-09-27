@@ -472,9 +472,13 @@ class LLMService:
         system_prompt = prompt_template.replace(
             "{每个分镜对应拆分故事字数}", str(word_count)
         ).replace(
-            "{图像风格}", style
+            "{图像风格} style, high quality, detailed", ""
         ).replace(
-            "##STYLE##", style
+            "##STYLE## style, high quality, detailed", ""
+        ).replace(
+            "{图像风格}", ""
+        ).replace(
+            "##STYLE##", ""
         )
 
         # 构建 allowed_characters 行

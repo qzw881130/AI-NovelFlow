@@ -1,7 +1,12 @@
 """
 章节路由 - 章节 CRUD 和批量导入相关接口
 """
+import io
+import re
+import zipfile
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -12,6 +17,11 @@ from app.utils.time_utils import format_datetime
 from app.utils.text_utils import detect_encoding, parse_chapters_from_text
 
 router = APIRouter()
+
+
+def _safe_text_filename(name: str, fallback: str) -> str:
+    cleaned = re.sub(r'[\\/:*?"<>|\x00-\x1f]', '_', (name or '').strip()).strip('. ')
+    return (cleaned or fallback)[:180]
 
 
 # ==================== 章节 CRUD ====================
@@ -32,6 +42,45 @@ async def list_chapters(
         "success": True,
         "data": [chapter_repo.to_response(c) for c in chapters]
     }
+
+
+@router.post("/{novel_id}/chapters/download-originals")
+async def download_originals(
+    novel_id: str,
+    data: dict,
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+):
+    """将选中的章回原文分别写入 TXT 并打包下载。"""
+    if not novel_repo.get_by_id(novel_id):
+        raise HTTPException(status_code=404, detail="小说不存在")
+    chapter_ids = data.get("chapter_ids")
+    if not isinstance(chapter_ids, list) or not chapter_ids:
+        raise HTTPException(status_code=400, detail="请至少选择一个章回")
+
+    chapters = chapter_repo.list_by_ids(novel_id, chapter_ids)
+    chapter_by_id = {chapter.id: chapter for chapter in chapters}
+    if any(chapter_id not in chapter_by_id for chapter_id in chapter_ids):
+        raise HTTPException(status_code=404, detail="部分章回不存在或不属于当前小说")
+
+    archive = io.BytesIO()
+    used_names: set[str] = set()
+    with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as zip_file:
+        for chapter in sorted(chapters, key=lambda item: (item.number, item.id)):
+            base_name = _safe_text_filename(f"第{chapter.number}章 {chapter.title}", f"chapter-{chapter.number}")
+            filename = f"{base_name}.txt"
+            suffix = 2
+            while filename in used_names:
+                filename = f"{base_name} ({suffix}).txt"
+                suffix += 1
+            used_names.add(filename)
+            zip_file.writestr(filename, f"{chapter.title}\n\n{chapter.content or ''}".encode("utf-8-sig"))
+
+    return Response(
+        content=archive.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=novel-originals.zip"},
+    )
 
 
 @router.post("/{novel_id}/chapters", response_model=dict)

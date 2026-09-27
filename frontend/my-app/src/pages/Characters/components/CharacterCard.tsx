@@ -5,7 +5,6 @@ import { Loader2, User, Trash2, Edit2, Upload, Wand2, Sparkles, Mic, Play, Squar
 import { useState, useRef } from 'react';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Character } from '../../../types';
-import type { CharacterPrompt } from '../types';
 
 interface CharacterCardProps {
   character: Character;
@@ -16,7 +15,6 @@ interface CharacterCardProps {
   uploadingId: string | null;
   generatingVoiceId: string | null;
   uploadingAudioId: string | null;
-  characterPrompt?: CharacterPrompt;
   onDelete: (id: string) => void;
   onEdit: (character: Character) => void;
   onGeneratePortrait: (character: Character) => void;
@@ -37,7 +35,6 @@ export function CharacterCard({
   uploadingId,
   generatingVoiceId,
   uploadingAudioId,
-  characterPrompt,
   onDelete,
   onEdit,
   onGeneratePortrait,
@@ -259,24 +256,6 @@ export function CharacterCard({
                 </>
               )}
             </button>
-          </div>
-        )}
-
-        {/* 生成提示词 */}
-        {characterPrompt && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <div className="flex items-center justify-between mb-1">
-              <p className="text-xs text-gray-400">{t('characters.promptLabel')}</p>
-              <span className="text-xs text-gray-400">
-                {characterPrompt.isSystem
-                  ? t(`promptConfig.templateNames.${characterPrompt.templateName}`, { defaultValue: characterPrompt.templateName })
-                  : characterPrompt.templateName
-                }
-              </span>
-            </div>
-            <div className="text-xs text-gray-500 bg-gray-50 rounded p-2 max-h-20 overflow-y-auto scrollbar-thin font-mono">
-              {characterPrompt.prompt}
-            </div>
           </div>
         )}
 

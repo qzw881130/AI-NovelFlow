@@ -1,4 +1,4 @@
-const SLOW_DIALOGUE_EMOTIONS = ['庄严', '缓慢', '沉稳', '郑重', '肃穆', 'solemn', 'slow', 'measured'];
+export const DIALOGUE_GAP_SECONDS = 0.2;
 export type DialogueDurationWarningLevel = 'normal' | 'notice' | 'warning' | 'critical';
 
 export const DIALOGUE_WARNING_STYLES: Record<DialogueDurationWarningLevel, { label: string; shortLabel: string; className: string; badgeClassName: string }> = {
@@ -29,10 +29,12 @@ export const DIALOGUE_WARNING_STYLES: Record<DialogueDurationWarningLevel, { lab
 };
 
 export const estimateDialogueSeconds = (text?: string, emotionPrompt?: string) => {
-  const chineseChars = (text || '').match(/[\u4e00-\u9fff]/g)?.length || 0;
-  if (chineseChars <= 0) return 0;
-  const charsPerSecond = SLOW_DIALOGUE_EMOTIONS.some(keyword => String(emotionPrompt || '').includes(keyword)) ? 2.8 : 3.2;
-  return Math.max(1.5, (chineseChars / charsPerSecond) + 0.8);
+  const value = text || '';
+  const chineseChars = value.match(/[\u4e00-\u9fff]/g)?.length || 0;
+  const otherWords = value.match(/[A-Za-z0-9]+/g)?.length || 0;
+  const units = chineseChars + otherWords;
+  if (units <= 0) return 0;
+  return Math.max(0.5, units / 4.0);
 };
 
 export const dialogueText = (dialogue: any) => String(dialogue?.text || dialogue?.dialogue || '').trim();
@@ -86,6 +88,12 @@ export const getDialogueMinimumTotalSeconds = (dialogues: any[] = []) => dialogu
   total + estimateDialogueSeconds(dialogueText(dialogue), dialogueEmotion(dialogue))
 ), 0);
 
+export const getDialogueTimelineOccupancySeconds = (dialogues: any[] = []) => {
+  const speechSeconds = getDialogueMinimumTotalSeconds(dialogues);
+  const spokenCount = dialogues.filter((dialogue) => dialogueText(dialogue) && dialogueSpeaker(dialogue)).length;
+  return speechSeconds + Math.max(0, spokenCount - 1) * DIALOGUE_GAP_SECONDS;
+};
+
 export const getDialogueDurationWarning = (duration?: number | null, minRequiredSeconds?: number | null) => {
   const shotDuration = Math.max(0, Number(duration) || 0);
   const minSeconds = Math.max(0, Number(minRequiredSeconds) || 0);
@@ -109,8 +117,8 @@ export const getDialogueDurationWarning = (duration?: number | null, minRequired
 
 export const getShotDialogueDurationWarning = (shot: any) => {
   const dialogues = Array.isArray(shot?.dialogues) ? shot.dialogues : [];
-  const minRequiredSeconds = getDialogueMinimumTotalSeconds(dialogues);
-  return getDialogueDurationWarning(numberOrNull(shot?.duration), minRequiredSeconds);
+  const estimatedOccupancySeconds = getDialogueTimelineOccupancySeconds(dialogues);
+  return getDialogueDurationWarning(numberOrNull(shot?.duration), estimatedOccupancySeconds);
 };
 
 export const getDialogueDurationWarningStats = (shots: any[] = []) => {

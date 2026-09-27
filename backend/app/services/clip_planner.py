@@ -145,11 +145,13 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
     video_plan = json.loads(shot.video_director_plan or "{}")
     dialogue_timeline_source = video_plan.get("dialogue_timeline_source")
     if not isinstance(dialogue_timeline_source, list):
-        dialogue_timeline_source, _ = build_dialogue_timeline(
+        dialogue_timeline_source, _, timeline_status = build_dialogue_timeline(
             {"start_time": 0, "end_time": shot.duration or 4},
             shot_dialogues,
             json.loads(getattr(shot, "characters", "[]") or "[]"),
         )
+        if timeline_status.get("status") == "overflow":
+            dialogue_timeline_source = []
     assignments, dialogue_validation = assign_dialogues_to_clips(
         shot_dialogues, clips, dialogue_timeline_source
     )

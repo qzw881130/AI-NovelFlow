@@ -27,6 +27,7 @@ from app.services.llm_service import LLMService
 from app.services.file_storage import file_storage
 from app.services.background_workers import worker_manager
 from app.services.prompt_builder import get_style
+from app.services.visual_style_authority import strip_embedded_visual_style
 from app.services.video_director_ai import append_video_ai_call, strip_media_refs
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.path_utils import local_path_to_url, url_to_local_path
@@ -323,10 +324,9 @@ class ShotKeyframeService:
         reference_manifest: Optional[list] = None,
     ) -> str:
         template = self._get_keyframe_image_prompt_template(db, novel)
-        if not template:
-            return keyframe.get("description") or shot.description or ""
-
         visual_style, _ = get_style(db, novel, "character")
+        if not template:
+            return f"{keyframe.get('description') or shot.description or ''}\n{visual_style}"
         prop_names = get_visual_prop_names(db, novel.id, json.loads(shot.props) if shot.props else [])
         payload = {
             "shot": {
@@ -341,8 +341,8 @@ class ShotKeyframeService:
                 "continuity_mode": shot.continuity_mode or "NORMAL",
                 "dialogues": json.loads(shot.dialogues) if shot.dialogues else [],
             },
-            "current_keyframe": strip_media_refs(keyframe),
-            "previous_keyframe": strip_media_refs(previous_keyframe) if previous_keyframe else None,
+            "current_keyframe": strip_media_refs({key: value for key, value in keyframe.items() if key != "prompt_text"}),
+            "previous_keyframe": strip_media_refs({key: value for key, value in previous_keyframe.items() if key != "prompt_text"}) if previous_keyframe else None,
             "reference_image_manifest": strip_media_refs(reference_manifest) if reference_manifest is not None else self._build_keyframe_reference_manifest(db, novel, shot, previous_keyframe),
             "visual_style": visual_style,
         }
@@ -459,7 +459,7 @@ class ShotKeyframeService:
             for i, kf in enumerate(keyframes[:count]):
                 validated_keyframes.append({
                     "frame_index": kf.get("frame_index", i),
-                    "description": kf.get("description", ""),
+                    "description": strip_embedded_visual_style(kf.get("description", ""), get_style(db, novel, "character")[0] if novel else ""),
                     "image_url": None,
                     "image_task_id": None,
                     "reference_image_url": None,

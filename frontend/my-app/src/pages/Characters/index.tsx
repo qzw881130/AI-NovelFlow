@@ -2,17 +2,16 @@
  * 角色管理页面
  */
 import { useState, useEffect, useRef } from 'react';
-import { Plus, Search, Trash2, Loader2, User, Image, X } from 'lucide-react';
+import { Plus, Search, Trash2, Loader2, User, Image, X, Download } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import type { Character, Novel, PromptTemplate } from '../../types';
 import { toast } from '../../stores/toastStore';
 import { useTranslation } from '../../stores/i18nStore';
 import { characterApi } from '../../api/characters';
-import { promptTemplateApi } from '../../api/promptTemplates';
 import { api } from '../../api';
 import { ImagePreviewModal, CharacterCard } from './components';
 import { ASPECT_RATIO_CLASSES, ALLOWED_IMAGE_TYPES, ALLOWED_AUDIO_TYPES, MAX_AUDIO_SIZE, POLL_CONFIG } from './constants';
-import type { CharacterPrompt, PreviewImageState, DeleteAllConfirmDialog } from './types';
+import type { PreviewImageState, DeleteAllConfirmDialog } from './types';
 import { getLastSelectedNovelId, setLastSelectedNovelId } from '../../utils/lastSelectedNovel';
 
 export default function Characters() {
@@ -29,7 +28,6 @@ export default function Characters() {
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [generatingId, setGeneratingId] = useState<string | null>(null);
   const [generatingAppearanceId, setGeneratingAppearanceId] = useState<string | null>(null);
-  const [characterPrompts, setCharacterPrompts] = useState<Record<string, CharacterPrompt>>({});
   const [highlightedId, setHighlightedId] = useState<string | null>(highlightId);
   const [parsingNovelId, setParsingNovelId] = useState<string | null>(null);
   
@@ -44,6 +42,7 @@ export default function Characters() {
   const [replacingImageId, setReplacingImageId] = useState<string | null>(null);
   const [generatingAll, setGeneratingAll] = useState(false);
   const [generatingMissing, setGeneratingMissing] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const [generatingVoiceId, setGeneratingVoiceId] = useState<string | null>(null);
   const [uploadingAudioId, setUploadingAudioId] = useState<string | null>(null);
@@ -98,34 +97,11 @@ export default function Characters() {
       const data = await characterApi.fetchList(selectedNovel);
       if (data.success) {
         setCharacters(data.data || []);
-        const chars = data.data || [];
-        for (const char of chars) {
-          fetchCharacterPrompt(char.id);
-        }
       }
     } catch (error) {
       console.error('获取角色失败:', error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const fetchCharacterPrompt = async (characterId: string) => {
-    try {
-      const data = await characterApi.fetchPrompt(characterId);
-      if (data.success) {
-        setCharacterPrompts(prev => ({
-          ...prev,
-          [characterId]: {
-            prompt: data.data!.prompt,
-            templateName: data.data!.templateName,
-            templateId: data.data!.templateId,
-            isSystem: data.data!.isSystem
-          }
-        }));
-      }
-    } catch (error) {
-      console.error('获取角色提示词失败:', error);
     }
   };
 
@@ -754,6 +730,20 @@ export default function Characters() {
     return novel?.aspectRatio || '16:9';
   };
 
+  const exportAllCharacters = async () => {
+    if (!selectedNovel) return;
+    setIsExporting(true);
+    try {
+      await characterApi.exportAll(selectedNovel);
+      toast.success(t('characters.exportSuccess'));
+    } catch (error) {
+      console.error('导出角色信息失败:', error);
+      toast.error(error instanceof Error ? error.message : t('characters.exportFailed'));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -789,6 +779,20 @@ export default function Characters() {
                 <Image className="mr-2 h-4 w-4" />
               )}
               {t('characters.generateRemainingPortraits')}
+            </button>
+          )}
+          {selectedNovel && characters.length > 0 && (
+            <button
+              onClick={exportAllCharacters}
+              disabled={isExporting}
+              className="btn-secondary text-cyan-600 border-cyan-200 hover:bg-cyan-50 disabled:opacity-50"
+            >
+              {isExporting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="mr-2 h-4 w-4" />
+              )}
+              {isExporting ? t('characters.exporting') : t('characters.exportAll')}
             </button>
           )}
           {selectedNovel && characters.length > 0 && (
@@ -907,7 +911,6 @@ export default function Characters() {
               uploadingId={uploadingId}
               generatingVoiceId={generatingVoiceId}
               uploadingAudioId={uploadingAudioId}
-              characterPrompt={characterPrompts[character.id]}
               onDelete={handleDelete}
               onEdit={setEditingCharacter}
               onGeneratePortrait={generatePortrait}

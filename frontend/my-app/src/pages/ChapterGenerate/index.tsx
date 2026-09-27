@@ -137,8 +137,8 @@ export default function ChapterGenerate() {
     if (!cid || chapter?.id !== cid || !shotsReady || activeTasksSyncedChapterRef.current === cid) return;
 
     activeTasksSyncedChapterRef.current = cid;
-    fetchActiveTasks(cid);
-  }, [cid, chapter?.id, shots, fetchActiveTasks]);
+    fetchActiveTasks(cid, id);
+  }, [cid, id, chapter?.id, shots, fetchActiveTasks]);
 
   // 从章节数据初始化状态
   useEffect(() => {

@@ -18,6 +18,7 @@ from app.services.llm_service import LLMService
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import get_style
+from app.services.visual_style_authority import strip_embedded_visual_style
 from app.utils.path_utils import url_to_local_path
 from app.utils.image_utils import load_chinese_font, merge_character_images
 from app.repositories.shot_repository import ShotRepository
@@ -799,7 +800,7 @@ class NovelService:
             shot = shot_repo.create(
                 chapter_id=chapter.id,
                 index=idx,
-                description=shot_data.get("description", ""),
+                description=strip_embedded_visual_style(shot_data.get("description", ""), style),
                 video_description=shot_data.get("video_description", ""),
                 characters=shot_data.get("characters", []),
                 scene=shot_data.get("scene", ""),

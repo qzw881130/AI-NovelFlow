@@ -42,7 +42,7 @@ SYSTEM_CLIP_PLANNER_TEMPLATES: List[Dict] = [
     {
         "name": "Clip Execution Planner",
         "description": "按自然剧情节拍将 Shot 编译为可执行 Generation Clips",
-        "template": load_template("clip_execution_planner.txt"),
+        "template": load_template("10A_NovelFlow_ClipExecutionPlanner_V1.txt"),
         "type": "clip_execution_planner",
     }
 ]

@@ -12,9 +12,9 @@ const TASK_CATEGORY_TYPES: Record<string, string[]> = {
   asset_generation: ['generate_character_appearance'],
   shot_planning: ['split_chapter'],
   shot_image: ['shot_image_prompt'],
-  video_director: ['video_mode_recommender', 'keyframe_description', 'keyframe_planner', 'keyframe_transition'],
+  video_director: ['video_mode_recommender', 'keyframe_description', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'],
   keyframe_image: ['temporal_reference_selector', 'keyframe_image_prompt'],
-  video_generation: ['clip_execution_planner', 'expand_video_prompt', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt'],
+  video_generation: ['expand_video_prompt', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt'],
 };
 
 const TASK_CATEGORY_OPTIONS = [
@@ -191,7 +191,7 @@ export function useLLMLogsState() {
       video_mode_recommender: 'videoDirector', keyframe_description: 'videoDirector',
       keyframe_planner: 'videoDirector', keyframe_transition: 'videoDirector',
       keyframe_image_prompt: 'keyframeImage', temporal_reference_selector: 'keyframeImage',
-      clip_execution_planner: 'videoGeneration', expand_video_prompt: 'videoGeneration', h3_single_frame_prompt: 'videoGeneration',
+      clip_execution_planner: 'videoDirector', expand_video_prompt: 'videoGeneration', h3_single_frame_prompt: 'videoGeneration',
       h3_first_last_frame_prompt: 'videoGeneration', h3_multi_keyframe_prompt: 'videoGeneration',
     };
     return type && categories[type]

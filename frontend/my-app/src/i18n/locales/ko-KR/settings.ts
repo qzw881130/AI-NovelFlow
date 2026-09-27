@@ -253,6 +253,8 @@ export default {
       chapterSplitDesc: '장을 샷으로 분할하는 프롬프트 템플릿',
       keyframeDescription: '키프레임 설명 프롬프트',
       keyframeDescriptionDesc: '샷의 키프레임 설명을 생성하는 프롬프트 템플릿',
+      clipExecutionPlanner: 'Clip Execution Planner',
+      clipExecutionPlannerDesc: '계획된 키프레임 타임라인을 실행 가능한 비디오 Clip 계획으로 분할합니다',
     },
 
     placeholderTip: '{appearance}와 {description}를 플레이스홀더로 사용',

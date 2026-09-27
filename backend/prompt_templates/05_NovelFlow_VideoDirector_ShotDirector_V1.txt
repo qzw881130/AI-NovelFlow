@@ -245,7 +245,7 @@ Action: ...
 - 摄影机景别；
 - 机位/方向；
 - 必要的空间区域关系；
-- ##STYLE## style, high quality, detailed。
+- 不写 visual_style、##STYLE##、style, high quality, detailed 或渲染风格套话。全局视觉风格仅由运行时 visual_style 提供。
 
 3. Characters
 每个可见角色必须明确：

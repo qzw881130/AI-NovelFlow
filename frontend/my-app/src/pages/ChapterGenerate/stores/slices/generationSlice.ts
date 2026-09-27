@@ -76,8 +76,8 @@ export interface GenerationSlice extends GenerationSliceState {
   checkVideoTaskStatus: (chapterId: string) => Promise<void>;
   checkTransitionTaskStatus: (chapterId: string) => Promise<void>;
   checkAudioTaskStatus: (chapterId: string) => Promise<void>;
-  checkKeyframeTaskStatus: (chapterId: string) => Promise<void>;
-  fetchActiveTasks: (chapterId: string) => Promise<void>;
+  checkKeyframeTaskStatus: (chapterId: string, novelId?: string) => Promise<void>;
+  fetchActiveTasks: (chapterId: string, novelId?: string) => Promise<void>;
 
   // ========== 关键帧生成 ==========
   generateKeyframeDescriptions: (novelId: string, chapterId: string, shotId: string, count?: number) => Promise<void>;
@@ -1203,18 +1203,18 @@ export const createGenerationSlice: StateCreator<
     }
   },
 
-  fetchActiveTasks: async (chapterId: string) => {
+  fetchActiveTasks: async (chapterId: string, novelId?: string) => {
     // 获取所有活跃任务
     await Promise.allSettled([
       get().checkShotTaskStatus(chapterId),
       get().checkVideoTaskStatus(chapterId),
       get().checkTransitionTaskStatus(chapterId),
       get().checkAudioTaskStatus(chapterId),
-      get().checkKeyframeTaskStatus(chapterId),
+      get().checkKeyframeTaskStatus(chapterId, novelId),
     ]);
   },
 
-  checkKeyframeTaskStatus: async (chapterId: string) => {
+  checkKeyframeTaskStatus: async (chapterId: string, novelId?: string) => {
     try {
       const response = await fetch(`/api/tasks/?chapter_id=${chapterId}&type=keyframe_image`);
       const result = await response.json();
@@ -1226,6 +1226,7 @@ export const createGenerationSlice: StateCreator<
         let generatingKeyframesUpdated = false;
         let keyframeImageUrlsUpdated = false;
         let shotsUpdated = false;
+        const refreshShotIds = new Set<string>();
         const newKeyframeTasks = [...keyframeTasks];
         const newGeneratingKeyframes = new Set(generatingKeyframes);
         const newKeyframeImageUrls = { ...keyframeImageUrls };
@@ -1316,7 +1317,7 @@ export const createGenerationSlice: StateCreator<
               }
 
               // 更新 shot 的 keyframes
-              if (shotIndex >= 0 && updatedShots[shotIndex]) {
+               if (shotIndex >= 0 && updatedShots[shotIndex]) {
                 const latestShot = updatedShots[shotIndex];
                 const updatedKeyframes = (latestShot.keyframes || []).map((kf: any) =>
                   kf.frame_index === frameIndex
@@ -1347,8 +1348,9 @@ export const createGenerationSlice: StateCreator<
                   }
                   : latestShot.videoDirectorPlan;
                 updatedShots[shotIndex] = { ...latestShot, keyframes: updatedKeyframes, videoDirectorPlan };
-                shotsUpdated = true;
-              }
+                 shotsUpdated = true;
+                 refreshShotIds.add(shotId);
+               }
             } else if (task.status === 'failed') {
               if (taskIndex < 0 && !taskBelongsToCurrentKeyframe) return;
               // 失败时从生成中集合移除
@@ -1359,6 +1361,22 @@ export const createGenerationSlice: StateCreator<
             }
           }
         });
+
+        if (refreshShotIds.size > 0) {
+          const refreshedShots = await Promise.all(
+            Array.from(refreshShotIds).map(async (shotId) => {
+              if (!novelId) return null;
+              const refreshed = await shotsApi.getShot(novelId, chapterId, shotId);
+              return refreshed.success ? refreshed.data : null;
+            })
+          );
+          refreshedShots.forEach((refreshed) => {
+            if (!refreshed) return;
+            const index = updatedShots.findIndex((shot) => shot.id === refreshed.id);
+            if (index >= 0) updatedShots[index] = refreshed;
+          });
+          shotsUpdated = refreshedShots.some(Boolean) || shotsUpdated;
+        }
 
         // 只在数据变化时更新状态
         if (keyframeTasksUpdated || generatingKeyframesUpdated || keyframeImageUrlsUpdated || shotsUpdated) {
