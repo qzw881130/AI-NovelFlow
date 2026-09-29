@@ -2,6 +2,7 @@ import json
 from types import SimpleNamespace
 
 from app.api.shots import _build_keyframe_planner_user_content, _build_keyframe_transition_user_content
+from app.services.shot_keyframe_service import sync_planned_keyframe_states
 
 
 def _shot_with_timed_dialogue_source():
@@ -80,3 +81,27 @@ def test_transition_planner_receives_full_timeline_for_each_segment():
     assert second_segment["dialogue_timeline_source"][0]["id"] == "D1"
     assert second_segment["segment_dialogue_state"]["overlapping_dialogue_ids"] == []
     assert "speech_rule" not in second_segment["segment_dialogue_state"]
+
+
+def test_aligned_p3_is_the_state_consumed_by_keyframe_image_without_losing_media():
+    description = "Scene: palace\nCharacters:\n- 皇帝: upright\n- 骗子: attentive\nAction: all four hold position"
+    shot = SimpleNamespace(video_director_plan=json.dumps({"keyframes": [
+        {"index": 2, "role": "INTERMEDIATE", "time_seconds": 7.0, "description": "P2 visual state"},
+        {"index": 3, "role": "INTERMEDIATE", "time_seconds": 14.2, "description": description},
+    ]}, ensure_ascii=False))
+    keyframes = [
+        {"frame_index": 0, "plan_keyframe_index": 2, "time_seconds": 7.0,
+         "description": "P2 visual state", "image_url": "p2.png"},
+        {"frame_index": 1, "plan_keyframe_index": 3, "time_seconds": 15.0,
+         "description": description, "image_url": "p3.png", "image_task_id": "old-task",
+         "reference_mode": "auto_select", "prompt_text": "previous prompt"},
+    ]
+
+    assert sync_planned_keyframe_states(shot, keyframes)
+    assert keyframes[1] == {
+        "frame_index": 1, "plan_keyframe_index": 3, "time_seconds": 14.2,
+        "description": description, "image_url": "p3.png", "image_task_id": "old-task",
+        "reference_mode": "auto_select", "prompt_text": "previous prompt",
+    }
+    assert keyframes[0]["image_url"] == "p2.png"
+    assert not sync_planned_keyframe_states(shot, keyframes)

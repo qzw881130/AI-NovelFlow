@@ -90,6 +90,7 @@ export default {
       'Minimax H3 首尾帧生视频': 'Minimax H3 首尾幀生影片',
       'Minimax H3 三帧生视频': 'Minimax H3 三幀生影片',
       'Minimax H3 四帧生视频': 'Minimax H3 四幀生影片',
+      'Minimax H3 多参考生视频 V20260928': 'Minimax H3 多參考生影片 V20260928',
       'LTX2 镜头转场视频': 'LTX2 鏡頭轉場影片',
       'LTX2 光线转场视频': 'LTX2 光線轉場影片',
       'LTX2 遮挡转场视频': 'LTX2 遮擋轉場影片',
@@ -97,6 +98,7 @@ export default {
       'Flux2-Klein-9B 分镜生图双图参考': 'Flux2-Klein-9B 分鏡生圖雙圖參考',
     },
     workflowDescriptions: {
+      'MiniMax H3 多参考生视频，支持 0～9 张参考图': 'MiniMax H3 多參考生影片，支援 0～9 張參考圖',
       '系统预设的人设生成工作流': '系統預設的人設生成工作流',
       '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）': '系統預設的人設生成工作流（Flux2 Klein 9B 三視圖）',
       '系统预设的场景生成工作流': '系統預設的場景生成工作流',

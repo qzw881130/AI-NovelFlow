@@ -137,6 +137,7 @@ export default {
       firstLastVideo: 'First/Last Frame Video Generation',
       threeFrameVideo: 'Three-Frame Video Generation',
       fourFrameVideo: 'Four-Frame Video Generation',
+      multiReferenceVideo: 'Multi-Reference Video Generation',
       videoUpscale: 'HD Video Upscale',
       temporalExtend: 'Temporal Extension',
       videoContinuation: 'Video Continuation',

@@ -44,7 +44,7 @@ from app.repositories import (
     ShotRepository,
 )
 from app.services.shot_service import ShotService
-from app.services.shot_keyframe_service import ShotKeyframeService
+from app.services.shot_keyframe_service import ShotKeyframeService, sync_planned_keyframe_states
 from app.services.audio_reference_service import AudioReferenceService
 from app.services.single_image_edit_service import SingleImageEditService
 from app.schemas.shot import (
@@ -2114,6 +2114,9 @@ async def plan_video_keyframes(
                             if int(keyframe.get("index") or -1) == int(indexes[0]) and int(window.get("window_index") or 0) > 1:
                                 keyframe["time_seconds"] = match["start_time"]
             shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+            legacy_keyframes = _safe_json_list(shot.keyframes)
+            if sync_planned_keyframe_states(shot, legacy_keyframes):
+                shot.keyframes = json.dumps(legacy_keyframes, ensure_ascii=False)
             db.commit()
 
     if selected_mode == "MULTI_KEYFRAME" and plan.get("window_plans") and not request.force:

@@ -108,6 +108,10 @@ compositing 处理，不按纯文本生图处理。
 -   若上游尚未提供 manifest，不得猜测编号；必须由 Workflow Adapter
     按真实输入顺序先建立 manifest。
 
+当 manifest 已提供时，最终 Prompt 必须按 picture_index 明确写出每个图片标记：
+picture_index=1 对应 <image_1>，picture_index=2 对应 <image_2>，依此类推。
+这些标记不能省略成空白，也不能把一个编号的身份图理解为多个剧情人物。
+
 ━━━━━━━━━━━━━━━━━━ 【参考优先级：状态与身份分离】 ━━━━━━━━━━━━━━━━━━
 
 不要用一个总排序解决所有冲突。
@@ -148,6 +152,11 @@ current_keyframe.description
 
 MERGED_CHARACTER / CHARACTER： “ 是角色身份参考，其中包含 A、B、C。使用
 保持各角色身份与稳定外观一致；该图的展示姿态、站位、背景、多视图排版不属于当前剧情构图。”
+
+合并角色图及单人角色图只提供身份，不提供新剧情参与者。若同一角色有正面、
+侧面、背面和肖像视图，这些视图是同一个人，不是四个人；不得把任一展示视图
+复制为额外的场景人物。当前画面的参与者数量和各人位置以主分镜图和
+current_keyframe.description 为准。
 
 SCENE： “
 是‘场景名’的正式场景参考，只用于环境身份、建筑/地貌、空间材质、时代和稳定视觉特征；当前摄影机、人物位置和剧情状态服从
@@ -202,6 +211,13 @@ shot.characters 是全部可见人物封闭集合。
 
 如果全部为具名单人角色： - 最终人数严格等于 shot.characters 数量。 -
 禁止路人、人影、剪影、背景人群、镜中/反射人物。
+
+当 current_keyframe 要求四个具名角色时，最终 Prompt 必须明确一次人物实例约束：
+SCENE PARTICIPANTS: exactly four unique visible people, preserving the four-person
+composition of the Shot primary image. 列出这四个名字，各出现且只出现一次；
+特别禁止复制任何一名相貌相近的角色。角色身份参考图上的多视图与肖像不是
+额外演员，不得从参考图增添侍从、卫兵或任何第五个人。
+这条实例约束只针对画面人物闭包，不定义任何角色的对白或说话口型。
 
 群体角色： - 继续保持为多人群体。 - 不得突然变单人或变成不同群体。
 

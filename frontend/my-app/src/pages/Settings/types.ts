@@ -32,6 +32,7 @@ export interface Workflow {
     load_image_node_7?: string;
     load_image_node_8?: string;
     load_image_node_9?: string;
+    reference_to_video_node_id?: string;
     frame_count_node_id?: string;
     duration_seconds_node_id?: string;
     first_image_node_id?: string;
@@ -135,4 +136,5 @@ export interface AvailableNodes {
   qwen3TtsVoiceClone: string[];
   loadVideo: string[];
   customKeyframes: string[];
+  referenceToVideo: string[];
 }

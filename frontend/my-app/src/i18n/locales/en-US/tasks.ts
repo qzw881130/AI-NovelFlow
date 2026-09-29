@@ -100,11 +100,13 @@ export default {
       'Minimax H3 首尾帧生视频': 'Minimax H3 First/Last Frame Video',
       'Minimax H3 三帧生视频': 'Minimax H3 Three-Frame Video',
       'Minimax H3 四帧生视频': 'Minimax H3 Four-Frame Video',
+      'Minimax H3 多参考生视频 V20260928': 'Minimax H3 Multi-Reference Video V20260928',
       'LTX2 镜头转场视频': 'LTX2 Camera Transition',
       'LTX2 光线转场视频': 'LTX2 Lighting Transition',
       'LTX2 遮挡转场视频': 'LTX2 Occlusion Transition',
     },
     workflowDescriptions: {
+      'MiniMax H3 多参考生视频，支持 0～9 张参考图': 'MiniMax H3 video with 0–9 optional reference images',
       'Topaz Video 高清放大工作流，支持 2x、4x、8x': 'Topaz Video upscale workflow supporting 2x, 4x, and 8x',
       '基于已有视频进行连续生成，可选使用 1～8 张时间锚点关键帧控制指定时刻的视觉状态。': 'Continue an existing video, optionally using 1 to 8 temporal anchor keyframes to control visual states at specified times.',
       '基于已有视频连续生成，支持提示词控制并具备 TEMPORAL_EXTEND 能力。': 'Continue an existing video with prompt control and TEMPORAL_EXTEND capability.',

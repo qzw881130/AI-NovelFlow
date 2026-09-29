@@ -281,6 +281,7 @@ class ComfyUIService:
         prop_appearances: Optional[Dict[str, str]] = None,
         reference_audio_path: Optional[str] = None,
         keyframe_paths: Optional[List[str]] = None,
+        reference_image_paths: Optional[List[str]] = None,
         strict_reference_image: bool = False,
         on_prompt_queued=None
     ) -> Dict[str, Any]:
@@ -315,8 +316,20 @@ class ComfyUIService:
 
             reference_image_node_id = node_mapping.get("reference_image_node_id", "12")
 
-            # 上传参考图片
-            if character_reference_path:
+            # 多参考视频按实际传入图片数量绑定；未传图时断开系统 JSON 中的示例图。
+            if node_mapping.get("load_image_node_1"):
+                paths = reference_image_paths or []
+                if len(paths) > 9:
+                    return {"success": False, "message": "多参考生视频最多支持 9 张参考图"}
+                filenames = []
+                for path in paths:
+                    upload_result = await self.client.upload_image(path)
+                    if not upload_result.get("success"):
+                        return {"success": False, "message": f"参考图上传失败: {upload_result.get('message')}"}
+                    filenames.append(upload_result["filename"])
+                self.builder.bind_multi_reference_video_images(workflow, node_mapping, filenames)
+            # 上传现有单帧/多关键帧工作流的起始参考图
+            elif character_reference_path:
                 upload_result = await self.client.upload_image(character_reference_path)
 
                 if upload_result.get("success"):
@@ -441,12 +454,21 @@ class ComfyUIService:
             print(f"[ComfyUI] Generate shot video failed: {e}")
             return {"success": False, "message": f"生成失败: {str(e)}"}
 
-    async def generate_video_continuation_with_workflow(self, prompt, workflow_json, node_mapping, previous_video_path, duration_seconds, filename_prefix, capability="VIDEO_CONTINUATION", anchors=None, on_prompt_queued=None):
+    async def generate_video_continuation_with_workflow(self, prompt, workflow_json, node_mapping, previous_video_path, duration_seconds, filename_prefix, capability="VIDEO_CONTINUATION", anchors=None, on_prompt_queued=None, reference_image_paths=None):
         try:
             workflow_json = json.loads(workflow_json) if isinstance(workflow_json, str) else json.loads(json.dumps(workflow_json))
             upload = await self.client.upload_video(previous_video_path)
             if not upload.get("success"):
                 return {"success": False, "message": upload.get("message") or "Previous AV 上传失败"}
+            paths = reference_image_paths or []
+            if len(paths) > 9:
+                return {"success": False, "message": "续生成最多支持 9 张参考图"}
+            reference_filenames = []
+            for path in paths:
+                uploaded = await self.client.upload_image(path)
+                if not uploaded.get("success"):
+                    return {"success": False, "message": f"参考图上传失败: {uploaded.get('message')}"}
+                reference_filenames.append(uploaded["filename"])
             if capability == "TEMPORAL_EXTEND":
                 uploaded_anchors = []
                 for anchor in anchors or []:
@@ -458,7 +480,8 @@ class ComfyUIService:
                         anchor = {**anchor, "image": upload_anchor.get("filename")}
                     uploaded_anchors.append(anchor)
                 workflow = self.builder.build_temporal_extend_workflow(
-                    workflow_json, node_mapping, upload["filename"], duration_seconds, uploaded_anchors, filename_prefix, prompt
+                    workflow_json, node_mapping, upload["filename"], duration_seconds, uploaded_anchors,
+                    filename_prefix, prompt, reference_image_filenames=reference_filenames,
                 )
                 # Temporal Extend is stored as a ComfyUI UI graph; /prompt
                 # requires the API graph representation.
@@ -471,6 +494,7 @@ class ComfyUIService:
                     duration_seconds,
                     prompt,
                     filename_prefix,
+                    reference_image_filenames=reference_filenames,
                 )
             queued = await self.client.queue_prompt(workflow)
             if not queued.get("success"):

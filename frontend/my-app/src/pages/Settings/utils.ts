@@ -116,6 +116,7 @@ export const getTypeNames = (t: any) => ({
   first_last_video: t('systemSettings.workflow.firstLastVideo'),
   three_frame_video: t('systemSettings.workflow.threeFrameVideo'),
   four_frame_video: t('systemSettings.workflow.fourFrameVideo'),
+  multi_reference_video: t('systemSettings.workflow.multiReferenceVideo'),
   video_upscale: t('systemSettings.workflow.videoUpscale', { defaultValue: '高清放大' }),
   TEMPORAL_EXTEND: t('systemSettings.workflow.temporalExtend', { defaultValue: '时序续生成' }),
   VIDEO_CONTINUATION: t('systemSettings.workflow.videoContinuation', { defaultValue: '视频续生成' })
@@ -230,6 +231,21 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
         (mapping as any).prop_reference_image_node_id &&
         (mapping as any).prop_reference_image_node_id !== 'auto'
       );
+    case 'multi_reference_video': {
+      const videoMapping = mapping as any;
+      const hasMaxSide = Boolean(videoMapping.max_side_node_id && videoMapping.max_side_node_id !== 'auto');
+      const hasMegapixels = Boolean(videoMapping.megapixels_node_id && videoMapping.megapixels_node_id !== 'auto');
+      const imageNodes = Array.from({ length: 9 }, (_, index) => videoMapping[`load_image_node_${index + 1}`]);
+      return !!(
+        videoMapping.prompt_node_id && videoMapping.prompt_node_id !== 'auto' &&
+        videoMapping.video_save_node_id && videoMapping.video_save_node_id !== 'auto' &&
+        videoMapping.duration_seconds_node_id && videoMapping.duration_seconds_node_id !== 'auto' &&
+        videoMapping.reference_to_video_node_id && videoMapping.reference_to_video_node_id !== 'auto' &&
+        hasMaxSide !== hasMegapixels &&
+        imageNodes.every(nodeId => nodeId && nodeId !== 'auto') &&
+        new Set(imageNodes).size === 9
+      );
+    }
     case 'video':
     case 'three_frame_video':
     case 'four_frame_video':
@@ -345,22 +361,30 @@ export const checkWorkflowMappingComplete = (workflow: any): boolean => {
         mapping.video_save_node_id && mapping.video_save_node_id !== 'auto'
       );
     case 'TEMPORAL_EXTEND':
+      const temporalReferenceNodes = Array.from({ length: 9 }, (_, index) => (mapping as any)[`load_image_node_${index + 1}`]);
       return !!(
         mapping.load_video_node_id && mapping.load_video_node_id !== 'auto' &&
         mapping.duration_seconds_node_id && mapping.duration_seconds_node_id !== 'auto' &&
         mapping.custom_keyframes_node_id && mapping.custom_keyframes_node_id !== 'auto' &&
         mapping.video_save_node_id && mapping.video_save_node_id !== 'auto' &&
+        mapping.reference_to_video_node_id && mapping.reference_to_video_node_id !== 'auto' &&
+        temporalReferenceNodes.every(nodeId => nodeId && nodeId !== 'auto') &&
+        new Set(temporalReferenceNodes).size === 9 &&
         Array.from({ length: 8 }).every((_, index) => {
           const nodeId = mapping[`keyframe_node_${index + 1}`];
           return nodeId && nodeId !== 'auto';
         })
       );
     case 'VIDEO_CONTINUATION':
+      const continuationNodes = Array.from({ length: 9 }, (_, index) => (mapping as any)[`load_image_node_${index + 1}`]);
       return !!(
         mapping.load_video_node_id && mapping.load_video_node_id !== 'auto' &&
         mapping.duration_seconds_node_id && mapping.duration_seconds_node_id !== 'auto' &&
         mapping.prompt_node_id && mapping.prompt_node_id !== 'auto' &&
-        mapping.video_save_node_id && mapping.video_save_node_id !== 'auto'
+        mapping.video_save_node_id && mapping.video_save_node_id !== 'auto' &&
+        mapping.reference_to_video_node_id && mapping.reference_to_video_node_id !== 'auto' &&
+        continuationNodes.every(nodeId => nodeId && nodeId !== 'auto') &&
+        new Set(continuationNodes).size === 9
       );
     default:
       return false;

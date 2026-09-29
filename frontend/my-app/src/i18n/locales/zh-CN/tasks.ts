@@ -99,6 +99,7 @@ export default {
       'Minimax H3 首尾帧生视频': 'Minimax H3 首尾帧生视频',
       'Minimax H3 三帧生视频': 'Minimax H3 三帧生视频',
       'Minimax H3 四帧生视频': 'Minimax H3 四帧生视频',
+      'Minimax H3 多参考生视频 V20260928': 'Minimax H3 多参考生视频 V20260928',
       'LTX2 镜头转场视频': 'LTX2 镜头转场视频',
       'LTX2 光线转场视频': 'LTX2 光线转场视频',
       'LTX2 遮挡转场视频': 'LTX2 遮挡转场视频',
@@ -107,6 +108,7 @@ export default {
       'NovelFlow H3 AV 视频续生成 Minimal V1': 'NovelFlow H3 AV 视频续生成 Minimal V1',
     },
     workflowDescriptions: {
+      'MiniMax H3 多参考生视频，支持 0～9 张参考图': 'MiniMax H3 多参考生视频，支持 0～9 张参考图',
       '系统预设的人设生成工作流': '系统预设的人设生成工作流',
       '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）': '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）',
       '系统预设的场景生成工作流': '系统预设的场景生成工作流',

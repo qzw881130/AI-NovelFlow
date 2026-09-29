@@ -137,6 +137,7 @@ export default {
       firstLastVideo: '首尾帧生视频',
       threeFrameVideo: '三帧生视频',
       fourFrameVideo: '四帧生视频',
+      multiReferenceVideo: '多参考生视频',
       videoUpscale: '高清放大',
       temporalExtend: '时序续生成',
       videoContinuation: '视频续生成',

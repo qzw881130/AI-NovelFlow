@@ -102,6 +102,37 @@ def bypass_failed_prompt_rewrite_nodes(workflow: dict) -> bool:
     return True
 
 
+def sync_planned_keyframe_states(shot: Shot, keyframes: list) -> bool:
+    """Keep the legacy image records' visual state aligned with #08 by index.
+
+    Image URLs, prompt history and reference selections remain owned by the
+    image workflow; only the canonical time and description are projected.
+    """
+    try:
+        plan = json.loads(shot.video_director_plan) if isinstance(shot.video_director_plan, str) else shot.video_director_plan
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(plan, dict) or not isinstance(plan.get("keyframes"), list):
+        return False
+    planned = {
+        int(item["index"]): item
+        for item in plan["keyframes"]
+        if isinstance(item, dict) and item.get("index") is not None
+    }
+    changed = False
+    for keyframe in keyframes:
+        if not isinstance(keyframe, dict) or keyframe.get("plan_keyframe_index") is None:
+            continue
+        source = planned.get(int(keyframe["plan_keyframe_index"]))
+        if not source or source.get("role") == "START":
+            continue
+        for field in ("time_seconds", "description"):
+            if source.get(field) is not None and keyframe.get(field) != source[field]:
+                keyframe[field] = source[field]
+                changed = True
+    return changed
+
+
 class ShotKeyframeService:
     """关键帧服务类"""
 
@@ -667,6 +698,9 @@ class ShotKeyframeService:
             keyframes = json.loads(shot.keyframes) if shot.keyframes else []
             if frame_index >= len(keyframes):
                 raise ValueError(f"关键帧序号 {frame_index} 超出范围")
+            if sync_planned_keyframe_states(shot, keyframes):
+                shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
+                db.commit()
             keyframe = keyframes[frame_index]
             previous_keyframe = keyframes[frame_index - 1] if frame_index > 0 else None
 

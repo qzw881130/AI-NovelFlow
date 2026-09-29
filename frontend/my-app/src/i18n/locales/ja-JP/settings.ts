@@ -118,6 +118,7 @@ export default {
       firstLastVideo: '開始/終了フレーム動画生成',
       threeFrameVideo: '3フレーム動画生成',
       fourFrameVideo: '4フレーム動画生成',
+      multiReferenceVideo: '複数参照画像の動画生成',
       videoUpscale: 'HD動画アップスケール',
       temporalExtend: '時系列延長生成',
       videoContinuation: '動画続き生成',

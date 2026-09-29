@@ -6,7 +6,7 @@ ComfyUI 工作流构建器
 import json
 import random
 import re
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 
 
 class WorkflowBuilder:
@@ -91,6 +91,7 @@ class WorkflowBuilder:
         anchors: list[Dict[str, Any]],
         filename_prefix: str,
         prompt: str = "",
+        reference_image_filenames: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """Build a TEMPORAL_EXTEND workflow for zero to eight temporal anchors."""
         if len(anchors) > 8:
@@ -106,9 +107,11 @@ class WorkflowBuilder:
             self._configure_temporal_extend_api_workflow(
                 workflow, node_mapping, video_filename, duration_seconds, anchors, filename_prefix, prompt
             )
+            if node_mapping.get("load_image_node_1"):
+                self.bind_multi_reference_video_images(workflow, node_mapping, reference_image_filenames or [])
         return workflow
 
-    def build_video_continuation_workflow(self, workflow_json, node_mapping, video_filename, duration_seconds, prompt, filename_prefix):
+    def build_video_continuation_workflow(self, workflow_json, node_mapping, video_filename, duration_seconds, prompt, filename_prefix, reference_image_filenames=None):
         workflow = json.loads(workflow_json) if isinstance(workflow_json, str) else json.loads(json.dumps(workflow_json))
         if not isinstance(workflow, dict):
             raise ValueError("视频续生成工作流格式无效")
@@ -123,6 +126,8 @@ class WorkflowBuilder:
         self._set_prompt(workflow, prompt_id, prompt)
         workflow[save_id].setdefault("inputs", {})["filename_prefix"] = filename_prefix
         workflow[save_id]["inputs"]["save_output"] = True
+        if node_mapping.get("load_image_node_1"):
+            self.bind_multi_reference_video_images(workflow, node_mapping, reference_image_filenames or [])
         return workflow
 
     @staticmethod
@@ -382,6 +387,33 @@ class WorkflowBuilder:
         self._set_random_seed(workflow, seed)
 
         return workflow
+
+    @staticmethod
+    def bind_multi_reference_video_images(workflow: Dict[str, Any], node_mapping: Dict[str, str], filenames: List[str]) -> None:
+        """Bind 0–9 supplied images, disconnecting unused sample images from the submitted graph."""
+        if len(filenames) > 9:
+            raise ValueError("多参考生视频最多支持 9 张参考图")
+        reference_id = str(node_mapping.get("reference_to_video_node_id") or "")
+        reference_node = workflow.get(reference_id)
+        if not reference_node or reference_node.get("class_type") != "MiniMaxH3ReferenceToVideo":
+            raise ValueError("缺少 MiniMax H3 Reference to Video 节点映射")
+
+        for index in range(9):
+            node_id = str(node_mapping.get(f"load_image_node_{index + 1}") or "")
+            node = workflow.get(node_id)
+            if not node or node.get("class_type") != "LoadImage":
+                raise ValueError(f"缺少参考图片节点 {index + 1} (LoadImage)")
+            input_name = f"ref_images.ref_image_{index}"
+            if reference_node.get("inputs", {}).get(input_name) != [node_id, 0]:
+                raise ValueError(f"参考图片节点 {index + 1} 未连接到 MiniMax H3 Reference to Video")
+            if index < len(filenames):
+                node["inputs"]["image"] = filenames[index]
+                continue
+
+            # Remove the optional input link as well as the unused LoadImage node;
+            # otherwise the example filenames in the system JSON become live references.
+            reference_node["inputs"].pop(input_name)
+            workflow.pop(node_id)
 
     def build_voice_design_workflow(
         self,

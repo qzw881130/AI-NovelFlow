@@ -110,6 +110,7 @@ export default {
       firstLastVideo: '첫/마지막 프레임 비디오 생성',
       threeFrameVideo: '3프레임 비디오 생성',
       fourFrameVideo: '4프레임 비디오 생성',
+      multiReferenceVideo: '다중 참조 비디오 생성',
       videoUpscale: 'HD 비디오 업스케일',
       temporalExtend: '시계열 연장 생성',
       videoContinuation: '비디오 연속 생성',

@@ -79,11 +79,13 @@ export default {
       'Minimax H3 首尾帧生视频': 'Minimax H3 첫/마지막 프레임 비디오',
       'Minimax H3 三帧生视频': 'Minimax H3 3프레임 비디오',
       'Minimax H3 四帧生视频': 'Minimax H3 4프레임 비디오',
+      'Minimax H3 多参考生视频 V20260928': 'Minimax H3 다중 참조 비디오 V20260928',
       'LTX2 镜头转场视频': 'LTX2 카메라 전환',
       'LTX2 光线转场视频': 'LTX2 조명 전환',
       'LTX2 遮挡转场视频': 'LTX2 가리기 전환',
     },
     workflowDescriptions: {
+      'MiniMax H3 多参考生视频，支持 0～9 张参考图': 'MiniMax H3 비디오 생성, 참조 이미지 0~9장 지원',
       '系统预设的人设生成工作流': '시스템 기본 캐릭터 생성 워크플로우',
       '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）': '시스템 기본 캐릭터 생성 워크플로우（Flux2 Klein 9B 3면图）',
       '系统预设的场景生成工作流': '시스템 기본 장면 생성 워크플로우',

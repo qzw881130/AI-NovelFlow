@@ -24,6 +24,7 @@ interface MappingForm {
   propReferenceImageNodeId: string;
   customReferenceImageNodes: string[];
   multiImageNodeIds?: string[];
+  referenceToVideoNodeId?: string;
   // 音色设计相关节点
   voicePromptNodeId: string;
   refTextNodeId: string;
@@ -65,15 +66,16 @@ const MEGAPIXEL_OPTIONS = [
   { value: '2.0', output: '1920x1088' },
 ];
 
-const isSingleFrameVideoType = (type?: string) => ['video', 'three_frame_video', 'four_frame_video'].includes(type || '');
+const isSingleFrameVideoType = (type?: string) => ['video', 'three_frame_video', 'four_frame_video', 'multi_reference_video'].includes(type || '');
 const isFirstLastVideoType = (type?: string) => ['transition', 'first_last_video'].includes(type || '');
 const isShotImageType = (type?: string) => ['shot', 'shot_scene', 'shot_character_scene', 'shot_scene_prop'].includes(type || '');
 const getRequiredKeyframeCount = (type?: string) => {
   if (type === 'three_frame_video') return 2;
   if (type === 'four_frame_video') return 3;
+  if (type === 'multi_reference_video') return 8;
   return 0;
 };
-const isMultiFrameVideoType = (type?: string) => ['three_frame_video', 'four_frame_video'].includes(type || '');
+const isMultiFrameVideoType = (type?: string) => ['three_frame_video', 'four_frame_video', 'multi_reference_video'].includes(type || '');
 
 export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps) {
   const { t } = useTranslation();
@@ -97,6 +99,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     propReferenceImageNodeId: '',
     customReferenceImageNodes: [],
     multiImageNodeIds: Array(9).fill(''),
+    referenceToVideoNodeId: '',
     voicePromptNodeId: '',
     refTextNodeId: '',
     saveAudioNodeId: '',
@@ -126,7 +129,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     qwen3TtsVoiceClone: [],
     previewAudio: [],
     loadVideo: [],
-    customKeyframes: []
+    customKeyframes: [],
+    referenceToVideo: [],
   });
   const [workflowJsonData, setWorkflowJsonData] = useState<Record<string, any>>({});
   const [selectedNodeId, setSelectedNodeId] = useState<string>('');
@@ -176,6 +180,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
             const previewAudio: string[] = [];
             const loadVideo: string[] = [];
             const customKeyframes: string[] = [];
+            const referenceToVideo: string[] = [];
 
             for (const [nodeId, node] of Object.entries(workflowObj)) {
               if (typeof node === 'object' && node !== null) {
@@ -204,6 +209,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   loadVideo.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'MiniMaxH3CustomKeyframes') {
                   customKeyframes.push(`${nodeId} (${metaTitle || classType})`);
+                } else if (classType === 'MiniMaxH3ReferenceToVideo') {
+                  referenceToVideo.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'TDQwen3TTSVoiceDesign') {
                   qwen3TtsVoiceDesign.push(`${nodeId} (${metaTitle || classType})`);
                 } else if (classType === 'SaveAudio') {
@@ -218,7 +225,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
               }
             }
 
-            setAvailableNodes({ clipTextEncode, saveImage, easyInt, easyFloat, crPromptText, vhsVideoCombine, h3VideoOutputs, saveVideo, loadImage, loadVideo, customKeyframes, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
+            setAvailableNodes({ clipTextEncode, saveImage, easyInt, easyFloat, crPromptText, vhsVideoCombine, h3VideoOutputs, saveVideo, loadImage, loadVideo, customKeyframes, referenceToVideo, qwen3TtsVoiceDesign, saveAudio, previewAudio, loadAudio, qwen3TtsVoiceClone });
             const inferredAppearanceNodeId = crPromptText.find((item) => /人物形象|外貌|appearance/i.test(item))?.split(' ')[0] || '';
             const inferredStyleNodeId = crPromptText.find((item) => /\bSTYLE\b/i.test(item))?.split(' ')[0] || '';
             
@@ -246,6 +253,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 promptNodeId: mapping.prompt_node_id || '',
                 keyframeNodes: Array.from({ length: 8 }, (_, index) => mapping[`keyframe_node_${index + 1}`] || ''),
                 customKeyframesNodeId: mapping.custom_keyframes_node_id || '',
+                referenceToVideoNodeId: mapping.reference_to_video_node_id || '',
+                multiImageNodeIds: Array.from({ length: 9 }, (_, index) => mapping[`load_image_node_${index + 1}`] || ''),
                 videoSaveNodeId: mapping.video_save_node_id || '',
               });
             } else if (wf.type === 'VIDEO_CONTINUATION') {
@@ -255,6 +264,8 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 durationSecondsNodeId: mapping.duration_seconds_node_id || '',
                 promptNodeId: mapping.prompt_node_id || '',
                 videoSaveNodeId: mapping.video_save_node_id || '',
+                multiImageNodeIds: Array.from({ length: 9 }, (_, index) => mapping[`load_image_node_${index + 1}`] || ''),
+                referenceToVideoNodeId: mapping.reference_to_video_node_id || '',
               });
             } else if (wf.type === 'video_upscale') {
               setMappingForm({
@@ -274,7 +285,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 maxSideNodeId: mapping.max_side_node_id || '',
                 megapixelsNodeId: mapping.megapixels_node_id || '',
                 megapixelsValue: mapping.megapixels_value || '0.4',
-                referenceImageNodeId: mapping.reference_image_node_id || '',
+                referenceImageNodeId: wf.type === 'multi_reference_video' ? mapping.load_image_node_1 || '' : mapping.reference_image_node_id || '',
                 frameCountNodeId: mapping.frame_count_node_id || '',
                 firstImageNodeId: '',
                 lastImageNodeId: '',
@@ -285,11 +296,14 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                 voicePromptNodeId: '',
                 refTextNodeId: '',
                 saveAudioNodeId: '',
-                referenceAudioNodeId: mapping.reference_audio_node_id || '',
+                referenceAudioNodeId: wf.type === 'multi_reference_video' ? '' : mapping.reference_audio_node_id || '',
                 textNodeId: '',
                 emotionPromptNodeId: '',
-                keyframeNodes,
-                durationSecondsNodeId: mapping.duration_seconds_node_id || ''
+                keyframeNodes: wf.type === 'multi_reference_video'
+                  ? Array.from({ length: 8 }, (_, index) => mapping[`load_image_node_${index + 2}`] || '')
+                  : keyframeNodes,
+                durationSecondsNodeId: mapping.duration_seconds_node_id || '',
+                referenceToVideoNodeId: mapping.reference_to_video_node_id || '',
               });
             } else if (isFirstLastVideoType(wf.type)) {
               setMappingForm({
@@ -514,6 +528,17 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
     setSavingMapping(true);
     try {
       let nodeMapping: Record<string, string | null> = {};
+      if (['TEMPORAL_EXTEND', 'VIDEO_CONTINUATION', 'multi_reference_video'].includes(workflow.type)) {
+        const referenceNodes = workflow.type === 'multi_reference_video'
+          ? [mappingForm.referenceImageNodeId, ...mappingForm.keyframeNodes.slice(0, 8)]
+          : (mappingForm.multiImageNodeIds || []).slice(0, 9);
+        if (!mappingForm.referenceToVideoNodeId || referenceNodes.length !== 9 ||
+            referenceNodes.some(nodeId => !nodeId) || new Set(referenceNodes).size !== 9) {
+          toast.error('需要映射 MiniMax H3 Reference to Video 及 9 个不同的参考图片 LoadImage 节点');
+          setSavingMapping(false);
+          return;
+        }
+      }
       
       if (workflow.type === 'TEMPORAL_EXTEND') {
         nodeMapping = {
@@ -521,10 +546,14 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           duration_seconds_node_id: mappingForm.durationSecondsNodeId || null,
           prompt_node_id: mappingForm.promptNodeId || null,
           custom_keyframes_node_id: mappingForm.customKeyframesNodeId || null,
+          reference_to_video_node_id: mappingForm.referenceToVideoNodeId || null,
           video_save_node_id: mappingForm.videoSaveNodeId || null,
         };
         Array.from({ length: 8 }).forEach((_, index) => {
           nodeMapping[`keyframe_node_${index + 1}`] = mappingForm.keyframeNodes[index] || null;
+        });
+        Array.from({ length: 9 }).forEach((_, index) => {
+          nodeMapping[`load_image_node_${index + 1}`] = mappingForm.multiImageNodeIds?.[index] || null;
         });
       } else if (workflow.type === 'VIDEO_CONTINUATION') {
         nodeMapping = {
@@ -532,7 +561,11 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           duration_seconds_node_id: mappingForm.durationSecondsNodeId || null,
           prompt_node_id: mappingForm.promptNodeId || null,
           video_save_node_id: mappingForm.videoSaveNodeId || null,
+          reference_to_video_node_id: mappingForm.referenceToVideoNodeId || null,
         };
+        Array.from({ length: 9 }).forEach((_, index) => {
+          nodeMapping[`load_image_node_${index + 1}`] = mappingForm.multiImageNodeIds?.[index] || null;
+        });
       } else if (workflow.type === 'video_upscale') {
         nodeMapping = {
           load_video_node_id: mappingForm.loadVideoNodeId || null,
@@ -548,10 +581,20 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           setSavingMapping(false);
           return;
         }
+        if (workflow.type === 'multi_reference_video') {
+          const imageNodes = [mappingForm.referenceImageNodeId, ...mappingForm.keyframeNodes.slice(0, 8)];
+          if (imageNodes.some(nodeId => !nodeId) || new Set(imageNodes).size !== 9) {
+            toast.error('多参考生视频必须映射 9 个不同的 LoadImage 节点');
+            setSavingMapping(false);
+            return;
+          }
+        }
         const requiredKeyframeCount = getRequiredKeyframeCount(workflow.type);
         const hasRequiredKeyframes = Array.from({ length: requiredKeyframeCount }).every((_, index) => Boolean(mappingForm.keyframeNodes[index]));
         if (!hasRequiredKeyframes) {
-          toast.error(workflow.type === 'three_frame_video' ? '三帧生视频必须配置参考图片节点 2 和 3' : '四帧生视频必须配置参考图片节点 2、3 和 4');
+          toast.error(workflow.type === 'multi_reference_video'
+            ? '多参考生视频需要映射全部 9 个 LoadImage 节点（生成时可只使用 0～9 张）'
+            : workflow.type === 'three_frame_video' ? '三帧生视频必须配置参考图片节点 2 和 3' : '四帧生视频必须配置参考图片节点 2、3 和 4');
           setSavingMapping(false);
           return;
         }
@@ -559,18 +602,25 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
         nodeMapping = {
           prompt_node_id: mappingForm.promptNodeId || null,
           video_save_node_id: mappingForm.videoSaveNodeId || null,
+          ...(workflow.type === 'multi_reference_video' ? { reference_to_video_node_id: mappingForm.referenceToVideoNodeId || null } : {}),
           max_side_node_id: mappingForm.maxSideNodeId || null,
           megapixels_node_id: mappingForm.megapixelsNodeId || null,
           megapixels_value: mappingForm.megapixelsNodeId ? mappingForm.megapixelsValue : null,
-          reference_image_node_id: mappingForm.referenceImageNodeId || null,
           frame_count_node_id: mappingForm.frameCountNodeId || null,
-          reference_audio_node_id: mappingForm.referenceAudioNodeId || null,
           duration_seconds_node_id: mappingForm.durationSecondsNodeId || null
         };
-        // 添加关键帧节点
-        mappingForm.keyframeNodes.forEach((nodeId, index) => {
-          nodeMapping[`keyframe_node_${index + 1}`] = nodeId || null;
-        });
+        if (workflow.type === 'multi_reference_video') {
+          nodeMapping.load_image_node_1 = mappingForm.referenceImageNodeId || null;
+          Array.from({ length: 8 }).forEach((_, index) => {
+            nodeMapping[`load_image_node_${index + 2}`] = mappingForm.keyframeNodes[index] || null;
+          });
+        } else {
+          nodeMapping.reference_image_node_id = mappingForm.referenceImageNodeId || null;
+          nodeMapping.reference_audio_node_id = mappingForm.referenceAudioNodeId || null;
+          mappingForm.keyframeNodes.forEach((nodeId, index) => {
+            nodeMapping[`keyframe_node_${index + 1}`] = nodeId || null;
+          });
+        }
       } else if (isFirstLastVideoType(workflow.type)) {
         const hasFrameCount = Boolean(mappingForm.frameCountNodeId);
         const hasDurationSeconds = Boolean(mappingForm.durationSecondsNodeId);
@@ -789,13 +839,13 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className={`bg-white rounded-lg p-6 w-full max-h-[90vh] overflow-hidden flex flex-col ${workflow.type === 'TEMPORAL_EXTEND' ? 'max-w-6xl' : 'max-w-4xl'}`}>
         <h3 className="text-lg font-medium mb-4">
           {t('systemSettings.workflow.nodeMapping')} - {workflow.name}
         </h3>
-        <div className="flex gap-4 flex-1 min-h-0">
+        <div className={`gap-4 flex-1 min-h-0 ${workflow.type === 'TEMPORAL_EXTEND' ? 'flex flex-col lg:flex-row' : 'flex'}`}>
           {/* 左侧: 选中节点的 JSON 数据显示 */}
-          <div className="w-1/2 border rounded-lg overflow-hidden flex flex-col">
+          <div className={`${workflow.type === 'TEMPORAL_EXTEND' ? 'h-36 w-full lg:h-auto lg:w-[32%]' : 'w-1/2'} border rounded-lg overflow-hidden flex flex-col`}>
             <div className="bg-gray-50 px-3 py-2 border-b text-sm font-medium text-gray-700">
               {selectedNodeId ? `Node: ${selectedNodeId}` : t('systemSettings.workflow.selectNodeToView')}
             </div>
@@ -811,7 +861,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
           </div>
           
           {/* 右侧: 映射表单 */}
-          <div className="w-1/2 overflow-y-auto">
+          <div className={`${workflow.type === 'TEMPORAL_EXTEND' ? 'w-full lg:w-[68%]' : 'w-1/2'} min-h-0 overflow-y-auto`}>
             <form onSubmit={handleSaveMapping} className="space-y-4">
               {/* 根据工作流类型显示不同的映射字段 */}
               {(workflow.type === 'character' || workflow.type === 'scene' || workflow.type === 'prop') && (
@@ -1060,21 +1110,48 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onFocus={handleNodeFocus}
                     t={t}
                   />
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium text-gray-700">关键帧 1～8</div>
-                    {Array.from({ length: 8 }, (_, index) => (
-                      <NodeSelectField
-                        key={index}
-                        label={`关键帧 ${index + 1}`}
-                        nodeTypeHint="LoadImage"
-                        value={mappingForm.keyframeNodes[index] || ''}
-                        options={availableNodes.loadImage}
-                        onChange={(v) => handleKeyframeNodeChange(v, index)}
-                        onFocus={handleNodeFocus}
-                        t={t}
-                      />
-                    ))}
+                  <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+                    <section className="min-w-0 space-y-2 rounded-lg border border-gray-200 p-3">
+                      <div className="text-sm font-medium text-gray-700">关键帧 1～8</div>
+                      {Array.from({ length: 8 }, (_, index) => (
+                        <NodeSelectField
+                          key={index}
+                          label={`关键帧 ${index + 1}`}
+                          nodeTypeHint="LoadImage"
+                          value={mappingForm.keyframeNodes[index] || ''}
+                          options={availableNodes.loadImage}
+                          onChange={(v) => handleKeyframeNodeChange(v, index)}
+                          onFocus={handleNodeFocus}
+                          t={t}
+                        />
+                      ))}
+                    </section>
+                    <section className="min-w-0 space-y-2 rounded-lg border border-gray-200 p-3">
+                      <div className="text-sm font-medium text-gray-700">参考图片节点 1～9</div>
+                      <p className="text-xs text-gray-500">独立于关键帧；生成时可使用 0～9 张参考图。</p>
+                      {Array.from({ length: 9 }, (_, index) => (
+                        <NodeSelectField
+                          key={index}
+                          label={`参考图片节点${index + 1} (LoadImage)`}
+                          nodeTypeHint="LoadImage"
+                          value={mappingForm.multiImageNodeIds?.[index] || ''}
+                          options={availableNodes.loadImage}
+                          onChange={(v) => handleMultiImageNodeSelect(v, index)}
+                          onFocus={handleNodeFocus}
+                          t={t}
+                        />
+                      ))}
+                    </section>
                   </div>
+                  <NodeSelectField
+                    label="MiniMax H3 Reference to Video 节点"
+                    nodeTypeHint="MiniMaxH3ReferenceToVideo"
+                    value={mappingForm.referenceToVideoNodeId || ''}
+                    options={availableNodes.referenceToVideo}
+                    onChange={(v) => handleNodeSelect(v, 'referenceToVideoNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
                   <NodeSelectField
                     label="关键帧控制节点"
                     nodeTypeHint="MiniMaxH3CustomKeyframes"
@@ -1122,6 +1199,30 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     value={mappingForm.promptNodeId}
                     options={[...availableNodes.clipTextEncode, ...availableNodes.crPromptText]}
                     onChange={(v) => handleNodeSelect(v, 'promptNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-500">映射 9 个 LoadImage 槽位；每次生成可使用 0～9 张参考图。</p>
+                    {Array.from({ length: 9 }, (_, index) => (
+                      <NodeSelectField
+                        key={index}
+                        label={`参考图片节点${index + 1} (LoadImage)`}
+                        nodeTypeHint="LoadImage"
+                        value={mappingForm.multiImageNodeIds?.[index] || ''}
+                        options={availableNodes.loadImage}
+                        onChange={(v) => handleMultiImageNodeSelect(v, index)}
+                        onFocus={handleNodeFocus}
+                        t={t}
+                      />
+                    ))}
+                  </div>
+                  <NodeSelectField
+                    label="MiniMax H3 Reference to Video 节点"
+                    nodeTypeHint="MiniMaxH3ReferenceToVideo"
+                    value={mappingForm.referenceToVideoNodeId || ''}
+                    options={availableNodes.referenceToVideo}
+                    onChange={(v) => handleNodeSelect(v, 'referenceToVideoNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}
                   />
@@ -1253,7 +1354,9 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                   {getRequiredKeyframeCount(workflow.type) > 0 && (
                     <div className="mt-4">
                       <p className="text-xs text-gray-500 mb-2">
-                        {workflow.type === 'three_frame_video' ? '三帧生视频需要 3 个参考图片 LoadImage 节点。' : '四帧生视频需要 4 个参考图片 LoadImage 节点。'}
+                        {workflow.type === 'multi_reference_video'
+                          ? '映射 9 个 LoadImage 槽位；每次生成可使用 0～9 张参考图。'
+                          : workflow.type === 'three_frame_video' ? '三帧生视频需要 3 个参考图片 LoadImage 节点。' : '四帧生视频需要 4 个参考图片 LoadImage 节点。'}
                       </p>
                       {Array.from({ length: getRequiredKeyframeCount(workflow.type) }).map((_, index) => (
                         <div key={index} className="mb-2">
@@ -1288,7 +1391,7 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onFocus={handleNodeFocus}
                     t={t}
                   />
-                  <NodeSelectField
+                  {workflow.type !== 'multi_reference_video' && <NodeSelectField
                     label={t('systemSettings.workflow.referenceAudioNode')}
                     nodeTypeHint="LoadAudio"
                     value={mappingForm.referenceAudioNodeId}
@@ -1296,7 +1399,16 @@ export function MappingModal({ workflow, onClose, onSuccess }: MappingModalProps
                     onChange={(v) => handleNodeSelect(v, 'referenceAudioNodeId')}
                     onFocus={handleNodeFocus}
                     t={t}
-                  />
+                  />}
+                  {workflow.type === 'multi_reference_video' && <NodeSelectField
+                    label="MiniMax H3 Reference to Video 节点"
+                    nodeTypeHint="MiniMaxH3ReferenceToVideo"
+                    value={mappingForm.referenceToVideoNodeId || ''}
+                    options={availableNodes.referenceToVideo}
+                    onChange={(v) => handleNodeSelect(v, 'referenceToVideoNodeId')}
+                    onFocus={handleNodeFocus}
+                    t={t}
+                  />}
 
                   {/* 额外关键帧节点配置 */}
                   {workflow.type === 'video' && <div className="mt-4">

@@ -243,3 +243,67 @@ async def test_projected_clip_dialogues_reappear_as_exact_chinese_text_in_h3_pro
     payload = json.loads(captured["user_content"].split("\n\n", 1)[1])
     assert payload["dialogue_timeline_source"][0]["id"] == "D7"
     assert payload["dialogue_timeline_source"][0]["duration"] == 0.8
+
+
+@pytest.mark.asyncio
+async def test_shot17_single_canonical_speech_authority(monkeypatch):
+    texts = [
+        "你们需要什么？", "最上等的金丝。", "还有最柔软的丝绸。",
+        "越多越好。", "除此之外，还需要一间安静、宽敞而明亮的织造室。", "都给他们。",
+    ]
+    speakers = ["皇帝", "高个骗子", "矮个骗子", "高个骗子", "矮个骗子", "皇帝"]
+    times = [(1, 2.5), (2.7, 4.2), (4.4, 6.4), (6.6, 7.6), (7.8, 12.8), (13, 14)]
+
+    class FakeLLMService:
+        async def chat_completion(self, **kwargs):
+            return {"success": True, "content": """subject_definitions:
+<Subject 1> is 皇帝, the ruler.
+<Subject 2> is 高个骗子, the taller visitor.
+<Subject 3> is 矮个骗子, the shorter visitor.
+<Subject 4> is 宫廷总管, a court official.
+summary:
+The visitors face the ruler; the camera moves gently.
+dialogue_timeline:
+D4: <Subject 3> speaks from 6.6s to 7.6s. exact_dialogue: “越多越好。”
+detailed_description:
+Picture 1 to Picture 2: <Subject 2> stands upright and watches <Subject 1>.
+Picture 2 to Picture 3: <Subject 3> shifts gaze toward <Subject 1>.
+overall_soundscape:
+Room tone and footsteps accompany assigned dialogue D1-D6."""}
+
+    monkeypatch.setattr(video_director_ai, "LLMService", FakeLLMService)
+    monkeypatch.setattr(video_director_ai, "resolve_prompt_template", lambda *_: SimpleNamespace(template="system", name="template"))
+    shot = SimpleNamespace(
+        id="shot-17", index=17, chapter_id="chapter-id", description="皇帝面对骗子",
+        video_description="", duration=28, continuity_mode="NORMAL",
+        characters=json.dumps([*dict.fromkeys(speakers), "宫廷总管"], ensure_ascii=False),
+        scene="宫殿", props="[]", dialogues="[]", video_director_plan=None,
+    )
+    dialogues = [
+        {"dialogue_id": f"D{i}", "character_name": speaker, "text": f"“{text}”",
+         "start_time": start, "end_time": end, "local_start_time": start, "local_end_time": end,
+         "projection_mode": "intersection"}
+        for i, (speaker, text, (start, end)) in enumerate(zip(speakers, texts, times), 1)
+    ]
+    prompt = await video_director_ai.build_h3_video_prompt(
+        db=SimpleNamespace(commit=lambda: None), novel=SimpleNamespace(id="novel-id"), shot=shot,
+        selected_mode="MULTI_KEYFRAME", clip={"clip_index": 1, "start_time": 0, "end_time": 14.2},
+        workflow_capability={}, workflow_type="three_frame_video", workflow_name="workflow",
+        start_image_url=None, keyframes=[], transitions=[], clip_dialogues=dialogues,
+        reference_images=[],
+    )
+
+    assert prompt.count("dialogue_timeline:") == 1
+    for i, (text, subject, (start, end)) in enumerate(zip(texts, [1, 2, 3, 2, 3, 1], times), 1):
+        assert prompt.count(text) == 1
+        assert f"D{i}:\n  speaker: <Subject {subject}>\n  start_time: {float(start)}s\n  end_time: {float(end)}s\n  exact_dialogue: {text}" in prompt
+    assert 'exact_dialogue: "' not in prompt
+    assert "<Subject 3> speaks from 6.6s" not in prompt
+    assert "silent_characters: <Subject 4>" in prompt
+
+
+def test_conflicting_subject_mapping_is_not_used_as_speech_authority():
+    with pytest.raises(ValueError, match="Subject mapping conflicts"):
+        video_director_ai._subject_bindings(
+            "subject_definitions:\n<Subject 2> is 皇帝, the ruler.", ["皇帝", "高个骗子"]
+        )

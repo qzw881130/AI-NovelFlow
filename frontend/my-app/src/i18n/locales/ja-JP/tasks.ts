@@ -77,6 +77,7 @@ export default {
       'Minimax H3 首尾帧生视频': 'Minimax H3 開始/終了フレーム動画',
       'Minimax H3 三帧生视频': 'Minimax H3 3フレーム動画',
       'Minimax H3 四帧生视频': 'Minimax H3 4フレーム動画',
+      'Minimax H3 多参考生视频 V20260928': 'Minimax H3 複数参照画像動画 V20260928',
       'LTX2 镜头转场视频': 'LTX2 カメラトランジション',
       'LTX2 光线转场视频': 'LTX2 ライティングトランジション',
       'LTX2 遮挡转场视频': 'LTX2 オクルージョントランジション',
@@ -84,6 +85,7 @@ export default {
       'Flux2-Klein-9B 分镜生图双图参考': 'Flux2-Klein-9B ショット画像生成（デュアル参照）',
     },
     workflowDescriptions: {
+      'MiniMax H3 多参考生视频，支持 0～9 张参考图': 'MiniMax H3 動画生成、参照画像 0～9 枚に対応',
       '系统预设的人设生成工作流': 'システム既定のキャラ生成ワークフロー',
       '系统预设的人设生成工作流（Flux2 Klein 9B 三视图）': 'システム既定のキャラ生成ワークフロー（Flux2 Klein 9B 三面図）',
       '系统预设的场景生成工作流': 'システム既定のシーン生成ワークフロー',

@@ -1251,6 +1251,16 @@ export const createGenerationSlice: StateCreator<
             const taskBelongsToCurrentKeyframe = legacyKeyframe?.image_task_id === task.id || (legacyKeyframe as any)?.imageTaskId === task.id;
             const taskPromptText = typeof task.promptText === 'string' ? task.promptText.trim() : '';
 
+            // A terminal task must never leave the UI in a permanent
+            // "generating" state. The Shot/keyframe payload can lag behind
+            // the task queue, so clear the UI marker before attempting any
+            // optional asset reconciliation.
+            if (task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') {
+              if (newGeneratingKeyframes.delete(keyframeKey)) {
+                generatingKeyframesUpdated = true;
+              }
+            }
+
             // 更新任务状态
             const taskIndex = newKeyframeTasks.findIndex(t => t.taskId === task.id);
             if (taskIndex >= 0) {
@@ -1351,13 +1361,9 @@ export const createGenerationSlice: StateCreator<
                  shotsUpdated = true;
                  refreshShotIds.add(shotId);
                }
-            } else if (task.status === 'failed') {
-              if (taskIndex < 0 && !taskBelongsToCurrentKeyframe) return;
-              // 失败时从生成中集合移除
-              if (newGeneratingKeyframes.has(keyframeKey)) {
-                newGeneratingKeyframes.delete(keyframeKey);
-                generatingKeyframesUpdated = true;
-              }
+            } else if (task.status === 'failed' || task.status === 'cancelled') {
+              // Terminal-state cleanup already happened above. Keep this
+              // branch intentionally side-effect free for stale task rows.
             }
           }
         });

@@ -425,48 +425,84 @@ def build_dialogue_timeline(clip: dict, clip_dialogues: list, shot_characters: l
     return assigned, silent_characters, timeline_status
 
 
-def _render_dialogue_timeline_block(assigned_dialogues: list, silent_characters: list) -> str:
+def _exact_spoken_text(value: str) -> str:
+    """Remove punctuation used to quote a whole utterance, not its spoken content."""
+    text = str(value or "").strip()
+    while len(text) >= 2 and (text[0], text[-1]) in {("“", "”"), ('"', '"')}:
+        text = text[1:-1].strip()
+    return text
+
+
+def _subject_bindings(prompt: str, visible_characters: list) -> dict:
+    """Bind the injected speech timeline to the same visible Subject order as #13."""
+    bindings = {name: f"<Subject {index}>" for index, name in enumerate(visible_characters, 1)}
+    for subject, name in re.findall(r"(<Subject\s+\d+>)\s+is\s+([^,\n.;—]+)", prompt):
+        name = name.strip()
+        if name in bindings and subject != bindings[name]:
+            raise ValueError(f"#13 Subject mapping conflicts with clip_visible_characters: {name}")
+    return bindings
+
+
+def _render_dialogue_timeline_block(assigned_dialogues: list, silent_characters: list, subject_bindings: dict | None = None) -> str:
+    subject_bindings = subject_bindings or {}
     if not assigned_dialogues:
         lines = [
             "dialogue_timeline:",
             "No assigned dialogue. No character is authorized to speak throughout this clip.",
         ]
         if silent_characters:
-            lines.append("silent_characters: " + ", ".join(silent_characters))
+            lines.append("silent_characters: " + ", ".join(subject_bindings.get(name, name) for name in silent_characters))
         lines.append("This human-voice restriction does not mute the audio track; environmental ambience and synchronized Foley remain audible.")
         return "\n".join(lines)
     lines = [
         "dialogue_timeline:",
         "This is the only source of exact spoken text in this prompt.",
         "Speak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.",
+        "All assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.",
     ]
     for item in assigned_dialogues:
+        subject = subject_bindings.get(item["speaker"])
+        if not subject:
+            raise ValueError(f"No visible Subject mapping for dialogue speaker: {item['speaker']}")
         continuation = " This is a continuation of the same utterance; do not restart or repeat its earlier part." if item.get("is_continuation") else ""
         next_continuation = " This utterance continues into the next Clip." if item.get("continues_in_next_clip") else ""
         lines.extend([
-            f"- {item['id']}: {item['speaker']} speaks from {item['start_time']}s to {item['end_time']}s ({item['duration']}s).",
-            f"  exact_dialogue: \"{item['text']}\"",
+            f"{item['id']}:",
+            f"  speaker: {subject}",
+            f"  start_time: {item['start_time']}s",
+            f"  end_time: {item['end_time']}s",
+            f"  exact_dialogue: {_exact_spoken_text(item['text'])}",
             f"  segment: {item.get('segment_index', 1)}; {continuation.strip()}{next_continuation}" if item.get("segment_index", 1) > 1 or item.get("continues_in_next_clip") else "  segment: complete assigned span.",
-            "  Speak only the exact_dialogue text. Do not speak the character name. No subtitles, captions, or on-screen text.",
+            "  Only this Subject may produce human vocalization during this event; all other Subjects remain non-vocal. Do not speak metadata labels. No subtitles, captions, or on-screen text.",
         ])
     if silent_characters:
-        lines.append("silent_characters: " + ", ".join(silent_characters))
+        lines.append("silent_characters: " + ", ".join(subject_bindings.get(name, name) for name in silent_characters))
     lines.append("All non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.")
     return "\n".join(lines)
+
+
+def _remove_generated_dialogue_timeline(prompt: str) -> str:
+    """The LLM supplies visual direction; only the assembly supplies speech."""
+    return re.sub(
+        r"(?ims)^dialogue_timeline:\s*\n.*?(?=^(?:subject_definitions|official_character_identity_lock|keyframe_timeline|summary|detailed_description|overall_soundscape|shot_continuity_lock):|\Z)",
+        "",
+        prompt or "",
+    ).strip()
 
 
 def _remove_dialogue_text_outside_single_block(prompt: str, assigned_dialogues: list, timeline_block: str) -> str:
     body = prompt or ""
     for item in assigned_dialogues:
-        text = item.get("text") or ""
-        if text:
-            body = body.replace(f"“{text}”", f"assigned dialogue {item['id']}")
-            body = body.replace(f"\"{text}\"", f"assigned dialogue {item['id']}")
-            body = body.replace(text, f"assigned dialogue {item['id']}")
+        text = _exact_spoken_text(item.get("text"))
+        for variant in (item.get("text") or "", text):
+            if variant:
+                body = body.replace(f"“{variant}”", f"assigned dialogue {item['id']}")
+                body = body.replace(f"\"{variant}\"", f"assigned dialogue {item['id']}")
+                body = body.replace(variant, f"assigned dialogue {item['id']}")
     return f"{timeline_block}\n\n{body}".strip()
 
 
-def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_characters: list) -> dict:
+def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_characters: list, subject_bindings: dict | None = None) -> dict:
     issues = []
     subject_mappings = {
         name.strip(): subject
@@ -474,23 +510,26 @@ def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_c
         if name.strip()
     }
     for item in assigned_dialogues:
-        text = item.get("text") or ""
+        text = _exact_spoken_text(item.get("text"))
         speaker = item.get("speaker") or ""
         occurrence_count = final_prompt.count(text) if text else 0
         if occurrence_count > 1:
             issues.append("DIALOGUE_DUPLICATED_IN_PROMPT")
         if occurrence_count != 1:
             issues.append("DIALOGUE_EXACT_TEXT_OCCURRENCE_INVALID")
-        if not speaker or speaker not in final_prompt:
+        if not speaker or not re.search(rf"(?m)^\s*speaker: <Subject \d+>\s*$", final_prompt):
             issues.append("DIALOGUE_SPEAKER_MISSING")
         if not item.get("duration_sufficient"):
             issues.append("DIALOGUE_DURATION_INSUFFICIENT")
     for character in silent_characters:
-        subject = subject_mappings.get(character)
+        subject = (subject_bindings or {}).get(character) or subject_mappings.get(character)
         subject_is_silent = bool(subject and re.search(
             rf"{re.escape(subject)}[^.!?\n]*\b(?:remain|remains|stay|stays)\s+(?:non-vocal|silent)\b",
             final_prompt,
             re.IGNORECASE,
+        ))
+        subject_is_silent = subject_is_silent or bool(subject and re.search(
+            rf"(?m)^silent_characters: [^\n]*{re.escape(subject)}", final_prompt
         ))
         if character and character not in final_prompt and not subject_is_silent:
             issues.append("SILENT_CHARACTER_CONSTRAINT_MISSING")
@@ -649,14 +688,17 @@ async def build_h3_video_prompt(
         raise RuntimeError(result.get("error") or "H3 视频提示词生成失败")
 
     final_prompt = (result.get("content") or "").strip()
+    if selected_mode == "MULTI_KEYFRAME":
+        final_prompt = _remove_generated_dialogue_timeline(final_prompt)
     continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
     if continuity_lock:
         final_prompt = f"{continuity_lock}\n\n{final_prompt}"
     dialogue_audit = None
     if is_multi_clip or is_semantic_clip:
-        timeline_block = _render_dialogue_timeline_block(assigned_dialogues, silent_characters)
+        subject_bindings = _subject_bindings(final_prompt, clip_visible_characters)
+        timeline_block = _render_dialogue_timeline_block(assigned_dialogues, silent_characters, subject_bindings)
         final_prompt = _remove_dialogue_text_outside_single_block(final_prompt, assigned_dialogues, timeline_block)
-        dialogue_audit = _audit_final_h3_prompt(final_prompt, assigned_dialogues, silent_characters)
+        dialogue_audit = _audit_final_h3_prompt(final_prompt, assigned_dialogues, silent_characters, subject_bindings)
         if not dialogue_audit.get("passed"):
             append_video_ai_call(shot, {
                 "step": step,

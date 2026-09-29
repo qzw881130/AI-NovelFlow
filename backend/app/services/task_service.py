@@ -82,6 +82,9 @@ class TaskService:
             "first_last_video": ["prompt_node_id", "first_image_node_id", "last_image_node_id", "video_save_node_id"],
             "three_frame_video": ["prompt_node_id", "video_save_node_id", "reference_image_node_id", "keyframe_node_1", "keyframe_node_2"],
             "four_frame_video": ["prompt_node_id", "video_save_node_id", "reference_image_node_id", "keyframe_node_1", "keyframe_node_2", "keyframe_node_3"],
+            "VIDEO_CONTINUATION": ["load_video_node_id", "duration_seconds_node_id", "prompt_node_id", "video_save_node_id", "reference_to_video_node_id", *(f"load_image_node_{i}" for i in range(1, 10))],
+            "TEMPORAL_EXTEND": ["load_video_node_id", "duration_seconds_node_id", "prompt_node_id", "custom_keyframes_node_id", "video_save_node_id", "reference_to_video_node_id", *(f"keyframe_node_{i}" for i in range(1, 9)), *(f"load_image_node_{i}" for i in range(1, 10))],
+            "multi_reference_video": ["prompt_node_id", "video_save_node_id", "duration_seconds_node_id", "reference_to_video_node_id", *(f"load_image_node_{i}" for i in range(1, 10))],
             "transition": ["first_image_node_id", "last_image_node_id", "video_save_node_id"],
             "character_audio": ["reference_audio_node_id", "text_node_id"]
         }
@@ -113,6 +116,7 @@ class TaskService:
             "width_node_id": "宽度节点",
             "height_node_id": "高度节点",
             "reference_image_node_id": "参考图片节点1",
+            "reference_to_video_node_id": "MiniMax H3 Reference to Video 节点",
             "character_reference_image_node_id": "角色参考图节点",
             "scene_reference_image_node_id": "场景参考图节点",
             "prop_reference_image_node_id": "道具参考图节点",
@@ -126,6 +130,7 @@ class TaskService:
             "keyframe_node_2": "参考图片节点3",
             "keyframe_node_3": "参考图片节点4",
         }
+        field_names.update({f"load_image_node_{i}": f"参考图片节点{i}" for i in range(1, 10)})
 
         for field in fields:
             if not node_mapping.get(field):
@@ -134,7 +139,7 @@ class TaskService:
         if missing_fields:
             return False, f"工作流 '{workflow.name}' 的映射配置不完整，缺少以下必需字段：{', '.join(missing_fields)}。请在【系统配置-ComfyUI工作流】中配置完整后再试。"
 
-        if task_type in {"video", "three_frame_video", "four_frame_video"} and not node_mapping.get("video_output_node_id"):
+        if task_type in {"video", "three_frame_video", "four_frame_video", "multi_reference_video"} and not node_mapping.get("video_output_node_id"):
             has_max_side = bool(node_mapping.get("max_side_node_id"))
             has_megapixels = bool(node_mapping.get("megapixels_node_id"))
             if has_max_side == has_megapixels:
@@ -1332,6 +1337,17 @@ class TaskService:
                 status = window.get("status")
                 if task.status != "running" and str(status or "").upper() in {"PROMPT_BUILDING", "QUEUED", "RUNNING"}:
                     status = "SUCCEEDED" if video_url else ("FAILED" if task.status == "failed" else None)
+                normalized_status = str(status or '').upper()
+                # A persisted reference_images list can belong to a previous
+                # Clip attempt. Do not show it while this Clip is waiting for
+                # execution; bind/display references only after the worker has
+                # entered prompt-building/running, or after success.
+                visible_reference_images = (
+                    window.get("reference_images")
+                    if normalized_status in {"PROMPT_BUILDING", "RUNNING", "SUCCEEDED"}
+                    and isinstance(window.get("reference_images"), list)
+                    else []
+                )
                 clips.append({
                     "windowIndex": window.get("window_index"),
                     "status": status,
@@ -1343,7 +1359,7 @@ class TaskService:
                     "seed": window.get("seed") or extract_workflow_seed(window.get("workflow_json")),
                     "promptText": window.get("prompt_text"),
                     "hasWorkflowJson": any(window.get(key) is not None for key in ("workflow_json", "replay_workflow_json", "source_workflow_json")),
-                    "referenceImages": window.get("reference_images") if isinstance(window.get("reference_images"), list) else [],
+                    "referenceImages": visible_reference_images,
                     "videoUrl": video_url,
                     "sourceVideoUrl": window.get("source_video_url"),
                     "errorMessage": window.get("error_message") or (task.error_message if task.status == "failed" and status == "FAILED" else None),
@@ -1351,6 +1367,11 @@ class TaskService:
                     "dialogueCount": len(window.get("clip_dialogues") or []) if isinstance(window.get("clip_dialogues"), list) else None,
                 })
             return clips
+
+        formatted_clips_by_task = {}
+        for task in tasks:
+            if task.type in {"shot_video", "shot_video_hd"}:
+                formatted_clips_by_task[task.id] = format_video_director_clips(task)
 
         return [
             {
@@ -1371,8 +1392,10 @@ class TaskService:
                 "hasWorkflowJson": t.workflow_json is not None,
                 "hasPromptText": t.prompt_text is not None,
                 "seed": t.seed or extract_workflow_seed(t.workflow_json),
-                "referenceImages": parse_reference_images(t.reference_images),
-                "videoDirectorClips": format_video_director_clips(t),
+                # Multi-Clip tasks expose references per Clip. The task-level
+                # snapshot may be stale while another Clip is waiting.
+                "referenceImages": [] if formatted_clips_by_task.get(t.id) else parse_reference_images(t.reference_images),
+                "videoDirectorClips": formatted_clips_by_task.get(t.id, []),
                 "novelId": t.novel_id,
                 "novelName": novels.get(t.novel_id).title if t.novel_id and t.novel_id in novels else None,
                 "chapterId": t.chapter_id,

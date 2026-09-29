@@ -105,6 +105,16 @@ class WorkflowService:
                     if node_mapping and not existing.node_mapping:
                         existing.node_mapping = json.dumps(node_mapping, ensure_ascii=False)
                         print(f"[Workflow] Updated node mapping for default: {wf_type}")
+                    elif wf_type == "TEMPORAL_EXTEND" and node_mapping:
+                        current_mapping = self._parse_json_field(existing.node_mapping)
+                        missing_slots = {
+                            key: value for key, value in node_mapping.items()
+                            if (key.startswith("load_image_node_") or key == "reference_to_video_node_id")
+                            and not current_mapping.get(key)
+                        }
+                        if missing_slots:
+                            existing.node_mapping = json.dumps({**current_mapping, **missing_slots}, ensure_ascii=False)
+                            print(f"[Workflow] Added temporal reference mappings for default: {wf_type}")
                     continue
 
                 workflow = Workflow(
@@ -175,6 +185,17 @@ class WorkflowService:
             if not current_mapping:
                 existing.node_mapping = json.dumps(wf_config["node_mapping"], ensure_ascii=False)
                 print(f"[Workflow] Updated node mapping: {wf_config['name']}")
+            elif wf_config["type"] in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND", "multi_reference_video"}:
+                # Upgrade the existing system record in place; preserve its
+                # video/prompt/output mappings and default status.
+                missing_slots = {
+                    key: value for key, value in wf_config["node_mapping"].items()
+                    if (key.startswith("load_image_node_") or key == "reference_to_video_node_id")
+                    and not current_mapping.get(key)
+                }
+                if missing_slots:
+                    existing.node_mapping = json.dumps({**current_mapping, **missing_slots}, ensure_ascii=False)
+                    print(f"[Workflow] Added continuation reference mappings: {wf_config['name']}")
 
         # 更新扩展属性（如果配置中有且未设置）
         if "extension" in wf_config:

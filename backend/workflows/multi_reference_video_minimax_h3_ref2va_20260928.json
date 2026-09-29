@@ -1,0 +1,456 @@
+{
+  "115": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": [
+        "171",
+        0
+      ],
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "#115 Resolution Selector (Size)"
+    }
+  },
+  "119": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#119 Load VAE"
+    }
+  },
+  "120": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "#120 Load VAE"
+    }
+  },
+  "121": {
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "#121 VAE Decode Audio"
+    }
+  },
+  "122": {
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "#122 VAE Decode"
+    }
+  },
+  "123": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "#123 KSamplerSelect"
+    }
+  },
+  "124": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 6,
+      "denoise": 1,
+      "model": [
+        "141",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "#124 BasicScheduler"
+    }
+  },
+  "125": {
+    "inputs": {
+      "noise": [
+        "129",
+        0
+      ],
+      "guider": [
+        "126",
+        0
+      ],
+      "sampler": [
+        "123",
+        0
+      ],
+      "sigmas": [
+        "124",
+        0
+      ],
+      "latent_image": [
+        "136",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "#125 SamplerCustomAdvanced"
+    }
+  },
+  "126": {
+    "inputs": {
+      "model": [
+        "141",
+        0
+      ],
+      "conditioning": [
+        "136",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "#126 Basic Guider"
+    }
+  },
+  "127": {
+    "inputs": {
+      "unet_name": "minimax_h3_ref2va_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "#127 Load Diffusion Model"
+    }
+  },
+  "128": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "#128 Load CLIP"
+    }
+  },
+  "129": {
+    "inputs": {
+      "noise_seed": 877023894389331
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "#129 RandomNoise"
+    }
+  },
+  "130": {
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "color_space": "sRGB",
+      "codec": "none",
+      "images": [
+        "122",
+        0
+      ],
+      "audio": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "#130 Create Video"
+    }
+  },
+  "131": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "132",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "#131 Math Expression"
+    }
+  },
+  "132": {
+    "inputs": {
+      "value": 5
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "#132 Float (Duration)"
+    }
+  },
+  "136": {
+    "inputs": {
+      "prompt": [
+        "138",
+        0
+      ],
+      "width": [
+        "115",
+        0
+      ],
+      "height": [
+        "115",
+        1
+      ],
+      "length": [
+        "131",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "128",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ],
+      "audio_vae": [
+        "120",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "137",
+        0
+      ],
+      "ref_images.ref_image_1": [
+        "139",
+        0
+      ],
+      "ref_images.ref_image_2": [
+        "172",
+        0
+      ],
+      "ref_images.ref_image_3": [
+        "173",
+        0
+      ],
+      "ref_images.ref_image_4": [
+        "175",
+        0
+      ],
+      "ref_images.ref_image_5": [
+        "174",
+        0
+      ],
+      "ref_images.ref_image_6": [
+        "176",
+        0
+      ],
+      "ref_images.ref_image_7": [
+        "177",
+        0
+      ],
+      "ref_images.ref_image_8": [
+        "178",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "#136 MiniMax H3 Reference to Video"
+    }
+  },
+  "137": {
+    "inputs": {
+      "image": "shot_2ee840cc_20260927_093645.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#137 Reference Image 1"
+    }
+  },
+  "138": {
+    "inputs": {
+      "value": "<Picture 1> and <Picture 2> are chronological visual references for this video.\n\n<Picture 1> is the START state.\n<Picture 2> is the END state.\n\nThe video transitions naturally and continuously from <Picture 1> to <Picture 2>.\n\nPreserve the same four characters, their identities, appearance, clothing, left-right positions, and the palace hall shown consistently in <Picture 1> and <Picture 2>.\n\nThe four visible characters are:\n<Subject 1> = 皇帝, the man in the purple robe and gold crown on the right.\n<Subject 2> = 高个骗子, the tall slim man wearing a dark gray wide-brim hat.\n<Subject 3> = 矮个骗子, the short round man wearing a dark brown wide-brim hat.\n<Subject 4> = 宫廷总管, the elderly man in black at the far left.\n\ndialogue_timeline:\nThis is the only source of spoken dialogue in the video.\n\nD1:\n  speaker: <Subject 1>\n  start_time: 1.0s\n  end_time: 2.5s\n  exact_dialogue: 你们需要什么？\n\nOnly <Subject 1> speaks.\n<Subject 2>, <Subject 3>, and <Subject 4> remain silent throughout the entire video.\n\nDuring D1, <Subject 1> naturally moves his mouth in synchronization with the exact Mandarin Chinese dialogue.\n<Subject 2>, <Subject 3>, and <Subject 4> do not speak and do not perform speaking lip movements.\n\nDo not translate, paraphrase, repeat, shorten, or add words.\nDo not generate any additional human speech, whispering, murmuring, filler sounds, invented syllables, or background voices.\n\nKeep the camera as a stable medium shot consistent with <Picture 1> and <Picture 2>.\nKeep all four characters visible.\nDo not cut to another shot.\nDo not introduce new characters.\n\nBefore D1, <Subject 1>'s mouth is naturally closed or relaxed.\nDuring D1, only <Subject 1>'s mouth performs natural speech articulation.\nImmediately after D1 ends, <Subject 1>'s mouth returns to a natural relaxed non-speaking state.\n\nThe other three characters may show only subtle natural breathing and tiny idle movements while remaining silent.\n\nPreserve the palace hall environment and daylight appearance consistently across <Picture 1> and <Picture 2>.\nNatural palace hall ambience may remain audible, but no music and no additional human voices.\n\nNo subtitles, captions, dialogue text, labels, logos, watermarks, or other on-screen text."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "#138 Input Text (Prompt)"
+    }
+  },
+  "139": {
+    "inputs": {
+      "image": "keyframe_1_20260927_162143.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#139 Reference Image 2"
+    }
+  },
+  "141": {
+    "inputs": {
+      "max_resolution": 1024,
+      "jpeg_quality": 80,
+      "suppress_default_preview": true,
+      "preview_frames": [
+        "131",
+        1
+      ],
+      "preview_fps": 12,
+      "tiny_vae": "none",
+      "model": [
+        "149",
+        0
+      ]
+    },
+    "class_type": "ModelPreviewOverrideKJ",
+    "_meta": {
+      "title": "#141 Model Preview Override"
+    }
+  },
+  "142": {
+    "inputs": {
+      "model": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+    "_meta": {
+      "title": "#142 MiniMax H3 Mem Eff Sage Attention Patch"
+    }
+  },
+  "147": {
+    "inputs": {
+      "lora_name": "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+      "strength_model": 0.75,
+      "model": [
+        "142",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "#147 Load LoRA"
+    }
+  },
+  "149": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "147",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "#149 ModelSamplingMiniMaxH3"
+    }
+  },
+  "169": {
+    "inputs": {
+      "filename_prefix": "video/MiniMax_H3",
+      "format": "auto",
+      "format.codec": "auto",
+      "codec": "auto",
+      "video-preview": "",
+      "video": [
+        "130",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "#169 Save Video（低分辨率）"
+    }
+  },
+  "171": {
+    "inputs": {
+      "value": 0.4
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "#171 Megapixels"
+    }
+  },
+  "172": {
+    "inputs": {
+      "image": "keyframe_1_20260927_162143.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#172 Reference Image 3"
+    }
+  },
+  "173": {
+    "inputs": {
+      "image": "高个骗子_20260927_092157.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#173 Reference Image 4"
+    }
+  },
+  "174": {
+    "inputs": {
+      "image": "皇帝_20260927_092242.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#174 Reference Image 6"
+    }
+  },
+  "175": {
+    "inputs": {
+      "image": "矮个骗子_20260927_092217.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#175 Reference Image 5"
+    }
+  },
+  "176": {
+    "inputs": {
+      "image": "shot_d1d6a1c9_20260926_105611.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#176 Reference Image 7"
+    }
+  },
+  "177": {
+    "inputs": {
+      "image": "宽边礼帽_20260927_092830.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#177 #-1 Reference Image 8"
+    }
+  },
+  "178": {
+    "inputs": {
+      "image": "0.jpg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#178 #-1 Reference Image 9"
+    }
+  }
+}

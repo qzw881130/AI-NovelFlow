@@ -201,6 +201,42 @@
       "audio_vae": [
         "102",
         0
+      ],
+      "ref_images.ref_image_0": [
+        "69",
+        0
+      ],
+      "ref_images.ref_image_1": [
+        "68",
+        0
+      ],
+      "ref_images.ref_image_2": [
+        "109",
+        0
+      ],
+      "ref_images.ref_image_3": [
+        "110",
+        0
+      ],
+      "ref_images.ref_image_4": [
+        "111",
+        0
+      ],
+      "ref_images.ref_image_5": [
+        "112",
+        0
+      ],
+      "ref_images.ref_image_6": [
+        "113",
+        0
+      ],
+      "ref_images.ref_image_7": [
+        "114",
+        0
+      ],
+      "ref_images.ref_image_8": [
+        "115",
+        0
       ]
     },
     "class_type": "MiniMaxH3ReferenceToVideo",
@@ -262,7 +298,6 @@
       "save_metadata": false,
       "trim_to_audio": true,
       "save_output": true,
-      "video-preview": "",
       "video_vae": [
         "30",
         0
@@ -326,6 +361,24 @@
     "class_type": "MiniMaxH3CropTo32",
     "_meta": {
       "title": "#67 H3 Crop Source To /32"
+    }
+  },
+  "68": {
+    "inputs": {
+      "image": "derope_continuation_reference.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#68 Reference Image 2"
+    }
+  },
+  "69": {
+    "inputs": {
+      "image": "c90ee577-98eb-4f6c-9b0c-562a6b448d69.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#69 Reference Image 1"
     }
   },
   "70": {
@@ -465,18 +518,6 @@
       "title": "#98 H3 Last Active VHS Preview Barrier"
     }
   },
-  "99": {
-    "inputs": {
-      "filenames": [
-        "65",
-        0
-      ]
-    },
-    "class_type": "MiniMaxH3FinalizeVHSOutput",
-    "_meta": {
-      "title": "#99 H3 Final Stream Output Sink"
-    }
-  },
   "101": {
     "inputs": {
       "images": [
@@ -560,6 +601,69 @@
     "class_type": "easy showAnything",
     "_meta": {
       "title": "#108 #-1 Show Any"
+    }
+  },
+  "109": {
+    "inputs": {
+      "image": "derope_continuation_reference.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#109 Reference Image 3"
+    }
+  },
+  "110": {
+    "inputs": {
+      "image": "derope_continuation_reference.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#110 Reference Image 4"
+    }
+  },
+  "111": {
+    "inputs": {
+      "image": "derope_continuation_reference.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#111 Reference Image 5"
+    }
+  },
+  "112": {
+    "inputs": {
+      "image": "derope_continuation_reference.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#112 Reference Image 6"
+    }
+  },
+  "113": {
+    "inputs": {
+      "image": "derope_continuation_reference.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#113 Reference Image 7"
+    }
+  },
+  "114": {
+    "inputs": {
+      "image": "derope_continuation_reference.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#114 Reference Image 8"
+    }
+  },
+  "115": {
+    "inputs": {
+      "image": "derope_continuation_reference.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "#115 Reference Image 9"
     }
   }
 }
