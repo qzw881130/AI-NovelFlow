@@ -1,0 +1,192 @@
+import asyncio
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from app.services.clip_execution_compiler import compile_extend_clip
+from app.services.shot_video_service import _select_video_prompt_context, _semantic_clip_prompt_context
+from app.services import video_director_ai
+
+
+@pytest.mark.parametrize("planning_mode", ["SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"])
+def test_semantic_extend_dialogue_reaches_existing_h3_prompt_path(monkeypatch, planning_mode):
+    captured = {}
+
+    class FakeLLMService:
+        async def chat_completion(self, **kwargs):
+            captured.update(kwargs)
+            return {
+                "success": True,
+                "content": """subject_definitions:
+<Subject 1> is 骗子1, the first visible speaker.
+<Subject 2> is 骗子2, the second visible speaker.
+summary:
+The two subjects continue their visual action across the current Clip.
+detailed_description:
+The camera and scene continue from the current visual anchors.
+overall_soundscape:
+Room tone and action Foley accompany the scene.""",
+            }
+
+    monkeypatch.setattr(video_director_ai, "LLMService", FakeLLMService)
+    monkeypatch.setattr(
+        video_director_ai,
+        "resolve_prompt_template",
+        lambda *_args: SimpleNamespace(template="system", name="template-13" if planning_mode == "MULTI_KEYFRAME" else "template"),
+    )
+
+    dialogues = [
+        {"dialogue_id": f"D{index}", "speaker": speaker, "text": text,
+         "start_time": start, "end_time": end, "estimated_duration": end - start}
+        for index, (speaker, text, start, end) in enumerate([
+            ("骗子1", "旧对白一", 1.0, 1.5),
+            ("骗子2", "旧对白二", 1.7, 2.7),
+            ("骗子1", "旧对白三", 2.9, 5.9),
+            ("骗子2", "旧对白四", 6.1, 10.6),
+            ("骗子1", "可是谁把你带进王城的？", 10.8, 13.3),
+            ("骗子2", "没有我的主意，你连宫门都进不来。", 13.5, 17.0),
+            ("骗子1", "没有我，你现在还在城外睡马棚。", 17.2, 20.45),
+        ], 1)
+    ]
+    keyframes = [
+        {"index": index, "role": role, "time_seconds": time, "description": description,
+         "image_url": f"/api/files/kf{index}.png" if index > 1 else None}
+        for index, role, time, description in [
+            (1, "START", 0.0, "Characters:\n- 骗子1: holds gold thread\n- 骗子2: reaches forward"),
+            (2, "INTERMEDIATE", 7.5, "Characters:\n- 骗子1: speaks\n- 骗子2: listens"),
+            (3, "INTERMEDIATE", 15.0, "Characters:\n- 骗子1: glares\n- 骗子2: speaks"),
+            (4, "INTERMEDIATE", 19.5, "Characters:\n- 骗子1: speaks\n- 骗子2: speaks"),
+            (5, "END", 24.0, "Characters:\n- 骗子1: glares\n- 骗子2: glares"),
+        ]
+    ]
+    clip_plan = [
+        {"clip_index": 1, "start_time": 0.0, "end_time": 10.6, "capability": "GENERATE", "planning_mode": "SINGLE_FRAME"},
+        {
+            "clip_index": 2, "start_time": 10.6, "end_time": 24.0,
+            "planned_duration": 13.4, "capability": "EXTEND",
+            "continuity_to_previous": "CONTINUOUS", "requires_temporal_control": False,
+            "previous_clip_index": 1, "planning_mode": planning_mode,
+            "keyframe_indexes": [3, 4, 5], "dialogue_assignment": dialogues[4:],
+        },
+    ]
+    plan = {
+        "clip_plan_revision": 1,
+        "clip_plan": clip_plan,
+        "keyframes": keyframes,
+        "transitions": [],
+        # The legacy visual window starts at 0 and must not replace semantic C2.
+        "window_plans": [
+            {"window_index": 1, "start_time": 0.0, "end_time": 15.0, "keyframe_indexes": [1, 2, 3]},
+            {"window_index": 2, "start_time": 15.0, "end_time": 24.0, "keyframe_indexes": [3, 4, 5]},
+        ],
+    }
+    clip_metadata = {
+        "execution_scope": "CLIP",
+        "clip_index": 2,
+        "clip_plan_revision": 1,
+        "dialogue_assignment": dialogues[4:],
+        "execution_contract": {
+            "version": 1,
+            "capability": "EXTEND",
+            "artifact_kind": "CLIP_ONLY",
+            "clip": {"clip_index": 2, "clip_plan_revision": 1, "duration_seconds": 13.4},
+            "previous_clip": {
+                "clip_index": 1,
+                "clip_plan_revision": 1,
+                "generated_by_task_id": "task-a",
+                "result_url": "/api/files/task-a.mp4",
+            },
+        },
+    }
+    context = _select_video_prompt_context(
+        plan,
+        clip_metadata,
+        planning_mode,
+        duration=24.0,
+        clip_only_execution=True,
+    )
+    shot = SimpleNamespace(
+        id="shot-c4c", index=20, chapter_id="chapter-c4c", description="Visual description",
+        video_description="", duration=24, continuity_mode="NORMAL",
+        characters=json.dumps(["骗子1", "骗子2"], ensure_ascii=False), scene="weaving room",
+        props="[]", dialogues="[]", video_director_plan=json.dumps(plan, ensure_ascii=False),
+        image_url="/api/files/shot.png",
+    )
+
+    compiled = compile_extend_clip(
+        shot, plan, context["clip"], planning_mode, 1,
+        {"clip_index": 1, "clip_plan_revision": 1, "generated_by_task_id": "task-a", "result_url": "/api/files/task-a.mp4"},
+    )
+    prompt = asyncio.run(video_director_ai.build_h3_video_prompt(
+        db=SimpleNamespace(commit=lambda: None),
+        novel=SimpleNamespace(id="novel-c4c"),
+        shot=shot,
+        selected_mode=planning_mode,
+        clip=context["clip"],
+        workflow_capability={},
+        workflow_type="VIDEO_CONTINUATION",
+        workflow_name="frozen continuation workflow",
+        start_image_url=None,
+        keyframes=context["keyframes"],
+        transitions=context["transitions"],
+        clip_dialogues=context["clip_dialogues"],
+        reference_images=[{"label": "ref", "url": "/api/files/ref.png"}],
+    ))
+
+    payload = json.loads(captured["user_content"].split("\n\n", 1)[1])
+    assert compiled["execution_contract"]["capability"] == "EXTEND"
+    assert compiled["execution_contract"]["previous_clip"]["generated_by_task_id"] == "task-a"
+    assert context["clip"]["planning_mode"] == planning_mode
+    assert context["clip"]["capability"] == "EXTEND"
+    assert context["clip"]["keyframe_indexes"] == [3, 4, 5]
+    assert (context["clip"]["start_time"], context["clip"]["end_time"]) == (10.6, 24.0)
+    if planning_mode == "MULTI_KEYFRAME":
+        assert [item["source_keyframe_index"] for item in compiled["video_reference_manifest"]["references"]] == [3, 4, 5]
+    elif planning_mode == "FIRST_LAST_FRAME":
+        assert [item["source_keyframe_index"] for item in compiled["video_reference_manifest"]["references"]] == [1, 5]
+    else:
+        assert compiled["video_reference_manifest"]["references"][0]["source_type"] == "SHOT_IMAGE"
+
+    assert [item["dialogue_id"] for item in context["clip_dialogues"]] == ["D5", "D6", "D7"]
+    assert [(item["local_start_time"], item["local_end_time"]) for item in context["clip_dialogues"]] == [
+        (0.2, 2.7), (2.9, 6.4), (6.6, 9.85),
+    ]
+    assert [item["id"] for item in payload["dialogue_timeline_source"]] == ["D5", "D6", "D7"]
+    assert [(item["start_time"], item["end_time"]) for item in payload["dialogue_timeline_source"]] == [
+        (0.2, 2.7), (2.9, 6.4), (6.6, 9.85),
+    ]
+    assert payload["silent_characters"] == []
+    assert "No assigned dialogue" not in prompt
+    assert "D5:" in prompt and "D6:" in prompt and "D7:" in prompt
+    assert "可是谁把你带进王城的？" in prompt
+    assert "没有我的主意，你连宫门都进不来。" in prompt
+    assert "没有我，你现在还在城外睡马棚。" in prompt
+    for stale_text in ("旧对白一", "旧对白二", "旧对白三", "旧对白四"):
+        assert stale_text not in prompt
+
+
+@pytest.mark.parametrize(
+    "start,end",
+    [(9.0, 10.0), (10.0, 11.0), (23.0, 25.0)],
+    ids=["fully-before", "partial-before", "partial-after"],
+)
+def test_semantic_clip_dialogue_projection_rejects_out_of_clip_assignment(start, end):
+    plan = {
+        "clip_plan": [{
+            "clip_index": 2,
+            "start_time": 10.6,
+            "end_time": 24.0,
+            "dialogue_assignment": [{
+                "dialogue_id": "D5",
+                "speaker": "骗子1",
+                "text": "current line",
+                "start_time": start,
+                "end_time": end,
+            }],
+        }],
+        "keyframes": [],
+        "transitions": [],
+    }
+    with pytest.raises(ValueError, match="outside clip interval"):
+        _semantic_clip_prompt_context(plan, {"clip_index": 2})

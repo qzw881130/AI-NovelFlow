@@ -729,7 +729,20 @@ class TaskService:
 
         for task in active_tasks:
             age_seconds = task_age_seconds(task)
+            def is_clip_only_task() -> bool:
+                try:
+                    metadata = json.loads(task.metadata_json or "{}")
+                except (TypeError, ValueError):
+                    return False
+                contract = metadata.get("execution_contract") or {}
+                return (
+                    metadata.get("execution_scope") == "CLIP"
+                    and contract.get("artifact_kind") == "CLIP_ONLY"
+                )
+
             def mark_related_shot_failed() -> None:
+                if is_clip_only_task():
+                    return
                 if not task.shot_id:
                     return
                 shot = ShotRepository(db).get_by_id(task.shot_id)
@@ -772,6 +785,10 @@ class TaskService:
                             updated_count += 1
                             continue
                     if task.type == "shot_video" and inactive_seconds(task) > 60:
+                        if is_clip_only_task():
+                            # A CLIP_ONLY worker owns its Clip result; legacy
+                            # recovery must not attempt Shot assembly here.
+                            continue
                         clip_state = self._shot_video_clip_state_for_prompt(task, task.comfyui_prompt_id)
                         if clip_state.get("has_prompt_building_clip"):
                             if inactive_seconds(task) > llm_timeout + 60:

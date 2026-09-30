@@ -2717,7 +2717,7 @@ export function VideoGenTab({
       toast.info(`C${windowIndex} 缺少可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频。`);
       return;
     }
-    if (clip.video_url && !window.confirm(`确认重新生成 C${windowIndex}？完成后会自动重新合并整体视频。`)) return;
+    if (clip.video_url && !window.confirm(`确认重新生成 C${windowIndex}？本次只生成该 Clip，不会自动合并整体视频。`)) return;
 
     const clipKey = getPlanClipKey(clip);
     setRegeneratingClipKey(clipKey);
@@ -2725,8 +2725,9 @@ export function VideoGenTab({
     try {
       const result = await shotsApi.generateVideoDirectorClip(effectiveNovelId, effectiveChapterId, currentShotId, windowIndex, {
         use_reference_audio: true,
-        auto_merge: true,
+        auto_merge: false,
         skip_llm_when_prompt_exists: useExistingPrompt,
+        clip_plan_revision: Number(currentVideoDirectorPlan.clip_plan_revision || 0),
       });
       if (result.success) {
         regeneratingClipWasActiveRef.current = true;
@@ -2735,14 +2736,9 @@ export function VideoGenTab({
           nextGeneratingVideos.add(currentShotId);
           return {
             generatingVideos: nextGeneratingVideos,
-            shots: state.shots.map((shot: any) => (
-              String(shot.id) === currentShotId
-                ? { ...shot, videoStatus: 'generating', videoTaskId: result.data?.taskId || shot.videoTaskId }
-                : shot
-            )),
           };
         });
-        toast.success(`C${windowIndex} 已提交${useExistingPrompt ? '仅生成视频' : 'LLM+生成视频'}，完成后会自动合并`);
+        toast.success(`C${windowIndex} 已提交${useExistingPrompt ? '仅生成视频' : 'LLM+生成视频'}`);
       } else {
         setRegeneratingClipKey(null);
         toast.error(result.message || result.detail || 'Clip 重新生成失败');
@@ -2752,7 +2748,7 @@ export function VideoGenTab({
       console.error('Clip 重新生成失败:', error);
       toast.error('Clip 重新生成失败');
     }
-  }, [currentShotId, effectiveChapterId, effectiveNovelId]);
+  }, [currentShotId, effectiveChapterId, effectiveNovelId, currentVideoDirectorPlan.clip_plan_revision]);
 
   const handleMergeDirectorClips = useCallback(async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;

@@ -1,6 +1,16 @@
 """Small, provider-facing capability contracts for Clip Planner V1."""
 
 VIDEO_CAPABILITY_CONTRACTS = {
+    "GENERATE": {
+        "enabled": True,
+        "provider": "MINIMAX_H3",
+        "min_duration": 4.0,
+        "max_duration": 15.0,
+        "requires_previous_video": False,
+        "min_temporal_anchors": 0,
+        "max_temporal_anchors": 0,
+        "required_inputs": [],
+    },
     "SINGLE_FRAME": {
         "enabled": True,
         "provider": "MINIMAX_H3",
@@ -53,4 +63,19 @@ VIDEO_CAPABILITY_CONTRACTS = {
         "max_temporal_anchors": 8,
         "required_inputs": ["previous_approved_video", "temporal_anchor_images"],
     },
+    "EXTEND": {
+        "enabled": True,
+        "provider": "MINIMAX_H3",
+        "min_duration": 4.0,
+        "max_duration": 15.0,
+        "requires_previous_video": True,
+        "min_temporal_anchors": 0,
+        "max_temporal_anchors": 0,
+        "required_inputs": ["previous_approved_video"],
+    },
 }
+
+# EXTEND is a semantic capability.  This is the one deliberate physical
+# adapter to the frozen historical continuation workflow.
+EXTEND_WORKFLOW_ID = "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71"
+EXTEND_PHYSICAL_WORKFLOW_TYPE = "VIDEO_CONTINUATION"

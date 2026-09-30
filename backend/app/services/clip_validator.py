@@ -10,6 +10,7 @@ def validate_clip_plan(
     anchors: list[dict],
     capabilities: dict | None = None,
     available_inputs: dict | None = None,
+    planning_mode: str | None = None,
 ) -> dict:
     findings: list[dict] = []
     blocking: list[dict] = []
@@ -39,6 +40,7 @@ def validate_clip_plan(
             if end <= start or abs(planned - (end - start)) > 0.05:
                 add("CLIP_DURATION_MISMATCH", "BLOCKING", f"Clip {clip.get('clip_index')} has invalid duration.")
             capability = str(clip.get("capability") or "")
+            visual_mode = str(clip.get("planning_mode") or planning_mode or "")
             contract = capabilities.get(capability)
             if not contract or not contract.get("enabled"):
                 add("CAPABILITY_UNAVAILABLE", "BLOCKING", f"Capability {capability or '<missing>'} is unavailable.")
@@ -70,6 +72,28 @@ def validate_clip_plan(
                     add("TEMPORAL_ANCHORS_REQUIRED", "BLOCKING", f"Clip {clip.get('clip_index')} requires temporal anchors.")
                 if validate_required_inputs and not anchor_ids.issubset(image_anchor_ids):
                     add("TEMPORAL_ANCHOR_IMAGE_MISSING", "BLOCKING", f"Clip {clip.get('clip_index')} references unavailable temporal-anchor images.")
+            if capability == "EXTEND":
+                if str(clip.get("continuity_to_previous") or "").upper() != "CONTINUOUS":
+                    add("EXTEND_CONTINUITY_REQUIRED", "BLOCKING", f"EXTEND Clip {clip.get('clip_index')} must be CONTINUOUS.")
+                if bool(clip.get("requires_temporal_control")):
+                    add("TEMPORAL_EXTEND_DEFERRED", "BLOCKING", f"Clip {clip.get('clip_index')} requires deferred temporal control.")
+                if not clip.get("previous_clip_index"):
+                    add("PREVIOUS_CLIP_MISSING", "BLOCKING", f"EXTEND Clip {clip.get('clip_index')} has no previous dependency.")
+            if capability in {"GENERATE", "EXTEND"} and visual_mode == "FIRST_LAST_FRAME" and validate_required_inputs:
+                if not available_inputs.get("shot_image"):
+                    add("SHOT_IMAGE_REQUIRED", "BLOCKING", f"Clip {clip.get('clip_index')} requires a valid Shot Image.")
+                if not available_inputs.get("end_keyframe_image"):
+                    add("END_KEYFRAME_IMAGE_REQUIRED", "BLOCKING", f"Clip {clip.get('clip_index')} requires a valid end-keyframe image.")
+            if capability in {"GENERATE", "EXTEND"} and visual_mode == "MULTI_KEYFRAME":
+                indexes = clip.get("keyframe_indexes") or clip.get("keyframe_indices") or []
+                if capability == "GENERATE" and not 3 <= len(indexes) <= 4:
+                    add("KEYFRAME_INPUTS_REQUIRED", "BLOCKING", f"GENERATE Clip {clip.get('clip_index')} requires 3-4 keyframe indexes.")
+                if len(indexes) > 9:
+                    add("KEYFRAME_INPUTS_REQUIRED", "BLOCKING", f"Clip {clip.get('clip_index')} exceeds 9 image references.")
+                if validate_required_inputs:
+                    image_indexes = {item.get("index") for item in available_inputs.get("keyframe_images", [])}
+                    if any(index not in image_indexes for index in indexes):
+                        add("KEYFRAME_IMAGE_MISSING", "BLOCKING", f"Clip {clip.get('clip_index')} references keyframes without available images.")
             if previous_end is not None and abs(start - previous_end) > 0.05:
                 add("SHOT_COVERAGE_GAP", "BLOCKING", f"Clip {clip.get('clip_index')} is not contiguous with the previous clip.")
             if previous_end is not None and start < previous_end - 0.05:

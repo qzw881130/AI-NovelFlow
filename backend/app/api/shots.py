@@ -30,7 +30,7 @@ from app.services.novel_service import (
     generate_transition_video_task,
 )
 from app.services.shot_image_service import enqueue_shot_image_task
-from app.services.shot_video_service import _clip_dialogues_for_prompt, _dialogue_assignment_source, enqueue_shot_video_task, merge_video_director_clip_videos
+from app.services.shot_video_service import _clip_dialogues_for_prompt, _dialogue_assignment_source, enqueue_shot_video_task, merge_video_director_clip_videos, resolve_extend_previous_av
 
 generate_shot_task = enqueue_shot_image_task
 generate_shot_video_task = enqueue_shot_video_task
@@ -87,6 +87,8 @@ from app.services.llm_service import LLMService
 from app.repositories import PromptTemplateRepository
 from app.services.video_director_ai import align_clip_boundaries_to_dialogue_gaps, append_video_ai_call, build_dialogue_timeline, strip_media_refs
 from app.services.clip_planner import plan_clips
+from app.services.clip_execution_compiler import ClipExecutionCompileError, compile_extend_clip, compile_generate_clip
+from app.constants.capability import EXTEND_PHYSICAL_WORKFLOW_TYPE, EXTEND_WORKFLOW_ID
 from app.services.dialogue_ownership import assign_dialogues_to_clips
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.core.database import SessionLocal
@@ -320,6 +322,7 @@ class SemanticClipGenerateRequest(BaseModel):
     use_reference_audio: bool = True
     auto_merge: bool = True
     skip_llm_when_prompt_exists: bool = False
+    clip_plan_revision: Optional[int] = None
 
 
 def _safe_filename_part(value: str) -> str:
@@ -2365,15 +2368,20 @@ async def generate_video_director_clip(
         raise HTTPException(status_code=404, detail="分镜不存在")
     semantic_clips = _safe_json_dict(shot.video_director_plan).get("clip_plan") or []
     if any(int(item.get("clip_index") or 0) == int(window_index) for item in semantic_clips if isinstance(item, dict)):
-        return await _regenerate_semantic_video_director_clip(
+        if request.clip_plan_revision is None:
+            raise HTTPException(status_code=400, detail="semantic Clip 需要显式提供 clip_plan_revision")
+        return await _execute_phase_b_semantic_clip(
             novel_id, chapter_id, shot_id, window_index,
             SemanticClipGenerateRequest(
                 use_reference_audio=request.use_reference_audio,
                 auto_merge=request.auto_merge,
                 skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
+                clip_plan_revision=request.clip_plan_revision,
             ),
             shot_repo.db, novel_repo, chapter_repo, task_repo, shot_repo,
         )
+    if request.clip_plan_revision is not None:
+        raise HTTPException(status_code=404, detail=f"Clip {window_index} 不存在于当前 semantic Clip Plan")
     if not shot.image_url:
         raise HTTPException(status_code=400, detail="该分镜尚未生成图片，请先生成分镜图片")
 
@@ -2435,6 +2443,146 @@ async def generate_video_director_clip(
         skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
     )
     return {"success": True, "message": "Clip 重新生成任务已创建", "data": {"taskId": task.id, "status": "pending"}}
+
+
+async def _execute_phase_b_semantic_clip(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    window_index: int,
+    request: SemanticClipGenerateRequest,
+    db: Session,
+    novel_repo: NovelRepository,
+    chapter_repo: ChapterRepository,
+    task_repo: TaskRepository,
+    shot_repo: ShotRepository,
+):
+    """Execute one explicit semantic Clip through the Phase B GENERATE path."""
+    novel = novel_repo.get_by_id(novel_id)
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    shot = shot_repo.get_by_id(shot_id)
+    if not novel or not chapter or not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="小说、章节或分镜不存在")
+    if request.clip_plan_revision is None:
+        raise HTTPException(status_code=400, detail="semantic Clip 需要显式提供 clip_plan_revision")
+
+    plan = _safe_json_dict(shot.video_director_plan)
+    clips = plan.get("clip_plan") if isinstance(plan.get("clip_plan"), list) else []
+    clip = next((item for item in clips if int(item.get("clip_index") or 0) == window_index), None)
+    if not clip:
+        raise HTTPException(status_code=404, detail=f"Clip {window_index} 不存在")
+    if int(plan.get("clip_plan_revision") or 0) != int(request.clip_plan_revision):
+        raise HTTPException(status_code=409, detail="Clip 计划 revision 已变化，请重新加载并重试")
+
+    planning_mode = clip.get("planning_mode") or plan.get("selected_mode") or plan.get("recommended_mode") or "SINGLE_FRAME"
+    raw_capability = str(clip.get("capability") or "")
+    capability = "GENERATE" if raw_capability in {"SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"} else raw_capability
+    if capability in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
+        raise HTTPException(status_code=400, detail="历史 continuation Clip 不能通过新的 semantic execution contract 执行")
+    previous_provenance = None
+    try:
+        if capability == "EXTEND":
+            previous_index = int(clip.get("previous_clip_index"))
+            previous_clip = next((item for item in clips if int(item.get("clip_index") or 0) == previous_index), None)
+            previous_provenance = {
+                "clip_index": previous_index,
+                "clip_plan_revision": int(request.clip_plan_revision),
+                "generated_by_task_id": previous_clip.get("generated_by_task_id") if previous_clip else None,
+                "result_url": previous_clip.get("video_url") if previous_clip else None,
+            }
+            previous_provenance = resolve_extend_previous_av(
+                db, novel_id, chapter_id, shot,
+                {**clip, "clip_plan_revision": int(request.clip_plan_revision)},
+                previous_provenance,
+            )
+            compiled = compile_extend_clip(
+                shot, plan, clip, planning_mode, int(request.clip_plan_revision), previous_provenance,
+            )
+        elif capability == "GENERATE":
+            compiled = compile_generate_clip(shot, plan, clip, planning_mode, int(request.clip_plan_revision))
+        else:
+            raise ClipExecutionCompileError("当前 Clip capability 不支持 Phase C 执行")
+    except ClipExecutionCompileError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except ValueError as exc:
+        if str(exc) == "PREVIOUS_AV_UNAVAILABLE":
+            raise HTTPException(status_code=400, detail="PREVIOUS_AV_UNAVAILABLE")
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if capability == "EXTEND":
+        workflow = WorkflowRepository(db).get_by_id(EXTEND_WORKFLOW_ID)
+        if not workflow or not workflow.is_active or workflow.type != EXTEND_PHYSICAL_WORKFLOW_TYPE:
+            raise HTTPException(status_code=400, detail="EXTEND physical workflow unavailable")
+    else:
+        workflow = WorkflowRepository(db).get_active_by_type("multi_reference_video")
+    if not workflow:
+        raise HTTPException(status_code=400, detail="未配置 multi_reference_video 视频生成工作流")
+    physical_workflow_type = EXTEND_PHYSICAL_WORKFLOW_TYPE if capability == "EXTEND" else "multi_reference_video"
+    is_valid, error_msg = TaskService.validate_workflow_node_mapping(workflow, physical_workflow_type)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+
+    for active in db.query(Task).filter(
+        Task.type == "shot_video",
+        Task.shot_id == shot.id,
+        Task.status.in_(["pending", "running"]),
+    ).all():
+        active_metadata = _safe_json_dict(active.metadata_json)
+        if (
+            active_metadata.get("execution_scope") == "CLIP"
+            and int(active_metadata.get("clip_index") or 0) == window_index
+            and int(active_metadata.get("clip_plan_revision") or 0) == int(request.clip_plan_revision)
+        ):
+            return {"success": True, "message": "该 Clip 已有进行中的生成任务", "data": {"taskId": active.id, "status": active.status}}
+
+    task = task_repo.create_shot_video_task(
+        novel_id=novel_id,
+        chapter_id=chapter_id,
+        shot_index=shot.index,
+        shot_duration=shot.duration or 4,
+        chapter_title=chapter.title,
+        workflow_id=workflow.id,
+        workflow_name=workflow.name,
+        shot_id=shot.id,
+    )
+    task.name = f"生成视频 Clip: 镜{shot.index} · C{window_index}"
+    task.description = f"为章节 '{chapter.title}' 的分镜 {shot.index} 生成 Clip {window_index}"
+    metadata = {
+        "execution_scope": "CLIP",
+        "phase_b_generate": capability == "GENERATE",
+        "clip_id": f"{shot.id}:clip:{window_index}",
+        "clip_index": window_index,
+        "clip_plan_revision": int(request.clip_plan_revision),
+        "capability": capability,
+        "artifact_kind": "CLIP_ONLY",
+        "planning_mode": planning_mode,
+        "planned_duration": clip.get("planned_duration"),
+        "requested_duration": clip.get("planned_duration"),
+        "dialogue_assignment": clip.get("dialogue_assignment") or [],
+        "approval_mode": clip.get("approval_mode") or plan.get("clip_plan_approval_mode", "AUTO_APPROVE"),
+        "approval_status": "GENERATING",
+        "auto_merge": False,
+        "skip_llm_when_prompt_exists": request.skip_llm_when_prompt_exists,
+        **compiled,
+    }
+    if capability == "EXTEND":
+        metadata["previous_approved_task_id"] = previous_provenance["generated_by_task_id"]
+        metadata["previous_approved_video_url"] = previous_provenance["result_url"]
+        metadata["previous_approved_video_source"] = "approved_clip_result"
+        metadata["continuity_to_previous"] = clip.get("continuity_to_previous")
+        metadata["requires_temporal_control"] = bool(clip.get("requires_temporal_control"))
+    if request.skip_llm_when_prompt_exists and not str(clip.get("prompt_text") or "").strip():
+        raise HTTPException(status_code=400, detail="当前 Clip 没有可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频")
+    metadata["prompt_text"] = str(clip.get("prompt_text") or "") if request.skip_llm_when_prompt_exists else ""
+    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    db.commit()
+    enqueue_shot_video_task(
+        task.id, novel_id, chapter_id, shot.index, workflow.id, shot.image_url or "",
+        selected_mode=planning_mode, clip_metadata=metadata,
+        use_reference_audio=request.use_reference_audio,
+        skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
+    )
+    return {"success": True, "message": f"semantic Clip {capability} 任务已创建", "data": {"taskId": task.id, "status": "pending"}}
 
 
 async def _regenerate_semantic_video_director_clip(
