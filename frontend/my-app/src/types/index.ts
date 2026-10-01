@@ -1,3 +1,8 @@
+import type {
+  VideoDirectorPlan as ApiVideoDirectorPlan,
+  VideoMode as ApiVideoMode,
+} from '../api/shots';
+
 // 支持的 LLM 厂商
 export type LLMProvider = 'deepseek' | 'openai' | 'gemini' | 'anthropic' | 'azure' | 'aliyun-bailian' | 'ollama' | 'custom';
 export type SystemStatusSource = 'comfyui' | 'windows_gpu_monitor';
@@ -166,24 +171,11 @@ export interface ShotData {
   reference_audio_type?: 'none' | 'merged' | 'uploaded' | 'character';
 }
 
-export type VideoMode = 'SINGLE_FRAME' | 'FIRST_LAST_FRAME' | 'MULTI_KEYFRAME';
+/** @deprecated Historical mode authority; use canonical Visual/Clip plan fields. */
+export type VideoMode = ApiVideoMode;
 
-export interface VideoDirectorPlan {
-  selected_mode?: VideoMode;
-  recommended_mode?: VideoMode;
-  recommended_label?: string;
-  recommendation_reason?: string;
-  first_last_available?: boolean;
-  notice?: string;
-  workflow_capability?: Record<string, any>;
-  keyframes?: any[];
-  transitions?: any[];
-  clips?: any[];
-  execution_windows?: any[];
-  window_plans?: any[];
-  ai_calls?: any[];
-  validation?: Record<string, any>;
-}
+/** Shared Video Director contract; canonical and legacy compatibility fields live in api/shots.ts. */
+export type VideoDirectorPlan = ApiVideoDirectorPlan;
 
 export interface DialogueData {
   type?: 'character' | 'narration';

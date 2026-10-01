@@ -109,6 +109,82 @@ def test_historical_mode_and_windows_are_removed_only_when_new_plan_is_written()
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("force", [False, True])
+async def test_legacy_mode_recommendation_cannot_overwrite_canonical_n5_plan(db_session, force):
+    from app.api import shots as shot_api
+    from app.models.novel import Chapter, Novel
+    from app.models.shot import Shot
+    from app.repositories.chapter_repository import ChapterRepository
+    from app.repositories.novel_repository import NovelRepository
+    from app.repositories.prompt_template import PromptTemplateRepository
+    from app.repositories.shot_repository import ShotRepository
+    from app.repositories.workflow_repository import WorkflowRepository
+    from app.schemas.shot import RecommendVideoModeRequest
+
+    novel = Novel(title="canonical authority test")
+    db_session.add(novel)
+    db_session.flush()
+    chapter = Chapter(novel_id=novel.id, number=1, title="test")
+    db_session.add(chapter)
+    db_session.flush()
+    canonical_plan = {
+        "canonical_visual_plan": True,
+        "keyframes": [
+            {"index": 1, "time_seconds": 0, "role": "START", "description": None, "timed_visual_target": False},
+            {"index": 2, "time_seconds": 6, "role": "INTERMEDIATE", "description": "state 2", "timed_visual_target": False},
+            {"index": 3, "time_seconds": 12, "role": "INTERMEDIATE", "description": "state 3", "timed_visual_target": True},
+            {"index": 4, "time_seconds": 18, "role": "INTERMEDIATE", "description": "state 4", "timed_visual_target": True},
+            {"index": 5, "time_seconds": 24, "role": "END", "description": "state 5", "timed_visual_target": False},
+        ],
+        "transitions": [
+            {"segment_index": index, "from_keyframe_index": index, "to_keyframe_index": index + 1}
+            for index in range(1, 5)
+        ],
+        "clip_plan": [{"clip_index": 1, "start_time": 0, "end_time": 24}],
+    }
+    shot = Shot(
+        chapter_id=chapter.id,
+        index=1,
+        description="A performer crosses the room.",
+        duration=24,
+        characters="[]",
+        props="[]",
+        dialogues="[]",
+        video_director_plan=json.dumps(canonical_plan),
+    )
+    db_session.add(shot)
+    db_session.commit()
+
+    class FailIfCalledLLM:
+        async def chat_completion(self, **_kwargs):
+            raise AssertionError("legacy #07 LLM must not run for a canonical plan")
+
+    result = await shot_api.recommend_video_mode(
+        novel.id,
+        chapter.id,
+        shot.id,
+        RecommendVideoModeRequest(force=force),
+        db_session,
+        NovelRepository(db_session),
+        ChapterRepository(db_session),
+        ShotRepository(db_session),
+        WorkflowRepository(db_session),
+        PromptTemplateRepository(db_session),
+        FailIfCalledLLM(),
+    )
+
+    db_session.expire_all()
+    persisted = json.loads(ShotRepository(db_session).get_by_id(shot.id).video_director_plan)
+    assert result == {"success": True, "data": canonical_plan}
+    assert persisted == canonical_plan
+    assert len(persisted["keyframes"]) == 5
+    assert [item["timed_visual_target"] for item in persisted["keyframes"]] == [False, False, True, True, False]
+    assert len(persisted["transitions"]) == 4
+    assert "selected_mode" not in persisted
+    assert "recommended_mode" not in persisted
+
+
+@pytest.mark.asyncio
 async def test_normal_plan_keyframes_endpoint_persists_and_reloads_canonical_plan(db_session, monkeypatch):
     from app.api import shots as shot_api
     from app.models.novel import Chapter, Novel

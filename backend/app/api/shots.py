@@ -1871,6 +1871,8 @@ async def recommend_video_mode(
         raise HTTPException(status_code=404, detail="分镜不存在")
 
     existing_plan = _safe_json_dict(shot.video_director_plan)
+    if existing_plan.get("canonical_visual_plan") is True:
+        return {"success": True, "data": existing_plan}
     if existing_plan.get("recommended_mode") and not request.force:
         return {"success": True, "data": existing_plan}
 

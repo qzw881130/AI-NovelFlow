@@ -818,7 +818,7 @@ class ShotKeyframeService:
             else:
                 prompt = await self._build_qwen_keyframe_prompt(
                     db, novel, shot, keyframe, previous_keyframe, task,
-                    reference_manifest=reference_manifest or None,
+                    reference_manifest=reference_manifest,
                 )
             keyframe["prompt_text"] = prompt
             self._sync_video_director_keyframe_fields(shot, keyframe, {"prompt_text": prompt})

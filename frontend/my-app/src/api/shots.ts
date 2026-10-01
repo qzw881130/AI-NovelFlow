@@ -77,7 +77,79 @@ export interface HdVideoVariant {
   executions: HdVideoExecution[];
 }
 
+/** @deprecated Historical noncanonical Video Director plans only. */
 export type VideoMode = 'SINGLE_FRAME' | 'FIRST_LAST_FRAME' | 'MULTI_KEYFRAME';
+
+export type CanonicalVisualStateRole = 'START' | 'INTERMEDIATE' | 'END';
+
+export interface CanonicalVisualState {
+  index: number;
+  time_seconds: number;
+  role: CanonicalVisualStateRole;
+  description?: string | null;
+  /** Explicit #08 intent; absent historical values are treated as false. */
+  timed_visual_target?: boolean;
+  image_url?: string | null;
+  image_task_id?: string | null;
+  prompt_text?: string | null;
+}
+
+export interface CanonicalVisualTransition {
+  segment_index?: number;
+  from_keyframe_index?: number;
+  to_keyframe_index?: number;
+  start_time?: number;
+  end_time?: number;
+  transition_description?: string | null;
+  [key: string]: any;
+}
+
+export type SemanticClipCapability = 'GENERATE' | 'EXTEND' | 'TEMPORAL_EXTEND';
+
+export interface SemanticClipPlan {
+  clip_index: number;
+  start_time: number;
+  end_time: number;
+  planned_duration?: number;
+  planning_mode?: string;
+  capability: SemanticClipCapability;
+  continuity_to_previous?: 'NONE' | 'CUT' | 'CONTINUOUS';
+  previous_clip_index?: number | null;
+  visual_state_indexes?: number[];
+  carry_in_state_index?: number | null;
+  requires_temporal_control?: boolean;
+  temporal_anchor_ids?: string[];
+  selected_temporal_target_ids?: string[];
+  clip_id?: string;
+  generated_by_task_id?: string;
+  video_url?: string | null;
+  local_path?: string | null;
+  source_video_url?: string | null;
+  execution_status?: string;
+  approval_mode?: string;
+  approval_status?: string;
+  status?: string;
+  error_message?: string | null;
+  prompt_text?: string;
+  dialogue_assignment?: Array<Record<string, any>>;
+  [key: string]: any;
+}
+
+export interface PlanSemanticClipsRequest {
+  temporal_anchors?: Array<Record<string, any>>;
+  approval_mode?: 'AUTO_APPROVE' | 'REVIEW_REQUIRED';
+  force?: boolean;
+}
+
+export interface PlanSemanticClipsResult {
+  clips: SemanticClipPlan[];
+  validation: {
+    passed?: boolean;
+    findings?: Array<{ code?: string; severity?: string; message?: string }>;
+    [key: string]: any;
+  };
+  revision?: number;
+}
 
 export interface VideoAiCall {
   step?: string;
@@ -100,7 +172,10 @@ export interface VideoAiCall {
 }
 
 export interface VideoDirectorPlan {
+  canonical_visual_plan?: boolean;
+  /** @deprecated Historical noncanonical plans only; never canonical authority. */
   selected_mode?: VideoMode;
+  /** @deprecated Historical noncanonical plans only; never canonical authority. */
   recommended_mode?: VideoMode;
   recommended_label?: string;
   recommendation_reason?: string;
@@ -113,31 +188,18 @@ export interface VideoDirectorPlan {
     workflow_name?: string;
     [key: string]: any;
   };
-  keyframes?: Array<{
-    index: number;
-    time_seconds: number;
-    role: 'START' | 'INTERMEDIATE' | 'END';
-    description?: string | null;
-    /** Explicit #08 intent; absent historical values are treated as false. */
-    timed_visual_target?: boolean;
-    image_url?: string;
-    prompt_text?: string;
-  }>;
-  transitions?: Array<{
-    segment_index?: number;
-    from_keyframe_index?: number;
-    to_keyframe_index?: number;
-    transition_description?: string;
-    [key: string]: any;
-  }>;
+  keyframes?: CanonicalVisualState[];
+  transitions?: CanonicalVisualTransition[];
   clips?: Array<{
     clip_index: number;
     start_time: number;
     end_time: number;
     frame_count?: number;
+    /** @deprecated Historical fixed-frame clip metadata only. */
     selected_frame_count?: number;
     workflow_key?: string;
     workflow_type?: string;
+    /** @deprecated Use semantic clip visual_state_indexes for canonical ownership. */
     keyframe_indexes?: number[];
     status?: string;
     prompt_text?: string;
@@ -147,14 +209,17 @@ export interface VideoDirectorPlan {
     start_time: number;
     end_time: number;
   }>;
+  /** @deprecated Historical MULTI_KEYFRAME planning only. */
   window_plans?: Array<{
     window_index: number;
     start_time: number;
     end_time: number;
+    /** @deprecated Historical fixed-frame window metadata only. */
     selected_frame_count: 3 | 4;
     workflow_key?: string;
     workflow_type?: string;
     workflow_name?: string;
+    /** @deprecated Historical window membership only. */
     keyframe_indexes: number[];
     status?: string;
     video_url?: string;
@@ -180,30 +245,14 @@ export interface VideoDirectorPlan {
   assembly_clip_plan_revision?: number;
   assembly_task_ids?: string[];
   clip_plan_approval_mode?: string;
-  clip_plan_validation?: { passed?: boolean; findings?: Array<{ code?: string; severity?: string; message?: string }> };
-  clip_plan_findings?: Array<{ code?: string; severity?: string; message?: string }>;
-  clip_plan?: Array<{
-    clip_index: number;
-    start_time: number;
-    end_time: number;
-    planned_duration?: number;
-    planning_mode?: string;
-    capability: string;
-    continuity_to_previous?: 'NONE' | 'CUT' | 'CONTINUOUS' | string;
-    previous_clip_index?: number | null;
-    requires_temporal_control?: boolean;
-    temporal_anchor_ids?: string[];
-    clip_id?: string;
-    generated_by_task_id?: string;
-    video_url?: string | null;
-    execution_status?: string;
-    approval_mode?: string;
-    approval_status?: string;
-    status?: string;
-    error_message?: string | null;
-    prompt_text?: string;
+  clip_plan_validation?: {
+    passed?: boolean;
+    findings?: Array<{ code?: string; severity?: string; message?: string }>;
+    dialogue_ownership?: { passed?: boolean; [key: string]: any };
     [key: string]: any;
-  }>;
+  };
+  clip_plan_findings?: Array<{ code?: string; severity?: string; message?: string }>;
+  clip_plan?: SemanticClipPlan[];
   ai_calls?: VideoAiCall[];
   validation?: Record<string, any>;
 }
@@ -518,6 +567,31 @@ export const shotsApi = {
     const data = await response.json();
     if (!response.ok) {
       return { success: false, message: data?.message || data?.detail || '关键帧规划失败', detail: data?.detail };
+    }
+    return data;
+  },
+
+  planVideoClips: async (
+    novelId: string,
+    chapterId: string,
+    shotId: string,
+    options: PlanSemanticClipsRequest = {},
+  ): Promise<{ success: boolean; data?: PlanSemanticClipsResult; message?: string; detail?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/plan-clips`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          temporal_anchors: options.temporal_anchors ?? [],
+          approval_mode: options.approval_mode ?? 'AUTO_APPROVE',
+          force: options.force ?? false,
+        }),
+      },
+    );
+    const data = await response.json();
+    if (!response.ok) {
+      return { success: false, message: data?.message || data?.detail || '视频片段规划失败', detail: data?.detail };
     }
     return data;
   },
