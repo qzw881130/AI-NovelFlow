@@ -56,9 +56,7 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
             continue
         compatibility_by_index[index] = keyframe
 
-    # The legacy visual contract treats Shot.image as START/KF1. Keep it in
-    # the planner's keyframe availability so MULTI_KEYFRAME can validate the
-    # declared [1, 2, 3] sequence without duplicating compatibility assets.
+    # Shot.image is the canonical START/KF1 visual asset.
     keyframe_images_by_index = {}
     shot_image_source = image_url or (local_path_to_url(shot_image_path) if shot_image_path else None)
     if shot_image_path and os.path.isfile(shot_image_path):
@@ -121,6 +119,8 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
             "end_time": transition.get("end_time"),
             "transition_description": transition.get("transition_description") or "",
         })
+    video_plan = json.loads(getattr(shot, "video_director_plan", None) or "{}")
+    canonical_visual_plan = video_plan.get("canonical_visual_plan") is True
     end_keyframe_image = False
     for keyframe in keyframes + legacy_keyframes:
         if not isinstance(keyframe, dict):
@@ -161,8 +161,10 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
             "dialogues": json.loads(shot.dialogues or "[]"),
         },
         "available_generation_inputs": available_inputs,
-        "director_mode": (json.loads(getattr(shot, "video_director_plan", None) or "{}").get("selected_mode") or "SINGLE_FRAME"),
-        "official_dialogue_timeline": (json.loads(getattr(shot, "video_director_plan", None) or "{}").get("dialogue_timeline_source") or []),
+        # Historical mode remains readable for old plans, but canonical plans
+        # must not expose it as #10A planning authority.
+        "canonical_visual_plan": canonical_visual_plan,
+        "official_dialogue_timeline": video_plan.get("dialogue_timeline_source") or [],
         "visual_state_candidates": visual_state_candidates,
         "transition_context": transition_context,
         "temporal_anchors": temporal_anchors,
@@ -177,48 +179,37 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
     }
 
 
-def _align_multi_keyframe_references(clips: list[dict], plan: dict, available_inputs: dict) -> None:
-    """Attach Clip-local MULTI_KEYFRAME refs without changing execution capability."""
-    if plan.get("selected_mode") != "MULTI_KEYFRAME":
-        return
-    keyframes = [item for item in plan.get("keyframes") or [] if isinstance(item, dict)]
-    available_indexes = {
-        int(item.get("index"))
-        for item in available_inputs.get("keyframe_images") or []
-        if isinstance(item, dict) and item.get("index") is not None
-    }
-    ordered_keyframes = []
-    for keyframe in keyframes:
+def _project_clip_visual_states(clips: list[dict], candidates: list[dict]) -> None:
+    """Project canonical Director states into semantic Clip ownership fields."""
+    ordered = []
+    for item in candidates or []:
+        if not isinstance(item, dict):
+            continue
         try:
-            index = int(keyframe.get("index"))
-            time_seconds = float(keyframe.get("time_seconds"))
+            ordered.append((float(item.get("time_seconds")), int(item.get("keyframe_index")), item))
         except (TypeError, ValueError):
             continue
-        if index in available_indexes:
-            ordered_keyframes.append((time_seconds, index))
-
-    for clip in clips:
-        # Reprojection is authoritative after any boundary normalization; do
-        # not retain indexes derived from an earlier interval.
-        clip.pop("keyframe_indexes", None)
-        clip.pop("keyframe_indices", None)
+    ordered.sort(key=lambda value: (value[0], value[1]))
+    for position, clip in enumerate(clips, 1):
         try:
+            clip_index = int(clip.get("clip_index") or position)
             start = float(clip.get("start_time"))
             end = float(clip.get("end_time"))
         except (TypeError, ValueError):
             continue
-        indexes = [
-            index for time_seconds, index in ordered_keyframes
-            if start - 0.05 <= time_seconds <= end + 0.05
-        ]
-        if 3 <= len(indexes) <= 4:
-            clip["planning_mode"] = "MULTI_KEYFRAME"
-            clip["keyframe_indexes"] = indexes
-        elif str(clip.get("capability") or "") == "GENERATE":
-            # GENERATE MULTI_KEYFRAME requires 3–4 final-interval states;
-            # fall back to the existing single-frame mode when reprojection
-            # leaves fewer usable states.
-            clip["planning_mode"] = "SINGLE_FRAME"
+        owned = []
+        for time_seconds, index, item in ordered:
+            if clip_index == 1 and index == 1 and str(item.get("role") or "").upper() == "START":
+                owned.append(index)
+            elif time_seconds > start + 0.05 and time_seconds <= end + 0.05:
+                owned.append(index)
+        carry_in = None
+        if clip_index > 1:
+            predecessors = [index for time_seconds, index, _ in ordered if time_seconds <= start + 0.05]
+            if predecessors:
+                carry_in = predecessors[-1]
+        clip["visual_state_indexes"] = list(dict.fromkeys(owned))
+        clip["carry_in_state_index"] = carry_in
 
 
 def _normalize_provider_boundaries(
@@ -389,9 +380,6 @@ def _normalize_continuity_contract(
             clip_index = int(clip.get("clip_index") or position)
         except (TypeError, ValueError):
             clip_index = position
-        legacy_capability = str(clip.get("capability") or "")
-        if legacy_capability in {"SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"}:
-            clip.setdefault("planning_mode", legacy_capability)
         raw_continuity = clip.get("continuity_to_previous")
         if raw_continuity in (None, ""):
             raise ValueError(f"Clip {clip_index} 缺少 continuity_to_previous")
@@ -445,22 +433,8 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
     _normalize_continuity_contract(clips, shot.continuity_mode)
     plan_payload = payload.get("available_generation_inputs", {})
     video_plan = json.loads(shot.video_director_plan or "{}")
-    _align_multi_keyframe_references(clips, video_plan, plan_payload)
     for index, clip in enumerate(clips, 1):
         clip.setdefault("previous_clip_index", None)
-        capability = str(clip.get("capability") or "")
-        contract = VIDEO_CAPABILITY_CONTRACTS.get(capability) or {}
-        visual_mode = str(clip.get("planning_mode") or video_plan.get("selected_mode") or "")
-        if visual_mode == "MULTI_KEYFRAME":
-            selected_keyframes = clip.get("keyframe_indexes") or clip.get("keyframe_indices") or []
-            available_indexes = {int(item["index"]) for item in plan_payload.get("keyframe_images", []) if item.get("index") is not None}
-            has_required_images = len(selected_keyframes) >= 3 and all(int(keyframe_index) in available_indexes for keyframe_index in selected_keyframes)
-            if capability == "GENERATE" and not has_required_images and plan_payload.get("shot_image"):
-                clip["planning_mode"] = "SINGLE_FRAME"
-                clip.pop("keyframe_indexes", None)
-        elif visual_mode == "FIRST_LAST_FRAME" and (not plan_payload.get("shot_image") or not plan_payload.get("end_keyframe_image")):
-            if plan_payload.get("shot_image"):
-                clip["planning_mode"] = "SINGLE_FRAME"
         if clip.get("continuity_to_previous") == "CONTINUOUS" and index > 1 and not clip.get("previous_clip_index"):
             clip["previous_clip_index"] = int(clips[index - 2].get("clip_index") or index - 1)
         if clip.get("continuity_to_previous") == "CONTINUOUS" and index > 1:
@@ -488,7 +462,10 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
     _normalize_provider_boundaries(
         clips, shot.duration or 4, min_clip_duration, max_clip_duration, dialogue_timeline_source
     )
-    _align_multi_keyframe_references(clips, video_plan, plan_payload)
+    _project_clip_visual_states(
+        clips,
+        payload.get("visual_state_candidates") or [],
+    )
     for clip in clips:
         clip["planned_duration"] = round(
             float(clip.get("end_time", 0)) - float(clip.get("start_time", 0)),
@@ -522,7 +499,7 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         clips,
         temporal_anchors,
         available_inputs=payload["available_generation_inputs"],
-        planning_mode=video_plan.get("selected_mode") or payload.get("director_mode"),
+        visual_state_candidates=payload.get("visual_state_candidates") or [],
     )
     validation["dialogue_ownership"] = dialogue_validation
     return clips, validation

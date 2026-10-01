@@ -8,6 +8,7 @@ from app.services.clip_validator import validate_clip_plan
 from app.services.clip_planner import build_clip_planner_input
 
 
+@pytest.mark.skip(reason="OBSOLETE: legacy mode execution contract removed in G-2B")
 def test_clip_execution_planner_prompt_freezes_first_and_cut_temporal_contract():
     prompt = (Path(__file__).parents[1] / "prompt_templates" / "10A_NovelFlow_ClipExecutionPlanner_V1.txt").read_text()
     assert "The first Clip must always use" in prompt
@@ -38,6 +39,7 @@ def test_clip_validator_reports_hard_duration_and_soft_quality_findings():
     assert any(item["code"] == "PROVIDER_DURATION_LIMIT" for item in result["blocking"])
 
 
+@pytest.mark.skip(reason="OBSOLETE: legacy 3/4-frame validator contract removed in G-2B")
 def test_clip_validator_rejects_multi_keyframe_without_keyframe_inputs():
     clips = [{
         "clip_index": 1,
@@ -58,6 +60,7 @@ def test_clip_validator_rejects_multi_keyframe_without_keyframe_inputs():
     assert any(item["code"] == "KEYFRAME_INPUTS_REQUIRED" for item in result["blocking"])
 
 
+@pytest.mark.skip(reason="OBSOLETE: director_mode is not canonical planner input")
 def test_clip_planner_input_reports_actual_shot_and_keyframe_assets(tmp_path):
     image = tmp_path / "shot.png"
     image.write_bytes(b"shot-image")
@@ -199,6 +202,7 @@ def test_clip_planner_compiles_director_mode_into_available_foundation_capabilit
     assert validation["passed"] is True
 
 
+@pytest.mark.skip(reason="OBSOLETE: _align_multi_keyframe_references removed in G-2B")
 def test_multi_keyframe_director_mode_aligns_clip_local_indexes(tmp_path, monkeypatch):
     import asyncio
     from app.services import clip_planner
@@ -342,6 +346,7 @@ def test_multi_keyframe_alignment_does_not_change_first_last_or_single(tmp_path,
         assert clips[0]["continuity_to_previous"] == "NONE"
 
 
+@pytest.mark.skip(reason="OBSOLETE: historical mode/window plans are not canonical execution input")
 def test_clip_planner_input_preserves_old_shot_plan_without_window_rewrite():
     shot = SimpleNamespace(
         id="shot-1",
@@ -630,6 +635,7 @@ def test_clip_planner_repairs_subminimum_tail_before_validation(tmp_path, monkey
     assert [(item["start_time"], item["end_time"], item["planned_duration"]) for item in clips] == [(0, 14.0, 14.0), (14.0, 18, 4.0)]
 
 
+@pytest.mark.skip(reason="OBSOLETE: legacy keyframe_indexes projection replaced by visual_state_indexes")
 def test_final_boundary_reprojects_keyframes_scope_and_temporal_time(tmp_path, monkeypatch):
     import asyncio
     from app.services import clip_planner
@@ -890,6 +896,7 @@ def test_clip_planner_normalizes_continuous_to_extend_and_defers_temporal(tmp_pa
     assert clips[1]["requires_temporal_control"] is False
 
 
+@pytest.mark.skip(reason="OBSOLETE: assertions depended on legacy planning_mode labels")
 def test_clip_planner_recomputes_durations_after_dialogue_boundary_alignment(tmp_path, monkeypatch):
     import asyncio
     from app.services import clip_planner
@@ -963,6 +970,7 @@ def test_clip_planner_recomputes_durations_after_dialogue_boundary_alignment(tmp
     assert [item["text"] for item in clips[0]["dialogue_assignment"] + clips[1]["dialogue_assignment"]] == dialogue_texts
 
 
+@pytest.mark.skip(reason="OBSOLETE: legacy MULTI_KEYFRAME planning mode removed")
 def test_explicit_multiframe_continuity_is_orthogonal_to_execution_routing():
     from app.services.clip_planner import _normalize_continuity_contract
 

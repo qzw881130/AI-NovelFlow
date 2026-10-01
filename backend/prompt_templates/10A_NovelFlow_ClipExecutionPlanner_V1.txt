@@ -27,26 +27,20 @@ Rules:
   normalized.
 - The first Clip must always use `continuity_to_previous=NONE`,
   `requires_temporal_control=false`, and
-  `selected_temporal_target_ids=[]`, even when it contains MULTI_KEYFRAME
-  visual states. Any Clip with CUT continuity must likewise use false and an
-  empty target list.
+  `selected_temporal_target_ids=[]`. Any Clip with CUT continuity must likewise
+  use false and an empty target list.
 - Do not semantically author `requires_temporal_control` or
   `selected_temporal_target_ids`; their raw values are ignored and replaced
   deterministically from #08 `timed_visual_target` intent after final Clip
   boundaries are known. Keep the fields in the returned JSON shape for parser
   compatibility, using false and [] as neutral values. Never invent image
   URLs, paths, task IDs, provenance, frame positions, or node IDs.
-- GENERATE Clips may use SINGLE_FRAME, FIRST_LAST_FRAME, or MULTI_KEYFRAME and
-  may contain ordinary timed visual states; that does not make them
-  TEMPORAL_EXTEND. Return false and [] as neutral raw temporal fields; the
-  application derives the final values.
-- Visual planning mode is orthogonal to continuity and execution capability:
-  MULTI_KEYFRAME with CONTINUOUS continuity is valid and routes to EXTEND
-  when temporal intent is false. Do not use a visual mode to imply CUT,
-  CONTINUOUS, GENERATE, EXTEND, or TEMPORAL_EXTEND.
-- director_mode is a Shot-level visual constraint, not a generation capability. Do not copy MULTI_KEYFRAME from director_mode into a clip unless that clip has the required keyframe indexes and every referenced keyframe image is listed in available_generation_inputs.keyframe_images.
-- Select visual/generation inputs only when their required inputs exist in available_generation_inputs. The first Clip may use SINGLE_FRAME when shot_image is true. Later Clips with CONTINUOUS continuity depend on the immediately previous Clip.
-- MULTI_KEYFRAME requires 3 or 4 clip-local keyframe indexes backed by available keyframe images. The application supplies temporal anchors after deterministic target projection; do not invent temporal_anchor_ids. Do not treat Shot-level director mode as generation capability.
+- GENERATE Clips may contain any number of ordinary canonical visual states; that does not make them TEMPORAL_EXTEND. Return false and [] as neutral raw temporal fields; the application derives the final values.
+- Canonical visual-state count is orthogonal to continuity and execution capability. Do not use state count to imply CUT, CONTINUOUS, GENERATE, EXTEND, or TEMPORAL_EXTEND.
+- Do not output physical reference slots or keyframe image bindings. The application deterministically projects canonical states into each semantic Clip after final boundaries are known.
+- The first Clip must be GENERATE with `continuity_to_previous=NONE`; later CUT Clips are GENERATE; later CONTINUOUS Clips are continuation candidates. The application derives EXTEND versus TEMPORAL_EXTEND from upstream timed targets.
+- A Clip may own zero, one, or many canonical visual states. Do not pad states, thin states, or reject a Clip because it owns more than nine states; physical reference limits belong to a later compiler stage.
+- The application supplies temporal anchors after deterministic target projection; do not invent temporal_anchor_ids. Do not semantically author `requires_temporal_control` or `selected_temporal_target_ids`.
 - The program validator will enforce required inputs, hard duration, and capability constraints.
 
 Return JSON only:
@@ -56,7 +50,7 @@ Return JSON only:
       "clip_index": 1,
       "start_time": 0,
       "end_time": 10,
-      "capability": "SINGLE_FRAME",
+      "capability": "GENERATE",
       "continuity_to_previous": "NONE",
       "previous_clip_index": null,
       "temporal_anchor_ids": [],
