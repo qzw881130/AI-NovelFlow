@@ -57,6 +57,138 @@ CLIP_LLM_EXCLUDED_KEYS = {
     "generated_by_task_id",
 }
 
+_PICTURE_TOKEN_RE = re.compile(r"(?i)(?:<\s*)?Picture\s+(\d+)(?:\s*>)?")
+_PICTURE_TIMELINE_RE = re.compile(
+    r"(?im)(?:<\s*)?Picture\s+(\d+)(?:\s*>)?\s*=\s*[^\n]*?\bt\s*=\s*(-?\d+(?:\.\d+)?)\s*s?"
+)
+
+
+def build_physical_picture_mapping(video_reference_manifest: Optional[dict]) -> list[dict]:
+    """Expose the final ordinary-reference manifest as the only Picture authority."""
+    manifest = video_reference_manifest if isinstance(video_reference_manifest, dict) else {}
+    references = manifest.get("references") if isinstance(manifest.get("references"), list) else []
+    mapping = []
+    for expected_index, reference in enumerate(references, 1):
+        if not isinstance(reference, dict):
+            raise ValueError("PHYSICAL_PICTURE_MANIFEST_INVALID")
+        try:
+            picture_index = int(reference.get("slot"))
+        except (TypeError, ValueError):
+            raise ValueError("PHYSICAL_PICTURE_MANIFEST_INVALID")
+        if picture_index != expected_index:
+            raise ValueError("PHYSICAL_PICTURE_MANIFEST_NOT_DENSE")
+        mapping.append({
+            "picture_index": picture_index,
+            "picture": f"<Picture {picture_index}>",
+            "kind": reference.get("kind"),
+            "source_type": reference.get("source_type"),
+            "source_keyframe_index": reference.get("source_keyframe_index"),
+            "source_role": reference.get("source_role"),
+            "source_time_seconds": reference.get("source_time_seconds"),
+            "source_image_task_id": reference.get("source_image_task_id"),
+            "source_identity": reference.get("source_identity") or reference.get("source_id"),
+        })
+    return mapping
+
+
+def attach_physical_picture_mapping(states: list, picture_mapping: list[dict]) -> list[dict]:
+    """Attach manifest-derived Picture identity without dropping image-less semantics."""
+    by_state_index = {}
+    for item in picture_mapping:
+        raw_index = item.get("source_keyframe_index")
+        if raw_index is None:
+            continue
+        try:
+            state_index = int(raw_index)
+        except (TypeError, ValueError):
+            raise ValueError("PHYSICAL_PICTURE_SOURCE_IDENTITY_INVALID")
+        if state_index in by_state_index:
+            raise ValueError("PHYSICAL_PICTURE_SOURCE_IDENTITY_DUPLICATE")
+        by_state_index[state_index] = item
+
+    result = []
+    for state in states or []:
+        if not isinstance(state, dict):
+            continue
+        projected = dict(state)
+        raw_index = projected.get("index")
+        try:
+            state_index = int(raw_index) if raw_index is not None else None
+        except (TypeError, ValueError):
+            state_index = None
+        if state_index is None:
+            result.append(projected)
+            continue
+        physical = by_state_index.get(state_index)
+        projected["semantic_state_label"] = f"KF{state_index}"
+        projected["physical_picture_index"] = physical.get("picture_index") if physical else None
+        projected["physical_picture"] = physical.get("picture") if physical else None
+        projected["physical_reference_status"] = "IMAGE_BACKED" if physical else "TEXT_ONLY"
+        result.append(projected)
+    return result
+
+
+def audit_physical_picture_references(final_prompt: str, picture_mapping: list[dict]) -> dict:
+    """Reject phantom/missing state Pictures and manifest-time mismatches."""
+    allowed = {int(item["picture_index"]) for item in picture_mapping}
+    emitted = [int(match.group(1)) for match in _PICTURE_TOKEN_RE.finditer(final_prompt or "")]
+    emitted_set = set(emitted)
+    invalid = sorted(emitted_set - allowed)
+    required_state_pictures = {
+        int(item["picture_index"])
+        for item in picture_mapping
+        if item.get("source_keyframe_index") is not None
+    }
+    missing = sorted(required_state_pictures - emitted_set)
+    expected_times = {
+        int(item["picture_index"]): float(
+            item.get("prompt_time_seconds", item["source_time_seconds"])
+        )
+        for item in picture_mapping
+        if item.get("source_time_seconds") is not None
+    }
+    time_mismatches = []
+    for match in _PICTURE_TIMELINE_RE.finditer(final_prompt or ""):
+        picture_index = int(match.group(1))
+        if picture_index not in expected_times:
+            continue
+        actual_time = float(match.group(2))
+        if abs(actual_time - expected_times[picture_index]) > 0.01:
+            time_mismatches.append({
+                "picture_index": picture_index,
+                "expected_time_seconds": expected_times[picture_index],
+                "actual_time_seconds": actual_time,
+            })
+    issues = []
+    if invalid:
+        issues.append("PHANTOM_PICTURE_REFERENCE")
+    if missing:
+        issues.append("PHYSICAL_PICTURE_REFERENCE_MISSING")
+    if time_mismatches:
+        issues.append("PHYSICAL_PICTURE_TIME_MISMATCH")
+    return {
+        "passed": not issues,
+        "issues": issues,
+        "physical_picture_count": len(picture_mapping),
+        "emitted_picture_indexes": sorted(emitted_set),
+        "invalid_picture_indexes": invalid,
+        "missing_state_picture_indexes": missing,
+        "time_mismatches": time_mismatches,
+    }
+
+
+def _canonical_picture_mapping_contract() -> str:
+    return """
+CANONICAL PHYSICAL PICTURE MAPPING CONTRACT (highest priority for Picture labels):
+- physical_picture_manifest in the user payload is the only authority for <Picture N>.
+- Picture numbering is dense, 1-based, and exactly follows physical_picture_manifest order.
+- Use each semantic state's physical_picture field exactly. If it is null, describe that state textually by semantic_state_label (for example KF2) and never assign it a Picture number.
+- Never derive a Picture number from a canonical state index, array position, role, or time.
+- Real non-state resource references also occupy their physical_picture_manifest positions.
+- temporal_anchors are separate and never consume ordinary Picture numbers.
+- Every Picture reference in the final answer must resolve to physical_picture_manifest; do not emit phantom or out-of-range Picture labels.
+""".strip()
+
 
 def strip_media_refs(value: Any) -> Any:
     """Remove concrete media locators before sending data to LLM prompt builders."""
@@ -586,6 +718,7 @@ async def build_h3_video_prompt(
     reference_images: list,
     character_appearances: Optional[dict] = None,
     temporal_anchors: Optional[list] = None,
+    video_reference_manifest: Optional[dict] = None,
 ) -> str:
     canonical_path = isinstance(clip, dict) and "visual_state_indexes" in clip
     semantic_controls = []
@@ -651,6 +784,37 @@ async def build_h3_video_prompt(
             "description": shot.description or "",
         }
     ]
+    physical_picture_mapping = (
+        build_physical_picture_mapping(video_reference_manifest)
+        if canonical_path else []
+    )
+    for item in physical_picture_mapping:
+        if item.get("source_time_seconds") is not None:
+            item["prompt_time_seconds"] = round(
+                float(item["source_time_seconds"]) - clip_start_time,
+                2,
+            )
+    mapped_frames = (
+        attach_physical_picture_mapping(frames, physical_picture_mapping)
+        if canonical_path else frames
+    )
+    mapped_keyframes = (
+        attach_physical_picture_mapping(sanitized_keyframes, physical_picture_mapping)
+        if canonical_path else sanitized_keyframes
+    )
+    mapped_semantic_controls = (
+        attach_physical_picture_mapping(
+            [item for item in semantic_controls if isinstance(item, dict) and item.get("index") is not None],
+            physical_picture_mapping,
+        )
+        if canonical_path else []
+    )
+    if canonical_path:
+        mapped_semantic_controls.extend(
+            strip_media_refs(item)
+            for item in semantic_controls
+            if isinstance(item, dict) and item.get("index") is None
+        )
     is_multi_clip = route in {"endpoint", "multi"}
     is_semantic_clip = bool(clip_dialogues and any(isinstance(item, dict) and item.get("dialogue_id") for item in clip_dialogues))
     shot_characters = safe_json_list(shot.characters)
@@ -683,7 +847,14 @@ async def build_h3_video_prompt(
         },
         **({} if canonical_path else {"selected_mode": selected_mode}),
         "visual_control_route": route if canonical_path else None,
-        "visual_controls": strip_media_refs(semantic_controls) if canonical_path else None,
+        "visual_controls": mapped_semantic_controls if canonical_path else None,
+        "physical_picture_manifest": physical_picture_mapping if canonical_path else None,
+        "picture_mapping_contract": {
+            "authority": "physical_picture_manifest",
+            "numbering": "dense_1_based_manifest_order",
+            "image_less_visual_states": "text_only_no_picture_number",
+            "temporal_anchor_domain": "separate_from_ordinary_pictures",
+        } if canonical_path else None,
         "clip": strip_clip_generation_data(clip),
         "motion_directive": clip_motion_directive,
         "clip_dialogues": dialogue_payload if is_multi_clip or is_semantic_clip else clip_dialogues,
@@ -691,8 +862,9 @@ async def build_h3_video_prompt(
         "dialogue_timeline_source": assigned_dialogues,
         "dialogue_timeline_status": dialogue_timeline_status,
         "silent_characters": silent_characters,
-        "frames": frames,
-        "keyframes": sanitized_keyframes,
+        "frames": mapped_frames,
+        "ordered_keyframes": mapped_keyframes if canonical_path else None,
+        "keyframes": mapped_keyframes,
         "temporal_anchors": strip_media_refs(temporal_anchors or []),
         "transitions": sanitized_transitions,
         "workflow_capability": strip_media_refs(workflow_capability),
@@ -706,7 +878,10 @@ async def build_h3_video_prompt(
     }
     user_content = "请基于以下 Video Director 规划数据，生成可直接用于 MiniMax H3 的最终视频提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
     result = await LLMService().chat_completion(
-        system_prompt=template.template,
+        system_prompt=(
+            f"{template.template}\n\n{_canonical_picture_mapping_contract()}"
+            if canonical_path else template.template
+        ),
         user_content=user_content,
         temperature=0.3,
         max_tokens=1800,
@@ -738,6 +913,27 @@ async def build_h3_video_prompt(
     continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
     if continuity_lock:
         final_prompt = f"{continuity_lock}\n\n{final_prompt}"
+    physical_picture_audit = None
+    if canonical_path:
+        physical_picture_audit = audit_physical_picture_references(final_prompt, physical_picture_mapping)
+        if not physical_picture_audit.get("passed"):
+            append_video_ai_call(shot, {
+                "step": step,
+                "task_type": template_type,
+                "prompt_template_name": template.name,
+                "status": "error",
+                "error_message": ",".join(physical_picture_audit.get("issues") or ["PICTURE_MAPPING_AUDIT_FAILED"]),
+                "input_summary": f"Shot {shot.index} Clip {clip.get('clip_index')} {selected_mode}",
+                "response": result.get("content") or "",
+                "parsed_result": physical_picture_audit,
+                "final_prompt": final_prompt,
+                "clip_index": clip.get("clip_index"),
+                "workflow_type": workflow_type,
+                "workflow_name": workflow_name,
+                "reference_images": reference_images,
+            })
+            db.commit()
+            raise RuntimeError(",".join(physical_picture_audit.get("issues") or ["PICTURE_MAPPING_AUDIT_FAILED"]))
     dialogue_audit = None
     if is_multi_clip or is_semantic_clip:
         subject_bindings = _subject_bindings(final_prompt, clip_visible_characters)
@@ -769,7 +965,10 @@ async def build_h3_video_prompt(
         "status": "success",
         "input_summary": f"Shot {shot.index} Clip {clip.get('clip_index')} {selected_mode}",
         "response": result.get("content") or "",
-        "parsed_result": dialogue_audit,
+        "parsed_result": {
+            "dialogue": dialogue_audit,
+            "physical_picture": physical_picture_audit,
+        } if canonical_path else dialogue_audit,
         "final_prompt": final_prompt,
         "clip_index": clip.get("clip_index"),
         "workflow_type": workflow_type,

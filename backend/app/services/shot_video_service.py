@@ -1159,6 +1159,7 @@ async def generate_shot_video_task(
                     {key: value for key, value in item.items() if key not in {"local_path", "image_url"}}
                     for item in ((temporal_manifest or {}).get("anchors") or [])
                 ],
+                video_reference_manifest=phase_b_manifest,
             )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
