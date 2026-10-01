@@ -33,7 +33,6 @@ import {
   getCanonicalVisualStates,
   getRequiredMissingCanonicalVisualStates,
   isCanonicalVisualPlan,
-  shouldAutoRecommendLegacyVideoMode,
 } from '../videoDirectorAuthority';
 import {
   buildSemanticBatchRequest,
@@ -790,6 +789,7 @@ function VideoDirectorPanel({
     }
   }, [isShotVideoGenerating]);
   const isCanonicalPlan = isCanonicalVisualPlan(plan);
+  const isHistoricalPlan = !isCanonicalPlan && hasLegacyBatchPlanningState(plan);
   const selectedMode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
   const maxClipDuration = plan.workflow_capability?.max_clip_duration || 15;
   const firstLastAvailable = plan.first_last_available ?? ((shot?.duration || 0) <= maxClipDuration);
@@ -1000,6 +1000,92 @@ function VideoDirectorPanel({
     link.click();
     URL.revokeObjectURL(url);
   };
+
+  if (isHistoricalPlan) {
+    const historicalMode = plan.selected_mode || plan.recommended_mode;
+    const historicalKeyframes = Array.isArray(plan.keyframes) ? plan.keyframes : [];
+    const historicalWindows = Array.isArray(plan.window_plans) ? plan.window_plans : [];
+    const historicalRecommendation = (plan.ai_calls || []).find((call: any) => String(call?.step) === '07');
+    return (
+      <section
+        data-testid="historical-video-plan-boundary"
+        className="flex-shrink-0 rounded-lg border border-amber-200 bg-amber-50 p-5"
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="max-w-2xl">
+            <div className="flex items-center gap-2 text-sm font-semibold text-amber-950">
+              <Info className="h-4 w-4" />
+              旧版视频规划
+            </div>
+            <p className="mt-2 text-sm leading-6 text-amber-900">
+              此分镜使用旧版视频规划格式。当前视频生成使用新版任意数量视觉状态规划；请重新规划后继续制作。
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="canonical-replan-cta"
+            onClick={() => onPlanKeyframes(true)}
+            disabled={isPlanningKeyframes || !!isShotVideoGenerating}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-amber-700 px-4 py-2 text-sm font-medium text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isPlanningKeyframes ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+            {isPlanningKeyframes ? '正在使用新版规划…' : '使用新版规划重新规划'}
+          </button>
+        </div>
+
+        <details data-testid="historical-plan-details" className="mt-4 border-t border-amber-200 pt-3">
+          <summary className="cursor-pointer text-sm font-medium text-amber-900">查看旧版规划详情</summary>
+          <div className="mt-3 grid gap-2 text-xs text-amber-950 sm:grid-cols-2">
+            <div className="rounded-md border border-amber-200 bg-white/70 px-3 py-2">旧版模式：{historicalMode || '未记录'}</div>
+            <div className="rounded-md border border-amber-200 bg-white/70 px-3 py-2">分镜时长：{Number(shot?.duration || 0)}s</div>
+            <div className="rounded-md border border-amber-200 bg-white/70 px-3 py-2">旧版关键帧：{historicalKeyframes.length}</div>
+            <div className="rounded-md border border-amber-200 bg-white/70 px-3 py-2">旧版窗口计划：{historicalWindows.length}</div>
+            {plan.recommended_mode && (
+              <div className="rounded-md border border-amber-200 bg-white/70 px-3 py-2">历史推荐值：{plan.recommended_mode}</div>
+            )}
+            {historicalRecommendation && (
+              <div className="rounded-md border border-amber-200 bg-white/70 px-3 py-2">历史 #07 记录：{historicalRecommendation.status || '已记录'}</div>
+            )}
+            {(plan.recommendation_reason || plan.notice) && (
+              <div className="rounded-md border border-amber-200 bg-white/70 px-3 py-2 sm:col-span-2">
+                历史说明：{plan.recommendation_reason || plan.notice}
+              </div>
+            )}
+          </div>
+          <p className="mt-3 text-xs text-amber-800">以上信息仅供查阅，不能在此选择、保存或执行旧版规划。</p>
+        </details>
+      </section>
+    );
+  }
+
+  if (!isCanonicalPlan) {
+    return (
+      <section
+        data-testid="missing-video-plan-state"
+        className="flex-shrink-0 rounded-lg border border-blue-200 bg-blue-50 p-5"
+      >
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm font-semibold text-blue-950">
+              <Sparkles className="h-4 w-4" />
+              新版视频规划
+            </div>
+            <p className="mt-2 text-sm leading-6 text-blue-900">此分镜尚未规划视觉时间轴。创建任意数量视觉状态后，即可继续图片与视频制作。</p>
+          </div>
+          <button
+            type="button"
+            data-testid="initial-canonical-plan-cta"
+            onClick={() => onPlanKeyframes(false)}
+            disabled={isPlanningKeyframes || !!isShotVideoGenerating}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isPlanningKeyframes ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {isPlanningKeyframes ? '正在规划视觉时间轴…' : '规划视觉时间轴'}
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <>
@@ -2068,13 +2154,13 @@ export function VideoGenTab({
   const currentShotVideoUrl = currentShotData?.videoUrl || (currentShotId ? shotVideos[currentShotId] : undefined);
   const currentVideoDirectorPlan: VideoDirectorPlan = currentShotData?.videoDirectorPlan || {};
   const currentIsCanonicalPlan = isCanonicalVisualPlan(currentVideoDirectorPlan);
+  const currentIsHistoricalPlan = !currentIsCanonicalPlan && hasLegacyBatchPlanningState(currentVideoDirectorPlan);
 
   useEffect(() => {
-    if (!currentIsCanonicalPlan) return;
     setIsVideoPromptModalOpen(false);
     setVideoPromptDrafts([]);
     setShowGenerateVideoMenu(false);
-  }, [currentIsCanonicalPlan]);
+  }, [currentIsCanonicalPlan, currentIsHistoricalPlan, currentShotId]);
 
   const currentSelectedVideoMode = currentIsCanonicalPlan
     ? undefined
@@ -2851,12 +2937,6 @@ export function VideoGenTab({
       toast.error('生成 END 关键帧失败');
     }
   }, [currentShotData, currentShotId, currentVideoDirectorPlan.keyframes, effectiveChapterId, effectiveNovelId, generateKeyframeImage]);
-
-  useEffect(() => {
-    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
-    if (!shouldAutoRecommendLegacyVideoMode(currentVideoDirectorPlan, currentShotId, recommendingShotId)) return;
-    handleRecommendVideoMode(false);
-  }, [currentShotId, currentVideoDirectorPlan.canonical_visual_plan, currentVideoDirectorPlan.recommended_mode, effectiveChapterId, effectiveNovelId, handleRecommendVideoMode, recommendingShotId]);
 
   useEffect(() => {
     setVideoMetadata({ duration: null, width: null, height: null, sizeBytes: null });
@@ -3783,52 +3863,7 @@ export function VideoGenTab({
                     ? t('chapterGenerate.submittingSemanticExecution')
                     : t('chapterGenerate.generateCurrentShotSemantic')}
             </button>
-          ) : (
-            <div className="relative inline-flex">
-              <button
-                onClick={() => handleGenerateVideo('llm')}
-                disabled={isCurrentVideoGenerateDisabled}
-                title={currentVideoKeyframeBlockReason || undefined}
-                className="px-4 py-2 bg-blue-600 text-white rounded-l-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-              >
-                <Film className="w-4 h-4" />
-                LLM+生成当前Shot视频
-              </button>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  setShowGenerateVideoMenu(prev => !prev);
-                }}
-                disabled={isCurrentVideoGenerateDisabled}
-                title={currentVideoKeyframeBlockReason || undefined}
-                className="px-2 py-2 bg-blue-600 text-white border-l border-blue-500 rounded-r-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
-                aria-label="选择视频生成方式"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-              {showGenerateVideoMenu && (
-                <div className="absolute left-0 top-full z-[80] mt-1 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-                  <button
-                    type="button"
-                    onClick={() => handleGenerateVideo('llm')}
-                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50"
-                  >
-                    LLM+生成当前Shot视频
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleGenerateVideo('video_only')}
-                    disabled={!hasReusableVideoPrompt}
-                    className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-blue-50 disabled:text-gray-400 disabled:hover:bg-white disabled:cursor-not-allowed"
-                    title={!hasReusableVideoPrompt ? '当前 Shot 没有可复用的视频最终 Prompt' : undefined}
-                  >
-                    只生成当前Shot视频
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
+          ) : null}
           <button
             onClick={handleOpenBatchSelect}
             disabled={!effectiveChapterId}
@@ -3836,23 +3871,6 @@ export function VideoGenTab({
           >
             批量生成视频
           </button>
-          {!currentIsCanonicalPlan && <button
-            onClick={handleSaveShot}
-            disabled={isSaving || !effectiveChapterId}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {t('common.saving')}
-              </>
-            ) : (
-              <>
-                <Save className="w-4 h-4" />
-                保存视频规划
-              </>
-            )}
-          </button>}
           <button
             onClick={handleDownloadMaterials}
             disabled={isDownloading || !effectiveChapterId}
@@ -4071,14 +4089,16 @@ export function VideoGenTab({
             </div>
           )}
         </div>
-        <VideoAiCallsPanel
-          calls={currentVideoDirectorPlan.ai_calls || []}
-          novelId={effectiveNovelId}
-          chapterId={effectiveChapterId}
-          shotId={currentShotId}
-          onRefresh={handleRefreshAiCalls}
-          isRefreshing={isRefreshingAiCalls}
-        />
+        {!currentIsHistoricalPlan && (
+          <VideoAiCallsPanel
+            calls={currentVideoDirectorPlan.ai_calls || []}
+            novelId={effectiveNovelId}
+            chapterId={effectiveChapterId}
+            shotId={currentShotId}
+            onRefresh={handleRefreshAiCalls}
+            isRefreshing={isRefreshingAiCalls}
+          />
+        )}
         </div>
 
       </div>
