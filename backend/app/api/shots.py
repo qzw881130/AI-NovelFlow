@@ -31,7 +31,7 @@ from app.services.novel_service import (
     generate_transition_video_task,
 )
 from app.services.shot_image_service import enqueue_shot_image_task
-from app.services.shot_video_service import _clip_dialogues_for_prompt, _dialogue_assignment_source, enqueue_shot_video_task, merge_video_director_clip_videos, resolve_extend_previous_av
+from app.services.shot_video_service import _clip_dialogues_for_prompt, _dialogue_assignment_source, enqueue_shot_video_task, merge_video_director_clip_videos, resolve_extend_previous_av, validate_semantic_clip_artifact
 
 generate_shot_task = enqueue_shot_image_task
 generate_shot_video_task = enqueue_shot_video_task
@@ -317,6 +317,7 @@ class BatchShotVideoRequest(BaseModel):
     use_reference_audio: bool = True
     skip_llm_when_prompt_exists: bool = False
     force_rerun: bool = True
+    auto_assemble: bool = True
 
 
 class SemanticClipGenerateRequest(BaseModel):
@@ -2385,7 +2386,7 @@ async def generate_video_director_clip(
     if any(int(item.get("clip_index") or 0) == int(window_index) for item in semantic_clips if isinstance(item, dict)):
         if request.clip_plan_revision is None:
             raise HTTPException(status_code=400, detail="semantic Clip 需要显式提供 clip_plan_revision")
-        return await _execute_phase_b_semantic_clip(
+        return await execute_semantic_clip(
             novel_id, chapter_id, shot_id, window_index,
             SemanticClipGenerateRequest(
                 use_reference_audio=request.use_reference_audio,
@@ -2635,6 +2636,11 @@ async def _execute_phase_b_semantic_clip(
         skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
     )
     return {"success": True, "message": f"semantic Clip {capability} 任务已创建", "data": {"taskId": task.id, "status": "pending"}}
+
+
+async def execute_semantic_clip(*args, **kwargs):
+    """Shared semantic Clip entrypoint for API and Batch orchestration."""
+    return await _execute_phase_b_semantic_clip(*args, **kwargs)
 
 
 async def _regenerate_semantic_video_director_clip(
@@ -3287,6 +3293,199 @@ async def _run_semantic_shot_for_batch(db, batch_task: Task, batch_child: Task, 
     return await _wait_for_semantic_shot_final(db, batch_child, shot, plan)
 
 
+def _semantic_batch_clips(shot: Shot, revision: int) -> list[dict]:
+    plan = _safe_json_dict(shot.video_director_plan)
+    if int(plan.get("clip_plan_revision") or 0) != int(revision):
+        raise RuntimeError("BATCH_CLIP_PLAN_REVISION_STALE")
+    clips = plan.get("clip_plan") if isinstance(plan.get("clip_plan"), list) else []
+    if not clips or not (plan.get("clip_plan_validation") or {}).get("passed"):
+        raise RuntimeError("Semantic Clip Plan 缺失或未通过校验")
+    ordered = sorted(clips, key=lambda item: int(item.get("clip_index") or 0))
+    indexes = [int(item.get("clip_index") or 0) for item in ordered]
+    if not indexes or len(indexes) != len(set(indexes)) or any(index <= 0 for index in indexes):
+        raise RuntimeError("BATCH_CLIP_PLAN_INVALID")
+    for clip, index in zip(ordered, indexes):
+        clip.setdefault("clip_id", f"{shot.id}:clip:{index}")
+        if int(clip.get("clip_plan_revision") or revision) != int(revision):
+            raise RuntimeError("BATCH_CLIP_PLAN_REVISION_STALE")
+    return ordered
+
+
+def _semantic_clip_tasks(db: Session, shot: Shot, revision: int) -> list[Task]:
+    tasks = []
+    for task in db.query(Task).filter(Task.shot_id == shot.id, Task.type == "shot_video").all():
+        metadata = _safe_json_dict(task.metadata_json)
+        if metadata.get("execution_scope") == "CLIP" and int(metadata.get("clip_plan_revision") or 0) == int(revision):
+            tasks.append(task)
+    return tasks
+
+
+def _latest_semantic_task(tasks: list[Task], clip_index: int) -> Task | None:
+    matching = [task for task in tasks if int(_safe_json_dict(task.metadata_json).get("clip_index") or 0) == int(clip_index)]
+    return max(matching, key=lambda task: task.created_at or datetime.min, default=None)
+
+
+def _batch_child_state(batch_child: Task, state: str, **fields) -> None:
+    metadata = _safe_json_dict(batch_child.metadata_json)
+    metadata.update({"batch_mode": "SEMANTIC_CLIP", "batch_state": state, **fields})
+    batch_child.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    batch_child.current_step = state
+
+
+async def _wait_for_semantic_clip_task(db: Session, task_id: str, timeout_iterations: int = 720) -> Task | None:
+    for _ in range(timeout_iterations):
+        db.expire_all()
+        task = db.query(Task).filter(Task.id == task_id).first()
+        if not task or task.status in {"completed", "failed", "cancelled"}:
+            return task
+        await asyncio.sleep(5)
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if task and task.status in {"pending", "running"}:
+        task.status = "failed"
+        task.error_message = "等待 semantic Clip 完成超时"
+        db.commit()
+    return task
+
+
+async def _run_semantic_shot_for_batch(db: Session, batch_task: Task, batch_child: Task, shot: Shot) -> str:
+    batch_metadata = _safe_json_dict(batch_child.metadata_json)
+    revision = int(batch_metadata.get("clip_plan_revision") or 0)
+    auto_assemble = bool(batch_metadata.get("auto_assemble", True))
+    clips = _semantic_batch_clips(shot, revision)
+    tasks = _semantic_clip_tasks(db, shot, revision)
+
+    for clip in clips:
+        index = int(clip.get("clip_index") or 0)
+        try:
+            validate_semantic_clip_artifact(db, shot, clip, revision, batch_child.novel_id, batch_child.chapter_id)
+            _batch_child_state(batch_child, "RUNNING", current_clip_index=index)
+            db.commit()
+            continue
+        except ValueError:
+            existing_task = _latest_semantic_task(tasks, index)
+            if existing_task and existing_task.status == "completed":
+                existing_metadata = _safe_json_dict(existing_task.metadata_json)
+                if existing_metadata.get("approval_status") not in {None, "APPROVED"}:
+                    _batch_child_state(batch_child, "WAITING_REVIEW", current_clip_index=index)
+                    db.commit()
+                    return "waiting_review"
+
+        if str(clip.get("continuity_to_previous") or "").upper() == "CONTINUOUS":
+            previous_index = int(clip.get("previous_clip_index") or index - 1)
+            previous = next((item for item in clips if int(item.get("clip_index") or 0) == previous_index), None)
+            if not previous:
+                raise RuntimeError("BATCH_PREVIOUS_CLIP_MISSING")
+            try:
+                validate_semantic_clip_artifact(db, shot, previous, revision, batch_child.novel_id, batch_child.chapter_id)
+            except ValueError:
+                previous_task = _latest_semantic_task(tasks, previous_index)
+                if previous_task and previous_task.status in {"pending", "running"}:
+                    _batch_child_state(batch_child, "WAITING_DEPENDENCY", current_clip_index=index)
+                    db.commit()
+                    return "waiting_dependency"
+                if previous_task and _safe_json_dict(previous_task.metadata_json).get("approval_status") not in {None, "APPROVED"}:
+                    _batch_child_state(batch_child, "WAITING_REVIEW", current_clip_index=index)
+                    db.commit()
+                    return "waiting_review"
+                raise RuntimeError(f"BATCH_PREVIOUS_CLIP_UNAVAILABLE:{previous_index}")
+
+        task = _latest_semantic_task(tasks, index)
+        if task and task.status in {"pending", "running"}:
+            _batch_child_state(batch_child, "RUNNING", current_clip_index=index)
+            db.commit()
+            task = await _wait_for_semantic_clip_task(db, task.id)
+        elif task and task.status in {"failed", "cancelled"}:
+            retry = TaskService(db).retry_task(task.id)
+            if not retry.get("success"):
+                _batch_child_state(batch_child, "FAILED", failed_clip_index=index)
+                batch_child.error_message = retry.get("message") or task.error_message
+                db.commit()
+                return "failed"
+            task = await _wait_for_semantic_clip_task(db, task.id)
+        else:
+            _batch_child_state(batch_child, "RUNNING", current_clip_index=index)
+            batch_task.current_step = f"正在执行 Shot {shot.index} Clip {index}"
+            db.commit()
+            try:
+                execution_result = await execute_semantic_clip(
+                    batch_child.novel_id,
+                    batch_child.chapter_id,
+                    shot.id,
+                    index,
+                    SemanticClipGenerateRequest(
+                        use_reference_audio=bool(batch_metadata.get("use_reference_audio", True)),
+                        auto_merge=False,
+                        skip_llm_when_prompt_exists=bool(batch_metadata.get("skip_llm_when_prompt_exists", False)),
+                        clip_plan_revision=revision,
+                    ),
+                    db,
+                    NovelRepository(db),
+                    ChapterRepository(db),
+                    TaskRepository(db),
+                    ShotRepository(db),
+                )
+                execution_task_id = ((execution_result or {}).get("data") or {}).get("taskId")
+                execution_task = db.query(Task).filter(Task.id == execution_task_id).first() if execution_task_id else None
+                if execution_task:
+                    execution_metadata = _safe_json_dict(execution_task.metadata_json)
+                    execution_metadata["batch_parent_task_id"] = batch_task.id
+                    execution_task.parent_task_id = batch_task.id
+                    execution_task.metadata_json = json.dumps(execution_metadata, ensure_ascii=False)
+                    db.commit()
+            except HTTPException as exc:
+                _batch_child_state(batch_child, "FAILED", failed_clip_index=index)
+                batch_child.error_message = str(exc.detail)
+                db.commit()
+                return "failed"
+            tasks = _semantic_clip_tasks(db, shot, revision)
+            task = _latest_semantic_task(tasks, index)
+            task = await _wait_for_semantic_clip_task(db, task.id) if task else None
+
+        db.expire_all()
+        shot = db.query(Shot).filter(Shot.id == batch_child.shot_id).first()
+        clips = _semantic_batch_clips(shot, revision)
+        current = next(item for item in clips if int(item.get("clip_index") or 0) == index)
+        try:
+            validate_semantic_clip_artifact(db, shot, current, revision, batch_child.novel_id, batch_child.chapter_id)
+        except ValueError as exc:
+            _batch_child_state(batch_child, "FAILED", failed_clip_index=index)
+            batch_child.error_message = (task.error_message if task else None) or str(exc)
+            db.commit()
+            return "failed"
+        tasks = _semantic_clip_tasks(db, shot, revision)
+
+    if not auto_assemble:
+        _batch_child_state(batch_child, "COMPLETED_CLIPS")
+        db.commit()
+        return "completed"
+
+    plan = _safe_json_dict(shot.video_director_plan)
+    expected_task_ids = [str(clip.get("generated_by_task_id")) for clip in clips]
+    existing_assembly_url = plan.get("merged_video_url") or shot.video_url
+    reusable_assembly = (
+        plan.get("assembly_status") == "COMPLETED"
+        and int(plan.get("assembly_clip_plan_revision") or 0) == revision
+        and shot.video_url
+        and shot.video_url == existing_assembly_url
+        and plan.get("assembly_task_ids") == expected_task_ids
+        and bool(url_to_local_path(existing_assembly_url) and Path(url_to_local_path(existing_assembly_url)).is_file())
+    )
+    if not reusable_assembly:
+        _batch_child_state(batch_child, "ASSEMBLING")
+        db.commit()
+        result = await merge_video_director_clip_videos(
+            db, shot, ShotRepository(db), batch_child.novel_id, batch_child.chapter_id, int(shot.index or 0),
+        )
+        if not result.get("success"):
+            _batch_child_state(batch_child, "FAILED")
+            batch_child.error_message = result.get("message") or "Semantic Shot Final Assembly 失败"
+            db.commit()
+            return "failed"
+    _batch_child_state(batch_child, "COMPLETED")
+    db.commit()
+    return "completed"
+
+
 async def run_shot_video_batch_task(batch_task_id: str) -> None:
     db = SessionLocal()
     try:
@@ -3338,23 +3537,12 @@ async def run_shot_video_batch_task(batch_task_id: str) -> None:
                 continue
             shot = db.query(Shot).filter(Shot.id == child.shot_id).first()
             shot_plan = _safe_json_dict(shot.video_director_plan) if shot else {}
+            child_metadata = _safe_json_dict(child.metadata_json)
+            semantic_batch = child_metadata.get("batch_mode") == "SEMANTIC_CLIP"
             semantic_clips = shot_plan.get("clip_plan") if isinstance(shot_plan.get("clip_plan"), list) else []
-            if semantic_clips and child.status == "running":
-                status = await _wait_for_semantic_shot_final(db, child, shot, shot_plan)
-                child.status = status
-                child.progress = 100 if status in {"completed", "failed", "cancelled"} else child.progress
-                child.completed_at = datetime.utcnow() if status in {"completed", "failed", "cancelled"} else child.completed_at
-                if status != "completed":
-                    child.error_message = child.error_message or f"Semantic Shot Final {status}"
-                db.commit()
-                if status == "completed":
-                    completed += 1
-                elif status == "cancelled":
-                    cancelled += 1
-                else:
-                    failed += 1
-                continue
-            if child.status == "running" and child.comfyui_prompt_id:
+            if semantic_batch and not semantic_clips:
+                semantic_clips = [{}]
+            if child.status == "running" and child.comfyui_prompt_id and not semantic_clips:
                 status = await _wait_for_persistent_task(db, child.id)
             else:
                 if child.status == "running":
@@ -3368,7 +3556,11 @@ async def run_shot_video_batch_task(batch_task_id: str) -> None:
                 try:
                     shot = db.query(Shot).filter(Shot.id == child.shot_id).first()
                     plan = _safe_json_dict(shot.video_director_plan) if shot else {}
+                    child_metadata = _safe_json_dict(child.metadata_json)
+                    semantic_batch = child_metadata.get("batch_mode") == "SEMANTIC_CLIP"
                     semantic_clips = plan.get("clip_plan") if isinstance(plan.get("clip_plan"), list) else []
+                    if semantic_batch and not semantic_clips:
+                        semantic_clips = [{}]
                     if semantic_clips:
                         conflicting_legacy_children = db.query(Task).filter(
                             Task.parent_task_id == batch_task_id,
@@ -3380,6 +3572,14 @@ async def run_shot_video_batch_task(batch_task_id: str) -> None:
                             raise RuntimeError("Batch child 结构已包含旧 Shot-level Task；拒绝与 Semantic Clip Tasks 混合完成")
                         batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
                         status = await _run_semantic_shot_for_batch(db, batch_task, child, shot)
+                        if status in {"waiting_review", "waiting_dependency"}:
+                            child.status = "pending"
+                            child.completed_at = None
+                            child.error_message = None
+                            batch_task.status = "pending"
+                            batch_task.current_step = f"Shot {shot.index} {status}"
+                            db.commit()
+                            return
                         child.status = status
                         child.progress = 100 if status in {"completed", "failed", "cancelled"} else child.progress
                         child.completed_at = datetime.utcnow() if status in {"completed", "failed", "cancelled"} else child.completed_at
@@ -3476,6 +3676,7 @@ async def generate_shot_videos_batch(
         raise HTTPException(status_code=404, detail="小说或章节不存在")
 
     validated = []
+    selected_shots = []
     for order, shot_id in enumerate(shot_ids, start=1):
         shot = shot_repo.get_by_id(shot_id)
         if not shot or shot.chapter_id != chapter_id:
@@ -3483,8 +3684,12 @@ async def generate_shot_videos_batch(
         if not shot.image_url:
             raise HTTPException(status_code=400, detail=f"分镜 {shot.index} 尚未生成主分镜图")
         plan = _safe_json_dict(shot.video_director_plan)
-        if plan.get("clip_plan") and plan.get("clip_plan_approval_mode") == "REVIEW_REQUIRED":
-            raise HTTPException(status_code=400, detail=f"分镜 {shot.index} 的 REVIEW_REQUIRED 尚未实现批量审核，请使用 AUTO_APPROVE Clip Plan")
+        semantic = isinstance(plan.get("clip_plan"), list) and bool(plan.get("clip_plan"))
+        selected_shots.append({
+            "shot_id": shot.id,
+            "clip_plan_revision": int(plan.get("clip_plan_revision") or 0) if semantic else None,
+            "batch_mode": "SEMANTIC_CLIP" if semantic else "LEGACY_SHOT",
+        })
         active = db.query(Task).filter(
             Task.type == "shot_video",
             Task.shot_id == shot.id,
@@ -3493,6 +3698,9 @@ async def generate_shot_videos_batch(
         if active:
             raise HTTPException(status_code=400, detail=f"分镜 {shot.index} 已有进行中的视频任务")
         validated.append((order, shot, None))
+
+    modes = {item["batch_mode"] for item in selected_shots}
+    batch_mode = next(iter(modes)) if len(modes) == 1 else "MIXED"
 
     batch_task = Task(
         type="shot_video_batch",
@@ -3505,10 +3713,13 @@ async def generate_shot_videos_batch(
         current_step="等待处理",
         metadata_json=json.dumps({
             "shot_ids": shot_ids,
+            "selected_shots": selected_shots,
+            "batch_mode": batch_mode,
             "auto_complete_details": data.auto_complete_details,
             "use_reference_audio": data.use_reference_audio,
             "skip_llm_when_prompt_exists": data.skip_llm_when_prompt_exists,
             "force_rerun": data.force_rerun,
+            "auto_assemble": data.auto_assemble,
         }, ensure_ascii=False),
     )
     db.add(batch_task)
@@ -3534,6 +3745,9 @@ async def generate_shot_videos_batch(
             **_safe_json_dict(child.metadata_json),
             "batch_shot_child": True,
             "batch_force_rerun": data.force_rerun,
+            "batch_mode": "SEMANTIC_CLIP" if any(item["shot_id"] == shot.id and item["batch_mode"] == "SEMANTIC_CLIP" for item in selected_shots) else "LEGACY_SHOT",
+            "clip_plan_revision": next((item["clip_plan_revision"] for item in selected_shots if item["shot_id"] == shot.id), None),
+            "auto_assemble": data.auto_assemble,
         }, ensure_ascii=False)
         shot.video_status = "pending"
         shot.video_task_id = child.id

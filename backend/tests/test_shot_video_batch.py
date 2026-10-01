@@ -116,18 +116,15 @@ async def test_video_batch_runner_delegates_semantic_shot_and_waits_for_final(db
         "clip_plan_approval_mode": "AUTO_APPROVE",
         "clip_plan": [{"clip_index": 1, "capability": "SINGLE_FRAME", "planned_duration": 8}],
     })
+    children[0].metadata_json = json.dumps({"batch_mode": "SEMANTIC_CLIP", "clip_plan_revision": 4, "auto_assemble": False})
     db_session.commit()
     calls = []
 
-    async def start_semantic(**kwargs):
-        calls.append(kwargs)
-
-    async def wait_for_final(db, child, shot, plan):
-        assert plan["clip_plan_revision"] == 4
+    async def run_semantic(db, batch_task, child, current_shot):
+        calls.append((child.id, current_shot.id))
         return "completed"
 
-    monkeypatch.setattr(shots_api, "generate_clip_plan_video", start_semantic)
-    monkeypatch.setattr(shots_api, "_wait_for_semantic_shot_final", wait_for_final)
+    monkeypatch.setattr(shots_api, "_run_semantic_shot_for_batch", run_semantic)
 
     await shots_api.run_shot_video_batch_task(batch.id)
 
@@ -135,7 +132,7 @@ async def test_video_batch_runner_delegates_semantic_shot_and_waits_for_final(db
     refreshed_batch = db_session.query(Task).filter(Task.id == batch.id).one()
     refreshed_child = db_session.query(Task).filter(Task.id == children[0].id).one()
     assert len(calls) == 1
-    assert calls[0]["batch_parent_task_id"] == batch.id
+    assert calls[0] == (children[0].id, shot.id)
     assert refreshed_child.status == "completed"
     assert refreshed_batch.status == "completed"
 
@@ -255,16 +252,13 @@ async def test_semantic_batch_failure_does_not_block_other_shot_final(db_session
             "clip_plan_approval_mode": "AUTO_APPROVE",
             "clip_plan": [{"clip_index": 1, "capability": "SINGLE_FRAME", "planned_duration": 8}],
         })
+        child.metadata_json = json.dumps({"batch_mode": "SEMANTIC_CLIP", "clip_plan_revision": 2, "auto_assemble": False})
     db_session.commit()
 
-    async def start_semantic(**kwargs):
-        return None
+    async def run_semantic(db, batch_task, child, current_shot):
+        return "failed" if current_shot.index == 1 else "completed"
 
-    async def wait_for_final(db, child, shot, plan):
-        return "failed" if shot.index == 1 else "completed"
-
-    monkeypatch.setattr(shots_api, "generate_clip_plan_video", start_semantic)
-    monkeypatch.setattr(shots_api, "_wait_for_semantic_shot_final", wait_for_final)
+    monkeypatch.setattr(shots_api, "_run_semantic_shot_for_batch", run_semantic)
 
     await shots_api.run_shot_video_batch_task(batch.id)
 

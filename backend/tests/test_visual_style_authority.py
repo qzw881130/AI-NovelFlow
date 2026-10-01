@@ -193,6 +193,18 @@ def test_keyframe_planner_prompt_defines_timed_target_and_explicit_field():
     assert "不能仅因状态重要、是 END" in prompt
 
 
+def test_keyframe_planner_prompt_defines_selective_timed_target_decision():
+    from pathlib import Path
+
+    prompt = (Path(__file__).parents[1] / "prompt_templates" / "08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt").read_text()
+    assert "以下四项全部满足时" in prompt
+    assert "普通文字或运动指导不足以可靠保证" in prompt
+    assert "按时间定位的视觉条件" in prompt
+    assert "到达窗边并明确手持红色文件夹" in prompt
+    assert "没有必须在该时间实现的精确构图" in prompt
+    assert "不要把每个中间帧、每次位置变化、每次道具交互或每个 Clip 自动标记为 true" in prompt
+
+
 @pytest.mark.parametrize("value", [None, "false", 0, 1])
 def test_new_keyframe_plan_requires_boolean_timed_visual_target(value):
     raw = {

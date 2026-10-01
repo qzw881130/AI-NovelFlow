@@ -1762,36 +1762,56 @@ def _resolve_semantic_clip_assembly_units(
         if task_id in seen_task_ids:
             raise ValueError(f"Clip {clip_index} 与其他 Clip 重复使用 Task {task_id}")
         seen_task_ids.add(task_id)
-        task = db.query(Task).filter(Task.id == task_id).first()
-        metadata = safe_json_dict(task.metadata_json) if task else {}
-        contract = metadata.get("execution_contract") or {}
-        contract_clip = contract.get("clip") or {}
-        if (
-            not task
-            or task.type != "shot_video"
-            or task.status != "completed"
-            or task.novel_id != novel_id
-            or task.chapter_id != chapter_id
-            or task.shot_id != shot.id
-            or task.result_url != result_url
-            or metadata.get("execution_scope") != "CLIP"
-            or contract.get("artifact_kind") != "CLIP_ONLY"
-            or metadata.get("approval_status") != "APPROVED"
-            or metadata.get("clip_id") != f"{shot.id}:clip:{clip_index}"
-            or int(metadata.get("clip_index") or 0) != clip_index
-            or int(metadata.get("clip_plan_revision") or 0) != int(revision)
-            or contract_clip.get("clip_id") != f"{shot.id}:clip:{clip_index}"
-            or int(contract_clip.get("clip_index") or 0) != clip_index
-            or int(contract_clip.get("clip_plan_revision") or 0) != int(revision)
-        ):
-            raise ValueError(f"Clip {clip_index} 的 Task provenance 与 semantic Clip 不匹配")
-        local_path = url_to_local_path(result_url)
-        if not local_path or not Path(local_path).is_file() or not os.access(local_path, os.R_OK):
-            raise ValueError(f"Clip {clip_index} 的 artifact 不可读取")
+        task, metadata, local_path = validate_semantic_clip_artifact(
+            db, shot, semantic_clip, revision, novel_id, chapter_id,
+        )
         units.append((semantic_clip, task, metadata, local_path))
     if not units:
         raise ValueError("semantic Clip Plan 没有可合并的视频")
     return units
+
+
+def validate_semantic_clip_artifact(
+    db,
+    shot,
+    semantic_clip: dict,
+    revision: int,
+    novel_id: str,
+    chapter_id: str,
+) -> tuple[Task, dict, str]:
+    """Validate one reusable semantic Clip artifact for assembly or Batch reuse."""
+    clip_index = int(semantic_clip.get("clip_index") or 0)
+    task_id = str(semantic_clip.get("generated_by_task_id") or "")
+    result_url = str(semantic_clip.get("video_url") or "")
+    task = db.query(Task).filter(Task.id == task_id).first() if task_id else None
+    metadata = safe_json_dict(task.metadata_json) if task else {}
+    contract = metadata.get("execution_contract") or {}
+    contract_clip = contract.get("clip") or {}
+    valid = (
+        task
+        and task.type == "shot_video"
+        and task.status == "completed"
+        and task.novel_id == novel_id
+        and task.chapter_id == chapter_id
+        and task.shot_id == shot.id
+        and task.result_url == result_url
+        and metadata.get("execution_scope") == "CLIP"
+        and contract.get("artifact_kind") == "CLIP_ONLY"
+        and metadata.get("approval_status") == "APPROVED"
+        and str(metadata.get("clip_id") or "") == f"{shot.id}:clip:{clip_index}"
+        and int(metadata.get("clip_index") or 0) == clip_index
+        and int(metadata.get("clip_plan_revision") or 0) == int(revision)
+        and str(contract_clip.get("clip_id") or "") == f"{shot.id}:clip:{clip_index}"
+        and int(contract_clip.get("clip_index") or 0) == clip_index
+        and int(contract_clip.get("clip_plan_revision") or 0) == int(revision)
+        and str(semantic_clip.get("execution_status") or "").upper() in {"APPROVED", "SUCCEEDED"}
+    )
+    if not valid:
+        raise ValueError(f"Clip {clip_index} 的 Task provenance 与 semantic Clip 不匹配")
+    local_path = url_to_local_path(result_url)
+    if not local_path or not Path(local_path).is_file() or not os.access(local_path, os.R_OK):
+        raise ValueError(f"Clip {clip_index} 的 artifact 不可读取")
+    return task, metadata, local_path
 
 
 async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, novel_id: str, chapter_id: str, shot_index: int) -> dict:
