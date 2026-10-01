@@ -19,6 +19,7 @@ import { shotsApi } from '../../../api/shots';
 import type { Chapter } from '../../../types';
 import { toast } from '../../../stores/toastStore';
 import { DIALOGUE_WARNING_STYLES, getDialogueDurationWarningStats } from '../../../utils';
+import { getSemanticShotStatus, isSemanticShot } from '../../../utils/semanticBatch';
 
 // 布局组件
 import { ThreeColumnLayout } from './ThreeColumnLayout';
@@ -180,6 +181,15 @@ export function ChapterGenerateLayout({
   const videoStats = shots.reduce((stats, shot) => {
     const shotId = String(shot.id || '');
     const plan: any = shot.videoDirectorPlan || {};
+    if (isSemanticShot(shot)) {
+      const semanticStatus = getSemanticShotStatus(shot, []);
+      if (semanticStatus === 'ASSEMBLED') stats.completed.push(shot);
+      else if (semanticStatus === 'CLIPS_COMPLETE') stats.needsMerge.push(shot);
+      else if (semanticStatus === 'FAILED') stats.failed.push(shot);
+      else if (semanticStatus === 'PARTIAL' || semanticStatus === 'WAITING_REVIEW') stats.pending.push(shot);
+      else stats.pending.push(shot);
+      return stats;
+    }
     const mode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
     const clips = mode === 'MULTI_KEYFRAME' && Array.isArray(plan.window_plans) ? plan.window_plans : [];
     const hasShotVideo = !!(shot.videoUrl || shotVideos[shotId] || plan.merged_video_url);

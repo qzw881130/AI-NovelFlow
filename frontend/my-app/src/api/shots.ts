@@ -169,6 +169,16 @@ export interface VideoDirectorPlan {
   merged_video_url?: string;
   merged_at?: string;
   clip_plan_revision?: number;
+  temporal_anchors?: Array<{
+    anchor_id: string;
+    time_seconds: number;
+    image_url?: string;
+    source?: { type?: string; id?: string; keyframe_index?: number; image_task_id?: string; [key: string]: any };
+    description?: string;
+  }>;
+  assembly_status?: string;
+  assembly_clip_plan_revision?: number;
+  assembly_task_ids?: string[];
   clip_plan_approval_mode?: string;
   clip_plan_validation?: { passed?: boolean; findings?: Array<{ code?: string; severity?: string; message?: string }> };
   clip_plan_findings?: Array<{ code?: string; severity?: string; message?: string }>;
@@ -177,11 +187,20 @@ export interface VideoDirectorPlan {
     start_time: number;
     end_time: number;
     planned_duration?: number;
+    planning_mode?: string;
     capability: string;
+    continuity_to_previous?: 'NONE' | 'CUT' | 'CONTINUOUS' | string;
     previous_clip_index?: number | null;
+    requires_temporal_control?: boolean;
     temporal_anchor_ids?: string[];
+    clip_id?: string;
+    generated_by_task_id?: string;
+    video_url?: string | null;
     execution_status?: string;
     approval_mode?: string;
+    approval_status?: string;
+    status?: string;
+    error_message?: string | null;
     prompt_text?: string;
     [key: string]: any;
   }>;
@@ -381,6 +400,7 @@ export const shotsApi = {
       use_reference_audio?: boolean;
       skip_llm_when_prompt_exists?: boolean;
       force_rerun?: boolean;
+      auto_assemble?: boolean;
     }
   ): Promise<{ success: boolean; data?: { batchTaskId: string; tasks: Array<{ taskId: string; shotId: string; status: string }> }; message?: string; detail?: string }> => {
     const response = await fetch(
@@ -394,6 +414,7 @@ export const shotsApi = {
           use_reference_audio: options.use_reference_audio ?? true,
           skip_llm_when_prompt_exists: options.skip_llm_when_prompt_exists ?? false,
           force_rerun: options.force_rerun ?? true,
+          auto_assemble: options.auto_assemble ?? true,
         }),
       }
     );

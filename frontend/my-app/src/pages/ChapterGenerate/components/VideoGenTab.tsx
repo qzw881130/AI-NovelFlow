@@ -24,6 +24,7 @@ import { ImageEditModal } from '../../../components/ImageEditModal';
 import type { KeyframeData } from '../../../types';
 import type { VideoAiCall, VideoDirectorPlan, VideoMode } from '../../../api/shots';
 import { DIALOGUE_GAP_SECONDS, dialogueEmotion, dialogueSpeaker, dialogueText, estimateDialogueSeconds, formatUserFacingError, getClipDialoguesForDisplay, numberOrNull } from '../../../utils';
+import { getSemanticClipCounts, getSemanticClipStatus, getSemanticShotStatus, getTemporalTargetLabel, isSemanticShot, type SemanticClipStatus } from '../../../utils/semanticBatch';
 
 const VIDEO_TAB_UI_STORAGE_KEY = 'chapterGenerate_videoTab_ui';
 type MergeVideoMode = 'shots_only' | 'shots_with_transitions';
@@ -1799,6 +1800,8 @@ export function VideoGenTab({
   const [batchSelectionMode, setBatchSelectionMode] = useState<BatchSelectionMode>(null);
   const [dragSelectionMode, setDragSelectionMode] = useState<'select' | 'deselect' | null>(null);
   const [autoCompleteDetails, setAutoCompleteDetails] = useState(true);
+  const [autoAssemble, setAutoAssemble] = useState(true);
+  const [batchShotTasks, setBatchShotTasks] = useState<Record<string, Task[]>>({});
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [previewTransitionVideo, setPreviewTransitionVideo] = useState<string | null>(null);
 
@@ -1913,8 +1916,29 @@ export function VideoGenTab({
 
   const hasShotVideo = (shot: any) => {
     const shotId = shot?.id ? String(shot.id) : '';
+    if (isSemanticShot(shot)) return getSemanticShotStatus(shot, batchShotTasks[shotId] || []) === 'ASSEMBLED';
     return !!(shot?.videoUrl || (shotId && shotVideos[shotId]));
   };
+
+  useEffect(() => {
+    if (!showBatchSelectModal || !effectiveChapterId) return;
+    let cancelled = false;
+    const refresh = async () => {
+      const semanticShots = shotsList.filter((shot: any) => isSemanticShot(shot));
+      const entries = await Promise.all(semanticShots.map(async (shot: any) => {
+        try {
+          const response = await taskApi.fetchShotTasks(effectiveChapterId, String(shot.id));
+          return [String(shot.id), Array.isArray(response.data) ? response.data : []] as const;
+        } catch {
+          return [String(shot.id), []] as const;
+        }
+      }));
+      if (!cancelled) setBatchShotTasks(Object.fromEntries(entries));
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 2000);
+    return () => { cancelled = true; window.clearInterval(interval); };
+  }, [showBatchSelectModal, effectiveChapterId, shotsList]);
 
   const getShotImageUrl = useCallback((shot: any) => {
     const shotId = shot?.id ? String(shot.id) : '';
@@ -1986,6 +2010,15 @@ export function VideoGenTab({
     if (generatingVideos.has(shotId) || shot?.videoStatus === 'generating') return { selectable: false, reason: '视频生成中' };
     if (storePendingVideos.has(shotId)) return { selectable: false, reason: '视频队列中' };
 
+    if (isSemanticShot(shot)) {
+      const status = getSemanticShotStatus(shot, batchShotTasks[shotId] || []);
+      if (status === 'ASSEMBLED') return { selectable: false, reason: '当前版本已完成' };
+      if (status === 'WAITING_REVIEW') return { selectable: false, reason: '等待审核' };
+      if (status === 'CLIPS_COMPLETE' && !autoAssemble) return { selectable: false, reason: 'Clip 已完成' };
+      if (!getShotImageUrl(shot)) return { selectable: false, reason: '缺少主分镜图' };
+      return { selectable: true, reason: status === 'CLIPS_COMPLETE' ? '待合并' : '可执行缺失 Clip' };
+    }
+
     const shotImageUrl = getShotImageUrl(shot);
     if (autoCompleteOverride) {
       return shotImageUrl
@@ -2028,7 +2061,7 @@ export function VideoGenTab({
     }
 
     return { selectable: false, reason: '生成模式不支持' };
-  }, [autoCompleteDetails, generatingVideos, getShotImageUrl, getVideoDirectorKeyframeImageUrl, storePendingVideos]);
+  }, [autoAssemble, autoCompleteDetails, batchShotTasks, generatingVideos, getShotImageUrl, getVideoDirectorKeyframeImageUrl, storePendingVideos]);
 
   const selectableShotIndexes = useCallback(() => shotsList
     .map((shot: any, idx: number) => getBatchShotEligibility(shot).selectable ? idx + 1 : null)
@@ -2914,6 +2947,24 @@ export function VideoGenTab({
     setBatchSelectionMode('pending');
   };
 
+  const selectedBatchShots = Array.from(selectedShots)
+    .map((index) => shotsList[index - 1])
+    .filter(Boolean);
+  const selectedSemanticShots = selectedBatchShots.filter((shot: any) => isSemanticShot(shot));
+  const selectedSemanticCounts = selectedSemanticShots.reduce((summary, shot: any) => {
+    const counts = getSemanticClipCounts(shot, batchShotTasks[String(shot.id)] || []);
+    const status = getSemanticShotStatus(shot, batchShotTasks[String(shot.id)] || []);
+    return {
+      pending: summary.pending + counts.pending,
+      reusable: summary.reusable + counts.reusable,
+      assembly: summary.assembly + (autoAssemble && status === 'CLIPS_COMPLETE' ? 1 : 0),
+    };
+  }, { pending: 0, reusable: 0, assembly: 0 });
+  const hasLegacyShotsInList = shotsList.some((shot: any) => !isSemanticShot(shot));
+  const showAutoCompleteDetails = selectedBatchShots.length === 0
+    ? hasLegacyShotsInList
+    : selectedSemanticShots.length < selectedBatchShots.length;
+
   useEffect(() => {
     if (!dragSelectionMode) return;
     const handleMouseUp = () => setDragSelectionMode(null);
@@ -2941,7 +2992,13 @@ export function VideoGenTab({
       toast.info('没有可生成的视频分镜');
       return;
     }
-    if (selectedShotList.some(hasShotVideo) && !window.confirm('视频已存在，确认删除旧的吗？')) return;
+    const semanticSelected = selectedShotList.filter((shot: any) => isSemanticShot(shot));
+    const legacySelected = selectedShotList.filter((shot: any) => !isSemanticShot(shot));
+    if (legacySelected.some(hasShotVideo) && !window.confirm('所选 Shot 已有视频，是否继续执行 legacy 批量生成？')) return;
+    if (semanticSelected.some((shot: any) => {
+      const status = getSemanticShotStatus(shot, batchShotTasks[String(shot.id)] || []);
+      return ['PARTIAL', 'FAILED', 'CLIPS_COMPLETE'].includes(status);
+    }) && !window.confirm('所选 Shot 已有部分或全部 Clip 结果。批量任务会复用当前版本的有效结果，只执行缺失或失败的 Clip。是否继续？')) return;
 
     setIsGeneratingAll(true);
     setShowBatchSelectModal(false);
@@ -2961,7 +3018,10 @@ export function VideoGenTab({
         auto_complete_details: autoCompleteDetails,
         use_reference_audio: true,
         skip_llm_when_prompt_exists: false,
-        force_rerun: true,
+        // Semantic batches reuse valid current-revision Clips. Legacy batches
+        // keep the historical force-rerun request behavior.
+        force_rerun: semanticSelected.length > 0 ? false : true,
+        auto_assemble: autoAssemble,
       });
       if (!result.success) {
         throw new Error(result.detail || result.message || '批量生成视频失败');
@@ -3634,6 +3694,7 @@ export function VideoGenTab({
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm text-gray-600">
                   已选择 {selectedShots.size} / 可选 {selectableShotIndexes().length} / 共 {shotsList.length} 个分镜
+                  {selectedSemanticShots.length > 0 && ` · 待执行 Clip ${selectedSemanticCounts.pending} · 可复用 ${selectedSemanticCounts.reusable}${autoAssemble ? ` · 待合并 Shot ${selectedSemanticCounts.assembly}` : ''}`}
                   {' · '}生成中 {shotsList.filter((shot: any) => {
                     const shotId = shot?.id ? String(shot.id) : '';
                     return !!shotId && (generatingVideos.has(shotId) || shot?.videoStatus === 'generating');
@@ -3675,13 +3736,14 @@ export function VideoGenTab({
                       onMouseDown={(event) => handleBatchShotMouseDown(event, shotIndex, isSelectable)}
                       onMouseEnter={() => handleBatchShotMouseEnter(shotIndex, isSelectable)}
                       title={isSelectable ? '可生成' : eligibility.reason}
-                      className={`
+                        className={`
                         relative aspect-video rounded-lg border-2 transition-all
                         select-none
                         ${!isSelectable
                           ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
                           : 'cursor-pointer hover:shadow-md'
                         }
+                        ${isSemanticShot(shot) ? 'aspect-auto min-h-[170px]' : ''}
                         ${isSelectable && isSelected
                           ? 'border-blue-500 bg-blue-50'
                           : isSelectable && !isSelected
@@ -3708,7 +3770,29 @@ export function VideoGenTab({
                       )}
 
                       {/* 内容区域 */}
-                      <div className="w-full h-full flex items-center justify-center">
+                      {isSemanticShot(shot) ? (
+                        <div className="flex h-full flex-col justify-between p-3 pt-7">
+                          <div>
+                            <div className="flex items-center justify-between gap-2 text-xs text-gray-700">
+                              <span className="font-semibold">Shot #{shot.index || shotIndex}</span>
+                              <span>{shot.duration}s · Rev {shot.videoDirectorPlan?.clip_plan_revision || '-'}</span>
+                            </div>
+                            <div className="mt-1 text-xs font-medium text-gray-600">{(() => { const status = getSemanticShotStatus(shot, batchShotTasks[shotId] || []); return status === 'ASSEMBLED' ? '已完成' : status === 'CLIPS_COMPLETE' ? '待合并' : status === 'FAILED' ? '失败' : status === 'WAITING_REVIEW' ? '待审核' : status === 'PARTIAL' ? '部分完成' : '未开始'; })()}</div>
+                          </div>
+                          <div className="mt-2 space-y-1.5">
+                            {(shot.videoDirectorPlan?.clip_plan || []).map((clip: any) => {
+                              const clipStatus = getSemanticClipStatus(clip, batchShotTasks[shotId] || [], Number(shot.videoDirectorPlan?.clip_plan_revision || 0));
+                              const temporal = clip.capability === 'TEMPORAL_EXTEND' ? getTemporalTargetLabel(shot.videoDirectorPlan, clip) : null;
+                              const statusLabel: Record<SemanticClipStatus, string> = { NOT_STARTED: '未开始', RUNNING: '生成中', WAITING_REVIEW: '待审核', FAILED: '失败', COMPLETED: '已完成' };
+                              return <div key={clip.clip_index} className="rounded border border-gray-200 bg-white/80 px-2 py-1 text-[10px] text-gray-700">
+                                <div className="flex items-center justify-between gap-2"><span className="font-semibold">C{clip.clip_index} · {clip.start_time}–{clip.end_time}s</span><span>{clip.capability}</span><span className={clipStatus === 'COMPLETED' ? 'text-green-700' : clipStatus === 'FAILED' ? 'text-red-700' : 'text-gray-600'}>{statusLabel[clipStatus]}</span></div>
+                                {clip.previous_clip_index && <div className="text-indigo-700">依赖 C{clip.previous_clip_index}</div>}
+                                {temporal && <div className="text-indigo-700">Temporal: {temporal}</div>}
+                              </div>;
+                            })}
+                          </div>
+                        </div>
+                      ) : <div className="w-full h-full flex items-center justify-center">
                         {hasVideo ? (
                           <Film className="w-8 h-8 text-green-600" />
                         ) : isGenerating ? (
@@ -3718,10 +3802,10 @@ export function VideoGenTab({
                         ) : (
                           <Film className="w-8 h-8 text-gray-300" />
                         )}
-                      </div>
+                      </div>}
 
                       {/* 状态标签 */}
-                      <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg truncate">
+                      {!isSemanticShot(shot) && <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg truncate">
                         {isGenerating
                           ? '生成中'
                           : isQueued
@@ -3729,7 +3813,7 @@ export function VideoGenTab({
                             : isSelectable
                               ? (hasVideo ? t('chapterGenerate.generated') : t('chapterGenerate.pending'))
                               : eligibility.reason}
-                      </div>
+                      </div>}
                     </div>
                   );
                 })}
@@ -3738,7 +3822,7 @@ export function VideoGenTab({
 
             {/* 弹窗底部按钮 */}
             <div className="flex items-center justify-between gap-3 p-4 border-t border-gray-200">
-              <label className="flex items-center gap-2 text-sm text-gray-700 select-none cursor-pointer">
+              {showAutoCompleteDetails && <label className="flex items-center gap-2 text-sm text-gray-700 select-none cursor-pointer">
                 <input
                   type="checkbox"
                   checked={autoCompleteDetails}
@@ -3759,7 +3843,11 @@ export function VideoGenTab({
                   }}
                   className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                 />
-                自动完成细节（注意LLM可能会消耗大量的token）
+                自动完成细节（仅 legacy Shot）
+              </label>}
+              <label className="flex items-center gap-2 text-sm text-gray-700 select-none cursor-pointer">
+                <input type="checkbox" checked={autoAssemble} onChange={(event) => setAutoAssemble(event.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                <span>生成完成后自动合并 Shot <span className="block text-[11px] text-gray-500">开启后，每个 Shot 的全部 Clip 完成后自动生成最终视频。</span></span>
               </label>
               <div className="flex items-center justify-end gap-3">
                 <button

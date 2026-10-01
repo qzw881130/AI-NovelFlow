@@ -20,6 +20,8 @@ export interface Task {
   name?: string;
   workflowName?: string;
   resultUrl?: string | null;
+  parentTaskId?: string | null;
+  errorMessage?: string | null;
   completedAt?: string | null;
   clipExecution?: {
     execution_scope?: string;
