@@ -242,7 +242,7 @@ SYSTEM_VIDEO_DIRECTOR_TEMPLATES: List[Dict] = [
 SYSTEM_KEYFRAME_PLANNING_TEMPLATES: List[Dict] = [
     {
         "name": "关键帧时间轴规划",
-        "description": "为 MULTI_KEYFRAME Shot 规划每个执行窗口的 3/4 帧关键帧时间轴",
+        "description": "根据 Shot 的叙事与视觉节拍规划 canonical Director visual states",
         "template": load_template("08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt"),
         "type": "keyframe_planner"
     },

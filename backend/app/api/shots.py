@@ -86,7 +86,7 @@ from app.services.prompt_builder import get_style
 from app.services.visual_style_authority import strip_embedded_visual_style
 from app.services.llm_service import LLMService
 from app.repositories import PromptTemplateRepository
-from app.services.video_director_ai import align_clip_boundaries_to_dialogue_gaps, append_video_ai_call, build_dialogue_timeline, strip_media_refs
+from app.services.video_director_ai import append_video_ai_call, build_dialogue_timeline, strip_media_refs
 from app.services.clip_planner import plan_clips
 from app.services.clip_execution_compiler import ClipExecutionCompileError, compile_extend_clip, compile_generate_clip, compile_temporal_extend_clip
 from app.constants.capability import EXTEND_PHYSICAL_WORKFLOW_TYPE, EXTEND_WORKFLOW_ID, TEMPORAL_EXTEND_WORKFLOW_ID
@@ -1463,8 +1463,7 @@ def _get_keyframe_planner_template(novel: Novel, template_repo: PromptTemplateRe
     return template
 
 
-def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: dict, previous_failures: list = None) -> str:
-    selected_mode = plan.get("selected_mode") or "MULTI_KEYFRAME"
+def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: dict | None = None, previous_failures: list = None) -> str:
     shot_dialogues = _safe_json_list(shot.dialogues)
     dialogue_timeline_source, _, dialogue_timeline_status = build_dialogue_timeline(
         {"start_time": 0, "end_time": shot.duration or 4},
@@ -1495,23 +1494,19 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
         },
         "dialogue_timeline_source": dialogue_timeline_source,
         "dialogue_timeline_status": dialogue_timeline_status,
-        "selected_mode": selected_mode,
-        "execution_windows": plan.get("execution_windows") or [],
-        "workflow_capability": strip_media_refs(workflow_capability),
+        "visual_intent": plan.get("visual_intent") or "",
         "existing_keyframes": existing_keyframes,
-        "existing_keyframes_policy": "旧规划仅作为 index/role/time_seconds 结构参考；旧 description 已刻意移除，不得覆盖 dialogue_timeline_source 或约束新的静态视觉状态。",
+        "existing_keyframes_policy": "旧规划仅作为非权威 index/role/time_seconds 结构参考；旧 description 不得覆盖 dialogue_timeline_source 或约束新的视觉状态。",
         "continuity_requirements": _build_continuity_requirements(shot),
         "requirements": {
-            "output_top_level_keys": ["validation", "keyframes", "window_plans"],
-            "first_last_rule": "FIRST_LAST_FRAME 只输出 KF1 START 与 KF2 END；window_plans 必须为空数组。",
-            "window_plan_rule": "MULTI_KEYFRAME 每个 execution_window 必须对应一个 window_plan，且 selected_frame_count 只能为 3 或 4。",
-            "shared_boundary_rule": "相邻 window 共享边界 Keyframe。",
+            "output_top_level_keys": ["keyframes"],
+            "canonical_planner_rule": "规划 Shot 级 canonical visual states；不得规划 Clip/window、workflow 或物理参考槽。",
         },
     }
     if previous_failures:
         payload["previous_failed_attempts"] = previous_failures
-        payload["retry_instruction"] = "上一次 #08 输出未通过程序校验。请重新规划完整 JSON，必须修正 previous_failed_attempts 中的错误；尤其保证每个 window_plan.keyframe_indexes 数量严格等于 selected_frame_count，且每个 window 至少包含起点、中间点、终点三个关键帧。"
-    return "请基于以下正式保存的 Shot 与执行窗口，规划视频关键帧时间轴。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
+        payload["retry_instruction"] = "上一次 #08 输出未通过程序校验。请修正 previous_failed_attempts 中指出的 canonical keyframes 错误；不要补造窗口、Clip 或 workflow 字段。"
+    return "请根据 Shot 的叙事和有意义的视觉节拍，规划 canonical Director visual states。时长仅作上下文，不得换算为固定帧数。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
 
 
 def _get_official_dialogue_timeline(db: Session, shot, fallback: list) -> list:
@@ -1593,81 +1588,109 @@ def _parse_keyframe_planner_content(content: str) -> dict:
         raise
 
 
-def _normalize_keyframe_planner_result(parsed: dict, execution_windows: list, duration: int, visual_style: str = "") -> tuple[list, list, dict]:
+def _normalize_keyframe_planner_result(parsed: dict, execution_windows: list | None, duration: int, visual_style: str = "") -> tuple[list, list, dict]:
+    """Normalize canonical Shot-level Director states; legacy windows are ignored."""
     if not isinstance(parsed, dict):
         raise ValueError("#08 返回必须是 JSON Object")
     raw_keyframes = parsed.get("keyframes") if isinstance(parsed.get("keyframes"), list) else []
-    raw_window_plans = parsed.get("window_plans") if isinstance(parsed.get("window_plans"), list) else []
     if not raw_keyframes:
         raise ValueError("#08 返回缺少 keyframes")
-    if len(raw_window_plans) != len(execution_windows):
-        raise ValueError("#08 返回的 window_plans 数量必须与 execution_windows 一致")
 
     normalized_keyframes = []
     seen_keyframe_indexes = set()
+    seen_times = set()
+    previous_time = None
+    start_count = 0
+    start_time = None
+    end_count = 0
     for idx, keyframe in enumerate(raw_keyframes, 1):
         if not isinstance(keyframe, dict):
             raise ValueError("keyframes 中存在无效对象")
-        keyframe_index = int(keyframe.get("index") or idx)
+        raw_index = keyframe.get("index")
+        if isinstance(raw_index, bool) or not isinstance(raw_index, int):
+            raise ValueError(f"Keyframe {idx} index 无效")
+        keyframe_index = raw_index
+        if keyframe_index < 1:
+            raise ValueError(f"Keyframe {keyframe_index} index 必须为正整数")
         if keyframe_index in seen_keyframe_indexes:
             raise ValueError(f"keyframes 包含重复 index {keyframe_index}")
         seen_keyframe_indexes.add(keyframe_index)
-        time_seconds = float(keyframe.get("time_seconds") if keyframe.get("time_seconds") is not None else 0)
-        role = keyframe.get("role") or ("START" if keyframe_index == 1 else "END" if time_seconds >= duration else "INTERMEDIATE")
+        try:
+            time_seconds = float(keyframe.get("time_seconds"))
+        except (TypeError, ValueError):
+            raise ValueError(f"Keyframe {keyframe_index} time_seconds 无效")
+        if not math.isfinite(time_seconds) or time_seconds < 0 or time_seconds > float(duration):
+            raise ValueError(f"Keyframe {keyframe_index} time_seconds 无效或超出 Shot 时长")
+        if time_seconds in seen_times:
+            raise ValueError(f"keyframes 包含重复 time_seconds {time_seconds}")
+        if previous_time is not None and time_seconds <= previous_time:
+            raise ValueError("keyframes time_seconds 必须严格递增")
+        seen_times.add(time_seconds)
+        previous_time = time_seconds
+        role = keyframe.get("role")
         if role not in {"START", "INTERMEDIATE", "END"}:
-            role = "INTERMEDIATE"
+            raise ValueError(f"Keyframe {keyframe_index} role 无效")
+        if role == "START":
+            start_count += 1
+            start_time = time_seconds
+        if role == "END":
+            end_count += 1
+            if time_seconds != float(duration):
+                raise ValueError("END keyframe time_seconds 必须等于 Shot duration")
         if not isinstance(keyframe.get("timed_visual_target"), bool):
             raise ValueError(f"Keyframe {keyframe_index} timed_visual_target 必须是 boolean")
         if role == "START" and keyframe["timed_visual_target"] is True:
             raise ValueError("START keyframe timed_visual_target 必须为 false")
-        if keyframe["timed_visual_target"] is True and (
-            not math.isfinite(time_seconds) or time_seconds < 0 or time_seconds > float(duration)
-        ):
-            raise ValueError(f"Timed visual target KF{keyframe_index} time_seconds 无效")
         normalized_keyframes.append({
             "index": keyframe_index,
             "time_seconds": time_seconds,
             "role": role,
             "description": strip_embedded_visual_style(keyframe.get("description") or keyframe.get("visual_description") or "", visual_style),
             "timed_visual_target": keyframe["timed_visual_target"],
-            "image_url": None,
-            "image_task_id": None,
+            **{field: keyframe[field] for field in ("image_url", "image_task_id", "prompt_text") if keyframe.get(field) is not None},
         })
+    if start_count != 1:
+        raise ValueError("canonical keyframes 必须且只能包含一个 START")
+    if start_time != 0:
+        raise ValueError("START keyframe time_seconds 必须为 0")
+    if end_count > 1:
+        raise ValueError("canonical keyframes 最多包含一个 END")
 
-    keyframe_indexes = {kf["index"] for kf in normalized_keyframes}
-    windows_by_index = {int(window["window_index"]): window for window in execution_windows}
-    normalized_window_plans = []
-    for idx, plan_item in enumerate(raw_window_plans, 1):
-        if not isinstance(plan_item, dict):
-            raise ValueError("window_plans 中存在无效对象")
-        window_index = int(plan_item.get("window_index") or idx)
-        window = windows_by_index.get(window_index)
-        if not window:
-            raise ValueError(f"window_plans 引用了不存在的 execution_window {window_index}")
-        selected_frame_count = int(plan_item.get("selected_frame_count") or plan_item.get("frame_count") or 0)
-        if selected_frame_count not in {3, 4}:
-            raise ValueError("每个 window_plan 的 selected_frame_count 必须是 3 或 4")
-        indexes = [int(index) for index in (plan_item.get("keyframe_indexes") or [])]
-        if len(indexes) != selected_frame_count:
-            raise ValueError(f"window_plan {window_index} 的 keyframe_indexes 数量必须等于 selected_frame_count")
-        missing = [index for index in indexes if index not in keyframe_indexes]
-        if missing:
-            raise ValueError(f"window_plan {window_index} 引用了不存在的 Keyframe: {missing}")
-        workflow_type = "three_frame_video" if selected_frame_count == 3 else "four_frame_video"
-        workflow_key = "MINIMAX_H3_3FRAME" if selected_frame_count == 3 else "MINIMAX_H3_4FRAME"
-        normalized_window_plans.append({
-            "window_index": window_index,
-            "start_time": window.get("start_time"),
-            "end_time": window.get("end_time"),
-            "selected_frame_count": selected_frame_count,
-            "workflow_key": plan_item.get("workflow_key") or workflow_key,
-            "workflow_type": plan_item.get("workflow_type") or workflow_type,
-            "keyframe_indexes": indexes,
-            "status": plan_item.get("status") or "PENDING",
-        })
+    validation = {"passed": True, "blocking": []}
+    return normalized_keyframes, [], validation
 
-    validation = parsed.get("validation") if isinstance(parsed.get("validation"), dict) else {}
-    return normalized_keyframes, normalized_window_plans, validation
+
+def _preserve_matching_keyframe_assets(keyframes: list[dict], existing_plan: dict, legacy_keyframes: list[dict]) -> list[dict]:
+    """Carry image provenance only when a replanned indexed state is unchanged."""
+    canonical = {
+        int(item["index"]): item for item in existing_plan.get("keyframes", [])
+        if isinstance(item, dict) and item.get("index") is not None
+    }
+    legacy = {
+        int(item.get("plan_keyframe_index")): item for item in legacy_keyframes
+        if isinstance(item, dict) and item.get("plan_keyframe_index") is not None
+    }
+    result = []
+    for keyframe in keyframes:
+        old = canonical.get(int(keyframe["index"]))
+        old_legacy = legacy.get(int(keyframe["index"]))
+        if old and (
+            old.get("role") == keyframe.get("role")
+            and old.get("time_seconds") == keyframe.get("time_seconds")
+            and (old.get("description") or "") == (keyframe.get("description") or "")
+        ):
+            for field in ("image_url", "image_task_id", "prompt_text", "source", "provenance"):
+                if keyframe.get(field) is None and old.get(field) is not None:
+                    keyframe[field] = old[field]
+        elif old_legacy and (
+            old_legacy.get("time_seconds") == keyframe.get("time_seconds")
+            and (old_legacy.get("description") or "") == (keyframe.get("description") or "")
+        ):
+            for target, source in (("image_url", "image_url"), ("image_task_id", "image_task_id"), ("prompt_text", "prompt_text")):
+                if keyframe.get(target) is None and old_legacy.get(source) is not None:
+                    keyframe[target] = old_legacy[source]
+        result.append(keyframe)
+    return result
 
 
 def _get_keyframe_transition_template(novel: Novel, template_repo: PromptTemplateRepository):
@@ -2071,7 +2094,6 @@ async def plan_video_keyframes(
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
-    workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
     template_repo: PromptTemplateRepository = Depends(get_prompt_template_repo),
     llm_service: LLMService = Depends(get_llm_service),
 ):
@@ -2086,9 +2108,6 @@ async def plan_video_keyframes(
         raise HTTPException(status_code=404, detail="分镜不存在")
 
     plan = _safe_json_dict(shot.video_director_plan)
-    selected_mode = plan.get("selected_mode") or plan.get("recommended_mode")
-    if selected_mode not in {"FIRST_LAST_FRAME", "MULTI_KEYFRAME"}:
-        raise HTTPException(status_code=400, detail="当前模式不需要 #08 关键帧时间轴规划。")
 
     fallback_dialogue_timeline, _, fallback_timeline_status = build_dialogue_timeline(
         {"start_time": 0, "end_time": shot.duration or 4},
@@ -2111,83 +2130,22 @@ async def plan_video_keyframes(
         shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
         db.commit()
 
-    if selected_mode == "MULTI_KEYFRAME":
-        existing_windows = plan.get("execution_windows") if isinstance(plan.get("execution_windows"), list) else []
-        if existing_windows and dialogue_timeline_source:
-            aligned_windows = align_clip_boundaries_to_dialogue_gaps(
-                existing_windows,
-                dialogue_timeline_source,
-                float((plan.get("workflow_capability") or {}).get("max_clip_duration") or 15),
-            )
-            plan["execution_windows"] = aligned_windows
-            for window in plan.get("window_plans") or []:
-                match = next((item for item in aligned_windows if int(item.get("window_index") or 0) == int(window.get("window_index") or 0)), None)
-                if match:
-                    window["start_time"] = match["start_time"]
-                    window["end_time"] = match["end_time"]
-                    indexes = window.get("keyframe_indexes") or []
-                    if indexes:
-                        for keyframe in plan.get("keyframes") or []:
-                            if int(keyframe.get("index") or -1) == int(indexes[-1]):
-                                keyframe["time_seconds"] = match["end_time"]
-                            if int(keyframe.get("index") or -1) == int(indexes[0]) and int(window.get("window_index") or 0) > 1:
-                                keyframe["time_seconds"] = match["start_time"]
-            shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-            legacy_keyframes = _safe_json_list(shot.keyframes)
-            if sync_planned_keyframe_states(shot, legacy_keyframes):
-                shot.keyframes = json.dumps(legacy_keyframes, ensure_ascii=False)
-            db.commit()
-
-    if selected_mode == "MULTI_KEYFRAME" and plan.get("window_plans") and not request.force:
-        for window in plan.get("window_plans") or []:
-            clip = {
-                "clip_index": window.get("window_index"),
-                "start_time": window.get("start_time"),
-                "end_time": window.get("end_time"),
-            }
-            window["clip_dialogues"] = _clip_dialogues_for_prompt(
-                _safe_json_list(shot.dialogues), clip, shot.duration or 4, dialogue_timeline_source
-            )
-            window["dialogue_assignment_source"] = _dialogue_assignment_source(dialogue_timeline_source)
-        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-        db.commit()
-        return {"success": True, "data": plan}
-    if selected_mode == "FIRST_LAST_FRAME" and plan.get("keyframes") and plan.get("transitions") and not request.force:
+    if plan.get("canonical_visual_plan") is True and plan.get("keyframes") and not request.force:
         return {"success": True, "data": plan}
 
-    workflow = workflow_repo.get_active_by_type("video")
-    workflow_capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else _get_video_workflow_capability(workflow)
-    max_clip_duration = int(workflow_capability.get("max_clip_duration") or 15)
     duration = shot.duration or 4
     plan["dialogue_timeline_source"] = dialogue_timeline_source
     plan["dialogue_timeline_status"] = fallback_timeline_status
-    if selected_mode == "FIRST_LAST_FRAME" and duration > max_clip_duration:
-        raise HTTPException(status_code=400, detail=f"当前 Workflow 单次最大 {max_clip_duration}s，本 Shot {duration}s，请使用多关键帧。")
-    execution_windows = plan.get("execution_windows") if isinstance(plan.get("execution_windows"), list) else []
-    if selected_mode == "FIRST_LAST_FRAME":
-        execution_windows = []
-        plan["execution_windows"] = []
-        plan["window_plans"] = []
-        plan["clips"] = _build_first_last_clip_plan(duration)
-    elif request.force or not _execution_windows_match_duration(execution_windows, duration, max_clip_duration):
-        execution_windows = _build_execution_windows(duration, max_clip_duration)
-        plan["execution_windows"] = execution_windows
-        plan["window_plans"] = []
-        plan["keyframes"] = _build_minimal_keyframes(shot, selected_mode, max_clip_duration)
-    plan["workflow_capability"] = workflow_capability
-    if selected_mode == "MULTI_KEYFRAME":
-        plan["clips"] = []
 
     template = _get_keyframe_planner_template(novel, template_repo)
     previous_failures = []
     result = None
     keyframes = []
-    window_plans = []
     validation = {}
     max_attempts = 3
     for attempt in range(1, max_attempts + 1):
         plan["dialogue_timeline_source"] = dialogue_timeline_source
-        user_content = _build_keyframe_planner_user_content(shot, plan, workflow_capability, previous_failures)
+        user_content = _build_keyframe_planner_user_content(shot, plan, previous_failures=previous_failures)
         result = await llm_service.chat_completion(
             system_prompt=template.template,
             user_content=user_content,
@@ -2199,7 +2157,7 @@ async def plan_video_keyframes(
             novel_id=novel.id,
             chapter_id=chapter.id,
         )
-        input_summary = f"Shot {shot.index} · {len(execution_windows)} execution windows · attempt {attempt}/{max_attempts}"
+        input_summary = f"Shot {shot.index} · canonical Director visual planning · attempt {attempt}/{max_attempts}"
         if not result.get("success"):
             error = result.get("error") or "关键帧时间轴规划失败"
             plan = append_video_ai_call(shot, {
@@ -2221,7 +2179,7 @@ async def plan_video_keyframes(
 
         try:
             parsed = _parse_keyframe_planner_content(result.get("content") or "{}")
-            keyframes, window_plans, validation = _normalize_keyframe_planner_result(parsed, execution_windows, duration, get_style(db, novel, "character")[0])
+            keyframes, _, validation = _normalize_keyframe_planner_result(parsed, None, duration, get_style(db, novel, "character")[0])
             break
         except Exception as exc:
             error = str(exc)
@@ -2241,61 +2199,53 @@ async def plan_video_keyframes(
                 _mark_video_director_planning_failed(shot, shot_repo, plan, final_error)
                 raise HTTPException(status_code=400, detail=final_error)
 
+    keyframes = _preserve_matching_keyframe_assets(keyframes, plan, _safe_json_list(shot.keyframes))
+    for obsolete in ("selected_mode", "recommended_mode", "recommended_label", "recommendation_reason", "workflow_capability", "first_last_available", "notice", "execution_windows", "window_plans", "clips"):
+        plan.pop(obsolete, None)
     plan.update({
-        "selected_mode": selected_mode,
-        "recommended_label": VIDEO_MODE_LABELS[selected_mode],
+        "canonical_visual_plan": True,
         "keyframes": keyframes,
         "transitions": [],
-        "window_plans": [] if selected_mode == "FIRST_LAST_FRAME" else window_plans,
-        "clips": _build_first_last_clip_plan(duration) if selected_mode == "FIRST_LAST_FRAME" else [],
         "validation": validation,
         "dialogue_timeline_source": dialogue_timeline_source,
         "dialogue_timeline_status": fallback_timeline_status,
     })
-    for window in plan.get("window_plans") or []:
-        clip = {
-            "clip_index": window.get("window_index"),
-            "start_time": window.get("start_time"),
-            "end_time": window.get("end_time"),
-        }
-        window["clip_dialogues"] = _clip_dialogues_for_prompt(
-            _safe_json_list(shot.dialogues), clip, duration, dialogue_timeline_source
-        )
-        window["dialogue_assignment_source"] = _dialogue_assignment_source(dialogue_timeline_source)
     plan.pop("task_error_message", None)
     plan.pop("error_message", None)
     plan.pop("merged_video_url", None)
     plan.pop("merged_at", None)
-    legacy_keyframes = [
-        {
+    old_legacy_by_index = {
+        int(item.get("plan_keyframe_index")): item for item in _safe_json_list(shot.keyframes)
+        if isinstance(item, dict) and item.get("plan_keyframe_index") is not None
+    }
+    legacy_keyframes = []
+    for position, keyframe in enumerate([item for item in keyframes if item.get("role") != "START"]):
+        old = old_legacy_by_index.get(int(keyframe["index"]), {})
+        legacy_keyframes.append({
+            **old,
             "frame_index": position,
             "plan_keyframe_index": keyframe.get("index"),
             "time_seconds": keyframe.get("time_seconds"),
             "description": keyframe.get("description") or shot.description or "",
             "image_url": keyframe.get("image_url"),
             "image_task_id": keyframe.get("image_task_id"),
-            "reference_image_url": None,
-            "reference_mode": "auto_select",
-        }
-        for position, keyframe in enumerate([keyframe for keyframe in keyframes if keyframe.get("role") != "START"])
-    ]
+            "reference_image_url": old.get("reference_image_url"),
+            "reference_mode": old.get("reference_mode") or "auto_select",
+        })
     shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
     plan = append_video_ai_call(shot, {
         "step": "08",
         "task_type": "keyframe_planner",
         "prompt_template_name": template.name,
         "status": "success",
-        "input_summary": f"Shot {shot.index} · {selected_mode} · {len(execution_windows)} execution windows",
+        "input_summary": f"Shot {shot.index} · canonical Director visual planning",
         "response": result.get("content") or "",
-        "parsed_result": {"keyframes": keyframes, "window_plans": window_plans, "validation": validation},
+        "parsed_result": {"keyframes": keyframes, "validation": validation},
     })
     shot_repo.update(
         shot,
         video_director_plan=plan,
         keyframes=legacy_keyframes,
-        video_url=None,
-        video_status="pending",
-        video_task_id=None,
     )
 
     transitions = await _plan_keyframe_transitions(
