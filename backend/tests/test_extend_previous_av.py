@@ -166,7 +166,7 @@ def test_extend_endpoint_snapshots_previous_contract_and_routes_physical_workflo
         "generated_by_task_id": task.id,
         "result_url": task.result_url,
     }
-    assert captured["kwargs"]["selected_mode"] == "MULTI_KEYFRAME"
+    assert "selected_mode" not in captured["kwargs"]
 
 
 def test_temporal_extend_endpoint_compiles_explicit_anchor_and_routes_frozen_workflow(client, db_session, tmp_path):

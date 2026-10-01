@@ -12,7 +12,6 @@ class ClipExecutionCompileError(ValueError):
     """Raised when a semantic Clip cannot be compiled."""
 
 
-_PLANNING_MODES = {"SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"}
 _TEMPORAL_ANCHOR_LIMIT = 8
 
 
@@ -99,42 +98,6 @@ def _number(value: Any, field: str) -> float:
         raise ClipExecutionCompileError(f"Clip {field} 无效")
 
 
-def _legacy_keyframes(shot) -> list[dict]:
-    import json
-
-    try:
-        value = json.loads(getattr(shot, "keyframes", None) or "[]")
-    except (TypeError, ValueError):
-        value = []
-    return [item for item in value if isinstance(item, dict)]
-
-
-def _keyframe_by_index(keyframes: list[dict], legacy: list[dict], index: int) -> dict | None:
-    canonical = None
-    for keyframe in keyframes:
-        try:
-            if int(keyframe.get("index")) == index:
-                canonical = dict(keyframe)
-                if canonical.get("image_url") or canonical.get("imageUrl"):
-                    return canonical
-                break
-        except (TypeError, ValueError):
-            continue
-    for keyframe in legacy:
-        try:
-            if int(keyframe.get("plan_keyframe_index")) == index:
-                fallback = {
-                    "index": index,
-                    "role": keyframe.get("role"),
-                    "time_seconds": keyframe.get("time_seconds"),
-                    "image_url": keyframe.get("image_url") or keyframe.get("imageUrl"),
-                }
-                return {**(canonical or {}), **fallback}
-        except (TypeError, ValueError):
-            continue
-    return canonical
-
-
 def _source_reference(slot: int, image_url: str | None, source_type: str, *, index=None, keyframe=None) -> dict:
     if not image_url:
         raise ClipExecutionCompileError(f"参考图 {slot} 缺少 image_url")
@@ -146,21 +109,79 @@ def _source_reference(slot: int, image_url: str | None, source_type: str, *, ind
         "source_keyframe_index": index,
         "source_role": keyframe.get("role") if keyframe else None,
         "source_time_seconds": keyframe.get("time_seconds") if keyframe else None,
+        "source_image_task_id": keyframe.get("image_task_id") if keyframe else None,
     }
+
+
+def project_canonical_visual_references(shot, plan: dict, clip: dict, temporal_anchors: list[dict] | None = None) -> dict:
+    """Purely project owned canonical states into the ordinary H3 manifest."""
+    states = {
+        int(item.get("index")): item
+        for item in _json_list(plan.get("keyframes"))
+        if isinstance(item, dict) and item.get("index") is not None
+    }
+    temporal_indexes = set()
+    for anchor in temporal_anchors or []:
+        source = anchor.get("source") or anchor.get("provenance") if isinstance(anchor, dict) else None
+        if not isinstance(source, dict):
+            continue
+        raw_index = source.get("keyframe_index")
+        if raw_index is None:
+            source_id = str(source.get("id") or "")
+            raw_index = source_id[2:] if source_id.upper().startswith("KF") else None
+        try:
+            if raw_index is not None:
+                temporal_indexes.add(int(raw_index))
+        except (TypeError, ValueError):
+            continue
+
+    shot_image_url = getattr(shot, "image_url", None)
+    if not shot_image_url and getattr(shot, "image_path", None):
+        shot_image_url = local_path_to_url(shot.image_path)
+    ordered = []
+    for raw_index in clip.get("visual_state_indexes") or []:
+        try:
+            index = int(raw_index)
+        except (TypeError, ValueError):
+            raise ClipExecutionCompileError("视觉状态 index 无效")
+        state = states.get(index)
+        if not state:
+            raise ClipExecutionCompileError(f"视觉状态 KF{index} 不存在")
+        if index in temporal_indexes:
+            continue
+        image_url = state.get("image_url") or state.get("imageUrl")
+        source_type = "KEYFRAME_IMAGE"
+        resolved_state = dict(state)
+        if not image_url and index == 1 and str(state.get("role") or "").upper() == "START":
+            image_url = shot_image_url
+            source_type = "SHOT_IMAGE"
+            resolved_state["image_url"] = image_url
+        if not image_url:
+            continue
+        try:
+            time_seconds = float(state.get("time_seconds"))
+        except (TypeError, ValueError):
+            raise ClipExecutionCompileError(f"视觉状态 KF{index} time_seconds 无效")
+        ordered.append((time_seconds, index, source_type, image_url, resolved_state))
+    ordered.sort(key=lambda item: (item[0], item[1]))
+    if len(ordered) > 9:
+        raise ClipExecutionCompileError(
+            f"ORDINARY_REFERENCE_BUDGET_EXCEEDED: Clip {clip.get('clip_index')} projects {len(ordered)} ordinary refs (maximum=9)"
+        )
+    references = [
+        _source_reference(slot, image_url, source_type, index=index, keyframe=state)
+        for slot, (_, index, source_type, image_url, state) in enumerate(ordered, 1)
+    ]
+    return {"version": 1, "references": references}
 
 
 def compile_generate_clip(
     shot,
     plan: dict,
     clip: dict,
-    planning_mode: str,
     clip_plan_revision: int,
-    *,
-    allow_empty_visual_references: bool = False,
 ) -> dict:
     """Compile one already-selected semantic Clip without performing I/O."""
-    if planning_mode not in _PLANNING_MODES:
-        raise ClipExecutionCompileError(f"不支持的视频规划模式: {planning_mode}")
     if not isinstance(clip, dict):
         raise ClipExecutionCompileError("Clip 计划无效")
     try:
@@ -183,52 +204,7 @@ def compile_generate_clip(
     if start < 0 or end <= start or end > shot_duration + 0.05:
         raise ClipExecutionCompileError("Clip 时间范围无效")
 
-    keyframes = _json_list(plan.get("keyframes"))
-    legacy = _legacy_keyframes(shot)
-    references: list[dict] = []
-    shot_image_url = getattr(shot, "image_url", None)
-    if not shot_image_url and getattr(shot, "image_path", None):
-        shot_image_url = local_path_to_url(shot.image_path)
-
-    if planning_mode == "SINGLE_FRAME":
-        if shot_image_url:
-            references.append(_source_reference(1, shot_image_url, "SHOT_IMAGE"))
-    elif planning_mode == "FIRST_LAST_FRAME":
-        if not shot_image_url:
-            raise ClipExecutionCompileError("FIRST_LAST_FRAME 缺少 START/Shot image")
-        start_keyframe = next((item for item in keyframes if str(item.get("role") or "").upper() == "START"), None) or {"index": 1, "role": "START", "time_seconds": 0.0}
-        references.append(_source_reference(1, shot_image_url, "SHOT_IMAGE", index=start_keyframe.get("index") or 1, keyframe=start_keyframe))
-        end_keyframe = next((item for item in keyframes if str(item.get("role") or "").upper() == "END"), None)
-        if not end_keyframe:
-            end_keyframe = next((item for item in legacy if str(item.get("role") or "").upper() == "END"), None)
-        if not end_keyframe:
-            raise ClipExecutionCompileError("FIRST_LAST_FRAME 缺少 END keyframe")
-        end_index = end_keyframe.get("index") or end_keyframe.get("plan_keyframe_index")
-        resolved = _keyframe_by_index(keyframes, legacy, int(end_index)) if end_index is not None else end_keyframe
-        image_url = (resolved or {}).get("image_url") or (resolved or {}).get("imageUrl")
-        if not image_url:
-            raise ClipExecutionCompileError("FIRST_LAST_FRAME 缺少 END keyframe image")
-        references.append(_source_reference(2, image_url, "KEYFRAME_IMAGE", index=end_index, keyframe=resolved or end_keyframe))
-    else:
-        indexes = clip.get("keyframe_indexes") or clip.get("keyframe_indices") or []
-        for slot, raw_index in enumerate(indexes, 1):
-            try:
-                index = int(raw_index)
-            except (TypeError, ValueError):
-                raise ClipExecutionCompileError("Clip keyframe index 无效")
-            keyframe = _keyframe_by_index(keyframes, legacy, index) or {}
-            image_url = keyframe.get("image_url") or keyframe.get("imageUrl")
-            if not image_url and index == 1 and str(keyframe.get("role") or "").upper() == "START":
-                image_url = shot_image_url
-                keyframe = {**keyframe, "role": "START", "time_seconds": keyframe.get("time_seconds", 0.0)}
-            if not image_url:
-                raise ClipExecutionCompileError(f"MULTI_KEYFRAME 缺少 Keyframe {index} image")
-            references.append(_source_reference(slot, image_url, "KEYFRAME_IMAGE", index=index, keyframe=keyframe))
-
-    if len(references) > 9:
-        raise ClipExecutionCompileError("GENERATE 最多支持 9 张参考图")
-    if planning_mode in {"FIRST_LAST_FRAME", "MULTI_KEYFRAME"} and not references and not allow_empty_visual_references:
-        raise ClipExecutionCompileError("Clip 缺少可用的视觉参考图")
+    manifest = project_canonical_visual_references(shot, plan, clip)
 
     contract = {
         "version": 1,
@@ -245,7 +221,7 @@ def compile_generate_clip(
     }
     return {
         "execution_contract": contract,
-        "video_reference_manifest": {"version": 1, "references": references},
+        "video_reference_manifest": manifest,
     }
 
 
@@ -253,7 +229,6 @@ def compile_extend_clip(
     shot,
     plan: dict,
     clip: dict,
-    planning_mode: str,
     clip_plan_revision: int,
     previous_provenance: dict | None,
 ) -> dict:
@@ -284,10 +259,7 @@ def compile_extend_clip(
 
     # Reuse the proven visual projection.  It remains a logical manifest and
     # never resolves or uploads the resulting local paths.
-    compiled = compile_generate_clip(
-        shot, plan, {**clip, "capability": "GENERATE"}, planning_mode, revision,
-        allow_empty_visual_references=True,
-    )
+    compiled = compile_generate_clip(shot, plan, {**clip, "capability": "GENERATE"}, revision)
     contract = dict(compiled["execution_contract"])
     contract["capability"] = "EXTEND"
     contract["previous_clip"] = {
@@ -306,7 +278,6 @@ def compile_temporal_extend_clip(
     shot,
     plan: dict,
     clip: dict,
-    planning_mode: str,
     clip_plan_revision: int,
     previous_provenance: dict | None,
     temporal_anchors: list[dict],
@@ -338,10 +309,22 @@ def compile_temporal_extend_clip(
     if previous_revision != revision or previous_clip_index != previous_index:
         raise ClipExecutionCompileError("PREVIOUS_AV_UNAVAILABLE")
 
-    compiled = compile_generate_clip(
-        shot, plan, {**clip, "capability": "GENERATE"}, planning_mode, revision,
-        allow_empty_visual_references=True,
-    )
+    compiled = {
+        "execution_contract": {
+            "version": 1,
+            "capability": "GENERATE",
+            "artifact_kind": "CLIP_ONLY",
+            "clip": {
+                "clip_id": f"{shot.id}:clip:{int(clip.get('clip_index'))}",
+                "clip_index": int(clip.get("clip_index")),
+                "clip_plan_revision": revision,
+                "start_seconds": _number(clip.get("start_time"), "start_time"),
+                "end_seconds": _number(clip.get("end_time"), "end_time"),
+                "duration_seconds": _number(clip.get("end_time"), "end_time") - _number(clip.get("start_time"), "start_time"),
+            },
+        },
+        "video_reference_manifest": project_canonical_visual_references(shot, plan, clip, temporal_anchors),
+    }
     temporal_manifest = project_temporal_anchor_positions(
         temporal_anchors, float(compiled["execution_contract"]["clip"]["duration_seconds"]),
     )

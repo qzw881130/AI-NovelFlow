@@ -308,7 +308,7 @@ def _semantic_clip_prompt_context(video_director_plan: dict, clip_metadata: dict
             "dialogue_timing_source": "official_projection",
         })
 
-    selected_indexes = clip.get("keyframe_indexes") or clip.get("keyframe_indices") or []
+    selected_indexes = clip.get("visual_state_indexes") or []
     selected_indexes = {int(index) for index in selected_indexes}
     source_keyframes = [item for item in video_director_plan.get("keyframes") or [] if isinstance(item, dict)]
     source_transitions = video_director_plan.get("transitions") or []
@@ -316,10 +316,7 @@ def _semantic_clip_prompt_context(video_director_plan: dict, clip_metadata: dict
         item for item in source_keyframes
         if int(item.get("index") or -1) in selected_indexes
     ] if selected_indexes else source_keyframes
-    transitions = _filter_transitions_for_keyframe_indexes(
-        source_transitions,
-        clip.get("keyframe_indexes") or clip.get("keyframe_indices") or [],
-    ) if selected_indexes else source_transitions
+    transitions = source_transitions
     return {
         "clip": clip,
         "clip_dialogues": projected_dialogues,
@@ -892,7 +889,7 @@ async def generate_shot_video_task(
                         db, novel_id, chapter_id, shot, semantic_clip, previous_contract,
                     )
                     compiled = compile_extend_clip(
-                        shot, video_director_plan, semantic_clip, selected_mode, plan_revision, previous_provenance,
+                        shot, video_director_plan, semantic_clip, plan_revision, previous_provenance,
                     )
                 elif clip_metadata.get("capability") == "TEMPORAL_EXTEND":
                     previous_contract = (clip_metadata.get("execution_contract") or {}).get("previous_clip") or {}
@@ -917,12 +914,12 @@ async def generate_shot_video_task(
                             "source": anchor.get("source") or anchor.get("provenance"),
                         })
                     compiled = compile_temporal_extend_clip(
-                        shot, video_director_plan, semantic_clip, selected_mode, plan_revision,
+                        shot, video_director_plan, semantic_clip, plan_revision,
                         previous_provenance, source_anchors,
                     )
                 else:
                     compiled = compile_generate_clip(
-                        shot, video_director_plan, semantic_clip, selected_mode, plan_revision,
+                        shot, video_director_plan, semantic_clip, plan_revision,
                     )
                 task_metadata = safe_json_dict(task.metadata_json)
                 task_metadata.update(compiled)

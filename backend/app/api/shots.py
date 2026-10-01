@@ -2440,9 +2440,8 @@ async def _execute_phase_b_semantic_clip(
     if int(plan.get("clip_plan_revision") or 0) != int(request.clip_plan_revision):
         raise HTTPException(status_code=409, detail="Clip 计划 revision 已变化，请重新加载并重试")
 
-    planning_mode = clip.get("planning_mode") or plan.get("selected_mode") or plan.get("recommended_mode") or "SINGLE_FRAME"
     raw_capability = str(clip.get("capability") or "")
-    capability = "GENERATE" if raw_capability in {"SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"} else raw_capability
+    capability = raw_capability
     if capability == "VIDEO_CONTINUATION":
         raise HTTPException(status_code=400, detail="历史 continuation Clip 不能通过新的 semantic execution contract 执行")
     if capability == "TEMPORAL_EXTEND" and (
@@ -2469,7 +2468,7 @@ async def _execute_phase_b_semantic_clip(
             )
             if capability == "EXTEND":
                 compiled = compile_extend_clip(
-                    shot, plan, clip, planning_mode, int(request.clip_plan_revision), previous_provenance,
+                    shot, plan, clip, int(request.clip_plan_revision), previous_provenance,
                 )
             else:
                 anchor_ids = clip.get("temporal_anchor_ids") or []
@@ -2492,11 +2491,11 @@ async def _execute_phase_b_semantic_clip(
                         "source": source,
                     })
                 compiled = compile_temporal_extend_clip(
-                    shot, plan, clip, planning_mode, int(request.clip_plan_revision),
+                    shot, plan, clip, int(request.clip_plan_revision),
                     previous_provenance, resolved_temporal_anchors,
                 )
         elif capability == "GENERATE":
-            compiled = compile_generate_clip(shot, plan, clip, planning_mode, int(request.clip_plan_revision))
+                compiled = compile_generate_clip(shot, plan, clip, int(request.clip_plan_revision))
         else:
             raise ClipExecutionCompileError("当前 Clip capability 不支持 Phase C 执行")
     except ClipExecutionCompileError as exc:
@@ -2556,7 +2555,6 @@ async def _execute_phase_b_semantic_clip(
         "clip_plan_revision": int(request.clip_plan_revision),
         "capability": capability,
         "artifact_kind": "CLIP_ONLY",
-        "planning_mode": planning_mode,
         "planned_duration": clip.get("planned_duration"),
         "requested_duration": clip.get("planned_duration"),
         "dialogue_assignment": clip.get("dialogue_assignment") or [],
@@ -2581,7 +2579,7 @@ async def _execute_phase_b_semantic_clip(
     db.commit()
     enqueue_shot_video_task(
         task.id, novel_id, chapter_id, shot.index, workflow.id, shot.image_url or "",
-        selected_mode=planning_mode, clip_metadata=metadata,
+        clip_metadata=metadata,
         use_reference_audio=request.use_reference_audio,
         skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
     )

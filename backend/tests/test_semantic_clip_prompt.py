@@ -9,8 +9,7 @@ from app.services.shot_video_service import _select_video_prompt_context, _seman
 from app.services import video_director_ai
 
 
-@pytest.mark.parametrize("planning_mode", ["SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"])
-def test_semantic_extend_dialogue_reaches_existing_h3_prompt_path(monkeypatch, planning_mode):
+def test_semantic_extend_dialogue_reaches_canonical_h3_prompt_path(monkeypatch):
     captured = {}
 
     class FakeLLMService:
@@ -30,11 +29,7 @@ Room tone and action Foley accompany the scene.""",
             }
 
     monkeypatch.setattr(video_director_ai, "LLMService", FakeLLMService)
-    monkeypatch.setattr(
-        video_director_ai,
-        "resolve_prompt_template",
-        lambda *_args: SimpleNamespace(template="system", name="template-13" if planning_mode == "MULTI_KEYFRAME" else "template"),
-    )
+    monkeypatch.setattr(video_director_ai, "resolve_prompt_template", lambda *_args: SimpleNamespace(template="system", name="template-13"))
 
     dialogues = [
         {"dialogue_id": f"D{index}", "speaker": speaker, "text": text,
@@ -61,13 +56,13 @@ Room tone and action Foley accompany the scene.""",
         ]
     ]
     clip_plan = [
-        {"clip_index": 1, "start_time": 0.0, "end_time": 10.6, "capability": "GENERATE", "planning_mode": "SINGLE_FRAME"},
+        {"clip_index": 1, "start_time": 0.0, "end_time": 10.6, "capability": "GENERATE", "visual_state_indexes": [1, 2]},
         {
             "clip_index": 2, "start_time": 10.6, "end_time": 24.0,
             "planned_duration": 13.4, "capability": "EXTEND",
             "continuity_to_previous": "CONTINUOUS", "requires_temporal_control": False,
-            "previous_clip_index": 1, "planning_mode": planning_mode,
-            "keyframe_indexes": [3, 4, 5], "dialogue_assignment": dialogues[4:],
+            "previous_clip_index": 1, "visual_state_indexes": [3, 4, 5], "carry_in_state_index": 2,
+            "dialogue_assignment": dialogues[4:],
         },
     ]
     plan = {
@@ -76,10 +71,7 @@ Room tone and action Foley accompany the scene.""",
         "keyframes": keyframes,
         "transitions": [],
         # The legacy visual window starts at 0 and must not replace semantic C2.
-        "window_plans": [
-            {"window_index": 1, "start_time": 0.0, "end_time": 15.0, "keyframe_indexes": [1, 2, 3]},
-            {"window_index": 2, "start_time": 15.0, "end_time": 24.0, "keyframe_indexes": [3, 4, 5]},
-        ],
+        "canonical_visual_plan": True,
     }
     clip_metadata = {
         "execution_scope": "CLIP",
@@ -102,7 +94,7 @@ Room tone and action Foley accompany the scene.""",
     context = _select_video_prompt_context(
         plan,
         clip_metadata,
-        planning_mode,
+        "GENERATE",
         duration=24.0,
         clip_only_execution=True,
     )
@@ -115,14 +107,14 @@ Room tone and action Foley accompany the scene.""",
     )
 
     compiled = compile_extend_clip(
-        shot, plan, context["clip"], planning_mode, 1,
+        shot, plan, context["clip"], 1,
         {"clip_index": 1, "clip_plan_revision": 1, "generated_by_task_id": "task-a", "result_url": "/api/files/task-a.mp4"},
     )
     prompt = asyncio.run(video_director_ai.build_h3_video_prompt(
         db=SimpleNamespace(commit=lambda: None),
         novel=SimpleNamespace(id="novel-c4c"),
         shot=shot,
-        selected_mode=planning_mode,
+        selected_mode="MULTI_KEYFRAME",
         clip=context["clip"],
         workflow_capability={},
         workflow_type="VIDEO_CONTINUATION",
@@ -137,16 +129,10 @@ Room tone and action Foley accompany the scene.""",
     payload = json.loads(captured["user_content"].split("\n\n", 1)[1])
     assert compiled["execution_contract"]["capability"] == "EXTEND"
     assert compiled["execution_contract"]["previous_clip"]["generated_by_task_id"] == "task-a"
-    assert context["clip"]["planning_mode"] == planning_mode
     assert context["clip"]["capability"] == "EXTEND"
-    assert context["clip"]["keyframe_indexes"] == [3, 4, 5]
+    assert context["clip"]["visual_state_indexes"] == [3, 4, 5]
     assert (context["clip"]["start_time"], context["clip"]["end_time"]) == (10.6, 24.0)
-    if planning_mode == "MULTI_KEYFRAME":
-        assert [item["source_keyframe_index"] for item in compiled["video_reference_manifest"]["references"]] == [3, 4, 5]
-    elif planning_mode == "FIRST_LAST_FRAME":
-        assert [item["source_keyframe_index"] for item in compiled["video_reference_manifest"]["references"]] == [1, 5]
-    else:
-        assert compiled["video_reference_manifest"]["references"][0]["source_type"] == "SHOT_IMAGE"
+    assert [item["source_keyframe_index"] for item in compiled["video_reference_manifest"]["references"]] == [3, 4, 5]
 
     assert [item["dialogue_id"] for item in context["clip_dialogues"]] == ["D5", "D6", "D7"]
     assert [(item["local_start_time"], item["local_end_time"]) for item in context["clip_dialogues"]] == [

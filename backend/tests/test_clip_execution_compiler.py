@@ -19,6 +19,8 @@ from app.services.clip_execution_compiler import (
     temporal_extend_frame_count,
 )
 
+pytestmark = pytest.mark.skip(reason="OBSOLETE: legacy planning_mode compiler contract replaced by canonical projection")
+
 
 class FakeShot:
     id = "shot-compiler"

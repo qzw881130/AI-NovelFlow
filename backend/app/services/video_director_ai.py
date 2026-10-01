@@ -566,7 +566,7 @@ def _render_continuity_lock(shot, selected_mode: str, clip: dict | None) -> str:
         "Preserve spatial geography, screen direction, subject blocking, eyelines, action state, lighting continuity, and environment continuity.",
         "If this Shot is split into multiple generation clips, the start of this clip must visually inherit the previous clip ending state and continue the same camera path.",
         "Keyframes are chronological states along one continuous camera trajectory, not separate edited shots.",
-        f"selected_video_generation_mode = {selected_mode}; do not treat CONTINUOUS_TAKE as SINGLE_FRAME.",
+        *([] if not selected_mode else [f"selected_video_generation_mode = {selected_mode}; do not treat CONTINUOUS_TAKE as SINGLE_FRAME."]),
     ])
 
 
@@ -587,15 +587,49 @@ async def build_h3_video_prompt(
     character_appearances: Optional[dict] = None,
     temporal_anchors: Optional[list] = None,
 ) -> str:
-    if selected_mode == "FIRST_LAST_FRAME":
+    canonical_path = isinstance(clip, dict) and "visual_state_indexes" in clip
+    semantic_controls = []
+    if canonical_path:
+        state_map = {
+            int(item.get("index")): item
+            for item in (keyframes or [])
+            if isinstance(item, dict) and item.get("index") is not None
+        }
+        owned_indexes = [int(item) for item in clip.get("visual_state_indexes") or []]
+        semantic_controls = [state_map[index] for index in owned_indexes if index in state_map]
+        temporal_ids = {str(item.get("anchor_id") or item.get("id")) for item in temporal_anchors or []}
+        semantic_controls.extend({"anchor_id": item} for item in sorted(temporal_ids) if item)
+        roles = {str(item.get("role") or "").upper() for item in semantic_controls if item.get("index") is not None}
+        if len(owned_indexes) == 2 and {str(item.get("role") or "").upper() for item in semantic_controls if item.get("index") is not None} == {"START", "END"}:
+            route = "endpoint"
+        elif len(semantic_controls) == 1:
+            route = "single"
+        else:
+            route = "multi" if semantic_controls else "single"
+        if route == "endpoint":
+            step = "12"
+            template_attr = "h3_first_last_frame_prompt_template_id"
+            template_type = "h3_first_last_frame_prompt"
+        elif route == "multi":
+            step = "13"
+            template_attr = "h3_multi_keyframe_prompt_template_id"
+            template_type = "h3_multi_keyframe_prompt"
+        else:
+            step = "11"
+            template_attr = "h3_single_frame_prompt_template_id"
+            template_type = "h3_single_frame_prompt"
+    elif selected_mode == "FIRST_LAST_FRAME":
+        route = "endpoint"
         step = "12"
         template_attr = "h3_first_last_frame_prompt_template_id"
         template_type = "h3_first_last_frame_prompt"
     elif selected_mode == "MULTI_KEYFRAME":
+        route = "multi"
         step = "13"
         template_attr = "h3_multi_keyframe_prompt_template_id"
         template_type = "h3_multi_keyframe_prompt"
     else:
+        route = "single"
         step = "11"
         template_attr = "h3_single_frame_prompt_template_id"
         template_type = "h3_single_frame_prompt"
@@ -617,7 +651,7 @@ async def build_h3_video_prompt(
             "description": shot.description or "",
         }
     ]
-    is_multi_clip = selected_mode == "MULTI_KEYFRAME"
+    is_multi_clip = route in {"endpoint", "multi"}
     is_semantic_clip = bool(clip_dialogues and any(isinstance(item, dict) and item.get("dialogue_id") for item in clip_dialogues))
     shot_characters = safe_json_list(shot.characters)
     clip_visible_characters = _clip_visible_characters(sanitized_keyframes, shot_characters)
@@ -647,7 +681,9 @@ async def build_h3_video_prompt(
             "props": get_visual_prop_names(db, novel.id, safe_json_list(shot.props)),
         "dialogues": dialogue_payload if is_multi_clip or is_semantic_clip else safe_json_list(shot.dialogues),
         },
-        "selected_mode": selected_mode,
+        **({} if canonical_path else {"selected_mode": selected_mode}),
+        "visual_control_route": route if canonical_path else None,
+        "visual_controls": strip_media_refs(semantic_controls) if canonical_path else None,
         "clip": strip_clip_generation_data(clip),
         "motion_directive": clip_motion_directive,
         "clip_dialogues": dialogue_payload if is_multi_clip or is_semantic_clip else clip_dialogues,
@@ -665,7 +701,7 @@ async def build_h3_video_prompt(
         "continuity_requirements": {
             "mode": shot.continuity_mode or "NORMAL",
             "is_continuous_take": (shot.continuity_mode or "NORMAL") == "CONTINUOUS_TAKE",
-            "rule": "CONTINUOUS_TAKE forbids cuts and hidden edits while still allowing SINGLE_FRAME, FIRST_LAST_FRAME, or MULTI_KEYFRAME according to selected_mode.",
+            "rule": "CONTINUOUS_TAKE forbids cuts and hidden edits; visual controls remain chronological states along one continuous trajectory.",
         },
     }
     user_content = "请基于以下 Video Director 规划数据，生成可直接用于 MiniMax H3 的最终视频提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
@@ -697,7 +733,7 @@ async def build_h3_video_prompt(
         raise RuntimeError(result.get("error") or "H3 视频提示词生成失败")
 
     final_prompt = (result.get("content") or "").strip()
-    if selected_mode == "MULTI_KEYFRAME":
+    if route == "multi":
         final_prompt = _remove_generated_dialogue_timeline(final_prompt)
     continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
     if continuity_lock:
