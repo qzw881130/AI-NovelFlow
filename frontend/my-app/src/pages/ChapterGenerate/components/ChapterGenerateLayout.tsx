@@ -698,12 +698,12 @@ export function ChapterGenerateLayout({
 
         {/* TabNavigation */}
         <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
-          <div className="relative">
-            <TabNavigation />
-            <div className="absolute right-0 top-1">
+          <TabNavigation />
+          {hasQueueStats && (
+            <div className="mt-1 flex flex-wrap items-center justify-end gap-2">
               {renderQueueStats()}
             </div>
-          </div>
+          )}
         </div>
 
         {/* AudioGenTab 完全接管 */}
@@ -732,6 +732,9 @@ export function ChapterGenerateLayout({
       </div>
     );
   }
+
+  const headerContextStats = renderDialogueWarningStats() || renderVideoGenerationStats();
+  const headerQueueStats = renderQueueStats();
 
   return (
     <div className="h-full min-h-0 overflow-hidden flex flex-col">
@@ -768,16 +771,14 @@ export function ChapterGenerateLayout({
       </div>
 
       {/* TabNavigation */}
-      <div className="relative flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
-          <div className="relative">
-            <TabNavigation />
-            <div className="absolute left-1/2 top-1 -translate-x-1/2">
-            {renderDialogueWarningStats() || renderVideoGenerationStats()}
-            </div>
-            <div className="absolute right-0 top-1">
-              {renderQueueStats()}
+      <div className="flex-shrink-0 px-4 py-2 bg-white border-b border-gray-200">
+        <TabNavigation />
+        {(headerContextStats || headerQueueStats) && (
+          <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">{headerContextStats}</div>
+            <div className="ml-auto min-w-0">{headerQueueStats}</div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* 三栏布局 */}
