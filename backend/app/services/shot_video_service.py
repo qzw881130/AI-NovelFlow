@@ -1742,60 +1742,124 @@ async def _generate_multi_clip_video_task(
     db.commit()
 
 
+def _resolve_semantic_clip_assembly_units(
+    db,
+    shot,
+    semantic_clips: list[dict],
+    revision: int,
+    novel_id: str,
+    chapter_id: str,
+) -> list[tuple[dict, Task, dict, str]]:
+    """Resolve new-contract assembly inputs by exact Clip-owned provenance."""
+    units = []
+    seen_task_ids = set()
+    for semantic_clip in sorted(semantic_clips, key=lambda item: int(item.get("clip_index") or 0)):
+        clip_index = int(semantic_clip.get("clip_index") or 0)
+        task_id = str(semantic_clip.get("generated_by_task_id") or "")
+        result_url = str(semantic_clip.get("video_url") or "")
+        if not task_id or not result_url:
+            raise ValueError(f"缺少 Clip {clip_index} 的冻结执行 provenance")
+        if task_id in seen_task_ids:
+            raise ValueError(f"Clip {clip_index} 与其他 Clip 重复使用 Task {task_id}")
+        seen_task_ids.add(task_id)
+        task = db.query(Task).filter(Task.id == task_id).first()
+        metadata = safe_json_dict(task.metadata_json) if task else {}
+        contract = metadata.get("execution_contract") or {}
+        contract_clip = contract.get("clip") or {}
+        if (
+            not task
+            or task.type != "shot_video"
+            or task.status != "completed"
+            or task.novel_id != novel_id
+            or task.chapter_id != chapter_id
+            or task.shot_id != shot.id
+            or task.result_url != result_url
+            or metadata.get("execution_scope") != "CLIP"
+            or contract.get("artifact_kind") != "CLIP_ONLY"
+            or metadata.get("approval_status") != "APPROVED"
+            or metadata.get("clip_id") != f"{shot.id}:clip:{clip_index}"
+            or int(metadata.get("clip_index") or 0) != clip_index
+            or int(metadata.get("clip_plan_revision") or 0) != int(revision)
+            or contract_clip.get("clip_id") != f"{shot.id}:clip:{clip_index}"
+            or int(contract_clip.get("clip_index") or 0) != clip_index
+            or int(contract_clip.get("clip_plan_revision") or 0) != int(revision)
+        ):
+            raise ValueError(f"Clip {clip_index} 的 Task provenance 与 semantic Clip 不匹配")
+        local_path = url_to_local_path(result_url)
+        if not local_path or not Path(local_path).is_file() or not os.access(local_path, os.R_OK):
+            raise ValueError(f"Clip {clip_index} 的 artifact 不可读取")
+        units.append((semantic_clip, task, metadata, local_path))
+    if not units:
+        raise ValueError("semantic Clip Plan 没有可合并的视频")
+    return units
+
+
 async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, novel_id: str, chapter_id: str, shot_index: int) -> dict:
     plan = safe_json_dict(shot.video_director_plan)
     semantic_clips = plan.get("clip_plan") if isinstance(plan.get("clip_plan"), list) else []
     if semantic_clips:
         revision = int(plan.get("clip_plan_revision") or 0)
-        approved_clips = []
-        missing_clips = []
-        for semantic_clip in sorted(semantic_clips, key=lambda item: int(item.get("clip_index") or 0)):
-            clip_index = int(semantic_clip.get("clip_index") or 0)
-            task = db.query(Task).filter(
-                Task.type == "shot_video",
-                Task.shot_id == shot.id,
-                Task.metadata_json.like(f'%%"clip_index": {clip_index}%%'),
-                Task.metadata_json.like(f'%%"clip_plan_revision": {revision}%%'),
-                Task.status == "completed",
-            ).order_by(Task.created_at.desc()).first()
-            metadata = safe_json_dict(task.metadata_json) if task else {}
-            if not task or metadata.get("approval_status") != "APPROVED" or not task.result_url:
-                missing_clips.append(f"C{clip_index}")
-                continue
-            local_path = url_to_local_path(task.result_url)
-            if not local_path or not Path(local_path).is_file():
-                missing_clips.append(f"C{clip_index}")
-                continue
-            approved_clips.append((semantic_clip, task, metadata, local_path))
+        semantic_provenance = any(item.get("generated_by_task_id") for item in semantic_clips if isinstance(item, dict))
+        if semantic_provenance:
+            try:
+                assembly_units = _resolve_semantic_clip_assembly_units(
+                    db, shot, semantic_clips, revision, novel_id, chapter_id,
+                )
+            except ValueError as exc:
+                return {"success": False, "message": str(exc)}
+            approved_clips = list(assembly_units)
+            exact_semantic_sources = True
+        else:
+            approved_clips = []
+            missing_clips = []
+            for semantic_clip in sorted(semantic_clips, key=lambda item: int(item.get("clip_index") or 0)):
+                clip_index = int(semantic_clip.get("clip_index") or 0)
+                task = db.query(Task).filter(
+                    Task.type == "shot_video",
+                    Task.shot_id == shot.id,
+                    Task.metadata_json.like(f'%%"clip_index": {clip_index}%%'),
+                    Task.metadata_json.like(f'%%"clip_plan_revision": {revision}%%'),
+                    Task.status == "completed",
+                ).order_by(Task.created_at.desc()).first()
+                metadata = safe_json_dict(task.metadata_json) if task else {}
+                if not task or metadata.get("approval_status") != "APPROVED" or not task.result_url:
+                    missing_clips.append(f"C{clip_index}")
+                    continue
+                local_path = url_to_local_path(task.result_url)
+                if not local_path or not Path(local_path).is_file():
+                    missing_clips.append(f"C{clip_index}")
+                    continue
+                approved_clips.append((semantic_clip, task, metadata, local_path))
 
-        if missing_clips:
-            return {"success": False, "message": f"缺少已批准的 semantic Clip 视频：{', '.join(missing_clips)}"}
-        if not approved_clips:
-            return {"success": False, "message": "semantic Clip Plan 没有可合并的视频"}
+            if missing_clips:
+                return {"success": False, "message": f"缺少已批准的 semantic Clip 视频：{', '.join(missing_clips)}"}
+            if not approved_clips:
+                return {"success": False, "message": "semantic Clip Plan 没有可合并的视频"}
 
-        # A continuation output already contains its upstream AV chain. Keep only
-        # the final approved output of each contiguous continuation run.
-        assembly_units = []
-        pending_base = None
-        continuation_run = []
-        continuation_capabilities = {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}
-        for approved_clip in approved_clips:
-            if approved_clip[2].get("capability") in continuation_capabilities:
+            # Historical plans without frozen Clip provenance retain the old
+            # continuation-collapse behavior as a small local compatibility path.
+            continuation_capabilities = {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}
+            assembly_units = []
+            pending_base = None
+            continuation_run = []
+            for approved_clip in approved_clips:
+                if approved_clip[2].get("capability") in continuation_capabilities:
+                    if pending_base:
+                        continuation_run.append(pending_base)
+                        pending_base = None
+                    continuation_run.append(approved_clip)
+                    continue
+                if continuation_run:
+                    assembly_units.append(continuation_run[-1])
+                    continuation_run = []
                 if pending_base:
-                    continuation_run.append(pending_base)
-                    pending_base = None
-                continuation_run.append(approved_clip)
-                continue
+                    assembly_units.append(pending_base)
+                pending_base = approved_clip
             if continuation_run:
                 assembly_units.append(continuation_run[-1])
-                continuation_run = []
-            if pending_base:
+            elif pending_base:
                 assembly_units.append(pending_base)
-            pending_base = approved_clip
-        if continuation_run:
-            assembly_units.append(continuation_run[-1])
-        elif pending_base:
-            assembly_units.append(pending_base)
+            exact_semantic_sources = False
         clip_video_paths = [item[3] for item in assembly_units]
 
         story_dir = file_storage._get_story_dir(novel_id)
@@ -1804,7 +1868,11 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
         output_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         final_unit = assembly_units[-1]
-        direct_continuation_result = len(assembly_units) == 1 and final_unit[2].get("capability") in continuation_capabilities
+        direct_continuation_result = (
+            not exact_semantic_sources
+            and len(assembly_units) == 1
+            and final_unit[2].get("capability") in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}
+        )
         if direct_continuation_result:
             local_url = final_unit[1].result_url
             assembled_media_duration = _probe_video_duration(final_unit[3])
