@@ -10,6 +10,31 @@ export type CanonicalSemanticReadinessState =
 
 export type SemanticClipStatus = 'NOT_STARTED' | 'RUNNING' | 'WAITING_REVIEW' | 'FAILED' | 'COMPLETED';
 export type SemanticShotStatus = 'NOT_STARTED' | 'PARTIAL' | 'WAITING_REVIEW' | 'FAILED' | 'CLIPS_COMPLETE' | 'ASSEMBLED';
+export type BatchShotCategory = 'ready' | 'generating' | 'queued' | 'completed' | 'missing_preparation' | 'failed';
+export type BatchShotFilter = BatchShotCategory | 'all';
+
+export interface BatchShotStatusProjection {
+  category: BatchShotCategory;
+  selectable: boolean;
+  reason: string;
+  retry: boolean;
+}
+
+export interface BatchShotStatusProjectionInput {
+  eligibility: { selectable: boolean; reason: string };
+  isGenerating?: boolean;
+  isQueued?: boolean;
+  isFailed?: boolean;
+  isCompleted?: boolean;
+  failureReason?: string | null;
+}
+
+export interface BatchShotSelectionItem {
+  shotIndex: number;
+  category: BatchShotCategory;
+  selectable: boolean;
+  isLegacy?: boolean;
+}
 
 export const CANONICAL_EXECUTION_AUTHORITY = 'SEMANTIC_BATCH' as const;
 
@@ -93,6 +118,27 @@ export function resolveSemanticClipTask(clip: SemanticClipPlan, tasks: Task[], r
     .sort((a, b) => String(b.completedAt || b.updated_at || b.created_at || '').localeCompare(String(a.completedAt || a.updated_at || a.created_at || '')))[0];
 }
 
+export function getCurrentSemanticExecutionState(plan: VideoDirectorPlan, tasks: Task[] = []): {
+  isGenerating: boolean;
+  isQueued: boolean;
+  isFailed: boolean;
+  failureReason: string | null;
+} {
+  const revision = Number(plan.clip_plan_revision || 0);
+  const clips = Array.isArray(plan.clip_plan) ? plan.clip_plan : [];
+  const currentTasks = clips
+    .map((clip) => resolveSemanticClipTask(clip, tasks, revision))
+    .filter((task): task is Task => !!task);
+  const statuses = currentTasks.map((task) => normalizedTaskStatus(task));
+  const failedTask = currentTasks.find((task) => ['failed', 'cancelled'].includes(normalizedTaskStatus(task)));
+  return {
+    isGenerating: statuses.includes('running'),
+    isQueued: statuses.some((status) => ['pending', 'queued'].includes(status)),
+    isFailed: !!failedTask,
+    failureReason: failedTask?.errorMessage || failedTask?.error_message || null,
+  };
+}
+
 const normalizedTaskStatus = (task?: Task) => String(task?.status || '').toLowerCase();
 
 export function getSemanticClipStatus(clip: SemanticClipPlan, tasks: Task[], revision: number): SemanticClipStatus {
@@ -170,4 +216,61 @@ export function getCanonicalBatchEligibility(
   if (status === 'WAITING_REVIEW') return { selectable: false, reason: '等待审核', authority: CANONICAL_EXECUTION_AUTHORITY };
   if (status === 'CLIPS_COMPLETE' && !autoAssemble) return { selectable: false, reason: '视频片段已完成，待合并', authority: CANONICAL_EXECUTION_AUTHORITY };
   return { selectable: true, reason: status === 'CLIPS_COMPLETE' ? '视频片段已完成，待合并' : '可执行语义视频片段', authority: CANONICAL_EXECUTION_AUTHORITY };
+}
+
+/**
+ * Projects existing readiness and execution authority into one primary Batch UX
+ * category. It deliberately does not decide whether a Shot is executable.
+ */
+export function getBatchShotStatusProjection({
+  eligibility,
+  isGenerating = false,
+  isQueued = false,
+  isFailed = false,
+  isCompleted = false,
+  failureReason,
+}: BatchShotStatusProjectionInput): BatchShotStatusProjection {
+  if (isGenerating) return { category: 'generating', selectable: false, reason: '视频生成中', retry: false };
+  if (isQueued) return { category: 'queued', selectable: false, reason: '视频队列中', retry: false };
+  if (isFailed) {
+    return {
+      category: 'failed',
+      selectable: eligibility.selectable,
+      reason: failureReason || '上次执行失败',
+      retry: eligibility.selectable,
+    };
+  }
+  if (isCompleted) return { category: 'completed', selectable: false, reason: '当前版本已完成', retry: false };
+  if (eligibility.selectable) return { category: 'ready', selectable: true, reason: eligibility.reason, retry: false };
+  return { category: 'missing_preparation', selectable: false, reason: eligibility.reason, retry: false };
+}
+
+export function getSelectableBatchShotIndexes(
+  items: BatchShotSelectionItem[],
+  filter: BatchShotFilter,
+): number[] {
+  return items
+    .filter((item) => (filter === 'all' || item.category === filter) && item.selectable)
+    .map((item) => item.shotIndex);
+}
+
+export function reconcileBatchSelection(
+  selectedIndexes: Iterable<number>,
+  items: BatchShotSelectionItem[],
+): number[] {
+  const selectableIndexes = new Set(items.filter((item) => item.selectable).map((item) => item.shotIndex));
+  return Array.from(selectedIndexes).filter((index) => selectableIndexes.has(index));
+}
+
+export function shouldShowLegacyBatchCompatibility(items: BatchShotSelectionItem[]): boolean {
+  return items.some((item) => item.isLegacy === true);
+}
+
+export function hasLegacyBatchPlanningState(plan?: VideoDirectorPlan | null): boolean {
+  if (!plan || plan.canonical_visual_plan === true) return false;
+  return !!plan.selected_mode
+    || !!plan.recommended_mode
+    || (Array.isArray(plan.keyframes) && plan.keyframes.length > 0)
+    || (Array.isArray(plan.window_plans) && plan.window_plans.length > 0)
+    || (Array.isArray(plan.clips) && plan.clips.length > 0);
 }

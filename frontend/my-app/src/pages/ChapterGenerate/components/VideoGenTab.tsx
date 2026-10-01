@@ -37,21 +37,42 @@ import {
 } from '../videoDirectorAuthority';
 import {
   buildSemanticBatchRequest,
+  getBatchShotStatusProjection,
   getCanonicalBatchEligibility,
   getCanonicalSemanticReadiness,
+  getCurrentSemanticExecutionState,
   getCarryInLabel,
+  hasLegacyBatchPlanningState,
   getOwnedVisualStateLabel,
+  getSelectableBatchShotIndexes,
   getSemanticCapabilityLabel,
   getSemanticContinuityLabel,
   getSemanticShotStatusFromPlan,
   hasCurrentAssembly,
   hasValidCurrentClipPlan,
+  reconcileBatchSelection,
   resolveSemanticClipTask,
+  shouldShowLegacyBatchCompatibility,
+  type BatchShotCategory,
+  type BatchShotFilter,
 } from '../semanticClipAuthority';
 
 const VIDEO_TAB_UI_STORAGE_KEY = 'chapterGenerate_videoTab_ui';
 type MergeVideoMode = 'shots_only' | 'shots_with_transitions';
-type BatchSelectionMode = 'all' | 'pending' | null;
+const BATCH_CATEGORY_META: Array<{
+  key: BatchShotCategory;
+  label: string;
+  activeClassName: string;
+  countClassName: string;
+}> = [
+  { key: 'ready', label: '可生成', activeClassName: 'border-green-300 bg-green-50 text-green-800', countClassName: 'bg-green-100 text-green-800' },
+  { key: 'generating', label: '生成中', activeClassName: 'border-blue-300 bg-blue-50 text-blue-800', countClassName: 'bg-blue-100 text-blue-800' },
+  { key: 'queued', label: '队列中', activeClassName: 'border-purple-300 bg-purple-50 text-purple-800', countClassName: 'bg-purple-100 text-purple-800' },
+  { key: 'completed', label: '已完成', activeClassName: 'border-emerald-300 bg-emerald-50 text-emerald-800', countClassName: 'bg-emerald-100 text-emerald-800' },
+  { key: 'missing_preparation', label: '缺准备', activeClassName: 'border-amber-300 bg-amber-50 text-amber-800', countClassName: 'bg-amber-100 text-amber-800' },
+  { key: 'failed', label: '失败', activeClassName: 'border-red-300 bg-red-50 text-red-800', countClassName: 'bg-red-100 text-red-800' },
+];
+
 type VideoImageEditTarget = {
   type: 'shot' | 'keyframe';
   imageUrl: string;
@@ -1940,7 +1961,7 @@ export function VideoGenTab({
 }: VideoGenTabProps) {
   const { t } = useTranslation();
   const store = useChapterGenerateStore();
-  const { markTabComplete, setCurrentShot, downloadChapterMaterials, generateShotVideo, generateKeyframeImage, setShots, setShotVideos, setShotImages, checkVideoTaskStatus, generateTransition, transitionWorkflows, selectedTransitionWorkflow, setSelectedTransitionWorkflow, fetchTransitionWorkflows, transitionDuration, setTransitionDuration } = store;
+  const { markTabComplete, setCurrentShot, setCurrentTab, downloadChapterMaterials, generateShotVideo, generateKeyframeImage, setShots, setShotVideos, setShotImages, checkVideoTaskStatus, generateTransition, transitionWorkflows, selectedTransitionWorkflow, setSelectedTransitionWorkflow, fetchTransitionWorkflows, transitionDuration, setTransitionDuration } = store;
 
   // 直接订阅 store 状态（确保状态更新时组件重新渲染）
   const storeShots = useChapterGenerateStore((state) => state.shots);
@@ -1981,7 +2002,7 @@ export function VideoGenTab({
   const [isResettingVideoData, setIsResettingVideoData] = useState(false);
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
   const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
-  const [batchSelectionMode, setBatchSelectionMode] = useState<BatchSelectionMode>(null);
+  const [batchFilter, setBatchFilter] = useState<BatchShotFilter>('ready');
   const [dragSelectionMode, setDragSelectionMode] = useState<'select' | 'deselect' | null>(null);
   const [autoCompleteDetails, setAutoCompleteDetails] = useState(true);
   const [autoAssemble, setAutoAssemble] = useState(true);
@@ -2296,9 +2317,69 @@ export function VideoGenTab({
     return { selectable: false, reason: '生成模式不支持' };
   }, [autoAssemble, autoCompleteDetails, batchShotTasks, generatingVideos, getShotImageUrl, getVideoDirectorKeyframeImageUrl, storePendingVideos]);
 
-  const selectableShotIndexes = useCallback(() => shotsList
-    .map((shot: any, idx: number) => getBatchShotEligibility(shot).selectable ? idx + 1 : null)
-    .filter((index: number | null): index is number => index !== null), [getBatchShotEligibility, shotsList]);
+  const batchShotItems = shotsList.map((shot: any, idx: number) => {
+    const shotIndex = idx + 1;
+    const shotId = shot?.id ? String(shot.id) : '';
+    const plan: VideoDirectorPlan = shot?.videoDirectorPlan || {};
+    const tasks = shotId ? batchShotTasks[shotId] || [] : [];
+    const semanticStatus = isSemanticShot(shot) ? getSemanticShotStatus(shot, tasks) : null;
+    const semanticExecution = isSemanticShot(shot)
+      ? getCurrentSemanticExecutionState(plan, tasks)
+      : { isGenerating: false, isQueued: false, isFailed: false, failureReason: null };
+    const eligibility = getBatchShotEligibility(shot);
+    const projection = getBatchShotStatusProjection({
+      eligibility,
+      isGenerating: (!!shotId && generatingVideos.has(shotId)) || shot?.videoStatus === 'generating' || semanticExecution.isGenerating,
+      isQueued: (!!shotId && storePendingVideos.has(shotId)) || semanticExecution.isQueued,
+      isFailed: shot?.videoStatus === 'failed' || semanticStatus === 'FAILED' || semanticExecution.isFailed,
+      isCompleted: hasShotVideo(shot),
+      failureReason: semanticExecution.failureReason,
+    });
+    return {
+      shot,
+      shotIndex,
+      shotId,
+      eligibility,
+      semanticStatus,
+      isLegacy: !isSemanticShot(shot) && hasLegacyBatchPlanningState(plan),
+      ...projection,
+    };
+  });
+  const batchCategoryCounts = batchShotItems.reduce((counts, item) => {
+    counts[item.category] += 1;
+    return counts;
+  }, {
+    ready: 0,
+    generating: 0,
+    queued: 0,
+    completed: 0,
+    missing_preparation: 0,
+    failed: 0,
+  } as Record<BatchShotCategory, number>);
+  const visibleBatchShotItems = batchFilter === 'all'
+    ? batchShotItems
+    : batchShotItems.filter((item) => item.category === batchFilter);
+  const selectableVisibleShotIndexes = getSelectableBatchShotIndexes(batchShotItems, batchFilter);
+  const executableSelectedIndexes = reconcileBatchSelection(selectedShots, batchShotItems);
+  const executableSelectedSet = new Set(executableSelectedIndexes);
+  const selectedFailedCount = batchShotItems.filter((item) => (
+    executableSelectedSet.has(item.shotIndex) && item.category === 'failed'
+  )).length;
+  const allVisibleSelectableSelected = selectableVisibleShotIndexes.length > 0
+    && selectableVisibleShotIndexes.every((index) => executableSelectedSet.has(index));
+  const legacyCompatibilityVisible = shouldShowLegacyBatchCompatibility(visibleBatchShotItems)
+    || shouldShowLegacyBatchCompatibility(batchShotItems.filter((item) => executableSelectedSet.has(item.shotIndex)));
+  const batchSelectionSignature = batchShotItems.map((item) => `${item.shotIndex}:${item.selectable ? 1 : 0}`).join('|');
+
+  useEffect(() => {
+    setSelectedShots((previous) => {
+      const next = reconcileBatchSelection(previous, batchShotItems);
+      if (next.length === previous.size && next.every((index) => previous.has(index))) return previous;
+      return new Set(next);
+    });
+  // batchSelectionSignature intentionally captures only changes that can invalidate selection.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batchSelectionSignature]);
 
   // 检查当前分镜是否正在生成
   const isGeneratingCurrent = currentShotId ? generatingVideos.has(currentShotId) || currentShotData?.videoStatus === 'generating' : false;
@@ -3247,13 +3328,13 @@ export function VideoGenTab({
   // 打开批量选择弹窗
   const handleOpenBatchSelect = () => {
     setSelectedShots(new Set());
-    setBatchSelectionMode(null);
+    setBatchFilter('ready');
     setShowBatchSelectModal(true);
   };
 
   const applyBatchShotSelection = (index: number, mode: 'select' | 'deselect') => {
-    const shot = shotsList[index - 1];
-    if (!getBatchShotEligibility(shot).selectable) return;
+    const item = batchShotItems.find((candidate) => candidate.shotIndex === index);
+    if (!item?.selectable) return;
     setSelectedShots(prev => {
       const next = new Set(prev);
       if (mode === 'select') {
@@ -3263,7 +3344,6 @@ export function VideoGenTab({
       }
       return next;
     });
-    setBatchSelectionMode(null);
   };
 
   const handleBatchShotMouseDown = (event: React.MouseEvent, index: number, isSelectable: boolean) => {
@@ -3279,36 +3359,33 @@ export function VideoGenTab({
     applyBatchShotSelection(index, dragSelectionMode);
   };
 
-  // 全选/取消全选
+  const handleBatchFilterChange = (filter: BatchShotFilter) => {
+    setBatchFilter(filter);
+    setSelectedShots(new Set());
+  };
+
+  // 全选/取消当前筛选中的可执行 Shot
   const toggleSelectAll = () => {
-    if (batchSelectionMode === 'all') {
-      setSelectedShots(new Set());
-      setBatchSelectionMode(null);
+    if (allVisibleSelectableSelected) {
+      setSelectedShots((previous) => {
+        const next = new Set(previous);
+        selectableVisibleShotIndexes.forEach((index) => next.delete(index));
+        return next;
+      });
     } else {
-      setSelectedShots(new Set(selectableShotIndexes()));
-      setBatchSelectionMode('all');
+      setSelectedShots((previous) => new Set([...previous, ...selectableVisibleShotIndexes]));
     }
   };
 
-  const toggleSelectPendingVideos = () => {
-    if (batchSelectionMode === 'pending') {
-      setSelectedShots(new Set());
-      setBatchSelectionMode(null);
-      return;
-    }
-
-    const pendingShots = shotsList
-      .map((shot: any, idx: number) => {
-        const eligibility = getBatchShotEligibility(shot);
-        return !hasShotVideo(shot) && eligibility.selectable ? idx + 1 : null;
-      })
-      .filter((index: number | null): index is number => index !== null);
-
-    setSelectedShots(new Set(pendingShots));
-    setBatchSelectionMode('pending');
+  const handleBatchShotNextAction = (shotIndex: number, goToPrimaryImage = false) => {
+    const shot = shotsList[shotIndex - 1];
+    if (!shot) return;
+    handleVideoClick(shotIndex);
+    if (goToPrimaryImage) setCurrentTab(1);
+    setShowBatchSelectModal(false);
   };
 
-  const selectedBatchShots = Array.from(selectedShots)
+  const selectedBatchShots = executableSelectedIndexes
     .map((index) => shotsList[index - 1])
     .filter(Boolean);
   const selectedSemanticShots = selectedBatchShots.filter((shot: any) => isSemanticShot(shot));
@@ -3321,13 +3398,6 @@ export function VideoGenTab({
       assembly: summary.assembly + (autoAssemble && status === 'CLIPS_COMPLETE' ? 1 : 0),
     };
   }, { pending: 0, reusable: 0, assembly: 0 });
-  const hasLegacyShotsInList = shotsList.some((shot: any) => (
-    !isSemanticShot(shot) && !isCanonicalVisualPlan(shot?.videoDirectorPlan || {})
-  ));
-  const showAutoCompleteDetails = selectedBatchShots.length === 0
-    ? hasLegacyShotsInList
-    : selectedSemanticShots.length < selectedBatchShots.length;
-
   useEffect(() => {
     if (!dragSelectionMode) return;
     const handleMouseUp = () => setDragSelectionMode(null);
@@ -3348,7 +3418,7 @@ export function VideoGenTab({
   // 处理批量视频生成
   const handleGenerateAll = async () => {
     if (!effectiveNovelId || !effectiveChapterId) return;
-    const selectedShotList = Array.from(selectedShots)
+    const selectedShotList = executableSelectedIndexes
       .map(index => shotsList[index - 1])
       .filter((shot) => shot && getBatchShotEligibility(shot).selectable);
     if (!selectedShotList.length) {
@@ -4054,12 +4124,11 @@ export function VideoGenTab({
       {/* 批量选择分镜弹窗 */}
       {showBatchSelectModal && createPortal((
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col">
-            {/* 弹窗头部 */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <div className="flex max-h-[86vh] w-full max-w-5xl flex-col rounded-xl bg-white shadow-xl">
+            <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4">
               <div>
                 <h3 className="text-lg font-semibold text-gray-800">{t('chapterGenerate.selectShotsToGenerate')}</h3>
-                <p className="text-xs text-gray-500 mt-1">{t('chapterGenerate.selectShotsRegenerateHint')}</p>
+                <p className="mt-1 text-xs text-gray-500">按生产状态筛选，只能选择当前执行权威判定为可执行的 Shot。</p>
               </div>
               <button
                 onClick={() => setShowBatchSelectModal(false)}
@@ -4070,172 +4139,162 @@ export function VideoGenTab({
               </button>
             </div>
 
-            {/* 弹窗内容 - 分镜列表 */}
-            <div className="flex-1 overflow-y-auto p-4 pb-8">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-600">
-                  已选择 {selectedShots.size} / 可选 {selectableShotIndexes().length} / 共 {shotsList.length} 个分镜
-                  {selectedSemanticShots.length > 0 && ` · 待执行 Clip ${selectedSemanticCounts.pending} · 可复用 ${selectedSemanticCounts.reusable}${autoAssemble ? ` · 待合并 Shot ${selectedSemanticCounts.assembly}` : ''}`}
-                  {' · '}生成中 {shotsList.filter((shot: any) => {
-                    const shotId = shot?.id ? String(shot.id) : '';
-                    return !!shotId && (generatingVideos.has(shotId) || shot?.videoStatus === 'generating');
-                  }).length}
-                  {' · '}队列中 {shotsList.filter((shot: any) => shot?.id && storePendingVideos.has(String(shot.id))).length}
-                </span>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={toggleSelectPendingVideos}
-                    className={`text-sm flex items-center gap-1 transition-colors ${batchSelectionMode === 'pending' ? 'text-blue-700 font-medium' : 'text-gray-600 hover:text-blue-800'}`}
-                  >
-                    {batchSelectionMode === 'pending' ? <Check className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                    选择所有未生成
-                  </button>
-                  <button
-                    onClick={toggleSelectAll}
-                    className={`text-sm flex items-center gap-1 transition-colors ${batchSelectionMode === 'all' ? 'text-blue-700 font-medium' : 'text-gray-600 hover:text-blue-800'}`}
-                  >
-                    {batchSelectionMode === 'all' ? <Check className="w-4 h-4" /> : <Square className="w-4 h-4" />}
-                    {t('common.selectAll')}
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-4 gap-3">
-                {shotsList.map((shot: any, idx: number) => {
-                  const shotIndex = idx + 1;
-                  const shotId = shot.id ? String(shot.id) : '';
-                  const isSelected = selectedShots.has(shotIndex);
-                  const hasVideo = hasShotVideo(shot);
-                  const isGenerating = !!shotId && (generatingVideos.has(shotId) || shot?.videoStatus === 'generating');
-                  const isQueued = !!shotId && storePendingVideos.has(shotId);
-                  const eligibility = getBatchShotEligibility(shot);
-                  const isSelectable = eligibility.selectable;
-                  const isCanonicalShot = isCanonicalVisualPlan(shot?.videoDirectorPlan || {});
-                  const usesSemanticCard = isCanonicalShot || isSemanticShot(shot);
-
+            <div className="border-b border-gray-100 px-5 py-4">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7" aria-label="Batch Shot 状态筛选">
+                {BATCH_CATEGORY_META.map((category) => {
+                  const isActive = batchFilter === category.key;
                   return (
-                    <div
-                      key={shot.id || `shot-${shotIndex}`}
-                      onMouseDown={(event) => handleBatchShotMouseDown(event, shotIndex, isSelectable)}
-                      onMouseEnter={() => handleBatchShotMouseEnter(shotIndex, isSelectable)}
-                      title={isSelectable ? '可生成' : eligibility.reason}
-                        className={`
-                        relative aspect-video rounded-lg border-2 transition-all
-                        select-none
-                        ${!isSelectable
-                          ? 'border-gray-200 bg-gray-50 cursor-not-allowed opacity-60'
-                          : 'cursor-pointer hover:shadow-md'
-                        }
-                        ${usesSemanticCard ? 'aspect-auto min-h-[170px]' : ''}
-                        ${isSelectable && isSelected
-                          ? 'border-blue-500 bg-blue-50'
-                          : isSelectable && !isSelected
-                            ? hasVideo
-                              ? 'border-gray-300 bg-white hover:border-blue-300'
-                              : 'border-gray-300 bg-white hover:border-gray-400'
-                            : ''
-                        }
-                      `}
+                    <button
+                      key={category.key}
+                      type="button"
+                      data-batch-category={category.key}
+                      onClick={() => handleBatchFilterChange(category.key)}
+                      className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors ${isActive ? category.activeClassName : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'}`}
                     >
-                      {/* 分镜编号 */}
-                      <div className="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-xs rounded">
-                        #{shotIndex}
-                      </div>
-
-                      {/* 选择标记 - 只有可选分镜显示 */}
-                      {isSelectable && (
-                        <div className={`
-                          absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center
-                          ${isSelected ? 'bg-blue-500' : 'bg-gray-200'}
-                        `}>
-                          {isSelected && <Check className="w-3 h-3 text-white" />}
-                        </div>
-                      )}
-
-                      {/* 内容区域 */}
-                      {usesSemanticCard ? (
-                        <div className="flex h-full flex-col justify-between p-3 pt-7">
-                          <div>
-                            <div className="flex items-center justify-between gap-2 text-xs text-gray-700">
-                              <span className="font-semibold">Shot #{shot.index || shotIndex}</span>
-                              <span>{shot.duration}s · Rev {shot.videoDirectorPlan?.clip_plan_revision || '-'}</span>
-                            </div>
-                            <div className="mt-1 text-xs font-medium text-gray-600">{isCanonicalShot && !isSemanticShot(shot)
-                              ? eligibility.reason
-                              : (() => { const status = getSemanticShotStatus(shot, batchShotTasks[shotId] || []); return status === 'ASSEMBLED' ? '最终视频已完成' : status === 'CLIPS_COMPLETE' ? '视频片段已完成，待合并' : status === 'FAILED' ? '失败' : status === 'WAITING_REVIEW' ? '待审核' : status === 'PARTIAL' ? '部分完成' : '待生成'; })()}</div>
-                          </div>
-                          <div className="mt-2 space-y-1.5">
-                            {(shot.videoDirectorPlan?.clip_plan || []).map((clip: any) => {
-                              const clipStatus = getSemanticClipStatus(clip, batchShotTasks[shotId] || [], Number(shot.videoDirectorPlan?.clip_plan_revision || 0));
-                              const temporal = clip.capability === 'TEMPORAL_EXTEND' ? getTemporalTargetLabel(shot.videoDirectorPlan, clip) : null;
-                              const statusLabel: Record<SemanticClipStatus, string> = { NOT_STARTED: '未开始', RUNNING: '生成中', WAITING_REVIEW: '待审核', FAILED: '失败', COMPLETED: '已完成' };
-                              return <div key={clip.clip_index} className="rounded border border-gray-200 bg-white/80 px-2 py-1 text-[10px] text-gray-700">
-                                <div className="flex items-center justify-between gap-2"><span className="font-semibold">C{clip.clip_index} · {clip.start_time}–{clip.end_time}s</span><span>{getSemanticCapabilityLabel(clip.capability)}</span><span className={clipStatus === 'COMPLETED' ? 'text-green-700' : clipStatus === 'FAILED' ? 'text-red-700' : 'text-gray-600'}>{statusLabel[clipStatus]}</span></div>
-                                <div>视觉状态：{getOwnedVisualStateLabel(clip)}</div>
-                                {getCarryInLabel(clip) && <div className="text-indigo-700">{getCarryInLabel(clip)}</div>}
-                                {temporal && <div className="text-indigo-700">Temporal: {temporal}</div>}
-                              </div>;
-                            })}
-                          </div>
-                        </div>
-                      ) : <div className="w-full h-full flex items-center justify-center">
-                        {hasVideo ? (
-                          <Film className="w-8 h-8 text-green-600" />
-                        ) : isGenerating ? (
-                          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-                        ) : isQueued ? (
-                          <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
-                        ) : (
-                          <Film className="w-8 h-8 text-gray-300" />
-                        )}
-                      </div>}
-
-                      {/* 状态标签 */}
-                      {!usesSemanticCard && <div className="absolute bottom-0 left-0 right-0 px-1 py-0.5 text-xs text-center bg-black/60 text-white rounded-b-lg truncate">
-                        {isGenerating
-                          ? '生成中'
-                          : isQueued
-                            ? '队列中'
-                            : isSelectable
-                              ? (hasVideo ? t('chapterGenerate.generated') : t('chapterGenerate.pending'))
-                              : eligibility.reason}
-                      </div>}
-                    </div>
+                      <span className="font-medium">{category.label}</span>
+                      <span className={`ml-2 min-w-6 rounded-full px-1.5 py-0.5 text-center text-xs tabular-nums ${isActive ? category.countClassName : 'bg-gray-100 text-gray-600'}`}>
+                        {batchCategoryCounts[category.key]}
+                      </span>
+                    </button>
                   );
                 })}
+                <button
+                  type="button"
+                  data-batch-category="all"
+                  onClick={() => handleBatchFilterChange('all')}
+                  className={`flex items-center justify-between rounded-lg border px-3 py-2 text-sm transition-colors ${batchFilter === 'all' ? 'border-slate-400 bg-slate-100 text-slate-800' : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'}`}
+                >
+                  <span className="font-medium">全部</span>
+                  <span className="ml-2 min-w-6 rounded-full bg-gray-100 px-1.5 py-0.5 text-center text-xs tabular-nums text-gray-600">{batchShotItems.length}</span>
+                </button>
               </div>
             </div>
 
-            {/* 弹窗底部按钮 */}
-            <div className="flex items-center justify-between gap-3 p-4 border-t border-gray-200">
-              {showAutoCompleteDetails && <label className="flex items-center gap-2 text-sm text-gray-700 select-none cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={autoCompleteDetails}
-                  onChange={(event) => {
-                    const checked = event.target.checked;
-                    setAutoCompleteDetails(checked);
-                    const selectableIndexes = shotsList
-                      .map((shot: any, idx: number) => {
-                        const shotId = shot?.id ? String(shot.id) : '';
-                        if (!shotId || generatingVideos.has(shotId) || storePendingVideos.has(shotId) || shot?.videoStatus === 'generating') return null;
-                        if (!getShotImageUrl(shot)) return null;
-                        if (checked) return idx + 1;
-                        return getBatchShotEligibility(shot, checked).selectable ? idx + 1 : null;
-                      })
-                      .filter((index: number | null): index is number => index !== null);
-                    setSelectedShots(new Set(selectableIndexes));
-                    setBatchSelectionMode('all');
-                  }}
-                  className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                自动完成细节（仅 legacy Shot）
-              </label>}
-              <label className="flex items-center gap-2 text-sm text-gray-700 select-none cursor-pointer">
-                <input type="checkbox" checked={autoAssemble} onChange={(event) => setAutoAssemble(event.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                <span>生成完成后自动合并 Shot <span className="block text-[11px] text-gray-500">开启后，每个 Shot 的全部 Clip 完成后自动生成最终视频。</span></span>
-              </label>
-              <div className="flex items-center justify-end gap-3">
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <span className="text-sm text-gray-600">
+                  当前筛选 {visibleBatchShotItems.length} 个 · 可选择 {selectableVisibleShotIndexes.length} 个 · 已选择 {executableSelectedIndexes.length} 个
+                  {selectedSemanticShots.length > 0 && ` · 待执行 Clip ${selectedSemanticCounts.pending} · 可复用 ${selectedSemanticCounts.reusable}${autoAssemble ? ` · 待合并 Shot ${selectedSemanticCounts.assembly}` : ''}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  disabled={selectableVisibleShotIndexes.length === 0}
+                  className="flex items-center gap-1.5 text-sm font-medium text-blue-700 transition-colors hover:text-blue-900 disabled:cursor-not-allowed disabled:text-gray-400"
+                >
+                  {allVisibleSelectableSelected ? <Check className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                  {allVisibleSelectableSelected ? '取消当前筛选全选' : `全选当前筛选（${selectableVisibleShotIndexes.length}）`}
+                </button>
+              </div>
+
+              {visibleBatchShotItems.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-10 text-center">
+                  <Film className="mx-auto h-10 w-10 text-gray-300" />
+                  <div className="mt-3 text-sm font-semibold text-gray-800">
+                    {batchFilter === 'ready' ? '当前没有可生成的 Shot' : '当前分类没有 Shot'}
+                  </div>
+                  {batchFilter === 'ready' && (
+                    <>
+                      <p className="mt-2 text-sm text-gray-600">
+                        已完成 {batchCategoryCounts.completed} 个，缺准备 {batchCategoryCounts.missing_preparation} 个。可切换分类查看结果或阻塞原因。
+                      </p>
+                      <div className="mt-4 flex justify-center gap-2">
+                        <button type="button" onClick={() => handleBatchFilterChange('completed')} className="rounded-lg border border-emerald-200 bg-white px-3 py-2 text-sm text-emerald-700 hover:bg-emerald-50">查看已完成</button>
+                        <button type="button" onClick={() => handleBatchFilterChange('missing_preparation')} className="rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-amber-700 hover:bg-amber-50">查看缺准备</button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {visibleBatchShotItems.map((item) => {
+                    const { shot, shotIndex } = item;
+                    const isSelected = executableSelectedSet.has(shotIndex);
+                    const thumbnailUrl = getShotImageUrl(shot);
+                    const statusMeta = BATCH_CATEGORY_META.find((category) => category.key === item.category)!;
+                    const missingPrimaryImage = item.category === 'missing_preparation' && item.reason.includes('主分镜图');
+
+                    return (
+                      <div
+                        key={shot.id || `shot-${shotIndex}`}
+                        data-batch-shot-category={item.category}
+                        onMouseDown={(event) => handleBatchShotMouseDown(event, shotIndex, item.selectable)}
+                        onMouseEnter={() => handleBatchShotMouseEnter(shotIndex, item.selectable)}
+                        title={item.reason}
+                        className={`flex min-h-[116px] select-none overflow-hidden rounded-xl border-2 transition-all ${item.selectable ? 'cursor-pointer hover:shadow-md' : 'border-gray-200 bg-gray-50'} ${item.selectable && isSelected ? 'border-blue-500 bg-blue-50' : item.selectable ? 'border-gray-300 bg-white hover:border-blue-300' : ''}`}
+                      >
+                        <div className="relative w-36 flex-none bg-gray-100">
+                          {thumbnailUrl ? (
+                            <img src={thumbnailUrl} alt={`Shot ${shot.index || shotIndex}`} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full min-h-[116px] items-center justify-center"><Film className="h-8 w-8 text-gray-300" /></div>
+                          )}
+                          <span className="absolute left-2 top-2 rounded bg-black/65 px-1.5 py-0.5 text-xs font-medium text-white">Shot #{shot.index || shotIndex}</span>
+                        </div>
+                        <div className="flex min-w-0 flex-1 flex-col p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${statusMeta.activeClassName}`}>{statusMeta.label}</span>
+                                <span className="text-xs tabular-nums text-gray-500">{Number(shot.duration || 0)}s</span>
+                              </div>
+                              <p className={`mt-2 line-clamp-2 text-sm ${item.category === 'failed' ? 'text-red-700' : 'text-gray-600'}`}>{item.reason}</p>
+                            </div>
+                            {item.selectable && (
+                              <span className={`flex h-6 w-6 flex-none items-center justify-center rounded-full ${isSelected ? 'bg-blue-600' : 'bg-gray-200'}`} aria-label={isSelected ? '已选择' : '未选择'}>
+                                {isSelected && <Check className="h-3.5 w-3.5 text-white" />}
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-auto flex items-end justify-between gap-3 pt-3">
+                            <span className="text-xs text-gray-400">
+                              {item.selectable ? (item.retry ? '点击选择重试' : '点击选择生成') : '不可提交'}
+                            </span>
+                            {(item.category === 'completed' || item.category === 'missing_preparation') && (
+                              <button
+                                type="button"
+                                onClick={() => handleBatchShotNextAction(shotIndex, missingPrimaryImage)}
+                                className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+                              >
+                                {missingPrimaryImage ? '去生成主图' : '查看当前 Shot'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="border-t border-gray-200 bg-gray-50 px-5 py-4">
+              {legacyCompatibilityVisible && (
+                <details className="mb-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
+                  <summary className="cursor-pointer text-sm font-medium text-gray-700">高级兼容设置（legacy Shot）</summary>
+                  <label className="mt-3 flex cursor-pointer select-none items-start gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={autoCompleteDetails}
+                      onChange={(event) => {
+                        setAutoCompleteDetails(event.target.checked);
+                        setSelectedShots(new Set());
+                      }}
+                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>自动完成细节（仅 legacy Shot）<span className="block text-[11px] text-gray-500">只影响历史兼容 Shot；canonical Shot 始终使用 Semantic Batch 权威。</span></span>
+                  </label>
+                </details>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <label className="flex cursor-pointer select-none items-start gap-2 text-sm text-gray-700">
+                    <input type="checkbox" checked={autoAssemble} onChange={(event) => setAutoAssemble(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                    <span>生成完成后自动合并 Shot <span className="block text-[11px] text-gray-500">每个 Shot 的全部 Clip 完成后生成最终视频。</span></span>
+                  </label>
+                  {executableSelectedIndexes.length === 0 && <p className="mt-2 text-xs text-gray-500">请先从“可生成”或可重试的“失败”分类中选择 Shot。</p>}
+                </div>
+                <div className="flex items-center justify-end gap-3">
                 <button
                   onClick={() => setShowBatchSelectModal(false)}
                   className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
@@ -4244,7 +4303,7 @@ export function VideoGenTab({
                 </button>
                 <button
                   onClick={handleGenerateAll}
-                  disabled={selectedShots.size === 0 || isGeneratingAll}
+                  disabled={executableSelectedIndexes.length === 0 || isGeneratingAll}
                   className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
                 >
                   {isGeneratingAll ? (
@@ -4255,10 +4314,13 @@ export function VideoGenTab({
                   ) : (
                     <>
                       <Film className="w-4 h-4" />
-                      {t('chapterGenerate.generateShots', { count: selectedShots.size })}
+                      {selectedFailedCount === executableSelectedIndexes.length && selectedFailedCount > 0
+                        ? `重试 ${selectedFailedCount} 个失败 Shot`
+                        : `生成 ${executableSelectedIndexes.length} 个 Shot`}
                     </>
                   )}
                 </button>
+                </div>
               </div>
             </div>
           </div>
