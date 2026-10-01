@@ -165,10 +165,12 @@ async def test_new_chapter_split_persists_factual_shot(db_session, monkeypatch):
 def test_three_new_keyframes_strip_style_but_keep_visual_states():
     raw = {
         "keyframes": [
-            {"index": 1, "role": "START", "time_seconds": 0, "description": None},
+            {"index": 1, "role": "START", "time_seconds": 0, "timed_visual_target": False, "description": None},
             {"index": 2, "role": "INTERMEDIATE", "time_seconds": 4,
+             "timed_visual_target": False,
              "description": FACTS.replace("门在前景。", "门在前景。##STYLE## style, high quality, detailed。")},
             {"index": 3, "role": "END", "time_seconds": 8,
+             "timed_visual_target": True,
              "description": FACTS.replace("门在前景。", f"门在前景，{STYLE_A} style, high quality, detailed。")},
         ],
         "window_plans": [{"window_index": 1, "selected_frame_count": 3, "keyframe_indexes": [1, 2, 3]}],
@@ -179,6 +181,57 @@ def test_three_new_keyframes_strip_style_but_keep_visual_states():
     assert keyframes[0]["description"] == ""
     assert keyframes[1]["description"] == FACTS
     assert keyframes[2]["description"] == FACTS
+    assert [item["timed_visual_target"] for item in keyframes] == [False, False, True]
+
+
+def test_keyframe_planner_prompt_defines_timed_target_and_explicit_field():
+    from pathlib import Path
+
+    prompt = (Path(__file__).parents[1] / "prompt_templates" / "08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt").read_text()
+    assert "timed_visual_target" in prompt
+    assert "`timed_visual_target` 必须为 false；输出 true 会导致整份 #08 结果被拒绝" in prompt
+    assert "不能仅因状态重要、是 END" in prompt
+
+
+@pytest.mark.parametrize("value", [None, "false", 0, 1])
+def test_new_keyframe_plan_requires_boolean_timed_visual_target(value):
+    raw = {
+        "keyframes": [{"index": 1, "role": "START", "time_seconds": 0, "timed_visual_target": value}],
+        "window_plans": [],
+    }
+    with pytest.raises(ValueError, match="timed_visual_target 必须是 boolean"):
+        shot_api._normalize_keyframe_planner_result(raw, [], 8)
+
+
+def test_new_keyframe_plan_rejects_timed_start_without_repair():
+    raw = {
+        "keyframes": [{"index": 1, "role": "START", "time_seconds": 0, "timed_visual_target": True}],
+        "window_plans": [],
+    }
+    with pytest.raises(ValueError, match="START keyframe timed_visual_target 必须为 false"):
+        shot_api._normalize_keyframe_planner_result(raw, [], 8)
+
+
+@pytest.mark.parametrize("time_seconds", [float("nan"), float("inf"), -0.1, 9])
+def test_new_timed_target_requires_finite_in_shot_time(time_seconds):
+    raw = {
+        "keyframes": [{"index": 2, "role": "INTERMEDIATE", "time_seconds": time_seconds, "timed_visual_target": True}],
+        "window_plans": [],
+    }
+    with pytest.raises(ValueError, match="time_seconds 无效"):
+        shot_api._normalize_keyframe_planner_result(raw, [], 8)
+
+
+def test_new_keyframe_plan_rejects_duplicate_canonical_index():
+    raw = {
+        "keyframes": [
+            {"index": 2, "role": "INTERMEDIATE", "time_seconds": 2, "timed_visual_target": False},
+            {"index": 2, "role": "END", "time_seconds": 8, "timed_visual_target": False},
+        ],
+        "window_plans": [],
+    }
+    with pytest.raises(ValueError, match="重复 index"):
+        shot_api._normalize_keyframe_planner_result(raw, [], 8)
 
 
 @pytest.mark.asyncio

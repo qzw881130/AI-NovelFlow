@@ -154,7 +154,7 @@ def test_extend_endpoint_snapshots_previous_contract_and_routes_physical_workflo
             f"/api/novels/{novel.id}/chapters/{chapter.id}/shots/{shot.id}/video-director/clips/2/generate",
             json={"clip_plan_revision": 4, "auto_merge": False},
         )
-    assert response.status_code == 200
+    assert response.status_code == 200, response.text
     created = db_session.query(Task).filter(Task.shot_id == shot.id, Task.id != task.id).one()
     metadata = json.loads(created.metadata_json)
     assert created.workflow_id == workflow.id
@@ -167,6 +167,54 @@ def test_extend_endpoint_snapshots_previous_contract_and_routes_physical_workflo
         "result_url": task.result_url,
     }
     assert captured["kwargs"]["selected_mode"] == "MULTI_KEYFRAME"
+
+
+def test_temporal_extend_endpoint_compiles_explicit_anchor_and_routes_frozen_workflow(client, db_session, tmp_path):
+    novel, chapter, shot, previous_task, artifact = _state(tmp_path)
+    plan = json.loads(shot.video_director_plan)
+    plan["temporal_anchors"] = [{
+        "anchor_id": "a1", "time_seconds": 4.0, "image_url": "/api/files/a1.png",
+        "source": {"type": "KEYFRAME", "id": "kf-12"}, "description": "required state",
+    }]
+    plan["clip_plan"][1].update({
+        "capability": "TEMPORAL_EXTEND", "continuity_to_previous": "CONTINUOUS",
+        "requires_temporal_control": True, "temporal_anchor_ids": ["a1"],
+    })
+    shot.video_director_plan = json.dumps(plan)
+    workflow = Workflow(
+        id="cb0804a7-157e-4c12-9174-5fa43838ecf4", type="TEMPORAL_EXTEND",
+        name="NovelFlow H3 AV 时序续生成 V1", workflow_json="{}",
+        node_mapping=json.dumps({
+            "load_video_node_id": "66", "duration_seconds_node_id": "125",
+            "prompt_node_id": "120", "custom_keyframes_node_id": "116",
+            "video_save_node_id": "65", "reference_to_video_node_id": "55",
+            **{f"keyframe_node_{i}": node for i, node in enumerate(("117", "128", "129", "130", "131", "132", "133", "134"), 1)},
+            **{f"load_image_node_{i}": node for i, node in enumerate(("142", "141", "143", "137", "138", "140", "135", "136", "139"), 1)},
+        }), is_active=True,
+    )
+    db_session.add_all([novel, chapter, shot, previous_task, workflow])
+    db_session.commit()
+    captured = {}
+
+    def enqueue(*args, **kwargs):
+        captured["kwargs"] = kwargs
+
+    with patch("app.api.shots.enqueue_shot_video_task", side_effect=enqueue), \
+         patch("app.services.shot_video_service.url_to_local_path", return_value=str(artifact)):
+        response = client.post(
+            f"/api/novels/{novel.id}/chapters/{chapter.id}/shots/{shot.id}/video-director/clips/2/generate",
+            json={"clip_plan_revision": 4, "auto_merge": False},
+        )
+    assert response.status_code == 200, response.text
+    created = db_session.query(Task).filter(Task.shot_id == shot.id, Task.id != previous_task.id).one()
+    metadata = json.loads(created.metadata_json)
+    assert created.workflow_id == workflow.id
+    assert metadata["capability"] == "TEMPORAL_EXTEND"
+    assert metadata["execution_contract"]["artifact_kind"] == "CLIP_ONLY"
+    assert metadata["execution_contract"]["temporal_anchor_manifest"]["anchors"][0]["frame_position"] == 97
+    assert metadata["execution_contract"]["previous_clip"]["generated_by_task_id"] == previous_task.id
+    assert metadata["video_reference_manifest"]["references"] == []
+    assert captured["kwargs"]["clip_metadata"]["temporal_anchor_ids"] == ["a1"]
 
 
 @pytest.mark.asyncio
@@ -212,7 +260,8 @@ async def test_extend_physical_adapter_binds_previous_duration_prompt_and_refs(d
 
 
 @pytest.mark.asyncio
-async def test_extend_persists_raw_clip_and_preserves_shot_final(db_session, tmp_path, monkeypatch):
+@pytest.mark.parametrize("capability", ["EXTEND", "TEMPORAL_EXTEND"])
+async def test_semantic_continuation_persists_clip_and_preserves_shot_final(db_session, tmp_path, monkeypatch, capability):
     novel = Novel(id="persist-novel", title="Persist")
     chapter = Chapter(id="persist-chapter", novel_id=novel.id, number=1, title="Chapter")
     shot = Shot(
@@ -222,14 +271,14 @@ async def test_extend_persists_raw_clip_and_preserves_shot_final(db_session, tmp
             "clip_plan_revision": 4,
             "clip_plan": [
                 {"clip_index": 1, "execution_status": "APPROVED"},
-                {"clip_index": 2, "capability": "EXTEND", "execution_status": "GENERATING"},
+                {"clip_index": 2, "capability": capability, "execution_status": "GENERATING"},
             ],
         }),
     )
     metadata = {
         "execution_scope": "CLIP", "clip_index": 2, "clip_plan_revision": 4,
-        "capability": "EXTEND", "requested_duration": 8.0,
-        "execution_contract": {"capability": "EXTEND", "artifact_kind": "CLIP_ONLY"},
+        "capability": capability, "requested_duration": 8.0,
+        "execution_contract": {"capability": capability, "artifact_kind": "CLIP_ONLY"},
     }
     task = Task(
         id="persist-extend-task", type="shot_video", status="running", name="C2 EXTEND",

@@ -10,11 +10,43 @@ Rules:
 - Cover the complete Shot timeline with contiguous clips.
 - Prefer natural narrative Beats, completed dialogue, completed actions, stable camera points, and reactions.
 - Do not mechanically split every 15 seconds.
-- Use VIDEO_CONTINUATION for later clips without temporal anchors.
-- Use TEMPORAL_EXTEND when a later clip must hit one or more temporal anchors.
+- Use VIDEO_CONTINUATION for later Clips whose continuity is CONTINUOUS.
+  Application code selects EXTEND versus TEMPORAL_EXTEND after projecting
+  upstream #08 timed targets.
+- Every Clip must explicitly output `continuity_to_previous` as exactly one
+  of `NONE`, `CUT`, or `CONTINUOUS`. Do not omit this field. For a
+  `CONTINUOUS_TAKE` Shot, the first Clip must be `NONE` and every later Clip
+  must be `CONTINUOUS`; a real cut belongs at Shot decomposition level.
+- `requires_temporal_control` is specifically continuation intent: it is
+  allowed only for a non-first Clip that is CONTINUOUS, depends on Previous
+  AV, and needs timed future-state conditioning through TEMPORAL_EXTEND.
+- `visual_state_candidates[].timed_visual_target` is upstream #08 Director
+  intent. Do not decide whether a candidate deserves temporal conditioning,
+  and do not override or veto that marker. Application code projects marked
+  states into final Clip execution properties after Clip boundaries are
+  normalized.
+- The first Clip must always use `continuity_to_previous=NONE`,
+  `requires_temporal_control=false`, and
+  `selected_temporal_target_ids=[]`, even when it contains MULTI_KEYFRAME
+  visual states. Any Clip with CUT continuity must likewise use false and an
+  empty target list.
+- Do not semantically author `requires_temporal_control` or
+  `selected_temporal_target_ids`; their raw values are ignored and replaced
+  deterministically from #08 `timed_visual_target` intent after final Clip
+  boundaries are known. Keep the fields in the returned JSON shape for parser
+  compatibility, using false and [] as neutral values. Never invent image
+  URLs, paths, task IDs, provenance, frame positions, or node IDs.
+- GENERATE Clips may use SINGLE_FRAME, FIRST_LAST_FRAME, or MULTI_KEYFRAME and
+  may contain ordinary timed visual states; that does not make them
+  TEMPORAL_EXTEND. Return false and [] as neutral raw temporal fields; the
+  application derives the final values.
+- Visual planning mode is orthogonal to continuity and execution capability:
+  MULTI_KEYFRAME with CONTINUOUS continuity is valid and routes to EXTEND
+  when temporal intent is false. Do not use a visual mode to imply CUT,
+  CONTINUOUS, GENERATE, EXTEND, or TEMPORAL_EXTEND.
 - director_mode is a Shot-level visual constraint, not a generation capability. Do not copy MULTI_KEYFRAME from director_mode into a clip unless that clip has the required keyframe indexes and every referenced keyframe image is listed in available_generation_inputs.keyframe_images.
-- Select a capability only when all of its required_inputs exist in available_generation_inputs. The first clip may use SINGLE_FRAME when shot_image is true. Later clips without anchors should use VIDEO_CONTINUATION and depend on the immediately previous clip.
-- MULTI_KEYFRAME requires 3 or 4 clip-local keyframe indexes backed by available keyframe images. TEMPORAL_EXTEND requires clip-local temporal_anchor_ids backed by available temporal_anchor_images. Do not treat Shot-level director mode as those generation inputs.
+- Select visual/generation inputs only when their required inputs exist in available_generation_inputs. The first Clip may use SINGLE_FRAME when shot_image is true. Later Clips with CONTINUOUS continuity depend on the immediately previous Clip.
+- MULTI_KEYFRAME requires 3 or 4 clip-local keyframe indexes backed by available keyframe images. The application supplies temporal anchors after deterministic target projection; do not invent temporal_anchor_ids. Do not treat Shot-level director mode as generation capability.
 - The program validator will enforce required inputs, hard duration, and capability constraints.
 
 Return JSON only:
@@ -25,8 +57,11 @@ Return JSON only:
       "start_time": 0,
       "end_time": 10,
       "capability": "SINGLE_FRAME",
+      "continuity_to_previous": "NONE",
       "previous_clip_index": null,
       "temporal_anchor_ids": [],
+      "requires_temporal_control": false,
+      "selected_temporal_target_ids": [],
       "dialogue_scope": {"start_time": 0, "end_time": 10},
       "reason": "natural narrative beat"
     }

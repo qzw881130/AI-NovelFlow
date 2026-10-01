@@ -1,5 +1,6 @@
 """Minimal semantic Clip Planner entry point for Flow First V1."""
 import json
+import math
 import os
 
 from sqlalchemy.orm import Session
@@ -41,6 +42,8 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
             index = int(keyframe["index"])
         except (TypeError, ValueError):
             continue
+        if index in canonical_by_index:
+            raise ValueError(f"Duplicate canonical visual-state identity: KF{index}")
         canonical_by_index[index] = keyframe
 
     compatibility_by_index = {}
@@ -82,6 +85,42 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
             keyframe_images_by_index[index] = {"index": index, "url": image_value}
 
     keyframe_images = [keyframe_images_by_index[index] for index in sorted(keyframe_images_by_index)]
+    visual_state_candidates = []
+    for index in sorted(canonical_by_index):
+        keyframe = canonical_by_index[index]
+        image_value = (keyframe_images_by_index.get(index) or {}).get("url")
+        compatibility = compatibility_by_index.get(index) or {}
+        visual_state_candidates.append({
+            "visual_state_id": f"KF{index}",
+            "keyframe_index": index,
+            "time_seconds": keyframe.get("time_seconds"),
+            "role": keyframe.get("role") or "INTERMEDIATE",
+            "description": keyframe.get("description") or "",
+            "timed_visual_target": keyframe.get("timed_visual_target") is True,
+            "image_available": bool(image_value),
+            "image_url": image_value,
+            "source": {
+                "type": "KEYFRAME",
+                "id": f"KF{index}",
+                "keyframe_index": index,
+                "image_task_id": keyframe.get("image_task_id") or compatibility.get("image_task_id"),
+            },
+        })
+    transition_context = []
+    try:
+        transition_items = json.loads(getattr(shot, "video_director_plan", None) or "{}").get("transitions") or []
+    except Exception:
+        transition_items = []
+    for transition in transition_items:
+        if not isinstance(transition, dict):
+            continue
+        transition_context.append({
+            "from_keyframe_index": transition.get("from_keyframe_index"),
+            "to_keyframe_index": transition.get("to_keyframe_index"),
+            "start_time": transition.get("start_time"),
+            "end_time": transition.get("end_time"),
+            "transition_description": transition.get("transition_description") or "",
+        })
     end_keyframe_image = False
     for keyframe in keyframes + legacy_keyframes:
         if not isinstance(keyframe, dict):
@@ -104,7 +143,7 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
         path = url_to_local_path(image_value) if image_value else None
         path = path or (image_value if image_value and os.path.isfile(image_value) else None)
         if path and os.path.isfile(path):
-            anchor_images.append(anchor.get("anchor_id"))
+            anchor_images.append(anchor.get("anchor_id") or anchor.get("id"))
     available_inputs = {
         "shot_image": bool(shot_image_path and os.path.isfile(shot_image_path)),
         "keyframe_images": keyframe_images,
@@ -124,9 +163,17 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
         "available_generation_inputs": available_inputs,
         "director_mode": (json.loads(getattr(shot, "video_director_plan", None) or "{}").get("selected_mode") or "SINGLE_FRAME"),
         "official_dialogue_timeline": (json.loads(getattr(shot, "video_director_plan", None) or "{}").get("dialogue_timeline_source") or []),
+        "visual_state_candidates": visual_state_candidates,
+        "transition_context": transition_context,
         "temporal_anchors": temporal_anchors,
         "capabilities": VIDEO_CAPABILITY_CONTRACTS,
-        "planning_policy": planning_policy or {"min_story_clip_duration": 2.0, "approval_mode": "AUTO_APPROVE"},
+        "planning_policy": {
+            **(planning_policy or {"approval_mode": "AUTO_APPROVE"}),
+            "min_story_clip_duration": max(
+                float((planning_policy or {}).get("min_story_clip_duration") or 0),
+                min(contract["min_duration"] for contract in VIDEO_CAPABILITY_CONTRACTS.values() if contract.get("enabled")),
+            ),
+        },
     }
 
 
@@ -151,6 +198,10 @@ def _align_multi_keyframe_references(clips: list[dict], plan: dict, available_in
             ordered_keyframes.append((time_seconds, index))
 
     for clip in clips:
+        # Reprojection is authoritative after any boundary normalization; do
+        # not retain indexes derived from an earlier interval.
+        clip.pop("keyframe_indexes", None)
+        clip.pop("keyframe_indices", None)
         try:
             start = float(clip.get("start_time"))
             end = float(clip.get("end_time"))
@@ -163,9 +214,173 @@ def _align_multi_keyframe_references(clips: list[dict], plan: dict, available_in
         if 3 <= len(indexes) <= 4:
             clip["planning_mode"] = "MULTI_KEYFRAME"
             clip["keyframe_indexes"] = indexes
+        elif str(clip.get("capability") or "") == "GENERATE":
+            # GENERATE MULTI_KEYFRAME requires 3–4 final-interval states;
+            # fall back to the existing single-frame mode when reprojection
+            # leaves fewer usable states.
+            clip["planning_mode"] = "SINGLE_FRAME"
 
 
-def _normalize_continuity_contract(clips: list[dict]) -> None:
+def _normalize_provider_boundaries(
+    clips: list[dict],
+    shot_duration: float,
+    minimum: float,
+    maximum: float,
+    dialogue_timeline: list[dict] | None = None,
+) -> bool:
+    """Keep contiguous planner boundaries inside the provider duration contract."""
+    ordered = sorted(clips or [], key=lambda item: float(item.get("start_time") or 0))
+    if not ordered:
+        return False
+    dialogue_intervals = []
+    for item in dialogue_timeline or []:
+        try:
+            start = float(item.get("start_time"))
+            end = float(item.get("end_time"))
+        except (AttributeError, TypeError, ValueError):
+            continue
+        if end > start:
+            dialogue_intervals.append((start, end))
+
+    def boundary_is_legal(value: float) -> bool:
+        return not any(start < value < end for start, end in dialogue_intervals)
+
+    for clip in ordered:
+        clip["start_time"] = round(float(clip.get("start_time") or 0), 2)
+        clip["end_time"] = round(float(clip.get("end_time") or 0), 2)
+    for left, right in zip(ordered, ordered[1:]):
+        boundary = float(left["end_time"])
+        right_end = float(right["end_time"])
+        left_start = float(left["start_time"])
+        # Prefer moving a short tail boundary backwards (18s -> 14s + 4s).
+        if right_end - boundary < minimum - 1e-6:
+            candidate = right_end - minimum
+            if candidate - left_start >= minimum - 1e-6 and boundary_is_legal(candidate):
+                boundary = candidate
+        # Also repair a short left side when the right side can absorb it.
+        if boundary - left_start < minimum - 1e-6:
+            candidate = left_start + minimum
+            if right_end - candidate >= minimum - 1e-6 and boundary_is_legal(candidate):
+                boundary = candidate
+        # Keep an oversized left side within the provider maximum where possible.
+        if boundary - left_start > maximum + 1e-6:
+            candidate = left_start + maximum
+            if right_end - candidate >= minimum - 1e-6 and boundary_is_legal(candidate):
+                boundary = candidate
+        left["end_time"] = round(boundary, 2)
+        right["start_time"] = round(boundary, 2)
+    # A final tail can only be repaired by shifting its preceding boundary.
+    tail = ordered[-1]
+    tail_start = float(tail["start_time"])
+    tail_end = float(tail["end_time"])
+    if tail_end - tail_start < minimum - 1e-6 and len(ordered) > 1:
+        previous = ordered[-2]
+        candidate = tail_end - minimum
+        if candidate - float(previous["start_time"]) >= minimum - 1e-6 and boundary_is_legal(candidate):
+            previous["end_time"] = round(candidate, 2)
+            tail["start_time"] = round(candidate, 2)
+    return all(
+        minimum - 1e-6 <= float(item.get("end_time")) - float(item.get("start_time")) <= maximum + 1e-6
+        for item in ordered
+    ) and abs(float(ordered[0].get("start_time") or 0)) <= 0.05 and abs(float(ordered[-1].get("end_time") or 0) - float(shot_duration)) <= 0.05
+
+
+def _project_temporal_targets(clips: list[dict], candidates: list[dict], shot_duration: float) -> None:
+    """Derive Clip temporal intent from canonical #08 targets after final boundaries."""
+    by_id: dict[str, dict] = {}
+    for item in candidates:
+        if not isinstance(item, dict) or item.get("timed_visual_target") is not True:
+            continue
+        state_id = str(item.get("visual_state_id") or "")
+        if not state_id or state_id in by_id:
+            raise ValueError(f"Duplicate or invalid timed visual target identity: {state_id or '<missing>'}")
+        try:
+            time_seconds = float(item.get("time_seconds"))
+        except (TypeError, ValueError):
+            raise ValueError(f"Timed visual target {state_id} has invalid time")
+        if not math.isfinite(time_seconds) or time_seconds < -0.05 or time_seconds > float(shot_duration) + 0.05:
+            raise ValueError(f"Timed visual target {state_id} is outside Shot timeline or has invalid time")
+        by_id[state_id] = item
+
+    max_targets = int((VIDEO_CAPABILITY_CONTRACTS.get("TEMPORAL_EXTEND") or {}).get("max_temporal_anchors") or 8)
+    for clip in clips:
+        continuity = str(clip.get("continuity_to_previous") or "").upper()
+        start = float(clip.get("start_time"))
+        end = float(clip.get("end_time"))
+        selected = []
+        if continuity == "CONTINUOUS":
+            for state_id, state in by_id.items():
+                shot_time = float(state["time_seconds"])
+                if shot_time > start + 0.05 and shot_time <= end + 0.05:
+                    selected.append(state_id)
+            selected.sort(key=lambda state_id: (float(by_id[state_id]["time_seconds"]), state_id))
+            if len(selected) > max_targets:
+                raise ValueError(f"TEMPORAL_ANCHOR_LIMIT: Clip {clip.get('clip_index')} exceeds {max_targets} required temporal targets")
+            seen_times = set()
+            for state_id in selected:
+                state = by_id[state_id]
+                local_time = round(float(state["time_seconds"]) - start, 2)
+                if local_time in seen_times:
+                    raise ValueError(f"Clip {clip.get('clip_index')} has duplicate temporal target time")
+                seen_times.add(local_time)
+                if not state.get("image_available") or not state.get("image_url"):
+                    raise ValueError(f"TEMPORAL_ANCHOR_UNAVAILABLE: Clip {clip.get('clip_index')} requires image for {state_id}")
+
+        requires_temporal = continuity == "CONTINUOUS" and bool(selected)
+        clip["requires_temporal_control"] = requires_temporal
+        clip["selected_temporal_target_ids"] = selected
+        clip["capability"] = "TEMPORAL_EXTEND" if requires_temporal else ("EXTEND" if continuity == "CONTINUOUS" else "GENERATE")
+
+
+def _build_temporal_anchors(clips: list[dict], candidates: list[dict]) -> list[dict]:
+    """Build Clip-local anchors from deterministically projected target IDs."""
+    by_id = {str(item.get("visual_state_id")): item for item in candidates if isinstance(item, dict)}
+    anchors = []
+    for clip in clips:
+        selected = clip.get("selected_temporal_target_ids", []) or []
+        intent = clip.get("requires_temporal_control") is True
+        if not intent:
+            clip["temporal_anchor_ids"] = []
+            continue
+        if str(clip.get("continuity_to_previous") or "").upper() != "CONTINUOUS":
+            raise ValueError(f"Clip {clip.get('clip_index')} requests temporal control without CONTINUOUS continuity")
+        start = float(clip.get("start_time"))
+        end = float(clip.get("end_time"))
+        seen_times = set()
+        anchor_ids = []
+        for visual_state_id in selected:
+            state_id = str(visual_state_id)
+            state = by_id.get(state_id)
+            if not state or not state.get("image_available"):
+                raise ValueError(f"Clip {clip.get('clip_index')} selected unavailable temporal target {state_id}")
+            try:
+                shot_time = float(state.get("time_seconds"))
+            except (TypeError, ValueError):
+                raise ValueError(f"Temporal target {state_id} has invalid time")
+            if shot_time <= start + 0.05 or shot_time > end + 0.05:
+                raise ValueError(f"Temporal target {state_id} is outside Clip {clip.get('clip_index')}")
+            local_time = round(shot_time - start, 2)
+            if local_time in seen_times:
+                raise ValueError(f"Clip {clip.get('clip_index')} has duplicate temporal target time")
+            seen_times.add(local_time)
+            anchor_id = f"clip-{int(clip.get('clip_index'))}-{state_id}"
+            anchor_ids.append(anchor_id)
+            anchors.append({
+                "anchor_id": anchor_id,
+                "time_seconds": local_time,
+                "image_url": state.get("image_url"),
+                "source": state.get("source") or {"type": "KEYFRAME", "id": state_id},
+                "description": state.get("description") or "",
+            })
+        clip["temporal_anchor_ids"] = anchor_ids
+        clip["capability"] = "TEMPORAL_EXTEND"
+    return anchors
+
+
+def _normalize_continuity_contract(
+    clips: list[dict],
+    shot_continuity_mode: str | None = None,
+) -> None:
     """Normalize new planner semantics without rewriting historical persisted plans."""
     for position, clip in enumerate(clips, 1):
         if not isinstance(clip, dict):
@@ -177,26 +392,29 @@ def _normalize_continuity_contract(clips: list[dict]) -> None:
         legacy_capability = str(clip.get("capability") or "")
         if legacy_capability in {"SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"}:
             clip.setdefault("planning_mode", legacy_capability)
-        continuity = str(clip.get("continuity_to_previous") or "").upper()
+        raw_continuity = clip.get("continuity_to_previous")
+        if raw_continuity in (None, ""):
+            raise ValueError(f"Clip {clip_index} 缺少 continuity_to_previous")
+        continuity = str(raw_continuity).upper()
         if continuity not in {"NONE", "CUT", "CONTINUOUS"}:
-            if clip_index == 1:
-                continuity = "NONE"
-            elif legacy_capability in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND", "EXTEND"}:
-                continuity = "CONTINUOUS"
-            else:
-                continuity = "CUT"
-        requires_temporal = bool(clip.get("requires_temporal_control", legacy_capability == "TEMPORAL_EXTEND"))
+            raise ValueError(f"Clip {clip_index} continuity_to_previous 无效")
+        # #10A owns continuity. Temporal execution properties are projected
+        # from canonical #08 intent only after final Clip boundaries are known.
         if clip_index == 1:
-            continuity = "NONE"
-            requires_temporal = False
+            if continuity != "NONE":
+                raise ValueError("First Clip continuity_to_previous 必须为 NONE")
             clip["capability"] = "GENERATE"
+        elif continuity == "NONE":
+            raise ValueError(f"Later Clip {clip_index} continuity_to_previous 不能为 NONE")
         elif continuity == "CUT":
-            requires_temporal = False
+            if str(shot_continuity_mode or "NORMAL").upper() == "CONTINUOUS_TAKE":
+                raise ValueError(f"CONTINUOUS_TAKE Shot 的 Clip {clip_index} 不能使用 CUT continuity")
             clip["capability"] = "GENERATE"
         elif continuity == "CONTINUOUS":
-            clip["capability"] = "TEMPORAL_EXTEND" if requires_temporal else "EXTEND"
+            clip["capability"] = "EXTEND"
         clip["continuity_to_previous"] = continuity
-        clip["requires_temporal_control"] = requires_temporal
+        clip["requires_temporal_control"] = False
+        clip["selected_temporal_target_ids"] = []
 
 
 async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], planning_policy: dict | None = None) -> tuple[list[dict], dict]:
@@ -224,7 +442,7 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         clip["planned_duration"] = round(float(clip.get("end_time", 0)) - float(clip.get("start_time", 0)), 2)
         clip.setdefault("execution_status", "PLANNED")
         clip.setdefault("approval_mode", (planning_policy or {}).get("approval_mode", "AUTO_APPROVE"))
-    _normalize_continuity_contract(clips)
+    _normalize_continuity_contract(clips, shot.continuity_mode)
     plan_payload = payload.get("available_generation_inputs", {})
     video_plan = json.loads(shot.video_director_plan or "{}")
     _align_multi_keyframe_references(clips, video_plan, plan_payload)
@@ -243,13 +461,12 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         elif visual_mode == "FIRST_LAST_FRAME" and (not plan_payload.get("shot_image") or not plan_payload.get("end_keyframe_image")):
             if plan_payload.get("shot_image"):
                 clip["planning_mode"] = "SINGLE_FRAME"
-        elif capability == "TEMPORAL_EXTEND" and (
-            not clip.get("temporal_anchor_ids")
-            or not set(clip.get("temporal_anchor_ids") or []).issubset(set(plan_payload.get("temporal_anchor_images") or []))
-        ):
-            clip["capability"] = "TEMPORAL_EXTEND" if index > 1 and clip.get("requires_temporal_control") else ("EXTEND" if index > 1 else ("SINGLE_FRAME" if plan_payload.get("shot_image") else ""))
-        if clip.get("capability") in {"EXTEND", "VIDEO_CONTINUATION", "TEMPORAL_EXTEND"} and index > 1 and not clip.get("previous_clip_index"):
+        if clip.get("continuity_to_previous") == "CONTINUOUS" and index > 1 and not clip.get("previous_clip_index"):
             clip["previous_clip_index"] = int(clips[index - 2].get("clip_index") or index - 1)
+        if clip.get("continuity_to_previous") == "CONTINUOUS" and index > 1:
+            expected_previous = int(clips[index - 2].get("clip_index") or index - 1)
+            if int(clip.get("previous_clip_index") or 0) != expected_previous:
+                raise ValueError(f"Clip {clip.get('clip_index')} previous_clip_index 与 CONTINUOUS continuity 不一致")
     shot_dialogues = json.loads(shot.dialogues or "[]")
     dialogue_timeline_source = video_plan.get("dialogue_timeline_source")
     generated_timeline, _, timeline_status = build_dialogue_timeline(
@@ -263,13 +480,37 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         dialogue_timeline_source = []
     if shot_dialogues and not dialogue_timeline_source:
         raise RuntimeError("DIALOGUE_TIMELINE_UNAVAILABLE: 有对白的 Shot 缺少合法 official dialogue timeline，不能静默降级生成视频。")
-    max_clip_duration = 15.0
-    clips = align_clip_boundaries_to_dialogue_gaps(clips, dialogue_timeline_source, max_clip_duration)
+    max_clip_duration = float(VIDEO_CAPABILITY_CONTRACTS["GENERATE"]["max_duration"])
+    min_clip_duration = float(VIDEO_CAPABILITY_CONTRACTS["GENERATE"]["min_duration"])
+    clips = align_clip_boundaries_to_dialogue_gaps(
+        clips, dialogue_timeline_source, max_clip_duration, min_clip_duration
+    )
+    _normalize_provider_boundaries(
+        clips, shot.duration or 4, min_clip_duration, max_clip_duration, dialogue_timeline_source
+    )
+    _align_multi_keyframe_references(clips, video_plan, plan_payload)
     for clip in clips:
         clip["planned_duration"] = round(
             float(clip.get("end_time", 0)) - float(clip.get("start_time", 0)),
             2,
         )
+        clip["dialogue_scope"] = {
+            "start_time": float(clip.get("start_time", 0)),
+            "end_time": float(clip.get("end_time", 0)),
+        }
+    _project_temporal_targets(
+        clips,
+        payload.get("visual_state_candidates") or [],
+        float(shot.duration or 4),
+    )
+    derived_temporal_anchors = _build_temporal_anchors(
+        clips, payload.get("visual_state_candidates") or []
+    )
+    temporal_anchors.clear()
+    temporal_anchors.extend(derived_temporal_anchors)
+    payload["available_generation_inputs"]["temporal_anchor_images"] = [
+        item["anchor_id"] for item in derived_temporal_anchors
+    ]
     assignments, dialogue_validation = assign_dialogues_to_clips(
         shot_dialogues, clips, dialogue_timeline_source
     )

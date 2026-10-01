@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 
 import pytest
 from unittest.mock import patch
@@ -9,7 +10,14 @@ from app.models.shot import Shot
 from app.models.workflow import Workflow
 from app.models.task import Task
 
-from app.services.clip_execution_compiler import ClipExecutionCompileError, compile_extend_clip, compile_generate_clip
+from app.services.clip_execution_compiler import (
+    ClipExecutionCompileError,
+    compile_extend_clip,
+    compile_generate_clip,
+    compile_temporal_extend_clip,
+    project_temporal_anchor_positions,
+    temporal_extend_frame_count,
+)
 
 
 class FakeShot:
@@ -150,6 +158,121 @@ def test_multi_keyframe_extend_preserves_declared_ordinary_ref_order():
         {"clip_index": 1, "clip_plan_revision": 4, "generated_by_task_id": "c1", "result_url": "/api/files/c1.mp4"},
     )["video_reference_manifest"]["references"]
     assert [item["source_keyframe_index"] for item in refs] == [3, 1, 2]
+
+
+def _temporal_anchor(anchor_id, time_seconds, image_url=None):
+    return {
+        "anchor_id": anchor_id,
+        "time_seconds": time_seconds,
+        "image_url": image_url or f"/api/files/{anchor_id}.png",
+        "description": f"state {anchor_id}",
+        "source": {"type": "KEYFRAME", "id": anchor_id},
+    }
+
+
+def test_temporal_frame_count_and_projection_clip_endpoints_and_half_up():
+    assert temporal_extend_frame_count(8) == 192
+    assert project_temporal_anchor_positions([
+        _temporal_anchor("start", 0),
+        _temporal_anchor("half-up", Decimal(4) / Decimal(191)),
+        _temporal_anchor("end", 8),
+    ], 8) == [
+        {"slot": 1, "anchor_id": "start", "time_seconds": 0.0, "frame_position": 1,
+         "image_url": "/api/files/start.png", "description": "state start", "source": {"type": "KEYFRAME", "id": "start"}},
+        {"slot": 2, "anchor_id": "half-up", "time_seconds": float(Decimal(4) / Decimal(191)), "frame_position": 2,
+         "image_url": "/api/files/half-up.png", "description": "state half-up", "source": {"type": "KEYFRAME", "id": "half-up"}},
+        {"slot": 3, "anchor_id": "end", "time_seconds": 8.0, "frame_position": 192,
+         "image_url": "/api/files/end.png", "description": "state end", "source": {"type": "KEYFRAME", "id": "end"}},
+    ]
+
+
+def test_temporal_manifest_sorts_by_time_and_keeps_ordinary_references_separate():
+    plan = make_plan("MULTI_KEYFRAME", [
+        {"index": 1, "role": "START", "time_seconds": 0, "image_url": "/api/files/k1.png"},
+        {"index": 2, "role": "INTERMEDIATE", "time_seconds": 4, "image_url": "/api/files/k2.png"},
+        {"index": 3, "role": "END", "time_seconds": 8, "image_url": "/api/files/k3.png"},
+    ], revision=4)
+    shot = FakeShot()
+    shot.duration = 20
+    clip = make_clip(
+        index=2, start=8, end=16, capability="TEMPORAL_EXTEND",
+        continuity_to_previous="CONTINUOUS", requires_temporal_control=True,
+        previous_clip_index=1, keyframe_indexes=[3, 1, 2], temporal_anchor_ids=["later", "earlier"],
+    )
+    anchors = [
+        _temporal_anchor("later", 6.0),
+        _temporal_anchor("earlier", 2.0),
+    ]
+    result = compile_temporal_extend_clip(
+        shot, plan, clip, "MULTI_KEYFRAME", 4,
+        {"clip_index": 1, "clip_plan_revision": 4, "generated_by_task_id": "c1", "result_url": "/api/files/c1.mp4"},
+        anchors,
+    )
+    contract = result["execution_contract"]
+    manifest = contract["temporal_anchor_manifest"]
+    assert contract["capability"] == "TEMPORAL_EXTEND"
+    assert contract["artifact_kind"] == "CLIP_ONLY"
+    assert contract["clip"] == {
+        "clip_id": "shot-compiler:clip:2", "clip_index": 2, "clip_plan_revision": 4,
+        "start_seconds": 8.0, "end_seconds": 16.0, "duration_seconds": 8.0,
+    }
+    assert contract["previous_clip"]["generated_by_task_id"] == "c1"
+    assert [a["anchor_id"] for a in manifest["anchors"]] == ["earlier", "later"]
+    assert [a["frame_position"] for a in manifest["anchors"]] == [49, 144]
+    assert [r["source_keyframe_index"] for r in result["video_reference_manifest"]["references"]] == [3, 1, 2]
+    assert all(a["image_url"] not in [r["image_url"] for r in result["video_reference_manifest"]["references"]] for a in manifest["anchors"])
+
+
+@pytest.mark.parametrize("anchors", [
+    [],
+    [_temporal_anchor(str(i), i / 10) for i in range(9)],
+    [_temporal_anchor("dup", 1), _temporal_anchor("dup", 2)],
+    [_temporal_anchor("a", 1), _temporal_anchor("b", 1)],
+    [_temporal_anchor("a", 0), _temporal_anchor("b", 0.001)],
+])
+def test_temporal_anchor_count_duplicates_and_projected_collisions_rejected(anchors):
+    with pytest.raises(ClipExecutionCompileError):
+        project_temporal_anchor_positions(anchors, 8)
+
+
+def test_temporal_extend_rejects_missing_previous_or_invalid_semantics():
+    shot = FakeShot()
+    shot.duration = 20
+    clip = make_clip(
+        index=2, start=8, end=16, capability="TEMPORAL_EXTEND",
+        continuity_to_previous="CONTINUOUS", requires_temporal_control=True,
+        previous_clip_index=1,
+    )
+    with pytest.raises(ClipExecutionCompileError, match="PREVIOUS_AV_UNAVAILABLE"):
+        compile_temporal_extend_clip(
+            shot, make_plan("SINGLE_FRAME", revision=4), clip, "SINGLE_FRAME", 4,
+            None, [_temporal_anchor("a", 1)],
+        )
+    clip["temporal_anchor_ids"] = []
+    with pytest.raises(ClipExecutionCompileError, match="TEMPORAL_ANCHOR_UNAVAILABLE"):
+        compile_temporal_extend_clip(
+            shot, make_plan("SINGLE_FRAME", revision=4), clip, "SINGLE_FRAME", 4,
+            {"clip_index": 1, "clip_plan_revision": 4, "generated_by_task_id": "c1", "result_url": "/api/files/c1.mp4"},
+            [],
+        )
+
+
+def test_temporal_compiler_is_io_free():
+    shot = FakeShot()
+    shot.duration = 20
+    clip = make_clip(
+        index=2, start=8, end=16, capability="TEMPORAL_EXTEND",
+        continuity_to_previous="CONTINUOUS", requires_temporal_control=True,
+        previous_clip_index=1,
+    )
+    with patch("app.services.clip_execution_compiler.open", side_effect=AssertionError("I/O"), create=True), \
+         patch("app.services.clip_execution_compiler.os", side_effect=AssertionError("I/O"), create=True):
+        compiled = compile_temporal_extend_clip(
+            shot, make_plan("SINGLE_FRAME", revision=4), clip, "SINGLE_FRAME", 4,
+            {"clip_index": 1, "clip_plan_revision": 4, "generated_by_task_id": "c1", "result_url": "/api/files/c1.mp4"},
+            [_temporal_anchor("a", 4)],
+        )
+    assert compiled["execution_contract"]["artifact_kind"] == "CLIP_ONLY"
 
 
 def test_missing_required_image_and_more_than_nine_refs_fail():

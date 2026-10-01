@@ -149,6 +149,9 @@ E. Keyframe Image
 - 必须保持 Shot 的角色闭包、场景和道具约束；
 - 只允许表现到该时间点已经发生的状态；
 - 不得提前表现未来结果。
+- 必须显式输出 `timed_visual_target`，值只能是 JSON boolean `true` 或 `false`。
+- `false` 表示普通视觉状态/视觉引导；`true` 表示该状态实际生成的图片之后应作为按时间定位的视觉条件，使视频在该计划时间附近到达这一个明确的导演构图、blocking 或空间关系。
+- 不能仅因状态重要、是 END、存在视觉/道具变化、有 transition、之后会生成图片或模式为 MULTI_KEYFRAME 而标记 true。
 
 START：
 - 全 Shot 第一个 Keyframe。
@@ -157,6 +160,7 @@ START：
 - description_source = "SHOT_DESCRIPTION"。
 - 绝对禁止重写 shot.description。
 - description 输出 null，由程序直接引用 shot.description。
+- `timed_visual_target` 必须为 false；输出 true 会导致整份 #08 结果被拒绝。
 - START 通常对应 Primary Storyboard。
 
 END：
@@ -550,6 +554,7 @@ FIRST_LAST_FRAME 示例：
       "index": 1,
       "role": "START",
       "time_seconds": 0,
+      "timed_visual_target": false,
       "description_source": "SHOT_DESCRIPTION",
       "description": null
     },
@@ -557,6 +562,7 @@ FIRST_LAST_FRAME 示例：
       "index": 2,
       "role": "END",
       "time_seconds": 12,
+      "timed_visual_target": false,
       "description_source": "KEYFRAME_PLANNER",
       "description": "Scene: ...\nCharacters:\n- ...\nAction: ..."
     }
@@ -581,6 +587,7 @@ MULTI_KEYFRAME 示例：30 秒 Shot，两个 3 帧执行窗口。
       "index": 1,
       "role": "START",
       "time_seconds": 0,
+      "timed_visual_target": false,
       "description_source": "SHOT_DESCRIPTION",
       "description": null
     },
@@ -588,6 +595,7 @@ MULTI_KEYFRAME 示例：30 秒 Shot，两个 3 帧执行窗口。
       "index": 2,
       "role": "INTERMEDIATE",
       "time_seconds": 7,
+      "timed_visual_target": false,
       "description_source": "KEYFRAME_PLANNER",
       "description": "Scene: ...\nCharacters:\n- ...\nAction: ..."
     },
@@ -595,6 +603,7 @@ MULTI_KEYFRAME 示例：30 秒 Shot，两个 3 帧执行窗口。
       "index": 3,
       "role": "INTERMEDIATE",
       "time_seconds": 15,
+      "timed_visual_target": false,
       "description_source": "KEYFRAME_PLANNER",
       "description": "Scene: ...\nCharacters:\n- ...\nAction: ..."
     },
@@ -602,6 +611,7 @@ MULTI_KEYFRAME 示例：30 秒 Shot，两个 3 帧执行窗口。
       "index": 4,
       "role": "INTERMEDIATE",
       "time_seconds": 23,
+      "timed_visual_target": false,
       "description_source": "KEYFRAME_PLANNER",
       "description": "Scene: ...\nCharacters:\n- ...\nAction: ..."
     },
@@ -609,6 +619,7 @@ MULTI_KEYFRAME 示例：30 秒 Shot，两个 3 帧执行窗口。
       "index": 5,
       "role": "END",
       "time_seconds": 30,
+      "timed_visual_target": false,
       "description_source": "KEYFRAME_PLANNER",
       "description": "Scene: ...\nCharacters:\n- ...\nAction: ..."
     }

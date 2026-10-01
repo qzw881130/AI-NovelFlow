@@ -187,7 +187,12 @@ def _dialogue_speaker(dialogue: dict) -> str:
     return str(dialogue.get("character_name") or dialogue.get("speaker") or dialogue.get("character") or "").strip()
 
 
-def align_clip_boundaries_to_dialogue_gaps(clips: list, dialogue_timeline: list, max_clip_duration: float | None = None) -> list:
+def align_clip_boundaries_to_dialogue_gaps(
+    clips: list,
+    dialogue_timeline: list,
+    max_clip_duration: float | None = None,
+    min_clip_duration: float | None = None,
+) -> list:
     """Move generation boundaries out of active speech intervals when possible."""
     if not isinstance(clips, list) or len(clips) < 2 or not dialogue_timeline:
         return clips
@@ -222,6 +227,8 @@ def align_clip_boundaries_to_dialogue_gaps(clips: list, dialogue_timeline: list,
             left_duration = candidate - previous_start
             right_duration = next_end - candidate
             if max_clip_duration is not None and (left_duration > max_clip_duration + 1e-6 or right_duration > max_clip_duration + 1e-6):
+                continue
+            if min_clip_duration is not None and (left_duration < min_clip_duration - 1e-6 or right_duration < min_clip_duration - 1e-6):
                 continue
             left["end_time"] = round(candidate, 2)
             right["start_time"] = round(candidate, 2)
@@ -578,6 +585,7 @@ async def build_h3_video_prompt(
     clip_dialogues: list,
     reference_images: list,
     character_appearances: Optional[dict] = None,
+    temporal_anchors: Optional[list] = None,
 ) -> str:
     if selected_mode == "FIRST_LAST_FRAME":
         step = "12"
@@ -649,6 +657,7 @@ async def build_h3_video_prompt(
         "silent_characters": silent_characters,
         "frames": frames,
         "keyframes": sanitized_keyframes,
+        "temporal_anchors": strip_media_refs(temporal_anchors or []),
         "transitions": sanitized_transitions,
         "workflow_capability": strip_media_refs(workflow_capability),
         "workflow_type": workflow_type,

@@ -118,6 +118,8 @@ export interface VideoDirectorPlan {
     time_seconds: number;
     role: 'START' | 'INTERMEDIATE' | 'END';
     description?: string | null;
+    /** Explicit #08 intent; absent historical values are treated as false. */
+    timed_visual_target?: boolean;
     image_url?: string;
     prompt_text?: string;
   }>;

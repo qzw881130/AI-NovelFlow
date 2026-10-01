@@ -21,7 +21,12 @@ from app.repositories.shot_repository import ShotRepository
 from app.services.background_workers import worker_manager
 from app.services.video_director_ai import build_h3_video_prompt, safe_json_dict, safe_json_list
 from app.services.dialogue_ownership import assign_dialogues_to_clips
-from app.services.clip_execution_compiler import ClipExecutionCompileError, compile_extend_clip, compile_generate_clip
+from app.services.clip_execution_compiler import (
+    ClipExecutionCompileError,
+    compile_extend_clip,
+    compile_generate_clip,
+    compile_temporal_extend_clip,
+)
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.workflow_seed import extract_workflow_seed
 
@@ -865,10 +870,12 @@ async def generate_shot_video_task(
         clip_only_execution = bool(
             clip_metadata
             and clip_metadata.get("execution_contract", {}).get("artifact_kind") == "CLIP_ONLY"
-            and clip_metadata.get("execution_contract", {}).get("capability") in {"GENERATE", "EXTEND"}
+            and clip_metadata.get("execution_contract", {}).get("capability") in {"GENERATE", "EXTEND", "TEMPORAL_EXTEND"}
         )
         phase_b_generate = clip_only_execution and clip_metadata.get("execution_contract", {}).get("capability") == "GENERATE"
         phase_b_manifest = None
+        temporal_manifest = None
+        temporal_image_paths = []
         reference_image_paths = None
         if clip_only_execution:
             try:
@@ -887,6 +894,32 @@ async def generate_shot_video_task(
                     compiled = compile_extend_clip(
                         shot, video_director_plan, semantic_clip, selected_mode, plan_revision, previous_provenance,
                     )
+                elif clip_metadata.get("capability") == "TEMPORAL_EXTEND":
+                    previous_contract = (clip_metadata.get("execution_contract") or {}).get("previous_clip") or {}
+                    previous_provenance = resolve_extend_previous_av(
+                        db, novel_id, chapter_id, shot, semantic_clip, previous_contract,
+                    )
+                    selected_anchor_ids = [str(item) for item in semantic_clip.get("temporal_anchor_ids") or []]
+                    anchors_by_id = {
+                        str(item.get("anchor_id") or item.get("id")): item
+                        for item in video_director_plan.get("temporal_anchors") or []
+                        if isinstance(item, dict) and (item.get("anchor_id") or item.get("id"))
+                    }
+                    source_anchors = []
+                    for anchor_id in selected_anchor_ids:
+                        anchor = anchors_by_id.get(anchor_id)
+                        if not anchor:
+                            raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE")
+                        source_anchors.append({
+                            "anchor_id": anchor_id,
+                            "time_seconds": anchor.get("time_seconds"),
+                            "image_url": anchor.get("image_url") or anchor.get("image") or anchor.get("image_path"),
+                            "source": anchor.get("source") or anchor.get("provenance"),
+                        })
+                    compiled = compile_temporal_extend_clip(
+                        shot, video_director_plan, semantic_clip, selected_mode, plan_revision,
+                        previous_provenance, source_anchors,
+                    )
                 else:
                     compiled = compile_generate_clip(
                         shot, video_director_plan, semantic_clip, selected_mode, plan_revision,
@@ -895,6 +928,7 @@ async def generate_shot_video_task(
                 task_metadata.update(compiled)
                 task.metadata_json = json.dumps(task_metadata, ensure_ascii=False)
                 phase_b_manifest = compiled["video_reference_manifest"]
+                temporal_manifest = (compiled.get("execution_contract") or {}).get("temporal_anchor_manifest")
                 reference_image_paths = []
                 for reference in phase_b_manifest["references"]:
                     source_url = reference.get("image_url")
@@ -909,6 +943,19 @@ async def generate_shot_video_task(
                     {"label": f"Director Visual Ref {item['slot']}", "url": item["image_url"]}
                     for item in phase_b_manifest["references"]
                 ], ensure_ascii=False) if phase_b_manifest["references"] else None
+                if temporal_manifest:
+                    for anchor in temporal_manifest.get("anchors", []):
+                        source_url = anchor.get("image_url")
+                        local_path = url_to_local_path(source_url) if source_url else None
+                        if not local_path and source_url and Path(source_url).is_file():
+                            local_path = source_url
+                        if not local_path or not Path(local_path).is_file() or not os.access(local_path, os.R_OK):
+                            raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE")
+                        anchor["local_path"] = local_path
+                        temporal_image_paths.append(local_path)
+                    task_metadata = safe_json_dict(task.metadata_json)
+                    task_metadata["execution_contract"]["temporal_anchor_manifest"] = temporal_manifest
+                    task.metadata_json = json.dumps(task_metadata, ensure_ascii=False)
             except (ClipExecutionCompileError, TypeError, ValueError) as exc:
                 task.status = "failed"
                 task.error_message = str(exc) if str(exc) == "PREVIOUS_AV_UNAVAILABLE" else str(exc)
@@ -1111,6 +1158,10 @@ async def generate_shot_video_task(
                 clip_dialogues=clip_dialogues,
                 reference_images=reference_images,
                 character_appearances=character_appearances,
+                temporal_anchors=[
+                    {key: value for key, value in item.items() if key not in {"local_path", "image_url"}}
+                    for item in ((temporal_manifest or {}).get("anchors") or [])
+                ],
             )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
@@ -1142,6 +1193,21 @@ async def generate_shot_video_task(
                         _update_window_plan(shot, int(clip.get("clip_index") or 1), {"seed": actual_seed}, db, task=task)
                     else:
                         _update_clip_result(shot, clip, {"seed": actual_seed}, db)
+                if clip_only_execution and temporal_manifest is not None:
+                    node_mapping = json.loads(workflow.node_mapping or "{}")
+                    temporal_node_ids = [str(node_mapping.get(f"keyframe_node_{i}") or "") for i in range(1, 9)]
+                    for anchor in temporal_manifest.get("anchors", []):
+                        node_id = temporal_node_ids[int(anchor["slot"]) - 1]
+                        node = submitted_workflow.get(node_id) if node_id else None
+                        anchor["binding"] = {
+                            "workflow_node_id": node_id or None,
+                            "uploaded_filename": node.get("inputs", {}).get("image") if isinstance(node, dict) else None,
+                        }
+                    metadata = safe_json_dict(task.metadata_json)
+                    contract = metadata.get("execution_contract") or {}
+                    contract["temporal_anchor_manifest"] = temporal_manifest
+                    metadata["execution_contract"] = contract
+                    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
             if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
                 fields = {"status": "RUNNING", "prompt_id": prompt_id}
                 if submitted_workflow:
@@ -1164,7 +1230,7 @@ async def generate_shot_video_task(
 
         previous_video_path = url_to_local_path((clip_metadata or {}).get("previous_approved_video_url")) if clip_metadata else None
         if clip_metadata and clip_metadata.get("capability") in {"EXTEND", "VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
-            if clip_metadata.get("capability") == "EXTEND":
+            if clip_metadata.get("capability") in {"EXTEND", "TEMPORAL_EXTEND"}:
                 semantic_clip = next((item for item in safe_json_dict(shot.video_director_plan).get("clip_plan", []) if int(item.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0)), None)
                 previous_provenance = (clip_metadata.get("execution_contract") or {}).get("previous_clip") or {}
                 previous_provenance = resolve_extend_previous_av(
@@ -1173,7 +1239,18 @@ async def generate_shot_video_task(
                 previous_video_path = previous_provenance["local_path"]
                 clip_metadata["previous_approved_video_url"] = previous_provenance["result_url"]
             if not previous_video_path or not Path(previous_video_path).is_file():
-                raise ValueError("PREVIOUS_AV_UNAVAILABLE" if clip_metadata.get("capability") == "EXTEND" else "Clip continuation 缺少上一 Clip approved MP4")
+                raise ValueError("PREVIOUS_AV_UNAVAILABLE" if clip_metadata.get("capability") in {"EXTEND", "TEMPORAL_EXTEND"} else "Clip continuation 缺少上一 Clip approved MP4")
+            temporal_anchors = []
+            if clip_metadata.get("capability") == "TEMPORAL_EXTEND":
+                if not temporal_manifest or not temporal_image_paths:
+                    raise ValueError("TEMPORAL_ANCHOR_UNAVAILABLE")
+                temporal_anchors = [
+                    {
+                        "image_path": anchor["local_path"],
+                        "position": anchor["frame_position"],
+                    }
+                    for anchor in temporal_manifest.get("anchors", [])
+                ]
             result = await comfyui_service.generate_video_continuation_with_workflow(
                 prompt=shot_prompt,
                 workflow_json=workflow.workflow_json,
@@ -1182,7 +1259,7 @@ async def generate_shot_video_task(
                 duration_seconds=duration,
                 filename_prefix=f"story_{novel_id}/chapter_{chapter_id[:8]}/clips/{task.id}",
                 capability="VIDEO_CONTINUATION" if clip_metadata.get("capability") == "EXTEND" else clip_metadata.get("capability"),
-                anchors=[
+                anchors=temporal_anchors if clip_metadata.get("capability") == "TEMPORAL_EXTEND" else [
                     anchor for anchor in safe_json_dict(shot.video_director_plan).get("temporal_anchors", [])
                     if str(anchor.get("id")) in {str(anchor_id) for anchor_id in clip_metadata.get("temporal_anchor_ids", [])}
                 ],
@@ -2037,7 +2114,11 @@ async def _save_generated_video(
         metadata = safe_json_dict(task.metadata_json)
         if metadata.get("execution_scope") == "CLIP":
             media_duration = _probe_video_duration(local_path)
-            if metadata.get("capability") in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
+            semantic_clip_only = (
+                metadata.get("execution_scope") == "CLIP"
+                and (metadata.get("execution_contract") or {}).get("artifact_kind") == "CLIP_ONLY"
+            )
+            if metadata.get("capability") in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"} and not semantic_clip_only:
                 metadata["assembled_result"] = {
                     "status": "APPROVED",
                     "url": local_url,
@@ -2049,7 +2130,7 @@ async def _save_generated_video(
                 }
             metadata.update({
                 "requested_duration": metadata.get("requested_duration"),
-                "actual_duration": media_duration if metadata.get("capability") not in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"} else None,
+                "actual_duration": media_duration if metadata.get("capability") not in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"} or semantic_clip_only else None,
                 "assembled_media_duration": media_duration if metadata.get("assembled_result") else None,
                 "actual_fps": 24,
                 "approval_status": "APPROVED",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
 
 from app.utils.path_utils import local_path_to_url
@@ -12,6 +13,79 @@ class ClipExecutionCompileError(ValueError):
 
 
 _PLANNING_MODES = {"SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"}
+_TEMPORAL_ANCHOR_LIMIT = 8
+
+
+def temporal_extend_frame_count(duration_seconds: float) -> int:
+    """Match frozen temporal workflow #126's H3 latent-frame expression."""
+    try:
+        duration = Decimal(str(duration_seconds))
+    except (InvalidOperation, TypeError, ValueError):
+        raise ClipExecutionCompileError("TEMPORAL_EXTEND 时长无效")
+    if not duration.is_finite() or duration <= 0:
+        raise ClipExecutionCompileError("TEMPORAL_EXTEND 时长无效")
+    raw_frames = int((duration * Decimal(24)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    raw_frames = max(5, raw_frames)
+    return raw_frames + (5 - raw_frames % 17) % 17
+
+
+def project_temporal_anchor_positions(anchors: list[dict], duration_seconds: float) -> list[dict]:
+    """Sort Clip-local anchors and project them to frozen 1-based H3 frames."""
+    if not isinstance(anchors, list) or not anchors:
+        raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE")
+    if len(anchors) > _TEMPORAL_ANCHOR_LIMIT:
+        raise ClipExecutionCompileError("TEMPORAL_EXTEND 最多支持 8 个 Temporal Anchor")
+    try:
+        duration = Decimal(str(duration_seconds))
+    except (InvalidOperation, TypeError, ValueError):
+        raise ClipExecutionCompileError("TEMPORAL_EXTEND 时长无效")
+    frame_count = temporal_extend_frame_count(duration_seconds)
+    ordered = []
+    seen_ids = set()
+    seen_times = set()
+    for anchor in anchors:
+        if not isinstance(anchor, dict):
+            raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE")
+        anchor_id = str(anchor.get("anchor_id") or anchor.get("id") or "").strip()
+        image_url = anchor.get("image_url") or anchor.get("image") or anchor.get("image_path")
+        source = anchor.get("source") or anchor.get("provenance")
+        if not anchor_id or not image_url or not isinstance(source, dict):
+            raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE")
+        if anchor_id in seen_ids:
+            raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE: duplicate anchor_id")
+        try:
+            time = Decimal(str(anchor.get("time_seconds")))
+        except (InvalidOperation, TypeError, ValueError):
+            raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE")
+        if not time.is_finite() or time < 0 or time > duration:
+            raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE: anchor outside Clip")
+        if time in seen_times:
+            raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE: duplicate anchor time")
+        seen_ids.add(anchor_id)
+        seen_times.add(time)
+        ordered.append((time, anchor_id, anchor, image_url, source))
+    ordered.sort(key=lambda item: (item[0], item[1]))
+
+    result = []
+    seen_positions = set()
+    for slot, (time, anchor_id, anchor, image_url, source) in enumerate(ordered, 1):
+        scaled = (time / duration) * Decimal(frame_count - 1)
+        position = 1 + int(scaled.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        if position < 1 or position > frame_count:
+            raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE: projected frame out of bounds")
+        if position in seen_positions:
+            raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE: duplicate projected frame")
+        seen_positions.add(position)
+        result.append({
+            "slot": slot,
+            "anchor_id": anchor_id,
+            "time_seconds": float(time),
+            "frame_position": position,
+            "image_url": str(image_url),
+            "description": anchor.get("description"),
+            "source": dict(source),
+        })
+    return result
 
 
 def _json_list(value: Any) -> list:
@@ -222,6 +296,64 @@ def compile_extend_clip(
         "generated_by_task_id": str(previous_provenance["generated_by_task_id"]),
         "result_url": str(previous_provenance["result_url"]),
     }
+    return {
+        "execution_contract": contract,
+        "video_reference_manifest": compiled["video_reference_manifest"],
+    }
+
+
+def compile_temporal_extend_clip(
+    shot,
+    plan: dict,
+    clip: dict,
+    planning_mode: str,
+    clip_plan_revision: int,
+    previous_provenance: dict | None,
+    temporal_anchors: list[dict],
+) -> dict:
+    """Compile a semantic TEMPORAL_EXTEND Clip using pre-resolved pure inputs."""
+    if not isinstance(clip, dict) or clip.get("capability") != "TEMPORAL_EXTEND":
+        raise ClipExecutionCompileError("TEMPORAL_EXTEND Clip capability 无效")
+    if str(clip.get("continuity_to_previous") or "").upper() != "CONTINUOUS":
+        raise ClipExecutionCompileError("TEMPORAL_EXTEND 需要 CONTINUOUS continuity_to_previous")
+    if clip.get("requires_temporal_control") is not True:
+        raise ClipExecutionCompileError("TEMPORAL_EXTEND requires_temporal_control 必须为 true")
+    try:
+        previous_index = int(clip.get("previous_clip_index"))
+    except (TypeError, ValueError):
+        raise ClipExecutionCompileError("TEMPORAL_EXTEND 缺少 previous_clip_index")
+    if previous_index < 1:
+        raise ClipExecutionCompileError("TEMPORAL_EXTEND 缺少 previous_clip_index")
+    if not isinstance(previous_provenance, dict):
+        raise ClipExecutionCompileError("PREVIOUS_AV_UNAVAILABLE")
+    required = ("clip_index", "clip_plan_revision", "generated_by_task_id", "result_url")
+    if any(previous_provenance.get(key) in (None, "") for key in required):
+        raise ClipExecutionCompileError("PREVIOUS_AV_UNAVAILABLE")
+    try:
+        revision = int(clip_plan_revision)
+        previous_revision = int(previous_provenance["clip_plan_revision"])
+        previous_clip_index = int(previous_provenance["clip_index"])
+    except (TypeError, ValueError):
+        raise ClipExecutionCompileError("PREVIOUS_AV_UNAVAILABLE")
+    if previous_revision != revision or previous_clip_index != previous_index:
+        raise ClipExecutionCompileError("PREVIOUS_AV_UNAVAILABLE")
+
+    compiled = compile_generate_clip(
+        shot, plan, {**clip, "capability": "GENERATE"}, planning_mode, revision,
+        allow_empty_visual_references=True,
+    )
+    temporal_manifest = project_temporal_anchor_positions(
+        temporal_anchors, float(compiled["execution_contract"]["clip"]["duration_seconds"]),
+    )
+    contract = dict(compiled["execution_contract"])
+    contract["capability"] = "TEMPORAL_EXTEND"
+    contract["previous_clip"] = {
+        "clip_index": previous_clip_index,
+        "clip_plan_revision": previous_revision,
+        "generated_by_task_id": str(previous_provenance["generated_by_task_id"]),
+        "result_url": str(previous_provenance["result_url"]),
+    }
+    contract["temporal_anchor_manifest"] = {"manifest_version": "1.0", "anchors": temporal_manifest}
     return {
         "execution_contract": contract,
         "video_reference_manifest": compiled["video_reference_manifest"],

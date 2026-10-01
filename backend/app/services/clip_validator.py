@@ -68,8 +68,16 @@ def validate_clip_plan(
             if capability == "TEMPORAL_EXTEND":
                 anchor_ids = set(clip.get("temporal_anchor_ids") or [])
                 image_anchor_ids = set(available_inputs.get("temporal_anchor_images") or []) if available_inputs else set()
+                if str(clip.get("continuity_to_previous") or "").upper() != "CONTINUOUS":
+                    add("TEMPORAL_EXTEND_CONTINUITY_REQUIRED", "BLOCKING", f"TEMPORAL_EXTEND Clip {clip.get('clip_index')} must be CONTINUOUS.")
+                if clip.get("requires_temporal_control") is not True:
+                    add("TEMPORAL_CONTROL_REQUIRED", "BLOCKING", f"TEMPORAL_EXTEND Clip {clip.get('clip_index')} requires explicit temporal control intent.")
+                if not clip.get("previous_clip_index"):
+                    add("PREVIOUS_CLIP_MISSING", "BLOCKING", f"TEMPORAL_EXTEND Clip {clip.get('clip_index')} has no previous dependency.")
                 if len(anchor_ids) < int((contract or {}).get("min_temporal_anchors") or 0):
                     add("TEMPORAL_ANCHORS_REQUIRED", "BLOCKING", f"Clip {clip.get('clip_index')} requires temporal anchors.")
+                if len(anchor_ids) > int((contract or {}).get("max_temporal_anchors") or 8):
+                    add("TEMPORAL_ANCHOR_LIMIT", "BLOCKING", f"Clip {clip.get('clip_index')} exceeds 8 temporal anchors.")
                 if validate_required_inputs and not anchor_ids.issubset(image_anchor_ids):
                     add("TEMPORAL_ANCHOR_IMAGE_MISSING", "BLOCKING", f"Clip {clip.get('clip_index')} references unavailable temporal-anchor images.")
             if capability == "EXTEND":
@@ -102,7 +110,11 @@ def validate_clip_plan(
             for anchor in anchors or []:
                 if anchor.get("anchor_id") in anchor_ids:
                     time = float(anchor.get("time_seconds", 0))
-                    if time < start - 0.05 or time > end + 0.05:
+                    # Semantic TEMPORAL_EXTEND anchors are persisted Clip-local;
+                    # ordinary legacy anchor payloads remain Shot-global.
+                    lower_bound = 0.0 if capability == "TEMPORAL_EXTEND" else start
+                    upper_bound = planned if capability == "TEMPORAL_EXTEND" else end
+                    if time < lower_bound - 0.05 or time > upper_bound + 0.05:
                         add("ANCHOR_OUTSIDE_CLIP", "BLOCKING", f"Anchor {anchor.get('anchor_id')} is outside its clip.")
             if capability in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"} and not clip.get("previous_clip_index"):
                 add("PREVIOUS_CLIP_MISSING", "BLOCKING", f"Continuation Clip {clip.get('clip_index')} has no previous dependency.")

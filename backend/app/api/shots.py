@@ -3,6 +3,7 @@
 """
 
 import json
+import math
 import asyncio
 import os
 import subprocess
@@ -87,8 +88,8 @@ from app.services.llm_service import LLMService
 from app.repositories import PromptTemplateRepository
 from app.services.video_director_ai import align_clip_boundaries_to_dialogue_gaps, append_video_ai_call, build_dialogue_timeline, strip_media_refs
 from app.services.clip_planner import plan_clips
-from app.services.clip_execution_compiler import ClipExecutionCompileError, compile_extend_clip, compile_generate_clip
-from app.constants.capability import EXTEND_PHYSICAL_WORKFLOW_TYPE, EXTEND_WORKFLOW_ID
+from app.services.clip_execution_compiler import ClipExecutionCompileError, compile_extend_clip, compile_generate_clip, compile_temporal_extend_clip
+from app.constants.capability import EXTEND_PHYSICAL_WORKFLOW_TYPE, EXTEND_WORKFLOW_ID, TEMPORAL_EXTEND_WORKFLOW_ID
 from app.services.dialogue_ownership import assign_dialogues_to_clips
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.core.database import SessionLocal
@@ -1602,19 +1603,32 @@ def _normalize_keyframe_planner_result(parsed: dict, execution_windows: list, du
         raise ValueError("#08 返回的 window_plans 数量必须与 execution_windows 一致")
 
     normalized_keyframes = []
+    seen_keyframe_indexes = set()
     for idx, keyframe in enumerate(raw_keyframes, 1):
         if not isinstance(keyframe, dict):
             raise ValueError("keyframes 中存在无效对象")
         keyframe_index = int(keyframe.get("index") or idx)
+        if keyframe_index in seen_keyframe_indexes:
+            raise ValueError(f"keyframes 包含重复 index {keyframe_index}")
+        seen_keyframe_indexes.add(keyframe_index)
         time_seconds = float(keyframe.get("time_seconds") if keyframe.get("time_seconds") is not None else 0)
         role = keyframe.get("role") or ("START" if keyframe_index == 1 else "END" if time_seconds >= duration else "INTERMEDIATE")
         if role not in {"START", "INTERMEDIATE", "END"}:
             role = "INTERMEDIATE"
+        if not isinstance(keyframe.get("timed_visual_target"), bool):
+            raise ValueError(f"Keyframe {keyframe_index} timed_visual_target 必须是 boolean")
+        if role == "START" and keyframe["timed_visual_target"] is True:
+            raise ValueError("START keyframe timed_visual_target 必须为 false")
+        if keyframe["timed_visual_target"] is True and (
+            not math.isfinite(time_seconds) or time_seconds < 0 or time_seconds > float(duration)
+        ):
+            raise ValueError(f"Timed visual target KF{keyframe_index} time_seconds 无效")
         normalized_keyframes.append({
             "index": keyframe_index,
             "time_seconds": time_seconds,
             "role": role,
             "description": strip_embedded_visual_style(keyframe.get("description") or keyframe.get("visual_description") or "", visual_style),
+            "timed_visual_target": keyframe["timed_visual_target"],
             "image_url": None,
             "image_task_id": None,
         })
@@ -1954,6 +1968,7 @@ async def plan_shot_clips(
         current_plan["clip_plan_validation"] = validation
         current_plan["clip_plan_findings"] = validation["findings"]
         current_plan["clip_plan"] = clips
+        current_plan["temporal_anchors"] = request.temporal_anchors
         shot.video_director_plan = json.dumps(current_plan, ensure_ascii=False)
         db.commit()
         return {"success": True, "data": {"clips": clips, "validation": validation}}
@@ -2477,11 +2492,17 @@ async def _execute_phase_b_semantic_clip(
     planning_mode = clip.get("planning_mode") or plan.get("selected_mode") or plan.get("recommended_mode") or "SINGLE_FRAME"
     raw_capability = str(clip.get("capability") or "")
     capability = "GENERATE" if raw_capability in {"SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"} else raw_capability
-    if capability in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
+    if capability == "VIDEO_CONTINUATION":
         raise HTTPException(status_code=400, detail="历史 continuation Clip 不能通过新的 semantic execution contract 执行")
+    if capability == "TEMPORAL_EXTEND" and (
+        str(clip.get("continuity_to_previous") or "").upper() != "CONTINUOUS"
+        or clip.get("requires_temporal_control") is not True
+    ):
+        raise HTTPException(status_code=400, detail="TEMPORAL_EXTEND 需要 CONTINUOUS 和显式 requires_temporal_control=true")
     previous_provenance = None
+    resolved_temporal_anchors = []
     try:
-        if capability == "EXTEND":
+        if capability in {"EXTEND", "TEMPORAL_EXTEND"}:
             previous_index = int(clip.get("previous_clip_index"))
             previous_clip = next((item for item in clips if int(item.get("clip_index") or 0) == previous_index), None)
             previous_provenance = {
@@ -2495,9 +2516,34 @@ async def _execute_phase_b_semantic_clip(
                 {**clip, "clip_plan_revision": int(request.clip_plan_revision)},
                 previous_provenance,
             )
-            compiled = compile_extend_clip(
-                shot, plan, clip, planning_mode, int(request.clip_plan_revision), previous_provenance,
-            )
+            if capability == "EXTEND":
+                compiled = compile_extend_clip(
+                    shot, plan, clip, planning_mode, int(request.clip_plan_revision), previous_provenance,
+                )
+            else:
+                anchor_ids = clip.get("temporal_anchor_ids") or []
+                if not 1 <= len(anchor_ids) <= 8 or len({str(item) for item in anchor_ids}) != len(anchor_ids):
+                    raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE")
+                plan_anchors = plan.get("temporal_anchors") if isinstance(plan.get("temporal_anchors"), list) else []
+                by_id = {str(item.get("anchor_id") or item.get("id")): item for item in plan_anchors if isinstance(item, dict) and (item.get("anchor_id") or item.get("id"))}
+                for anchor_id in anchor_ids:
+                    anchor = by_id.get(str(anchor_id))
+                    if not anchor:
+                        raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE")
+                    image_url = anchor.get("image_url") or anchor.get("image") or anchor.get("image_path")
+                    source = anchor.get("source") or anchor.get("provenance")
+                    if not image_url or not isinstance(source, dict):
+                        raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE")
+                    resolved_temporal_anchors.append({
+                        "anchor_id": str(anchor_id),
+                        "time_seconds": anchor.get("time_seconds"),
+                        "image_url": image_url,
+                        "source": source,
+                    })
+                compiled = compile_temporal_extend_clip(
+                    shot, plan, clip, planning_mode, int(request.clip_plan_revision),
+                    previous_provenance, resolved_temporal_anchors,
+                )
         elif capability == "GENERATE":
             compiled = compile_generate_clip(shot, plan, clip, planning_mode, int(request.clip_plan_revision))
         else:
@@ -2513,11 +2559,15 @@ async def _execute_phase_b_semantic_clip(
         workflow = WorkflowRepository(db).get_by_id(EXTEND_WORKFLOW_ID)
         if not workflow or not workflow.is_active or workflow.type != EXTEND_PHYSICAL_WORKFLOW_TYPE:
             raise HTTPException(status_code=400, detail="EXTEND physical workflow unavailable")
+    elif capability == "TEMPORAL_EXTEND":
+        workflow = WorkflowRepository(db).get_by_id(TEMPORAL_EXTEND_WORKFLOW_ID)
+        if not workflow or not workflow.is_active or workflow.type != "TEMPORAL_EXTEND":
+            raise HTTPException(status_code=400, detail="TEMPORAL_EXTEND workflow unavailable")
     else:
         workflow = WorkflowRepository(db).get_active_by_type("multi_reference_video")
     if not workflow:
         raise HTTPException(status_code=400, detail="未配置 multi_reference_video 视频生成工作流")
-    physical_workflow_type = EXTEND_PHYSICAL_WORKFLOW_TYPE if capability == "EXTEND" else "multi_reference_video"
+    physical_workflow_type = EXTEND_PHYSICAL_WORKFLOW_TYPE if capability == "EXTEND" else "TEMPORAL_EXTEND" if capability == "TEMPORAL_EXTEND" else "multi_reference_video"
     is_valid, error_msg = TaskService.validate_workflow_node_mapping(workflow, physical_workflow_type)
     if not is_valid:
         raise HTTPException(status_code=400, detail=error_msg)
@@ -2565,12 +2615,14 @@ async def _execute_phase_b_semantic_clip(
         "skip_llm_when_prompt_exists": request.skip_llm_when_prompt_exists,
         **compiled,
     }
-    if capability == "EXTEND":
+    if capability in {"EXTEND", "TEMPORAL_EXTEND"}:
         metadata["previous_approved_task_id"] = previous_provenance["generated_by_task_id"]
         metadata["previous_approved_video_url"] = previous_provenance["result_url"]
         metadata["previous_approved_video_source"] = "approved_clip_result"
         metadata["continuity_to_previous"] = clip.get("continuity_to_previous")
         metadata["requires_temporal_control"] = bool(clip.get("requires_temporal_control"))
+    if capability == "TEMPORAL_EXTEND":
+        metadata["temporal_anchor_ids"] = [item["anchor_id"] for item in resolved_temporal_anchors]
     if request.skip_llm_when_prompt_exists and not str(clip.get("prompt_text") or "").strip():
         raise HTTPException(status_code=400, detail="当前 Clip 没有可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频")
     metadata["prompt_text"] = str(clip.get("prompt_text") or "") if request.skip_llm_when_prompt_exists else ""

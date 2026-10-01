@@ -1,16 +1,24 @@
 import json
+from types import SimpleNamespace
 
 import pytest
 
 from app.models.workflow import Workflow
 from app.services.comfyui.service import ComfyUIService
+from app.services.comfyui.client import ComfyUIClient
 from app.services.comfyui.workflows import WorkflowBuilder
 from app.services.task_service import TaskService
 from app.services.workflow_service import WorkflowService
+from app.services import shot_video_service
 
 
 REFERENCE_IDS = ("142", "141", "143", "137", "138", "140", "135", "136", "139")
 ANCHOR_IDS = ("117", "128", "129", "130", "131", "132", "133", "134")
+
+
+def test_shot_video_service_exposes_temporal_extend_compiler():
+    """The worker module must resolve the compiler used by its CLIP path."""
+    assert callable(shot_video_service.compile_temporal_extend_clip)
 
 
 def _workflow(db_session):
@@ -137,3 +145,98 @@ async def test_temporal_extend_service_submits_only_requested_references(db_sess
     assert result["success"] and len(queued) == 1
     assert queued[0]["117"]["inputs"]["image"] == "anchor.png"
     assert len([key for key in queued[0]["55"]["inputs"] if key.startswith("ref_images.ref_image_")]) == count
+
+
+@pytest.mark.asyncio
+async def test_temporal_extend_returns_node_39_clip_output_not_cumulative_node_65(db_session, monkeypatch):
+    workflow = _workflow(db_session)
+    service = ComfyUIService()
+    captured = {}
+
+    async def upload_video(_path): return {"success": True, "filename": "previous.mp4"}
+    async def upload_image(path): return {"success": True, "filename": path.rsplit("/", 1)[-1]}
+    async def queue_prompt(graph): captured["graph"] = graph; return {"success": True, "prompt_id": "temporal-output"}
+    async def wait_for_result(prompt_id, graph, node_id, timeout, strict_output_node=False):
+        captured.update({"prompt_id": prompt_id, "node_id": node_id, "timeout": timeout, "strict": strict_output_node})
+        return {"success": True, "video_url": "node-39.mp4" if node_id == "39" else "node-65.mp4"}
+
+    monkeypatch.setattr(service.client, "upload_video", upload_video)
+    monkeypatch.setattr(service.client, "upload_image", upload_image)
+    monkeypatch.setattr(service.client, "queue_prompt", queue_prompt)
+    monkeypatch.setattr(service.client, "wait_for_result", wait_for_result)
+    monkeypatch.setattr("app.services.comfyui.service.get_settings", lambda: SimpleNamespace(COMFYUI_TIMEOUT=1234))
+    result = await service.generate_video_continuation_with_workflow(
+        prompt="temporal semantic prompt", workflow_json=workflow.workflow_json,
+        node_mapping=json.loads(workflow.node_mapping), previous_video_path="/videos/previous.mp4",
+        duration_seconds=8, filename_prefix="probe/temporal", capability="TEMPORAL_EXTEND",
+        anchors=[{"image_path": "/images/anchor.png", "position": 96}],
+        reference_image_paths=[],
+    )
+    assert result["success"] is True
+    assert captured["node_id"] == "39"
+    assert captured["strict"] is True
+    assert captured["timeout"] == 1234
+    assert result["video_url"] == "node-39.mp4"
+    assert captured["graph"]["65"]["inputs"]["filename_prefix"] == "probe/temporal"
+    assert captured["graph"]["116"]["inputs"]["keyframe_state"] == '{"count":1,"positions":[96]}'
+    assert captured["graph"]["116"]["inputs"]["indexing"] == "1-based"
+
+
+@pytest.mark.asyncio
+async def test_frozen_extend_still_selects_node_65_output(db_session, monkeypatch):
+    workflow = _workflow(db_session)
+    service = ComfyUIService()
+    captured = {}
+
+    async def upload_video(_path): return {"success": True, "filename": "previous.mp4"}
+    async def upload_image(path): return {"success": True, "filename": path.rsplit("/", 1)[-1]}
+    async def queue_prompt(_graph): return {"success": True, "prompt_id": "extend-output"}
+    async def wait_for_result(prompt_id, graph, node_id, timeout, strict_output_node=False):
+        captured.update({"node_id": node_id, "strict": strict_output_node})
+        return {"success": True, "video_url": "existing-extend-output.mp4"}
+
+    monkeypatch.setattr(service.client, "upload_video", upload_video)
+    monkeypatch.setattr(service.client, "upload_image", upload_image)
+    monkeypatch.setattr(service.client, "queue_prompt", queue_prompt)
+    monkeypatch.setattr(service.client, "wait_for_result", wait_for_result)
+    result = await service.generate_video_continuation_with_workflow(
+        prompt="frozen extend prompt", workflow_json=workflow.workflow_json,
+        node_mapping={**json.loads(workflow.node_mapping), "video_save_node_id": "65"},
+        previous_video_path="/videos/previous.mp4", duration_seconds=8,
+        filename_prefix="probe/extend", capability="VIDEO_CONTINUATION",
+        reference_image_paths=[],
+    )
+    assert result["success"] is True
+    assert captured["node_id"] == "65"
+    assert captured["strict"] is False
+
+
+def test_strict_temporal_output_parsing_uses_node_39_and_never_scans_node_65():
+    client = ComfyUIClient()
+    outputs = {
+        "39": {"gifs": [{"filename": "generated.mp4", "subfolder": "probe", "type": "output"}]},
+        "65": {"gifs": [{"filename": "cumulative.mp4", "subfolder": "probe", "type": "output"}]},
+    }
+    result = client._parse_outputs(outputs, save_image_node_id="39", strict_output_node=True)
+    assert result["video_url"].endswith("filename=generated.mp4&subfolder=probe&type=output")
+
+
+def test_strict_temporal_output_parsing_fails_when_node_39_missing_or_malformed():
+    client = ComfyUIClient()
+    cumulative = {"65": {"gifs": [{"filename": "cumulative.mp4"}]}}
+    assert client._parse_outputs(cumulative, save_image_node_id="39", strict_output_node=True) is None
+    malformed = {
+        "39": {"gifs": [{"filename": "not-a-video.bin"}]},
+        "65": {"gifs": [{"filename": "cumulative.mp4"}]},
+    }
+    assert client._parse_outputs(malformed, save_image_node_id="39", strict_output_node=True) is None
+
+
+def test_non_strict_output_parsing_keeps_generic_fallback():
+    client = ComfyUIClient()
+    result = client._parse_outputs(
+        {"65": {"gifs": [{"filename": "cumulative.mp4"}]}},
+        save_image_node_id="39",
+        strict_output_node=False,
+    )
+    assert result["video_url"].endswith("filename=cumulative.mp4&type=output")

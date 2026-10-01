@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional, List
 
 from .client import ComfyUIClient
 from .workflows import WorkflowBuilder
+from app.core.config import get_settings
 from app.utils.workflow_disconnect import (
     disconnect_reference_chain,
     disconnect_unuploaded_reference_nodes,
@@ -501,7 +502,16 @@ class ComfyUIService:
                 return {"success": False, "message": queued.get("error") or "续生成任务提交失败"}
             prompt_id = queued.get("prompt_id")
             self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
-            result = await self.client.wait_for_result(prompt_id, workflow, node_mapping.get("video_save_node_id"), timeout=7200)
+            # The temporal graph's #65 is cumulative Previous AV + extension.
+            # Its frozen #39 VHS_VideoCombine is the generated current-Clip artifact.
+            result_node_id = "39" if capability == "TEMPORAL_EXTEND" else node_mapping.get("video_save_node_id")
+            result = await self.client.wait_for_result(
+                prompt_id,
+                workflow,
+                result_node_id,
+                timeout=int(get_settings().COMFYUI_TIMEOUT),
+                strict_output_node=capability == "TEMPORAL_EXTEND",
+            )
             return {**result, "prompt_id": prompt_id, "submitted_workflow": workflow}
         except Exception as exc:
             return {"success": False, "message": str(exc)}

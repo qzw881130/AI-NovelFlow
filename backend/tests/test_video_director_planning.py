@@ -2,7 +2,7 @@ import json
 from types import SimpleNamespace
 
 from app.api.shots import _build_keyframe_planner_user_content, _build_keyframe_transition_user_content
-from app.services.shot_keyframe_service import sync_planned_keyframe_states
+from app.services.shot_keyframe_service import ShotKeyframeService, sync_planned_keyframe_states
 
 
 def _shot_with_timed_dialogue_source():
@@ -105,3 +105,17 @@ def test_aligned_p3_is_the_state_consumed_by_keyframe_image_without_losing_media
     }
     assert keyframes[0]["image_url"] == "p2.png"
     assert not sync_planned_keyframe_states(shot, keyframes)
+
+
+def test_keyframe_image_sync_preserves_timed_visual_target():
+    shot = SimpleNamespace(video_director_plan=json.dumps({"keyframes": [
+        {"index": 2, "role": "INTERMEDIATE", "time_seconds": 5, "timed_visual_target": True},
+    ]}))
+    keyframe = {"plan_keyframe_index": 2}
+
+    ShotKeyframeService()._sync_video_director_keyframe_image(shot, keyframe, "/kf2.png", "task-2")
+
+    persisted = json.loads(shot.video_director_plan)["keyframes"][0]
+    assert persisted["timed_visual_target"] is True
+    assert persisted["image_url"] == "/kf2.png"
+    assert persisted["image_task_id"] == "task-2"

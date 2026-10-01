@@ -247,7 +247,8 @@ class ComfyUIClient:
         workflow: Dict[str, Any] = None,
         save_image_node_id: str = None,
         timeout: int = 120,
-        poll_interval: float = 2.0
+        poll_interval: float = 2.0,
+        strict_output_node: bool = False,
     ) -> Dict[str, Any]:
         """等待任务完成并获取结果
 
@@ -286,7 +287,8 @@ class ComfyUIClient:
 
                             if outputs:
                                 result = self._parse_outputs(
-                                    outputs, workflow, save_image_node_id
+                                    outputs, workflow, save_image_node_id,
+                                    strict_output_node=strict_output_node,
                                 )
                                 if result:
                                     return result
@@ -420,7 +422,8 @@ class ComfyUIClient:
         self,
         outputs: Dict[str, Any],
         workflow: Dict[str, Any] = None,
-        save_image_node_id: str = None
+        save_image_node_id: str = None,
+        strict_output_node: bool = False,
     ) -> Optional[Dict[str, Any]]:
         """解析 ComfyUI 输出结果"""
         def build_media_url(media_info: Dict[str, Any]) -> str:
@@ -451,7 +454,7 @@ class ComfyUIClient:
             if configured_output:
                 for output_key, label in (("videos", "SaveVideo"), ("gifs", "VHS_VideoCombine")):
                     videos = configured_output.get(output_key)
-                    if videos:
+                    if videos and isinstance(videos[0], dict) and is_video_filename(videos[0].get("filename")):
                         video_url = build_media_url(videos[0])
                         print(f"[ComfyUI] Found configured video ({label}) from node {save_image_node_id}: {video_url}")
                         return {
@@ -468,6 +471,10 @@ class ComfyUIClient:
                         "video_url": video_url,
                         "message": "生成成功"
                     }
+            if strict_output_node:
+                return None
+        elif strict_output_node:
+            return None
 
         # 优先检查视频输出（VHS_VideoCombine 输出 gifs，SaveVideo 输出 videos）
         for node_id, node_output in outputs.items():
