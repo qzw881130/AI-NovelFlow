@@ -232,6 +232,50 @@ def test_final_speech_audit_checks_exact_event_subject_and_time():
     assert "DIALOGUE_SPEAKER_TIMING_AUTHORITY_INVALID" in audit["blocking_issues"]
 
 
+def test_single_event_visible_lip_authority_remains_subject_timed_and_exact():
+    item = {"id": "D1", "speaker": "Mira", "text": "请看这里。", "start_time": 1.0, "end_time": 3.0}
+    prompt = h3._render_dialogue_timeline_block([item], [], {"Mira": "<Subject 1>"})
+
+    assert "D1:\n  speaker: <Subject 1>\n  start_time: 1.0s\n  end_time: 3.0s\n  exact_dialogue: 请看这里。" in prompt
+    assert prompt.count("请看这里。") == 1
+    assert "All assigned dialogue is Mandarin Chinese only." in prompt
+    assert "Only <Subject 1> may produce human vocalization and visibly articulate speech during this event" in prompt
+    assert "synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing" in prompt
+    assert "All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation" in prompt
+    assert "Before the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation" in prompt
+    assert "Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed" in prompt
+
+
+def test_shot_11_shaped_visible_lip_handoff_and_dialogue_gap():
+    events = [
+        {"id": "D1", "speaker": "皇帝", "text": "袖口是不是太宽了？", "start_time": 1.0, "end_time": 3.0},
+        {"id": "D2", "speaker": "侍从1", "text": "陛下，这正是今年王城最流行的样式。", "start_time": 3.2, "end_time": 6.95},
+    ]
+    prompt = h3._render_dialogue_timeline_block(
+        events, [], {"皇帝": "<Subject 1>", "侍从1": "<Subject 2>"},
+    )
+
+    d1 = prompt.split("D1:\n", 1)[1].split("From 3.0s to 3.2s between dialogue events", 1)[0]
+    d2 = prompt.split("D2:\n", 1)[1]
+    assert "speaker: <Subject 1>\n  start_time: 1.0s\n  end_time: 3.0s" in d1
+    assert "Only <Subject 1> may produce human vocalization and visibly articulate speech" in d1
+    assert "speaker: <Subject 2>\n  start_time: 3.2s\n  end_time: 6.95s" in d2
+    assert "Only <Subject 2> may produce human vocalization and visibly articulate speech" in d2
+    assert "From 3.0s to 3.2s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation." in prompt
+    assert prompt.count("袖口是不是太宽了？") == prompt.count("陛下，这正是今年王城最流行的样式。") == 1
+
+
+def test_zero_dialogue_restricts_visible_speech_without_muting_foley():
+    prompt = h3._render_dialogue_timeline_block([], ["Mira"], {"Mira": "<Subject 1>"})
+
+    assert "NO_VOICE: no human speech, no human vocalization, no invented dialogue." in prompt
+    assert "No Subject may visibly perform speech-like mouth or lip articulation throughout this clip" in prompt
+    assert "natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed" in prompt
+    assert "silent_characters: <Subject 1>" in prompt
+    assert "NO_VOICE is not SILENT_AUDIO" in prompt
+    assert "environmental ambience and synchronized Foley remain audible" in prompt
+
+
 def test_visual_expressions_and_nonhuman_audio_are_not_speech_authority(monkeypatch):
     prompt, _, _, record = invoke(monkeypatch, body="summary:\n微笑，皱眉，嘴角变化，咬紧牙关，视线变化，身体前倾，转身，姿态，手势。\noverall_soundscape:\nAn engine hums; birds sing; a pig grunts. Wind and cloth Foley remain audible.")
     assert "An engine hums" in prompt

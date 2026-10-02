@@ -627,6 +627,7 @@ def _render_dialogue_timeline_block(assigned_dialogues: list, silent_characters:
             "dialogue_timeline:",
             "No assigned dialogue. No character is authorized to speak throughout this clip.",
             "NO_VOICE: no human speech, no human vocalization, no invented dialogue.",
+            "No Subject may visibly perform speech-like mouth or lip articulation throughout this clip; natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.",
         ]
         if silent_characters:
             lines.append("silent_characters: " + ", ".join(subject_bindings.get(name, name) for name in silent_characters))
@@ -638,8 +639,11 @@ def _render_dialogue_timeline_block(assigned_dialogues: list, silent_characters:
         "Speak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.",
         "All assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.",
         "Human vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.",
+        "Before the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation. Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.",
     ]
-    for item in assigned_dialogues:
+    for index, item in enumerate(assigned_dialogues):
+        if index and item["start_time"] > assigned_dialogues[index - 1]["end_time"]:
+            lines.append(f"From {assigned_dialogues[index - 1]['end_time']}s to {item['start_time']}s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.")
         subject = subject_bindings.get(item["speaker"])
         if not subject:
             raise ValueError(f"No visible Subject mapping for dialogue speaker: {item['speaker']}")
@@ -652,7 +656,7 @@ def _render_dialogue_timeline_block(assigned_dialogues: list, silent_characters:
             f"  end_time: {item['end_time']}s",
             f"  exact_dialogue: {_exact_spoken_text(item['text'])}",
             f"  segment: {item.get('segment_index', 1)}; {continuation.strip()}{next_continuation}" if item.get("segment_index", 1) > 1 or item.get("continues_in_next_clip") else "  segment: complete assigned span.",
-            "  Only this Subject may produce human vocalization during this event; all other Subjects remain non-vocal. Do not speak metadata labels. No subtitles, captions, or on-screen text.",
+            f"  Only {subject} may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.",
         ])
     if silent_characters:
         lines.append("silent_characters: " + ", ".join(subject_bindings.get(name, name) for name in silent_characters))
