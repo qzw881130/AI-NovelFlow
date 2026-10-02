@@ -41,9 +41,8 @@
 
 4. dialogue_timeline_source
 程序提供的完整 Shot Dialogue Timeline，每项至少包含 id、speaker、text、start_time、end_time、duration、emotion_prompt。
-它是判断当前 Segment 内 speaking state 的唯一时间权威。
-segment_dialogue_state 会给出当前 Segment 的时间范围、重叠 dialogue IDs 和重叠时间线条目。
-shot.dialogues 只表示 Shot 包含哪些对白，不提供 speaking-state 的时间判断依据。
+它与 segment_dialogue_state 只作为当前 Segment 的叙事时序、视觉注意力、反应和视线上下文。Transition 不从这些数据中输出另一套 speaker、发声、静音或口型权威。
+shot.dialogues 只表示 Shot 包含哪些对白，不作为 transition_description 的语音输出内容。
 
 ━━━━━━━━━━━━━━━━━━
 【核心目标】
@@ -66,6 +65,16 @@ transition_description 必须回答：
 - 到达 to_keyframe 时必须停在怎样的状态。
 
 ━━━━━━━━━━━━━━━━━━
+【Current Segment Action Recovery】
+━━━━━━━━━━━━━━━━━━
+
+transition_description 不应只描述 from_keyframe 与 to_keyframe 两个静态状态之间的最短几何插值。必须同时参考 shot.video_description，恢复从当前 A→B 相邻状态起点到终点之间真正需要经过的可见动作链。
+
+仅可恢复 Shot 原文已明确存在、发生在当前 from_keyframe.time_seconds 至 to_keyframe.time_seconds 范围内，且与两个静态边界兼容的必要动作。不得提前后续 Segment 的动作，不得把其他 transition 的动作泄漏进当前 transition，不得新增 Shot 原文不存在的剧情事实。若动作链与 from/to 状态冲突，优先服从两个静态边界并省略冲突动作。
+
+动作链必须必要、简洁、可执行且连续，并在 to_keyframe 的最终 blocking、姿态、视线、道具、环境和人物关系状态处停止。
+
+━━━━━━━━━━━━━━━━━━
 【严格受两关键帧约束】
 ━━━━━━━━━━━━━━━━━━
 
@@ -85,7 +94,7 @@ to_keyframe 是终点权威状态。
 - 保持过渡简单，不制造复杂动作。
 
 如果两帧之间是长时间稳定状态：
-- 可以描述持续讲话期间的轻微自然呼吸、微表情、有限身体重心变化、非常缓慢摄影机推进等；
+- 可以描述长时间稳定画面中的轻微自然呼吸、微表情、有限身体重心变化、非常缓慢摄影机推进等；
 - 不得凭空制造无关表演。
 
 ━━━━━━━━━━━━━━━━━━
@@ -146,49 +155,20 @@ continuity_mode == "NORMAL" 时：
 - 可以使用普通分镜中的合理构图变化，但仍不得破坏人物身份、空间方向和剧情连续。
 
 ━━━━━━━━━━━━━━━━━━
-【台词处理】
+【Speech Authority Isolation】
 ━━━━━━━━━━━━━━━━━━
 
-本 Prompt 不负责把完整 dialogues[].text 写入 transition_description。
-完整台词将在后续由程序按 Clip 分配，并由 H3 Prompt Builder 精确加入。
+当前 Segment 的 dialogue timeline 只能用于理解视觉注意力、反应、视线和叙事时序。speaker identity、dialogue ownership、exact dialogue text、mouth/lip speaking state、silent character authority 和谁在发声，都由后续 Clip dialogue timeline / H3 Prompt Builder 独占；Transition 不得自行定义、修改或推断。
 
-因此：
-- 不得复述或改写台词正文。
-- 不得发明任何对白。
+transition_description 仅描述身体运动、走位、视线、姿态、空间、表情、道具、摄影机和场景连续变化。不得生成某角色开始/继续/停止说话、张嘴说话、讲话口型、speaks、speaking、talking、says、speech articulation 或等价语义；不得复述、改写或发明对白，也不输出谁允许发声、谁保持沉默等声音权限。
 
-transition_description 只描述视觉动作，不输出“谁允许发声”“所有人物保持沉默”“只保留环境声”等声音权限语句。
-
-- 可以描述与合法时间窗相容的自然可见动作，例如说话者保持面对目标、听者保持注视；
-- 但不得写具体台词正文；
-- 不得新增谁说了什么；
-- speaking mouth state 只能由 dialogue_timeline_source 的时间范围决定。
-
-旁白：
-- 不绑定任何可见人物口型。
+禁止用“陈述”“回应”“说完”“话音结束”“答话”“聆听某人发言”“发声”“唇形”“口型”或同义词间接重新定义谁在说话。若需配合 dialogue event，只能用非语音的视线、姿态、表情、反应和空间变化表达视觉连续；事件中的 speaker 和正文绝不在这里重新定义。旁白不绑定任何可见人物。
 
 ━━━━━━━━━━━━━━━━━━
-【Dialogue Timeline Priority】
+【Speech Authority Isolation Reinforcement】
 ━━━━━━━━━━━━━━━━━━
 
-必须使用 dialogue_timeline_source：
-
-transition_description 中任何 speaking / whispering / shouting / mouth-speaking state 必须服从合法 dialogue 时间窗。
-
-一个 transition 与 dialogue 时间窗部分重叠时，不得把 speaking state 描述为覆盖整个 transition。
-
-例如：
-Transition = 0–5s
-Dialogue D1 = 1–3.99s
-
-应理解为：
-0–1s：非说话状态；
-1–3.99s：允许自然说话视觉状态；
-3.99–5s：台词结束后的非说话反应状态。
-
-如果 transition 完全位于 dialogue.end_time 之后：
-不得描述该角色“继续说话”“持续低语”“维持说话口型”。
-
-transition_description 不负责复制台词正文。
+无论 dialogue 时间窗是否与当前 Segment 重叠，transition_description 都不输出 speaking state、speaker 身份、口型起止、对白正文或声音权限。对白前后存在的可见情绪、视线和姿态变化，只能作为独立视觉事实描述。
 
 ━━━━━━━━━━━━━━━━━━
 【长 Shot】

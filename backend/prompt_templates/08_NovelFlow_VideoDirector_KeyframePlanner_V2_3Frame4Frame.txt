@@ -2,7 +2,7 @@
 
 任务：根据 Shot 的叙事、动作、构图变化和有意义的视觉节拍，为整个 Shot 规划 canonical visual states。你决定需要多少状态；不得规划执行 Clip、physical workflow、GENERATE/EXTEND/TEMPORAL_EXTEND capability、Previous AV 或物理参考槽。
 
-只返回 JSON Object，核心且必需的顶层字段只有 `keyframes`。不要输出 `window_plans`、`execution_windows`、`selected_frame_count`、`workflow_key` 或 `workflow_type`。程序会单独规划 semantic Clips 和物理执行。
+只返回 JSON Object，核心且必需的顶层字段只有 `keyframes`。不要输出任何 legacy mode、execution window、frame-count、workflow routing 或物理执行字段。程序会单独规划 semantic Clips 和物理执行。
 
 keyframes 是按时间排序的数组，每项：
 {
@@ -19,10 +19,15 @@ keyframes 是按时间排序的数组，每项：
 - 至少输出一个状态；index 唯一；time_seconds 必须严格递增并处于 0 到 Shot duration 之间。
 - 恰好一个 START，且它必须是首个状态、time_seconds=0、role="START"、description=null、timed_visual_target=false。不得重写 shot.description；START 的视觉内容由 Shot 主图/Shot 描述提供。
 - START `timed_visual_target` 必须为 false；输出 true 会导致整份 #08 结果被拒绝。
-- END 可选。仅当 Shot 确有有意义的最终可见状态时输出；若输出，必须是最后一个状态，role="END"、time_seconds=shot.duration，description 描述已到达的静态最终状态。不得仅因传统首尾帧模式而制造 END。
+- END 可选。仅当 Shot 确有有意义的最终可见状态时输出；若输出，必须是最后一个状态，role="END"、time_seconds=shot.duration，description 优先描述 Shot 结束时真正可见、已到达的静态最终状态。不得仅因传统首尾帧模式而制造 END，也不得因为最后一句对白属于某角色，就让 END 自动围绕最后说话者构图。
 - 其他状态 role="INTERMEDIATE"；描述的是该时间点已经到达并稳定的静态视觉状态，不写连续过程，不提前呈现未来结果。
-- 有对白时，`dialogue_timeline_source` 是判断指定时刻 speaking state 的唯一时间权威。`shot.dialogues` 仅描述对白内容，不可用于推断说话时间。
+- Visual State 必须优先对应真正可见的叙事变化。人物位置、动作结果、构图、视线、姿态、物体状态和环境状态等真实视觉变化，优先于 dialogue/speaker 变化。
+- Visual State 是静态视觉状态，不是说话状态。speaker change 或 dialogue boundary 本身不是 visual anchor；不得仅因某人开始、继续或结束某句台词就机械新建状态。若该时刻同时存在独立可见变化，可建立状态，但依据必须是视觉变化。
 - `timed_visual_target` 必须明确输出 JSON boolean true/false。普通视觉状态默认 false；视觉重要、是中间状态、END、发生道具变化、存在 transition 或之后会生成图片，都不自动意味着 true。
+
+【Visual Beat Priority】
+- 按 blocking/人物位置、可见动作结果、camera/composition、姿态与朝向/视线、人物或物体关系、表情、道具交互与环境状态的实质改变选择 visual beats。
+- 对白时间线可用来理解叙事上下文，但不得取代可见变化成为状态建立依据。
 
 【timed_visual_target 选择测试】
 只有以下四项全部满足时，才标 true：
@@ -42,12 +47,15 @@ keyframes 是按时间排序的数组，每项：
 - description 不得包含对白正文、字幕、对白框或文字图形；不得添加渲染风格套话、`##STYLE##` 或 `style, high quality, detailed`。
 - 状态必须符合时间顺序，不得倒退到已经结束的动作/道具状态，除非 Shot 叙事明确要求。
 
-【对白与说话状态】
-- `dialogue_timeline_source` 是某角色在指定时间是否处于说话状态的唯一时间权威。自然语言 Shot 描述不能覆盖其时间窗。
-- keyframe 时间落在 dialogue 时间窗内，才可表现 speaking state；不要求逐字口型。
-- 早于 `start_time` 不得表现已在说话；可表现准备开口等非发声状态。
-- 晚于 `end_time` 必须表现自然非说话状态；不得继续写 speaking、whispering、shouting、lip-sync 或等价描述，可保留台词结束后的情绪/视线/身体反应。
-- 没有正式对白的背景角色不得被描述为集体说话。description 绝不复制 `dialogues[].text`。
+【Speech-neutral Visual State】
+- `dialogue_timeline_source` 只用于理解当前 Shot 的叙事时序和视觉注意力，不使 Visual State 承担 speaker、对白归属、发声或口型权威。
+- description 只写静态可见事实：构图、blocking、姿态、朝向/视线、表情、空间关系、道具和环境状态。不得写某人正在说某句台词、speaking/whispering/shouting、说话口型或 lip-sync。
+- 可保留与当前叙事节拍一致的独立可见反应，例如视线转移、姿态变化或情绪结果，但不得由这些反推 speaker。
+- description 绝不复制 `dialogues[].text`、字幕、对白框或文字图形。
+
+【Visual State Self-check】
+- Low Visual Delta：检查每对相邻 Visual States。如果它们在 camera/composition、blocking、posture、已到达的动作结果、物体关系或环境状态上几乎没有有意义变化，重新评估后仅保留确有独立视觉价值的状态。不得为凑数量产生近重复状态。
+- Visible Narrative Coverage：检查最终 Visual States 是否覆盖 Shot 中重要的可见叙事变化、关键动作结果与真正最终视觉状态。不得只覆盖对白时间点而遗漏这些可见节拍。
 
 continuity_mode=CONTINUOUS_TAKE 时，所有状态必须沿同一物理摄影机轨迹连续推进；禁止跳轴、隐性剪辑、突然改变机位或互不相关的构图。NORMAL 允许合理电影语法变化，但身份、场景、道具及叙事仍须连续。
 
