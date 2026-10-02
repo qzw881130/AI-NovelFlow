@@ -9,6 +9,7 @@ from app.services.video_director_ai import resolve_prompt_template
 
 PROMPT_DIR = Path(__file__).resolve().parents[1] / "prompt_templates"
 PLANNER_FILE = "08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt"
+KEYFRAME_IMAGE_FILE = "09_NovelFlow_QwenEdit2511_KeyframeImagePrompt_V1.txt"
 TRANSITION_FILE = "10_NovelFlow_KeyframeTransition_Planner_V1.txt"
 
 
@@ -91,8 +92,34 @@ def test_transition_planner_keeps_adjacent_scope_and_isolates_speech_authority()
         assert obsolete_speech_rule not in prompt
 
 
+def test_keyframe_image_prompt_keeps_visual_state_authority_and_no_dialogue_mouth_rules():
+    prompt = _prompt(KEYFRAME_IMAGE_FILE)
+
+    for marker in (
+        "当前 canonical Visual State 静态 description",
+        "shot 不提供 raw description、video_description、dialogues、speaker 或 dialogue",
+        "#09 只负责把",
+        "current_keyframe.description 已明确给出的可见事实实现为画面",
+        "不得从其缺失与否推断任何人物正在说话、正在倾听",
+        "参考图片只负责人物身份、当前外观、场景、道具和纯视觉连续性",
+        "嘴角略向下",
+        "咬紧牙关",
+    ):
+        assert marker in prompt
+
+    for obsolete_dialogue_rule in (
+        "shot.dialogues == []",
+        "当 dialogues 非空",
+        "人物嘴部保持自然闭合或自然静态表情",
+        "禁止明显正在讲话的夸张口型",
+        "第一版不根据台词自行猜测精确嘴型",
+    ):
+        assert obsolete_dialogue_rule not in prompt
+
+
 def test_system_sync_updates_existing_rows_in_place_and_default_resolution(db_session):
     planner_id = "ee6d8619-1b93-4b7e-a68e-48c9a827b2d5"
+    keyframe_image_id = "276f0181-64c4-4a03-b0fd-b9b9b1f04a09"
     transition_id = "7f9d53a8-6ff6-4584-b2d4-703168175f25"
     db_session.add_all([
         PromptTemplate(
@@ -101,6 +128,15 @@ def test_system_sync_updates_existing_rows_in_place_and_default_resolution(db_se
             description="stale",
             template="stale planner",
             type="keyframe_planner",
+            is_system=True,
+            is_active=True,
+        ),
+        PromptTemplate(
+            id=keyframe_image_id,
+            name="视频关键帧生图提示词构建",
+            description="stale",
+            template="stale keyframe image prompt",
+            type="keyframe_image_prompt",
             is_system=True,
             is_active=True,
         ),
@@ -124,12 +160,17 @@ def test_system_sync_updates_existing_rows_in_place_and_default_resolution(db_se
     planner = resolve_prompt_template(
         db_session, novel, "keyframe_planner_prompt_template_id", "keyframe_planner"
     )
+    keyframe_image = resolve_prompt_template(
+        db_session, novel, "keyframe_image_prompt_template_id", "keyframe_image_prompt"
+    )
     transition = resolve_prompt_template(
         db_session, novel, "keyframe_transition_prompt_template_id", "keyframe_transition"
     )
 
     assert planner.id == planner_id
     assert planner.template == _prompt(PLANNER_FILE)
+    assert keyframe_image.id == keyframe_image_id
+    assert keyframe_image.template == _prompt(KEYFRAME_IMAGE_FILE)
     assert transition.id == transition_id
     assert transition.template == _prompt(TRANSITION_FILE)
 

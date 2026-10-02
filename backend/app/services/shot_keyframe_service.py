@@ -28,7 +28,7 @@ from app.services.file_storage import file_storage
 from app.services.background_workers import worker_manager
 from app.services.prompt_builder import get_style
 from app.services.visual_style_authority import strip_embedded_visual_style
-from app.services.video_director_ai import append_video_ai_call, strip_media_refs
+from app.services.video_director_ai import append_video_ai_call
 from app.services.canonical_execution_invalidation import (
     CanonicalExecutionConflict,
     canonical_clip_dependency_closure,
@@ -36,6 +36,9 @@ from app.services.canonical_execution_invalidation import (
     ensure_no_active_canonical_clip_tasks,
     invalidate_current_canonical_execution,
     sync_temporal_anchor_state_image,
+)
+from app.services.canonical_visual_speech_authority import (
+    require_speech_neutral_visual_text,
 )
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.path_utils import local_path_to_url, url_to_local_path
@@ -50,6 +53,56 @@ REFERENCE_SELECTOR_PROMPT = """你是 Temporal Anchor Reference Selector。
 你的唯一任务是从 available_references 中选择生成 current_anchor 所需的最小充分视觉参考集合。
 只返回 JSON：{"selected_references":[{"type":"TEMPORAL_ANCHOR|DIRECTOR_VISUAL_ANCHOR|CHARACTER_IDENTITY|SCENE|PROP","ref_ids":["真实ref_id"],"purpose":"说明每组图提供的独立视觉信息"}]}。
 规则：Temporal Anchor 最多2张，只能选择当前 Anchor 之前的真实候选；允许0张；不得默认选择上一帧或凑数量；不得选择未来/current；只选当前画面实际需要的角色、场景、道具；不得输出 Picture 编号、评分、候选排序或不存在的 ref_id。"""
+
+
+_CANONICAL_VISUAL_STATE_FIELDS = (
+    "index",
+    "frame_index",
+    "plan_keyframe_index",
+    "role",
+    "time_seconds",
+    "description",
+    "timed_visual_target",
+)
+
+_KEYFRAME_REFERENCE_CONTEXT_FIELDS = (
+    "picture",
+    "picture_index",
+    "image_index",
+    "kind",
+    "type",
+    "sources",
+    "name",
+    "members",
+    "keyframe_index",
+    "role",
+    "composed",
+)
+
+
+def _project_canonical_visual_state(keyframe: Optional[dict]) -> Optional[dict]:
+    """Project only canonical visual-state facts into the #09 prompt input."""
+    if not isinstance(keyframe, dict):
+        return None
+    return {
+        field: keyframe[field]
+        for field in _CANONICAL_VISUAL_STATE_FIELDS
+        if field in keyframe
+    }
+
+
+def _project_keyframe_reference_context(reference_manifest: list) -> list:
+    """Keep physical reference identity/order while dropping free-form rationales."""
+    projected = []
+    for item in reference_manifest or []:
+        if not isinstance(item, dict):
+            continue
+        projected.append({
+            field: item[field]
+            for field in _KEYFRAME_REFERENCE_CONTEXT_FIELDS
+            if field in item
+        })
+    return projected
 
 
 def randomize_prompt_rewrite_seeds(workflow: dict) -> bool:
@@ -362,27 +415,50 @@ class ShotKeyframeService:
         task: Task,
         reference_manifest: Optional[list] = None,
     ) -> str:
+        for field, visual_state in (
+            ("current_keyframe.description", keyframe),
+            ("previous_keyframe.description", previous_keyframe),
+        ):
+            if not isinstance(visual_state, dict):
+                continue
+            require_speech_neutral_visual_text(
+                visual_state.get("description"),
+                code="KEYFRAME_IMAGE_INPUT_SPEECH_AUTHORITY_VIOLATION",
+                field=field,
+                state_index=(
+                    visual_state.get("plan_keyframe_index")
+                    if visual_state.get("plan_keyframe_index") is not None
+                    else visual_state.get("index", visual_state.get("frame_index"))
+                ),
+            )
         template = self._get_keyframe_image_prompt_template(db, novel)
         visual_style, _ = get_style(db, novel, "character")
         if not template:
-            return f"{keyframe.get('description') or shot.description or ''}\n{visual_style}"
+            final_prompt = f"{keyframe.get('description') or ''}\n{visual_style}".strip()
+            require_speech_neutral_visual_text(
+                final_prompt,
+                code="KEYFRAME_IMAGE_PROMPT_SPEECH_AUTHORITY_VIOLATION",
+                field="prompt_text",
+                state_index=keyframe.get("plan_keyframe_index") or keyframe.get("index") or keyframe.get("frame_index"),
+            )
+            return final_prompt
         prop_names = get_visual_prop_names(db, novel.id, json.loads(shot.props) if shot.props else [])
+        resolved_reference_manifest = (
+            reference_manifest
+            if reference_manifest is not None
+            else self._build_keyframe_reference_manifest(db, novel, shot, previous_keyframe)
+        )
         payload = {
             "shot": {
                 "id": shot.id,
                 "index": shot.index,
-                "description": shot.description or "",
-                "video_description": shot.video_description or "",
                 "characters": json.loads(shot.characters) if shot.characters else [],
                 "scene": shot.scene or "",
                 "props": prop_names,
-                "duration": shot.duration or 4,
-                "continuity_mode": shot.continuity_mode or "NORMAL",
-                "dialogues": json.loads(shot.dialogues) if shot.dialogues else [],
             },
-            "current_keyframe": strip_media_refs({key: value for key, value in keyframe.items() if key != "prompt_text"}),
-            "previous_keyframe": strip_media_refs({key: value for key, value in previous_keyframe.items() if key != "prompt_text"}) if previous_keyframe else None,
-            "reference_image_manifest": strip_media_refs(reference_manifest) if reference_manifest is not None else self._build_keyframe_reference_manifest(db, novel, shot, previous_keyframe),
+            "current_keyframe": _project_canonical_visual_state(keyframe),
+            "previous_keyframe": _project_canonical_visual_state(previous_keyframe),
+            "reference_image_manifest": _project_keyframe_reference_context(resolved_reference_manifest),
             "visual_style": visual_style,
         }
         user_content = "请基于以下关键帧规划与参考图语义清单，生成 Qwen-Image-Edit-2511 的最终编辑提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
@@ -411,6 +487,12 @@ class ShotKeyframeService:
             raise RuntimeError(result.get("error") or "#09 关键帧生图提示词构建失败")
 
         final_prompt = self._extract_keyframe_image_prompt(result.get("content") or "")
+        require_speech_neutral_visual_text(
+            final_prompt,
+            code="KEYFRAME_IMAGE_PROMPT_SPEECH_AUTHORITY_VIOLATION",
+            field="prompt_text",
+            state_index=keyframe.get("plan_keyframe_index") or keyframe.get("index") or keyframe.get("frame_index"),
+        )
         append_video_ai_call(shot, {
             "step": "09",
             "task_type": "keyframe_image_prompt",
