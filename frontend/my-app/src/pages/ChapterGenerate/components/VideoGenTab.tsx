@@ -54,6 +54,7 @@ import {
   shouldShowLegacyBatchCompatibility,
   type BatchShotCategory,
   type BatchShotFilter,
+  type SemanticShotStatus,
 } from '../semanticClipAuthority';
 
 const VIDEO_TAB_UI_STORAGE_KEY = 'chapterGenerate_videoTab_ui';
@@ -122,14 +123,17 @@ function SemanticClipExecutionPanel({ shot, chapterId, onPreviewClip, onRegenera
   if (clips.length === 0) return null;
   return (
     <div>
-      <div className="mb-2 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
-        <span className="font-medium text-gray-700">Revision {revision}</span>
-        <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-blue-700">{plan.clip_plan_approval_mode || 'AUTO_APPROVE'}</span>
-        <span className={`rounded-full border px-2 py-0.5 ${plan.clip_plan_validation?.passed ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
-          {plan.clip_plan_validation?.passed ? 'PASS' : '未验证'}
-        </span>
-        {loading && <span>正在读取执行结果…</span>}
-      </div>
+      <details data-testid="semantic-clip-debug-metadata" className="mb-2 rounded-md border border-dashed border-gray-200 bg-gray-50 px-2.5 py-1.5 text-[11px] text-gray-500">
+        <summary className="cursor-pointer font-medium text-gray-600">片段执行诊断</summary>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <span className="font-medium text-gray-700">Revision {revision}</span>
+          <span className="rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-blue-700">{plan.clip_plan_approval_mode || 'AUTO_APPROVE'}</span>
+          <span className={`rounded-full border px-2 py-0.5 ${plan.clip_plan_validation?.passed ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
+            {plan.clip_plan_validation?.passed ? 'PASS' : '未验证'}
+          </span>
+          {loading && <span>正在读取执行结果…</span>}
+        </div>
+      </details>
       <div className="space-y-1.5">
         {clips.map((clip: any, index: number) => {
           const task = resolveSemanticClipTask(clip, tasks, revision);
@@ -155,7 +159,7 @@ function SemanticClipExecutionPanel({ shot, chapterId, onPreviewClip, onRegenera
             <div key={`${revision}-${clip.clip_index}`} className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <div className="flex min-w-[116px] items-center gap-2">
-                  <span className="text-sm font-semibold text-gray-900">C{clip.clip_index}</span>
+                  <span className="text-sm font-semibold text-gray-900">片段 {clip.clip_index}</span>
                   <span className="text-xs tabular-nums text-gray-600">{clip.start_time}–{clip.end_time}s</span>
                 </div>
                 <span className="rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-700" title={clip.capability}>{getSemanticCapabilityLabel(clip.capability)}</span>
@@ -163,20 +167,17 @@ function SemanticClipExecutionPanel({ shot, chapterId, onPreviewClip, onRegenera
                 <span className="text-[11px] tabular-nums text-gray-600">
                   {Number(clip.planned_duration ?? (Number(clip.end_time) - Number(clip.start_time)))}s{isContinuation && cumulativeDuration != null ? ` · 累计成片 ${Number(cumulativeDuration).toFixed(3).replace(/\.000$/, '')}s` : !isContinuation && metadata?.actual_duration != null ? ` · 实际 ${metadata.actual_duration}s` : ''}
                 </span>
-                <span className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${approvalStatus === 'APPROVED' ? 'border-green-200 bg-green-50 text-green-700' : 'border-gray-200 bg-gray-50 text-gray-600'}`}>
-                  {approvalStatus}
-                </span>
                 <span className={`text-[10px] font-medium ${clipStatus === 'COMPLETED' ? 'text-green-700' : clipStatus === 'FAILED' ? 'text-red-700' : clipStatus === 'RUNNING' ? 'text-blue-700' : 'text-gray-500'}`}>{clipStatusLabel[clipStatus]}</span>
                 {carryInLabel && (
                   <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700">
                     {carryInLabel}
                   </span>
                 )}
-                <span className="text-[11px] text-gray-600">视觉状态：{getOwnedVisualStateLabel(clip)}</span>
+                <span className="text-[11px] text-gray-600">视觉状态：{getOwnedVisualStateLabel(clip).replace(/KF/g, '')}</span>
                 <div className="ml-auto flex items-center gap-2">
                   {cumulativeUrl && (
                     <button type="button" onClick={() => onPreviewClip({ ...clip, clip_index: clip.clip_index, video_url: cumulativeUrl })} className="rounded-md border border-blue-200 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50">
-                      播放 C{clip.clip_index}
+                      播放片段 {clip.clip_index}
                     </button>
                   )}
                   <div className="relative inline-flex">
@@ -203,6 +204,7 @@ function SemanticClipExecutionPanel({ shot, chapterId, onPreviewClip, onRegenera
                     <details className="relative text-[11px] text-gray-500">
                       <summary className="cursor-pointer">详情</summary>
                       <div className="absolute z-10 mt-1 max-w-[min(90vw,32rem)] rounded-md border border-gray-200 bg-white p-2 shadow-lg">
+                        <div>Approval: {approvalStatus}</div>
                         {task && <div>Task {task.id} · {task.resultUrl || '无结果文件'}</div>}
                         {metadata?.previous_approved_video_url && <div className="mt-1 break-all">Previous AV: {metadata.previous_approved_video_url}</div>}
                         {isContinuation && <div className="mt-1">结果类型：累计续生成 · 累计至：C{clip.clip_index}</div>}
@@ -393,8 +395,8 @@ function VideoAiCallsPanel({
   isRefreshing?: boolean;
 }) {
   const { t, i18n } = useTranslation();
-  const [panelOpen, setPanelOpen] = useState(true);
-  const [expanded, setExpanded] = useState(true);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [openIndex, setOpenIndex] = useState(Math.max(0, calls.length - 1));
   const [viewingData, setViewingData] = useState<{ title: string; content: string } | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -404,6 +406,7 @@ function VideoAiCallsPanel({
     return aTime - bTime;
   });
   const latest = sortedCalls[sortedCalls.length - 1];
+  const failedCallCount = calls.filter((call) => ['failed', 'error'].includes(String(call.status || '').toLowerCase())).length;
 
   const handleDownloadLlmData = async () => {
     if (!novelId || !chapterId || !shotId) {
@@ -425,13 +428,20 @@ function VideoAiCallsPanel({
     if (calls.length > 0) setOpenIndex(calls.length - 1);
   }, [calls.length]);
 
+  useEffect(() => {
+    setPanelOpen(false);
+    setExpanded(false);
+    setViewingData(null);
+  }, [shotId]);
+
   if (!calls.length) {
     return (
-      <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50">
+      <div data-testid="debug-inspector" className="rounded-lg border border-dashed border-gray-200 bg-gray-50">
         <div className="flex items-center justify-between px-3 py-2">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-              {t('chapterGenerate.aiCallResults')}
+              调试检查器
+              <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">0</span>
               <button
                 type="button"
                 onClick={handleDownloadLlmData}
@@ -475,11 +485,15 @@ function VideoAiCallsPanel({
 
   return (
     <>
-    <div className="flex min-h-0 flex-1 flex-col rounded-lg border border-gray-200 bg-gray-50">
+    <div data-testid="debug-inspector" className={`flex min-h-0 flex-col rounded-lg border border-gray-200 bg-gray-50 ${panelOpen ? 'flex-1' : 'flex-none'}`}>
       <div className={`flex items-center justify-between px-3 py-2 ${panelOpen ? 'border-b border-gray-200' : ''}`}>
         <div>
           <div className="flex items-center gap-2 text-sm font-semibold text-gray-800">
-            {t('chapterGenerate.aiCallResults')}
+            调试检查器
+            <span className="rounded-full bg-gray-200 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">{calls.length}</span>
+            {failedCallCount > 0 && (
+              <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-medium text-red-700">{failedCallCount} 个失败</span>
+            )}
             <button
               type="button"
               onClick={handleDownloadLlmData}
@@ -733,6 +747,7 @@ interface VideoDirectorPanelProps {
   isShotVideoGenerating?: boolean;
   semanticClipPlan?: any[];
   semanticClipPlanShot?: any;
+  semanticShotStatus?: SemanticShotStatus;
   onSemanticClipTasksChange?: (tasks: Task[]) => void;
   chapterId?: string;
 }
@@ -767,6 +782,7 @@ function VideoDirectorPanel({
   isShotVideoGenerating,
   semanticClipPlan,
   semanticClipPlanShot,
+  semanticShotStatus = 'NOT_STARTED',
   onSemanticClipTasksChange,
   chapterId,
 }: VideoDirectorPanelProps) {
@@ -856,6 +872,7 @@ function VideoDirectorPanel({
   const [selectedKeyframeIndex, setSelectedKeyframeIndex] = useState(0);
   const [selectedClipKey, setSelectedClipKey] = useState<string | null>(null);
   const [isEndDescriptionExpanded, setIsEndDescriptionExpanded] = useState(false);
+  const [isAdvancedDirectorOpen, setIsAdvancedDirectorOpen] = useState(false);
   const [viewingPromptClip, setViewingPromptClip] = useState<any | null>(null);
   const [hoveredReferenceImage, setHoveredReferenceImage] = useState<any | null>(null);
   const selectedKeyframe = keyframes[selectedKeyframeIndex] || keyframes[0];
@@ -891,6 +908,19 @@ function VideoDirectorPanel({
   const endKeyframeImageUrl = getKeyframeImageUrl(endKeyframe);
   const hasReusableEndKeyframePrompt = !!String(endKeyframe?.prompt_text || '').trim();
   const firstLastTransition = transitions.find((transition) => Number(transition.from_keyframe_index) === 1 && Number(transition.to_keyframe_index) === 2) || transitions[0];
+  const semanticExecutionSummary = !hasSemanticClipPlan
+    ? '视频执行 · 尚未规划'
+    : isShotVideoGenerating
+      ? `视频执行 · ${semanticClipPlan.length} 个片段 · 生成中`
+      : semanticShotStatus === 'FAILED'
+        ? '视频执行 · 有片段失败'
+        : semanticShotStatus === 'WAITING_REVIEW'
+          ? `视频执行 · ${semanticClipPlan.length} 个片段 · 待审核`
+          : semanticShotStatus === 'CLIPS_COMPLETE' || semanticShotStatus === 'ASSEMBLED'
+            ? `视频执行 · ${semanticClipPlan.length} 个片段 · 已完成`
+            : semanticShotStatus === 'PARTIAL'
+              ? `视频执行 · ${semanticClipPlan.length} 个片段 · 部分完成`
+              : `视频执行 · ${semanticClipPlan.length} 个片段 · 待生成`;
 
   useEffect(() => {
     if (!showEndKeyframeMenu) return;
@@ -910,6 +940,7 @@ function VideoDirectorPanel({
     setSelectedKeyframeIndex(0);
     setSelectedClipKey(null);
     setIsEndDescriptionExpanded(false);
+    setIsAdvancedDirectorOpen(false);
     setShowSelectedKeyframeMenu(false);
   }, [shot?.id, selectedMode]);
 
@@ -1510,7 +1541,33 @@ function VideoDirectorPanel({
               </div>
             </div>
           </div>
+        </div>
+      )}
 
+      <div
+        data-testid="canonical-execution-summary"
+        className={`rounded-lg border px-3 py-2.5 ${semanticShotStatus === 'FAILED' ? 'border-red-200 bg-red-50 text-red-800' : 'border-slate-200 bg-slate-50 text-slate-700'}`}
+      >
+        <div className="text-sm font-semibold">{semanticExecutionSummary}</div>
+        {!hasSemanticClipPlan && optionalMissingKeyframes.length > 0 && (
+          <div className="mt-1 text-xs text-amber-700">
+            {keyframes.length} 个视觉状态 · {optionalMissingKeyframes.length} 个可选图片缺失（不阻塞片段规划）
+          </div>
+        )}
+      </div>
+
+      <details
+        data-testid="advanced-director-details"
+        open={isAdvancedDirectorOpen}
+        onToggle={(event) => setIsAdvancedDirectorOpen(event.currentTarget.open)}
+        className="rounded-lg border border-slate-200 bg-slate-50/70"
+      >
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+          <span>高级导演详情</span>
+          <span className="text-xs font-normal text-slate-500">视觉状态描述、完整转场与片段检查</span>
+        </summary>
+        <div className="space-y-4 border-t border-slate-200 p-3">
+        {showKeyframeExecutionTimeline && (
           <div className="grid grid-cols-[minmax(260px,45%)_1fr] gap-4">
             <div>
               <div className="flex items-stretch gap-2">
@@ -1673,14 +1730,13 @@ function VideoDirectorPanel({
               </div>
             </div>
           </div>
-
-        </div>
-      )}
+        )}
 
       <div className="rounded-lg border border-gray-200 bg-white p-3">
         <div className="flex items-center justify-between gap-3 mb-2">
           <div>
             <div className="text-sm font-semibold text-gray-700">{t('chapterGenerate.executionPlan')} · {showSemanticClipPlan ? semanticClipPlan.length : clips.length} {t('chapterGenerate.clips')}</div>
+            {showSemanticClipPlan && <div className="mt-0.5 text-xs text-gray-500">查看片段预览、恢复与对话分配</div>}
             {isCanonicalPlan && <div className="mt-0.5 text-xs text-gray-500">
               {canonicalSemanticReadiness.state === 'NO_VISUAL_PLAN'
                 ? t('chapterGenerate.noVisualTimeline')
@@ -1937,6 +1993,8 @@ function VideoDirectorPanel({
           </div>
         )}
       </div>
+        </div>
+      </details>
     </div>
     {viewingPromptClip?.prompt_text && createPortal((
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingPromptClip(null)}>
@@ -2124,6 +2182,7 @@ export function VideoGenTab({
   const [isCancellingVideo, setIsCancellingVideo] = useState(false);
   const [isRefreshingAiCalls, setIsRefreshingAiCalls] = useState(false);
   const [showGenerateVideoMenu, setShowGenerateVideoMenu] = useState(false);
+  const [showWorkspaceActionsMenu, setShowWorkspaceActionsMenu] = useState(false);
   const [isVideoPromptModalOpen, setIsVideoPromptModalOpen] = useState(false);
   const [videoPromptDrafts, setVideoPromptDrafts] = useState<VideoPromptDraft[]>([]);
   const [isSavingVideoPrompts, setIsSavingVideoPrompts] = useState(false);
@@ -2312,6 +2371,11 @@ export function VideoGenTab({
     currentVideoDirectorPlan,
     (state) => getVideoDirectorKeyframeImageUrl(currentShotData, state),
   );
+  const currentOptionalMissingVisualStateCount = currentIsCanonicalPlan
+    ? getCanonicalVisualStates(currentVideoDirectorPlan).filter((state) => (
+      classifyVisualStateImageStatus(state, getVideoDirectorKeyframeImageUrl(currentShotData, state)) === 'OPTIONAL_MISSING'
+    )).length
+    : 0;
   const currentSemanticShotStatus = currentIsCanonicalPlan
     ? getSemanticShotStatusFromPlan(currentVideoDirectorPlan, semanticClipTasks)
     : 'NOT_STARTED';
@@ -2498,21 +2562,21 @@ export function VideoGenTab({
         getSemanticClipStatus(clip, semanticClipTasks, Number(currentVideoDirectorPlan.clip_plan_revision || 0)) === 'COMPLETED'
       )).length;
       if (isGeneratingCurrent || isCurrentVideoPending || isSubmittingCanonicalShot) {
-        return { label: isCurrentVideoPending ? '队列中' : '生成中', className: 'border-blue-100 bg-blue-50 text-blue-700', detail: `视频片段 ${completedClipCount}/${clipCount}` };
+        return { label: isCurrentVideoPending ? '队列中' : '正在生成', className: 'border-blue-100 bg-blue-50 text-blue-700', detail: `视频片段 ${completedClipCount}/${clipCount}` };
       }
       if (currentSemanticShotStatus === 'ASSEMBLED') {
         return { label: '最终视频已完成', className: 'border-green-100 bg-green-50 text-green-700', detail: `最终合并视频 · 视频片段 ${completedClipCount}/${clipCount}` };
       }
       if (currentSemanticShotStatus === 'CLIPS_COMPLETE') {
-        return { label: '待合并', className: 'border-amber-100 bg-amber-50 text-amber-700', detail: `视频片段 ${completedClipCount}/${clipCount} 已完成，待生成最终视频` };
+        return { label: '片段已完成，待合并', className: 'border-amber-100 bg-amber-50 text-amber-700', detail: `视频片段 ${completedClipCount}/${clipCount} 已完成，待生成最终视频` };
       }
       if (currentSemanticShotStatus === 'FAILED') {
-        return { label: '失败', className: 'border-red-100 bg-red-50 text-red-700', detail: currentVideoErrorMessage || `视频片段 ${completedClipCount}/${clipCount}` };
+        return { label: '生成失败', className: 'border-red-100 bg-red-50 text-red-700', detail: currentVideoErrorMessage || `视频片段 ${completedClipCount}/${clipCount}` };
       }
       if (currentCanonicalReadiness.state !== 'READY') {
-        return { label: '未就绪', className: 'border-gray-200 bg-gray-50 text-gray-600', detail: currentCanonicalExecutionPendingReason };
+        return { label: '准备不完整', className: 'border-gray-200 bg-gray-50 text-gray-600', detail: currentCanonicalExecutionPendingReason };
       }
-      return { label: currentSemanticShotStatus === 'PARTIAL' ? '部分完成' : '待生成', className: 'border-gray-200 bg-gray-50 text-gray-600', detail: `视频片段 ${completedClipCount}/${clipCount}` };
+      return { label: currentSemanticShotStatus === 'PARTIAL' ? '部分完成' : '已准备，可生成', className: 'border-gray-200 bg-gray-50 text-gray-600', detail: `视频片段 ${completedClipCount}/${clipCount}` };
     }
     const clips = currentSelectedVideoMode === 'MULTI_KEYFRAME' && Array.isArray(currentVideoDirectorPlan.window_plans)
       ? currentVideoDirectorPlan.window_plans
@@ -3044,6 +3108,7 @@ export function VideoGenTab({
     setSelectedPreviewClipUrl(null);
     setSemanticClipTasks([]);
     setRegeneratingClipKey(null);
+    setShowWorkspaceActionsMenu(false);
   }, [currentShotId]);
 
   const hasVideo = !!currentShotVideoUrl;
@@ -3056,6 +3121,13 @@ export function VideoGenTab({
     window.addEventListener('click', handleClick);
     return () => window.removeEventListener('click', handleClick);
   }, [showGenerateVideoMenu]);
+
+  useEffect(() => {
+    if (!showWorkspaceActionsMenu) return;
+    const handleClick = () => setShowWorkspaceActionsMenu(false);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, [showWorkspaceActionsMenu]);
 
   const handleGenerateCanonicalShot = async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId || !currentIsCanonicalPlan) return;
@@ -3825,6 +3897,42 @@ export function VideoGenTab({
 
   // 计算已生成视频的数量
   const videoCount = shotsList.filter((shot: any) => shot.videoUrl || shotVideos[shot.id]).length;
+  const currentCanonicalPrimaryAction = currentIsCanonicalPlan ? (() => {
+    if (isGeneratingCurrent || isCurrentVideoPending || isSubmittingCanonicalShot) {
+      return { label: isCurrentVideoPending ? '队列中…' : '生成中…', disabled: true, onClick: () => undefined };
+    }
+    if (currentSemanticShotStatus === 'ASSEMBLED') {
+      return {
+        label: '查看最终视频',
+        disabled: !currentFinalShotVideoUrl,
+        onClick: () => {
+          setSelectedPreviewClipKey(null);
+          setSelectedPreviewClipUrl(null);
+          window.requestAnimationFrame(() => {
+            previewVideoRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            previewVideoRef.current?.play().catch(() => undefined);
+          });
+        },
+      };
+    }
+    if (currentCanonicalReadiness.state === 'NO_VISUAL_PLAN') {
+      return { label: '规划视觉时间轴', disabled: planningKeyframesShotId === currentShotId, onClick: () => handlePlanVideoKeyframes(false) };
+    }
+    if (currentCanonicalReadiness.state === 'REQUIRED_IMAGES_MISSING') {
+      return { label: '生成必需视觉状态图', disabled: generatingMissingKeyframesShotId === currentShotId, onClick: handleGenerateMissingKeyframes };
+    }
+    if (currentCanonicalReadiness.state === 'CLIP_PLAN_MISSING' || currentCanonicalReadiness.state === 'CLIP_PLAN_STALE') {
+      const isStale = currentCanonicalReadiness.state === 'CLIP_PLAN_STALE';
+      return { label: isStale ? '重新规划视频片段' : '规划视频片段', disabled: planningClipsShotId === currentShotId, onClick: () => handlePlanSemanticClips(isStale) };
+    }
+    if (currentSemanticShotStatus === 'CLIPS_COMPLETE') {
+      return { label: '合并最终视频', disabled: isMergingClips, onClick: handleMergeDirectorClips };
+    }
+    if (currentSemanticShotStatus === 'FAILED') {
+      return { label: '重试当前 Shot', disabled: isCurrentVideoGenerateDisabled, onClick: handleGenerateCanonicalShot };
+    }
+    return { label: '生成当前 Shot 视频', disabled: isCurrentVideoGenerateDisabled, onClick: handleGenerateCanonicalShot };
+  })() : null;
 
   return (
     <div className="h-full flex flex-col">
@@ -3834,97 +3942,93 @@ export function VideoGenTab({
           <div className="mt-1 whitespace-pre-wrap break-words">{currentVideoErrorMessage}</div>
         </div>
       )}
-      {/* 操作栏 */}
-      <div className="flex-shrink-0 flex items-center justify-between mb-2 pb-2 border-b border-gray-200">
-        <div className="ml-8 flex items-center gap-4">
-          {isGeneratingCurrent ? (
-            <button
-              onClick={handleCancelCurrentVideo}
-              disabled={isCancellingVideo || !effectiveChapterId}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            >
-              <Loader2 className="w-4 h-4 animate-spin" />
-              {isCancellingVideo ? t('chapterGenerate.cancellingVideo') : t('chapterGenerate.cancelVideoGeneration')}
-            </button>
-          ) : currentIsCanonicalPlan ? (
+      {/* Canonical Shot production header */}
+      <div
+        data-testid="canonical-production-header"
+        className="mb-2 flex-shrink-0 border-b border-gray-200 px-4 pb-3 xl:px-8"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-[240px] flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-semibold text-gray-900">Shot {selectedVideo || 0}</span>
+              <span className="text-xs tabular-nums text-gray-500">{Number(currentShotData?.duration || 0)} 秒</span>
+              <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${currentShotVideoResult.className}`}>
+                {currentShotVideoResult.label}
+              </span>
+            </div>
+            <div className="mt-1 text-xs text-gray-600" title={currentShotVideoResult.detail}>
+              {currentShotVideoResult.detail}
+            </div>
+            {currentIsCanonicalPlan && currentOptionalMissingVisualStateCount > 0 && (
+              <div className="mt-1 text-xs text-amber-700">
+                {getCanonicalVisualStates(currentVideoDirectorPlan).length} 个视觉状态 · {currentOptionalMissingVisualStateCount} 个可选图片缺失（不阻塞片段规划）
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {currentCanonicalPrimaryAction && (
+              <button
+                type="button"
+                data-testid="canonical-primary-action"
+                onClick={currentCanonicalPrimaryAction.onClick}
+                disabled={currentCanonicalPrimaryAction.disabled}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {(isGeneratingCurrent || isCurrentVideoPending || isSubmittingCanonicalShot) ? <Loader2 className="h-4 w-4 animate-spin" /> : <Film className="h-4 w-4" />}
+                {currentCanonicalPrimaryAction.label}
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleGenerateCanonicalShot}
-              disabled={isCurrentVideoGenerateDisabled}
-              title={currentCanonicalExecutionPendingReason}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={handleOpenBatchSelect}
+              disabled={!effectiveChapterId}
+              className="rounded-lg border border-green-300 bg-white px-3 py-2 text-sm font-medium text-green-700 transition-colors hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSubmittingCanonicalShot ? <Loader2 className="h-4 w-4 animate-spin" /> : <Film className="h-4 w-4" />}
-              {currentSemanticShotStatus === 'ASSEMBLED'
-                ? t('chapterGenerate.finalVideoComplete')
-                : currentSemanticShotStatus === 'CLIPS_COMPLETE'
-                  ? t('chapterGenerate.assembleFinalVideo')
-                  : isSubmittingCanonicalShot
-                    ? t('chapterGenerate.submittingSemanticExecution')
-                    : t('chapterGenerate.generateCurrentShotSemantic')}
+              批量生成视频
             </button>
-          ) : null}
-          <button
-            onClick={handleOpenBatchSelect}
-            disabled={!effectiveChapterId}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            批量生成视频
-          </button>
-          <button
-            onClick={handleDownloadMaterials}
-            disabled={isDownloading || !effectiveChapterId}
-            className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            {isDownloading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {t('chapterGenerate.packing')}
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4" />
-                {t('chapterGenerate.downloadMaterials')}
-              </>
-            )}
-          </button>
-          <button
-            onClick={handleDownloadVideoMaterials}
-            disabled={isDownloadingVideoMaterials || !effectiveChapterId || !currentShotId}
-            className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            {isDownloadingVideoMaterials ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-            {isDownloadingVideoMaterials ? '打包中...' : '下载视频素材'}
-          </button>
-          <button
-            onClick={() => setShowResetVideoDataConfirm(true)}
-            disabled={!effectiveChapterId || !currentShotId || isGeneratingCurrent || isCurrentVideoPending}
-            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-            title="清除当前 Shot 的视频、关键帧、Clip 任务和执行计划"
-          >
-            <Trash2 className="w-4 h-4" />
-            重置视频阶段
-          </button>
-          <button
-            onClick={handleOpenMergeSelect}
-            disabled={mergingMode !== null || !effectiveChapterId || videoCount === 0}
-            className="px-4 py-2 bg-pink-600 text-white rounded-lg hover:bg-pink-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            {mergingMode ? <Loader2 className="w-4 h-4 animate-spin" /> : <Combine className="w-4 h-4" />}
-            {mergingMode ? '提交任务中...' : t('chapterGenerate.mergeVideo')}
-          </button>
-        </div>
-        <div className="mr-8 flex min-w-[220px] max-w-[360px] flex-col items-end gap-1 text-right">
-          <div className="text-sm text-gray-500">
-            {t('chapterGenerate.shotId', { id: selectedVideo || 0, total: shotsList.length })}
-          </div>
-          <div className={`max-w-full rounded-lg border px-3 py-1.5 text-xs shadow-sm ${currentShotVideoResult.className}`}>
-            <div className="flex items-center justify-end gap-2 font-medium">
-              <Film className="h-3.5 w-3.5" />
-              当前分镜：{currentShotVideoResult.label}
-            </div>
-            <div className="mt-0.5 truncate opacity-90" title={currentShotVideoResult.detail}>
-              {currentShotVideoResult.detail}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setShowWorkspaceActionsMenu((open) => !open);
+                }}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                aria-expanded={showWorkspaceActionsMenu}
+              >
+                更多
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              {showWorkspaceActionsMenu && (
+                <div className="absolute right-0 top-full z-[90] mt-1 w-56 overflow-hidden rounded-lg border border-gray-200 bg-white py-1 shadow-xl">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">生产与下载</div>
+                  <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); handleOpenMergeSelect(); }} disabled={mergingMode !== null || !effectiveChapterId || videoCount === 0} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                    {mergingMode ? <Loader2 className="h-4 w-4 animate-spin" /> : <Combine className="h-4 w-4" />}
+                    {mergingMode ? '提交任务中...' : t('chapterGenerate.mergeVideo')}
+                  </button>
+                  <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); handleDownloadMaterials(); }} disabled={isDownloading || !effectiveChapterId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                    {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    {isDownloading ? t('chapterGenerate.packing') : t('chapterGenerate.downloadMaterials')}
+                  </button>
+                  <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); handleDownloadVideoMaterials(); }} disabled={isDownloadingVideoMaterials || !effectiveChapterId || !currentShotId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                    {isDownloadingVideoMaterials ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                    {isDownloadingVideoMaterials ? '打包中...' : '下载视频素材'}
+                  </button>
+                  <div className="my-1 border-t border-gray-100" />
+                  <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">恢复操作</div>
+                  {isGeneratingCurrent && (
+                    <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); handleCancelCurrentVideo(); }} disabled={isCancellingVideo || !effectiveChapterId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50 disabled:opacity-40">
+                      <Square className="h-4 w-4" />
+                      {isCancellingVideo ? t('chapterGenerate.cancellingVideo') : t('chapterGenerate.cancelVideoGeneration')}
+                    </button>
+                  )}
+                  <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); setShowResetVideoDataConfirm(true); }} disabled={!effectiveChapterId || !currentShotId || isGeneratingCurrent || isCurrentVideoPending} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50 disabled:opacity-40" title="清除当前 Shot 的视频、关键帧、Clip 任务和执行计划">
+                    <Trash2 className="h-4 w-4" />
+                    重置视频阶段
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -3964,6 +4068,7 @@ export function VideoGenTab({
             isShotVideoGenerating={isGeneratingCurrent}
             semanticClipPlan={currentVideoDirectorPlan.clip_plan}
             semanticClipPlanShot={currentShotData}
+            semanticShotStatus={currentSemanticShotStatus}
             onSemanticClipTasksChange={setSemanticClipTasks}
             chapterId={effectiveChapterId}
           />
@@ -3975,10 +4080,20 @@ export function VideoGenTab({
         <div className="video-preview-card h-[360px] flex-shrink-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden bg-white">
           <div className="flex-shrink-0 p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-medium text-gray-700">{t('chapterGenerate.videoPreview')} · {previewVideoLabel}</h3>
+              <h3 className="text-sm font-semibold text-gray-800">{selectedPreviewClip ? `片段预览 · ${previewVideoLabel}` : '最终 Shot 视频'}</h3>
               {selectedPreviewClip && <div className="text-xs text-gray-500">C{selectedPreviewClip.window_index || selectedPreviewClip.clip_index} · {selectedPreviewClip.start_time}-{selectedPreviewClip.end_time}s</div>}
+              {!selectedPreviewClip && currentFinalShotVideoUrl && <div className="text-xs text-green-700">当前权威合并结果</div>}
             </div>
             <div className="flex items-center gap-1">
+              {selectedPreviewClip && (
+                <button
+                  type="button"
+                  onClick={() => { setSelectedPreviewClipKey(null); setSelectedPreviewClipUrl(null); }}
+                  className="rounded-md px-2 py-1 text-xs text-blue-700 hover:bg-blue-50"
+                >
+                  返回最终视频
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handlePictureInPicture}
@@ -4001,41 +4116,6 @@ export function VideoGenTab({
               </button>
             </div>
           </div>
-          {currentPlanClips.length > 0 && (hasSemanticClipPlan || currentSelectedVideoMode === 'MULTI_KEYFRAME') && (
-            <div className="flex-shrink-0 border-b border-gray-200 bg-white px-3 py-2">
-              <div className="flex gap-1 overflow-x-auto">
-                <button
-                  type="button"
-                  onClick={() => { setSelectedPreviewClipKey(null); setSelectedPreviewClipUrl(null); }}
-                  disabled={!currentShotVideoUrl}
-                  className={`rounded-md border px-2 py-1 text-xs transition-colors ${!selectedPreviewClip ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'} disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                   Shot 成片
-                </button>
-                {currentPlanClips.map((clip: any) => {
-                  const clipKey = getPlanClipKey(clip);
-                  const clipIndex = clip.window_index || clip.clip_index;
-                  return (
-                    <button
-                      key={`preview-tab-${clipKey}`}
-                      type="button"
-                      onClick={() => { setSelectedPreviewClipKey(clipKey); setSelectedPreviewClipUrl(null); }}
-                      disabled={!clip.video_url}
-                      title={!clip.video_url
-                        ? `C${clipIndex} 缺少可预览的视频记录`
-                        : hasSemanticClipPlan && ['VIDEO_CONTINUATION', 'TEMPORAL_EXTEND'].includes(String(clip.capability))
-                          ? `预览 C${clipIndex} 累计成片`
-                          : `预览 C${clipIndex}`}
-                      className={`rounded-md border px-2 py-1 text-xs transition-colors ${selectedPreviewClipKey === clipKey ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'} disabled:opacity-50 disabled:cursor-not-allowed`}
-                    >
-                      C{clipIndex}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
           <div className="video-preview-body flex-1 relative bg-gray-100">
             {hasPreviewVideo ? (
               <>
@@ -4075,7 +4155,9 @@ export function VideoGenTab({
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center text-gray-500">
                   <Film className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                  <p>{t('chapterGenerate.clickToGenerateVideo')}</p>
+                  <p>{currentIsCanonicalPlan && currentCanonicalPrimaryAction
+                    ? `下一步：${currentCanonicalPrimaryAction.label.replace(/…$/, '')}`
+                    : t('chapterGenerate.clickToGenerateVideo')}</p>
                 </div>
               </div>
             )}
