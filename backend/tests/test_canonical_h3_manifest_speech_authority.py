@@ -236,6 +236,135 @@ def test_visual_expressions_and_nonhuman_audio_are_not_speech_authority(monkeypa
     assert record["parsed_result"]["dialogue"]["passed"]
 
 
+SAFE_SOUNDSCAPE_REFERENCES = [
+    "环境中只有脚步声和衣料摩擦",
+    "除时间线中的对白外，不得出现其他人声",
+    "不得出现背景人声",
+    "无额外说话者",
+    "对白保持前景清晰，环境声较低",
+    "前景人声之外的声响保持与距离、材质和可见动作一致",
+    "no extra voices",
+    "no background speech",
+    "dialogue remains foreground",
+    "No background voices",
+]
+
+UNSAFE_SPEECH_ASSERTIONS = [
+    "背景有人低声交谈",
+    "侍从在远处说话",
+    "人群传来交谈声",
+    "皇帝继续说话",
+    "画外有人回应",
+    "前景有人声",
+    "背景传来对话",
+    "有人低声说话",
+    "background chatter",
+    "off-screen reply",
+    "background voices",
+    "没有回答问题，他继续说话",
+    "没有背景音乐，但人群继续交谈",
+    "禁止音乐，画外有人回应",
+    "no music, but background chatter continues",
+    "no footsteps; off-screen reply follows",
+    "no music and background chatter continues",
+    "没有背景音乐并有人说话",
+]
+
+
+@pytest.mark.parametrize("phrase", SAFE_SOUNDSCAPE_REFERENCES)
+@pytest.mark.parametrize("has_dialogue", [False, True])
+def test_safe_soundscape_reference_is_projected_to_non_speech_audio(monkeypatch, phrase, has_dialogue):
+    body = f"summary:\nVisual movement continues.\noverall_soundscape:\n{phrase}；衣料摩擦与脚步声保持可听。"
+    prompt, _, _, record = invoke(monkeypatch, body=body, dialogues=[dialogue()] if has_dialogue else [])
+    soundscape = prompt.split("overall_soundscape:\n", 1)[1]
+    assert "衣料摩擦与脚步声保持可听" in soundscape
+    assert not h3._canonical_visual_body_speech_issues(soundscape)
+    assert record["parsed_result"]["dialogue"]["passed"]
+    if has_dialogue:
+        assert prompt.count("请看这里。") == 1
+    else:
+        assert "NO_VOICE: no human speech, no human vocalization, no invented dialogue." in prompt
+
+
+@pytest.mark.parametrize("phrase", UNSAFE_SPEECH_ASSERTIONS)
+@pytest.mark.parametrize("has_dialogue", [False, True])
+def test_assertive_speech_cannot_be_sanitized_into_success(monkeypatch, phrase, has_dialogue):
+    body = f"summary:\nVisual movement continues.\noverall_soundscape:\n{phrase}；衣料摩擦与脚步声保持可听。"
+    projected = h3._project_canonical_soundscape(body)
+    assert phrase in projected  # Do not hide a contract violation by deleting its speech event.
+    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
+        invoke(monkeypatch, body=body, dialogues=[dialogue()] if has_dialogue else [])
+
+
+def test_shot_11_soundscape_preserves_non_speech_meaning(monkeypatch):
+    body = ("summary:\nVisual movement continues.\noverall_soundscape:\n"
+            "空间声场随摄影机的轻微推进而自然变化，前景人声之外的声响保持与距离、材质和可见动作一致，"
+            "不额外添加音乐或与场景无关的声源。")
+    prompt, _, _, record = invoke(monkeypatch, body=body, dialogues=[dialogue()])
+    soundscape = prompt.split("overall_soundscape:\n", 1)[1]
+    for fragment in ("空间声场", "距离", "材质", "可见动作", "音乐", "无关的声源"):
+        assert fragment in soundscape
+    assert "前景人声" not in soundscape
+    assert record["parsed_result"]["dialogue"]["passed"]
+
+
+@pytest.mark.parametrize("soundscape", [
+    "前景人声之外的声响保持与距离一致，画外有人回应。",
+    "No background voices; background chatter continues.",
+])
+def test_safe_reference_cannot_mask_assertive_speech_in_same_soundscape(monkeypatch, soundscape):
+    body = "summary:\nVisual movement continues.\noverall_soundscape:\n" + soundscape
+    assert h3._project_canonical_soundscape(body) == body
+    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
+        invoke(monkeypatch, body=body, dialogues=[dialogue()])
+
+
+@pytest.mark.parametrize("states,step", SHAPES)
+def test_soundscape_boundary_covers_all_canonical_h3_routes(monkeypatch, states, step):
+    body = "summary:\nVisual movement continues.\noverall_soundscape:\n无额外说话者，脚步声可听。"
+    prompt, _, _, record = invoke(monkeypatch, states=states, body=body, dialogues=[dialogue()])
+    assert record["step"] == step
+    assert "脚步声可听" in prompt
+    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
+        invoke(monkeypatch, states=states, body=body.replace("无额外说话者", "画外有人回应"), dialogues=[dialogue()])
+
+
+def test_soundscape_projection_does_not_hide_visual_section_speech(monkeypatch):
+    body = "summary:\n皇帝继续说话。\noverall_soundscape:\n前景人声之外的声响保持与距离一致。"
+    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
+        invoke(monkeypatch, body=body, dialogues=[dialogue()])
+
+
+def test_visual_response_without_speech_remains_allowed(monkeypatch):
+    prompt, _, _, record = invoke(monkeypatch, body="summary:\n<Subject 1> 点头回应他的视线。\noverall_soundscape:\n脚步声和衣料摩擦。")
+    assert "点头回应他的视线" in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
+
+
+@pytest.mark.parametrize("states,step,template_type,attribute", [
+    (SHAPES[0][0], "11", "h3_single_frame_prompt", "h3_single_frame_prompt_template_id"),
+    (SHAPES[1][0], "12", "h3_first_last_frame_prompt", "h3_first_last_frame_prompt_template_id"),
+    (SHAPES[2][0], "13", "h3_multi_keyframe_prompt", "h3_multi_keyframe_prompt_template_id"),
+])
+def test_novel_override_still_uses_runtime_soundscape_boundary(db_session, monkeypatch, states, step, template_type, attribute):
+    override = PromptTemplate(name="old Novel override", type=template_type,
+                              template="Old speech rules allow background chatter.")
+    db_session.add(override)
+    db_session.flush()
+    novel = Novel(title="isolated override", **{attribute: override.id})
+    db_session.add(novel)
+    db_session.commit()
+    prompt, _, call, record = invoke(monkeypatch, db=db_session, novel=novel, states=states,
+                                     body="summary:\nVisual movement.\noverall_soundscape:\nNo background voices; footsteps remain audible.")
+    assert record["step"] == step
+    assert call["system_prompt"].startswith(override.template)
+    assert "NO_VOICE: no human speech" in prompt
+    assert "footsteps remain audible" in prompt
+    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
+        invoke(monkeypatch, db=db_session, novel=novel, states=states,
+               body="summary:\nVisual movement.\noverall_soundscape:\nbackground chatter.")
+
+
 @pytest.mark.parametrize("missing", ["previous_av", "temporal_anchor"])
 def test_f01_f02_canonical_temporal_errors_remain_blocking(missing):
     shot = SimpleNamespace(id="compiler-shot", duration=18, image_url="/shot.png")

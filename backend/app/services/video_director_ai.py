@@ -681,18 +681,55 @@ def _remove_dialogue_text_outside_single_block(prompt: str, assigned_dialogues: 
     return f"{timeline_block}\n\n{body}".strip()
 
 
+def _project_canonical_soundscape(prompt: str) -> str:
+    """Keep model-owned non-speech audio, not references to speech authority."""
+    safe_references = (
+        r"(?:除|除了)(?:时间线中(?:的)?|已授权(?:的)?|上述(?:的)?)?(?:对白|人声|语音)(?:之)?外",
+        r"(?:不得|禁止|不允许|没有|无)\s*(?:出现|添加|加入|产生)?\s*(?:其他|额外|背景)?(?:的)?(?:人声|说话者|对白|语音)",
+        r"(?:前景|已授权(?:的)?|时间线中(?:的)?)(?:人声|对白|语音)(?:之外|以外)的(?=声响|声音|环境声)",
+        r"(?:对白|已授权(?:的)?人声)(?:保持|位于|处于)(?:在)?前景(?:清晰|中央|突出)?",
+        r"\b(?:no|without)\s+(?:extra|additional|background)\s+(?:human\s+)?(?:voices?|speech|speakers?)\b",
+        r"\b(?:the\s+)?(?:authorized\s+)?dialogue\s+remains\s+(?:in\s+the\s+)?foreground\b",
+    )
+
+    def project(match: re.Match) -> str:
+        header, soundscape = match.group(1), match.group(2)
+        # An affirmative speech event must reach the final audit unchanged.
+        if _canonical_visual_body_speech_issues(soundscape):
+            return match.group(0)
+        projected = soundscape
+        for pattern in safe_references:
+            projected = re.sub(pattern, "", projected, flags=re.IGNORECASE)
+        if projected == soundscape:
+            return match.group(0)
+        projected = re.sub(r"(?m)^[，,；;]+\s*", "", projected)
+        projected = re.sub(r"[，,；;]\s*(?=[，,；;。.!?]|$)", "", projected)
+        projected = projected.strip(" \t\r\n，,；;。.!?")
+        if not projected:
+            projected = "环境声与同步动作声保持可听"
+        return header + projected + "。"
+
+    return re.sub(
+        r"(?ims)(^overall_soundscape:\s*\n)(.*?)(?=^[a-z_][\w ]*:\s*(?:\n|$)|\Z)",
+        project, prompt, count=1,
+    )
+
+
 def _canonical_visual_body_speech_issues(body: str, subject_bindings: dict | None = None) -> list[str]:
     """Narrow explicit speech assertions only; not a visual-expression/NLP filter."""
     speech = re.compile(
         r"\b(?:speaks?|speaking|talks?|talking|says?|answers?|replies?|whispers?|whispering|"
         r"shouts?|shouting|laughs?|laughing|laughter|"
-        r"mumbles?|mumbling|murmuring|crowd\s+chatter|background\s+voices|"
+        r"mumbles?|mumbling|murmuring|(?:background|crowd|off[- ]screen)\s+"
+        r"(?:chatter|conversations?|speech|voices?|repl(?:y|ies))|"
+        r"conversations?|chatter|reply|replies|replying|"
         r"lip[ -]?sync(?:s|ing|hronization)?|vocalizes?|vocalizing|"
         r"(?:assigned|authorized|only)\s+speaker)\b|"
         r"<Subject\s+\d+>\s+is\s+(?:the\s+|a\s+)?speaker\b|"
         r"\b(?:allow|enable|generate|produce|add|include)\s+(?:extra\s+)?human\s+(?:speech|voices?|vocalization)\b|"
         r"\bhuman\s+(?:speech|voices?|vocalization)\s+(?:(?:is|are)\s+)?(?:allowed|enabled)\b|"
-        r"说话|讲话|低声交谈|低语|喊叫|笑声|口型|发声|人声|唇形",
+        r"说话|讲话|交谈|对话|低语|喊叫|笑声|口型|发声|人声|唇形|"
+        r"回应(?![^，。.!?;；\n]{0,8}(?:视线|目光|手势|动作))",
         re.IGNORECASE,
     )
     muted_audio = re.compile(
@@ -715,14 +752,29 @@ def _canonical_visual_body_speech_issues(body: str, subject_bindings: dict | Non
         re.IGNORECASE,
     )
     # Do not let a negation in another clause authorize affirmative speech.
-    for clause in re.split(r"[\n.!?;,，。！？；]|\bbut\b", body, flags=re.IGNORECASE):
+    for clause in re.split(r"[\n.!?;,，。！？；]|\bbut\b|但(?:是)?|然而", body, flags=re.IGNORECASE):
         for pattern, code in ((speech, "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"),
                               (human_vocalization, "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"),
                               (human_silence, "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"),
                               (muted_audio, "NO_VOICE_AUDIO_MUTED")):
             for match in pattern.finditer(clause):
                 prefix = clause[:match.start()]
-                if re.search(r"(?:\b(?:no|not|never|without|forbid|forbidden)\b|禁止|不得|没有|不允许)[\w\s-]{0,40}$", prefix, re.IGNORECASE):
+                suffix = clause[match.end():]
+                if code == "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE":
+                    if re.search(r"无(?:额外|其他|多余)(?:的)?$", prefix) and match.group().startswith("说话"):
+                        continue
+                    if (match.group() in {"人声", "对白", "语音"}
+                            and re.search(r"(?:前景|已授权(?:的)?|时间线中(?:的)?)$", prefix)
+                            and re.match(r"(?:之外|以外)的(?:声响|声音|环境声)", suffix)):
+                        continue
+                # The negation must govern this speech term, not unrelated music or Foley.
+                if re.search(
+                    r"(?:\b(?:no|not|never|without|forbid|forbidden)\b"
+                    r"(?:\s+(?:extra|additional|other|background|human|off[- ]screen|any))*\s*|"
+                    r"(?:禁止|不得|没有|不允许)"
+                    r"(?:(?:出现|添加|加入|产生|任何|其他|额外|背景|画外)){0,4}\s*)$",
+                    prefix, re.IGNORECASE,
+                ):
                     continue
                 issues.append(code)
     if re.search(r"(?i)\b(?:speaker|exact_dialogue|dialogue_timeline)\s*[:=]", body):
@@ -1042,6 +1094,8 @@ async def build_h3_video_prompt(
     final_prompt = (result.get("content") or "").strip()
     if canonical_path or route == "multi":
         final_prompt = _remove_generated_dialogue_timeline(final_prompt)
+    if canonical_path:
+        final_prompt = _project_canonical_soundscape(final_prompt)
     continuity_lock = "" if canonical_path else _render_continuity_lock(shot, selected_mode, clip)
     if continuity_lock:
         final_prompt = f"{continuity_lock}\n\n{final_prompt}"
