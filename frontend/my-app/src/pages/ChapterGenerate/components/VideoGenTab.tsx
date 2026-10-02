@@ -4030,11 +4030,11 @@ export function VideoGenTab({
                   </button>
                   <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); handleDownloadMaterials(); }} disabled={isDownloading || !effectiveChapterId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
                     {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                    {isDownloading ? t('chapterGenerate.packing') : t('chapterGenerate.downloadMaterials')}
+                    {isDownloading ? t('chapterGenerate.packing') : '导出章节素材包'}
                   </button>
                   <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); handleDownloadVideoMaterials(); }} disabled={isDownloadingVideoMaterials || !effectiveChapterId || !currentShotId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
                     {isDownloadingVideoMaterials ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                    {isDownloadingVideoMaterials ? '打包中...' : '下载视频素材'}
+                    {isDownloadingVideoMaterials ? '打包中...' : '导出 Shot 生产包'}
                   </button>
                   <div className="my-1 border-t border-gray-100" />
                   <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">恢复操作</div>

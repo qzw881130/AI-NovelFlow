@@ -7,6 +7,7 @@ import math
 import asyncio
 import os
 import subprocess
+import tempfile
 import uuid
 import zipfile
 from io import BytesIO
@@ -15,6 +16,7 @@ from pathlib import Path
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from fastapi.responses import FileResponse, StreamingResponse
+from starlette.background import BackgroundTask
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 
@@ -37,6 +39,10 @@ from app.services.canonical_execution_invalidation import (
     canonical_clip_dependency_closure,
     current_visual_state_consumers,
     ensure_no_active_canonical_clip_tasks,
+)
+from app.services.canonical_export import (
+    build_chapter_archive_package,
+    build_shot_production_package,
 )
 
 generate_shot_task = enqueue_shot_image_task
@@ -4130,8 +4136,9 @@ async def download_chapter_materials(
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
+    db: Session = Depends(get_db),
 ):
-    """下载章节素材 ZIP 包"""
+    """导出当前 Chapter 的 canonical archive package。"""
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -4140,17 +4147,33 @@ async def download_chapter_materials(
     if not chapter:
         raise HTTPException(status_code=404, detail="章节不存在")
 
-    # 生成 ZIP 文件
     chapter_shots = shot_repo.get_by_chapter(chapter_id)
-    zip_path = file_storage.zip_chapter_materials(novel_id, chapter_id, chapter_shots)
+    descriptor, zip_path = tempfile.mkstemp(prefix="novelflow_chapter_archive_", suffix=".zip")
+    os.close(descriptor)
+    try:
+        with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as archive:
+            build_chapter_archive_package(archive, db, novel, chapter, chapter_shots)
+    except Exception as exc:
+        try:
+            os.remove(zip_path)
+        except OSError:
+            pass
+        raise HTTPException(status_code=500, detail=f"章节归档包创建失败: {exc}") from exc
 
-    if not zip_path:
-        raise HTTPException(status_code=404, detail="章节素材不存在或打包失败")
-
-    chapter_short = chapter_id[:8] if chapter_id else "unknown"
-    filename = f"{novel.title}_chapter_{chapter_short}_materials.zip"
-
-    return FileResponse(zip_path, media_type="application/zip", filename=filename)
+    filename = f"chapter_{int(chapter.number):03d}_archive.zip"
+    try:
+        return FileResponse(
+            zip_path,
+            media_type="application/zip",
+            filename=filename,
+            background=BackgroundTask(os.remove, zip_path),
+        )
+    except Exception:
+        try:
+            os.remove(zip_path)
+        except OSError:
+            pass
+        raise
 
 
 def _build_shot_image_data_response(
@@ -5287,6 +5310,18 @@ def download_shot_video_materials(
         raise HTTPException(status_code=404, detail="章节不存在")
     if not shot:
         raise HTTPException(status_code=404, detail="分镜不存在")
+
+    current_plan = _safe_json_dict(shot.video_director_plan)
+    if current_plan.get("canonical_visual_plan") is True:
+        zip_buffer = BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_STORED) as archive:
+            build_shot_production_package(archive, db, novel, chapter, shot)
+        zip_buffer.seek(0)
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="shot_{int(shot.index):03d}_production.zip"'},
+        )
 
     def safe_json(value, default):
         if isinstance(value, (dict, list)):
