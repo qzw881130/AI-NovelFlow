@@ -182,9 +182,9 @@ class ShotKeyframeService:
                 return
 
     def _get_reusable_keyframe_prompt(self, db: Session, shot_id: str, frame_index: int, keyframe: dict) -> str:
-        prompt = keyframe.get("prompt_text")
-        if isinstance(prompt, str) and prompt.strip():
-            return prompt.strip()
+        if "prompt_text" in keyframe:
+            prompt = keyframe.get("prompt_text")
+            return prompt.strip() if isinstance(prompt, str) else ""
 
         latest_task = db.query(Task).filter(
             Task.type == "keyframe_image",

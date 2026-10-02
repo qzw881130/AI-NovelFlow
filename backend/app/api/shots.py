@@ -39,6 +39,7 @@ from app.services.canonical_execution_invalidation import (
     canonical_clip_dependency_closure,
     current_visual_state_consumers,
     ensure_no_active_canonical_clip_tasks,
+    invalidate_downstream_for_canonical_visual_plan_replacement,
 )
 from app.services.canonical_export import (
     build_chapter_archive_package,
@@ -2342,6 +2343,19 @@ async def plan_video_keyframes(
                 raise HTTPException(status_code=400, detail=final_error)
 
     keyframes = _preserve_matching_keyframe_assets(keyframes, plan, _safe_json_list(shot.keyframes))
+    current_clip_indexes = {
+        int(item.get("clip_index"))
+        for item in plan.get("clip_plan") or []
+        if isinstance(item, dict) and item.get("clip_index") is not None
+    }
+    if current_clip_indexes:
+        try:
+            ensure_no_active_canonical_clip_tasks(
+                db, shot.id, plan, current_clip_indexes,
+            )
+        except CanonicalExecutionConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+    plan = invalidate_downstream_for_canonical_visual_plan_replacement(shot, plan)
     for obsolete in ("selected_mode", "recommended_mode", "recommended_label", "recommendation_reason", "workflow_capability", "first_last_available", "notice", "execution_windows", "window_plans", "clips"):
         plan.pop(obsolete, None)
     plan.update({
@@ -2371,6 +2385,9 @@ async def plan_video_keyframes(
             "description": keyframe.get("description") or shot.description or "",
             "image_url": keyframe.get("image_url"),
             "image_task_id": keyframe.get("image_task_id"),
+            "prompt_text": keyframe.get("prompt_text"),
+            "source": keyframe.get("source"),
+            "provenance": keyframe.get("provenance"),
             "reference_image_url": old.get("reference_image_url"),
             "reference_mode": old.get("reference_mode") or "auto_select",
         })

@@ -32,6 +32,14 @@ CURRENT_ASSEMBLY_FIELDS = {
     "assembly_mode",
     "assembled_result",
 }
+CURRENT_CLIP_PLAN_FIELDS = {
+    "clip_plan",
+    "clip_plan_validation",
+    "clip_plan_findings",
+    "temporal_anchors",
+    "clip_plan_approval_mode",
+    "execution_readiness",
+}
 
 
 class CanonicalExecutionConflict(ValueError):
@@ -244,3 +252,20 @@ def invalidate_current_canonical_execution(
     shot.video_task_id = None
     shot.video_status = "pending"
     return invalidated
+
+
+def invalidate_downstream_for_canonical_visual_plan_replacement(shot, plan: dict) -> dict:
+    """Drop current downstream authority when a new canonical visual plan replaces the old one."""
+    # clip_plan_revision is intentionally retained as a monotonic watermark.
+    # The next semantic planning pass increments it, keeping historical Tasks
+    # revision-isolated without deleting their rows or physical artifacts.
+    for field in CURRENT_CLIP_PLAN_FIELDS:
+        plan.pop(field, None)
+    for field in CURRENT_ASSEMBLY_FIELDS:
+        plan.pop(field, None)
+
+    shot.video_url = None
+    shot.video_task_id = None
+    shot.video_status = "pending"
+    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+    return plan
