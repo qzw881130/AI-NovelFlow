@@ -1005,14 +1005,17 @@ def test_continuous_visual_modes_remain_extend_when_temporal_intent_is_false(vis
     assert clips[0]["capability"] == "EXTEND"
 
 
-def test_continuous_take_rejects_explicit_cut_and_invalid_first_continuity():
+def test_continuous_take_preserves_visual_cut_but_rejects_invalid_first_continuity():
     from app.services.clip_planner import _normalize_continuity_contract
 
-    with pytest.raises(ValueError, match="不能使用 CUT"):
-        _normalize_continuity_contract([
-            {"clip_index": 1, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "NONE"},
-            {"clip_index": 2, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "CUT"},
-        ], "CONTINUOUS_TAKE")
+    clips = [
+        {"clip_index": 1, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "NONE"},
+        {"clip_index": 2, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "CUT"},
+    ]
+    _normalize_continuity_contract(clips, "CONTINUOUS_TAKE")
+    assert clips[1]["continuity_to_previous"] == "CUT"
+    assert clips[1]["capability"] == "GENERATE"
+
     with pytest.raises(ValueError, match="必须为 NONE"):
         _normalize_continuity_contract([
             {"clip_index": 1, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "CONTINUOUS"},

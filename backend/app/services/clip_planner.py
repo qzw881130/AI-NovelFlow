@@ -14,6 +14,42 @@ from app.services.video_director_ai import align_clip_boundaries_to_dialogue_gap
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 
 
+def _project_speech_timing_intervals(shot, video_plan: dict) -> list[dict]:
+    """Expose dialogue timing to #10A without text, speaker, or speech semantics."""
+    try:
+        shot_dialogues = json.loads(getattr(shot, "dialogues", None) or "[]")
+    except Exception:
+        shot_dialogues = []
+    timeline = video_plan.get("dialogue_timeline_source")
+    generated, _, status = build_dialogue_timeline(
+        {"start_time": 0, "end_time": getattr(shot, "duration", None) or 4},
+        shot_dialogues,
+        json.loads(getattr(shot, "characters", None) or "[]"),
+    )
+    if status.get("status") == "ok" and generated:
+        timeline = generated
+    if not isinstance(timeline, list):
+        return []
+
+    intervals = []
+    for position, item in enumerate(timeline, 1):
+        if not isinstance(item, dict):
+            continue
+        try:
+            start = float(item.get("shot_start_time", item.get("start_time")))
+            end = float(item.get("shot_end_time", item.get("end_time")))
+        except (TypeError, ValueError):
+            continue
+        if end <= start:
+            continue
+        intervals.append({
+            "event_id": str(item.get("dialogue_id") or item.get("id") or f"D{position}"),
+            "start_time": round(start, 2),
+            "end_time": round(end, 2),
+        })
+    return intervals
+
+
 def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy: dict | None = None) -> dict:
     image_url = getattr(shot, "image_url", None)
     image_path = getattr(shot, "image_path", None)
@@ -21,9 +57,10 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
     if shot_image_path and not os.path.isfile(shot_image_path):
         shot_image_path = None
     try:
-        keyframes = json.loads(getattr(shot, "video_director_plan", None) or "{}").get("keyframes") or []
+        video_plan = json.loads(getattr(shot, "video_director_plan", None) or "{}")
     except Exception:
-        keyframes = []
+        video_plan = {}
+    keyframes = video_plan.get("keyframes") or []
     try:
         legacy_keyframes = json.loads(getattr(shot, "keyframes", None) or "[]")
     except Exception:
@@ -119,7 +156,6 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
             "end_time": transition.get("end_time"),
             "transition_description": transition.get("transition_description") or "",
         })
-    video_plan = json.loads(getattr(shot, "video_director_plan", None) or "{}")
     canonical_visual_plan = video_plan.get("canonical_visual_plan") is True
     end_keyframe_image = False
     for keyframe in keyframes + legacy_keyframes:
@@ -156,25 +192,24 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
             "id": shot.id,
             "duration": shot.duration or 4,
             "continuity_mode": shot.continuity_mode or "NORMAL",
-            "description": shot.description or "",
-            "video_description": shot.video_description or "",
-            "dialogues": json.loads(shot.dialogues or "[]"),
+            "characters": json.loads(getattr(shot, "characters", None) or "[]"),
+            "scene": getattr(shot, "scene", None) or "",
+            "props": json.loads(getattr(shot, "props", None) or "[]"),
         },
         "available_generation_inputs": available_inputs,
         # Historical mode remains readable for old plans, but canonical plans
         # must not expose it as #10A planning authority.
         "canonical_visual_plan": canonical_visual_plan,
-        "official_dialogue_timeline": video_plan.get("dialogue_timeline_source") or [],
+        "speech_timing_intervals": _project_speech_timing_intervals(shot, video_plan),
         "visual_state_candidates": visual_state_candidates,
         "transition_context": transition_context,
-        "temporal_anchors": temporal_anchors,
-        "capabilities": VIDEO_CAPABILITY_CONTRACTS,
         "planning_policy": {
-            **(planning_policy or {"approval_mode": "AUTO_APPROVE"}),
+            "approval_mode": (planning_policy or {}).get("approval_mode", "AUTO_APPROVE"),
             "min_story_clip_duration": max(
                 float((planning_policy or {}).get("min_story_clip_duration") or 0),
                 min(contract["min_duration"] for contract in VIDEO_CAPABILITY_CONTRACTS.values() if contract.get("enabled")),
             ),
+            "max_story_clip_duration": float(VIDEO_CAPABILITY_CONTRACTS["GENERATE"]["max_duration"]),
         },
     }
 
@@ -395,8 +430,6 @@ def _normalize_continuity_contract(
         elif continuity == "NONE":
             raise ValueError(f"Later Clip {clip_index} continuity_to_previous 不能为 NONE")
         elif continuity == "CUT":
-            if str(shot_continuity_mode or "NORMAL").upper() == "CONTINUOUS_TAKE":
-                raise ValueError(f"CONTINUOUS_TAKE Shot 的 Clip {clip_index} 不能使用 CUT continuity")
             clip["capability"] = "GENERATE"
         elif continuity == "CONTINUOUS":
             clip["capability"] = "EXTEND"
@@ -410,9 +443,14 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
     if not template:
         raise RuntimeError("未配置 Clip Execution Planner 提示词模板")
     payload = build_clip_planner_input(shot, temporal_anchors, planning_policy)
+    llm_payload = {
+        key: value
+        for key, value in payload.items()
+        if key != "available_generation_inputs"
+    }
     result = await LLMService().chat_completion(
         system_prompt=template.template,
-        user_content=json.dumps(payload, ensure_ascii=False, indent=2),
+        user_content=json.dumps(llm_payload, ensure_ascii=False, indent=2),
         temperature=0.2,
         max_tokens=2200,
         response_format="json_object",
