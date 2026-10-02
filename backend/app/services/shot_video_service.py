@@ -27,6 +27,12 @@ from app.services.clip_execution_compiler import (
     compile_generate_clip,
     compile_temporal_extend_clip,
 )
+from app.services.canonical_execution_invalidation import (
+    CanonicalExecutionConflict,
+    canonical_clip_dependency_closure,
+    ensure_no_active_canonical_clip_tasks,
+    invalidate_current_canonical_execution,
+)
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.workflow_seed import extract_workflow_seed
 
@@ -2182,10 +2188,40 @@ async def _save_generated_video(
                     task.metadata_json = json.dumps(metadata, ensure_ascii=False)
                     db.commit()
                     return
+                canonical_replacement = (
+                    plan.get("canonical_visual_plan") is True
+                    and (safe_json_dict(task.metadata_json).get("execution_contract") or {}).get("artifact_kind") == "CLIP_ONLY"
+                )
+                if canonical_replacement:
+                    clip_index = int(clip_metadata.get("clip_index") or 0)
+                    affected = canonical_clip_dependency_closure(plan, {clip_index})
+                    try:
+                        ensure_no_active_canonical_clip_tasks(
+                            db, shot.id, plan, affected, exclude_task_ids={task.id},
+                        )
+                    except CanonicalExecutionConflict as exc:
+                        try:
+                            Path(local_path).unlink(missing_ok=True)
+                        except Exception:
+                            pass
+                        task.status = "failed"
+                        task.error_message = str(exc)
+                        task.current_step = "Clip recovery conflict"
+                        metadata = safe_json_dict(task.metadata_json)
+                        metadata["approval_status"] = "FAILED"
+                        task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+                        db.commit()
+                        return
                 semantic_clip.update(result_fields)
                 semantic_clip["execution_status"] = "APPROVED"
                 shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-                db.commit()
+                if canonical_replacement:
+                    invalidate_current_canonical_execution(
+                        shot, {int(clip_metadata.get("clip_index") or 0)},
+                        preserve_clip_indexes={int(clip_metadata.get("clip_index") or 0)},
+                    )
+                else:
+                    db.commit()
             else:
                 _update_clip_result(shot, clip or {}, result_fields, db)
             if update_shot_result:

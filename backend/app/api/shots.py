@@ -32,6 +32,12 @@ from app.services.novel_service import (
 )
 from app.services.shot_image_service import enqueue_shot_image_task
 from app.services.shot_video_service import _clip_dialogues_for_prompt, _dialogue_assignment_source, enqueue_shot_video_task, merge_video_director_clip_videos, resolve_extend_previous_av, validate_semantic_clip_artifact
+from app.services.canonical_execution_invalidation import (
+    CanonicalExecutionConflict,
+    canonical_clip_dependency_closure,
+    current_visual_state_consumers,
+    ensure_no_active_canonical_clip_tasks,
+)
 
 generate_shot_task = enqueue_shot_image_task
 generate_shot_video_task = enqueue_shot_video_task
@@ -2338,6 +2344,13 @@ async def generate_video_director_clip(
     if any(int(item.get("clip_index") or 0) == int(window_index) for item in semantic_clips if isinstance(item, dict)):
         if request.clip_plan_revision is None:
             raise HTTPException(status_code=400, detail="semantic Clip 需要显式提供 clip_plan_revision")
+        plan = _safe_json_dict(shot.video_director_plan)
+        if plan.get("canonical_visual_plan") is True:
+            affected = canonical_clip_dependency_closure(plan, {window_index})
+            try:
+                ensure_no_active_canonical_clip_tasks(shot_repo.db, shot.id, plan, affected)
+            except CanonicalExecutionConflict as exc:
+                raise HTTPException(status_code=409, detail=str(exc))
         return await execute_semantic_clip(
             novel_id, chapter_id, shot_id, window_index,
             SemanticClipGenerateRequest(
@@ -4473,6 +4486,13 @@ async def reset_shot_video_data(
     if not shot:
         raise HTTPException(status_code=404, detail="分镜不存在")
 
+    plan = _safe_json_dict(shot.video_director_plan)
+    if plan.get("canonical_visual_plan") is True:
+        raise HTTPException(
+            status_code=409,
+            detail="Canonical Shot 禁止使用 broad reset；请使用视觉状态、Clip 和 Final Assembly 的精确恢复操作。",
+        )
+
     def local_files_from_json(value) -> set[str]:
         paths: set[str] = set()
         items = value if isinstance(value, list) else []
@@ -4485,7 +4505,6 @@ async def reset_shot_video_data(
                     paths.add(local_path)
         return paths
 
-    plan = _safe_json_dict(shot.video_director_plan)
     keyframes = _safe_json_list(shot.keyframes)
     files_to_delete = local_files_from_json(plan.get("keyframes")) | local_files_from_json(keyframes)
     files_to_delete.update(local_files_from_json(plan.get("clip_plan")))
@@ -5965,6 +5984,26 @@ async def generate_keyframe_image(
 
     existing_keyframes = _safe_json_list(shot.keyframes)
     plan = _safe_json_dict(shot.video_director_plan)
+    if plan.get("canonical_visual_plan") is True and 0 <= frame_index < len(existing_keyframes):
+        legacy_keyframe = existing_keyframes[frame_index]
+        state_index = legacy_keyframe.get("plan_keyframe_index")
+        if state_index is not None:
+            planned_state = next((
+                item for item in plan.get("keyframes") or []
+                if isinstance(item, dict) and int(item.get("index") or -1) == int(state_index)
+            ), {})
+            previous_image_url = (
+                legacy_keyframe.get("image_url") or legacy_keyframe.get("imageUrl")
+                or planned_state.get("image_url") or planned_state.get("imageUrl")
+            )
+            consumers = current_visual_state_consumers(
+                db, shot, int(state_index), previous_image_url,
+            )
+            affected = canonical_clip_dependency_closure(plan, consumers)
+            try:
+                ensure_no_active_canonical_clip_tasks(db, shot.id, plan, affected)
+            except CanonicalExecutionConflict as exc:
+                raise HTTPException(status_code=409, detail=str(exc))
     plan_keyframes = plan.get("keyframes") if isinstance(plan.get("keyframes"), list) else []
     end_plan_keyframe = next(
         (keyframe for keyframe in plan_keyframes if isinstance(keyframe, dict) and keyframe.get("role") == "END"),

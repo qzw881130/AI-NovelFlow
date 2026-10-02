@@ -96,6 +96,22 @@ test('historical-plan boundary remains an isolated early-return branch', () => {
   assert.doesNotMatch(historicalSource, /canonical-production-header|advanced-director-details/);
 });
 
+test('canonical recovery hides broad reset while retaining narrow recovery actions', () => {
+  const resetLabelMatches = source.match(/重置视频阶段/g) ?? [];
+  assert.equal(resetLabelMatches.length, 1);
+  assert.match(source, /\{!currentIsCanonicalPlan && \(\s*<button[\s\S]*?setShowResetVideoDataConfirm\(true\)[\s\S]*?重置视频阶段/);
+  assert.match(source, /handleGenerateVideoKeyframe = useCallback/);
+  assert.match(source, /onGenerateKeyframe=\{handleGenerateVideoKeyframe\}/);
+  assert.match(source, /handleRegenerateClip = useCallback/);
+  assert.match(source, /onRegenerateClip=\{handleRegenerateClip\}/);
+  assert.match(source, /handleMergeDirectorClips = useCallback/);
+  assert.match(source, /onMergeClips=\{handleMergeDirectorClips\}/);
+});
+
+test('canonical recovery safety does not alter the isolated HD workspace surface', () => {
+  assert.doesNotMatch(source, /HdRepaintTab|Topaz|高清重绘/);
+});
+
 test('H-2 Batch authority and modal remain isolated from the hierarchy projection', () => {
   assert.match(source, /getBatchShotStatusProjection\(/);
   assert.match(source, /buildSemanticBatchRequest\(selectedShotIds, autoAssemble\)/);

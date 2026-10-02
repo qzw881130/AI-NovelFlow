@@ -4023,10 +4023,12 @@ export function VideoGenTab({
                       {isCancellingVideo ? t('chapterGenerate.cancellingVideo') : t('chapterGenerate.cancelVideoGeneration')}
                     </button>
                   )}
-                  <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); setShowResetVideoDataConfirm(true); }} disabled={!effectiveChapterId || !currentShotId || isGeneratingCurrent || isCurrentVideoPending} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50 disabled:opacity-40" title="清除当前 Shot 的视频、关键帧、Clip 任务和执行计划">
-                    <Trash2 className="h-4 w-4" />
-                    重置视频阶段
-                  </button>
+                  {!currentIsCanonicalPlan && (
+                    <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); setShowResetVideoDataConfirm(true); }} disabled={!effectiveChapterId || !currentShotId || isGeneratingCurrent || isCurrentVideoPending} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50 disabled:opacity-40" title="清除当前 Shot 的视频、关键帧、Clip 任务和执行计划">
+                      <Trash2 className="h-4 w-4" />
+                      重置视频阶段
+                    </button>
+                  )}
                 </div>
               )}
             </div>

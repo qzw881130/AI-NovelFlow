@@ -29,6 +29,14 @@ from app.services.background_workers import worker_manager
 from app.services.prompt_builder import get_style
 from app.services.visual_style_authority import strip_embedded_visual_style
 from app.services.video_director_ai import append_video_ai_call, strip_media_refs
+from app.services.canonical_execution_invalidation import (
+    CanonicalExecutionConflict,
+    canonical_clip_dependency_closure,
+    current_visual_state_consumers,
+    ensure_no_active_canonical_clip_tasks,
+    invalidate_current_canonical_execution,
+    sync_temporal_anchor_state_image,
+)
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.workflow_disconnect import (
@@ -985,13 +993,46 @@ class ShotKeyframeService:
                     relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
                     local_url = f"/api/files/{relative_path.lstrip('/')}"
 
-                    # 更新关键帧数据
+                    # Update the canonical state and invalidate only Clip artifacts that
+                    # physically consumed the image being replaced. A first optional image
+                    # has no previous physical dependency and therefore invalidates nothing.
                     keyframes = json.loads(shot.keyframes) if shot.keyframes else []
                     if frame_index < len(keyframes):
-                        keyframes[frame_index]["image_url"] = local_url
-                        keyframes[frame_index]["image_task_id"] = task_id
-                        self._sync_video_director_keyframe_image(shot, keyframes[frame_index], local_url, task_id)
-                        shot_repo.update(shot, keyframes=keyframes)
+                        current_keyframe = keyframes[frame_index]
+                        state_index = current_keyframe.get("plan_keyframe_index")
+                        current_plan = json.loads(shot.video_director_plan or "{}")
+                        planned_state = next((
+                            item for item in current_plan.get("keyframes") or []
+                            if isinstance(item, dict)
+                            and state_index is not None
+                            and int(item.get("index") or -1) == int(state_index)
+                        ), {})
+                        previous_image_url = (
+                            current_keyframe.get("image_url") or current_keyframe.get("imageUrl")
+                            or planned_state.get("image_url") or planned_state.get("imageUrl")
+                        )
+                        consumers = current_visual_state_consumers(
+                            db, shot, int(state_index), previous_image_url,
+                        ) if state_index is not None else set()
+                        affected = canonical_clip_dependency_closure(current_plan, consumers)
+                        try:
+                            ensure_no_active_canonical_clip_tasks(db, shot.id, current_plan, affected)
+                        except CanonicalExecutionConflict:
+                            Path(local_path).unlink(missing_ok=True)
+                            raise
+
+                        current_keyframe["image_url"] = local_url
+                        current_keyframe["image_task_id"] = task_id
+                        self._sync_video_director_keyframe_image(shot, current_keyframe, local_url, task_id)
+                        updated_plan = json.loads(shot.video_director_plan or "{}")
+                        if state_index is not None:
+                            sync_temporal_anchor_state_image(
+                                updated_plan, int(state_index), local_url, task_id,
+                            )
+                        shot.video_director_plan = json.dumps(updated_plan, ensure_ascii=False)
+                        shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
+                        if consumers:
+                            invalidate_current_canonical_execution(shot, consumers)
 
                     # 更新任务状态
                     task.status = "completed"
