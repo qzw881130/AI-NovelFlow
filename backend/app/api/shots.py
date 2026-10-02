@@ -96,6 +96,10 @@ from app.utils.path_utils import url_to_local_path
 from app.utils.time_utils import format_datetime
 from app.services.prompt_builder import get_style
 from app.services.visual_style_authority import strip_embedded_visual_style
+from app.services.canonical_visual_speech_authority import (
+    CanonicalVisualSpeechAuthorityViolation,
+    require_speech_neutral_visual_text,
+)
 from app.services.llm_service import LLMService
 from app.repositories import PromptTemplateRepository
 from app.services.video_director_ai import append_video_ai_call, build_dialogue_timeline, strip_media_refs
@@ -1695,6 +1699,14 @@ def _normalize_keyframe_planner_result(parsed: dict, execution_windows: list | N
     if end_count > 1:
         raise ValueError("canonical keyframes 最多包含一个 END")
 
+    for keyframe in normalized_keyframes:
+        require_speech_neutral_visual_text(
+            keyframe.get("description"),
+            code="VISUAL_STATE_SPEECH_AUTHORITY_VIOLATION",
+            field="description",
+            state_index=keyframe.get("index"),
+        )
+
     validation = {"passed": True, "blocking": []}
     return normalized_keyframes, [], validation
 
@@ -1745,8 +1757,16 @@ def _get_keyframe_transition_template(novel: Novel, template_repo: PromptTemplat
 
 def _transition_keyframe_payload(shot, keyframe: dict) -> dict:
     description = keyframe.get("description")
+    field = "description"
     if keyframe.get("role") == "START" and not description:
         description = shot.description or ""
+        field = "shot.description_fallback"
+    require_speech_neutral_visual_text(
+        description,
+        code="VISUAL_STATE_SPEECH_AUTHORITY_VIOLATION",
+        field=field,
+        state_index=keyframe.get("index"),
+    )
     return strip_media_refs({
         "index": keyframe.get("index"),
         "role": keyframe.get("role"),
@@ -1775,14 +1795,21 @@ def _build_segment_dialogue_state(shot, from_keyframe: dict, to_keyframe: dict, 
     }
 
 
-def _build_keyframe_transition_user_content(shot, from_keyframe: dict, to_keyframe: dict, segment_index: int) -> str:
-    shot_dialogues = _safe_json_list(shot.dialogues)
-    dialogue_timeline_source, _, _ = build_dialogue_timeline(
-        {"start_time": 0, "end_time": shot.duration or 4},
-        shot_dialogues,
-        _safe_json_list(shot.characters),
+def _build_keyframe_transition_user_content(
+    shot,
+    from_keyframe: dict,
+    to_keyframe: dict,
+    segment_index: int,
+    previous_validation_failure: dict | None = None,
+) -> str:
+    from_payload = _transition_keyframe_payload(shot, from_keyframe)
+    to_payload = _transition_keyframe_payload(shot, to_keyframe)
+    require_speech_neutral_visual_text(
+        shot.description or "",
+        code="VISUAL_CONTEXT_SPEECH_AUTHORITY_VIOLATION",
+        field="shot.description",
+        state_index="SHOT",
     )
-    dialogue_state = _build_segment_dialogue_state(shot, from_keyframe, to_keyframe, dialogue_timeline_source)
     payload = {
         "shot": {
             "id": shot.id,
@@ -1794,15 +1821,19 @@ def _build_keyframe_transition_user_content(shot, from_keyframe: dict, to_keyfra
             "props": _safe_json_list(shot.props),
             "duration": shot.duration or 4,
             "continuity_mode": shot.continuity_mode or "NORMAL",
-            "dialogues": shot_dialogues,
         },
-        "dialogue_timeline_source": dialogue_timeline_source,
         "segment_index": segment_index,
-        "segment_dialogue_state": dialogue_state,
         "continuity_requirements": _build_continuity_requirements(shot),
-        "from_keyframe": _transition_keyframe_payload(shot, from_keyframe),
-        "to_keyframe": _transition_keyframe_payload(shot, to_keyframe),
+        "from_keyframe": from_payload,
+        "to_keyframe": to_payload,
     }
+    if previous_validation_failure:
+        payload["previous_validation_failure"] = previous_validation_failure
+        payload["retry_instruction"] = (
+            "上一次 transition_description 违反 canonical visual speech-authority contract。"
+            "只输出身体动作、走位、视线、姿态、表情、道具、摄影机和场景变化；"
+            "不得输出 speaker、speaking/listening 或 mouth/lip speech state。"
+        )
     return "请基于以下相邻关键帧规划，生成这两个关键帧之间的动态过渡导演描述。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
 
 
@@ -1823,62 +1854,126 @@ async def _plan_keyframe_transitions(
         from_keyframe = keyframes[index]
         to_keyframe = keyframes[index + 1]
         segment_index = index + 1
-        result = await llm_service.chat_completion(
-            system_prompt=template.template,
-            user_content=_build_keyframe_transition_user_content(shot, from_keyframe, to_keyframe, segment_index),
-            temperature=0.3,
-            max_tokens=1600,
-            response_format="json_object",
-            task_type="keyframe_transition",
-            prompt_template_name=template.name,
-            novel_id=novel.id,
-            chapter_id=chapter.id,
-        )
-        if not result.get("success"):
+        previous_validation_failure = None
+        for attempt in range(1, 3):
+            try:
+                user_content = _build_keyframe_transition_user_content(
+                    shot,
+                    from_keyframe,
+                    to_keyframe,
+                    segment_index,
+                    previous_validation_failure=previous_validation_failure,
+                )
+            except CanonicalVisualSpeechAuthorityViolation as exc:
+                append_video_ai_call(shot, {
+                    "step": "10",
+                    "task_type": "keyframe_transition",
+                    "prompt_template_name": template.name,
+                    "status": "error",
+                    "input_summary": (
+                        f"Shot {shot.index} KF{from_keyframe.get('index')} -> "
+                        f"KF{to_keyframe.get('index')} · input validation"
+                    ),
+                    "response": "",
+                    "parsed_result": {
+                        "error": str(exc),
+                        "code": exc.code,
+                        "field": exc.field,
+                        "category": exc.match.category,
+                        "phrase": exc.match.phrase,
+                    },
+                })
+                db.commit()
+                raise HTTPException(status_code=400, detail=str(exc))
+            result = await llm_service.chat_completion(
+                system_prompt=template.template,
+                user_content=user_content,
+                temperature=0.3,
+                max_tokens=1600,
+                response_format="json_object",
+                task_type="keyframe_transition",
+                prompt_template_name=template.name,
+                novel_id=novel.id,
+                chapter_id=chapter.id,
+            )
+            if not result.get("success"):
+                append_video_ai_call(shot, {
+                    "step": "10",
+                    "task_type": "keyframe_transition",
+                    "prompt_template_name": template.name,
+                    "status": "error",
+                    "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
+                    "response": result.get("error") or "",
+                })
+                db.commit()
+                raise HTTPException(status_code=500, detail=result.get("error") or "关键帧过渡规划失败")
+            try:
+                parsed = _parse_keyframe_planner_content(result.get("content") or "{}")
+            except Exception as exc:
+                append_video_ai_call(shot, {
+                    "step": "10",
+                    "task_type": "keyframe_transition",
+                    "prompt_template_name": template.name,
+                    "status": "error",
+                    "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
+                    "response": result.get("content") or "",
+                    "parsed_result": {"error": str(exc)},
+                })
+                db.commit()
+                raise HTTPException(status_code=400, detail=f"#10 返回格式无效：{exc}")
+
+            transition = {
+                "segment_index": int(parsed.get("segment_index") or segment_index),
+                "from_keyframe_index": int(parsed.get("from_keyframe_index") or from_keyframe.get("index")),
+                "to_keyframe_index": int(parsed.get("to_keyframe_index") or to_keyframe.get("index")),
+                "start_time": parsed.get("start_time") if parsed.get("start_time") is not None else from_keyframe.get("time_seconds"),
+                "end_time": parsed.get("end_time") if parsed.get("end_time") is not None else to_keyframe.get("time_seconds"),
+                "transition_description": strip_embedded_visual_style(parsed.get("transition_description") or "", get_style(db, novel, "character")[0]),
+            }
+            try:
+                require_speech_neutral_visual_text(
+                    transition["transition_description"],
+                    code="TRANSITION_SPEECH_AUTHORITY_VIOLATION",
+                    field="transition_description",
+                    state_index=f"{from_keyframe.get('index')}->{to_keyframe.get('index')}",
+                )
+            except CanonicalVisualSpeechAuthorityViolation as exc:
+                previous_validation_failure = {
+                    "code": exc.code,
+                    "field": exc.field,
+                    "category": exc.match.category,
+                    "phrase": exc.match.phrase,
+                    "attempt": attempt,
+                }
+                append_video_ai_call(shot, {
+                    "step": "10",
+                    "task_type": "keyframe_transition",
+                    "prompt_template_name": template.name,
+                    "status": "error",
+                    "input_summary": (
+                        f"Shot {shot.index} KF{from_keyframe.get('index')} -> "
+                        f"KF{to_keyframe.get('index')} · attempt {attempt}/2"
+                    ),
+                    "response": result.get("content") or "",
+                    "parsed_result": {"error": str(exc), **previous_validation_failure},
+                })
+                db.commit()
+                if attempt == 2:
+                    raise HTTPException(status_code=400, detail=str(exc))
+                continue
+
+            transitions.append(transition)
             append_video_ai_call(shot, {
                 "step": "10",
                 "task_type": "keyframe_transition",
                 "prompt_template_name": template.name,
-                "status": "error",
-                "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
-                "response": result.get("error") or "",
-            })
-            db.commit()
-            raise HTTPException(status_code=500, detail=result.get("error") or "关键帧过渡规划失败")
-        try:
-            parsed = _parse_keyframe_planner_content(result.get("content") or "{}")
-        except Exception as exc:
-            append_video_ai_call(shot, {
-                "step": "10",
-                "task_type": "keyframe_transition",
-                "prompt_template_name": template.name,
-                "status": "error",
+                "status": "success",
                 "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
                 "response": result.get("content") or "",
-                "parsed_result": {"error": str(exc)},
+                "parsed_result": transition,
             })
             db.commit()
-            raise HTTPException(status_code=400, detail=f"#10 返回格式无效：{exc}")
-
-        transition = {
-            "segment_index": int(parsed.get("segment_index") or segment_index),
-            "from_keyframe_index": int(parsed.get("from_keyframe_index") or from_keyframe.get("index")),
-            "to_keyframe_index": int(parsed.get("to_keyframe_index") or to_keyframe.get("index")),
-            "start_time": parsed.get("start_time") if parsed.get("start_time") is not None else from_keyframe.get("time_seconds"),
-            "end_time": parsed.get("end_time") if parsed.get("end_time") is not None else to_keyframe.get("time_seconds"),
-            "transition_description": strip_embedded_visual_style(parsed.get("transition_description") or "", get_style(db, novel, "character")[0]),
-        }
-        transitions.append(transition)
-        append_video_ai_call(shot, {
-            "step": "10",
-            "task_type": "keyframe_transition",
-            "prompt_template_name": template.name,
-            "status": "success",
-            "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
-            "response": result.get("content") or "",
-            "parsed_result": transition,
-        })
-        db.commit()
+            break
     return transitions
 
 
@@ -2183,7 +2278,7 @@ async def plan_video_keyframes(
     result = None
     keyframes = []
     validation = {}
-    max_attempts = 3
+    max_attempts = 2
     for attempt in range(1, max_attempts + 1):
         plan["dialogue_timeline_source"] = dialogue_timeline_source
         user_content = _build_keyframe_planner_user_content(shot, plan, previous_failures=previous_failures)

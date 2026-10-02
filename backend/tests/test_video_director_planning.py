@@ -60,7 +60,7 @@ def test_keyframe_planner_receives_dialogue_timeline_without_old_descriptions():
     assert "description" not in payload["existing_keyframes"][0]
 
 
-def test_transition_planner_receives_full_timeline_for_each_segment():
+def test_transition_planner_excludes_speech_authority_for_each_segment():
     shot = _shot_with_timed_dialogue_source()
     first_segment = _payload(_build_keyframe_transition_user_content(
         shot,
@@ -75,12 +75,15 @@ def test_transition_planner_receives_full_timeline_for_each_segment():
         2,
     ))
 
-    assert first_segment["dialogue_timeline_source"][0]["start_time"] == 1.0
-    assert first_segment["dialogue_timeline_source"][0]["end_time"] == 2.75
-    assert first_segment["segment_dialogue_state"]["overlapping_dialogue_ids"] == ["D1"]
-    assert second_segment["dialogue_timeline_source"][0]["id"] == "D1"
-    assert second_segment["segment_dialogue_state"]["overlapping_dialogue_ids"] == []
-    assert "speech_rule" not in second_segment["segment_dialogue_state"]
+    for payload in (first_segment, second_segment):
+        assert "dialogue_timeline_source" not in payload
+        assert "segment_dialogue_state" not in payload
+        assert "dialogues" not in payload["shot"]
+        assert payload["shot"]["video_description"] == ""
+    assert first_segment["from_keyframe"]["time_seconds"] == 0
+    assert first_segment["to_keyframe"]["time_seconds"] == 5
+    assert second_segment["from_keyframe"]["time_seconds"] == 5
+    assert second_segment["to_keyframe"]["time_seconds"] == 10
 
 
 def test_aligned_p3_is_the_state_consumed_by_keyframe_image_without_losing_media():
