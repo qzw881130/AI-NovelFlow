@@ -140,6 +140,9 @@ function SemanticClipExecutionPanel({ shot, chapterId, onPreviewClip, onRegenera
           const metadata = task?.clipExecution;
           const approvalStatus = metadata?.approval_status || clip.execution_status || 'PLANNED';
           const clipStatus = getSemanticClipStatus(clip, tasks, revision);
+          const hasCurrentClipArtifact = clipStatus === 'COMPLETED';
+          const clipGenerateLabel = hasCurrentClipArtifact ? '重新生成片段' : '生成片段';
+          const currentPromptGenerateLabel = hasCurrentClipArtifact ? '使用当前提示词重新生成' : '使用当前提示词生成';
           const clipStatusLabel: Record<SemanticClipStatus, string> = {
             NOT_STARTED: '待生成',
             RUNNING: '生成中',
@@ -188,16 +191,16 @@ function SemanticClipExecutionPanel({ shot, chapterId, onPreviewClip, onRegenera
                       className="inline-flex items-center gap-1 rounded-l-md border border-blue-200 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {isRegenerating && <Loader2 className="h-3 w-3 animate-spin" />}
-                      {isRegenerating ? '生成中...' : 'LLM+生成Clip视频'}
+                      {isRegenerating ? '生成中...' : clipGenerateLabel}
                     </button>
                     <button
                       type="button"
                       onClick={() => onRegenerateClip({ ...clip, clip_index: clip.clip_index }, 'video_only')}
                       disabled={clipGenerationDisabled || !clip.prompt_text}
-                      title={!clip.prompt_text ? '缺少可复用的 Clip 视频最终 Prompt，请先使用 LLM+生成Clip视频' : undefined}
+                      title={!clip.prompt_text ? '缺少可复用的片段提示词，请先生成片段' : undefined}
                       className="rounded-r-md border border-l-0 border-blue-200 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      重新生成 Clip 视频
+                      {currentPromptGenerateLabel}
                     </button>
                   </div>
                   {(task || metadata?.previous_approved_video_url) && (
@@ -448,7 +451,7 @@ function VideoAiCallsPanel({
                 disabled={isDownloading}
                 className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-0.5 text-xs font-normal text-gray-700 hover:bg-gray-100 disabled:opacity-50"
               >
-                <Download className="h-3 w-3" />{isDownloading ? t('chapterGenerate.downloading') : t('chapterGenerate.downloadLlmData')}
+                <Download className="h-3 w-3" />{isDownloading ? t('chapterGenerate.downloading') : '导出调试数据'}
               </button>
             </div>
             <div className="text-xs text-gray-500">{t('chapterGenerate.noAiCallResults')}</div>
@@ -500,7 +503,7 @@ function VideoAiCallsPanel({
               disabled={isDownloading}
               className="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-0.5 text-xs font-normal text-gray-700 hover:bg-gray-100 disabled:opacity-50"
             >
-              <Download className="h-3 w-3" />{isDownloading ? t('chapterGenerate.downloading') : t('chapterGenerate.downloadLlmData')}
+              <Download className="h-3 w-3" />{isDownloading ? t('chapterGenerate.downloading') : '导出调试数据'}
             </button>
           </div>
           <div className="text-xs text-gray-500">{t('chapterGenerate.aiCallCountHint', { count: calls.length })}</div>
@@ -865,8 +868,8 @@ function VideoDirectorPanel({
   const activeMissingKeyframes = missingKeyframes.filter((kf: any) => isKeyframeGenerating(kf));
   const hasGeneratingMissingKeyframes = missingKeyframes.some((kf: any) => isKeyframeGenerating(kf));
   const missingKeyframeButtonLabel = hasGeneratingMissingKeyframes
-    ? `${isCanonicalPlan ? '视觉状态图' : '关键帧'}任务中 ${activeMissingKeyframes.length}/${missingKeyframes.length}`
-    : `${isCanonicalPlan ? '生成缺失视觉状态图' : '生成缺失关键帧'}${missingKeyframes.length > 0 ? ` ${missingKeyframes.length}` : ''}`;
+    ? `${isCanonicalPlan ? '状态图片' : '关键帧'}任务中 ${activeMissingKeyframes.length}/${missingKeyframes.length}`
+    : `${isCanonicalPlan ? '生成缺失状态图片' : '生成缺失关键帧'}${missingKeyframes.length > 0 ? ` ${missingKeyframes.length}` : ''}`;
   const threeFrameClipCount = clips.filter((clip: any) => Number(clip.selected_frame_count || clip.frame_count) === 3).length;
   const fourFrameClipCount = clips.filter((clip: any) => Number(clip.selected_frame_count || clip.frame_count) === 4).length;
   const [selectedKeyframeIndex, setSelectedKeyframeIndex] = useState(0);
@@ -886,6 +889,12 @@ function VideoDirectorPanel({
   const hasReusableSelectedKeyframePrompt = !!String(
     selectedKeyframe?.prompt_text || selectedLegacyKeyframe?.prompt_text || ''
   ).trim();
+  const selectedKeyframePrimaryActionLabel = isCanonicalPlan
+    ? selectedKeyframeImageUrl ? '重新生成状态图片' : '生成状态图片'
+    : selectedKeyframeImageUrl ? 'LLM+重新生成关键帧' : 'LLM+生成关键帧';
+  const selectedKeyframeCurrentPromptActionLabel = isCanonicalPlan
+    ? selectedKeyframeImageUrl ? '使用当前提示词重新生成状态图片' : '使用当前提示词生成状态图片'
+    : selectedKeyframeImageUrl ? '仅重新生成关键帧' : '仅生成关键帧';
   const hasNextKeyframe = selectedKeyframeIndex < keyframes.length - 1;
   const transitions = plan.transitions || [];
   const canonicalAdjacentTransitions = getAdjacentCanonicalTransitions(plan, Number(selectedKeyframe?.index));
@@ -1633,10 +1642,12 @@ function VideoDirectorPanel({
                         onClick={() => selectedKeyframeFrameIndex !== undefined && onGenerateKeyframe(selectedKeyframeFrameIndex, 'llm')}
                         disabled={selectedKeyframeFrameIndex === undefined || selectedKeyframeIsGenerating || isPlanningKeyframes || !!isShotVideoGenerating || !selectedKeyframe?.description}
                         title={isShotVideoGenerating
-                          ? '当前 Shot 视频生成中，请等待完成后再生成关键帧'
+                          ? `当前 Shot 视频生成中，请等待完成后再生成${isCanonicalPlan ? '状态图片' : '关键帧'}`
                           : !selectedKeyframe?.description
                             ? `当前${isCanonicalPlan ? '视觉状态' : '关键帧'}缺少描述，请先重新规划`
-                            : `使用 LLM 构建新的生图提示词并生成当前${isCanonicalPlan ? '视觉状态图' : '关键帧'}`}
+                            : isCanonicalPlan
+                              ? `${selectedKeyframeImageUrl ? '重新构建提示词并重新生成' : '构建提示词并生成'}当前状态图片`
+                              : '使用 LLM 构建新的生图提示词并生成当前关键帧'}
                         className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-l-md border border-blue-200 bg-white px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {selectedKeyframeIsGenerating
@@ -1644,7 +1655,7 @@ function VideoDirectorPanel({
                           : selectedKeyframeImageUrl
                             ? <RefreshCw className="h-3.5 w-3.5" />
                             : <Sparkles className="h-3.5 w-3.5" />}
-                        {selectedKeyframeIsGenerating ? '生成中...' : selectedKeyframeImageUrl ? `LLM+重新生成${isCanonicalPlan ? '视觉状态图' : '关键帧'}` : `LLM+生成${isCanonicalPlan ? '视觉状态图' : '关键帧'}`}
+                        {selectedKeyframeIsGenerating ? '生成中...' : selectedKeyframePrimaryActionLabel}
                       </button>
                       <button
                         type="button"
@@ -1653,9 +1664,11 @@ function VideoDirectorPanel({
                           setShowSelectedKeyframeMenu((open) => !open);
                         }}
                         disabled={selectedKeyframeFrameIndex === undefined || selectedKeyframeIsGenerating || isPlanningKeyframes || !!isShotVideoGenerating || !selectedKeyframe?.description}
-                        title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再选择关键帧生成模式' : undefined}
+                        title={isShotVideoGenerating
+                          ? `当前 Shot 视频生成中，请等待完成后再选择${isCanonicalPlan ? '状态图片生成方式' : '关键帧生成模式'}`
+                          : undefined}
                         className="inline-flex items-center rounded-r-md border border-l-0 border-blue-200 bg-white px-2 py-1 text-xs text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        aria-label="选择关键帧生成模式"
+                        aria-label={isCanonicalPlan ? '选择状态图片生成方式' : '选择关键帧生成模式'}
                       >
                         <ChevronDown className="h-3.5 w-3.5" />
                       </button>
@@ -1669,7 +1682,7 @@ function VideoDirectorPanel({
                             }}
                             className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50"
                           >
-                            {selectedKeyframeImageUrl ? `LLM+重新生成${isCanonicalPlan ? '视觉状态图' : '关键帧'}` : `LLM+生成${isCanonicalPlan ? '视觉状态图' : '关键帧'}`}
+                            {selectedKeyframePrimaryActionLabel}
                           </button>
                           <button
                             type="button"
@@ -1678,10 +1691,14 @@ function VideoDirectorPanel({
                               if (selectedKeyframeFrameIndex !== undefined) onGenerateKeyframe(selectedKeyframeFrameIndex, 'image_only');
                             }}
                             disabled={!hasReusableSelectedKeyframePrompt || !!isShotVideoGenerating}
-                            title={!hasReusableSelectedKeyframePrompt ? '当前关键帧没有可复用的 AI 生图提示词，请先使用 LLM+生成' : undefined}
+                            title={!hasReusableSelectedKeyframePrompt
+                              ? isCanonicalPlan
+                                ? '当前视觉状态没有可复用的生图提示词，请先生成状态图片'
+                                : '当前关键帧没有可复用的 AI 生图提示词，请先使用 LLM+生成'
+                              : undefined}
                             className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-white"
                           >
-                            {selectedKeyframeImageUrl ? `仅重新生成${isCanonicalPlan ? '视觉状态图' : '关键帧'}` : `仅生成${isCanonicalPlan ? '视觉状态图' : '关键帧'}`}
+                            {selectedKeyframeCurrentPromptActionLabel}
                           </button>
                         </div>
                       )}
@@ -3341,7 +3358,9 @@ export function VideoGenTab({
     if (!windowIndex) return;
     const useExistingPrompt = mode === 'video_only';
     if (useExistingPrompt && !String(clip.prompt_text || '').trim()) {
-      toast.info(`C${windowIndex} 缺少可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频。`);
+      toast.info(currentIsCanonicalPlan
+        ? `片段 ${windowIndex} 缺少可复用的提示词，请先生成片段。`
+        : `C${windowIndex} 缺少可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频。`);
       return;
     }
     if (clip.video_url && !window.confirm(`确认重新生成 C${windowIndex}？本次只生成该 Clip，不会自动合并整体视频。`)) return;
@@ -3365,7 +3384,9 @@ export function VideoGenTab({
             generatingVideos: nextGeneratingVideos,
           };
         });
-        toast.success(`C${windowIndex} 已提交${useExistingPrompt ? '仅生成视频' : 'LLM+生成视频'}`);
+        toast.success(currentIsCanonicalPlan
+          ? `片段 ${windowIndex} 已提交${useExistingPrompt ? '使用当前提示词生成' : '生成'}`
+          : `C${windowIndex} 已提交${useExistingPrompt ? '仅生成视频' : 'LLM+生成视频'}`);
       } else {
         setRegeneratingClipKey(null);
         toast.error(result.message || result.detail || 'Clip 重新生成失败');
@@ -3375,7 +3396,7 @@ export function VideoGenTab({
       console.error('Clip 重新生成失败:', error);
       toast.error('Clip 重新生成失败');
     }
-  }, [currentShotId, effectiveChapterId, effectiveNovelId, currentVideoDirectorPlan.clip_plan_revision]);
+  }, [currentIsCanonicalPlan, currentShotId, effectiveChapterId, effectiveNovelId, currentVideoDirectorPlan.clip_plan_revision]);
 
   const handleMergeDirectorClips = useCallback(async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
@@ -3919,7 +3940,7 @@ export function VideoGenTab({
       return { label: '规划视觉时间轴', disabled: planningKeyframesShotId === currentShotId, onClick: () => handlePlanVideoKeyframes(false) };
     }
     if (currentCanonicalReadiness.state === 'REQUIRED_IMAGES_MISSING') {
-      return { label: '生成必需视觉状态图', disabled: generatingMissingKeyframesShotId === currentShotId, onClick: handleGenerateMissingKeyframes };
+      return { label: '生成必需状态图片', disabled: generatingMissingKeyframesShotId === currentShotId, onClick: handleGenerateMissingKeyframes };
     }
     if (currentCanonicalReadiness.state === 'CLIP_PLAN_MISSING' || currentCanonicalReadiness.state === 'CLIP_PLAN_STALE') {
       const isStale = currentCanonicalReadiness.state === 'CLIP_PLAN_STALE';
