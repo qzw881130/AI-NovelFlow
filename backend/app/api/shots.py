@@ -1764,14 +1764,10 @@ def _get_keyframe_transition_template(novel: Novel, template_repo: PromptTemplat
 
 def _transition_keyframe_payload(shot, keyframe: dict) -> dict:
     description = keyframe.get("description")
-    field = "description"
-    if keyframe.get("role") == "START" and not description:
-        description = shot.description or ""
-        field = "shot.description_fallback"
     require_speech_neutral_visual_text(
         description,
         code="VISUAL_STATE_SPEECH_AUTHORITY_VIOLATION",
-        field=field,
+        field="description",
         state_index=keyframe.get("index"),
     )
     return strip_media_refs({
@@ -1811,18 +1807,10 @@ def _build_keyframe_transition_user_content(
 ) -> str:
     from_payload = _transition_keyframe_payload(shot, from_keyframe)
     to_payload = _transition_keyframe_payload(shot, to_keyframe)
-    require_speech_neutral_visual_text(
-        shot.description or "",
-        code="VISUAL_CONTEXT_SPEECH_AUTHORITY_VIOLATION",
-        field="shot.description",
-        state_index="SHOT",
-    )
     payload = {
         "shot": {
             "id": shot.id,
             "index": shot.index,
-            "description": shot.description or "",
-            "video_description": "",
             "characters": _safe_json_list(shot.characters),
             "scene": shot.scene or "",
             "props": _safe_json_list(shot.props),

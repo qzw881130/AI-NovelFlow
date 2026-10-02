@@ -148,26 +148,45 @@ def test_transition_payload_excludes_all_dialogue_authority():
     assert "dialogues" not in payload["shot"]
     assert "dialogue_timeline_source" not in payload
     assert "segment_dialogue_state" not in payload
+    assert "description" not in payload["shot"]
+    assert "video_description" not in payload["shot"]
     assert "台词正文" not in serialized
     assert "speaker" not in serialized
     assert "start_time" not in serialized
     assert "end_time" not in serialized
+    assert payload["from_keyframe"]["description"] == "皇帝站在镜前"
     assert payload["from_keyframe"]["time_seconds"] == 0
     assert payload["to_keyframe"]["time_seconds"] == 4
 
 
-def test_empty_start_with_unsafe_shot_fallback_is_rejected():
-    shot = _shot("皇帝皱眉询问，侍从1回答")
-    with pytest.raises(
-        CanonicalVisualSpeechAuthorityViolation,
-        match=r"VISUAL_STATE_SPEECH_AUTHORITY_VIOLATION.*state_index=1.*shot.description_fallback",
-    ):
-        shot_api._build_keyframe_transition_user_content(
-            shot,
-            _state(1, 0, None, role="START"),
-            _state(2, 4, "皇帝抬起右手"),
-            1,
-        )
+def test_empty_start_does_not_recover_raw_shot_narrative():
+    shot = _shot("皇帝皱眉询问，侍从1与侍从2先后恭敬回答")
+    content = shot_api._build_keyframe_transition_user_content(
+        shot,
+        _state(1, 0, None, role="START"),
+        _state(2, 4, "皇帝抬起右手"),
+        1,
+    )
+    payload = _payload(content)
+    serialized = json.dumps(payload, ensure_ascii=False)
+
+    assert payload["from_keyframe"] == {
+        "index": 1,
+        "role": "START",
+        "time_seconds": 0,
+        "description": "",
+    }
+    assert payload["to_keyframe"]["description"] == "皇帝抬起右手"
+    assert payload["segment_index"] == 1
+    assert payload["shot"]["characters"] == ["皇帝", "侍从1"]
+    assert payload["shot"]["scene"] == "hall"
+    assert payload["shot"]["props"] == []
+    assert payload["shot"]["duration"] == 18
+    assert payload["shot"]["continuity_mode"] == "NORMAL"
+    assert "皇帝皱眉询问，侍从1与侍从2先后恭敬回答" not in serialized
+    assert "皇帝开口询问，侍从回答" not in serialized
+    assert "询问" not in serialized
+    assert "回答" not in serialized
 
 
 @pytest.mark.parametrize("position", ["from", "to"])

@@ -79,7 +79,8 @@ def test_transition_planner_excludes_speech_authority_for_each_segment():
         assert "dialogue_timeline_source" not in payload
         assert "segment_dialogue_state" not in payload
         assert "dialogues" not in payload["shot"]
-        assert payload["shot"]["video_description"] == ""
+        assert "description" not in payload["shot"]
+        assert "video_description" not in payload["shot"]
     assert first_segment["from_keyframe"]["time_seconds"] == 0
     assert first_segment["to_keyframe"]["time_seconds"] == 5
     assert second_segment["from_keyframe"]["time_seconds"] == 5

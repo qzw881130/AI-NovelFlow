@@ -23,27 +23,29 @@ class ReplacementLLM:
 
     async def chat_completion(self, **kwargs):
         self.calls.append(kwargs)
-        if kwargs.get("task_type") != "keyframe_planner":
-            raise AssertionError("#10 must fail pre-LLM for this fixture")
-        return {
-            "success": True,
-            "content": json.dumps({"keyframes": [
-                {
-                    "index": 1,
-                    "time_seconds": 0,
-                    "role": "START",
-                    "description": None,
-                    "timed_visual_target": False,
-                },
-                {
-                    "index": 2,
-                    "time_seconds": 8,
-                    "role": "END",
-                    "description": "侍从站在镜前，皇帝皱眉看向他",
-                    "timed_visual_target": True,
-                },
-            ]}, ensure_ascii=False),
-        }
+        if kwargs.get("task_type") == "keyframe_planner":
+            return {
+                "success": True,
+                "content": json.dumps({"keyframes": [
+                    {
+                        "index": 1,
+                        "time_seconds": 0,
+                        "role": "START",
+                        "description": None,
+                        "timed_visual_target": False,
+                    },
+                    {
+                        "index": 2,
+                        "time_seconds": 8,
+                        "role": "END",
+                        "description": "侍从站在镜前，皇帝皱眉看向他",
+                        "timed_visual_target": True,
+                    },
+                ]}, ensure_ascii=False),
+            }
+        if kwargs.get("task_type") == "keyframe_transition":
+            return {"success": False, "error": "synthetic #10 failure"}
+        raise AssertionError(f"unexpected task type: {kwargs.get('task_type')}")
 
 
 def _clip(index, capability, task_id, url, *, previous=None, states=None):
@@ -218,7 +220,7 @@ async def _replace_plan(db_session, monkeypatch, novel, chapter, shot, llm):
 
 
 @pytest.mark.asyncio
-async def test_new_canonical_plan_invalidates_downstream_before_pre_llm_transition_failure(
+async def test_new_canonical_plan_invalidates_downstream_before_followup_transition_failure(
     db_session, tmp_path, monkeypatch,
 ):
     novel, chapter, shot, tasks, old_plan = _fixture(db_session)
@@ -227,12 +229,15 @@ async def test_new_canonical_plan_invalidates_downstream_before_pre_llm_transiti
         path.write_bytes(b"history")
     llm = ReplacementLLM()
 
-    with pytest.raises(HTTPException, match="VISUAL_STATE_SPEECH_AUTHORITY_VIOLATION"):
+    with pytest.raises(HTTPException, match="synthetic #10 failure"):
         await _replace_plan(db_session, monkeypatch, novel, chapter, shot, llm)
 
     db_session.refresh(shot)
     current = json.loads(shot.video_director_plan)
-    assert len(llm.calls) == 1
+    assert [call["task_type"] for call in llm.calls] == ["keyframe_planner", "keyframe_transition"]
+    transition_input = llm.calls[1]["user_content"]
+    assert '"description": ""' in transition_input
+    assert "皇帝提出问题，侍从回答" not in transition_input
     assert current["canonical_visual_plan"] is True
     assert [state["description"] for state in current["keyframes"]] == ["", "侍从站在镜前，皇帝皱眉看向他"]
     assert current["transitions"] == []

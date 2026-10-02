@@ -66,6 +66,10 @@ def test_transition_planner_keeps_adjacent_scope_and_isolates_speech_authority()
         "Current Segment Action Recovery",
         "from_keyframe.time_seconds 至 to_keyframe.time_seconds",
         "不得把其他 transition 的动作泄漏进当前 transition",
+        "canonical START 可以为 null/empty",
+        "不得读取或推断 raw shot.description、shot.video_description、dialogue、speaker 或 timeline",
+        "只能使用当前输入明确提供的 canonical visual facts 与结构化视觉上下文",
+        "不得通过 raw shot.description、shot.video_description 或 dialogue 恢复",
         "Speech Authority Isolation",
         "由后续 Clip dialogue timeline / H3 Prompt Builder 独占",
         '"from_keyframe_index": 1',
@@ -76,6 +80,9 @@ def test_transition_planner_keeps_adjacent_scope_and_isolates_speech_authority()
         assert marker in prompt
 
     for obsolete_speech_rule in (
+        "START 若由程序引用 shot.description",
+        "必须同时参考 shot.video_description",
+        "当前 Segment 的 dialogue timeline 只能用于理解",
         "speaking mouth state 只能由 dialogue_timeline_source",
         "允许自然说话视觉状态",
         "说话者保持面对目标",
