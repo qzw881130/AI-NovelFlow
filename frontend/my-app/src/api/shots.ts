@@ -253,6 +253,22 @@ export interface VideoDirectorPlan {
   };
   clip_plan_findings?: Array<{ code?: string; severity?: string; message?: string }>;
   clip_plan?: SemanticClipPlan[];
+  execution_readiness?: {
+    ready: boolean;
+    code?: string;
+    message?: string | null;
+    blocking_clips?: Array<{
+      ready: boolean;
+      applicable?: boolean;
+      code?: string;
+      message?: string | null;
+      clip_index?: number | null;
+      visual_state_index?: number | null;
+      time_seconds?: number | null;
+      grounding_source?: 'KEYFRAME_IMAGE' | 'SHOT_IMAGE' | null;
+      image_url?: string | null;
+    }>;
+  };
   ai_calls?: VideoAiCall[];
   validation?: Record<string, any>;
 }

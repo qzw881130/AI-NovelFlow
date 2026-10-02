@@ -6,6 +6,7 @@ export type CanonicalSemanticReadinessState =
   | 'REQUIRED_IMAGES_MISSING'
   | 'CLIP_PLAN_MISSING'
   | 'CLIP_PLAN_STALE'
+  | 'GENERATE_VISUAL_START_MISSING'
   | 'READY';
 
 export type SemanticClipStatus = 'NOT_STARTED' | 'RUNNING' | 'WAITING_REVIEW' | 'FAILED' | 'COMPLETED';
@@ -54,6 +55,10 @@ export function getCanonicalSemanticReadiness(
   planningAllowed: boolean;
   executionAllowed: boolean;
   requiredMissingIndexes: number[];
+  reason?: string | null;
+  missingClipIndex?: number | null;
+  missingVisualStateIndex?: number | null;
+  missingTimeSeconds?: number | null;
 } {
   const candidateKeyframes = plan?.keyframes;
   const keyframes = Array.isArray(candidateKeyframes) ? candidateKeyframes : [];
@@ -71,6 +76,19 @@ export function getCanonicalSemanticReadiness(
   }
   if (!hasValidCurrentClipPlan(plan)) {
     return { state: 'CLIP_PLAN_STALE', planningAllowed: true, executionAllowed: false, requiredMissingIndexes: [] };
+  }
+  if (plan.execution_readiness?.ready === false) {
+    const blocker = plan.execution_readiness.blocking_clips?.[0];
+    return {
+      state: 'GENERATE_VISUAL_START_MISSING',
+      planningAllowed: true,
+      executionAllowed: false,
+      requiredMissingIndexes: [],
+      reason: blocker?.message || plan.execution_readiness.message || '缺少片段起始视觉图',
+      missingClipIndex: blocker?.clip_index,
+      missingVisualStateIndex: blocker?.visual_state_index,
+      missingTimeSeconds: blocker?.time_seconds,
+    };
   }
   return { state: 'READY', planningAllowed: true, executionAllowed: true, requiredMissingIndexes: [] };
 }
@@ -211,6 +229,7 @@ export function getCanonicalBatchEligibility(
   if (readiness.state === 'REQUIRED_IMAGES_MISSING') return { selectable: false, reason: `缺少必需视觉状态图：${readiness.requiredMissingIndexes.map((index) => `KF${index}`).join('、')}`, authority: CANONICAL_EXECUTION_AUTHORITY };
   if (readiness.state === 'CLIP_PLAN_MISSING') return { selectable: false, reason: '请先规划视频片段', authority: CANONICAL_EXECUTION_AUTHORITY };
   if (readiness.state === 'CLIP_PLAN_STALE') return { selectable: false, reason: '需要重新规划视频片段', authority: CANONICAL_EXECUTION_AUTHORITY };
+  if (readiness.state === 'GENERATE_VISUAL_START_MISSING') return { selectable: false, reason: readiness.reason || '缺少片段起始视觉图', authority: CANONICAL_EXECUTION_AUTHORITY };
   const status = getSemanticShotStatusFromPlan(plan, tasks);
   if (status === 'ASSEMBLED') return { selectable: false, reason: '当前版本已完成', authority: CANONICAL_EXECUTION_AUTHORITY };
   if (status === 'WAITING_REVIEW') return { selectable: false, reason: '等待审核', authority: CANONICAL_EXECUTION_AUTHORITY };

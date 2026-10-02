@@ -100,7 +100,13 @@ from app.services.llm_service import LLMService
 from app.repositories import PromptTemplateRepository
 from app.services.video_director_ai import append_video_ai_call, build_dialogue_timeline, strip_media_refs
 from app.services.clip_planner import plan_clips
-from app.services.clip_execution_compiler import ClipExecutionCompileError, compile_extend_clip, compile_generate_clip, compile_temporal_extend_clip
+from app.services.clip_execution_compiler import (
+    ClipExecutionCompileError,
+    compile_extend_clip,
+    compile_generate_clip,
+    compile_temporal_extend_clip,
+    get_canonical_execution_readiness,
+)
 from app.constants.capability import EXTEND_PHYSICAL_WORKFLOW_TYPE, EXTEND_WORKFLOW_ID, TEMPORAL_EXTEND_WORKFLOW_ID
 from app.services.dialogue_ownership import assign_dialogues_to_clips
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
@@ -2541,6 +2547,8 @@ async def _execute_phase_b_semantic_clip(
         else:
             raise ClipExecutionCompileError("当前 Clip capability 不支持 Phase C 执行")
     except ClipExecutionCompileError as exc:
+        if exc.detail and exc.detail.get("code") == "GENERATE_VISUAL_START_GROUNDING_MISSING":
+            raise HTTPException(status_code=409, detail=exc.detail)
         raise HTTPException(status_code=400, detail=str(exc))
     except ValueError as exc:
         if str(exc) == "PREVIOUS_AV_UNAVAILABLE":
@@ -3675,6 +3683,12 @@ async def generate_shot_videos_batch(
             raise HTTPException(status_code=400, detail=f"分镜 {shot.index} 尚未生成主分镜图")
         plan = _safe_json_dict(shot.video_director_plan)
         semantic = isinstance(plan.get("clip_plan"), list) and bool(plan.get("clip_plan"))
+        if semantic and plan.get("canonical_visual_plan") is True:
+            readiness = get_canonical_execution_readiness(shot, plan)
+            if not readiness["ready"]:
+                detail = dict(readiness["blocking_clips"][0])
+                detail.update({"shot_id": shot.id, "shot_index": shot.index})
+                raise HTTPException(status_code=409, detail=detail)
         selected_shots.append({
             "shot_id": shot.id,
             "clip_plan_revision": int(plan.get("clip_plan_revision") or 0) if semantic else None,

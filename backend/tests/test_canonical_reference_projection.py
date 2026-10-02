@@ -84,10 +84,9 @@ def test_budget_is_checked_after_projection_and_identity_not_url():
     assert len({item["source_keyframe_index"] for item in nine["references"]}) == 9
 
 
-def test_generate_zero_refs_does_not_infer_capability():
-    compiled = compile_generate_clip(Shot(), plan([]), clip(owned=[]), 1)
-    assert compiled["execution_contract"]["capability"] == "GENERATE"
-    assert compiled["video_reference_manifest"]["references"] == []
+def test_generate_without_first_owned_grounding_is_rejected():
+    with pytest.raises(ClipExecutionCompileError, match="缺少片段起始视觉图"):
+        compile_generate_clip(Shot(), plan([]), clip(owned=[]), 1)
 
 
 def _prompt_route(monkeypatch, states, owned, temporal=None, carry=None):

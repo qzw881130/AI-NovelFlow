@@ -11,6 +11,10 @@ from app.utils.path_utils import local_path_to_url
 class ClipExecutionCompileError(ValueError):
     """Raised when a semantic Clip cannot be compiled."""
 
+    def __init__(self, message: str, *, detail: dict | None = None):
+        super().__init__(message)
+        self.detail = detail
+
 
 _TEMPORAL_ANCHOR_LIMIT = 8
 
@@ -113,6 +117,97 @@ def _source_reference(slot: int, image_url: str | None, source_type: str, *, ind
     }
 
 
+def _shot_image_url(shot) -> str | None:
+    image_url = getattr(shot, "image_url", None)
+    if not image_url and getattr(shot, "image_path", None):
+        image_url = local_path_to_url(shot.image_path)
+    return image_url
+
+
+def get_generate_visual_start_readiness(shot, plan: dict, clip: dict) -> dict:
+    """Resolve the physical authority for a GENERATE Clip's first-owned state."""
+    clip_index = clip.get("clip_index") if isinstance(clip, dict) else None
+    result = {
+        "ready": True,
+        "applicable": False,
+        "code": "NOT_APPLICABLE",
+        "message": None,
+        "clip_index": clip_index,
+        "visual_state_index": None,
+        "time_seconds": None,
+        "grounding_source": None,
+        "image_url": None,
+    }
+    if not isinstance(clip, dict) or str(clip.get("capability") or "").upper() != "GENERATE":
+        return result
+
+    result["applicable"] = True
+    owned = clip.get("visual_state_indexes")
+    first_raw = owned[0] if isinstance(owned, list) and owned else None
+    try:
+        first_index = int(first_raw)
+    except (TypeError, ValueError):
+        first_index = None
+
+    states = {
+        int(item.get("index")): item
+        for item in _json_list(plan.get("keyframes"))
+        if isinstance(item, dict) and item.get("index") is not None
+    }
+    first_state = states.get(first_index) if first_index is not None else None
+    time_seconds = first_state.get("time_seconds") if first_state else None
+    result.update({
+        "visual_state_index": first_index,
+        "time_seconds": time_seconds,
+    })
+
+    image_url = first_state.get("image_url") or first_state.get("imageUrl") if first_state else None
+    grounding_source = "KEYFRAME_IMAGE" if image_url else None
+    if (
+        not image_url
+        and first_state
+        and first_index == 1
+        and str(first_state.get("role") or "").upper() == "START"
+    ):
+        image_url = _shot_image_url(shot)
+        grounding_source = "SHOT_IMAGE" if image_url else None
+    if image_url:
+        result.update({
+            "code": "READY",
+            "grounding_source": grounding_source,
+            "image_url": image_url,
+        })
+        return result
+
+    state_label = f"视觉状态 {first_index}" if first_index is not None else "首个 owned 视觉状态"
+    if time_seconds is not None:
+        state_label += f"（{time_seconds}s）"
+    message = f"缺少片段起始视觉图：Clip {clip_index} · {state_label}"
+    result.update({
+        "ready": False,
+        "code": "GENERATE_VISUAL_START_GROUNDING_MISSING",
+        "message": message,
+    })
+    return result
+
+
+def get_canonical_execution_readiness(shot, plan: dict) -> dict:
+    """Project execution-time GENERATE blockers without mutating the canonical plan."""
+    blockers = []
+    clips = plan.get("clip_plan") if isinstance(plan, dict) else None
+    for clip in clips if isinstance(clips, list) else []:
+        readiness = get_generate_visual_start_readiness(shot, plan, clip)
+        if readiness["applicable"] and not readiness["ready"]:
+            blockers.append(readiness)
+    first = blockers[0] if blockers else None
+    return {
+        "ready": not blockers,
+        "code": first["code"] if first else "READY",
+        "message": first["message"] if first else None,
+        "blocking_clips": blockers,
+    }
+
+
 def project_canonical_visual_references(shot, plan: dict, clip: dict, temporal_anchors: list[dict] | None = None) -> dict:
     """Purely project owned canonical states into the ordinary H3 manifest."""
     states = {
@@ -135,9 +230,7 @@ def project_canonical_visual_references(shot, plan: dict, clip: dict, temporal_a
         except (TypeError, ValueError):
             continue
 
-    shot_image_url = getattr(shot, "image_url", None)
-    if not shot_image_url and getattr(shot, "image_path", None):
-        shot_image_url = local_path_to_url(shot.image_path)
+    shot_image_url = _shot_image_url(shot)
     ordered = []
     for raw_index in clip.get("visual_state_indexes") or []:
         try:
@@ -204,6 +297,10 @@ def compile_generate_clip(
     if start < 0 or end <= start or end > shot_duration + 0.05:
         raise ClipExecutionCompileError("Clip 时间范围无效")
 
+    readiness = get_generate_visual_start_readiness(shot, plan, clip)
+    if not readiness["ready"]:
+        raise ClipExecutionCompileError(readiness["message"], detail=readiness)
+
     manifest = project_canonical_visual_references(shot, plan, clip)
 
     contract = {
@@ -259,7 +356,7 @@ def compile_extend_clip(
 
     # Reuse the proven visual projection.  It remains a logical manifest and
     # never resolves or uploads the resulting local paths.
-    compiled = compile_generate_clip(shot, plan, {**clip, "capability": "GENERATE"}, revision)
+    compiled = compile_generate_clip(shot, plan, clip, revision)
     contract = dict(compiled["execution_contract"])
     contract["capability"] = "EXTEND"
     contract["previous_clip"] = {

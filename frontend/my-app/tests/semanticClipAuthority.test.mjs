@@ -79,6 +79,35 @@ test('C: an optional missing ordinary state does not block semantic readiness', 
   assert.equal(readiness.executionAllowed, true);
 });
 
+test('C2: backend visual-start readiness blocks execution and identifies the existing state-image action target', () => {
+  const plan = readyPlan();
+  plan.execution_readiness = {
+    ready: false,
+    code: 'GENERATE_VISUAL_START_GROUNDING_MISSING',
+    message: '缺少片段起始视觉图：Clip 2 · 视觉状态 4（9.5s）',
+    blocking_clips: [{
+      ready: false,
+      code: 'GENERATE_VISUAL_START_GROUNDING_MISSING',
+      message: '缺少片段起始视觉图：Clip 2 · 视觉状态 4（9.5s）',
+      clip_index: 2,
+      visual_state_index: 4,
+      time_seconds: 9.5,
+    }],
+  };
+  const readiness = getCanonicalSemanticReadiness(plan);
+  assert.equal(readiness.state, 'GENERATE_VISUAL_START_MISSING');
+  assert.equal(readiness.executionAllowed, false);
+  assert.equal(readiness.planningAllowed, true);
+  assert.equal(readiness.missingClipIndex, 2);
+  assert.equal(readiness.missingVisualStateIndex, 4);
+  assert.equal(readiness.missingTimeSeconds, 9.5);
+  assert.equal(readiness.reason, '缺少片段起始视觉图：Clip 2 · 视觉状态 4（9.5s）');
+
+  const eligibility = getCanonicalBatchEligibility(plan);
+  assert.equal(eligibility.selectable, false);
+  assert.equal(eligibility.reason, readiness.reason);
+});
+
 test('D: arbitrary clip counts derive without a fixed frontend limit', () => {
   const plan = readyPlan();
   plan.clip_plan = Array.from({ length: 8 }, (_, index) => ({

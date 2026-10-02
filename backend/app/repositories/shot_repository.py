@@ -309,11 +309,17 @@ class ShotRepository:
         Returns:
             响应字典
         """
+        from app.services.clip_execution_compiler import get_canonical_execution_readiness
         from app.services.hd_repaint_service import get_hd_repaint_variants
 
         hd_variants = get_hd_repaint_variants(self.db, shot.id)
         latest_completed_variants = [variant for variant in hd_variants if variant.get("videoUrl")]
         latest_hd = latest_completed_variants[-1] if latest_completed_variants else None
+        video_director_plan = json.loads(shot.video_director_plan) if shot.video_director_plan else {}
+        if video_director_plan.get("canonical_visual_plan") is True:
+            video_director_plan["execution_readiness"] = get_canonical_execution_readiness(
+                shot, video_director_plan,
+            )
         return {
             "id": shot.id,
             "chapterId": shot.chapter_id,
@@ -326,7 +332,7 @@ class ShotRepository:
             "props": json.loads(shot.props) if shot.props else [],
             "duration": shot.duration,
             "continuity_mode": shot.continuity_mode or "NORMAL",
-            "videoDirectorPlan": json.loads(shot.video_director_plan) if shot.video_director_plan else {},
+            "videoDirectorPlan": video_director_plan,
             "imageUrl": shot.image_url,
             "imagePath": shot.image_path,
             "imageStatus": shot.image_status,

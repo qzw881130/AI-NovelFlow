@@ -856,7 +856,7 @@ function VideoDirectorPanel({
     : [];
   const canonicalSemanticReadiness = getCanonicalSemanticReadiness(plan, getKeyframeImageUrl);
   const showSemanticClipPlan = hasSemanticClipPlan
-    && (!isCanonicalPlan || canonicalSemanticReadiness.state === 'READY');
+    && (!isCanonicalPlan || canonicalSemanticReadiness.state === 'READY' || canonicalSemanticReadiness.state === 'GENERATE_VISUAL_START_MISSING');
   const optionalMissingKeyframes = isCanonicalPlan
     ? keyframes.filter((kf: any) => classifyVisualStateImageStatus(kf, getKeyframeImageUrl(kf)) === 'OPTIONAL_MISSING')
     : [];
@@ -1763,6 +1763,8 @@ function VideoDirectorPanel({
                     ? t('chapterGenerate.clipPlanMissing')
                     : canonicalSemanticReadiness.state === 'CLIP_PLAN_STALE'
                       ? t('chapterGenerate.clipPlanNeedsReplan')
+                      : canonicalSemanticReadiness.state === 'GENERATE_VISUAL_START_MISSING'
+                        ? canonicalSemanticReadiness.reason
                       : t('chapterGenerate.clipPlanReady')}
             </div>}
           </div>
@@ -2404,6 +2406,8 @@ export function VideoGenTab({
         ? t('chapterGenerate.planClipsFirst')
         : currentCanonicalReadiness.state === 'CLIP_PLAN_STALE'
           ? t('chapterGenerate.clipPlanNeedsReplan')
+          : currentCanonicalReadiness.state === 'GENERATE_VISUAL_START_MISSING'
+            ? currentCanonicalReadiness.reason || '缺少片段起始视觉图'
           : currentSemanticShotStatus === 'ASSEMBLED'
             ? t('chapterGenerate.finalVideoComplete')
             : '';
@@ -3945,6 +3949,10 @@ export function VideoGenTab({
     if (currentCanonicalReadiness.state === 'CLIP_PLAN_MISSING' || currentCanonicalReadiness.state === 'CLIP_PLAN_STALE') {
       const isStale = currentCanonicalReadiness.state === 'CLIP_PLAN_STALE';
       return { label: isStale ? '重新规划视频片段' : '规划视频片段', disabled: planningClipsShotId === currentShotId, onClick: () => handlePlanSemanticClips(isStale) };
+    }
+    if (currentCanonicalReadiness.state === 'GENERATE_VISUAL_START_MISSING') {
+      const stateIndex = currentCanonicalReadiness.missingVisualStateIndex;
+      return { label: stateIndex ? `请先生成视觉状态 ${stateIndex}` : '请先生成片段起始视觉图', disabled: true, onClick: () => undefined };
     }
     if (currentSemanticShotStatus === 'CLIPS_COMPLETE') {
       return { label: '合并最终视频', disabled: isMergingClips, onClick: handleMergeDirectorClips };
