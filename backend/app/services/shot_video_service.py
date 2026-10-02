@@ -128,6 +128,47 @@ def _filter_transitions_for_keyframe_indexes(transitions: list, keyframe_indexes
     ]
 
 
+def _project_semantic_clip_transitions(
+    transitions: list,
+    visual_state_indexes: list,
+    carry_in_state_index=None,
+) -> list:
+    """Project canonical transitions into one semantic Clip without changing ownership."""
+    owned_indexes = []
+    for raw_index in visual_state_indexes or []:
+        try:
+            index = int(raw_index)
+        except (TypeError, ValueError):
+            continue
+        if index > 0 and index not in owned_indexes:
+            owned_indexes.append(index)
+    if not owned_indexes:
+        return []
+
+    allowed_pairs = set(zip(owned_indexes, owned_indexes[1:]))
+    try:
+        carry_in = int(carry_in_state_index) if carry_in_state_index is not None else None
+    except (TypeError, ValueError):
+        carry_in = None
+    if carry_in is not None and carry_in > 0 and carry_in != owned_indexes[0]:
+        allowed_pairs.add((carry_in, owned_indexes[0]))
+
+    projected = []
+    for transition in transitions or []:
+        if not isinstance(transition, dict):
+            continue
+        try:
+            endpoints = (
+                int(transition.get("from_keyframe_index")),
+                int(transition.get("to_keyframe_index")),
+            )
+        except (TypeError, ValueError):
+            continue
+        if endpoints in allowed_pairs:
+            projected.append(transition)
+    return projected
+
+
 def _to_float_or_none(value):
     if value is None or value == "":
         return None
@@ -322,7 +363,11 @@ def _semantic_clip_prompt_context(video_director_plan: dict, clip_metadata: dict
         item for item in source_keyframes
         if int(item.get("index") or -1) in selected_indexes
     ] if selected_indexes else source_keyframes
-    transitions = source_transitions
+    transitions = _project_semantic_clip_transitions(
+        source_transitions,
+        clip.get("visual_state_indexes") or [],
+        clip.get("carry_in_state_index"),
+    )
     return {
         "clip": clip,
         "clip_dialogues": projected_dialogues,
