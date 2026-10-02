@@ -190,6 +190,44 @@ CANONICAL PHYSICAL PICTURE MAPPING CONTRACT (highest priority for Picture labels
 """.strip()
 
 
+def _canonical_speech_contract() -> str:
+    return """
+CANONICAL SINGLE SPEECH AUTHORITY (highest priority, including Novel overrides):
+- dialogue_timeline_source is the sole Clip-local speaker, exact text, language,
+  timing and speech-related mouth/lip authority. The program injects it once.
+- Output visual direction and non-human environmental/action sound only. Do not
+  output dialogue_timeline, exact dialogue, speaker assignments, human vocalization
+  permissions or speech-related mouth/lip rules. Outside the injected block only
+  assigned dialogue IDs may be referenced as visual event markers.
+- Pictures, temporal targets, Previous AV and visual prominence never assign speakers.
+- With no assigned dialogue the program injects NO_VOICE: no human speech,
+  vocalization or invented dialogue, NOT SILENT_AUDIO. Preserve ambience, Foley,
+  movement/object sounds and appropriate non-human sound; never mute the audio track.
+- Smiles, frowns, mouth-corner changes, clenched teeth, gaze, posture and gestures
+  remain legitimate visual facts, not speech permission.
+""".strip()
+
+
+def _canonical_temporal_controls(anchors: list, states: list) -> list[dict]:
+    """Project semantic targets, not physical slots, paths or Task provenance."""
+    by_index = {int(state["index"]): state for state in states}
+    result = []
+    for anchor in anchors or []:
+        source = anchor.get("source") or {}
+        raw_index = source.get("keyframe_index")
+        if raw_index is None and str(source.get("id") or "").startswith("KF"):
+            raw_index = str(source["id"])[2:]
+        state = by_index.get(int(raw_index)) if raw_index is not None else None
+        result.append({
+            "anchor_id": anchor.get("anchor_id") or anchor.get("id"),
+            # The compiled temporal manifest already uses Clip-local time.
+            "time_seconds": anchor.get("time_seconds"),
+            "source_keyframe_index": int(raw_index) if raw_index is not None else None,
+            "description": state.get("description") if state else anchor.get("description"),
+        })
+    return result
+
+
 def strip_media_refs(value: Any) -> Any:
     """Remove concrete media locators before sending data to LLM prompt builders."""
     if isinstance(value, list):
@@ -588,16 +626,18 @@ def _render_dialogue_timeline_block(assigned_dialogues: list, silent_characters:
         lines = [
             "dialogue_timeline:",
             "No assigned dialogue. No character is authorized to speak throughout this clip.",
+            "NO_VOICE: no human speech, no human vocalization, no invented dialogue.",
         ]
         if silent_characters:
             lines.append("silent_characters: " + ", ".join(subject_bindings.get(name, name) for name in silent_characters))
-        lines.append("This human-voice restriction does not mute the audio track; environmental ambience and synchronized Foley remain audible.")
+        lines.append("NO_VOICE is not SILENT_AUDIO. This human-voice restriction does not mute the audio track; environmental ambience and synchronized Foley remain audible, including movement, object interaction and appropriate non-human sounds.")
         return "\n".join(lines)
     lines = [
         "dialogue_timeline:",
         "This is the only source of exact spoken text in this prompt.",
         "Speak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.",
         "All assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.",
+        "Human vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.",
     ]
     for item in assigned_dialogues:
         subject = subject_bindings.get(item["speaker"])
@@ -641,7 +681,56 @@ def _remove_dialogue_text_outside_single_block(prompt: str, assigned_dialogues: 
     return f"{timeline_block}\n\n{body}".strip()
 
 
-def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_characters: list, subject_bindings: dict | None = None) -> dict:
+def _canonical_visual_body_speech_issues(body: str, subject_bindings: dict | None = None) -> list[str]:
+    """Narrow explicit speech assertions only; not a visual-expression/NLP filter."""
+    speech = re.compile(
+        r"\b(?:speaks?|speaking|talks?|talking|says?|answers?|replies?|whispers?|whispering|"
+        r"shouts?|shouting|laughs?|laughing|laughter|"
+        r"mumbles?|mumbling|murmuring|crowd\s+chatter|background\s+voices|"
+        r"lip[ -]?sync(?:s|ing|hronization)?|vocalizes?|vocalizing|"
+        r"(?:assigned|authorized|only)\s+speaker)\b|"
+        r"<Subject\s+\d+>\s+is\s+(?:the\s+|a\s+)?speaker\b|"
+        r"\b(?:allow|enable|generate|produce|add|include)\s+(?:extra\s+)?human\s+(?:speech|voices?|vocalization)\b|"
+        r"\bhuman\s+(?:speech|voices?|vocalization)\s+(?:(?:is|are)\s+)?(?:allowed|enabled)\b|"
+        r"说话|讲话|低声交谈|低语|喊叫|笑声|口型|发声|人声|唇形",
+        re.IGNORECASE,
+    )
+    muted_audio = re.compile(
+        r"\b(?:silent\s+audio|complete\s+silence|(?:entire\s+clip|audio\s+track|"
+        r"soundtrack|all\s+sound)\s+(?:(?:is|must\s+be|remains?|becomes?)\s+)?"
+        r"(?:silent|muted)|mute\s+(?:the\s+)?(?:audio|soundtrack))\b|"
+        r"音轨静音|关闭(?:整个)?音轨|所有声音消失", re.IGNORECASE,
+    )
+    issues = []
+    human_identity = r"(?:<Subject\s+\d+>|\bhuman\b|\bperson\b|\bman\b|\bwoman\b|\bcrowd\b"
+    for name in subject_bindings or {}:
+        human_identity += "|" + re.escape(name)
+    human_identity += ")"
+    human_vocalization = re.compile(
+        human_identity + r"[^.!?;,\n]{0,40}\b(?:screams?|screaming|grunts?|grunting|gasps?|gasping|sobs?|sobbing|sings?|singing|hums?|humming)\b",
+        re.IGNORECASE,
+    )
+    human_silence = re.compile(
+        r"(?:" + human_identity + r"|all\s+characters)\s+(?:is|are|remains?|stays?|must\s+remain)\s+(?:silent|non-vocal|mute)\b",
+        re.IGNORECASE,
+    )
+    # Do not let a negation in another clause authorize affirmative speech.
+    for clause in re.split(r"[\n.!?;,，。！？；]|\bbut\b", body, flags=re.IGNORECASE):
+        for pattern, code in ((speech, "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"),
+                              (human_vocalization, "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"),
+                              (human_silence, "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"),
+                              (muted_audio, "NO_VOICE_AUDIO_MUTED")):
+            for match in pattern.finditer(clause):
+                prefix = clause[:match.start()]
+                if re.search(r"(?:\b(?:no|not|never|without|forbid|forbidden)\b|禁止|不得|没有|不允许)[\w\s-]{0,40}$", prefix, re.IGNORECASE):
+                    continue
+                issues.append(code)
+    if re.search(r"(?i)\b(?:speaker|exact_dialogue|dialogue_timeline)\s*[:=]", body):
+        issues.append("CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE")
+    return sorted(set(issues))
+
+
+def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_characters: list, subject_bindings: dict | None = None, *, canonical_visual_body: str | None = None) -> dict:
     issues = []
     subject_mappings = {
         name.strip(): subject
@@ -658,6 +747,11 @@ def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_c
             issues.append("DIALOGUE_EXACT_TEXT_OCCURRENCE_INVALID")
         if not speaker or not re.search(rf"(?m)^\s*speaker: <Subject \d+>\s*$", final_prompt):
             issues.append("DIALOGUE_SPEAKER_MISSING")
+        if canonical_visual_body is not None:
+            subject = (subject_bindings or {}).get(speaker)
+            expected = f"{item['id']}:\n  speaker: {subject}\n  start_time: {item['start_time']}s\n  end_time: {item['end_time']}s\n  exact_dialogue: {text}"
+            if not subject or expected not in final_prompt:
+                issues.append("DIALOGUE_SPEAKER_TIMING_AUTHORITY_INVALID")
         if not item.get("duration_sufficient"):
             issues.append("DIALOGUE_DURATION_INSUFFICIENT")
     for character in silent_characters:
@@ -672,6 +766,10 @@ def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_c
         ))
         if character and character not in final_prompt and not subject_is_silent:
             issues.append("SILENT_CHARACTER_CONSTRAINT_MISSING")
+    if canonical_visual_body is not None:
+        issues.extend(_canonical_visual_body_speech_issues(canonical_visual_body, subject_bindings))
+        if not assigned_dialogues and "NO_VOICE: no human speech, no human vocalization, no invented dialogue." not in final_prompt:
+            issues.append("CANONICAL_NO_VOICE_MISSING")
     blocking_issues = [issue for issue in sorted(set(issues)) if issue != "DIALOGUE_DURATION_INSUFFICIENT"]
     return {
         "source_dialogue_count": len(assigned_dialogues),
@@ -719,6 +817,7 @@ async def build_h3_video_prompt(
     character_appearances: Optional[dict] = None,
     temporal_anchors: Optional[list] = None,
     video_reference_manifest: Optional[dict] = None,
+    previous_av_present: bool = False,
 ) -> str:
     canonical_path = isinstance(clip, dict) and "visual_state_indexes" in clip
     semantic_controls = []
@@ -730,10 +829,8 @@ async def build_h3_video_prompt(
         }
         owned_indexes = [int(item) for item in clip.get("visual_state_indexes") or []]
         semantic_controls = [state_map[index] for index in owned_indexes if index in state_map]
-        temporal_ids = {str(item.get("anchor_id") or item.get("id")) for item in temporal_anchors or []}
-        semantic_controls.extend({"anchor_id": item} for item in sorted(temporal_ids) if item)
         roles = {str(item.get("role") or "").upper() for item in semantic_controls if item.get("index") is not None}
-        if len(owned_indexes) == 2 and {str(item.get("role") or "").upper() for item in semantic_controls if item.get("index") is not None} == {"START", "END"}:
+        if len(semantic_controls) == 2 and roles == {"START", "END"}:
             route = "endpoint"
         elif len(semantic_controls) == 1:
             route = "single"
@@ -768,7 +865,12 @@ async def build_h3_video_prompt(
         template_type = "h3_single_frame_prompt"
 
     template = resolve_prompt_template(db, novel, template_attr, template_type)
-    sanitized_keyframes = _strip_keyframe_generation_prompt(strip_media_refs(keyframes))
+    sanitized_keyframes = (
+        [{key: item[key] for key in (
+            "index", "role", "time_seconds", "description", "required", "requirement", "timed_visual_target",
+        ) if key in item} for item in semantic_controls]
+        if canonical_path else _strip_keyframe_generation_prompt(strip_media_refs(keyframes))
+    )
     clip_start_time = float(clip.get("start_time") or 0)
     for keyframe in sanitized_keyframes:
         if isinstance(keyframe, dict) and keyframe.get("time_seconds") is not None:
@@ -776,7 +878,7 @@ async def build_h3_video_prompt(
                 keyframe["time_seconds"] = round(float(keyframe["time_seconds"]) - clip_start_time, 2)
             except (TypeError, ValueError):
                 pass
-    frames = sanitized_keyframes or [
+    frames = sanitized_keyframes if canonical_path else sanitized_keyframes or [
         {
             "index": 1,
             "role": "START",
@@ -804,46 +906,54 @@ async def build_h3_video_prompt(
     )
     mapped_semantic_controls = (
         attach_physical_picture_mapping(
-            [item for item in semantic_controls if isinstance(item, dict) and item.get("index") is not None],
+            sanitized_keyframes,
             physical_picture_mapping,
         )
         if canonical_path else []
     )
-    if canonical_path:
-        mapped_semantic_controls.extend(
-            strip_media_refs(item)
-            for item in semantic_controls
-            if isinstance(item, dict) and item.get("index") is None
-        )
     is_multi_clip = route in {"endpoint", "multi"}
     is_semantic_clip = bool(clip_dialogues and any(isinstance(item, dict) and item.get("dialogue_id") for item in clip_dialogues))
     shot_characters = safe_json_list(shot.characters)
     clip_visible_characters = _clip_visible_characters(sanitized_keyframes, shot_characters)
     assigned_dialogues, silent_characters, dialogue_timeline_status = build_dialogue_timeline(clip, clip_dialogues, clip_visible_characters)
+    if canonical_path and clip_dialogues and (
+        not assigned_dialogues or dialogue_timeline_status.get("status") != "ok"
+    ):
+        raise ValueError("CANONICAL_DIALOGUE_TIMELINE_UNAVAILABLE")
     dialogue_payload = [
         {key: value for key, value in item.items() if key not in {"text", "source_order"}}
         for item in assigned_dialogues
     ]
     character_appearances = character_appearances or {}
-    sanitized_transitions = _sanitize_transitions_for_h3(transitions)
+    sanitized_transitions = (
+        [{key: item[key] for key in (
+            "from_keyframe_index", "to_keyframe_index", "start_time", "end_time",
+            "duration", "transition_description",
+        ) if key in item} for item in transitions or [] if isinstance(item, dict)]
+        if canonical_path else _sanitize_transitions_for_h3(transitions)
+    )
     clip_motion_directive = (
         _build_clip_motion_directive(shot, clip, sanitized_transitions)
-        if is_multi_clip or is_semantic_clip
+        if canonical_path or is_multi_clip or is_semantic_clip
         else _strip_voice_rules_from_text(shot.video_description or shot.description or "")
     )
     payload = {
         "shot": {
             "id": shot.id,
             "index": shot.index,
-            "description": shot.description or "",
-        "video_description": "" if is_multi_clip or is_semantic_clip else _strip_voice_rules_from_text(shot.video_description or ""),
+            **({} if canonical_path else {
+                "description": shot.description or "",
+                "video_description": "" if is_multi_clip or is_semantic_clip else _strip_voice_rules_from_text(shot.video_description or ""),
+            }),
             "duration": shot.duration or 4,
             "continuity_mode": shot.continuity_mode or "NORMAL",
             "characters": shot_characters,
             "official_character_appearances": character_appearances,
             "scene": shot.scene or "",
             "props": get_visual_prop_names(db, novel.id, safe_json_list(shot.props)),
-        "dialogues": dialogue_payload if is_multi_clip or is_semantic_clip else safe_json_list(shot.dialogues),
+            **({} if canonical_path else {
+                "dialogues": dialogue_payload if is_multi_clip or is_semantic_clip else safe_json_list(shot.dialogues),
+            }),
         },
         **({} if canonical_path else {"selected_mode": selected_mode}),
         "visual_control_route": route if canonical_path else None,
@@ -855,9 +965,14 @@ async def build_h3_video_prompt(
             "image_less_visual_states": "text_only_no_picture_number",
             "temporal_anchor_domain": "separate_from_ordinary_pictures",
         } if canonical_path else None,
-        "clip": strip_clip_generation_data(clip),
+        "clip": {key: clip[key] for key in (
+            "clip_index", "start_time", "end_time", "duration", "planned_duration",
+            "capability", "continuity_to_previous", "visual_state_indexes", "carry_in_state_index",
+        ) if key in clip} if canonical_path else strip_clip_generation_data(clip),
         "motion_directive": clip_motion_directive,
-        "clip_dialogues": dialogue_payload if is_multi_clip or is_semantic_clip else clip_dialogues,
+        **({} if canonical_path else {
+            "clip_dialogues": dialogue_payload if is_multi_clip or is_semantic_clip else clip_dialogues,
+        }),
         "clip_visible_characters": clip_visible_characters,
         "dialogue_timeline_source": assigned_dialogues,
         "dialogue_timeline_status": dialogue_timeline_status,
@@ -865,12 +980,29 @@ async def build_h3_video_prompt(
         "frames": mapped_frames,
         "ordered_keyframes": mapped_keyframes if canonical_path else None,
         "keyframes": mapped_keyframes,
-        "temporal_anchors": strip_media_refs(temporal_anchors or []),
+        "temporal_anchors": _canonical_temporal_controls(temporal_anchors or [], sanitized_keyframes) if canonical_path else strip_media_refs(temporal_anchors or []),
+        **({
+            "conditioning": {
+                "previous_av_present": bool(previous_av_present),
+                "previous_av": "Continue from the ending visual state of the provided previous video; it has no Picture number." if previous_av_present else None,
+                "temporal_domain": "separate_timed_conditioning_no_ordinary_picture",
+            },
+            "control_counts": {
+                "semantic_control_count": len(semantic_controls),
+                "owned_state_count": len(owned_indexes),
+                "ordinary_reference_count": len(physical_picture_mapping),
+                "temporal_anchor_count": len(temporal_anchors or []),
+                "previous_av_present": bool(previous_av_present),
+            },
+        } if canonical_path else {}),
         "transitions": sanitized_transitions,
         "workflow_capability": strip_media_refs(workflow_capability),
         "workflow_type": workflow_type,
         "workflow_name": workflow_name,
         "continuity_requirements": {
+            "continuity_to_previous": clip.get("continuity_to_previous"),
+            "rule": "Use the semantic Clip continuity; Previous AV is a separate conditioning channel only when provided. Do not infer speech from continuity.",
+        } if canonical_path else {
             "mode": shot.continuity_mode or "NORMAL",
             "is_continuous_take": (shot.continuity_mode or "NORMAL") == "CONTINUOUS_TAKE",
             "rule": "CONTINUOUS_TAKE forbids cuts and hidden edits; visual controls remain chronological states along one continuous trajectory.",
@@ -879,7 +1011,7 @@ async def build_h3_video_prompt(
     user_content = "请基于以下 Video Director 规划数据，生成可直接用于 MiniMax H3 的最终视频提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
     result = await LLMService().chat_completion(
         system_prompt=(
-            f"{template.template}\n\n{_canonical_picture_mapping_contract()}"
+            f"{template.template}\n\n{_canonical_picture_mapping_contract()}\n\n{_canonical_speech_contract()}"
             if canonical_path else template.template
         ),
         user_content=user_content,
@@ -908,9 +1040,9 @@ async def build_h3_video_prompt(
         raise RuntimeError(result.get("error") or "H3 视频提示词生成失败")
 
     final_prompt = (result.get("content") or "").strip()
-    if route == "multi":
+    if canonical_path or route == "multi":
         final_prompt = _remove_generated_dialogue_timeline(final_prompt)
-    continuity_lock = _render_continuity_lock(shot, selected_mode, clip)
+    continuity_lock = "" if canonical_path else _render_continuity_lock(shot, selected_mode, clip)
     if continuity_lock:
         final_prompt = f"{continuity_lock}\n\n{final_prompt}"
     physical_picture_audit = None
@@ -935,11 +1067,14 @@ async def build_h3_video_prompt(
             db.commit()
             raise RuntimeError(",".join(physical_picture_audit.get("issues") or ["PICTURE_MAPPING_AUDIT_FAILED"]))
     dialogue_audit = None
-    if is_multi_clip or is_semantic_clip:
+    if canonical_path or is_multi_clip or is_semantic_clip:
         subject_bindings = _subject_bindings(final_prompt, clip_visible_characters)
         timeline_block = _render_dialogue_timeline_block(assigned_dialogues, silent_characters, subject_bindings)
         final_prompt = _remove_dialogue_text_outside_single_block(final_prompt, assigned_dialogues, timeline_block)
-        dialogue_audit = _audit_final_h3_prompt(final_prompt, assigned_dialogues, silent_characters, subject_bindings)
+        dialogue_audit = _audit_final_h3_prompt(
+            final_prompt, assigned_dialogues, silent_characters, subject_bindings,
+            canonical_visual_body=final_prompt[len(timeline_block):].strip() if canonical_path else None,
+        )
         if not dialogue_audit.get("passed"):
             append_video_ai_call(shot, {
                 "step": step,

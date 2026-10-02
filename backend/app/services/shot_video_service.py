@@ -1211,6 +1211,9 @@ async def generate_shot_video_task(
                     for item in ((temporal_manifest or {}).get("anchors") or [])
                 ],
                 video_reference_manifest=phase_b_manifest,
+                previous_av_present=bool(
+                    clip_only_execution and compiled["execution_contract"].get("previous_clip")
+                ),
             )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)

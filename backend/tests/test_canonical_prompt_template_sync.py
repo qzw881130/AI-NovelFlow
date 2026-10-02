@@ -1,6 +1,8 @@
 from hashlib import sha256
 from pathlib import Path
 
+import pytest
+
 from app.models.novel import Novel
 from app.models.prompt_template import PromptTemplate
 from app.services.prompt_template_service import PromptTemplateService
@@ -12,6 +14,11 @@ PLANNER_FILE = "08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt"
 KEYFRAME_IMAGE_FILE = "09_NovelFlow_QwenEdit2511_KeyframeImagePrompt_V1.txt"
 TRANSITION_FILE = "10_NovelFlow_KeyframeTransition_Planner_V1.txt"
 CLIP_PLANNER_FILE = "10A_NovelFlow_ClipExecutionPlanner_V1.txt"
+H3_TEMPLATES = [
+    ("11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt", "h3_single_frame_prompt", "MiniMax H3 单帧视频提示词构建", "h3_single_frame_prompt_template_id"),
+    ("12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt", "h3_first_last_frame_prompt", "MiniMax H3 首尾帧视频提示词构建", "h3_first_last_frame_prompt_template_id"),
+    ("13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt", "h3_multi_keyframe_prompt", "MiniMax H3 多关键帧视频提示词构建", "h3_multi_keyframe_prompt_template_id"),
+]
 
 
 def _prompt(filename: str) -> str:
@@ -221,10 +228,45 @@ def test_system_sync_updates_existing_rows_in_place_and_default_resolution(db_se
 def test_unrelated_system_prompt_sources_remain_frozen():
     expected_hashes = {
         "06_NovelFlow_QwenEdit2511_ShotImagePrompt_V1.txt": "937f62ce9fbf9c25543abd9dca7b9d988eb770b878bfe1219f5d6095a2a296cd",
-        "11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt": "52019d4ee11be55d703e292e099acf33e39e4bc58668c42ce74161e636ae270f",
-        "12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt": "c2de7ce18528ecd7384859076414c96181e021a04077ed87bb494a826b8f62b6",
-        "13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt": "93987dd6dd073b9e76a09e7798147d9f37083bcad275a2c885445489e85bfa54",
+        PLANNER_FILE: "ccf2c3ff568171320ffbf821d9cd858b57989f0ba480cf1be3b00c70adc30731",
+        KEYFRAME_IMAGE_FILE: "2fdb3029f1f0e278aa166483dd65df5e36dc3733145e604b9829d282bf9ef0fb",
+        TRANSITION_FILE: "6bc10c2f0eab6165e13cce38bb17c29daead288d93af7aa75d98af81bea9c57c",
+        CLIP_PLANNER_FILE: "afa02be4092e5ff88cb8e01128986c9d8078d2d0156ec395b5986850a831f545",
     }
 
     for filename, expected_hash in expected_hashes.items():
         assert sha256((PROMPT_DIR / filename).read_bytes()).hexdigest() == expected_hash
+
+
+@pytest.mark.parametrize("filename,template_type,name,attribute", H3_TEMPLATES)
+def test_canonical_h3_system_sources_are_manifest_aware_and_delegate_speech(filename, template_type, name, attribute):
+    prompt = _prompt(filename)
+    for marker in ("semantic_control_count", "ordinary_reference_count", "temporal_anchor_count",
+                   "previous_av_present", "IMAGE_BACKED", "TEXT_ONLY", "physical_picture=null",
+                   "physical_picture_manifest 是唯一", "M 可小于 N", "Previous AV 是独立视频",
+                   "temporal_anchors 是独立 timed", "carry_in_state_index 只是语义上下文",
+                   "程序注入的 dialogue_timeline", "LLM 不输出 dialogue_timeline", "NO_VOICE",
+                   "SILENT_AUDIO", "Foley", "嘴角变化", "咬紧牙关"):
+        assert marker in prompt
+    for obsolete in ("每张 Picture 都是一个 Temporal State", "then speaks exactly one utterance",
+                     "<Picture 1> defines the authoritative", "<Picture 2> is the authoritative",
+                     "必须视为上游路由错误", "它是当前 <Picture 1>"):
+        assert obsolete not in prompt
+
+
+@pytest.mark.parametrize("filename,template_type,name,attribute", H3_TEMPLATES)
+def test_h3_system_sync_updates_stale_body_in_place_and_preserves_novel_override(db_session, filename, template_type, name, attribute):
+    system = PromptTemplate(id=f"stale-{template_type}", name=name, type=template_type,
+                            template="old fixed Picture contract", is_system=True, is_active=True)
+    override = PromptTemplate(name="Novel override", type=template_type, template="custom body")
+    db_session.add_all([system, override])
+    db_session.flush()
+    novel = Novel(title="isolated H3 sync", **{attribute: override.id})
+    db_session.add(novel)
+    db_session.commit()
+    PromptTemplateService(db_session).init_system_templates()
+    default = PromptTemplateService(db_session).get_default_system_template(template_type)
+    assert default.id == system.id
+    assert default.template == _prompt(filename)
+    assert resolve_prompt_template(db_session, novel, attribute, template_type).id == override.id
+    assert override.template == "custom body"
