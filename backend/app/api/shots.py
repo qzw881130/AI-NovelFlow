@@ -462,7 +462,7 @@ def _get_shot_image_prompt_template(novel: Novel, template_repo: PromptTemplateR
     return template
 
 
-def _build_shot_image_reference_manifest(db: Session, novel: Novel, shot):
+def _build_shot_image_reference_readiness(db: Session, novel: Novel, shot):
     shot_characters = _safe_json_list(shot.characters)
     shot_props = get_visual_prop_names(db, novel.id, _safe_json_list(shot.props))
 
@@ -470,6 +470,7 @@ def _build_shot_image_reference_manifest(db: Session, novel: Novel, shot):
     picture_index = 1
 
     character_members = []
+    missing_characters = []
     for name in shot_characters:
         character = (
             db.query(Character)
@@ -478,6 +479,8 @@ def _build_shot_image_reference_manifest(db: Session, novel: Novel, shot):
         )
         if character and character.image_url and url_to_local_path(character.image_url):
             character_members.append(name)
+        else:
+            missing_characters.append(name)
     if character_members:
         manifest.append(
             {
@@ -488,6 +491,7 @@ def _build_shot_image_reference_manifest(db: Session, novel: Novel, shot):
         )
         picture_index += 1
 
+    missing_scenes = []
     if shot.scene:
         scene = (
             db.query(Scene)
@@ -503,8 +507,11 @@ def _build_shot_image_reference_manifest(db: Session, novel: Novel, shot):
                 }
             )
             picture_index += 1
+        else:
+            missing_scenes.append(shot.scene)
 
     prop_members = []
+    missing_props = []
     for name in shot_props:
         prop = (
             db.query(Prop)
@@ -513,6 +520,8 @@ def _build_shot_image_reference_manifest(db: Session, novel: Novel, shot):
         )
         if prop and prop.image_url and url_to_local_path(prop.image_url):
             prop_members.append(name)
+        else:
+            missing_props.append(name)
     if prop_members:
         manifest.append(
             {
@@ -522,11 +531,28 @@ def _build_shot_image_reference_manifest(db: Session, novel: Novel, shot):
             }
         )
 
-    return manifest
+    return {
+        "manifest": manifest,
+        "available_reference_count": len(manifest),
+        "available": {
+            "characters": character_members,
+            "scenes": [shot.scene] if shot.scene and not missing_scenes else [],
+            "props": prop_members,
+        },
+        "missing": {
+            "characters": missing_characters,
+            "scenes": missing_scenes,
+            "props": missing_props,
+        },
+    }
 
 
-def _resolve_shot_image_workflow_type(db: Session, novel: Novel, shot) -> str:
-    manifest = _build_shot_image_reference_manifest(db, novel, shot)
+def _build_shot_image_reference_manifest(db: Session, novel: Novel, shot):
+    return _build_shot_image_reference_readiness(db, novel, shot)["manifest"]
+
+
+def _resolve_shot_image_workflow_type(db: Session, novel: Novel, shot, manifest=None) -> str:
+    manifest = manifest if manifest is not None else _build_shot_image_reference_manifest(db, novel, shot)
     has_character = any(item.get("type") == "MERGED_CHARACTER" for item in manifest)
     has_scene = any(item.get("type") == "SCENE" for item in manifest)
     has_prop = any(item.get("type") == "MERGED_PROP" for item in manifest)
@@ -543,41 +569,13 @@ def _resolve_shot_image_workflow_type(db: Session, novel: Novel, shot) -> str:
 
 
 def _build_shot_image_reference_bundle(db: Session, novel: Novel, shot):
-    shot_characters = _safe_json_list(shot.characters)
-    shot_props = get_visual_prop_names(db, novel.id, _safe_json_list(shot.props))
-
-    character_members = []
-    for name in shot_characters:
-        character = (
-            db.query(Character)
-            .filter(Character.novel_id == novel.id, Character.name == name)
-            .first()
-        )
-        if character and character.image_url and url_to_local_path(character.image_url):
-            character_members.append(name)
-
-    scene_name = ""
-    scene_empty = True
-    if shot.scene:
-        scene = (
-            db.query(Scene)
-            .filter(Scene.novel_id == novel.id, Scene.name == shot.scene)
-            .first()
-        )
-        scene_name = shot.scene
-        scene_empty = not bool(
-            scene and scene.image_url and url_to_local_path(scene.image_url)
-        )
-
-    prop_members = []
-    for name in shot_props:
-        prop = (
-            db.query(Prop)
-            .filter(Prop.novel_id == novel.id, Prop.name == name, Prop.existence == PROP_EXISTENCE_REAL)
-            .first()
-        )
-        if prop and prop.image_url and url_to_local_path(prop.image_url):
-            prop_members.append(name)
+    readiness = _build_shot_image_reference_readiness(db, novel, shot)
+    available = readiness["available"]
+    character_members = available["characters"]
+    scene_names = available["scenes"]
+    prop_members = available["props"]
+    scene_name = shot.scene or ""
+    scene_empty = len(scene_names) == 0
 
     return {
         "picture_1": {
@@ -790,8 +788,22 @@ async def _prepare_and_enqueue_shot_image_generation(
             "data": {"taskId": active_task.id, "status": active_task.status, "promptText": active_task.prompt_text},
         }
 
+    reference_readiness = _build_shot_image_reference_readiness(db, novel, shot)
+    if reference_readiness["available_reference_count"] == 0:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "SHOT_IMAGE_REFERENCES_NOT_READY",
+                "message": "主分镜参考素材未准备，请先准备至少一个角色、场景或道具参考图片。",
+                "available_reference_count": 0,
+                "missing": reference_readiness["missing"],
+            },
+        )
+
     # 获取激活的分镜生图工作流
-    shot_workflow_type = request.workflow_type if request and request.workflow_type else _resolve_shot_image_workflow_type(db, novel, shot)
+    shot_workflow_type = request.workflow_type if request and request.workflow_type else _resolve_shot_image_workflow_type(
+        db, novel, shot, reference_readiness["manifest"]
+    )
     workflow = workflow_repo.get_active_by_type(shot_workflow_type)
 
     if not workflow:
@@ -810,19 +822,6 @@ async def _prepare_and_enqueue_shot_image_generation(
         llm_service,
         request.prompt_text if request else None,
     )
-    shot = db.merge(shot)
-
-    # 清除旧的图片数据和文件
-    file_storage.delete_shot_image(novel_id, chapter_id, shot_index, shot_id=resolved_shot_id)
-
-    # 更新分镜图片状态为 generating，并清除旧图片数据
-    shot.image_url = None
-    shot.image_path = None
-    shot.image_task_id = None
-    shot_repo.update_image_status(shot, "generating")
-
-    db.commit()
-
     # 使用 Repository 创建任务记录，或启动批量预创建的子任务。
     task = existing_task or task_repo.create_shot_image_task(
         novel_id=novel_id,
@@ -841,6 +840,14 @@ async def _prepare_and_enqueue_shot_image_generation(
     task.shot_id = resolved_shot_id
     task.prompt_text = final_prompt
     task.description = f"{task.description}；提示词模板：{prompt_template_name}"
+    shot = db.merge(shot)
+
+    # 只有在物理参考校验和提示词解析成功后，才替换当前主分镜生成尝试。
+    file_storage.delete_shot_image(novel_id, chapter_id, shot_index, shot_id=resolved_shot_id)
+    shot.image_url = None
+    shot.image_path = None
+    shot.image_status = "generating"
+    shot.image_task_id = task.id
     shot.shot_image_prompt = final_prompt
     db.commit()
 
@@ -1050,7 +1057,21 @@ async def generate_shot_images_batch(
 
         workflow = None
         if not existing_task:
-            shot_workflow_type = _resolve_shot_image_workflow_type(db, novel, shot)
+            reference_readiness = _build_shot_image_reference_readiness(db, novel, shot)
+            if reference_readiness["available_reference_count"] == 0:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "SHOT_IMAGE_REFERENCES_NOT_READY",
+                        "message": f"分镜 {shot.index} 的主分镜参考素材未准备，请先准备至少一个角色、场景或道具参考图片。",
+                        "shot_id": shot.id,
+                        "available_reference_count": 0,
+                        "missing": reference_readiness["missing"],
+                    },
+                )
+            shot_workflow_type = _resolve_shot_image_workflow_type(
+                db, novel, shot, reference_readiness["manifest"]
+            )
             workflow = workflow_repo.get_active_by_type(shot_workflow_type)
             if not workflow:
                 raise HTTPException(status_code=400, detail=f"未配置{shot_workflow_type}分镜生图工作流")

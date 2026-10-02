@@ -157,16 +157,12 @@ export const createGenerationSlice: StateCreator<
       return null;
     }
 
-    // 添加到生成中集合
+    const previousShot = { ...shot };
+
+    // 仅显示提交进度；在后端确认任务创建前保留当前主分镜图和持久化状态。
     console.log('[generateShotImage] Adding to generatingShots:', shotId);
     set(state => ({
       generatingShots: new Set([...state.generatingShots, shotId]),
-      shotImages: Object.fromEntries(Object.entries(state.shotImages).filter(([key]) => key !== shotId)),
-      shots: state.shots.map(s =>
-        s.id === shotId
-          ? { ...s, imageUrl: null, imagePath: null, imageStatus: 'generating' as const, imageTaskId: null }
-          : s
-      )
     }));
 
     // 验证状态已更新
@@ -194,25 +190,29 @@ export const createGenerationSlice: StateCreator<
             ? { ...s, imageUrl: null, imagePath: null, imageStatus: 'generating' as const, imageTaskId: result.data?.taskId || null, shotImagePrompt: resolvedPromptText }
             : s
         );
-        set({ shots: updatedShots });
+        set(state => ({
+          shots: updatedShots,
+          shotImages: Object.fromEntries(Object.entries(state.shotImages).filter(([key]) => key !== shotId)),
+        }));
         return resolvedPromptText || null;
       } else {
         throw new Error(result.message || '生成失败');
       }
     } catch (error) {
       console.error('生成分镜图片失败:', error);
-      // 从生成中集合移除
+      const errorMessage = formatUserFacingError(error instanceof Error ? error.message : '生成失败') || '生成失败';
+      // 请求被拒绝时恢复提交前状态，尤其不能清除仍然有效的当前图片。
       set(state => {
         const newSet = new Set(state.generatingShots);
         newSet.delete(shotId);
         return {
           generatingShots: newSet,
           shots: state.shots.map(s => (
-            s.id === shotId ? { ...s, imageUrl: null, imagePath: null, imageStatus: 'failed' as const, imageTaskId: null } : s
+            s.id === shotId ? previousShot : s
           )),
         };
       });
-      return null;
+      throw new Error(errorMessage);
     }
   },
 

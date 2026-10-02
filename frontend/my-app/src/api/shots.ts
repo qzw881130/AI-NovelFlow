@@ -409,7 +409,12 @@ export const shotsApi = {
     chapterId: string,
     shotId: string,
     options?: { prompt_text?: string; workflow_type?: 'shot' | 'shot_scene' | 'shot_character_scene' | 'shot_scene_prop' }
-  ): Promise<{ success: boolean; data?: { taskId: string; status: string; promptText?: string | null }; message?: string }> => {
+  ): Promise<{
+    success: boolean;
+    data?: { taskId: string; status: string; promptText?: string | null };
+    message?: string;
+    detail?: string | { code?: string; message?: string; available_reference_count?: number; missing?: Record<string, string[]> };
+  }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/generate/`,
       {
@@ -418,14 +423,24 @@ export const shotsApi = {
         body: JSON.stringify({ prompt_text: options?.prompt_text || null, workflow_type: options?.workflow_type || null }),
       }
     );
-    return response.json();
+    const result = await response.json();
+    if (!response.ok) {
+      const detailMessage = typeof result.detail === 'object' ? result.detail?.message : result.detail;
+      return { success: false, message: detailMessage || result.message || '生成失败', detail: result.detail };
+    }
+    return result;
   },
 
   generateImagesBatch: async (
     novelId: string,
     chapterId: string,
     options: { shot_ids: string[]; skip_llm_when_prompt_exists?: boolean }
-  ): Promise<{ success: boolean; data?: { batchTaskId: string; tasks: Array<{ taskId: string; shotId: string; status: string }> }; message?: string; detail?: string }> => {
+  ): Promise<{
+    success: boolean;
+    data?: { batchTaskId: string; tasks: Array<{ taskId: string; shotId: string; status: string }> };
+    message?: string;
+    detail?: string | { code?: string; message?: string; shot_id?: string; available_reference_count?: number; missing?: Record<string, string[]> };
+  }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shot-images/batch`,
       {
@@ -437,7 +452,12 @@ export const shotsApi = {
         }),
       }
     );
-    return response.json();
+    const result = await response.json();
+    if (!response.ok) {
+      const detailMessage = typeof result.detail === 'object' ? result.detail?.message : result.detail;
+      return { success: false, message: detailMessage || result.message || '批量生成分镜图失败', detail: result.detail };
+    }
+    return result;
   },
 
   generateVideosBatch: async (

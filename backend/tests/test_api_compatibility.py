@@ -656,12 +656,19 @@ class TestShotImageGeneration:
             video_status="pending"
         )
         db_session.add(shot)
+        db_session.add(Character(
+            novel_id=novel.id,
+            name="小明",
+            image_url="/api/files/test/character.png",
+        ))
         db_session.commit()
 
         # 调用生成接口
-        response = client.post(
-            f"/api/novels/{novel.id}/chapters/{chapter.id}/shots/1/generate"
-        )
+        with patch("app.api.shots.url_to_local_path", return_value="/tmp/character.png"):
+            response = client.post(
+                f"/api/novels/{novel.id}/chapters/{chapter.id}/shots/1/generate",
+                json={"prompt_text": "小明走进房间"},
+            )
 
         assert response.status_code == 200
         data = response.json()

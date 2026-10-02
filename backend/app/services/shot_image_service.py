@@ -28,6 +28,59 @@ def _is_task_cancelled(db, task) -> bool:
     return task.status == "cancelled"
 
 
+def _project_current_shot_image_failure(
+    db,
+    task,
+    chapter_id: str,
+    shot_index: int,
+    shot_repo: ShotRepository = None,
+) -> bool:
+    """Project a task failure only when this task still owns the Shot attempt."""
+    if not task:
+        return False
+    shot_repo = shot_repo or ShotRepository(db)
+    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+    if not shot:
+        return False
+
+    if shot.image_task_id and shot.image_task_id != task.id:
+        return False
+
+    if not shot.image_task_id:
+        latest_task = (
+            db.query(Task)
+            .filter(Task.type == "shot_image", Task.shot_id == shot.id)
+            .order_by(Task.created_at.desc(), Task.id.desc())
+            .first()
+        )
+        if latest_task and latest_task.id != task.id:
+            return False
+
+    shot.image_status = "failed"
+    shot.image_task_id = task.id
+    db.commit()
+    return True
+
+
+def _fail_shot_image_task(
+    db,
+    task,
+    error_message: str,
+    current_step: str,
+    chapter_id: str,
+    shot_index: int,
+    shot_repo: ShotRepository = None,
+) -> None:
+    task.status = "failed"
+    task.error_message = error_message
+    task.current_step = current_step
+    task.completed_at = datetime.utcnow()
+    db.commit()
+    _project_current_shot_image_failure(
+        db, task, chapter_id, shot_index, shot_repo=shot_repo
+    )
+
+
 def enqueue_shot_image_task(
     task_id: str,
     novel_id: str,
@@ -69,6 +122,8 @@ async def generate_shot_image_task(
         workflow_id: 工作流ID
     """
     db = SessionLocal()
+    task = None
+    shot_repo = None
     try:
         # 获取任务
         task = db.query(Task).filter(Task.id == task_id).first()
@@ -91,16 +146,12 @@ async def generate_shot_image_task(
         )
 
         if not chapter:
-            task.status = "failed"
-            task.error_message = "章节不存在"
-            db.commit()
+            _fail_shot_image_task(db, task, "章节不存在", "生成失败", chapter_id, shot_index)
             return
 
         novel = db.query(Novel).filter(Novel.id == novel_id).first()
         if not novel:
-            task.status = "failed"
-            task.error_message = "小说不存在"
-            db.commit()
+            _fail_shot_image_task(db, task, "小说不存在", "生成失败", chapter_id, shot_index)
             return
 
         # 使用 ShotRepository 获取分镜数据
@@ -108,9 +159,7 @@ async def generate_shot_image_task(
         shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
 
         if not shot:
-            task.status = "failed"
-            task.error_message = "分镜不存在"
-            db.commit()
+            _fail_shot_image_task(db, task, "分镜不存在", "生成失败", chapter_id, shot_index, shot_repo)
             return
 
         # 从 Shot 模型获取分镜数据
@@ -128,9 +177,7 @@ async def generate_shot_image_task(
         # 获取工作流
         workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
         if not workflow:
-            task.status = "failed"
-            task.error_message = "工作流不存在"
-            db.commit()
+            _fail_shot_image_task(db, task, "工作流不存在", "生成失败", chapter_id, shot_index, shot_repo)
             return
 
         # 获取节点映射
@@ -270,10 +317,15 @@ async def generate_shot_image_task(
             db.commit()
 
         if not result.get("success"):
-            task.status = "failed"
-            task.error_message = result.get("message", "生成失败")
-            task.current_step = "生成失败"
-            db.commit()
+            _fail_shot_image_task(
+                db,
+                task,
+                result.get("message", "生成失败"),
+                "生成失败",
+                chapter_id,
+                shot_index,
+                shot_repo,
+            )
             return
 
         # 下载并保存生成的图片
@@ -288,10 +340,10 @@ async def generate_shot_image_task(
         traceback.print_exc()
 
         try:
-            task.status = "failed"
-            task.error_message = str(e)
-            task.current_step = "任务异常"
-            db.commit()
+            if task:
+                _fail_shot_image_task(
+                    db, task, str(e), "任务异常", chapter_id, shot_index, shot_repo
+                )
         except Exception:
             pass
     finally:
@@ -662,10 +714,15 @@ async def _save_generated_image(
 
     image_url = result.get("image_url")
     if not image_url:
-        task.status = "failed"
-        task.error_message = "未获取到图片URL"
-        task.current_step = "生成失败"
-        db.commit()
+        _fail_shot_image_task(
+            db,
+            task,
+            "未获取到图片URL",
+            "生成失败",
+            chapter_id,
+            shot_index,
+            shot_repo,
+        )
         return
 
     # 使用 shot_id 作为文件名的一部分（如果提供）
