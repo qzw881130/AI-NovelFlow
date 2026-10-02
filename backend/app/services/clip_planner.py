@@ -2,6 +2,7 @@
 import json
 import math
 import os
+from copy import deepcopy
 
 from sqlalchemy.orm import Session
 
@@ -406,6 +407,8 @@ def _build_temporal_anchors(clips: list[dict], candidates: list[dict]) -> list[d
 def _normalize_continuity_contract(
     clips: list[dict],
     shot_continuity_mode: str | None = None,
+    *,
+    project_capability: bool = True,
 ) -> None:
     """Normalize new planner semantics without rewriting historical persisted plans."""
     for position, clip in enumerate(clips, 1):
@@ -426,16 +429,70 @@ def _normalize_continuity_contract(
         if clip_index == 1:
             if continuity != "NONE":
                 raise ValueError("First Clip continuity_to_previous 必须为 NONE")
-            clip["capability"] = "GENERATE"
+            if project_capability:
+                clip["capability"] = "GENERATE"
         elif continuity == "NONE":
             raise ValueError(f"Later Clip {clip_index} continuity_to_previous 不能为 NONE")
         elif continuity == "CUT":
-            clip["capability"] = "GENERATE"
+            if project_capability:
+                clip["capability"] = "GENERATE"
         elif continuity == "CONTINUOUS":
-            clip["capability"] = "EXTEND"
+            if project_capability:
+                clip["capability"] = "EXTEND"
         clip["continuity_to_previous"] = continuity
+        if not project_capability:
+            clip.pop("capability", None)
         clip["requires_temporal_control"] = False
         clip["selected_temporal_target_ids"] = []
+
+
+def _canonical_continuity_structure(clips: list[dict], candidates: list[dict]) -> list[dict]:
+    """Project raw and normalized boundaries using the same ownership rule."""
+    projected = deepcopy(clips)
+    _project_clip_visual_states(projected, candidates)
+    structure = []
+    for position, clip in enumerate(projected):
+        owned = clip.get("visual_state_indexes") or []
+        previous_owned = (projected[position - 1].get("visual_state_indexes") or []) if position else []
+        structure.append({
+            "clip_index": clip["clip_index"],
+            "start_time": float(clip["start_time"]),
+            "end_time": float(clip["end_time"]),
+            "visual_state_indexes": owned,
+            "carry_in_state_index": clip.get("carry_in_state_index"),
+            "previous_ending_state_index": previous_owned[-1] if previous_owned else None,
+            "first_owned_state_index": owned[0] if owned else None,
+        })
+    return structure
+
+
+def _continuity_premise_changed(raw: list[dict], normalized: list[dict], candidates: list[dict]) -> bool:
+    """Compare structural facts, never the model's reason or continuity label."""
+    if [item["clip_index"] for item in raw] != [item["clip_index"] for item in normalized]:
+        return True
+    timed_indexes = {int(item["keyframe_index"]) for item in candidates if item.get("timed_visual_target") is True}
+    for before, after in zip(raw[1:], normalized[1:]):
+        for key in (
+            "visual_state_indexes", "previous_ending_state_index",
+            "first_owned_state_index", "carry_in_state_index",
+        ):
+            if before[key] != after[key]:
+                return True
+        # Same identities usually make a numerical move harmless. An owned
+        # timed target's local position is an additional semantic consequence.
+        if timed_indexes.intersection(after["visual_state_indexes"]):
+            if abs(before["start_time"] - after["start_time"]) > 0.05:
+                return True
+    return False
+
+
+def _retry_structure_matches(expected: list[dict], actual: list[dict], candidates: list[dict]) -> bool:
+    """A repair call cannot become an unconstrained second boundary search."""
+    return not _continuity_premise_changed(expected, actual, candidates) and all(
+        abs(left[key] - right[key]) <= 0.05
+        for left, right in zip(expected, actual)
+        for key in ("start_time", "end_time")
+    )
 
 
 async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], planning_policy: dict | None = None) -> tuple[list[dict], dict]:
@@ -448,37 +505,7 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         for key, value in payload.items()
         if key != "available_generation_inputs"
     }
-    result = await LLMService().chat_completion(
-        system_prompt=template.template,
-        user_content=json.dumps(llm_payload, ensure_ascii=False, indent=2),
-        temperature=0.2,
-        max_tokens=2200,
-        response_format="json_object",
-        task_type="clip_execution_planner",
-        prompt_template_name=template.name,
-        novel_id=novel.id,
-        chapter_id=shot.chapter_id,
-    )
-    if not result.get("success"):
-        raise RuntimeError(result.get("error") or "Clip Planner 调用失败")
-    parsed = json.loads(result.get("content") or "{}")
-    clips = parsed.get("clips") if isinstance(parsed.get("clips"), list) else []
-    for index, clip in enumerate(clips, 1):
-        clip["clip_index"] = int(clip.get("clip_index") or index)
-        clip["planned_duration"] = round(float(clip.get("end_time", 0)) - float(clip.get("start_time", 0)), 2)
-        clip.setdefault("execution_status", "PLANNED")
-        clip.setdefault("approval_mode", (planning_policy or {}).get("approval_mode", "AUTO_APPROVE"))
-    _normalize_continuity_contract(clips, shot.continuity_mode)
-    plan_payload = payload.get("available_generation_inputs", {})
     video_plan = json.loads(shot.video_director_plan or "{}")
-    for index, clip in enumerate(clips, 1):
-        clip.setdefault("previous_clip_index", None)
-        if clip.get("continuity_to_previous") == "CONTINUOUS" and index > 1 and not clip.get("previous_clip_index"):
-            clip["previous_clip_index"] = int(clips[index - 2].get("clip_index") or index - 1)
-        if clip.get("continuity_to_previous") == "CONTINUOUS" and index > 1:
-            expected_previous = int(clips[index - 2].get("clip_index") or index - 1)
-            if int(clip.get("previous_clip_index") or 0) != expected_previous:
-                raise ValueError(f"Clip {clip.get('clip_index')} previous_clip_index 与 CONTINUOUS continuity 不一致")
     shot_dialogues = json.loads(shot.dialogues or "[]")
     dialogue_timeline_source = video_plan.get("dialogue_timeline_source")
     generated_timeline, _, timeline_status = build_dialogue_timeline(
@@ -494,16 +521,76 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         raise RuntimeError("DIALOGUE_TIMELINE_UNAVAILABLE: 有对白的 Shot 缺少合法 official dialogue timeline，不能静默降级生成视频。")
     max_clip_duration = float(VIDEO_CAPABILITY_CONTRACTS["GENERATE"]["max_duration"])
     min_clip_duration = float(VIDEO_CAPABILITY_CONTRACTS["GENERATE"]["min_duration"])
-    clips = align_clip_boundaries_to_dialogue_gaps(
-        clips, dialogue_timeline_source, max_clip_duration, min_clip_duration
-    )
-    _normalize_provider_boundaries(
-        clips, shot.duration or 4, min_clip_duration, max_clip_duration, dialogue_timeline_source
-    )
-    _project_clip_visual_states(
-        clips,
-        payload.get("visual_state_candidates") or [],
-    )
+    candidates = payload.get("visual_state_candidates") or []
+    canonical = payload.get("canonical_visual_plan") is True
+    retry_structure = None
+    for attempt in range(2):
+        result = await LLMService().chat_completion(
+            system_prompt=template.template,
+            user_content=json.dumps(llm_payload, ensure_ascii=False, indent=2),
+            temperature=0.2,
+            max_tokens=2200,
+            response_format="json_object",
+            task_type="clip_execution_planner",
+            prompt_template_name=template.name,
+            novel_id=novel.id,
+            chapter_id=shot.chapter_id,
+        )
+        if not result.get("success"):
+            raise RuntimeError(result.get("error") or "Clip Planner 调用失败")
+        parsed = json.loads(result.get("content") or "{}")
+        clips = parsed.get("clips") if isinstance(parsed.get("clips"), list) else []
+        for index, clip in enumerate(clips, 1):
+            clip["clip_index"] = int(clip.get("clip_index") or index)
+            clip["planned_duration"] = round(float(clip.get("end_time", 0)) - float(clip.get("start_time", 0)), 2)
+            clip.setdefault("execution_status", "PLANNED")
+            clip.setdefault("approval_mode", (planning_policy or {}).get("approval_mode", "AUTO_APPROVE"))
+        _normalize_continuity_contract(clips, shot.continuity_mode, project_capability=not canonical)
+        for index, clip in enumerate(clips, 1):
+            clip.setdefault("previous_clip_index", None)
+            if clip.get("continuity_to_previous") == "CONTINUOUS" and index > 1:
+                expected_previous = int(clips[index - 2].get("clip_index") or index - 1)
+                if not clip.get("previous_clip_index"):
+                    clip["previous_clip_index"] = expected_previous
+                if int(clip["previous_clip_index"]) != expected_previous:
+                    raise ValueError(f"Clip {clip.get('clip_index')} previous_clip_index 与 CONTINUOUS continuity 不一致")
+        raw_structure = _canonical_continuity_structure(clips, candidates) if canonical else []
+        clips = align_clip_boundaries_to_dialogue_gaps(
+            clips, dialogue_timeline_source, max_clip_duration, min_clip_duration
+        )
+        _normalize_provider_boundaries(
+            clips, shot.duration or 4, min_clip_duration, max_clip_duration, dialogue_timeline_source
+        )
+        _project_clip_visual_states(clips, candidates)
+        normalized_structure = _canonical_continuity_structure(clips, candidates) if canonical else []
+        changed = canonical and _continuity_premise_changed(raw_structure, normalized_structure, candidates)
+        if retry_structure is not None:
+            if (
+                changed
+                or not _retry_structure_matches(retry_structure, raw_structure, candidates)
+                or not _retry_structure_matches(retry_structure, normalized_structure, candidates)
+            ):
+                raise ValueError("CLIP_CONTINUITY_PREMISE_INVALIDATED")
+            if any(not str(clip.get("reason") or "").strip() for clip in clips[1:]):
+                raise ValueError("CLIP_CONTINUITY_PREMISE_INVALIDATED: retry reason missing")
+        if not changed:
+            break
+        retry_structure = normalized_structure
+        llm_payload = {
+            **llm_payload,
+            "continuity_revalidation": {
+                "normalized_clips": retry_structure,
+                "instruction": (
+                    "Deterministic canonical normalization changed the previous candidate's continuity premise. "
+                    "Return a fresh whole Clip Plan using exactly these normalized Clip boundaries and projected "
+                    "ownership/carry-in constraints; do not search for new boundaries. Re-evaluate each later Clip's "
+                    "CUT/CONTINUOUS and reason against its previous_ending_state_index and first_owned_state_index. "
+                    "CONTINUOUS requires actual Previous Clip ending visual dependency; CUT means independent "
+                    "first-owned visual grounding. Carry-in is semantic context only. Do not infer continuity from "
+                    "scene/characters/story/dialogue continuation or ordinary visual progression."
+                ),
+            },
+        }
     for clip in clips:
         clip["planned_duration"] = round(
             float(clip.get("end_time", 0)) - float(clip.get("start_time", 0)),

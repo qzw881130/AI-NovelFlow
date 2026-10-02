@@ -236,3 +236,261 @@ async def test_llm_payload_excludes_physical_and_legacy_execution_authority(tmp_
         "picture_index", "previous_task_id", "workflow_id", "reference_manifest",
     ):
         assert forbidden not in serialized
+
+
+def _sequence_planner(monkeypatch, responses, calls, before_call=None):
+    _fake_planner(monkeypatch, [], {})
+
+    class FakeLLMService:
+        async def chat_completion(self, **kwargs):
+            if before_call:
+                before_call()
+            assert len(calls) < len(responses), "unexpected extra planner call"
+            response = responses[len(calls)]
+            calls.append(json.loads(kwargs["user_content"]))
+            return {"success": True, "content": json.dumps({"clips": response})}
+
+    monkeypatch.setattr(clip_planner, "LLMService", FakeLLMService)
+
+
+def _two_clips(boundary, continuity, reason="raw KF4 ending -> KF5 first-owned"):
+    return [
+        {"clip_index": 1, "start_time": 0, "end_time": boundary, "continuity_to_previous": "NONE"},
+        {"clip_index": 2, "start_time": boundary, "end_time": 18,
+         "continuity_to_previous": continuity, "reason": reason},
+    ]
+
+
+def _shot11(tmp_path, *, timed=False):
+    image = tmp_path / "kf4.png"
+    image.write_bytes(b"kf4")
+    states = [
+        {"index": index, "role": "START" if index == 1 else ("END" if index == 6 else "INTERMEDIATE"),
+         "time_seconds": time, "description": f"visible state {index}",
+         "timed_visual_target": timed and index == 4, "image_url": str(image)}
+        for index, time in enumerate([0, 2, 5, 9.5, 14.5, 18], 1)
+    ]
+    dialogues = [
+        {"dialogue_id": f"D{index}", "character_name": "皇帝", "text": EXACT_DIALOGUE,
+         "start_time": start, "end_time": end}
+        for index, (start, end) in enumerate([(1, 3), (3.2, 6.95), (7.15, 11.9), (12.1, 17.35)], 1)
+    ]
+    shot = _shot(tmp_path, states=states, dialogues=dialogues)
+    shot.duration = 18
+    return shot
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raw_continuity", ["CONTINUOUS", "CUT"])
+@pytest.mark.parametrize("retry_continuity,capability", [("CUT", "GENERATE"), ("CONTINUOUS", "EXTEND")])
+async def test_shot11_revalidates_both_decisions_against_normalized_structure(
+    tmp_path, monkeypatch, raw_continuity, retry_continuity, capability,
+):
+    shot = _shot11(tmp_path)
+    calls = []
+    fresh_reason = "KF3 ending -> KF4 visual dependency" if retry_continuity == "CONTINUOUS" else "independent KF4 visual start"
+    raw = _two_clips(9.5, raw_continuity)
+    _sequence_planner(monkeypatch, [raw, _two_clips(7.15, retry_continuity, fresh_reason)], calls)
+    projected_calls = []
+    original_projection = clip_planner._project_temporal_targets
+
+    def final_projection(clips, candidates, duration):
+        assert len(calls) == 2
+        assert all("capability" not in clip for clip in clips)
+        projected_calls.append(True)
+        original_projection(clips, candidates, duration)
+
+    monkeypatch.setattr(clip_planner, "_project_temporal_targets", final_projection)
+    clips, validation = await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, [])
+    candidates = calls[0]["visual_state_candidates"]
+    raw_structure = clip_planner._canonical_continuity_structure(raw, candidates)
+    assert raw_structure[1]["previous_ending_state_index"] == 4
+    assert raw_structure[1]["first_owned_state_index"] == 5
+    assert raw_structure[1]["carry_in_state_index"] == 4
+    constraints = calls[1]["continuity_revalidation"]["normalized_clips"]
+    assert [(item["start_time"], item["end_time"]) for item in constraints] == [(0, 7.15), (7.15, 18)]
+    assert [item["visual_state_indexes"] for item in constraints] == [[1, 2, 3], [4, 5, 6]]
+    assert constraints[1]["previous_ending_state_index"] == 3
+    assert constraints[1]["first_owned_state_index"] == 4
+    assert constraints[1]["carry_in_state_index"] == 3
+    assert "continuity_revalidation" not in calls[0]
+    assert len(calls) == 2 and projected_calls == [True]
+    assert validation["passed"] is True, validation
+    assert clips[1]["continuity_to_previous"] == retry_continuity
+    assert clips[1]["capability"] == capability
+    assert clips[1]["reason"] == fresh_reason
+    assert "raw KF4 ending" not in clips[1]["reason"]
+    assert [[item["dialogue_id"] for item in clip["dialogue_assignment"]] for clip in clips] == [["D1", "D2"], ["D3", "D4"]]
+    serialized = json.dumps(calls[1], ensure_ascii=False)
+    for forbidden in (RAW_DESCRIPTION, RAW_VIDEO_DESCRIPTION, EXACT_DIALOGUE, '"speaker"', '"dialogues"'):
+        assert forbidden not in serialized
+    assert all(set(item) == {"event_id", "start_time", "end_time"} for item in calls[1]["speech_timing_intervals"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("boundary", [6, 6.0000000001])
+async def test_same_premise_and_harmless_rounding_use_one_call(tmp_path, monkeypatch, boundary):
+    shot = _shot(tmp_path)
+    calls = []
+    response = _two_clips(boundary, "CONTINUOUS", "unchanged visual dependency")
+    response[1]["end_time"] = 12
+    _sequence_planner(monkeypatch, [response], calls)
+    clips, validation = await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, [])
+    assert len(calls) == 1
+    assert validation["passed"] is True, validation
+    assert clips[1]["start_time"] == 6
+    assert clips[1]["reason"] == "unchanged visual dependency"
+    assert clips[1]["capability"] == "EXTEND"
+
+
+@pytest.mark.asyncio
+async def test_duration_repair_revalidates_state_identity_not_shot11_special_case(tmp_path, monkeypatch):
+    states = [
+        {"index": index, "role": "START" if index == 1 else "INTERMEDIATE",
+         "time_seconds": time, "description": f"state {index}", "timed_visual_target": False}
+        for index, time in enumerate([0, 3.5, 9, 18], 1)
+    ]
+    shot = _shot(tmp_path, states=states)
+    shot.duration = 18
+    calls = []
+    _sequence_planner(monkeypatch, [_two_clips(3, "CUT"), _two_clips(4, "CONTINUOUS", "KF2 -> KF3 dependency")], calls)
+    clips, validation = await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, [])
+    assert len(calls) == 2
+    assert validation["passed"] is True, validation
+    assert [clip["visual_state_indexes"] for clip in clips] == [[1, 2], [3, 4]]
+    assert clips[1]["start_time"] == 4
+    assert clips[1]["carry_in_state_index"] == 2
+    assert clips[1]["capability"] == "EXTEND"
+
+
+@pytest.mark.asyncio
+async def test_numeric_boundary_move_with_same_state_premise_does_not_mechanically_retry(tmp_path, monkeypatch):
+    states = [
+        {"index": index, "role": "START" if index == 1 else "INTERMEDIATE",
+         "time_seconds": time, "description": f"state {index}", "timed_visual_target": False}
+        for index, time in enumerate([0, 12, 16, 18], 1)
+    ]
+    shot = _shot(tmp_path, states=states)
+    shot.duration = 18
+    calls = []
+    _sequence_planner(monkeypatch, [_two_clips(15, "CUT", "independent state 3")], calls)
+    clips, validation = await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, [])
+    assert len(calls) == 1
+    assert validation["passed"] is True, validation
+    assert clips[1]["start_time"] == 14
+    assert clips[1]["visual_state_indexes"] == [3, 4]
+    assert clips[1]["carry_in_state_index"] == 2
+
+
+@pytest.mark.asyncio
+async def test_same_identities_with_changed_timed_local_position_require_retry(tmp_path, monkeypatch):
+    image = tmp_path / "timed-local.png"
+    image.write_bytes(b"timed")
+    states = [
+        {"index": index, "role": "START" if index == 1 else "INTERMEDIATE",
+         "time_seconds": time, "description": f"state {index}",
+         "timed_visual_target": index == 3, "image_url": str(image)}
+        for index, time in enumerate([0, 12, 16, 18], 1)
+    ]
+    shot = _shot(tmp_path, states=states)
+    shot.duration = 18
+    calls, anchors = [], []
+    _sequence_planner(monkeypatch, [_two_clips(15, "CONTINUOUS"), _two_clips(14, "CONTINUOUS", "same visual dependency, corrected timed interval")], calls)
+    clips, validation = await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, anchors)
+    assert validation["passed"] is True, validation
+    assert len(calls) == 2
+    assert clips[1]["visual_state_indexes"] == [3, 4]
+    assert clips[1]["carry_in_state_index"] == 2
+    assert clips[1]["capability"] == "TEMPORAL_EXTEND"
+    assert anchors[0]["time_seconds"] == 2
+
+
+@pytest.mark.asyncio
+async def test_temporal_projection_uses_validated_retry_boundaries(tmp_path, monkeypatch):
+    shot = _shot11(tmp_path, timed=True)
+    calls, anchors = [], []
+    _sequence_planner(monkeypatch, [_two_clips(9.5, "CONTINUOUS"), _two_clips(7.15, "CONTINUOUS", "KF3 -> KF4 dependency")], calls)
+    clips, validation = await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, anchors)
+    assert validation["passed"] is True, validation
+    assert len(calls) == 2
+    assert clips[1]["capability"] == "TEMPORAL_EXTEND"
+    assert clips[1]["selected_temporal_target_ids"] == ["KF4"]
+    assert anchors[0]["time_seconds"] == 2.35
+    assert anchors[0]["source"]["id"] == "KF4"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("retry_boundary", [9.5, 12.1, 8.0])
+async def test_second_drift_hard_fails_without_third_call_or_partial_mutation(tmp_path, monkeypatch, retry_boundary):
+    shot = _shot11(tmp_path)
+    old_plan = shot.video_director_plan
+    calls = []
+    anchors = [{"anchor_id": "old-anchor"}]
+    _sequence_planner(monkeypatch, [_two_clips(9.5, "CONTINUOUS"), _two_clips(retry_boundary, "CUT", "new reason")], calls)
+    with pytest.raises(ValueError, match="^CLIP_CONTINUITY_PREMISE_INVALIDATED$"):
+        await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, anchors)
+    assert len(calls) == 2
+    assert shot.video_director_plan == old_plan
+    assert anchors == [{"anchor_id": "old-anchor"}]
+
+
+@pytest.mark.asyncio
+async def test_retry_requires_fresh_reason_without_parsing_it(tmp_path, monkeypatch):
+    calls = []
+    _sequence_planner(monkeypatch, [_two_clips(9.5, "CONTINUOUS"), _two_clips(7.15, "CUT", "")], calls)
+    with pytest.raises(ValueError, match="CLIP_CONTINUITY_PREMISE_INVALIDATED: retry reason missing"):
+        await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), _shot11(tmp_path), [])
+    assert len(calls) == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("retry_succeeds", [True, False])
+async def test_normal_persistence_waits_for_validated_whole_plan(
+    tmp_path, monkeypatch, db_session, retry_succeeds,
+):
+    from fastapi import HTTPException
+    from app.api.shots import PlanClipsRequest, plan_shot_clips
+    from app.models.novel import Novel, Chapter
+    from app.models.shot import Shot
+    from app.models.task import Task
+    from app.repositories import NovelRepository, ShotRepository
+
+    fixture = _shot11(tmp_path)
+    old_plan = json.loads(fixture.video_director_plan)
+    old_plan.update({"clip_plan_revision": 7, "clip_plan": [{"generated_by_task_id": "old-task", "result_url": "old-clip.mp4"}],
+                     "temporal_anchors": [{"anchor_id": "old-anchor"}]})
+    serialized_plan = json.dumps(old_plan)
+    novel = Novel(id="isolated-novel", title="isolated fixture")
+    chapter = Chapter(id=fixture.chapter_id, novel_id=novel.id, number=1, title="isolated chapter")
+    shot = Shot(**vars(fixture), index=11, video_url="old-final.mp4", video_status="completed")
+    shot.video_director_plan = serialized_plan
+    db_session.add_all([novel, chapter, shot])
+    db_session.commit()
+    calls = []
+
+    def assert_old_authority():
+        assert shot.video_director_plan == serialized_plan
+        assert shot.video_url == "old-final.mp4"
+        assert db_session.query(Task).count() == 0
+
+    retry_boundary = 7.15 if retry_succeeds else 9.5
+    _sequence_planner(monkeypatch, [_two_clips(9.5, "CONTINUOUS"), _two_clips(retry_boundary, "CUT", "independent KF4")], calls, assert_old_authority)
+    request = PlanClipsRequest(force=True)
+    kwargs = dict(novel_id=novel.id, chapter_id=chapter.id, shot_id=shot.id, request=request,
+                  db=db_session, novel_repo=NovelRepository(db_session), shot_repo=ShotRepository(db_session))
+    if retry_succeeds:
+        result = await plan_shot_clips(**kwargs)
+        assert result["data"]["revision"] == 8
+        assert result["data"]["validation"]["passed"] is True
+        current = json.loads(shot.video_director_plan)
+        assert current["clip_plan"][1]["capability"] == "GENERATE"
+        assert current["clip_plan"][1]["reason"] == "independent KF4"
+    else:
+        with pytest.raises(HTTPException) as error:
+            await plan_shot_clips(**kwargs)
+        assert error.value.status_code == 400
+        assert error.value.detail == "CLIP_CONTINUITY_PREMISE_INVALIDATED"
+        db_session.expire_all()
+        assert_old_authority()
+    assert len(calls) == 2
+    assert db_session.query(Task).count() == 0
