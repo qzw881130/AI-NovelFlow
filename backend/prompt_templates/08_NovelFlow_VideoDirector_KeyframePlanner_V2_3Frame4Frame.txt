@@ -19,7 +19,7 @@ keyframes 是按时间排序的数组，每项：
 - 至少输出一个状态；index 唯一；time_seconds 必须严格递增并处于 0 到 Shot duration 之间。
 - 恰好一个 START，且它必须是首个状态、time_seconds=0、role="START"、description=null、timed_visual_target=false。不得重写 shot.description；START 的视觉内容由 Shot 主图/Shot 描述提供。
 - START `timed_visual_target` 必须为 false；输出 true 会导致整份 #08 结果被拒绝。
-- END 可选。仅当 Shot 确有有意义的最终可见状态时输出；若输出，必须是最后一个状态，role="END"、time_seconds=shot.duration，description 优先描述 Shot 结束时真正可见、已到达的静态最终状态。不得仅因传统首尾帧模式而制造 END，也不得因为最后一句对白属于某角色，就让 END 自动围绕最后说话者构图。
+- END 可选。仅当 Shot 确有有意义的最终可见状态时输出；若输出，必须是最后一个状态，role="END"、time_seconds=shot.duration，description 只描述 Shot 结束时真正可见、已到达的静态最终状态：最终姿态、表情、位置、视线、道具状态和环境状态。END = final visible state，不是 final narrative event + visible state；不得用“听完……”“说完……”“回答后……”“交流结束后……”“对话结束后……”或等价叙事完成事件修饰最终状态。不得仅因传统首尾帧模式而制造 END，也不得因为最后一句对白属于某角色，就让 END 自动围绕最后说话者构图。
 - 其他状态 role="INTERMEDIATE"；描述的是该时间点已经到达并稳定的静态视觉状态，不写连续过程，不提前呈现未来结果。
 - Visual State 必须优先对应真正可见的叙事变化。人物位置、动作结果、构图、视线、姿态、物体状态和环境状态等真实视觉变化，优先于 dialogue/speaker 变化。
 - Visual State 是静态视觉状态，不是说话状态。speaker change 或 dialogue boundary 本身不是 visual anchor；不得仅因某人开始、继续或结束某句台词就机械新建状态。若该时刻同时存在独立可见变化，可建立状态，但依据必须是视觉变化。
@@ -52,10 +52,14 @@ keyframes 是按时间排序的数组，每项：
 - description 只写静态可见事实：构图、blocking、姿态、朝向/视线、表情、空间关系、道具和环境状态。不得写某人正在说某句台词、speaking/whispering/shouting、说话口型或 lip-sync。
 - 可保留与当前叙事节拍一致的独立可见反应，例如视线转移、姿态变化或情绪结果，但不得由这些反推 speaker。
 - description 绝不复制 `dialogues[].text`、字幕、对白框或文字图形。
+- Dialogue、speaker、speech timing 和 narrative speech events 只可帮助理解 story beat、attention shift、emotional consequence、blocking motivation 与 visual reaction；它们不得直接进入 description/Action 成为 speech authority。必须把 speech-derived event 转换为 pose、gesture、body orientation、gaze、facial expression、spatial relation、prop interaction 或 environmental visible state。描述 WHAT IS VISIBLY TRUE AT THIS MOMENT，而不是 WHAT SOMEONE IS SAYING / HAS JUST SAID / HAS JUST HEARD。
+- 禁止用“开口询问、回答、接话、说完、回答后、听完、交流结束、对话结束、继续说道、开始说、停止说话”或等价英文/语义表达来定义 Visual State。允许“听到声音后转头、受到呼喊后回头、看到对方动作后皱眉、点头回应视线”等纯视觉反应，前提是 description 本身不定义谁正在说话、谁正在倾听某段对白、嘴唇开合、speech start/stop 或 lip-sync timing。
+- 正向转换示例：BAD“侍从2接话，身体微微前倾” → GOOD“侍从2身体微微前倾，视线朝向皇帝”；BAD“皇帝听完回答后神情稍缓” → GOOD“皇帝眉头较前一状态舒展，神情趋于平和”；BAD“皇帝开口询问，皱眉看向袖口” → GOOD“皇帝低头审视袖口，眉头微皱”；BAD“侍从1回答时保持恭敬” → GOOD“侍从1保持恭敬站姿，双手自然置于身前”。这些转换保留可见叙事意义，不保留 speech authority。
 
 【Visual State Self-check】
 - Low Visual Delta：检查每对相邻 Visual States。如果它们在 camera/composition、blocking、posture、已到达的动作结果、物体关系或环境状态上几乎没有有意义变化，重新评估后仅保留确有独立视觉价值的状态。不得为凑数量产生近重复状态。
 - Visible Narrative Coverage：检查最终 Visual States 是否覆盖 Shot 中重要的可见叙事变化、关键动作结果与真正最终视觉状态。不得只覆盖对白时间点而遗漏这些可见节拍。
+- Whole-plan Speech-neutral Audit：输出前逐个重新检查全部 keyframes，而不是只检查当前修改的 state。每个 Visual State 都不得定义 speaker、speaking/listening authority、speech-event narrative dependency、mouth/lip speech state、speech start/stop 或 lip-sync timing。若某项可在不损失视觉意义的前提下改写为纯可见状态，必须先转换为 visible consequence，再输出完整 JSON。一次输出中的全部 states 必须共同通过，不得依赖 downstream validator 逐项发现。
 
 continuity_mode=CONTINUOUS_TAKE 时，所有状态必须沿同一物理摄影机轨迹连续推进；禁止跳轴、隐性剪辑、突然改变机位或互不相关的构图。NORMAL 允许合理电影语法变化，但身份、场景、道具及叙事仍须连续。
 

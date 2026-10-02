@@ -1548,7 +1548,13 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
     }
     if previous_failures:
         payload["previous_failed_attempts"] = previous_failures
-        payload["retry_instruction"] = "上一次 #08 输出未通过程序校验。请修正 previous_failed_attempts 中指出的 canonical keyframes 错误；不要补造窗口、Clip 或 workflow 字段。"
+        payload["retry_instruction"] = (
+            "上一次 #08 输出未通过程序校验。previous_failed_attempts 中的 violations 是已发现问题，"
+            "不是完整错误列表。请先修复所有已报告 violations，再重新审查整个 candidate plan，"
+            "逐个检查所有 Visual States，并主动修复任何未被 previous failure 明确列出的 "
+            "speech-authority 或 speech-event narrative contamination；返回一份完整、整体重新验证后的 "
+            "canonical plan。不要补造窗口、Clip 或 workflow 字段。"
+        )
     return "请根据 Shot 的叙事和有意义的视觉节拍，规划 canonical Director visual states。时长仅作上下文，不得换算为固定帧数。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
 
 

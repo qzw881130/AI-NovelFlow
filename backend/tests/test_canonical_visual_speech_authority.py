@@ -83,6 +83,8 @@ class FakeTemplateRepo:
     [
         ("皇帝嘴唇微启，处于说话状态", "MOUTH_LIP_SPEECH_STATE"),
         ("侍从1回答皇帝", "SPEAKING_AUTHORITY"),
+        ("侍从2接话，身体微微前倾", "SPEAKING_AUTHORITY"),
+        ("皇帝听完回答后仍微微皱眉", "LISTENING_AUTHORITY"),
         ("侍从2闭嘴，皇帝开始回答", "MOUTH_LIP_SPEECH_STATE"),
         ("侍从2嘴唇由微启逐渐闭合", "MOUTH_LIP_SPEECH_STATE"),
         ("The emperor starts speaking while the attendant listens", "SPEAKING_AUTHORITY"),
@@ -100,6 +102,8 @@ def test_detector_rejects_explicit_speech_authority(text, category):
     [
         "皇帝皱眉，转头看向侍从1",
         "侍从听到声音后转头看向门口",
+        "侍从受到呼喊后回头看向门口",
+        "皇帝看到对方动作后皱眉",
         "皇帝微笑，嘴角轻轻上扬",
         "侍从以点头回应皇帝的视线",
         "The emperor raises his hand and looks toward the mirror.",
@@ -342,6 +346,15 @@ async def test_planner_retries_speech_violation_once_then_persists_clean_plan(db
     persisted = json.loads(ShotRepository(db_session).get_by_id(shot.id).video_director_plan)
     assert result["success"] is True
     assert len(llm.calls) == 2
+    retry_payload = _payload(llm.calls[1]["user_content"])
+    retry_instruction = retry_payload["retry_instruction"]
+    assert "violations 是已发现问题" in retry_instruction
+    assert "不是完整错误列表" in retry_instruction
+    assert "重新审查整个 candidate plan" in retry_instruction
+    assert "逐个检查所有 Visual States" in retry_instruction
+    assert "未被 previous failure 明确列出" in retry_instruction
+    assert "完整、整体重新验证后的 canonical plan" in retry_instruction
+    assert len(retry_payload["previous_failed_attempts"]) == 1
     assert persisted["canonical_visual_plan"] is True
     assert persisted["keyframes"] == [_state(1, 0.0, "", role="START")]
     assert "嘴唇微启" not in json.dumps(persisted["keyframes"], ensure_ascii=False)
