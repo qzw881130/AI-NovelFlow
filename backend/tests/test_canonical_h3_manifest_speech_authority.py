@@ -26,7 +26,8 @@ def dialogue(speaker="Mira", text="请看这里。", event="D1", start=10.5, end
 
 
 def invoke(monkeypatch, *, states=None, capability="EXTEND", images=(), dialogues=(),
-           anchors=(), body=None, extra_clip=None, db=None, novel=None):
+           anchors=(), body=None, extra_clip=None, db=None, novel=None,
+           shot_characters=None):
     states = states if states is not None else [state(4, 10)]
     refs = [{"slot": slot, "source_keyframe_index": index,
              "source_time_seconds": next(s["time_seconds"] for s in states if s["index"] == index),
@@ -54,7 +55,8 @@ def invoke(monkeypatch, *, states=None, capability="EXTEND", images=(), dialogue
         description="RAW_DESCRIPTION Mira 低声说话，Jun 回答。",
         video_description="RAW_VIDEO 嘴巴微张，表现低声交谈的视觉状态。",
         dialogues=json.dumps([{"text": "RAW_DIALOGUE", "speaker": "wrong"}]),
-        characters='["Mira", "Jun"]', scene="room", props="[]",
+        characters=json.dumps(shot_characters or ["Mira", "Jun"], ensure_ascii=False),
+        scene="room", props="[]",
         continuity_mode="CONTINUOUS_TAKE", video_director_plan="{}",
     )
     clip = {"clip_index": 2, "start_time": 10, "end_time": 18,
@@ -238,6 +240,7 @@ def test_visual_expressions_and_nonhuman_audio_are_not_speech_authority(monkeypa
 
 SAFE_SOUNDSCAPE_REFERENCES = [
     "环境中只有脚步声和衣料摩擦",
+    "非人声结构回响",
     "除时间线中的对白外，不得出现其他人声",
     "不得出现背景人声",
     "无额外说话者",
@@ -250,6 +253,8 @@ SAFE_SOUNDSCAPE_REFERENCES = [
 ]
 
 UNSAFE_SPEECH_ASSERTIONS = [
+    "背景有人声",
+    "远处传来人声",
     "背景有人低声交谈",
     "侍从在远处说话",
     "人群传来交谈声",
@@ -308,6 +313,41 @@ def test_shot_11_soundscape_preserves_non_speech_meaning(monkeypatch):
     assert record["parsed_result"]["dialogue"]["passed"]
 
 
+@pytest.mark.parametrize("states,step", SHAPES)
+def test_canonical_h3_excludes_explicit_internal_self_check_tail(monkeypatch, states, step):
+    body = ("subject_definitions:\n<Subject 1> is Mira, in her current coat.\n"
+            "<Subject 2> is Jun, in his current costume.\n"
+            "keyframe_timeline:\n<Picture 1> anchors KF4.\n"
+            "summary:\nTheir gaze and posture change.\n"
+            "detailed_description:\nCamera advances gently.\n"
+            "overall_soundscape:\n非人声结构回响，脚步声和衣料摩擦保持可听。\n\n"
+            "【输出前内部自检】\n"
+            "- 未定义发声、静音或口型规则。\n"
+            "- <Picture 9> 是自检说明，不是物理参考。")
+    lines = [dialogue("Mira", "请看这里。", "D1", 10.5, 12),
+             dialogue("Jun", "第二句。", "D2", 13, 15)]
+    prompt, _, _, record = invoke(monkeypatch, states=states, capability="GENERATE",
+                                  images=(4,), dialogues=lines, body=body)
+    assert record["step"] == step
+    assert record["response"] == body  # Raw diagnostic output remains intact.
+    assert "【输出前内部自检】" not in prompt
+    assert "未定义发声、静音或口型规则" not in prompt
+    assert "<Picture 9>" not in prompt
+    assert "非人声结构回响" in prompt
+    assert prompt.count("请看这里。") == prompt.count("第二句。") == 1
+    assert {int(m.group(1)) for m in h3._PICTURE_TOKEN_RE.finditer(prompt)} == {1}
+    assert record["parsed_result"]["dialogue"]["passed"]
+    assert record["parsed_result"]["physical_picture"]["passed"]
+
+
+@pytest.mark.parametrize("speech", ["皇帝继续说话", "背景传来对话", "画外有人回应"])
+def test_internal_self_check_boundary_does_not_hide_executable_speech(monkeypatch, speech):
+    body = (f"summary:\n{speech}。\noverall_soundscape:\n非人声结构回响。\n"
+            "【输出前内部自检】\n- 未定义发声、静音或口型规则。")
+    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
+        invoke(monkeypatch, body=body)
+
+
 @pytest.mark.parametrize("soundscape", [
     "前景人声之外的声响保持与距离一致，画外有人回应。",
     "No background voices; background chatter continues.",
@@ -360,6 +400,15 @@ def test_novel_override_still_uses_runtime_soundscape_boundary(db_session, monke
     assert call["system_prompt"].startswith(override.template)
     assert "NO_VOICE: no human speech" in prompt
     assert "footsteps remain audible" in prompt
+    meta_body = ("summary:\nVisual movement.\noverall_soundscape:\n非人声结构回响。\n"
+                 "【输出前内部自检】\n- 未定义发声、静音或口型规则。")
+    prompt, _, call, record = invoke(monkeypatch, db=db_session, novel=novel,
+                                     states=states, body=meta_body)
+    assert call["system_prompt"].startswith(override.template)
+    assert record["response"] == meta_body
+    assert "非人声结构回响" in prompt
+    assert "【输出前内部自检】" not in prompt
+    assert "未定义发声、静音或口型规则" not in prompt
     with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
         invoke(monkeypatch, db=db_session, novel=novel, states=states,
                body="summary:\nVisual movement.\noverall_soundscape:\nbackground chatter.")

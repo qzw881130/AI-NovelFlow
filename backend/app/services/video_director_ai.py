@@ -669,6 +669,15 @@ def _remove_generated_dialogue_timeline(prompt: str) -> str:
     ).strip()
 
 
+def _remove_canonical_h3_internal_self_check(prompt: str) -> str:
+    """Exclude the explicit internal checklist tail from executable H3 text."""
+    return re.split(
+        r"(?m)^[ \t]*【输出前内部自检】[ \t\r]*$",
+        prompt,
+        maxsplit=1,
+    )[0].rstrip()
+
+
 def _remove_dialogue_text_outside_single_block(prompt: str, assigned_dialogues: list, timeline_block: str) -> str:
     body = prompt or ""
     for item in assigned_dialogues:
@@ -761,6 +770,8 @@ def _canonical_visual_body_speech_issues(body: str, subject_bindings: dict | Non
                 prefix = clause[:match.start()]
                 suffix = clause[match.end():]
                 if code == "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE":
+                    if match.group() == "人声" and prefix.endswith("非"):
+                        continue
                     if re.search(r"无(?:额外|其他|多余)(?:的)?$", prefix) and match.group().startswith("说话"):
                         continue
                     if (match.group() in {"人声", "对白", "语音"}
@@ -1092,6 +1103,8 @@ async def build_h3_video_prompt(
         raise RuntimeError(result.get("error") or "H3 视频提示词生成失败")
 
     final_prompt = (result.get("content") or "").strip()
+    if canonical_path:
+        final_prompt = _remove_canonical_h3_internal_self_check(final_prompt)
     if canonical_path or route == "multi":
         final_prompt = _remove_generated_dialogue_timeline(final_prompt)
     if canonical_path:
