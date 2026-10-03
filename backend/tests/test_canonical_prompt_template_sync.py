@@ -252,6 +252,10 @@ def test_canonical_h3_system_sources_are_manifest_aware_and_delegate_speech(file
                      "<Picture 1> defines the authoritative", "<Picture 2> is the authoritative",
                      "必须视为上游路由错误", "它是当前 <Picture 1>"):
         assert obsolete not in prompt
+    assert "canonical visual states、transitions 与 Clip-local time" in prompt
+    assert "不得引用 D 编号组织视觉正文" in prompt
+    assert "可引用 assigned dialogue D 编号作视觉节拍" not in prompt
+    assert "D 编号作视觉注意力和节奏标记" not in prompt
 
 
 @pytest.mark.parametrize("filename,template_type,name,attribute", H3_TEMPLATES)

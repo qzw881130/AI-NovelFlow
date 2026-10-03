@@ -181,8 +181,9 @@ dialogue_timeline；LLM 的任何输出区块均不得再次描述这些规则�
 dialogue_timeline 区块。
 detailed_description、summary、overall_soundscape、subject_definitions、keyframe_timeline
 等其他区块不得再次复制 exact_dialogue 正文。
-其他视觉区块仅可把 assigned dialogue D1 / D2 等作为时间事件标记，不得写出原文，
-也不得以事件标记重新说明谁发声、谁沉默或谁做口型。
+其他视觉区块根据 canonical visual states、transitions 与 Clip-local time 描述
+姿态、视线、表情、调度、镜头和道具互动；不得引用 D 编号组织视觉正文，
+不得写出台词原文，也不得重新说明谁发声、谁沉默或谁做口型。
 
 视觉关键帧时间轴与台词时间轴相互独立。 KF1 → KF2、KF2 → KF3 只是视觉 transition 边界，不是台词起止边界。
 Visual keyframe boundaries are visual-state boundaries only. Assigned dialogue event IDs
@@ -194,15 +195,16 @@ dialogue authority remains exclusively in the canonical dialogue_timeline.
 
 speaker / character_name 只用于程序解析到对应 <Subject N>。不得在 LLM 输出中写
 speaker、start/end、exact_dialogue 或第二个 dialogue_timeline。
-其他段落只可引用 D 编号作视觉注意力和节奏标记，例如镜头平稳偏向事件对应的
-视觉焦点；不得写事件何时开始或结束、对应人物的发声与口型变化，也不得因事件
-自动切镜或频繁摇镜。绝不由摄影机、Picture 或嘴型反推对白。
+其他段落仅描述视觉状态和 Clip-local 时间范围内的视觉行为；即使视觉动作与
+dialogue 时间重合，也不引用 D 编号或重新定义 dialogue event 的性质。
+不得写事件何时开始或结束、对应人物的发声与口型变化，也不得因事件自动切镜
+或频繁摇镜。绝不由摄影机、Picture 或嘴型反推对白。
 
 不得在 detailed_description 或 overall_soundscape 复述 exact_dialogue 原文，
 也不得在这些区块重新指定人物发声权限或人声前后规则。
 
-如果多条 dialogues： - 按输入顺序与当前 Clip 的合法时序引用 D 编号； -
-不交换说话者； - 不合并文本。
+如果多条 dialogues：视觉正文仍按 canonical visual states、transitions 和
+Clip-local time 组织；不交换说话者，不合并文本，不解释 D 编号。
 
 ━━━━━━━━━━━━━━━━━━
 【无台词时的职责边界】
@@ -254,7 +256,7 @@ summary:
 detailed_description:
 [Shot 1] 根据当前语义控制和局部 transition 写视觉演进。
 相邻段分别描述，不混合全部动作；不把身份锁误当站位永久锁。
-可引用 assigned dialogue D 编号作视觉节拍，不写 exact text、
+不引用 assigned dialogue D 编号作视觉节拍，不写 exact text、
 speaker/起止/口型/发声权限，不从嘴部或画面位置反推对白。
 到达当前最后语义状态后不发展新剧情。
 

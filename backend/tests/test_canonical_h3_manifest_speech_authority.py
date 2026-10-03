@@ -179,7 +179,77 @@ def test_t05_multiple_speakers_not_assigned_from_picture(monkeypatch):
     assert "D2:\n  speaker: <Subject 1>" in prompt
     assert prompt.count("第一句。") == prompt.count("第二句。") == 1
     assert "第一局。" not in prompt
-    assert "exact_dialogue:" not in prompt.split("\n\n", 1)[1]
+    assert "exact_dialogue:" not in prompt.split("summary:", 1)[1]
+
+
+@pytest.mark.parametrize("states,step", SHAPES)
+@pytest.mark.parametrize("has_dialogue", [False, True])
+def test_canonical_sections_define_subjects_before_deterministic_speech(monkeypatch, states, step, has_dialogue):
+    body = ("subject_definitions:\n<Subject 1> is Mira, wearing her current coat.\n"
+            "<Subject 2> is Jun, wearing his current costume.\n"
+            "official_character_identity_lock:\nKeep both visible identities and costumes stable.\n"
+            "keyframe_timeline:\nKF4 starts from <Picture 1>; later states follow the canonical timeline.\n"
+            "summary:\nThe two figures hold their positions.\n"
+            "detailed_description:\n[Shot 1] Their gaze changes as the camera advances gently.\n"
+            "overall_soundscape:\nRoom tone and fabric Foley remain audible.")
+    lines = ([dialogue("Jun", "第一句。", "D1", 10.5, 12),
+              dialogue("Mira", "第二句。", "D2", 13, 15)] if has_dialogue else [])
+    prompt, _, _, record = invoke(monkeypatch, states=states, capability="GENERATE",
+                                  images=(4,), dialogues=lines, body=body)
+    assert record["step"] == step
+    sections = ("subject_definitions:", "official_character_identity_lock:",
+                "keyframe_timeline:", "dialogue_timeline:", "summary:",
+                "detailed_description:", "overall_soundscape:")
+    assert [prompt.index(section) for section in sections] == sorted(prompt.index(section) for section in sections)
+    assert record["parsed_result"]["dialogue"]["passed"]
+    if has_dialogue:
+        assert prompt.index("<Subject 1> is Mira") < prompt.index("D2:\n  speaker: <Subject 1>")
+        assert prompt.index("<Subject 2> is Jun") < prompt.index("D1:\n  speaker: <Subject 2>")
+        assert prompt.count("第一句。") == prompt.count("第二句。") == 1
+        assert "From 2.0s to 3.0s between dialogue events" in prompt
+    else:
+        assert "NO_VOICE: no human speech, no human vocalization, no invented dialogue." in prompt
+    assert "Room tone and fabric Foley remain audible" in prompt
+
+
+def test_shot_11_shaped_three_semantic_states_keep_one_physical_picture(monkeypatch):
+    states = [state(1, 10, "START"), state(2, 12), state(3, 15)]
+    body = ("subject_definitions:\n<Subject 1> is 皇帝, facing the mirror.\n"
+            "<Subject 2> is 侍从1, standing nearby.\n"
+            "official_character_identity_lock:\nKeep their current faces and clothing.\n"
+            "keyframe_timeline:\nKF1 at 0s starts from <Picture 1>. KF2 and KF3 are TEXT_ONLY.\n"
+            "summary:\nThey stay in the palace dressing room.\n"
+            "detailed_description:\n[Shot 1] From 0 to 2s, the emperor inspects a sleeve; "
+            "from 2 to 5s, the attendant holds position.\n"
+            "overall_soundscape:\nRoom tone and fabric Foley remain audible.")
+    lines = [dialogue("皇帝", "袖口是不是太宽了？", "D1", 11, 13),
+             dialogue("侍从1", "陛下，这正是今年王城最流行的样式。", "D2", 13.2, 16.95)]
+    prompt, payload, _, record = invoke(monkeypatch, states=states, capability="GENERATE",
+                                        images=(1,), dialogues=lines, body=body,
+                                        shot_characters=["皇帝", "侍从1"])
+    assert [s["physical_reference_status"] for s in payload["visual_controls"]] == [
+        "IMAGE_BACKED", "TEXT_ONLY", "TEXT_ONLY"]
+    assert {int(m.group(1)) for m in h3._PICTURE_TOKEN_RE.finditer(prompt)} == {1}
+    assert prompt.index("<Subject 1> is 皇帝") < prompt.index("D1:\n  speaker: <Subject 1>")
+    assert prompt.count("袖口是不是太宽了？") == prompt.count("陛下，这正是今年王城最流行的样式。") == 1
+    assert "From 3.0s to 3.2s between dialogue events" in prompt
+    assert "Only <Subject 2> may produce human vocalization and visibly articulate speech" in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
+    assert record["parsed_result"]["physical_picture"]["passed"]
+
+
+@pytest.mark.parametrize("old_wording", [
+    "Use D1 only as a restrained visual pacing marker.",
+    "Let D1 and then D2 function only as understated visual rhythm markers.",
+    "Use D2 only as a calm visual pacing marker.",
+])
+def test_old_d_event_visual_marker_redefinition_fails_canonical_audit(monkeypatch, old_wording):
+    body = ("subject_definitions:\n<Subject 1> is Mira, in her current coat.\n"
+            "summary:\nThe camera stays steady.\n"
+            f"detailed_description:\n{old_wording}\n"
+            "overall_soundscape:\nRoom tone and fabric Foley remain audible.")
+    with pytest.raises(RuntimeError, match="CANONICAL_D_EVENT_SEMANTIC_COMPETITION"):
+        invoke(monkeypatch, body=body, dialogues=[dialogue()])
 
 
 @pytest.mark.parametrize("has_dialogue", [False, True])
@@ -456,6 +526,18 @@ def test_novel_override_still_uses_runtime_soundscape_boundary(db_session, monke
     with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
         invoke(monkeypatch, db=db_session, novel=novel, states=states,
                body="summary:\nVisual movement.\noverall_soundscape:\nbackground chatter.")
+    ordered_body = ("subject_definitions:\n<Subject 1> is Mira, in her current coat.\n"
+                    "<Subject 2> is Jun, in his current costume.\n"
+                    "keyframe_timeline:\nThe current state develops visually.\n"
+                    "summary:\nTheir gaze shifts.\n"
+                    "detailed_description:\n[Shot 1] Mira turns toward the mirror.\n"
+                    "overall_soundscape:\nFootsteps and fabric Foley remain audible.")
+    prompt, _, call, record = invoke(monkeypatch, db=db_session, novel=novel,
+                                     states=states, body=ordered_body, dialogues=[dialogue()])
+    assert call["system_prompt"].startswith(override.template)
+    assert prompt.index("<Subject 1> is Mira") < prompt.index("dialogue_timeline:") < prompt.index("summary:")
+    assert record["parsed_result"]["dialogue"]["passed"]
+    assert prompt.count("请看这里。") == 1
 
 
 @pytest.mark.parametrize("missing", ["previous_av", "temporal_anchor"])

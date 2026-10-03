@@ -197,8 +197,9 @@ CANONICAL SINGLE SPEECH AUTHORITY (highest priority, including Novel overrides):
   timing and speech-related mouth/lip authority. The program injects it once.
 - Output visual direction and non-human environmental/action sound only. Do not
   output dialogue_timeline, exact dialogue, speaker assignments, human vocalization
-  permissions or speech-related mouth/lip rules. Outside the injected block only
-  assigned dialogue IDs may be referenced as visual event markers.
+  permissions or speech-related mouth/lip rules. Describe visual behavior from
+  canonical states, transitions and Clip-local time. Do not use dialogue event IDs
+  as visual pacing or rhythm markers, or redefine those speech events.
 - Pictures, temporal targets, Previous AV and visual prominence never assign speakers.
 - With no assigned dialogue the program injects NO_VOICE: no human speech,
   vocalization or invented dialogue, NOT SILENT_AUDIO. Preserve ambience, Foley,
@@ -682,7 +683,7 @@ def _remove_canonical_h3_internal_self_check(prompt: str) -> str:
     )[0].rstrip()
 
 
-def _remove_dialogue_text_outside_single_block(prompt: str, assigned_dialogues: list, timeline_block: str) -> str:
+def _remove_dialogue_text_from_builder_body(prompt: str, assigned_dialogues: list) -> str:
     body = prompt or ""
     for item in assigned_dialogues:
         text = _exact_spoken_text(item.get("text"))
@@ -691,7 +692,18 @@ def _remove_dialogue_text_outside_single_block(prompt: str, assigned_dialogues: 
                 body = body.replace(f"“{variant}”", f"assigned dialogue {item['id']}")
                 body = body.replace(f"\"{variant}\"", f"assigned dialogue {item['id']}")
                 body = body.replace(variant, f"assigned dialogue {item['id']}")
-    return f"{timeline_block}\n\n{body}".strip()
+    return body.strip()
+
+
+def _insert_canonical_dialogue_timeline(builder_body: str, timeline_block: str) -> str:
+    """Place deterministic speech before the first creative output section."""
+    boundary = re.search(r"(?m)^(?:summary|detailed_description|overall_soundscape):", builder_body)
+    if boundary is None:
+        return f"{builder_body}\n\n{timeline_block}".strip()
+    return (
+        f"{builder_body[:boundary.start()].rstrip()}\n\n{timeline_block}\n\n"
+        f"{builder_body[boundary.start():].lstrip()}"
+    ).strip()
 
 
 def _project_canonical_soundscape(prompt: str) -> str:
@@ -835,6 +847,12 @@ def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_c
             issues.append("SILENT_CHARACTER_CONSTRAINT_MISSING")
     if canonical_visual_body is not None:
         issues.extend(_canonical_visual_body_speech_issues(canonical_visual_body, subject_bindings))
+        if re.search(
+            r"(?i)\bD\d+\b[^.!?\n]{0,160}\b(?:visual|speech)\s+"
+            r"(?:pacing|rhythm)\s+markers?\b",
+            canonical_visual_body,
+        ):
+            issues.append("CANONICAL_D_EVENT_SEMANTIC_COMPETITION")
         if not assigned_dialogues and "NO_VOICE: no human speech, no human vocalization, no invented dialogue." not in final_prompt:
             issues.append("CANONICAL_NO_VOICE_MISSING")
     blocking_issues = [issue for issue in sorted(set(issues)) if issue != "DIALOGUE_DURATION_INSUFFICIENT"]
@@ -1141,10 +1159,14 @@ async def build_h3_video_prompt(
     if canonical_path or is_multi_clip or is_semantic_clip:
         subject_bindings = _subject_bindings(final_prompt, clip_visible_characters)
         timeline_block = _render_dialogue_timeline_block(assigned_dialogues, silent_characters, subject_bindings)
-        final_prompt = _remove_dialogue_text_outside_single_block(final_prompt, assigned_dialogues, timeline_block)
+        builder_body = _remove_dialogue_text_from_builder_body(final_prompt, assigned_dialogues)
+        final_prompt = (
+            _insert_canonical_dialogue_timeline(builder_body, timeline_block)
+            if canonical_path else f"{timeline_block}\n\n{builder_body}".strip()
+        )
         dialogue_audit = _audit_final_h3_prompt(
             final_prompt, assigned_dialogues, silent_characters, subject_bindings,
-            canonical_visual_body=final_prompt[len(timeline_block):].strip() if canonical_path else None,
+            canonical_visual_body=builder_body if canonical_path else None,
         )
         if not dialogue_audit.get("passed"):
             append_video_ai_call(shot, {
