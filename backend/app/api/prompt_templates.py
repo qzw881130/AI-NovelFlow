@@ -34,6 +34,8 @@ PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
         ("character", "角色生成提示词"),
         ("scene", "场景生成提示词"),
         ("prop", "道具生成提示词"),
+        ("scene_setting", "场景设定描述提示词"),
+        ("prop_appearance", "道具外观描述提示词"),
     ]),
     ("风格设计", [("style", "风格提示词")]),
     ("分镜规划", [("chapter_split", "分镜拆分提示词")]),

@@ -8,6 +8,8 @@ import { DEFAULT_CHARACTER_TEMPLATE, DEFAULT_CHAPTER_SPLIT_TEMPLATE, DEFAULT_STY
 
 // 模板类型配置
 export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descKey: string; defaultTemplate: string; fileNumber?: string }> = {
+  scene_setting: { nameKey: 'promptConfig.types.sceneSetting', descKey: 'promptConfig.types.sceneSettingDesc', defaultTemplate: '' },
+  prop_appearance: { nameKey: 'promptConfig.types.propAppearance', descKey: 'promptConfig.types.propAppearanceDesc', defaultTemplate: '' },
   story_world_context_recommender: { nameKey: 'promptConfig.types.storyWorldContextRecommender', descKey: 'promptConfig.types.storyWorldContextRecommenderDesc', defaultTemplate: '', fileNumber: '01' },
   style: { nameKey: 'promptConfig.types.style', descKey: 'promptConfig.types.styleDesc', defaultTemplate: DEFAULT_STYLE_TEMPLATE, fileNumber: '02' },
   character_parse: { nameKey: 'promptConfig.types.characterParse', descKey: 'promptConfig.types.characterParseDesc', defaultTemplate: '', fileNumber: '03' },
@@ -39,6 +41,8 @@ export const TEMPLATE_TYPES: TemplateType[] = [
   'character',
   'scene',
   'prop',
+  'scene_setting',
+  'prop_appearance',
   'chapter_split',
   'shot_image_prompt',
   'video_mode_recommender',
@@ -58,6 +62,8 @@ export function usePromptConfigState() {
 
   // 各类型模板状态
   const [templatesByType, setTemplatesByType] = useState<Record<TemplateType, PromptTemplate[]>>({
+    scene_setting: [],
+    prop_appearance: [],
     story_world_context_recommender: [],
     style: [],
     character_parse: [],
@@ -80,6 +86,8 @@ export function usePromptConfigState() {
     h3_multi_keyframe_prompt: [],
   });
   const [loadingByType, setLoadingByType] = useState<Record<TemplateType, boolean>>({
+    scene_setting: true,
+    prop_appearance: true,
     story_world_context_recommender: true,
     style: true,
     character_parse: true,

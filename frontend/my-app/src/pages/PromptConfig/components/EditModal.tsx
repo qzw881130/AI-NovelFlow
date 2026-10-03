@@ -30,6 +30,8 @@ interface EditModalProps {
 export function EditModal({ show, onClose, onSave, modalType, editingPrompt, form, setForm, saving }: EditModalProps) {
   const { t } = useTranslation();
   if (!show) return null;
+  const isAssetDescription = modalType === 'scene_setting' || modalType === 'prop_appearance';
+  const assetDescriptionKey = modalType === 'scene_setting' ? 'promptConfig.types.sceneSettingDesc' : 'promptConfig.types.propAppearanceDesc';
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -57,9 +59,9 @@ export function EditModal({ show, onClose, onSave, modalType, editingPrompt, for
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               {t('promptConfig.promptTemplate')}
-              <span className="text-xs text-gray-500 ml-2">
+              {!isAssetDescription && <span className="text-xs text-gray-500 ml-2">
                 {modalType === 'style' ? t('promptConfig.placeholderTipStyle') : modalType === 'character' ? t('promptConfig.placeholderTip') : t('promptConfig.placeholderTipChapter')}
-              </span>
+              </span>}
             </label>
             {/* 仅对返回 JSON 结构的模板类型显示警告 */}
             {JSON_OUTPUT_TEMPLATE_TYPES.includes(modalType) && (
@@ -74,10 +76,10 @@ export function EditModal({ show, onClose, onSave, modalType, editingPrompt, for
             )}
             <textarea rows={form.template.length > 1200 ? 12 : 6} required value={form.template}
               onChange={(e) => setForm({ ...form, template: e.target.value })} className="input-field font-mono text-sm"
-              placeholder={modalType === 'style' ? t('promptConfig.templatePlaceholderStyle') : modalType === 'character' ? t('promptConfig.templatePlaceholderCharacter') : t('promptConfig.templatePlaceholderChapter')}
+              placeholder={isAssetDescription ? t(assetDescriptionKey) : modalType === 'style' ? t('promptConfig.templatePlaceholderStyle') : modalType === 'character' ? t('promptConfig.templatePlaceholderCharacter') : t('promptConfig.templatePlaceholderChapter')}
               readOnly={editingPrompt?.isSystem} />
             <div className="flex flex-wrap justify-between items-center gap-2 mt-1">
-              <p className="text-xs text-gray-500">{modalType === 'style' ? t('promptConfig.tipStyle') : modalType === 'character' ? t('promptConfig.tipCharacter') : t('promptConfig.tipChapter')}</p>
+              <p className="text-xs text-gray-500">{isAssetDescription ? t(assetDescriptionKey) : modalType === 'style' ? t('promptConfig.tipStyle') : modalType === 'character' ? t('promptConfig.tipCharacter') : t('promptConfig.tipChapter')}</p>
               <p className="text-xs text-gray-500">{t('promptConfig.charCount')}: {form.template.length}</p>
             </div>
           </div>

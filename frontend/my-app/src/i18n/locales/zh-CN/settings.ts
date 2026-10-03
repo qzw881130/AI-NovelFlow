@@ -284,6 +284,10 @@ export default {
 
     // 提示词模板类型
     types: {
+      sceneSetting: '场景设定描述',
+      sceneSettingDesc: '用于通过 LLM 补全场景环境文字设定，不直接生成图片',
+      propAppearance: '道具外观描述',
+      propAppearanceDesc: '用于通过 LLM 补全道具外观文字描述，不直接生成图片',
       storyWorldContextRecommender: '故事世界上下文推荐',
       storyWorldContextRecommenderDesc: '根据小说名称和描述推荐统一的时代、地域、文化、技术与物质世界边界',
       style: '风格提示词',
@@ -348,6 +352,8 @@ export default {
     resetSuccess: '已恢复默认提示词',
     resetSuccessFrontend: '已恢复默认提示词（仅前端）',
     templateNames: {
+      '场景设定描述': '场景设定描述',
+      '道具外观描述': '道具外观描述',
       '故事世界上下文推荐': '故事世界上下文推荐',
       '标准动漫风格': '标准动漫风格',
       '写实风格': '写实风格',
@@ -386,6 +392,8 @@ export default {
       'MiniMax H3 多关键帧视频提示词构建': 'MiniMax H3 多关键帧视频提示词构建',
     },
     templateDescriptions: {
+      '场景设定描述': '用于通过 LLM 补全场景环境文字设定，不直接生成图片',
+      '道具外观描述': '用于通过 LLM 补全道具外观文字描述，不直接生成图片',
       '故事世界上下文推荐': '根据小说名称和描述推荐统一的时代、地域、文化与物质世界边界',
       '标准动漫风格': '适合大多数动漫角色的标准人设生成',
       '写实风格': '电影级写实质感，自然光影与可信材质，时代和世界观遵循故事',

@@ -245,7 +245,7 @@ function LogTableRow({ log, selected, onSelectionStart, onSelectionEnter, onView
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.model}</td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{getTaskTypeLabel(log.task_type)}</td>
       <td className="px-4 py-3 text-sm text-gray-600 max-w-[180px]">
-        <div className="truncate" title={log.prompt_template_name || ''}>{log.prompt_template_name || '-'}</div>
+        <div className="truncate" title={log.prompt_template_name || ''}>{log.prompt_template_name ? t(`promptConfig.templateNames.${log.prompt_template_name}`, { defaultValue: log.prompt_template_name }) : '-'}</div>
       </td>
       <td className="px-4 py-3 whitespace-nowrap"><span className={`px-2 py-1 text-xs ${badge.bg} ${badge.text} rounded-full`}>{badge.label}</span></td>
       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}</td>

@@ -282,6 +282,10 @@ export default {
 
     // Prompt template types
     types: {
+      sceneSetting: 'Scene Setting Description',
+      sceneSettingDesc: 'Use an LLM to expand the written environment setting; does not generate images',
+      propAppearance: 'Prop Appearance Description',
+      propAppearanceDesc: 'Use an LLM to expand the written prop appearance; does not generate images',
       storyWorldContextRecommender: 'Story World Context Recommendation',
       storyWorldContextRecommenderDesc: 'Recommend consistent era, geography, culture, technology, and material-world boundaries from the novel title and description',
       style: 'Style Prompt',
@@ -346,6 +350,8 @@ export default {
     resetSuccess: 'Reset to default prompt',
     resetSuccessFrontend: 'Reset to default prompt (frontend only)',
     templateNames: {
+      '场景设定描述': 'Scene Setting Description',
+      '道具外观描述': 'Prop Appearance Description',
       '故事世界上下文推荐': 'Story World Context Recommendation',
       '标准动漫风格': 'Standard Anime Style',
       '写实风格': 'Realistic Style',
@@ -373,6 +379,8 @@ export default {
       '标准角色解析': 'Standard Character Parse',
     },
     templateDescriptions: {
+      '场景设定描述': 'Use an LLM to expand the written environment setting; does not generate images',
+      '道具外观描述': 'Use an LLM to expand the written prop appearance; does not generate images',
       '故事世界上下文推荐': 'Recommend consistent era, geography, culture, and material-world boundaries from the novel title and description',
       '标准动漫风格': 'Standard character generation for most anime characters',
       '写实风格': 'Cinematic realism with natural light and believable materials; era and world follow the story',

@@ -10,6 +10,8 @@ export type TemplateType =
   | 'character'
   | 'scene'
   | 'prop'
+  | 'scene_setting'
+  | 'prop_appearance'
   | 'chapter_split'
   | 'shot_image_prompt'
   | 'video_mode_recommender'

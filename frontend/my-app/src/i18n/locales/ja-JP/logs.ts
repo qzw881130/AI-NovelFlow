@@ -4,6 +4,8 @@ import enUS from '../en-US/logs';
 export default {
   llmLogs: {
     ...enUS.llmLogs,
+    generateSceneSetting: 'シーン設定を生成',
+    generatePropAppearance: '小道具の外観を生成',
     title: 'LLMログ',
     subtitle: 'LLM呼び出しログの記録を表示',
     clearLogs: 'ログをクリア',

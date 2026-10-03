@@ -292,6 +292,23 @@ SYSTEM_SCENE_PARSE_TEMPLATES: List[Dict] = [
     }
 ]
 
+# 系统预设的 LLM 素材文字设定模板（独立于图片生成模板）
+SYSTEM_ASSET_DESCRIPTION_TEMPLATES: List[Dict] = [
+    {
+        "name": "场景设定描述",
+        "description": "使用 LLM 补全场景环境文字设定，不直接生成图片",
+        "template": load_template("scene_setting.txt"),
+        "type": "scene_setting",
+    },
+    {
+        "name": "道具外观描述",
+        "description": "使用 LLM 补全道具外观文字描述，不直接生成图片",
+        "template": load_template("prop_appearance.txt"),
+        "type": "prop_appearance",
+    },
+]
+
+
 # 系统预设的场景图生成提示词模板
 SYSTEM_SCENE_IMAGE_TEMPLATES: List[Dict] = [
     {
@@ -386,6 +403,7 @@ SYSTEM_PROMPT_TEMPLATES = (
     SYSTEM_SCENE_PARSE_TEMPLATES +
     SYSTEM_PROP_PARSE_TEMPLATES +
     SYSTEM_CHARACTER_TEMPLATES +
+    SYSTEM_ASSET_DESCRIPTION_TEMPLATES +
     SYSTEM_SCENE_IMAGE_TEMPLATES +
     SYSTEM_PROP_TEMPLATES +
     SYSTEM_CHAPTER_SPLIT_TEMPLATES +

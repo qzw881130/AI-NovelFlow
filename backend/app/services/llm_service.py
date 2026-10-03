@@ -259,6 +259,17 @@ class LLMService:
         else:
             return prompt
 
+    def _get_asset_description_prompt(self, template_type: str, fallback: str):
+        """Reuse registered system templates; file-backed fallback before seeding."""
+        from app.core.database import SessionLocal
+        from app.services.prompt_template_service import PromptTemplateService
+
+        with SessionLocal() as db:
+            template = PromptTemplateService(db).get_default_system_template(template_type)
+            if template:
+                return template.template, template.name
+        return fallback, "场景设定描述" if template_type == "scene_setting" else "道具外观描述"
+
     async def generate_scene_setting(
         self,
         scene_name: str,
@@ -277,7 +288,9 @@ class LLMService:
         Returns:
             场景设定字符串（用于 AI 绘图的环境描述）
         """
-        system_prompt = get_scene_setting_prompt(style)
+        system_prompt, template_name = self._get_asset_description_prompt(
+            "scene_setting", get_scene_setting_prompt(style)
+        )
 
         result = await self.chat_completion(
             system_prompt=system_prompt,
@@ -285,7 +298,7 @@ class LLMService:
             temperature=0.8,
             max_tokens=1000,
             task_type="generate_scene_setting",
-            prompt_template_name=f"{style} 场景设定提示词",
+            prompt_template_name=template_name,
             novel_id=novel_id
         )
 
@@ -312,7 +325,9 @@ class LLMService:
         Returns:
             道具外观描述字符串（用于 AI 绘图）
         """
-        system_prompt = get_prop_appearance_prompt(style)
+        system_prompt, template_name = self._get_asset_description_prompt(
+            "prop_appearance", get_prop_appearance_prompt(style)
+        )
 
         result = await self.chat_completion(
             system_prompt=system_prompt,
@@ -320,7 +335,7 @@ class LLMService:
             temperature=0.8,
             max_tokens=1000,
             task_type="generate_prop_appearance",
-            prompt_template_name=f"{style} 道具外观提示词",
+            prompt_template_name=template_name,
             novel_id=novel_id
         )
 

@@ -26,6 +26,9 @@ class PromptTemplateType:
     SCENE = "scene"
     # 道具生成提示词 - 用于生成道具图片
     PROP = "prop"
+    # LLM 文字设定补全，不是图片生成模板
+    SCENE_SETTING = "scene_setting"
+    PROP_APPEARANCE = "prop_appearance"
     # 分镜拆分提示词 - 用于将章节拆分为分镜
     CHAPTER_SPLIT = "chapter_split"
     # 关键帧描述提示词 - 用于生成分镜关键帧描述
@@ -61,6 +64,8 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.CHARACTER,
     PromptTemplateType.SCENE,
     PromptTemplateType.PROP,
+    PromptTemplateType.SCENE_SETTING,
+    PromptTemplateType.PROP_APPEARANCE,
     PromptTemplateType.CHAPTER_SPLIT,
     PromptTemplateType.SHOT_IMAGE_PROMPT,
     PromptTemplateType.VIDEO_MODE_RECOMMENDER,
@@ -78,6 +83,18 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
 
 # 提示词模板类型配置（包含显示名称和描述的国际化键）
 PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
+    PromptTemplateType.SCENE_SETTING: {
+        "name_key": "promptConfig.types.sceneSetting",
+        "desc_key": "promptConfig.types.sceneSettingDesc",
+        "icon": "FileText",
+        "color": "orange",
+    },
+    PromptTemplateType.PROP_APPEARANCE: {
+        "name_key": "promptConfig.types.propAppearance",
+        "desc_key": "promptConfig.types.propAppearanceDesc",
+        "icon": "FileText",
+        "color": "amber",
+    },
     PromptTemplateType.STORY_WORLD_CONTEXT_RECOMMENDER: {
         "name_key": "promptConfig.types.storyWorldContextRecommender",
         "desc_key": "promptConfig.types.storyWorldContextRecommenderDesc",

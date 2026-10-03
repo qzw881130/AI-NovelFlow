@@ -2,6 +2,8 @@
 export default {
   // LLM Logs
   llmLogs: {
+    generateSceneSetting: 'Generate Scene Setting',
+    generatePropAppearance: 'Generate Prop Appearance',
     speed: 'Speed (tokens/s)',
     tokenDetails: 'Token Usage and Speed',
     inputTokens: 'Input Tokens',

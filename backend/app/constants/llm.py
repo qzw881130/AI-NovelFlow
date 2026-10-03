@@ -4,6 +4,8 @@ LLM 服务相关常量定义
 包含默认参数、日志字段限制、文本截断限制、默认提示词模板等
 """
 
+from pathlib import Path
+
 # ==================== 默认参数 ====================
 
 # 默认温度参数
@@ -203,28 +205,7 @@ def get_scene_setting_prompt(style: str = "anime") -> str:
     Returns:
         系统提示词字符串
     """
-    return f"""你是一个专业的场景设定助手。请根据提供的场景信息，生成一段详细的环境设定描述，用于AI绘图生成场景图。
-
-【重要约束：场景不包含人物】
-- 场景是纯粹的环境、地点、空间描述，不包含任何人物、角色、演员等元素
-- 设定描述中禁止出现人物、人物动作、表情、姿态等
-- 专注于环境本身：建筑、自然景观、室内布置、光线、天气、氛围等
-
-要求：
-1. 描述要具体、详细，包含：
-   - 时间（白天/黄昏/夜晚）
-   - 天气（晴天/雨天/雪天）
-   - 光线（阳光/月光/灯光）
-   - 建筑风格或自然景观特征
-   - 主要物体和布局
-   - 色调和氛围
-   - 透视角度
-2. 使用英文（AI绘图模型对英文理解更好）
-3. 避免模糊词汇，使用具体的颜色和样式描述
-4. 必须添加 "no characters, empty scene" 确保不生成人物
-
-示例输出格式：
-Traditional Chinese courtyard, ancient wooden architecture with curved roofs, red pillars and golden decorations, stone pathway, blooming cherry blossom trees, soft morning sunlight filtering through leaves, peaceful atmosphere, spring season, wide angle view, anime style, high quality, detailed, environment design, no characters, empty scene"""
+    return (Path(__file__).resolve().parents[2] / "prompt_templates" / "scene_setting.txt").read_text(encoding="utf-8").strip()
 
 
 # ==================== 默认回退值 ====================
@@ -247,21 +228,7 @@ def get_prop_appearance_prompt(style: str = "anime") -> str:
     Returns:
         系统提示词字符串
     """
-    return f"""你是一个专业的道具设定助手。请根据提供的道具信息，生成一段详细的外观描述，用于AI绘图生成道具图片。
-
-要求：
-1. 描述要具体、详细，包含：
-   - 道具的形状、尺寸
-   - 材质和质感（金属、木质、布料等）
-   - 颜色和图案
-   - 特殊装饰或细节
-   - 光泽和反射效果
-2. 使用英文（AI绘图模型对英文理解更好）
-3. 避免模糊词汇，使用具体的颜色和样式描述
-4. 描述应该是独立的道具外观，不包含人物或背景
-
-示例输出格式：
-Ancient Chinese sword, ornate golden hilt with dragon patterns, blade made of polished steel with visible hamon pattern, red tassel attached to the pommel, intricate engravings on the guard, gleaming metal surface, traditional craftsmanship, anime style, high quality, detailed, item design, clean background"""
+    return (Path(__file__).resolve().parents[2] / "prompt_templates" / "prop_appearance.txt").read_text(encoding="utf-8").strip()
 
 # 道具外观生成失败时的默认回退格式
 DEFAULT_PROP_APPEARANCE_FALLBACK = "{prop_name}, item design, prop, high quality, detailed"

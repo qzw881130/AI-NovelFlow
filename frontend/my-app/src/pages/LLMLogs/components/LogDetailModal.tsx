@@ -128,7 +128,7 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
             </div>
             <div className="flex items-center gap-2 text-sm">
               <span className="text-gray-500">{t('llmLogs.promptTemplateName')}:</span>
-              <span className="font-medium text-gray-900">{log.prompt_template_name || '-'}</span>
+              <span className="font-medium text-gray-900">{log.prompt_template_name ? t(`promptConfig.templateNames.${log.prompt_template_name}`, { defaultValue: log.prompt_template_name }) : '-'}</span>
             </div>
             {log.error_message && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">

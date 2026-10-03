@@ -13,6 +13,8 @@ import { toast } from '../../stores/toastStore';
 
 // 图标映射
 const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
+  scene_setting: <FileText className="h-4 w-4" />,
+  prop_appearance: <FileText className="h-4 w-4" />,
   story_world_context_recommender: <Globe2 className="h-4 w-4" />,
   style: <Palette className="h-4 w-4" />,
   character_parse: <Users className="h-4 w-4" />,
@@ -37,6 +39,8 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
 
 // Tab 标签页颜色映射
 const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; border: string }> = {
+  scene_setting: { active: 'text-orange-600 bg-orange-50 border-orange-200', inactive: 'text-gray-500 hover:text-orange-600', border: 'border-orange-200' },
+  prop_appearance: { active: 'text-amber-600 bg-amber-50 border-amber-200', inactive: 'text-gray-500 hover:text-amber-600', border: 'border-amber-200' },
   story_world_context_recommender: { active: 'text-teal-600 bg-teal-50 border-teal-200', inactive: 'text-gray-500 hover:text-teal-600', border: 'border-teal-200' },
   style: { active: 'text-pink-600 bg-pink-50 border-pink-200', inactive: 'text-gray-500 hover:text-pink-600', border: 'border-pink-200' },
   character_parse: { active: 'text-blue-600 bg-blue-50 border-blue-200', inactive: 'text-gray-500 hover:text-blue-600', border: 'border-blue-200' },
@@ -63,7 +67,7 @@ const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: Templa
   story_context: { nameKey: 'promptConfig.categories.storyContext', types: ['story_world_context_recommender'] },
   style_design: { nameKey: 'promptConfig.categories.styleDesign', types: ['style'] },
   asset_parse: { nameKey: 'promptConfig.categories.assetParse', types: ['character_parse', 'scene_parse', 'prop_parse'] },
-  asset_generation: { nameKey: 'promptConfig.categories.assetGeneration', types: ['character', 'scene', 'prop'] },
+  asset_generation: { nameKey: 'promptConfig.categories.assetGeneration', types: ['character', 'scene', 'prop', 'scene_setting', 'prop_appearance'] },
   shot_planning: { nameKey: 'promptConfig.categories.shotPlanning', types: ['chapter_split'] },
   shot_image: { nameKey: 'promptConfig.categories.shotImage', types: ['shot_image_prompt'] },
   video_director: { nameKey: 'promptConfig.categories.videoDirector', types: ['video_mode_recommender', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'] },

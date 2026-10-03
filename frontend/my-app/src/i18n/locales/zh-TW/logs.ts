@@ -4,6 +4,8 @@ import zhCN from '../zh-CN/logs';
 export default {
   llmLogs: {
     ...zhCN.llmLogs,
+    generateSceneSetting: '生成場景設定',
+    generatePropAppearance: '生成道具外觀',
     title: '大模型日誌',
     subtitle: '檢視大模型呼叫的日誌記錄',
     clearLogs: '清空日誌',

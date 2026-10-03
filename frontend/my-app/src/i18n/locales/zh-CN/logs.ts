@@ -2,6 +2,8 @@
 export default {
   // 大模型日志
   llmLogs: {
+    generateSceneSetting: '生成场景设定',
+    generatePropAppearance: '生成道具外观',
     speed: '速度 (tokens/s)',
     tokenDetails: 'Token 用量与速度',
     inputTokens: '输入 Token',
