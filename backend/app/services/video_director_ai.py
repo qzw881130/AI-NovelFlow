@@ -753,7 +753,7 @@ def _canonical_visual_body_speech_issues(body: str, subject_bindings: dict | Non
         r"<Subject\s+\d+>\s+is\s+(?:the\s+|a\s+)?speaker\b|"
         r"\b(?:allow|enable|generate|produce|add|include)\s+(?:extra\s+)?human\s+(?:speech|voices?|vocalization)\b|"
         r"\bhuman\s+(?:speech|voices?|vocalization)\s+(?:(?:is|are)\s+)?(?:allowed|enabled)\b|"
-        r"说话|讲话|交谈|对话|低语|喊叫|笑声|口型|发声|人声|唇形|"
+        r"说话|讲话|交谈|对话(?!框)|低语|喊叫|笑声|口型|发声|人声|唇形|"
         r"回应(?![^，。.!?;；\n]{0,8}(?:视线|目光|手势|动作))",
         re.IGNORECASE,
     )

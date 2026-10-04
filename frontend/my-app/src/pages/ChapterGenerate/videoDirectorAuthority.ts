@@ -25,6 +25,28 @@ export function classifyVisualStateImageStatus(
   return 'OPTIONAL_MISSING';
 }
 
+/** Presentation of existing execution data; carry-in never creates an image dependency. */
+export function getVisualStateExecutionImageStatus(
+  state: CanonicalVisualState,
+  plan: VideoDirectorPlan,
+  resolvedImageUrl?: string | null,
+): CanonicalVisualStateImageStatus | 'NOT_NEEDED' {
+  if (resolvedImageUrl || state.image_url) return 'READY';
+  const clips = plan.clip_plan;
+  if (!Array.isArray(clips) || clips.length === 0 || Number(plan.clip_plan_revision || 0) <= 0
+    || plan.clip_plan_validation?.passed !== true) return classifyVisualStateImageStatus(state, resolvedImageUrl);
+  const index = Number(state.index);
+  // Consume backend-projected GENERATE blockers, not a second first-owned algorithm.
+  if (plan.execution_readiness?.blocking_clips?.some((blocker) => Number(blocker.visual_state_index) === index)) {
+    return 'REQUIRED_MISSING';
+  }
+  const owners = clips.filter((clip) => clip.visual_state_indexes?.some((owned) => Number(owned) === index));
+  if (owners.length === 0) return 'NOT_NEEDED';
+  if (state.timed_visual_target === true && owners.some((clip) => clip.capability === 'TEMPORAL_EXTEND'
+    && clip.requires_temporal_control === true)) return 'REQUIRED_MISSING';
+  return 'OPTIONAL_MISSING';
+}
+
 export function getRequiredMissingCanonicalVisualStates(
   plan: VideoDirectorPlan,
   resolveImageUrl: (state: CanonicalVisualState) => string | null | undefined = (state) => state.image_url,

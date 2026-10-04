@@ -87,6 +87,32 @@ SHAPES = [
 ]
 
 
+def test_c2_persisted_dialog_box_exclusion_is_not_speech_authority(monkeypatch):
+    # Exact failed C2 detailed_description suffix (LLM log e8f9f9c3).
+    exclusion = (
+        "到达 Clip-local 11.35s 时，让所有微动作自然收束在当前场面的稳定可见状态，不引入后续事件。"
+        "画面中不得出现字幕、说明文字、标题、对话框、标志、水印、界面元素或任何其他屏幕文字。"
+    )
+    body = ("subject_definitions:\n<Subject 1> is Mira.\n<Subject 2> is Jun.\n"
+            "summary:\n视线与手势自然变化。\ndetailed_description:\n" + exclusion +
+            "\noverall_soundscape:\nRoom tone and fabric rustle.")
+    assert h3._canonical_visual_body_speech_issues(body) == []
+    prompt, _, _, record = invoke(monkeypatch, states=[], body=body, dialogues=[dialogue()])
+    assert exclusion in prompt
+    assert record["parsed_result"]["dialogue"]["passed"]
+    assert prompt.count("dialogue_timeline:") == 1
+    assert "exact_dialogue: 请看这里。" in prompt
+
+
+@pytest.mark.parametrize("assertion", ["<Subject 2>开始对话。", "<Subject 2>讲话。", "<Subject 2> speaks."])
+def test_dialog_box_lexical_boundary_does_not_authorize_actual_speech(monkeypatch, assertion):
+    body = ("subject_definitions:\n<Subject 1> is Mira.\n<Subject 2> is Jun.\n"
+            "summary:\n画面不得出现字幕、标题、对话框。\ndetailed_description:\n" + assertion +
+            "\noverall_soundscape:\nRoom tone.")
+    with pytest.raises(RuntimeError, match="CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"):
+        invoke(monkeypatch, states=[], body=body, dialogues=[dialogue()])
+
+
 @pytest.mark.parametrize("states,step", SHAPES)
 @pytest.mark.parametrize("capability", ["GENERATE", "EXTEND", "TEMPORAL_EXTEND"])
 @pytest.mark.parametrize("has_dialogue", [False, True])

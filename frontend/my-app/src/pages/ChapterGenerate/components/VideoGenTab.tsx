@@ -29,6 +29,7 @@ import {
   buildVideoDirectorShotSavePayload,
   canUseLegacyShotGeneration,
   classifyVisualStateImageStatus,
+  getVisualStateExecutionImageStatus,
   getAdjacentCanonicalTransitions,
   getCanonicalVisualStates,
   getRequiredMissingCanonicalVisualStates,
@@ -869,7 +870,7 @@ function VideoDirectorPanel({
   const hasGeneratingMissingKeyframes = missingKeyframes.some((kf: any) => isKeyframeGenerating(kf));
   const missingKeyframeButtonLabel = hasGeneratingMissingKeyframes
     ? `${isCanonicalPlan ? '状态图片' : '关键帧'}任务中 ${activeMissingKeyframes.length}/${missingKeyframes.length}`
-    : `${isCanonicalPlan ? '生成缺失状态图片' : '生成缺失关键帧'}${missingKeyframes.length > 0 ? ` ${missingKeyframes.length}` : ''}`;
+    : `${isCanonicalPlan ? requiredMissingKeyframes.length > 0 ? '批量生成必需状态图片' : '生成缺失状态图片' : '生成缺失关键帧'}${missingKeyframes.length > 0 ? ` ${missingKeyframes.length}` : ''}`;
   const threeFrameClipCount = clips.filter((clip: any) => Number(clip.selected_frame_count || clip.frame_count) === 3).length;
   const fourFrameClipCount = clips.filter((clip: any) => Number(clip.selected_frame_count || clip.frame_count) === 4).length;
   const [selectedKeyframeIndex, setSelectedKeyframeIndex] = useState(0);
@@ -881,6 +882,8 @@ function VideoDirectorPanel({
   const selectedKeyframe = keyframes[selectedKeyframeIndex] || keyframes[0];
   const selectedKeyframeFrameIndex = getKeyframeFrameIndex(selectedKeyframe);
   const selectedKeyframeImageUrl = getKeyframeImageUrl(selectedKeyframe);
+  const selectedStateImageStatus = isCanonicalPlan && selectedKeyframe
+    ? getVisualStateExecutionImageStatus(selectedKeyframe, plan, selectedKeyframeImageUrl) : null;
   const selectedKeyframeReferenceImages = getKeyframeReferenceImages(plan, Number(selectedKeyframe?.index));
   const selectedKeyframeIsGenerating = isKeyframeGenerating(selectedKeyframe);
   const selectedLegacyKeyframe = legacyKeyframes.find((item: any) => (
@@ -890,10 +893,10 @@ function VideoDirectorPanel({
     selectedKeyframe?.prompt_text || selectedLegacyKeyframe?.prompt_text || ''
   ).trim();
   const selectedKeyframePrimaryActionLabel = isCanonicalPlan
-    ? selectedKeyframeImageUrl ? '重新生成状态图片' : '生成状态图片'
+    ? selectedStateImageStatus === 'REQUIRED_MISSING' ? '生成必需状态图片' : selectedKeyframeImageUrl ? '重新生成状态图片' : '生成状态图片'
     : selectedKeyframeImageUrl ? 'LLM+重新生成关键帧' : 'LLM+生成关键帧';
   const selectedKeyframeCurrentPromptActionLabel = isCanonicalPlan
-    ? selectedKeyframeImageUrl ? '使用当前提示词重新生成状态图片' : '使用当前提示词生成状态图片'
+    ? selectedStateImageStatus === 'REQUIRED_MISSING' ? '使用当前提示词生成必需状态图片' : selectedKeyframeImageUrl ? '使用当前提示词重新生成状态图片' : '使用当前提示词生成状态图片'
     : selectedKeyframeImageUrl ? '仅重新生成关键帧' : '仅生成关键帧';
   const hasNextKeyframe = selectedKeyframeIndex < keyframes.length - 1;
   const transitions = plan.transitions || [];
@@ -1010,9 +1013,10 @@ function VideoDirectorPanel({
     return t('chapterGenerate.visualStateRoleIntermediate');
   };
   const getVisualStateImageStatusLabel = (keyframe: any) => {
-    const status = classifyVisualStateImageStatus(keyframe, getKeyframeImageUrl(keyframe));
+    const status = getVisualStateExecutionImageStatus(keyframe, plan, getKeyframeImageUrl(keyframe));
     if (status === 'READY') return t('chapterGenerate.visualStateReady');
     if (status === 'REQUIRED_MISSING') return t('chapterGenerate.visualStateRequiredMissing');
+    if (status === 'NOT_NEEDED') return t('chapterGenerate.stateImageNotNeeded', { defaultValue: '当前执行无需状态图' });
     return t('chapterGenerate.visualStateOptionalMissing');
   };
   const clipHasMergeArtifact = (clip: any) => !!(clip.video_url || clip.local_path);
@@ -1490,7 +1494,7 @@ function VideoDirectorPanel({
                   const hasImage = !!keyframeImageUrl;
                   const isGenerating = isKeyframeGenerating(kf);
                   const marker = keyframeClipCount > 1 ? '⇄' : kf.role === 'START' || kf.role === 'END' ? '★' : '◇';
-                  const canonicalImageStatus = isCanonicalPlan ? classifyVisualStateImageStatus(kf, keyframeImageUrl) : null;
+                  const canonicalImageStatus = isCanonicalPlan ? getVisualStateExecutionImageStatus(kf, plan, keyframeImageUrl) : null;
                   return (
                     <button
                       key={`${kf.index}-${kf.time_seconds}`}
@@ -1705,7 +1709,7 @@ function VideoDirectorPanel({
                     </div>
                   )}
                   <span className={`text-xs ${selectedKeyframeIsGenerating ? 'text-blue-600' : selectedKeyframeImageUrl ? 'text-green-600' : 'text-amber-600'}`}>
-                    {selectedKeyframeIsGenerating ? t('chapterGenerate.imageGenerating') : selectedKeyframeImageUrl ? t('chapterGenerate.imageReady') : t('chapterGenerate.waitingImageGeneration')}
+                    {selectedKeyframeIsGenerating ? t('chapterGenerate.imageGenerating') : selectedKeyframeImageUrl ? t('chapterGenerate.imageReady') : isCanonicalPlan ? getVisualStateImageStatusLabel(selectedKeyframe) : t('chapterGenerate.waitingImageGeneration')}
                   </span>
                 </div>
               </div>

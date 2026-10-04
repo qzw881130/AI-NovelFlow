@@ -7,6 +7,7 @@ import { ImagePreviewModal, VideoPreviewModal } from './components/PreviewModals
 import { WorkflowViewModal } from './components/WorkflowViewModal';
 import { TaskCard } from './components/TaskCard';
 import type { Task } from '../../types';
+import { getCanonicalClipTaskDescription } from './taskExecutionDisplay';
 
 export default function Tasks() {
   const { t, i18n } = useTranslation();
@@ -83,6 +84,8 @@ export default function Tasks() {
   };
 
   const getTaskDisplayDescription = (task: Task): string => {
+    const canonicalDescription = getCanonicalClipTaskDescription(task);
+    if (canonicalDescription !== null) return canonicalDescription;
     if (!task.description) return '';
     const charMatch = task.description.match(/为角色\s*['"](.+)['"]\s*生成人设图/);
     if (charMatch) return t('tasks.taskDescriptions.characterPortrait', { name: charMatch[1] });
