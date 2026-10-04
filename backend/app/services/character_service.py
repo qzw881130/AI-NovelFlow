@@ -4,7 +4,6 @@
 封装角色相关的业务逻辑
 """
 import json
-import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional
 
@@ -17,7 +16,33 @@ from app.repositories import TaskRepository, WorkflowRepository, CharacterReposi
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import build_character_prompt, get_style
-from app.services.background_workers import worker_manager
+from app.services.background_workers import (
+    persistent_job, worker_manager, ensure_task_active,
+    save_image_prompt, resume_image_prompt,
+)
+
+
+async def run_character_portrait_job(
+    task_id: str,
+    character_id: str,
+    name: str,
+    appearance: str,
+    description: str,
+) -> None:
+    await CharacterService()._generate_portrait_task(
+        task_id, character_id, name, appearance, description
+    )
+
+
+async def run_character_voice_job(
+    task_id: str,
+    character_id: str,
+    character_name: str,
+    voice_prompt: str,
+) -> None:
+    await CharacterService()._generate_voice_task(
+        task_id, character_id, character_name, voice_prompt
+    )
 
 
 def enqueue_character_portrait_task(
@@ -28,15 +53,19 @@ def enqueue_character_portrait_task(
     description: str
 ) -> None:
     """Queue character portrait generation in its dedicated serial worker."""
-    worker_manager.worker("character_portrait").enqueue(
-        lambda: CharacterService()._generate_portrait_task(
-            task_id,
-            character_id,
-            name,
-            appearance,
-            description,
-        )
-    )
+    payload = {
+        "task_id": task_id,
+        "character_id": character_id,
+        "name": name,
+        "appearance": appearance,
+        "description": description,
+    }
+    worker_manager.worker("character_portrait").enqueue(persistent_job(
+        task_id,
+        "app.services.character_service:run_character_portrait_job",
+        payload,
+        lambda: run_character_portrait_job(**payload),
+    ))
 
 
 class CharacterService:
@@ -107,15 +136,18 @@ class CharacterService:
 
         db.commit()
 
-        # 启动后台任务
-        asyncio.create_task(
-            self._generate_voice_task(
-                task.id,
-                character_id,
-                character.name,
-                character.voice_prompt
-            )
-        )
+        payload = {
+            "task_id": task.id,
+            "character_id": character_id,
+            "character_name": character.name,
+            "voice_prompt": character.voice_prompt,
+        }
+        worker_manager.worker("character_voice").enqueue(persistent_job(
+            task.id,
+            "app.services.character_service:run_character_voice_job",
+            payload,
+            lambda: run_character_voice_job(**payload),
+        ))
 
         return {
             "success": True,
@@ -154,66 +186,77 @@ class CharacterService:
             if not task:
                 return
 
-            # 获取当前激活的 voice_design 工作流
-            workflow = workflow_repo.get_active_by_type("voice_design")
-
-            # 记录工作流信息
-            if workflow:
-                task.workflow_id = workflow.id
-                task.workflow_name = workflow.name
-                task.current_step = f"使用工作流: {workflow.name}"
+            if task.status not in {"pending", "running"}:
+                return
+            if task.comfyui_prompt_id:
+                submitted_workflow = json.loads(task.workflow_json or "null")
+                if not isinstance(submitted_workflow, dict) or not submitted_workflow:
+                    raise ValueError("已提交音色任务缺少 workflow 快照，拒绝重新提交")
+                save_audio_node_id = json.loads(task.metadata_json or "{}").get("audio_attempt", {}).get("save_audio_node_id")
             else:
-                task.current_step = "使用默认工作流"
+                # 获取当前激活的 voice_design 工作流
+                workflow = workflow_repo.get_active_by_type("voice_design")
 
-            # 更新任务状态为运行中
-            task.status = "running"
-            task.started_at = datetime.utcnow()
-            db.commit()
+                # 记录工作流信息
+                if workflow:
+                    task.workflow_id = workflow.id
+                    task.workflow_name = workflow.name
+                    task.current_step = f"使用工作流: {workflow.name}"
+                else:
+                    task.current_step = "使用默认工作流"
 
-            # 获取工作流JSON字符串
-            workflow_json_str = workflow.workflow_json if workflow else None
-            print(f"[VoiceTask] Workflow JSON available: {workflow_json_str is not None}")
+                # 更新任务状态为运行中
+                task.status = "running"
+                task.started_at = datetime.utcnow()
+                db.commit()
 
-            # 获取工作流的节点映射配置
-            node_mapping = None
-            if workflow and workflow.node_mapping:
-                try:
-                    node_mapping = json.loads(workflow.node_mapping)
-                    print(f"[VoiceTask] Using node mapping: {node_mapping}")
-                except Exception as e:
-                    print(f"[VoiceTask] Failed to parse node_mapping: {e}")
+                # 获取工作流JSON字符串
+                workflow_json_str = workflow.workflow_json if workflow else None
+                print(f"[VoiceTask] Workflow JSON available: {workflow_json_str is not None}")
 
-            # 构建音色设计工作流
-            # 使用标准测试文本生成参考音频
-            test_text = f"大家好，我是{character_name}，很高兴认识你们。"
+                # 获取工作流的节点映射配置
+                node_mapping = None
+                if workflow and workflow.node_mapping:
+                    try:
+                        node_mapping = json.loads(workflow.node_mapping)
+                        print(f"[VoiceTask] Using node mapping: {node_mapping}")
+                    except Exception as e:
+                        print(f"[VoiceTask] Failed to parse node_mapping: {e}")
 
-            submitted_workflow = self.comfyui_service.builder.build_voice_design_workflow(
-                voice_prompt=voice_prompt,
-                text=test_text,
-                workflow_json=workflow_json_str,
-                novel_id=task.novel_id,
-                character_name=character_name,
-                node_mapping=node_mapping
-            )
+                # 构建音色设计工作流
+                # 使用标准测试文本生成参考音频
+                test_text = f"大家好，我是{character_name}，很高兴认识你们。"
 
-            # 保存构建后的完整工作流到任务
-            task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
-            task.prompt_text = f"音色: {voice_prompt}\n文本: {test_text}"
-            db.commit()
+                submitted_workflow = self.comfyui_service.builder.build_voice_design_workflow(
+                    voice_prompt=voice_prompt,
+                    text=test_text,
+                    workflow_json=workflow_json_str,
+                    novel_id=task.novel_id,
+                    character_name=character_name,
+                    node_mapping=node_mapping
+                )
 
-            # 调用 ComfyUI 生成音频
-            result = await self.comfyui_service.generate_voice(
-                voice_prompt=voice_prompt,
-                text=test_text,
-                workflow_json=workflow_json_str,
-                novel_id=task.novel_id,
-                character_name=character_name,
-                node_mapping=node_mapping,
-                workflow=submitted_workflow
+                # 保存构建后的完整工作流到任务
+                task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+                task.prompt_text = f"音色: {voice_prompt}\n文本: {test_text}"
+                db.commit()
+
+                save_audio_node_id = node_mapping.get("save_audio_node_id") if node_mapping else None
+                queue_result = await self.comfyui_service.client.queue_prompt(submitted_workflow)
+                if not queue_result.get("success") or not queue_result.get("prompt_id"):
+                    raise ValueError(queue_result.get("error") or "提交音色任务失败")
+                task.comfyui_prompt_id = queue_result["prompt_id"]
+                metadata = json.loads(task.metadata_json or "{}")
+                metadata["audio_attempt"] = {"save_audio_node_id": save_audio_node_id}
+                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+                db.commit()
+            result = await self.comfyui_service.client.wait_for_audio_result(
+                task.comfyui_prompt_id, submitted_workflow, save_audio_node_id, timeout=600,
             )
 
             print(f"[VoiceTask] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
+            ensure_task_active(db, task)
             if result.get("success"):
                 audio_url = result.get("audio_url")
 
@@ -244,6 +287,7 @@ class CharacterService:
                     task.result_url = audio_url
                     task.current_step = "生成完成，使用远程音频"
 
+                ensure_task_active(db, task)
                 task.status = "completed"
                 task.progress = 100
                 task.completed_at = datetime.utcnow()
@@ -260,6 +304,7 @@ class CharacterService:
             db.commit()
 
         except Exception as e:
+            ensure_task_active(db, task)
             task.status = "failed"
             task.error_message = str(e)
             task.current_step = "任务异常"
@@ -383,100 +428,112 @@ class CharacterService:
                 print(f"[Task] Skip portrait task {task_id}, status={task.status}")
                 return
 
-            # 获取当前激活的 character 工作流
-            workflow = workflow_repo.get_active_by_type("character")
-
-            # 记录工作流信息
-            if workflow:
-                task.workflow_id = workflow.id
-                task.workflow_name = workflow.name
-                task.current_step = f"使用工作流: {workflow.name}"
+            if task.comfyui_prompt_id:
+                result = await resume_image_prompt(db, task, self.comfyui_service)
             else:
-                task.current_step = "使用默认工作流"
+                # 获取当前激活的 character 工作流
+                workflow = workflow_repo.get_active_by_type("character")
 
-            # 更新任务状态为运行中
-            task.status = "running"
-            task.started_at = datetime.utcnow()
-            character = character_repo.get_by_id(character_id)
-            if character:
-                character.generating_status = "running"
-            db.commit()
+                # 记录工作流信息
+                if workflow:
+                    task.workflow_id = workflow.id
+                    task.workflow_name = workflow.name
+                    task.current_step = f"使用工作流: {workflow.name}"
+                else:
+                    task.current_step = "使用默认工作流"
 
-            # 获取角色所属小说
-            character = character_repo.get_by_id(character_id)
-            from app.models.novel import Novel
-            novel = db.query(Novel).filter(Novel.id == character.novel_id).first() if character else None
+                # 更新任务状态为运行中
+                task.status = "running"
+                task.started_at = datetime.utcnow()
+                character = character_repo.get_by_id(character_id)
+                if character:
+                    character.generating_status = "running"
+                db.commit()
 
-            # 获取角色生成提示词模板
-            from app.repositories import PromptTemplateRepository
-            template_repo = PromptTemplateRepository(db)
-            template = None
-            if novel and novel.prompt_template_id:
-                template = template_repo.get_by_id(novel.prompt_template_id)
+                # 获取角色所属小说
+                character = character_repo.get_by_id(character_id)
+                from app.models.novel import Novel
+                novel = db.query(Novel).filter(Novel.id == character.novel_id).first() if character else None
 
-            # 如果没有指定模板，使用默认系统模板
-            if not template:
-                template = template_repo.get_default_system_template("character")
+                # 获取角色生成提示词模板
+                from app.repositories import PromptTemplateRepository
+                template_repo = PromptTemplateRepository(db)
+                template = None
+                if novel and novel.prompt_template_id:
+                    template = template_repo.get_by_id(novel.prompt_template_id)
 
-            # 获取风格提示词
-            style, style_template = get_style(db, novel, "character")
+                # 如果没有指定模板，使用默认系统模板
+                if not template:
+                    template = template_repo.get_default_system_template("character")
 
-            # 构建提示词
-            prompt = build_character_prompt(name, appearance, description, template.template if template else None, style)
+                # 获取风格提示词
+                style, style_template = get_style(db, novel, "character")
 
-            task.current_step = f"使用模板: {template.name if template else '默认'}, 风格: {style_template.name if style_template else '默认'}, 提示词: {prompt[:80]}..."
+                # 构建提示词
+                prompt = build_character_prompt(name, appearance, description, template.template if template else None, style)
 
-            # 保存提示词
-            task.prompt_text = prompt
-            db.commit()
+                task.current_step = f"使用模板: {template.name if template else '默认'}, 风格: {style_template.name if style_template else '默认'}, 提示词: {prompt[:80]}..."
 
-            # 获取工作流JSON字符串
-            workflow_json_str = workflow.workflow_json if workflow else None
-            print(
-                f"[Task] Workflow JSON available: {workflow_json_str is not None}, length: {len(workflow_json_str) if workflow_json_str else 0}")
+                # 保存提示词
+                task.prompt_text = prompt
+                db.commit()
 
-            # 获取工作流的节点映射配置
-            node_mapping = None
-            if workflow and workflow.node_mapping:
-                try:
-                    node_mapping = json.loads(workflow.node_mapping)
-                    print(f"[Task] Using node mapping: {node_mapping}")
-                except Exception as e:
-                    print(f"[Task] Failed to parse node_mapping: {e}")
+                # 获取工作流JSON字符串
+                workflow_json_str = workflow.workflow_json if workflow else None
+                print(
+                    f"[Task] Workflow JSON available: {workflow_json_str is not None}, length: {len(workflow_json_str) if workflow_json_str else 0}")
 
-            # 构建实际提交给ComfyUI的完整工作流（注入参数后）
-            print(f"[Task] Building workflow with: {workflow.name if workflow else 'default'}")
-            print(f"[Task] Novel ID: {task.novel_id}, Character: {name}")
+                # 获取工作流的节点映射配置
+                node_mapping = None
+                if workflow and workflow.node_mapping:
+                    try:
+                        node_mapping = json.loads(workflow.node_mapping)
+                        print(f"[Task] Using node mapping: {node_mapping}")
+                    except Exception as e:
+                        print(f"[Task] Failed to parse node_mapping: {e}")
 
-            submitted_workflow = self.comfyui_service.builder.build_character_workflow(
-                prompt=prompt,
-                workflow_json=workflow_json_str,
-                novel_id=task.novel_id,
-                character_name=name,
-                aspect_ratio=novel.aspect_ratio if novel else None,
-                node_mapping=node_mapping,
-                style=style,
-                character_appearance=appearance
-            )
+                # 构建实际提交给ComfyUI的完整工作流（注入参数后）
+                print(f"[Task] Building workflow with: {workflow.name if workflow else 'default'}")
+                print(f"[Task] Novel ID: {task.novel_id}, Character: {name}")
 
-            # 保存构建后的完整工作流到任务，让用户可以立即查看
-            task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
-            db.commit()
-            print(f"[Task] Saved submitted workflow to task")
+                submitted_workflow = self.comfyui_service.builder.build_character_workflow(
+                    prompt=prompt,
+                    workflow_json=workflow_json_str,
+                    novel_id=task.novel_id,
+                    character_name=name,
+                    aspect_ratio=novel.aspect_ratio if novel else None,
+                    node_mapping=node_mapping,
+                    style=style,
+                    character_appearance=appearance
+                )
 
-            # 调用 ComfyUI 生成图片（使用已构建的工作流）
-            result = await self.comfyui_service.generate_character_image(
-                prompt,
-                workflow_json=workflow_json_str,
-                novel_id=task.novel_id,
-                character_name=name,
-                aspect_ratio=novel.aspect_ratio if novel else None,
-                node_mapping=node_mapping,
-                workflow=submitted_workflow  # 传递已构建的工作流，避免重复构建
-            )
+                # 保存构建后的完整工作流到任务，让用户可以立即查看
+                task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+                db.commit()
+                print(f"[Task] Saved submitted workflow to task")
+
+                def save_prompt_id(prompt_id: str, queued_workflow: dict = None) -> None:
+                    save_image_prompt(
+                        db, task, prompt_id, queued_workflow or submitted_workflow,
+                        node_mapping.get("save_image_node_id") if node_mapping else None,
+                        reserve_retry=True,
+                    )
+
+                # 调用 ComfyUI 生成图片（使用已构建的工作流）
+                result = await self.comfyui_service.generate_character_image(
+                    prompt,
+                    workflow_json=workflow_json_str,
+                    novel_id=task.novel_id,
+                    character_name=name,
+                    aspect_ratio=novel.aspect_ratio if novel else None,
+                    node_mapping=node_mapping,
+                    workflow=submitted_workflow,
+                    on_prompt_queued=save_prompt_id,
+                )
 
             print(f"[Task] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
+            ensure_task_active(db, task)
             if result.get("success"):
                 image_url = result.get("image_url")
 
@@ -507,6 +564,7 @@ class CharacterService:
                     task.result_url = image_url
                     task.current_step = "生成完成，使用远程图片"
 
+                ensure_task_active(db, task)
                 task.status = "completed"
                 task.progress = 100
                 task.completed_at = datetime.utcnow()
@@ -529,6 +587,7 @@ class CharacterService:
             db.commit()
 
         except Exception as e:
+            ensure_task_active(db, task)
             task.status = "failed"
             task.error_message = str(e)
             task.current_step = "任务异常"

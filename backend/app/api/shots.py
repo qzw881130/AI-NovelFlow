@@ -35,8 +35,8 @@ from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.novel_service import (
     NovelService,
-    generate_transition_video_task,
 )
+from app.services.transition_service import enqueue_transition_video_task
 from app.services.shot_image_service import enqueue_shot_image_task
 from app.services.shot_video_service import _clip_dialogues_for_prompt, _dialogue_assignment_source, enqueue_shot_video_task, merge_video_director_clip_videos, resolve_extend_previous_av, validate_semantic_clip_artifact
 from app.services.canonical_execution_invalidation import (
@@ -121,7 +121,7 @@ from app.constants.capability import EXTEND_PHYSICAL_WORKFLOW_TYPE, EXTEND_WORKF
 from app.services.dialogue_ownership import assign_dialogues_to_clips
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.core.database import SessionLocal
-from app.services.background_workers import worker_manager
+from app.services.background_workers import persistent_job, worker_manager
 
 router = APIRouter()
 
@@ -321,6 +321,16 @@ async def run_chapter_video_merge_task(task_id: str) -> None:
         db.close()
 
 
+def enqueue_chapter_video_merge_task(task_id: str) -> None:
+    payload = {"task_id": task_id}
+    worker_manager.worker("chapter_video").enqueue(persistent_job(
+        task_id,
+        "app.api.shots:run_chapter_video_merge_task",
+        payload,
+        lambda: run_chapter_video_merge_task(**payload),
+    ))
+
+
 def resume_active_chapter_video_merges() -> None:
     db = SessionLocal()
     try:
@@ -329,7 +339,7 @@ def resume_active_chapter_video_merges() -> None:
             Task.status.in_(["pending", "running"]),
         ).order_by(Task.created_at.asc()).all()
         for task in tasks:
-            worker_manager.worker("chapter_video").enqueue(lambda task_id=task.id: run_chapter_video_merge_task(task_id))
+            enqueue_chapter_video_merge_task(task.id)
     finally:
         db.close()
 
@@ -917,7 +927,13 @@ def enqueue_shot_image_batch_task(batch_task_id: str) -> None:
     if batch_task_id in shot_image_batch_locks:
         return
     shot_image_batch_locks.add(batch_task_id)
-    worker_manager.worker("shot_image_batch").enqueue(lambda: run_shot_image_batch_task(batch_task_id))
+    payload = {"batch_task_id": batch_task_id}
+    worker_manager.worker("shot_image_batch").enqueue(persistent_job(
+        batch_task_id,
+        "app.api.shots:run_shot_image_batch_task",
+        payload,
+        lambda: run_shot_image_batch_task(**payload),
+    ))
 
 
 async def _wait_for_shot_image_child_task(db: Session, child_task_id: str) -> str:
@@ -3165,7 +3181,13 @@ def enqueue_shot_video_batch_task(batch_task_id: str) -> None:
     if batch_task_id in shot_video_batch_locks:
         return
     shot_video_batch_locks.add(batch_task_id)
-    worker_manager.worker("shot_video_batch").enqueue(lambda: run_shot_video_batch_task(batch_task_id))
+    payload = {"batch_task_id": batch_task_id}
+    worker_manager.worker("shot_video_batch").enqueue(persistent_job(
+        batch_task_id,
+        "app.api.shots:run_shot_video_batch_task",
+        payload,
+        lambda: run_shot_video_batch_task(**payload),
+    ))
 
 
 async def _wait_for_semantic_shot_final(db, batch_child: Task, shot: Shot, initial_plan: dict, timeout_iterations: int = 720) -> str:
@@ -4222,18 +4244,15 @@ async def generate_transition_video(
         f"[Transition] Created task {task.id} for transition {from_index}->{to_index} using workflow {workflow.name}"
     )
 
-    # 启动后台任务
-    asyncio.create_task(
-        generate_transition_video_task(
-            task.id,
-            novel_id,
-            chapter_id,
-            from_index,
-            to_index,
-            workflow.id,
-            duration_seconds,
-            frame_count,
-        )
+    enqueue_transition_video_task(
+        task.id,
+        novel_id,
+        chapter_id,
+        from_index,
+        to_index,
+        workflow.id,
+        duration_seconds,
+        frame_count,
     )
 
     return {
@@ -4323,17 +4342,15 @@ async def generate_all_transitions(
         )
         task_ids.append(task.id)
 
-        asyncio.create_task(
-            generate_transition_video_task(
-                task.id,
-                novel_id,
-                chapter_id,
-                from_idx,
-                to_idx,
-                workflow.id,
-                duration_seconds,
-                frame_count,
-            )
+        enqueue_transition_video_task(
+            task.id,
+            novel_id,
+            chapter_id,
+            from_idx,
+            to_idx,
+            workflow.id,
+            duration_seconds,
+            frame_count,
         )
 
     return {
@@ -4655,7 +4672,7 @@ async def merge_chapter_videos(
     db.add(task)
     db.commit()
     db.refresh(task)
-    worker_manager.worker("chapter_video").enqueue(lambda: run_chapter_video_merge_task(task.id))
+    enqueue_chapter_video_merge_task(task.id)
 
     return {
         "success": True,

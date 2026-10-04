@@ -10,7 +10,17 @@ from app.core.database import SessionLocal
 from app.models.novel import Chapter
 from app.models.task import Task
 from app.repositories.chapter_repository import ChapterRepository
-from app.services.background_workers import worker_manager
+from app.services.background_workers import persistent_job, worker_manager
+
+
+def enqueue_novel_video_merge_task(task_id: str) -> None:
+    payload = {"task_id": task_id}
+    worker_manager.worker("novel_video").enqueue(persistent_job(
+        task_id,
+        "app.services.novel_video_merge_service:run_novel_video_merge_task",
+        payload,
+        lambda: run_novel_video_merge_task(**payload),
+    ))
 from app.services.file_storage import file_storage
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.time_utils import format_datetime
@@ -36,7 +46,7 @@ def resume_active_novel_video_merges() -> int:
         db.close()
 
     for task_id in task_ids:
-        worker_manager.worker("novel_video").enqueue(lambda task_id=task_id: run_novel_video_merge_task(task_id))
+        enqueue_novel_video_merge_task(task_id)
     return len(task_ids)
 
 

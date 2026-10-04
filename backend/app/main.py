@@ -11,6 +11,7 @@ from app.services.comfyui_monitor import init_monitor
 # 导入所有模型以确保创建表
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.task import Task
+from app.models.background_job import BackgroundJob
 from app.models.test_case import TestCase
 from app.models.prompt_template import PromptTemplate
 from app.models.llm_log import LLMLog
@@ -146,6 +147,8 @@ async def reconcile_active_tasks_loop():
                 updated_count = await TaskService(db).reconcile_active_tasks(active_tasks, db=db)
                 if updated_count:
                     print(f"[TaskReconcile] Updated {updated_count} stale active task(s)")
+            from app.services.background_workers import worker_manager
+            worker_manager.reconcile_terminal_jobs()
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -181,6 +184,9 @@ async def lifespan(app: FastAPI):
     
     monitor = init_monitor(settings.COMFYUI_HOST)
     await monitor.start()
+    from app.services.background_workers import resume_legacy_asset_jobs, worker_manager
+    worker_manager.resume_persisted()
+    resume_legacy_asset_jobs()
     from app.api.shots import resume_active_shot_image_batches, resume_active_shot_video_batches, resume_active_chapter_video_merges
     resume_active_shot_image_batches()
     resume_active_shot_video_batches()
@@ -200,6 +206,7 @@ async def lifespan(app: FastAPI):
         await task_reconcile_task
     except asyncio.CancelledError:
         pass
+    await worker_manager.stop()
     await monitor.stop()
 
 

@@ -17,7 +17,22 @@ from app.repositories import TaskRepository, WorkflowRepository, SceneRepository
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import build_scene_prompt, get_style
-from app.services.background_workers import worker_manager
+from app.services.background_workers import (
+    persistent_job, worker_manager, ensure_task_active,
+    save_image_prompt, resume_image_prompt,
+)
+
+
+async def run_scene_image_job(
+    task_id: str,
+    scene_id: str,
+    name: str,
+    setting: str,
+    description: str,
+) -> None:
+    await SceneService()._generate_scene_image_task(
+        task_id, scene_id, name, setting, description
+    )
 
 
 def enqueue_scene_image_task(
@@ -28,15 +43,19 @@ def enqueue_scene_image_task(
     description: str
 ) -> None:
     """Queue scene image generation in its dedicated serial worker."""
-    worker_manager.worker("scene_image").enqueue(
-        lambda: SceneService()._generate_scene_image_task(
-            task_id,
-            scene_id,
-            name,
-            setting,
-            description,
-        )
-    )
+    payload = {
+        "task_id": task_id,
+        "scene_id": scene_id,
+        "name": name,
+        "setting": setting,
+        "description": description,
+    }
+    worker_manager.worker("scene_image").enqueue(persistent_job(
+        task_id,
+        "app.services.scene_service:run_scene_image_job",
+        payload,
+        lambda: run_scene_image_job(**payload),
+    ))
 
 
 class SceneService:
@@ -162,100 +181,112 @@ class SceneService:
                 print(f"[SceneTask] Skip scene task {task_id}, status={task.status}")
                 return
 
-            # 获取当前激活的 scene 工作流
-            workflow = workflow_repo.get_active_by_type("scene")
-
-            # 记录工作流信息
-            if workflow:
-                task.workflow_id = workflow.id
-                task.workflow_name = workflow.name
-                task.current_step = f"使用工作流: {workflow.name}"
+            if task.comfyui_prompt_id:
+                result = await resume_image_prompt(db, task, self.comfyui_service)
             else:
-                task.current_step = "使用默认工作流"
+                # 获取当前激活的 scene 工作流
+                workflow = workflow_repo.get_active_by_type("scene")
 
-            # 更新任务状态为运行中
-            task.status = "running"
-            task.started_at = datetime.utcnow()
-            scene = scene_repo.get_by_id(scene_id)
-            if scene:
-                scene.generating_status = "running"
-            db.commit()
+                # 记录工作流信息
+                if workflow:
+                    task.workflow_id = workflow.id
+                    task.workflow_name = workflow.name
+                    task.current_step = f"使用工作流: {workflow.name}"
+                else:
+                    task.current_step = "使用默认工作流"
 
-            # 获取场景所属小说
-            scene = scene_repo.get_by_id(scene_id)
-            from app.models.novel import Novel
-            novel = db.query(Novel).filter(Novel.id == scene.novel_id).first() if scene else None
+                # 更新任务状态为运行中
+                task.status = "running"
+                task.started_at = datetime.utcnow()
+                scene = scene_repo.get_by_id(scene_id)
+                if scene:
+                    scene.generating_status = "running"
+                db.commit()
 
-            # 获取场景生成提示词模板
-            from app.repositories import PromptTemplateRepository
-            template_repo = PromptTemplateRepository(db)
-            template = None
-            if novel and novel.scene_prompt_template_id:
-                template = template_repo.get_by_id(novel.scene_prompt_template_id)
-            if not template:
-                template = template_repo.get_default_system_template("scene")
+                # 获取场景所属小说
+                scene = scene_repo.get_by_id(scene_id)
+                from app.models.novel import Novel
+                novel = db.query(Novel).filter(Novel.id == scene.novel_id).first() if scene else None
 
-            # 获取风格提示词
-            style, style_template = get_style(db, novel, "scene")
-            
-            print(f"[SceneTask] Final style: {style}")
+                # 获取场景生成提示词模板
+                from app.repositories import PromptTemplateRepository
+                template_repo = PromptTemplateRepository(db)
+                template = None
+                if novel and novel.scene_prompt_template_id:
+                    template = template_repo.get_by_id(novel.scene_prompt_template_id)
+                if not template:
+                    template = template_repo.get_default_system_template("scene")
 
-            # 构建提示词（只使用 setting 字段，传入 style）
-            prompt = build_scene_prompt(name, setting, "", template.template if template else None, style)
-            print(f"[SceneTask] Generated prompt: {prompt[:100]}...")
+                # 获取风格提示词
+                style, style_template = get_style(db, novel, "scene")
 
-            task.current_step = f"使用模板: {template.name if template else '默认'}, 提示词: {prompt[:80]}..."
+                print(f"[SceneTask] Final style: {style}")
 
-            # 保存提示词
-            task.prompt_text = prompt
-            db.commit()
+                # 构建提示词（只使用 setting 字段，传入 style）
+                prompt = build_scene_prompt(name, setting, "", template.template if template else None, style)
+                print(f"[SceneTask] Generated prompt: {prompt[:100]}...")
 
-            # 获取工作流JSON字符串
-            workflow_json_str = workflow.workflow_json if workflow else None
-            print(
-                f"[Task] Scene Workflow JSON available: {workflow_json_str is not None}, length: {len(workflow_json_str) if workflow_json_str else 0}")
+                task.current_step = f"使用模板: {template.name if template else '默认'}, 提示词: {prompt[:80]}..."
 
-            # 获取工作流的节点映射配置
-            node_mapping = None
-            if workflow and workflow.node_mapping:
-                try:
-                    node_mapping = json.loads(workflow.node_mapping)
-                    print(f"[Task] Using scene node mapping: {node_mapping}")
-                except Exception as e:
-                    print(f"[Task] Failed to parse scene node_mapping: {e}")
+                # 保存提示词
+                task.prompt_text = prompt
+                db.commit()
 
-            # 构建实际提交给ComfyUI的完整工作流
-            print(f"[Task] Building scene workflow with: {workflow.name if workflow else 'default'}")
-            print(f"[Task] Novel ID: {task.novel_id}, Scene: {name}")
+                # 获取工作流JSON字符串
+                workflow_json_str = workflow.workflow_json if workflow else None
+                print(
+                    f"[Task] Scene Workflow JSON available: {workflow_json_str is not None}, length: {len(workflow_json_str) if workflow_json_str else 0}")
 
-            submitted_workflow = self.comfyui_service.builder.build_scene_workflow(
-                prompt=prompt,
-                workflow_json=workflow_json_str,
-                novel_id=task.novel_id,
-                scene_name=name,
-                aspect_ratio=novel.aspect_ratio if novel else None,
-                node_mapping=node_mapping,
-                style=style
-            )
+                # 获取工作流的节点映射配置
+                node_mapping = None
+                if workflow and workflow.node_mapping:
+                    try:
+                        node_mapping = json.loads(workflow.node_mapping)
+                        print(f"[Task] Using scene node mapping: {node_mapping}")
+                    except Exception as e:
+                        print(f"[Task] Failed to parse scene node_mapping: {e}")
 
-            # 保存构建后的完整工作流到任务
-            task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
-            db.commit()
-            print(f"[Task] Saved submitted scene workflow to task")
+                # 构建实际提交给ComfyUI的完整工作流
+                print(f"[Task] Building scene workflow with: {workflow.name if workflow else 'default'}")
+                print(f"[Task] Novel ID: {task.novel_id}, Scene: {name}")
 
-            # 调用 ComfyUI 生成图片
-            result = await self.comfyui_service.generate_scene_image(
-                prompt,
-                workflow_json=workflow_json_str,
-                novel_id=task.novel_id,
-                scene_name=name,
-                aspect_ratio=novel.aspect_ratio if novel else None,
-                node_mapping=node_mapping,
-                workflow=submitted_workflow
-            )
+                submitted_workflow = self.comfyui_service.builder.build_scene_workflow(
+                    prompt=prompt,
+                    workflow_json=workflow_json_str,
+                    novel_id=task.novel_id,
+                    scene_name=name,
+                    aspect_ratio=novel.aspect_ratio if novel else None,
+                    node_mapping=node_mapping,
+                    style=style
+                )
+
+                # 保存构建后的完整工作流到任务
+                task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+                db.commit()
+                print(f"[Task] Saved submitted scene workflow to task")
+
+                def save_prompt_id(prompt_id: str, queued_workflow: dict = None) -> None:
+                    save_image_prompt(
+                        db, task, prompt_id, queued_workflow or submitted_workflow,
+                        node_mapping.get("save_image_node_id") if node_mapping else None,
+                        reserve_retry=True,
+                    )
+
+                # 调用 ComfyUI 生成图片
+                result = await self.comfyui_service.generate_scene_image(
+                    prompt,
+                    workflow_json=workflow_json_str,
+                    novel_id=task.novel_id,
+                    scene_name=name,
+                    aspect_ratio=novel.aspect_ratio if novel else None,
+                    node_mapping=node_mapping,
+                    workflow=submitted_workflow,
+                    on_prompt_queued=save_prompt_id,
+                )
 
             print(f"[Task] Scene generation result: {json.dumps(result, ensure_ascii=True)}")
 
+            ensure_task_active(db, task)
             if result.get("success"):
                 image_url = result.get("image_url")
 
@@ -286,6 +317,7 @@ class SceneService:
                     task.result_url = image_url
                     task.current_step = "生成完成，使用远程图片"
 
+                ensure_task_active(db, task)
                 task.status = "completed"
                 task.progress = 100
                 task.completed_at = datetime.utcnow()
@@ -308,6 +340,7 @@ class SceneService:
             db.commit()
 
         except Exception as e:
+            ensure_task_active(db, task)
             task.status = "failed"
             task.error_message = str(e)
             task.current_step = "任务异常"

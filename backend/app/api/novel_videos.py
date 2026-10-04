@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.models.novel import Chapter, Novel
 from app.models.task import Task
 from app.repositories.chapter_repository import ChapterRepository
-from app.services.background_workers import worker_manager
+from app.services.background_workers import persistent_job, worker_manager
 from app.services.novel_video_merge_service import format_novel_video_merge, run_novel_video_merge_task
 from app.utils.path_utils import url_to_local_path
 
@@ -79,7 +79,13 @@ async def create_novel_video_merge(
     db.add(task)
     db.commit()
     db.refresh(task)
-    worker_manager.worker("novel_video").enqueue(lambda: run_novel_video_merge_task(task.id))
+    payload = {"task_id": task.id}
+    worker_manager.worker("novel_video").enqueue(persistent_job(
+        task.id,
+        "app.services.novel_video_merge_service:run_novel_video_merge_task",
+        payload,
+        lambda: run_novel_video_merge_task(**payload),
+    ))
     return {"success": True, "data": format_novel_video_merge(task)}
 
 

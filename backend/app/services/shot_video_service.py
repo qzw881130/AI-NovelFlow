@@ -18,7 +18,7 @@ from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.repositories.shot_repository import ShotRepository
-from app.services.background_workers import worker_manager
+from app.services.background_workers import persistent_job, worker_manager
 from app.services.video_director_ai import build_h3_video_prompt, safe_json_dict, safe_json_list
 from app.services.dialogue_ownership import assign_dialogues_to_clips
 from app.services.clip_execution_compiler import (
@@ -683,7 +683,27 @@ def enqueue_shot_video_task(
             _queued_shot_video_task_ids.discard(task_id)
 
     try:
-        worker_manager.worker("shot_video").enqueue(_run_once)
+        payload = {
+            "task_id": task_id,
+            "novel_id": novel_id,
+            "chapter_id": chapter_id,
+            "shot_index": shot_index,
+            "workflow_id": workflow_id,
+            "shot_image_url": shot_image_url,
+            "use_keyframes": use_keyframes,
+            "use_reference_audio": use_reference_audio,
+            "selected_mode": selected_mode,
+            "only_window_index": only_window_index,
+            "auto_merge_clips": auto_merge_clips,
+            "skip_llm_when_prompt_exists": skip_llm_when_prompt_exists,
+            "clip_metadata": clip_metadata,
+        }
+        worker_manager.worker("shot_video").enqueue(persistent_job(
+            task_id,
+            "app.services.shot_video_service:generate_shot_video_task",
+            payload,
+            _run_once,
+        ))
     except Exception:
         _queued_shot_video_task_ids.discard(task_id)
         raise

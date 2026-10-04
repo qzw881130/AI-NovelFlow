@@ -17,8 +17,23 @@ from app.repositories import TaskRepository, WorkflowRepository, PropRepository
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import build_prop_prompt, get_style
-from app.services.background_workers import worker_manager
+from app.services.background_workers import (
+    persistent_job, worker_manager, ensure_task_active,
+    save_image_prompt, resume_image_prompt,
+)
 from app.services.prop_policy import is_prop_visual_eligible
+
+
+async def run_prop_image_job(
+    task_id: str,
+    prop_id: str,
+    name: str,
+    appearance: str,
+    description: str,
+) -> None:
+    await PropService()._generate_prop_image_task(
+        task_id, prop_id, name, appearance, description
+    )
 
 
 def enqueue_prop_image_task(
@@ -29,15 +44,19 @@ def enqueue_prop_image_task(
     description: str
 ) -> None:
     """Queue prop image generation in its dedicated serial worker."""
-    worker_manager.worker("prop_image").enqueue(
-        lambda: PropService()._generate_prop_image_task(
-            task_id,
-            prop_id,
-            name,
-            appearance,
-            description,
-        )
-    )
+    payload = {
+        "task_id": task_id,
+        "prop_id": prop_id,
+        "name": name,
+        "appearance": appearance,
+        "description": description,
+    }
+    worker_manager.worker("prop_image").enqueue(persistent_job(
+        task_id,
+        "app.services.prop_image_service:run_prop_image_job",
+        payload,
+        lambda: run_prop_image_job(**payload),
+    ))
 
 
 class PropService:
@@ -180,115 +199,127 @@ class PropService:
                 db.commit()
                 return
 
-            # 获取当前激活的工作流（优先 prop，其次 scene）
-            workflow = workflow_repo.get_active_by_type("prop")
-
-            # 记录工作流信息
-            if workflow:
-                task.workflow_id = workflow.id
-                task.workflow_name = workflow.name
-                task.current_step = f"使用工作流: {workflow.name}"
+            if task.comfyui_prompt_id:
+                result = await resume_image_prompt(db, task, self.comfyui_service)
             else:
-                task.current_step = "使用默认工作流"
+                # 获取当前激活的工作流（优先 prop，其次 scene）
+                workflow = workflow_repo.get_active_by_type("prop")
 
-            # 更新任务状态为运行中
-            task.status = "running"
-            task.started_at = datetime.utcnow()
-            prop = prop_repo.get_by_id(prop_id)
-            if prop:
-                prop.generating_status = "running"
-            db.commit()
+                # 记录工作流信息
+                if workflow:
+                    task.workflow_id = workflow.id
+                    task.workflow_name = workflow.name
+                    task.current_step = f"使用工作流: {workflow.name}"
+                else:
+                    task.current_step = "使用默认工作流"
 
-            # 获取道具所属小说
-            prop = prop_repo.get_by_id(prop_id)
-            novel = db.query(Novel).filter(Novel.id == prop.novel_id).first() if prop else None
-
-            # 获取道具生成提示词模板
-            from app.repositories import PromptTemplateRepository
-            template_repo = PromptTemplateRepository(db)
-            template = None
-            if novel and novel.prop_prompt_template_id:
-                template = template_repo.get_by_id(novel.prop_prompt_template_id)
-            if not template:
-                template = template_repo.get_default_system_template("prop")
-
-            # 获取风格提示词
-            style, style_template = get_style(db, novel, "prop")
-
-            print(f"[PropTask] Final style: {style}")
-
-            # 构建提示词（使用外观或描述）
-            raw_appearance = appearance or description
-            if not raw_appearance:
-                task.status = "failed"
-                task.error_message = "道具缺少外观描述，无法生成图片"
-                task.current_step = "生成失败"
-                self._update_prop_status(prop_repo, prop_id, "failed")
+                # 更新任务状态为运行中
+                task.status = "running"
+                task.started_at = datetime.utcnow()
+                prop = prop_repo.get_by_id(prop_id)
+                if prop:
+                    prop.generating_status = "running"
                 db.commit()
-                return
 
-            prompt = build_prop_prompt(name, raw_appearance, "", template.template if template else None, style)
-            print(f"[PropTask] Generated prompt: {prompt[:100]}...")
+                # 获取道具所属小说
+                prop = prop_repo.get_by_id(prop_id)
+                novel = db.query(Novel).filter(Novel.id == prop.novel_id).first() if prop else None
 
-            task.current_step = f"使用模板: {template.name if template else '默认'}, 提示词: {prompt[:80]}..."
+                # 获取道具生成提示词模板
+                from app.repositories import PromptTemplateRepository
+                template_repo = PromptTemplateRepository(db)
+                template = None
+                if novel and novel.prop_prompt_template_id:
+                    template = template_repo.get_by_id(novel.prop_prompt_template_id)
+                if not template:
+                    template = template_repo.get_default_system_template("prop")
 
-            # 保存提示词
-            task.prompt_text = prompt
-            db.commit()
+                # 获取风格提示词
+                style, style_template = get_style(db, novel, "prop")
 
-            # 获取工作流JSON字符串
-            workflow_json_str = workflow.workflow_json if workflow else None
-            print(
-                f"[PropTask] Workflow JSON available: {workflow_json_str is not None}, length: {len(workflow_json_str) if workflow_json_str else 0}")
+                print(f"[PropTask] Final style: {style}")
 
-            # 获取工作流的节点映射配置
-            node_mapping = None
-            if workflow and workflow.node_mapping:
-                try:
-                    node_mapping = json.loads(workflow.node_mapping)
-                    print(f"[PropTask] Using node mapping: {node_mapping}")
-                except Exception as e:
-                    print(f"[PropTask] Failed to parse node_mapping: {e}")
+                # 构建提示词（使用外观或描述）
+                raw_appearance = appearance or description
+                if not raw_appearance:
+                    task.status = "failed"
+                    task.error_message = "道具缺少外观描述，无法生成图片"
+                    task.current_step = "生成失败"
+                    self._update_prop_status(prop_repo, prop_id, "failed")
+                    db.commit()
+                    return
 
-            # 构建实际提交给ComfyUI的完整工作流
-            print(f"[PropTask] Building workflow with: {workflow.name if workflow else 'default'}")
-            print(f"[PropTask] Novel ID: {task.novel_id}, Prop: {name}")
+                prompt = build_prop_prompt(name, raw_appearance, "", template.template if template else None, style)
+                print(f"[PropTask] Generated prompt: {prompt[:100]}...")
 
-            submitted_workflow = self.comfyui_service.builder.build_scene_workflow(
-                prompt=prompt,
-                workflow_json=workflow_json_str,
-                novel_id=task.novel_id,
-                scene_name=name,
-                aspect_ratio=novel.aspect_ratio if novel else None,
-                node_mapping=node_mapping,
-                style=style
-            )
+                task.current_step = f"使用模板: {template.name if template else '默认'}, 提示词: {prompt[:80]}..."
 
-            # 保存构建后的完整工作流到任务
-            task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
-            db.commit()
-            print(f"[PropTask] Saved submitted workflow to task")
+                # 保存提示词
+                task.prompt_text = prompt
+                db.commit()
 
-            # 调用 ComfyUI 生成图片
-            task.current_step = "正在调用 ComfyUI 生成图片..."
-            task.progress = 30
-            db.commit()
+                # 获取工作流JSON字符串
+                workflow_json_str = workflow.workflow_json if workflow else None
+                print(
+                    f"[PropTask] Workflow JSON available: {workflow_json_str is not None}, length: {len(workflow_json_str) if workflow_json_str else 0}")
 
-            result = await self.comfyui_service.generate_scene_image(
-                prompt,
-                workflow_json=workflow_json_str,
-                novel_id=task.novel_id,
-                scene_name=name,
-                aspect_ratio=novel.aspect_ratio if novel else None,
-                node_mapping=node_mapping,
-                workflow=submitted_workflow
-            )
+                # 获取工作流的节点映射配置
+                node_mapping = None
+                if workflow and workflow.node_mapping:
+                    try:
+                        node_mapping = json.loads(workflow.node_mapping)
+                        print(f"[PropTask] Using node mapping: {node_mapping}")
+                    except Exception as e:
+                        print(f"[PropTask] Failed to parse node_mapping: {e}")
+
+                # 构建实际提交给ComfyUI的完整工作流
+                print(f"[PropTask] Building workflow with: {workflow.name if workflow else 'default'}")
+                print(f"[PropTask] Novel ID: {task.novel_id}, Prop: {name}")
+
+                submitted_workflow = self.comfyui_service.builder.build_scene_workflow(
+                    prompt=prompt,
+                    workflow_json=workflow_json_str,
+                    novel_id=task.novel_id,
+                    scene_name=name,
+                    aspect_ratio=novel.aspect_ratio if novel else None,
+                    node_mapping=node_mapping,
+                    style=style
+                )
+
+                # 保存构建后的完整工作流到任务
+                task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+                db.commit()
+                print(f"[PropTask] Saved submitted workflow to task")
+
+                # 调用 ComfyUI 生成图片
+                task.current_step = "正在调用 ComfyUI 生成图片..."
+                task.progress = 30
+                db.commit()
+
+                def save_prompt_id(prompt_id: str, queued_workflow: dict = None) -> None:
+                    save_image_prompt(
+                        db, task, prompt_id, queued_workflow or submitted_workflow,
+                        node_mapping.get("save_image_node_id") if node_mapping else None,
+                        reserve_retry=True,
+                    )
+
+                result = await self.comfyui_service.generate_scene_image(
+                    prompt,
+                    workflow_json=workflow_json_str,
+                    novel_id=task.novel_id,
+                    scene_name=name,
+                    aspect_ratio=novel.aspect_ratio if novel else None,
+                    node_mapping=node_mapping,
+                    workflow=submitted_workflow,
+                    on_prompt_queued=save_prompt_id,
+                )
 
             print(f"[PropTask] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
             if result.get("prompt_id"):
                 task.comfyui_prompt_id = result["prompt_id"]
 
+            ensure_task_active(db, task)
             if result.get("success"):
                 image_url = result.get("image_url")
 
@@ -319,6 +350,7 @@ class PropService:
                     task.result_url = image_url
                     task.current_step = "生成完成，使用远程图片"
 
+                ensure_task_active(db, task)
                 task.status = "completed"
                 task.progress = 100
                 task.completed_at = datetime.utcnow()
@@ -341,6 +373,7 @@ class PropService:
             db.commit()
 
         except Exception as e:
+            ensure_task_active(db, task)
             task.status = "failed"
             task.error_message = str(e)
             task.current_step = "任务异常"

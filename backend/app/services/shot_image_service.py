@@ -22,7 +22,9 @@ from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.image_utils import merge_character_images, merge_prop_images
 from app.repositories.shot_repository import ShotRepository
-from app.services.background_workers import worker_manager
+from app.services.background_workers import (
+    persistent_job, worker_manager, save_image_prompt, resume_image_prompt, ensure_task_active,
+)
 from app.utils.workflow_disconnect import disconnect_reference_chain
 
 
@@ -100,16 +102,20 @@ def enqueue_shot_image_task(
     workflow_id: str,
 ) -> None:
     """Queue shot image generation in its dedicated serial worker."""
-    worker_manager.worker("shot_image").enqueue(
-        lambda: generate_shot_image_task(
-            task_id,
-            novel_id,
-            chapter_id,
-            shot_index,
-            shot_description,
-            workflow_id,
-        )
-    )
+    payload = {
+        "task_id": task_id,
+        "novel_id": novel_id,
+        "chapter_id": chapter_id,
+        "shot_index": shot_index,
+        "shot_description": shot_description,
+        "workflow_id": workflow_id,
+    }
+    worker_manager.worker("shot_image").enqueue(persistent_job(
+        task_id,
+        "app.services.shot_image_service:generate_shot_image_task",
+        payload,
+        lambda: generate_shot_image_task(**payload),
+    ))
 
 
 async def generate_shot_image_task(
@@ -139,7 +145,7 @@ async def generate_shot_image_task(
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task:
             return
-        if task.status == "cancelled":
+        if task.status not in {"pending", "running"}:
             return
 
         # 更新任务状态为运行中
@@ -174,145 +180,150 @@ async def generate_shot_image_task(
 
         validate_image_provenance(shot, task_provenance(task), task_id=task.id)
 
-        # 从 Shot 模型获取分镜数据
-        shot_characters = json.loads(shot.characters) if shot.characters else []
-        shot_scene = shot.scene or ""
-        shot_props = get_visual_prop_names(db, novel_id, json.loads(shot.props) if shot.props else [])
-
-        print(
-            f"[ShotTask {task_id}] Novel: {novel_id}, Chapter: {chapter_id}, Shot: {shot_index}"
-        )
-        print(f"[ShotTask {task_id}] Description: {shot_description}")
-        print(f"[ShotTask {task_id}] Characters: {shot_characters}")
-        print(f"[ShotTask {task_id}] Props: {shot_props}")
-
-        # 获取工作流
-        workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
-        if not workflow:
-            _fail_shot_image_task(db, task, "工作流不存在", "生成失败", chapter_id, shot_index, shot_repo)
-            return
-
-        # 获取节点映射
-        node_mapping = (
-            json.loads(workflow.node_mapping) if workflow.node_mapping else {}
-        )
-        print(f"[ShotTask {task_id}] Node mapping: {node_mapping}")
-
-        # 获取风格提示词
-        style, _ = get_style(db, novel, "character")
-        print(f"[ShotTask {task_id}] Using style: {style}")
-
         comfyui_service = ComfyUIService()
+        if task.comfyui_prompt_id:
+            result = await resume_image_prompt(db, task, comfyui_service)
+        else:
+            # 从 Shot 模型获取分镜数据
+            shot_characters = json.loads(shot.characters) if shot.characters else []
+            shot_scene = shot.scene or ""
+            shot_props = get_visual_prop_names(db, novel_id, json.loads(shot.props) if shot.props else [])
 
-        # 合并角色图片
-        character_reference_path = await _process_character_references(
-            db, task, novel_id, chapter_id, shot_index, shot_characters, task_id, shot_repo
-        )
-
-        # 处理场景图
-        scene_reference_path = await _process_scene_reference(
-            db, task, novel_id, shot_scene, task_id
-        )
-
-        # 处理道具图
-        if shot.merged_prop_image:
-            shot_repo.update(shot, merged_prop_image=None)
-        prop_reference_paths = await _process_prop_references(
-            db, task, novel_id, chapter_id, shot_index, shot_props, task_id, shot_repo
-        )
-
-        effective_prompt = shot_description
-        task.prompt_text = effective_prompt
-        db.commit()
-
-        # ========== 查询角色/场景/道具的描述信息（用于占位符替换） ==========
-        # 查询角色外貌描述
-        character_appearances = {}
-        for char_name in shot_characters:
-            character = (
-                db.query(Character)
-                .filter(Character.novel_id == novel_id, Character.name == char_name)
-                .first()
+            print(
+                f"[ShotTask {task_id}] Novel: {novel_id}, Chapter: {chapter_id}, Shot: {shot_index}"
             )
-            if character and character.appearance:
-                character_appearances[char_name] = character.appearance
-        print(f"[ShotTask {task_id}] Character appearances: {character_appearances}")
+            print(f"[ShotTask {task_id}] Description: {shot_description}")
+            print(f"[ShotTask {task_id}] Characters: {shot_characters}")
+            print(f"[ShotTask {task_id}] Props: {shot_props}")
 
-        # 查询场景设定
-        scene_setting = None
-        if shot_scene:
-            scene = (
-                db.query(Scene)
-                .filter(Scene.novel_id == novel_id, Scene.name == shot_scene)
-                .first()
+            # 获取工作流
+            workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+            if not workflow:
+                _fail_shot_image_task(db, task, "工作流不存在", "生成失败", chapter_id, shot_index, shot_repo)
+                return
+
+            # 获取节点映射
+            node_mapping = (
+                json.loads(workflow.node_mapping) if workflow.node_mapping else {}
             )
-            if scene and scene.setting:
-                scene_setting = scene.setting
-        print(f"[ShotTask {task_id}] Scene setting: {scene_setting}")
+            print(f"[ShotTask {task_id}] Node mapping: {node_mapping}")
 
-        # 查询道具外观
-        prop_appearances = {}
-        for prop_name in shot_props:
-            prop = (
-                db.query(Prop)
-                .filter(Prop.novel_id == novel_id, Prop.name == prop_name, Prop.existence == PROP_EXISTENCE_REAL)
-                .first()
+            # 获取风格提示词
+            style, _ = get_style(db, novel, "character")
+            print(f"[ShotTask {task_id}] Using style: {style}")
+
+
+            # 合并角色图片
+            character_reference_path = await _process_character_references(
+                db, task, novel_id, chapter_id, shot_index, shot_characters, task_id, shot_repo
             )
-            if prop and prop.appearance:
-                prop_appearances[prop_name] = prop.appearance
-        print(f"[ShotTask {task_id}] Prop appearances: {prop_appearances}")
 
-        # 构建工作流
-        task.current_step = "构建工作流..."
-        db.commit()
+            # 处理场景图
+            scene_reference_path = await _process_scene_reference(
+                db, task, novel_id, shot_scene, task_id
+            )
 
-        submitted_workflow = comfyui_service.builder.build_shot_workflow(
-            prompt=effective_prompt,
-            workflow_json=workflow.workflow_json,
-            node_mapping=node_mapping,
-            aspect_ratio=novel.aspect_ratio or "16:9",
-            style=style,
-            character_appearances=character_appearances,
-            scene_setting=scene_setting,
-            prop_appearances=prop_appearances,
-        )
+            # 处理道具图
+            if shot.merged_prop_image:
+                shot_repo.update(shot, merged_prop_image=None)
+            prop_reference_paths = await _process_prop_references(
+                db, task, novel_id, chapter_id, shot_index, shot_props, task_id, shot_repo
+            )
 
-        # 上传参考图并更新工作流
-        await _upload_references_and_update_workflow(
-            comfyui_service,
-            submitted_workflow,
-            node_mapping,
-            character_reference_path,
-            scene_reference_path,
-            task,
-            db,
-            task_id,
-            prop_reference_paths=prop_reference_paths,
-        )
-
-        # 调用 ComfyUI 生成图片
-        if _is_task_cancelled(db, task):
-            return
-        task.current_step = "正在调用 ComfyUI 生成图片..."
-        task.progress = 30
-        db.commit()
-
-        def save_prompt_id(prompt_id: str):
-            task.comfyui_prompt_id = prompt_id
+            effective_prompt = shot_description
+            task.prompt_text = effective_prompt
             db.commit()
-            print(f"[ShotTask {task_id}] Saved ComfyUI prompt_id: {prompt_id}")
 
-        result = await comfyui_service.generate_shot_image_with_workflow(
-            prompt=effective_prompt,
-            workflow_json=workflow.workflow_json,
-            node_mapping=node_mapping,
-            aspect_ratio=novel.aspect_ratio or "16:9",
-            character_reference_path=None,
-            scene_reference_path=None,
-            workflow=submitted_workflow,
-            style=style,
-            on_prompt_queued=save_prompt_id,
-        )
+            # ========== 查询角色/场景/道具的描述信息（用于占位符替换） ==========
+            # 查询角色外貌描述
+            character_appearances = {}
+            for char_name in shot_characters:
+                character = (
+                    db.query(Character)
+                    .filter(Character.novel_id == novel_id, Character.name == char_name)
+                    .first()
+                )
+                if character and character.appearance:
+                    character_appearances[char_name] = character.appearance
+            print(f"[ShotTask {task_id}] Character appearances: {character_appearances}")
+
+            # 查询场景设定
+            scene_setting = None
+            if shot_scene:
+                scene = (
+                    db.query(Scene)
+                    .filter(Scene.novel_id == novel_id, Scene.name == shot_scene)
+                    .first()
+                )
+                if scene and scene.setting:
+                    scene_setting = scene.setting
+            print(f"[ShotTask {task_id}] Scene setting: {scene_setting}")
+
+            # 查询道具外观
+            prop_appearances = {}
+            for prop_name in shot_props:
+                prop = (
+                    db.query(Prop)
+                    .filter(Prop.novel_id == novel_id, Prop.name == prop_name, Prop.existence == PROP_EXISTENCE_REAL)
+                    .first()
+                )
+                if prop and prop.appearance:
+                    prop_appearances[prop_name] = prop.appearance
+            print(f"[ShotTask {task_id}] Prop appearances: {prop_appearances}")
+
+            # 构建工作流
+            task.current_step = "构建工作流..."
+            db.commit()
+
+            submitted_workflow = comfyui_service.builder.build_shot_workflow(
+                prompt=effective_prompt,
+                workflow_json=workflow.workflow_json,
+                node_mapping=node_mapping,
+                aspect_ratio=novel.aspect_ratio or "16:9",
+                style=style,
+                character_appearances=character_appearances,
+                scene_setting=scene_setting,
+                prop_appearances=prop_appearances,
+            )
+
+            # 上传参考图并更新工作流
+            await _upload_references_and_update_workflow(
+                comfyui_service,
+                submitted_workflow,
+                node_mapping,
+                character_reference_path,
+                scene_reference_path,
+                task,
+                db,
+                task_id,
+                prop_reference_paths=prop_reference_paths,
+            )
+
+            # 调用 ComfyUI 生成图片
+            if _is_task_cancelled(db, task):
+                return
+            task.current_step = "正在调用 ComfyUI 生成图片..."
+            task.progress = 30
+            db.commit()
+
+            def save_prompt_id(prompt_id: str, queued_workflow: dict = None):
+                save_image_prompt(
+                    db, task, prompt_id, queued_workflow or submitted_workflow,
+                    node_mapping.get("save_image_node_id"),
+                    reserve_retry=True,
+                )
+
+            result = await comfyui_service.generate_shot_image_with_workflow(
+                prompt=effective_prompt,
+                workflow_json=workflow.workflow_json,
+                node_mapping=node_mapping,
+                aspect_ratio=novel.aspect_ratio or "16:9",
+                character_reference_path=None,
+                scene_reference_path=None,
+                workflow=submitted_workflow,
+                style=style,
+                on_prompt_queued=save_prompt_id,
+            )
 
         print(f"[ShotTask {task_id}] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
@@ -353,6 +364,7 @@ async def generate_shot_image_task(
 
         try:
             if task:
+                ensure_task_active(db, task)
                 _fail_shot_image_task(
                     db, task, str(e), "任务异常", chapter_id, shot_index, shot_repo
                 )

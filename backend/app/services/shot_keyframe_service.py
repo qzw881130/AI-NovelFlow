@@ -28,7 +28,10 @@ from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.comfyui import ComfyUIService
 from app.services.llm_service import LLMService
 from app.services.file_storage import file_storage
-from app.services.background_workers import worker_manager
+from app.services.background_workers import (
+    persistent_job, worker_manager, ensure_task_active,
+    save_image_prompt, saved_image_attempt,
+)
 from app.services.prompt_builder import get_style
 from app.services.visual_style_authority import strip_embedded_visual_style
 from app.services.video_director_ai import append_video_ai_call
@@ -56,6 +59,36 @@ REFERENCE_SELECTOR_PROMPT = """你是 Temporal Anchor Reference Selector。
 你的唯一任务是从 available_references 中选择生成 current_anchor 所需的最小充分视觉参考集合。
 只返回 JSON：{"selected_references":[{"type":"TEMPORAL_ANCHOR|DIRECTOR_VISUAL_ANCHOR|CHARACTER_IDENTITY|SCENE|PROP","ref_ids":["真实ref_id"],"purpose":"说明每组图提供的独立视觉信息"}]}。
 规则：Temporal Anchor 最多2张，只能选择当前 Anchor 之前的真实候选；允许0张；不得默认选择上一帧或凑数量；不得选择未来/current；只选当前画面实际需要的角色、场景、道具；不得输出 Picture 编号、评分、候选排序或不存在的 ref_id。"""
+
+
+async def run_keyframe_image_job(
+    task_id: str,
+    shot_id: str,
+    frame_index: int,
+    workflow_id: Optional[str] = None,
+    skip_llm_when_prompt_exists: bool = False,
+) -> None:
+    from app.core.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        await ShotKeyframeService()._generate_keyframe_image_task(
+            db,
+            task_id,
+            shot_id,
+            frame_index,
+            workflow_id,
+            skip_llm_when_prompt_exists,
+        )
+    except Exception as exc:
+        task = db.query(Task).filter(Task.id == task_id).first()
+        if task:
+            task.status = "failed"
+            task.error_message = str(exc)
+            db.commit()
+        raise
+    finally:
+        db.close()
 
 
 _CANONICAL_VISUAL_STATE_FIELDS = (
@@ -753,24 +786,20 @@ class ShotKeyframeService:
         shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
         db.commit()
 
-        # 加入关键帧图片专用串行 worker，避免多个关键帧同时占用 ComfyUI。
-        from app.core.database import SessionLocal
-
-        async def run_background_task():
-            db_bg = SessionLocal()
-            try:
-                await self._generate_keyframe_image_task(db_bg, task.id, shot_id, frame_index, workflow_id, skip_llm_when_prompt_exists)
-            except Exception as e:
-                # 更新任务状态为失败
-                task_bg = db_bg.query(Task).filter(Task.id == task.id).first()
-                if task_bg:
-                    task_bg.status = "failed"
-                    task_bg.error_message = str(e)
-                    db_bg.commit()
-            finally:
-                db_bg.close()
-
-        worker_manager.worker("keyframe_image").enqueue(run_background_task)
+        # 加入数据库持久化的关键帧图片串行 worker。
+        payload = {
+            "task_id": task.id,
+            "shot_id": shot_id,
+            "frame_index": frame_index,
+            "workflow_id": workflow_id,
+            "skip_llm_when_prompt_exists": skip_llm_when_prompt_exists,
+        }
+        worker_manager.worker("keyframe_image").enqueue(persistent_job(
+            task.id,
+            "app.services.shot_keyframe_service:run_keyframe_image_job",
+            payload,
+            lambda: run_keyframe_image_job(**payload),
+        ))
 
         return True, task.id, f"关键帧图片生成任务已创建"
 
@@ -785,7 +814,7 @@ class ShotKeyframeService:
     ):
         """关键帧图片生成后台任务"""
         task = db.query(Task).filter(Task.id == task_id).first()
-        if not task:
+        if not task or task.status not in {"pending", "running"}:
             return
 
         # 更新任务状态
@@ -803,7 +832,7 @@ class ShotKeyframeService:
             keyframes = json.loads(shot.keyframes) if shot.keyframes else []
             if frame_index >= len(keyframes):
                 raise ValueError(f"关键帧序号 {frame_index} 超出范围")
-            validate_image_provenance(shot, task_provenance(task), frame_index=frame_index)
+            validate_image_provenance(shot, task_provenance(task), frame_index=frame_index, task_id=task.id)
             if sync_planned_keyframe_states(shot, keyframes):
                 shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
                 db.commit()
@@ -819,245 +848,255 @@ class ShotKeyframeService:
             if not novel:
                 raise ValueError(f"小说 {novel_id} 不存在")
 
-            # 获取工作流
-            if not workflow_id:
-                # 获取默认关键帧工作流
-                workflow = db.query(Workflow).filter(
-                    Workflow.type == "keyframe_image",
-                    Workflow.name.ilike("%任意数量参考图%"),
-                    Workflow.is_active == True
-                ).first()
-                if not workflow:
-                    workflow = db.query(Workflow).filter(
-                        Workflow.type == "multi_image_edit",
-                        Workflow.is_active == True
-                    ).first()
-                if not workflow:
+            comfyui_service = ComfyUIService()
+            if task.comfyui_prompt_id:
+                submitted_workflow, attempt = saved_image_attempt(task)
+                save_image_node_id = attempt.get("save_image_node_id")
+                prompt_id = task.comfyui_prompt_id
+            else:
+                # 获取工作流
+                if not workflow_id:
+                    # 获取默认关键帧工作流
                     workflow = db.query(Workflow).filter(
                         Workflow.type == "keyframe_image",
+                        Workflow.name.ilike("%任意数量参考图%"),
                         Workflow.is_active == True
                     ).first()
-                if not workflow:
-                    # 回退到分镜图片工作流
-                    workflow = db.query(Workflow).filter(
-                        Workflow.type == "shot",
-                        Workflow.is_active == True
-                    ).first()
-            else:
-                workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
-
-            if not workflow:
-                raise ValueError("未找到可用的工作流")
-
-            node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
-            task.workflow_id = workflow.id
-            task.workflow_name = workflow.name
-            db.commit()
-
-            comfyui_service = ComfyUIService()
-
-            # 获取参考图模式和URL。auto_select 在 worker 执行时重新选择，确保 KF3 能使用刚生成的 KF2。
-            reference_mode = keyframe.get("reference_mode", "auto_select")
-            reference_image_url = keyframe.get("reference_image_url")
-            reference_label = "参考图"
-            reference_path = None
-
-            use_selector = reference_mode == "auto_select" and (
-                "任意数量参考图" in (workflow.name or "") or workflow.type == "multi_image_edit"
-            )
-            reference_manifest = []
-            selector_input = None
-            selector_raw = ""
-            selector_result = None
-            if use_selector:
-                candidates = self._build_reference_candidates(db, novel, shot, keyframes, frame_index)
-                selector_input, selector_raw, selector_result = await self._select_references(
-                    db, novel, shot, keyframe, candidates
-                )
-                db.refresh(shot)
-                validate_image_provenance(shot, task_provenance(task), frame_index=frame_index)
-                reference_manifest = self._resolve_reference_manifest(
-                    db, novel, shot, selector_result, candidates
-                )
-                metadata = json.loads(task.metadata_json or "{}") if task.metadata_json else {}
-                metadata.update({
-                    "reference_selector_input": selector_input,
-                    "reference_selector_raw_response": selector_raw,
-                    "reference_selector_result": selector_result,
-                    "reference_manifest": reference_manifest,
-                })
-                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
-                append_video_ai_call(shot, {
-                    "step": "09R",
-                    "title": "Temporal Anchor Reference Selector",
-                    "task_type": "temporal_reference_selector",
-                    "prompt_template_name": "Temporal Anchor Reference Selector V1",
-                    "status": "success",
-                    "input_summary": f"Shot {shot.index} KF {keyframe.get('plan_keyframe_index') or keyframe.get('frame_index')}",
-                    "response": selector_raw,
-                    "parsed_result": selector_result,
-                    "reference_images": reference_manifest,
-                    "task_id": task.id,
-                })
-                db.commit()
-
-            if reference_mode == "auto_select" and not reference_image_url:
-                if not reference_manifest:
-                    reference_image_url, reference_label = self._get_auto_reference_image_with_label(shot, keyframes, frame_index)
-            elif reference_mode == "custom" and reference_image_url:
-                reference_label = "自定义参考图"
-
-            # 只有在非 "none" 模式且有参考图URL时才获取本地路径
-            if reference_mode != "none" and reference_image_url:
-                reference_path = url_to_local_path(reference_image_url)
-                task.reference_images = json.dumps(
-                    [{"label": reference_label, "url": reference_image_url}], ensure_ascii=False
-                )
-                db.commit()
-
-            # 先调用 #09 Prompt Builder，再用其输出提交 Qwen-Edit Workflow。
-            reusable_prompt = self._get_reusable_keyframe_prompt(db, shot_id, frame_index, keyframe) if skip_llm_when_prompt_exists else ""
-            if skip_llm_when_prompt_exists and not reusable_prompt:
-                raise ValueError("当前关键帧没有可复用的 AI 生图提示词，请先使用 LLM+重新生成。")
-            if reusable_prompt:
-                task.current_step = "复用已有关键帧生图提示词..."
-                prompt = reusable_prompt
-                db.commit()
-            else:
-                prompt = await self._build_qwen_keyframe_prompt(
-                    db, novel, shot, keyframe, previous_keyframe, task,
-                    reference_manifest=reference_manifest,
-                )
-            db.refresh(shot)
-            validate_image_provenance(shot, task_provenance(task), frame_index=frame_index)
-            keyframes = json.loads(shot.keyframes or "[]")
-            keyframe = keyframes[frame_index]
-            keyframe["prompt_text"] = prompt
-            self._sync_video_director_keyframe_fields(shot, keyframe, {"prompt_text": prompt})
-            shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
-            db.commit()
-
-            # 解析工作流 JSON
-            workflow_data = json.loads(workflow.workflow_json) if isinstance(workflow.workflow_json, str) else workflow.workflow_json
-
-            # 构建工作流
-            submitted_workflow = comfyui_service.builder.build_shot_workflow(
-                prompt=prompt,
-                workflow_json=workflow.workflow_json,
-                node_mapping=node_mapping,
-                aspect_ratio=novel.aspect_ratio or "16:9",
-                style=""
-            )
-
-            submitted_reference_bindings = []
-            if reference_manifest:
-                load_nodes = [
-                    str(node_mapping[key]) for key in sorted(
-                        (key for key in node_mapping if key.startswith("load_image_node_")),
-                        key=lambda item: int(item.rsplit("_", 1)[-1]),
-                    )
-                ]
-                for index, reference in enumerate(reference_manifest):
-                    if index >= len(load_nodes):
-                        break
-                    upload_result = await comfyui_service.client.upload_image(reference["path"])
-                    if not upload_result.get("success"):
-                        raise ValueError(f"参考图上传失败: {upload_result.get('message')}")
-                    node_id = load_nodes[index]
-                    if node_id in submitted_workflow:
-                        submitted_workflow[node_id].setdefault("inputs", {})["image"] = upload_result.get("filename")
-                        submitted_reference_bindings.append({
-                            "picture": reference["picture"],
-                            "sources": reference["sources"],
-                            "node_id": node_id,
-                            "filename": upload_result.get("filename"),
-                        })
-                for node_id in load_nodes[len(reference_manifest):]:
-                    if node_id in submitted_workflow:
-                        for node in submitted_workflow.values():
-                            inputs = node.get("inputs") if isinstance(node, dict) else None
-                            if not isinstance(inputs, dict):
-                                continue
-                            for input_name, input_value in list(inputs.items()):
-                                if isinstance(input_value, list) and input_value and str(input_value[0]) == node_id:
-                                    inputs.pop(input_name, None)
-                        submitted_workflow.pop(node_id, None)
-                task.reference_images = json.dumps([
-                    {"label": f"Picture {item['picture']}", "url": item["url"], "sources": item["sources"]}
-                    for item in reference_manifest
-                ], ensure_ascii=False)
-                metadata = json.loads(task.metadata_json or "{}") if task.metadata_json else {}
-                metadata["submitted_reference_bindings"] = submitted_reference_bindings
-                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
-                db.commit()
-
-            # 处理参考图节点
-            reference_image_node_id = node_mapping.get("reference_image_node_id")
-
-            if reference_path:
-                # 上传参考图
-                upload_result = await comfyui_service.client.upload_image(reference_path)
-                if upload_result.get("success"):
-                    uploaded_filename = upload_result.get("filename")
-                    if reference_image_node_id and str(reference_image_node_id) in submitted_workflow:
-                        submitted_workflow[str(reference_image_node_id)]["inputs"]["image"] = uploaded_filename
-                        print(f"[KeyframeTask {task_id}] Set reference image to node {reference_image_node_id}")
+                    if not workflow:
+                        workflow = db.query(Workflow).filter(
+                            Workflow.type == "multi_image_edit",
+                            Workflow.is_active == True
+                        ).first()
+                    if not workflow:
+                        workflow = db.query(Workflow).filter(
+                            Workflow.type == "keyframe_image",
+                            Workflow.is_active == True
+                        ).first()
+                    if not workflow:
+                        # 回退到分镜图片工作流
+                        workflow = db.query(Workflow).filter(
+                            Workflow.type == "shot",
+                            Workflow.is_active == True
+                        ).first()
                 else:
-                    print(f"[KeyframeTask {task_id}] Failed to upload reference image: {upload_result.get('message')}")
-                    # 上传失败，清空该节点
-                    reference_path = None
+                    workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
 
-            # 清空未设置参考图的节点（工作流中可能有默认图片，需要清除才能正确断开下游）
-            if not reference_manifest:
-                clear_unset_keyframe_reference_nodes(
-                    submitted_workflow,
-                    node_mapping,
-                    reference_path=reference_path
+                if not workflow:
+                    raise ValueError("未找到可用的工作流")
+
+                node_mapping = json.loads(workflow.node_mapping) if workflow.node_mapping else {}
+                task.workflow_id = workflow.id
+                task.workflow_name = workflow.name
+                db.commit()
+
+
+                # 获取参考图模式和URL。auto_select 在 worker 执行时重新选择，确保 KF3 能使用刚生成的 KF2。
+                reference_mode = keyframe.get("reference_mode", "auto_select")
+                reference_image_url = keyframe.get("reference_image_url")
+                reference_label = "参考图"
+                reference_path = None
+
+                use_selector = reference_mode == "auto_select" and (
+                    "任意数量参考图" in (workflow.name or "") or workflow.type == "multi_image_edit"
+                )
+                reference_manifest = []
+                selector_input = None
+                selector_raw = ""
+                selector_result = None
+                if use_selector:
+                    candidates = self._build_reference_candidates(db, novel, shot, keyframes, frame_index)
+                    selector_input, selector_raw, selector_result = await self._select_references(
+                        db, novel, shot, keyframe, candidates
+                    )
+                    db.refresh(shot)
+                    validate_image_provenance(shot, task_provenance(task), frame_index=frame_index, task_id=task.id)
+                    reference_manifest = self._resolve_reference_manifest(
+                        db, novel, shot, selector_result, candidates
+                    )
+                    metadata = json.loads(task.metadata_json or "{}") if task.metadata_json else {}
+                    metadata.update({
+                        "reference_selector_input": selector_input,
+                        "reference_selector_raw_response": selector_raw,
+                        "reference_selector_result": selector_result,
+                        "reference_manifest": reference_manifest,
+                    })
+                    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+                    append_video_ai_call(shot, {
+                        "step": "09R",
+                        "title": "Temporal Anchor Reference Selector",
+                        "task_type": "temporal_reference_selector",
+                        "prompt_template_name": "Temporal Anchor Reference Selector V1",
+                        "status": "success",
+                        "input_summary": f"Shot {shot.index} KF {keyframe.get('plan_keyframe_index') or keyframe.get('frame_index')}",
+                        "response": selector_raw,
+                        "parsed_result": selector_result,
+                        "reference_images": reference_manifest,
+                        "task_id": task.id,
+                    })
+                    db.commit()
+
+                if reference_mode == "auto_select" and not reference_image_url:
+                    if not reference_manifest:
+                        reference_image_url, reference_label = self._get_auto_reference_image_with_label(shot, keyframes, frame_index)
+                elif reference_mode == "custom" and reference_image_url:
+                    reference_label = "自定义参考图"
+
+                # 只有在非 "none" 模式且有参考图URL时才获取本地路径
+                if reference_mode != "none" and reference_image_url:
+                    reference_path = url_to_local_path(reference_image_url)
+                    task.reference_images = json.dumps(
+                        [{"label": reference_label, "url": reference_image_url}], ensure_ascii=False
+                    )
+                    db.commit()
+
+                # 先调用 #09 Prompt Builder，再用其输出提交 Qwen-Edit Workflow。
+                reusable_prompt = self._get_reusable_keyframe_prompt(db, shot_id, frame_index, keyframe) if skip_llm_when_prompt_exists else ""
+                if skip_llm_when_prompt_exists and not reusable_prompt:
+                    raise ValueError("当前关键帧没有可复用的 AI 生图提示词，请先使用 LLM+重新生成。")
+                if reusable_prompt:
+                    task.current_step = "复用已有关键帧生图提示词..."
+                    prompt = reusable_prompt
+                    db.commit()
+                else:
+                    prompt = await self._build_qwen_keyframe_prompt(
+                        db, novel, shot, keyframe, previous_keyframe, task,
+                        reference_manifest=reference_manifest,
+                    )
+                db.refresh(shot)
+                validate_image_provenance(shot, task_provenance(task), frame_index=frame_index, task_id=task.id)
+                keyframes = json.loads(shot.keyframes or "[]")
+                keyframe = keyframes[frame_index]
+                keyframe["prompt_text"] = prompt
+                self._sync_video_director_keyframe_fields(shot, keyframe, {"prompt_text": prompt})
+                shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
+                db.commit()
+
+                # 解析工作流 JSON
+                workflow_data = json.loads(workflow.workflow_json) if isinstance(workflow.workflow_json, str) else workflow.workflow_json
+
+                # 构建工作流
+                submitted_workflow = comfyui_service.builder.build_shot_workflow(
+                    prompt=prompt,
+                    workflow_json=workflow.workflow_json,
+                    node_mapping=node_mapping,
+                    aspect_ratio=novel.aspect_ratio or "16:9",
+                    style=""
                 )
 
-            # 检测并断开未上传图片的参考图节点的下游连接
-            disconnect_unuploaded_reference_nodes(submitted_workflow, node_mapping)
+                submitted_reference_bindings = []
+                if reference_manifest:
+                    load_nodes = [
+                        str(node_mapping[key]) for key in sorted(
+                            (key for key in node_mapping if key.startswith("load_image_node_")),
+                            key=lambda item: int(item.rsplit("_", 1)[-1]),
+                        )
+                    ]
+                    for index, reference in enumerate(reference_manifest):
+                        if index >= len(load_nodes):
+                            break
+                        upload_result = await comfyui_service.client.upload_image(reference["path"])
+                        if not upload_result.get("success"):
+                            raise ValueError(f"参考图上传失败: {upload_result.get('message')}")
+                        node_id = load_nodes[index]
+                        if node_id in submitted_workflow:
+                            submitted_workflow[node_id].setdefault("inputs", {})["image"] = upload_result.get("filename")
+                            submitted_reference_bindings.append({
+                                "picture": reference["picture"],
+                                "sources": reference["sources"],
+                                "node_id": node_id,
+                                "filename": upload_result.get("filename"),
+                            })
+                    for node_id in load_nodes[len(reference_manifest):]:
+                        if node_id in submitted_workflow:
+                            for node in submitted_workflow.values():
+                                inputs = node.get("inputs") if isinstance(node, dict) else None
+                                if not isinstance(inputs, dict):
+                                    continue
+                                for input_name, input_value in list(inputs.items()):
+                                    if isinstance(input_value, list) and input_value and str(input_value[0]) == node_id:
+                                        inputs.pop(input_name, None)
+                            submitted_workflow.pop(node_id, None)
+                    task.reference_images = json.dumps([
+                        {"label": f"Picture {item['picture']}", "url": item["url"], "sources": item["sources"]}
+                        for item in reference_manifest
+                    ], ensure_ascii=False)
+                    metadata = json.loads(task.metadata_json or "{}") if task.metadata_json else {}
+                    metadata["submitted_reference_bindings"] = submitted_reference_bindings
+                    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+                    db.commit()
 
-            # 提交任务
-            task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
-            task.prompt_text = prompt
-            db.commit()
-            queue_result = await comfyui_service.client.queue_prompt(submitted_workflow)
+                # 处理参考图节点
+                reference_image_node_id = node_mapping.get("reference_image_node_id")
 
-            if not queue_result.get("success"):
-                raise ValueError(f"提交任务失败: {queue_result.get('error')}")
+                if reference_path:
+                    # 上传参考图
+                    upload_result = await comfyui_service.client.upload_image(reference_path)
+                    if upload_result.get("success"):
+                        uploaded_filename = upload_result.get("filename")
+                        if reference_image_node_id and str(reference_image_node_id) in submitted_workflow:
+                            submitted_workflow[str(reference_image_node_id)]["inputs"]["image"] = uploaded_filename
+                            print(f"[KeyframeTask {task_id}] Set reference image to node {reference_image_node_id}")
+                    else:
+                        print(f"[KeyframeTask {task_id}] Failed to upload reference image: {upload_result.get('message')}")
+                        # 上传失败，清空该节点
+                        reference_path = None
 
-            prompt_id = queue_result.get("prompt_id")
-            save_image_node_id = node_mapping.get("save_image_node_id")
+                # 清空未设置参考图的节点（工作流中可能有默认图片，需要清除才能正确断开下游）
+                if not reference_manifest:
+                    clear_unset_keyframe_reference_nodes(
+                        submitted_workflow,
+                        node_mapping,
+                        reference_path=reference_path
+                    )
 
-            # 保存工作流 JSON 和提示词到任务记录
-            task.comfyui_prompt_id = prompt_id
-            task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
-            task.prompt_text = prompt
-            task.current_step = "ComfyUI 关键帧生成中"
-            if not reference_manifest:
-                reference_url = local_path_to_url(reference_path) if reference_path else None
-                task.reference_images = json.dumps(
-                    [{"label": reference_label, "url": reference_url}], ensure_ascii=False
-                ) if reference_url else None
-            db.commit()
+                # 检测并断开未上传图片的参考图节点的下游连接
+                disconnect_unuploaded_reference_nodes(submitted_workflow, node_mapping)
+
+                # 提交任务
+                task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+                task.prompt_text = prompt
+                db.commit()
+                save_image_node_id = node_mapping.get("save_image_node_id")
+                prompt_id = task.comfyui_prompt_id
+                if not prompt_id:
+                    queue_result = await comfyui_service.client.queue_prompt(submitted_workflow)
+
+                    if not queue_result.get("success"):
+                        raise ValueError(f"提交任务失败: {queue_result.get('error')}")
+
+                    prompt_id = queue_result.get("prompt_id")
+
+                    # 保存工作流 JSON 和提示词到任务记录
+                    save_image_prompt(db, task, prompt_id, submitted_workflow, save_image_node_id)
+                    task.prompt_text = prompt
+                    task.current_step = "ComfyUI 关键帧生成中"
+                    if not reference_manifest:
+                        reference_url = local_path_to_url(reference_path) if reference_path else None
+                        task.reference_images = json.dumps(
+                            [{"label": reference_label, "url": reference_url}], ensure_ascii=False
+                        ) if reference_url else None
+                    db.commit()
 
             # 等待结果
             result = await comfyui_service.client.wait_for_result(
                 prompt_id, submitted_workflow, save_image_node_id, timeout=7200
             )
+            ensure_task_active(db, task)
+            attempt = json.loads(task.metadata_json or "{}").get("image_attempt", {})
             error_message = str(result.get("message") or "") if isinstance(result, dict) else ""
             if not result.get("success") and (
                 "format validation" in error_message.lower() or
                 "thinking block" in error_message.lower()
-            ) and randomize_prompt_rewrite_seeds(submitted_workflow):
+            ) and not attempt.get("rewrite_retry_used", True) and randomize_prompt_rewrite_seeds(submitted_workflow):
+                metadata = json.loads(task.metadata_json or "{}")
+                metadata["image_attempt"]["rewrite_retry_used"] = True
+                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
                 task.current_step = "提示词改写格式异常，正在更换 Seed 重试..."
                 db.commit()
                 retry_queue = await comfyui_service.client.queue_prompt(submitted_workflow)
                 if retry_queue.get("success") and retry_queue.get("prompt_id"):
                     prompt_id = retry_queue["prompt_id"]
-                    task.comfyui_prompt_id = prompt_id
-                    task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+                    save_image_prompt(db, task, prompt_id, submitted_workflow, save_image_node_id)
                     db.commit()
                     result = await comfyui_service.client.wait_for_result(
                         prompt_id, submitted_workflow, save_image_node_id, timeout=7200
@@ -1067,19 +1106,23 @@ class ShotKeyframeService:
             if not result.get("success") and (
                 "format validation" in retry_error_message.lower() or
                 "thinking block" in retry_error_message.lower()
-            ) and bypass_failed_prompt_rewrite_nodes(submitted_workflow):
+            ) and not attempt.get("rewrite_fallback_used", False) and bypass_failed_prompt_rewrite_nodes(submitted_workflow):
+                ensure_task_active(db, task)
+                metadata = json.loads(task.metadata_json or "{}")
+                metadata.setdefault("image_attempt", {})["rewrite_fallback_used"] = True
+                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
                 task.current_step = "提示词改写持续格式异常，已跳过改写节点重试..."
                 db.commit()
                 fallback_queue = await comfyui_service.client.queue_prompt(submitted_workflow)
                 if fallback_queue.get("success") and fallback_queue.get("prompt_id"):
                     prompt_id = fallback_queue["prompt_id"]
-                    task.comfyui_prompt_id = prompt_id
-                    task.workflow_json = json.dumps(submitted_workflow, ensure_ascii=False, indent=2)
+                    save_image_prompt(db, task, prompt_id, submitted_workflow, save_image_node_id)
                     db.commit()
                     result = await comfyui_service.client.wait_for_result(
                         prompt_id, submitted_workflow, save_image_node_id, timeout=7200
                     )
 
+            ensure_task_active(db, task)
             if result.get("success") and result.get("image_url"):
                 image_url = result["image_url"]
 
@@ -1092,6 +1135,7 @@ class ShotKeyframeService:
                     chapter_id=shot.chapter_id
                 )
 
+                ensure_task_active(db, task)
                 if local_path:
                     # 构建本地 URL
                     relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
@@ -1118,6 +1162,7 @@ class ShotKeyframeService:
                 raise ValueError(result.get("message", "图片生成失败"))
 
         except Exception as e:
+            ensure_task_active(db, task)
             task.status = "failed"
             task.error_message = str(e)
             task.current_step = "生成失败"

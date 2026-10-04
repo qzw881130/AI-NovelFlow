@@ -766,7 +766,14 @@ class TaskService:
 
             pending_start_timeout = 600 if task.type == "keyframe_image" else 1800
             is_batch_waiting_child = bool(getattr(task, "parent_task_id", None))
-            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type not in {"shot_image_batch", "shot_video_batch", "shot_video_hd", "shot_video_hd_batch"} and not is_batch_waiting_child:
+            from app.models.background_job import BackgroundJob
+            from app.services.background_workers import worker_manager
+            persisted_jobs = db.query(BackgroundJob.id).filter(
+                BackgroundJob.task_id == task.id,
+                BackgroundJob.status.in_(["queued", "running"]),
+            ).all()
+            has_persisted_job = any(worker_manager.is_live(job_id) for (job_id,) in persisted_jobs)
+            if task.status == "pending" and not task.started_at and age_seconds > pending_start_timeout and task.type not in {"shot_image_batch", "shot_video_batch", "shot_video_hd", "shot_video_hd_batch"} and not is_batch_waiting_child and not has_persisted_job:
                 task.status = "failed"
                 task.error_message = "任务长期未启动，后台内存队列可能已因服务重启或热更新丢失，请重新提交"
                 task.current_step = "任务未启动"
@@ -802,6 +809,15 @@ class TaskService:
                         if is_clip_only_task():
                             # A CLIP_ONLY worker owns its Clip result; legacy
                             # recovery must not attempt Shot assembly here.
+                            if persisted_jobs and not has_persisted_job:
+                                # No surviving worker can finish this execution.
+                                # Keep its receipt and existing Shot artifact; do
+                                # not invent a second Clip recovery/assembly owner.
+                                task.status = "failed"
+                                task.error_message = "服务重启中断 Clip 回写；已保留 ComfyUI prompt，未重新生成"
+                                task.current_step = "Clip 后台执行已中断"
+                                task.completed_at = datetime.utcnow()
+                                updated_count += 1
                             continue
                         clip_state = self._shot_video_clip_state_for_prompt(task, task.comfyui_prompt_id)
                         if clip_state.get("has_prompt_building_clip"):
@@ -1072,6 +1088,20 @@ class TaskService:
             return
 
         shot_image_url = shot.image_url or ""
+        from app.models.background_job import BackgroundJob
+        from app.services.background_workers import worker_manager
+        prior_jobs = db.query(BackgroundJob).filter(
+            BackgroundJob.task_id == task.id,
+            BackgroundJob.handler == "app.services.shot_video_service:generate_shot_video_task",
+            BackgroundJob.status.in_(["queued", "running"]),
+        ).all()
+        for job in prior_jobs:
+            if worker_manager.is_live(job.id):
+                return
+            # TaskService has recovered this prompt and selected the next
+            # window. Close the old execution before persisting that descriptor.
+            job.status = "completed"
+            job.completed_at = datetime.utcnow()
         task.comfyui_prompt_id = None
         task.status = "running"
         task.current_step = f"已重新入队，准备继续生成 Clip {window_index}..."

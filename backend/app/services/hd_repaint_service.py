@@ -11,7 +11,7 @@ from app.core.database import SessionLocal
 from app.models.shot import Shot
 from app.models.task import Task
 from app.models.workflow import Workflow
-from app.services.background_workers import worker_manager
+from app.services.background_workers import persistent_job, worker_manager
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.utils.path_utils import local_path_to_url, url_to_local_path
@@ -453,7 +453,13 @@ def enqueue_hd_repaint_task(task_id: str) -> None:
     if task_id in _active_hd_tasks:
         return
     _active_hd_tasks.add(task_id)
-    worker_manager.worker("shot_video_hd").enqueue(lambda: run_hd_repaint_task(task_id))
+    payload = {"task_id": task_id}
+    worker_manager.worker("shot_video_hd").enqueue(persistent_job(
+        task_id,
+        "app.services.hd_repaint_service:run_hd_repaint_task",
+        payload,
+        lambda: run_hd_repaint_task(**payload),
+    ))
 
 
 async def run_hd_repaint_batch_task(batch_id: str) -> None:
@@ -498,7 +504,13 @@ def enqueue_hd_repaint_batch(batch_id: str) -> None:
     if batch_id in _active_hd_batches:
         return
     _active_hd_batches.add(batch_id)
-    worker_manager.worker("shot_video_hd_batch").enqueue(lambda: run_hd_repaint_batch_task(batch_id))
+    payload = {"batch_id": batch_id}
+    worker_manager.worker("shot_video_hd_batch").enqueue(persistent_job(
+        batch_id,
+        "app.services.hd_repaint_service:run_hd_repaint_batch_task",
+        payload,
+        lambda: run_hd_repaint_batch_task(**payload),
+    ))
 
 
 def resume_active_hd_repaints() -> None:
