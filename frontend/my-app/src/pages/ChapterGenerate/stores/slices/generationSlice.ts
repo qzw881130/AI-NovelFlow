@@ -763,6 +763,20 @@ export const createGenerationSlice: StateCreator<
         const updatedShots = shots.map((shot) => {
           const shotTasks = tasksByShotId[shot.id];
           if (shotTasks && shotTasks.length > 0) {
+            const requiredStart = shot.videoDirectorPlan?.required_execution_images?.find(item => item.state_index === 1);
+            const canonicalTask = shotTasks.find(task => task.id === shot.imageTaskId && task.canonicalImageProvenance);
+            if (requiredStart && canonicalTask) {
+              const provenance = canonicalTask.canonicalImageProvenance;
+              if (provenance.clip_plan_revision !== requiredStart.provenance.clip_plan_revision
+                || provenance.state_fingerprint !== requiredStart.provenance.state_fingerprint) return shot;
+              const terminal = ['completed', 'failed', 'cancelled'].includes(canonicalTask.status);
+              if (terminal) refreshShotIds.add(shot.id);
+              if (terminal) {
+                generatingShotsUpdated = newGeneratingShots.delete(shot.id) || generatingShotsUpdated;
+                pendingShotsUpdated = newPendingShots.delete(shot.id) || pendingShotsUpdated;
+              }
+              return shot;
+            }
             // 找到最新的任务；批量子任务常同秒创建，完成/开始时间比创建时间更可靠。
             const sortedTasks = [...shotTasks].sort((a, b) =>
               taskTime(b) - taskTime(a)
@@ -1249,6 +1263,28 @@ export const createGenerationSlice: StateCreator<
             const currentShot = shotIndex >= 0 ? updatedShots[shotIndex] : undefined;
             const legacyKeyframe = currentShot?.keyframes?.find((kf: any) => kf.frame_index === frameIndex);
             const taskBelongsToCurrentKeyframe = legacyKeyframe?.image_task_id === task.id || (legacyKeyframe as any)?.imageTaskId === task.id;
+            const canonical = currentShot?.videoDirectorPlan?.canonical_visual_plan === true;
+            if (canonical) {
+              const provenance = task.canonicalImageProvenance;
+              const required = currentShot?.videoDirectorPlan?.required_execution_images?.find((item: any) => item.state_index === provenance?.state_index);
+              const trackedActive = [...newKeyframeTasks].reverse().find(t => t.shotId === shotId && t.frameIndex === frameIndex && ['pending', 'queued', 'processing', 'running'].includes(t.status));
+              const currentTaskId = required?.active_task?.task_id || trackedActive?.taskId || legacyKeyframe?.image_task_id || (legacyKeyframe as any)?.imageTaskId;
+              if (currentTaskId !== task.id) return;
+              const matches = provenance && Number(provenance.clip_plan_revision) === Number(currentShot?.videoDirectorPlan?.clip_plan_revision)
+                && Number((legacyKeyframe as any)?.plan_keyframe_index) === Number(provenance.state_index)
+                && (required ? required.provenance.state_fingerprint === provenance.state_fingerprint : taskBelongsToCurrentKeyframe);
+              if (!matches) {
+                const obsolete = newKeyframeTasks.findIndex(t => t.taskId === task.id);
+                if (obsolete >= 0) { newKeyframeTasks.splice(obsolete, 1); keyframeTasksUpdated = true; }
+                if (!required?.active_task && !newKeyframeTasks.some(t => t.shotId === shotId && t.frameIndex === frameIndex
+                  && ['pending', 'queued', 'processing', 'running'].includes(t.status)
+                  && t.canonicalImageProvenance?.clip_plan_revision === currentShot?.videoDirectorPlan?.clip_plan_revision)) {
+                  generatingKeyframesUpdated = newGeneratingKeyframes.delete(keyframeKey) || generatingKeyframesUpdated;
+                }
+                return;
+              }
+              if (['completed', 'failed', 'cancelled'].includes(task.status)) refreshShotIds.add(shotId);
+            }
             const taskPromptText = typeof task.promptText === 'string' ? task.promptText.trim() : '';
 
             // A terminal task must never leave the UI in a permanent
@@ -1264,19 +1300,22 @@ export const createGenerationSlice: StateCreator<
             // 更新任务状态
             const taskIndex = newKeyframeTasks.findIndex(t => t.taskId === task.id);
             if (taskIndex >= 0) {
-              newKeyframeTasks[taskIndex] = { ...newKeyframeTasks[taskIndex], status: task.status };
+              newKeyframeTasks[taskIndex] = { ...newKeyframeTasks[taskIndex], status: task.status, currentStep: task.currentStep, errorMessage: task.errorMessage, canonicalImageProvenance: task.canonicalImageProvenance };
               keyframeTasksUpdated = true;
-            } else if (task.status === 'pending' || task.status === 'running') {
+            } else if (['pending', 'queued', 'processing', 'running'].includes(task.status)) {
               newKeyframeTasks.push({
                 shotId,
                 frameIndex,
                 taskId: task.id,
                 status: task.status,
+                currentStep: task.currentStep,
+                errorMessage: task.errorMessage,
+                canonicalImageProvenance: task.canonicalImageProvenance,
               });
               keyframeTasksUpdated = true;
             }
 
-            if ((task.status === 'pending' || task.status === 'running') && !newGeneratingKeyframes.has(keyframeKey)) {
+            if ((['pending', 'queued', 'processing', 'running'].includes(task.status)) && !newGeneratingKeyframes.has(keyframeKey)) {
               newGeneratingKeyframes.add(keyframeKey);
               generatingKeyframesUpdated = true;
             }
@@ -1312,6 +1351,9 @@ export const createGenerationSlice: StateCreator<
               shotsUpdated = true;
             }
 
+            // Canonical images are committed only by the server. Terminal Tasks
+            // trigger fresh Shot/anchor/readiness rather than optimistic READY.
+            if (canonical) return;
             // 如果完成，更新图片URL
             if (task.status === 'completed' && task.resultUrl) {
               if (taskIndex < 0 && !taskBelongsToCurrentKeyframe) return;
@@ -1497,6 +1539,12 @@ export const createGenerationSlice: StateCreator<
       const result = await shotsApi.uploadKeyframeImage(novelId, chapterId, shotId, frameIndex, file);
 
       if (result.success && result.data?.image_url) {
+        if (get().shots.find(shot => shot.id === shotId)?.videoDirectorPlan?.canonical_visual_plan) {
+          const fresh = await shotsApi.getShot(novelId, chapterId, shotId);
+          if (!fresh.success || !fresh.data) throw new Error('上传成功，但读取当前视觉状态失败，请刷新');
+          set({ shots: get().shots.map(shot => shot.id === shotId ? fresh.data! : shot) });
+          return;
+        }
         const keyframeKey = `${shotId}-${frameIndex}`;
 
         // 更新 keyframeImageUrls

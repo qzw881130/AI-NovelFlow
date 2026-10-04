@@ -17,6 +17,9 @@ from sqlalchemy.orm import Session
 
 from app.models.shot import Shot
 from app.models.task import Task
+from app.services.required_visual_state_images import (
+    commit_visual_state_image, frame_provenance, task_provenance, validate_image_provenance,
+)
 from app.models.workflow import Workflow
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.prompt_template import PromptTemplate
@@ -474,6 +477,9 @@ class ShotKeyframeService:
             novel_id=novel.id,
             chapter_id=shot.chapter_id,
         )
+        if task_provenance(task):
+            db.refresh(shot)
+            validate_image_provenance(shot, task_provenance(task), frame_index=int(keyframe['frame_index']))
         if not result.get("success"):
             append_video_ai_call(shot, {
                 "step": "09",
@@ -680,6 +686,7 @@ class ShotKeyframeService:
         frame_index: int,
         workflow_id: Optional[str] = None,
         skip_llm_when_prompt_exists: bool = False,
+        expected_provenance: dict | None = None,
     ) -> Tuple[bool, Optional[str], str]:
         """生成关键帧图片
 
@@ -706,6 +713,9 @@ class ShotKeyframeService:
             return False, None, f"关键帧序号 {frame_index} 超出范围"
 
         keyframe = keyframes[frame_index]
+        provenance = frame_provenance(shot, frame_index)
+        if expected_provenance is not None and expected_provenance != provenance:
+            raise CanonicalExecutionConflict("CANONICAL_IMAGE_STATE_CHANGED")
 
         # 获取 novel_id
         novel_id = self._get_novel_id(db, shot)
@@ -714,9 +724,11 @@ class ShotKeyframeService:
             Task.type == "keyframe_image",
             Task.shot_id == shot_id,
             Task.name == f"生成关键帧图片: {shot_id}-{frame_index}",
-            Task.status.in_(["pending", "running"]),
+            Task.status.in_(["pending", "queued", "processing", "running"]),
         ).order_by(Task.created_at.desc()).first()
         if existing_task:
+            if task_provenance(existing_task) != provenance:
+                raise CanonicalExecutionConflict("CANONICAL_IMAGE_TASK_CONFLICT: 活跃图片任务属于旧 State")
             if not keyframe.get("image_task_id"):
                 keyframe["image_task_id"] = existing_task.id
                 shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
@@ -733,9 +745,12 @@ class ShotKeyframeService:
             shot_id=shot_id,
             novel_id=novel_id,
             chapter_id=shot.chapter_id,
-            workflow_id=workflow_id
+            workflow_id=workflow_id,
+            metadata_json=json.dumps({"canonical_image_provenance": provenance}, ensure_ascii=False),
         )
         db.add(task)
+        keyframe["image_task_id"] = task.id
+        shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
         db.commit()
 
         # 加入关键帧图片专用串行 worker，避免多个关键帧同时占用 ComfyUI。
@@ -788,6 +803,7 @@ class ShotKeyframeService:
             keyframes = json.loads(shot.keyframes) if shot.keyframes else []
             if frame_index >= len(keyframes):
                 raise ValueError(f"关键帧序号 {frame_index} 超出范围")
+            validate_image_provenance(shot, task_provenance(task), frame_index=frame_index)
             if sync_planned_keyframe_states(shot, keyframes):
                 shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
                 db.commit()
@@ -858,6 +874,8 @@ class ShotKeyframeService:
                 selector_input, selector_raw, selector_result = await self._select_references(
                     db, novel, shot, keyframe, candidates
                 )
+                db.refresh(shot)
+                validate_image_provenance(shot, task_provenance(task), frame_index=frame_index)
                 reference_manifest = self._resolve_reference_manifest(
                     db, novel, shot, selector_result, candidates
                 )
@@ -910,6 +928,10 @@ class ShotKeyframeService:
                     db, novel, shot, keyframe, previous_keyframe, task,
                     reference_manifest=reference_manifest,
                 )
+            db.refresh(shot)
+            validate_image_provenance(shot, task_provenance(task), frame_index=frame_index)
+            keyframes = json.loads(shot.keyframes or "[]")
+            keyframe = keyframes[frame_index]
             keyframe["prompt_text"] = prompt
             self._sync_video_director_keyframe_fields(shot, keyframe, {"prompt_text": prompt})
             shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
@@ -1075,46 +1097,14 @@ class ShotKeyframeService:
                     relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
                     local_url = f"/api/files/{relative_path.lstrip('/')}"
 
-                    # Update the canonical state and invalidate only Clip artifacts that
-                    # physically consumed the image being replaced. A first optional image
-                    # has no previous physical dependency and therefore invalidates nothing.
-                    keyframes = json.loads(shot.keyframes) if shot.keyframes else []
-                    if frame_index < len(keyframes):
-                        current_keyframe = keyframes[frame_index]
-                        state_index = current_keyframe.get("plan_keyframe_index")
-                        current_plan = json.loads(shot.video_director_plan or "{}")
-                        planned_state = next((
-                            item for item in current_plan.get("keyframes") or []
-                            if isinstance(item, dict)
-                            and state_index is not None
-                            and int(item.get("index") or -1) == int(state_index)
-                        ), {})
-                        previous_image_url = (
-                            current_keyframe.get("image_url") or current_keyframe.get("imageUrl")
-                            or planned_state.get("image_url") or planned_state.get("imageUrl")
+                    try:
+                        commit_visual_state_image(
+                            db, shot, local_url, frame_index=frame_index,
+                            expected_provenance=task_provenance(task), task_id=task.id,
                         )
-                        consumers = current_visual_state_consumers(
-                            db, shot, int(state_index), previous_image_url,
-                        ) if state_index is not None else set()
-                        affected = canonical_clip_dependency_closure(current_plan, consumers)
-                        try:
-                            ensure_no_active_canonical_clip_tasks(db, shot.id, current_plan, affected)
-                        except CanonicalExecutionConflict:
-                            Path(local_path).unlink(missing_ok=True)
-                            raise
-
-                        current_keyframe["image_url"] = local_url
-                        current_keyframe["image_task_id"] = task_id
-                        self._sync_video_director_keyframe_image(shot, current_keyframe, local_url, task_id)
-                        updated_plan = json.loads(shot.video_director_plan or "{}")
-                        if state_index is not None:
-                            sync_temporal_anchor_state_image(
-                                updated_plan, int(state_index), local_url, task_id,
-                            )
-                        shot.video_director_plan = json.dumps(updated_plan, ensure_ascii=False)
-                        shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
-                        if consumers:
-                            invalidate_current_canonical_execution(shot, consumers)
+                    except CanonicalExecutionConflict:
+                        Path(local_path).unlink(missing_ok=True)
+                        raise
 
                     # 更新任务状态
                     task.status = "completed"
@@ -1172,6 +1162,7 @@ class ShotKeyframeService:
             return False, None, f"章节 {shot.chapter_id} 不存在"
 
         novel_id = chapter.novel_id
+        provenance = frame_provenance(shot, frame_index)
 
         try:
             # 保存图片到本地存储
@@ -1189,10 +1180,8 @@ class ShotKeyframeService:
             relative_path = str(full_path.relative_to(file_storage.base_dir)).replace("\\", "/")
             image_url = f"/api/files/{relative_path}"
 
-            # 更新关键帧数据
-            keyframes[frame_index]["image_url"] = image_url
-            self._sync_video_director_keyframe_image(shot, keyframes[frame_index], image_url)
-            shot_repo.update(shot, keyframes=keyframes)
+            commit_visual_state_image(db, shot, image_url, frame_index=frame_index, expected_provenance=provenance)
+            db.commit()
 
             return True, image_url, "关键帧图片上传成功"
 
@@ -1216,10 +1205,10 @@ class ShotKeyframeService:
         if frame_index >= len(keyframes):
             return False, None, f"关键帧序号 {frame_index} 超出范围"
 
+        provenance = frame_provenance(shot, frame_index)
         try:
-            keyframes[frame_index]["image_url"] = image_url
-            self._sync_video_director_keyframe_image(shot, keyframes[frame_index], image_url)
-            shot_repo.update(shot, keyframes=keyframes)
+            commit_visual_state_image(db, shot, image_url, frame_index=frame_index, expected_provenance=provenance)
+            db.commit()
             return True, image_url, "关键帧图片已替换"
         except Exception as e:
             return False, None, f"替换失败：{str(e)}"

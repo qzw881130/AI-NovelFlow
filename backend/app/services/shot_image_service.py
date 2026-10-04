@@ -10,6 +10,9 @@ from typing import Optional, Dict
 
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.task import Task
+from app.services.required_visual_state_images import (
+    commit_visual_state_image, task_provenance, validate_image_provenance,
+)
 from app.models.workflow import Workflow
 from app.core.database import SessionLocal
 from app.services.comfyui import ComfyUIService
@@ -41,6 +44,13 @@ def _project_current_shot_image_failure(
     shot_repo = shot_repo or ShotRepository(db)
     shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
     if not shot:
+        return False
+
+    # Canonical failures may project only while their provenance and attempt
+    # still own this binding, including after a manual replacement cleared it.
+    try:
+        validate_image_provenance(shot, task_provenance(task), task_id=task.id)
+    except ValueError:
         return False
 
     if shot.image_task_id and shot.image_task_id != task.id:
@@ -161,6 +171,8 @@ async def generate_shot_image_task(
         if not shot:
             _fail_shot_image_task(db, task, "分镜不存在", "生成失败", chapter_id, shot_index, shot_repo)
             return
+
+        validate_image_provenance(shot, task_provenance(task), task_id=task.id)
 
         # 从 Shot 模型获取分镜数据
         shot_characters = json.loads(shot.characters) if shot.characters else []
@@ -708,6 +720,11 @@ async def _save_generated_image(
     """下载并保存生成的图片"""
     if _is_task_cancelled(db, task):
         return
+    shot_repo = shot_repo or ShotRepository(db)
+    shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+    if shot:
+        db.refresh(shot)
+        validate_image_provenance(shot, task_provenance(task), task_id=task.id)
     task.current_step = "正在下载生成的图片..."
     task.progress = 80
     db.commit()
@@ -727,6 +744,8 @@ async def _save_generated_image(
 
     # 使用 shot_id 作为文件名的一部分（如果提供）
     file_prefix = f"shot_{shot_id[:8]}" if shot_id else f"shot_{shot_index:03d}"
+    if task_provenance(task):
+        file_prefix += f"_{task.id}"
     local_path = await file_storage.download_image(
         url=image_url,
         novel_id=novel_id,
@@ -743,6 +762,7 @@ async def _save_generated_image(
         )
         local_url = f"/api/files/{relative_path.lstrip('/')}"
 
+        _update_shot_image(db, chapter_id, shot_index, local_path, local_url, shot_repo, task_id=task.id)
         task.status = "completed"
         task.progress = 100
         task.result_url = local_url
@@ -750,13 +770,12 @@ async def _save_generated_image(
         task.completed_at = datetime.utcnow()
         db.commit()
 
-        # 更新 Shot 记录
-        _update_shot_image(db, chapter_id, shot_index, local_path, local_url, shot_repo, task_id=task.id)
 
         print(f"[ShotTask {task_id}] Completed, image saved: {local_path}")
     else:
         if _is_task_cancelled(db, task):
             return
+        _update_shot_image(db, chapter_id, shot_index, None, image_url, shot_repo, task_id=task.id)
         task.status = "completed"
         task.progress = 100
         task.result_url = image_url
@@ -764,8 +783,6 @@ async def _save_generated_image(
         task.completed_at = datetime.utcnow()
         db.commit()
 
-        # 更新 Shot 记录（使用远程URL）
-        _update_shot_image(db, chapter_id, shot_index, None, image_url, shot_repo, task_id=task.id)
 
 
 def _update_shot_image(
@@ -784,6 +801,14 @@ def _update_shot_image(
     shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
     if not shot:
         print(f"[Warning] Shot not found: chapter_id={chapter_id}, index={shot_index}")
+        return
+
+    task = db.query(Task).filter(Task.id == task_id).first() if task_id else None
+    db.refresh(shot)
+    validate_image_provenance(shot, task_provenance(task), task_id=task_id)
+    if task and task_provenance(task):
+        commit_visual_state_image(db, shot, image_url, frame_index=None, expected_provenance=task_provenance(task), task_id=task.id, local_path=local_path)
+        db.commit()
         return
 
     update_data = {

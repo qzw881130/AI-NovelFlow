@@ -122,6 +122,11 @@ class ShotRepository:
         """
         for key, value in kwargs.items():
             if hasattr(shot, key):
+                if key == 'video_director_plan' and value:
+                    plan = json.loads(value) if isinstance(value, str) else dict(value)
+                    plan.pop('required_execution_images', None)
+                    plan.pop('clip_execution_readiness', None)
+                    value = plan
                 # JSON 字段需要序列化
                 if key in ('characters', 'props', 'dialogues', 'keyframes', 'video_director_plan') and isinstance(value, (list, dict)):
                     value = json.dumps(value, ensure_ascii=False)
@@ -309,6 +314,10 @@ class ShotRepository:
         Returns:
             响应字典
         """
+        from app.services.required_visual_state_images import (
+            project_required_execution_images, project_clip_execution_readiness,
+        )
+        from app.models.task import Task
         from app.services.clip_execution_compiler import get_canonical_execution_readiness
         from app.services.hd_repaint_service import get_hd_repaint_variants
 
@@ -317,6 +326,10 @@ class ShotRepository:
         latest_hd = latest_completed_variants[-1] if latest_completed_variants else None
         video_director_plan = json.loads(shot.video_director_plan) if shot.video_director_plan else {}
         if video_director_plan.get("canonical_visual_plan") is True:
+            tasks = self.db.query(Task).filter(Task.shot_id == shot.id, Task.type.in_(["shot_image", "keyframe_image"])).all()
+            required = project_required_execution_images(shot, video_director_plan, tasks)
+            video_director_plan["required_execution_images"] = required
+            video_director_plan["clip_execution_readiness"] = project_clip_execution_readiness(self.db, shot, video_director_plan, required)
             video_director_plan["execution_readiness"] = get_canonical_execution_readiness(
                 shot, video_director_plan,
             )

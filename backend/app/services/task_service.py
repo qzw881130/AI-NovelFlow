@@ -15,6 +15,10 @@ from app.core.database import SessionLocal
 from app.core.config import get_settings
 from app.utils.time_utils import format_datetime
 from app.models.task import Task
+from app.services.canonical_execution_invalidation import CanonicalExecutionConflict
+from app.services.required_visual_state_images import (
+    commit_visual_state_image, task_provenance, validate_image_provenance,
+)
 from app.models.novel import Novel, Chapter
 from app.models.workflow import Workflow
 from app.models.llm_log import LLMLog
@@ -779,13 +783,18 @@ class TaskService:
                     continue
 
                 if state == "completed":
-                    if task.type == "shot_image" and inactive_seconds(task) > 60:
-                        recovered = await self._recover_completed_shot_image_prompt(task, prompt_state.get("history"), db)
-                        if recovered:
+                    if task.type in {"shot_image", "keyframe_image"} and inactive_seconds(task) > 60:
+                        try:
+                            recover = self._recover_completed_shot_image_prompt if task.type == "shot_image" else self._recover_completed_keyframe_prompt
+                            recovered = await recover(task, prompt_state.get("history"), db)
+                        except CanonicalExecutionConflict as exc:
+                            task.status = "failed"
+                            task.error_message = str(exc)
+                            task.current_step = "图片回写被拒绝"
+                            task.completed_at = datetime.utcnow()
+                            db.commit()
                             updated_count += 1
                             continue
-                    if task.type == "keyframe_image" and inactive_seconds(task) > 60:
-                        recovered = await self._recover_completed_keyframe_prompt(task, prompt_state.get("history"), db)
                         if recovered:
                             updated_count += 1
                             continue
@@ -884,6 +893,9 @@ class TaskService:
         if not shot:
             return False
 
+        db.refresh(shot)
+        validate_image_provenance(shot, task_provenance(task), task_id=task.id)
+
         node_mapping = {}
         if task.workflow_id:
             workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
@@ -906,7 +918,7 @@ class TaskService:
         local_path = await file_storage.download_image(
             url=result["image_url"],
             novel_id=task.novel_id,
-            character_name=f"shot_{shot.id[:8]}",
+            character_name=f"shot_{shot.id[:8]}_{task.id}" if task_provenance(task) else f"shot_{shot.id[:8]}",
             image_type="shot",
             chapter_id=task.chapter_id,
         )
@@ -914,7 +926,10 @@ class TaskService:
             return False
 
         local_url = local_path_to_url(local_path)
-        shot_repo.update(shot, image_url=local_url, image_path=str(local_path), image_status="completed", image_task_id=task.id)
+        if task_provenance(task):
+            commit_visual_state_image(db, shot, local_url, frame_index=None, expected_provenance=task_provenance(task), task_id=task.id, local_path=str(local_path))
+        else:
+            shot_repo.update(shot, image_url=local_url, image_path=str(local_path), image_status="completed", image_task_id=task.id)
         task.status = "completed"
         task.progress = 100
         task.result_url = local_url
@@ -949,6 +964,8 @@ class TaskService:
         except Exception:
             return False
 
+        validate_image_provenance(shot, task_provenance(task), frame_index=frame_index)
+
         node_mapping = {}
         if task.workflow_id:
             workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
@@ -979,27 +996,8 @@ class TaskService:
             return False
 
         local_url = local_path_to_url(local_path)
-        keyframes[frame_index]["image_url"] = local_url
-        keyframes[frame_index]["image_task_id"] = task.id
-
-        plan_changed = False
-        try:
-            plan_keyframe_index = keyframes[frame_index].get("plan_keyframe_index")
-            if plan_keyframe_index is not None and shot.video_director_plan:
-                plan = json.loads(shot.video_director_plan or "{}")
-                if isinstance(plan, dict) and isinstance(plan.get("keyframes"), list):
-                    for plan_keyframe in plan["keyframes"]:
-                        if isinstance(plan_keyframe, dict) and int(plan_keyframe.get("index") or -1) == int(plan_keyframe_index):
-                            plan_keyframe["image_url"] = local_url
-                            plan_keyframe["image_task_id"] = task.id
-                            plan_changed = True
-                            break
-                    if plan_changed:
-                        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-        except Exception:
-            pass
-
-        shot.keyframes = json.dumps(keyframes, ensure_ascii=False)
+        commit_visual_state_image(db, shot, local_url, frame_index=frame_index,
+                                  expected_provenance=task_provenance(task), task_id=task.id)
         task.status = "completed"
         task.result_url = local_url
         task.error_message = None
@@ -1407,6 +1405,7 @@ class TaskService:
                 "resultUrl": t.result_url,
                 "clipExecution": clip_execution_metadata(t),
                 "errorMessage": t.error_message,
+                "canonicalImageProvenance": task_provenance(t),
                 "workflowId": t.workflow_id,
                 "workflowName": t.workflow_name,
                 "workflowIsSystem": workflows.get(
@@ -1476,6 +1475,7 @@ class TaskService:
             "metadata": clip_metadata,
             "clipExecution": clip_execution,
             "errorMessage": task.error_message,
+            "canonicalImageProvenance": task_provenance(task),
             "workflowId": task.workflow_id,
             "workflowName": task.workflow_name,
             "workflowJson": task.workflow_json,

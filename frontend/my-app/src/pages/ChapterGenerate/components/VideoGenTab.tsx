@@ -15,6 +15,8 @@ import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Ey
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
 import { taskApi } from '../../../api/tasks';
+import { RequiredImagesPreparation } from './RequiredImagesPreparation';
+import { canPrepareMaterials, clipPreparationPresentation, prepareCurrentRequiredImages } from '../requiredImagePreparation';
 import type { Task } from '../../../api/tasks';
 import { toast } from '../../../stores/toastStore';
 import KeyframesManager from '../../../components/KeyframesManager';
@@ -81,7 +83,7 @@ type VideoImageEditTarget = {
   frameIndex?: number;
 };
 
-function SemanticClipExecutionPanel({ shot, chapterId, onPreviewClip, onRegenerateClip, onAssemble, onTasksChange, regeneratingClipKey, isShotVideoGenerating, isAssembling }: { shot: any; chapterId?: string; onPreviewClip: (clip: any | null) => void; onRegenerateClip: (clip: any, mode?: 'llm' | 'video_only') => void; onAssemble: () => void; onTasksChange?: (tasks: Task[]) => void; regeneratingClipKey?: string | null; isShotVideoGenerating?: boolean; isAssembling?: boolean }) {
+function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationShot, onPreviewClip, onRegenerateClip, onAssemble, onTasksChange, regeneratingClipKey, isShotVideoGenerating, isAssembling }: { shot: any; chapterId?: string; novelId?: string; onPreparationShot: (shot: any) => void; onPreviewClip: (clip: any | null) => void; onRegenerateClip: (clip: any, mode?: 'llm' | 'video_only') => void; onAssemble: () => void; onTasksChange?: (tasks: Task[]) => void; regeneratingClipKey?: string | null; isShotVideoGenerating?: boolean; isAssembling?: boolean }) {
   const plan = (shot?.videoDirectorPlan || {}) as VideoDirectorPlan;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
@@ -158,9 +160,12 @@ function SemanticClipExecutionPanel({ shot, chapterId, onPreviewClip, onRegenera
           const cumulativeDuration = metadata?.assembled_result?.assembled_media_duration ?? metadata?.assembled_media_duration;
           const clipKey = String(clip.clip_index);
           const isRegenerating = regeneratingClipKey === clipKey;
-          const clipGenerationDisabled = !!isShotVideoGenerating || !!regeneratingClipKey;
+          const preparation = clipPreparationPresentation(shot, Number(clip.clip_index));
+          const clipGenerationDisabled = !!isShotVideoGenerating || !!regeneratingClipKey || !preparation.executionReady;
           return (
             <div key={`${revision}-${clip.clip_index}`} className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
+              <RequiredImagesPreparation shot={shot} novelId={novelId} chapterId={chapterId} clipIndex={Number(clip.clip_index)} onShot={onPreparationShot} />
+              <p className="my-1 text-xs text-gray-600">图片准备：{preparation.imagesReady ? '已就绪' : '未就绪'} · 片段执行：{preparation.label}</p>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <div className="flex min-w-[116px] items-center gap-2">
                   <span className="text-sm font-semibold text-gray-900">片段 {clip.clip_index}</span>
@@ -754,6 +759,8 @@ interface VideoDirectorPanelProps {
   semanticShotStatus?: SemanticShotStatus;
   onSemanticClipTasksChange?: (tasks: Task[]) => void;
   chapterId?: string;
+  novelId?: string;
+  onPreparationShot: (shot: any) => void;
 }
 
 function VideoDirectorPanel({
@@ -789,6 +796,8 @@ function VideoDirectorPanel({
   semanticShotStatus = 'NOT_STARTED',
   onSemanticClipTasksChange,
   chapterId,
+  novelId,
+  onPreparationShot,
 }: VideoDirectorPanelProps) {
   const { t } = useTranslation();
   const [showEndKeyframeMenu, setShowEndKeyframeMenu] = useState(false);
@@ -845,6 +854,14 @@ function VideoDirectorPanel({
     const shotId = shot?.id ? String(shot.id) : '';
     const frameIndex = getKeyframeFrameIndex(kf);
     if (!shotId || frameIndex === undefined) return false;
+    if (isCanonicalPlan) {
+      const required = plan.required_execution_images?.find(item => item.state_index === Number(kf.index));
+      if (required) return !!required.active_task && !required.ready;
+      const legacy = legacyKeyframes.find((frame: any) => Number(frame.plan_keyframe_index) === Number(kf.index));
+      return keyframeTasks.some((task: any) => task.taskId === legacy?.image_task_id
+        && task.canonicalImageProvenance?.clip_plan_revision === plan.clip_plan_revision
+        && ['pending', 'queued', 'processing', 'running'].includes(task.status));
+    }
     if (generatingKeyframes.has(`${shotId}-${frameIndex}`)) return true;
     return keyframeTasks.some((task: any) => (
       task.shotId === shotId
@@ -1224,12 +1241,12 @@ function VideoDirectorPanel({
               <button
                 type="button"
                 onClick={onGenerateMissingKeyframes}
-              disabled={isPlanningKeyframes || isGeneratingMissingKeyframes || hasGeneratingMissingKeyframes || (!isCanonicalPlan && !hasWindowPlans) || missingKeyframes.length === 0 || !!isShotVideoGenerating}
+              disabled={isPlanningKeyframes || isGeneratingMissingKeyframes || (!isCanonicalPlan && hasGeneratingMissingKeyframes) || (!isCanonicalPlan && !hasWindowPlans) || missingKeyframes.length === 0 || !!isShotVideoGenerating}
               className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 ${isCanonicalPlan ? 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50' : 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700'}`}
                 title={isShotVideoGenerating
                   ? '当前 Shot 视频生成中，请等待完成后再生成关键帧'
                   : isCanonicalPlan
-                    ? '将为当前批量范围内尚未生成图片的视觉状态生成状态图。通常无需为所有视觉状态生成图片；仅在希望增加视觉控制时使用。'
+                    ? '只准备当前 Clip 计划的执行必需图片；已有图片复用，活跃任务等待，其余缺失图片继续提交。'
                     : !hasWindowPlans
                       ? '请先完成 #08 关键帧规划'
                       : missingKeyframes.length === 0
@@ -1659,7 +1676,7 @@ function VideoDirectorPanel({
                             : isCanonicalPlan
                               ? selectedKeyframeImageUrl
                                 ? '重新构建提示词并重新生成当前状态图片'
-                                : '生成可选视觉锚点；仅在需要加强该时刻的构图、人物、道具或状态控制时使用'
+                                : selectedStateImageStatus === 'REQUIRED_MISSING' ? '生成当前片段执行必需的视觉状态图片' : '生成可选视觉锚点；仅在需要加强该时刻的构图、人物、道具或状态控制时使用'
                               : '使用 LLM 构建新的生图提示词并生成当前关键帧'}
                         className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-l-md border border-blue-200 bg-white px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -1821,6 +1838,8 @@ function VideoDirectorPanel({
           <SemanticClipExecutionPanel
             shot={semanticClipPlanShot || shot}
             chapterId={chapterId}
+            novelId={novelId}
+            onPreparationShot={onPreparationShot}
             onPreviewClip={onPreviewClip}
             onRegenerateClip={onRegenerateClip}
             onAssemble={onMergeClips}
@@ -2188,6 +2207,9 @@ export function VideoGenTab({
   const [showResetVideoDataConfirm, setShowResetVideoDataConfirm] = useState(false);
   const [isResettingVideoData, setIsResettingVideoData] = useState(false);
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
+  const [materialShotIds, setMaterialShotIds] = useState<Set<string>>(new Set());
+  const [preparingMaterials, setPreparingMaterials] = useState(false);
+  const [materialResults, setMaterialResults] = useState<string[]>([]);
   const [selectedShots, setSelectedShots] = useState<Set<number>>(new Set());
   const [batchFilter, setBatchFilter] = useState<BatchShotFilter>('ready');
   const [dragSelectionMode, setDragSelectionMode] = useState<'select' | 'deselect' | null>(null);
@@ -2934,6 +2956,35 @@ export function VideoGenTab({
     }
   }, [currentShotData, currentShotId, currentVideoDirectorPlan, effectiveChapterId, effectiveNovelId, getVideoDirectorKeyframeImageUrl, setShots, shotsList, t, updateCurrentShotVideoDirectorPlan]);
 
+  const acceptPreparationShot = useCallback((fresh: any) => {
+    const state = useChapterGenerateStore.getState();
+    const tasks = [...state.keyframeTasks];
+    const generating = new Set(state.generatingKeyframes);
+    const generatingShotsNext = new Set(state.generatingShots);
+    for (const item of fresh.videoDirectorPlan?.required_execution_images || []) {
+      if (!item.active_task) continue;
+      const frame = (fresh.keyframes || []).find((f: any) => Number(f.plan_keyframe_index) === item.state_index);
+      if (frame) {
+        const next = { shotId: fresh.id, frameIndex: Number(frame.frame_index), taskId: item.active_task.task_id,
+          status: item.active_task.status, currentStep: item.active_task.current_step,
+          errorMessage: item.active_task.error_message, canonicalImageProvenance: item.provenance };
+        const position = tasks.findIndex(t => t.taskId === next.taskId);
+        if (position >= 0) tasks[position] = next; else tasks.push(next);
+        generating.add(`${fresh.id}-${frame.frame_index}`);
+      } else if (item.image_source === 'SHOT_IMAGE') generatingShotsNext.add(fresh.id);
+    }
+    useChapterGenerateStore.setState({ shots: state.shots.map(shot => shot.id === fresh.id ? { ...shot, ...fresh } : shot),
+      keyframeTasks: tasks, generatingKeyframes: generating, generatingShots: generatingShotsNext });
+  }, []);
+  const prepareShotMaterials = useCallback(async (shot: any) => {
+    if (!effectiveNovelId || !effectiveChapterId) return [];
+    return prepareCurrentRequiredImages(shot, undefined, undefined, {
+      getShot: async () => { const r = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, shot.id); if (!r.success || !r.data) throw new Error('读取分镜失败'); return r.data; },
+      prepare: async (revision, clips, states) => { const r = await shotsApi.prepareRequiredImages(effectiveNovelId, effectiveChapterId, shot.id, revision, clips, states); if (!r.success || !r.data) throw new Error('图片准备失败'); return r.data; },
+      onShot: acceptPreparationShot,
+    });
+  }, [effectiveNovelId, effectiveChapterId, acceptPreparationShot]);
+
   const handleGenerateMissingKeyframes = useCallback(async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId || !currentShotData) return;
     let sourceShot = currentShotData;
@@ -2949,6 +3000,17 @@ export function VideoGenTab({
       }
     } catch (error) {
       console.error('刷新关键帧状态失败:', error);
+    }
+    if (isCanonicalVisualPlan(sourcePlan)) {
+      setGeneratingMissingKeyframesShotId(currentShotId);
+      try {
+        const results = await prepareShotMaterials(sourceShot);
+        const failures = results.filter(item => item.status === 'FAILED');
+        if (failures.length) toast.error(failures.map(item => `${item.state_id}: ${item.reason}`).join('；'));
+        else toast.success(`图片准备：已提交 ${results.filter(item => item.status === 'QUEUED').length} 个，等待 ${results.filter(item => item.status === 'REUSED').length} 个，复用 ${results.filter(item => item.status === 'READY').length} 张`);
+      } catch (error) { toast.error(error instanceof Error ? error.message : '图片准备失败'); }
+      finally { setGeneratingMissingKeyframesShotId(null); }
+      return;
     }
     const planKeyframes = sourcePlan.keyframes || [];
     const legacyKeyframes = sourceShot.keyframes || [];
@@ -2998,7 +3060,7 @@ export function VideoGenTab({
     } finally {
       setGeneratingMissingKeyframesShotId(null);
     }
-  }, [currentShotData, currentShotId, currentVideoDirectorPlan, effectiveChapterId, effectiveNovelId, generateKeyframeImage, setShots, shotsList]);
+  }, [currentShotData, currentShotId, currentVideoDirectorPlan, effectiveChapterId, effectiveNovelId, generateKeyframeImage, setShots, shotsList, prepareShotMaterials]);
 
   const handleGenerateVideoKeyframe = useCallback(async (frameIndex: number, mode: 'llm' | 'image_only' = 'llm') => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
@@ -3981,7 +4043,7 @@ export function VideoGenTab({
     }
     if (currentCanonicalReadiness.state === 'GENERATE_VISUAL_START_MISSING') {
       const stateIndex = currentCanonicalReadiness.missingVisualStateIndex;
-      return { label: stateIndex ? `请先生成视觉状态 ${stateIndex}` : '请先生成片段起始视觉图', disabled: true, onClick: () => undefined };
+      return { label: stateIndex ? `生成视觉状态 ${stateIndex}` : '生成片段起始视觉图', disabled: generatingMissingKeyframesShotId === currentShotId, onClick: handleGenerateMissingKeyframes };
     }
     if (currentSemanticShotStatus === 'CLIPS_COMPLETE') {
       return { label: '合并最终视频', disabled: isMergingClips, onClick: handleMergeDirectorClips };
@@ -4131,6 +4193,8 @@ export function VideoGenTab({
             semanticShotStatus={currentSemanticShotStatus}
             onSemanticClipTasksChange={setSemanticClipTasks}
             chapterId={effectiveChapterId}
+            novelId={effectiveNovelId}
+            onPreparationShot={acceptPreparationShot}
           />
 
         </div>
@@ -4333,6 +4397,33 @@ export function VideoGenTab({
             </div>
 
             <div className="flex-1 overflow-y-auto px-5 py-4">
+              <section data-testid="batch-material-preparation" className="mb-4 rounded-lg border border-amber-200 p-3">
+                <h4 className="text-sm font-semibold">素材准备</h4>
+                <p className="my-1 text-xs text-gray-600">可选择缺准备的分镜。只准备当前片段计划的必需图片；素材已准备后，请手动选择并点击原有“批量生成视频”。</p>
+                {shotsList.filter((shot: any) => canPrepareMaterials(shot)).map((shot: any) => (
+                  <div key={shot.id} className="my-2">
+                    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={materialShotIds.has(shot.id)} disabled={preparingMaterials} onChange={() => setMaterialShotIds(current => { const next = new Set(current); if (next.has(shot.id)) next.delete(shot.id); else next.add(shot.id); return next; })} />Shot #{shot.index} · Revision {shot.videoDirectorPlan.clip_plan_revision}</label>
+                    <RequiredImagesPreparation shot={shot} novelId={effectiveNovelId} chapterId={effectiveChapterId} onShot={acceptPreparationShot} hidePrepare />
+                  </div>
+                ))}
+                <button type="button" disabled={preparingMaterials || !materialShotIds.size} onClick={async () => {
+                  setPreparingMaterials(true); setMaterialResults([]);
+                  const report: string[] = [];
+                  try {
+                    for (const id of materialShotIds) {
+                      const shot = useChapterGenerateStore.getState().shots.find(s => s.id === id);
+                      if (!shot) continue;
+                      try {
+                        const items = await prepareShotMaterials(shot);
+                        report.push(...items.map(item => `Shot #${shot.index} · ${item.state_id} · ${item.status}${item.reason ? `：${item.reason}` : ''}`));
+                      } catch (error) { report.push(`Shot #${shot.index}：${error instanceof Error ? error.message : '准备失败'}`); }
+                      setMaterialResults([...report]);
+                    }
+                  } finally { setPreparingMaterials(false); }
+                }} className="mt-2 rounded border border-amber-300 bg-white px-3 py-1.5 text-sm text-amber-800 disabled:opacity-50">{preparingMaterials ? '正在提交图片…' : '生成全部必需视觉状态图'}</button>
+                {materialResults.map((result, i) => <p key={i} className="mt-1 text-xs text-gray-600">{result}</p>)}
+              </section>
+
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <span className="text-sm text-gray-600">
                   当前筛选 {visibleBatchShotItems.length} 个 · 可选择 {selectableVisibleShotIndexes.length} 个 · 已选择 {executableSelectedIndexes.length} 个

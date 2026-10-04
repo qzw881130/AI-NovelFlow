@@ -24,6 +24,11 @@ from app.core.database import get_db
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.shot import Shot
 from app.models.task import Task
+from app.services.required_visual_state_images import (
+    task_provenance, validate_image_provenance, state_provenance,
+    commit_visual_state_image, project_required_execution_images,
+)
+from app.services.required_visual_state_images import prepare_required_images
 from app.models.workflow import Workflow
 from app.models.llm_log import LLMLog
 from app.services.comfyui import ComfyUIService
@@ -93,7 +98,7 @@ from app.api.deps import (
     get_prompt_template_repo,
     get_llm_service,
 )
-from app.utils.path_utils import url_to_local_path
+from app.utils.path_utils import url_to_local_path, local_path_to_url
 from app.utils.time_utils import format_datetime
 from app.services.prompt_builder import get_style
 from app.services.visual_style_authority import strip_embedded_visual_style
@@ -702,20 +707,24 @@ async def generate_shot_image(
         }
 
     async with lock:
-        return await _generate_shot_image_locked(
-            novel_id=novel_id,
-            chapter_id=chapter_id,
-            shot_id=shot_id,
-            request=request,
-            db=db,
-            novel_repo=novel_repo,
-            chapter_repo=chapter_repo,
-            task_repo=task_repo,
-            workflow_repo=workflow_repo,
-            shot_repo=shot_repo,
-            template_repo=template_repo,
-            llm_service=llm_service,
-        )
+        try:
+            return await _generate_shot_image_locked(
+                novel_id=novel_id,
+                chapter_id=chapter_id,
+                shot_id=shot_id,
+                request=request,
+                db=db,
+                novel_repo=novel_repo,
+                chapter_repo=chapter_repo,
+                task_repo=task_repo,
+                workflow_repo=workflow_repo,
+                shot_repo=shot_repo,
+                template_repo=template_repo,
+                llm_service=llm_service,
+            )
+        except CanonicalExecutionConflict as exc:
+            db.rollback()
+            raise HTTPException(status_code=409, detail=str(exc))
 
 
 async def _generate_shot_image_locked(
@@ -762,6 +771,7 @@ async def _prepare_and_enqueue_shot_image_generation(
     template_repo: PromptTemplateRepository,
     llm_service: LLMService,
     existing_task: Optional[Task] = None,
+    canonical_image_provenance: dict | None = None,
 ):
     # 获取章节
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
@@ -790,9 +800,15 @@ async def _prepare_and_enqueue_shot_image_generation(
     shot_description = shot.description
     resolved_shot_id = shot.id
 
+    # The ordinary entry point shares the same START provenance as preparation.
+    # Legacy main-image generation retains its existing behavior.
+    canonical_image_provenance = canonical_image_provenance or state_provenance(shot, 1)
+
     # 检查是否已有进行中的任务
     active_task = task_repo.get_active_shot_task(novel_id, chapter_id, shot_index, "shot_image")
     if active_task and (not existing_task or active_task.id != existing_task.id):
+        if canonical_image_provenance and (task_provenance(active_task) != canonical_image_provenance or shot.image_task_id != active_task.id):
+            raise CanonicalExecutionConflict("CANONICAL_IMAGE_TASK_CONFLICT")
         return {
             "success": True,
             "message": "已有进行中的生成任务",
@@ -833,6 +849,14 @@ async def _prepare_and_enqueue_shot_image_generation(
         llm_service,
         request.prompt_text if request else None,
     )
+    if canonical_image_provenance:
+        db.refresh(shot)
+        validate_image_provenance(shot, canonical_image_provenance)
+        current_active = task_repo.get_active_shot_task(novel_id, chapter_id, shot_index, "shot_image")
+        if current_active and (not existing_task or current_active.id != existing_task.id):
+            if task_provenance(current_active) != canonical_image_provenance or shot.image_task_id != current_active.id:
+                raise CanonicalExecutionConflict("CANONICAL_IMAGE_TASK_CONFLICT")
+            return {"success": True, "data": {"taskId": current_active.id, "status": current_active.status}}
     # 使用 Repository 创建任务记录，或启动批量预创建的子任务。
     task = existing_task or task_repo.create_shot_image_task(
         novel_id=novel_id,
@@ -850,11 +874,19 @@ async def _prepare_and_enqueue_shot_image_generation(
     task.workflow_name = workflow.name
     task.shot_id = resolved_shot_id
     task.prompt_text = final_prompt
+    if canonical_image_provenance:
+        metadata = _safe_json_dict(task.metadata_json)
+        metadata["canonical_image_provenance"] = canonical_image_provenance
+        previous_image_task = db.query(Task).filter(Task.id == shot.image_task_id).first() if shot.image_task_id else None
+        previous_url = _safe_json_dict(previous_image_task.metadata_json).get("canonical_image_previous_url") if previous_image_task and task_provenance(previous_image_task) == canonical_image_provenance else None
+        metadata["canonical_image_previous_url"] = shot.image_url or local_path_to_url(shot.image_path) or previous_url
+        task.metadata_json = json.dumps(metadata, ensure_ascii=False)
     task.description = f"{task.description}；提示词模板：{prompt_template_name}"
     shot = db.merge(shot)
 
     # 只有在物理参考校验和提示词解析成功后，才替换当前主分镜生成尝试。
-    file_storage.delete_shot_image(novel_id, chapter_id, shot_index, shot_id=resolved_shot_id)
+    if not canonical_image_provenance:
+        file_storage.delete_shot_image(novel_id, chapter_id, shot_index, shot_id=resolved_shot_id)
     shot.image_url = None
     shot.image_path = None
     shot.image_status = "generating"
@@ -2583,6 +2615,20 @@ async def generate_video_director_clip(
     return {"success": True, "message": "Clip 重新生成任务已创建", "data": {"taskId": task.id, "status": "pending"}}
 
 
+def _ensure_required_physical_images(shot, plan, clip_indexes=None):
+    missing = [item for item in project_required_execution_images(shot, plan, clip_indexes=clip_indexes)
+               if not item["ready"]]
+    if missing:
+        raise HTTPException(status_code=409, detail={
+            "code": "REQUIRED_IMAGES_MISSING",
+            "message": "执行所需视觉状态图片的物理文件尚未准备",
+            "shot_id": shot.id, "shot_index": shot.index,
+            "missing": [{"state_id": item["state_id"], "state_index": item["state_index"],
+                         "consumer_clip_indexes": [c["consumer_clip_index"] for c in item["consumers"] if not c["ready"]]}
+                        for item in missing],
+        })
+
+
 async def _execute_phase_b_semantic_clip(
     novel_id: str,
     chapter_id: str,
@@ -2616,6 +2662,7 @@ async def _execute_phase_b_semantic_clip(
         readiness = get_canonical_execution_readiness(shot, plan, [clip])
         if not readiness["ready"]:
             raise HTTPException(status_code=409, detail=readiness["blocking_clips"][0])
+        _ensure_required_physical_images(shot, plan, [window_index])
 
     raw_capability = str(clip.get("capability") or "")
     capability = raw_capability
@@ -3812,8 +3859,6 @@ async def generate_shot_videos_batch(
         shot = shot_repo.get_by_id(shot_id)
         if not shot or shot.chapter_id != chapter_id:
             raise HTTPException(status_code=404, detail=f"分镜不存在：{shot_id}")
-        if not shot.image_url:
-            raise HTTPException(status_code=400, detail=f"分镜 {shot.index} 尚未生成主分镜图")
         plan = _safe_json_dict(shot.video_director_plan)
         semantic = isinstance(plan.get("clip_plan"), list) and bool(plan.get("clip_plan"))
         if semantic and plan.get("canonical_visual_plan") is True:
@@ -3822,6 +3867,9 @@ async def generate_shot_videos_batch(
                 detail = dict(readiness["blocking_clips"][0])
                 detail.update({"shot_id": shot.id, "shot_index": shot.index})
                 raise HTTPException(status_code=409, detail=detail)
+            _ensure_required_physical_images(shot, plan)
+        if not shot.image_url:
+            raise HTTPException(status_code=400, detail=f"分镜 {shot.index} 尚未生成主分镜图")
         selected_shots.append({
             "shot_id": shot.id,
             "clip_plan_revision": int(plan.get("clip_plan_revision") or 0) if semantic else None,
@@ -4763,6 +4811,22 @@ async def reset_shot_video_data(
     return {"success": True, "message": "当前 Shot 视频阶段已重置", "data": {"shotId": shot.id, "deletedTaskCount": len(task_ids)}}
 
 
+def _canonical_main_image_previous_path(db, shot):
+    previous_url = shot.image_url
+    if not previous_url and shot.image_task_id:
+        previous = db.query(Task).filter(Task.id == shot.image_task_id).first()
+        previous_url = _safe_json_dict(previous.metadata_json).get("canonical_image_previous_url") if previous else None
+    return shot.image_path or url_to_local_path(previous_url)
+
+
+def _cleanup_replaced_main_image(previous_path, new_path):
+    if previous_path and Path(previous_path).resolve() != Path(new_path).resolve():
+        try:
+            Path(previous_path).unlink(missing_ok=True)
+        except OSError as exc:
+            print(f"[ShotImage] Old image cleanup deferred: {exc}")
+
+
 @router.post(
     "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/upload-image",
     response_model=dict,
@@ -4798,6 +4862,32 @@ async def upload_shot_image(
         raise HTTPException(status_code=404, detail=f"分镜 {shot_id} 不存在")
 
     shot_index = shot.index
+
+    provenance = state_provenance(shot, 1)
+    if provenance:
+        # Use a unique file so a same-second legacy name cannot overwrite the
+        # currently bound image before the transaction succeeds.
+        previous_path = _canonical_main_image_previous_path(db, shot)
+        file_path = None
+        try:
+            content = await file.read()
+            base_path = file_storage.get_shot_image_path(
+                novel_id=novel_id, chapter_id=chapter_id, shot_number=shot_index, shot_id=shot.id)
+            file_path = base_path.with_name(f"{base_path.stem}_{uuid.uuid4().hex}{base_path.suffix}")
+            image_url = f"/api/files/{file_path.relative_to(file_storage.base_dir).as_posix()}"
+            commit_visual_state_image(db, shot, image_url, frame_index=None,
+                                      expected_provenance=provenance, local_path=str(file_path))
+            file_path.write_bytes(content)
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            if file_path:
+                file_path.unlink(missing_ok=True)
+            if isinstance(exc, CanonicalExecutionConflict):
+                raise HTTPException(status_code=409, detail=str(exc))
+            raise HTTPException(status_code=500, detail=f"上传失败：{exc}")
+        _cleanup_replaced_main_image(previous_path, file_path)
+        return {"success": True, "message": "图片上传成功", "data": {"imageUrl": image_url}}
 
     try:
         # 删除旧图片
@@ -4896,6 +4986,22 @@ async def replace_shot_image(
     local_path = url_to_local_path(data.image_url)
     if not local_path:
         raise HTTPException(status_code=400, detail="图片文件不存在或不是本地图片")
+
+    db = shot_repo.db
+    provenance = state_provenance(shot, 1)
+    if provenance:
+        previous_path = _canonical_main_image_previous_path(db, shot)
+        try:
+            commit_visual_state_image(db, shot, data.image_url, frame_index=None,
+                                      expected_provenance=provenance, local_path=str(local_path))
+            db.commit()
+        except Exception as exc:
+            db.rollback()
+            if isinstance(exc, CanonicalExecutionConflict):
+                raise HTTPException(status_code=409, detail=str(exc))
+            raise
+        _cleanup_replaced_main_image(previous_path, local_path)
+        return {"success": True, "data": shot_repo.to_response(shot), "message": "分镜图片已替换"}
 
     shot = shot_repo.update(
         shot,
@@ -6225,13 +6331,16 @@ async def generate_keyframe_image(
         db.commit()
 
     keyframe_service = ShotKeyframeService()
-    success, task_id, message = await keyframe_service.generate_keyframe_image(
-        db,
-        shot_id,
-        frame_index,
-        request.workflow_id,
-        skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
-    )
+    try:
+        success, task_id, message = await keyframe_service.generate_keyframe_image(
+            db,
+            shot_id,
+            frame_index,
+            request.workflow_id,
+            skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
+        )
+    except CanonicalExecutionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
 
     return {
         "success": success,
@@ -6318,7 +6427,7 @@ async def replace_keyframe_image(
     keyframe_service = ShotKeyframeService()
     success, image_url, message = await keyframe_service.replace_keyframe_image(db, shot_id, frame_index, data.image_url)
     if not success:
-        raise HTTPException(status_code=400, detail=message)
+        raise HTTPException(status_code=409 if "CANONICAL_" in message else 400, detail=message)
     db.commit()
     updated_shot = shot_repo.get_by_id(shot_id)
     return {"success": True, "data": shot_repo.to_response(updated_shot), "message": message, "imageUrl": image_url}
@@ -6386,6 +6495,9 @@ async def upload_keyframe_image(
     success, image_url, message = await keyframe_service.upload_keyframe_image(
         db, shot_id, frame_index, file_content, file.filename or "image.png"
     )
+
+    if not success and "CANONICAL_" in message:
+        raise HTTPException(status_code=409, detail=message)
 
     return {
         "success": success,
@@ -6764,3 +6876,53 @@ async def set_reference_audio(
         }
 
     return result
+
+
+class PrepareRequiredImagesRequest(BaseModel):
+    clip_plan_revision: int
+    clip_indexes: list[int] | None = None
+    state_indexes: list[int] | None = None
+
+
+@router.post('/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/video-director/prepare-required-images')
+async def prepare_shot_required_images(
+    novel_id: str, chapter_id: str, shot_id: str, request: PrepareRequiredImagesRequest,
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    task_repo: TaskRepository = Depends(get_task_repo),
+    workflow_repo: WorkflowRepository = Depends(get_workflow_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+    template_repo: PromptTemplateRepository = Depends(get_prompt_template_repo),
+    llm_service: LLMService = Depends(get_llm_service),
+):
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    shot = shot_repo.get_by_id(shot_id)
+    if not chapter or not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail='章节或分镜不存在')
+    service = ShotKeyframeService()
+
+    async def submit_keyframe(frame_index, provenance):
+        success, task_id, message = await service.generate_keyframe_image(
+            db, shot.id, frame_index, expected_provenance=provenance,
+        )
+        if not success or not task_id:
+            raise ValueError(message)
+        return task_id
+
+    async def submit_start(provenance):
+        result = await _prepare_and_enqueue_shot_image_generation(
+            novel_id, chapter_id, shot.id, GenerateShotImageRequest(), db,
+            novel_repo, chapter_repo, task_repo, workflow_repo, shot_repo, template_repo, llm_service,
+            canonical_image_provenance=provenance,
+        )
+        return result['data']['taskId']
+
+    try:
+        items = await prepare_required_images(db, shot, request.clip_plan_revision,
+            submit_keyframe, submit_start, clip_indexes=request.clip_indexes, state_indexes=request.state_indexes)
+    except CanonicalExecutionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {'success': True, 'data': {'items': items, 'shot': shot_repo.to_response(shot)}}

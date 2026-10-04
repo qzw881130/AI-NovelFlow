@@ -173,7 +173,44 @@ export interface VideoAiCall {
   created_at?: string;
 }
 
+export interface CanonicalImageProvenance {
+  shot_id: string;
+  clip_plan_revision: number;
+  state_index: number;
+  state_id: string;
+  state_fingerprint: string;
+}
+export interface RequiredExecutionImage {
+  kind: 'SELECTED_TEMPORAL_TARGET' | 'GENERATE_VISUAL_START';
+  state_index: number;
+  state_id: string;
+  shot_time: number;
+  description?: string;
+  consumer_clip_index: number;
+  consumer_clip_indexes: number[];
+  clip_local_time?: number | null;
+  image_source: string;
+  image_url?: string | null;
+  ready: boolean;
+  missing: boolean;
+  provenance: CanonicalImageProvenance;
+  active_task?: { task_id: string; status: string; current_step?: string | null; error_message?: string | null } | null;
+  failure?: { task_id: string; status: string; error_message?: string | null } | null;
+  consumers: Array<{ consumer_clip_index: number; kind: string; clip_local_time?: number | null; image_url?: string | null; ready: boolean }>;
+}
+export interface PrepareRequiredImageItem {
+  state_index: number;
+  state_id: string;
+  consumer_clip_indexes: number[];
+  status: 'READY' | 'REUSED' | 'QUEUED' | 'FAILED';
+  task_id?: string | null;
+  reason?: string;
+}
+export interface PrepareRequiredImagesResult { items: PrepareRequiredImageItem[]; shot: Shot }
+
 export interface VideoDirectorPlan {
+  required_execution_images?: RequiredExecutionImage[];
+  clip_execution_readiness?: Array<{ clip_index: number; images_ready: boolean; ready: boolean; code: string; previous_clip_index?: number | null }>;
   canonical_visual_plan?: boolean;
   /** @deprecated Historical noncanonical plans only; never canonical authority. */
   selected_mode?: VideoMode;
@@ -937,6 +974,11 @@ export const shotsApi = {
   /**
    * 生成关键帧图片
    */
+  prepareRequiredImages: async (novelId: string, chapterId: string, shotId: string, revision: number, clipIndexes?: number[], stateIndexes?: number[]) =>
+    api.post<PrepareRequiredImagesResult>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/prepare-required-images`, {
+      clip_plan_revision: revision, clip_indexes: clipIndexes, state_indexes: stateIndexes,
+    }),
+
   generateKeyframeImage: async (
     novelId: string,
     chapterId: string,

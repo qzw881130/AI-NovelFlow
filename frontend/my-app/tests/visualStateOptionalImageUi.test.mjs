@@ -31,10 +31,10 @@ test('START continues to reuse the Shot main image instead of becoming a missing
   assert.match(directorSource, /selectedKeyframeImageUrl[\s\S]*t\('chapterGenerate\.imageReady'\)/);
 });
 
-test('batch CTA is clarified without replacing its existing handler', () => {
+test('batch CTA prepares required images while optional single-state generation stays available', () => {
   assert.match(directorSource, /'批量生成可选状态图'/);
   assert.match(directorSource, /onClick=\{onGenerateMissingKeyframes\}/);
-  assert.match(directorSource, /通常无需为所有视觉状态生成图片；仅在希望增加视觉控制时使用。/);
+  assert.match(directorSource, /只准备当前 Clip 计划的执行必需图片；已有图片复用，活跃任务等待，其余缺失图片继续提交。/);
   assert.match(directorSource, /isCanonicalPlan \? 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'/);
 });
 

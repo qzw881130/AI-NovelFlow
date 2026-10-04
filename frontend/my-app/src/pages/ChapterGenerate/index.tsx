@@ -97,7 +97,7 @@ export default function ChapterGenerate() {
         checks.push(checkAudioTaskStatus(cid));
       }
       if (generatingKeyframes.size > 0) {
-        checks.push(checkKeyframeTaskStatus(cid));
+        checks.push(checkKeyframeTaskStatus(cid, id));
       }
       if (checks.length > 0) {
         await Promise.allSettled(checks);

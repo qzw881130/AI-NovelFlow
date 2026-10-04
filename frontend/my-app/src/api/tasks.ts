@@ -23,6 +23,8 @@ export interface Task {
   parentTaskId?: string | null;
   errorMessage?: string | null;
   completedAt?: string | null;
+  currentStep?: string | null;
+  canonicalImageProvenance?: import('./shots').CanonicalImageProvenance | null;
   clipExecution?: {
     execution_scope?: string;
     clip_id?: string;

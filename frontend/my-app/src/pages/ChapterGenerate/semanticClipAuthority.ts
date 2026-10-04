@@ -75,6 +75,12 @@ export function getCanonicalSemanticReadiness(
     return { state: 'CLIP_PLAN_STALE', planningAllowed: true, executionAllowed: false,
       requiredMissingIndexes: [], reason: '历史片段计划需重新规划，以确认定时目标选择' };
   }
+  const missingImages = (plan.required_execution_images || []).filter(item => !item.ready);
+  if (missingImages.length) {
+    return { state: 'REQUIRED_IMAGES_MISSING', planningAllowed: true, executionAllowed: false,
+      requiredMissingIndexes: missingImages.map(item => item.state_index),
+      reason: `缺少执行必需图片：${missingImages.map(item => item.state_id).join('、')}` };
+  }
   if (plan.execution_readiness?.ready === false) {
     const blocker = plan.execution_readiness.blocking_clips?.[0];
     return {

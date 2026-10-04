@@ -31,6 +31,8 @@ export function getVisualStateExecutionImageStatus(
   resolvedImageUrl?: string | null,
 ): CanonicalVisualStateImageStatus | 'NOT_NEEDED' {
   const index = Number(state.index);
+  const required = plan.required_execution_images?.find(item => item.state_index === index);
+  if (required) return required.ready ? 'READY' : 'REQUIRED_MISSING';
   // Backend can detect a missing physical file even when an old URL remains.
   if (plan.execution_readiness?.blocking_clips?.some((blocker) => Number(blocker.visual_state_index) === index)) {
     return 'REQUIRED_MISSING';

@@ -63,10 +63,13 @@ export interface AudioWarning {
 
 // 关键帧任务
 export interface KeyframeTask {
+  currentStep?: string | null;
+  errorMessage?: string | null;
+  canonicalImageProvenance?: import('../../../../api/shots').CanonicalImageProvenance | null;
   shotId: string;
   frameIndex: number;
   taskId: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'queued' | 'processing' | 'running' | 'completed' | 'failed' | 'cancelled';
 }
 
 // 参考音频合并任务
