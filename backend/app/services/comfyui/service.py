@@ -5,6 +5,7 @@ ComfyUI 服务
 """
 import inspect
 import json
+import random
 from typing import Dict, Any, Optional, List
 
 from .client import ComfyUIClient
@@ -40,6 +41,61 @@ class ComfyUIService:
                 callback(prompt_id)
         except (TypeError, ValueError):
             callback(prompt_id)
+
+    @staticmethod
+    def _randomize_prompt_rewrite_seeds(workflow: Dict[str, Any]) -> bool:
+        """Change only Qwen PE rewrite seeds before a format-failure retry."""
+        changed = False
+        for node in workflow.values():
+            if not isinstance(node, dict) or node.get("class_type") != "QwenPERewriteT8":
+                continue
+            inputs = node.get("inputs") if isinstance(node.get("inputs"), dict) else {}
+            previous_seed = inputs.get("seed")
+            next_seed = random.randint(1, 2**31 - 1)
+            if next_seed == previous_seed:
+                next_seed = 1 if previous_seed != 1 else 2
+            inputs["seed"] = next_seed
+            changed = True
+        return changed
+
+    async def retry_prompt_rewrite_format_failure(
+        self,
+        result: Dict[str, Any],
+        workflow: Dict[str, Any],
+        save_image_node_id: Optional[str],
+        on_prompt_queued=None,
+    ) -> Dict[str, Any]:
+        """Retry an image workflow once when Qwen PE returns malformed output."""
+        if not isinstance(result, dict):
+            return result
+        error_message = str(result.get("message") or "")
+        if result.get("success") or not (
+            "format validation" in error_message.lower()
+            or "thinking block" in error_message.lower()
+        ):
+            return result
+        if not self._randomize_prompt_rewrite_seeds(workflow):
+            return result
+
+        queue_result = await self.client.queue_prompt(workflow)
+        retry_prompt_id = queue_result.get("prompt_id") if queue_result.get("success") else None
+        if not retry_prompt_id:
+            return result
+
+        self._notify_prompt_queued(on_prompt_queued, retry_prompt_id, workflow)
+        retry_result = await self.client.wait_for_result(
+            retry_prompt_id,
+            workflow,
+            save_image_node_id,
+            timeout=7200,
+        )
+        return {
+            "success": retry_result.get("success") if retry_result else False,
+            "image_url": retry_result.get("image_url") if retry_result else None,
+            "message": str(retry_result.get("message") or "") if retry_result else "",
+            "submitted_workflow": workflow,
+            "prompt_id": retry_prompt_id,
+        }
     
     @property
     def base_url(self) -> str:
@@ -74,6 +130,7 @@ class ComfyUIService:
     ) -> Dict[str, Any]:
         """生成角色人设图"""
         try:
+            on_prompt_queued = kwargs.pop("on_prompt_queued", None)
             workflow = kwargs.get('workflow') or self.builder.build_character_workflow(
                 prompt=prompt,
                 workflow_json=workflow_json,
@@ -93,17 +150,25 @@ class ComfyUIService:
                 }
             
             prompt_id = queue_result.get("prompt_id")
+            self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
             save_image_node_id = node_mapping.get("save_image_node_id") if node_mapping else None
             
             result = await self.client.wait_for_result(
                 prompt_id, workflow, save_image_node_id, timeout=7200
+            )
+            result = await self.retry_prompt_rewrite_format_failure(
+                result,
+                workflow,
+                save_image_node_id,
+                on_prompt_queued,
             )
             
             return {
                 "success": result.get("success") if result else False,
                 "image_url": result.get("image_url") if result else None,
                 "message": str(result.get("message", "生成成功" if (result and result.get("success")) else "生成失败")) if result else "生成失败",
-                "submitted_workflow": workflow
+                "submitted_workflow": workflow,
+                "prompt_id": result.get("prompt_id") or prompt_id,
             }
             
         except Exception as e:
@@ -174,13 +239,19 @@ class ComfyUIService:
                 save_image_node_id,
                 timeout=7200,
             )
+            result = await self.retry_prompt_rewrite_format_failure(
+                result,
+                workflow,
+                save_image_node_id,
+                on_prompt_queued,
+            )
 
             return {
                 "success": result.get("success") if result else False,
                 "image_url": result.get("image_url") if result else None,
                 "message": str(result.get("message", "编辑成功" if (result and result.get("success")) else "编辑失败")) if result else "编辑失败",
                 "submitted_workflow": workflow,
-                "prompt_id": prompt_id,
+                "prompt_id": result.get("prompt_id") or prompt_id,
             }
         except Exception as e:
             print(f"[ComfyUI] Edit image failed: {e}")
@@ -251,13 +322,19 @@ class ComfyUIService:
             result = await self.client.wait_for_result(
                 prompt_id, workflow, save_image_node_id, timeout=7200
             )
+            result = await self.retry_prompt_rewrite_format_failure(
+                result,
+                workflow,
+                save_image_node_id,
+                on_prompt_queued,
+            )
             
             return {
                 "success": result.get("success") if result else False,
                 "image_url": result.get("image_url") if result else None,
                 "message": str(result.get("message")) if result and result.get("message") else "",
                 "submitted_workflow": workflow,
-                "prompt_id": prompt_id
+                "prompt_id": result.get("prompt_id") or prompt_id
             }
             
         except Exception as e:
