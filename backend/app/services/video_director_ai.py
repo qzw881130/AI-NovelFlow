@@ -753,7 +753,7 @@ def _canonical_visual_body_speech_issues(body: str, subject_bindings: dict | Non
         r"<Subject\s+\d+>\s+is\s+(?:the\s+|a\s+)?speaker\b|"
         r"\b(?:allow|enable|generate|produce|add|include)\s+(?:extra\s+)?human\s+(?:speech|voices?|vocalization)\b|"
         r"\bhuman\s+(?:speech|voices?|vocalization)\s+(?:(?:is|are)\s+)?(?:allowed|enabled)\b|"
-        r"说话|讲话|交谈|对话(?!框)|低语|喊叫|笑声|口型|发声|人声|唇形|"
+        r"说话|讲话|说道|回答|交谈|对话(?!框)|低语|喊叫|笑声|口型|发声|人声|唇形|"
         r"回应(?![^，。.!?;；\n]{0,8}(?:视线|目光|手势|动作))",
         re.IGNORECASE,
     )
@@ -786,6 +786,8 @@ def _canonical_visual_body_speech_issues(body: str, subject_bindings: dict | Non
                 prefix = clause[:match.start()]
                 suffix = clause[match.end():]
                 if code == "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE":
+                    if match.group() == "发声" and prefix.endswith("突") and suffix.startswith("源"):
+                        continue
                     if match.group() == "人声" and prefix.endswith("非"):
                         continue
                     if re.search(r"无(?:额外|其他|多余)(?:的)?$", prefix) and match.group().startswith("说话"):

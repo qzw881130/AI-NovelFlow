@@ -521,6 +521,33 @@ def test_visual_response_without_speech_remains_allowed(monkeypatch):
     assert record["parsed_result"]["dialogue"]["passed"]
 
 
+@pytest.mark.parametrize("text", [
+    "不新增音乐、突发声源或画面外事件",
+    "避免突发声源",
+    "没有突发声源",
+    "环境中不得加入突发声源",
+])
+def test_sudden_sound_source_is_not_speech_authority(text):
+    assert h3._canonical_visual_body_speech_issues(text) == []
+
+
+@pytest.mark.parametrize("text", [
+    "人物发声",
+    "骗子1发声",
+    "角色突然发声",
+    "有人发声",
+    "画外人声",
+    "新增人声",
+    "人物开口说话",
+    "角色说道",
+    "角色回答",
+])
+def test_explicit_human_speech_remains_outside_visual_authority(text):
+    assert h3._canonical_visual_body_speech_issues(text) == [
+        "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"
+    ]
+
+
 @pytest.mark.parametrize("states,step,template_type,attribute", [
     (SHAPES[0][0], "11", "h3_single_frame_prompt", "h3_single_frame_prompt_template_id"),
     (SHAPES[1][0], "12", "h3_first_last_frame_prompt", "h3_first_last_frame_prompt_template_id"),
