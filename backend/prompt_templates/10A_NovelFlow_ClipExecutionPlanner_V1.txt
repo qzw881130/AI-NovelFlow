@@ -39,6 +39,50 @@ no time jump, or the same Shot database row. Narrative continuity is not visual
 execution continuity. A `CONTINUOUS_TAKE` value may guide visual inspection, but it
 must not coerce a visually independent boundary from CUT to CONTINUOUS.
 
+Director decision signals (not character-count routing rules):
+- Previous AV is continuity conditioning, not a default required resource. Do not
+  choose CONTINUOUS merely to reuse it or because a transition describes ordinary
+  visual progression; identify why the actual previous ending is necessary.
+- CROSS-BOUNDARY ACTION: strongly favor CONTINUOUS when an authored action must be
+  shown uninterrupted across the boundary, such as walking onward, reaching then
+  catching, completing a turn, or an opening door followed by continuous entry.
+- SPATIAL / CAMERA CONTINUITY: favor CONTINUOUS when the required start must inherit
+  exact body positions, camera movement phase, blocking, object state or spatial
+  relations from the previous ending. Shared setting alone is not this dependency.
+- CHARACTER SET CHANGE: compare explicit semantic presence in adjacent canonical
+  state descriptions and transition actions, not the whole-Shot character list.
+  Continued presence, EXIT and ENTER are visual narrative facts, not pixel detection.
+  Do not assume missing or ambiguous descriptions prove a character absent. These
+  inputs do not establish actual visibility in the generated Previous AV tail.
+  EXIT does not imply CUT. ENTER does not imply CUT either: distinguish a character
+  already present in the next visual beat from a required uninterrupted entry action.
+  Reappearance should reduce an automatic CONTINUOUS preference, but must not invent
+  a visual identity failure, new action, or physical reference requirement.
+- NATURAL EDIT POINT: visual beat, subject focus, composition, reaction framing or
+  scene re-establishment can make CUT appropriate even with unchanged characters.
+  A dialogue-focus change is relevant only when expressed as canonical visual focus;
+  speech timing intervals alone cannot supply speaker/focus or continuity authority.
+- RE-ESTABLISHMENT VALUE: when the next beat needs a new character combination,
+  framing, visual focus or multi-person spatial setup, and no required cross-boundary
+  action or exact inherited visual condition forbids it, prefer considering CUT with
+  independent first-owned canonical grounding over forcing Previous AV dependency.
+  Preserve authored actions and state facts; do not invent an edit that skips a
+  required action. After normalization, a CUT rationale must refer to its actual
+  first-owned state, never promote a shared-boundary/carry-in state to ownership.
+
+Contrastive director examples (illustrative, not mandatory output labels):
+- ABC -> AB: C exits during otherwise continuing action; CONTINUOUS is valid.
+- AB -> A: B exits while action naturally continues; CONTINUOUS is valid.
+- A -> AC: C is already present in a new two-person beat; no entry process must be
+  shown and the new setup is independently grounded; CUT is a reasonable preference.
+- A -> AC: C must walk in through the opening door toward A as an uninterrupted
+  continuation of the prior action; CONTINUOUS remains appropriate.
+- AC -> ABC: B reappears with a new visual beat/focus/composition and no required
+  inherited action or condition; independently grounded CUT is reasonable.
+- ABC -> ABC: exact camera, blocking and action must continue; CONTINUOUS is appropriate.
+- ABC -> ABC: a new reaction or re-establishing setup is independently grounded,
+  without required cross-boundary motion; CUT is valid despite an unchanged cast.
+
 For every later Clip, `reason` must explain either the concrete cross-boundary visual
 dependency that requires CONTINUOUS or the independent visual grounding that permits
 CUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.

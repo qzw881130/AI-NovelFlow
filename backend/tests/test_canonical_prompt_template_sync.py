@@ -231,7 +231,7 @@ def test_unrelated_system_prompt_sources_remain_frozen():
         PLANNER_FILE: "ada57c8b3e12817fe2182188f9a7ffd55867a8717e11f1fea6ff3d35c75ca4fe",
         KEYFRAME_IMAGE_FILE: "2fdb3029f1f0e278aa166483dd65df5e36dc3733145e604b9829d282bf9ef0fb",
         TRANSITION_FILE: "6bc10c2f0eab6165e13cce38bb17c29daead288d93af7aa75d98af81bea9c57c",
-        CLIP_PLANNER_FILE: "37d06c0b308bc37adbc6b8d2304ba9de15b130d6107714b107c73c391f637633",
+        CLIP_PLANNER_FILE: "27e94f0c8e8af15bb7550daff4fd9ccb100edd3d8c0b01dab76483d8d47252ed",
     }
 
     for filename, expected_hash in expected_hashes.items():

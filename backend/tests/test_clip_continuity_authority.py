@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -9,6 +10,38 @@ from app.services import clip_planner
 RAW_DESCRIPTION = "皇帝开口询问，侍从回答后故事继续"
 RAW_VIDEO_DESCRIPTION = "两人继续交谈，镜头保持同一房间"
 EXACT_DIALOGUE = "城门可曾关闭？"
+
+
+DIRECTOR_BOUNDARY_CASES = [
+    pytest.param("ABC", "AB", "三人沿走廊前行，C正在走向画面边缘。",
+                 "A、B继续前行，C已出画；没有新Beat或镜头重建需求。",
+                 "C继续走出画面，A、B的步行方向和镜头跟随必须跨边界连续。",
+                 "CONTINUOUS", id="T1-exit-C-does-not-force-cut"),
+    pytest.param("AB", "A", "A、B前行，B逐渐移向画面边缘。",
+                 "A继续向门边前行，B已出画。",
+                 "B自然走出画面，A的步行轨迹与相机跟随必须持续。",
+                 "CONTINUOUS", id="T2-exit-B-continuing-action"),
+    pytest.param("A", "AC", "A单人稳定近景；没有进行中的跨边界动作。",
+                 "下一视觉Beat中A、C已在新的双人构图内；不要求展示C入画过程。",
+                 "新的A+C双人场面可以独立建立，不要求继承原单人镜头的运动阶段。",
+                 "CUT", id="T3-reappearance-without-required-entry"),
+    pytest.param("A", "AC", "A在门边等待，门已开始打开，C仍在画外。",
+                 "C从门外进入并走向A，门的运动与走入过程必须不间断地延续。",
+                 "继续打开门，C从门外走入并走到A身旁；必须从上一状态连续表现。",
+                 "CONTINUOUS", id="T4-required-uninterrupted-entry"),
+    pytest.param("AC", "ABC", "A、C在稳定构图内；上一动作已结束。",
+                 "新视觉Beat重新建立A、B、C三人构图和焦点；B已在场，无须展示入场过程。",
+                 "独立建立三人空间关系，没有必须跨边界延续的动作或镜头条件。",
+                 "CUT", id="T5-new-cast-composition-beat"),
+    pytest.param("ABC", "ABC", "三人沿既定路线走动，摄影机正在连续横移。",
+                 "三人继续原动作；站位、物体状态和摄影机运动阶段必须精确延续。",
+                 "延续三人动作、相机横移和blocking，不能重置运动阶段。",
+                 "CONTINUOUS", id="T6-unchanged-cast-required-continuity"),
+    pytest.param("ABC", "ABC", "三人稳定站立，动作结束，无必须继承的运动阶段。",
+                 "三人仍可见，新的reaction framing以A的反应为重心，可独立重建构图。",
+                 "建立新的反应镜头与视觉焦点，不要求连续相机运动；没有人物增减。",
+                 "CUT", id="T7-unchanged-cast-independent-reaction"),
+]
 
 
 def _shot(
@@ -67,6 +100,92 @@ def _fake_planner(monkeypatch, response, captured):
 
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
     monkeypatch.setattr(clip_planner, "LLMService", FakeLLMService)
+
+
+def test_director_prompt_distinguishes_semantic_reappearance_from_required_entry():
+    prompt = (Path(__file__).parents[1] / "prompt_templates" / "10A_NovelFlow_ClipExecutionPlanner_V1.txt").read_text()
+    for marker in (
+        "Previous AV is continuity conditioning, not a default required resource",
+        "CROSS-BOUNDARY ACTION", "SPATIAL / CAMERA CONTINUITY", "CHARACTER SET CHANGE",
+        "NATURAL EDIT POINT", "RE-ESTABLISHMENT VALUE",
+        "EXIT does not imply CUT. ENTER does not imply CUT either",
+        "already present in the next visual beat from a required uninterrupted entry action",
+        "inputs do not establish actual visibility in the generated Previous AV tail",
+        "Do not assume missing or ambiguous descriptions prove a character absent",
+        "speech timing intervals alone cannot supply speaker/focus or continuity authority",
+        "never promote a shared-boundary/carry-in state to ownership",
+        "ABC -> AB", "AB -> A", "A -> AC", "AC -> ABC", "ABC -> ABC",
+    ):
+        assert marker in prompt
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("continuity_mode", ["NORMAL", "CONTINUOUS_TAKE"])
+@pytest.mark.parametrize("before,after,previous_action,next_action,transition,decision", DIRECTOR_BOUNDARY_CASES)
+async def test_director_character_boundary_decisions_preserve_existing_planner_contract(
+    tmp_path, monkeypatch, continuity_mode, before, after, previous_action, next_action, transition, decision,
+):
+    # These are contract regressions with a mocked director, not evidence that a
+    # real LLM has learned the decision. No program classifies ENTER/EXIT/CUT.
+    def description(characters, action):
+        return "Scene: 同一场景\nCharacters:\n" + "\n".join(
+            f"- {name}: 在本状态中可见。" for name in characters
+        ) + "\nAction: " + action
+
+    state_image = tmp_path / "canonical-state.png"
+    state_image.write_bytes(b"test visual asset")
+    states = [
+        {"index": 1, "role": "START", "time_seconds": 0, "description": None, "timed_visual_target": False},
+        {"index": 2, "role": "INTERMEDIATE", "time_seconds": 6,
+         "description": description(before, previous_action), "timed_visual_target": False},
+        {"index": 3, "role": "INTERMEDIATE", "time_seconds": 6.5,
+         "description": description(after, next_action), "timed_visual_target": False, "image_url": str(state_image)},
+        {"index": 4, "role": "END", "time_seconds": 12,
+         "description": description(after, "保持本视觉Beat的最终可见状态。"), "timed_visual_target": False},
+    ]
+    transitions = [
+        {"from_keyframe_index": 1, "to_keyframe_index": 2, "start_time": 0, "end_time": 6,
+         "transition_description": previous_action},
+        {"from_keyframe_index": 2, "to_keyframe_index": 3, "start_time": 6, "end_time": 6.5,
+         "transition_description": transition},
+        {"from_keyframe_index": 3, "to_keyframe_index": 4, "start_time": 6.5, "end_time": 12,
+         "transition_description": "保持当前视觉事实，不增添其他人物。"},
+    ]
+    shot = _shot(tmp_path, continuity_mode=continuity_mode, states=states, transitions=transitions)
+    shot.characters = json.dumps(["A", "B", "C"])
+    original_plan = shot.video_director_plan
+    response = [
+        {"clip_index": 1, "start_time": 0, "end_time": 6, "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
+        {"clip_index": 2, "start_time": 6, "end_time": 12, "continuity_to_previous": decision, "selected_temporal_target_ids": [],
+         "previous_clip_index": 1 if decision == "CONTINUOUS" else None, "reason": transition},
+    ]
+    captured = {}
+    _fake_planner(monkeypatch, response, captured)
+    prompt = (Path(__file__).parents[1] / "prompt_templates" / "10A_NovelFlow_ClipExecutionPlanner_V1.txt").read_text()
+    monkeypatch.setattr(clip_planner.PromptTemplateService, "get_default_system_template",
+                        lambda _self, _name: SimpleNamespace(template=prompt, name="Clip Execution Planner"))
+    anchors = []
+    clips, validation = await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, anchors)
+    payload = json.loads(captured["user_content"])
+
+    assert validation["passed"] is True, validation
+    assert captured["system_prompt"] == prompt
+    assert payload["shot"]["characters"] == ["A", "B", "C"]
+    assert payload["visual_state_candidates"][1]["description"] == states[1]["description"]
+    assert payload["visual_state_candidates"][2]["description"] == states[2]["description"]
+    assert payload["transition_context"] == transitions
+    assert "character_transition" not in payload and "clip_visible_characters" not in payload
+    assert "available_generation_inputs" not in payload
+    assert payload["speech_timing_intervals"] == []
+    assert clips[1]["continuity_to_previous"] == decision
+    assert clips[1]["capability"] == ("EXTEND" if decision == "CONTINUOUS" else "GENERATE")
+    assert clips[1]["previous_clip_index"] == (1 if decision == "CONTINUOUS" else None)
+    assert clips[1]["visual_state_indexes"] == [3, 4]
+    assert clips[1]["carry_in_state_index"] == 2
+    assert clips[1]["requires_temporal_control"] is False
+    assert clips[1]["reason"] == transition
+    assert anchors == []
+    assert shot.video_director_plan == original_plan
 
 
 async def _plan(monkeypatch, shot, response):
