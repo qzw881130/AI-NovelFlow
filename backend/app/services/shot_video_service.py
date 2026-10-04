@@ -36,6 +36,10 @@ from app.services.canonical_execution_invalidation import (
 )
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.workflow_seed import extract_workflow_seed
+from app.services.continuous_clip_av import (
+    CONTINUOUS_CAPABILITIES, NATIVE_CONTINUITY_OUTPUT, is_clip_execution_contract,
+    probe_clip_av, validate_native_output, continuity_output_metadata, continuous_assembly_spans,
+)
 
 
 # A task can be observed by the batch runner and the reconciliation loop at the
@@ -60,7 +64,7 @@ def resolve_extend_previous_av(db, novel_id: str, chapter_id: str, shot, clip: d
     if not source_task_id or not result_url or source_revision != revision or source_index != previous_index:
         raise ValueError("PREVIOUS_AV_UNAVAILABLE")
     source_task = db.query(Task).filter(Task.id == source_task_id).first()
-    if not source_task or source_task.status != "completed":
+    if not source_task or source_task.status != "completed" or source_task.type != "shot_video":
         raise ValueError("PREVIOUS_AV_UNAVAILABLE")
     if source_task.novel_id != novel_id or source_task.chapter_id != chapter_id or source_task.shot_id != shot.id:
         raise ValueError("PREVIOUS_AV_UNAVAILABLE")
@@ -68,8 +72,10 @@ def resolve_extend_previous_av(db, novel_id: str, chapter_id: str, shot, clip: d
     source_contract = metadata.get("execution_contract") or {}
     if (
         metadata.get("execution_scope") != "CLIP"
-        or source_contract.get("artifact_kind") != "CLIP_ONLY"
+        or not is_clip_execution_contract(source_contract)
         or metadata.get("approval_status") != "APPROVED"
+        or int(metadata.get("clip_index") or 0) != previous_index
+        or int(metadata.get("clip_plan_revision") or 0) != revision
         or source_task.result_url != result_url
     ):
         raise ValueError("PREVIOUS_AV_UNAVAILABLE")
@@ -86,12 +92,30 @@ def resolve_extend_previous_av(db, novel_id: str, chapter_id: str, shot, clip: d
     local_path = url_to_local_path(result_url)
     if not local_path or not Path(local_path).is_file() or not os.access(local_path, os.R_OK):
         raise ValueError("PREVIOUS_AV_UNAVAILABLE")
+    if source_contract.get("capability") in CONTINUOUS_CAPABILITIES:
+        physical = validate_native_output(metadata, result_url, local_path)
+        if source_clip.get("physical_output") != physical:
+            raise ValueError("NATIVE_CONTINUITY_OUTPUT_INVALID")
+    elif source_contract.get("capability") == "GENERATE" and source_contract.get("artifact_kind") == "CLIP_ONLY":
+        # The first GENERATE is the bootstrap AV source for a continuity run.
+        physical = {**probe_clip_av(local_path), "physical_output_role": "CLIP_ONLY"}
+    else:
+        raise ValueError("PREVIOUS_AV_UNAVAILABLE")
+    source = {key: physical[key] for key in (
+        "frame_count", "fps", "timebase", "video_duration", "has_audio", "audio_duration",
+        "audio_start_time", "width", "height", "sha256", "physical_output_role",
+    )}
+    if provenance.get("physical_output") is not None and provenance["physical_output"] != source:
+        raise ValueError("PREVIOUS_AV_UNAVAILABLE")
+    if provenance.get("source_frame_start", 0) != 0:
+        raise ValueError("PREVIOUS_AV_UNAVAILABLE")
     return {
         "clip_index": previous_index,
         "clip_plan_revision": revision,
         "generated_by_task_id": source_task_id,
         "result_url": result_url,
         "local_path": local_path,
+        "physical_output": source,
     }
 
 
@@ -938,7 +962,7 @@ async def generate_shot_video_task(
 
         clip_only_execution = bool(
             clip_metadata
-            and clip_metadata.get("execution_contract", {}).get("artifact_kind") == "CLIP_ONLY"
+            and is_clip_execution_contract(clip_metadata.get("execution_contract", {}))
             and clip_metadata.get("execution_contract", {}).get("capability") in {"GENERATE", "EXTEND", "TEMPORAL_EXTEND"}
         )
         phase_b_generate = clip_only_execution and clip_metadata.get("execution_contract", {}).get("capability") == "GENERATE"
@@ -1342,6 +1366,7 @@ async def generate_shot_video_task(
                 ],
                 on_prompt_queued=save_prompt_id,
                 reference_image_paths=reference_image_paths or [],
+                require_native_output=(task_metadata.get("execution_contract") or {}).get("artifact_kind") == NATIVE_CONTINUITY_OUTPUT,
             )
         else:
             result = await comfyui_service.generate_shot_video_with_workflow(
@@ -1873,7 +1898,8 @@ def validate_semantic_clip_artifact(
         and task.shot_id == shot.id
         and task.result_url == result_url
         and metadata.get("execution_scope") == "CLIP"
-        and contract.get("artifact_kind") == "CLIP_ONLY"
+        and is_clip_execution_contract(contract)
+        and contract.get("capability") == semantic_clip.get("capability")
         and metadata.get("approval_status") == "APPROVED"
         and str(metadata.get("clip_id") or "") == f"{shot.id}:clip:{clip_index}"
         and int(metadata.get("clip_index") or 0) == clip_index
@@ -1888,7 +1914,28 @@ def validate_semantic_clip_artifact(
     local_path = url_to_local_path(result_url)
     if not local_path or not Path(local_path).is_file() or not os.access(local_path, os.R_OK):
         raise ValueError(f"Clip {clip_index} 的 artifact 不可读取")
+    if contract.get("capability") in CONTINUOUS_CAPABILITIES:
+        physical = validate_native_output(metadata, result_url, local_path)
+        if semantic_clip.get("physical_output") != physical:
+            raise ValueError("NATIVE_CONTINUITY_OUTPUT_INVALID")
     return task, metadata, local_path
+
+
+def _continuous_assembly_projection(db, shot, units, novel_id, chapter_id) -> dict:
+    projected = []
+    for clip, task, metadata, path in units:
+        contract = metadata.get("execution_contract") or {}
+        capability = contract.get("capability")
+        if capability in CONTINUOUS_CAPABILITIES:
+            # Revalidate the frozen Previous against its current approved Task;
+            # old raw files, changed bytes and stale predecessors cannot assemble.
+            resolve_extend_previous_av(db, novel_id, chapter_id, shot, clip, contract.get("previous_clip"))
+            physical = validate_native_output(metadata, task.result_url, path)
+        else:
+            physical = probe_clip_av(path)
+        projected.append({"task_id": task.id, "path": path, "capability": capability,
+                          "physical_output": physical})
+    return continuous_assembly_spans(projected)
 
 
 async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, novel_id: str, chapter_id: str, shot_index: int) -> dict:
@@ -1896,7 +1943,10 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
     semantic_clips = plan.get("clip_plan") if isinstance(plan.get("clip_plan"), list) else []
     if semantic_clips:
         revision = int(plan.get("clip_plan_revision") or 0)
-        semantic_provenance = any(item.get("generated_by_task_id") for item in semantic_clips if isinstance(item, dict))
+        semantic_provenance = bool(plan.get("canonical_visual_plan")) or any(
+            item.get("generated_by_task_id") or item.get("capability") in CONTINUOUS_CAPABILITIES
+            for item in semantic_clips if isinstance(item, dict)
+        )
         if semantic_provenance:
             try:
                 assembly_units = _resolve_semantic_clip_assembly_units(
@@ -1958,6 +2008,15 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
                 assembly_units.append(pending_base)
             exact_semantic_sources = False
         clip_video_paths = [item[3] for item in assembly_units]
+        continuity_projection = None
+        if exact_semantic_sources and any(
+            (item[2].get("execution_contract") or {}).get("capability") in CONTINUOUS_CAPABILITIES
+            for item in assembly_units
+        ):
+            try:
+                continuity_projection = _continuous_assembly_projection(db, shot, assembly_units, novel_id, chapter_id)
+            except ValueError as exc:
+                return {"success": False, "message": str(exc)}
 
         story_dir = file_storage._get_story_dir(novel_id)
         chapter_short = chapter_id[:8] if chapter_id else "unknown"
@@ -1991,7 +2050,10 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
         else:
             output_path = Path(output_dir / f"shot_{shot_index:03d}_assembled_{timestamp}.mp4")
             temporary_output = output_path.with_suffix(".assembling.mp4")
-            merge_result = await file_storage.merge_videos(clip_video_paths, str(temporary_output))
+            if continuity_projection:
+                merge_result = await file_storage.merge_continuous_clip_spans(continuity_projection, str(temporary_output))
+            else:
+                merge_result = await file_storage.merge_videos(clip_video_paths, str(temporary_output))
             if not merge_result.get("success") or not temporary_output.is_file():
                 if temporary_output.exists():
                     temporary_output.unlink()
@@ -2005,7 +2067,7 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
             "assembly_status": "COMPLETED",
             "assembly_clip_plan_revision": revision,
             "assembly_task_ids": [item[1].id for item in assembly_units],
-            "assembly_mode": "CONTINUATION_COLLAPSED" if len(assembly_units) < len(approved_clips) else "CONCAT",
+            "assembly_mode": "NATIVE_OVERLAP_REPLACEMENT" if continuity_projection else "CONTINUATION_COLLAPSED" if len(assembly_units) < len(approved_clips) else "CONCAT",
             "assembled_result": {
                 "status": "COMPLETED",
                 "url": local_url,
@@ -2016,6 +2078,14 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
                 "assembled_at": datetime.utcnow().isoformat(),
             },
         })
+        if continuity_projection:
+            plan["assembly_spans"] = {
+                "frame_count": continuity_projection["frame_count"],
+                "duration": continuity_projection["duration"],
+                "boundaries": continuity_projection["boundaries"],
+                "spans": [{k: v for k, v in span.items() if k != "physical_output"}
+                          for span in continuity_projection["spans"]],
+            }
         if direct_continuation_result:
             plan["assembled_result"].update({
                 "clip_indexes": [int(final_unit[0].get("clip_index") or 0)],
@@ -2191,6 +2261,17 @@ async def _save_generated_video(
     db.commit()
 
     video_url = result.get("video_url")
+    contract = (safe_json_dict(task.metadata_json).get("execution_contract") or {})
+    native_clip = bool(safe_json_dict(task.metadata_json).get("execution_scope") == "CLIP" and contract.get("capability") in CONTINUOUS_CAPABILITIES)
+    if native_clip and (result.get("physical_output_role") != NATIVE_CONTINUITY_OUTPUT or result.get("output_node_id") != "65"):
+        task.status = "failed"
+        task.error_message = "NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE"
+        task.current_step = "Clip native output missing"
+        metadata = safe_json_dict(task.metadata_json)
+        metadata["approval_status"] = "FAILED"
+        task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+        db.commit()
+        return
     if not video_url:
         task.status = "failed"
         task.error_message = "未获取到视频URL"
@@ -2227,6 +2308,25 @@ async def _save_generated_video(
         relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
         local_url = f"/api/files/{relative_path.lstrip('/')}"
 
+        physical_output = None
+        if native_clip:
+            try:
+                physical_output = continuity_output_metadata(result, contract, local_path, local_url)
+            except ValueError as exc:
+                Path(local_path).unlink(missing_ok=True)
+                task.status = "failed"
+                task.error_message = str(exc)
+                task.current_step = "Clip native output invalid"
+                metadata = safe_json_dict(task.metadata_json)
+                metadata["approval_status"] = "FAILED"
+                task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+                db.commit()
+                return
+            metadata = safe_json_dict(task.metadata_json)
+            metadata["physical_output"] = physical_output
+            metadata["artifact_kind"] = NATIVE_CONTINUITY_OUTPUT
+            task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+
         # 更新 Shot 记录中的视频数据
         shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
         if shot:
@@ -2238,6 +2338,8 @@ async def _save_generated_video(
                 "generated_at": datetime.utcnow().isoformat(),
                 "generated_by_task_id": task.id,
             }
+            if physical_output:
+                result_fields["physical_output"] = physical_output
             if clip_metadata:
                 plan = safe_json_dict(shot.video_director_plan)
                 semantic_clips = plan.get("clip_plan") if isinstance(plan.get("clip_plan"), list) else []
@@ -2263,7 +2365,7 @@ async def _save_generated_video(
                     return
                 canonical_replacement = (
                     plan.get("canonical_visual_plan") is True
-                    and (safe_json_dict(task.metadata_json).get("execution_contract") or {}).get("artifact_kind") == "CLIP_ONLY"
+                    and is_clip_execution_contract(safe_json_dict(task.metadata_json).get("execution_contract") or {})
                 )
                 if canonical_replacement:
                     clip_index = int(clip_metadata.get("clip_index") or 0)
@@ -2313,7 +2415,7 @@ async def _save_generated_video(
                 metadata.get("execution_scope") == "CLIP"
                 and (metadata.get("execution_contract") or {}).get("artifact_kind") == "CLIP_ONLY"
             )
-            if metadata.get("capability") in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"} and not semantic_clip_only:
+            if metadata.get("capability") in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"} and not semantic_clip_only and not native_clip:
                 metadata["assembled_result"] = {
                     "status": "APPROVED",
                     "url": local_url,
@@ -2325,7 +2427,7 @@ async def _save_generated_video(
                 }
             metadata.update({
                 "requested_duration": metadata.get("requested_duration"),
-                "actual_duration": media_duration if metadata.get("capability") not in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"} or semantic_clip_only else None,
+                "actual_duration": None if native_clip else media_duration if metadata.get("capability") not in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"} or semantic_clip_only else None,
                 "assembled_media_duration": media_duration if metadata.get("assembled_result") else None,
                 "actual_fps": 24,
                 "approval_status": "APPROVED",

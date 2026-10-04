@@ -2796,7 +2796,7 @@ async def _execute_phase_b_semantic_clip(
         "clip_index": window_index,
         "clip_plan_revision": int(request.clip_plan_revision),
         "capability": capability,
-        "artifact_kind": "CLIP_ONLY",
+        "artifact_kind": compiled["execution_contract"]["artifact_kind"],
         "planned_duration": clip.get("planned_duration"),
         "requested_duration": clip.get("planned_duration"),
         "dialogue_assignment": clip.get("dialogue_assignment") or [],

@@ -9,6 +9,8 @@ import pytest
 from app.models.novel import Chapter, Character, Novel
 from app.models.shot import Shot
 from app.models.task import Task
+from app.services import continuous_clip_av as av
+from test_continuous_clip_native_av import physical
 
 
 def _configure_storage(monkeypatch, tmp_path, novel_id):
@@ -34,6 +36,7 @@ def _configure_storage(monkeypatch, tmp_path, novel_id):
     monkeypatch.setattr(canonical_export, "url_to_local_path", resolver)
     monkeypatch.setattr(shot_video_service, "url_to_local_path", resolver)
     monkeypatch.setattr(shots_api, "url_to_local_path", resolver)
+    monkeypatch.setattr(av, "probe_clip_av", lambda path: physical(209 if Path(path).stem=='c1' else 447,Path(path).read_bytes()))
     return make, story_root
 
 
@@ -48,10 +51,11 @@ def _base_records(db_session, title="Canonical export"):
 
 
 def _clip_task(db_session, novel, chapter, shot, clip_index, revision, result_url, **overrides):
-    artifact_kind = overrides.pop("artifact_kind", "CLIP_ONLY")
+    artifact_kind = overrides.pop("artifact_kind", None)
     approval = overrides.pop("approval_status", "APPROVED")
     contract_clip_index = overrides.pop("contract_clip_index", clip_index)
     capability = overrides.pop("capability", "GENERATE")
+    artifact_kind = artifact_kind or (av.NATIVE_CONTINUITY_OUTPUT if capability in av.CONTINUOUS_CAPABILITIES else 'CLIP_ONLY')
     contract = {
         "version": 1,
         "artifact_kind": artifact_kind,
@@ -74,6 +78,15 @@ def _clip_task(db_session, novel, chapter, shot, clip_index, revision, result_ur
         "video_reference_manifest": overrides.pop("reference_manifest", {"version": 1, "references": []}),
     }
     metadata.update(overrides.pop("metadata_extra", {}))
+    if artifact_kind == av.NATIVE_CONTINUITY_OUTPUT:
+        contract['previous_clip']['physical_output'] = {**physical(209,b'asset'),'physical_output_role':'CLIP_ONLY'}
+        contract['previous_clip']['source_frame_start'] = 0
+        metadata['physical_output'] = {
+            **physical(447,b'asset'), 'physical_output_role':av.NATIVE_CONTINUITY_OUTPUT,
+            'output_node_id':'65', 'source_video_url':result_url, 'result_url':result_url,
+            'capability':capability, 'previous':contract['previous_clip'],
+            'overlap_frames':39, 'overlap_duration':1.625,
+        }
     task = Task(
         type="shot_video",
         status=overrides.pop("status", "completed"),
@@ -108,6 +121,9 @@ def _canonical_clip(shot, task, clip_index, revision, **extra):
         "clip_plan_revision": revision,
     }
     clip.update(extra)
+    metadata=json.loads(task.metadata_json)
+    if metadata.get('physical_output'):
+        clip['physical_output']=metadata['physical_output']
     return clip
 
 

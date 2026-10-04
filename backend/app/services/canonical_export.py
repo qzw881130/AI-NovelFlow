@@ -258,7 +258,7 @@ def _validate_previous_av(
         return None, "PREVIOUS_AV_PROVENANCE_INVALID"
     if actual != expected or previous_task.id != expected["generated_by_task_id"]:
         return None, "PREVIOUS_AV_PROVENANCE_INVALID"
-    if (previous_metadata.get("execution_contract") or {}).get("artifact_kind") != "CLIP_ONLY":
+    if (previous_metadata.get("execution_contract") or {}).get("artifact_kind") not in {"CLIP_ONLY", "NATIVE_CONTINUITY_OUTPUT"}:
         return None, "PREVIOUS_AV_PROVENANCE_INVALID"
     return expected, None
 

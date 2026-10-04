@@ -382,11 +382,14 @@ def compile_extend_clip(
     compiled = compile_generate_clip(shot, plan, clip, revision)
     contract = dict(compiled["execution_contract"])
     contract["capability"] = "EXTEND"
+    contract["artifact_kind"] = "NATIVE_CONTINUITY_OUTPUT"
     contract["previous_clip"] = {
         "clip_index": previous_clip_index,
         "clip_plan_revision": previous_revision,
         "generated_by_task_id": str(previous_provenance["generated_by_task_id"]),
         "result_url": str(previous_provenance["result_url"]),
+        "physical_output": previous_provenance.get("physical_output"),
+        "source_frame_start": 0,
     }
     return {
         "execution_contract": contract,
@@ -450,11 +453,14 @@ def compile_temporal_extend_clip(
     )
     contract = dict(compiled["execution_contract"])
     contract["capability"] = "TEMPORAL_EXTEND"
+    contract["artifact_kind"] = "NATIVE_CONTINUITY_OUTPUT"
     contract["previous_clip"] = {
         "clip_index": previous_clip_index,
         "clip_plan_revision": previous_revision,
         "generated_by_task_id": str(previous_provenance["generated_by_task_id"]),
         "result_url": str(previous_provenance["result_url"]),
+        "physical_output": previous_provenance.get("physical_output"),
+        "source_frame_start": 0,
     }
     contract["temporal_anchor_manifest"] = {"manifest_version": "1.0", "anchors": temporal_manifest}
     return {

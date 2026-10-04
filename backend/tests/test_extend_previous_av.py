@@ -11,6 +11,15 @@ from app.models.workflow import Workflow
 from app.repositories.shot_repository import ShotRepository
 from app.services.shot_video_service import _save_generated_video, resolve_extend_previous_av
 from app.services.comfyui.service import ComfyUIService
+from test_continuous_clip_native_av import physical
+
+
+@pytest.fixture(autouse=True)
+def fake_media_probe(monkeypatch):
+    def probe(path):
+        return physical(447 if "extend" in Path(path).name or "stale" in Path(path).name else 209, Path(path).read_bytes())
+    monkeypatch.setattr("app.services.shot_video_service.probe_clip_av", probe)
+    monkeypatch.setattr("app.services.continuous_clip_av.probe_clip_av", probe)
 
 
 def _state(tmp_path):
@@ -159,12 +168,14 @@ def test_extend_endpoint_snapshots_previous_contract_and_routes_physical_workflo
     metadata = json.loads(created.metadata_json)
     assert created.workflow_id == workflow.id
     assert metadata["capability"] == "EXTEND"
-    assert metadata["execution_contract"]["artifact_kind"] == "CLIP_ONLY"
+    assert metadata["execution_contract"]["artifact_kind"] == "NATIVE_CONTINUITY_OUTPUT"
     assert metadata["execution_contract"]["previous_clip"] == {
         "clip_index": 1,
         "clip_plan_revision": 4,
         "generated_by_task_id": task.id,
         "result_url": task.result_url,
+        "physical_output": {**physical(209,artifact.read_bytes()), "physical_output_role":"CLIP_ONLY"},
+        "source_frame_start": 0,
     }
     assert "selected_mode" not in captured["kwargs"]
 
@@ -210,7 +221,7 @@ def test_temporal_extend_endpoint_compiles_explicit_anchor_and_routes_frozen_wor
     metadata = json.loads(created.metadata_json)
     assert created.workflow_id == workflow.id
     assert metadata["capability"] == "TEMPORAL_EXTEND"
-    assert metadata["execution_contract"]["artifact_kind"] == "CLIP_ONLY"
+    assert metadata["execution_contract"]["artifact_kind"] == "NATIVE_CONTINUITY_OUTPUT"
     assert metadata["execution_contract"]["temporal_anchor_manifest"]["anchors"][0]["frame_position"] == 97
     assert metadata["execution_contract"]["previous_clip"]["generated_by_task_id"] == previous_task.id
     assert metadata["video_reference_manifest"]["references"] == []
@@ -225,7 +236,8 @@ async def test_extend_physical_adapter_binds_previous_duration_prompt_and_refs(d
         "105": {"class_type": "PrimitiveFloat", "inputs": {}},
         "107": {"class_type": "CR Prompt Text", "inputs": {}},
         "55": {"class_type": "MiniMaxH3ReferenceToVideo", "inputs": {f"ref_images.ref_image_{i}": [node, 0] for i, node in enumerate(("69", "68", "109", "110", "111", "112", "113", "114", "115"))}},
-        "65": {"class_type": "MiniMaxH3StreamLiveExtensionAVToVHS", "inputs": {}},
+        "65": {"class_type": "MiniMaxH3StreamLiveExtensionAVToVHS", "inputs": {"context_frames":39,"video_overlap_frames":39,"source_fps":24}},
+        "99": {"class_type": "MiniMaxH3FinalizeVHSOutput", "inputs": {"filenames":["65",0]}},
         **{node: {"class_type": "LoadImage", "inputs": {}} for node in ("69", "68", "109", "110", "111", "112", "113", "114", "115")},
     }
     workflow_json = json.dumps(workflow)
@@ -278,7 +290,8 @@ async def test_semantic_continuation_persists_clip_and_preserves_shot_final(db_s
     metadata = {
         "execution_scope": "CLIP", "clip_index": 2, "clip_plan_revision": 4,
         "capability": capability, "requested_duration": 8.0,
-        "execution_contract": {"capability": capability, "artifact_kind": "CLIP_ONLY"},
+        "execution_contract": {"capability": capability, "artifact_kind": "NATIVE_CONTINUITY_OUTPUT",
+            "previous_clip": {"generated_by_task_id":"c1-task-a", "physical_output":physical(209)}},
     }
     task = Task(
         id="persist-extend-task", type="shot_video", status="running", name="C2 EXTEND",
@@ -297,7 +310,7 @@ async def test_semantic_continuation_persists_clip_and_preserves_shot_final(db_s
     monkeypatch.setattr("app.services.shot_video_service.file_storage.download_video", download_video)
     monkeypatch.setattr("app.services.shot_video_service._probe_video_duration", lambda path: 8.0)
     await _save_generated_video(
-        {"success": True, "video_url": "http://comfy/raw-extension.mp4"},
+        {"success": True, "video_url": "http://comfy/native-extension.mp4", "physical_output_role":"NATIVE_CONTINUITY_OUTPUT", "output_node_id":"65"},
         task, novel.id, chapter.id, shot.index, db_session, task.id, ShotRepository(db_session),
         clip_metadata=metadata, update_shot_result=False, artifact_suffix="clip_2_test",
     )
@@ -314,7 +327,8 @@ async def test_semantic_continuation_persists_clip_and_preserves_shot_final(db_s
     assert persisted["execution_status"] == "APPROVED"
     assert shot.video_url == "/api/files/existing-final.mp4"
     assert shot.video_status == "completed"
-    assert task_metadata["actual_duration"] == 8.0
+    assert task_metadata["actual_duration"] is None
+    assert task_metadata["physical_output"]["frame_count"] == 447
     assert "assembled_result" not in task_metadata
 
 
@@ -332,7 +346,8 @@ async def test_extend_result_does_not_cross_clip_plan_revision(db_session, tmp_p
     )
     metadata = {
         "execution_scope": "CLIP", "clip_index": 2, "clip_plan_revision": 4,
-        "capability": "EXTEND", "execution_contract": {"capability": "EXTEND", "artifact_kind": "CLIP_ONLY"},
+        "capability": "EXTEND", "execution_contract": {"capability": "EXTEND", "artifact_kind": "NATIVE_CONTINUITY_OUTPUT",
+            "previous_clip": {"generated_by_task_id":"c1-task-a", "physical_output":physical(209)}},
     }
     task = Task(
         id="stale-task", type="shot_video", status="running", name="Stale C2",
@@ -348,7 +363,7 @@ async def test_extend_result_does_not_cross_clip_plan_revision(db_session, tmp_p
     monkeypatch.setattr("app.services.shot_video_service.file_storage.base_dir", tmp_path)
     monkeypatch.setattr("app.services.shot_video_service.file_storage.download_video", download_video)
     await _save_generated_video(
-        {"success": True, "video_url": "http://comfy/stale.mp4"}, task, novel.id, chapter.id,
+        {"success": True, "video_url": "http://comfy/stale.mp4", "physical_output_role":"NATIVE_CONTINUITY_OUTPUT", "output_node_id":"65"}, task, novel.id, chapter.id,
         shot.index, db_session, task.id, ShotRepository(db_session), clip_metadata=metadata, update_shot_result=False,
     )
     db_session.refresh(task)

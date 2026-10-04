@@ -148,7 +148,7 @@ async def test_temporal_extend_service_submits_only_requested_references(db_sess
 
 
 @pytest.mark.asyncio
-async def test_temporal_extend_returns_node_39_clip_output_not_cumulative_node_65(db_session, monkeypatch):
+async def test_temporal_extend_returns_native_node65_without_changing_anchor_contract(db_session, monkeypatch):
     workflow = _workflow(db_session)
     service = ComfyUIService()
     captured = {}
@@ -173,10 +173,11 @@ async def test_temporal_extend_returns_node_39_clip_output_not_cumulative_node_6
         reference_image_paths=[],
     )
     assert result["success"] is True
-    assert captured["node_id"] == "39"
+    assert captured["node_id"] == "65"
     assert captured["strict"] is True
     assert captured["timeout"] == 1234
-    assert result["video_url"] == "node-39.mp4"
+    assert result["video_url"] == "node-65.mp4"
+    assert result["physical_output_role"] == "NATIVE_CONTINUITY_OUTPUT"
     assert captured["graph"]["65"]["inputs"]["filename_prefix"] == "probe/temporal"
     assert captured["graph"]["116"]["inputs"]["keyframe_state"] == '{"count":1,"positions":[96]}'
     assert captured["graph"]["116"]["inputs"]["indexing"] == "1-based"
@@ -184,7 +185,9 @@ async def test_temporal_extend_returns_node_39_clip_output_not_cumulative_node_6
 
 @pytest.mark.asyncio
 async def test_frozen_extend_still_selects_node_65_output(db_session, monkeypatch):
-    workflow = _workflow(db_session)
+    WorkflowService(db_session).load_default_workflows()
+    workflow = db_session.query(Workflow).filter(Workflow.type == 'VIDEO_CONTINUATION', Workflow.is_system == True).one()
+    assert json.loads(workflow.workflow_json)['99']['inputs']=={'filenames':['65',0]}
     service = ComfyUIService()
     captured = {}
 
@@ -208,28 +211,55 @@ async def test_frozen_extend_still_selects_node_65_output(db_session, monkeypatc
     )
     assert result["success"] is True
     assert captured["node_id"] == "65"
-    assert captured["strict"] is False
+    assert captured["strict"] is True
 
 
-def test_strict_temporal_output_parsing_uses_node_39_and_never_scans_node_65():
+@pytest.mark.asyncio
+@pytest.mark.parametrize('missing',['sink','native_output'])
+async def test_native_missing_cannot_queue_without_sink_or_fallback_to_raw(db_session,monkeypatch,missing):
+    from unittest.mock import AsyncMock
+    workflow=_workflow(db_session)
+    graph=json.loads(workflow.workflow_json)
+    if missing=='sink':graph.pop('99')
+    service=ComfyUIService()
+    monkeypatch.setattr(service.client,'upload_video',AsyncMock(return_value={'success':True,'filename':'previous.mp4'}))
+    queued=AsyncMock(return_value={'success':True,'prompt_id':'native-missing'})
+    monkeypatch.setattr(service.client,'queue_prompt',queued)
+    async def wait(_prompt,_graph,node_id,**kwargs):
+        assert node_id=='65' and kwargs['strict_output_node']
+        parsed=service.client._parse_outputs({'39':{'gifs':[{'filename':'raw.mp4'}]}},save_image_node_id=node_id,strict_output_node=True)
+        assert parsed is None
+        return {'success':False,'message':'completed without node65'}
+    monkeypatch.setattr(service.client,'wait_for_result',wait)
+    result=await service.generate_video_continuation_with_workflow(
+        prompt='unchanged',workflow_json=graph,node_mapping=json.loads(workflow.node_mapping),
+        previous_video_path='/previous.mp4',duration_seconds=8,filename_prefix='test/native',
+        capability='TEMPORAL_EXTEND',anchors=[],reference_image_paths=[],require_native_output=True)
+    assert result['success'] is False
+    assert 'NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE' in result['message']
+    assert not result.get('video_url')
+    assert queued.await_count==(0 if missing=='sink' else 1)
+
+
+def test_strict_native_output_parsing_uses_node65_and_never_scans_raw39():
     client = ComfyUIClient()
     outputs = {
         "39": {"gifs": [{"filename": "generated.mp4", "subfolder": "probe", "type": "output"}]},
         "65": {"gifs": [{"filename": "cumulative.mp4", "subfolder": "probe", "type": "output"}]},
     }
-    result = client._parse_outputs(outputs, save_image_node_id="39", strict_output_node=True)
-    assert result["video_url"].endswith("filename=generated.mp4&subfolder=probe&type=output")
+    result = client._parse_outputs(outputs, save_image_node_id="65", strict_output_node=True)
+    assert result["video_url"].endswith("filename=cumulative.mp4&subfolder=probe&type=output")
 
 
-def test_strict_temporal_output_parsing_fails_when_node_39_missing_or_malformed():
+def test_strict_native_output_parsing_fails_when_node65_missing_or_malformed():
     client = ComfyUIClient()
-    cumulative = {"65": {"gifs": [{"filename": "cumulative.mp4"}]}}
-    assert client._parse_outputs(cumulative, save_image_node_id="39", strict_output_node=True) is None
+    raw_only = {"39": {"gifs": [{"filename": "generated.mp4"}]}}
+    assert client._parse_outputs(raw_only, save_image_node_id="65", strict_output_node=True) is None
     malformed = {
-        "39": {"gifs": [{"filename": "not-a-video.bin"}]},
-        "65": {"gifs": [{"filename": "cumulative.mp4"}]},
+        "65": {"gifs": [{"filename": "not-a-video.bin"}]},
+        "39": {"gifs": [{"filename": "generated.mp4"}]},
     }
-    assert client._parse_outputs(malformed, save_image_node_id="39", strict_output_node=True) is None
+    assert client._parse_outputs(malformed, save_image_node_id="65", strict_output_node=True) is None
 
 
 def test_non_strict_output_parsing_keeps_generic_fallback():

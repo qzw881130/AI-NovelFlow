@@ -12,6 +12,7 @@ from app.models.task import Task
 
 ACTIVE_TASK_STATUSES = {"pending", "queued", "processing", "running"}
 CURRENT_CLIP_ARTIFACT_FIELDS = {
+    "physical_output",
     "generated_by_task_id",
     "video_url",
     "local_path",
@@ -24,6 +25,7 @@ CURRENT_CLIP_ARTIFACT_FIELDS = {
     "error_message",
 }
 CURRENT_ASSEMBLY_FIELDS = {
+    "assembly_spans",
     "merged_video_url",
     "merged_at",
     "assembly_status",
@@ -177,7 +179,7 @@ def current_visual_state_consumers(
             and metadata.get("execution_scope") == "CLIP"
             and _safe_int(metadata.get("clip_index")) == index
             and _safe_int(metadata.get("clip_plan_revision")) == revision
-            and contract.get("artifact_kind") == "CLIP_ONLY"
+            and contract.get("artifact_kind") in {"CLIP_ONLY", "NATIVE_CONTINUITY_OUTPUT"}
         ):
             continue
 

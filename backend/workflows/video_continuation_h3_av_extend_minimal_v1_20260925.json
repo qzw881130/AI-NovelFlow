@@ -665,5 +665,17 @@
     "_meta": {
       "title": "#115 Reference Image 9"
     }
+  },
+  "99": {
+    "inputs": {
+      "filenames": [
+        "65",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3FinalizeVHSOutput",
+    "_meta": {
+      "title": "#99 H3 Final Stream Output Sink"
+    }
   }
 }

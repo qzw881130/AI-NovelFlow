@@ -532,7 +532,7 @@ class ComfyUIService:
             print(f"[ComfyUI] Generate shot video failed: {e}")
             return {"success": False, "message": f"生成失败: {str(e)}"}
 
-    async def generate_video_continuation_with_workflow(self, prompt, workflow_json, node_mapping, previous_video_path, duration_seconds, filename_prefix, capability="VIDEO_CONTINUATION", anchors=None, on_prompt_queued=None, reference_image_paths=None):
+    async def generate_video_continuation_with_workflow(self, prompt, workflow_json, node_mapping, previous_video_path, duration_seconds, filename_prefix, capability="VIDEO_CONTINUATION", anchors=None, on_prompt_queued=None, reference_image_paths=None, require_native_output=False):
         try:
             workflow_json = json.loads(workflow_json) if isinstance(workflow_json, str) else json.loads(json.dumps(workflow_json))
             upload = await self.client.upload_video(previous_video_path)
@@ -574,21 +574,40 @@ class ComfyUIService:
                     filename_prefix,
                     reference_image_filenames=reference_filenames,
                 )
+            native_node = workflow.get("65") or {}
+            native_output = native_node.get("class_type") == "MiniMaxH3StreamLiveExtensionAVToVHS"
+            if (require_native_output or capability == "TEMPORAL_EXTEND") and not native_output:
+                return {"success": False, "message": "NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE"}
+            if native_output:
+                inputs = native_node.get("inputs") or {}
+                finalized = any(
+                    node.get("class_type") == "MiniMaxH3FinalizeVHSOutput"
+                    and (node.get("inputs") or {}).get("filenames") == ["65", 0]
+                    for node in workflow.values() if isinstance(node, dict)
+                )
+                if not finalized or inputs.get("context_frames") != 39 or inputs.get("video_overlap_frames") != 39 or inputs.get("source_fps") != 24:
+                    return {"success": False, "message": "NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE"}
             queued = await self.client.queue_prompt(workflow)
             if not queued.get("success"):
                 return {"success": False, "message": queued.get("error") or "续生成任务提交失败"}
             prompt_id = queued.get("prompt_id")
             self._notify_prompt_queued(on_prompt_queued, prompt_id, workflow)
-            # The temporal graph's #65 is cumulative Previous AV + extension.
-            # Its frozen #39 VHS_VideoCombine is the generated current-Clip artifact.
-            result_node_id = "39" if capability == "TEMPORAL_EXTEND" else node_mapping.get("video_save_node_id")
+            # Native H3 continuity contains the AV overlap replacement. #39
+            # includes borrowed context and is only a raw/debug preview.
+            result_node_id = "65" if native_output else node_mapping.get("video_save_node_id")
             result = await self.client.wait_for_result(
                 prompt_id,
                 workflow,
                 result_node_id,
                 timeout=int(get_settings().COMFYUI_TIMEOUT),
-                strict_output_node=capability == "TEMPORAL_EXTEND",
+                strict_output_node=native_output,
             )
+            if native_output:
+                if not result.get("success") or not result.get("video_url"):
+                    return {**result, "success": False,
+                            "message": f"NATIVE_CONTINUITY_OUTPUT_UNAVAILABLE: {result.get('message') or 'node65 output missing'}",
+                            "prompt_id": prompt_id, "submitted_workflow": workflow}
+                result = {**result, "physical_output_role": "NATIVE_CONTINUITY_OUTPUT", "output_node_id": "65"}
             return {**result, "prompt_id": prompt_id, "submitted_workflow": workflow}
         except Exception as exc:
             return {"success": False, "message": str(exc)}

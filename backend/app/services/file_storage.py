@@ -572,6 +572,60 @@ class FileStorageService:
             return {"success": False, "message": f"帧提取失败: {str(e)}"}
 
 
+    async def merge_continuous_clip_spans(self, projection: dict, output_path: str) -> Dict[str, Any]:
+        """Render validated native overlap spans on one shared AV timeline."""
+        import asyncio
+        import subprocess
+        import uuid
+        from app.services.continuous_clip_av import continuous_assembly_filter, probe_clip_av
+
+        output = Path(output_path)
+        working = output.with_name(f'.{output.stem}.{uuid.uuid4().hex}.assembling.mp4')
+        try:
+            spans = projection["spans"]
+            if not spans:
+                raise ValueError("没有 continuous Clip AV spans")
+            for span in spans:
+                actual = await asyncio.to_thread(probe_clip_av, span["path"])
+                if any(actual[k] != span["physical_output"].get(k) for k in actual):
+                    raise ValueError("CONTINUOUS_ASSEMBLY_SOURCE_CHANGED")
+            target = next((s["physical_output"] for s in spans
+                           if s["physical_output"].get("physical_output_role") == "NATIVE_CONTINUITY_OUTPUT"),
+                          spans[0]["physical_output"])
+            filter_graph = continuous_assembly_filter(spans, target["width"], target["height"])
+            output.parent.mkdir(parents=True, exist_ok=True)
+            cmd = ['ffmpeg', '-v', 'error', '-filter_complex_threads', '1']
+            for span in spans:
+                cmd.extend(['-i', span["path"]])
+            cmd.extend(['-filter_complex', filter_graph, '-map', '[v]', '-map', '[a]',
+                        '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p',
+                        '-r', '24', '-enc_time_base:v', '1:24', '-video_track_timescale', '24000',
+                        '-fps_mode', 'cfr', '-c:a', 'aac', '-ar', '48000', '-ac', '2',
+                        '-movflags', '+faststart', '-y', str(working)])
+            result = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True)
+            if result.returncode:
+                raise ValueError(f"Continuous AV assembly失败: {result.stderr[:400]}")
+            actual = await asyncio.to_thread(probe_clip_av, str(working))
+            if actual['frame_count'] != projection['frame_count'] or not actual['has_audio']:
+                raise ValueError("CONTINUOUS_ASSEMBLY_FRAME_COUNT_INVALID")
+            # Audio/video use the same boundary; retain any longer native final
+            # audio tail rather than shortening it to a raw preview duration.
+            final = spans[-1]
+            native_audio_tail = max(0, final['physical_output']['audio_duration'] - final['end_frame'] / 24)
+            if abs(actual['audio_duration'] - (projection['duration'] + native_audio_tail)) > 1 / 24:
+                raise ValueError("CONTINUOUS_ASSEMBLY_AV_SYNC_INVALID")
+            decoded = await asyncio.to_thread(subprocess.run,
+                ['ffmpeg', '-v', 'error', '-i', str(working), '-f', 'null', '-'], capture_output=True, text=True)
+            if decoded.returncode or decoded.stderr.strip():
+                raise ValueError("CONTINUOUS_ASSEMBLY_DECODE_INVALID")
+            os.replace(working, output)
+            return {"success": True, "output_path": str(output), "physical_output": actual,
+                    "filter_complex": filter_graph, "assembly_frame_count": projection['frame_count']}
+        except (ValueError, OSError, subprocess.SubprocessError, KeyError) as exc:
+            return {"success": False, "message": str(exc)}
+        finally:
+            working.unlink(missing_ok=True)
+
     async def merge_videos(self, video_paths: List[str], output_path: str, 
                           transition_videos: List[str] = None) -> Dict[str, Any]:
         """

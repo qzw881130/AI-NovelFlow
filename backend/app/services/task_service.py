@@ -746,7 +746,7 @@ class TaskService:
                 contract = metadata.get("execution_contract") or {}
                 return (
                     metadata.get("execution_scope") == "CLIP"
-                    and contract.get("artifact_kind") == "CLIP_ONLY"
+                    and contract.get("artifact_kind") in {"CLIP_ONLY", "NATIVE_CONTINUITY_OUTPUT"}
                 )
 
             def mark_related_shot_failed() -> None:

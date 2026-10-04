@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -307,6 +308,8 @@ async def test_canonical_clip_save_promotes_new_artifact_and_invalidates_exact_s
     monkeypatch.setattr("app.services.shot_video_service.file_storage.download_video", download_video)
     monkeypatch.setattr("app.services.shot_video_service._probe_video_duration", lambda _path: 4.0)
     monkeypatch.setattr("app.services.shot_video_service.url_to_local_path", lambda _url: str(output))
+    from test_continuous_clip_native_av import physical
+    monkeypatch.setattr("app.services.shot_video_service.probe_clip_av", lambda path: physical(209, Path(path).read_bytes()))
 
     await _save_generated_video(
         {"success": True, "video_url": "http://comfy/new-c1.mp4"},
