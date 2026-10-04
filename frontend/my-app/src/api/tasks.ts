@@ -3,6 +3,20 @@
  */
 import { api } from './index';
 
+/** Read-only projection of persisted Clip physical metadata. */
+export interface ClipPhysicalOutput {
+  physical_output_role?: string;
+  output_node_id?: string;
+  result_url?: string;
+  source_video_url?: string;
+  fps?: number;
+  timebase?: string;
+  overlap_frames?: number;
+  overlap_duration?: number;
+  native_cumulative_duration?: number;
+  raw_context_output?: { physical_output_role?: string; output_node_id?: string; result_url?: string; source_video_url?: string };
+}
+
 export interface Task {
   id: string;
   type: string;
@@ -32,6 +46,8 @@ export interface Task {
     clip_index?: number;
     clip_plan_revision?: number;
     capability?: string;
+    artifact_kind?: string;
+    physical_output?: ClipPhysicalOutput;
     planned_duration?: number;
     requested_duration?: number;
     actual_duration?: number | null;
@@ -47,7 +63,14 @@ export interface Task {
       slot?: number; kind?: string; source_type?: string; source_keyframe_index?: number;
       image_url?: string; binding?: { uploaded_filename?: string | null; workflow_node_id?: string | null };
     }> };
-    execution_contract?: { temporal_anchor_manifest?: { anchors?: Array<{
+    execution_contract?: {
+      artifact_kind?: string;
+      capability?: string;
+      previous_clip?: {
+        clip_index?: number; clip_plan_revision?: number; generated_by_task_id?: string;
+        result_url?: string; physical_output?: ClipPhysicalOutput;
+      };
+      temporal_anchor_manifest?: { anchors?: Array<{
       anchor_id?: string; slot?: number; time_seconds?: number; frame_position?: number; image_url?: string;
     }> } };
     dialogue_assignment?: Array<{

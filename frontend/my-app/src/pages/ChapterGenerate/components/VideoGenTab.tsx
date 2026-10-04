@@ -17,6 +17,7 @@ import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
 import { taskApi } from '../../../api/tasks';
 import { RequiredImagesPreparation } from './RequiredImagesPreparation';
+import { getClipArtifactPresentation, getPreviousAvPresentation } from '../nativeClipPresentation';
 import { canPrepareMaterials, clipPreparationPresentation, prepareCurrentRequiredImages } from '../requiredImagePreparation';
 import type { Task } from '../../../api/tasks';
 import { toast } from '../../../stores/toastStore';
@@ -168,8 +169,11 @@ function ClipMetadataDetails({ children, task }: { children: (task?: Task) => Re
   );
 }
 
-function ClipExecutionDetails({ clip, plan, task }: { clip: SemanticClipPlan; plan: VideoDirectorPlan; task?: Task }) {
+function ClipExecutionDetails({ clip, plan, task, previousTask }: { clip: SemanticClipPlan; plan: VideoDirectorPlan; task?: Task; previousTask?: Task }) {
   const metadata = task?.clipExecution;
+  const artifact = getClipArtifactPresentation(clip, task);
+  const previousClip = plan.clip_plan?.find(item => item.clip_index === clip.previous_clip_index);
+  const previous = getPreviousAvPresentation(clip, task, previousClip, previousTask);
   const list = (value: unknown): any[] => Array.isArray(value) ? value.filter(item => item != null) : [];
   const owned = list(clip.visual_state_indexes);
   const selected = list(clip.selected_temporal_target_ids);
@@ -190,10 +194,24 @@ function ClipExecutionDetails({ clip, plan, task }: { clip: SemanticClipPlan; pl
       <div>Carry-in：{clip.carry_in_state_index != null ? `KF${clip.carry_in_state_index}（仅承接，非 owned/reference）` : '无'}</div>
       <div>Selected temporal targets：{selected.length ? selected.join('、') : '无'}</div>
       <div>Required images：{required.length ? required.map(item => `${item.state_id || `KF${item.state_index}`} ${item.ready === true ? '已就绪' : item.missing === true ? '缺失' : '状态未提供'}`).join('、') : '未提供或无'}</div>
-      <div>Previous AV dependency：{clip.previous_clip_index != null ? `C${clip.previous_clip_index}` : '无'} · {readiness?.code || '就绪状态未提供'}</div>
-      {metadata?.previous_approved_video_url && <div className="break-all">Previous AV：{metadata.previous_approved_video_url}</div>}
+      <div>Previous AV dependency：{previous.label}</div>
+      {artifact.continuous && <>
+        <div>Native continuity output：{artifact.outputStatus}</div>
+        <div>Native overlap：{artifact.overlapLabel}</div>
+        <div>{artifact.playbackUnavailableReason}</div>
+      </>}
       <div>Approval：{metadata?.approval_status || clip.execution_status || '未提供'}</div>
-      {task && <div className="break-all">执行 Task {task.id} · {task.resultUrl || '无结果文件'}</div>}
+      {task && <div>生成结果：{task.resultUrl ? artifact.resultLabel : '无结果文件'}</div>}
+      <details className="mt-1">
+        <summary className="cursor-pointer">执行诊断 / URL</summary>
+        <div>Readiness：{readiness?.code || '未提供'}</div>
+        {previous.debugUrl && <div className="break-all">Previous AV URL：{previous.debugUrl}</div>}
+        {task && <div className="break-all">执行 Task {task.id} · {artifact.resultLabel} · {task.resultUrl || '无结果文件'}</div>}
+        {metadata?.physical_output?.raw_context_output && <div className="break-all">
+          Raw context output（仅诊断）：node {metadata.physical_output.raw_context_output.output_node_id || '未提供'}
+          {metadata.physical_output.raw_context_output.result_url || metadata.physical_output.raw_context_output.source_video_url || ''}
+        </div>}
+      </details>
       <div>Physical reference manifest：{references.length ? '' : '未提供或为空；不从 State 编号推断'}</div>
       {references.map((reference, index) => (
         <div key={index} className="break-all">
@@ -283,9 +301,10 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
           };
           const dialogueAssignment = metadata?.dialogue_assignment || clip.dialogue_assignment;
           const carryInLabel = getCarryInLabel(clip);
-          const isContinuation = ['EXTEND', 'TEMPORAL_EXTEND'].includes(String(clip.capability));
-          const cumulativeUrl = metadata?.assembled_result?.url || clip.video_url || task?.resultUrl || null;
-          const cumulativeDuration = metadata?.assembled_result?.assembled_media_duration ?? metadata?.assembled_media_duration;
+          const artifact = getClipArtifactPresentation(clip, task);
+          const isContinuation = artifact.continuous;
+          const previousClip = clips.find(item => item.clip_index === clip.previous_clip_index);
+          const previousTask = previousClip ? resolveSemanticClipTask(previousClip, tasks, revision) : undefined;
           const clipKey = String(clip.clip_index);
           const isRegenerating = regeneratingClipKey === clipKey;
           const preparation = clipPreparationPresentation(shot, Number(clip.clip_index));
@@ -302,7 +321,7 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
                 <span className="rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-700" title={clip.capability}>{getSemanticCapabilityLabel(clip.capability)}</span>
                 <span className="rounded-md bg-slate-50 px-2 py-1 text-[11px] text-slate-600">{getSemanticContinuityLabel(clip.continuity_to_previous)}</span>
                 <span className="text-[11px] tabular-nums text-gray-600">
-                  {Number(clip.planned_duration ?? (Number(clip.end_time) - Number(clip.start_time)))}s{isContinuation && cumulativeDuration != null ? ` · 累计成片 ${Number(cumulativeDuration).toFixed(3).replace(/\.000$/, '')}s` : !isContinuation && metadata?.actual_duration != null ? ` · 实际 ${metadata.actual_duration}s` : ''}
+                  {Number(clip.planned_duration ?? (Number(clip.end_time) - Number(clip.start_time)))}s{isContinuation && artifact.nativeDuration != null ? ` · Native 累计输出 ${Number(artifact.nativeDuration).toFixed(3).replace(/\.000$/, '')}s` : !isContinuation && metadata?.actual_duration != null ? ` · 实际 ${metadata.actual_duration}s` : ''}
                 </span>
                 <span className={`text-[10px] font-medium ${clipStatus === 'COMPLETED' ? 'text-green-700' : clipStatus === 'FAILED' ? 'text-red-700' : clipStatus === 'RUNNING' ? 'text-blue-700' : 'text-gray-500'}`}>{clipStatusLabel[clipStatus]}</span>
                 {carryInLabel && (
@@ -312,11 +331,14 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
                 )}
                 <span className="text-[11px] text-gray-600">视觉状态：{getOwnedVisualStateLabel(clip).replace(/KF/g, '')}</span>
                 <div className="ml-auto flex items-center gap-2">
-                  {cumulativeUrl && (
-                    <button type="button" onClick={() => onPreviewClip({ ...clip, clip_index: clip.clip_index, video_url: cumulativeUrl })} className="rounded-md border border-blue-200 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50">
+                  {artifact.playbackUrl && (
+                    <button type="button" onClick={() => onPreviewClip({ ...clip, clip_index: clip.clip_index, video_url: artifact.playbackUrl })} className="rounded-md border border-blue-200 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50">
                       播放片段 {clip.clip_index}
                     </button>
                   )}
+                  {isContinuation && <button type="button" disabled title={artifact.playbackUnavailableReason} className="rounded-md border border-gray-200 px-2.5 py-1 text-[11px] text-gray-500">
+                    独立预览暂不可用
+                  </button>}
                   <div className="relative inline-flex">
                     <button
                       type="button"
@@ -338,7 +360,7 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
                     </button>
                   </div>
                   <ClipMetadataDetails task={task}>
-                    {(detailTask) => <ClipExecutionDetails clip={clip} plan={plan} task={detailTask} />}
+                    {(detailTask) => <ClipExecutionDetails clip={clip} plan={plan} task={detailTask} previousTask={previousTask} />}
                   </ClipMetadataDetails>
                 </div>
               </div>
@@ -2437,10 +2459,9 @@ export function VideoGenTab({
   const currentPlanClips: any[] = hasSemanticClipPlan
     ? (currentVideoDirectorPlan.clip_plan || []).map((clip: any) => {
       const task = resolveSemanticClipTask(clip, semanticClipTasks, semanticClipPlanRevision);
-      const metadata = task?.clipExecution;
       return {
         ...clip,
-        video_url: metadata?.assembled_result?.url || task?.resultUrl || clip.video_url || null,
+        video_url: getClipArtifactPresentation(clip, task).playbackUrl,
         preview_task_status: task?.status,
       };
     })
@@ -2451,7 +2472,9 @@ export function VideoGenTab({
   const currentFinalShotVideoUrl = currentIsCanonicalPlan
     ? hasCurrentAssembly(currentVideoDirectorPlan, semanticClipTasks) ? (currentVideoDirectorPlan.merged_video_url || currentShotVideoUrl) : undefined
     : currentShotVideoUrl;
-  const previewVideoUrl = selectedPreviewClipUrl || selectedPreviewClip?.video_url || currentFinalShotVideoUrl;
+  const previewVideoUrl = hasSemanticClipPlan
+    ? selectedPreviewClipKey ? selectedPreviewClip?.video_url || undefined : currentFinalShotVideoUrl
+    : selectedPreviewClipUrl || selectedPreviewClip?.video_url || currentFinalShotVideoUrl;
   const previewVideoLabel = selectedPreviewClip ? `C${selectedPreviewClip.window_index || selectedPreviewClip.clip_index}` : 'Shot';
   const previewClipMarkers = !selectedPreviewClip && !hasSemanticClipPlan && currentSelectedVideoMode === 'MULTI_KEYFRAME'
     ? currentPlanClips

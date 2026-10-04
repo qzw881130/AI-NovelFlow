@@ -1355,6 +1355,7 @@ class TaskService:
                 "capability", "planned_duration", "requested_duration", "actual_duration", "assembled_media_duration", "assembled_result",
                 "approval_status", "approval_mode", "previous_approved_task_id",
                 "previous_approved_video_url", "previous_approved_video_source", "temporal_anchor_ids", "dialogue_assignment",
+                "artifact_kind", "physical_output", "execution_contract",
             )
             return {key: metadata.get(key) for key in keys if key in metadata}
 
