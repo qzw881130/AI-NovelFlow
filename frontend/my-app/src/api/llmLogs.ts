@@ -3,6 +3,13 @@
  */
 import { api, API_BASE } from './index';
 
+export const LLM_CANCELLED_MESSAGE = '任务被用户取消，LLM 响应已忽略';
+
+export interface LLMLogCancellationResult {
+  cancelled_ids: string[];
+  skipped_ids: string[];
+}
+
 export interface LLMLog {
   id: string;
   created_at: string;
@@ -92,6 +99,20 @@ export interface LLMLogTokenStatsResponse {
 }
 
 export const llmLogsApi = {
+  /** 仅终止所选日志中的进行中调用，后端重新核对实时状态 */
+  cancelSelected: async (ids: string[]): Promise<LLMLogCancellationResult> => {
+    const response = await fetch(`${API_BASE}/llm-logs/cancel-selected`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.success || !result.data) {
+      throw new Error(typeof result.detail === 'string' ? result.detail : result.message || '终止任务失败');
+    }
+    return result.data;
+  },
+
   /** 获取日志列表 */
   fetchList: (page: number, pageSize: number, filters: LLMLogFilters) => {
     const params = new URLSearchParams();

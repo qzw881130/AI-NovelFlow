@@ -4,10 +4,12 @@ Google Gemini 提供商
 支持 Google Gemini API 格式。
 """
 import httpx
+import asyncio
 import time
 from typing import Dict, Any, Optional
 from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
 from ..metrics import normalize_metrics
+from ..cancellation import await_cancellable_llm_request, LLMCallTerminated
 
 
 class GeminiProvider(BaseLLMProvider):
@@ -131,12 +133,12 @@ class GeminiProvider(BaseLLMProvider):
                     used_proxy=used_proxy,
                     request_info=request_info,
                 )
-                response = await client.post(
+                response = await await_cancellable_llm_request(log_id, client.post(
                     endpoint,
                     headers=headers,
                     json=body,
                     timeout=timeout
-                )
+                ))
 
             duration = time.time() - start_time
 
@@ -173,6 +175,14 @@ class GeminiProvider(BaseLLMProvider):
                     error=error_msg,
                     duration=duration
                 )
+        except LLMCallTerminated:
+            raise
+        except asyncio.CancelledError:
+            try:
+                update_llm_log(log_id, status="error", error_message="LLM 请求已中断")
+            except LLMCallTerminated:
+                pass
+            raise
         except Exception as e:
             import traceback
             error_type = type(e).__name__

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from '../../../stores/toastStore';
 import { useTranslation } from '../../../stores/i18nStore';
-import { llmLogsApi, type LLMLog, type Pagination, type FilterOptions, type LLMLogFilters, type LLMLogStatsGroupBy, type LLMLogStatsResponse, type LLMLogTokenStatsResponse } from '../../../api/llmLogs';
+import { llmLogsApi, LLM_CANCELLED_MESSAGE, type LLMLog, type Pagination, type FilterOptions, type LLMLogFilters, type LLMLogStatsGroupBy, type LLMLogStatsResponse, type LLMLogTokenStatsResponse } from '../../../api/llmLogs';
 
 export type PromptTab = 'params' | 'system' | 'user' | 'response';
 
@@ -232,7 +232,10 @@ export function useLLMLogsState() {
     return `${category} / ${label}`;
   };
 
-  const getStatusBadgeConfig = (status: string) => {
+  const getStatusBadgeConfig = (status: string, errorMessage?: string | null) => {
+    if (status === 'error' && errorMessage === LLM_CANCELLED_MESSAGE) {
+      return { bg: 'bg-gray-100', text: 'text-gray-600', label: '已终止' };
+    }
     if (status === 'success') return { bg: 'bg-green-100', text: 'text-green-700', label: t('common.success') };
     if (status === 'pending') return { bg: 'bg-amber-100', text: 'text-amber-700', label: t('llmLogs.pending') };
     return { bg: 'bg-red-100', text: 'text-red-700', label: t('common.failed') };

@@ -13,7 +13,7 @@ interface LogDetailModalProps {
   formatDate: (date: string) => string;
   getTaskTypeLabel: (type: string | null) => string;
   getDisplayDuration: (log: LLMLog) => string;
-  getStatusBadgeConfig: (status: string) => { bg: string; text: string; label: string };
+  getStatusBadgeConfig: (status: string, errorMessage?: string | null) => { bg: string; text: string; label: string };
 }
 
 export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDate, getTaskTypeLabel, getDisplayDuration, getStatusBadgeConfig }: LogDetailModalProps) {
@@ -121,7 +121,7 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
               </span>
               <span className="text-gray-500">{t('llmLogs.model')}:</span><span className="font-medium">{log.model}</span>
               <span className="text-gray-500">{t('llmLogs.task')}:</span><span className="font-medium">{getTaskTypeLabel(log.task_type)}</span>
-              <span className={`px-2 py-1 text-xs ${getStatusBadgeConfig(log.status).bg} ${getStatusBadgeConfig(log.status).text} rounded-full`}>{getStatusBadgeConfig(log.status).label}</span>
+              <span className={`px-2 py-1 text-xs ${getStatusBadgeConfig(log.status, log.error_message).bg} ${getStatusBadgeConfig(log.status, log.error_message).text} rounded-full`}>{getStatusBadgeConfig(log.status, log.error_message).label}</span>
               <span className="text-gray-500">{t('llmLogs.proxy')}:</span><span className="font-medium">{log.used_proxy ? t('llmLogs.yes') : t('llmLogs.no')}</span>
               <span className="text-gray-500">{t('llmLogs.duration')}:</span>
               <span className="font-medium">{getDisplayDuration(log)}</span>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ScrollText, ChevronLeft, ChevronRight, Filter, Eye, RefreshCw, BarChart3, X, Loader2, Download } from 'lucide-react';
+import { ScrollText, ChevronLeft, ChevronRight, Filter, Eye, RefreshCw, BarChart3, X, Loader2, Download, Square } from 'lucide-react';
 import { useTranslation } from '../../stores/i18nStore';
 import type { LLMLog } from '../../api/llmLogs';
 import { useLLMLogsState } from './hooks/useLLMLogsState';
@@ -8,6 +8,7 @@ import { LogSpeed } from './components/LogSpeed';
 import { ProviderLogo } from '../../components/ProviderLogo';
 import { llmLogsApi } from '../../api/llmLogs';
 import { toast } from '../../stores/toastStore';
+import { getTerminableLogIds } from './selection';
 
 function StatsModal({ state }: { state: ReturnType<typeof useLLMLogsState> }) {
   const maxCount = Math.max(1, ...(state.statsData?.items || []).map(item => item.count));
@@ -216,10 +217,10 @@ function LogTableRow({ log, selected, onSelectionStart, onSelectionEnter, onView
   onSelectionEnter: (id: string) => void;
   truncateText: (t: string, m?: number) => string; getTaskTypeLabel: (t: string | null) => string;
   getDisplayDuration: (log: LLMLog) => string;
-  getStatusBadgeConfig: (s: string) => { bg: string; text: string; label: string };
+  getStatusBadgeConfig: (s: string, errorMessage?: string | null) => { bg: string; text: string; label: string };
 }) {
   const { t } = useTranslation();
-  const badge = getStatusBadgeConfig(log.status);
+  const badge = getStatusBadgeConfig(log.status, log.error_message);
   return (
     <tr
       className={selected ? 'bg-blue-50/60 hover:bg-blue-50' : 'hover:bg-gray-50'}
@@ -268,6 +269,8 @@ export default function LLMLogs() {
   const state = useLLMLogsState();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isTerminating, setIsTerminating] = useState(false);
+  const terminationInFlight = useRef(false);
   const dragSelectionValue = useRef<boolean | null>(null);
 
   useEffect(() => {
@@ -327,6 +330,30 @@ export default function LLMLogs() {
       toast.error(error instanceof Error ? error.message : '打包下载失败');
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const terminableIds = getTerminableLogIds(selectedIds, state.logs);
+  const terminateSelected = async () => {
+    if (!terminableIds.length || terminationInFlight.current) return;
+    const ids = [...terminableIds];
+    if (!window.confirm('确定终止所选日志中的进行中任务吗？已完成的任务不会受影响，终止后未完成的响应将被忽略。')) return;
+    terminationInFlight.current = true;
+    setIsTerminating(true);
+    try {
+      const result = await llmLogsApi.cancelSelected(ids);
+      const cancelled = new Set(result.cancelled_ids);
+      setSelectedIds(current => new Set(Array.from(current).filter(id => !cancelled.has(id))));
+      const skippedCount = result.skipped_ids.length;
+      toast.success(cancelled.size
+        ? `已终止 ${cancelled.size} 个任务${skippedCount ? `，另有 ${skippedCount} 个已结束或已终止，未重复处理` : ''}`
+        : '所选任务已结束，没有需要终止的进行中任务');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '终止任务失败');
+    } finally {
+      await state.fetchLogs({ silent: true });
+      terminationInFlight.current = false;
+      setIsTerminating(false);
     }
   };
 
@@ -413,7 +440,17 @@ export default function LLMLogs() {
             <span>已选择 {selectedIds.size} 条</span>
             {selectedIds.size > 0 && <button type="button" onClick={() => setSelectedIds(new Set())} className="text-gray-500 hover:text-gray-800">清空选择</button>}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void terminateSelected()}
+              disabled={!terminableIds.length || isTerminating}
+              title="仅终止选中的进行中任务"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isTerminating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />}
+              {isTerminating ? '终止中...' : '终止任务'}
+            </button>
             <button
               type="button"
               onClick={() => void downloadSelected()}

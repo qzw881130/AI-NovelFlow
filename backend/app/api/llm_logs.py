@@ -21,12 +21,52 @@ from app.core.config import get_settings
 from app.models.llm_log import LLMLog
 from app.repositories import LLMLogRepository
 from app.constants.prompt_template import PROMPT_TEMPLATE_FILE_NUMBERS
+from app.services.llm.cancellation import LLM_CANCELLED_MESSAGE
 
 router = APIRouter()
 
 
 class LLMLogExportRequest(BaseModel):
     ids: list[str] = Field(min_length=1, max_length=200)
+
+
+class LLMLogCancelRequest(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=200)
+
+
+@router.post("/cancel-selected")
+def cancel_selected_llm_logs(request: LLMLogCancelRequest, db: Session = Depends(get_db)):
+    """Only terminate selected pending calls; preserve completed logs and history."""
+    ids = list(dict.fromkeys(request.ids))
+    logs = db.query(LLMLog).filter(LLMLog.id.in_(ids)).all()
+    if {log.id for log in logs} != set(ids):
+        raise HTTPException(status_code=404, detail="所选日志不存在，请刷新后重试")
+    cancelled_ids = []
+    now = datetime.now(timezone.utc)
+    try:
+        for log in logs:
+            if log.status != "pending":
+                continue
+            created = log.created_at
+            if created and created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            changed = db.query(LLMLog).filter(
+                LLMLog.id == log.id, LLMLog.status == "pending",
+            ).update({
+                LLMLog.status: "error",
+                LLMLog.error_message: LLM_CANCELLED_MESSAGE,
+                LLMLog.duration: max(0, (now - created).total_seconds()) if created else None,
+            }, synchronize_session=False)
+            if changed:
+                cancelled_ids.append(log.id)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return {"success": True, "data": {
+        "cancelled_ids": cancelled_ids,
+        "skipped_ids": [id_ for id_ in ids if id_ not in cancelled_ids],
+    }}
 
 LLM_LOG_TASK_CATEGORY_TYPES = {
     "story_context": ["story_world_context_recommender"],
@@ -185,12 +225,20 @@ def reconcile_stale_pending_llm_logs(db: Session) -> int:
         LLMLog.status == "pending",
         LLMLog.created_at < cutoff,
     ).all()
+    updated_count = 0
     for log in stale_logs:
-        log.status = "error"
-        log.error_message = "LLM 调用超过配置超时时间仍未完成，可能是请求中断或后台进程已退出"
+        # Completion or selected cancellation may have committed after the read.
+        updated_count += db.query(LLMLog).filter(
+            LLMLog.id == log.id,
+            LLMLog.status == "pending",
+            LLMLog.created_at < cutoff,
+        ).update({
+            LLMLog.status: "error",
+            LLMLog.error_message: "LLM 调用超过配置超时时间仍未完成，可能是请求中断或后台进程已退出",
+        }, synchronize_session=False)
     if stale_logs:
         db.commit()
-    return len(stale_logs)
+    return updated_count
 
 
 @router.get("/")

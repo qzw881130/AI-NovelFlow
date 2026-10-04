@@ -8,6 +8,8 @@ from typing import Dict, Any, Optional
 from dataclasses import dataclass
 import json
 import uuid
+from sqlalchemy import or_
+from .cancellation import LLMCallTerminated, LLM_CANCELLED_MESSAGE
 
 
 def _sanitize_headers(headers: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -112,19 +114,28 @@ def update_llm_log(
             log = db.query(LLMLog).filter(LLMLog.id == log_id).first()
             if not log:
                 raise RuntimeError(f"日志不存在: {log_id}")
-            if log.status == "error" and log.error_message == "任务被用户取消，LLM 响应已忽略":
-                return
-            log.response = response
-            log.status = status
-            log.error_message = error_message[:LOG_ERROR_MESSAGE_MAX_LENGTH] if error_message else None
-            log.duration = duration
-            log.usage_metrics = metrics
+            # Conditional update prevents a late response from winning a cancel race.
+            updated = db.query(LLMLog).filter(
+                LLMLog.id == log_id,
+                or_(LLMLog.status != "error", LLMLog.error_message.is_(None),
+                    LLMLog.error_message != LLM_CANCELLED_MESSAGE),
+            ).update({
+                LLMLog.response: response,
+                LLMLog.status: status,
+                LLMLog.error_message: error_message[:LOG_ERROR_MESSAGE_MAX_LENGTH] if error_message else None,
+                LLMLog.duration: duration,
+                LLMLog.usage_metrics: metrics,
+            }, synchronize_session=False)
+            if not updated:
+                raise LLMCallTerminated(LLM_CANCELLED_MESSAGE)
             db.commit()
         except Exception:
             db.rollback()
             raise
         finally:
             db.close()
+    except LLMCallTerminated:
+        raise
     except Exception as e:
         print(f"[LLM Log] 更新日志失败：{e}")
 
