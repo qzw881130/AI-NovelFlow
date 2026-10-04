@@ -79,7 +79,7 @@ export function ResourcePanel({
       >
         <div className="flex items-center gap-3">
           {/* 缩略图 */}
-          <div className="relative w-20 h-20 rounded bg-gray-100 overflow-hidden flex-shrink-0">
+          <div className="relative w-24 aspect-[17/11] rounded bg-gray-100 overflow-hidden flex-shrink-0">
             {imageUrl ? (
               <>
                 <img src={imageUrl} alt={item.name} className="w-full h-full object-cover" />
