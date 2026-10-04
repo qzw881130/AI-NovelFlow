@@ -209,6 +209,70 @@ CANONICAL SINGLE SPEECH AUTHORITY (highest priority, including Novel overrides):
 """.strip()
 
 
+def _canonical_section_ownership_contract() -> str:
+    """Give existing H3 sections distinct source ownership, including overrides."""
+    return """
+CANONICAL H3 SECTION OWNERSHIP (highest priority over template expansion rules):
+Use the existing final section names below. Each fact has one owner; other
+sections refer to its Subject/KF label instead of paraphrasing or expanding it.
+The only owned-state collection is visual_controls. Legacy frames,
+ordered_keyframes, keyframes and motion_directive aliases are not supplied.
+
+subject_definitions — SUBJECT_IDENTITY:
+Define Subjects in clip_visible_characters order. Use the standard character
+name and stable identity features from shot.official_character_appearances once.
+Those asset descriptions may contain default outfits and portrait instructions:
+do not treat them as current costume, blocking, pose, action or carried objects.
+No independent current Shot appearance binding is supplied; do not invent one.
+Do not repeat these identity facts in any other section.
+
+official_character_identity_lock — META / HARD CONSTRAINTS:
+Only shared identity preservation, allowed Subjects/no new characters or props,
+and necessary physical constraints. No repeated identity-feature list, default
+costume inventory, state description, action, continuity or temporal target.
+Preserve current appearance from actual visual conditioning/canonical states;
+default asset appearance must not overwrite it. Express each shared rule once.
+
+keyframe_timeline — CURRENT_VISUAL_STATE / REFERENCE_BINDING / TEMPORAL_TARGET:
+Project each owned canonical description once from visual_controls, with its KF
+label and Clip-local time. Empty description is not permission to invent a pose:
+use its actual physical reference if present. When a state is a selected temporal
+target, put its description only in the temporal target entry, not again in an
+ordinary state entry. temporal_anchors.target_state_label links to that state;
+an unlinked target instead owns its supplied description. Keep exact anchor ID
+and Clip-local time; temporal conditioning never consumes a Picture number.
+Give each physical_picture_manifest binding once, including non-state references.
+State index is not Picture index. Other sections use KF/Subject labels instead
+of repeating Picture bindings. No carry-in state dump or future unowned state.
+
+summary — CONTINUITY:
+When conditioning.previous_av_present=true and semantic continuity requires it,
+Previous AV is the continuity conditioning. State only necessary persistence of
+identity, spatial relations, current appearance, held objects and ongoing action
+once, without describing the whole previous scene or claiming observed tail pixels.
+carry_in_state_index is context, not a newly owned visual state or Picture.
+Without Previous AV, refer to the supplied current/start state or actual reference
+for grounding; do not claim inheritance. No endpoint recap or action synopsis.
+
+detailed_description — TRANSITION_ACTION:
+Use transitions as the sole action/camera-delta source. Their times are Shot-global;
+project only the intersection with this Clip and express its Clip-local interval.
+Refer to the start/end KF authorities; do not fully redescribe their endpoint
+facts, stable identities, continuity rules or selected temporal target. Preserve
+all action changes and required prop interactions. With no transitions or new
+target, do not invent a multi-interval action script; continue the conditioned
+state naturally. Do not pad this section with repeated holds or constraints.
+
+dialogue_timeline — program owned:
+The existing deterministic speech contract remains authoritative and unchanged.
+Do not output this section or repeat its text, speakers, timing or permissions.
+
+overall_soundscape — SOUNDSCAPE:
+Retain grounded non-human ambience and action/object Foley. No speech authority,
+dialogue recap, silent-audio instruction, visual-state recap or identity rules.
+""".strip()
+
+
 def _canonical_temporal_controls(anchors: list, states: list) -> list[dict]:
     """Project semantic targets, not physical slots, paths or Task provenance."""
     by_index = {int(state["index"]): state for state in states}
@@ -224,7 +288,10 @@ def _canonical_temporal_controls(anchors: list, states: list) -> list[dict]:
             # The compiled temporal manifest already uses Clip-local time.
             "time_seconds": anchor.get("time_seconds"),
             "source_keyframe_index": int(raw_index) if raw_index is not None else None,
-            "description": state.get("description") if state else anchor.get("description"),
+            # A linked state already owns the full target description. Keep the
+            # time/identity binding here, not a second copy of the same facts.
+            **({"target_state_label": f"KF{int(raw_index)}"} if state is not None
+               else {"description": anchor.get("description")}),
         })
     return result
 
@@ -1019,9 +1086,9 @@ async def build_h3_video_prompt(
         ) if key in item} for item in transitions or [] if isinstance(item, dict)]
         if canonical_path else _sanitize_transitions_for_h3(transitions)
     )
-    clip_motion_directive = (
+    clip_motion_directive = None if canonical_path else (
         _build_clip_motion_directive(shot, clip, sanitized_transitions)
-        if canonical_path or is_multi_clip or is_semantic_clip
+        if is_multi_clip or is_semantic_clip
         else _strip_voice_rules_from_text(shot.video_description or shot.description or "")
     )
     payload = {
@@ -1056,17 +1123,19 @@ async def build_h3_video_prompt(
             "clip_index", "start_time", "end_time", "duration", "planned_duration",
             "capability", "continuity_to_previous", "visual_state_indexes", "carry_in_state_index",
         ) if key in clip} if canonical_path else strip_clip_generation_data(clip),
-        "motion_directive": clip_motion_directive,
         **({} if canonical_path else {
+            "motion_directive": clip_motion_directive,
             "clip_dialogues": dialogue_payload if is_multi_clip or is_semantic_clip else clip_dialogues,
         }),
         "clip_visible_characters": clip_visible_characters,
         "dialogue_timeline_source": assigned_dialogues,
         "dialogue_timeline_status": dialogue_timeline_status,
         "silent_characters": silent_characters,
-        "frames": mapped_frames,
-        "ordered_keyframes": mapped_keyframes if canonical_path else None,
-        "keyframes": mapped_keyframes,
+        **({} if canonical_path else {
+            "frames": mapped_frames,
+            "ordered_keyframes": None,
+            "keyframes": mapped_keyframes,
+        }),
         "temporal_anchors": _canonical_temporal_controls(temporal_anchors or [], sanitized_keyframes) if canonical_path else strip_media_refs(temporal_anchors or []),
         **({
             "conditioning": {
@@ -1086,19 +1155,16 @@ async def build_h3_video_prompt(
         "workflow_capability": strip_media_refs(workflow_capability),
         "workflow_type": workflow_type,
         "workflow_name": workflow_name,
-        "continuity_requirements": {
-            "continuity_to_previous": clip.get("continuity_to_previous"),
-            "rule": "Use the semantic Clip continuity; Previous AV is a separate conditioning channel only when provided. Do not infer speech from continuity.",
-        } if canonical_path else {
+        **({} if canonical_path else {"continuity_requirements": {
             "mode": shot.continuity_mode or "NORMAL",
             "is_continuous_take": (shot.continuity_mode or "NORMAL") == "CONTINUOUS_TAKE",
             "rule": "CONTINUOUS_TAKE forbids cuts and hidden edits; visual controls remain chronological states along one continuous trajectory.",
-        },
+        }}),
     }
     user_content = "请基于以下 Video Director 规划数据，生成可直接用于 MiniMax H3 的最终视频提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
     result = await LLMService().chat_completion(
         system_prompt=(
-            f"{template.template}\n\n{_canonical_picture_mapping_contract()}\n\n{_canonical_speech_contract()}"
+            f"{template.template}\n\n{_canonical_picture_mapping_contract()}\n\n{_canonical_speech_contract()}\n\n{_canonical_section_ownership_contract()}"
             if canonical_path else template.template
         ),
         user_content=user_content,

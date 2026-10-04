@@ -27,7 +27,7 @@ def dialogue(speaker="Mira", text="请看这里。", event="D1", start=10.5, end
 
 def invoke(monkeypatch, *, states=None, capability="EXTEND", images=(), dialogues=(),
            anchors=(), body=None, extra_clip=None, db=None, novel=None,
-           shot_characters=None):
+           shot_characters=None, appearances=None, transitions=None):
     states = states if states is not None else [state(4, 10)]
     refs = [{"slot": slot, "source_keyframe_index": index,
              "source_time_seconds": next(s["time_seconds"] for s in states if s["index"] == index),
@@ -69,12 +69,13 @@ def invoke(monkeypatch, *, states=None, capability="EXTEND", images=(), dialogue
         db=db or SimpleNamespace(commit=lambda: None), novel=novel, shot=shot,
         selected_mode=None, clip=clip, workflow_capability={}, workflow_type="frozen",
         workflow_name="frozen", start_image_url=None, keyframes=states,
-        transitions=[{"from_keyframe_index": 3, "to_keyframe_index": states[0]["index"] if states else 4,
+        transitions=transitions if transitions is not None else [{"from_keyframe_index": 3, "to_keyframe_index": states[0]["index"] if states else 4,
                       "transition_description": "抬手，身体前倾，微笑。",
                       "dialogues": [{"text": "STALE_TRANSITION"}]}],
         clip_dialogues=list(dialogues), reference_images=[], temporal_anchors=list(anchors),
         video_reference_manifest={"references": refs},
         previous_av_present=capability != "GENERATE",
+        character_appearances=appearances,
     ))
     payload = json.loads(calls[0]["user_content"].split("\n\n", 1)[1])
     return result, payload, calls[0], json.loads(shot.video_director_plan)["ai_calls"][-1]
@@ -154,7 +155,7 @@ def test_universal_speech_pipeline_all_semantic_shapes_and_capabilities(monkeypa
         assert all(s["physical_picture"] is None for s in payload["visual_controls"])
     if anchors:
         assert payload["temporal_anchors"] == [{"anchor_id": "A1", "time_seconds": 0,
-            "source_keyframe_index": 4, "description": states[0]["description"]}]
+            "source_keyframe_index": 4, "target_state_label": "KF4"}]
         assert "frame_position" not in call["user_content"]
     assert payload["conditioning"]["previous_av_present"] == (capability != "GENERATE")
     assert "shot_continuity_lock:" not in prompt  # Shot guidance cannot override semantic CUT.
@@ -188,7 +189,8 @@ def test_temporal_anchor_cannot_turn_one_owned_control_into_multi(monkeypatch):
 
 def test_carry_in_and_empty_owned_never_synthesize_raw_control(monkeypatch):
     _, payload, _, _ = invoke(monkeypatch, states=[], extra_clip={"carry_in_state_index": 3})
-    assert payload["visual_controls"] == payload["frames"] == payload["keyframes"] == []
+    assert payload["visual_controls"] == []
+    assert not {"frames", "ordered_keyframes", "keyframes"}.intersection(payload)
     assert payload["control_counts"]["semantic_control_count"] == 0
 
 
