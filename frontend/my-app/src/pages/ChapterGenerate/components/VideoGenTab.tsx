@@ -11,6 +11,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useChapterGenerateStore } from '../stores';
+import { useShotReferenceImages } from '../useShotReferenceImages';
 import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info, ChevronLeft, ChevronRight, RefreshCw, Sparkles, PictureInPicture, Trash2 } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
@@ -83,6 +84,131 @@ type VideoImageEditTarget = {
   frameIndex?: number;
 };
 
+function ClipMetadataDetails({ children, task }: { children: (task?: Task) => React.ReactNode; task?: Task }) {
+  const detailsRef = useRef<HTMLDetailsElement | null>(null);
+  const summaryRef = useRef<HTMLElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [taskSnapshot, setTaskSnapshot] = useState<{ source: Task; data: Task } | null>(null);
+  const [placement, setPlacement] = useState<{ left: number; top?: number; bottom?: number; maxHeight: number }>({ left: 0, top: 0, maxHeight: 256 });
+
+  useEffect(() => {
+    if (!isOpen || !task) return;
+    let cancelled = false;
+    taskApi.fetch(task.id).then((response) => {
+      const data = response.data;
+      if (!cancelled && data?.id === task.id
+        && data.clipExecution?.clip_plan_revision === task.clipExecution?.clip_plan_revision) {
+        setTaskSnapshot({ source: task, data });
+      }
+    }).catch(() => { if (!cancelled) setTaskSnapshot(null); });
+    return () => { cancelled = true; };
+  }, [isOpen, task]);
+
+  const updatePlacement = useCallback(() => {
+    const summary = summaryRef.current;
+    if (!summary) return;
+    const rect = summary.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > window.innerHeight) {
+      if (detailsRef.current) detailsRef.current.open = false;
+      return;
+    }
+    const width = Math.min(320, window.innerWidth - 24);
+    const left = Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12));
+    const spaceBelow = window.innerHeight - rect.bottom - 12;
+    const spaceAbove = rect.top - 12;
+    if (spaceBelow < 160 && spaceAbove > spaceBelow) {
+      setPlacement({ left, bottom: window.innerHeight - rect.top + 6, maxHeight: Math.min(256, spaceAbove) });
+    } else {
+      setPlacement({ left, top: rect.bottom + 6, maxHeight: Math.min(256, spaceBelow) });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!detailsRef.current?.contains(target) && !popoverRef.current?.contains(target) && detailsRef.current) {
+        detailsRef.current.open = false;
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && detailsRef.current) detailsRef.current.open = false;
+    };
+    window.addEventListener('resize', updatePlacement);
+    window.addEventListener('scroll', updatePlacement, true);
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      window.removeEventListener('resize', updatePlacement);
+      window.removeEventListener('scroll', updatePlacement, true);
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isOpen, updatePlacement]);
+
+  return (
+    <details ref={detailsRef} className="relative text-[11px] text-gray-500" onToggle={(event) => {
+      if (event.currentTarget.open) updatePlacement();
+      setIsOpen(event.currentTarget.open);
+    }}>
+      <summary ref={summaryRef} className="cursor-pointer">详情</summary>
+      {isOpen && createPortal(
+        <div
+          ref={popoverRef}
+          role="tooltip"
+          className="fixed z-[120] w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-md border border-gray-200 bg-white p-3 text-[11px] leading-relaxed text-gray-600 shadow-xl"
+          style={placement}
+        >
+          {children(taskSnapshot?.source === task ? taskSnapshot?.data : task)}
+        </div>,
+        document.body,
+      )}
+    </details>
+  );
+}
+
+function ClipExecutionDetails({ clip, plan, task }: { clip: SemanticClipPlan; plan: VideoDirectorPlan; task?: Task }) {
+  const metadata = task?.clipExecution;
+  const list = (value: unknown): any[] => Array.isArray(value) ? value.filter(item => item != null) : [];
+  const owned = list(clip.visual_state_indexes);
+  const selected = list(clip.selected_temporal_target_ids);
+  const required = list(plan.required_execution_images).filter(item =>
+    list(item.consumer_clip_indexes).includes(Number(clip.clip_index)));
+  const readiness = list(plan.clip_execution_readiness).find(item => Number(item.clip_index) === Number(clip.clip_index));
+  // Only the backend's final physical manifest owns Picture numbering. State
+  // indexes, carry-in and selected targets never fill gaps in this list.
+  const references = list(metadata?.video_reference_manifest?.references);
+  const anchors = list(metadata?.execution_contract?.temporal_anchor_manifest?.anchors);
+  const revision = plan.clip_plan_revision;
+  return (
+    <div data-testid="clip-execution-details">
+      <div>Clip {clip.clip_index ?? '—'} · {clip.start_time ?? '—'}–{clip.end_time ?? '—'}s · Revision {revision ?? '未提供'}</div>
+      <div>Continuity：{clip.continuity_to_previous || '未提供'}</div>
+      <div>Capability：{clip.capability || '未提供'}</div>
+      <div>Owned states：{owned.length ? owned.map(index => `KF${index}`).join('、') : '无'}</div>
+      <div>Carry-in：{clip.carry_in_state_index != null ? `KF${clip.carry_in_state_index}（仅承接，非 owned/reference）` : '无'}</div>
+      <div>Selected temporal targets：{selected.length ? selected.join('、') : '无'}</div>
+      <div>Required images：{required.length ? required.map(item => `${item.state_id || `KF${item.state_index}`} ${item.ready === true ? '已就绪' : item.missing === true ? '缺失' : '状态未提供'}`).join('、') : '未提供或无'}</div>
+      <div>Previous AV dependency：{clip.previous_clip_index != null ? `C${clip.previous_clip_index}` : '无'} · {readiness?.code || '就绪状态未提供'}</div>
+      {metadata?.previous_approved_video_url && <div className="break-all">Previous AV：{metadata.previous_approved_video_url}</div>}
+      <div>Approval：{metadata?.approval_status || clip.execution_status || '未提供'}</div>
+      {task && <div className="break-all">执行 Task {task.id} · {task.resultUrl || '无结果文件'}</div>}
+      <div>Physical reference manifest：{references.length ? '' : '未提供或为空；不从 State 编号推断'}</div>
+      {references.map((reference, index) => (
+        <div key={index} className="break-all">
+          {reference.slot != null ? `Picture ${reference.slot}` : 'Picture 未提供'} · {reference.kind || '类型未提供'}
+          {reference.source_keyframe_index != null ? ` · State KF${reference.source_keyframe_index}` : ''}
+          {reference.image_url ? ` · ${reference.image_url}` : ' · 图片未提供'}
+          {reference.binding?.workflow_node_id ? ` · node ${reference.binding.workflow_node_id}` : ''}
+        </div>
+      ))}
+      <div>Materialized temporal anchors：{anchors.length ? anchors.map(anchor => `${anchor.anchor_id || 'ID 未提供'} · ${anchor.time_seconds ?? '—'}s`).join('、') : '未提供或无'}</div>
+      {!revision && <div>历史数据仅供查看，不代表当前执行依据</div>}
+    </div>
+  );
+}
+
 function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationShot, onPreviewClip, onRegenerateClip, onAssemble, onTasksChange, regeneratingClipKey, isShotVideoGenerating, isAssembling }: { shot: any; chapterId?: string; novelId?: string; onPreparationShot: (shot: any) => void; onPreviewClip: (clip: any | null) => void; onRegenerateClip: (clip: any, mode?: 'llm' | 'video_only') => void; onAssemble: () => void; onTasksChange?: (tasks: Task[]) => void; regeneratingClipKey?: string | null; isShotVideoGenerating?: boolean; isAssembling?: boolean }) {
   const plan = (shot?.videoDirectorPlan || {}) as VideoDirectorPlan;
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -98,24 +224,26 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
       return;
     }
     let cancelled = false;
+    let requestId = 0;
     const refresh = () => {
+      const currentRequest = ++requestId;
       setLoading(true);
       taskApi.fetchShotTasks(chapterId, String(shot.id))
         .then((response) => {
-          if (!cancelled) {
+          if (!cancelled && currentRequest === requestId) {
             const nextTasks = Array.isArray(response.data) ? response.data : [];
             setTasks(nextTasks);
             onTasksChange?.(nextTasks);
           }
         })
         .catch(() => {
-          if (!cancelled) {
+          if (!cancelled && currentRequest === requestId) {
             setTasks([]);
             onTasksChange?.([]);
           }
         })
         .finally(() => {
-          if (!cancelled) setLoading(false);
+          if (!cancelled && currentRequest === requestId) setLoading(false);
         });
     };
     refresh();
@@ -209,20 +337,9 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
                       {currentPromptGenerateLabel}
                     </button>
                   </div>
-                  {(task || metadata?.previous_approved_video_url) && (
-                    <details className="relative text-[11px] text-gray-500">
-                      <summary className="cursor-pointer">详情</summary>
-                      <div className="absolute z-10 mt-1 max-w-[min(90vw,32rem)] rounded-md border border-gray-200 bg-white p-2 shadow-lg">
-                        <div>Approval: {approvalStatus}</div>
-                        {task && <div>Task {task.id} · {task.resultUrl || '无结果文件'}</div>}
-                        {metadata?.previous_approved_video_url && <div className="mt-1 break-all">Previous AV: {metadata.previous_approved_video_url}</div>}
-                        {isContinuation && <div className="mt-1">结果类型：累计续生成 · 累计至：C{clip.clip_index}</div>}
-                        {isContinuation && <div>Capability：{metadata?.capability || clip.capability}</div>}
-                        {isContinuation && <div>Context：39 frames · Video overlap：39 frames · Source audio：Keep source audio</div>}
-                        {isContinuation && cumulativeDuration != null && <div>累计媒体时长：{cumulativeDuration}s</div>}
-                      </div>
-                    </details>
-                  )}
+                  <ClipMetadataDetails task={task}>
+                    {(detailTask) => <ClipExecutionDetails clip={clip} plan={plan} task={detailTask} />}
+                  </ClipMetadataDetails>
                 </div>
               </div>
               {Array.isArray(dialogueAssignment) && dialogueAssignment.length > 0 && (
@@ -305,6 +422,7 @@ const getKeyframeReferenceImages = (plan: VideoDirectorPlan, keyframeIndex?: num
 };
 
 const getReferenceDisplayName = (reference: any) => {
+  if (reference?.source === 'current_resource') return `${reference.label || '资源图'}（当前资源补充预览）`;
   const sources = Array.isArray(reference?.sources) ? reference.sources.map(String) : [];
   const source = String(sources[0] || reference?.label || '');
   const kind = String(reference?.kind || reference?.type || '');
@@ -313,11 +431,11 @@ const getReferenceDisplayName = (reference: any) => {
     .map((item: string) => item.slice(prefix.length))
     .filter(Boolean)
     .join('、');
-  if (kind === 'SCENE' || source.startsWith('SCENE:')) return `场景：${names('SCENE:') || source.replace(/^SCENE:/, '') || '未命名'}`;
-  if (kind === 'CHARACTER_IDENTITY' || source.startsWith('CHAR:')) return `角色：${names('CHAR:') || source.replace(/^CHAR:/, '') || '未命名'}`;
-  if (kind === 'DIRECTOR_VISUAL_ANCHOR' || source === 'SHOT_IMAGE') return '主分镜图';
-  if (kind === 'TEMPORAL_ANCHOR' || /^KF\d+$/.test(source)) return `时间锚点：${source}`;
-  if (kind === 'PROP' || source.startsWith('PROP:')) return `道具：${names('PROP:') || source.replace(/^PROP:/, '') || '未命名'}`;
+  if (kind === 'SCENE') return `场景：${names('SCENE:') || source.replace(/^SCENE:/, '') || '未命名'}`;
+  if (kind === 'CHARACTER_IDENTITY') return `角色：${names('CHAR:') || source.replace(/^CHAR:/, '') || '未命名'}`;
+  if (kind === 'DIRECTOR_VISUAL_ANCHOR') return source === 'SHOT_IMAGE' ? '主分镜图' : `视觉锚点：${source || '未命名'}`;
+  if (kind === 'TEMPORAL_ANCHOR') return `时间锚点：${source}`;
+  if (kind === 'PROP') return `道具：${names('PROP:') || source.replace(/^PROP:/, '') || '未命名'}`;
   return String(reference?.label || source || '参考图');
 };
 
@@ -800,6 +918,7 @@ function VideoDirectorPanel({
   onPreparationShot,
 }: VideoDirectorPanelProps) {
   const { t } = useTranslation();
+  const { referenceImages: shotReferenceImages, referenceImagesLoading: shotReferenceImagesLoading } = useShotReferenceImages(shot, !!shotImageUrl);
   const [showEndKeyframeMenu, setShowEndKeyframeMenu] = useState(false);
   const [showSelectedKeyframeMenu, setShowSelectedKeyframeMenu] = useState(false);
   const [openClipGenerateMenuKey, setOpenClipGenerateMenuKey] = useState<string | null>(null);
@@ -900,7 +1019,11 @@ function VideoDirectorPanel({
   const selectedKeyframeImageUrl = getKeyframeImageUrl(selectedKeyframe);
   const selectedStateImageStatus = isCanonicalPlan && selectedKeyframe
     ? getVisualStateExecutionImageStatus(selectedKeyframe, plan, selectedKeyframeImageUrl) : null;
-  const selectedKeyframeReferenceImages = getKeyframeReferenceImages(plan, Number(selectedKeyframe?.index));
+  const selectedKeyframeReferenceImages = selectedKeyframe?.role === 'START'
+    ? shotReferenceImages
+    : getKeyframeReferenceImages(plan, Number(selectedKeyframe?.index));
+  const selectedReferenceImagesLoading = selectedKeyframe?.role === 'START' && shotReferenceImagesLoading;
+  useEffect(() => { setHoveredReferenceImage(null); }, [shot, plan, selectedKeyframe?.index]);
   const selectedKeyframeIsGenerating = isKeyframeGenerating(selectedKeyframe);
   const selectedLegacyKeyframe = legacyKeyframes.find((item: any) => (
     Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(selectedKeyframe?.index)
@@ -1634,15 +1757,18 @@ function VideoDirectorPanel({
                     <Image className="w-12 h-12 text-gray-300" />
                   )}
                 </div>
-                {selectedKeyframeReferenceImages.length > 0 && (
-                  <div className="relative z-20 w-16 shrink-0 rounded-lg border border-gray-200 bg-gray-50 p-1">
-                    <div className="h-full space-y-1 overflow-y-auto pr-0.5">
+                {(selectedReferenceImagesLoading || selectedKeyframeReferenceImages.length > 0) && (
+                  <div className="relative z-20 w-16 shrink-0 self-stretch rounded-lg border border-gray-200 bg-gray-50">
+                    <div className="absolute inset-0 space-y-1 overflow-y-auto p-1 scrollbar-thin" aria-label="分镜参考图">
+                      <span className="text-[10px] text-gray-500">历史生成参考，非当前 Clip 输入</span>
+                      {selectedReferenceImagesLoading && <span className="text-[10px] text-gray-500">加载中...</span>}
                       {selectedKeyframeReferenceImages.map((reference: any, index: number) => (
                         <div
                           key={`${reference.url}-${index}`}
                           onMouseEnter={() => setHoveredReferenceImage(reference)}
                           onMouseLeave={() => setHoveredReferenceImage(null)}
                           className="relative aspect-square cursor-zoom-in overflow-visible rounded border border-gray-200 bg-white"
+                          title={getReferenceDisplayName(reference)}
                         >
                           <img src={reference.url} alt={reference.label || `Reference ${index + 1}`} className="h-full w-full rounded object-cover" />
                         </div>
@@ -1836,6 +1962,7 @@ function VideoDirectorPanel({
         )}
         {showSemanticClipPlan ? (
           <SemanticClipExecutionPanel
+            key={`${(semanticClipPlanShot || shot)?.id}-${(semanticClipPlanShot || shot)?.videoDirectorPlan?.clip_plan_revision}`}
             shot={semanticClipPlanShot || shot}
             chapterId={chapterId}
             novelId={novelId}

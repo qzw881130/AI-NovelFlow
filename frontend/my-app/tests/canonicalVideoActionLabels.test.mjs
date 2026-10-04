@@ -52,7 +52,9 @@ test('debug export keeps its handler and engineering diagnostics', () => {
   assert.match(debugSource, /call\.parsed_result/);
   assert.match(semanticSource, /Revision \{revision\}/);
   assert.match(semanticSource, /AUTO_APPROVE/);
-  assert.match(semanticSource, /Previous AV/);
+  assert.match(semanticSource, /<ClipExecutionDetails clip=\{clip\} plan=\{plan\} task=\{detailTask\}/);
+  const detailsSource = source.slice(source.indexOf('function ClipExecutionDetails('), semanticStart);
+  assert.match(detailsSource, /Previous AV/);
 });
 
 test('download material actions and shared Batch authority remain untouched', () => {

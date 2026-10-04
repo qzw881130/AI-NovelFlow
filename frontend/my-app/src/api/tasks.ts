@@ -20,6 +20,7 @@ export interface Task {
   name?: string;
   workflowName?: string;
   resultUrl?: string | null;
+  referenceImages?: Array<{ label?: string; url: string }>;
   parentTaskId?: string | null;
   errorMessage?: string | null;
   completedAt?: string | null;
@@ -42,6 +43,13 @@ export interface Task {
     previous_approved_video_url?: string | null;
     previous_approved_video_source?: string | null;
     temporal_anchor_ids?: string[];
+    video_reference_manifest?: { references?: Array<{
+      slot?: number; kind?: string; source_type?: string; source_keyframe_index?: number;
+      image_url?: string; binding?: { uploaded_filename?: string | null; workflow_node_id?: string | null };
+    }> };
+    execution_contract?: { temporal_anchor_manifest?: { anchors?: Array<{
+      anchor_id?: string; slot?: number; time_seconds?: number; frame_position?: number; image_url?: string;
+    }> } };
     dialogue_assignment?: Array<{
       dialogue_id: string;
       segment_index: number;

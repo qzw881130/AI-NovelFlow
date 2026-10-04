@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { API_BASE } from '../../../api';
+import { useShotReferenceImages } from '../useShotReferenceImages';
 
 interface FullTextModalProps {
   isOpen: boolean;
@@ -143,7 +144,10 @@ export function ImagePreviewModal({
   shotImages
 }: ImagePreviewModalProps) {
   const { t } = useTranslation();
+  const previewImageRef = useRef<HTMLImageElement>(null);
   const [previewImageSize, setPreviewImageSize] = useState<{ width: number; height: number } | null>(null);
+  const [previewImageRenderedHeight, setPreviewImageRenderedHeight] = useState<number | null>(null);
+  const [hoveredReferenceImage, setHoveredReferenceImage] = useState<{ label: string; url: string } | null>(null);
 
   // 计算有图片的分镜数量
   const imagesWithShots = parsedDataShots?.filter((shot: any, idx: number) => (
@@ -157,9 +161,30 @@ export function ImagePreviewModal({
   });
   const previewShotNumber = previewShot?.index || (previewImageIndex >= 0 ? previewImageIndex + 1 : currentShot);
   const previewShotDescription = previewShot?.description || '';
+  const { referenceImages, referenceImagesLoading } = useShotReferenceImages(previewShot, isOpen);
+
+  const resolveImageUrl = (url: string) => {
+    if (/^https?:\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) return url;
+    if (url.startsWith('/api/')) return `${API_BASE.replace(/\/api\/?$/, '')}${url}`;
+    return url;
+  };
 
   useEffect(() => {
-    if (isOpen) setPreviewImageSize(null);
+    if (isOpen) {
+      setPreviewImageSize(null);
+      setPreviewImageRenderedHeight(null);
+      setHoveredReferenceImage(null);
+    }
+  }, [isOpen, previewImageUrl]);
+
+  useEffect(() => {
+    if (!isOpen || !previewImageRef.current) return;
+    const image = previewImageRef.current;
+    const syncHeight = () => setPreviewImageRenderedHeight(image.getBoundingClientRect().height || null);
+    syncHeight();
+    const observer = new ResizeObserver(syncHeight);
+    observer.observe(image);
+    return () => observer.disconnect();
   }, [isOpen, previewImageUrl]);
 
   useEffect(() => {
@@ -195,7 +220,7 @@ export function ImagePreviewModal({
       onClick={onClose}
     >
       <div className="flex min-h-full items-center justify-center p-4 py-12">
-        <div className="relative w-full max-w-5xl flex items-center" onClick={e => e.stopPropagation()}>
+        <div className="relative w-full max-w-6xl flex items-center" onClick={e => e.stopPropagation()}>
         {/* 左导航按钮 */}
         {canNavigate && (
           <button
@@ -220,18 +245,78 @@ export function ImagePreviewModal({
             <X className="h-6 w-6" />
           </button>
 
-          {/* 图片 */}
-          <img
-            src={previewImageUrl}
-            alt={t('chapterGenerate.shotPreview')}
-            onLoad={(event) => {
-              setPreviewImageSize({
-                width: event.currentTarget.naturalWidth,
-                height: event.currentTarget.naturalHeight,
-              });
-            }}
-            className="mx-auto max-h-[60vh] max-w-full rounded-lg object-contain"
-          />
+          {/* 任务历史参考与当前资源补充预览，不作为当前视频执行依据 */}
+          <div className="mx-auto flex max-h-[60vh] w-full items-start justify-center gap-3">
+            <img
+              ref={previewImageRef}
+              src={previewImageUrl}
+              alt={t('chapterGenerate.shotPreview')}
+              onLoad={(event) => {
+                setPreviewImageSize({
+                  width: event.currentTarget.naturalWidth,
+                  height: event.currentTarget.naturalHeight,
+                });
+                setPreviewImageRenderedHeight(event.currentTarget.getBoundingClientRect().height || null);
+              }}
+              className={`min-w-0 max-h-[60vh] rounded-lg object-contain ${referenceImagesLoading || referenceImages.length > 0 ? 'max-w-[calc(100%-10rem)]' : 'max-w-full'}`}
+            />
+
+            {(referenceImagesLoading || referenceImages.length > 0) && previewImageRenderedHeight && (
+              <div
+                className="relative z-20 w-36 flex-none"
+                style={{ height: `${previewImageRenderedHeight}px`, maxHeight: '60vh' }}
+              >
+                <aside
+                  className="flex h-full w-full flex-col overflow-hidden rounded-lg border border-white/15 bg-black/45 text-white backdrop-blur-sm"
+                  aria-label="分镜参考图"
+                >
+                  <div className="flex-none border-b border-white/10 px-2.5 py-2 text-xs font-medium">
+                    历史生成参考{referenceImages.length > 0 ? ` (${referenceImages.length})` : ''}
+                  </div>
+                  <div className="border-b border-white/10 px-2 py-1 text-[10px] text-gray-300">任务快照，非当前 Clip 执行依据</div>
+                  {referenceImages.some((image) => image.source === 'current_resource') && (
+                    <div className="border-b border-white/10 px-2 py-1 text-[10px] text-gray-300">当前资源仅作补充预览，不代表实际输入</div>
+                  )}
+                  <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2 scrollbar-thin">
+                    {referenceImagesLoading ? (
+                      <div className="py-4 text-center text-xs text-gray-300">加载中...</div>
+                    ) : referenceImages.map((image, index) => (
+                      <figure
+                        key={`${image.url}-${index}`}
+                        className="cursor-zoom-in overflow-hidden rounded-md bg-black/35 ring-white/60 transition hover:ring-2"
+                        onMouseEnter={() => setHoveredReferenceImage(image)}
+                        onMouseLeave={() => setHoveredReferenceImage(null)}
+                      >
+                        <img
+                          src={resolveImageUrl(image.url)}
+                          alt={image.label || `参考图 ${index + 1}`}
+                          className="aspect-[17/11] w-full object-contain"
+                          loading="lazy"
+                        />
+                        <figcaption className="truncate px-1.5 py-1 text-[11px] text-gray-200" title={image.label || `参考图 ${index + 1}`}>
+                          {image.label || `参考图 ${index + 1}`}{image.source === 'current_resource' ? '（当前资源）' : ''}
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                </aside>
+
+                {hoveredReferenceImage && (
+                  <div
+                    className="pointer-events-none absolute left-full top-0 z-30 ml-3 w-[28rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-white/20 bg-black/90 p-2 text-white shadow-2xl backdrop-blur-sm"
+                    aria-label="参考图大图预览"
+                  >
+                    <img
+                      src={resolveImageUrl(hoveredReferenceImage.url)}
+                      alt={hoveredReferenceImage.label}
+                      className="max-h-[52vh] w-full rounded-md object-contain"
+                    />
+                    <div className="px-1 pt-2 text-sm font-medium">{hoveredReferenceImage.label}</div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="mt-3 mx-auto w-full max-w-5xl rounded-lg bg-black/45 text-white px-4 py-3 backdrop-blur-sm">
             <div className="mb-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm font-semibold">
