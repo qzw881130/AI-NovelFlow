@@ -19,10 +19,11 @@ class PromptBuilder:
 禁止出现任何人物、人形主体、角色、手、手臂、身体局部、持有者、使用者或其他生物。
 道具名称或 description 中的人名、身份、所有者、使用者和剧情行为仅表示归属或剧情关系，不代表人物应出现在画面中。
 采用产品资产图或道具设定图：道具完整可见、唯一视觉中心、无人物、无手持、无佩戴、无使用动作、无剧情表演。
-衣服、首饰、冠帽、盔甲等可穿戴物只展示物品本身；禁止真人、角色或人体模特穿戴，优先使用平铺、悬挂、静物陈列或无人物语义的中性展示方式。
+背景只能是均匀、纯色、无纹理、无空间语义的中性底色。禁止生成房间、建筑、墙面、地面、门窗、台面、展台、展示柜、箱柜、家具、布景、风景、环境光源、环境阴影或任何其他道具；不得用“产品摄影”“静物场景”补充展示环境。
+衣服、首饰、冠帽、盔甲等可穿戴物只展示物品本身；禁止真人、角色或人体模特穿戴，以完整、自然展开的物件形态居中隔离呈现，不使用衣柜、衣架场景、展示设施或其他陪衬物。
 必须保持当前道具的实体类别和加工阶段。原材料不得生成成由其制成的成品：布料不得变成服装，金属材料不得变成武器或首饰，木材不得变成家具；除非当前道具的 appearance 明确描述的就是对应成品。
 STORY_WORLD_CONTEXT 只约束道具形制、材质、工艺和文化体系，不得因此引入人物。
-PROP ONLY. ISOLATED OBJECT. PRESERVE THE PROP'S OBJECT CATEGORY AND PROCESSING STAGE. RAW MATERIAL MUST NOT BECOME A FINISHED PRODUCT. NO CHARACTER. NO PERSON. NO HUMAN OR HUMANOID FIGURE. NO HANDS OR BODY PARTS."""
+PROP ONLY. ISOLATED OBJECT. PLAIN SOLID NEUTRAL BACKGROUND. NO ENVIRONMENT. NO ROOM. NO WALL. NO FLOOR. NO TABLE. NO PEDESTAL. NO DISPLAY CASE. NO SCENERY. NO OTHER OBJECTS. PRESERVE THE PROP'S OBJECT CATEGORY AND PROCESSING STAGE. RAW MATERIAL MUST NOT BECOME A FINISHED PRODUCT. NO CHARACTER. NO PERSON. NO HUMAN OR HUMANOID FIGURE. NO HANDS OR BODY PARTS."""
 
     @staticmethod
     def get_style(

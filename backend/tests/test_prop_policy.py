@@ -21,6 +21,9 @@ def test_prop_prompt_enforces_prop_only_even_when_name_contains_character():
     assert "画面唯一主体必须是当前道具本身" in prompt
     assert "禁止出现任何人物" in prompt
     assert "禁止真人、角色或人体模特穿戴" in prompt
+    assert "背景只能是均匀、纯色、无纹理、无空间语义的中性底色" in prompt
+    assert "禁止生成房间、建筑、墙面、地面、门窗、台面、展台、展示柜、箱柜、家具、布景、风景、环境光源、环境阴影或任何其他道具" in prompt
+    assert "NO ENVIRONMENT. NO ROOM. NO WALL. NO FLOOR. NO TABLE. NO PEDESTAL" in prompt
     assert "原材料不得生成成由其制成的成品" in prompt
     assert "PROP ONLY" in prompt
     assert "纯道具资产图约束" not in build_character_prompt("皇帝", "欧洲皇帝", template="{appearance}")
@@ -33,6 +36,19 @@ def test_prop_prompt_enforces_prop_only_even_when_name_contains_character():
     )
     assert "布料不得变成服装" in material_prompt
     assert "RAW MATERIAL MUST NOT BECOME A FINISHED PRODUCT" in material_prompt
+
+
+def test_standard_prop_template_uses_an_isolated_plain_background():
+    from pathlib import Path
+
+    template = (Path(__file__).resolve().parents[1] / "prompt_templates" / "prop.txt").read_text(encoding="utf-8")
+
+    assert "isolated object asset sheet" in template
+    assert "plain solid neutral background" in template
+    assert "no environmental context" in template
+    assert "背景只能是均匀、纯色、无纹理、无空间语义的中性底色" in template
+    assert "NO ENVIRONMENT. NO ROOM. NO WALL. NO FLOOR. NO TABLE. NO PEDESTAL" in template
+    assert "product photography" not in template
 
 
 def test_prop_existence_normalizes_explicit_and_textual_nonexistence():
