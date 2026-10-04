@@ -10,6 +10,7 @@ from app.constants.capability import VIDEO_CAPABILITY_CONTRACTS
 from app.services.llm_service import LLMService
 from app.services.prompt_template_service import PromptTemplateService
 from app.services.clip_validator import validate_clip_plan
+from app.services.clip_execution_compiler import TEMPORAL_DECISION_CONTRACT
 from app.services.dialogue_ownership import assign_dialogues_to_clips
 from app.services.video_director_ai import align_clip_boundaries_to_dialogue_gaps, build_dialogue_timeline
 from app.utils.path_utils import local_path_to_url, url_to_local_path
@@ -313,7 +314,7 @@ def _normalize_provider_boundaries(
 
 
 def _project_temporal_targets(clips: list[dict], candidates: list[dict], shot_duration: float) -> None:
-    """Derive Clip temporal intent from canonical #08 targets after final boundaries."""
+    """Validate #10A's owned eligible subset; derive execution, never select for it."""
     by_id: dict[str, dict] = {}
     for item in candidates:
         if not isinstance(item, dict) or item.get("timed_visual_target") is not True:
@@ -334,12 +335,24 @@ def _project_temporal_targets(clips: list[dict], candidates: list[dict], shot_du
         continuity = str(clip.get("continuity_to_previous") or "").upper()
         start = float(clip.get("start_time"))
         end = float(clip.get("end_time"))
-        selected = []
+        selected = clip.get("selected_temporal_target_ids")
+        if not isinstance(selected, list) or any(not isinstance(item, str) for item in selected):
+            raise ValueError("TEMPORAL_SELECTION_INVALID: selected_temporal_target_ids must be a list")
+        if len(selected) != len(set(selected)):
+            raise ValueError("TEMPORAL_SELECTION_INVALID: duplicate selected ID")
+        if continuity != "CONTINUOUS" and selected:
+            raise ValueError("TEMPORAL_SELECTION_INVALID: NONE/CUT cannot select temporal targets")
         if continuity == "CONTINUOUS":
-            for state_id, state in by_id.items():
+            if int(clip.get("previous_clip_index") or 0) != int(clip.get("clip_index")) - 1:
+                raise ValueError("TEMPORAL_SELECTION_INVALID: previous Clip dependency missing")
+            owned = clip.get("visual_state_indexes") or []
+            for state_id in selected:
+                state = by_id.get(state_id)
+                if not state or state.get("keyframe_index") not in owned:
+                    raise ValueError(f"TEMPORAL_SELECTION_INVALID: {state_id} is not an owned eligible state")
                 shot_time = float(state["time_seconds"])
-                if shot_time > start + 0.05 and shot_time <= end + 0.05:
-                    selected.append(state_id)
+                if not (start + 0.05 < shot_time <= end and 0 < shot_time - start <= end - start):
+                    raise ValueError(f"TEMPORAL_SELECTION_INVALID: {state_id} outside Clip")
             selected.sort(key=lambda state_id: (float(by_id[state_id]["time_seconds"]), state_id))
             if len(selected) > max_targets:
                 raise ValueError(f"TEMPORAL_ANCHOR_LIMIT: Clip {clip.get('clip_index')} exceeds {max_targets} required temporal targets")
@@ -350,8 +363,6 @@ def _project_temporal_targets(clips: list[dict], candidates: list[dict], shot_du
                 if local_time in seen_times:
                     raise ValueError(f"Clip {clip.get('clip_index')} has duplicate temporal target time")
                 seen_times.add(local_time)
-                if not state.get("image_available") or not state.get("image_url"):
-                    raise ValueError(f"TEMPORAL_ANCHOR_UNAVAILABLE: Clip {clip.get('clip_index')} requires image for {state_id}")
 
         requires_temporal = continuity == "CONTINUOUS" and bool(selected)
         clip["requires_temporal_control"] = requires_temporal
@@ -378,8 +389,8 @@ def _build_temporal_anchors(clips: list[dict], candidates: list[dict]) -> list[d
         for visual_state_id in selected:
             state_id = str(visual_state_id)
             state = by_id.get(state_id)
-            if not state or not state.get("image_available"):
-                raise ValueError(f"Clip {clip.get('clip_index')} selected unavailable temporal target {state_id}")
+            if not state:
+                raise ValueError(f"Clip {clip.get('clip_index')} selected unknown temporal target {state_id}")
             try:
                 shot_time = float(state.get("time_seconds"))
             except (TypeError, ValueError):
@@ -424,8 +435,7 @@ def _normalize_continuity_contract(
         continuity = str(raw_continuity).upper()
         if continuity not in {"NONE", "CUT", "CONTINUOUS"}:
             raise ValueError(f"Clip {clip_index} continuity_to_previous 无效")
-        # #10A owns continuity. Temporal execution properties are projected
-        # from canonical #08 intent only after final Clip boundaries are known.
+        # #10A owns continuity and selection. Program derives execution only.
         if clip_index == 1:
             if continuity != "NONE":
                 raise ValueError("First Clip continuity_to_previous 必须为 NONE")
@@ -443,7 +453,6 @@ def _normalize_continuity_contract(
         if not project_capability:
             clip.pop("capability", None)
         clip["requires_temporal_control"] = False
-        clip["selected_temporal_target_ids"] = []
 
 
 def _canonical_continuity_structure(clips: list[dict], candidates: list[dict]) -> list[dict]:
@@ -462,6 +471,15 @@ def _canonical_continuity_structure(clips: list[dict], candidates: list[dict]) -
             "carry_in_state_index": clip.get("carry_in_state_index"),
             "previous_ending_state_index": previous_owned[-1] if previous_owned else None,
             "first_owned_state_index": owned[0] if owned else None,
+            "eligible_temporal_targets": [
+                {"visual_state_id": item["visual_state_id"],
+                 "keyframe_index": item["keyframe_index"],
+                 "time_seconds": item["time_seconds"],
+                 "clip_local_time": round(float(item["time_seconds"]) - float(clip["start_time"]), 2),
+                 "description": item.get("description") or ""}
+                for item in candidates
+                if item.get("timed_visual_target") is True and item["keyframe_index"] in owned
+            ],
         })
     return structure
 
@@ -505,6 +523,12 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         for key, value in payload.items()
         if key != "available_generation_inputs"
     }
+    # Selection evaluates planned visual value, not whether an asset happens to
+    # exist yet. Keep physical image metadata only for the program's projection.
+    llm_payload["visual_state_candidates"] = [
+        {key: value for key, value in state.items() if key not in {"image_available", "image_url", "source"}}
+        for state in payload["visual_state_candidates"]
+    ]
     video_plan = json.loads(shot.video_director_plan or "{}")
     shot_dialogues = json.loads(shot.dialogues or "[]")
     dialogue_timeline_source = video_plan.get("dialogue_timeline_source")
@@ -588,6 +612,9 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
                     "CONTINUOUS requires actual Previous Clip ending visual dependency; CUT means independent "
                     "first-owned visual grounding. Carry-in is semantic context only. Do not infer continuity from "
                     "scene/characters/story/dialogue continuation or ordinary visual progression."
+                    " Re-evaluate selected_temporal_target_ids against ALL eligible_temporal_targets (including "
+                    "previously unselected ones) and their normalized local times. Selection is optional, owned-only, "
+                    "and based on planned context, never actual Previous AV tail pixels."
                 ),
             },
         }
@@ -623,8 +650,11 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         shot.duration or 4,
         clips,
         temporal_anchors,
-        available_inputs=payload["available_generation_inputs"],
+        # Missing physical images affect execution readiness, not plan validity.
+        available_inputs=None if canonical else payload["available_generation_inputs"],
         visual_state_candidates=payload.get("visual_state_candidates") or [],
     )
     validation["dialogue_ownership"] = dialogue_validation
+    if canonical and validation["passed"]:
+        validation["temporal_contract"] = TEMPORAL_DECISION_CONTRACT
     return clips, validation

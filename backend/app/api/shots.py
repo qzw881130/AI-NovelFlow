@@ -1178,6 +1178,21 @@ def _safe_json_dict(value):
         return {}
 
 
+def _reject_legacy_video_execution_for_canonical(plan: dict) -> None:
+    """Keep canonical Shots on the semantic Clip execution authority."""
+    if plan.get("canonical_visual_plan") is True:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "CANONICAL_SEMANTIC_LEGACY_EXECUTION_FORBIDDEN",
+                "message": (
+                    "Canonical semantic execution cannot use the legacy video generation endpoint; "
+                    "replan historical Clip plans when required, then use semantic Clip execution."
+                ),
+            },
+        )
+
+
 def _resolve_shot_by_id_or_index(shot_repo: ShotRepository, chapter_id: str, shot_id_or_index: str):
     shot = shot_repo.get_by_id(shot_id_or_index)
     if shot and shot.chapter_id == chapter_id:
@@ -2137,7 +2152,9 @@ async def plan_shot_clips(
     })
     shot.video_director_plan = json.dumps(current_plan, ensure_ascii=False)
     db.commit()
-    return {"success": True, "data": {"clips": clips, "validation": validation, "revision": current_plan["clip_plan_revision"]}}
+    return {"success": True, "data": {"clips": clips, "validation": validation, "revision": current_plan["clip_plan_revision"],
+                                     "temporal_anchors": request.temporal_anchors,
+                                     "execution_readiness": get_canonical_execution_readiness(shot, current_plan)}}
 
 
 @router.post("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/video-director/clip-plan/generate", response_model=dict)
@@ -2157,6 +2174,7 @@ async def generate_clip_plan_video(
     if not novel or not shot or shot.chapter_id != chapter_id:
         raise HTTPException(status_code=404, detail="小说、章节或分镜不存在")
     plan = _safe_json_dict(shot.video_director_plan)
+    _reject_legacy_video_execution_for_canonical(plan)
     clips = plan.get("clip_plan") if isinstance(plan.get("clip_plan"), list) else []
     if not clips:
         raise HTTPException(status_code=400, detail="当前 Shot 没有 Clip Plan")
@@ -2593,6 +2611,11 @@ async def _execute_phase_b_semantic_clip(
         raise HTTPException(status_code=404, detail=f"Clip {window_index} 不存在")
     if int(plan.get("clip_plan_revision") or 0) != int(request.clip_plan_revision):
         raise HTTPException(status_code=409, detail="Clip 计划 revision 已变化，请重新加载并重试")
+
+    if plan.get("canonical_visual_plan") is True:
+        readiness = get_canonical_execution_readiness(shot, plan, [clip])
+        if not readiness["ready"]:
+            raise HTTPException(status_code=409, detail=readiness["blocking_clips"][0])
 
     raw_capability = str(clip.get("capability") or "")
     capability = raw_capability
@@ -3404,6 +3427,10 @@ def _semantic_batch_clips(shot: Shot, revision: int) -> list[dict]:
     clips = plan.get("clip_plan") if isinstance(plan.get("clip_plan"), list) else []
     if not clips or not (plan.get("clip_plan_validation") or {}).get("passed"):
         raise RuntimeError("Semantic Clip Plan 缺失或未通过校验")
+    if plan.get("canonical_visual_plan") is True:
+        readiness = get_canonical_execution_readiness(shot, plan)
+        if not readiness["ready"]:
+            raise RuntimeError(readiness["code"])
     ordered = sorted(clips, key=lambda item: int(item.get("clip_index") or 0))
     indexes = [int(item.get("clip_index") or 0) for item in ordered]
     if not indexes or len(indexes) != len(set(indexes)) or any(index <= 0 for index in indexes):
@@ -3915,6 +3942,9 @@ async def generate_shot_video(
     if not shot:
         raise HTTPException(status_code=400, detail=f"分镜 {shot_id} 不存在")
 
+    video_director_plan = _safe_json_dict(shot.video_director_plan)
+    _reject_legacy_video_execution_for_canonical(video_director_plan)
+
     shot_index = shot.index
     shot_duration = shot.duration or 4
 
@@ -3949,7 +3979,6 @@ async def generate_shot_video(
         )
         task_repo.delete(failed_task)
 
-    video_director_plan = _safe_json_dict(shot.video_director_plan)
     selected_mode = request.selected_mode or video_director_plan.get("selected_mode") or "SINGLE_FRAME"
     expected_workflow_type = "video"
     if selected_mode == "FIRST_LAST_FRAME":

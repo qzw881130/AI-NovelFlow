@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from pathlib import Path
 from typing import Any
 
-from app.utils.path_utils import local_path_to_url
+from app.utils.path_utils import local_path_to_url, url_to_local_path
 
 
 class ClipExecutionCompileError(ValueError):
@@ -17,6 +18,7 @@ class ClipExecutionCompileError(ValueError):
 
 
 _TEMPORAL_ANCHOR_LIMIT = 8
+TEMPORAL_DECISION_CONTRACT = "ELIGIBLE_THEN_SELECTED_V1"
 
 
 def temporal_extend_frame_count(duration_seconds: float) -> int:
@@ -191,14 +193,35 @@ def get_generate_visual_start_readiness(shot, plan: dict, clip: dict) -> dict:
     return result
 
 
-def get_canonical_execution_readiness(shot, plan: dict) -> dict:
-    """Project execution-time GENERATE blockers without mutating the canonical plan."""
+def get_canonical_execution_readiness(shot, plan: dict, clips: list[dict] | None = None) -> dict:
+    """Project execution blockers without reinterpreting historical temporal plans."""
     blockers = []
-    clips = plan.get("clip_plan") if isinstance(plan, dict) else None
+    plan_clips = plan.get("clip_plan") if isinstance(plan, dict) else None
+    if plan.get("canonical_visual_plan") is True and plan_clips and (
+        (plan.get("clip_plan_validation") or {}).get("temporal_contract") != TEMPORAL_DECISION_CONTRACT
+    ):
+        blocker = {"ready": False, "code": "TEMPORAL_CONTRACT_REPLAN_REQUIRED",
+                   "message": "历史片段计划需重新规划，以确认定时目标选择", "clip_index": None,
+                   "visual_state_index": None, "time_seconds": None}
+        return {"ready": False, "code": blocker["code"], "message": blocker["message"], "blocking_clips": [blocker]}
+    clips = plan_clips if clips is None else clips
+    states = {f"KF{item['index']}": item for item in plan.get("keyframes") or [] if isinstance(item, dict) and "index" in item}
+    anchors = {str(item.get("anchor_id")): item for item in plan.get("temporal_anchors") or [] if isinstance(item, dict)}
     for clip in clips if isinstance(clips, list) else []:
         readiness = get_generate_visual_start_readiness(shot, plan, clip)
         if readiness["applicable"] and not readiness["ready"]:
             blockers.append(readiness)
+        if clip.get("capability") == "TEMPORAL_EXTEND":
+            for state_id in clip.get("selected_temporal_target_ids") or []:
+                state = states.get(state_id) or {}
+                anchor = anchors.get(f"clip-{clip.get('clip_index')}-{state_id}") or {}
+                image_url = anchor.get("image_url")
+                image_path = (url_to_local_path(image_url) or image_url) if image_url else None
+                if not image_path or not Path(image_path).is_file():
+                    blockers.append({"ready": False, "code": "TEMPORAL_ANCHOR_UNAVAILABLE",
+                                     "message": f"缺少已选定时目标图片：Clip {clip.get('clip_index')} · {state_id}",
+                                     "clip_index": clip.get("clip_index"), "visual_state_index": state.get("index"),
+                                     "time_seconds": state.get("time_seconds"), "grounding_source": "KEYFRAME_IMAGE"})
     first = blockers[0] if blockers else None
     return {
         "ready": not blockers,

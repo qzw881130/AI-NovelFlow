@@ -67,7 +67,7 @@ test('C: canonical N=5 and N=8 are not truncated by legacy frame counts', () => 
 });
 
 test('D-F: canonical image status distinguishes required, optional, and ready', () => {
-  assert.equal(classifyVisualStateImageStatus({ index: 2, time_seconds: 5, role: 'INTERMEDIATE', timed_visual_target: true }), 'REQUIRED_MISSING');
+  assert.equal(classifyVisualStateImageStatus({ index: 2, time_seconds: 5, role: 'INTERMEDIATE', timed_visual_target: true }), 'OPTIONAL_MISSING');
   assert.equal(classifyVisualStateImageStatus({ index: 3, time_seconds: 10, role: 'INTERMEDIATE', timed_visual_target: false }), 'OPTIONAL_MISSING');
   assert.equal(classifyVisualStateImageStatus({ index: 1, time_seconds: 0, role: 'START', timed_visual_target: true }), 'OPTIONAL_MISSING');
   assert.equal(classifyVisualStateImageStatus({ index: 4, time_seconds: 15, role: 'END', timed_visual_target: true }, '/ready.png'), 'READY');
@@ -97,15 +97,18 @@ test('H: canonical planning ignores selected_frame_count and window plans', () =
   assert.equal(getCanonicalVisualStates(plan).length, 5);
 });
 
-test('I: canonical missing-image batch includes required timed targets only', () => {
+test('I: canonical required-image preparation uses selected subset, not all eligible states', () => {
   const plan = makeCanonicalPlan(5);
   plan.keyframes[2].timed_visual_target = false;
   plan.keyframes[3].timed_visual_target = true;
   plan.keyframes[4].timed_visual_target = true;
   plan.keyframes[4].image_url = '/end-ready.png';
+  plan.clip_plan_revision = 1;
+  plan.clip_plan_validation = {passed: true, temporal_contract: 'ELIGIBLE_THEN_SELECTED_V1'};
+  plan.clip_plan = [{capability: 'TEMPORAL_EXTEND', visual_state_indexes: [2,3,4,5], selected_temporal_target_ids: ['KF4','KF5']}];
   assert.deepEqual(
     getRequiredMissingCanonicalVisualStates(plan).map((state) => state.index),
-    [2, 4],
+    [4],
   );
 });
 

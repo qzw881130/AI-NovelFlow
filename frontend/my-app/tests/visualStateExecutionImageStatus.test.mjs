@@ -8,7 +8,7 @@ const { outputText } = ts.transpileModule(source, { compilerOptions: { module: t
 const { getVisualStateExecutionImageStatus: status } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 const state = { index: 2, role: 'INTERMEDIATE', time_seconds: 7.95, timed_visual_target: false };
 const plan = () => ({
-  canonical_visual_plan: true, clip_plan_revision: 1, clip_plan_validation: { passed: true },
+  canonical_visual_plan: true, clip_plan_revision: 1, clip_plan_validation: { passed: true, temporal_contract: 'ELIGIBLE_THEN_SELECTED_V1' },
   clip_plan: [{ clip_index: 2, capability: 'EXTEND', continuity_to_previous: 'CONTINUOUS',
     visual_state_indexes: [], carry_in_state_index: 2, requires_temporal_control: false }],
   execution_readiness: { ready: true, blocking_clips: [] },
@@ -39,15 +39,19 @@ test('only backend-projected GENERATE visual-start blocker marks its state requi
   input.execution_readiness = { ready: false, blocking_clips: [{ code: 'GENERATE_VISUAL_START_GROUNDING_MISSING',
     clip_index: 3, visual_state_index: 2, ready: false }] };
   assert.equal(status(state, input), 'REQUIRED_MISSING');
+  assert.equal(status({ ...state, image_url: '/missing-file.png' }, input), 'REQUIRED_MISSING');
   assert.equal(status({ ...state, index: 3 }, input), 'NOT_NEEDED');
   input.execution_readiness = { ready: true, blocking_clips: [] };
   assert.equal(status(state, input), 'NOT_NEEDED');
 });
 
-test('owned timed TEMPORAL_EXTEND target needs image; carry-in or ordinary state does not', () => {
+test('only selected owned TEMPORAL_EXTEND targets require images', () => {
   const input = plan();
   Object.assign(input.clip_plan[0], { capability: 'TEMPORAL_EXTEND', requires_temporal_control: true, visual_state_indexes: [2] });
+  assert.equal(status({ ...state, timed_visual_target: true }, input), 'OPTIONAL_MISSING');
+  input.clip_plan[0].selected_temporal_target_ids = ['KF2'];
   assert.equal(status({ ...state, timed_visual_target: true }, input), 'REQUIRED_MISSING');
+  input.clip_plan[0].selected_temporal_target_ids = [];
   assert.equal(status(state, input), 'OPTIONAL_MISSING');
   input.clip_plan[0].visual_state_indexes = [3];
   assert.equal(status({ ...state, timed_visual_target: true }, input), 'NOT_NEEDED');
@@ -56,7 +60,7 @@ test('owned timed TEMPORAL_EXTEND target needs image; carry-in or ordinary state
 test('no current valid Clip Plan retains existing preparation classification', () => {
   for (const input of [{}, { ...plan(), clip_plan_validation: { passed: false } }, { ...plan(), clip_plan_revision: 0 }]) {
     assert.equal(status(state, input), 'OPTIONAL_MISSING');
-    assert.equal(status({ ...state, timed_visual_target: true }, input), 'REQUIRED_MISSING');
+    assert.equal(status({ ...state, timed_visual_target: true }, input), 'OPTIONAL_MISSING');
   }
 });
 

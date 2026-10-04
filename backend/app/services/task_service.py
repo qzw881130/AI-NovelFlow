@@ -467,6 +467,11 @@ class TaskService:
                 return {"success": False, "message": "Clip 重试失败：Shot 中已不存在相同 revision/Clip identity", "status_code": 409}
 
             capability = clip_metadata.get("capability")
+            if shot_plan.get("canonical_visual_plan") is True:
+                from app.services.clip_execution_compiler import get_canonical_execution_readiness
+                readiness = get_canonical_execution_readiness(shot, shot_plan, [plan_clip])
+                if not readiness["ready"]:
+                    return {"success": False, "message": readiness["message"], "status_code": 409}
             workflow = db.query(Workflow).filter(Workflow.id == task.workflow_id).first()
             if not workflow or workflow.type != capability:
                 return {"success": False, "message": "Clip 重试失败：原 Workflow 不存在或与 Clip capability 不匹配", "status_code": 400}

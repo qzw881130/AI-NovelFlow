@@ -65,25 +65,24 @@ export function getCanonicalSemanticReadiness(
   if (plan?.canonical_visual_plan !== true || keyframes.length === 0) {
     return { state: 'NO_VISUAL_PLAN', planningAllowed: false, executionAllowed: false, requiredMissingIndexes: [] };
   }
-  const requiredMissingIndexes = keyframes
-    .filter((state) => state.role !== 'START' && state.timed_visual_target === true && !resolveImageUrl(state) && !state.image_url)
-    .map((state) => Number(state.index));
-  if (requiredMissingIndexes.length > 0) {
-    return { state: 'REQUIRED_IMAGES_MISSING', planningAllowed: false, executionAllowed: false, requiredMissingIndexes };
-  }
   if (!Array.isArray(plan?.clip_plan) || plan.clip_plan.length === 0) {
     return { state: 'CLIP_PLAN_MISSING', planningAllowed: true, executionAllowed: false, requiredMissingIndexes: [] };
   }
   if (!hasValidCurrentClipPlan(plan)) {
     return { state: 'CLIP_PLAN_STALE', planningAllowed: true, executionAllowed: false, requiredMissingIndexes: [] };
   }
+  if (plan.clip_plan_validation?.temporal_contract !== 'ELIGIBLE_THEN_SELECTED_V1') {
+    return { state: 'CLIP_PLAN_STALE', planningAllowed: true, executionAllowed: false,
+      requiredMissingIndexes: [], reason: '历史片段计划需重新规划，以确认定时目标选择' };
+  }
   if (plan.execution_readiness?.ready === false) {
     const blocker = plan.execution_readiness.blocking_clips?.[0];
     return {
-      state: 'GENERATE_VISUAL_START_MISSING',
+      state: blocker?.code === 'TEMPORAL_ANCHOR_UNAVAILABLE' ? 'REQUIRED_IMAGES_MISSING' : 'GENERATE_VISUAL_START_MISSING',
       planningAllowed: true,
       executionAllowed: false,
-      requiredMissingIndexes: [],
+      requiredMissingIndexes: (plan.execution_readiness.blocking_clips || [])
+        .filter((item) => item.visual_state_index != null).map((item) => Number(item.visual_state_index)),
       reason: blocker?.message || plan.execution_readiness.message || '缺少片段起始视觉图',
       missingClipIndex: blocker?.clip_index,
       missingVisualStateIndex: blocker?.visual_state_index,

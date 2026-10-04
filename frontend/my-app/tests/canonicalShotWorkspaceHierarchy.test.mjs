@@ -60,9 +60,10 @@ test('engineering Clip metadata is absent from default Production and retained u
   assert.match(semanticPanelSource, /'PASS'/);
 });
 
-test('optional image-less Visual States remain an explicit non-blocking Production warning', () => {
+test('optional image-less Visual States remain neutral Production information', () => {
   assert.match(source, /classifyVisualStateImageStatus\(state, getVideoDirectorKeyframeImageUrl\(currentShotData, state\)\) === 'OPTIONAL_MISSING'/);
-  assert.match(source, /个可选图片缺失（不阻塞片段规划）/);
+  assert.match(source, /t\('chapterGenerate\.optionalMissingStates', \{ count: currentOptionalMissingVisualStateCount \}\)/);
+  assert.doesNotMatch(source, /个可选图片缺失（不阻塞片段规划）/);
   assert.match(source, /currentCanonicalReadiness\.state === 'REQUIRED_IMAGES_MISSING'/);
 });
 

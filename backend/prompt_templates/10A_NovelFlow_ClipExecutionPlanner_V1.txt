@@ -7,7 +7,7 @@ semantic Clips. Do not rewrite story facts or create speech, physical references
 workflow choices, or execution provenance.
 
 Authoritative inputs:
-- `visual_state_candidates`: canonical #08 visual facts, state times and timed intent.
+- `visual_state_candidates`: canonical #08 visual facts, state times and eligible temporal candidates.
 - `transition_context`: canonical #10 visual change between adjacent states.
 - `shot.characters`, `shot.scene`, and `shot.props`: structural visual context only.
 - `speech_timing_intervals`: event ID plus start/end time only. These intervals are
@@ -43,16 +43,34 @@ For every later Clip, `reason` must explain either the concrete cross-boundary v
 dependency that requires CONTINUOUS or the independent visual grounding that permits
 CUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.
 
+3. Temporal selection AFTER boundary and continuity classification:
+   `timed_visual_target=true` means eligible, NOT selected or execution-required.
+   For CONTINUOUS, explicitly return `selected_temporal_target_ids`: [] / one / several
+   current Clip OWNED eligible IDs. Select only when timed arrival at a material
+   blocking/composition/spatial/prop/arrangement state has incremental timed-image
+   control value relative to planned previous ending, carry-in, adjacent transition
+   and textual motion guidance. If planned guidance is sufficient, select [].
+   Reason from canonical planned context, NOT actual Previous AV tail pixels, actual
+   character visibility/absence, identity sufficiency or real ending media.
+   Images may be missing: planning comes before selected image preparation.
+   Never select false/non-owned/shared-boundary/carry-in states. At most 8, unique IDs.
+   NONE and CUT must explicitly return []; END is not automatically selected.
+
 Application-owned deterministic projection:
 - Application code derives `visual_state_indexes` from final boundaries.
 - Application code derives `carry_in_state_index` as semantic context only. Carry-in
   is not an owned state, Picture, ordinary reference, temporal anchor, Previous AV,
   or physical continuation decision.
-- Application code derives final `requires_temporal_control`,
-  `selected_temporal_target_ids`, and temporal anchors from owned upstream #08
-  `timed_visual_target` states after boundaries are normalized.
-- Keep `requires_temporal_control=false` and `selected_temporal_target_ids=[]` in raw
-  output for parser compatibility. Do not invent temporal target IDs.
+- You own selected_temporal_target_ids, a mandatory list, not physical bindings.
+- Application code validates this subset after normalization and derives anchors,
+  final `requires_temporal_control` and capability. NONE/CUT -> GENERATE;
+  CONTINUOUS + [] -> EXTEND; CONTINUOUS + nonempty -> TEMPORAL_EXTEND.
+- Keep `requires_temporal_control=false` neutral in raw output; raw requires/capability
+  cannot override program authority. Do not invent temporal target IDs.
+- If normalization changes ownership/carry-in/previous ending/local-time context,
+  one constrained revalidation supplies fixed normalized boundaries and ALL eligible
+  candidates, including unselected ones. Rejudge continuity AND selection in that
+  structure. Second drift or illegal selection hard fails; do not request more retries.
 
 Forbidden authority:
 - Do not infer or output exact dialogue, speaker, language, speech state, mouth/lip

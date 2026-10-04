@@ -92,9 +92,9 @@ def _fake_planner(monkeypatch, response):
 def test_canonical_plan_persists_arbitrary_n_clip_projection(monkeypatch):
     shot = _canonical_shot()
     _fake_planner(monkeypatch, [
-        {"clip_index": 1, "start_time": 0, "end_time": 8, "continuity_to_previous": "NONE", "capability": "GENERATE"},
-        {"clip_index": 2, "start_time": 8, "end_time": 16, "continuity_to_previous": "CONTINUOUS", "capability": "EXTEND"},
-        {"clip_index": 3, "start_time": 16, "end_time": 24, "continuity_to_previous": "CONTINUOUS", "capability": "EXTEND"},
+        {"clip_index": 1, "start_time": 0, "end_time": 8, "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "capability": "GENERATE"},
+        {"clip_index": 2, "start_time": 8, "end_time": 16, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [], "capability": "EXTEND"},
+        {"clip_index": 3, "start_time": 16, "end_time": 24, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [], "capability": "EXTEND"},
     ])
     clips, validation = asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
     assert validation["passed"] is True, validation
@@ -106,9 +106,9 @@ def test_canonical_plan_persists_arbitrary_n_clip_projection(monkeypatch):
 def test_first_or_cut_timed_target_stays_generate(monkeypatch):
     shot = _canonical_shot(timed_index=3, continuity="NORMAL")
     _fake_planner(monkeypatch, [
-        {"clip_index": 1, "start_time": 0, "end_time": 8, "continuity_to_previous": "NONE", "capability": "GENERATE"},
-        {"clip_index": 2, "start_time": 8, "end_time": 20, "continuity_to_previous": "CUT", "capability": "GENERATE"},
-        {"clip_index": 3, "start_time": 20, "end_time": 24, "continuity_to_previous": "CUT", "capability": "GENERATE"},
+        {"clip_index": 1, "start_time": 0, "end_time": 8, "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "capability": "GENERATE"},
+        {"clip_index": 2, "start_time": 8, "end_time": 20, "continuity_to_previous": "CUT", "selected_temporal_target_ids": [], "capability": "GENERATE"},
+        {"clip_index": 3, "start_time": 20, "end_time": 24, "continuity_to_previous": "CUT", "selected_temporal_target_ids": [], "capability": "GENERATE"},
     ])
     clips, validation = asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
     assert validation["passed"] is True, validation
@@ -120,9 +120,9 @@ def test_continuous_timed_target_requires_image_and_routes_temporal_extend(tmp_p
     image.write_bytes(b"kf3")
     shot = _canonical_shot(timed_index=3, image_path=image)
     _fake_planner(monkeypatch, [
-        {"clip_index": 1, "start_time": 0, "end_time": 8, "continuity_to_previous": "NONE", "capability": "GENERATE"},
-        {"clip_index": 2, "start_time": 8, "end_time": 20, "continuity_to_previous": "CONTINUOUS", "capability": "EXTEND"},
-        {"clip_index": 3, "start_time": 20, "end_time": 24, "continuity_to_previous": "CONTINUOUS", "capability": "EXTEND"},
+        {"clip_index": 1, "start_time": 0, "end_time": 8, "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "capability": "GENERATE"},
+        {"clip_index": 2, "start_time": 8, "end_time": 20, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": ["KF3"], "capability": "EXTEND"},
+        {"clip_index": 3, "start_time": 20, "end_time": 24, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [], "capability": "EXTEND"},
     ])
     clips, validation = asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
     assert validation["passed"] is True, validation
@@ -134,16 +134,21 @@ def test_continuous_timed_target_requires_image_and_routes_temporal_extend(tmp_p
 def test_missing_continuous_timed_target_image_is_not_downgraded(monkeypatch):
     shot = _canonical_shot(timed_index=3)
     _fake_planner(monkeypatch, [
-        {"clip_index": 1, "start_time": 0, "end_time": 8, "continuity_to_previous": "NONE", "capability": "GENERATE"},
-        {"clip_index": 2, "start_time": 8, "end_time": 24, "continuity_to_previous": "CONTINUOUS", "capability": "EXTEND"},
+        {"clip_index": 1, "start_time": 0, "end_time": 8, "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "capability": "GENERATE"},
+        {"clip_index": 2, "start_time": 8, "end_time": 20, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": ["KF3"], "capability": "EXTEND"},
+        {"clip_index": 3, "start_time": 20, "end_time": 24, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": []},
     ])
-    with pytest.raises(ValueError, match="TEMPORAL_ANCHOR_UNAVAILABLE"):
-        asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
+    anchors = []
+    clips, validation = asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, anchors))
+    assert validation["passed"] is True
+    assert clips[1]["capability"] == "TEMPORAL_EXTEND"
+    assert clips[1]["selected_temporal_target_ids"] == ["KF3"]
+    assert anchors[0]["image_url"] is None
 
 
 def test_n8_and_more_than_nine_owned_states_are_not_semantically_thinned(monkeypatch):
     shot = _canonical_shot(duration=40, continuity="NORMAL", count=9)
-    _fake_planner(monkeypatch, [{"clip_index": 1, "start_time": 0, "end_time": 15, "continuity_to_previous": "NONE", "capability": "GENERATE"}, {"clip_index": 2, "start_time": 15, "end_time": 30, "continuity_to_previous": "CUT", "capability": "GENERATE"}, {"clip_index": 3, "start_time": 30, "end_time": 40, "continuity_to_previous": "CUT", "capability": "GENERATE"}])
+    _fake_planner(monkeypatch, [{"clip_index": 1, "start_time": 0, "end_time": 15, "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "capability": "GENERATE"}, {"clip_index": 2, "start_time": 15, "end_time": 30, "continuity_to_previous": "CUT", "selected_temporal_target_ids": [], "capability": "GENERATE"}, {"clip_index": 3, "start_time": 30, "end_time": 40, "continuity_to_previous": "CUT", "selected_temporal_target_ids": [], "capability": "GENERATE"}])
     clips, validation = asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
     assert validation["passed"] is True, validation
     assert sum(len(item["visual_state_indexes"]) for item in clips) == 9
@@ -152,7 +157,7 @@ def test_n8_and_more_than_nine_owned_states_are_not_semantically_thinned(monkeyp
 
 def test_validator_checks_canonical_ownership_without_physical_ref_budget():
     candidates = [{"keyframe_index": i, "time_seconds": i, "role": "START" if i == 1 else "INTERMEDIATE"} for i in range(1, 12)]
-    clips = [{"clip_index": 1, "start_time": 0, "end_time": 11, "planned_duration": 11, "capability": "GENERATE", "continuity_to_previous": "NONE", "visual_state_indexes": list(range(1, 12)), "carry_in_state_index": None}]
+    clips = [{"clip_index": 1, "start_time": 0, "end_time": 11, "planned_duration": 11, "capability": "GENERATE", "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "visual_state_indexes": list(range(1, 12)), "carry_in_state_index": None}]
     from app.services.clip_validator import validate_clip_plan
     result = validate_clip_plan(11, clips, [], visual_state_candidates=candidates)
     assert result["passed"] is True, result
@@ -192,7 +197,7 @@ async def test_canonical_clip_plan_persistence_and_reload(db_session, monkeypatc
         "end_time": 12,
         "planned_duration": 12,
         "capability": "GENERATE",
-        "continuity_to_previous": "NONE",
+        "continuity_to_previous": "NONE", "selected_temporal_target_ids": [],
         "visual_state_indexes": [1, 2],
         "carry_in_state_index": None,
         "execution_status": "PLANNED",
@@ -202,7 +207,7 @@ async def test_canonical_clip_plan_persistence_and_reload(db_session, monkeypatc
         "end_time": 24,
         "planned_duration": 12,
         "capability": "EXTEND",
-        "continuity_to_previous": "CONTINUOUS",
+        "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [],
         "previous_clip_index": 1,
         "visual_state_indexes": [3],
         "carry_in_state_index": 2,

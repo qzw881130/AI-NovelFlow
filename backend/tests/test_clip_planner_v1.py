@@ -186,9 +186,9 @@ def test_clip_planner_compiles_director_mode_into_available_foundation_capabilit
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
             return {"success": True, "content": json.dumps({"clips": [
-                {"clip_index": 1, "start_time": 0, "end_time": 10, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "NONE", "temporal_anchor_ids": []},
-                {"clip_index": 2, "start_time": 10, "end_time": 20, "capability": "VIDEO_CONTINUATION", "continuity_to_previous": "CONTINUOUS", "previous_clip_index": 1},
-                {"clip_index": 3, "start_time": 20, "end_time": 28, "capability": "VIDEO_CONTINUATION", "continuity_to_previous": "CONTINUOUS", "previous_clip_index": 2},
+                {"clip_index": 1, "start_time": 0, "end_time": 10, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "temporal_anchor_ids": []},
+                {"clip_index": 2, "start_time": 10, "end_time": 20, "capability": "VIDEO_CONTINUATION", "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [], "previous_clip_index": 1},
+                {"clip_index": 3, "start_time": 20, "end_time": 28, "capability": "VIDEO_CONTINUATION", "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [], "previous_clip_index": 2},
             ]})}
 
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
@@ -241,7 +241,7 @@ def test_multi_keyframe_director_mode_aligns_clip_local_indexes(tmp_path, monkey
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
             return {"success": True, "content": json.dumps({"clips": [
-                    {"clip_index": 1, "start_time": 0, "end_time": 8, "capability": "SINGLE_FRAME", "continuity_to_previous": "NONE"},
+                    {"clip_index": 1, "start_time": 0, "end_time": 8, "capability": "SINGLE_FRAME", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
             ]})}
 
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
@@ -293,7 +293,7 @@ def test_multi_keyframe_alignment_keeps_fallback_when_required_image_missing(tmp
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
             return {"success": True, "content": json.dumps({"clips": [
-                {"clip_index": 1, "start_time": 0, "end_time": 8, "capability": "SINGLE_FRAME", "continuity_to_previous": "NONE"},
+                {"clip_index": 1, "start_time": 0, "end_time": 8, "capability": "SINGLE_FRAME", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
             ]})}
 
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
@@ -326,7 +326,7 @@ def test_multi_keyframe_alignment_does_not_change_first_last_or_single(tmp_path,
         class FakeLLMService:
             async def chat_completion(self, **kwargs):
                 return {"success": True, "content": json.dumps({"clips": [
-                    {"clip_index": 1, "start_time": 0, "end_time": 8, "capability": mode, "continuity_to_previous": "NONE"},
+                    {"clip_index": 1, "start_time": 0, "end_time": 8, "capability": mode, "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
                 ]})}
 
         monkeypatch.setattr(clip_planner, "LLMService", FakeLLMService)
@@ -397,7 +397,7 @@ def test_clip_planner_input_projects_visual_state_candidates_without_reference_m
     assert "reference_manifest" not in json.dumps(payload)
 
 
-def test_clip_planner_projects_upstream_target_despite_contradictory_raw_fields(tmp_path, monkeypatch):
+def test_clip_planner_selected_target_overrides_contradictory_execution_fields(tmp_path, monkeypatch):
     import asyncio
     from app.services import clip_planner
 
@@ -422,10 +422,10 @@ def test_clip_planner_projects_upstream_target_despite_contradictory_raw_fields(
         async def chat_completion(self, **kwargs):
             assert kwargs["user_content"]
             return {"success": True, "content": json.dumps({"clips": [
-                {"clip_index": 1, "start_time": 0, "end_time": 15, "capability": "GENERATE", "continuity_to_previous": "NONE"},
+                {"clip_index": 1, "start_time": 0, "end_time": 15, "capability": "GENERATE", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
                 {"clip_index": 2, "start_time": 15, "end_time": 20, "capability": "EXTEND",
                  "continuity_to_previous": "CONTINUOUS", "requires_temporal_control": False,
-                 "selected_temporal_target_ids": []},
+                 "selected_temporal_target_ids": ["KF4"]},
             ]})}
 
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
@@ -465,7 +465,7 @@ def test_clip_planner_does_not_infer_temporal_intent_from_visual_states(tmp_path
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
             return {"success": True, "content": json.dumps({"clips": [
-                {"clip_index": 1, "start_time": 0, "end_time": 6, "capability": "GENERATE", "continuity_to_previous": "NONE"},
+                {"clip_index": 1, "start_time": 0, "end_time": 6, "capability": "GENERATE", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
                 {"clip_index": 2, "start_time": 6, "end_time": 12, "capability": "EXTEND",
                  "continuity_to_previous": "CONTINUOUS", "requires_temporal_control": False,
                  "selected_temporal_target_ids": []},
@@ -481,7 +481,7 @@ def test_clip_planner_does_not_infer_temporal_intent_from_visual_states(tmp_path
     assert anchors == []
 
 
-def test_clip_planner_blocks_required_upstream_target_without_image(tmp_path, monkeypatch):
+def test_clip_planner_unselected_eligible_missing_image_is_not_required(tmp_path, monkeypatch):
     import asyncio
     from app.services import clip_planner
     image = tmp_path / "shot.png"
@@ -500,7 +500,7 @@ def test_clip_planner_blocks_required_upstream_target_without_image(tmp_path, mo
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
             return {"success": True, "content": json.dumps({"clips": [
-                {"clip_index": 1, "start_time": 0, "end_time": 5, "capability": "GENERATE", "continuity_to_previous": "NONE"},
+                {"clip_index": 1, "start_time": 0, "end_time": 5, "capability": "GENERATE", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
             {"clip_index": 2, "start_time": 5, "end_time": 10, "capability": "EXTEND",
                  "continuity_to_previous": "CONTINUOUS", "requires_temporal_control": False,
                  "selected_temporal_target_ids": []},
@@ -510,8 +510,10 @@ def test_clip_planner_blocks_required_upstream_target_without_image(tmp_path, mo
     ]})
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
     monkeypatch.setattr(clip_planner, "LLMService", FakeLLMService)
-    with pytest.raises(ValueError, match="TEMPORAL_ANCHOR_UNAVAILABLE"):
-        asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
+    clips, validation = asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
+    assert validation["passed"] is True
+    assert clips[1]["capability"] == "EXTEND"
+    assert clips[1]["temporal_anchor_ids"] == []
 
 
 def test_clip_planner_ignores_raw_temporal_capability_without_upstream_intent(tmp_path, monkeypatch):
@@ -531,15 +533,13 @@ def test_clip_planner_ignores_raw_temporal_capability_without_upstream_intent(tm
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
             return {"success": True, "content": json.dumps({"clips": [
-                {"clip_index": 1, "start_time": 0, "end_time": 5, "capability": "GENERATE", "continuity_to_previous": "NONE"},
+                {"clip_index": 1, "start_time": 0, "end_time": 5, "capability": "GENERATE", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
                 {"clip_index": 2, "start_time": 5, "end_time": 10, "capability": "TEMPORAL_EXTEND", "continuity_to_previous": "CONTINUOUS", "requires_temporal_control": True, "selected_temporal_target_ids": ["KF2"]},
             ]})}
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
     monkeypatch.setattr(clip_planner, "LLMService", FakeLLMService)
-    clips, validation = asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
-    assert validation["passed"] is True
-    assert clips[1]["capability"] == "EXTEND"
-    assert clips[1]["requires_temporal_control"] is False
+    with pytest.raises(ValueError, match="TEMPORAL_SELECTION_INVALID"):
+        asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
 
 
 def test_clip_planner_first_generate_ignores_raw_temporal_intent(tmp_path, monkeypatch):
@@ -567,11 +567,8 @@ def test_clip_planner_first_generate_ignores_raw_temporal_intent(tmp_path, monke
             ]})}
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
     monkeypatch.setattr(clip_planner, "LLMService", FakeLLMService)
-    clips, validation = asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
-    assert validation["passed"] is True
-    assert clips[0]["capability"] == "GENERATE"
-    assert clips[0]["requires_temporal_control"] is False
-    assert clips[0]["temporal_anchor_ids"] == []
+    with pytest.raises(ValueError, match="TEMPORAL_SELECTION_INVALID"):
+        asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
 
 
 def test_clip_planner_cut_generate_ignores_raw_temporal_intent(tmp_path, monkeypatch):
@@ -593,18 +590,15 @@ def test_clip_planner_cut_generate_ignores_raw_temporal_intent(tmp_path, monkeyp
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
             return {"success": True, "content": json.dumps({"clips": [
-                {"clip_index": 1, "start_time": 0, "end_time": 5, "capability": "GENERATE", "continuity_to_previous": "NONE"},
+                {"clip_index": 1, "start_time": 0, "end_time": 5, "capability": "GENERATE", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
                 {"clip_index": 2, "start_time": 5, "end_time": 10, "capability": "GENERATE",
                  "continuity_to_previous": "CUT", "requires_temporal_control": True,
                  "selected_temporal_target_ids": ["KF2"]},
             ]})}
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
     monkeypatch.setattr(clip_planner, "LLMService", FakeLLMService)
-    clips, validation = asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
-    assert validation["passed"] is True
-    assert clips[1]["capability"] == "GENERATE"
-    assert clips[1]["requires_temporal_control"] is False
-    assert clips[1]["temporal_anchor_ids"] == []
+    with pytest.raises(ValueError, match="TEMPORAL_SELECTION_INVALID"):
+        asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
 
 
 def test_clip_planner_repairs_subminimum_tail_before_validation(tmp_path, monkeypatch):
@@ -624,9 +618,9 @@ def test_clip_planner_repairs_subminimum_tail_before_validation(tmp_path, monkey
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
             return {"success": True, "content": json.dumps({"clips": [
-                {"clip_index": 1, "start_time": 0, "end_time": 15, "capability": "GENERATE", "continuity_to_previous": "NONE"},
+                {"clip_index": 1, "start_time": 0, "end_time": 15, "capability": "GENERATE", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
                 {"clip_index": 2, "start_time": 15, "end_time": 18, "capability": "EXTEND",
-                 "continuity_to_previous": "CONTINUOUS", "requires_temporal_control": False},
+                 "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [], "requires_temporal_control": False},
             ]})}
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
     monkeypatch.setattr(clip_planner, "LLMService", FakeLLMService)
@@ -742,12 +736,12 @@ def test_temporal_anchor_bridge_requires_future_state_but_allows_explicit_end():
 def test_temporal_projection_assigns_shared_boundary_only_to_prior_clip():
     from app.services.clip_planner import _build_temporal_anchors, _project_temporal_targets
 
-    candidates = [{"visual_state_id": "KF4", "time_seconds": 10, "timed_visual_target": True,
+    candidates = [{"visual_state_id": "KF4", "keyframe_index": 4, "time_seconds": 10, "timed_visual_target": True,
                    "image_available": True, "image_url": "/kf4.png", "source": {"type": "KEYFRAME", "id": "KF4"}}]
     clips = [
-        {"clip_index": 1, "start_time": 0, "end_time": 5, "continuity_to_previous": "NONE"},
-        {"clip_index": 2, "start_time": 5, "end_time": 10, "continuity_to_previous": "CONTINUOUS"},
-        {"clip_index": 3, "start_time": 10, "end_time": 15, "continuity_to_previous": "CONTINUOUS"},
+        {"clip_index": 1, "start_time": 0, "end_time": 5, "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
+        {"clip_index": 2, "previous_clip_index": 1, "visual_state_indexes": [4], "start_time": 5, "end_time": 10, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": ["KF4"]},
+        {"clip_index": 3, "previous_clip_index": 2, "visual_state_indexes": [], "start_time": 10, "end_time": 15, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": []},
     ]
 
     _project_temporal_targets(clips, candidates, 15)
@@ -764,11 +758,11 @@ def test_temporal_projection_orders_all_targets_and_enforces_eight_limit():
     from app.services.clip_planner import _build_temporal_anchors, _project_temporal_targets
 
     candidates = [
-        {"visual_state_id": f"KF{index}", "time_seconds": 5 + index, "timed_visual_target": True,
+        {"visual_state_id": f"KF{index}", "keyframe_index": index, "time_seconds": 5 + index, "timed_visual_target": True,
          "image_available": True, "image_url": f"/kf{index}.png"}
         for index in range(2, 5)
     ]
-    clip = {"clip_index": 2, "start_time": 5, "end_time": 10, "continuity_to_previous": "CONTINUOUS"}
+    clip = {"clip_index": 2, "previous_clip_index": 1, "visual_state_indexes": [2, 3, 4], "start_time": 5, "end_time": 10, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": ["KF4", "KF2", "KF3"]}
     _project_temporal_targets([clip], list(reversed(candidates)), 10)
     assert clip["selected_temporal_target_ids"] == ["KF2", "KF3", "KF4"]
     assert clip["capability"] == "TEMPORAL_EXTEND"
@@ -776,13 +770,13 @@ def test_temporal_projection_orders_all_targets_and_enforces_eight_limit():
     assert [item["time_seconds"] for item in anchors] == [2, 3, 4]
 
     too_many = [
-        {"visual_state_id": f"KF{index}", "time_seconds": 5 + index / 10, "timed_visual_target": True,
+        {"visual_state_id": f"KF{index}", "keyframe_index": index, "time_seconds": 5 + index / 10, "timed_visual_target": True,
          "image_available": True, "image_url": f"/kf{index}.png"}
         for index in range(2, 11)
     ]
     with pytest.raises(ValueError, match="TEMPORAL_ANCHOR_LIMIT"):
-        _project_temporal_targets([{"clip_index": 2, "start_time": 5, "end_time": 10,
-                                   "continuity_to_previous": "CONTINUOUS"}], too_many, 10)
+        _project_temporal_targets([{"clip_index": 2, "previous_clip_index": 1, "visual_state_indexes": list(range(2, 11)), "start_time": 5, "end_time": 10,
+                                   "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [f"KF{i}" for i in range(2, 11)]}], too_many, 10)
 
 
 @pytest.mark.parametrize("candidates, message", [
@@ -795,9 +789,11 @@ def test_temporal_projection_orders_all_targets_and_enforces_eight_limit():
 ])
 def test_temporal_projection_rejects_invalid_target_identity_and_time(candidates, message):
     from app.services.clip_planner import _project_temporal_targets
+    for candidate in candidates:
+        candidate["keyframe_index"] = int(candidate["visual_state_id"][2:])
     with pytest.raises(ValueError, match=message):
-        _project_temporal_targets([{"clip_index": 2, "start_time": 0, "end_time": 10,
-                                   "continuity_to_previous": "CONTINUOUS"}], candidates, 10)
+        _project_temporal_targets([{"clip_index": 2, "previous_clip_index": 1, "visual_state_indexes": [2, 3], "start_time": 0, "end_time": 10,
+                                   "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": list(dict.fromkeys(item["visual_state_id"] for item in candidates))}], candidates, 10)
 
 
 def test_planner_rechecks_target_after_boundary_normalization(tmp_path, monkeypatch):
@@ -819,17 +815,15 @@ def test_planner_rechecks_target_after_boundary_normalization(tmp_path, monkeypa
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
             return {"success": True, "content": json.dumps({"clips": [
-                {"clip_index": 1, "start_time": 0, "end_time": 3, "capability": "GENERATE", "continuity_to_previous": "NONE"},
+                {"clip_index": 1, "start_time": 0, "end_time": 3, "capability": "GENERATE", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
                 {"clip_index": 2, "start_time": 3, "end_time": 18, "capability": "EXTEND",
                  "continuity_to_previous": "CONTINUOUS", "requires_temporal_control": True,
                  "selected_temporal_target_ids": ["KF2"]},
             ]})}
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
     monkeypatch.setattr(clip_planner, "LLMService", FakeLLMService)
-    clips, validation = asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
-    assert validation["passed"] is True
-    assert clips[1]["capability"] == "EXTEND"
-    assert clips[1]["selected_temporal_target_ids"] == []
+    with pytest.raises(ValueError, match="TEMPORAL_SELECTION_INVALID"):
+        asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
 
 
 def test_clip_planner_normalizes_explicit_continuity_routing(tmp_path, monkeypatch):
@@ -852,8 +846,8 @@ def test_clip_planner_normalizes_explicit_continuity_routing(tmp_path, monkeypat
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
             return {"success": True, "content": json.dumps({"clips": [
-                {"clip_index": 1, "start_time": 0, "end_time": 6, "capability": "GENERATE", "continuity_to_previous": "NONE", "requires_temporal_control": False},
-                {"clip_index": 2, "start_time": 6, "end_time": 12, "capability": "GENERATE", "continuity_to_previous": "CUT", "requires_temporal_control": False},
+                {"clip_index": 1, "start_time": 0, "end_time": 6, "capability": "GENERATE", "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "requires_temporal_control": False},
+                {"clip_index": 2, "start_time": 6, "end_time": 12, "capability": "GENERATE", "continuity_to_previous": "CUT", "selected_temporal_target_ids": [], "requires_temporal_control": False},
             ]})}
 
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
@@ -884,8 +878,8 @@ def test_clip_planner_normalizes_continuous_to_extend_and_defers_temporal(tmp_pa
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
             return {"success": True, "content": json.dumps({"clips": [
-                {"clip_index": 1, "start_time": 0, "end_time": 6, "capability": "GENERATE", "continuity_to_previous": "NONE"},
-                {"clip_index": 2, "start_time": 6, "end_time": 12, "capability": "VIDEO_CONTINUATION", "continuity_to_previous": "CONTINUOUS", "previous_clip_index": 1},
+                {"clip_index": 1, "start_time": 0, "end_time": 6, "capability": "GENERATE", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
+                {"clip_index": 2, "start_time": 6, "end_time": 12, "capability": "VIDEO_CONTINUATION", "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [], "previous_clip_index": 1},
             ]})}
 
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
@@ -943,8 +937,8 @@ def test_clip_planner_recomputes_durations_after_dialogue_boundary_alignment(tmp
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
             return {"success": True, "content": json.dumps({"clips": [
-                {"clip_index": 1, "start_time": 0, "end_time": 10, "capability": "SINGLE_FRAME", "continuity_to_previous": "NONE"},
-                {"clip_index": 2, "start_time": 10, "end_time": 24, "capability": "VIDEO_CONTINUATION", "continuity_to_previous": "CONTINUOUS", "previous_clip_index": 1},
+                {"clip_index": 1, "start_time": 0, "end_time": 10, "capability": "SINGLE_FRAME", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
+                {"clip_index": 2, "start_time": 10, "end_time": 24, "capability": "VIDEO_CONTINUATION", "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [], "previous_clip_index": 1},
             ]})}
 
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
@@ -975,8 +969,8 @@ def test_explicit_multiframe_continuity_is_orthogonal_to_execution_routing():
     from app.services.clip_planner import _normalize_continuity_contract
 
     clips = [
-        {"clip_index": 1, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "NONE", "requires_temporal_control": False},
-        {"clip_index": 2, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "CONTINUOUS", "previous_clip_index": 1, "requires_temporal_control": False},
+        {"clip_index": 1, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "requires_temporal_control": False},
+        {"clip_index": 2, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [], "previous_clip_index": 1, "requires_temporal_control": False},
     ]
     _normalize_continuity_contract(clips, "CONTINUOUS_TAKE")
     assert clips[0]["planning_mode"] == "MULTI_KEYFRAME"
@@ -1009,8 +1003,8 @@ def test_continuous_take_preserves_visual_cut_but_rejects_invalid_first_continui
     from app.services.clip_planner import _normalize_continuity_contract
 
     clips = [
-        {"clip_index": 1, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "NONE"},
-        {"clip_index": 2, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "CUT"},
+        {"clip_index": 1, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
+        {"clip_index": 2, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "CUT", "selected_temporal_target_ids": []},
     ]
     _normalize_continuity_contract(clips, "CONTINUOUS_TAKE")
     assert clips[1]["continuity_to_previous"] == "CUT"
@@ -1018,7 +1012,7 @@ def test_continuous_take_preserves_visual_cut_but_rejects_invalid_first_continui
 
     with pytest.raises(ValueError, match="必须为 NONE"):
         _normalize_continuity_contract([
-            {"clip_index": 1, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "CONTINUOUS"},
+            {"clip_index": 1, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": []},
         ], "CONTINUOUS_TAKE")
 
 
@@ -1036,8 +1030,8 @@ def test_later_none_continuity_is_rejected_instead_of_bypassing_routing():
 
     with pytest.raises(ValueError, match="Later Clip .* 不能为 NONE"):
         _normalize_continuity_contract([
-            {"clip_index": 1, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "NONE"},
-            {"clip_index": 2, "capability": "VIDEO_CONTINUATION", "continuity_to_previous": "NONE", "previous_clip_index": 1},
+            {"clip_index": 1, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
+            {"clip_index": 2, "capability": "VIDEO_CONTINUATION", "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "previous_clip_index": 1},
         ], "NORMAL")
 
 
@@ -1054,8 +1048,8 @@ def test_normal_shot_explicit_cut_still_routes_to_generate():
     from app.services.clip_planner import _normalize_continuity_contract
 
     clips = [
-        {"clip_index": 1, "capability": "SINGLE_FRAME", "continuity_to_previous": "NONE"},
-        {"clip_index": 2, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "CUT"},
+        {"clip_index": 1, "capability": "SINGLE_FRAME", "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
+        {"clip_index": 2, "capability": "MULTI_KEYFRAME", "continuity_to_previous": "CUT", "selected_temporal_target_ids": []},
     ]
     _normalize_continuity_contract(clips, "NORMAL")
     assert clips[1]["continuity_to_previous"] == "CUT"

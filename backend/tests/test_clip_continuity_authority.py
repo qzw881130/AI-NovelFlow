@@ -122,8 +122,8 @@ async def test_t02_dialogue_boundary_with_object_handoff_preserves_visual_contin
         "start_time": 1.0, "end_time": 6.0,
     }])
     response = [
-        {"clip_index": 1, "start_time": 0, "end_time": 6, "continuity_to_previous": "NONE", "reason": "initial visual setup"},
-        {"clip_index": 2, "start_time": 6, "end_time": 12, "continuity_to_previous": "CONTINUOUS", "reason": "the object handoff and hand positions continue from the actual prior ending"},
+        {"clip_index": 1, "start_time": 0, "end_time": 6, "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "reason": "initial visual setup"},
+        {"clip_index": 2, "start_time": 6, "end_time": 12, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [], "reason": "the object handoff and hand positions continue from the actual prior ending"},
     ]
 
     clips, validation, _, llm_payload = await _plan(monkeypatch, shot, response)
@@ -142,8 +142,8 @@ async def test_t03_dialogue_end_and_story_continuity_preserve_visual_cut(tmp_pat
         "start_time": 1.0, "end_time": 6.0,
     }])
     response = [
-        {"clip_index": 1, "start_time": 0, "end_time": 6, "continuity_to_previous": "NONE"},
-        {"clip_index": 2, "start_time": 6, "end_time": 12, "continuity_to_previous": "CUT", "reason": "independently grounded exterior setup"},
+        {"clip_index": 1, "start_time": 0, "end_time": 6, "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
+        {"clip_index": 2, "start_time": 6, "end_time": 12, "continuity_to_previous": "CUT", "selected_temporal_target_ids": [], "reason": "independently grounded exterior setup"},
     ]
 
     clips, validation, _, _ = await _plan(monkeypatch, shot, response)
@@ -162,8 +162,8 @@ async def test_t08_no_dialogue_spatial_dependency_preserves_continuous(tmp_path,
         {"from_keyframe_index": 2, "to_keyframe_index": 3, "start_time": 6, "end_time": 12, "transition_description": "保持运动方向走到门口"},
     ])
     response = [
-        {"clip_index": 1, "start_time": 0, "end_time": 6, "continuity_to_previous": "NONE"},
-        {"clip_index": 2, "start_time": 6, "end_time": 12, "continuity_to_previous": "CONTINUOUS", "reason": "walking direction and body trajectory depend on the prior ending"},
+        {"clip_index": 1, "start_time": 0, "end_time": 6, "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
+        {"clip_index": 2, "start_time": 6, "end_time": 12, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [], "reason": "walking direction and body trajectory depend on the prior ending"},
     ]
 
     clips, validation, _, llm_payload = await _plan(monkeypatch, shot, response)
@@ -186,8 +186,8 @@ async def test_t09_no_dialogue_timed_continuous_state_derives_temporal_requireme
     ]
     shot = _shot(tmp_path, dialogues=[], states=states)
     response = [
-        {"clip_index": 1, "start_time": 0, "end_time": 6, "continuity_to_previous": "NONE"},
-        {"clip_index": 2, "start_time": 6, "end_time": 12, "continuity_to_previous": "CONTINUOUS", "reason": "rider motion continues from prior ending"},
+        {"clip_index": 1, "start_time": 0, "end_time": 6, "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
+        {"clip_index": 2, "start_time": 6, "end_time": 12, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": ["KF3"], "reason": "rider motion continues from prior ending"},
     ]
 
     clips, validation, anchors, _ = await _plan(monkeypatch, shot, response)
@@ -207,8 +207,8 @@ async def test_same_scene_same_people_same_conversation_can_be_cut_under_continu
         "start_time": 1.0, "end_time": 10.0,
     }])
     response = [
-        {"clip_index": 1, "start_time": 0, "end_time": 6, "continuity_to_previous": "NONE"},
-        {"clip_index": 2, "start_time": 6, "end_time": 12, "continuity_to_previous": "CUT", "reason": "new independently grounded frontal composition"},
+        {"clip_index": 1, "start_time": 0, "end_time": 6, "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
+        {"clip_index": 2, "start_time": 6, "end_time": 12, "continuity_to_previous": "CUT", "selected_temporal_target_ids": [], "reason": "new independently grounded frontal composition"},
     ]
 
     clips, validation, _, llm_payload = await _plan(monkeypatch, shot, response)
@@ -222,7 +222,7 @@ async def test_same_scene_same_people_same_conversation_can_be_cut_under_continu
 @pytest.mark.asyncio
 async def test_llm_payload_excludes_physical_and_legacy_execution_authority(tmp_path, monkeypatch):
     shot = _shot(tmp_path)
-    response = [{"clip_index": 1, "start_time": 0, "end_time": 12, "continuity_to_previous": "NONE"}]
+    response = [{"clip_index": 1, "start_time": 0, "end_time": 12, "continuity_to_previous": "NONE", "selected_temporal_target_ids": []}]
 
     _, validation, _, llm_payload = await _plan(monkeypatch, shot, response)
 
@@ -253,11 +253,11 @@ def _sequence_planner(monkeypatch, responses, calls, before_call=None):
     monkeypatch.setattr(clip_planner, "LLMService", FakeLLMService)
 
 
-def _two_clips(boundary, continuity, reason="raw KF4 ending -> KF5 first-owned"):
+def _two_clips(boundary, continuity, reason="raw KF4 ending -> KF5 first-owned", selected=None):
     return [
-        {"clip_index": 1, "start_time": 0, "end_time": boundary, "continuity_to_previous": "NONE"},
+        {"clip_index": 1, "start_time": 0, "end_time": boundary, "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
         {"clip_index": 2, "start_time": boundary, "end_time": 18,
-         "continuity_to_previous": continuity, "reason": reason},
+         "continuity_to_previous": continuity, "selected_temporal_target_ids": selected or [], "reason": reason},
     ]
 
 
@@ -395,7 +395,7 @@ async def test_same_identities_with_changed_timed_local_position_require_retry(t
     shot = _shot(tmp_path, states=states)
     shot.duration = 18
     calls, anchors = [], []
-    _sequence_planner(monkeypatch, [_two_clips(15, "CONTINUOUS"), _two_clips(14, "CONTINUOUS", "same visual dependency, corrected timed interval")], calls)
+    _sequence_planner(monkeypatch, [_two_clips(15, "CONTINUOUS", selected=["KF3"]), _two_clips(14, "CONTINUOUS", "same visual dependency, corrected timed interval", selected=["KF3"])], calls)
     clips, validation = await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, anchors)
     assert validation["passed"] is True, validation
     assert len(calls) == 2
@@ -409,7 +409,7 @@ async def test_same_identities_with_changed_timed_local_position_require_retry(t
 async def test_temporal_projection_uses_validated_retry_boundaries(tmp_path, monkeypatch):
     shot = _shot11(tmp_path, timed=True)
     calls, anchors = [], []
-    _sequence_planner(monkeypatch, [_two_clips(9.5, "CONTINUOUS"), _two_clips(7.15, "CONTINUOUS", "KF3 -> KF4 dependency")], calls)
+    _sequence_planner(monkeypatch, [_two_clips(9.5, "CONTINUOUS"), _two_clips(7.15, "CONTINUOUS", "KF3 -> KF4 dependency", selected=["KF4"])], calls)
     clips, validation = await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, anchors)
     assert validation["passed"] is True, validation
     assert len(calls) == 2

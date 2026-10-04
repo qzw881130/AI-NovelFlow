@@ -856,10 +856,9 @@ function VideoDirectorPanel({
     ? getRequiredMissingCanonicalVisualStates(plan, getKeyframeImageUrl)
     : [];
   const canonicalSemanticReadiness = getCanonicalSemanticReadiness(plan, getKeyframeImageUrl);
-  const showSemanticClipPlan = hasSemanticClipPlan
-    && (!isCanonicalPlan || canonicalSemanticReadiness.state === 'READY' || canonicalSemanticReadiness.state === 'GENERATE_VISUAL_START_MISSING');
+  const showSemanticClipPlan = hasSemanticClipPlan;
   const optionalMissingKeyframes = isCanonicalPlan
-    ? keyframes.filter((kf: any) => classifyVisualStateImageStatus(kf, getKeyframeImageUrl(kf)) === 'OPTIONAL_MISSING')
+    ? keyframes.filter((kf: any) => getVisualStateExecutionImageStatus(kf, plan, getKeyframeImageUrl(kf)) === 'OPTIONAL_MISSING')
     : [];
   const missingKeyframes = showKeyframeExecutionTimeline
     ? isCanonicalPlan
@@ -870,7 +869,7 @@ function VideoDirectorPanel({
   const hasGeneratingMissingKeyframes = missingKeyframes.some((kf: any) => isKeyframeGenerating(kf));
   const missingKeyframeButtonLabel = hasGeneratingMissingKeyframes
     ? `${isCanonicalPlan ? '状态图片' : '关键帧'}任务中 ${activeMissingKeyframes.length}/${missingKeyframes.length}`
-    : `${isCanonicalPlan ? requiredMissingKeyframes.length > 0 ? '批量生成必需状态图片' : '生成缺失状态图片' : '生成缺失关键帧'}${missingKeyframes.length > 0 ? ` ${missingKeyframes.length}` : ''}`;
+    : `${isCanonicalPlan ? requiredMissingKeyframes.length > 0 ? '批量生成必需状态图片' : '批量生成可选状态图' : '生成缺失关键帧'}${missingKeyframes.length > 0 ? ` ${missingKeyframes.length}` : ''}`;
   const threeFrameClipCount = clips.filter((clip: any) => Number(clip.selected_frame_count || clip.frame_count) === 3).length;
   const fourFrameClipCount = clips.filter((clip: any) => Number(clip.selected_frame_count || clip.frame_count) === 4).length;
   const [selectedKeyframeIndex, setSelectedKeyframeIndex] = useState(0);
@@ -893,10 +892,10 @@ function VideoDirectorPanel({
     selectedKeyframe?.prompt_text || selectedLegacyKeyframe?.prompt_text || ''
   ).trim();
   const selectedKeyframePrimaryActionLabel = isCanonicalPlan
-    ? selectedStateImageStatus === 'REQUIRED_MISSING' ? '生成必需状态图片' : selectedKeyframeImageUrl ? '重新生成状态图片' : '生成状态图片'
+    ? selectedStateImageStatus === 'REQUIRED_MISSING' ? '生成必需状态图片' : selectedKeyframeImageUrl ? '重新生成状态图片' : '生成可选状态图'
     : selectedKeyframeImageUrl ? 'LLM+重新生成关键帧' : 'LLM+生成关键帧';
   const selectedKeyframeCurrentPromptActionLabel = isCanonicalPlan
-    ? selectedStateImageStatus === 'REQUIRED_MISSING' ? '使用当前提示词生成必需状态图片' : selectedKeyframeImageUrl ? '使用当前提示词重新生成状态图片' : '使用当前提示词生成状态图片'
+    ? selectedStateImageStatus === 'REQUIRED_MISSING' ? '使用当前提示词生成必需状态图片' : selectedKeyframeImageUrl ? '使用当前提示词重新生成状态图片' : '使用当前提示词生成可选状态图'
     : selectedKeyframeImageUrl ? '仅重新生成关键帧' : '仅生成关键帧';
   const hasNextKeyframe = selectedKeyframeIndex < keyframes.length - 1;
   const transitions = plan.transitions || [];
@@ -1226,8 +1225,16 @@ function VideoDirectorPanel({
                 type="button"
                 onClick={onGenerateMissingKeyframes}
               disabled={isPlanningKeyframes || isGeneratingMissingKeyframes || hasGeneratingMissingKeyframes || (!isCanonicalPlan && !hasWindowPlans) || missingKeyframes.length === 0 || !!isShotVideoGenerating}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 text-sm text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                title={isShotVideoGenerating ? '当前 Shot 视频生成中，请等待完成后再生成关键帧' : !isCanonicalPlan && !hasWindowPlans ? '请先完成 #08 关键帧规划' : missingKeyframes.length === 0 ? t('chapterGenerate.noRequiredMissingVisualStates') : ''}
+              className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 ${isCanonicalPlan ? 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50' : 'border-blue-600 bg-blue-600 text-white hover:bg-blue-700'}`}
+                title={isShotVideoGenerating
+                  ? '当前 Shot 视频生成中，请等待完成后再生成关键帧'
+                  : isCanonicalPlan
+                    ? '将为当前批量范围内尚未生成图片的视觉状态生成状态图。通常无需为所有视觉状态生成图片；仅在希望增加视觉控制时使用。'
+                    : !hasWindowPlans
+                      ? '请先完成 #08 关键帧规划'
+                      : missingKeyframes.length === 0
+                        ? t('chapterGenerate.noRequiredMissingVisualStates')
+                        : ''}
               >
               {(isGeneratingMissingKeyframes || hasGeneratingMissingKeyframes) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {isGeneratingMissingKeyframes ? '正在提交关键帧任务...' : missingKeyframeButtonLabel}
@@ -1503,7 +1510,7 @@ function VideoDirectorPanel({
                         setSelectedKeyframeIndex(idx);
                         setSelectedClipKey(null);
                       }}
-                      title={`${kf.role}${keyframeClipCount > 1 ? ` · ${t('chapterGenerate.sharedBoundary')}` : ''}${isGenerating ? ` · ${t('chapterGenerate.generatingShort')}` : hasImage ? ` · ${t('chapterGenerate.generated')}` : ` · ${t('chapterGenerate.missingImage')}`}`}
+                      title={`${kf.role}${keyframeClipCount > 1 ? ` · ${t('chapterGenerate.sharedBoundary')}` : ''}${isGenerating ? ` · ${t('chapterGenerate.generatingShort')}` : hasImage ? ` · ${t('chapterGenerate.generated')}` : isCanonicalPlan ? ` · ${getVisualStateImageStatusLabel(kf)}` : ` · ${t('chapterGenerate.missingImage')}`}`}
                       className={`relative ${isCanonicalPlan ? 'w-44 min-w-44 p-2 text-left' : 'h-14 min-w-24 px-2 py-1 text-center'} rounded-lg transition-all ${isCurrentKeyframe
                         ? 'border border-blue-300 bg-blue-50 text-blue-700 shadow-sm ring-2 ring-blue-100'
                         : isInSelectedClip
@@ -1529,7 +1536,7 @@ function VideoDirectorPanel({
                           <div className="mt-1 flex flex-wrap items-center gap-1">
                             <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">{getVisualStateRoleLabel(kf.role)}</span>
                             {kf.timed_visual_target === true && <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">{t('chapterGenerate.timedVisualTarget')}</span>}
-                            <span className={`text-[10px] ${isGenerating ? 'text-blue-600' : canonicalImageStatus === 'READY' ? 'text-green-600' : canonicalImageStatus === 'REQUIRED_MISSING' ? 'text-red-600' : 'text-amber-600'}`}>
+                            <span className={`text-[10px] ${isGenerating ? 'text-blue-600' : canonicalImageStatus === 'READY' ? 'text-green-600' : canonicalImageStatus === 'REQUIRED_MISSING' ? 'text-red-600' : 'text-gray-500'}`}>
                               {isGenerating ? t('chapterGenerate.generatingShort') : getVisualStateImageStatusLabel(kf)}
                             </span>
                           </div>
@@ -1563,8 +1570,8 @@ function VideoDirectorPanel({
       >
         <div className="text-sm font-semibold">{semanticExecutionSummary}</div>
         {!hasSemanticClipPlan && optionalMissingKeyframes.length > 0 && (
-          <div className="mt-1 text-xs text-amber-700">
-            {keyframes.length} 个视觉状态 · {optionalMissingKeyframes.length} 个可选图片缺失（不阻塞片段规划）
+          <div className="mt-1 text-xs text-gray-500">
+            {keyframes.length} 个视觉状态 · {t('chapterGenerate.optionalMissingStates', { count: optionalMissingKeyframes.length })}
           </div>
         )}
       </div>
@@ -1650,7 +1657,9 @@ function VideoDirectorPanel({
                           : !selectedKeyframe?.description
                             ? `当前${isCanonicalPlan ? '视觉状态' : '关键帧'}缺少描述，请先重新规划`
                             : isCanonicalPlan
-                              ? `${selectedKeyframeImageUrl ? '重新构建提示词并重新生成' : '构建提示词并生成'}当前状态图片`
+                              ? selectedKeyframeImageUrl
+                                ? '重新构建提示词并重新生成当前状态图片'
+                                : '生成可选视觉锚点；仅在需要加强该时刻的构图、人物、道具或状态控制时使用'
                               : '使用 LLM 构建新的生图提示词并生成当前关键帧'}
                         className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-l-md border border-blue-200 bg-white px-2.5 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                       >
@@ -1697,7 +1706,7 @@ function VideoDirectorPanel({
                             disabled={!hasReusableSelectedKeyframePrompt || !!isShotVideoGenerating}
                             title={!hasReusableSelectedKeyframePrompt
                               ? isCanonicalPlan
-                                ? '当前视觉状态没有可复用的生图提示词，请先生成状态图片'
+                                ? '当前视觉状态没有可复用的生图提示词，请先生成可选状态图'
                                 : '当前关键帧没有可复用的 AI 生图提示词，请先使用 LLM+生成'
                               : undefined}
                             className="w-full px-3 py-2 text-left text-xs text-gray-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-white"
@@ -1708,11 +1717,22 @@ function VideoDirectorPanel({
                       )}
                     </div>
                   )}
-                  <span className={`text-xs ${selectedKeyframeIsGenerating ? 'text-blue-600' : selectedKeyframeImageUrl ? 'text-green-600' : 'text-amber-600'}`}>
-                    {selectedKeyframeIsGenerating ? t('chapterGenerate.imageGenerating') : selectedKeyframeImageUrl ? t('chapterGenerate.imageReady') : isCanonicalPlan ? getVisualStateImageStatusLabel(selectedKeyframe) : t('chapterGenerate.waitingImageGeneration')}
+                  <span className={`text-xs ${selectedKeyframeIsGenerating ? 'text-blue-600' : selectedKeyframeImageUrl ? 'text-green-600' : isCanonicalPlan ? 'text-gray-500' : 'text-amber-600'}`}>
+                    {selectedKeyframeIsGenerating
+                      ? t('chapterGenerate.imageGenerating')
+                      : selectedKeyframeImageUrl
+                        ? t('chapterGenerate.imageReady')
+                        : isCanonicalPlan
+                          ? getVisualStateImageStatusLabel(selectedKeyframe)
+                          : t('chapterGenerate.waitingImageGeneration')}
                   </span>
                 </div>
               </div>
+              {isCanonicalPlan && selectedKeyframe?.role !== 'START' && !selectedKeyframeImageUrl && selectedStateImageStatus !== 'REQUIRED_MISSING' && (
+                <p className="mt-1 text-[11px] leading-4 text-gray-500">
+                  可选视觉锚点；仅在需要加强该时刻的构图、人物、道具或状态控制时生成。
+                </p>
+              )}
             </div>
             <div className="space-y-3">
               <div>
@@ -2889,6 +2909,8 @@ export function VideoGenTab({
         clip_plan: result.data.clips,
         clip_plan_validation: result.data.validation,
         clip_plan_revision: result.data.revision ?? currentVideoDirectorPlan.clip_plan_revision,
+        temporal_anchors: result.data.temporal_anchors ?? currentVideoDirectorPlan.temporal_anchors,
+        execution_readiness: result.data.execution_readiness ?? currentVideoDirectorPlan.execution_readiness,
         clip_plan_approval_mode: 'AUTO_APPROVE',
       };
       const refreshed = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, currentShotId);
@@ -2933,14 +2955,17 @@ export function VideoGenTab({
     const activeKeyframeTasks = useChapterGenerateStore.getState().keyframeTasks;
     const nonStartPlanKeyframes = planKeyframes.filter((keyframe: any) => (
       keyframe.role !== 'START'
-      && (!isCanonicalVisualPlan(sourcePlan) || keyframe.timed_visual_target === true)
+      && (!isCanonicalVisualPlan(sourcePlan)
+        || getRequiredMissingCanonicalVisualStates(sourcePlan).some((state) => Number(state.index) === Number(keyframe.index)))
     ));
     const missingLegacyKeyframes = nonStartPlanKeyframes
       .map((keyframe: any, index: number) => {
         const legacyKeyframe = legacyKeyframes.find((item: any) => Number(item.plan_keyframe_index) === Number(keyframe.index));
         const imageUrl = keyframe.image_url || keyframe.imageUrl || legacyKeyframe?.image_url || legacyKeyframe?.imageUrl;
-        if (imageUrl) return null;
-        const frameIndex = legacyKeyframe?.frame_index ?? index;
+        if (imageUrl && !isCanonicalVisualPlan(sourcePlan)) return null;
+        const frameIndex = legacyKeyframe?.frame_index ?? planKeyframes
+          .filter((state: any) => state.role !== 'START')
+          .findIndex((state: any) => Number(state.index) === Number(keyframe.index));
         const activeTask = activeKeyframeTasks.find((task: any) => (
           task.shotId === currentShotId
           && Number(task.frameIndex) === Number(frameIndex)
@@ -3993,8 +4018,8 @@ export function VideoGenTab({
               {currentShotVideoResult.detail}
             </div>
             {currentIsCanonicalPlan && currentOptionalMissingVisualStateCount > 0 && (
-              <div className="mt-1 text-xs text-amber-700">
-                {getCanonicalVisualStates(currentVideoDirectorPlan).length} 个视觉状态 · {currentOptionalMissingVisualStateCount} 个可选图片缺失（不阻塞片段规划）
+              <div className="mt-1 text-xs text-gray-500">
+                {getCanonicalVisualStates(currentVideoDirectorPlan).length} 个视觉状态 · {t('chapterGenerate.optionalMissingStates', { count: currentOptionalMissingVisualStateCount })}
               </div>
             )}
           </div>

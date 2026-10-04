@@ -87,7 +87,7 @@ export interface CanonicalVisualState {
   time_seconds: number;
   role: CanonicalVisualStateRole;
   description?: string | null;
-  /** Explicit #08 intent; absent historical values are treated as false. */
+  /** #08 eligible timed-image candidate, not execution-required or selected. */
   timed_visual_target?: boolean;
   image_url?: string | null;
   image_task_id?: string | null;
@@ -149,6 +149,8 @@ export interface PlanSemanticClipsResult {
     [key: string]: any;
   };
   revision?: number;
+  temporal_anchors?: VideoDirectorPlan['temporal_anchors'];
+  execution_readiness?: VideoDirectorPlan['execution_readiness'];
 }
 
 export interface VideoAiCall {

@@ -42,7 +42,7 @@ def _plan(states, clips):
     return {
         "canonical_visual_plan": True,
         "clip_plan_revision": 1,
-        "clip_plan_validation": {"passed": True},
+        "clip_plan_validation": {"passed": True, "temporal_contract": "ELIGIBLE_THEN_SELECTED_V1"},
         "keyframes": states,
         "clip_plan": clips,
     }

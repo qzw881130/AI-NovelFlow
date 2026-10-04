@@ -15,8 +15,8 @@ const debugEnd = source.indexOf('\nfunction VideoPromptModal(', debugStart);
 const debugSource = source.slice(debugStart, debugEnd);
 
 test('canonical Visual State actions distinguish first generation from regeneration', () => {
-  assert.match(directorSource, /selectedKeyframeImageUrl \? '重新生成状态图片' : '生成状态图片'/);
-  assert.match(directorSource, /selectedKeyframeImageUrl \? '使用当前提示词重新生成状态图片' : '使用当前提示词生成状态图片'/);
+  assert.match(directorSource, /selectedKeyframeImageUrl \? '重新生成状态图片' : '生成可选状态图'/);
+  assert.match(directorSource, /selectedKeyframeImageUrl \? '使用当前提示词重新生成状态图片' : '使用当前提示词生成可选状态图'/);
   assert.match(directorSource, /onGenerateKeyframe\(selectedKeyframeFrameIndex, 'llm'\)/);
   assert.match(directorSource, /onGenerateKeyframe\(selectedKeyframeFrameIndex, 'image_only'\)/);
   assert.match(directorSource, /aria-label=\{isCanonicalPlan \? '选择状态图片生成方式' : '选择关键帧生成模式'\}/);

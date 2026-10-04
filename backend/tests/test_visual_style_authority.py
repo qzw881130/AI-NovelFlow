@@ -198,8 +198,8 @@ def test_keyframe_planner_prompt_defines_selective_timed_target_decision():
 
     prompt = (Path(__file__).parents[1] / "prompt_templates" / "08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt").read_text()
     assert "以下四项全部满足时" in prompt
-    assert "普通文字或运动指导不足以可靠保证" in prompt
-    assert "按时间定位的视觉条件" in prompt
+    assert "true 仅表示 eligible，不表示 selected、必需图片或最终 temporal anchor" in prompt
+    assert "不得判断未来 Previous AV 是否足够" in prompt
     assert "到达窗边并明确手持红色文件夹" in prompt
     assert "没有必须在该时间实现的精确构图" in prompt
     assert "不要把每个中间帧、每次位置变化、每次道具交互或每个 Clip 自动标记为 true" in prompt

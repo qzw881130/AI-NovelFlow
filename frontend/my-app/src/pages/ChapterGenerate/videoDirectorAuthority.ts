@@ -21,7 +21,6 @@ export function classifyVisualStateImageStatus(
   resolvedImageUrl?: string | null,
 ): CanonicalVisualStateImageStatus {
   if (resolvedImageUrl || state.image_url) return 'READY';
-  if (state.role !== 'START' && state.timed_visual_target === true) return 'REQUIRED_MISSING';
   return 'OPTIONAL_MISSING';
 }
 
@@ -31,19 +30,19 @@ export function getVisualStateExecutionImageStatus(
   plan: VideoDirectorPlan,
   resolvedImageUrl?: string | null,
 ): CanonicalVisualStateImageStatus | 'NOT_NEEDED' {
+  const index = Number(state.index);
+  // Backend can detect a missing physical file even when an old URL remains.
+  if (plan.execution_readiness?.blocking_clips?.some((blocker) => Number(blocker.visual_state_index) === index)) {
+    return 'REQUIRED_MISSING';
+  }
   if (resolvedImageUrl || state.image_url) return 'READY';
   const clips = plan.clip_plan;
   if (!Array.isArray(clips) || clips.length === 0 || Number(plan.clip_plan_revision || 0) <= 0
     || plan.clip_plan_validation?.passed !== true) return classifyVisualStateImageStatus(state, resolvedImageUrl);
-  const index = Number(state.index);
-  // Consume backend-projected GENERATE blockers, not a second first-owned algorithm.
-  if (plan.execution_readiness?.blocking_clips?.some((blocker) => Number(blocker.visual_state_index) === index)) {
-    return 'REQUIRED_MISSING';
-  }
   const owners = clips.filter((clip) => clip.visual_state_indexes?.some((owned) => Number(owned) === index));
   if (owners.length === 0) return 'NOT_NEEDED';
-  if (state.timed_visual_target === true && owners.some((clip) => clip.capability === 'TEMPORAL_EXTEND'
-    && clip.requires_temporal_control === true)) return 'REQUIRED_MISSING';
+  if (plan.clip_plan_validation?.temporal_contract === 'ELIGIBLE_THEN_SELECTED_V1'
+    && owners.some((clip) => clip.selected_temporal_target_ids?.includes(`KF${index}`))) return 'REQUIRED_MISSING';
   return 'OPTIONAL_MISSING';
 }
 
@@ -52,7 +51,7 @@ export function getRequiredMissingCanonicalVisualStates(
   resolveImageUrl: (state: CanonicalVisualState) => string | null | undefined = (state) => state.image_url,
 ): CanonicalVisualState[] {
   return getCanonicalVisualStates(plan).filter((state) => (
-    classifyVisualStateImageStatus(state, resolveImageUrl(state)) === 'REQUIRED_MISSING'
+    getVisualStateExecutionImageStatus(state, plan, resolveImageUrl(state)) === 'REQUIRED_MISSING'
   ));
 }
 

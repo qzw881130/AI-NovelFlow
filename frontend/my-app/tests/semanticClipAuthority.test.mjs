@@ -39,7 +39,7 @@ const readyPlan = () => ({
   keyframes: structuredClone(keyframes),
   clip_plan: structuredClone(clips),
   clip_plan_revision: 2,
-  clip_plan_validation: { passed: true },
+  clip_plan_validation: { passed: true, temporal_contract: 'ELIGIBLE_THEN_SELECTED_V1' },
 });
 
 const completedClip = (clip, taskId) => ({
@@ -64,13 +64,34 @@ test('A: canonical visual plan without clip plan cannot execute', () => {
   assert.equal(readiness.executionAllowed, false);
 });
 
-test('B: a required missing timed state blocks planning and execution', () => {
+test('B: missing eligible images do not block planning', () => {
   const plan = { canonical_visual_plan: true, keyframes: structuredClone(keyframes) };
   delete plan.keyframes[1].image_url;
   const readiness = getCanonicalSemanticReadiness(plan);
-  assert.equal(readiness.state, 'REQUIRED_IMAGES_MISSING');
-  assert.deepEqual(readiness.requiredMissingIndexes, [2]);
-  assert.equal(readiness.planningAllowed, false);
+  assert.equal(readiness.state, 'CLIP_PLAN_MISSING');
+  assert.deepEqual(readiness.requiredMissingIndexes, []);
+  assert.equal(readiness.planningAllowed, true);
+});
+
+test('unmarked historical plans remain readable but require explicit replan before execution', () => {
+  const plan = readyPlan();
+  delete plan.clip_plan_validation.temporal_contract;
+  const before = structuredClone(plan);
+  assert.equal(getCanonicalSemanticReadiness(plan).state, 'CLIP_PLAN_STALE');
+  assert.equal(getCanonicalSemanticReadiness(plan).planningAllowed, true);
+  assert.equal(getCanonicalBatchEligibility(plan).selectable, false);
+  assert.deepEqual(plan, before);
+});
+
+test('backend selected missing-image projection blocks only execution', () => {
+  const plan = readyPlan();
+  plan.execution_readiness = { ready: false, code: 'TEMPORAL_ANCHOR_UNAVAILABLE',
+    blocking_clips: [{ready: false, code: 'TEMPORAL_ANCHOR_UNAVAILABLE', clip_index: 2, visual_state_index: 3}] };
+  const result = getCanonicalSemanticReadiness(plan);
+  assert.equal(result.state, 'REQUIRED_IMAGES_MISSING');
+  assert.equal(result.planningAllowed, true);
+  assert.equal(result.executionAllowed, false);
+  assert.deepEqual(result.requiredMissingIndexes, [3]);
 });
 
 test('C: an optional missing ordinary state does not block semantic readiness', () => {

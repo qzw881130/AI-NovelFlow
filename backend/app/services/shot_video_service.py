@@ -26,6 +26,7 @@ from app.services.clip_execution_compiler import (
     compile_extend_clip,
     compile_generate_clip,
     compile_temporal_extend_clip,
+    get_canonical_execution_readiness,
 )
 from app.services.canonical_execution_invalidation import (
     CanonicalExecutionConflict,
@@ -934,6 +935,10 @@ async def generate_shot_video_task(
                 ), None)
                 if not semantic_clip or plan_revision != int(video_director_plan.get("clip_plan_revision") or 0):
                     raise ClipExecutionCompileError("Clip 执行失败：Shot 中已不存在相同 revision/Clip identity")
+                if video_director_plan.get("canonical_visual_plan") is True:
+                    readiness = get_canonical_execution_readiness(shot, video_director_plan, [semantic_clip])
+                    if not readiness["ready"]:
+                        raise ClipExecutionCompileError(readiness["code"], detail=readiness["blocking_clips"][0])
                 if clip_metadata.get("capability") == "EXTEND":
                     previous_contract = (clip_metadata.get("execution_contract") or {}).get("previous_clip") or {}
                     previous_provenance = resolve_extend_previous_av(
