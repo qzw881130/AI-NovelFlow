@@ -8,7 +8,7 @@ const { outputText } = ts.transpileModule(source, { compilerOptions: { module: t
 const { getVisualStateExecutionImageStatus: status } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString('base64')}`);
 const state = { index: 2, role: 'INTERMEDIATE', time_seconds: 7.95, timed_visual_target: false };
 const plan = () => ({
-  canonical_visual_plan: true, clip_plan_revision: 1, clip_plan_validation: { passed: true, temporal_contract: 'ELIGIBLE_THEN_SELECTED_V1' },
+  canonical_visual_plan: true, clip_plan_revision: 1, clip_plan_validation: { passed: true, temporal_contract: 'ELIGIBLE_THEN_SELECTED_V1', composition_contract: 'EARLY_COMPOSITION_V1' },
   clip_plan: [{ clip_index: 2, capability: 'EXTEND', continuity_to_previous: 'CONTINUOUS',
     visual_state_indexes: [], carry_in_state_index: 2, requires_temporal_control: false }],
   execution_readiness: { ready: true, blocking_clips: [] },
@@ -76,4 +76,17 @@ test('Visual State cards and selected actions use execution-aware presentation w
   if (ui.includes('可选视觉锚点；仅在需要加强该时刻的构图')) {
     assert.match(ui, /selectedStateImageStatus !== 'REQUIRED_MISSING' && \(\s*<p[^>]*>\s*可选视觉锚点/);
   }
+});
+
+test('ordinary owned state becomes required only through explicit composition selection', () => {
+  const input = plan();
+  Object.assign(input.clip_plan[0], { capability: 'TEMPORAL_EXTEND', early_composition_state_id: 'KF2', selected_temporal_target_ids: [], visual_state_indexes: [2] });
+  assert.equal(status(state, input), 'REQUIRED_MISSING');
+  assert.equal(state.timed_visual_target, false);
+  assert.equal(status({ ...state, index: 3 }, input), 'NOT_NEEDED');
+  input.required_execution_images = [{ state_index: 2, kind: 'EARLY_COMPOSITION', ready: true }];
+  assert.equal(status(state, input), 'READY');
+  delete input.required_execution_images;
+  delete input.clip_plan_validation.composition_contract;
+  assert.equal(status(state, input), 'OPTIONAL_MISSING');
 });

@@ -104,7 +104,7 @@ test('I: canonical required-image preparation uses selected subset, not all elig
   plan.keyframes[4].timed_visual_target = true;
   plan.keyframes[4].image_url = '/end-ready.png';
   plan.clip_plan_revision = 1;
-  plan.clip_plan_validation = {passed: true, temporal_contract: 'ELIGIBLE_THEN_SELECTED_V1'};
+  plan.clip_plan_validation = {passed: true, temporal_contract: 'ELIGIBLE_THEN_SELECTED_V1', composition_contract: 'EARLY_COMPOSITION_V1'};
   plan.clip_plan = [{capability: 'TEMPORAL_EXTEND', visual_state_indexes: [2,3,4,5], selected_temporal_target_ids: ['KF4','KF5']}];
   assert.deepEqual(
     getRequiredMissingCanonicalVisualStates(plan).map((state) => state.index),

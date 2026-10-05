@@ -6,7 +6,9 @@ import json
 from pathlib import Path
 
 from app.models.task import Task
-from app.services.clip_execution_compiler import get_generate_visual_start_readiness
+from app.services.clip_execution_compiler import (
+    get_generate_visual_start_readiness, EARLY_COMPOSITION_CONTRACT, execution_temporal_state_ids,
+)
 from app.services.canonical_execution_invalidation import (
     ACTIVE_TASK_STATUSES, CanonicalExecutionConflict, canonical_clip_dependency_closure,
     current_visual_state_consumers, ensure_no_active_canonical_clip_tasks,
@@ -73,6 +75,8 @@ def project_required_execution_images(shot, plan: dict, tasks=(), clip_indexes=N
     """Two independent authorities, deduplicated by current Shot/State identity."""
     if plan.get("canonical_visual_plan") is not True or (plan.get("clip_plan_validation") or {}).get("temporal_contract") != "ELIGIBLE_THEN_SELECTED_V1":
         return []
+    if (plan.get("clip_plan_validation") or {}).get("composition_contract") != EARLY_COMPOSITION_CONTRACT:
+        return []
     states = {f"KF{s['index']}": s for s in plan.get("keyframes", [])}
     anchors = {a.get("anchor_id"): a for a in plan.get("temporal_anchors", [])}
     items = {}
@@ -85,16 +89,19 @@ def project_required_execution_images(shot, plan: dict, tasks=(), clip_indexes=N
         if start["applicable"]:
             needs.append(("GENERATE_VISUAL_START", f"KF{start['visual_state_index']}", start.get("image_url"), start.get("grounding_source")))
         if clip.get("capability") == "TEMPORAL_EXTEND":
-            for sid in clip.get("selected_temporal_target_ids") or []:
+            for sid in execution_temporal_state_ids(clip):
                 anchor = anchors.get(f"clip-{ci}-{sid}") or {}
-                needs.append(("SELECTED_TEMPORAL_TARGET", sid, anchor.get("image_url"), "KEYFRAME_IMAGE"))
+                if sid in (clip.get("selected_temporal_target_ids") or []):
+                    needs.append(("SELECTED_TEMPORAL_TARGET", sid, anchor.get("image_url"), "KEYFRAME_IMAGE"))
+                if sid == clip.get("early_composition_state_id"):
+                    needs.append(("EARLY_COMPOSITION", sid, anchor.get("image_url"), "KEYFRAME_IMAGE"))
         for kind, sid, url, source in needs:
             state = states.get(sid)
             if not state:
                 raise ValueError(f"REQUIRED_VISUAL_STATE_UNAVAILABLE: {sid}")
             index = state["index"]
             consumer = {"kind": kind, "consumer_clip_index": ci,
-                        "clip_local_time": round(float(state.get("time_seconds") or 0) - float(clip.get("start_time") or 0), 6) if kind == "SELECTED_TEMPORAL_TARGET" else None,
+                        "clip_local_time": round(float(state.get("time_seconds") or 0) - float(clip.get("start_time") or 0), 6) if kind != "GENERATE_VISUAL_START" else None,
                         "image_url": url, "ready": image_exists(url)}
             if index not in items:
                 provenance = state_provenance(shot, index)
@@ -218,6 +225,8 @@ async def prepare_required_images(db, shot, revision: int, submit_keyframe, subm
         raise CanonicalExecutionConflict("CLIP_PLAN_REVISION_CHANGED")
     if (plan.get("clip_plan_validation") or {}).get("temporal_contract") != "ELIGIBLE_THEN_SELECTED_V1" or (plan.get("clip_plan_validation") or {}).get("passed") is not True:
         raise CanonicalExecutionConflict("CLIP_PLAN_NOT_READY")
+    if (plan.get("clip_plan_validation") or {}).get("composition_contract") != EARLY_COMPOSITION_CONTRACT:
+        raise CanonicalExecutionConflict("COMPOSITION_CONTRACT_REPLAN_REQUIRED")
     valid_clips = {c.get("clip_index") for c in plan.get("clip_plan", [])}
     if clip_indexes is not None and not set(clip_indexes).issubset(valid_clips):
         raise ValueError("未知 Clip scope")

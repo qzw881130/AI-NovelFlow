@@ -29,7 +29,7 @@ function item(index, clip, ready=false) {
     description:`description KF${index}`,consumers:[{consumer_clip_index:clip,ready}],active_task:null,failure:null };
 }
 function shot() { return { id:sid, chapterId:'chapter',index:1, keyframes:[{frame_index:2,plan_keyframe_index:4,image_task_id:'new-task'}],
-  videoDirectorPlan:{canonical_visual_plan:true,clip_plan_revision:2,clip_plan_validation:{passed:true,temporal_contract:'ELIGIBLE_THEN_SELECTED_V1'},
+  videoDirectorPlan:{canonical_visual_plan:true,clip_plan_revision:2,clip_plan_validation:{passed:true,temporal_contract:'ELIGIBLE_THEN_SELECTED_V1',composition_contract:'EARLY_COMPOSITION_V1'},
     keyframes:[{index:4,time_seconds:28.8}],required_execution_images:[item(1,1,true),item(4,3),item(7,5)],
     clip_execution_readiness:[{clip_index:3,images_ready:false,ready:false,code:'REQUIRED_IMAGES_MISSING',previous_clip_index:2}] } }; }
 
@@ -135,4 +135,23 @@ test('UI wiring keeps separate material selection, Clip scopes and existing manu
   assert.match(ui,/data-testid="batch-material-preparation"/);assert.match(ui,/materialShotIds/);
   assert.match(ui,/生成全部必需视觉状态图/);assert.match(ui,/手动选择并点击原有/);
   assert.match(ui,/\(!isCanonicalPlan && hasGeneratingMissingKeyframes\)/);
+});
+
+test('composition reason stays visible in existing material controls and legacy marker cannot prepare', async () => {
+  const input = shot();
+  const required = input.videoDirectorPlan.required_execution_images[1];
+  required.kind = 'EARLY_COMPOSITION';
+  required.consumers[0].kind = 'EARLY_COMPOSITION';
+  const html = renderToStaticMarkup(React.createElement(RequiredImagesPreparation, { shot: input, clipIndex: 3, onShot() {} }));
+  assert.match(html, /已选为早期构图锚点，执行必需/);
+  assert.match(html, /生成必需视觉状态图/);
+  delete input.videoDirectorPlan.clip_plan_validation.composition_contract;
+  assert.equal(canPrepareMaterials(input), false);
+  let submitted = false;
+  await assert.rejects(prepareCurrentRequiredImages(input, [3], [4], {
+    getShot: async () => input,
+    prepare: async () => { submitted = true; },
+    onShot() {},
+  }), /重新规划/);
+  assert.equal(submitted, false);
 });

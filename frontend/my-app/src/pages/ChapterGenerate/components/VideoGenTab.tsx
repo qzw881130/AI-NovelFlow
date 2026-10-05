@@ -193,7 +193,8 @@ function ClipExecutionDetails({ clip, plan, task, previousTask }: { clip: Semant
       <div>Owned states：{owned.length ? owned.map(index => `KF${index}`).join('、') : '无'}</div>
       <div>Carry-in：{clip.carry_in_state_index != null ? `KF${clip.carry_in_state_index}（仅承接，非 owned/reference）` : '无'}</div>
       <div>Selected temporal targets：{selected.length ? selected.join('、') : '无'}</div>
-      <div>Required images：{required.length ? required.map(item => `${item.state_id || `KF${item.state_index}`} ${item.ready === true ? '已就绪' : item.missing === true ? '缺失' : '状态未提供'}`).join('、') : '未提供或无'}</div>
+      <div>Early Composition Anchor：{clip.early_composition_state_id || '无独立选择（可由合格 timed target 承担）'}</div>
+      <div>Required images：{required.length ? required.map(item => `${item.state_id || `KF${item.state_index}`} ${list(item.consumers).some(c => c.kind === 'EARLY_COMPOSITION') ? '早期构图 · ' : ''}${item.ready === true ? '已就绪' : item.missing === true ? '缺失，请准备图片' : '状态未提供'}`).join('、') : '未提供或无'}</div>
       <div>Previous AV dependency：{previous.label}</div>
       {artifact.continuous && <>
         <div>Native continuity output：{artifact.outputStatus}</div>

@@ -10,7 +10,9 @@ from app.constants.capability import VIDEO_CAPABILITY_CONTRACTS
 from app.services.llm_service import LLMService
 from app.services.prompt_template_service import PromptTemplateService
 from app.services.clip_validator import validate_clip_plan
-from app.services.clip_execution_compiler import TEMPORAL_DECISION_CONTRACT
+from app.services.clip_execution_compiler import (
+    TEMPORAL_DECISION_CONTRACT, EARLY_COMPOSITION_CONTRACT, execution_temporal_state_ids,
+)
 from app.services.dialogue_ownership import assign_dialogues_to_clips
 from app.services.video_director_ai import align_clip_boundaries_to_dialogue_gaps, build_dialogue_timeline
 from app.utils.path_utils import local_path_to_url, url_to_local_path
@@ -370,12 +372,48 @@ def _project_temporal_targets(clips: list[dict], candidates: list[dict], shot_du
         clip["capability"] = "TEMPORAL_EXTEND" if requires_temporal else ("EXTEND" if continuity == "CONTINUOUS" else "GENERATE")
 
 
+def _project_early_composition_states(clips: list[dict], candidates: list[dict], speech_intervals: list[dict]) -> None:
+    """Validate #10A's one establishing state against final Clip boundaries."""
+    by_id = {item["visual_state_id"]: item for item in candidates}
+    for clip in clips:
+        continuous = clip.get("continuity_to_previous") == "CONTINUOUS"
+        if "early_composition_state_id" not in clip:
+            raise ValueError("COMPOSITION_SELECTION_INVALID: early_composition_state_id is required")
+        selected = clip["early_composition_state_id"]
+        if selected is not None and (not isinstance(selected, str) or not selected):
+            raise ValueError("COMPOSITION_SELECTION_INVALID: expected one state ID or null")
+        if not continuous:
+            if selected is not None:
+                raise ValueError("COMPOSITION_SELECTION_INVALID: NONE/CUT cannot select composition")
+            continue
+        start, end = float(clip["start_time"]), float(clip["end_time"])
+        first_speech = min((max(start, float(event["start_time"])) for event in speech_intervals
+                            if float(event["end_time"]) > start and float(event["start_time"]) < end), default=None)
+
+        def is_early(state_id):
+            state = by_id.get(state_id)
+            if not state or state.get("keyframe_index") not in (clip.get("visual_state_indexes") or []):
+                return False
+            time = float(state["time_seconds"])
+            return math.isfinite(time) and start + 0.05 < time < end and (first_speech is None or time < first_speech)
+
+        if selected is not None and not is_early(selected):
+            raise ValueError(f"COMPOSITION_SELECTION_INVALID: {selected} is not an early owned interior state before speech")
+        if selected is None and not any(is_early(sid) for sid in clip.get("selected_temporal_target_ids") or []):
+            raise ValueError(f"EARLY_COMPOSITION_COVERAGE_INVALID: Clip {clip['clip_index']} has no early execution anchor")
+        merged = execution_temporal_state_ids(clip)
+        if len(merged) > int(VIDEO_CAPABILITY_CONTRACTS["TEMPORAL_EXTEND"]["max_temporal_anchors"]):
+            raise ValueError("TEMPORAL_ANCHOR_LIMIT: timed and composition anchors exceed 8")
+        clip["requires_temporal_control"] = True
+        clip["capability"] = "TEMPORAL_EXTEND"
+
+
 def _build_temporal_anchors(clips: list[dict], candidates: list[dict]) -> list[dict]:
     """Build Clip-local anchors from deterministically projected target IDs."""
     by_id = {str(item.get("visual_state_id")): item for item in candidates if isinstance(item, dict)}
     anchors = []
     for clip in clips:
-        selected = clip.get("selected_temporal_target_ids", []) or []
+        selected = sorted(execution_temporal_state_ids(clip), key=lambda sid: float(by_id[sid]["time_seconds"]))
         intent = clip.get("requires_temporal_control") is True
         if not intent:
             clip["temporal_anchor_ids"] = []
@@ -467,6 +505,7 @@ def _canonical_continuity_structure(clips: list[dict], candidates: list[dict]) -
             "clip_index": clip["clip_index"],
             "start_time": float(clip["start_time"]),
             "end_time": float(clip["end_time"]),
+            "continuity_to_previous": clip.get("continuity_to_previous"),
             "visual_state_indexes": owned,
             "carry_in_state_index": clip.get("carry_in_state_index"),
             "previous_ending_state_index": previous_owned[-1] if previous_owned else None,
@@ -479,6 +518,12 @@ def _canonical_continuity_structure(clips: list[dict], candidates: list[dict]) -
                  "description": item.get("description") or ""}
                 for item in candidates
                 if item.get("timed_visual_target") is True and item["keyframe_index"] in owned
+            ],
+            "composition_candidates": [
+                {"visual_state_id": item["visual_state_id"], "time_seconds": item["time_seconds"],
+                 "clip_local_time": round(float(item["time_seconds"]) - float(clip["start_time"]), 2),
+                 "description": item.get("description") or ""}
+                for item in candidates if item["keyframe_index"] in owned
             ],
         })
     return structure
@@ -497,8 +542,10 @@ def _continuity_premise_changed(raw: list[dict], normalized: list[dict], candida
             if before[key] != after[key]:
                 return True
         # Same identities usually make a numerical move harmless. An owned
-        # timed target's local position is an additional semantic consequence.
-        if timed_indexes.intersection(after["visual_state_indexes"]):
+        # composition candidate's local position also changes selection meaning.
+        if timed_indexes.intersection(after["visual_state_indexes"]) or (
+            before.get("continuity_to_previous") == "CONTINUOUS" and after["visual_state_indexes"]
+        ):
             if abs(before["start_time"] - after["start_time"]) > 0.05:
                 return True
     return False
@@ -615,6 +662,8 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
                     " Re-evaluate selected_temporal_target_ids against ALL eligible_temporal_targets (including "
                     "previously unselected ones) and their normalized local times. Selection is optional, owned-only, "
                     "and based on planned context, never actual Previous AV tail pixels."
+                    " Re-evaluate early_composition_state_id against ALL owned composition_candidates, including "
+                    "false states, their local times and first overlapping speech interval. Require early coverage."
                 ),
             },
         }
@@ -632,6 +681,8 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         payload.get("visual_state_candidates") or [],
         float(shot.duration or 4),
     )
+    if canonical:
+        _project_early_composition_states(clips, candidates, payload["speech_timing_intervals"])
     derived_temporal_anchors = _build_temporal_anchors(
         clips, payload.get("visual_state_candidates") or []
     )
@@ -657,4 +708,5 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
     validation["dialogue_ownership"] = dialogue_validation
     if canonical and validation["passed"]:
         validation["temporal_contract"] = TEMPORAL_DECISION_CONTRACT
+        validation["composition_contract"] = EARLY_COMPOSITION_CONTRACT
     return clips, validation

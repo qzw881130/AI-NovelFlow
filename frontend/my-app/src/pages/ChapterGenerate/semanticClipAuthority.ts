@@ -75,6 +75,10 @@ export function getCanonicalSemanticReadiness(
     return { state: 'CLIP_PLAN_STALE', planningAllowed: true, executionAllowed: false,
       requiredMissingIndexes: [], reason: '历史片段计划需重新规划，以确认定时目标选择' };
   }
+  if (plan.clip_plan_validation?.composition_contract !== 'EARLY_COMPOSITION_V1') {
+    return { state: 'CLIP_PLAN_STALE', planningAllowed: true, executionAllowed: false,
+      requiredMissingIndexes: [], reason: '历史片段计划需重新规划，以确认早期构图覆盖' };
+  }
   const missingImages = (plan.required_execution_images || []).filter(item => !item.ready);
   if (missingImages.length) {
     return { state: 'REQUIRED_IMAGES_MISSING', planningAllowed: true, executionAllowed: false,
@@ -101,7 +105,7 @@ export function getCanonicalSemanticReadiness(
 export function getSemanticCapabilityLabel(capability?: string | null): string {
   if (capability === 'GENERATE') return '独立生成';
   if (capability === 'EXTEND') return '连续续生成';
-  if (capability === 'TEMPORAL_EXTEND') return '定时目标续生成';
+  if (capability === 'TEMPORAL_EXTEND') return '构图 / 定时目标续生成';
   return '未知能力';
 }
 

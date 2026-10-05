@@ -120,6 +120,7 @@ export interface SemanticClipPlan {
   requires_temporal_control?: boolean;
   temporal_anchor_ids?: string[];
   selected_temporal_target_ids?: string[];
+  early_composition_state_id?: string | null;
   clip_id?: string;
   generated_by_task_id?: string;
   video_url?: string | null;
@@ -181,7 +182,7 @@ export interface CanonicalImageProvenance {
   state_fingerprint: string;
 }
 export interface RequiredExecutionImage {
-  kind: 'SELECTED_TEMPORAL_TARGET' | 'GENERATE_VISUAL_START';
+  kind: 'SELECTED_TEMPORAL_TARGET' | 'EARLY_COMPOSITION' | 'GENERATE_VISUAL_START';
   state_index: number;
   state_id: string;
   shot_time: number;

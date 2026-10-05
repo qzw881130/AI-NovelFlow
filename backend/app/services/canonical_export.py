@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.models.novel import Character, Prop, Scene
 from app.models.task import Task
 from app.services.file_storage import file_storage
-from app.services.clip_execution_compiler import TEMPORAL_DECISION_CONTRACT
+from app.services.clip_execution_compiler import TEMPORAL_DECISION_CONTRACT, EARLY_COMPOSITION_CONTRACT
 from app.services.shot_video_service import validate_semantic_clip_artifact
 from app.utils.path_utils import url_to_local_path
 
@@ -156,8 +156,9 @@ def _state_records(
             index = position
         new_contract = (plan.get("clip_plan_validation") or {}).get("temporal_contract") == TEMPORAL_DECISION_CONTRACT
         selected = any(f"KF{index}" in (clip.get("selected_temporal_target_ids") or []) for clip in plan.get("clip_plan") or [])
+        composition = (plan.get("clip_plan_validation") or {}).get("composition_contract") == EARLY_COMPOSITION_CONTRACT and any(f"KF{index}" == clip.get("early_composition_state_id") for clip in plan.get("clip_plan") or [])
         generate_start = any(clip.get("capability") == "GENERATE" and (clip.get("visual_state_indexes") or [None])[0] == index for clip in plan.get("clip_plan") or [])
-        required = (selected or generate_start) if new_contract else _state_required(state)
+        required = (selected or composition or generate_start) if new_contract else _state_required(state)
         value = _state_image_value(shot, state)
         image_path, reason = _add_binary(
             archive,
@@ -180,6 +181,7 @@ def _state_records(
             "required": required,
             "timed_visual_target": state.get("timed_visual_target") is True,
             "selected_temporal_target": selected if new_contract else None,
+            "early_composition_selected": composition,
             "temporal_contract": TEMPORAL_DECISION_CONTRACT if new_contract else None,
             "description": state.get("description"),
             "image": {
@@ -204,6 +206,7 @@ def _clip_summary(clip: dict) -> dict:
         "previous_clip_index": clip.get("previous_clip_index"),
         "requires_temporal_control": clip.get("requires_temporal_control") is True,
         "selected_temporal_target_ids": list(clip.get("selected_temporal_target_ids") or []),
+        "early_composition_state_id": clip.get("early_composition_state_id"),
         "temporal_anchor_ids": list(clip.get("temporal_anchor_ids") or []),
         "dialogue_assignment": list(clip.get("dialogue_assignment") or []),
     }

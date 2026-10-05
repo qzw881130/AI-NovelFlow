@@ -87,7 +87,25 @@ For every later Clip, `reason` must explain either the concrete cross-boundary v
 dependency that requires CONTINUOUS or the independent visual grounding that permits
 CUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.
 
-3. Temporal selection AFTER boundary and continuity classification:
+3. Early Composition selection AFTER boundary and continuity classification:
+   Return `early_composition_state_id`: one current Clip OWNED Visual State ID or null.
+   This is Clip-local execution selection, not a new state type or timed eligibility.
+   For CONTINUOUS choose one meaningful early establishing composition: Previous AV
+   -> establish the current canonical composition -> subsequent speech/important visible action.
+   It may have timed_visual_target=false or true. Never relabel false as eligible.
+   It must be strictly inside this Clip after its start ownership tolerance, not an
+   endpoint or carry-in. If speech overlaps this Clip it must precede that first
+   interval's Clip-local onset. An onset at Clip start leaves no pre-speech window;
+   reconsider legal boundaries, never shift dialogue or invent a state.
+   With no speech, judge early suitability from canonical transitions and the first
+   important visible action; do not use a late result or endpoint as early grounding.
+   No fixed seconds threshold, no speaker inference, no requirement for speaker close-up.
+   Prefer legal topology with owned pre-event states. If impossible, report the
+   coverage conflict; do not create states or initiate #08 replan.
+   NONE/CUT use null. CONTINUOUS may use null ONLY if a selected timed state itself
+   meets this same early composition coverage. Neither selection is not valid.
+
+4. Timed target selection:
    `timed_visual_target=true` means eligible, NOT selected or execution-required.
    For CONTINUOUS, explicitly return `selected_temporal_target_ids`: [] / one / several
    current Clip OWNED eligible IDs. Select only when timed arrival at a material
@@ -98,6 +116,8 @@ CUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.
    character visibility/absence, identity sufficiency or real ending media.
    Images may be missing: planning comes before selected image preparation.
    Never select false/non-owned/shared-boundary/carry-in states. At most 8, unique IDs.
+   Timed and composition selections share a maximum of eight distinct physical
+   anchors. The same true state may serve both responsibilities but conditions once.
    NONE and CUT must explicitly return []; END is not automatically selected.
 
 Application-owned deterministic projection:
@@ -108,12 +128,13 @@ Application-owned deterministic projection:
 - You own selected_temporal_target_ids, a mandatory list, not physical bindings.
 - Application code validates this subset after normalization and derives anchors,
   final `requires_temporal_control` and capability. NONE/CUT -> GENERATE;
-  CONTINUOUS + [] -> EXTEND; CONTINUOUS + nonempty -> TEMPORAL_EXTEND.
+  CONTINUOUS + any valid timed/composition anchor -> TEMPORAL_EXTEND.
+  New-contract CONTINUOUS requires early composition coverage.
 - Keep `requires_temporal_control=false` neutral in raw output; raw requires/capability
   cannot override program authority. Do not invent temporal target IDs.
 - If normalization changes ownership/carry-in/previous ending/local-time context,
-  one constrained revalidation supplies fixed normalized boundaries and ALL eligible
-  candidates, including unselected ones. Rejudge continuity AND selection in that
+  one constrained revalidation supplies fixed normalized boundaries, ALL eligible
+  timed candidates and owned composition candidates, including false states. Rejudge continuity AND both selections in that
   structure. Second drift or illegal selection hard fails; do not request more retries.
 
 Forbidden authority:
@@ -138,7 +159,10 @@ Return JSON only:
       "previous_clip_index": null,
       "requires_temporal_control": false,
       "selected_temporal_target_ids": [],
+      "early_composition_state_id": null,
       "reason": "visual boundary rationale"
     }
   ]
 }
+
+Contract markers are projected by the program after validation: timed selection retains ELIGIBLE_THEN_SELECTED_V1; composition coverage uses EARLY_COMPOSITION_V1. Do not author validation markers in model output.

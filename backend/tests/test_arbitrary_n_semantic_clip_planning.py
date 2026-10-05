@@ -83,6 +83,12 @@ def _fake_planner(monkeypatch, response):
 
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
+            payload = json.loads(kwargs['user_content'])
+            for clip in response:
+                clip['early_composition_state_id'] = None
+                if clip['continuity_to_previous'] == 'CONTINUOUS' and not clip['selected_temporal_target_ids']:
+                    interior = [v for v in payload['visual_state_candidates'] if clip['start_time'] + .05 < v['time_seconds'] < clip['end_time']]
+                    if interior: clip['early_composition_state_id'] = interior[0]['visual_state_id']
             return {"success": True, "content": json.dumps({"clips": response})}
 
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
@@ -100,7 +106,7 @@ def test_canonical_plan_persists_arbitrary_n_clip_projection(monkeypatch):
     assert validation["passed"] is True, validation
     assert [item["visual_state_indexes"] for item in clips] == [[1, 2], [3], [4, 5]]
     assert [item["carry_in_state_index"] for item in clips] == [None, 2, 3]
-    assert [item["capability"] for item in clips] == ["GENERATE", "EXTEND", "EXTEND"]
+    assert [item["capability"] for item in clips] == ["GENERATE", "TEMPORAL_EXTEND", "TEMPORAL_EXTEND"]
 
 
 def test_first_or_cut_timed_target_stays_generate(monkeypatch):
@@ -122,7 +128,7 @@ def test_continuous_timed_target_requires_image_and_routes_temporal_extend(tmp_p
     _fake_planner(monkeypatch, [
         {"clip_index": 1, "start_time": 0, "end_time": 8, "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "capability": "GENERATE"},
         {"clip_index": 2, "start_time": 8, "end_time": 20, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": ["KF3"], "capability": "EXTEND"},
-        {"clip_index": 3, "start_time": 20, "end_time": 24, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": [], "capability": "EXTEND"},
+        {"clip_index": 3, "start_time": 20, "end_time": 24, "continuity_to_previous": "CUT", "selected_temporal_target_ids": [], "capability": "EXTEND"},
     ])
     clips, validation = asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, []))
     assert validation["passed"] is True, validation
@@ -136,7 +142,7 @@ def test_missing_continuous_timed_target_image_is_not_downgraded(monkeypatch):
     _fake_planner(monkeypatch, [
         {"clip_index": 1, "start_time": 0, "end_time": 8, "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "capability": "GENERATE"},
         {"clip_index": 2, "start_time": 8, "end_time": 20, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": ["KF3"], "capability": "EXTEND"},
-        {"clip_index": 3, "start_time": 20, "end_time": 24, "continuity_to_previous": "CONTINUOUS", "selected_temporal_target_ids": []},
+        {"clip_index": 3, "start_time": 20, "end_time": 24, "continuity_to_previous": "CUT", "selected_temporal_target_ids": []},
     ])
     anchors = []
     clips, validation = asyncio.run(clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, anchors))

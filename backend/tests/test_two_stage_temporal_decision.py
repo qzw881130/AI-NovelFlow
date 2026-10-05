@@ -27,9 +27,10 @@ def _states():
 def _clips(selected=None, continuity="CONTINUOUS", boundary=6):
     return [
         {"clip_index": 1, "start_time": 0, "end_time": boundary,
-         "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
+         "continuity_to_previous": "NONE", "selected_temporal_target_ids": [], "early_composition_state_id": None},
         {"clip_index": 2, "start_time": boundary, "end_time": 12,
          "continuity_to_previous": continuity, "selected_temporal_target_ids": selected or [],
+         "early_composition_state_id": None,
          "previous_clip_index": 1 if continuity == "CONTINUOUS" else None,
          "reason": "planned movement needs prior ending; timed arrival evaluated separately"},
     ]
@@ -103,13 +104,19 @@ def test_empty_selection_overrides_raw_temporal_execution_claims():
     assert anchors == []
 
 
+def _composition_clips(selected=None, boundary=6):
+    clips = _clips(selected, boundary=boundary)
+    clips[1]["early_composition_state_id"] = None if "KF3" in (selected or []) else "KF4"
+    return clips
+
+
 async def _plan(monkeypatch, tmp_path, responses):
     image = tmp_path / "start.png"
     image.write_bytes(b"image")
     shot = SimpleNamespace(id="shot", chapter_id="chapter", duration=12, continuity_mode="NORMAL",
                            characters="[]", props="[]", scene="", dialogues="[]", image_url=str(image),
                            image_path=str(image), keyframes="[]", video_director_plan=json.dumps({
-                               "canonical_visual_plan": True, "keyframes": _states(), "transitions": []}))
+                               "canonical_visual_plan": True, "keyframes": [dict(state, image_url=str(image)) if state["index"] == 4 else state for state in _states()], "transitions": []}))
     calls = []
     class Template:
         def __init__(self, _db): pass
@@ -133,6 +140,7 @@ async def test_selected_missing_image_plan_valid_execution_blocked_then_normal_p
     assert len(calls) == 1
     assert plan["clip_plan_validation"]["passed"] is True
     assert plan["clip_plan_validation"]["temporal_contract"] == TEMPORAL_DECISION_CONTRACT
+    assert plan["clip_plan_validation"]["composition_contract"] == "EARLY_COMPOSITION_V1"
     readiness = get_canonical_execution_readiness(shot, plan)
     assert [item["visual_state_index"] for item in readiness["blocking_clips"]] == [3]
     assert readiness["code"] == "TEMPORAL_ANCHOR_UNAVAILABLE"
@@ -145,10 +153,10 @@ async def test_selected_missing_image_plan_valid_execution_blocked_then_normal_p
 
 @pytest.mark.asyncio
 async def test_missing_eligible_unselected_images_do_not_block_plan_or_execution(monkeypatch, tmp_path):
-    shot, plan, _ = await _plan(monkeypatch, tmp_path, [_clips()])
+    shot, plan, _ = await _plan(monkeypatch, tmp_path, [_composition_clips()])
     assert plan["clip_plan_validation"]["passed"] is True
     assert get_canonical_execution_readiness(shot, plan)["ready"] is True
-    assert plan["temporal_anchors"] == []
+    assert [a["source"]["id"] for a in plan["temporal_anchors"]] == ["KF4"]
     original = deepcopy(plan)
     del plan["clip_plan_validation"]["temporal_contract"]
     assert get_canonical_execution_readiness(shot, plan)["code"] == "TEMPORAL_CONTRACT_REPLAN_REQUIRED"
@@ -158,7 +166,7 @@ async def test_missing_eligible_unselected_images_do_not_block_plan_or_execution
 @pytest.mark.asyncio
 async def test_normalization_revalidation_includes_all_eligible_not_only_selected(monkeypatch, tmp_path):
     # 9/3 -> 8/4 duration repair changes ownership and eligible local positions.
-    shot, plan, calls = await _plan(monkeypatch, tmp_path, [_clips(["KF5"], boundary=9), _clips(["KF5"], boundary=8)])
+    shot, plan, calls = await _plan(monkeypatch, tmp_path, [_composition_clips(["KF5"], boundary=9), _composition_clips(["KF5"], boundary=8)])
     assert len(calls) == 2
     constraints = calls[1]["continuity_revalidation"]["normalized_clips"]
     assert [item["visual_state_id"] for item in constraints[0]["eligible_temporal_targets"]] == ["KF2", "KF3"]
@@ -202,6 +210,7 @@ def _db_fixture(db_session, tmp_path, *, marked=True):
             "clip_plan_revision": 7, "clip_plan_validation": {"passed": True}, "temporal_anchors": anchors}
     if marked:
         plan["clip_plan_validation"]["temporal_contract"] = TEMPORAL_DECISION_CONTRACT
+        plan["clip_plan_validation"]["composition_contract"] = "EARLY_COMPOSITION_V1"
     shot = Shot(id="temporal-shot", chapter_id=chapter.id, index=1, duration=12, characters="[]", props="[]",
                 dialogues="[]", image_url=str(start), video_url=str(old_artifact), video_director_plan=json.dumps(plan))
     task = Task(id="historical-task", type="shot_video", status="failed", name="Old task", novel_id=novel.id,
@@ -269,7 +278,7 @@ def test_deleted_selected_physical_file_is_not_ready(tmp_path):
     states[2]["image_url"] = str(image)
     clips, anchors = _project(["KF3"], states=states)
     plan = {"canonical_visual_plan": True, "keyframes": states, "clip_plan": clips, "temporal_anchors": anchors,
-            "clip_plan_validation": {"passed": True, "temporal_contract": TEMPORAL_DECISION_CONTRACT}}
+            "clip_plan_validation": {"passed": True, "temporal_contract": TEMPORAL_DECISION_CONTRACT, "composition_contract": "EARLY_COMPOSITION_V1"}}
     shot = SimpleNamespace(image_url="/main.png", image_path=None)
     assert get_canonical_execution_readiness(shot, plan)["code"] == "TEMPORAL_ANCHOR_UNAVAILABLE"
 

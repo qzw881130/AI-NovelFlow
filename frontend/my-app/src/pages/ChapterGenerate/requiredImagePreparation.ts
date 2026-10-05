@@ -28,6 +28,7 @@ export function canPrepareMaterials(shot: Pick<Shot, 'videoDirectorPlan'>): bool
   const plan = shot.videoDirectorPlan;
   return plan?.canonical_visual_plan === true && plan.clip_plan_validation?.passed === true
     && plan.clip_plan_validation.temporal_contract === 'ELIGIBLE_THEN_SELECTED_V1'
+    && plan.clip_plan_validation.composition_contract === 'EARLY_COMPOSITION_V1'
     && Number(plan.clip_plan_revision) > 0 && !!plan.required_execution_images?.length;
 }
 export async function prepareCurrentRequiredImages(

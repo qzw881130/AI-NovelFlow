@@ -29,6 +29,12 @@ keyframes 是按时间排序的数组，每项：
 - 按 blocking/人物位置、可见动作结果、camera/composition、姿态与朝向/视线、人物或物体关系、表情、道具交互与环境状态的实质改变选择 visual beats。
 - 对白时间线可用来理解叙事上下文，但不得取代可见变化成为状态建立依据。
 
+【Pre-event Establishing Composition】
+- dialogue timeline 的规划起止时间可帮助识别视觉节拍。若重要对白或可见动作依赖某个构图、人物关系、当前服装或关键道具关系先成立，应尽可能在该事件之前规划已经到达的静态 establishing state，供后续连续 Clip planning 使用。
+- 此时不知道最终 Clip topology；只在 Shot timeline 上规划有意义的 pre-event visual beats，不猜测 C2/C3、Clip 边界或 Previous AV。不能仅因对白开始、speaker change 或未来可能分段而机械补状态。
+- 构图可以是全景、多人物关系、listener/reaction 或允许 speaker 画外的构图；不要求说话者近景或把整个 Shot 的人物同时放入画面。只描述该时刻实际应可见的人物、位置、朝向和物体关系。
+- 仍只写静态可见事实，不写“开始说话”、对白正文、发声或口型权限。保持 timed_visual_target 原有 eligibility 测试；普通 establishing state 不因之后可能作为 composition conditioning 而自动变 true。
+
 【timed_visual_target：Eligible Temporal Target 候选测试】
 true 仅表示 eligible，不表示 selected、必需图片或最终 temporal anchor。
 #08 尚不知道未来 Clip 边界或 Previous AV，不得判断未来 Previous AV 是否足够。

@@ -192,7 +192,7 @@ description 没要求的新剧情事实。
 
 保持： - 人物身份； - 面部； - 发型/胡须； - 年龄； - 体型比例； -
 服装/甲胄/配饰（除非当前 description 明确剧情变化）； - 场景建筑结构； -
-材质与时代； - 光线逻辑； - 人物总数； - 镜头轴线和空间方向（除非当前
+材质与时代； - 光线逻辑； - 当前状态未明确改变的可见人物集合； - 镜头轴线和空间方向（除非当前
 keyframe 明确需要摄影机变化）； - visual_style。
 
 当前 description 明确要求时必须变化： - current_keyframe.description
@@ -203,7 +203,10 @@ keyframe 明确需要摄影机变化）； - visual_style。
 
 ━━━━━━━━━━━━━━━━━━ 【人物闭包与身份】 ━━━━━━━━━━━━━━━━━━
 
-shot.characters 是全部可见人物封闭集合。
+shot.characters 是允许使用的角色身份封闭集合，不是每张状态图必须出现的人数。
+当前 time_seconds 的可见人物、构图和位置以 current_keyframe.description 为权威。
+尚未入场、已经离场或该时刻明确画外的人物不得仅因属于 Shot 集合而被强行画入；
+允许 listener/reaction 构图，不从对白或身份参考推断必须让 speaker 出镜。
 
 -   不得新增人物。
 -   不得删除本关键帧 description 明确要求可见的人物。
@@ -212,12 +215,12 @@ shot.characters 是全部可见人物封闭集合。
 -   旁白绝不生成为人物。
 -   characters==[] 时严格无人。
 
-如果全部为具名单人角色： - 最终人数严格等于 shot.characters 数量。 -
+如果全部为具名单人角色： - 最终人数以当前 Visual State 明确要求可见的人物为准，不以整个 shot.characters 数量补齐。 -
 禁止路人、人影、剪影、背景人群、镜中/反射人物。
 
 当 current_keyframe 要求四个具名角色时，最终 Prompt 必须明确一次人物实例约束：
 SCENE PARTICIPANTS: exactly four unique visible people, preserving the four-person
-composition of the Shot primary image. 列出这四个名字，各出现且只出现一次；
+composition required by the current Visual State. 列出这四个名字，各出现且只出现一次；
 特别禁止复制任何一名相貌相近的角色。角色身份参考图上的多视图与肖像不是
 额外演员，不得从参考图增添侍从、卫兵或任何第五个人。
 这条实例约束只针对画面人物闭包，不定义任何角色的对白或说话口型。

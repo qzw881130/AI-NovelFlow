@@ -50,7 +50,7 @@ export function RequiredImagesPreparation({ shot, novelId, chapterId, clipIndex,
       return <div key={`${revision}-${item.state_id}`} className="my-1">
         <div className="flex flex-wrap items-center gap-2">
           <details className="min-w-0"><summary className="cursor-pointer" title="查看视觉状态描述">{item.state_id} · {item.shot_time}s · {label}</summary><p className="mt-1 whitespace-pre-wrap text-gray-600">{item.description || '无状态描述'}</p></details>
-          <span className="text-gray-500">→ {item.consumer_clip_indexes.map(c => `C${c}`).join('、')}{item.image_source === 'SHOT_IMAGE' ? ' · 主分镜图' : ''}</span>
+          <span className="text-gray-500">→ {item.consumer_clip_indexes.map(c => `C${c}`).join('、')}{item.image_source === 'SHOT_IMAGE' ? ' · 主分镜图' : ''}{item.consumers.some(c => c.kind === 'EARLY_COMPOSITION') ? ' · 已选为早期构图锚点，执行必需' : ''}</span>
           {(status === 'FAILED' || failure) && <button type="button" disabled={busy} onClick={() => prepare(item.state_index)} className="text-red-700 underline disabled:opacity-50">重试{item.state_id}</button>}
         </div>
         {failure && <p role="alert" className="text-red-700">{failure}</p>}

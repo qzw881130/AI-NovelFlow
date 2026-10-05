@@ -19,6 +19,16 @@ class ClipExecutionCompileError(ValueError):
 
 _TEMPORAL_ANCHOR_LIMIT = 8
 TEMPORAL_DECISION_CONTRACT = "ELIGIBLE_THEN_SELECTED_V1"
+EARLY_COMPOSITION_CONTRACT = "EARLY_COMPOSITION_V1"
+
+
+def execution_temporal_state_ids(clip: dict) -> list[str]:
+    """Merge validated execution selections without changing timed eligibility."""
+    ids = list(clip.get("selected_temporal_target_ids") or [])
+    composition = clip.get("early_composition_state_id")
+    if composition:
+        ids.append(composition)
+    return list(dict.fromkeys(ids))
 
 
 def temporal_extend_frame_count(duration_seconds: float) -> int:
@@ -205,6 +215,13 @@ def get_canonical_execution_readiness(shot, plan: dict, clips: list[dict] | None
                    "visual_state_index": None, "time_seconds": None}
         return {"ready": False, "code": blocker["code"], "message": blocker["message"], "blocking_clips": [blocker]}
     clips = plan_clips if clips is None else clips
+    if plan.get("canonical_visual_plan") is True and plan_clips and (
+        (plan.get("clip_plan_validation") or {}).get("composition_contract") != EARLY_COMPOSITION_CONTRACT
+    ):
+        blocker = {"ready": False, "code": "COMPOSITION_CONTRACT_REPLAN_REQUIRED",
+                   "message": "历史片段计划需重新规划，以确认早期构图覆盖", "clip_index": None,
+                   "visual_state_index": None, "time_seconds": None}
+        return {"ready": False, "code": blocker["code"], "message": blocker["message"], "blocking_clips": [blocker]}
     states = {f"KF{item['index']}": item for item in plan.get("keyframes") or [] if isinstance(item, dict) and "index" in item}
     anchors = {str(item.get("anchor_id")): item for item in plan.get("temporal_anchors") or [] if isinstance(item, dict)}
     for clip in clips if isinstance(clips, list) else []:
@@ -212,14 +229,14 @@ def get_canonical_execution_readiness(shot, plan: dict, clips: list[dict] | None
         if readiness["applicable"] and not readiness["ready"]:
             blockers.append(readiness)
         if clip.get("capability") == "TEMPORAL_EXTEND":
-            for state_id in clip.get("selected_temporal_target_ids") or []:
+            for state_id in execution_temporal_state_ids(clip):
                 state = states.get(state_id) or {}
                 anchor = anchors.get(f"clip-{clip.get('clip_index')}-{state_id}") or {}
                 image_url = anchor.get("image_url")
                 image_path = (url_to_local_path(image_url) or image_url) if image_url else None
                 if not image_path or not Path(image_path).is_file():
                     blockers.append({"ready": False, "code": "TEMPORAL_ANCHOR_UNAVAILABLE",
-                                     "message": f"缺少已选定时目标图片：Clip {clip.get('clip_index')} · {state_id}",
+                                     "message": f"缺少执行锚点图片：Clip {clip.get('clip_index')} · {state_id}",
                                      "clip_index": clip.get("clip_index"), "visual_state_index": state.get("index"),
                                      "time_seconds": state.get("time_seconds"), "grounding_source": "KEYFRAME_IMAGE"})
     first = blockers[0] if blockers else None

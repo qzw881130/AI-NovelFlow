@@ -57,7 +57,8 @@ def _shot(
     states = states or [
         {"index": 1, "role": "START", "time_seconds": 0, "description": None, "timed_visual_target": False},
         {"index": 2, "role": "INTERMEDIATE", "time_seconds": 6, "description": "侍从把奏折递到桌案中央", "timed_visual_target": False},
-        {"index": 3, "role": "END", "time_seconds": 12, "description": "皇帝独立坐在新的正面构图中", "timed_visual_target": False},
+        {"index": 3, "role": "INTERMEDIATE", "time_seconds": 6.5, "description": "皇帝独立坐在新的正面构图中", "timed_visual_target": False},
+        {"index": 4, "role": "END", "time_seconds": 12, "description": "皇帝在当前构图中保持最终姿态", "timed_visual_target": False},
     ]
     transitions = transitions or [
         {"from_keyframe_index": 1, "to_keyframe_index": 2, "start_time": 0, "end_time": 6, "transition_description": "侍从向前移动奏折"},
@@ -85,6 +86,22 @@ def _shot(
     )
 
 
+def _composition_response(response, payload):
+    """Mock the new director output explicitly; production never auto-upgrades plans."""
+    result = json.loads(json.dumps(response))
+    for clip in result:
+        clip['early_composition_state_id'] = None
+        if clip.get('continuity_to_previous') != 'CONTINUOUS' or clip.get('selected_temporal_target_ids'):
+            continue
+        start, end = clip['start_time'], clip['end_time']
+        first_speech = min((max(start, e['start_time']) for e in payload['speech_timing_intervals']
+                            if e['end_time'] > start and e['start_time'] < end), default=end)
+        early = [v for v in payload['visual_state_candidates'] if start + .05 < v['time_seconds'] < min(end, first_speech)]
+        if early:
+            clip['early_composition_state_id'] = early[0]['visual_state_id']
+    return result
+
+
 def _fake_planner(monkeypatch, response, captured):
     class FakePromptTemplateService:
         def __init__(self, _db):
@@ -96,7 +113,7 @@ def _fake_planner(monkeypatch, response, captured):
     class FakeLLMService:
         async def chat_completion(self, **kwargs):
             captured.update(kwargs)
-            return {"success": True, "content": json.dumps({"clips": response}, ensure_ascii=False)}
+            return {"success": True, "content": json.dumps({"clips": _composition_response(response, json.loads(kwargs["user_content"]))}, ensure_ascii=False)}
 
     monkeypatch.setattr(clip_planner, "PromptTemplateService", FakePromptTemplateService)
     monkeypatch.setattr(clip_planner, "LLMService", FakeLLMService)
@@ -178,13 +195,13 @@ async def test_director_character_boundary_decisions_preserve_existing_planner_c
     assert "available_generation_inputs" not in payload
     assert payload["speech_timing_intervals"] == []
     assert clips[1]["continuity_to_previous"] == decision
-    assert clips[1]["capability"] == ("EXTEND" if decision == "CONTINUOUS" else "GENERATE")
+    assert clips[1]["capability"] == ("TEMPORAL_EXTEND" if decision == "CONTINUOUS" else "GENERATE")
     assert clips[1]["previous_clip_index"] == (1 if decision == "CONTINUOUS" else None)
     assert clips[1]["visual_state_indexes"] == [3, 4]
     assert clips[1]["carry_in_state_index"] == 2
-    assert clips[1]["requires_temporal_control"] is False
+    assert clips[1]["requires_temporal_control"] is (decision == "CONTINUOUS")
     assert clips[1]["reason"] == transition
-    assert anchors == []
+    assert [a["source"]["id"] for a in anchors] == (["KF3"] if decision == "CONTINUOUS" else [])
     assert shot.video_director_plan == original_plan
 
 
@@ -225,7 +242,7 @@ def test_clip_planner_input_projects_only_visual_context_and_speech_intervals(tm
         "start_time": 1.0,
         "end_time": 4.0,
     }]
-    assert len(payload["visual_state_candidates"]) == 3
+    assert len(payload["visual_state_candidates"]) == 4
     assert len(payload["transition_context"]) == 2
     assert "capabilities" not in payload
     assert "official_dialogue_timeline" not in payload
@@ -249,7 +266,7 @@ async def test_t02_dialogue_boundary_with_object_handoff_preserves_visual_contin
 
     assert validation["passed"] is True, validation
     assert clips[1]["continuity_to_previous"] == "CONTINUOUS"
-    assert clips[1]["capability"] == "EXTEND"
+    assert clips[1]["capability"] == "TEMPORAL_EXTEND"
     assert clips[1]["previous_clip_index"] == 1
     assert llm_payload["speech_timing_intervals"][0] == {"event_id": "D1", "start_time": 1.0, "end_time": 6.0}
 
@@ -290,7 +307,7 @@ async def test_t08_no_dialogue_spatial_dependency_preserves_continuous(tmp_path,
     assert validation["passed"] is True, validation
     assert llm_payload["speech_timing_intervals"] == []
     assert clips[1]["continuity_to_previous"] == "CONTINUOUS"
-    assert clips[1]["capability"] == "EXTEND"
+    assert clips[1]["capability"] == "TEMPORAL_EXTEND"
 
 
 @pytest.mark.asyncio
@@ -367,7 +384,7 @@ def _sequence_planner(monkeypatch, responses, calls, before_call=None):
             assert len(calls) < len(responses), "unexpected extra planner call"
             response = responses[len(calls)]
             calls.append(json.loads(kwargs["user_content"]))
-            return {"success": True, "content": json.dumps({"clips": response})}
+            return {"success": True, "content": json.dumps({"clips": _composition_response(response, calls[-1])})}
 
     monkeypatch.setattr(clip_planner, "LLMService", FakeLLMService)
 
@@ -420,6 +437,12 @@ async def test_shot11_revalidates_both_decisions_against_normalized_structure(
         original_projection(clips, candidates, duration)
 
     monkeypatch.setattr(clip_planner, "_project_temporal_targets", final_projection)
+    if retry_continuity == "CONTINUOUS":
+        with pytest.raises(ValueError, match="EARLY_COMPOSITION_COVERAGE_INVALID"):
+            await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, [])
+        assert len(calls) == 2 and projected_calls == [True]
+        assert calls[1]['continuity_revalidation']['normalized_clips'][1]['start_time'] == 7.15
+        return
     clips, validation = await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, [])
     candidates = calls[0]["visual_state_candidates"]
     raw_structure = clip_planner._canonical_continuity_structure(raw, candidates)
@@ -459,7 +482,7 @@ async def test_same_premise_and_harmless_rounding_use_one_call(tmp_path, monkeyp
     assert validation["passed"] is True, validation
     assert clips[1]["start_time"] == 6
     assert clips[1]["reason"] == "unchanged visual dependency"
-    assert clips[1]["capability"] == "EXTEND"
+    assert clips[1]["capability"] == "TEMPORAL_EXTEND"
 
 
 @pytest.mark.asyncio
@@ -479,7 +502,7 @@ async def test_duration_repair_revalidates_state_identity_not_shot11_special_cas
     assert [clip["visual_state_indexes"] for clip in clips] == [[1, 2], [3, 4]]
     assert clips[1]["start_time"] == 4
     assert clips[1]["carry_in_state_index"] == 2
-    assert clips[1]["capability"] == "EXTEND"
+    assert clips[1]["capability"] == "TEMPORAL_EXTEND"
 
 
 @pytest.mark.asyncio
@@ -527,15 +550,19 @@ async def test_same_identities_with_changed_timed_local_position_require_retry(t
 @pytest.mark.asyncio
 async def test_temporal_projection_uses_validated_retry_boundaries(tmp_path, monkeypatch):
     shot = _shot11(tmp_path, timed=True)
+    shot.dialogues = "[]"
+    p = json.loads(shot.video_director_plan)
+    p["keyframes"][4]["timed_visual_target"] = True
+    shot.video_director_plan = json.dumps(p)
     calls, anchors = [], []
-    _sequence_planner(monkeypatch, [_two_clips(9.5, "CONTINUOUS"), _two_clips(7.15, "CONTINUOUS", "KF3 -> KF4 dependency", selected=["KF4"])], calls)
+    _sequence_planner(monkeypatch, [_two_clips(15, "CONTINUOUS"), _two_clips(14, "CONTINUOUS", "KF4 -> KF5 dependency", selected=["KF5"])], calls)
     clips, validation = await clip_planner.plan_clips(None, SimpleNamespace(id="novel"), shot, anchors)
     assert validation["passed"] is True, validation
     assert len(calls) == 2
     assert clips[1]["capability"] == "TEMPORAL_EXTEND"
-    assert clips[1]["selected_temporal_target_ids"] == ["KF4"]
-    assert anchors[0]["time_seconds"] == 2.35
-    assert anchors[0]["source"]["id"] == "KF4"
+    assert clips[1]["selected_temporal_target_ids"] == ["KF5"]
+    assert anchors[0]["time_seconds"] == .5
+    assert anchors[0]["source"]["id"] == "KF5"
 
 
 @pytest.mark.asyncio

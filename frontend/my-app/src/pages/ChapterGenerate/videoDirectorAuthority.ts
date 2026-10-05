@@ -44,7 +44,9 @@ export function getVisualStateExecutionImageStatus(
   const owners = clips.filter((clip) => clip.visual_state_indexes?.some((owned) => Number(owned) === index));
   if (owners.length === 0) return 'NOT_NEEDED';
   if (plan.clip_plan_validation?.temporal_contract === 'ELIGIBLE_THEN_SELECTED_V1'
-    && owners.some((clip) => clip.selected_temporal_target_ids?.includes(`KF${index}`))) return 'REQUIRED_MISSING';
+    && plan.clip_plan_validation?.composition_contract === 'EARLY_COMPOSITION_V1'
+    && owners.some((clip) => clip.selected_temporal_target_ids?.includes(`KF${index}`)
+      || clip.early_composition_state_id === `KF${index}`)) return 'REQUIRED_MISSING';
   return 'OPTIONAL_MISSING';
 }
 

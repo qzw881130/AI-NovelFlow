@@ -39,7 +39,7 @@ const readyPlan = () => ({
   keyframes: structuredClone(keyframes),
   clip_plan: structuredClone(clips),
   clip_plan_revision: 2,
-  clip_plan_validation: { passed: true, temporal_contract: 'ELIGIBLE_THEN_SELECTED_V1' },
+  clip_plan_validation: { passed: true, temporal_contract: 'ELIGIBLE_THEN_SELECTED_V1', composition_contract: 'EARLY_COMPOSITION_V1' },
 });
 
 const completedClip = (clip, taskId) => ({
@@ -154,7 +154,7 @@ test('E-F: ownership uses visual_state_indexes and keeps carry-in separate', () 
 test('G: capability and continuity labels are friendly and read-only', () => {
   assert.equal(getSemanticCapabilityLabel('GENERATE'), '独立生成');
   assert.equal(getSemanticCapabilityLabel('EXTEND'), '连续续生成');
-  assert.equal(getSemanticCapabilityLabel('TEMPORAL_EXTEND'), '定时目标续生成');
+  assert.equal(getSemanticCapabilityLabel('TEMPORAL_EXTEND'), '构图 / 定时目标续生成');
   assert.equal(getSemanticContinuityLabel('NONE'), '独立开始');
   assert.equal(getSemanticContinuityLabel('CONTINUOUS'), '连续衔接');
 });
@@ -232,4 +232,17 @@ test('O: canonical semantic execution request contains no legacy authority field
   assert.equal('recommended_mode' in request, false);
   assert.equal('window_plans' in request, false);
   assert.equal('generate_video' in request, false);
+});
+
+test('timed-only historical marker cannot authorize new composition execution or batch', () => {
+  const input = readyPlan();
+  delete input.clip_plan_validation.composition_contract;
+  const before = structuredClone(input);
+  const result = getCanonicalSemanticReadiness(input);
+  assert.equal(result.state, 'CLIP_PLAN_STALE');
+  assert.equal(result.executionAllowed, false);
+  assert.equal(result.planningAllowed, true);
+  assert.match(result.reason, /早期构图/);
+  assert.equal(getCanonicalBatchEligibility(input).selectable, false);
+  assert.deepEqual(input, before);
 });
