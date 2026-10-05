@@ -140,6 +140,40 @@ def update_llm_log(
         print(f"[LLM Log] 更新日志失败：{e}")
 
 
+def record_llm_http_attempt(
+    log_id: Optional[str], *, attempt: int, http_status: int,
+    will_retry: bool, outcome: str,
+) -> None:
+    """Keep HTTP attempt history on the existing logical LLM call log."""
+    if not log_id:
+        return
+    try:
+        from app.core.database import SessionLocal
+        from app.models.llm_log import LLMLog
+
+        with SessionLocal() as db:
+            log = db.query(LLMLog).filter(LLMLog.id == log_id).first()
+            if not log:
+                return
+            if log.status == "error" and log.error_message == LLM_CANCELLED_MESSAGE:
+                raise LLMCallTerminated(LLM_CANCELLED_MESSAGE)
+            info = json.loads(log.request_info or "{}")
+            retry = info.setdefault("httpRetry", {"attempts": []})
+            retry["attempts"].append({
+                "attempt": attempt,
+                "httpStatus": http_status,
+                "willRetry": will_retry,
+            })
+            retry["transientRetryOccurred"] = attempt > 1
+            retry["outcome"] = outcome
+            log.request_info = json.dumps(info, ensure_ascii=False, indent=2)
+            db.commit()
+    except LLMCallTerminated:
+        raise
+    except Exception as e:
+        print(f"[LLM Log] 记录 HTTP attempt 失败：{e}")
+
+
 @dataclass
 class LLMConfig:
     """LLM 配置数据类"""

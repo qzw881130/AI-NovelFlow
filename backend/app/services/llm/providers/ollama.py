@@ -11,7 +11,8 @@ import time
 from typing import Dict, Any, Optional, List
 from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
 from ..metrics import normalize_metrics
-from ..cancellation import await_cancellable_llm_request, LLMCallTerminated
+from ..cancellation import LLMCallTerminated
+from ..http_retry import post_llm_request
 
 
 class OllamaProvider(BaseLLMProvider):
@@ -149,12 +150,9 @@ class OllamaProvider(BaseLLMProvider):
                     used_proxy=used_proxy,
                     request_info=request_info,
                 )
-                response = await await_cancellable_llm_request(log_id, client.post(
-                    endpoint,
-                    headers=headers,
-                    json=body,
-                    timeout=timeout
-                ))
+                response = await post_llm_request(
+                    client, log_id, endpoint, headers=headers, body=body, timeout=timeout,
+                )
 
             # 恢复环境变量
             if old_http_proxy:
