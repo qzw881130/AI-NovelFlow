@@ -835,6 +835,27 @@ def _canonical_visual_body_speech_issues(body: str, subject_bindings: dict | Non
     for name in subject_bindings or {}:
         human_identity += "|" + re.escape(name)
     human_identity += ")"
+    # Actual utterances/assignments remain forbidden even beside a safe mention.
+    # Exact canonical quotations have already become assigned dialogue IDs here;
+    # attaching an ID to a speaker outside the timeline is still an assignment.
+    utterance = r'(?:[“"「『]|assigned\s+dialogue\s+D\d+\b)'
+    if re.search(
+        r"(?:说|说道|喊道|问道|答道|回答|低语)\s*[:：]?\s*" + utterance
+        + "|" + human_identity + r"\s*[:：]\s*" + utterance,
+        body, re.IGNORECASE,
+    ):
+        issues.append("CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE")
+    # Mask only complete visual nouns and generic conditional lip instructions,
+    # never a whole negative clause or a named Subject's speech/silence decision.
+    mentions = re.compile(
+        r"(?:对话|对白|语音)(?:框|气泡)|"
+        r"\b(?:speech|dialogue)\s+bubbles?\b|"
+        r"\blip[ -]?sync\s+(?:rules?|instructions?|guidelines?)\b|"
+        r"(?:角色|人物)(?:说话|讲话)时(?:保持|使用)(?:自然|正确)?"
+        r"(?:中文|汉语|普通话)(?:口型|唇形)",
+        re.IGNORECASE,
+    )
+    scan_body = mentions.sub(lambda match: " " * len(match.group()), body)
     human_vocalization = re.compile(
         human_identity + r"[^.!?;,\n]{0,40}\b(?:screams?|screaming|grunts?|grunting|gasps?|gasping|sobs?|sobbing|sings?|singing|hums?|humming)\b",
         re.IGNORECASE,
@@ -844,7 +865,7 @@ def _canonical_visual_body_speech_issues(body: str, subject_bindings: dict | Non
         re.IGNORECASE,
     )
     # Do not let a negation in another clause authorize affirmative speech.
-    for clause in re.split(r"[\n.!?;,，。！？；]|\bbut\b|但(?:是)?|然而", body, flags=re.IGNORECASE):
+    for clause in re.split(r"[\n.!?;,，。！？；]|\bbut\b|但(?:是)?|然而", scan_body, flags=re.IGNORECASE):
         for pattern, code in ((speech, "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"),
                               (human_vocalization, "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"),
                               (human_silence, "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE"),
