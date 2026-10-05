@@ -72,6 +72,7 @@ export interface Task {
       };
       temporal_anchor_manifest?: { anchors?: Array<{
       anchor_id?: string; slot?: number; time_seconds?: number; frame_position?: number; image_url?: string;
+      source?: { type?: string; id?: string; keyframe_index?: number };
     }> } };
     dialogue_assignment?: Array<{
       dialogue_id: string;

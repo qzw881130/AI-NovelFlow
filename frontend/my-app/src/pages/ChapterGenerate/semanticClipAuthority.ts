@@ -75,7 +75,7 @@ export function getCanonicalSemanticReadiness(
     return { state: 'CLIP_PLAN_STALE', planningAllowed: true, executionAllowed: false,
       requiredMissingIndexes: [], reason: '历史片段计划需重新规划，以确认定时目标选择' };
   }
-  if (plan.clip_plan_validation?.composition_contract !== 'EARLY_COMPOSITION_V1') {
+  if (!['EARLY_COMPOSITION_V1', 'EARLY_COMPOSITION_V2'].includes(String(plan.clip_plan_validation?.composition_contract || ''))) {
     return { state: 'CLIP_PLAN_STALE', planningAllowed: true, executionAllowed: false,
       requiredMissingIndexes: [], reason: '历史片段计划需重新规划，以确认早期构图覆盖' };
   }

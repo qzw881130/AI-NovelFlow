@@ -40,6 +40,12 @@ test('required projection C3 contains only KF4; batch includes existing KF1 plus
   assert.equal(requiredImageStatus(), 'NOT_REQUIRED');
 });
 
+test('current V2 marker permits existing required-image controls', () => {
+  const input=shot();
+  input.videoDirectorPlan.clip_plan_validation.composition_contract='EARLY_COMPOSITION_V2';
+  assert.equal(canPrepareMaterials(input),true);
+});
+
 test('READY wins over historical failure; active shows current step; failure remains retryable', () => {
   assert.equal(requiredImageStatus({...item(4,3,true),failure:{error_message:'old'}}),'READY');
   assert.equal(requiredImageStatus({...item(4,3),active_task:{current_step:'sampling'},failure:{error_message:'old'}}),'GENERATING');

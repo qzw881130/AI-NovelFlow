@@ -282,8 +282,10 @@ export interface VideoDirectorPlan {
     description?: string;
   }>;
   assembly_status?: string;
+  assembly_mode?: string;
   assembly_clip_plan_revision?: number;
   assembly_task_ids?: string[];
+  assembled_result?: { status?: string; url?: string; assembled_media_duration?: number | null; clip_plan_revision?: number } | null;
   clip_plan_approval_mode?: string;
   clip_plan_validation?: {
     passed?: boolean;

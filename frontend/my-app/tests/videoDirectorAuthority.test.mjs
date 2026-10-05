@@ -112,6 +112,14 @@ test('I: canonical required-image preparation uses selected subset, not all elig
   );
 });
 
+test('V2 selected temporal target remains required while unselected states stay optional', () => {
+  const plan = makeCanonicalPlan(4);
+  plan.clip_plan_revision = 4;
+  plan.clip_plan_validation = { passed: true, temporal_contract: 'ELIGIBLE_THEN_SELECTED_V1', composition_contract: 'EARLY_COMPOSITION_V2' };
+  plan.clip_plan = [{ capability: 'TEMPORAL_EXTEND', visual_state_indexes: [2, 3], selected_temporal_target_ids: ['KF2'] }];
+  assert.deepEqual(getRequiredMissingCanonicalVisualStates(plan).map(state => state.index), [2]);
+});
+
 test('J: canonical adjacent transitions come from plan.transitions', () => {
   const plan = {
     ...makeCanonicalPlan(3),

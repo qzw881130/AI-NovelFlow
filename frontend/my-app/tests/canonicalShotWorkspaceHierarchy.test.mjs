@@ -40,7 +40,7 @@ test('Debug Inspector defaults collapsed and resets when the Shot changes', () =
 
 test('current authoritative Final Shot is the default preview target', () => {
   assert.match(source, /hasCurrentAssembly\(currentVideoDirectorPlan, semanticClipTasks\)/);
-  assert.match(source, /const previewVideoUrl = selectedPreviewClipUrl \|\| selectedPreviewClip\?\.video_url \|\| currentFinalShotVideoUrl/);
+  assert.match(source, /selectedPreviewClipKey \? selectedPreviewClip\?\.video_url \|\| undefined : currentFinalShotVideoUrl/);
   assert.match(source, /selectedPreviewClip \? `片段预览 · \$\{previewVideoLabel\}` : '最终 Shot 视频'/);
   assert.match(source, /setSelectedPreviewClipKey\(null\)[\s\S]*setSelectedPreviewClipUrl\(null\)[\s\S]*\}, \[currentShotId\]\)/);
 });
@@ -52,8 +52,9 @@ test('individual Clip preview remains reachable only through Advanced Director c
   assert.doesNotMatch(source, />\s*Shot 成片\s*</);
 });
 
-test('engineering Clip metadata is absent from default Production and retained under diagnostics', () => {
-  assert.doesNotMatch(productionSource, /Revision|AUTO_APPROVE|PASS|generated_by_task_id|CLIP_ONLY/);
+test('Production displays the execution chain while raw Clip metadata stays under diagnostics', () => {
+  assert.match(productionSource, /ExecutionChainOverview/);
+  assert.doesNotMatch(productionSource, /generated_by_task_id|CLIP_ONLY/);
   assert.match(semanticPanelSource, /data-testid="semantic-clip-debug-metadata"/);
   assert.match(semanticPanelSource, /Revision \{revision\}/);
   assert.match(semanticPanelSource, /AUTO_APPROVE/);

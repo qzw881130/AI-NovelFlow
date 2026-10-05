@@ -56,7 +56,7 @@ test('TEMPORAL_EXTEND retains selected targets and materialized anchors alongsid
   const html = render(clip, task, predecessor.clip, predecessor.task);
   assert.match(html, /C2 · Native continuity · READY/);
   assert.match(html, /Selected temporal targets：KF4/);
-  assert.match(html, /Materialized temporal anchors：KF4 · 2s/);
+  assert.match(html, /Temporal Anchors：KF4 @ 2s/);
 });
 
 test('overlap comes from backend metadata, preferring its duration and deriving only when absent', () => {

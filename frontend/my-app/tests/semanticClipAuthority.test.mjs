@@ -83,6 +83,13 @@ test('unmarked historical plans remain readable but require explicit replan befo
   assert.deepEqual(plan, before);
 });
 
+test('current EARLY_COMPOSITION_V2 plan stays executable in the frontend projection', () => {
+  const plan = readyPlan();
+  plan.clip_plan_validation.composition_contract = 'EARLY_COMPOSITION_V2';
+  assert.equal(getCanonicalSemanticReadiness(plan).state, 'READY');
+  assert.equal(getCanonicalBatchEligibility(plan).selectable, true);
+});
+
 test('backend selected missing-image projection blocks only execution', () => {
   const plan = readyPlan();
   plan.execution_readiness = { ready: false, code: 'TEMPORAL_ANCHOR_UNAVAILABLE',

@@ -18,6 +18,7 @@ import { shotsApi } from '../../../api/shots';
 import { taskApi } from '../../../api/tasks';
 import { RequiredImagesPreparation } from './RequiredImagesPreparation';
 import { getClipArtifactPresentation, getPreviousAvPresentation } from '../nativeClipPresentation';
+import { formatExecutionSeconds, getClipGenerationPresentation, getClipReviewPresentation, getDurationPresentation, getMaterializedTemporalAnchors, getOrdinaryImageReferenceCount } from '../videoExecutionPresentation';
 import { canPrepareMaterials, clipPreparationPresentation, prepareCurrentRequiredImages } from '../requiredImagePreparation';
 import type { Task } from '../../../api/tasks';
 import { toast } from '../../../stores/toastStore';
@@ -213,7 +214,7 @@ function ClipExecutionDetails({ clip, plan, task, previousTask }: { clip: Semant
           {metadata.physical_output.raw_context_output.result_url || metadata.physical_output.raw_context_output.source_video_url || ''}
         </div>}
       </details>
-      <div>Physical reference manifest：{references.length ? '' : '未提供或为空；不从 State 编号推断'}</div>
+      <div>普通图片参考：{metadata?.video_reference_manifest ? `${references.length} 张` : '未提供'}</div>
       {references.map((reference, index) => (
         <div key={index} className="break-all">
           {reference.slot != null ? `Picture ${reference.slot}` : 'Picture 未提供'} · {reference.kind || '类型未提供'}
@@ -222,7 +223,7 @@ function ClipExecutionDetails({ clip, plan, task, previousTask }: { clip: Semant
           {reference.binding?.workflow_node_id ? ` · node ${reference.binding.workflow_node_id}` : ''}
         </div>
       ))}
-      <div>Materialized temporal anchors：{anchors.length ? anchors.map(anchor => `${anchor.anchor_id || 'ID 未提供'} · ${anchor.time_seconds ?? '—'}s`).join('、') : '未提供或无'}</div>
+      <div>Temporal Anchors：{anchors.length ? anchors.map(anchor => `${anchor.source?.id || anchor.anchor_id || 'ID 未提供'} @ ${anchor.time_seconds ?? '—'}s`).join('、') : '0 个'}</div>
       {!revision && <div>历史数据仅供查看，不代表当前执行依据</div>}
     </div>
   );
@@ -240,34 +241,58 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
   useEffect(() => {
     if (!chapterId || !shot?.id || clips.length === 0) {
       setTasks([]);
+      onTasksChange?.([]);
       return;
     }
     let cancelled = false;
-    let requestId = 0;
-    const refresh = () => {
-      const currentRequest = ++requestId;
+    let timer: number | undefined;
+    const detailsByTaskId = new Map<string, Task>();
+    const refresh = async () => {
       setLoading(true);
-      taskApi.fetchShotTasks(chapterId, String(shot.id))
-        .then((response) => {
-          if (!cancelled && currentRequest === requestId) {
-            const nextTasks = Array.isArray(response.data) ? response.data : [];
-            setTasks(nextTasks);
-            onTasksChange?.(nextTasks);
-          }
-        })
-        .catch(() => {
-          if (!cancelled && currentRequest === requestId) {
-            setTasks([]);
-            onTasksChange?.([]);
-          }
-        })
-        .finally(() => {
-          if (!cancelled && currentRequest === requestId) setLoading(false);
+      try {
+        const response = await taskApi.fetchShotTasks(chapterId, String(shot.id));
+        if (cancelled) return;
+        const listed = Array.isArray(response.data) ? response.data : [];
+        // The list carries provenance and native output, while ordinary image
+        // references live in the existing single-task detail response.
+        const currentTasks = clips.map(clip => resolveSemanticClipTask(clip, listed, revision)).filter((task): task is Task => !!task);
+        await Promise.all(currentTasks.filter(task => !detailsByTaskId.has(task.id)).map(async (task) => {
+          try {
+            const detail = await taskApi.fetch(task.id);
+            if (!cancelled && detail.data?.id === task.id
+              && detail.data.clipExecution?.clip_plan_revision === revision) {
+              detailsByTaskId.set(task.id, detail.data);
+            }
+          } catch { /* The list remains a usable read-only fallback. */ }
+        }));
+        if (cancelled) return;
+        const nextTasks = listed.map(task => {
+          const detail = detailsByTaskId.get(task.id);
+          return detail ? {
+            ...task,
+            clipExecution: {
+              ...detail.clipExecution,
+              ...task.clipExecution,
+              video_reference_manifest: detail.clipExecution?.video_reference_manifest,
+            },
+          } : task;
         });
+        setTasks(nextTasks);
+        onTasksChange?.(nextTasks);
+      } catch {
+        if (!cancelled) {
+          setTasks([]);
+          onTasksChange?.([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+          timer = window.setTimeout(refresh, 2000);
+        }
+      }
     };
     refresh();
-    const interval = window.setInterval(refresh, 2000);
-    return () => { cancelled = true; window.clearInterval(interval); };
+    return () => { cancelled = true; if (timer !== undefined) window.clearTimeout(timer); };
   }, [chapterId, shot?.id, revision, clips.length, onTasksChange]);
 
   if (clips.length === 0) return null;
@@ -313,7 +338,7 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
           return (
             <div key={`${revision}-${clip.clip_index}`} className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
               <RequiredImagesPreparation shot={shot} novelId={novelId} chapterId={chapterId} clipIndex={Number(clip.clip_index)} onShot={onPreparationShot} />
-              <p className="my-1 text-xs text-gray-600">图片准备：{preparation.imagesReady ? '已就绪' : '未就绪'} · 片段执行：{preparation.label}</p>
+              <p className="my-1 text-xs text-gray-600">片段执行：{preparation.label}</p>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                 <div className="flex min-w-[116px] items-center gap-2">
                   <span className="text-sm font-semibold text-gray-900">片段 {clip.clip_index}</span>
@@ -867,6 +892,104 @@ function VideoPromptModal({
   ), document.body);
 }
 
+const executionToneClass: Record<string, string> = {
+  blue: 'border-blue-200 bg-blue-50 text-blue-700',
+  green: 'border-green-200 bg-green-50 text-green-700',
+  amber: 'border-amber-200 bg-amber-50 text-amber-800',
+  red: 'border-red-200 bg-red-50 text-red-700',
+  gray: 'border-gray-200 bg-gray-50 text-gray-600',
+};
+
+function ExecutionChainOverview({ plan, tasks }: { plan: VideoDirectorPlan; tasks: Task[] }) {
+  const clips = Array.isArray(plan.clip_plan) ? [...plan.clip_plan].sort((a, b) => Number(a.clip_index) - Number(b.clip_index)) : [];
+  const revision = Number(plan.clip_plan_revision || 0);
+  if (!clips.length) return null;
+  return (
+    <section data-testid="video-execution-chain" className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-slate-800">执行链 · {clips.length} Clips</h3>
+        <span className="text-[11px] text-slate-500">Revision {revision || '—'}</span>
+      </div>
+      <div className="space-y-0.5">
+        {clips.map((clip, index) => {
+          const task = resolveSemanticClipTask(clip, tasks, revision);
+          const generation = getClipGenerationPresentation(clip, task);
+          const review = getClipReviewPresentation(clip, task);
+          const previousClip = clips.find(item => item.clip_index === clip.previous_clip_index);
+          const previousTask = previousClip ? resolveSemanticClipTask(previousClip, tasks, revision) : undefined;
+          const previous = getPreviousAvPresentation(clip, task, previousClip, previousTask);
+          const artifact = getClipArtifactPresentation(clip, task);
+          const ordinaryCount = getOrdinaryImageReferenceCount(task);
+          const anchors = getMaterializedTemporalAnchors(clip, task);
+          const required = (plan.required_execution_images || []).filter(item => item.consumer_clip_indexes?.includes(Number(clip.clip_index)));
+          return (
+            <div key={`${revision}-${clip.clip_index}`}>
+              <article data-testid={`execution-chain-clip-${clip.clip_index}`} className="rounded-md border border-slate-200 bg-slate-50/60 px-2.5 py-2 text-[11px] text-slate-700">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className="min-w-[106px] text-xs font-semibold text-slate-900">C{clip.clip_index} · {clip.start_time}–{clip.end_time}s</span>
+                  <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 font-semibold text-blue-700">{clip.capability || 'ROUTE 未提供'}</span>
+                  <span className={`rounded border px-1.5 py-0.5 ${executionToneClass[generation.tone]}`}>生成：{generation.label}</span>
+                  <span className={`rounded border px-1.5 py-0.5 ${executionToneClass[review.tone]}`}>审核：{review.label}</span>
+                </div>
+                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-slate-600">
+                  {artifact.continuous && <span>Previous AV：<strong className={previous.label.includes('READY') ? 'text-green-700' : 'text-amber-700'}>{previous.label}</strong></span>}
+                  {artifact.continuous && <span>Native AV：<strong className={artifact.nativeReady ? 'text-green-700' : 'text-amber-700'}>{artifact.outputStatus}</strong>{artifact.nativeReady && artifact.overlapLabel !== '未提供' ? ` · Overlap ${artifact.overlapLabel}` : ''}</span>}
+                  <span>普通图片参考：{ordinaryCount == null ? '未提供' : `${ordinaryCount} 张`}</span>
+                  <span>Temporal Anchors：{anchors.length ? anchors.map(anchor => `${anchor.label} @ ${anchor.timeSeconds == null ? '—' : anchor.timeSeconds}s`).join('、') : '0 个'}</span>
+                  {required.length > 0 && <span>Required：{required.map(item => `${item.state_id || `KF${item.state_index}`} ${item.ready ? 'READY' : '未就绪'}`).join('、')}</span>}
+                </div>
+              </article>
+              {index < clips.length - 1 && <div className="ml-4 py-0.5 text-[10px] text-slate-500">↓ {clip.capability === 'GENERATE' ? 'AV' : 'Native AV'}</div>}
+            </div>
+          );
+        })}
+        <div className="ml-4 py-0.5 text-[10px] text-slate-500">↓</div>
+        <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800">
+          Final Assembly · {hasCurrentAssembly(plan, tasks) ? 'COMPLETED' : getSemanticShotStatusFromPlan(plan, tasks) === 'CLIPS_COMPLETE' ? 'READY' : 'NOT READY'}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FinalAssemblyStatusPanel({ plan, tasks, targetDuration }: { plan: VideoDirectorPlan; tasks: Task[]; targetDuration?: number | null }) {
+  const clips = Array.isArray(plan.clip_plan) ? [...plan.clip_plan].sort((a, b) => Number(a.clip_index) - Number(b.clip_index)) : [];
+  if (!clips.length) return null;
+  const revision = Number(plan.clip_plan_revision || 0);
+  const completed = clips.filter(clip => getSemanticClipStatus(clip, tasks, revision) === 'COMPLETED').length;
+  const assembled = hasCurrentAssembly(plan, tasks);
+  const status = getSemanticShotStatusFromPlan(plan, tasks);
+  const actual = assembled ? plan.assembled_result?.assembled_media_duration : null;
+  const duration = getDurationPresentation(targetDuration, actual);
+  const chain = clips.every((clip) => {
+    if (clip.capability === 'GENERATE') return true;
+    const task = resolveSemanticClipTask(clip, tasks, revision);
+    const predecessor = clips.find(item => item.clip_index === clip.previous_clip_index);
+    const previousTask = predecessor ? resolveSemanticClipTask(predecessor, tasks, revision) : undefined;
+    return !!task && getPreviousAvPresentation(clip, task, predecessor, previousTask).label.includes('READY');
+  });
+  const blocker = clips.find(clip => getSemanticClipStatus(clip, tasks, revision) === 'FAILED');
+  return (
+    <section data-testid="final-assembly-status" className="flex-shrink-0 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-700">
+      <h3 className="mb-2 text-sm font-semibold text-slate-800">Final Shot / Assembly</h3>
+      <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        <span>Shot target</span><strong className="text-right tabular-nums">{targetDuration == null ? '未提供' : `${formatExecutionSeconds(targetDuration)}s`}</strong>
+        <span>Clips</span><strong className="text-right">{completed} / {clips.length} completed</strong>
+        <span>Continuity chain</span><strong className={`text-right ${chain ? 'text-green-700' : 'text-amber-700'}`}>{chain ? 'READY' : 'BLOCKED / 待读取'}</strong>
+        {blocker && <><span>Blocker</span><strong className="text-right text-red-700">C{blocker.clip_index} failed</strong></>}
+        <span>Final Assembly</span><strong className={`text-right ${assembled ? 'text-blue-700' : status === 'CLIPS_COMPLETE' ? 'text-green-700' : 'text-amber-700'}`}>{assembled ? 'COMPLETED' : status === 'CLIPS_COMPLETE' ? 'READY' : 'NOT READY'}</strong>
+        {assembled && <>
+          <span>Assembly mode</span><strong className="text-right text-[11px]">{plan.assembly_mode || '未提供'}</strong>
+          <span>Actual duration</span><strong className="text-right tabular-nums">{actual == null ? '未提供' : `${formatExecutionSeconds(actual)}s`}</strong>
+          <span>Duration delta</span><strong className="text-right tabular-nums">{duration.delta == null ? '未提供' : `${duration.delta >= 0 ? '+' : ''}${formatExecutionSeconds(duration.delta)}s`}</strong>
+          <span>Duration acceptance</span><strong className={`text-right ${duration.acceptance === 'PASS' ? 'text-green-700' : duration.acceptance === 'FAIL' ? 'text-red-700' : 'text-slate-600'}`}>{duration.acceptance}</strong>
+        </>}
+      </div>
+      {assembled && duration.acceptance === 'FAIL' && <p className="mt-2 rounded bg-amber-50 px-2 py-1 text-amber-800">已生成，但时长验收存在问题；可在下方查看最终视频。</p>}
+    </section>
+  );
+}
+
 interface VideoDirectorPanelProps {
   shot: any;
   shotImageUrl?: string | null;
@@ -898,6 +1021,7 @@ interface VideoDirectorPanelProps {
   semanticClipPlan?: any[];
   semanticClipPlanShot?: any;
   semanticShotStatus?: SemanticShotStatus;
+  semanticClipTasks?: Task[];
   onSemanticClipTasksChange?: (tasks: Task[]) => void;
   chapterId?: string;
   novelId?: string;
@@ -935,6 +1059,7 @@ function VideoDirectorPanel({
   semanticClipPlan,
   semanticClipPlanShot,
   semanticShotStatus = 'NOT_STARTED',
+  semanticClipTasks = [],
   onSemanticClipTasksChange,
   chapterId,
   novelId,
@@ -1738,6 +1863,8 @@ function VideoDirectorPanel({
           </div>
         )}
       </div>
+
+      {hasSemanticClipPlan && <ExecutionChainOverview plan={plan} tasks={semanticClipTasks} />}
 
       <details
         data-testid="advanced-director-details"
@@ -2783,7 +2910,10 @@ export function VideoGenTab({
         return { label: isCurrentVideoPending ? '队列中' : '正在生成', className: 'border-blue-100 bg-blue-50 text-blue-700', detail: `视频片段 ${completedClipCount}/${clipCount}` };
       }
       if (currentSemanticShotStatus === 'ASSEMBLED') {
-        return { label: '最终视频已完成', className: 'border-green-100 bg-green-50 text-green-700', detail: `最终合并视频 · 视频片段 ${completedClipCount}/${clipCount}` };
+        const duration = getDurationPresentation(currentShotData?.duration, currentVideoDirectorPlan.assembled_result?.assembled_media_duration);
+        return duration.acceptance === 'FAIL'
+          ? { label: '已生成，验收待处理', className: 'border-amber-100 bg-amber-50 text-amber-800', detail: `最终合并视频 · 时长验收 FAIL · 视频片段 ${completedClipCount}/${clipCount}` }
+          : { label: '最终视频已完成', className: 'border-blue-100 bg-blue-50 text-blue-700', detail: `最终合并视频 · 视频片段 ${completedClipCount}/${clipCount}` };
       }
       if (currentSemanticShotStatus === 'CLIPS_COMPLETE') {
         return { label: '片段已完成，待合并', className: 'border-amber-100 bg-amber-50 text-amber-700', detail: `视频片段 ${completedClipCount}/${clipCount} 已完成，待生成最终视频` };
@@ -4342,6 +4472,7 @@ export function VideoGenTab({
             semanticClipPlan={currentVideoDirectorPlan.clip_plan}
             semanticClipPlanShot={currentShotData}
             semanticShotStatus={currentSemanticShotStatus}
+            semanticClipTasks={semanticClipTasks}
             onSemanticClipTasksChange={setSemanticClipTasks}
             chapterId={effectiveChapterId}
             novelId={effectiveNovelId}
@@ -4351,7 +4482,8 @@ export function VideoGenTab({
         </div>
 
         {/* 右侧：视频预览 + AI 调用结果 */}
-        <div className="flex-shrink-0 lg:w-[360px] xl:w-[420px] min-h-0 flex flex-col gap-3 overflow-hidden">
+        <div className="flex-shrink-0 lg:w-[360px] xl:w-[420px] min-h-0 flex flex-col gap-3 overflow-y-auto">
+        {currentIsCanonicalPlan && hasSemanticClipPlan && <FinalAssemblyStatusPanel plan={currentVideoDirectorPlan} tasks={semanticClipTasks} targetDuration={currentShotData?.duration} />}
         <div className="video-preview-card h-[360px] flex-shrink-0 flex flex-col border border-gray-200 rounded-lg overflow-hidden bg-white">
           <div className="flex-shrink-0 p-3 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
             <div>

@@ -57,7 +57,9 @@ function declaration(name) {
   find(videoAst);assert.ok(result,name);return result;
 }
 const compile=source=>ts.transpileModule(source,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.None,jsx:ts.JsxEmit.React}}).outputText;
-const ClipExecutionDetails=new Function('React',`${compile(declaration('ClipExecutionDetails'))};return ClipExecutionDetails;`)(React);
+const nativeSource=await readFile(new URL('../src/pages/ChapterGenerate/nativeClipPresentation.ts',import.meta.url),'utf8');
+const nativeModule=await import(`data:text/javascript;base64,${Buffer.from(ts.transpileModule(nativeSource,{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ES2020}}).outputText).toString('base64')}`);
+const ClipExecutionDetails=new Function('React','getClipArtifactPresentation','getPreviousAvPresentation',`${compile(declaration('ClipExecutionDetails'))};return ClipExecutionDetails;`)(React,nativeModule.getClipArtifactPresentation,nativeModule.getPreviousAvPresentation);
 const displayName=new Function(`${compile(declaration('getReferenceDisplayName'))};return getReferenceDisplayName;`)();
 const clip={clip_index:2,start_time:8,end_time:16,capability:'EXTEND',continuity_to_previous:'CONTINUOUS',
   previous_clip_index:1,visual_state_indexes:[4],carry_in_state_index:3,selected_temporal_target_ids:[]};
@@ -86,7 +88,7 @@ test('Physical Picture index comes only from the final backend manifest, not Sta
 
 test('eligible but unselected state and label KF never imply a materialized temporal anchor',()=>{
   const html=renderDetails({...clip,visual_state_indexes:[4]}, {...plan,keyframes:[{index:4,timed_visual_target:true,image_url:'/eligible.png'}]});
-  assert.match(html,/Selected temporal targets：无/);assert.match(html,/Materialized temporal anchors：未提供或无/);
+  assert.match(html,/Selected temporal targets：无/);assert.match(html,/Temporal Anchors：0 个/);
   assert.equal(displayName({label:'KF4',sources:['KF4']}),'KF4');
   assert.equal(displayName({kind:'DIRECTOR_VISUAL_ANCHOR',sources:['KF4']}),'视觉锚点：KF4');
   assert.doesNotMatch(html,/TEMPORAL_ANCHOR|Picture 4/);
@@ -95,7 +97,7 @@ test('eligible but unselected state and label KF never imply a materialized temp
 test('selected targets and materialized temporal anchors remain separate backend projections',()=>{
   const html=renderDetails({...clip,capability:'TEMPORAL_EXTEND',selected_temporal_target_ids:['KF4']},plan,
     {id:'current',clipExecution:{execution_contract:{temporal_anchor_manifest:{anchors:[{anchor_id:'KF4',time_seconds:2}]}}}});
-  assert.match(html,/Selected temporal targets：KF4/);assert.match(html,/Materialized temporal anchors：KF4 · 2s/);
+  assert.match(html,/Selected temporal targets：KF4/);assert.match(html,/Temporal Anchors：KF4 @ 2s/);
   assert.doesNotMatch(html,/Picture 4/);
   assert.equal(displayName({kind:'TEMPORAL_ANCHOR',sources:['KF4']}),'时间锚点：KF4');
 });
@@ -114,7 +116,7 @@ test('missing optional state stays optional and only backend required images app
     {state_id:'KF7',state_index:7,consumer_clip_indexes:[3],ready:false,missing:true},
     {state_id:'KF1',state_index:1,consumer_clip_indexes:[2],ready:true,missing:false}]};
   const html=renderDetails(clip,p);
-  assert.match(html,/Required images：KF4 缺失、KF1 已就绪/);assert.doesNotMatch(html,/KF7|KF8/);
+  assert.match(html,/Required images：KF4 缺失，请准备图片、KF1 已就绪/);assert.doesNotMatch(html,/KF7|KF8/);
   const unknown=renderDetails(clip,{...plan,required_execution_images:[{state_id:'KF4',consumer_clip_indexes:[2]}]});
   assert.match(unknown,/KF4 状态未提供/);assert.doesNotMatch(unknown,/KF4 缺失/);
 });
@@ -210,17 +212,29 @@ test('Clip detail rejects mismatched backend task identity or revision',async()=
   }
 });
 
-test('same-revision Clip polling cannot apply an older response after a newer one',async()=>{
+test('Clip polling hydrates current task details before its next read and ignores unmounted results',async()=>{
   const panel=declaration('SemanticClipExecutionPanel');
   const ast=ts.createSourceFile('panel.tsx',panel,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
   let effect;
   function find(node){if(ts.isCallExpression(node)&&node.expression.getText(ast)==='useEffect')effect=node.arguments[0].getText(ast);ts.forEachChild(node,find);}
   find(ast);assert.ok(effect);
-  const requests=[],applied=[];let interval;
-  const invoke=new Function('chapterId','shot','clips','taskApi','setTasks','onTasksChange','setLoading','window',
+  const requests=[],details=[],applied=[],timers=[];
+  const invoke=new Function('chapterId','shot','clips','revision','taskApi','resolveSemanticClipTask','setTasks','onTasksChange','setLoading','window',
     `${compile(`const effect=${effect};`)};return effect();`);
-  const cleanup=invoke('chapter',{id:'shot'},[clip],{fetchShotTasks(){const d=deferred();requests.push(d);return d.promise;}},
-    x=>applied.push(x),()=>{},()=>{},{setInterval(fn){interval=fn;return 1;},clearInterval(){}});
-  interval();requests[1].resolve({data:[{id:'new'}]});await settle();requests[0].resolve({data:[{id:'old'}]});await settle();
-  assert.deepEqual(applied,[[{id:'new'}]]);cleanup();
+  const task={id:'current',clipExecution:{execution_scope:'CLIP',clip_index:2,clip_plan_revision:2}};
+  const cleanup=invoke('chapter',{id:'shot'},[clip],2,{fetchShotTasks(){const d=deferred();requests.push(d);return d.promise;},fetch(){const d=deferred();details.push(d);return d.promise;}},
+    (_clip,rows)=>rows.find(row=>row.id==='current'),x=>applied.push(x),()=>{},()=>{},
+    {setTimeout(fn){timers.push(fn);return timers.length;},clearTimeout(){}});
+  assert.equal(requests.length,1);assert.equal(timers.length,0);
+  requests[0].resolve({data:[task]});await settle();
+  assert.equal(details.length,1);assert.equal(timers.length,0);
+  details[0].resolve({data:{...task,clipExecution:{...task.clipExecution,video_reference_manifest:{references:[]}}}});await settle();
+  assert.equal(applied.length,1);assert.deepEqual(applied[0][0].clipExecution.video_reference_manifest.references,[]);
+  assert.equal(timers.length,1);timers[0]();assert.equal(requests.length,2);
+  requests[1].resolve({data:[{...task,status:'running'}]});await settle();
+  assert.equal(applied.length,2);assert.equal(applied[1][0].status,'running');
+  assert.deepEqual(applied[1][0].clipExecution.video_reference_manifest.references,[]);
+  assert.equal(details.length,1);
+  timers[1]();cleanup();requests[2].resolve({data:[{id:'late'}]});await settle();
+  assert.equal(applied.length,2);
 });
