@@ -25,7 +25,7 @@ async def test_dialogue_failure_propagates_through_planner_before_contract_marke
 
 def test_child_failure_removes_success_markers_and_remains_idempotent():
     validation = {"passed": True, "findings": [], "blocking": [],
-                  "temporal_contract": "ELIGIBLE_THEN_SELECTED_V1", "composition_contract": "EARLY_COMPOSITION_V1"}
+                  "temporal_contract": "ELIGIBLE_THEN_SELECTED_V1", "composition_contract": "EARLY_COMPOSITION_V2"}
     child = {"passed": False, "findings": ["DIALOGUE_SPEAKER_CHANGED"]}
     clip_planner.merge_dialogue_ownership_validation(validation, child)
     first = deepcopy(validation)

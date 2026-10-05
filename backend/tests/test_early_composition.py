@@ -204,10 +204,14 @@ def test_old_marker_cannot_claim_composition_without_replan(tmp_path):
 
 
 @pytest.mark.parametrize('endpoint', ['single', 'batch', 'retry', 'prepare'])
-def test_legacy_temporal_marker_rejects_all_mutating_execution_entrypoints(client, db_session, tmp_path, endpoint):
+@pytest.mark.parametrize('old_marker', [None, 'EARLY_COMPOSITION_V1'])
+def test_legacy_temporal_marker_rejects_all_mutating_execution_entrypoints(client, db_session, tmp_path, endpoint, old_marker):
     novel, chapter, shot, task, artifact = _db_fixture(db_session, tmp_path)
     plan = json.loads(shot.video_director_plan)
-    del plan['clip_plan_validation']['composition_contract']
+    if old_marker is None:
+        del plan['clip_plan_validation']['composition_contract']
+    else:
+        plan['clip_plan_validation']['composition_contract'] = old_marker
     shot.video_director_plan = json.dumps(plan)
     db_session.commit()
     before = shot.video_director_plan

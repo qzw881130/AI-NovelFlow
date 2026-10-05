@@ -29,7 +29,7 @@ def fixture(db_session, tmp_path):
            for i,start,end,owned,carry,selected in [(1,0,8.05,[1,2],None,[]),(2,8.05,19.4,[],2,[]),
              (3,19.4,33.95,[3,4],2,['KF4']),(4,33.95,47.75,[5,6],4,[]),(5,47.75,56,[7],6,['KF7']),(6,56,68,[8],7,[])]]
     p={'canonical_visual_plan':True,'clip_plan_revision':2,'keyframes':states,'clip_plan':clips,
-       'clip_plan_validation':{'passed':True,'temporal_contract':'ELIGIBLE_THEN_SELECTED_V1','composition_contract':'EARLY_COMPOSITION_V1'},
+       'clip_plan_validation':{'passed':True,'temporal_contract':'ELIGIBLE_THEN_SELECTED_V1','composition_contract':'EARLY_COMPOSITION_V2'},
        'temporal_anchors':[{'anchor_id':f'clip-{ci}-KF{si}','image_url':None,
          'source':{'type':'KEYFRAME','id':f'KF{si}','keyframe_index':si}} for ci,si in [(3,4),(5,7)]]}
     shot=Shot(id='shot',chapter_id='chapter',index=1,description='test',image_url=str(main),

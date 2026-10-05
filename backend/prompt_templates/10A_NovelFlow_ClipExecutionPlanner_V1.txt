@@ -99,9 +99,39 @@ dependency that requires CONTINUOUS or the independent visual grounding that per
 CUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.
 
 3. Early Composition selection AFTER boundary and continuity classification:
+   First distinguish two coverage sources. IN_CLIP establishes composition inside
+   this Clip; INHERITED START means the actual Previous AV is expected to carry an
+   already established canonical opening premise across this boundary. Neither
+   CONTINUOUS nor the existence of a carry-in proves inherited coverage.
+   Return `inherited_start_composition`: null, or the scoped semantic conclusion
+   {"state_id":"KF2", "transition_to_state_id":"KF3", "premise_preserved":true}.
+   IDs here are illustrative. Use the current canonical carry-in and its adjacent
+   outgoing transition containing the final Clip start, never a future or older
+   intervened state. The source must have been established strictly before start.
+   Judge the transition from that state up to this specific boundary and the opening
+   visible behavior: relevant subjects, spatial relations, facing/orientation,
+   camera axis/framing, important props and action phase must already support the
+   required opening composition. Ordinary continuous movement may preserve these
+   premises; a scene/camera reset, major blocking relocation, relevant subject
+   entrance/exit or a still-unestablished new composition requirement does not.
+   A distant carry-in in a progressed transition is not sufficient merely because
+   cast/scene/axis remain shared. If its old pose/framing no longer grounds the
+   opening, or canonical evidence cannot establish the required premise at this
+   boundary, return null. Use no fixed age threshold and do not inspect pixels.
+   For an inherited conclusion, existing reason must explain the concrete preserved
+   premises and why the opening important visible behavior needs no new composition.
+   This is a planning conclusion, not a claim that generated video has passed QA.
+   Previous AV's exact approved Task/native provenance is resolved by the application.
+   INHERITED START adds no image or temporal anchor; never promote its carry-in to
+   early_composition_state_id, selected_temporal_target_ids or a Picture. Keep
+   early_composition_state_id=null for inherited coverage. Timed selections remain
+   independent and may still add their own anchors for later timed visual arrival.
+   If an in-Clip composition is actually necessary instead, use that selection and
+   inherited_start_composition=null; do not automatically require both sources.
+
    Return `early_composition_state_id`: one current Clip OWNED Visual State ID or null.
    This is Clip-local execution selection, not a new state type or timed eligibility.
-   For CONTINUOUS choose one meaningful early establishing composition: Previous AV
+   For CONTINUOUS without inherited coverage choose one meaningful early establishing composition: Previous AV
    -> establish the current canonical composition -> subsequent speech/important visible action.
    It may have timed_visual_target=false or true. Never relabel false as eligible.
    It must be strictly inside this Clip after its start ownership tolerance, not an
@@ -110,6 +140,8 @@ CUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.
    reconsider legal boundaries, never shift dialogue or invent a state.
    With no speech, judge early suitability from canonical transitions and the first
    important visible action; do not use a late result or endpoint as early grounding.
+   Merely being before Clip end is insufficient. Explain why a chosen state establishes
+   composition before the important visible action that depends on it.
    No fixed seconds threshold, no speaker inference, no requirement for speaker close-up.
    Prefer legal topology with owned pre-event states while preserving the authored
    continuity semantics. If impossible, keep CONTINUOUS, use null with no invented
@@ -117,8 +149,13 @@ CUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.
    that Clip's existing reason. The application will reject this candidate as a
    planning conflict. Do not substitute CUT to satisfy coverage, create states, or
    initiate #08 replan.
-   NONE/CUT use null. CONTINUOUS may use null ONLY if a selected timed state itself
-   meets this same early composition coverage. Neither selection is not valid.
+   NONE/CUT use null for both composition fields. CONTINUOUS may leave its in-Clip
+   composition null if a selected timed state meets the same early coverage OR a
+   valid inherited-start conclusion supplies coverage. Active speech at Clip start
+   still forbids later IN_CLIP establishment; it does not invalidate a premise
+   already established before the boundary and continuously inherited. Never move,
+   restart or rewrite dialogue. With none of these coverage sources, keep the
+   correct continuity and report EARLY_COMPOSITION_COVERAGE_INVALID.
 
 4. Timed target selection:
    `timed_visual_target=true` means eligible, NOT selected or execution-required.
@@ -144,13 +181,17 @@ Application-owned deterministic projection:
 - Application code validates this subset after normalization and derives anchors,
   final `requires_temporal_control` and capability. NONE/CUT -> GENERATE;
   CONTINUOUS + any valid timed/composition anchor -> TEMPORAL_EXTEND.
+  CONTINUOUS + inherited-start coverage only -> EXTEND, no temporal images.
+  Inherited coverage with timed targets -> TEMPORAL_EXTEND because of those targets.
   New-contract CONTINUOUS requires early composition coverage.
 - Keep `requires_temporal_control=false` neutral in raw output; raw requires/capability
   cannot override program authority. Do not invent temporal target IDs.
 - If normalization changes ownership/carry-in/previous ending/local-time context,
   one constrained revalidation supplies fixed normalized boundaries, ALL eligible
   timed candidates and owned composition candidates, including false states. Rejudge continuity AND both selections in that
-  structure. Second drift or illegal selection hard fails; do not request more retries.
+  structure; rejudge inherited_start_composition at this exact normalized boundary
+  against its current carry-in and adjacent transition. Second drift or illegal
+  selection hard fails; do not request more retries.
   Reclassification may follow changed canonical visual dependencies after boundary
   normalization, never the availability of early composition or timed targets.
 
@@ -177,9 +218,10 @@ Return JSON only:
       "requires_temporal_control": false,
       "selected_temporal_target_ids": [],
       "early_composition_state_id": null,
+      "inherited_start_composition": null,
       "reason": "visual boundary rationale"
     }
   ]
 }
 
-Contract markers are projected by the program after validation: timed selection retains ELIGIBLE_THEN_SELECTED_V1; composition coverage uses EARLY_COMPOSITION_V1. Do not author validation markers in model output.
+Contract markers are projected by the program after validation: timed selection retains ELIGIBLE_THEN_SELECTED_V1; composition coverage uses EARLY_COMPOSITION_V2. Do not author validation markers in model output.

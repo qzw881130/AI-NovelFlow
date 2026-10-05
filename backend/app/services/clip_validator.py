@@ -2,6 +2,7 @@
 from typing import Any
 
 from app.constants.capability import VIDEO_CAPABILITY_CONTRACTS
+from app.utils.time_utils import clip_time_seconds, CLIP_OWNERSHIP_TOLERANCE
 
 
 def validate_clip_plan(
@@ -61,7 +62,10 @@ def validate_clip_plan(
                     continue
                 time_seconds = float(state.get("time_seconds"))
                 is_start = state_index == 1 and str(state.get("role") or "").upper() == "START"
-                if not (clip.get("clip_index") == 1 and is_start) and not (time_seconds > start + 0.05 and time_seconds <= end + 0.05):
+                if not (clip.get("clip_index") == 1 and is_start) and not (
+                    clip_time_seconds(time_seconds) > clip_time_seconds(start) + CLIP_OWNERSHIP_TOLERANCE
+                    and clip_time_seconds(time_seconds) <= clip_time_seconds(end) + CLIP_OWNERSHIP_TOLERANCE
+                ):
                     add("VISUAL_STATE_OWNERSHIP_INVALID", "BLOCKING", f"Clip {clip.get('clip_index')} does not own visual state {state_index} at its time.")
             carry_in = clip.get("carry_in_state_index")
             if carry_in is not None:
@@ -69,7 +73,7 @@ def validate_clip_plan(
                     carry_state = state_by_index[int(carry_in)]
                 except (TypeError, ValueError, KeyError):
                     carry_state = None
-                if not carry_state or float(carry_state.get("time_seconds")) > start + 0.05:
+                if not carry_state or clip_time_seconds(carry_state.get("time_seconds")) > clip_time_seconds(start) + CLIP_OWNERSHIP_TOLERANCE:
                     add("CARRY_IN_INVALID", "BLOCKING", f"Clip {clip.get('clip_index')} has an invalid carry-in visual state.")
             contract = capabilities.get(capability)
             if not contract or not contract.get("enabled"):

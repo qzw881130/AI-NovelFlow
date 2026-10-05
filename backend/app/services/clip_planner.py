@@ -16,6 +16,7 @@ from app.services.clip_execution_compiler import (
 from app.services.dialogue_ownership import assign_dialogues_to_clips
 from app.services.video_director_ai import align_clip_boundaries_to_dialogue_gaps, build_dialogue_timeline
 from app.utils.path_utils import local_path_to_url, url_to_local_path
+from app.utils.time_utils import clip_time_seconds, CLIP_OWNERSHIP_TOLERANCE
 
 
 def _project_speech_timing_intervals(shot, video_plan: dict) -> list[dict]:
@@ -225,26 +226,26 @@ def _project_clip_visual_states(clips: list[dict], candidates: list[dict]) -> No
         if not isinstance(item, dict):
             continue
         try:
-            ordered.append((float(item.get("time_seconds")), int(item.get("keyframe_index")), item))
+            ordered.append((clip_time_seconds(item.get("time_seconds")), int(item.get("keyframe_index")), item))
         except (TypeError, ValueError):
             continue
     ordered.sort(key=lambda value: (value[0], value[1]))
     for position, clip in enumerate(clips, 1):
         try:
             clip_index = int(clip.get("clip_index") or position)
-            start = float(clip.get("start_time"))
-            end = float(clip.get("end_time"))
+            start = clip_time_seconds(clip.get("start_time"))
+            end = clip_time_seconds(clip.get("end_time"))
         except (TypeError, ValueError):
             continue
         owned = []
         for time_seconds, index, item in ordered:
             if clip_index == 1 and index == 1 and str(item.get("role") or "").upper() == "START":
                 owned.append(index)
-            elif time_seconds > start + 0.05 and time_seconds <= end + 0.05:
+            elif time_seconds > start + CLIP_OWNERSHIP_TOLERANCE and time_seconds <= end + CLIP_OWNERSHIP_TOLERANCE:
                 owned.append(index)
         carry_in = None
         if clip_index > 1:
-            predecessors = [index for time_seconds, index, _ in ordered if time_seconds <= start + 0.05]
+            predecessors = [index for time_seconds, index, _ in ordered if time_seconds <= start + CLIP_OWNERSHIP_TOLERANCE]
             if predecessors:
                 carry_in = predecessors[-1]
         clip["visual_state_indexes"] = list(dict.fromkeys(owned))
@@ -353,7 +354,7 @@ def _project_temporal_targets(clips: list[dict], candidates: list[dict], shot_du
                 if not state or state.get("keyframe_index") not in owned:
                     raise ValueError(f"TEMPORAL_SELECTION_INVALID: {state_id} is not an owned eligible state")
                 shot_time = float(state["time_seconds"])
-                if not (start + 0.05 < shot_time <= end and 0 < shot_time - start <= end - start):
+                if not (clip_time_seconds(start) + CLIP_OWNERSHIP_TOLERANCE < clip_time_seconds(shot_time) <= clip_time_seconds(end)):
                     raise ValueError(f"TEMPORAL_SELECTION_INVALID: {state_id} outside Clip")
             selected.sort(key=lambda state_id: (float(by_id[state_id]["time_seconds"]), state_id))
             if len(selected) > max_targets:
@@ -372,40 +373,94 @@ def _project_temporal_targets(clips: list[dict], candidates: list[dict], shot_du
         clip["capability"] = "TEMPORAL_EXTEND" if requires_temporal else ("EXTEND" if continuity == "CONTINUOUS" else "GENERATE")
 
 
-def _project_early_composition_states(clips: list[dict], candidates: list[dict], speech_intervals: list[dict]) -> None:
-    """Validate #10A's one establishing state against final Clip boundaries."""
+def _validate_inherited_start_composition(clip: dict, candidates: list[dict], transitions: list[dict]) -> None:
+    """Check the scope of a director conclusion, never infer it from prose."""
+    inherited = clip.get("inherited_start_composition")
+    if (
+        not isinstance(inherited, dict)
+        or set(inherited) != {"state_id", "transition_to_state_id", "premise_preserved"}
+        or not isinstance(inherited.get("state_id"), str)
+        or not isinstance(inherited.get("transition_to_state_id"), str)
+        or inherited.get("premise_preserved") is not True
+        or not isinstance(clip.get("reason"), str) or not clip["reason"].strip()
+    ):
+        raise ValueError("INHERITED_COMPOSITION_INVALID: affirmative canonical premise and reason required")
+    by_id = {item["visual_state_id"]: item for item in candidates}
+    state = by_id.get(inherited["state_id"])
+    target = by_id.get(inherited["transition_to_state_id"])
+    start = clip_time_seconds(clip["start_time"])
+    predecessors = sorted(
+        (clip_time_seconds(item["time_seconds"]), item["keyframe_index"])
+        for item in candidates
+        if clip_time_seconds(item["time_seconds"]) <= start + CLIP_OWNERSHIP_TOLERANCE
+    )
+    if (
+        clip.get("continuity_to_previous") != "CONTINUOUS"
+        or int(clip.get("previous_clip_index") or 0) != int(clip["clip_index"]) - 1
+        or clip.get("early_composition_state_id") is not None
+        or not state or not target or not predecessors
+        or state["keyframe_index"] != predecessors[-1][1]
+        or state["keyframe_index"] != clip.get("carry_in_state_index")
+        or state["keyframe_index"] in (clip.get("visual_state_indexes") or [])
+        or not clip_time_seconds(state["time_seconds"]) < start < clip_time_seconds(target["time_seconds"])
+        or not str(state.get("description") or "").strip()
+        or any(clip_time_seconds(state["time_seconds"]) < clip_time_seconds(item["time_seconds"]) < clip_time_seconds(target["time_seconds"])
+               for item in candidates)
+    ):
+        raise ValueError("INHERITED_COMPOSITION_INVALID: expected current carry-in and adjacent boundary transition")
+    matching = [item for item in transitions
+                if item.get("from_keyframe_index") == state["keyframe_index"]
+                and item.get("to_keyframe_index") == target["keyframe_index"]]
+    if len(matching) != 1 or not str(matching[0].get("transition_description") or "").strip():
+        raise ValueError("INHERITED_COMPOSITION_INVALID: canonical transition evidence missing")
+    transition = matching[0]
+    if (
+        clip_time_seconds(transition.get("start_time")) != clip_time_seconds(state["time_seconds"])
+        or clip_time_seconds(transition.get("end_time")) != clip_time_seconds(target["time_seconds"])
+    ):
+        raise ValueError("INHERITED_COMPOSITION_INVALID: transition time scope mismatch")
+
+
+def _project_early_composition_states(
+    clips: list[dict], candidates: list[dict], speech_intervals: list[dict],
+    transition_context: list[dict] | None = None,
+) -> None:
+    """Validate in-Clip coverage or a scoped inherited-start director conclusion."""
     by_id = {item["visual_state_id"]: item for item in candidates}
     for clip in clips:
         continuous = clip.get("continuity_to_previous") == "CONTINUOUS"
         if "early_composition_state_id" not in clip:
             raise ValueError("COMPOSITION_SELECTION_INVALID: early_composition_state_id is required")
         selected = clip["early_composition_state_id"]
+        inherited = clip.get("inherited_start_composition")
+        if inherited is not None:
+            _validate_inherited_start_composition(clip, candidates, transition_context or [])
         if selected is not None and (not isinstance(selected, str) or not selected):
             raise ValueError("COMPOSITION_SELECTION_INVALID: expected one state ID or null")
         if not continuous:
             if selected is not None:
                 raise ValueError("COMPOSITION_SELECTION_INVALID: NONE/CUT cannot select composition")
             continue
-        start, end = float(clip["start_time"]), float(clip["end_time"])
-        first_speech = min((max(start, float(event["start_time"])) for event in speech_intervals
-                            if float(event["end_time"]) > start and float(event["start_time"]) < end), default=None)
+        start, end = clip_time_seconds(clip["start_time"]), clip_time_seconds(clip["end_time"])
+        first_speech = min((max(start, clip_time_seconds(event["start_time"])) for event in speech_intervals
+                            if clip_time_seconds(event["end_time"]) > start and clip_time_seconds(event["start_time"]) < end), default=None)
 
         def is_early(state_id):
             state = by_id.get(state_id)
             if not state or state.get("keyframe_index") not in (clip.get("visual_state_indexes") or []):
                 return False
-            time = float(state["time_seconds"])
-            return math.isfinite(time) and start + 0.05 < time < end and (first_speech is None or time < first_speech)
+            time = clip_time_seconds(state["time_seconds"])
+            return start + CLIP_OWNERSHIP_TOLERANCE < time < end and (first_speech is None or time < first_speech)
 
         if selected is not None and not is_early(selected):
             raise ValueError(f"COMPOSITION_SELECTION_INVALID: {selected} is not an early owned interior state before speech")
-        if selected is None and not any(is_early(sid) for sid in clip.get("selected_temporal_target_ids") or []):
+        if inherited is None and selected is None and not any(is_early(sid) for sid in clip.get("selected_temporal_target_ids") or []):
             raise ValueError(f"EARLY_COMPOSITION_COVERAGE_INVALID: Clip {clip['clip_index']} has no early execution anchor")
         merged = execution_temporal_state_ids(clip)
         if len(merged) > int(VIDEO_CAPABILITY_CONTRACTS["TEMPORAL_EXTEND"]["max_temporal_anchors"]):
             raise ValueError("TEMPORAL_ANCHOR_LIMIT: timed and composition anchors exceed 8")
-        clip["requires_temporal_control"] = True
-        clip["capability"] = "TEMPORAL_EXTEND"
+        clip["requires_temporal_control"] = bool(merged)
+        clip["capability"] = "TEMPORAL_EXTEND" if merged else "EXTEND"
 
 
 def _build_temporal_anchors(clips: list[dict], candidates: list[dict]) -> list[dict]:
@@ -433,7 +488,7 @@ def _build_temporal_anchors(clips: list[dict], candidates: list[dict]) -> list[d
                 shot_time = float(state.get("time_seconds"))
             except (TypeError, ValueError):
                 raise ValueError(f"Temporal target {state_id} has invalid time")
-            if shot_time <= start + 0.05 or shot_time > end + 0.05:
+            if clip_time_seconds(shot_time) <= clip_time_seconds(start) + CLIP_OWNERSHIP_TOLERANCE or clip_time_seconds(shot_time) > clip_time_seconds(end) + CLIP_OWNERSHIP_TOLERANCE:
                 raise ValueError(f"Temporal target {state_id} is outside Clip {clip.get('clip_index')}")
             local_time = round(shot_time - start, 2)
             if local_time in seen_times:
@@ -508,6 +563,7 @@ def _canonical_continuity_structure(clips: list[dict], candidates: list[dict]) -
             "continuity_to_previous": clip.get("continuity_to_previous"),
             "visual_state_indexes": owned,
             "carry_in_state_index": clip.get("carry_in_state_index"),
+            "inherited_start_composition": clip.get("inherited_start_composition"),
             "previous_ending_state_index": previous_owned[-1] if previous_owned else None,
             "first_owned_state_index": owned[0] if owned else None,
             "eligible_temporal_targets": [
@@ -535,6 +591,10 @@ def _continuity_premise_changed(raw: list[dict], normalized: list[dict], candida
         return True
     timed_indexes = {int(item["keyframe_index"]) for item in candidates if item.get("timed_visual_target") is True}
     for before, after in zip(raw[1:], normalized[1:]):
+        # An inherited conclusion describes this exact transition phase, even
+        # when a moved boundary retains the same state identities.
+        if before.get("inherited_start_composition") is not None and clip_time_seconds(before["start_time"]) != clip_time_seconds(after["start_time"]):
+            return True
         for key in (
             "visual_state_indexes", "previous_ending_state_index",
             "first_owned_state_index", "carry_in_state_index",
@@ -683,6 +743,10 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
                     "and based on planned context, never actual Previous AV tail pixels."
                     " Re-evaluate early_composition_state_id against ALL owned composition_candidates, including "
                     "false states, their local times and first overlapping speech interval. Require early coverage."
+                    " Re-evaluate inherited_start_composition separately at the fixed normalized boundary: "
+                    "use only the current carry-in and adjacent canonical transition if its established opening "
+                    "premise is preserved; explain concrete evidence in reason. Otherwise use null. "
+                    "Inheritance must not populate in-Clip composition/timed selections or invent an image anchor."
                 ),
             },
         }
@@ -701,7 +765,7 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         float(shot.duration or 4),
     )
     if canonical:
-        _project_early_composition_states(clips, candidates, payload["speech_timing_intervals"])
+        _project_early_composition_states(clips, candidates, payload["speech_timing_intervals"], payload["transition_context"])
     derived_temporal_anchors = _build_temporal_anchors(
         clips, payload.get("visual_state_candidates") or []
     )

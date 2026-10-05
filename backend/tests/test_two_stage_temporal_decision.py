@@ -140,7 +140,7 @@ async def test_selected_missing_image_plan_valid_execution_blocked_then_normal_p
     assert len(calls) == 1
     assert plan["clip_plan_validation"]["passed"] is True
     assert plan["clip_plan_validation"]["temporal_contract"] == TEMPORAL_DECISION_CONTRACT
-    assert plan["clip_plan_validation"]["composition_contract"] == "EARLY_COMPOSITION_V1"
+    assert plan["clip_plan_validation"]["composition_contract"] == "EARLY_COMPOSITION_V2"
     readiness = get_canonical_execution_readiness(shot, plan)
     assert [item["visual_state_index"] for item in readiness["blocking_clips"]] == [3]
     assert readiness["code"] == "TEMPORAL_ANCHOR_UNAVAILABLE"
@@ -210,7 +210,7 @@ def _db_fixture(db_session, tmp_path, *, marked=True):
             "clip_plan_revision": 7, "clip_plan_validation": {"passed": True}, "temporal_anchors": anchors}
     if marked:
         plan["clip_plan_validation"]["temporal_contract"] = TEMPORAL_DECISION_CONTRACT
-        plan["clip_plan_validation"]["composition_contract"] = "EARLY_COMPOSITION_V1"
+        plan["clip_plan_validation"]["composition_contract"] = "EARLY_COMPOSITION_V2"
     shot = Shot(id="temporal-shot", chapter_id=chapter.id, index=1, duration=12, characters="[]", props="[]",
                 dialogues="[]", image_url=str(start), video_url=str(old_artifact), video_director_plan=json.dumps(plan))
     task = Task(id="historical-task", type="shot_video", status="failed", name="Old task", novel_id=novel.id,
@@ -278,7 +278,7 @@ def test_deleted_selected_physical_file_is_not_ready(tmp_path):
     states[2]["image_url"] = str(image)
     clips, anchors = _project(["KF3"], states=states)
     plan = {"canonical_visual_plan": True, "keyframes": states, "clip_plan": clips, "temporal_anchors": anchors,
-            "clip_plan_validation": {"passed": True, "temporal_contract": TEMPORAL_DECISION_CONTRACT, "composition_contract": "EARLY_COMPOSITION_V1"}}
+            "clip_plan_validation": {"passed": True, "temporal_contract": TEMPORAL_DECISION_CONTRACT, "composition_contract": "EARLY_COMPOSITION_V2"}}
     shot = SimpleNamespace(image_url="/main.png", image_path=None)
     assert get_canonical_execution_readiness(shot, plan)["code"] == "TEMPORAL_ANCHOR_UNAVAILABLE"
 
