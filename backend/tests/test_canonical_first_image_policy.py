@@ -138,3 +138,62 @@ def test_existing_system_sync_updates_policy_in_place_and_preserves_override(db_
     assert service._get_keyframe_image_prompt_template(db_session, Novel(title="default")).id == system.id
     assert service._get_keyframe_image_prompt_template(db_session, novel).id == override.id
     assert override.template == "user-selected template"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "target,shared_appearance,required_rules",
+    [
+        pytest.param("A戴帽", "A和B都戴帽", (
+            "正式角色参考中 A 和 B 都戴帽，canonical 只说 A 戴帽",
+            "不得写成只有 A 戴帽或 B 不得戴帽",
+        ), id="A-shared-hats"),
+        pytest.param("A提箱子", "A和B各有箱子", (
+            "A 和 B 各有箱子，canonical 只说 A 提箱子",
+            "不得写成箱子仅属于 A，也不得禁止 B 持有另一个箱子",
+        ), id="B-shared-boxes"),
+        pytest.param("A穿红色衣服", "A和B都穿红色衣服", (
+            "A 穿红色不能推出红色是 A 独有",
+        ), id="shared-color"),
+        pytest.param("只有A戴帽，B未戴帽", "A和B都戴帽", (
+            "canonical 明确说只有 A 戴帽、B 未戴帽",
+            "必须表达并执行这些当前状态",
+        ), id="C-explicit-exclusivity"),
+        pytest.param("B摘下帽子", "A和B都戴帽", (
+            "B 摘下帽子",
+            "不得用共享外观或连续性保留被明确取消的属性",
+        ), id="D-explicit-removal"),
+        pytest.param("A戴帽，A已靠近B并站在B前方，身体和双脚转向门内，摄影机推进", "A和B都戴帽", (
+            "本规则不改变 Canonical-First、Material Delta Rule",
+            "必须纠正物理图中的冲突",
+            "人物靠近、前后站位变化、身体或双脚转向",
+            "摄影机推进或拉远或换构图",
+        ), id="E-spatial-delta-with-shared-appearance"),
+    ],
+)
+async def test_positive_facts_do_not_invent_exclusivity_contract(
+    db_session, target, shared_appearance, required_rules,
+):
+    # Inspect instructions and unchanged inputs, not a mock's supposed reasoning.
+    # Formal images are represented by the same A/B identity manifest; their
+    # pixels are not interpreted by this text-only builder contract test.
+    prompt, payload = await capture_builder(
+        db_session, target, [TEMPORAL, CHARACTER], previous_description=shared_appearance,
+    )
+    assert payload["previous_keyframe"]["description"] == shared_appearance
+    assert payload["reference_image_manifest"] == [TEMPORAL, CHARACTER]
+    for rule in (
+        "Positive fact does not imply exclusivity.",
+        "关于一个角色的正向事实，不能自动变成其他角色的负向约束",
+        "只有 current canonical state 或正式资产在其权威职责内明确提供排他事实时",
+        "道具的持有者或归属描述本身不证明 exclusive ownership",
+        "不得为了角色区分而发明独占服装、颜色、配饰或道具",
+        "不得因 canonical 只提到 A 的某项外观，就删除 B 已有的合法同类外观",
+        *required_rules,
+    ):
+        assert rule in prompt
+    # Shared attributes cannot relax the actor/prop closure or swap identities.
+    assert "不得复制已有角色" in prompt
+    assert "不得把角色 A 的脸/服装/发型变成 B" in prompt
+    assert "道具身份由 shot.props + prop_asset_bindings 定义" in prompt
+    assert "只出现 shot.props 中当前关键帧实际可见的剧情道具" in prompt

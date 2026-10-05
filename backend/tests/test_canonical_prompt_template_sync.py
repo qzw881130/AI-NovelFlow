@@ -12,6 +12,7 @@ from app.services.video_director_ai import resolve_prompt_template
 PROMPT_DIR = Path(__file__).resolve().parents[1] / "prompt_templates"
 PLANNER_FILE = "08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt"
 KEYFRAME_IMAGE_FILE = "09_NovelFlow_QwenEdit2511_KeyframeImagePrompt_V1.txt"
+KEYFRAME_IMAGE_SHA256 = "3164a133b38f671feafbd0a43f5d2c885193854bbb5ac057ded4b1b65f4f8e8a"
 TRANSITION_FILE = "10_NovelFlow_KeyframeTransition_Planner_V1.txt"
 CLIP_PLANNER_FILE = "10A_NovelFlow_ClipExecutionPlanner_V1.txt"
 H3_TEMPLATES = [
@@ -225,11 +226,15 @@ def test_system_sync_updates_existing_rows_in_place_and_default_resolution(db_se
     assert clip_planner.template == _prompt(CLIP_PLANNER_FILE)
 
 
+def test_keyframe_image_prompt_source_checksum():
+    assert sha256((PROMPT_DIR / KEYFRAME_IMAGE_FILE).read_bytes()).hexdigest() == KEYFRAME_IMAGE_SHA256
+
+
 def test_unrelated_system_prompt_sources_remain_frozen():
     expected_hashes = {
         "06_NovelFlow_QwenEdit2511_ShotImagePrompt_V1.txt": "937f62ce9fbf9c25543abd9dca7b9d988eb770b878bfe1219f5d6095a2a296cd",
         PLANNER_FILE: "ada57c8b3e12817fe2182188f9a7ffd55867a8717e11f1fea6ff3d35c75ca4fe",
-        KEYFRAME_IMAGE_FILE: "9fb3447b003e41b70418e333a670305cb2f613f8af974722c52dad6987830398",
+        KEYFRAME_IMAGE_FILE: KEYFRAME_IMAGE_SHA256,
         TRANSITION_FILE: "6bc10c2f0eab6165e13cce38bb17c29daead288d93af7aa75d98af81bea9c57c",
         CLIP_PLANNER_FILE: "27e94f0c8e8af15bb7550daff4fd9ccb100edd3d8c0b01dab76483d8d47252ed",
     }

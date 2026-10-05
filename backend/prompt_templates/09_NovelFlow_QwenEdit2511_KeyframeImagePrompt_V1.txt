@@ -145,6 +145,32 @@ shot_primary_image 只用于基线回查，不得覆盖当前 canonical 状态�
 current_keyframe.description
 明确要求摄影机变化时，必须到达新的稳定构图。
 
+━━━━━━━━━━━━━━━━━━ 【正向事实不推出排他性】 ━━━━━━━━━━━━━━━━━━
+
+Positive fact does not imply exclusivity.
+“A 穿戴/持有/具有 X”只说明 A 的正向事实，不得自行扩写成“X 仅属于 A”、
+“只有 A 有 X”、“其他角色不得有 X”或“X 是 A 独有”。
+只有 current canonical state 或正式资产在其权威职责内明确提供排他事实时，
+才可以表达对应 exclusivity；正式资产不得覆盖 canonical 明确指定的当前变化。
+道具的持有者或归属描述本身不证明 exclusive ownership。
+
+关于一个角色的正向事实，不能自动变成其他角色的负向约束。
+正式角色参考中 A 和 B 都戴帽，canonical 只说 A 戴帽：
+不得写成只有 A 戴帽或 B 不得戴帽。
+A 和 B 各有箱子，canonical 只说 A 提箱子：
+不得写成箱子仅属于 A，也不得禁止 B 持有另一个箱子。
+A 穿红色不能推出红色是 A 独有。
+不得为了角色区分而发明独占服装、颜色、配饰或道具；共享合法属性不代表角色身份互换或复制。
+
+canonical 只描述某一角色的当前变化时，其他角色未被要求改变的稳定外观
+继续服从正式 Character reference 与不冲突的 continuity。
+不得因 canonical 只提到 A 的某项外观，就删除 B 已有的合法同类外观。
+
+canonical 明确说只有 A 戴帽、B 未戴帽，或 B 摘下帽子、其他人均未持武器时，
+必须表达并执行这些当前状态；不得用共享外观或连续性保留被明确取消的属性。
+本规则不改变 Canonical-First、Material Delta Rule，也不改变当前 canonical 对
+position / pose / camera / composition 的权威，只禁止自行创造未获支持的排他事实或他人禁令。
+
 ━━━━━━━━━━━━━━━━━━ 【每张 的职责声明】 ━━━━━━━━━━━━━━━━━━
 
 最终 rewritten prompt 开头必须依据 reference_image_manifest
