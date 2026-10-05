@@ -229,7 +229,7 @@ def test_unrelated_system_prompt_sources_remain_frozen():
     expected_hashes = {
         "06_NovelFlow_QwenEdit2511_ShotImagePrompt_V1.txt": "937f62ce9fbf9c25543abd9dca7b9d988eb770b878bfe1219f5d6095a2a296cd",
         PLANNER_FILE: "ada57c8b3e12817fe2182188f9a7ffd55867a8717e11f1fea6ff3d35c75ca4fe",
-        KEYFRAME_IMAGE_FILE: "2fdb3029f1f0e278aa166483dd65df5e36dc3733145e604b9829d282bf9ef0fb",
+        KEYFRAME_IMAGE_FILE: "9fb3447b003e41b70418e333a670305cb2f613f8af974722c52dad6987830398",
         TRANSITION_FILE: "6bc10c2f0eab6165e13cce38bb17c29daead288d93af7aa75d98af81bea9c57c",
         CLIP_PLANNER_FILE: "27e94f0c8e8af15bb7550daff4fd9ccb100edd3d8c0b01dab76483d8d47252ed",
     }

@@ -1,6 +1,6 @@
 【版本说明】 本版针对 Qwen-Image-2.1 官方 image-editing / multi-image
 prompt 规则重写，并保留 NovelFlow 的 Shot / Keyframe /
-正式资产业务契约。 关键变化：官方 多图引用、canvas/reference
+正式资产业务契约。 关键变化：官方 多图引用、canonical/physical reference
 职责分离、身份直接锚定参考图、Continuity Locks 与 Visual Delta 分离、防
 under-edit、防拼贴，以及 current_keyframe.description
 对当前视觉状态和摄影机变化的最高权威。 输出尺寸仍由现有 ComfyUI Workflow
@@ -31,13 +31,13 @@ compositing 处理，不按纯文本生图处理。
     引用每张输入图片。
 -   多图输入不得使用“图1”“第一张图”“Picture 1”“image A”等替代写法。
 -   必须逐张声明每个 的职责，以及从该图取用什么。
--   必须区分 canvas / 连续性基础与 reference / 身份或资产来源。
--   上一关键帧通常是当前编辑的 canvas；主分镜图只用于 Shot
-    基线回查；角色资产负责身份纠偏；场景资产负责环境身份；道具资产负责道具外观。
+-   必须区分当前 canonical 目标、正式资产与 temporal physical reference 的职责。
+-   上一物理状态图提供连续性参考，不是当前事实画布，不证明当前布局或姿态正确；
+    主分镜图只用于 Shot 基线回查；角色资产负责身份；场景资产负责环境身份；道具资产负责道具外观。
 -   身份来自参考图时，直接指向对应
     保持身份，不用冗长文字重新发明脸部细节。
--   只改变 current_keyframe.description
-    明确要求变化的属性；其他未目标属性保持连续。但目标变化必须明显完成，避免
+-   实现 current_keyframe.description 指定的当前事实，包括纠正物理参考中与其冲突的属性；
+    其他未目标属性保持连续。但目标变化必须明显完成，避免
     under-edit。
 -   最终只生成一个当前时间点的完整剧情画面，不生成拼贴、对比图、contact
     sheet、设定表或资料页。
@@ -70,10 +70,12 @@ timeline。不得尝试恢复、猜测或要求这些字段。
 -   description
 -   timed_visual_target（如有）
 
-3.  previous_keyframe_image
+3.  temporal physical reference（若实际 manifest 包含 TEMPORAL_ANCHOR / PREVIOUS_KEYFRAME）
 
--   上一时间点已选定关键帧图。
--   是当前编辑最重要的连续性基础。
+-   已选中的前序物理状态图，不一定是紧邻当前状态的上一张图。
+-   提供动作起点、前序摄影机上下文及未变化外观的连续性线索。
+-   候选附带的 canonical description 描述规划目标，不证明生成图已经实现该目标。
+-   previous_keyframe 的文字状态与 manifest 中选中的物理图是不同输入，不得混为同一时刻。
 
 4.  shot_primary_image
 
@@ -119,23 +121,27 @@ picture_index=1 对应 <image_1>，picture_index=2 对应 <image_2>，依此类�
 
 不要用一个总排序解决所有冲突。
 
-当前剧情状态： 1. current_keyframe.description 2.
-previous_keyframe_image 3. shot_primary_image
+CURRENT CANONICAL STATE：current_keyframe.description 是当前可见状态的最高权威，决定
+人物位置、blocking、空间关系、姿态、身体与双脚朝向、动作阶段、表情、视线、
+道具位置，以及摄影机、景别、取景和构图。
+当 temporal physical reference 或 Shot 基线与上述当前事实冲突时，当前 canonical 胜出，
+必须纠正物理图中的冲突，不得把前序图的实际布局或姿态解释为当前事实。
+即使当前 description 使用“仍”“保持”等连续性表述，其指定事实也必须到达；
+不能假设物理参考已正确实现它，也不能只执行文字上新出现的变化。
 
-人物身份： 1. 正式 character_asset_bindings 2. previous_keyframe_image
-3. shot_primary_image
+FORMAL ASSETS：人物身份与默认外观由正式 character_asset_bindings 定义；
+场景身份与环境由 shot.scene + scene_asset_binding 定义；道具身份由 shot.props + prop_asset_bindings 定义。
+Character reference defines WHO; current canonical state defines WHERE / POSE / ACTION.
+正式角色图不规定当前人物站位、姿态或构图；不要堆叠外观文字重新发明角色或复制演员。
 
-场景身份： 1. shot.scene + scene_asset_binding 2.
-previous_keyframe_image 3. shot_primary_image
+TEMPORAL PHYSICAL REFERENCE：支持身份连续性、未变化服装、环境、道具、
+相对连续性、动作起点与前序摄影机上下文；正式资产在各自身份职责内优先。
+它不证明当前 position / pose / orientation / framing / composition，
+不得成为压过 current_keyframe.description 的强事实画布。
+当前 canonical 没有要求改变的外观和环境仍应尽量继承，保持 controlled transformation，
+不作无关的 independent regeneration。
 
-道具身份： 1. shot.props + prop_asset_bindings 2.
-previous_keyframe_image 3. shot_primary_image
-
-摄影机与构图： 1. current_keyframe.description 明确指定的新摄影机状态 2.
-previous_keyframe_image 的摄影机连续性 3. shot_primary_image 的 Shot
-初始构图
-
-shot_primary_image 只用于基线回查，不得覆盖已经推进的时间状态。
+shot_primary_image 只用于基线回查，不得覆盖当前 canonical 状态。
 current_keyframe.description
 明确要求摄影机变化时，必须到达新的稳定构图。
 
@@ -144,21 +150,22 @@ current_keyframe.description
 最终 rewritten prompt 开头必须依据 reference_image_manifest
 逐张声明职责。
 
-PREVIOUS_KEYFRAME： “
-是上一关键帧，也是当前编辑的连续性基础。保持其中未被当前 description
-指定改变的人物身份、服装、场景结构、空间逻辑、光线逻辑和视觉风格；在此基础上完成当前关键帧要求的变化。”
+TEMPORAL_ANCHOR / PREVIOUS_KEYFRAME： “
+是前序物理状态的连续性参考，提供动作起点和未变化外观、环境、道具的线索。
+当前位置、空间关系、姿态、朝向、表情与构图以 current_keyframe.description 为准；
+与其冲突的旧状态必须改变，不因保留参考图而冻结错误布局。”
 
-SHOT_PRIMARY： “ 是当前 Shot
+DIRECTOR_VISUAL_ANCHOR / SHOT_PRIMARY： “ 是当前 Shot
 的主分镜基线，仅用于回查角色、场景和整体视觉基线；当前时间状态以
 current_keyframe.description
-和上一关键帧为准，不把画面退回主分镜初始状态。”
+为准，不把画面退回主分镜初始状态。”
 
-MERGED_CHARACTER / CHARACTER： “ 是角色身份参考，其中包含 A、B、C。使用
+CHARACTER_IDENTITY / MERGED_CHARACTER / CHARACTER： “ 是角色身份参考，其中包含 A、B、C。使用
 保持各角色身份与稳定外观一致；该图的展示姿态、站位、背景、多视图排版不属于当前剧情构图。”
 
 合并角色图及单人角色图只提供身份，不提供新剧情参与者。若同一角色有正面、
 侧面、背面和肖像视图，这些视图是同一个人，不是四个人；不得把任一展示视图
-复制为额外的场景人物。当前画面的参与者数量和各人位置以主分镜图和
+复制为额外的场景人物。当前画面的参与者数量和各人位置以
 current_keyframe.description 为准。
 
 SCENE： “
@@ -173,7 +180,7 @@ MERGED_PROP / PROP： “ 是 X、Y、Z
 ━━━━━━━━━━━━━━━━━━ 【核心编辑原则：Continuity + Visual Delta】
 ━━━━━━━━━━━━━━━━━━
 
-把上一关键帧自然推进为当前关键帧，而不是机械复制上一帧。
+利用前序物理参考完成受当前 canonical 控制的变换，不机械复制上一帧。
 
 先区分两类信息：
 
@@ -189,6 +196,17 @@ Visual Delta 只要被 description
 description 没要求的新剧情事实。
 
 连续性锁保护未目标内容，不限制目标变化的强度。
+
+Material Delta Rule：当当前 canonical 要求人物靠近、前后站位变化、身体或双脚转向、
+人物进入或离开、摄影机推进或拉远或换构图、门内/场景纵深进入画面、道具位置变化时，
+必须执行对应 material delta，形成已经到达的当前静态状态。
+不得因为 preserve continuity、preserve previous image、use previous as canvas 或 minimal edit
+而保留与当前 canonical 冲突的旧状态。
+
+在 #09 内部先区分 PRESERVE / CHANGE，不增加输出 schema 或额外步骤：
+PRESERVE：canonical 没有要求改变且不与当前目标冲突的身份、服装、环境、道具与连续性事实。
+CHANGE：current canonical 明确要求改变的事实，以及物理参考中与当前指定事实冲突的部分。
+将两者落实到最终编辑正文，不输出分析过程、评分或新增结构化字段。
 
 保持： - 人物身份； - 面部； - 发型/胡须； - 年龄； - 体型比例； -
 服装/甲胄/配饰（除非当前 description 明确剧情变化）； - 场景建筑结构； -
@@ -245,7 +263,7 @@ composition required by the current Visual State. 列出这四个名字，各出
 ━━━━━━━━━━━━━━━━━━ 【摄影机连续性】 ━━━━━━━━━━━━━━━━━━
 
 若 current_keyframe.description 没有明确改变摄影机： -
-保持上一关键帧的景别、机位高度、镜头方向、轴线和透视关系。 -
+在不与当前 canonical 指定构图冲突的前提下，继承前序物理参考的景别、机位高度、镜头方向、轴线和透视关系。 -
 允许为适配人物明确位置变化进行必要的自然重构，但不无故跳轴或镜像。
 
 若 current_keyframe.description 明确发生摄影机变化： -
@@ -317,7 +335,7 @@ TextEncodeQwenImage21，不再交给另一个自由生成式 LLM 二次解释或
 visual_style 与质量 → 防拼贴/多时间状态约束。
 
 输出前自检： 1. 是否与实际 manifest 一一对应。 2.
-current_keyframe.description 要求的 Visual Delta 是否真正完成。 3.
+current_keyframe.description 指定的当前事实与 Material Delta 是否完整写入，是否错误保留了冲突的前序布局或姿态。 3.
 未目标内容是否保持连续。 4. 是否没有被 shot_primary_image 拉回 Shot
 初始状态。 5. 角色身份是否由正式角色参考稳定约束。 6.
 人物集合是否正确，没有从场景参考带入额外人物。 7. 摄影机变化是否按
