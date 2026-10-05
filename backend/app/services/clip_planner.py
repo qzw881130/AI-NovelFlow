@@ -560,6 +560,22 @@ def _retry_structure_matches(expected: list[dict], actual: list[dict], candidate
     )
 
 
+def merge_dialogue_ownership_validation(validation: dict, dialogue_validation: dict) -> None:
+    """Dialogue ownership is a blocking part of the existing Clip validation."""
+    validation["dialogue_ownership"] = dialogue_validation
+    validation["passed"] = validation.get("passed") is True and dialogue_validation["passed"] is True
+    if dialogue_validation["passed"]:
+        return
+    validation.pop("temporal_contract", None)
+    validation.pop("composition_contract", None)
+    for code in dialogue_validation["findings"] or ["DIALOGUE_OWNERSHIP_INVALID"]:
+        if any(item["code"] == code for item in validation.setdefault("blocking", [])):
+            continue
+        finding = {"code": code, "severity": "BLOCKING", "message": "Canonical dialogue ownership validation failed."}
+        validation["blocking"].append(finding)
+        validation.setdefault("findings", []).append(finding)
+
+
 async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], planning_policy: dict | None = None) -> tuple[list[dict], dict]:
     template = PromptTemplateService(db).get_default_system_template("clip_execution_planner")
     if not template:
@@ -659,6 +675,9 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
                     "CONTINUOUS requires actual Previous Clip ending visual dependency; CUT means independent "
                     "first-owned visual grounding. Carry-in is semantic context only. Do not infer continuity from "
                     "scene/characters/story/dialogue continuation or ordinary visual progression."
+                    " Classify continuity from canonical visual/action/camera facts before considering composition "
+                    "or timed coverage. Missing early coverage must not justify changing CONTINUOUS to CUT; "
+                    "retain the semantic classification and explain the coverage conflict in reason."
                     " Re-evaluate selected_temporal_target_ids against ALL eligible_temporal_targets (including "
                     "previously unselected ones) and their normalized local times. Selection is optional, owned-only, "
                     "and based on planned context, never actual Previous AV tail pixels."
@@ -705,7 +724,7 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         available_inputs=None if canonical else payload["available_generation_inputs"],
         visual_state_candidates=payload.get("visual_state_candidates") or [],
     )
-    validation["dialogue_ownership"] = dialogue_validation
+    merge_dialogue_ownership_validation(validation, dialogue_validation)
     if canonical and validation["passed"]:
         validation["temporal_contract"] = TEMPORAL_DECISION_CONTRACT
         validation["composition_contract"] = EARLY_COMPOSITION_CONTRACT

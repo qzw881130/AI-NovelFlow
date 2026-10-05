@@ -1,6 +1,107 @@
-"""Deterministically assign ordered dialogue text spans to semantic Clips."""
+"""Assign canonical dialogue events to Clip-local timing segments."""
+
+import math
 
 from app.services.video_director_ai import _dialogue_text, _estimate_dialogue_seconds, _dialogue_speaker
+
+
+def validate_dialogue_assignments(dialogues: list, assignments: list, dialogue_timeline_source: list, clips: list) -> dict:
+    """Official segments repeat exact event text; validate identity and time coverage."""
+    ordered = [(index, item) for index, item in enumerate(dialogues or [])
+               if isinstance(item, dict) and _dialogue_text(item)]
+    ordered.sort(key=lambda pair: (pair[1].get("order") is None, pair[1].get("order", pair[0]), pair[0]))
+    events = {}
+    findings = []
+
+    def fail(code):
+        if code not in findings:
+            findings.append(code)
+
+    for order, (_, dialogue) in enumerate(ordered, 1):
+        event_id = str(dialogue.get("dialogue_id") or dialogue.get("id") or f"D{order}")
+        if event_id in events:
+            fail("DIALOGUE_EVENT_ID_DUPLICATED")
+        events[event_id] = (order, dialogue)
+    timeline = {}
+    for event in dialogue_timeline_source:
+        if not isinstance(event, dict) or event.get("id") is None:
+            fail("DIALOGUE_EVENT_ID_MISSING_OR_ADDED")
+            continue
+        event_id = str(event["id"])
+        if event_id in timeline:
+            fail("DIALOGUE_EVENT_ID_DUPLICATED")
+        timeline[event_id] = event
+    if set(events) != set(timeline):
+        fail("DIALOGUE_EVENT_ID_MISSING_OR_ADDED")
+
+    clip_by_index = {int(clip["clip_index"]): clip for clip in clips}
+    segments = {event_id: [] for event_id in events}
+    source_orders = []
+    flattened = [segment for assignment in assignments for segment in assignment["dialogues"]]
+    for assignment in assignments:
+        clip = clip_by_index.get(assignment["clip_index"])
+        for segment in assignment["dialogues"]:
+            event_id = str(segment.get("dialogue_id") or "")
+            if event_id not in events:
+                fail("DIALOGUE_EVENT_ID_MISSING_OR_ADDED")
+                continue
+            order, dialogue = events[event_id]
+            source_orders.append(order)
+            if segment.get("source_order") != order:
+                fail("DIALOGUE_ORDER_CHANGED")
+            if segment.get("speaker") != _dialogue_speaker(dialogue):
+                fail("DIALOGUE_SPEAKER_CHANGED")
+            if segment.get("text") != str(dialogue.get("text") or dialogue.get("dialogue") or ""):
+                fail("DIALOGUE_TEXT_MISSING_OR_CHANGED")
+            try:
+                start, end = float(segment["start_time"]), float(segment["end_time"])
+                valid = math.isfinite(start) and math.isfinite(end) and end > start
+                valid = valid and clip is not None and start >= float(clip["start_time"]) - 1e-6 and end <= float(clip["end_time"]) + 1e-6
+            except (KeyError, TypeError, ValueError):
+                valid = False
+            if not valid:
+                fail("DIALOGUE_SEGMENT_TIMING_INVALID")
+                continue
+            segments[event_id].append(segment)
+    if source_orders != sorted(source_orders):
+        fail("DIALOGUE_ORDER_CHANGED")
+
+    for event_id, (order, dialogue) in events.items():
+        event = timeline.get(event_id)
+        if event is None:
+            continue
+        if "speaker" in event and event["speaker"] != _dialogue_speaker(dialogue):
+            fail("DIALOGUE_SPEAKER_CHANGED")
+        if "text" in event and event["text"] != str(dialogue.get("text") or dialogue.get("dialogue") or ""):
+            fail("DIALOGUE_TEXT_MISSING_OR_CHANGED")
+        try:
+            official_start, official_end = float(event["start_time"]), float(event["end_time"])
+            if not math.isfinite(official_start) or not math.isfinite(official_end) or official_end <= official_start:
+                raise ValueError
+        except (KeyError, TypeError, ValueError):
+            fail("DIALOGUE_SEGMENT_TIMING_INVALID")
+            continue
+        cursor = official_start
+        event_segments = segments[event_id]
+        if not event_segments:
+            fail("DIALOGUE_EVENT_ID_MISSING_OR_ADDED")
+        for index, segment in enumerate(event_segments, 1):
+            start, end = float(segment["start_time"]), float(segment["end_time"])
+            if start > cursor + 1e-6:
+                fail("DIALOGUE_SEGMENT_TIMING_GAP")
+            elif start < cursor - 1e-6:
+                fail("DIALOGUE_SEGMENT_TIMING_OVERLAP")
+            if start < official_start - 1e-6 or end > official_end + 1e-6:
+                fail("DIALOGUE_SEGMENT_TIMING_INVALID")
+            if (segment.get("segment_index") != index
+                    or segment.get("is_continuation") is not (start > official_start + 1e-6)
+                    or segment.get("continues_in_next_clip") is not (end < official_end - 1e-6)):
+                fail("DIALOGUE_CONTINUATION_INVALID")
+            cursor = end
+        if abs(cursor - official_end) > 1e-6:
+            fail("DIALOGUE_SEGMENT_TIMING_GAP")
+    return {"passed": not findings, "findings": findings,
+            "source_dialogue_count": len(ordered), "assigned_segment_count": len(flattened)}
 
 
 def assign_dialogues_to_clips(dialogues: list, clips: list, dialogue_timeline_source: list | None = None) -> tuple[list[dict], dict]:
@@ -27,6 +128,13 @@ def assign_dialogues_to_clips(dialogues: list, clips: list, dialogue_timeline_so
         for item in dialogue_timeline_source or []
         if isinstance(item, dict) and item.get("id") is not None
     }
+    has_official_timeline = False
+    for item in timeline_by_id.values():
+        try:
+            start, end = float(item["start_time"]), float(item["end_time"])
+            has_official_timeline |= math.isfinite(start) and math.isfinite(end) and end > start
+        except (KeyError, TypeError, ValueError):
+            continue
     raw_items = []
     total_estimated_duration = 0.0
     for dialogue_index, dialogue in enumerate(ordered_dialogues, 1):
@@ -34,7 +142,7 @@ def assign_dialogues_to_clips(dialogues: list, clips: list, dialogue_timeline_so
         text = str(raw_text) if str(raw_text).strip() else ""
         emotion = str(dialogue.get("emotion_prompt") or dialogue.get("emotion") or "")
         duration = _estimate_dialogue_seconds(text, emotion)
-        dialogue_id = str(dialogue.get("id") or f"D{dialogue_index}")
+        dialogue_id = str(dialogue.get("dialogue_id") or dialogue.get("id") or f"D{dialogue_index}")
         timeline_item = timeline_by_id.get(dialogue_id)
         try:
             official_start = float(timeline_item.get("start_time")) if timeline_item else None
@@ -76,6 +184,10 @@ def assign_dialogues_to_clips(dialogues: list, clips: list, dialogue_timeline_so
                 })
             continue
 
+        if has_official_timeline:
+            # A missing official event is a blocking identity/coverage failure,
+            # never permission to invent estimated timing or split its text.
+            continue
         start_ratio = timeline_cursor / total_estimated_duration if total_estimated_duration else 0.0
         end_ratio = (timeline_cursor + estimated_duration) / total_estimated_duration if total_estimated_duration else 1.0
         text_cursor = 0
@@ -118,7 +230,16 @@ def assign_dialogues_to_clips(dialogues: list, clips: list, dialogue_timeline_so
         if not timeline_item:
             timeline_cursor += estimated_duration
 
-    flattened = [item for clip in ordered_clips for item in assignments.get(int(clip.get("clip_index") or 0), [])]
+    result = [
+        {"clip_index": int(clip.get("clip_index") or index), "dialogues": assignments.get(int(clip.get("clip_index") or index), [])}
+        for index, clip in enumerate(ordered_clips, 1)
+    ]
+    if has_official_timeline:
+        return result, validate_dialogue_assignments(dialogues, result, dialogue_timeline_source, ordered_clips)
+
+    # Preserve the no-official-timeline legacy text-span contract. Canonical
+    # event segments above must never be reconstructed by concatenating text.
+    flattened = [item for clip in result for item in clip["dialogues"]]
     reconstructed = {}
     for item in flattened:
         reconstructed.setdefault(item["source_order"], "")
@@ -132,8 +253,4 @@ def assign_dialogues_to_clips(dialogues: list, clips: list, dialogue_timeline_so
     if len(span_ids) != len(set(span_ids)):
         findings.append("DIALOGUE_SPAN_DUPLICATED")
 
-    result = [
-        {"clip_index": int(clip.get("clip_index") or index), "dialogues": assignments.get(int(clip.get("clip_index") or index), [])}
-        for index, clip in enumerate(ordered_clips, 1)
-    ]
     return result, {"passed": not findings, "findings": findings, "source_dialogue_count": len(ordered_dialogues), "assigned_segment_count": len(flattened)}

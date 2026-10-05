@@ -109,7 +109,7 @@ from app.services.canonical_visual_speech_authority import (
 from app.services.llm_service import LLMService
 from app.repositories import PromptTemplateRepository
 from app.services.video_director_ai import append_video_ai_call, build_dialogue_timeline, strip_media_refs
-from app.services.clip_planner import plan_clips
+from app.services.clip_planner import plan_clips, merge_dialogue_ownership_validation
 from app.services.clip_execution_compiler import (
     ClipExecutionCompileError,
     compile_extend_clip,
@@ -2166,7 +2166,9 @@ async def plan_shot_clips(
         for clip in clips:
             clip["dialogue_assignment"] = assignments_by_index.get(int(clip.get("clip_index") or 0), [])
         validation = current_plan.get("clip_plan_validation", {})
-        validation["dialogue_ownership"] = dialogue_validation
+        merge_dialogue_ownership_validation(validation, dialogue_validation)
+        if not validation["passed"]:
+            return {"success": True, "data": {"clips": clips, "validation": validation}}
         current_plan["clip_plan"] = clips
         current_plan["clip_plan_validation"] = validation
         shot.video_director_plan = json.dumps(current_plan, ensure_ascii=False)
@@ -2183,12 +2185,8 @@ async def plan_shot_clips(
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     if not validation["passed"]:
-        current_plan["clip_plan_validation"] = validation
-        current_plan["clip_plan_findings"] = validation["findings"]
-        current_plan["clip_plan"] = clips
-        current_plan["temporal_anchors"] = request.temporal_anchors
-        shot.video_director_plan = json.dumps(current_plan, ensure_ascii=False)
-        db.commit()
+        # Return the failed candidate for review without replacing the current
+        # canonical plan or advancing its revision.
         return {"success": True, "data": {"clips": clips, "validation": validation}}
     current_plan.update({
         "clip_plan": clips,

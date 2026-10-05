@@ -136,6 +136,16 @@ def test_director_prompt_distinguishes_semantic_reappearance_from_required_entry
         assert marker in prompt
 
 
+def test_director_prompt_orders_continuity_before_feasibility_and_reports_conflict():
+    prompt = (Path(__file__).parents[1] / "prompt_templates" / "10A_NovelFlow_ClipExecutionPlanner_V1.txt").read_text()
+    assert prompt.index("Continuity authority precedes execution feasibility") < prompt.index("3. Early Composition selection")
+    assert "must NEVER turn an otherwise CONTINUOUS boundary into CUT" in prompt
+    assert "Do not substitute CUT to satisfy coverage" in prompt
+    assert "EARLY_COMPOSITION_COVERAGE_INVALID" in prompt
+    assert "existing reason" in prompt
+    assert "Same-scene genuine" in prompt and "independent edits remain valid" in prompt
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("continuity_mode", ["NORMAL", "CONTINUOUS_TAKE"])
 @pytest.mark.parametrize("before,after,previous_action,next_action,transition,decision", DIRECTOR_BOUNDARY_CASES)

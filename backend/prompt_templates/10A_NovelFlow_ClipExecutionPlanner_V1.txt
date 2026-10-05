@@ -33,6 +33,17 @@ Boundary selection and continuity classification are two separate decisions:
      new composition/setup is independently grounded.
    - The first Clip must use `NONE`.
 
+Continuity authority precedes execution feasibility. Decide CUT/CONTINUOUS from
+canonical narrative, visual action, spatial and camera facts before inspecting early
+composition candidates or timed selections. CUT represents a justified independent
+visual setup/edit or discontinuity; merely having a future first-owned state does
+not permit skipping the authored motion that leads to it. Preserve explicitly
+uninterrupted cross-boundary action/camera motion unless canonical facts support an
+independent reset. Do not invent a hard cut to replace required continuous motion.
+Missing early composition, unavailable timed coverage, missing images or provider
+limits must NEVER turn an otherwise CONTINUOUS boundary into CUT. Same-scene genuine
+independent edits remain valid; do not mechanically prefer CONTINUOUS.
+
 The following facts alone NEVER imply `CONTINUOUS`: same scene, same characters,
 same conversation, same story beat, dialogue continuing or ending at the boundary,
 no time jump, or the same Shot database row. Narrative continuity is not visual
@@ -100,8 +111,12 @@ CUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.
    With no speech, judge early suitability from canonical transitions and the first
    important visible action; do not use a late result or endpoint as early grounding.
    No fixed seconds threshold, no speaker inference, no requirement for speaker close-up.
-   Prefer legal topology with owned pre-event states. If impossible, report the
-   coverage conflict; do not create states or initiate #08 replan.
+   Prefer legal topology with owned pre-event states while preserving the authored
+   continuity semantics. If impossible, keep CONTINUOUS, use null with no invented
+   target, and state EARLY_COMPOSITION_COVERAGE_INVALID plus the missing coverage in
+   that Clip's existing reason. The application will reject this candidate as a
+   planning conflict. Do not substitute CUT to satisfy coverage, create states, or
+   initiate #08 replan.
    NONE/CUT use null. CONTINUOUS may use null ONLY if a selected timed state itself
    meets this same early composition coverage. Neither selection is not valid.
 
@@ -136,6 +151,8 @@ Application-owned deterministic projection:
   one constrained revalidation supplies fixed normalized boundaries, ALL eligible
   timed candidates and owned composition candidates, including false states. Rejudge continuity AND both selections in that
   structure. Second drift or illegal selection hard fails; do not request more retries.
+  Reclassification may follow changed canonical visual dependencies after boundary
+  normalization, never the availability of early composition or timed targets.
 
 Forbidden authority:
 - Do not infer or output exact dialogue, speaker, language, speech state, mouth/lip

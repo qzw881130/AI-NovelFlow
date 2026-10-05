@@ -86,6 +86,28 @@ def test_continuous_neither_and_late_timed_only_fail_coverage():
             project(None, timed)
 
 
+@pytest.mark.parametrize('available', [True, False])
+def test_early_candidate_availability_cannot_reclassify_continuity(available):
+    candidates = _candidates()
+    if not available:
+        candidates = [state for state in candidates if state['time_seconds'] in (0, 6, 12)]
+    clips = _clips([])
+    clips[1]['early_composition_state_id'] = 'KF4' if available else None
+    clip_planner._project_clip_visual_states(clips, candidates)
+    clip_planner._project_temporal_targets(clips, candidates, 12)
+    before = deepcopy(clips)
+    if available:
+        clip_planner._project_early_composition_states(clips, candidates, [])
+        assert clips[1]['capability'] == 'TEMPORAL_EXTEND'
+    else:
+        with pytest.raises(ValueError, match='EARLY_COMPOSITION_COVERAGE_INVALID'):
+            clip_planner._project_early_composition_states(clips, candidates, [])
+        assert clips == before
+        assert clips[1]['carry_in_state_index'] == 2
+        assert clips[1]['visual_state_indexes'] == [5]
+    assert clips[1]['continuity_to_previous'] == 'CONTINUOUS'
+
+
 def test_cut_and_first_generate_need_no_composition():
     clips, anchors = project(None, [], 'CUT')
     assert all(c['capability'] == 'GENERATE' for c in clips)
