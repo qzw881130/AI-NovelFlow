@@ -134,9 +134,11 @@ CUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.
    For CONTINUOUS without inherited coverage choose one meaningful early establishing composition: Previous AV
    -> establish the current canonical composition -> subsequent speech/important visible action.
    It may have timed_visual_target=false or true. Never relabel false as eligible.
-   It must be strictly inside this Clip after its start ownership tolerance, not an
-   endpoint or carry-in. If speech overlaps this Clip it must precede that first
-   interval's Clip-local onset. An onset at Clip start leaves no pre-speech window;
+   It must be owned and satisfy `s + 0.05 < t < e`, not an endpoint or carry-in.
+   For overlapping speech intervals, first Clip-local onset is
+   `o = min(max(s, interval.start_time))` over intervals with
+   `interval.end_time > s AND interval.start_time < e`; also require `t < o`.
+   An onset at Clip start leaves no pre-speech window;
    reconsider legal boundaries, never shift dialogue or invent a state.
    With no speech, judge early suitability from canonical transitions and the first
    important visible action; do not use a late result or endpoint as early grounding.
@@ -158,7 +160,7 @@ CUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.
    correct continuity and report EARLY_COMPOSITION_COVERAGE_INVALID.
 
 4. Timed target selection:
-   `timed_visual_target=true` means eligible, NOT selected or execution-required.
+   `timed_visual_target=true` means eligible, NOT selected, owned or execution-required.
    For CONTINUOUS, explicitly return `selected_temporal_target_ids`: [] / one / several
    current Clip OWNED eligible IDs. Select only when timed arrival at a material
    blocking/composition/spatial/prop/arrangement state has incremental timed-image
@@ -168,11 +170,25 @@ CUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.
    character visibility/absence, identity sufficiency or real ending media.
    Images may be missing: planning comes before selected image preparation.
    Never select false/non-owned/shared-boundary/carry-in states. At most 8, unique IDs.
+   Each selected target must be eligible AND owned AND satisfy `s + 0.05 < t <= e`.
+   Ownership's end tolerance does not permit selecting a target after `e`.
    Timed and composition selections share a maximum of eight distinct physical
    anchors. The same true state may serve both responsibilities but conditions once.
    NONE and CUT must explicitly return []; END is not automatically selected.
 
 Application-owned deterministic projection:
+- Exact boundary contract: `s` and `e` are Clip start/end seconds; `t` is the
+  canonical Visual State time. Tolerance is `0.05` seconds; compare decimal times
+  as written, without rounding them to force boundary membership.
+- Ordinary Visual State ownership: `t > s + 0.05 AND t <= e + 0.05`.
+  The start inequality is strict. At `t == s + 0.05`, the state is NOT owned by
+  the current Clip; never use it as a selected temporal or early composition state.
+- For later Clips, carry-in is the latest canonical state satisfying `t <= s + 0.05`
+  (ordered by time, then keyframe index). Boundary equality is on the carry-in side,
+  not the owned side. Carry-in is semantic context, not automatic proof of
+  inherited_start_composition; its source must still be strictly before start.
+- The first Clip owns the START state with keyframe index 1 as a special case and
+  has no carry-in. END uses ordinary ownership and is not automatically selected.
 - Application code derives `visual_state_indexes` from final boundaries.
 - Application code derives `carry_in_state_index` as semantic context only. Carry-in
   is not an owned state, Picture, ordinary reference, temporal anchor, Previous AV,
@@ -194,6 +210,11 @@ Application-owned deterministic projection:
   selection hard fails; do not request more retries.
   Reclassification may follow changed canonical visual dependencies after boundary
   normalization, never the availability of early composition or timed targets.
+
+Before final JSON, check each timed selection for eligibility, exact ownership and
+selected-time legality; check each early state for ownership, strict interior and
+pre-onset timing. Each CONTINUOUS Clip needs valid early or inherited coverage;
+otherwise preserve the existing explicit conflict path, never invent coverage or CUT.
 
 Forbidden authority:
 - Do not infer or output exact dialogue, speaker, language, speech state, mouth/lip

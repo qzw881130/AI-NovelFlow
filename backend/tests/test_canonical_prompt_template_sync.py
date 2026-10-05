@@ -15,6 +15,28 @@ KEYFRAME_IMAGE_FILE = "09_NovelFlow_QwenEdit2511_KeyframeImagePrompt_V1.txt"
 KEYFRAME_IMAGE_SHA256 = "3164a133b38f671feafbd0a43f5d2c885193854bbb5ac057ded4b1b65f4f8e8a"
 TRANSITION_FILE = "10_NovelFlow_KeyframeTransition_Planner_V1.txt"
 CLIP_PLANNER_FILE = "10A_NovelFlow_ClipExecutionPlanner_V1.txt"
+CLIP_PLANNER_SHA256 = "ad67e809352bd9bee40beba3c3004598c5c85e05d4c4240307d845845a3a5c43"
+CLIP_BOUNDARY_CONTRACT_RULES = (
+    "Tolerance is `0.05` seconds",
+    "compare decimal times as written, without rounding",
+    "t > s + 0.05 AND t <= e + 0.05",
+    "At `t == s + 0.05`, the state is NOT owned by the current Clip",
+    "carry-in is the latest canonical state satisfying `t <= s + 0.05`",
+    "never use it as a selected temporal or early composition state",
+    "Each selected target must be eligible AND owned AND satisfy `s + 0.05 < t <= e`",
+    "It must be owned and satisfy `s + 0.05 < t < e`",
+    "o = min(max(s, interval.start_time))",
+    "interval.end_time > s AND interval.start_time < e`; also require `t < o`",
+    "Carry-in is semantic context, not automatic proof of inherited_start_composition",
+    "Neither CONTINUOUS nor the existence of a carry-in proves inherited coverage",
+    "Previous AV -> establish the current canonical composition",
+    "If impossible, keep CONTINUOUS, use null with no invented target",
+    "The application will reject this candidate as a planning conflict",
+    "Do not substitute CUT to satisfy coverage",
+    "`timed_visual_target=true` means eligible, NOT selected, owned or execution-required",
+    "The first Clip owns the START state with keyframe index 1 as a special case and has no carry-in",
+    "END uses ordinary ownership and is not automatically selected",
+)
 H3_TEMPLATES = [
     ("11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt", "h3_single_frame_prompt", "MiniMax H3 单帧视频提示词构建", "h3_single_frame_prompt_template_id"),
     ("12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt", "h3_first_last_frame_prompt", "MiniMax H3 首尾帧视频提示词构建", "h3_first_last_frame_prompt_template_id"),
@@ -155,6 +177,27 @@ def test_clip_planner_separates_boundary_hints_from_visual_continuity_authority(
         assert legacy_or_wrong_authority not in prompt
 
 
+def test_clip_planner_runtime_system_prompt_discloses_exact_boundary_contract(db_session):
+    from app.utils.time_utils import CLIP_OWNERSHIP_TOLERANCE
+
+    assert str(CLIP_OWNERSHIP_TOLERANCE) == "0.05"
+    stale = PromptTemplate(name="Clip Execution Planner", type="clip_execution_planner",
+                           template="stale boundary contract", is_system=True, is_active=True)
+    db_session.add(stale)
+    db_session.commit()
+    template_id = stale.id
+    PromptTemplateService(db_session).init_system_templates()
+    runtime = PromptTemplateService(db_session).get_default_system_template("clip_execution_planner")
+    assert runtime.id == template_id
+    assert runtime.template == _prompt(CLIP_PLANNER_FILE)
+    assert sha256(runtime.template.encode()).hexdigest() == CLIP_PLANNER_SHA256
+    prompt = " ".join(runtime.template.split())
+    for rule in CLIP_BOUNDARY_CONTRACT_RULES:
+        assert rule in prompt
+    for fixture_specific in ("Shot2", "C2", "C4", "KF5", "34.85", "34.90", "皇帝", "总管"):
+        assert fixture_specific not in prompt
+
+
 def test_system_sync_updates_existing_rows_in_place_and_default_resolution(db_session):
     planner_id = "ee6d8619-1b93-4b7e-a68e-48c9a827b2d5"
     keyframe_image_id = "276f0181-64c4-4a03-b0fd-b9b9b1f04a09"
@@ -236,7 +279,7 @@ def test_unrelated_system_prompt_sources_remain_frozen():
         PLANNER_FILE: "ada57c8b3e12817fe2182188f9a7ffd55867a8717e11f1fea6ff3d35c75ca4fe",
         KEYFRAME_IMAGE_FILE: KEYFRAME_IMAGE_SHA256,
         TRANSITION_FILE: "6bc10c2f0eab6165e13cce38bb17c29daead288d93af7aa75d98af81bea9c57c",
-        CLIP_PLANNER_FILE: "27e94f0c8e8af15bb7550daff4fd9ccb100edd3d8c0b01dab76483d8d47252ed",
+        CLIP_PLANNER_FILE: CLIP_PLANNER_SHA256,
     }
 
     for filename, expected_hash in expected_hashes.items():
