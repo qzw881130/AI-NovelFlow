@@ -87,6 +87,8 @@ def build_physical_picture_mapping(video_reference_manifest: Optional[dict]) -> 
             "source_time_seconds": reference.get("source_time_seconds"),
             "source_image_task_id": reference.get("source_image_task_id"),
             "source_identity": reference.get("source_identity") or reference.get("source_id"),
+            "source_id": reference.get("source_id"),
+            "source_name": reference.get("source_name"),
         })
     return mapping
 

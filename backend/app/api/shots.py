@@ -38,7 +38,7 @@ from app.services.novel_service import (
 )
 from app.services.transition_service import enqueue_transition_video_task
 from app.services.shot_image_service import enqueue_shot_image_task
-from app.services.shot_video_service import _clip_dialogues_for_prompt, _dialogue_assignment_source, enqueue_shot_video_task, merge_video_director_clip_videos, resolve_extend_previous_av, validate_semantic_clip_artifact
+from app.services.shot_video_service import _clip_dialogues_for_prompt, _dialogue_assignment_source, enqueue_shot_video_task, merge_video_director_clip_videos, resolve_extend_previous_av, validate_semantic_clip_artifact, resolve_clip_reference_resources, get_semantic_clip_prompt
 from app.services.canonical_execution_invalidation import (
     CanonicalExecutionConflict,
     canonical_clip_dependency_closure,
@@ -2690,6 +2690,7 @@ async def _execute_phase_b_semantic_clip(
     previous_provenance = None
     resolved_temporal_anchors = []
     try:
+        resource_references = resolve_clip_reference_resources(db, novel_id, shot, plan, clip)
         if capability in {"EXTEND", "TEMPORAL_EXTEND"}:
             previous_index = int(clip.get("previous_clip_index"))
             previous_clip = next((item for item in clips if int(item.get("clip_index") or 0) == previous_index), None)
@@ -2707,6 +2708,7 @@ async def _execute_phase_b_semantic_clip(
             if capability == "EXTEND":
                 compiled = compile_extend_clip(
                     shot, plan, clip, int(request.clip_plan_revision), previous_provenance,
+                    resource_references=resource_references,
                 )
             else:
                 anchor_ids = clip.get("temporal_anchor_ids") or []
@@ -2731,9 +2733,10 @@ async def _execute_phase_b_semantic_clip(
                 compiled = compile_temporal_extend_clip(
                     shot, plan, clip, int(request.clip_plan_revision),
                     previous_provenance, resolved_temporal_anchors,
+                    resource_references=resource_references,
                 )
         elif capability == "GENERATE":
-                compiled = compile_generate_clip(shot, plan, clip, int(request.clip_plan_revision))
+                compiled = compile_generate_clip(shot, plan, clip, int(request.clip_plan_revision), resource_references=resource_references)
         else:
             raise ClipExecutionCompileError("当前 Clip capability 不支持 Phase C 执行")
     except ClipExecutionCompileError as exc:
@@ -2812,9 +2815,10 @@ async def _execute_phase_b_semantic_clip(
         metadata["requires_temporal_control"] = bool(clip.get("requires_temporal_control"))
     if capability == "TEMPORAL_EXTEND":
         metadata["temporal_anchor_ids"] = [item["anchor_id"] for item in resolved_temporal_anchors]
-    if request.skip_llm_when_prompt_exists and not str(clip.get("prompt_text") or "").strip():
+    reusable_prompt = get_semantic_clip_prompt(plan, clip) if request.skip_llm_when_prompt_exists else ""
+    if request.skip_llm_when_prompt_exists and not reusable_prompt.strip():
         raise HTTPException(status_code=400, detail="当前 Clip 没有可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频")
-    metadata["prompt_text"] = str(clip.get("prompt_text") or "") if request.skip_llm_when_prompt_exists else ""
+    metadata["prompt_text"] = reusable_prompt
     task.metadata_json = json.dumps(metadata, ensure_ascii=False)
     db.commit()
     enqueue_shot_video_task(
@@ -2904,7 +2908,7 @@ async def _regenerate_semantic_video_director_clip(
         "previous_approved_task_id": previous_task_id,
         "previous_approved_video_url": previous_url,
         "previous_approved_video_source": "approved_assembled_result" if previous_task_id and previous_metadata.get("assembled_result", {}).get("url") else "approved_clip_result" if previous_task_id else None,
-        "prompt_text": "" if not request.skip_llm_when_prompt_exists else str(clip.get("prompt_text") or ""),
+        "prompt_text": "" if not request.skip_llm_when_prompt_exists else get_semantic_clip_prompt(plan, clip),
         "approval_mode": clip.get("approval_mode") or plan.get("clip_plan_approval_mode", "AUTO_APPROVE"),
         "approval_status": "GENERATING",
         "use_reference_audio": request.use_reference_audio,

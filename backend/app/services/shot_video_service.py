@@ -20,6 +20,7 @@ from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.repositories.shot_repository import ShotRepository
 from app.services.background_workers import persistent_job, worker_manager
 from app.services.video_director_ai import build_h3_video_prompt, safe_json_dict, safe_json_list
+from app.services.video_reference_resources import resolve_video_reference_resources
 from app.services.dialogue_ownership import assign_dialogues_to_clips
 from app.services.clip_execution_compiler import (
     ClipExecutionCompileError,
@@ -192,6 +193,16 @@ def _project_semantic_clip_transitions(
         if endpoints in allowed_pairs:
             projected.append(transition)
     return projected
+
+
+def resolve_clip_reference_resources(db, novel_id: str, shot, plan: dict, clip: dict) -> dict:
+    """Shared API/worker resource resolution from the same owned canonical context."""
+    states = {int(item["index"]): item for item in plan.get("keyframes") or [] if isinstance(item, dict) and item.get("index") is not None}
+    owned = [states[int(index)] for index in clip.get("visual_state_indexes") or [] if int(index) in states]
+    transitions = _project_semantic_clip_transitions(
+        plan.get("transitions") or [], clip.get("visual_state_indexes") or [], clip.get("carry_in_state_index"),
+    )
+    return resolve_video_reference_resources(db, novel_id, shot, owned, transitions, clip)
 
 
 def _to_float_or_none(value):
@@ -466,6 +477,13 @@ def _update_window_plan_status(shot, window_index: int, status: str, db, task=No
 
 def _update_clip_prompt(shot, clip: dict, prompt_text: str, db) -> None:
     plan = safe_json_dict(shot.video_director_plan)
+    clip_index = int((clip or {}).get("clip_index") or 1)
+    semantic_clip = next((item for item in plan.get("clip_plan") or [] if isinstance(item, dict) and int(item.get("clip_index") or 0) == clip_index), None)
+    if semantic_clip is not None:
+        semantic_clip["prompt_text"] = prompt_text
+        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+        db.commit()
+        return
     clips = plan.get("clips") if isinstance(plan.get("clips"), list) else []
     clip_index = int((clip or {}).get("clip_index") or 1)
     clip_start = (clip or {}).get("start_time", 0)
@@ -492,6 +510,22 @@ def _update_clip_prompt(shot, clip: dict, prompt_text: str, db) -> None:
     plan["clips"] = clips
     shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
     db.commit()
+
+
+def get_semantic_clip_prompt(plan: dict, clip: dict) -> str:
+    """Canonical prompt first; pre-fix legacy data only for identical Clip boundaries."""
+    if "prompt_text" in clip:
+        return str(clip.get("prompt_text") or "")
+    for legacy in plan.get("clips") or []:
+        if not isinstance(legacy, dict):
+            continue
+        if (
+            legacy.get("clip_index") == clip.get("clip_index")
+            and legacy.get("start_time") == clip.get("start_time")
+            and legacy.get("end_time") == clip.get("end_time")
+        ):
+            return str(legacy.get("prompt_text") or "")
+    return ""
 
 
 def _update_clip_result(shot, clip: dict, fields: dict, db) -> None:
@@ -983,6 +1017,7 @@ async def generate_shot_video_task(
                     readiness = get_canonical_execution_readiness(shot, video_director_plan, [semantic_clip])
                     if not readiness["ready"]:
                         raise ClipExecutionCompileError(readiness["code"], detail=readiness["blocking_clips"][0])
+                resource_references = resolve_clip_reference_resources(db, novel_id, shot, video_director_plan, semantic_clip)
                 if clip_metadata.get("capability") == "EXTEND":
                     previous_contract = (clip_metadata.get("execution_contract") or {}).get("previous_clip") or {}
                     previous_provenance = resolve_extend_previous_av(
@@ -990,6 +1025,7 @@ async def generate_shot_video_task(
                     )
                     compiled = compile_extend_clip(
                         shot, video_director_plan, semantic_clip, plan_revision, previous_provenance,
+                        resource_references=resource_references,
                     )
                 elif clip_metadata.get("capability") == "TEMPORAL_EXTEND":
                     previous_contract = (clip_metadata.get("execution_contract") or {}).get("previous_clip") or {}
@@ -1016,10 +1052,12 @@ async def generate_shot_video_task(
                     compiled = compile_temporal_extend_clip(
                         shot, video_director_plan, semantic_clip, plan_revision,
                         previous_provenance, source_anchors,
+                        resource_references=resource_references,
                     )
                 else:
                     compiled = compile_generate_clip(
                         shot, video_director_plan, semantic_clip, plan_revision,
+                        resource_references=resource_references,
                     )
                 task_metadata = safe_json_dict(task.metadata_json)
                 task_metadata.update(compiled)
@@ -1036,10 +1074,6 @@ async def generate_shot_video_task(
                         raise ClipExecutionCompileError(f"参考图 {reference.get('slot')} 无法解析为本地图片")
                     reference["local_path"] = local_path
                     reference_image_paths.append(local_path)
-                task.reference_images = json.dumps([
-                    {"label": f"Director Visual Ref {item['slot']}", "url": item["image_url"]}
-                    for item in phase_b_manifest["references"]
-                ], ensure_ascii=False) if phase_b_manifest["references"] else None
                 if temporal_manifest:
                     for anchor in temporal_manifest.get("anchors", []):
                         source_url = anchor.get("image_url")
@@ -1156,7 +1190,7 @@ async def generate_shot_video_task(
         reference_images = []
         if clip_only_execution:
             reference_images = [
-                {"label": f"Director Visual Ref {item['slot']}", "url": item["image_url"]}
+                {"label": f"Picture {item['slot']} · {item['kind']} · {item.get('source_name') or 'KF' + str(item.get('source_keyframe_index'))}", "url": item["image_url"]}
                 for item in (phase_b_manifest or {}).get("references", [])
             ]
         elif character_reference_path:
@@ -1219,10 +1253,12 @@ async def generate_shot_video_task(
                 video_director_plan.get("dialogue_timeline_source"),
             )
 
-        reusable_prompt = (
-            (clip_metadata or {}).get("prompt_text")
-            or (_get_reusable_video_prompt(video_director_plan) if skip_llm_when_prompt_exists else "")
-        )
+        reusable_prompt = (clip_metadata or {}).get("prompt_text") or ""
+        if skip_llm_when_prompt_exists and not reusable_prompt:
+            reusable_prompt = (
+                get_semantic_clip_prompt(video_director_plan, clip)
+                if clip_only_execution else _get_reusable_video_prompt(video_director_plan)
+            )
         if skip_llm_when_prompt_exists and not reusable_prompt:
             task.status = "failed"
             task.error_message = "当前 Shot 没有可复用的视频最终 Prompt，请先使用 LLM+生成当前Shot视频。"

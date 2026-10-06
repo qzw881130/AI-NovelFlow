@@ -248,8 +248,8 @@ def get_canonical_execution_readiness(shot, plan: dict, clips: list[dict] | None
     }
 
 
-def project_canonical_visual_references(shot, plan: dict, clip: dict, temporal_anchors: list[dict] | None = None) -> dict:
-    """Purely project owned canonical states into the ordinary H3 manifest."""
+def project_canonical_visual_references(shot, plan: dict, clip: dict, temporal_anchors: list[dict] | None = None, resource_references: dict | None = None) -> dict:
+    """Pack owned-state anchors, then pre-resolved Scene/Character/Prop assets."""
     states = {
         int(item.get("index")): item
         for item in _json_list(plan.get("keyframes"))
@@ -305,7 +305,19 @@ def project_canonical_visual_references(shot, plan: dict, clip: dict, temporal_a
         _source_reference(slot, image_url, source_type, index=index, keyframe=state)
         for slot, (_, index, source_type, image_url, state) in enumerate(ordered, 1)
     ]
-    return {"version": 1, "references": references}
+    manifest = {"version": 1, "references": references}
+    if resource_references is not None:
+        skipped = [dict(item) for item in resource_references.get("skipped_references", [])]
+        for resource in resource_references.get("references", []):
+            if len(references) == 9:
+                skipped.append({
+                    "kind": resource["kind"], "source_id": resource["source_id"],
+                    "source_name": resource["source_name"], "reason": "ORDINARY_REFERENCE_BUDGET",
+                })
+                continue
+            references.append({**resource, "slot": len(references) + 1})
+        manifest["skipped_references"] = skipped
+    return manifest
 
 
 def compile_generate_clip(
@@ -313,6 +325,7 @@ def compile_generate_clip(
     plan: dict,
     clip: dict,
     clip_plan_revision: int,
+    resource_references: dict | None = None,
 ) -> dict:
     """Compile one already-selected semantic Clip without performing I/O."""
     if not isinstance(clip, dict):
@@ -341,7 +354,7 @@ def compile_generate_clip(
     if not readiness["ready"]:
         raise ClipExecutionCompileError(readiness["message"], detail=readiness)
 
-    manifest = project_canonical_visual_references(shot, plan, clip)
+    manifest = project_canonical_visual_references(shot, plan, clip, resource_references=resource_references)
 
     contract = {
         "version": 1,
@@ -368,6 +381,7 @@ def compile_extend_clip(
     clip: dict,
     clip_plan_revision: int,
     previous_provenance: dict | None,
+    resource_references: dict | None = None,
 ) -> dict:
     """Compile an EXTEND Clip while keeping all physical resolution outside the compiler."""
     if not isinstance(clip, dict) or clip.get("capability") != "EXTEND":
@@ -396,7 +410,7 @@ def compile_extend_clip(
 
     # Reuse the proven visual projection.  It remains a logical manifest and
     # never resolves or uploads the resulting local paths.
-    compiled = compile_generate_clip(shot, plan, clip, revision)
+    compiled = compile_generate_clip(shot, plan, clip, revision, resource_references)
     contract = dict(compiled["execution_contract"])
     contract["capability"] = "EXTEND"
     contract["artifact_kind"] = "NATIVE_CONTINUITY_OUTPUT"
@@ -421,6 +435,7 @@ def compile_temporal_extend_clip(
     clip_plan_revision: int,
     previous_provenance: dict | None,
     temporal_anchors: list[dict],
+    resource_references: dict | None = None,
 ) -> dict:
     """Compile a semantic TEMPORAL_EXTEND Clip using pre-resolved pure inputs."""
     if not isinstance(clip, dict) or clip.get("capability") != "TEMPORAL_EXTEND":
@@ -463,7 +478,7 @@ def compile_temporal_extend_clip(
                 "duration_seconds": _number(clip.get("end_time"), "end_time") - _number(clip.get("start_time"), "start_time"),
             },
         },
-        "video_reference_manifest": project_canonical_visual_references(shot, plan, clip, temporal_anchors),
+        "video_reference_manifest": project_canonical_visual_references(shot, plan, clip, temporal_anchors, resource_references),
     }
     temporal_manifest = project_temporal_anchor_positions(
         temporal_anchors, float(compiled["execution_contract"]["clip"]["duration_seconds"]),
