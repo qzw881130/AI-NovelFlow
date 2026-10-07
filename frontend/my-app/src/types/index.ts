@@ -2,6 +2,7 @@ import type {
   VideoDirectorPlan as ApiVideoDirectorPlan,
   VideoMode as ApiVideoMode,
 } from '../api/shots';
+import type { Task as ApiTask } from '../api/tasks';
 
 // 支持的 LLM 厂商
 export type LLMProvider = 'deepseek' | 'openai' | 'gemini' | 'anthropic' | 'azure' | 'aliyun-bailian' | 'ollama' | 'custom';
@@ -294,6 +295,7 @@ export interface ClipExecutionMetadata {
   approval_mode?: string;
   previous_approved_task_id?: string | null;
   previous_approved_video_url?: string | null;
+  execution_contract?: NonNullable<ApiTask['clipExecution']>['execution_contract'];
   temporal_anchor_ids?: string[];
   dialogue_assignment?: Array<{
     dialogue_id: string;
@@ -317,6 +319,7 @@ export interface Task {
   resultUrl?: string;
   errorMessage?: string;
   workflowId?: string;
+  comfyuiError?: ApiTask['comfyuiError'];
   workflowName?: string;
   workflowIsSystem?: boolean;
   hasWorkflowJson?: boolean;

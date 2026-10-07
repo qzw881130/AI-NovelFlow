@@ -15,6 +15,7 @@ from app.models.task import Task
 from app.models.workflow import Workflow
 from app.repositories import TaskRepository, WorkflowRepository, PropRepository
 from app.services.comfyui import ComfyUIService
+from app.services.comfyui.errors import persist_task_comfyui_error
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import build_prop_prompt, get_style
 from app.services.background_workers import (
@@ -320,6 +321,7 @@ class PropService:
                 task.comfyui_prompt_id = result["prompt_id"]
 
             ensure_task_active(db, task)
+            persist_task_comfyui_error(task, result)
             if result.get("success"):
                 image_url = result.get("image_url")
 

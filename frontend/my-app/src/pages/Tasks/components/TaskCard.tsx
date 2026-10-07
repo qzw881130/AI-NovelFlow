@@ -86,7 +86,61 @@ export function TaskCard({
   const elapsedSeconds = getElapsedSeconds();
   const videoDirectorClips = task.videoDirectorClips || [];
   const hasMultiClipDetails = videoDirectorClips.length > 0;
+  const previousClip = task.clipExecution?.execution_contract?.previous_clip;
+  const previousVideoUrl = task.clipExecution?.previous_approved_video_url || previousClip?.result_url;
+  const previousVideoLabel = previousClip?.clip_index != null
+    ? `Previous AV · C${previousClip.clip_index}`
+    : 'Previous AV';
+  const temporalAnchors = (task.clipExecution?.execution_contract?.temporal_anchor_manifest?.anchors || [])
+    .filter(anchor => !!anchor.image_url);
+  const temporalAnchorImages = temporalAnchors.map(anchor => {
+    const source = anchor.source?.keyframe_index != null
+      ? `KF${anchor.source.keyframe_index}`
+      : anchor.source?.id || anchor.anchor_id;
+    const label = [
+      source,
+      anchor.slot != null ? t('tasks.temporalSlot', { slot: anchor.slot }) : undefined,
+      anchor.frame_position != null ? t('tasks.framePosition', { frame: anchor.frame_position }) : undefined,
+    ].filter(Boolean).join(' · ');
+    return { label, url: anchor.image_url! };
+  });
+  const isVideoTask = task.type.includes('video');
+  const ordinaryReferenceLabel = (label?: string) => {
+    if (!isVideoTask) return label;
+    // This persisted label identifies an ordinary Picture slot, not a KF index.
+    const directorSlot = label?.match(/^Director Visual Ref (\d+)$/);
+    return directorSlot ? `Director Visual Anchor / Picture ${directorSlot[1]}` : label;
+  };
   const displayErrorMessage = formatUserFacingError(task.errorMessage) || task.errorMessage;
+  const comfyError = task.comfyuiError;
+  const comfyErrorTitles: Record<string, string> = {
+    COMFYUI_CONFIG_NOT_INITIALIZED: t('tasks.comfyConfigNotInitialized'),
+    COMFYUI_CONFIG_MISMATCH: t('tasks.comfyConfigMismatch'),
+    COMFYUI_CONNECTION_FAILED: t('tasks.comfyConnectionFailed'),
+    COMFYUI_UPLOAD_FAILED: t('tasks.comfyUploadFailed'),
+    COMFYUI_HTTP_ERROR: t('tasks.comfyHttpError'),
+    COMFYUI_PROMPT_SUBMIT_FAILED: t('tasks.comfySubmitFailed'),
+    COMFYUI_EXECUTION_FAILED: t('tasks.comfyExecutionFailed'),
+  };
+  const comfyStages: Record<string, string> = {
+    PREVIOUS_AV_UPLOAD: t('tasks.comfyPreviousUpload'),
+    ORDINARY_REFERENCE_UPLOAD: t('tasks.comfyReferenceUpload'),
+    TEMPORAL_ANCHOR_UPLOAD: t('tasks.comfyAnchorUpload'),
+    START_IMAGE_UPLOAD: t('tasks.comfyStartUpload'),
+    END_IMAGE_UPLOAD: t('tasks.comfyEndUpload'),
+    IMAGE_UPLOAD: t('tasks.comfyImageUpload'),
+    ASSET_UPLOAD: t('tasks.comfyAssetUpload'),
+    PROMPT_SUBMIT: t('tasks.comfyPromptSubmit'),
+    EXECUTION_STATUS: t('tasks.comfyExecutionStatus'),
+  };
+  const comfyEndpointHost = (() => {
+    try { return comfyError?.effective_url ? new URL(comfyError.effective_url).host : ''; }
+    catch { return ''; }
+  })();
+  const comfyErrorSummary = comfyError?.error_code === 'COMFYUI_CONFIG_NOT_INITIALIZED'
+    ? t('tasks.comfyConfigRequired')
+    : comfyError ? [comfyEndpointHost, comfyError.underlying_error.slice(0, 120),
+      t('tasks.comfyAttempts', { count: comfyError.attempts })].filter(Boolean).join(' · ') : '';
   const copyTaskId = async () => {
     try {
       await navigator.clipboard.writeText(task.id);
@@ -159,7 +213,32 @@ export function TaskCard({
               </div>
             </div>
           )}
-          {task.status === 'failed' && displayErrorMessage && (
+          {task.status === 'failed' && comfyError && (
+            <div className="mt-2 p-2 bg-red-100 rounded text-xs text-red-700" data-comfyui-error>
+              <button type="button" className="flex w-full items-start gap-2 text-left" onClick={() => onToggleError(task.id)} aria-expanded={expandedErrors.has(task.id)}>
+                <Terminal className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span className="flex-1 min-w-0">
+                  <span className="block font-medium">{comfyErrorTitles[comfyError.error_code] || comfyError.error_code}{comfyStages[comfyError.stage] ? ` · ${comfyStages[comfyError.stage]}` : ''}</span>
+                  <span className="block mt-1 break-words">{comfyErrorSummary}</span>
+                </span>
+                {expandedErrors.has(task.id) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+              {expandedErrors.has(task.id) && (
+                <dl className="mt-2 p-2 bg-red-50 rounded border border-red-200 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 break-all" data-comfyui-error-details>
+                  {[
+                    ['Error Code', comfyError.error_code], ['Stage', comfyError.stage],
+                    ...(comfyError.configured_url ? [['Configured Endpoint', comfyError.configured_url]] : []),
+                    ['Effective Endpoint', comfyError.effective_url || '—'],
+                    ['Underlying Error', comfyError.underlying_error],
+                    ['HTTP Status', comfyError.http_status ?? '—'], ['Attempts', comfyError.attempts],
+                    ['Prompt Submitted', comfyError.prompt_submitted ? t('tasks.comfyYes') : t('tasks.comfyNo')],
+                    ...(comfyError.proxy ? [['Proxy', comfyError.proxy]] : []),
+                  ].map(([label, value]) => <div key={String(label)} className="contents"><dt className="font-medium">{label}</dt><dd>{value}</dd></div>)}
+                </dl>
+              )}
+            </div>
+          )}
+          {task.status === 'failed' && !comfyError && displayErrorMessage && (
             <div className="mt-2">
               <div
                 className="p-2 bg-red-100 rounded text-xs text-red-700 flex items-start gap-2 cursor-pointer hover:bg-red-200 transition-colors"
@@ -187,53 +266,85 @@ export function TaskCard({
               )}
             </div>
           )}
-          {(!!task.referenceImages?.length || task.clipExecution?.previous_approved_video_url) && (
-            <div className="mt-3">
-              <div className="text-xs text-gray-500 mb-1">
-                {task.referenceImages?.length ? t('tasks.referenceImages') : t('tasks.referenceVideo')}
+          {(!!task.referenceImages?.length || previousVideoUrl || temporalAnchors.length > 0) && (
+            <div className="mt-3 space-y-2" data-generation-inputs>
+              <div className="text-xs font-medium text-gray-600">
+                {isVideoTask ? t('tasks.generationInputs') : t('tasks.referenceImages')}
               </div>
-              <div className="flex flex-wrap gap-2">
-                {(task.referenceImages || []).map((image, index) => (
-                  <button
-                    key={`${image.url}-${index}`}
-                    type="button"
-                    onClick={() => onPreviewImages(task.referenceImages || [], index)}
-                    className="group relative h-16 w-24 overflow-hidden rounded-md border border-gray-200 bg-white hover:shadow-md transition-shadow"
-                    title={image.label || t('tasks.referenceImage')}
-                  >
-                    <img
-                      src={image.url}
-                      alt={image.label || t('tasks.referenceImage')}
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).className = 'hidden';
-                      }}
-                    />
-                    {image.label && (
-                      <span className="absolute bottom-0 left-0 right-0 truncate bg-black/55 px-1 py-0.5 text-[10px] text-white">
-                        {image.label}
-                      </span>
-                    )}
-                    <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                  </button>
-                ))}
-                {task.clipExecution?.previous_approved_video_url && (
+              {previousVideoUrl && (
+                <div data-input-kind="previous-av">
+                  <div className="text-xs text-gray-500 mb-1">{t('tasks.referenceVideo')}</div>
                   <button
                     type="button"
-                    onClick={() => onPreviewVideo(task.clipExecution!.previous_approved_video_url!)}
+                    onClick={() => onPreviewVideo(previousVideoUrl)}
                     className="group relative h-16 w-24 overflow-hidden rounded-md border border-gray-200 bg-black"
-                    title={t('tasks.referenceVideo')}
+                    title={previousVideoLabel}
                   >
-                    <video src={task.clipExecution.previous_approved_video_url} muted preload="metadata" className="h-full w-full object-cover" />
+                    <video src={previousVideoUrl} muted preload="metadata" className="h-full w-full object-cover" />
                     <span className="absolute inset-0 flex items-center justify-center bg-black/15 text-white opacity-0 transition-opacity group-hover:opacity-100">
                       <Play className="h-5 w-5 fill-current" />
                     </span>
                     <span className="absolute bottom-0 left-0 right-0 truncate bg-black/55 px-1 py-0.5 text-[10px] text-white">
-                      {t('tasks.referenceVideo')}
+                      {previousVideoLabel}
                     </span>
                   </button>
-                )}
-              </div>
+                </div>
+              )}
+              {!!task.referenceImages?.length && (
+                <div data-input-kind="ordinary-image">
+                  {isVideoTask && <div className="text-xs text-gray-500 mb-1">{t('tasks.ordinaryImageReferences')}</div>}
+                  <div className="flex flex-wrap gap-2">
+                    {task.referenceImages.map((image, index) => (
+                      <button
+                        key={`${image.url}-${index}`}
+                        type="button"
+                        onClick={() => onPreviewImages(task.referenceImages || [], index)}
+                        className={isVideoTask
+                          ? 'group relative w-36 overflow-hidden rounded-md border border-gray-200 bg-white text-left hover:shadow-md transition-shadow'
+                          : 'group relative h-16 w-24 overflow-hidden rounded-md border border-gray-200 bg-white hover:shadow-md transition-shadow'}
+                        title={ordinaryReferenceLabel(image.label) || t('tasks.referenceImage')}
+                      >
+                        <img
+                          src={image.url}
+                          alt={ordinaryReferenceLabel(image.label) || t('tasks.referenceImage')}
+                          className={isVideoTask ? 'h-20 w-full object-cover' : 'h-full w-full object-cover'}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).className = 'hidden';
+                          }}
+                        />
+                        {image.label && (
+                          <span className={isVideoTask ? 'block px-1 py-1 text-[10px] text-gray-700'
+                            : 'absolute bottom-0 left-0 right-0 truncate bg-black/55 px-1 py-0.5 text-[10px] text-white'}>
+                            {ordinaryReferenceLabel(image.label)}
+                          </span>
+                        )}
+                        <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {temporalAnchorImages.length > 0 && (
+                <div data-input-kind="temporal-anchor">
+                  <div className="text-xs text-gray-500 mb-1">{t('tasks.temporalAnchors')}</div>
+                  <div className="flex flex-wrap gap-2">
+                    {temporalAnchorImages.map((image, index) => (
+                      <button
+                        key={`${image.url}-${index}`}
+                        type="button"
+                        onClick={() => onPreviewImages(temporalAnchorImages, index)}
+                        className="group w-36 overflow-hidden rounded-md border border-gray-200 bg-white text-left hover:shadow-md transition-shadow"
+                        title={image.label}
+                      >
+                        <img src={image.url} alt={image.label} className="h-20 w-full object-cover" />
+                        <span className="block px-1 py-1 text-[10px] text-gray-700">
+                          {image.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
           {hasMultiClipDetails && (

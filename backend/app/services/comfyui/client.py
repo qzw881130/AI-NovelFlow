@@ -9,23 +9,69 @@ import httpx
 import uuid
 import asyncio
 from typing import Dict, Any, Optional, List
+from .errors import error_payload, http_error_detail, underlying_exception, safe_error
 
 
 class ComfyUIClient:
     """ComfyUI HTTP 客户端"""
     
-    def __init__(self):
+    def __init__(self, *, runtime_mode: str = "product", base_url: str = None):
+        if runtime_mode not in {"product", "standalone"}:
+            raise ValueError("ComfyUI runtime_mode must be product or standalone")
+        if base_url is not None and runtime_mode != "standalone":
+            raise ValueError("Product ComfyUI endpoint must come from canonical configuration")
         self.client_id = str(uuid.uuid4())
+        self.runtime_mode = runtime_mode
+        from app.core.config import Settings
+        self._standalone_url = (base_url or Settings().COMFYUI_HOST) if runtime_mode == "standalone" else None
+        self._config_load_error = None
+
+    @classmethod
+    def for_product_runtime(cls, db=None):
+        """Use the same read-only config loader as backend/independent workers."""
+        from app.core.config import initialize_product_comfyui_config
+        client = cls(runtime_mode="product")
+        try:
+            initialize_product_comfyui_config(db)
+        except Exception as exc:
+            client._config_load_error = f"Product ComfyUI runtime configuration could not be loaded ({type(exc).__name__})"
+        return client
     
     @property
     def base_url(self) -> str:
         """动态获取当前的 ComfyUI 主机地址"""
         from app.core.config import get_settings
-        return get_settings().COMFYUI_HOST
+        return (self._standalone_url or get_settings().COMFYUI_HOST).rstrip("/")
+
+    def _error(self, code, stage, cause, *, status=None, attempts=0, prompt_submitted=False):
+        from app.core.config import comfyui_runtime_configuration
+        configured = comfyui_runtime_configuration()["configured_url"] if self.runtime_mode == "product" else self.base_url
+        return error_payload(code, stage, self.base_url, cause, http_status=status,
+                             attempts=attempts, prompt_submitted=prompt_submitted, configured_url=configured)
+
+    def _configuration_failure(self, stage, *, prompt_submitted=False):
+        from app.core.config import comfyui_runtime_configuration
+        if self.runtime_mode == "standalone":
+            return None
+        config = comfyui_runtime_configuration()
+        # A module-level service may predate startup on a new deployment.
+        # A later successful canonical initialization resolves that earlier issue.
+        cause = self._config_load_error if not config["initialized"] else None
+        if not cause and not config["initialized"]:
+            cause = "Product task did not load ComfyUI runtime configuration"
+        if not cause and config["configured_url"] != self.base_url:
+            cause = "Configured ComfyUI endpoint does not match effective runtime endpoint"
+        if not cause:
+            return None
+        code = "COMFYUI_CONFIG_MISMATCH" if config["initialized"] and config["configured_url"] != self.base_url else "COMFYUI_CONFIG_NOT_INITIALIZED"
+        error = self._error(code, stage, cause, prompt_submitted=prompt_submitted)
+        return {"success": False, "message": cause, "error": cause, "comfyui_error": error}
 
     def _client(self) -> httpx.AsyncClient:
-        # ComfyUI runs on the local network; bypass env proxies to avoid proxy 502s.
-        return httpx.AsyncClient(trust_env=False)
+        failure = self._configuration_failure("HTTP_TRANSPORT")
+        if failure:
+            raise RuntimeError(failure["comfyui_error"]["error_code"])
+        return httpx.AsyncClient()
     
     # ==================== 健康检查 ====================
     
@@ -43,161 +89,112 @@ class ComfyUIClient:
     
     # ==================== 文件上传 ====================
     
-    async def upload_image(self, image_path: str) -> Dict[str, Any]:
-        """
-        上传图片到 ComfyUI
+    async def _upload_asset(self, asset_path: str, mime_type: str, timeout: float,
+                            label: str) -> Dict[str, Any]:
+        """Retry only this idempotent input-file upload, never workflow submission."""
+        import os
+        import ssl
 
-        Args:
-            image_path: 本地图片路径
+        config_failure = self._configuration_failure("ASSET_UPLOAD")
+        if config_failure:
+            return {**config_failure, "upload_attempts": 0, "upload_retries": 0}
 
-        Returns:
-            {
-                "success": bool,
-                "filename": str,  # ComfyUI 中的文件名
-                "message": str
-             }
-        """
+        retry_statuses = {408, 429, 500, 502, 503, 504}
+        delays = (2, 4, 8)
+        max_attempts = 4
+        attempts = 0
+        filename = os.path.basename(asset_path)
+
+        def record(error, next_delay, outcome, status=None):
+            print("[ComfyUI asset upload] " + json.dumps({
+                "asset": filename, "attempt": attempts, "max_attempts": max_attempts,
+                "http_status": status, "error": error, "next_delay": next_delay,
+                "outcome": outcome,
+            }, ensure_ascii=False))
+
+        def failure(message, code="COMFYUI_UPLOAD_FAILED", cause=None, status=None):
+            return {"success": False, "message": message,
+                    "upload_attempts": attempts, "upload_retries": max(0, attempts - 1),
+                    "comfyui_error": self._error(code, "ASSET_UPLOAD", cause or message, status=status, attempts=attempts)}
+
         try:
-            import os
-            from pathlib import Path
-
-            if not os.path.exists(image_path):
-                return {
-                    "success": False,
-                    "message": f"图片文件不存在: {image_path}"
-                }
-
-            filename = os.path.basename(image_path)
-
+            if not os.path.exists(asset_path):
+                return failure(f"{label}文件不存在: {asset_path}")
+            endpoint = f"{self.base_url}/upload/image"
             async with self._client() as client:
-                with open(image_path, 'rb') as f:
-                    files = {'image': (filename, f, 'image/png')}
-                    data = {'type': 'input', 'overwrite': 'true'}
+                for attempt in range(1, max_attempts + 1):
+                    status = None
+                    try:
+                        # Each attempt starts at byte zero and closes its own file.
+                        with open(asset_path, "rb") as file:
+                            attempts = attempt
+                            response = await client.post(
+                                endpoint, files={"image": (filename, file, mime_type)},
+                                data={"type": "input", "overwrite": "true"}, timeout=timeout,
+                            )
+                        status = response.status_code
+                        if status == 200:
+                            result = response.json()
+                            record(None, None, "recovered" if attempt > 1 else "success", status)
+                            return {"success": True,
+                                    "filename": result.get("name") or result.get("filename") or filename,
+                                    "message": "上传成功", "upload_attempts": attempts,
+                                    "upload_retries": attempts - 1}
+                        detail = http_error_detail(response)
+                        error = f"HTTP {status}: {detail}"
+                        code = "COMFYUI_CONNECTION_FAILED" if "connection refused" in detail.lower() else "COMFYUI_HTTP_ERROR"
+                        retryable = status in retry_statuses
+                    except (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError) as exc:
+                        detail = underlying_exception(exc)
+                        error = f"{type(exc).__name__}: {detail}"
+                        code = "COMFYUI_CONNECTION_FAILED"
+                        # TLS certificate/configuration errors are not temporary disconnects.
+                        cause = exc
+                        certificate_error = False
+                        seen = set()
+                        while cause is not None and id(cause) not in seen:
+                            seen.add(id(cause))
+                            if isinstance(cause, ssl.SSLCertVerificationError):
+                                certificate_error = True
+                                break
+                            cause = cause.__cause__
+                        retryable = not certificate_error and not any(
+                            text in str(exc).lower() for text in (
+                                "certificate verify failed", "certificate_verify_failed", "hostname mismatch",
+                                "name or service not known", "nodename nor servname provided",
+                            )
+                        )
+                    delay = delays[attempt - 1] if retryable and attempt < max_attempts else None
+                    record(error, delay, "retrying" if delay is not None else
+                           "exhausted" if retryable else "non_retryable", status)
+                    if delay is None:
+                        return failure(f"{label}上传失败 ({error})", code, detail, status)
+                    await asyncio.sleep(delay)
+        except Exception as exc:
+            detail = underlying_exception(exc)
+            record(f"{type(exc).__name__}: {detail}", None, "non_retryable")
+            return failure(f"{label}上传失败: {detail}", cause=detail)
 
-                    response = await client.post(
-                        f"{self.base_url}/upload/image",
-                        files=files,
-                        data=data,
-                        timeout=30.0
-                    )
-
-                if response.status_code == 200:
-                    result = response.json()
-                    return {
-                        "success": True,
-                        "filename": result.get('name', filename),
-                        "message": "上传成功"
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "message": f"上传失败: {response.text}"
-                    }
-
-        except Exception as e:
-            return {
-                "success": False,
-                "message": f"上传图片失败: {str(e)}"
-            }
+    async def upload_image(self, image_path: str) -> Dict[str, Any]:
+        return await self._upload_asset(image_path, "image/png", 30.0, "图片")
 
     async def upload_video(self, video_path: str) -> Dict[str, Any]:
-        """Upload a local video to ComfyUI input storage."""
-        try:
-            import os
-            if not os.path.exists(video_path):
-                return {"success": False, "message": f"视频文件不存在: {video_path}"}
-            filename = os.path.basename(video_path)
-            async with self._client() as client:
-                with open(video_path, "rb") as file:
-                    # ComfyUI's upload API accepts video files through the
-                    # same /upload/image endpoint used by its UI.
-                    response = await client.post(
-                        f"{self.base_url}/upload/image",
-                        files={"image": (filename, file, "video/mp4")},
-                        data={"type": "input", "overwrite": "true"},
-                        timeout=120.0,
-                    )
-                if response.status_code == 200:
-                    data = response.json()
-                    return {"success": True, "filename": data.get("name") or data.get("filename") or filename}
-                return {"success": False, "message": f"视频上传失败 (HTTP {response.status_code}): {response.text}"}
-        except Exception as exc:
-            return {"success": False, "message": f"视频上传失败: {exc}"}
+        return await self._upload_asset(video_path, "video/mp4", 120.0, "视频")
 
     async def upload_audio(self, audio_path: str) -> Dict[str, Any]:
-        """
-        上传音频到 ComfyUI
+        import os
+        mime_types = {".flac": "audio/flac", ".wav": "audio/wav", ".mp3": "audio/mpeg",
+                      ".ogg": "audio/ogg", ".m4a": "audio/mp4", ".aac": "audio/aac"}
+        mime_type = mime_types.get(os.path.splitext(audio_path)[1].lower(), "audio/flac")
+        return await self._upload_asset(audio_path, mime_type, 60.0, "音频")
 
-        Args:
-            audio_path: 本地音频文件路径
-
-        Returns:
-            {
-                "success": bool,
-                "filename": str,  # ComfyUI 中的文件名
-                "message": str
-            }
-        """
-        try:
-            import os
-            from pathlib import Path
-
-            if not os.path.exists(audio_path):
-                return {
-                    "success": False,
-                    "message": f"音频文件不存在: {audio_path}"
-                }
-
-            filename = os.path.basename(audio_path)
-
-            # 根据文件扩展名确定 MIME 类型
-            ext = os.path.splitext(filename)[1].lower()
-            mime_types = {
-                '.flac': 'audio/flac',
-                '.wav': 'audio/wav',
-                '.mp3': 'audio/mpeg',
-                '.ogg': 'audio/ogg',
-                '.m4a': 'audio/mp4',
-                '.aac': 'audio/aac'
-            }
-            mime_type = mime_types.get(ext, 'audio/flac')
-
-            async with self._client() as client:
-                with open(audio_path, 'rb') as f:
-                    # ComfyUI 使用 /upload/image 端点上传所有文件类型
-                    files = {'image': (filename, f, mime_type)}
-                    data = {'type': 'input', 'overwrite': 'true'}
-
-                    response = await client.post(
-                        f"{self.base_url}/upload/image",
-                        files=files,
-                        data=data,
-                        timeout=60.0
-                    )
-
-                if response.status_code == 200:
-                    result = response.json()
-                    return {
-                        "success": True,
-                        "filename": result.get('name', filename),
-                        "message": "上传成功"
-                    }
-                else:
-                    return {
-                        "success": False,
-                        "message": f"上传失败: {response.status_code}: {response.text}"
-                    }
-
-        except Exception as e:
-            return {
-                "success": False,
-                "message": f"上传音频失败: {str(e)}"
-            }
-    
     # ==================== 任务提交 ====================
     
     async def queue_prompt(self, workflow: Dict[str, Any]) -> Dict[str, Any]:
         """提交任务到 ComfyUI"""
+        failure = self._configuration_failure("PROMPT_SUBMIT")
+        if failure:
+            return failure
         try:
             async with self._client() as client:
                 response = await client.post(
@@ -216,27 +213,22 @@ class ComfyUIClient:
                         "prompt_id": data.get("prompt_id")
                     }
                 else:
-                    error_text = response.text
-                    try:
-                        error_data = response.json()
-                        if "error" in error_data:
-                            error_text = error_data["error"]
-                        elif "detail" in error_data:
-                            error_text = str(error_data["detail"])
-                    except:
-                        pass
-                    
+                    error_text = http_error_detail(response)
                     print(f"Queue prompt failed: {response.status_code} - {error_text}")
                     return {
                         "success": False,
-                        "error": f"ComfyUI 错误 (HTTP {response.status_code}): {error_text}"
+                        "error": f"ComfyUI 错误 (HTTP {response.status_code}): {safe_error(error_text)}",
+                        "comfyui_error": self._error("COMFYUI_PROMPT_SUBMIT_FAILED", "PROMPT_SUBMIT", error_text,
+                                                    status=response.status_code, attempts=1),
                     }
                     
         except Exception as e:
-            print(f"Queue prompt error: {e}")
+            print(f"Queue prompt error: {underlying_exception(e)}")
             return {
                 "success": False,
-                "error": f"连接 ComfyUI 失败: {str(e)}"
+                "error": f"连接 ComfyUI 失败: {underlying_exception(e)}",
+                "comfyui_error": self._error("COMFYUI_CONNECTION_FAILED" if isinstance(e, httpx.TransportError) else "COMFYUI_PROMPT_SUBMIT_FAILED",
+                                            "PROMPT_SUBMIT", underlying_exception(e), attempts=1),
             }
     
     # ==================== 结果等待 ====================
@@ -258,25 +250,39 @@ class ComfyUIClient:
             save_image_node_id: 配置的 SaveImage 节点 ID，优先使用
         """
         print(f"ComfyUI Waiting for result: prompt_id={prompt_id}, workflow_json:\n{json.dumps(workflow, indent=2, ensure_ascii=True)}")
+        config_failure = self._configuration_failure("EXECUTION_STATUS", prompt_submitted=bool(prompt_id))
+        if config_failure:
+            return config_failure
+        poll_attempts = 0
+        last_transport_error = None
+
+        def execution_failure(message):
+            error = last_transport_error or self._error("COMFYUI_EXECUTION_FAILED", "EXECUTION_STATUS", message,
+                                                        attempts=poll_attempts, prompt_submitted=bool(prompt_id))
+            return {"success": False, "message": message, "comfyui_error": error}
+
         start_time = asyncio.get_event_loop().time()
         missing_from_queue_since = None
 
         while True:
             elapsed = asyncio.get_event_loop().time() - start_time
             if elapsed > timeout:
-                return {
-                    "success": False,
-                    "message": f"任务超时 ({timeout}s)"
-                }
+                return execution_failure(f"任务超时 ({timeout}s)")
 
             try:
                 async with self._client() as client:
+                    poll_attempts += 1
                     response = await client.get(
                         f"{self.base_url}/history/{prompt_id}",
                         timeout=10.0
                     )
 
-                    if response.status_code == 200:
+                    if response.status_code != 200:
+                        last_transport_error = self._error("COMFYUI_HTTP_ERROR", "EXECUTION_STATUS", http_error_detail(response),
+                                                           status=response.status_code, attempts=poll_attempts,
+                                                           prompt_submitted=bool(prompt_id))
+                    else:
+                        last_transport_error = None
                         history = response.json()
 
                         if prompt_id in history:
@@ -294,23 +300,14 @@ class ComfyUIClient:
                                     return result
 
                                 if self._is_completed_status(status):
-                                    return {
-                                        "success": False,
-                                        "message": "ComfyUI 任务已完成，但未找到可保存的图片或视频输出。请检查保存节点映射和工作流输出。"
-                                    }
+                                    return execution_failure("ComfyUI 任务已完成，但未找到可保存的图片或视频输出。请检查保存节点映射和工作流输出。")
 
                             # 检查是否有错误
                             if status.get("status_str") == "error":
-                                return {
-                                    "success": False,
-                                    "message": self._extract_status_error(status)
-                                }
+                                return execution_failure(self._extract_status_error(status))
 
                             if self._is_completed_status(status):
-                                return {
-                                    "success": False,
-                                    "message": "ComfyUI 任务已完成，但 history 中没有输出结果。请检查工作流保存节点。"
-                                }
+                                return execution_failure("ComfyUI 任务已完成，但 history 中没有输出结果。请检查工作流保存节点。")
                         else:
                             queue_info = await self.get_queue_info()
                             if self._queue_contains_prompt(queue_info, prompt_id):
@@ -319,15 +316,15 @@ class ComfyUIClient:
                                 if missing_from_queue_since is None:
                                     missing_from_queue_since = elapsed
                                 elif elapsed - missing_from_queue_since >= 30:
-                                    return {
-                                        "success": False,
-                                        "message": "ComfyUI 中已找不到该任务，且未产生 history 结果。任务可能被清理、取消或 ComfyUI 异常退出。"
-                                    }
+                                    return execution_failure("ComfyUI 中已找不到该任务，且未产生 history 结果。任务可能被清理、取消或 ComfyUI 异常退出。")
 
                     await asyncio.sleep(poll_interval)
 
             except Exception as e:
-                print(f"Wait for result error: {e}")
+                last_transport_error = self._error("COMFYUI_CONNECTION_FAILED" if isinstance(e, httpx.TransportError) else "COMFYUI_EXECUTION_FAILED",
+                                                   "EXECUTION_STATUS", underlying_exception(e), attempts=poll_attempts,
+                                                   prompt_submitted=bool(prompt_id))
+                print(f"Wait for result error: {underlying_exception(e)}")
                 await asyncio.sleep(poll_interval)
 
     async def wait_for_audio_result(
@@ -347,25 +344,39 @@ class ComfyUIClient:
             timeout: 超时时间（秒）
             poll_interval: 轮询间隔（秒）
         """
+        config_failure = self._configuration_failure("EXECUTION_STATUS", prompt_submitted=bool(prompt_id))
+        if config_failure:
+            return config_failure
+        poll_attempts = 0
+        last_transport_error = None
+
+        def execution_failure(message):
+            error = last_transport_error or self._error("COMFYUI_EXECUTION_FAILED", "EXECUTION_STATUS", message,
+                                                        attempts=poll_attempts, prompt_submitted=bool(prompt_id))
+            return {"success": False, "message": message, "comfyui_error": error}
+
         start_time = asyncio.get_event_loop().time()
         missing_from_queue_since = None
 
         while True:
             elapsed = asyncio.get_event_loop().time() - start_time
             if elapsed > timeout:
-                return {
-                    "success": False,
-                    "message": f"任务超时 ({timeout}s)"
-                }
+                return execution_failure(f"任务超时 ({timeout}s)")
 
             try:
                 async with self._client() as client:
+                    poll_attempts += 1
                     response = await client.get(
                         f"{self.base_url}/history/{prompt_id}",
                         timeout=10.0
                     )
 
-                    if response.status_code == 200:
+                    if response.status_code != 200:
+                        last_transport_error = self._error("COMFYUI_HTTP_ERROR", "EXECUTION_STATUS", http_error_detail(response),
+                                                           status=response.status_code, attempts=poll_attempts,
+                                                           prompt_submitted=bool(prompt_id))
+                    else:
+                        last_transport_error = None
                         history = response.json()
 
                         if prompt_id in history:
@@ -382,23 +393,14 @@ class ComfyUIClient:
                                     return result
 
                                 if self._is_completed_status(status):
-                                    return {
-                                        "success": False,
-                                        "message": "ComfyUI 音频任务已完成，但未找到可保存的音频输出。请检查保存节点映射和工作流输出。"
-                                    }
+                                    return execution_failure("ComfyUI 音频任务已完成，但未找到可保存的音频输出。请检查保存节点映射和工作流输出。")
 
                             # 检查是否有错误
                             if status.get("status_str") == "error":
-                                return {
-                                    "success": False,
-                                    "message": self._extract_status_error(status)
-                                }
+                                return execution_failure(self._extract_status_error(status))
 
                             if self._is_completed_status(status):
-                                return {
-                                    "success": False,
-                                    "message": "ComfyUI 音频任务已完成，但 history 中没有输出结果。请检查工作流保存节点。"
-                                }
+                                return execution_failure("ComfyUI 音频任务已完成，但 history 中没有输出结果。请检查工作流保存节点。")
                         else:
                             queue_info = await self.get_queue_info()
                             if self._queue_contains_prompt(queue_info, prompt_id):
@@ -407,15 +409,15 @@ class ComfyUIClient:
                                 if missing_from_queue_since is None:
                                     missing_from_queue_since = elapsed
                                 elif elapsed - missing_from_queue_since >= 30:
-                                    return {
-                                        "success": False,
-                                        "message": "ComfyUI 中已找不到该音频任务，且未产生 history 结果。任务可能被清理、取消或 ComfyUI 异常退出。"
-                                    }
+                                    return execution_failure("ComfyUI 中已找不到该音频任务，且未产生 history 结果。任务可能被清理、取消或 ComfyUI 异常退出。")
 
                     await asyncio.sleep(poll_interval)
 
             except Exception as e:
-                print(f"Wait for audio result error: {e}")
+                last_transport_error = self._error("COMFYUI_CONNECTION_FAILED" if isinstance(e, httpx.TransportError) else "COMFYUI_EXECUTION_FAILED",
+                                                   "EXECUTION_STATUS", underlying_exception(e), attempts=poll_attempts,
+                                                   prompt_submitted=bool(prompt_id))
+                print(f"Wait for audio result error: {underlying_exception(e)}")
                 await asyncio.sleep(poll_interval)
     
     def _parse_outputs(
@@ -715,7 +717,10 @@ class ComfyUIClient:
 
             status = prompt_history.get("status", {})
             if status.get("status_str") == "error":
-                return {"state": "error", "message": self._extract_status_error(status)}
+                message = self._extract_status_error(status)
+                return {"state": "error", "message": message,
+                        "comfyui_error": self._error("COMFYUI_EXECUTION_FAILED", "EXECUTION_STATUS", message,
+                                                    attempts=1, prompt_submitted=True)}
             if self._is_completed_status(status):
                 return {"state": "completed", "history": prompt_history}
             return {"state": "history", "history": prompt_history}

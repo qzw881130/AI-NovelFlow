@@ -15,6 +15,7 @@ from app.models.task import Task
 from app.models.workflow import Workflow
 from app.core.database import SessionLocal
 from app.services.comfyui import ComfyUIService
+from app.services.comfyui.errors import persist_task_comfyui_error
 from app.services.file_storage import file_storage
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.repositories.shot_repository import ShotRepository
@@ -1466,6 +1467,7 @@ async def generate_shot_video_task(
 
         if not result.get("success"):
             task.status = "failed"
+            persist_task_comfyui_error(task, result)
             task.error_message = result.get("message", "生成失败")
             task.current_step = "生成失败"
             if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
@@ -1764,6 +1766,7 @@ async def _generate_multi_clip_video_task(
             db.commit()
         if not result.get("success") or not result.get("video_url"):
             task.status = "failed"
+            persist_task_comfyui_error(task, result)
             task.error_message = result.get("message") or "Clip 生成失败"
             task.current_step = f"Clip {clip_position} 生成失败"
             _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": task.error_message}, db, task=task)

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.task import Task
 from app.repositories import TaskRepository, WorkflowRepository
 from app.services.comfyui import ComfyUIService
+from app.services.comfyui.errors import persist_task_comfyui_error
 from app.services.file_storage import file_storage
 from app.utils.path_utils import url_to_local_path
 
@@ -96,6 +97,7 @@ class SingleImageEditService:
             on_prompt_queued=on_prompt_queued,
         )
         if not result.get("success") or not result.get("image_url"):
+            persist_task_comfyui_error(task, result)
             self._mark_failed(task, result.get("message", "编辑图片失败"))
             return {"success": False, "message": result.get("message", "编辑图片失败"), "status_code": 500, "task_id": task.id}
 

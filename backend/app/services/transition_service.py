@@ -13,6 +13,7 @@ from app.models.task import Task
 from app.models.workflow import Workflow
 from app.core.database import SessionLocal
 from app.services.comfyui import ComfyUIService
+from app.services.comfyui.errors import persist_task_comfyui_error
 from app.services.file_storage import file_storage
 from app.services.background_workers import persistent_job, worker_manager, ensure_task_active
 from app.utils.path_utils import local_path_to_url, url_to_local_path
@@ -250,6 +251,7 @@ async def generate_transition_video_task(
 
             print(f"[TransitionTask] Completed: {from_index}->{to_index}, video: {local_url}")
         else:
+            persist_task_comfyui_error(task, result)
             raise Exception(result.get("message", "生成失败"))
 
     except Exception as e:

@@ -17,6 +17,18 @@ export interface ClipPhysicalOutput {
   raw_context_output?: { physical_output_role?: string; output_node_id?: string; result_url?: string; source_video_url?: string };
 }
 
+export interface ComfyUIError {
+  error_code: string;
+  stage: string;
+  effective_url?: string | null;
+  configured_url?: string | null;
+  underlying_error: string;
+  http_status?: number | null;
+  attempts: number;
+  prompt_submitted: boolean;
+  proxy?: string | null;
+}
+
 export interface Task {
   id: string;
   type: string;
@@ -37,6 +49,7 @@ export interface Task {
   referenceImages?: Array<{ label?: string; url: string }>;
   parentTaskId?: string | null;
   errorMessage?: string | null;
+  comfyuiError?: ComfyUIError | null;
   completedAt?: string | null;
   currentStep?: string | null;
   canonicalImageProvenance?: import('./shots').CanonicalImageProvenance | null;

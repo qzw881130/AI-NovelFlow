@@ -242,7 +242,7 @@ async def test_native_missing_cannot_queue_without_sink_or_fallback_to_raw(db_se
 
 
 def test_strict_native_output_parsing_uses_node65_and_never_scans_raw39():
-    client = ComfyUIClient()
+    client = ComfyUIClient(runtime_mode="standalone")
     outputs = {
         "39": {"gifs": [{"filename": "generated.mp4", "subfolder": "probe", "type": "output"}]},
         "65": {"gifs": [{"filename": "cumulative.mp4", "subfolder": "probe", "type": "output"}]},
@@ -252,7 +252,7 @@ def test_strict_native_output_parsing_uses_node65_and_never_scans_raw39():
 
 
 def test_strict_native_output_parsing_fails_when_node65_missing_or_malformed():
-    client = ComfyUIClient()
+    client = ComfyUIClient(runtime_mode="standalone")
     raw_only = {"39": {"gifs": [{"filename": "generated.mp4"}]}}
     assert client._parse_outputs(raw_only, save_image_node_id="65", strict_output_node=True) is None
     malformed = {
@@ -263,7 +263,7 @@ def test_strict_native_output_parsing_fails_when_node65_missing_or_malformed():
 
 
 def test_non_strict_output_parsing_keeps_generic_fallback():
-    client = ComfyUIClient()
+    client = ComfyUIClient(runtime_mode="standalone")
     result = client._parse_outputs(
         {"65": {"gifs": [{"filename": "cumulative.mp4"}]}},
         save_image_node_id="39",

@@ -26,6 +26,7 @@ from app.models.prompt_template import PromptTemplate
 from app.repositories.shot_repository import ShotRepository
 from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.comfyui import ComfyUIService
+from app.services.comfyui.errors import persist_task_comfyui_error
 from app.services.llm_service import LLMService
 from app.services.file_storage import file_storage
 from app.services.background_workers import (
@@ -996,6 +997,7 @@ class ShotKeyframeService:
                             break
                         upload_result = await comfyui_service.client.upload_image(reference["path"])
                         if not upload_result.get("success"):
+                            persist_task_comfyui_error(task, upload_result)
                             raise ValueError(f"参考图上传失败: {upload_result.get('message')}")
                         node_id = load_nodes[index]
                         if node_id in submitted_workflow:
@@ -1062,6 +1064,7 @@ class ShotKeyframeService:
                     queue_result = await comfyui_service.client.queue_prompt(submitted_workflow)
 
                     if not queue_result.get("success"):
+                        persist_task_comfyui_error(task, queue_result)
                         raise ValueError(f"提交任务失败: {queue_result.get('error')}")
 
                     prompt_id = queue_result.get("prompt_id")
@@ -1159,6 +1162,7 @@ class ShotKeyframeService:
                 else:
                     raise ValueError("下载图片失败")
             else:
+                persist_task_comfyui_error(task, result)
                 raise ValueError(result.get("message", "图片生成失败"))
 
         except Exception as e:

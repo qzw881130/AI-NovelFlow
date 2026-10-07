@@ -14,6 +14,7 @@ from app.models.task import Task
 from app.models.workflow import Workflow
 from app.repositories import TaskRepository, WorkflowRepository, CharacterRepository
 from app.services.comfyui import ComfyUIService
+from app.services.comfyui.errors import persist_task_comfyui_error
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import build_character_prompt, get_style
 from app.services.background_workers import (
@@ -257,6 +258,7 @@ class CharacterService:
             print(f"[VoiceTask] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
             ensure_task_active(db, task)
+            persist_task_comfyui_error(task, result)
             if result.get("success"):
                 audio_url = result.get("audio_url")
 
@@ -534,6 +536,7 @@ class CharacterService:
             print(f"[Task] Generation result: {json.dumps(result, ensure_ascii=True)}")
 
             ensure_task_active(db, task)
+            persist_task_comfyui_error(task, result)
             if result.get("success"):
                 image_url = result.get("image_url")
 

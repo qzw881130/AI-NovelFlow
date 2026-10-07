@@ -16,6 +16,7 @@ from app.services.required_visual_state_images import (
 from app.models.workflow import Workflow
 from app.core.database import SessionLocal
 from app.services.comfyui import ComfyUIService
+from app.services.comfyui.errors import persist_task_comfyui_error
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import get_style
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
@@ -340,6 +341,7 @@ async def generate_shot_image_task(
             db.commit()
 
         if not result.get("success"):
+            persist_task_comfyui_error(task, result)
             _fail_shot_image_task(
                 db,
                 task,

@@ -29,6 +29,7 @@ from app.repositories.scene_repository import SceneRepository
 from app.repositories.prop_repository import PropRepository
 from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.comfyui import ComfyUIService
+from app.services.comfyui.errors import task_comfyui_error, persist_task_comfyui_error
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import (
@@ -512,6 +513,7 @@ class TaskService:
             clip_metadata["prompt_text"] = ""
             clip_metadata["approval_status"] = "GENERATING"
             clip_metadata.pop("actual_duration", None)
+            clip_metadata.pop("comfyui_error", None)
             task.status = "pending"
             task.progress = 0
             task.current_step = "等待重新处理同一 Clip"
@@ -569,6 +571,9 @@ class TaskService:
         task.comfyui_prompt_id = None
         task.workflow_json = None
         task.seed = None
+        if "comfyui_error" in clip_metadata:
+            clip_metadata.pop("comfyui_error")
+            task.metadata_json = json.dumps(clip_metadata, ensure_ascii=False)
         db.commit()
 
         # 根据任务类型重新执行
@@ -861,6 +866,7 @@ class TaskService:
 
                 if state == "error":
                     task.status = "failed"
+                    persist_task_comfyui_error(task, prompt_state)
                     task.error_message = prompt_state.get("message") or "ComfyUI 执行失败"
                     task.current_step = "生成失败"
                     mark_related_shot_failed()
@@ -1436,6 +1442,7 @@ class TaskService:
                 "resultUrl": t.result_url,
                 "clipExecution": clip_execution_metadata(t),
                 "errorMessage": t.error_message,
+                "comfyuiError": task_comfyui_error(t),
                 "canonicalImageProvenance": task_provenance(t),
                 "workflowId": t.workflow_id,
                 "workflowName": t.workflow_name,
@@ -1506,6 +1513,7 @@ class TaskService:
             "metadata": clip_metadata,
             "clipExecution": clip_execution,
             "errorMessage": task.error_message,
+            "comfyuiError": task_comfyui_error(task),
             "canonicalImageProvenance": task_provenance(task),
             "workflowId": task.workflow_id,
             "workflowName": task.workflow_name,
