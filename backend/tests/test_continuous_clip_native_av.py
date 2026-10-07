@@ -57,6 +57,9 @@ def persistence(db_session, tmp_path, monkeypatch):
     async def download(**_kwargs):
         path=tmp_path/'native.mp4';path.write_bytes(b'native');return str(path)
     monkeypatch.setattr(service.file_storage, "download_video", download)
+    async def preserve(**_kwargs):
+        return {"policy": "CONTINUATION_VIDEO_AUTHORITATIVE_STREAM_COPY"}
+    monkeypatch.setattr(service, "preserve_native_av", lambda *_args: preserve())
     return novel,chapter,shot,source_provenance
 
 
@@ -88,6 +91,7 @@ async def test_native_persistence_roles_provenance_and_metadata_round_trip(db_se
     metadata=json.loads(task.metadata_json);output=metadata['physical_output']
     assert task.status=='completed'
     assert metadata['execution_contract']==contract
+    assert metadata['native_av_mux']['policy']=='CONTINUATION_VIDEO_AUTHORITATIVE_STREAM_COPY'
     assert metadata['actual_duration'] is None and metadata['requested_duration']==8
     assert output['physical_output_role']==av.NATIVE_CONTINUITY_OUTPUT
     assert output['raw_context_output']['physical_output_role']=='RAW_CONTEXT_OUTPUT'
@@ -100,6 +104,40 @@ async def test_native_persistence_roles_provenance_and_metadata_round_trip(db_se
     assert persistence[2].video_url is None
     if capability=='TEMPORAL_EXTEND':
         assert contract['temporal_anchor_manifest']['anchors'][0]['frame_position']==234
+
+
+@pytest.mark.asyncio
+async def test_mux_failure_cannot_be_approved_or_bound(db_session,persistence,monkeypatch):
+    async def fail(*_args):
+        raise ValueError('NATIVE_AV_MUX_INPUT_UNAVAILABLE')
+    monkeypatch.setattr(service,'preserve_native_av',fail)
+    task,_=await persist_native(db_session,persistence,'TEMPORAL_EXTEND')
+    assert task.status=='failed' and task.result_url is None
+    assert task.error_message=='NATIVE_AV_MUX_INPUT_UNAVAILABLE'
+    metadata=json.loads(task.metadata_json)
+    assert metadata['approval_status']=='FAILED' and 'physical_output' not in metadata
+    assert persistence[2].video_url is None
+
+
+@pytest.mark.asyncio
+async def test_cancel_during_mux_cannot_be_persisted(db_session,persistence,monkeypatch):
+    async def cancel(*_args):
+        task=db_session.get(Task,'native-c2');task.status='cancelled';db_session.commit()
+        return {'policy':'CONTINUATION_VIDEO_AUTHORITATIVE_STREAM_COPY'}
+    monkeypatch.setattr(service,'preserve_native_av',cancel)
+    task,_=await persist_native(db_session,persistence,'EXTEND')
+    assert task.status=='cancelled' and task.result_url is None
+    assert 'physical_output' not in json.loads(task.metadata_json)
+
+
+@pytest.mark.asyncio
+async def test_mux_failure_after_cancel_cannot_overwrite_cancelled(db_session,persistence,monkeypatch):
+    async def fail_after_cancel(*_args):
+        task=db_session.get(Task,'native-c2');task.status='cancelled';db_session.commit()
+        raise ValueError('NATIVE_AV_MUX_INPUT_UNAVAILABLE')
+    monkeypatch.setattr(service,'preserve_native_av',fail_after_cancel)
+    task,_=await persist_native(db_session,persistence,'EXTEND')
+    assert task.status=='cancelled' and task.result_url is None
 
 
 @pytest.mark.asyncio

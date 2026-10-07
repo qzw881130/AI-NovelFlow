@@ -309,6 +309,8 @@ async def test_semantic_continuation_persists_clip_and_preserves_shot_final(db_s
     monkeypatch.setattr("app.services.shot_video_service.file_storage.base_dir", tmp_path)
     monkeypatch.setattr("app.services.shot_video_service.file_storage.download_video", download_video)
     monkeypatch.setattr("app.services.shot_video_service._probe_video_duration", lambda path: 8.0)
+    async def preserve(*_args): return {"frames_after": 447}
+    monkeypatch.setattr("app.services.shot_video_service.preserve_native_av", preserve)
     await _save_generated_video(
         {"success": True, "video_url": "http://comfy/native-extension.mp4", "physical_output_role":"NATIVE_CONTINUITY_OUTPUT", "output_node_id":"65"},
         task, novel.id, chapter.id, shot.index, db_session, task.id, ShotRepository(db_session),
@@ -362,6 +364,8 @@ async def test_extend_result_does_not_cross_clip_plan_revision(db_session, tmp_p
 
     monkeypatch.setattr("app.services.shot_video_service.file_storage.base_dir", tmp_path)
     monkeypatch.setattr("app.services.shot_video_service.file_storage.download_video", download_video)
+    async def preserve(*_args): return {"frames_after": 447}
+    monkeypatch.setattr("app.services.shot_video_service.preserve_native_av", preserve)
     await _save_generated_video(
         {"success": True, "video_url": "http://comfy/stale.mp4", "physical_output_role":"NATIVE_CONTINUITY_OUTPUT", "output_node_id":"65"}, task, novel.id, chapter.id,
         shot.index, db_session, task.id, ShotRepository(db_session), clip_metadata=metadata, update_shot_result=False,

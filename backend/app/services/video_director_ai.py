@@ -690,6 +690,217 @@ def _subject_bindings(prompt: str, visible_characters: list) -> dict:
     return bindings
 
 
+def _canonical_character_roles(state: dict | None) -> dict:
+    """Read the existing canonical Characters block, without body detection."""
+    description = str((state or {}).get("description") or "")
+    block = re.search(r"(?:^|\n)Characters:\s*\n((?:[ \t]*-[^\n]+\n?)*)", description)
+    return {
+        name.strip(): role.strip()
+        for name, role in re.findall(r"(?m)^\s*-\s*([^:\n]+):[ \t]*([^\n]*)", block.group(1) if block else "")
+    }
+
+
+def _canonical_body_membership(state: dict | None) -> set | None:
+    """An explicit canonical Characters block is membership, not inferred prose."""
+    description = str((state or {}).get("description") or "")
+    block = re.search(r"(?:^|\n)Characters:\s*\n((?:[ \t]*-[^\n]+\n?)*)", description)
+    if not block:
+        return None
+    roles = _canonical_character_roles(state)
+    if len(roles) != len(block.group(1).splitlines()):
+        return None
+    return set(roles)
+
+
+def _canonical_body_lifecycle(name: str, subject: str, current: dict | None,
+                              visual_states: list, transitions: list, subjects: dict) -> tuple:
+    """Classify the carried-in body and next canonical state using exact actors."""
+    start = _canonical_body_membership(current)
+    targets = sorted(visual_states, key=lambda state: (state.get("time_seconds") or 0, state.get("index") or 0))
+    target = targets[0] if targets else None
+    end = _canonical_body_membership(target)
+    unknown = ("CANONICAL_BODY_PRESENCE_UNKNOWN", None)
+    if start is None or end is None:
+        return unknown
+    if name in start and name in end:
+        return "EXISTING_CURRENT_BODY", None
+    if (name in start) == (name in end):
+        return unknown
+    if current.get("index") is None or target.get("index") is None:
+        return unknown
+    entering = name not in start
+    event = re.compile(
+        r"进入|走入|走进|步入|入场|到达|抵达|\b(?:enters?|entering|arrives?|arriving)\b" if entering else
+        r"离开|走出|退出|离场|\b(?:exits?|exiting|leaves?|leaving|left)\b", re.IGNORECASE)
+    actor = re.compile(rf"^(?:{re.escape(name)}|{re.escape(subject)})(?![A-Za-z0-9_])")
+    excluded = re.compile(
+        r"不|未|没有|不得|禁止|已|已经|手|手臂|头|目光|视线|镜面|袍摆|"
+        r"\b(?:not|never|without|already|no longer|hands?|arms?|head|gaze|eyes|mirror|hem)\b", re.IGNORECASE)
+    for transition in transitions:
+        if (transition.get("from_keyframe_index") != current.get("index") or
+                transition.get("to_keyframe_index") != target.get("index")):
+            continue
+        for clause in re.split(r"[，。；.!?;\n]", str(transition.get("transition_description") or "")):
+            owner = actor.match(clause.strip())
+            if not owner:
+                continue
+            action = clause.strip()[owner.end():]
+            match = event.search(action)
+            if not match:
+                continue
+            prefix = action[:match.start()]
+            if excluded.search(prefix) or any(
+                    other in prefix or token in prefix for other, token in subjects.items() if other != name):
+                continue
+            return ("ENTERING_NEW_BODY" if entering else "EXITING_CURRENT_BODY"), {
+                "from_state": current["index"], "to_state": target["index"], "clause": clause.strip()}
+    return unknown
+
+
+def compile_h3_reference_bindings(
+    picture_mapping: list, subject_bindings: dict, visual_states: list, transitions: list,
+    *, capability: str, previous_av_present: bool, current_visual_state: dict | None = None,
+) -> dict:
+    """Join the existing Picture and Subject authorities; never select physical inputs."""
+    continuation = capability in {"EXTEND", "TEMPORAL_EXTEND"} and previous_av_present
+    current = current_visual_state if continuation else (visual_states[0] if visual_states else None)
+    roles = _canonical_character_roles(current)
+    body_state = f"KF{current['index']}" if current and current.get("index") is not None else None
+    characters, resources, findings = [], [], []
+    for picture in picture_mapping:
+        identity = picture.get("source_identity")
+        identity = identity if isinstance(identity, dict) else {}
+        name = picture.get("source_name") or identity.get("name")
+        asset_id = picture.get("source_id") or identity.get("asset_id")
+        item = {"picture": picture["picture"], "kind": picture.get("kind"), "asset_id": asset_id, "name": name}
+        if item["kind"] == "CHARACTER_IDENTITY":
+            subject = subject_bindings.get(name)
+            if not subject or not asset_id:
+                findings.append({"code": "CHARACTER_PICTURE_IDENTITY_UNRESOLVED", **item})
+                continue
+            lifecycle, lifecycle_transition = _canonical_body_lifecycle(
+                name, subject, current, visual_states, transitions, subject_bindings,
+            ) if continuation else ("INITIAL_DIRECTOR_BODY", None)
+            characters.append({
+                **item, "subject": subject, "body_state_id": body_state,
+                "body_role": roles.get(name),
+                "body_binding": lifecycle,
+                **({"body_lifecycle_transition": lifecycle_transition} if lifecycle_transition else {}),
+            })
+            if lifecycle == "CANONICAL_BODY_PRESENCE_UNKNOWN":
+                findings.append({"code": "CANONICAL_BODY_PRESENCE_UNKNOWN", "character": name, "subject": subject})
+        elif item["kind"] in {"SCENE", "PROP", "DIRECTOR_VISUAL_ANCHOR"}:
+            resources.append({**item, "source_keyframe_index": picture.get("source_keyframe_index")})
+
+    # Explicit actor-led displacement clauses only. No camera motion, target-name
+    # attribution, past arrival, inferred pose motion, or arbitrary text segmentation.
+    displacement = re.compile(
+        r"走向|走近|走到|走出|走入|走进|走过|走离|步入|迈向|迈步|后退|退后|跨过|穿过|进入|离开|移至|移动到|从[^，。；.!?;\n]{1,40}移到|"
+        r"\b(?:walks?|walking|enters?|entering|approaches?|approaching|crosses|crossing|steps? away|moves? (?:toward|towards|from|to))\b",
+        re.IGNORECASE,
+    )
+    negated_or_completed = re.compile(r"(?:不|未|没有|不得|禁止|已|已经)|\b(?:not|never|without|already|no longer)\b", re.IGNORECASE)
+    local_part = re.compile(r"手|手臂|头|目光|视线|镜面|袍摆|\b(?:hands?|arms?|head|gaze|eyes|mirror|hem)\b", re.IGNORECASE)
+    motion = {name: {"subject": subject, "name": name, "motion_class": "LOCAL_MOTION / SPATIALLY_ANCHORED", "evidence": []}
+              for name, subject in subject_bindings.items()}
+    actors = sorted(subject_bindings, key=len, reverse=True)
+    motion_sources = list(transitions)
+    for state in visual_states:
+        action = re.search(r"(?m)^Action:\s*(.*)$", str(state.get("description") or ""))
+        if action:
+            motion_sources.append({"transition_description": action.group(1), "from_keyframe_index": state.get("index"), "to_keyframe_index": state.get("index")})
+    for transition in motion_sources:
+        text = str(transition.get("transition_description") or "")
+        for clause in re.split(r"[，。；.!?;\n]", text):
+            clause = clause.strip()
+            actor = next((name for name in actors if (
+                clause.startswith(name) and not (
+                    name[-1:].isascii() and clause[len(name):len(name) + 1].isascii()
+                    and clause[len(name):len(name) + 1].isalnum()
+                )
+            ) or clause.startswith(subject_bindings[name])), None)
+            if not actor:
+                continue
+            prefix = actor if clause.startswith(actor) else subject_bindings[actor]
+            action = clause[len(prefix):]
+            match = displacement.search(action)
+            if match and any(name in action[:match.start()] or subject in action[:match.start()]
+                             for name, subject in subject_bindings.items() if name != actor):
+                findings.append({"code": "MOTION_OWNER_AMBIGUOUS", "clause": clause,
+                                 "action": "Do not infer translation from another Subject's action"})
+                continue
+            if match and not negated_or_completed.search(action[:match.start()]) and not local_part.search(action[:match.start()]):
+                motion[actor]["motion_class"] = "TRANSLATIONAL_MOTION"
+                motion[actor]["evidence"].append({
+                    "from_state": transition.get("from_keyframe_index"),
+                    "to_state": transition.get("to_keyframe_index"), "clause": clause,
+                })
+    if continuation and not body_state:
+        findings.append({"code": "CURRENT_BODY_STATE_UNAVAILABLE", "action": "Do not infer body placement or presence"})
+    return {"characters": characters, "resources": resources, "subjects": dict(subject_bindings),
+            "continuation": continuation, "motion_ownership": list(motion.values()), "findings": findings}
+
+
+def render_h3_reference_bindings(binding: dict) -> str:
+    """Render only compiler-owned identities and motion classes, not speech rules."""
+    if not binding["subjects"] and not binding["resources"]:
+        return ""
+    lines = [
+        "reference_authority:",
+        "This compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.",
+        "Character Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.",
+        "Current canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.",
+    ]
+    for item in binding["resources"]:
+        if item["kind"] == "SCENE":
+            rule = "environment identity and appearance only; incidental people are not additional Subjects"
+        elif item["kind"] == "PROP":
+            rule = "prop identity/appearance only; current canonical state decides who owns/holds it and where it is"
+        else:
+            rule = "director visual state, composition and staging; preserve its canonical current/target state"
+        lines.append(f"{item['picture']} — {item['kind']} / {item['name'] or 'KF' + str(item['source_keyframe_index'])}: {rule}.")
+    if binding["characters"]:
+        lines += ["", "character_identity_binding:"]
+    for item in binding["characters"]:
+        lines.append(f"{item['picture']} ↔ {item['subject']} — {item['name']} (Character asset {item['asset_id']}): identity only, exclusively for this Subject.")
+    if binding["characters"]:
+        lines += ["", "existing_body_binding:" if binding["continuation"] else "initial_body_binding:"]
+    for item in binding["characters"]:
+        if binding["continuation"]:
+            source = f"Previous AV and canonical {item['body_state_id']}" if item["body_state_id"] else "Previous AV/current canonical state"
+            lifecycle = item["body_binding"]
+            if lifecycle in {"ENTERING_NEW_BODY", "EXITING_CURRENT_BODY"}:
+                edge = item["body_lifecycle_transition"]
+                transition = f"KF{edge['from_state']}→KF{edge['to_state']}"
+                target = f"KF{edge['to_state']}"
+                identity = f"{item['subject']} — {item['name']}"
+                if lifecycle == "ENTERING_NEW_BODY":
+                    lines.append(
+                        f"{identity} is absent from the carried-in start state {item['body_state_id']}. "
+                        f"Exactly one body enters during the assigned {transition} transition. "
+                        f"{item['picture']} defines the identity of that entering body only. "
+                        f"The entering body and its target-state body in {target} are the same continuous body. "
+                        "The temporal target must not instantiate a separate copy. "
+                        "After arrival, the same body remains the sole body of this Subject; do not perform another entry or create a second body.")
+                else:
+                    lines.append(
+                        f"Apply {item['picture']} identity to the existing/current body of {identity}, defined by {source}. "
+                        f"Exactly this same body exits during the assigned {transition} transition. "
+                        f"This Subject is absent from {target}; after exit, do not reinstantiate it or create a replacement body.")
+                continue
+            presence = "existing/current" if item["body_binding"] == "EXISTING_CURRENT_BODY" else "single canonical (existing or explicitly entering)"
+            lines.append(f"Apply {item['picture']} identity to the {presence} body of {item['subject']} — {item['name']}, defined by {source}. Do not create a second body or transfer this identity to another visible body.")
+        else:
+            lines.append(f"Apply {item['picture']} identity to the initial body/role of {item['subject']} — {item['name']} in the Director visual state {item['body_state_id'] or 'at Clip start'}. Preserve its clothing, pose and blocking; no Previous AV body is assumed.")
+    lines += ["", "motion_ownership:",
+              "Only an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.",
+              "LOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person."]
+    for item in binding["motion_ownership"]:
+        sources = ", ".join(dict.fromkeys(f"KF{e['from_state']}→KF{e['to_state']}" for e in item["evidence"]))
+        lines.append(f"{item['subject']} — {item['name']}: {item['motion_class']}" + (f"; owns only the displacement assigned in {sources}." if sources else "; no explicit translational assignment."))
+    return "\n".join(lines)
+
+
 def _render_dialogue_timeline_block(assigned_dialogues: list, silent_characters: list, subject_bindings: dict | None = None) -> str:
     subject_bindings = subject_bindings or {}
     if not assigned_dialogues:
@@ -995,6 +1206,7 @@ async def build_h3_video_prompt(
     temporal_anchors: Optional[list] = None,
     video_reference_manifest: Optional[dict] = None,
     previous_av_present: bool = False,
+    current_visual_state: Optional[dict] = None,
 ) -> str:
     canonical_path = isinstance(clip, dict) and "visual_state_indexes" in clip
     semantic_controls = []
@@ -1114,6 +1326,12 @@ async def build_h3_video_prompt(
         if is_multi_clip or is_semantic_clip
         else _strip_voice_rules_from_text(shot.video_description or shot.description or "")
     )
+    reference_binding = compile_h3_reference_bindings(
+        physical_picture_mapping, _subject_bindings("", clip_visible_characters),
+        semantic_controls, sanitized_transitions,
+        capability=str(clip.get("capability") or ""), previous_av_present=previous_av_present,
+        current_visual_state=current_visual_state,
+    ) if canonical_path else None
     payload = {
         "shot": {
             "id": shot.id,
@@ -1136,6 +1354,7 @@ async def build_h3_video_prompt(
         "visual_control_route": route if canonical_path else None,
         "visual_controls": mapped_semantic_controls if canonical_path else None,
         "physical_picture_manifest": physical_picture_mapping if canonical_path else None,
+        **({"reference_binding_contract": reference_binding} if canonical_path else {}),
         "picture_mapping_contract": {
             "authority": "physical_picture_manifest",
             "numbering": "dense_1_based_manifest_order",
@@ -1187,7 +1406,8 @@ async def build_h3_video_prompt(
     user_content = "请基于以下 Video Director 规划数据，生成可直接用于 MiniMax H3 的最终视频提示词。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
     result = await LLMService().chat_completion(
         system_prompt=(
-            f"{template.template}\n\n{_canonical_picture_mapping_contract()}\n\n{_canonical_speech_contract()}\n\n{_canonical_section_ownership_contract()}"
+            f"{template.template}\n\n{_canonical_picture_mapping_contract()}\n\n{_canonical_speech_contract()}\n\n{_canonical_section_ownership_contract()}\n\n"
+            "reference_binding_contract is deterministic compiler authority. Keep Subject definitions and visual actions consistent with it. Do not output or redefine reference_authority, character_identity_binding, existing_body_binding, initial_body_binding or motion_ownership sections; the compiler supplies them."
             if canonical_path else template.template
         ),
         user_content=user_content,
@@ -1277,6 +1497,12 @@ async def build_h3_video_prompt(
             })
             db.commit()
             raise RuntimeError(",".join(dialogue_audit.get("issues") or ["DIALOGUE_PROMPT_AUDIT_FAILED"]))
+    if canonical_path:
+        binding_section = render_h3_reference_bindings(reference_binding)
+        if binding_section:
+            if re.search(r"(?m)^(?:reference_authority|character_identity_binding|existing_body_binding|initial_body_binding|motion_ownership):\s*$", final_prompt):
+                raise ValueError("H3_REFERENCE_BINDING_SECTION_REDEFINED")
+            final_prompt = f"{final_prompt}\n\n{binding_section}"
     append_video_ai_call(shot, {
         "step": step,
         "task_type": template_type,
@@ -1287,6 +1513,7 @@ async def build_h3_video_prompt(
         "parsed_result": {
             "dialogue": dialogue_audit,
             "physical_picture": physical_picture_audit,
+            "reference_binding": reference_binding,
         } if canonical_path else dialogue_audit,
         "final_prompt": final_prompt,
         "clip_index": clip.get("clip_index"),

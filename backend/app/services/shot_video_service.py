@@ -41,6 +41,7 @@ from app.services.continuous_clip_av import (
     CONTINUOUS_CAPABILITIES, NATIVE_CONTINUITY_OUTPUT, is_clip_execution_contract,
     probe_clip_av, validate_native_output, continuity_output_metadata, continuous_assembly_spans,
 )
+from app.services.native_av_mux import preserve_native_av
 
 
 # A task can be observed by the batch runner and the reconciliation loop at the
@@ -1299,6 +1300,10 @@ async def generate_shot_video_task(
                 previous_av_present=bool(
                     clip_only_execution and compiled["execution_contract"].get("previous_clip")
                 ),
+                current_visual_state=next((
+                    item for item in video_director_plan.get("keyframes") or []
+                    if isinstance(item, dict) and item.get("index") == clip.get("carry_in_state_index")
+                ), None) if clip_only_execution else None,
             )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
@@ -2347,9 +2352,17 @@ async def _save_generated_video(
         physical_output = None
         if native_clip:
             try:
+                mux_evidence = await preserve_native_av(result, local_path)
+                db.refresh(task)
+                if task.status == "cancelled":
+                    Path(local_path).unlink(missing_ok=True)
+                    return
                 physical_output = continuity_output_metadata(result, contract, local_path, local_url)
             except ValueError as exc:
                 Path(local_path).unlink(missing_ok=True)
+                db.refresh(task)
+                if task.status == "cancelled":
+                    return
                 task.status = "failed"
                 task.error_message = str(exc)
                 task.current_step = "Clip native output invalid"
@@ -2359,6 +2372,7 @@ async def _save_generated_video(
                 db.commit()
                 return
             metadata = safe_json_dict(task.metadata_json)
+            metadata["native_av_mux"] = mux_evidence
             metadata["physical_output"] = physical_output
             metadata["artifact_kind"] = NATIVE_CONTINUITY_OUTPUT
             task.metadata_json = json.dumps(metadata, ensure_ascii=False)

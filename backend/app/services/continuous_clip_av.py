@@ -66,7 +66,23 @@ def validate_native_output(metadata: dict, result_url: str, path: str) -> dict:
             or actual["audio_start_time"] != 0 or actual["audio_duration"] <= 0
             or actual["video_duration"] - actual["audio_duration"] > 1 / FPS):
         raise ValueError("NATIVE_CONTINUITY_OUTPUT_INVALID")
+    validate_temporal_anchor_output_bound(contract, actual["frame_count"])
     return output
+
+
+def validate_temporal_anchor_output_bound(contract: dict, final_frames: int) -> None:
+    """Reject an anchor absent from the finalized replacement; never move it."""
+    previous = (contract.get("previous_clip") or {}).get("physical_output") or {}
+    start = int(previous.get("frame_count") or 0) - OVERLAP_FRAMES
+    replacement_frames = final_frames - start
+    for anchor in (contract.get("temporal_anchor_manifest") or {}).get("anchors") or []:
+        position = anchor.get("frame_position")
+        if not isinstance(position, int) or isinstance(position, bool) or not 1 <= position <= replacement_frames:
+            details = {"anchor_id": (anchor.get("source") or {}).get("id"),
+                       "effective_anchor_frame": position, "replacement_frames": replacement_frames,
+                       "final_native_frames": final_frames, "previous_frames": previous.get("frame_count"),
+                       "overlap_frames": OVERLAP_FRAMES}
+            raise ValueError("NATIVE_TEMPORAL_ANCHOR_OUTPUT_BOUND_VIOLATION: " + json.dumps(details, sort_keys=True))
 
 
 def continuity_output_metadata(result: dict, contract: dict, path: str, result_url: str) -> dict:
@@ -83,6 +99,7 @@ def continuity_output_metadata(result: dict, contract: dict, path: str, result_u
             or actual["audio_duration"] <= 0 or actual["audio_start_time"] != 0
             or actual["video_duration"] - actual["audio_duration"] > 1 / FPS):
         raise ValueError("NATIVE_CONTINUITY_OUTPUT_INVALID")
+    validate_temporal_anchor_output_bound(contract, actual["frame_count"])
     return {
         **actual, "physical_output_role": NATIVE_CONTINUITY_OUTPUT,
         "output_node_id": "65", "source_video_url": result["video_url"], "result_url": result_url,

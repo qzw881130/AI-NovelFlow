@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP, ROUND_CEILING
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +18,7 @@ class ClipExecutionCompileError(ValueError):
 
 
 _TEMPORAL_ANCHOR_LIMIT = 8
+TEMPORAL_EXTEND_FPS = 24
 TEMPORAL_DECISION_CONTRACT = "ELIGIBLE_THEN_SELECTED_V1"
 EARLY_COMPOSITION_CONTRACT = "EARLY_COMPOSITION_V2"
 
@@ -39,9 +40,23 @@ def temporal_extend_frame_count(duration_seconds: float) -> int:
         raise ClipExecutionCompileError("TEMPORAL_EXTEND 时长无效")
     if not duration.is_finite() or duration <= 0:
         raise ClipExecutionCompileError("TEMPORAL_EXTEND 时长无效")
-    raw_frames = int((duration * Decimal(24)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    raw_frames = int((duration * Decimal(TEMPORAL_EXTEND_FPS)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
     raw_frames = max(5, raw_frames)
     return raw_frames + (5 - raw_frames % 17) % 17
+
+
+def _temporal_anchor_frame_position(time: Decimal, duration: Decimal, frame_count: int) -> int:
+    scaled = (time / duration) * Decimal(frame_count - 1)
+    return 1 + int(scaled.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def _temporal_anchor_physical_frame_position(time: Decimal) -> int:
+    """First 1-based frozen-workflow frame at or after a physical local time."""
+    return 1 + int((time * TEMPORAL_EXTEND_FPS).quantize(Decimal("1"), rounding=ROUND_CEILING))
+
+
+def _temporal_anchor_physical_frame_time(position: int) -> Decimal:
+    return Decimal(position - 1) / TEMPORAL_EXTEND_FPS
 
 
 def project_temporal_anchor_positions(anchors: list[dict], duration_seconds: float) -> list[dict]:
@@ -84,8 +99,7 @@ def project_temporal_anchor_positions(anchors: list[dict], duration_seconds: flo
     result = []
     seen_positions = set()
     for slot, (time, anchor_id, anchor, image_url, source) in enumerate(ordered, 1):
-        scaled = (time / duration) * Decimal(frame_count - 1)
-        position = 1 + int(scaled.quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        position = _temporal_anchor_frame_position(time, duration, frame_count)
         if position < 1 or position > frame_count:
             raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE: projected frame out of bounds")
         if position in seen_positions:
@@ -483,6 +497,8 @@ def compile_temporal_extend_clip(
     temporal_manifest = project_temporal_anchor_positions(
         temporal_anchors, float(compiled["execution_contract"]["clip"]["duration_seconds"]),
     )
+    from app.services.temporal_anchor_reachability import plan_temporal_anchor_reachability
+    temporal_manifest = plan_temporal_anchor_reachability(plan, clip, temporal_manifest)
     contract = dict(compiled["execution_contract"])
     contract["capability"] = "TEMPORAL_EXTEND"
     contract["artifact_kind"] = "NATIVE_CONTINUITY_OUTPUT"

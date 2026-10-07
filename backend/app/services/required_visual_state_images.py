@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 from app.models.task import Task
@@ -281,8 +282,64 @@ def _frame_index(shot, state_index):
     return next(i for i, frame in enumerate(frames) if frame.get("plan_keyframe_index") == state_index)
 
 
+def _has_approved_previous_av(db, chapter, shot, plan, clip):
+    """Project a current approved binding, never a physical execution snapshot.
+
+    File contents may have changed since acceptance. Execution and approved-
+    artifact revalidation must still use the strict Previous AV resolver.
+    """
+    from app.services.continuous_clip_av import (
+        CONTINUOUS_CAPABILITIES, NATIVE_CONTINUITY_OUTPUT, OVERLAP_FRAMES, FPS,
+        validate_temporal_anchor_output_bound,
+    )
+    try:
+        previous_index = int(clip.get("previous_clip_index"))
+        revision = int(plan.get("clip_plan_revision"))
+        previous = next((item for item in plan.get("clip_plan", [])
+                         if int(item.get("clip_index") or 0) == previous_index), None)
+        if not chapter or not previous or previous.get("execution_status") != "APPROVED":
+            return False
+        task_id, result_url = previous.get("generated_by_task_id"), previous.get("video_url")
+        if not task_id or not result_url:
+            return False
+        task = db.query(Task).filter(Task.id == task_id).first()
+        if (not task or task.status != "completed" or task.type != "shot_video"
+                or task.novel_id != chapter.novel_id or task.chapter_id != shot.chapter_id
+                or task.shot_id != shot.id or task.result_url != result_url):
+            return False
+        metadata = json_dict(task.metadata_json)
+        contract = metadata.get("execution_contract") or {}
+        if (metadata.get("execution_scope") != "CLIP"
+                or metadata.get("approval_status") != "APPROVED"
+                or int(metadata.get("clip_index") or 0) != previous_index
+                or int(metadata.get("clip_plan_revision") or 0) != revision
+                or contract.get("capability") != previous.get("capability")):
+            return False
+        if contract.get("capability") in CONTINUOUS_CAPABILITIES:
+            physical = metadata.get("physical_output") or {}
+            if (contract.get("artifact_kind") != NATIVE_CONTINUITY_OUTPUT
+                    or not physical or previous.get("physical_output") != physical
+                    or physical.get("physical_output_role") != NATIVE_CONTINUITY_OUTPUT
+                    or physical.get("output_node_id") != "65"
+                    or physical.get("result_url") != result_url
+                    or physical.get("capability") != contract.get("capability")
+                    or physical.get("previous") != contract.get("previous_clip")
+                    or physical.get("overlap_frames") != OVERLAP_FRAMES
+                    or physical.get("overlap_duration") != OVERLAP_FRAMES / FPS):
+                return False
+            # Check known bounds using accepted metadata, without probing media.
+            validate_temporal_anchor_output_bound(contract, physical["frame_count"])
+        elif not (contract.get("capability") == "GENERATE"
+                  and contract.get("artifact_kind") == "CLIP_ONLY"):
+            return False
+        path = url_to_local_path(result_url)
+        return bool(path and Path(path).is_file() and os.access(path, os.R_OK))
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
 def project_clip_execution_readiness(db, shot, plan, required):
-    from app.services.shot_video_service import resolve_extend_previous_av
+    """Display known dependencies; execution independently validates physical AV."""
     from app.services.clip_execution_compiler import get_canonical_execution_readiness
     from app.models.novel import Chapter
     chapter = db.query(Chapter).filter(Chapter.id == shot.chapter_id).first()
@@ -297,13 +354,7 @@ def project_clip_execution_readiness(db, shot, plan, required):
         if not guard["ready"]:
             result.update(ready=False, code=guard["code"])
         if images_ready and guard["ready"] and clip.get("capability") in {"EXTEND", "TEMPORAL_EXTEND"}:
-            previous = next((c for c in clips if c["clip_index"] == clip.get("previous_clip_index")), {})
-            try:
-                resolve_extend_previous_av(db, chapter.novel_id if chapter else "", shot.chapter_id, shot,
-                    {**clip, "clip_plan_revision": plan.get("clip_plan_revision")},
-                    {"clip_index": previous.get("clip_index"), "clip_plan_revision": plan.get("clip_plan_revision"),
-                     "generated_by_task_id": previous.get("generated_by_task_id"), "result_url": previous.get("video_url")})
-            except ValueError:
+            if not _has_approved_previous_av(db, chapter, shot, plan, clip):
                 result.update(ready=False, code="WAITING_PREVIOUS_AV")
         output.append(result)
     return output
