@@ -10,6 +10,11 @@ from app.models.novel import Novel
 from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.llm_service import LLMService
 from app.services.prop_policy import get_visual_prop_names
+from app.services.visual_attention import (
+    ATTENTION_RULE, attention_fingerprint, compile_visual_attention,
+    consumed_transitions, execution_attention_snapshot, project_visual_attention,
+    resolve_subjects, require_current_attention_transitions,
+)
 
 
 VIDEO_AI_STEP_LABELS = {
@@ -268,6 +273,14 @@ state naturally. Do not pad this section with repeated holds or constraints.
 dialogue_timeline — program owned:
 The existing deterministic speech contract remains authoritative and unchanged.
 Do not output this section or repeat its text, speakers, timing or permissions.
+
+visual_attention_timeline — program owned:
+Consume the supplied Clip-local attention windows without redefining them.
+Attention constrains narrative emphasis, not speech, motion or body permission.
+Background motion alone must not change visual dominance. Camera may compensate
+and preserve ensemble relationships; primary does not imply portrait framing or
+continuous visibility. Preserve planned smooth handoffs and their clipped progress.
+Do not output this section; the compiler supplies it exactly once.
 
 overall_soundscape — SOUNDSCAPE:
 Retain grounded non-human ambience and action/object Foley. No speech authority,
@@ -688,6 +701,32 @@ def _subject_bindings(prompt: str, visible_characters: list) -> dict:
         if name in bindings and subject != bindings[name]:
             raise ValueError(f"#13 Subject mapping conflicts with clip_visible_characters: {name}")
     return bindings
+
+
+def prepare_clip_visual_attention(plan, clip, shot_characters, *, keyframes=None,
+                                  transitions=None, manifest=None, duration=None):
+    """Use the existing H3 visible-character order for attention, including reuse."""
+    if keyframes is None:
+        owned = clip.get("visual_state_indexes", clip.get("keyframe_indexes"))
+        keyframes = [state for state in plan.get("keyframes", []) if isinstance(state, dict)
+                     and (owned is None or state.get("index") in owned)]
+    if "visual_state_indexes" in clip:
+        keyframes = [state for state in keyframes if state.get("index") in clip["visual_state_indexes"]]
+    visible = _clip_visible_characters(keyframes, shot_characters)
+    projection = project_visual_attention(plan.get("visual_attention"), clip.get("start_time", 0),
+                                          clip.get("end_time", duration or 0), duration=duration)
+    if projection["status"] == "ABSENT":
+        validation = (plan.get("validation") or {}).get("visual_attention") or {}
+        if validation.get("status") == "FALLBACK_INVALID":
+            projection.update(status="FALLBACK_INVALID", findings=validation.get("findings") or [])
+    if len(visible) != len(set(visible)):
+        projection.update(status="FALLBACK_INVALID", windows=[], findings=["AMBIGUOUS_VISIBLE_CHARACTERS"])
+    projection = resolve_subjects(projection, _subject_bindings("", visible), manifest)
+    if transitions is None:
+        transitions = (consumed_transitions(plan, clip) if "visual_state_indexes" in clip
+                       else plan.get("transitions") or [])
+    projection["fingerprint"] = attention_fingerprint(projection, transitions)
+    return projection
 
 
 def _canonical_character_roles(state: dict | None) -> dict:
@@ -1207,7 +1246,9 @@ async def build_h3_video_prompt(
     video_reference_manifest: Optional[dict] = None,
     previous_av_present: bool = False,
     current_visual_state: Optional[dict] = None,
+    visual_attention: Optional[dict] = None,
 ) -> str:
+    require_current_attention_transitions(safe_json_dict(shot.video_director_plan), clip)
     canonical_path = isinstance(clip, dict) and "visual_state_indexes" in clip
     semantic_controls = []
     if canonical_path:
@@ -1332,6 +1373,11 @@ async def build_h3_video_prompt(
         capability=str(clip.get("capability") or ""), previous_av_present=previous_av_present,
         current_visual_state=current_visual_state,
     ) if canonical_path else None
+    attention = visual_attention if visual_attention is not None else prepare_clip_visual_attention(
+        safe_json_dict(shot.video_director_plan), clip, shot_characters,
+        keyframes=sanitized_keyframes, transitions=sanitized_transitions,
+        manifest=video_reference_manifest, duration=shot.duration or 4,
+    )
     payload = {
         "shot": {
             "id": shot.id,
@@ -1394,6 +1440,9 @@ async def build_h3_video_prompt(
             },
         } if canonical_path else {}),
         "transitions": sanitized_transitions,
+        **({"visual_attention_timeline": {key: attention[key] for key in (
+            "version", "time_base", "windows", "characters",
+        )}} if attention["status"] == "VALID" else {}),
         "workflow_capability": strip_media_refs(workflow_capability),
         "workflow_type": workflow_type,
         "workflow_name": workflow_name,
@@ -1408,7 +1457,7 @@ async def build_h3_video_prompt(
         system_prompt=(
             f"{template.template}\n\n{_canonical_picture_mapping_contract()}\n\n{_canonical_speech_contract()}\n\n{_canonical_section_ownership_contract()}\n\n"
             "reference_binding_contract is deterministic compiler authority. Keep Subject definitions and visual actions consistent with it. Do not output or redefine reference_authority, character_identity_binding, existing_body_binding, initial_body_binding or motion_ownership sections; the compiler supplies them."
-            if canonical_path else template.template
+            if canonical_path else (f"{template.template}\n\n{ATTENTION_RULE}" if attention["status"] == "VALID" else template.template)
         ),
         user_content=user_content,
         temperature=0.3,
@@ -1436,6 +1485,9 @@ async def build_h3_video_prompt(
         raise RuntimeError(result.get("error") or "H3 视频提示词生成失败")
 
     final_prompt = (result.get("content") or "").strip()
+    # Remove only a model-redefined attention block before the existing audits;
+    # preserve the raw response in the AI call and compile the owner block last.
+    final_prompt = compile_visual_attention(final_prompt, {"status": "ABSENT"})
     if canonical_path:
         final_prompt = _remove_canonical_h3_internal_self_check(final_prompt)
     if canonical_path or route == "multi":
@@ -1503,6 +1555,7 @@ async def build_h3_video_prompt(
             if re.search(r"(?m)^(?:reference_authority|character_identity_binding|existing_body_binding|initial_body_binding|motion_ownership):\s*$", final_prompt):
                 raise ValueError("H3_REFERENCE_BINDING_SECTION_REDEFINED")
             final_prompt = f"{final_prompt}\n\n{binding_section}"
+    final_prompt = compile_visual_attention(final_prompt, attention)
     append_video_ai_call(shot, {
         "step": step,
         "task_type": template_type,
@@ -1514,7 +1567,9 @@ async def build_h3_video_prompt(
             "dialogue": dialogue_audit,
             "physical_picture": physical_picture_audit,
             "reference_binding": reference_binding,
-        } if canonical_path else dialogue_audit,
+            "visual_attention": execution_attention_snapshot(attention, final_prompt),
+        } if canonical_path else ({**dialogue_audit, "visual_attention": execution_attention_snapshot(attention, final_prompt)}
+                                 if attention["status"] == "VALID" else dialogue_audit),
         "final_prompt": final_prompt,
         "clip_index": clip.get("clip_index"),
         "workflow_type": workflow_type,

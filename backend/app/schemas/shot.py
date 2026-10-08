@@ -251,6 +251,13 @@ class PlanVideoKeyframesRequest(BaseModel):
     """规划视频关键帧时间轴请求"""
 
     force: bool = Field(False, description="是否强制重新规划关键帧时间轴")
+    operation: Literal["FULL_VISUAL_PLAN", "ATTENTION_REPLAN"] = "FULL_VISUAL_PLAN"
+
+
+class PlanVideoTransitionsRequest(BaseModel):
+    """Explicitly refresh selected attention-stale canonical edges."""
+
+    transition_edges: Optional[List[tuple[int, int]]] = None
 
 
 class PlanClipsRequest(BaseModel):

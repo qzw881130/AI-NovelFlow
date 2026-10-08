@@ -8,8 +8,11 @@
  * 注意：分镜资源列表在左侧可折叠区域显示（由 ChapterGenerateLayout 的左侧栏渲染）
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useId } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
+import { inspectorEntry } from '../../ClipExecutionInspector/presentation';
+import { useInspectorLabels } from '../../ClipExecutionInspector/labels';
 import { useChapterGenerateStore } from '../stores';
 import { useShotReferenceImages } from '../useShotReferenceImages';
 import { Film, Loader2, Download, Save, Square, Check, X, Image, ChevronDown, Eye, Combine, Layers, ChevronUp, Volume2, Play, Copy, Info, ChevronLeft, ChevronRight, RefreshCw, Sparkles, PictureInPicture, Trash2 } from 'lucide-react';
@@ -17,6 +20,8 @@ import { useTranslation } from '../../../stores/i18nStore';
 import { shotsApi } from '../../../api/shots';
 import { taskApi } from '../../../api/tasks';
 import { RequiredImagesPreparation } from './RequiredImagesPreparation';
+import { VisualStateDescriptionEditor } from './VisualStateDescriptionEditor';
+import { ShotExportModal } from './ShotExportModal';
 import { getClipArtifactPresentation, getPreviousAvPresentation } from '../nativeClipPresentation';
 import { formatExecutionSeconds, getClipGenerationPresentation, getClipReviewPresentation, getDurationPresentation, getMaterializedTemporalAnchors, getOrdinaryImageReferenceCount } from '../videoExecutionPresentation';
 import { canPrepareMaterials, clipPreparationPresentation, prepareCurrentRequiredImages } from '../requiredImagePreparation';
@@ -230,6 +235,7 @@ function ClipExecutionDetails({ clip, plan, task, previousTask }: { clip: Semant
 }
 
 function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationShot, onPreviewClip, onRegenerateClip, onAssemble, onTasksChange, regeneratingClipKey, isShotVideoGenerating, isAssembling }: { shot: any; chapterId?: string; novelId?: string; onPreparationShot: (shot: any) => void; onPreviewClip: (clip: any | null) => void; onRegenerateClip: (clip: any, mode?: 'llm' | 'video_only') => void; onAssemble: () => void; onTasksChange?: (tasks: Task[]) => void; regeneratingClipKey?: string | null; isShotVideoGenerating?: boolean; isAssembling?: boolean }) {
+  const inspectorLabels = useInspectorLabels();
   const plan = (shot?.videoDirectorPlan || {}) as VideoDirectorPlan;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(false);
@@ -312,6 +318,7 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
       <div className="space-y-1.5">
         {clips.map((clip: any, index: number) => {
           const task = resolveSemanticClipTask(clip, tasks, revision);
+          const inspectorHref = inspectorEntry(task, clip, `/novels/${novelId}/chapters/${chapterId}/generate?shot=${shot.id}&tab=video`);
           const metadata = task?.clipExecution;
           const approvalStatus = metadata?.approval_status || clip.execution_status || 'PLANNED';
           const clipStatus = getSemanticClipStatus(clip, tasks, revision);
@@ -357,6 +364,7 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
                 )}
                 <span className="text-[11px] text-gray-600">视觉状态：{getOwnedVisualStateLabel(clip).replace(/KF/g, '')}</span>
                 <div className="ml-auto flex items-center gap-2">
+                  {inspectorHref && <Link data-testid="clip-execution-inspector-entry" to={inspectorHref} target="_blank" rel="noopener noreferrer" className="rounded-md border border-indigo-200 px-2.5 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-50">{inspectorLabels.entry}</Link>}
                   {artifact.playbackUrl && (
                     <button type="button" onClick={() => onPreviewClip({ ...clip, clip_index: clip.clip_index, video_url: artifact.playbackUrl })} className="rounded-md border border-blue-200 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50">
                       播放片段 {clip.clip_index}
@@ -901,52 +909,85 @@ const executionToneClass: Record<string, string> = {
 };
 
 function ExecutionChainOverview({ plan, tasks }: { plan: VideoDirectorPlan; tasks: Task[] }) {
+  // 全局偏好，不按小说、章回或 Shot 区分；首次使用默认折叠。
+  const storageKey = 'chapterGenerate_videoExecutionChain_expanded';
+  const [isExpanded, setIsExpanded] = useState(() => {
+    try {
+      return localStorage.getItem(storageKey) === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const contentId = useId();
+  const toggleExpanded = () => {
+    const nextExpanded = !isExpanded;
+    setIsExpanded(nextExpanded);
+    try {
+      localStorage.setItem(storageKey, String(nextExpanded));
+    } catch {
+      // 存储不可用时，仍允许当前页面折叠/展开。
+    }
+  };
   const clips = Array.isArray(plan.clip_plan) ? [...plan.clip_plan].sort((a, b) => Number(a.clip_index) - Number(b.clip_index)) : [];
   const revision = Number(plan.clip_plan_revision || 0);
   if (!clips.length) return null;
   return (
     <section data-testid="video-execution-chain" className="rounded-lg border border-slate-200 bg-white p-3">
-      <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <h3 className="text-sm font-semibold text-slate-800">执行链 · {clips.length} Clips</h3>
-        <span className="text-[11px] text-slate-500">Revision {revision || '—'}</span>
-      </div>
-      <div className="space-y-0.5">
-        {clips.map((clip, index) => {
-          const task = resolveSemanticClipTask(clip, tasks, revision);
-          const generation = getClipGenerationPresentation(clip, task);
-          const review = getClipReviewPresentation(clip, task);
-          const previousClip = clips.find(item => item.clip_index === clip.previous_clip_index);
-          const previousTask = previousClip ? resolveSemanticClipTask(previousClip, tasks, revision) : undefined;
-          const previous = getPreviousAvPresentation(clip, task, previousClip, previousTask);
-          const artifact = getClipArtifactPresentation(clip, task);
-          const ordinaryCount = getOrdinaryImageReferenceCount(task);
-          const anchors = getMaterializedTemporalAnchors(clip, task);
-          const required = (plan.required_execution_images || []).filter(item => item.consumer_clip_indexes?.includes(Number(clip.clip_index)));
-          return (
-            <div key={`${revision}-${clip.clip_index}`}>
-              <article data-testid={`execution-chain-clip-${clip.clip_index}`} className="rounded-md border border-slate-200 bg-slate-50/60 px-2.5 py-2 text-[11px] text-slate-700">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <span className="min-w-[106px] text-xs font-semibold text-slate-900">C{clip.clip_index} · {clip.start_time}–{clip.end_time}s</span>
-                  <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 font-semibold text-blue-700">{clip.capability || 'ROUTE 未提供'}</span>
-                  <span className={`rounded border px-1.5 py-0.5 ${executionToneClass[generation.tone]}`}>生成：{generation.label}</span>
-                  <span className={`rounded border px-1.5 py-0.5 ${executionToneClass[review.tone]}`}>审核：{review.label}</span>
-                </div>
-                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-slate-600">
-                  {artifact.continuous && <span>Previous AV：<strong className={previous.label.includes('READY') ? 'text-green-700' : 'text-amber-700'}>{previous.label}</strong></span>}
-                  {artifact.continuous && <span>Native AV：<strong className={artifact.nativeReady ? 'text-green-700' : 'text-amber-700'}>{artifact.outputStatus}</strong>{artifact.nativeReady && artifact.overlapLabel !== '未提供' ? ` · Overlap ${artifact.overlapLabel}` : ''}</span>}
-                  <span>普通图片参考：{ordinaryCount == null ? '未提供' : `${ordinaryCount} 张`}</span>
-                  <span>Temporal Anchors：{anchors.length ? anchors.map(anchor => `${anchor.label} @ ${anchor.timeSeconds == null ? '—' : anchor.timeSeconds}s`).join('、') : '0 个'}</span>
-                  {required.length > 0 && <span>Required：{required.map(item => `${item.state_id || `KF${item.state_index}`} ${item.ready ? 'READY' : '未就绪'}`).join('、')}</span>}
-                </div>
-              </article>
-              {index < clips.length - 1 && <div className="ml-4 py-0.5 text-[10px] text-slate-500">↓ {clip.capability === 'GENERATE' ? 'AV' : 'Native AV'}</div>}
-            </div>
-          );
-        })}
-        <div className="ml-4 py-0.5 text-[10px] text-slate-500">↓</div>
-        <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800">
-          Final Assembly · {hasCurrentAssembly(plan, tasks) ? 'COMPLETED' : getSemanticShotStatusFromPlan(plan, tasks) === 'CLIPS_COMPLETE' ? 'READY' : 'NOT READY'}
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-slate-500">Revision {revision || '—'}</span>
+          <button
+            type="button"
+            onClick={toggleExpanded}
+            aria-expanded={isExpanded}
+            aria-controls={contentId}
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          >
+            {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+            {isExpanded ? '折叠' : '展开'}
+          </button>
         </div>
+      </div>
+      <div id={contentId} hidden={!isExpanded}>
+        {isExpanded && <div className="mt-2 space-y-0.5">
+          {clips.map((clip, index) => {
+            const task = resolveSemanticClipTask(clip, tasks, revision);
+            const generation = getClipGenerationPresentation(clip, task);
+            const review = getClipReviewPresentation(clip, task);
+            const previousClip = clips.find(item => item.clip_index === clip.previous_clip_index);
+            const previousTask = previousClip ? resolveSemanticClipTask(previousClip, tasks, revision) : undefined;
+            const previous = getPreviousAvPresentation(clip, task, previousClip, previousTask);
+            const artifact = getClipArtifactPresentation(clip, task);
+            const ordinaryCount = getOrdinaryImageReferenceCount(task);
+            const anchors = getMaterializedTemporalAnchors(clip, task);
+            const required = (plan.required_execution_images || []).filter(item => item.consumer_clip_indexes?.includes(Number(clip.clip_index)));
+            return (
+              <div key={`${revision}-${clip.clip_index}`}>
+                <article data-testid={`execution-chain-clip-${clip.clip_index}`} className="rounded-md border border-slate-200 bg-slate-50/60 px-2.5 py-2 text-[11px] text-slate-700">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="min-w-[106px] text-xs font-semibold text-slate-900">C{clip.clip_index} · {clip.start_time}–{clip.end_time}s</span>
+                    <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 font-semibold text-blue-700">{clip.capability || 'ROUTE 未提供'}</span>
+                    <span className={`rounded border px-1.5 py-0.5 ${executionToneClass[generation.tone]}`}>生成：{generation.label}</span>
+                    <span className={`rounded border px-1.5 py-0.5 ${executionToneClass[review.tone]}`}>审核：{review.label}</span>
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-slate-600">
+                    {artifact.continuous && <span>Previous AV：<strong className={previous.label.includes('READY') ? 'text-green-700' : 'text-amber-700'}>{previous.label}</strong></span>}
+                    {artifact.continuous && <span>Native AV：<strong className={artifact.nativeReady ? 'text-green-700' : 'text-amber-700'}>{artifact.outputStatus}</strong>{artifact.nativeReady && artifact.overlapLabel !== '未提供' ? ` · Overlap ${artifact.overlapLabel}` : ''}</span>}
+                    <span>普通图片参考：{ordinaryCount == null ? '未提供' : `${ordinaryCount} 张`}</span>
+                    <span>Temporal Anchors：{anchors.length ? anchors.map(anchor => `${anchor.label} @ ${anchor.timeSeconds == null ? '—' : anchor.timeSeconds}s`).join('、') : '0 个'}</span>
+                    {required.length > 0 && <span>Required：{required.map(item => `${item.state_id || `KF${item.state_index}`} ${item.ready ? 'READY' : '未就绪'}`).join('、')}</span>}
+                  </div>
+                </article>
+                {index < clips.length - 1 && <div className="ml-4 py-0.5 text-[10px] text-slate-500">↓ {clip.capability === 'GENERATE' ? 'AV' : 'Native AV'}</div>}
+              </div>
+            );
+          })}
+          <div className="ml-4 py-0.5 text-[10px] text-slate-500">↓</div>
+          <div className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-800">
+            Final Assembly · {hasCurrentAssembly(plan, tasks) ? 'COMPLETED' : getSemanticShotStatusFromPlan(plan, tasks) === 'CLIPS_COMPLETE' ? 'READY' : 'NOT READY'}
+          </div>
+        </div>}
       </div>
     </section>
   );
@@ -1014,6 +1055,7 @@ interface VideoDirectorPanelProps {
   onPreviewImage: (url: string) => void;
   onEditImage: (target: VideoImageEditTarget) => void;
   onOpenPromptModal: () => void;
+  onSaveVisualStateDescription: (stateIndex: number, description: string, expectedDescription: string, expectedRevision: number) => Promise<void>;
   selectedPreviewClipKey?: string | null;
   regeneratingClipKey?: string | null;
   isMergingClips?: boolean;
@@ -1052,6 +1094,7 @@ function VideoDirectorPanel({
   onPreviewImage,
   onEditImage,
   onOpenPromptModal,
+  onSaveVisualStateDescription,
   selectedPreviewClipKey,
   regeneratingClipKey,
   isMergingClips,
@@ -1171,7 +1214,7 @@ function VideoDirectorPanel({
     ? shotReferenceImages
     : getKeyframeReferenceImages(plan, Number(selectedKeyframe?.index));
   const selectedReferenceImagesLoading = selectedKeyframe?.role === 'START' && shotReferenceImagesLoading;
-  useEffect(() => { setHoveredReferenceImage(null); }, [shot, plan, selectedKeyframe?.index]);
+  useEffect(() => { setHoveredReferenceImage(null); }, [shot?.id, shot?.imageTaskId, shot?.image_task_id, plan.clip_plan_revision, selectedKeyframe?.index]);
   const selectedKeyframeIsGenerating = isKeyframeGenerating(selectedKeyframe);
   const selectedLegacyKeyframe = legacyKeyframes.find((item: any) => (
     Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(selectedKeyframe?.index)
@@ -2028,14 +2071,14 @@ function VideoDirectorPanel({
               )}
             </div>
             <div className="space-y-3">
-              <div>
-                <div className="text-xs font-semibold text-gray-600 mb-1">{isCanonicalPlan ? t('chapterGenerate.visualStateDescription') : t('chapterGenerate.keyframeDescription')}</div>
-                <textarea
-                  readOnly
-                  value={selectedKeyframe?.role === 'START' ? (shot?.description || '') : (selectedKeyframe?.description || '')}
-                  className="w-full h-28 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm resize-none"
-                />
-              </div>
+              <VisualStateDescriptionEditor
+                key={`${shot?.id}-${selectedKeyframe?.index}`}
+                label={isCanonicalPlan ? t('chapterGenerate.visualStateDescription') : t('chapterGenerate.keyframeDescription')}
+                description={selectedKeyframe?.role === 'START' ? (shot?.description || '') : (selectedKeyframe?.description || '')}
+                revision={Number(plan.clip_plan_revision || 0)}
+                disabled={!selectedKeyframe || !novelId || !chapterId || isPlanningKeyframes || isPlanningClips || !!isShotVideoGenerating || selectedKeyframeIsGenerating}
+                onSave={(description, expectedDescription, expectedRevision) => onSaveVisualStateDescription(Number(selectedKeyframe.index), description, expectedDescription, expectedRevision)}
+              />
               <div>
                 <div className="text-xs font-semibold text-gray-600 mb-1">
                   {isCanonicalPlan ? t('chapterGenerate.previousStateTransition') : t('chapterGenerate.previousTransition')}{previousTransition ? ` · ${isCanonicalPlan ? t('chapterGenerate.visualStateShort') : 'KF'}${previousTransition.from_keyframe_index} → ${isCanonicalPlan ? t('chapterGenerate.visualStateShort') : 'KF'}${previousTransition.to_keyframe_index} · ${previousTransition.start_time ?? ''}-${previousTransition.end_time ?? ''}s` : ''}
@@ -2481,6 +2524,7 @@ export function VideoGenTab({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isDownloadingVideoMaterials, setIsDownloadingVideoMaterials] = useState(false);
+  const [showShotExportModal, setShowShotExportModal] = useState(false);
   const [showResetVideoDataConfirm, setShowResetVideoDataConfirm] = useState(false);
   const [isResettingVideoData, setIsResettingVideoData] = useState(false);
   const [showBatchSelectModal, setShowBatchSelectModal] = useState(false);
@@ -2525,6 +2569,7 @@ export function VideoGenTab({
   const [isRefreshingAiCalls, setIsRefreshingAiCalls] = useState(false);
   const [showGenerateVideoMenu, setShowGenerateVideoMenu] = useState(false);
   const [showWorkspaceActionsMenu, setShowWorkspaceActionsMenu] = useState(false);
+  const workspaceActionsMenuRef = useRef<HTMLDivElement>(null);
   const [isVideoPromptModalOpen, setIsVideoPromptModalOpen] = useState(false);
   const [videoPromptDrafts, setVideoPromptDrafts] = useState<VideoPromptDraft[]>([]);
   const [isSavingVideoPrompts, setIsSavingVideoPrompts] = useState(false);
@@ -2995,6 +3040,20 @@ export function VideoGenTab({
     saveVideoTabUiState({ showKeyframes, showAudioRef, isSidePanelCollapsed });
   }, [showKeyframes, showAudioRef, isSidePanelCollapsed]);
 
+  const handleSaveVisualStateDescription = useCallback(async (stateIndex: number, description: string, expectedDescription: string, expectedRevision: number) => {
+    if (!effectiveNovelId || !effectiveChapterId || !currentShotId) throw new Error('缺少分镜信息');
+    const shotId = currentShotId;
+    const result = await shotsApi.saveVisualStateDescription(effectiveNovelId, effectiveChapterId, shotId, stateIndex, description, expectedDescription, expectedRevision);
+    if (!result.success || !result.data) throw new Error(result.message || '保存视觉状态描述失败');
+    const saved = result.data;
+    useChapterGenerateStore.setState(state => ({
+      shots: state.shots.map(shot => String(shot.id) === shotId ? {
+        ...shot, description: saved.shotDescription, videoDirectorPlan: saved.videoDirectorPlan, keyframes: saved.keyframes,
+      } : shot),
+    }));
+    toast.success('视觉状态描述已保存');
+  }, [currentShotId, effectiveChapterId, effectiveNovelId]);
+
   const updateCurrentShotVideoDirectorPlan = useCallback((plan: VideoDirectorPlan) => {
     if (!currentShotId) return;
     setShots(shotsList.map((shot: any) => (
@@ -3427,40 +3486,6 @@ export function VideoGenTab({
     };
   }, [previewVideoUrl]);
 
-  useEffect(() => {
-    if (!isGeneratingCurrent || !effectiveNovelId || !effectiveChapterId || !currentShotId) return;
-    let stopped = false;
-    let timer: number | undefined;
-
-    const refreshCurrentShot = async () => {
-      try {
-        const result = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, currentShotId);
-        if (!stopped && result.success && result.data) {
-          setShots(shotsList.map((shot: any) => (
-            String(shot.id) === currentShotId ? { ...shot, ...result.data } : shot
-          )));
-          if (result.data.videoUrl) {
-            setShotVideos((videos: Record<string, string>) => ({ ...videos, [currentShotId]: result.data.videoUrl! }));
-          }
-          if (result.data.videoStatus !== 'generating') {
-            setRegeneratingClipKey(null);
-          }
-        }
-      } catch (error) {
-        console.error('刷新当前视频状态失败:', error);
-      }
-      if (!stopped) {
-        timer = window.setTimeout(refreshCurrentShot, 2000);
-      }
-    };
-
-    timer = window.setTimeout(refreshCurrentShot, 2000);
-    return () => {
-      stopped = true;
-      if (timer) window.clearTimeout(timer);
-    };
-  }, [currentShotId, effectiveChapterId, effectiveNovelId, isGeneratingCurrent, setShotVideos, setShots, shotsList]);
-
   const handleToggleKeyframes = () => {
     const nextShowKeyframes = !showKeyframes;
     setShowKeyframes(nextShowKeyframes);
@@ -3516,11 +3541,17 @@ export function VideoGenTab({
   }, [showGenerateVideoMenu]);
 
   useEffect(() => {
-    if (!showWorkspaceActionsMenu) return;
-    const handleClick = () => setShowWorkspaceActionsMenu(false);
-    window.addEventListener('click', handleClick);
-    return () => window.removeEventListener('click', handleClick);
-  }, [showWorkspaceActionsMenu]);
+    if (!showWorkspaceActionsMenu || showShotExportModal) return;
+    // Download links trigger synthetic clicks; dismiss only for pointer input
+    // outside the menu so exports keep their packing state visible.
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!workspaceActionsMenuRef.current?.contains(event.target as Node)) {
+        setShowWorkspaceActionsMenu(false);
+      }
+    };
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [showWorkspaceActionsMenu, showShotExportModal]);
 
   const handleGenerateCanonicalShot = async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId || !currentIsCanonicalPlan) return;
@@ -3641,7 +3672,7 @@ export function VideoGenTab({
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return null;
     const result = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, currentShotId);
     if (result.success && result.data) {
-      setShots(shotsList.map((shot: any) => (
+      setShots(useChapterGenerateStore.getState().shots.map((shot: any) => (
         String(shot.id) === currentShotId ? { ...shot, ...result.data } : shot
       )));
       if (result.data.videoUrl) {
@@ -3650,28 +3681,7 @@ export function VideoGenTab({
       return result.data;
     }
     return null;
-  }, [currentShotId, effectiveChapterId, effectiveNovelId, setShotVideos, setShots, shotsList]);
-
-  useEffect(() => {
-    if (!effectiveChapterId || !currentShotId || (!isGeneratingCurrent && !isCurrentVideoPending)) return;
-    let cancelled = false;
-    let timeoutId: ReturnType<typeof window.setTimeout> | null = null;
-
-    const refreshActiveShot = async () => {
-      if (cancelled) return;
-      await checkVideoTaskStatus(effectiveChapterId);
-      await refreshCurrentShotData();
-      if (!cancelled) {
-        timeoutId = window.setTimeout(refreshActiveShot, 2000);
-      }
-    };
-
-    timeoutId = window.setTimeout(refreshActiveShot, 1000);
-    return () => {
-      cancelled = true;
-      if (timeoutId) window.clearTimeout(timeoutId);
-    };
-  }, [checkVideoTaskStatus, currentShotId, effectiveChapterId, isCurrentVideoPending, isGeneratingCurrent, refreshCurrentShotData]);
+  }, [currentShotId, effectiveChapterId, effectiveNovelId, setShotVideos, setShots]);
 
   const handleRefreshAiCalls = useCallback(async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
@@ -4173,15 +4183,15 @@ export function VideoGenTab({
     }
   };
 
-  const handleDownloadVideoMaterials = async () => {
+  const handleDownloadVideoMaterials = async (sections: string[]) => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
     setIsDownloadingVideoMaterials(true);
     try {
-      await shotsApi.downloadShotVideoMaterialsPackage(effectiveNovelId, effectiveChapterId, currentShotId);
-      toast.success('视频素材包已开始下载');
+      await shotsApi.downloadShotVideoMaterialsPackage(effectiveNovelId, effectiveChapterId, currentShotId, sections);
+      toast.success('Shot 生产包已开始下载');
     } catch (error) {
       console.error('下载视频素材失败:', error);
-      toast.error(error instanceof Error ? error.message : '下载视频素材失败');
+      throw error;
     } finally {
       setIsDownloadingVideoMaterials(false);
     }
@@ -4388,7 +4398,7 @@ export function VideoGenTab({
             >
               批量生成视频
             </button>
-            <div className="relative">
+            <div className="relative" ref={workspaceActionsMenuRef}>
               <button
                 type="button"
                 onClick={(event) => {
@@ -4408,11 +4418,11 @@ export function VideoGenTab({
                     {mergingMode ? <Loader2 className="h-4 w-4 animate-spin" /> : <Combine className="h-4 w-4" />}
                     {mergingMode ? '提交任务中...' : t('chapterGenerate.mergeVideo')}
                   </button>
-                  <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); handleDownloadMaterials(); }} disabled={isDownloading || !effectiveChapterId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                  <button type="button" onClick={() => void handleDownloadMaterials()} disabled={isDownloading || !effectiveChapterId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
                     {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     {isDownloading ? t('chapterGenerate.packing') : '导出章节素材包'}
                   </button>
-                  <button type="button" onClick={() => { setShowWorkspaceActionsMenu(false); handleDownloadVideoMaterials(); }} disabled={isDownloadingVideoMaterials || !effectiveChapterId || !currentShotId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
+                  <button type="button" onClick={() => setShowShotExportModal(true)} disabled={isDownloadingVideoMaterials || !effectiveChapterId || !currentShotId} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-40">
                     {isDownloadingVideoMaterials ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     {isDownloadingVideoMaterials ? '打包中...' : '导出 Shot 生产包'}
                   </button>
@@ -4465,6 +4475,7 @@ export function VideoGenTab({
             onPreviewImage={setPreviewImage}
             onEditImage={openVideoImageEdit}
             onOpenPromptModal={handleOpenVideoPromptModal}
+            onSaveVisualStateDescription={handleSaveVisualStateDescription}
             selectedPreviewClipKey={selectedPreviewClipKey}
             regeneratingClipKey={regeneratingClipKey}
             isMergingClips={isMergingClips}
@@ -4981,6 +4992,13 @@ export function VideoGenTab({
           </div>
         </div>
       ), document.body)}
+
+      {showShotExportModal && <ShotExportModal
+        key={currentShotId}
+        shotIndex={Number(currentShotData?.index || selectedVideo)}
+        onClose={() => setShowShotExportModal(false)}
+        onExport={handleDownloadVideoMaterials}
+      />}
 
       {/* 图片预览弹窗 */}
       <ImagePreviewModal

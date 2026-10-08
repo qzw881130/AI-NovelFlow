@@ -156,14 +156,15 @@ const hookFactory=(hooks,ports)=>new Function('useEffect','useMemo','useState','
 
 function referenceHarness(){const requests=[];const harness=hookHarness(hookFactory,{taskApi:{fetch(id){const d=deferred();requests.push({id,...d});return d.promise;}}});return {harness,requests};}
 
-test('reference refresh with the same task ID uses the fresh Shot and hides old snapshot immediately',async()=>{
+test('reference refresh with the same task ID retains images without another loading cycle',async()=>{
   const {harness:h,requests:r}=referenceHarness();const old={imageTaskId:'same'};
   h.render(old);h.flush();r[0].resolve({data:{referenceImages:[{label:'old',url:'/old.png'}]}});await settle();
   assert.equal(h.render(old).referenceImages[0].url,'/old.png');
   const fresh={imageTaskId:'same'};
-  assert.deepEqual(h.render(fresh).referenceImages,[]);h.flush();assert.equal(r.length,2);
-  r[1].resolve({data:{referenceImages:[{label:'new',url:'/new.png'}]}});await settle();
-  assert.equal(h.render(fresh).referenceImages[0].url,'/new.png');h.unmount();
+  const refreshed=h.render(fresh);
+  assert.equal(refreshed.referenceImages[0].url,'/old.png');
+  assert.equal(refreshed.referenceImagesLoading,false);
+  h.flush();assert.equal(r.length,1);h.unmount();
 });
 
 test('old Shot/task response cannot overwrite a new current reference request',async()=>{

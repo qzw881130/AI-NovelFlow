@@ -241,6 +241,12 @@ SYSTEM_VIDEO_DIRECTOR_TEMPLATES: List[Dict] = [
 # 系统预设的关键帧规划与生图提示词模板
 SYSTEM_KEYFRAME_PLANNING_TEMPLATES: List[Dict] = [
     {
+        "name": "视觉关注重规划",
+        "description": "#08 ATTENTION_REPLAN：基于只读 canonical visual states 重算 Attention",
+        "template": load_template("08_NovelFlow_VisualAttentionReplan_V1.txt"),
+        "type": "visual_attention_replan"
+    },
+    {
         "name": "关键帧时间轴规划",
         "description": "根据 Shot 的叙事与视觉节拍规划 canonical Director visual states",
         "template": load_template("08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt"),

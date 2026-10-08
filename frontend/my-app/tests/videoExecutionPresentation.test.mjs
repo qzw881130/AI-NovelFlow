@@ -4,6 +4,7 @@ import test from 'node:test';
 import ts from 'typescript';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 async function loadTypeScript(relativePath) {
   const source = await readFile(new URL(relativePath, import.meta.url), 'utf8');
@@ -21,9 +22,10 @@ const panelSource = page.slice(page.indexOf('const executionToneClass'), page.in
 const panelJs = ts.transpileModule(panelSource, {
   compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2020 },
 }).outputText;
-const components = new Function('React', ...Object.keys({ ...presentation, ...native, ...authority }),
+// Existing presentation checks inspect the chain with the global preference expanded.
+const components = new Function('React', 'useState', 'useId', 'ChevronDown', 'ChevronUp', 'localStorage', ...Object.keys({ ...presentation, ...native, ...authority }),
   `${panelJs}; return { ExecutionChainOverview, FinalAssemblyStatusPanel };`)(
-  React, ...Object.values({ ...presentation, ...native, ...authority }),
+  React, React.useState, React.useId, ChevronDown, ChevronUp, { getItem: () => 'true' }, ...Object.values({ ...presentation, ...native, ...authority }),
 );
 
 const clips = [

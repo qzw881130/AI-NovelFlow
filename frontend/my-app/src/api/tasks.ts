@@ -99,7 +99,21 @@ export interface Task {
   } | null;
 }
 
+export interface TaskPage {
+  items: Task[];
+  total: number;
+  total_pages: number;
+  stats: { all: number; pending: number; running: number; completed: number; failed: number; cancelled: number };
+  types: string[];
+}
+
 export const taskApi = {
+  fetchPage: (page: number, pageSize: number, status: string, type: string, signal?: AbortSignal) => {
+    const params = new URLSearchParams({ page: String(page), page_size: String(pageSize) });
+    if (status !== 'all') params.set('status', status);
+    if (type !== 'all') params.set('type', type);
+    return api.get<TaskPage>(`/tasks/page?${params}`, { signal });
+  },
   /** 获取任务列表 */
   fetchList: (limit = 1000) => api.get<Task[]>(`/tasks/?limit=${limit}`),
 
@@ -108,7 +122,7 @@ export const taskApi = {
     api.get<Task[]>(`/tasks/?chapter_id=${encodeURIComponent(chapterId)}&shot_id=${encodeURIComponent(shotId)}&type=shot_video&limit=100`),
 
   /** 获取单个任务 */
-  fetch: (id: string) => api.get<Task>(`/tasks/${id}/`),
+  fetch: (id: string) => api.get<Task>(`/tasks/${id}`),
 
   /** 删除任务 */
   delete: (id: string) => api.delete(`/tasks/${id}/`),

@@ -85,7 +85,7 @@ def test_planner_prompt_does_not_include_physical_mode_or_window_authority():
     assert "selected_mode" not in payload
     assert "execution_windows" not in payload
     assert "workflow_capability" not in payload
-    assert payload["requirements"]["output_top_level_keys"] == ["keyframes"]
+    assert payload["requirements"]["output_top_level_keys"] == ["keyframes", "visual_attention"]
 
 
 def test_replan_preserves_images_only_for_unchanged_indexed_state():

@@ -1,17 +1,22 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useSerialPolling } from '../../../hooks/useSerialPolling';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
 import { taskApi } from '../../../api/tasks';
 import type { Task, VideoDirectorTaskClip } from '../../../types';
 import type { TaskFilter, TaskTypeFilter, ImageInfo, WorkflowData, TaskStats } from '../types';
 
-export function useTasksState() {
+export function useTasksState({ page = 1, pageSize = 30 } = {}) {
   const { t } = useTranslation();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<TaskFilter>('all');
   const [typeFilter, setTypeFilter] = useState<TaskTypeFilter>('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [taskTypes, setTaskTypes] = useState<string[]>([]);
+  const [stats, setStats] = useState<TaskStats>({ all: 0, pending: 0, running: 0, completed: 0, failed: 0, cancelled: 0 });
   const [expandedErrors, setExpandedErrors] = useState<Set<string>>(new Set());
   const [viewingWorkflow, setViewingWorkflow] = useState<Task | null>(null);
   const [workflowData, setWorkflowData] = useState<WorkflowData | null>(null);
@@ -80,25 +85,26 @@ export function useTasksState() {
     }
   };
 
-  const fetchTasks = useCallback(async () => {
-    try {
-      const data = await taskApi.fetchList(1000);
-      if (data.success && data.data) {
-        setTasks(data.data as unknown as Task[]);
-      }
-    } catch (error) {
-      console.error('获取任务失败:', error);
-    } finally {
+  const fetchPage = useCallback((signal: AbortSignal) =>
+    taskApi.fetchPage(page, pageSize, filter, typeFilter, signal), [page, pageSize, filter, typeFilter]);
+
+  const fetchTasks = useSerialPolling({
+    fetch: fetchPage,
+    intervalMs: 3000,
+    onSuccess: result => {
+      if (!result.success || !result.data) throw new Error(result.message || '获取任务失败');
+      setTasks(result.data.items as unknown as Task[]);
+      setTotal(result.data.total);
+      setTotalPages(Math.max(1, result.data.total_pages));
+      setStats(result.data.stats);
+      setTaskTypes(result.data.types);
+    },
+    onError: error => console.error('获取任务失败:', error),
+    onSettled: () => {
       setIsLoading(false);
       setRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchTasks();
-    const interval = setInterval(fetchTasks, 3000);
-    return () => clearInterval(interval);
-  }, [fetchTasks]);
+    },
+  });
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -113,7 +119,8 @@ export function useTasksState() {
         toast.error(result.message || result.detail || t('common.deleteFailed'));
         return;
       }
-      setTasks(tasks.filter(t => t.id !== taskId));
+      setTasks(current => current.filter(t => t.id !== taskId));
+      void fetchTasks();
       toast.success(result.message || '任务已删除');
     } catch (error) {
       console.error('删除失败:', error);
@@ -218,17 +225,7 @@ export function useTasksState() {
     }
   };
 
-  const typeFilteredTasks = typeFilter === 'all' ? tasks : tasks.filter(task => task.type === typeFilter);
-  const stats: TaskStats = {
-    all: typeFilteredTasks.length,
-    pending: typeFilteredTasks.filter(t => t.status === 'pending').length,
-    running: typeFilteredTasks.filter(t => t.status === 'running').length,
-    completed: typeFilteredTasks.filter(t => t.status === 'completed').length,
-    failed: typeFilteredTasks.filter(t => t.status === 'failed').length,
-    cancelled: typeFilteredTasks.filter(t => t.status === 'cancelled').length,
-  };
-
-  const filteredTasks = filter === 'all' ? typeFilteredTasks : typeFilteredTasks.filter(t => t.status === filter);
+  const filteredTasks = tasks;
 
   return {
     // State
@@ -249,6 +246,9 @@ export function useTasksState() {
     previewVideo,
     imageInfo,
     stats,
+    total,
+    totalPages,
+    taskTypes,
     filteredTasks,
     // Actions
     fetchTasks,

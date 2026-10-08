@@ -22,6 +22,7 @@ const TestCases = lazy(() => import('./pages/TestCases'));
 const PromptConfig = lazy(() => import('./pages/PromptConfig'));
 const UIConfig = lazy(() => import('./pages/UIConfig'));
 const LLMLogs = lazy(() => import('./pages/LLMLogs'));
+const ClipExecutionInspector = lazy(() => import('./pages/ClipExecutionInspector'));
 
 /**
  * 加载中占位组件
@@ -85,6 +86,7 @@ function App() {
           <Route path="prompt-config" element={<LazyPage><PromptConfig /></LazyPage>} />
           <Route path="ui-config" element={<LazyPage><UIConfig /></LazyPage>} />
           <Route path="llm-logs" element={<LazyPage><LLMLogs /></LazyPage>} />
+          <Route path="clip-execution-inspector/:taskId" element={<LazyPage><ErrorBoundary><ClipExecutionInspector /></ErrorBoundary></LazyPage>} />
         </Route>
       </Routes>
       <ToastContainer toasts={toasts} onRemove={removeToast} />

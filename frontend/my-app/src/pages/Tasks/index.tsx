@@ -19,7 +19,9 @@ export default function Tasks() {
     setFilter,
     typeFilter,
     setTypeFilter,
-    tasks,
+    total,
+    totalPages,
+    taskTypes,
     refreshing,
     expandedErrors,
     viewingWorkflow,
@@ -47,13 +49,9 @@ export default function Tasks() {
     setPreviewVideo,
     setViewingWorkflow,
     setWorkflowData,
-  } = useTasksState();
+  } = useTasksState({ page: currentPage, pageSize });
 
-  const totalPages = Math.max(1, Math.ceil(filteredTasks.length / pageSize));
-  const paginatedTasks = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredTasks.slice(start, start + pageSize);
-  }, [filteredTasks, currentPage, pageSize]);
+  const paginatedTasks = filteredTasks;
 
   useEffect(() => {
     setCurrentPage(1);
@@ -133,8 +131,8 @@ export default function Tasks() {
       'scene_image', 'prop_image', 'shot_image', 'shot_image_batch', 'keyframe_image',
       'single_image_edit', 'shot_video', 'shot_video_batch', 'shot_video_hd', 'shot_video_hd_batch', 'transition_video', 'chapter_video', 'novel_video',
     ];
-    return Array.from(new Set<string>([...supportedTypes, ...tasks.map(task => task.type).filter(Boolean)]));
-  }, [tasks]);
+    return Array.from(new Set<string>([...supportedTypes, ...taskTypes]));
+  }, [taskTypes]);
 
   const getWorkflowDisplayName = (task: Task): string => {
     if (!task.workflowName) return '';
@@ -271,7 +269,7 @@ export default function Tasks() {
               ))}
             </select>
             <span>条</span>
-            <span className="text-gray-400">共 {filteredTasks.length} 条</span>
+            <span className="text-gray-400">共 {total} 条</span>
           </div>
         </div>
         {isLoading ? (

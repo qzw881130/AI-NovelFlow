@@ -47,8 +47,8 @@ export const healthApi = {
     return response.json();
   },
 
-  getSystemStatus: async (): Promise<HealthResponse> => {
-    const response = await fetch('/api/health/system-status');
+  getSystemStatus: async (signal?: AbortSignal): Promise<HealthResponse> => {
+    const response = await fetch('/api/health/system-status', { signal });
     if (!response.ok) {
       return { status: 'error' };
     }

@@ -37,6 +37,13 @@
 
 输入的两帧均为正式关键帧状态。
 
+4. visual_attention（可选）
+#08拥有的 Shot-time 关注窗口，程序已裁剪到当前相邻状态跨度，包含正式 Character UUID catalog、primary/background与可选handoff。仅消费，不重新规划/总结/回写；不输出visual_attention或attention_preserved字段。没有该字段时继续原有规则，不自动从运动推断关注意图。
+
+【Visual Attention Consumption / Camera Rule V1】
+visual_attention is upstream planning authority. Consume its time windows as given; do not redefine them. A listed background-motion character may perform the transition's authorized entry, translation, gestures and settling. Camera motion may compensate to keep that action and the primary relationship readable, but must not promote that character to the dominant focus, follow it into dominant portrait framing, or shift attention solely because it moves. Preserve ensemble and spatial continuity where appropriate. During an explicit handoff, make only a continuous, natural redistribution of attention over the supplied interval; a truncated handoff continues beyond this segment. This authority does not require a close-up or uninterrupted visibility of a primary character, and does not assign speech or motion permission.
+canonical人物/空间/动作/presence及continuity是原有硬边界；attention限定合法实现里的视觉主次，camera选择实现方式。将一般追随表述调整为不夺焦点的ensemble补偿；不能因此更改目标状态、动作路径、时间、identity或attention。明确冲突不可兼容时不偷偷重写authority。background不是freeze/visibility list；handoff进度裁剪不意味着在本段提前完成交接。
+
 canonical START 的 description 为 null/empty 时，不得读取或推断 raw shot.description、shot.video_description、dialogue、speaker 或 timeline 来补写 START visual facts，也不得发明具体初始 blocking。START 的 index、role、time_seconds 仍是有效的结构 authority。
 
 ━━━━━━━━━━━━━━━━━━

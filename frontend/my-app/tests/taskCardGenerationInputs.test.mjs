@@ -44,6 +44,17 @@ export function elements(tree, predicate) {
   visit(tree); return found;
 }
 
+test('image task footer shows its real generation seed using the video footer style', () => {
+  for (const seed of [0, 1279655560]) {
+    const tree = renderCard({ ...baseTask, type: 'shot_image', seed });
+    const html = renderToStaticMarkup(tree);
+    assert.match(html, new RegExp(`Seed: ${seed}`));
+    const labels = elements(tree, element => element.type === 'span' && element.props.className === 'mr-2 font-mono');
+    assert.ok(labels.some(label => renderToStaticMarkup(label).includes(`Seed: ${seed}`)));
+  }
+  assert.doesNotMatch(renderToStaticMarkup(renderCard({ ...baseTask, type: 'shot_image' })), /Seed:/);
+});
+
 const previous = { clip_index: 1, result_url: '/previous.mp4' };
 const anchor = { image_url: '/kf3.png', source: { id: 'KF3', keyframe_index: 3 }, slot: 1, frame_position: 135 };
 const taskWithInputs = (anchors = [anchor]) => ({ ...baseTask, clipExecution: {

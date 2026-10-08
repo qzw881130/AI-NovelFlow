@@ -2,15 +2,48 @@
 文件服务 API - 提供用户故事资源的访问和上传
 """
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Query
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from pathlib import Path
+import aiofiles
 import mimetypes
+import re
 import uuid
 from datetime import datetime
 
 from app.services.file_storage import file_storage
 
 router = APIRouter()
+
+
+def _parse_byte_range(value: str, size: int) -> tuple[int, int]:
+    """解析浏览器视频跳转使用的单段 byte range（结束位置包含在内）。"""
+    match = re.fullmatch(r"bytes=(\d*)-(\d*)", value.strip())
+    if not match or size <= 0:
+        raise ValueError("Invalid byte range")
+    first, last = match.groups()
+    if not first:
+        suffix = int(last) if last else 0
+        if suffix <= 0:
+            raise ValueError("Invalid suffix range")
+        return max(0, size - suffix), size - 1
+    start = int(first)
+    end = min(int(last), size - 1) if last else size - 1
+    if start >= size or end < start:
+        raise ValueError("Unsatisfiable byte range")
+    return start, end
+
+
+async def _read_file_range(path: Path, start: int, end: int):
+    # 不将整个视频读入内存；断开连接时也会关闭文件。
+    async with aiofiles.open(path, "rb") as source:
+        await source.seek(start)
+        remaining = end - start + 1
+        while remaining > 0:
+            chunk = await source.read(min(256 * 1024, remaining))
+            if not chunk:
+                break
+            remaining -= len(chunk)
+            yield chunk
 
 
 @router.options("/{path:path}")
@@ -28,7 +61,7 @@ async def options_file(request: Request, path: str):
 
 
 @router.get("/{path:path}")
-async def get_file(path: str):
+async def get_file(path: str, request: Request):
     """
     获取用户故事目录下的文件
     
@@ -57,10 +90,37 @@ async def get_file(path: str):
         if content_type is None:
             content_type = "application/octet-stream"
         
-        return FileResponse(
+        stat = requested_path.stat()
+        response = FileResponse(
             path=str(requested_path),
             media_type=content_type,
-            filename=requested_path.name
+            filename=requested_path.name,
+            stat_result=stat,
+            headers={"Accept-Ranges": "bytes"},
+        )
+        range_header = request.headers.get("range")
+        if_range = request.headers.get("if-range")
+        if if_range and if_range not in {
+            response.headers.get("etag"), response.headers.get("last-modified")
+        }:
+            return response
+        # 不支持多段或其它单位时，按 HTTP 语义忽略 Range 并返回完整文件。
+        if not range_header or not range_header.startswith("bytes=") or "," in range_header:
+            return response
+        try:
+            start, end = _parse_byte_range(range_header, stat.st_size)
+        except ValueError:
+            return Response(status_code=416, headers={
+                "Content-Range": f"bytes */{stat.st_size}",
+                "Accept-Ranges": "bytes",
+            })
+        headers = dict(response.headers)
+        headers["content-length"] = str(end - start + 1)
+        headers["content-range"] = f"bytes {start}-{end}/{stat.st_size}"
+        return StreamingResponse(
+            _read_file_range(requested_path, start, end),
+            status_code=206,
+            headers=headers,
         )
         
     except HTTPException:

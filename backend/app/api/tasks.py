@@ -3,14 +3,16 @@
 
 只负责请求/响应处理，业务逻辑委托给 TaskService
 """
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func
+from sqlalchemy.orm import Session, load_only
 from typing import Optional
 
 from app.core.database import get_db
 from app.models.novel import Novel, Chapter
 from app.models.shot import Shot
 from app.models.workflow import Workflow
+from app.models.task import Task
 from app.repositories import TaskRepository
 from app.services.task_service import TaskService
 from app.api.deps import get_task_repo
@@ -69,15 +71,14 @@ def get_task_service(db: Session = Depends(get_db)) -> TaskService:
 # ==================== 任务列表 ====================
 
 @router.get("/", response_model=dict)
-async def list_tasks(
+def list_tasks(
         status: Optional[str] = None,
         type: Optional[str] = None,
         chapter_id: Optional[str] = None,
         shot_id: Optional[str] = None,
         limit: int = 50,
         db: Session = Depends(get_db),
-        task_repo: TaskRepository = Depends(get_task_repo),
-        task_service: TaskService = Depends(get_task_service)
+        task_repo: TaskRepository = Depends(get_task_repo)
 ):
     """获取任务列表"""
     if chapter_id:
@@ -93,35 +94,56 @@ async def list_tasks(
     else:
         tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
 
-    if any(t.status in ["pending", "queued", "running"] for t in tasks):
-        updated_count = await task_service.reconcile_active_tasks(tasks, db=db)
-        if updated_count:
-            if chapter_id:
-                tasks = task_repo.get_by_chapter(chapter_id)
-                if type:
-                    tasks = [t for t in tasks if t.type == type]
-                if status:
-                    tasks = [t for t in tasks if t.status == status]
-                if shot_id:
-                    tasks = [t for t in tasks if t.shot_id == shot_id]
-            else:
-                tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
+    # The background reconciliation loop owns ComfyUI recovery. List reads must
+    # not wait for remote queue/history calls or repeat them for every browser.
+    return {"success": True, "data": _format_task_rows(tasks, db)}
 
+
+def _format_task_rows(tasks: list, db: Session) -> list:
     # 获取所有需要的小说、章节和工作流信息
     novel_ids = {t.novel_id for t in tasks if t.novel_id}
     chapter_ids = {t.chapter_id for t in tasks if t.chapter_id}
     workflow_ids = {t.workflow_id for t in tasks if t.workflow_id}
     shot_ids = {t.shot_id for t in tasks if t.type == "shot_video" and t.shot_id}
 
-    novels = {n.id: n for n in db.query(Novel).filter(Novel.id.in_(novel_ids)).all()} if novel_ids else {}
-    chapters = {c.id: c for c in db.query(Chapter).filter(Chapter.id.in_(chapter_ids)).all()} if chapter_ids else {}
-    workflows = {w.id: w for w in
-                 db.query(Workflow).filter(Workflow.id.in_(workflow_ids)).all()} if workflow_ids else {}
-    shots = {s.id: s for s in db.query(Shot).filter(Shot.id.in_(shot_ids)).all()} if shot_ids else {}
+    novels = {n.id: n for n in db.query(Novel).options(load_only(Novel.id, Novel.title)).filter(Novel.id.in_(novel_ids)).all()} if novel_ids else {}
+    chapters = {c.id: c for c in db.query(Chapter).options(load_only(Chapter.id, Chapter.title)).filter(Chapter.id.in_(chapter_ids)).all()} if chapter_ids else {}
+    workflows = {w.id: w for w in db.query(Workflow).options(load_only(Workflow.id, Workflow.is_system)).filter(Workflow.id.in_(workflow_ids)).all()} if workflow_ids else {}
+    shots = {s.id: s for s in db.query(Shot).options(load_only(Shot.id, Shot.video_director_plan)).filter(Shot.id.in_(shot_ids)).all()} if shot_ids else {}
+
+    return TaskService.format_task_list(tasks, novels, chapters, workflows, shots=shots)
+
+
+@router.get("/page", response_model=dict)
+def list_tasks_page(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(30, ge=1, le=100),
+    status: Optional[str] = None,
+    type: Optional[str] = None,
+    db: Session = Depends(get_db),
+):
+    """Read only the displayed page; count/filter history in SQL, off the event loop."""
+    query = db.query(Task)
+    if type:
+        query = query.filter(Task.type == type)
+    counts = dict(query.with_entities(Task.status, func.count(Task.id)).group_by(Task.status).all())
+    stats = {key: counts.get(key, 0) for key in ("pending", "running", "completed", "failed", "cancelled")}
+    stats["pending"] += counts.get("queued", 0)
+    stats["all"] = sum(counts.values())
+    if status:
+        query = query.filter(Task.status.in_(["pending", "queued"]) if status == "pending" else Task.status == status)
+    total = query.count() if status else stats["all"]
+    tasks = query.order_by(Task.created_at.desc(), Task.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
 
     return {
         "success": True,
-        "data": TaskService.format_task_list(tasks, novels, chapters, workflows, shots=shots)
+        "data": {
+            "items": _format_task_rows(tasks, db),
+            "total": total,
+            "total_pages": (total + page_size - 1) // page_size,
+            "stats": stats,
+            "types": [value for (value,) in db.query(Task.type).distinct().order_by(Task.type).all() if value],
+        },
     }
 
 

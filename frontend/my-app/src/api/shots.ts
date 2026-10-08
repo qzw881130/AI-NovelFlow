@@ -351,8 +351,8 @@ export const shotsApi = {
   /**
    * 获取单个分镜详情
    */
-  getShot: async (novelId: string, chapterId: string, shotId: string): Promise<{ success: boolean; data: Shot; message?: string }> => {
-    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}`);
+  getShot: async (novelId: string, chapterId: string, shotId: string, signal?: AbortSignal): Promise<{ success: boolean; data: Shot; message?: string }> => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}`, { signal });
     return response.json();
   },
 
@@ -410,8 +410,12 @@ export const shotsApi = {
     URL.revokeObjectURL(url);
   },
 
-  downloadShotVideoMaterialsPackage: async (novelId: string, chapterId: string, shotId: string): Promise<void> => {
-    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/download-video-materials`, {
+  downloadShotVideoMaterialsPackage: async (novelId: string, chapterId: string, shotId: string, sections?: string[]): Promise<void> => {
+    if (sections && sections.length === 0) throw new Error('请至少选择一个导出项');
+    const params = new URLSearchParams();
+    sections?.forEach(section => params.append('include', section));
+    const query = sections ? `?${params}` : '';
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/download-video-materials${query}`, {
       signal: AbortSignal.timeout(120_000),
     });
     if (!response.ok) {
@@ -609,6 +613,21 @@ export const shotsApi = {
       }
     );
     return response.json();
+  },
+
+  saveVisualStateDescription: async (
+    novelId: string, chapterId: string, shotId: string, stateIndex: number,
+    description: string, expectedDescription: string, expectedPlanRevision: number,
+  ): Promise<{ success: boolean; data?: { description: string; shotDescription: string; videoDirectorPlan: VideoDirectorPlan; keyframes: any[] }; message?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/states/${stateIndex}/description`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        description, expected_description: expectedDescription, expected_plan_revision: expectedPlanRevision,
+      }) },
+    );
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : result.detail?.message || '保存视觉状态描述失败');
+    return result;
   },
 
   saveVideoDirectorPlan: async (

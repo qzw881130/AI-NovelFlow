@@ -20,7 +20,11 @@ from app.services.file_storage import file_storage
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.repositories.shot_repository import ShotRepository
 from app.services.background_workers import persistent_job, worker_manager
-from app.services.video_director_ai import build_h3_video_prompt, safe_json_dict, safe_json_list
+from app.services.video_director_ai import build_h3_video_prompt, safe_json_dict, safe_json_list, prepare_clip_visual_attention
+from app.services.visual_attention import (
+    execution_attention_snapshot, prompt_projection_metadata, reusable_attention_prompt,
+    require_current_attention_transitions,
+)
 from app.services.video_reference_resources import resolve_video_reference_resources
 from app.services.dialogue_ownership import assign_dialogues_to_clips
 from app.services.clip_execution_compiler import (
@@ -477,12 +481,14 @@ def _update_window_plan_status(shot, window_index: int, status: str, db, task=No
     _update_window_plan(shot, window_index, {"status": status}, db, task=task)
 
 
-def _update_clip_prompt(shot, clip: dict, prompt_text: str, db) -> None:
+def _update_clip_prompt(shot, clip: dict, prompt_text: str, db, attention=None) -> None:
     plan = safe_json_dict(shot.video_director_plan)
     clip_index = int((clip or {}).get("clip_index") or 1)
     semantic_clip = next((item for item in plan.get("clip_plan") or [] if isinstance(item, dict) and int(item.get("clip_index") or 0) == clip_index), None)
     if semantic_clip is not None:
         semantic_clip["prompt_text"] = prompt_text
+        if attention is not None:
+            semantic_clip["prompt_projection"] = prompt_projection_metadata(attention, prompt_text)
         shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
         db.commit()
         return
@@ -497,6 +503,8 @@ def _update_clip_prompt(shot, clip: dict, prompt_text: str, db) -> None:
             continue
         if int(existing_clip.get("clip_index") or index + 1) == clip_index:
             existing_clip["prompt_text"] = prompt_text
+            if attention is not None:
+                existing_clip["prompt_projection"] = prompt_projection_metadata(attention, prompt_text)
             updated = True
             break
 
@@ -507,6 +515,7 @@ def _update_clip_prompt(shot, clip: dict, prompt_text: str, db) -> None:
             "end_time": clip_end,
             "status": (clip or {}).get("status") or "PENDING",
             "prompt_text": prompt_text,
+            **({"prompt_projection": prompt_projection_metadata(attention, prompt_text)} if attention is not None else {}),
         })
 
     plan["clips"] = clips
@@ -514,10 +523,16 @@ def _update_clip_prompt(shot, clip: dict, prompt_text: str, db) -> None:
     db.commit()
 
 
-def get_semantic_clip_prompt(plan: dict, clip: dict) -> str:
+def get_semantic_clip_prompt(plan: dict, clip: dict, manifest=None) -> str:
     """Canonical prompt first; pre-fix legacy data only for identical Clip boundaries."""
+    require_current_attention_transitions(plan, clip)
+    raw = plan.get("visual_attention")
+    catalog = raw.get("character_catalog") if isinstance(raw, dict) else None
+    names = [entry["character_name"] for entry in catalog if isinstance(entry, dict) and isinstance(entry.get("character_name"), str)] if isinstance(catalog, list) else []
+    attention = prepare_clip_visual_attention(plan, clip, names, manifest=manifest)
     if "prompt_text" in clip:
-        return str(clip.get("prompt_text") or "")
+        prompt = str(clip.get("prompt_text") or "")
+        return prompt if reusable_attention_prompt(prompt, attention, clip.get("prompt_projection")) else ""
     for legacy in plan.get("clips") or []:
         if not isinstance(legacy, dict):
             continue
@@ -526,8 +541,22 @@ def get_semantic_clip_prompt(plan: dict, clip: dict) -> str:
             and legacy.get("start_time") == clip.get("start_time")
             and legacy.get("end_time") == clip.get("end_time")
         ):
-            return str(legacy.get("prompt_text") or "")
+            prompt = str(legacy.get("prompt_text") or "")
+            return prompt if reusable_attention_prompt(prompt, attention, legacy.get("prompt_projection")) else ""
     return ""
+
+
+def resolve_reusable_clip_prompt(plan, clip, metadata, attention, *, skip_llm, clip_only, manifest=None):
+    """Validate every offered prompt without acquiring permission to call an LLM."""
+    require_current_attention_transitions(plan, clip)
+    prompt = (metadata or {}).get("prompt_text") or ""
+    cache = (metadata or {}).get("prompt_projection") or clip.get("prompt_projection")
+    if prompt and not reusable_attention_prompt(prompt, attention, cache):
+        prompt = ""
+    if skip_llm and not prompt:
+        prompt = (get_semantic_clip_prompt(plan, clip, manifest) if clip_only
+                  else _get_reusable_video_prompt(plan, attention))
+    return prompt
 
 
 def _update_clip_result(shot, clip: dict, fields: dict, db) -> None:
@@ -686,16 +715,19 @@ def _hydrate_plan_keyframes_from_legacy(shot, plan_keyframes: list) -> list:
     return hydrated
 
 
-def _get_reusable_video_prompt(video_director_plan: dict) -> str:
+def _get_reusable_video_prompt(video_director_plan: dict, attention=None) -> str:
+    require_current_attention_transitions(video_director_plan)
     clips = video_director_plan.get("clips") if isinstance(video_director_plan.get("clips"), list) else []
     for clip in clips:
         prompt = (clip or {}).get("prompt_text")
-        if isinstance(prompt, str) and prompt.strip():
+        if isinstance(prompt, str) and prompt.strip() and (attention is None or reusable_attention_prompt(prompt, attention, clip.get("prompt_projection"))):
             return prompt.strip()
     ai_calls = video_director_plan.get("ai_calls") if isinstance(video_director_plan.get("ai_calls"), list) else []
     for call in reversed(ai_calls):
         prompt = (call or {}).get("final_prompt")
-        if isinstance(prompt, str) and prompt.strip():
+        snapshot = ((call or {}).get("parsed_result") or {}).get("visual_attention") if isinstance((call or {}).get("parsed_result"), dict) else None
+        metadata = prompt_projection_metadata(snapshot, prompt) if snapshot and isinstance(prompt, str) else None
+        if isinstance(prompt, str) and prompt.strip() and (attention is None or reusable_attention_prompt(prompt, attention, metadata)):
             return prompt.strip()
     return ""
 
@@ -874,6 +906,21 @@ async def generate_shot_video_task(
         # 视频生成优先由 11/12/13 Prompt Builder 产出最终 H3 prompt。
         shot_prompt = (clip_metadata or {}).get("prompt_text") or (shot.video_description or "").strip() or (shot.description or "")
         video_director_plan = safe_json_dict(shot.video_director_plan)
+        freshness_clip = next((item for item in video_director_plan.get("clip_plan") or []
+                               if item.get("clip_index") == (clip_metadata or {}).get("clip_index")), None)
+        if freshness_clip is None and only_window_index is not None:
+            freshness_clip = next((item for item in video_director_plan.get("window_plans") or []
+                                   if item.get("window_index") == only_window_index), None)
+        try:
+            require_current_attention_transitions(video_director_plan, freshness_clip)
+        except ValueError as exc:
+            # Reject this new attempt without invalidating an already approved artifact.
+            task.status = "failed"
+            task.error_message = str(exc)
+            task.current_step = "需要刷新 #10 过渡规划"
+            task.completed_at = datetime.utcnow()
+            db.commit()
+            return
         selected_mode = selected_mode or video_director_plan.get("selected_mode") or "SINGLE_FRAME"
 
         task.prompt_text = shot_prompt
@@ -1255,12 +1302,21 @@ async def generate_shot_video_task(
                 video_director_plan.get("dialogue_timeline_source"),
             )
 
-        reusable_prompt = (clip_metadata or {}).get("prompt_text") or ""
-        if skip_llm_when_prompt_exists and not reusable_prompt:
-            reusable_prompt = (
-                get_semantic_clip_prompt(video_director_plan, clip)
-                if clip_only_execution else _get_reusable_video_prompt(video_director_plan)
-            )
+        attention = prepare_clip_visual_attention(
+            video_director_plan, clip, safe_json_list(shot.characters), keyframes=keyframes_for_prompt,
+            transitions=transitions_for_prompt, manifest=phase_b_manifest, duration=shot.duration or duration,
+        )
+        reusable_prompt = resolve_reusable_clip_prompt(
+            video_director_plan, clip, clip_metadata, attention,
+            skip_llm=skip_llm_when_prompt_exists, clip_only=clip_only_execution, manifest=phase_b_manifest,
+        )
+        metadata = safe_json_dict(task.metadata_json)
+        metadata["visual_attention_cache"] = {
+            "result": "HIT" if reusable_prompt else "MISS",
+            "explicit_skip_llm": bool(skip_llm_when_prompt_exists),
+            "fingerprint": attention["fingerprint"],
+        }
+        task.metadata_json = json.dumps(metadata, ensure_ascii=False)
         if skip_llm_when_prompt_exists and not reusable_prompt:
             task.status = "failed"
             task.error_message = "当前 Shot 没有可复用的视频最终 Prompt，请先使用 LLM+生成当前Shot视频。"
@@ -1305,6 +1361,7 @@ async def generate_shot_video_task(
                     item for item in video_director_plan.get("keyframes") or []
                     if isinstance(item, dict) and item.get("index") == clip.get("carry_in_state_index")
                 ), None) if clip_only_execution else None,
+                visual_attention=attention,
             )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
@@ -1312,8 +1369,15 @@ async def generate_shot_video_task(
             db.commit()
             return
         task.prompt_text = shot_prompt
+        metadata = safe_json_dict(task.metadata_json)
+        metadata["prompt_projection"] = prompt_projection_metadata(attention, shot_prompt)
+        if clip_only_execution:
+            metadata.setdefault("execution_contract", {})["visual_attention_snapshot"] = execution_attention_snapshot(
+                attention, shot_prompt, temporal_manifest,
+            )
+        task.metadata_json = json.dumps(metadata, ensure_ascii=False)
         if selected_mode != "MULTI_KEYFRAME":
-            _update_clip_prompt(shot, clip, shot_prompt, db)
+            _update_clip_prompt(shot, clip, shot_prompt, db, attention)
         db.commit()
 
         task.current_step = "正在调用 ComfyUI 生成视频..."
@@ -1653,7 +1717,14 @@ async def _generate_multi_clip_video_task(
             video_director_plan.get("dialogue_timeline_source"),
         )
 
+        attention = prepare_clip_visual_attention(
+            video_director_plan, clip, safe_json_list(shot.characters), keyframes=keyframes_for_prompt,
+            transitions=clip_transitions_for_prompt, duration=shot.duration,
+        )
+        require_current_attention_transitions(video_director_plan, clip)
         reusable_clip_prompt = (window_plan.get("prompt_text") or "").strip() if skip_llm_when_prompt_exists else ""
+        if not reusable_attention_prompt(reusable_clip_prompt, attention, window_plan.get("prompt_projection")):
+            reusable_clip_prompt = ""
         if skip_llm_when_prompt_exists and not reusable_clip_prompt:
             _update_window_plan(shot, window_index, {"status": "FAILED", "error_message": "缺少可复用的 Clip 视频最终 Prompt"}, db, task=task)
             task.status = "failed"
@@ -1700,6 +1771,7 @@ async def _generate_multi_clip_video_task(
                     clip_dialogues=clip_dialogues,
                     reference_images=reference_images,
                     character_appearances=character_appearances,
+                    visual_attention=attention,
                 )
             except Exception as exc:
                 task.status = "failed"
@@ -1715,7 +1787,9 @@ async def _generate_multi_clip_video_task(
             db.commit()
             return
         task.prompt_text = clip_prompt
-        _update_window_plan(shot, window_index, {"prompt_text": clip_prompt}, db, task=task)
+        _update_window_plan(shot, window_index, {"prompt_text": clip_prompt,
+                            "prompt_projection": prompt_projection_metadata(attention, clip_prompt),
+                            "visual_attention_snapshot": execution_attention_snapshot(attention, clip_prompt)}, db, task=task)
 
         clip_duration = max(1, float(clip["end_time"]) - float(clip["start_time"]))
         raw_frame_count = int(fps * clip_duration)

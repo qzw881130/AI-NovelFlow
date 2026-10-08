@@ -7,6 +7,7 @@ import json
 import random
 import re
 from typing import Dict, Any, List, Optional, Tuple
+from app.utils.workflow_seed import set_workflow_seed
 
 
 class WorkflowBuilder:
@@ -1192,20 +1193,8 @@ class WorkflowBuilder:
         return False
 
     def _set_random_seed(self, workflow: Dict[str, Any], seed: int):
-        """设置随机种子"""
-        for node_id, node in workflow.items():
-            if not isinstance(node, dict):
-                continue
-            
-            inputs = node.get("inputs", {})
-            class_type = node.get("class_type", "")
-            
-            if class_type in ["KSampler", "KSamplerAdvanced", "SamplerCustom", 
-                             "SamplerCustomAdvanced", "RandomNoise", "PainterSamplerLTXV"]:
-                if "seed" in inputs:
-                    inputs["seed"] = seed
-                if "noise_seed" in inputs:
-                    inputs["noise_seed"] = seed
+        """采样器与 Qwen 提示词改写节点共用同一个合法 seed。"""
+        set_workflow_seed(workflow, seed)
     
     def _replace_style_placeholder(self, workflow: Dict[str, Any], style: str):
         """替换 ##STYLE## 占位符"""

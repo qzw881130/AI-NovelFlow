@@ -12,6 +12,7 @@ from .client import ComfyUIClient
 from .workflows import WorkflowBuilder
 from .errors import with_error_stage
 from app.core.config import get_settings
+from app.utils.workflow_seed import randomize_prompt_rewrite_seeds, synchronize_prompt_rewrite_seeds
 from app.utils.workflow_disconnect import (
     disconnect_reference_chain,
     disconnect_unuploaded_reference_nodes,
@@ -52,19 +53,8 @@ class ComfyUIService:
 
     @staticmethod
     def _randomize_prompt_rewrite_seeds(workflow: Dict[str, Any]) -> bool:
-        """Change only Qwen PE rewrite seeds before a format-failure retry."""
-        changed = False
-        for node in workflow.values():
-            if not isinstance(node, dict) or node.get("class_type") != "QwenPERewriteT8":
-                continue
-            inputs = node.get("inputs") if isinstance(node.get("inputs"), dict) else {}
-            previous_seed = inputs.get("seed")
-            next_seed = random.randint(1, 2**31 - 1)
-            if next_seed == previous_seed:
-                next_seed = 1 if previous_seed != 1 else 2
-            inputs["seed"] = next_seed
-            changed = True
-        return changed
+        """Keep Qwen PE and sampler seeds equal on a format-failure retry."""
+        return randomize_prompt_rewrite_seeds(workflow)
 
     async def retry_prompt_rewrite_format_failure(
         self,
@@ -150,6 +140,7 @@ class ComfyUIService:
                 **{k: v for k, v in kwargs.items() if k != 'workflow'}
             )
             
+            synchronize_prompt_rewrite_seeds(workflow)
             queue_result = await self.client.queue_prompt(workflow)
             
             if not queue_result.get("success"):
@@ -236,6 +227,7 @@ class ComfyUIService:
             workflow[load_image_node_id].setdefault("inputs", {})["image"] = upload_result.get("filename")
             self.builder._set_prompt(workflow, prompt_node_id, prompt)
 
+            synchronize_prompt_rewrite_seeds(workflow)
             queue_result = await self.client.queue_prompt(workflow)
             if not queue_result.get("success"):
                 return {**queue_result, "message": queue_result.get("error", "提交任务失败")}
@@ -322,6 +314,7 @@ class ComfyUIService:
                         print(f"[ComfyUI] Set reference to LoadImage node {node_id}: {filename}")
             
             # 提交任务
+            synchronize_prompt_rewrite_seeds(workflow)
             queue_result = await self.client.queue_prompt(workflow)
             
             if not queue_result.get("success"):

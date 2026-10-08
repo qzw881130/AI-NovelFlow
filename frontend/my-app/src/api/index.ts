@@ -11,8 +11,8 @@ export const API_BASE = import.meta.env.VITE_API_URL
  * 通用请求封装
  */
 export const api = {
-  get: async <T>(url: string): Promise<{ success: boolean; data?: T; message?: string }> => {
-    const res = await fetch(`${API_BASE}${url}`);
+  get: async <T>(url: string, options?: { signal?: AbortSignal }): Promise<{ success: boolean; data?: T; message?: string }> => {
+    const res = await fetch(`${API_BASE}${url}`, options);
     return res.json();
   },
 

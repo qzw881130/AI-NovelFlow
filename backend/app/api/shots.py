@@ -10,11 +10,14 @@ import subprocess
 import tempfile
 import uuid
 import zipfile
+from copy import deepcopy
+from types import SimpleNamespace
+from hashlib import sha256
 from io import BytesIO
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from sqlalchemy.orm import Session
@@ -24,6 +27,14 @@ from app.core.database import get_db
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.shot import Shot
 from app.models.task import Task
+from app.services.visual_attention import (
+    character_catalog, normalize_visual_attention, project_visual_attention,
+    normalize_attention_replan_response, attention_source_sha256,
+    canonical_transition_edges, stale_attention_edges, changed_attention_edges,
+    attention_edge_records, merge_attention_update, clip_attention_transition_edges,
+    require_current_attention_transitions, effective_transition_attention,
+)
+from app.repositories.character_repository import CharacterRepository
 from app.services.required_visual_state_images import (
     task_provenance, validate_image_provenance, state_provenance,
     commit_visual_state_image, project_required_execution_images,
@@ -50,6 +61,7 @@ from app.services.canonical_export import (
     build_chapter_archive_package,
     build_shot_production_package,
 )
+from app.services.shot_export_selection import SHOT_EXPORT_SECTIONS, SelectedShotArchive
 
 generate_shot_task = enqueue_shot_image_task
 generate_shot_video_task = enqueue_shot_video_task
@@ -87,6 +99,7 @@ from app.schemas.shot import (
     GenerateVideoDirectorClipRequest,
     RecommendVideoModeRequest,
     PlanVideoKeyframesRequest,
+    PlanVideoTransitionsRequest,
     SaveVideoDirectorPlanRequest,
 )
 from app.api.deps import (
@@ -1570,7 +1583,7 @@ def _get_keyframe_planner_template(novel: Novel, template_repo: PromptTemplateRe
     return template
 
 
-def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: dict | None = None, previous_failures: list = None) -> str:
+def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: dict | None = None, previous_failures: list = None, *, attention_catalog: list | None = None) -> str:
     shot_dialogues = _safe_json_list(shot.dialogues)
     dialogue_timeline_source, _, dialogue_timeline_status = build_dialogue_timeline(
         {"start_time": 0, "end_time": shot.duration or 4},
@@ -1606,9 +1619,10 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
         "existing_keyframes_policy": "旧规划仅作为非权威 index/role/time_seconds 结构参考；旧 description 不得覆盖 dialogue_timeline_source 或约束新的视觉状态。",
         "continuity_requirements": _build_continuity_requirements(shot),
         "requirements": {
-            "output_top_level_keys": ["keyframes"],
+            "output_top_level_keys": ["keyframes", "visual_attention"],
             "canonical_planner_rule": "规划 Shot 级 canonical visual states；不得规划 Clip/window、workflow 或物理参考槽。",
         },
+        "character_catalog": attention_catalog or [],
     }
     if previous_failures:
         payload["previous_failed_attempts"] = previous_failures
@@ -1644,6 +1658,173 @@ def _get_official_dialogue_timeline(db: Session, shot, fallback: list) -> list:
         if isinstance(timeline, list) and _timeline_matches_shot_dialogues(timeline, fallback) and _timeline_is_non_overlapping(timeline):
             return timeline
     return fallback
+
+
+def _attention_replan_source(db, novel, shot, template_repo):
+    """Read semantic authority only; no FULL timeline persistence or physical slots."""
+    plan = _safe_json_dict(shot.video_director_plan)
+    if plan.get("canonical_visual_plan") is not True or not plan.get("keyframes"):
+        raise HTTPException(status_code=400, detail="ATTENTION_REPLAN_REQUIRES_CANONICAL_VISUAL_STATES")
+    template = template_repo.get_default_system_template("visual_attention_replan")
+    if not template:
+        raise HTTPException(status_code=400, detail="未配置视觉关注重规划提示词模板")
+    catalog, findings = character_catalog(
+        _safe_json_list(shot.characters), CharacterRepository(db).list_by_novel(novel.id),
+    )
+    fallback, _, timeline_status = build_dialogue_timeline(
+        {"start_time": 0, "end_time": shot.duration or 4},
+        _safe_json_list(shot.dialogues), _safe_json_list(shot.characters),
+    )
+    timeline = _get_official_dialogue_timeline(db, shot, fallback)
+    physical_fields = {
+        "image_url", "imageUrl", "image_path", "image_task_id", "prompt_text", "source",
+        "provenance", "reference_image_url", "reference_mode", "generated_by_task_id",
+    }
+    payload = {
+        "operation": "ATTENTION_REPLAN",
+        "shot": {
+            "id": shot.id, "index": shot.index, "description": shot.description or "",
+            "video_description": shot.video_description or "", "duration": shot.duration or 4,
+            "characters": _safe_json_list(shot.characters), "scene": shot.scene or "",
+            "props": _safe_json_list(shot.props), "continuity_mode": shot.continuity_mode or "NORMAL",
+            "dialogues": _safe_json_list(shot.dialogues),
+        },
+        "visual_intent": plan.get("visual_intent") or "",
+        "existing_canonical_visual_states": [
+            {key: deepcopy(value) for key, value in state.items() if key not in physical_fields}
+            for state in plan["keyframes"]
+        ],
+        "existing_canonical_transitions": [
+            {key: deepcopy(value) for key, value in transition.items() if key not in physical_fields}
+            for transition in plan.get("transitions") or []
+        ],
+        "canonical_state_policy": "authoritative read-only; plan visual_attention only; no replacement keyframes",
+        "dialogue_timeline_source": timeline,
+        "dialogue_timeline_status": plan.get("dialogue_timeline_status") or timeline_status,
+        "speaker_bindings": [{
+            "dialogue_id": item.get("id") or item.get("dialogue_id"), "speaker": item.get("speaker"),
+            "character_id": next((entry["character_id"] for entry in catalog
+                                   if entry["character_name"] == item.get("speaker")), None),
+        } for item in timeline],
+        "character_catalog": catalog,
+        "continuity_requirements": _build_continuity_requirements(shot),
+        "requirements": {"output_top_level_keys": ["visual_attention"]},
+    }
+    template_sha = sha256(template.template.encode()).hexdigest()
+    source_sha = attention_source_sha256({
+        "input": payload, "template_id": template.id, "template_sha256": template_sha,
+        "prior_attention": plan.get("visual_attention"),
+    })
+    return plan, template, payload, source_sha, template_sha, findings
+
+
+def _commit_attention_plan(db, shot, plan):
+    """Compare-and-swap the fresh JSON; never overwrite another request's plan."""
+    source_fields = ("chapter_id", "index", "description", "video_description", "characters",
+                     "scene", "props", "duration", "continuity_mode", "dialogues", "video_director_plan")
+    filters = [getattr(Shot, field) == getattr(shot, field) for field in source_fields]
+    with db.no_autoflush:
+        count = db.query(Shot).filter(Shot.id == shot.id, *filters).update(
+            {Shot.video_director_plan: json.dumps(plan, ensure_ascii=False)}, synchronize_session=False,
+        )
+    if count != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="ATTENTION_SOURCE_CHANGED")
+    db.commit()
+    db.refresh(shot)
+
+
+def _attention_plan_with_call(plan, call):
+    # Reuse the established log shape without dirtying the ORM object before CAS.
+    return append_video_ai_call(SimpleNamespace(video_director_plan=json.dumps(plan, ensure_ascii=False)), call)
+
+
+def _record_attention_failure(db, shot, call):
+    db.rollback()
+    db.refresh(shot)
+    plan = _safe_json_dict(shot.video_director_plan)
+    try:
+        _commit_attention_plan(db, shot, _attention_plan_with_call(plan, {**call, "status": call.get("status") or "error"}))
+    except HTTPException as exc:
+        if exc.status_code != 409:
+            raise
+        # A competing writer takes precedence; the underlying LLM log remains available.
+        db.rollback()
+
+
+def _check_active_attention_consumers(db, shot, plan, edges, new_authority=None):
+    affected = {clip["clip_index"] for clip in plan.get("clip_plan") or []
+                if clip_attention_transition_edges(plan, clip) & edges or (
+                    new_authority is not None and effective_transition_attention(
+                        plan.get("visual_attention"), clip["start_time"], clip["end_time"], shot.duration or 4,
+                    ) != effective_transition_attention(
+                        new_authority, clip["start_time"], clip["end_time"], shot.duration or 4,
+                    )
+                )}
+    try:
+        ensure_no_active_canonical_clip_tasks(db, shot.id, plan, affected)
+    except CanonicalExecutionConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+def _require_attention_execution_freshness(plan, clip=None):
+    try:
+        require_current_attention_transitions(plan, clip)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+async def _replan_visual_attention(db, novel, chapter, shot, template_repo, llm_service):
+    plan, template, payload, source_sha, template_sha, findings = _attention_replan_source(
+        db, novel, shot, template_repo,
+    )
+    call = {
+        "step": "08", "task_type": "keyframe_planner", "prompt_template_name": template.name,
+        "input_summary": f"Shot {shot.index} · ATTENTION_REPLAN",
+        "parsed_result": {"operation": "ATTENTION_REPLAN", "source_input_sha256": source_sha,
+                          "template_id": template.id, "template_sha256": template_sha},
+    }
+    try:
+        result = await llm_service.chat_completion(
+            system_prompt=template.template,
+            user_content="请基于以下只读 canonical authority 重新规划 visual_attention。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2),
+            temperature=0.3, max_tokens=2500, response_format="json_object",
+            task_type="keyframe_planner", prompt_template_name=template.name,
+            novel_id=novel.id, chapter_id=chapter.id,
+        )
+    except Exception as exc:
+        _record_attention_failure(db, shot, {**call, "response": str(exc), "error_message": str(exc)})
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    call["response"] = result.get("content") or result.get("error") or ""
+    if not result.get("success"):
+        _record_attention_failure(db, shot, {**call, "error_message": result.get("error") or "Attention planning failed"})
+        raise HTTPException(status_code=500, detail=result.get("error") or "Attention planning failed")
+    try:
+        normalized = normalize_attention_replan_response(
+            _parse_keyframe_planner_content(result.get("content") or "{}"), payload["character_catalog"], payload["shot"]["duration"],
+        )
+    except (ValueError, TypeError) as exc:
+        _record_attention_failure(db, shot, {**call, "error_message": str(exc)})
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    # End the read transaction held during await and reload all source identities.
+    db.rollback()
+    db.expire_all()
+    db.refresh(shot)
+    db.refresh(novel)
+    try:
+        fresh, _, _, current_sha, _, _ = _attention_replan_source(db, novel, shot, template_repo)
+    except HTTPException as exc:
+        raise HTTPException(status_code=409, detail="ATTENTION_SOURCE_CHANGED") from exc
+    if current_sha != source_sha:
+        _record_attention_failure(db, shot, {**call, "error_message": "ATTENTION_SOURCE_CHANGED"})
+        raise HTTPException(status_code=409, detail="ATTENTION_SOURCE_CHANGED")
+    edges = changed_attention_edges(fresh, normalized["authority"], shot.duration or 4)
+    _check_active_attention_consumers(db, shot, fresh, edges, normalized["authority"])
+    updated = merge_attention_update(fresh, normalized, shot.duration or 4, findings)
+    call["parsed_result"].update(status=normalized["status"], visual_attention=normalized["authority"])
+    _commit_attention_plan(db, shot, _attention_plan_with_call(updated, call))
+    return {"success": True, "data": _safe_json_dict(shot.video_director_plan)}
 
 
 def _timeline_is_non_overlapping(timeline: list) -> bool:
@@ -1867,6 +2048,7 @@ def _build_keyframe_transition_user_content(
     to_keyframe: dict,
     segment_index: int,
     previous_validation_failure: dict | None = None,
+    *, visual_attention: dict | None = None,
 ) -> str:
     from_payload = _transition_keyframe_payload(shot, from_keyframe)
     to_payload = _transition_keyframe_payload(shot, to_keyframe)
@@ -1885,6 +2067,8 @@ def _build_keyframe_transition_user_content(
         "from_keyframe": from_payload,
         "to_keyframe": to_payload,
     }
+    if visual_attention and visual_attention.get("status") == "VALID":
+        payload["visual_attention"] = visual_attention
     if previous_validation_failure:
         payload["previous_validation_failure"] = previous_validation_failure
         payload["retry_instruction"] = (
@@ -1903,14 +2087,26 @@ async def _plan_keyframe_transitions(
     keyframes: list,
     template_repo: PromptTemplateRepository,
     llm_service: LLMService,
+    *, selected_edges: set[tuple[int, int]] | None = None, call_records: list | None = None,
 ) -> list:
     if len(keyframes) < 2:
         return []
     template = _get_keyframe_transition_template(novel, template_repo)
     transitions = []
+
+    def record_call(call):
+        if call_records is None:
+            append_video_ai_call(shot, call)
+            db.commit()
+        else:
+            # Explicit refresh publishes logs and selected edges together after source revalidation.
+            call_records.append(call)
+
     for index in range(len(keyframes) - 1):
         from_keyframe = keyframes[index]
         to_keyframe = keyframes[index + 1]
+        if selected_edges is not None and (from_keyframe["index"], to_keyframe["index"]) not in selected_edges:
+            continue
         segment_index = index + 1
         previous_validation_failure = None
         for attempt in range(1, 3):
@@ -1921,9 +2117,14 @@ async def _plan_keyframe_transitions(
                     to_keyframe,
                     segment_index,
                     previous_validation_failure=previous_validation_failure,
+                    visual_attention=project_visual_attention(
+                        _safe_json_dict(shot.video_director_plan).get("visual_attention"),
+                        from_keyframe["time_seconds"], to_keyframe["time_seconds"],
+                        clip_local=False, duration=shot.duration or 4,
+                    ),
                 )
             except CanonicalVisualSpeechAuthorityViolation as exc:
-                append_video_ai_call(shot, {
+                record_call({
                     "step": "10",
                     "task_type": "keyframe_transition",
                     "prompt_template_name": template.name,
@@ -1941,7 +2142,6 @@ async def _plan_keyframe_transitions(
                         "phrase": exc.match.phrase,
                     },
                 })
-                db.commit()
                 raise HTTPException(status_code=400, detail=str(exc))
             result = await llm_service.chat_completion(
                 system_prompt=template.template,
@@ -1955,7 +2155,7 @@ async def _plan_keyframe_transitions(
                 chapter_id=chapter.id,
             )
             if not result.get("success"):
-                append_video_ai_call(shot, {
+                record_call({
                     "step": "10",
                     "task_type": "keyframe_transition",
                     "prompt_template_name": template.name,
@@ -1963,12 +2163,11 @@ async def _plan_keyframe_transitions(
                     "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
                     "response": result.get("error") or "",
                 })
-                db.commit()
                 raise HTTPException(status_code=500, detail=result.get("error") or "关键帧过渡规划失败")
             try:
                 parsed = _parse_keyframe_planner_content(result.get("content") or "{}")
             except Exception as exc:
-                append_video_ai_call(shot, {
+                record_call({
                     "step": "10",
                     "task_type": "keyframe_transition",
                     "prompt_template_name": template.name,
@@ -1977,7 +2176,6 @@ async def _plan_keyframe_transitions(
                     "response": result.get("content") or "",
                     "parsed_result": {"error": str(exc)},
                 })
-                db.commit()
                 raise HTTPException(status_code=400, detail=f"#10 返回格式无效：{exc}")
 
             transition = {
@@ -2003,7 +2201,7 @@ async def _plan_keyframe_transitions(
                     "phrase": exc.match.phrase,
                     "attempt": attempt,
                 }
-                append_video_ai_call(shot, {
+                record_call({
                     "step": "10",
                     "task_type": "keyframe_transition",
                     "prompt_template_name": template.name,
@@ -2015,22 +2213,24 @@ async def _plan_keyframe_transitions(
                     "response": result.get("content") or "",
                     "parsed_result": {"error": str(exc), **previous_validation_failure},
                 })
-                db.commit()
                 if attempt == 2:
                     raise HTTPException(status_code=400, detail=str(exc))
                 continue
 
             transitions.append(transition)
-            append_video_ai_call(shot, {
+            record_call({
                 "step": "10",
                 "task_type": "keyframe_transition",
                 "prompt_template_name": template.name,
                 "status": "success",
                 "input_summary": f"Shot {shot.index} KF{from_keyframe.get('index')} -> KF{to_keyframe.get('index')}",
                 "response": result.get("content") or "",
-                "parsed_result": transition,
+                "parsed_result": {**transition, "visual_attention_consumed": project_visual_attention(
+                    _safe_json_dict(shot.video_director_plan).get("visual_attention"),
+                    from_keyframe["time_seconds"], to_keyframe["time_seconds"],
+                    clip_local=False, duration=shot.duration or 4,
+                )},
             })
-            db.commit()
             break
     return transitions
 
@@ -2228,6 +2428,7 @@ async def generate_clip_plan_video(
     if not validation.get("passed"):
         raise HTTPException(status_code=400, detail="Clip Plan 未通过确定性校验")
     clip = next((item for item in clips if item.get("execution_status") in {"PLANNED", "GENERATING"}), clips[0])
+    _require_attention_execution_freshness(plan, clip)
     if clip.get("capability") == "SINGLE_FRAME":
         image_path = url_to_local_path(shot.image_url) if shot.image_url else shot.image_path
         if not image_path or not Path(image_path).is_file():
@@ -2302,6 +2503,9 @@ async def plan_video_keyframes(
     if not shot or shot.chapter_id != chapter_id:
         raise HTTPException(status_code=404, detail="分镜不存在")
 
+    if request.operation == "ATTENTION_REPLAN":
+        return await _replan_visual_attention(db, novel, chapter, shot, template_repo, llm_service)
+
     plan = _safe_json_dict(shot.video_director_plan)
 
     fallback_dialogue_timeline, _, fallback_timeline_status = build_dialogue_timeline(
@@ -2333,6 +2537,9 @@ async def plan_video_keyframes(
     plan["dialogue_timeline_status"] = fallback_timeline_status
 
     template = _get_keyframe_planner_template(novel, template_repo)
+    attention_catalog, catalog_findings = character_catalog(
+        _safe_json_list(shot.characters), CharacterRepository(db).list_by_novel(novel.id),
+    )
     previous_failures = []
     result = None
     keyframes = []
@@ -2340,7 +2547,7 @@ async def plan_video_keyframes(
     max_attempts = 2
     for attempt in range(1, max_attempts + 1):
         plan["dialogue_timeline_source"] = dialogue_timeline_source
-        user_content = _build_keyframe_planner_user_content(shot, plan, previous_failures=previous_failures)
+        user_content = _build_keyframe_planner_user_content(shot, plan, previous_failures=previous_failures, attention_catalog=attention_catalog)
         result = await llm_service.chat_completion(
             system_prompt=template.template,
             user_content=user_content,
@@ -2375,6 +2582,9 @@ async def plan_video_keyframes(
         try:
             parsed = _parse_keyframe_planner_content(result.get("content") or "{}")
             keyframes, _, validation = _normalize_keyframe_planner_result(parsed, None, duration, get_style(db, novel, "character")[0])
+            attention_result = normalize_visual_attention(parsed.get("visual_attention"), attention_catalog, duration)
+            validation["visual_attention"] = {"status": attention_result["status"],
+                                               "findings": catalog_findings + attention_result["findings"]}
             break
         except Exception as exc:
             error = str(exc)
@@ -2417,6 +2627,7 @@ async def plan_video_keyframes(
         "validation": validation,
         "dialogue_timeline_source": dialogue_timeline_source,
         "dialogue_timeline_status": fallback_timeline_status,
+        "visual_attention": attention_result["authority"],
     })
     plan.pop("task_error_message", None)
     plan.pop("error_message", None)
@@ -2451,7 +2662,7 @@ async def plan_video_keyframes(
         "status": "success",
         "input_summary": f"Shot {shot.index} · canonical Director visual planning",
         "response": result.get("content") or "",
-        "parsed_result": {"keyframes": keyframes, "validation": validation},
+        "parsed_result": {"keyframes": keyframes, "validation": validation, "visual_attention": attention_result["authority"]},
     })
     shot_repo.update(
         shot,
@@ -2472,6 +2683,173 @@ async def plan_video_keyframes(
     plan["transitions"] = transitions
     shot_repo.update(shot, video_director_plan=plan)
     return {"success": True, "data": plan}
+
+
+@router.post(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/video-director/plan-transitions",
+    response_model=dict,
+)
+async def refresh_attention_transitions(
+    novel_id: str, chapter_id: str, shot_id: str,
+    request: PlanVideoTransitionsRequest = PlanVideoTransitionsRequest(),
+    db: Session = Depends(get_db),
+    novel_repo: NovelRepository = Depends(get_novel_repo),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+    template_repo: PromptTemplateRepository = Depends(get_prompt_template_repo),
+    llm_service: LLMService = Depends(get_llm_service),
+):
+    """Refresh only explicitly selected attention-stale edges, never the owner."""
+    novel = novel_repo.get_by_id(novel_id)
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    shot = shot_repo.get_by_id(shot_id)
+    if not novel or not chapter or not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="小说、章节或分镜不存在")
+    plan, _, _, source_sha, _, _ = _attention_replan_source(db, novel, shot, template_repo)
+    stale = stale_attention_edges(plan)
+    selected = set(request.transition_edges) if request.transition_edges is not None else stale
+    if not selected <= stale or not selected <= canonical_transition_edges(plan):
+        raise HTTPException(status_code=400, detail="只能刷新当前 attention-stale canonical transition edges")
+    if not selected:
+        return {"success": True, "data": plan}
+    _check_active_attention_consumers(db, shot, plan, selected)
+    template = _get_keyframe_transition_template(novel, template_repo)
+    transition_template_sha = attention_source_sha256({"id": template.id, "template": template.template})
+    records = []
+    try:
+        transitions = await _plan_keyframe_transitions(
+            db, novel, chapter, shot, deepcopy(plan["keyframes"]), template_repo, llm_service,
+            selected_edges=selected, call_records=records,
+        )
+    except Exception:
+        for call in records:
+            _record_attention_failure(db, shot, call)
+        raise
+    expected = {
+        (a["index"], b["index"]): (i + 1, a["time_seconds"], b["time_seconds"])
+        for i, (a, b) in enumerate(zip(plan["keyframes"], plan["keyframes"][1:]))
+    }
+    returned = {(t["from_keyframe_index"], t["to_keyframe_index"]): t for t in transitions}
+    if set(returned) != selected or len(transitions) != len(selected) or any(
+        (t["segment_index"], t["start_time"], t["end_time"]) != expected[edge]
+        for edge, t in returned.items()
+    ):
+        raise HTTPException(status_code=400, detail="#10 必须保持所选 canonical edge identity / timing")
+    db.rollback()
+    db.expire_all()
+    db.refresh(shot)
+    db.refresh(novel)
+    try:
+        fresh, _, _, current_sha, _, _ = _attention_replan_source(db, novel, shot, template_repo)
+        template = _get_keyframe_transition_template(novel, template_repo)
+    except HTTPException as exc:
+        raise HTTPException(status_code=409, detail="ATTENTION_SOURCE_CHANGED") from exc
+    if (current_sha != source_sha or not selected <= stale_attention_edges(fresh)
+            or attention_source_sha256({"id": template.id, "template": template.template}) != transition_template_sha):
+        raise HTTPException(status_code=409, detail="ATTENTION_SOURCE_CHANGED")
+    _check_active_attention_consumers(db, shot, fresh, selected)
+    # Preserve unrelated edges and their order; insert a formerly missing edge at its canonical segment.
+    merged = deepcopy(fresh)
+    merged["transitions"] = [returned.pop((t["from_keyframe_index"], t["to_keyframe_index"]), t)
+                             for t in fresh.get("transitions") or []]
+    for transition in sorted(returned.values(), key=lambda t: t["segment_index"]):
+        position = next((i for i, item in enumerate(merged["transitions"])
+                         if item["segment_index"] > transition["segment_index"]), len(merged["transitions"]))
+        merged["transitions"].insert(position, transition)
+    merged["validation"]["visual_attention"]["stale_transition_edges"] = attention_edge_records(
+        stale_attention_edges(fresh) - selected,
+    )
+    for call in records:
+        merged = _attention_plan_with_call(merged, call)
+    _commit_attention_plan(db, shot, merged)
+    return {"success": True, "data": _safe_json_dict(shot.video_director_plan)}
+
+
+class UpdateVisualStateDescriptionRequest(BaseModel):
+    description: str
+    expected_description: str
+    expected_plan_revision: int
+
+
+@router.patch(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/video-director/states/{state_index}/description",
+    response_model=dict,
+)
+def update_visual_state_description(
+    novel_id: str,
+    chapter_id: str,
+    shot_id: str,
+    state_index: int,
+    request: UpdateVisualStateDescriptionRequest,
+    db: Session = Depends(get_db),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    if not chapter_repo.get_by_id(chapter_id, novel_id):
+        raise HTTPException(status_code=404, detail="章节不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+    plan = deepcopy(_safe_json_dict(shot.video_director_plan))
+    state = next((item for item in plan.get("keyframes") or []
+                  if isinstance(item, dict) and item.get("index") == state_index), None)
+    if state is None:
+        raise HTTPException(status_code=404, detail="视觉状态不存在")
+    description = request.description.strip()
+    if not description:
+        raise HTTPException(status_code=400, detail="视觉状态描述不能为空")
+    current_description = (shot.description if state.get("role") == "START" else state.get("description")) or ""
+    if (current_description != request.expected_description
+            or int(plan.get("clip_plan_revision") or 0) != request.expected_plan_revision):
+        raise HTTPException(status_code=409, detail="视觉状态已更新，请取消编辑后重试")
+    if plan.get("canonical_visual_plan") is True:
+        try:
+            require_speech_neutral_visual_text(description, code="VISUAL_STATE_SPEECH_AUTHORITY_VIOLATION",
+                                             field="description", state_index=state_index)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    legacy = deepcopy(_safe_json_list(shot.keyframes))
+    image_task_ids = {item.get("image_task_id") for item in legacy
+                      if isinstance(item, dict) and item.get("plan_keyframe_index") == state_index}
+    image_task_ids.add(state.get("image_task_id"))
+    if state.get("role") == "START":
+        image_task_ids.add(shot.image_task_id)
+    active = db.query(Task).filter(
+        Task.shot_id == shot.id, Task.status.in_(["pending", "queued", "processing", "running"]),
+    ).all()
+    if shot.video_status == "generating" or any(task.type == "shot_video" or task.id in image_task_ids for task in active):
+        raise HTTPException(status_code=409, detail="当前状态图片或 Shot 视频生成中，请等待完成后编辑")
+    state["description"] = description
+    if description != current_description:
+        # Empty explicitly prevents fallback to an old task's generated prompt.
+        state["prompt_text"] = ""
+    for item in legacy:
+        if isinstance(item, dict) and item.get("plan_keyframe_index") == state_index:
+            item["description"] = description
+            if description != current_description:
+                item["prompt_text"] = ""
+    shot_description = description if state.get("role") == "START" else shot.description
+    # Compare the read snapshot before committing, so workers cannot lose their
+    # latest image URLs, AI logs or Clip progress to a description-only edit.
+    with db.no_autoflush:
+        count = db.query(Shot).filter(
+            Shot.id == shot.id, Shot.video_director_plan == shot.video_director_plan,
+            Shot.keyframes == shot.keyframes, Shot.description == shot.description,
+        ).update({
+            Shot.video_director_plan: json.dumps(plan, ensure_ascii=False),
+            Shot.keyframes: json.dumps(legacy, ensure_ascii=False),
+            Shot.description: shot_description,
+        }, synchronize_session=False)
+    if count != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="分镜数据已更新，请取消编辑后重试")
+    db.commit()
+    db.refresh(shot)
+    response = shot_repo.to_response(shot)
+    return {"success": True, "data": {
+        "description": description, "shotDescription": shot.description,
+        "videoDirectorPlan": response["videoDirectorPlan"], "keyframes": response["keyframes"],
+    }}
 
 
 @router.patch(
@@ -2578,6 +2956,7 @@ async def generate_video_director_clip(
     if not window_plan:
         raise HTTPException(status_code=404, detail=f"Clip {window_index} 不存在")
 
+    _require_attention_execution_freshness(plan, window_plan)
     frame_count = int(window_plan.get("selected_frame_count") or 0)
     workflow_type = "three_frame_video" if frame_count == 3 else "four_frame_video"
     workflow = workflow_repo.get_active_by_type(workflow_type)
@@ -2672,6 +3051,7 @@ async def _execute_phase_b_semantic_clip(
     if int(plan.get("clip_plan_revision") or 0) != int(request.clip_plan_revision):
         raise HTTPException(status_code=409, detail="Clip 计划 revision 已变化，请重新加载并重试")
 
+    _require_attention_execution_freshness(plan, clip)
     if plan.get("canonical_visual_plan") is True:
         readiness = get_canonical_execution_readiness(shot, plan, [clip])
         if not readiness["ready"]:
@@ -2815,7 +3195,7 @@ async def _execute_phase_b_semantic_clip(
         metadata["requires_temporal_control"] = bool(clip.get("requires_temporal_control"))
     if capability == "TEMPORAL_EXTEND":
         metadata["temporal_anchor_ids"] = [item["anchor_id"] for item in resolved_temporal_anchors]
-    reusable_prompt = get_semantic_clip_prompt(plan, clip) if request.skip_llm_when_prompt_exists else ""
+    reusable_prompt = get_semantic_clip_prompt(plan, clip, compiled["video_reference_manifest"]) if request.skip_llm_when_prompt_exists else ""
     if request.skip_llm_when_prompt_exists and not reusable_prompt.strip():
         raise HTTPException(status_code=400, detail="当前 Clip 没有可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频")
     metadata["prompt_text"] = reusable_prompt
@@ -2859,6 +3239,7 @@ async def _regenerate_semantic_video_director_clip(
     clip = next((item for item in clips if int(item.get("clip_index") or 0) == window_index), None)
     if not clip:
         raise HTTPException(status_code=404, detail=f"Clip {window_index} 不存在")
+    _require_attention_execution_freshness(plan, clip)
     if window_index > 1 and clip.get("capability") in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
         previous = task_repo.db.query(Task).filter(
             Task.type == "shot_video",
@@ -5594,8 +5975,12 @@ def download_shot_video_materials(
     chapter_id: str,
     shot_id: str,
     db: Session = Depends(get_db),
+    include: Optional[list[str]] = Query(None),
 ):
     """打包当前 Shot 生视频所需图片与实际提交的 ComfyUI 工作流。"""
+    selected = None if include is None else set(include)
+    if selected is not None and (not selected or not selected <= SHOT_EXPORT_SECTIONS):
+        raise HTTPException(status_code=400, detail="请选择有效的导出项")
     novel = db.query(Novel).filter(Novel.id == novel_id).first()
     chapter = db.query(Chapter).filter(Chapter.id == chapter_id, Chapter.novel_id == novel_id).first()
     shot = db.query(Shot).filter(Shot.id == shot_id, Shot.chapter_id == chapter_id).first()
@@ -5610,7 +5995,7 @@ def download_shot_video_materials(
     if current_plan.get("canonical_visual_plan") is True:
         zip_buffer = BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_STORED) as archive:
-            build_shot_production_package(archive, db, novel, chapter, shot)
+            build_shot_production_package(archive, db, novel, chapter, shot, included_sections=selected)
         zip_buffer.seek(0)
         return StreamingResponse(
             zip_buffer,
@@ -5666,6 +6051,8 @@ def download_shot_video_materials(
     # let FastAPI run this sync endpoint in its threadpool instead of blocking
     # the event loop while recompressing multi-megabyte media files.
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_STORED) as zip_file:
+        if selected is not None:
+            zip_file = SelectedShotArchive(zip_file, selected)
         def add_asset(value, arcname: str, kind: str, label: str) -> Optional[str]:
             nonlocal asset_count
             path = resolve_path(value)

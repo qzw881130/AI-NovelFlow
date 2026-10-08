@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useSerialPolling } from '../hooks/useSerialPolling';
 import { Server, Loader2, Thermometer, MemoryStick } from 'lucide-react';
 import { useTranslation } from '../stores/i18nStore';
 import { healthApi, type SystemStats } from '../api/health';
@@ -26,15 +27,10 @@ export default function ComfyUIStatus() {
   });
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const fetchStats = async () => {
-    try {
-      const data = await healthApi.getSystemStatus();
+  useSerialPolling({
+    fetch: healthApi.getSystemStatus,
+    intervalMs: 5000,
+    onSuccess: data => {
       if (data.status === 'ok') {
         const vramUsed = asNumber(data.data?.vram_used);
         const vramTotal = asNumber(data.data?.vram_total, 16);
@@ -53,14 +49,18 @@ export default function ComfyUIStatus() {
           ramTotal: asOptionalNumber(data.data?.ram_total),
           ramPercent: asOptionalNumber(data.data?.ram_percent),
         });
+      } else {
+        setStats(prev => ({ ...prev, status: 'offline' }));
       }
-    } catch (error) {
+    },
+    onError: error => {
       console.error('Failed to fetch GPU stats:', error);
       setStats(prev => ({ ...prev, status: 'offline' }));
-    } finally {
+    },
+    onSettled: () => {
       setIsLoading(false);
-    }
-  };
+    },
+  });
 
   if (isLoading) {
     return (

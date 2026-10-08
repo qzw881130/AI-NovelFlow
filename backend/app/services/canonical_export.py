@@ -540,8 +540,13 @@ def build_shot_production_package(
     novel,
     chapter,
     shot,
+    included_sections: set[str] | None = None,
 ) -> dict:
     """Write a canonical Shot production package and return its manifest."""
+    from app.services.shot_export_selection import SHOT_EXPORT_SECTIONS, SelectedShotArchive
+    sections = SHOT_EXPORT_SECTIONS if included_sections is None else included_sections
+    if included_sections is not None:
+        archive = SelectedShotArchive(archive, sections)
     added: set[str] = set()
     warnings: list[dict] = []
     plan = _json_dict(shot.video_director_plan)
@@ -566,7 +571,8 @@ def build_shot_production_package(
     execution_records = []
     artifact_paths: dict[int, str] = {}
     revision = int(plan.get("clip_plan_revision") or 0)
-    for position, clip in enumerate(clips, 1):
+    execution_clips = clips if sections & {"clip_videos", "final_video", "reference_images", "prompts", "workflows"} else []
+    for position, clip in enumerate(execution_clips, 1):
         clip_index = int(clip.get("clip_index") or position)
         task, metadata, _, error, previous = _resolve_current_clip(db, novel.id, chapter.id, shot, plan, clip)
         record = _clip_summary(clip)
@@ -624,7 +630,7 @@ def build_shot_production_package(
     final_assembly = _final_assembly(
         archive, added, novel.id, shot, plan, execution_records,
         f"final/shot_{int(shot.index):03d}", warnings,
-    ) if classification == "CURRENT_CANONICAL" else {
+    ) if classification == "CURRENT_CANONICAL" and "final_video" in sections else {
         "status": "HISTORICAL_PLAN_NOT_EXPORTED" if classification == "HISTORICAL_PLAN" else "CURRENT_FINAL_UNAVAILABLE",
         "clip_plan_revision": None,
         "source_clip_task_ids": [],
@@ -657,6 +663,8 @@ def build_shot_production_package(
         "final_assembly": final_assembly,
         "warnings": warnings,
     }
+    if included_sections is not None:
+        manifest = archive.filter_manifest(manifest)
     archive.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
     return manifest
 

@@ -17,11 +17,13 @@ export function useShotReferenceImages(shot: ShotReferenceSource | null | undefi
   const characters = useChapterGenerateStore((state) => state.characters);
   const props = useChapterGenerateStore((state) => state.props);
   const taskId = String(shot?.imageTaskId || shot?.image_task_id || '');
-  const [snapshot, setSnapshot] = useState<{ taskId: string; shot: ShotReferenceSource; images: Array<{ label?: string; url: string }> } | null>(null);
+  const [snapshot, setSnapshot] = useState<{ taskId: string; images: Array<{ label?: string; url: string }> } | null>(null);
   const [loadingTaskId, setLoadingTaskId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!enabled || !taskId || !shot) return;
+    // Task references are immutable generation inputs. Polling replaces the
+    // Shot object, but must not reload or discard this task's image snapshot.
+    if (!enabled || !taskId) return;
     let cancelled = false;
     setLoadingTaskId(taskId);
     taskApi.fetch(taskId)
@@ -33,19 +35,19 @@ export function useShotReferenceImages(shot: ShotReferenceSource | null | undefi
             !!image && typeof image.url === 'string' && image.url.length > 0
           ))
           : [];
-        setSnapshot({ taskId, shot, images });
+        setSnapshot({ taskId, images });
       })
       .catch(() => {
-        if (!cancelled) setSnapshot({ taskId, shot, images: [] });
+        if (!cancelled) setSnapshot({ taskId, images: [] });
       })
       .finally(() => {
         if (!cancelled) setLoadingTaskId(null);
       });
     return () => { cancelled = true; };
-  }, [enabled, taskId, shot]);
+  }, [enabled, taskId]);
 
   const referenceImages = useMemo(() => projectShotReferenceImages(
-    enabled && snapshot?.taskId === taskId && snapshot.shot === shot ? snapshot.images : [],
+    enabled && snapshot?.taskId === taskId ? snapshot.images : [],
     shot,
     characters,
     props,

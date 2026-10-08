@@ -74,7 +74,9 @@ export function useLLMLogsState() {
         toast.error(t('llmLogs.loadFailed'));
       }
     } finally {
-      if (requestId === fetchLogsRequestRef.current && !options?.silent) {
+      // A silent refresh can supersede a foreground request that enabled the
+      // spinner. The latest request must settle loading in either case.
+      if (requestId === fetchLogsRequestRef.current) {
         setLoading(false);
       }
     }

@@ -39,7 +39,7 @@ def _service_with_format_failure_then_success():
 
 
 @pytest.mark.asyncio
-async def test_character_scene_prop_image_retry_changes_only_pe_seed():
+async def test_character_scene_prop_image_retry_keeps_shared_seed():
     service = _service_with_format_failure_then_success()
     workflow = _workflow()
     queued = []
@@ -50,7 +50,7 @@ async def test_character_scene_prop_image_retry_changes_only_pe_seed():
         node_mapping={"save_image_node_id": "515"},
         workflow=workflow,
         on_prompt_queued=lambda prompt_id, graph: queued.append(
-            (prompt_id, graph["519"]["inputs"]["seed"])
+            (prompt_id, graph["519"]["inputs"]["seed"], graph["482"]["inputs"]["seed"])
         ),
     )
 
@@ -58,9 +58,11 @@ async def test_character_scene_prop_image_retry_changes_only_pe_seed():
     assert result["prompt_id"] == "retry-prompt"
     assert workflow["519"]["inputs"]["seed"] != 42
     assert workflow["519"]["inputs"]["user_prompt"] == ["516", 0]
-    assert workflow["482"]["inputs"]["seed"] == 890110077
+    assert workflow["482"]["inputs"]["seed"] == workflow["519"]["inputs"]["seed"]
     assert workflow["510"]["inputs"]["image"] == "character.png"
     assert [item[0] for item in queued] == ["first-prompt", "retry-prompt"]
+    assert all(pe_seed == sampler_seed for _, pe_seed, sampler_seed in queued)
+    assert queued[0][1] != queued[1][1]
     assert service.client.queue_prompt.await_count == 2
     assert service.client.wait_for_result.await_count == 2
 
@@ -80,7 +82,7 @@ async def test_shot_image_retry_changes_pe_seed_and_preserves_references():
     assert result["success"] is True
     assert result["prompt_id"] == "retry-prompt"
     assert workflow["519"]["inputs"]["seed"] != 42
-    assert workflow["482"]["inputs"]["seed"] == 890110077
+    assert workflow["482"]["inputs"]["seed"] == workflow["519"]["inputs"]["seed"]
     assert workflow["510"]["inputs"]["image"] == "character.png"
 
 
@@ -107,7 +109,7 @@ async def test_single_image_edit_retry_changes_pe_seed_and_preserves_uploaded_im
     assert result["success"] is True
     assert result["prompt_id"] == "retry-prompt"
     assert submitted["519"]["inputs"]["seed"] != 42
-    assert submitted["482"]["inputs"]["seed"] == 890110077
+    assert submitted["482"]["inputs"]["seed"] == submitted["519"]["inputs"]["seed"]
     assert submitted["510"]["inputs"]["image"] == "uploaded.png"
 
 

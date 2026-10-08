@@ -1413,7 +1413,7 @@ class TaskService:
                     "workflowType": window.get("workflow_type"),
                     "workflowName": window.get("workflow_name"),
                     "promptId": window.get("prompt_id"),
-                    "seed": window.get("seed") or extract_workflow_seed(window.get("workflow_json")),
+                    "seed": window["seed"] if window.get("seed") is not None else extract_workflow_seed(window.get("workflow_json")),
                     "promptText": window.get("prompt_text"),
                     "hasWorkflowJson": any(window.get(key) is not None for key in ("workflow_json", "replay_workflow_json", "source_workflow_json")),
                     "referenceImages": visible_reference_images,
@@ -1450,7 +1450,7 @@ class TaskService:
                     t.workflow_id).is_system if t.workflow_id and t.workflow_id in workflows else False,
                 "hasWorkflowJson": t.workflow_json is not None,
                 "hasPromptText": t.prompt_text is not None,
-                "seed": t.seed or extract_workflow_seed(t.workflow_json),
+                "seed": t.seed if t.seed is not None else extract_workflow_seed(t.workflow_json),
                 # Multi-Clip tasks expose references per Clip. The task-level
                 # snapshot may be stale while another Clip is waiting.
                 "referenceImages": [] if formatted_clips_by_task.get(t.id) else parse_reference_images(t.reference_images),
@@ -1518,7 +1518,7 @@ class TaskService:
             "workflowId": task.workflow_id,
             "workflowName": task.workflow_name,
             "workflowJson": task.workflow_json,
-            "seed": task.seed or extract_workflow_seed(task.workflow_json),
+            "seed": task.seed if task.seed is not None else extract_workflow_seed(task.workflow_json),
             "promptText": task.prompt_text,
             "referenceImages": reference_images,
             "novelId": task.novel_id,

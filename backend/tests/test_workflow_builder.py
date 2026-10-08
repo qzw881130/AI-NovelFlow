@@ -313,7 +313,7 @@ def test_character_mapping_accepts_new_split_contract_and_legacy_prompt_mapping(
     assert "人物外貌节点和风格节点" in message
 
 
-def test_keyframe_rewrite_retry_changes_only_rewrite_seed():
+def test_keyframe_rewrite_retry_changes_the_shared_seed():
     workflow = {
         "520": {"class_type": "QwenPERewriteT8", "inputs": {"seed": 42, "user_prompt": ["516", 0]}},
         "482": {"class_type": "KSampler", "inputs": {"seed": 123}},
@@ -322,7 +322,8 @@ def test_keyframe_rewrite_retry_changes_only_rewrite_seed():
     assert randomize_prompt_rewrite_seeds(workflow) is True
     assert workflow["520"]["inputs"]["seed"] != 42
     assert workflow["520"]["inputs"]["user_prompt"] == ["516", 0]
-    assert workflow["482"]["inputs"]["seed"] == 123
+    assert workflow["482"]["inputs"]["seed"] == workflow["520"]["inputs"]["seed"]
+    assert 0 <= workflow["482"]["inputs"]["seed"] <= 2**31 - 1
 
 
 def test_keyframe_rewrite_fallback_routes_consumers_to_original_prompt():

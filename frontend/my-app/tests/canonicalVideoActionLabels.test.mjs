@@ -59,7 +59,8 @@ test('debug export keeps its handler and engineering diagnostics', () => {
 
 test('download material actions and shared Batch authority remain untouched', () => {
   assert.match(source, /handleDownloadMaterials\(\)/);
-  assert.match(source, /handleDownloadVideoMaterials\(\)/);
+  assert.match(source, /setShowShotExportModal\(true\)/);
+  assert.match(source, /onExport=\{handleDownloadVideoMaterials\}/);
   assert.match(source, /导出章节素材包/);
   assert.match(source, /导出 Shot 生产包/);
   assert.match(source, /buildSemanticBatchRequest\(selectedShotIds, autoAssemble\)/);

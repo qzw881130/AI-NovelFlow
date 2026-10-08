@@ -460,3 +460,59 @@ def test_chapter_archive_manifest_only_succeeds(client, db_session, monkeypatch,
 
     assert set(archive.namelist()) == {"manifest.json"}
     assert manifest["shots"][0]["plan_classification"] == "MISSING_PLAN"
+
+@pytest.mark.parametrize('section, expected_prefix', [
+    ('primary_image', 'shot/'), ('visual_states', 'visual_states/'),
+    ('clip_videos', 'execution/clips/C001/artifact'),
+    ('prompts', 'execution/clips/C001/submitted_prompt'),
+    ('workflows', 'execution/clips/C001/submitted_workflow'),
+    ('reference_images', 'execution/clips/C001/ordinary_references/'),
+    ('final_video', 'final/'), ('plan', None),
+])
+def test_selected_shot_package_contains_only_requested_files(client, db_session, monkeypatch, tmp_path, section, expected_prefix):
+    novel, chapter = _base_records(db_session)
+    make, _ = _configure_storage(monkeypatch, tmp_path, novel.id)
+    primary, _ = make('primary.png')
+    state_url, _ = make('state.png')
+    clip_url, _ = make('clip-current.mp4')
+    final_url, _ = make('final-current.mp4')
+    shot = Shot(chapter_id=chapter.id, index=1, duration=10, image_url=primary, description='visual description', video_url=final_url)
+    db_session.add(shot); db_session.flush()
+    task = _clip_task(db_session, novel, chapter, shot, 1, 2, clip_url, reference_manifest={
+        'version': 1, 'references': [{'slot': 1, 'kind': 'SCENE', 'image_url': state_url}],
+    })
+    clip = _canonical_clip(shot, task, 1, 2)
+    shot.video_director_plan = json.dumps({
+        'canonical_visual_plan': True, 'clip_plan_revision': 2, 'clip_plan': [clip],
+        'keyframes': [{'index': 1, 'role': 'START', 'time_seconds': 0}, {'index': 2, 'role': 'END', 'time_seconds': 10, 'image_url': state_url, 'description': 'state description'}],
+        'assembly_status': 'COMPLETED', 'assembly_clip_plan_revision': 2,
+        'assembly_task_ids': [task.id], 'merged_video_url': final_url,
+        'assembled_result': {'status': 'COMPLETED', 'url': final_url, 'clip_plan_revision': 2, 'task_ids': [task.id]},
+    })
+    db_session.commit()
+    archive, manifest = _read_archive(client.get(f'/api/novels/{novel.id}/chapters/{chapter.id}/shots/{shot.id}/download-video-materials', params={'include': section}))
+    files = [name for name in archive.namelist() if name != 'manifest.json']
+    assert manifest['selected_sections'] == [section]
+    if expected_prefix:
+        assert files and all(name.startswith(expected_prefix) for name in files)
+    else:
+        assert files == []
+        assert manifest['canonical_plan']['visual_states'][1]['description'] == 'state description'
+    def check_paths(value):
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if key.endswith('path') and item:
+                    assert item in archive.namelist(), (key, item)
+                check_paths(item)
+        elif isinstance(value, list):
+            for item in value: check_paths(item)
+    check_paths(manifest)
+
+
+def test_export_selection_rejects_unknown_sections(client, db_session):
+    novel, chapter = _base_records(db_session)
+    shot = Shot(chapter_id=chapter.id, index=1)
+    db_session.add(shot); db_session.commit()
+    url = f'/api/novels/{novel.id}/chapters/{chapter.id}/shots/{shot.id}/download-video-materials'
+    assert client.get(url, params={'include': 'unknown'}).status_code == 400
+    assert client.get(url, params={'include': ''}).status_code == 400

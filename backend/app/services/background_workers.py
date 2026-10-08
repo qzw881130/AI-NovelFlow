@@ -347,6 +347,7 @@ def ensure_task_active(db, task) -> None:
 
 def save_image_prompt(db, task, prompt_id, workflow, save_image_node_id, *, reserve_retry=False) -> None:
     """Persist the graph and retry context alongside each image prompt receipt."""
+    from app.utils.workflow_seed import extract_workflow_seed
     ensure_task_active(db, task)
     metadata = json.loads(task.metadata_json or "{}")
     attempt = metadata.setdefault("image_attempt", {})
@@ -361,6 +362,7 @@ def save_image_prompt(db, task, prompt_id, workflow, save_image_node_id, *, rese
     task.metadata_json = json.dumps(metadata, ensure_ascii=False)
     task.comfyui_prompt_id = prompt_id
     task.workflow_json = json.dumps(workflow, ensure_ascii=False, indent=2)
+    task.seed = extract_workflow_seed(workflow)
     db.commit()
 
 

@@ -72,6 +72,8 @@ downloads/
 uploads/
 
 # Local docs
+*.md
+*.yaml
 v2-doc/
 docs-v2/
 

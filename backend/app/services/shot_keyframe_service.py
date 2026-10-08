@@ -5,7 +5,6 @@
 
 import json
 import os
-import random
 import uuid
 from copy import deepcopy
 import httpx
@@ -49,6 +48,7 @@ from app.services.canonical_visual_speech_authority import (
 )
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.path_utils import local_path_to_url, url_to_local_path
+from app.utils.workflow_seed import randomize_prompt_rewrite_seeds
 from app.utils.workflow_disconnect import (
     disconnect_reference_chain,
     disconnect_unuploaded_reference_nodes,
@@ -140,18 +140,6 @@ def _project_keyframe_reference_context(reference_manifest: list) -> list:
             if field in item
         })
     return projected
-
-
-def randomize_prompt_rewrite_seeds(workflow: dict) -> bool:
-    """Change only prompt-rewrite seeds before retrying a rewrite format failure."""
-    changed = False
-    for node in workflow.values():
-        if not isinstance(node, dict) or node.get("class_type") != "QwenPERewriteT8":
-            continue
-        inputs = node.get("inputs") if isinstance(node.get("inputs"), dict) else {}
-        inputs["seed"] = random.randint(1, 2**31 - 1)
-        changed = True
-    return changed
 
 
 def bypass_failed_prompt_rewrite_nodes(workflow: dict) -> bool:

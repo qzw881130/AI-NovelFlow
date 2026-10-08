@@ -194,3 +194,66 @@ test('a stale refresh response cannot overwrite a newer backend cancellation res
   await old;
   assert.equal(harness.render().logs[0].status, 'error');
 });
+
+const listEnvelope = items => ({ success: true, data: { items, pagination: {
+  page: 1, page_size: 20, total: items.length, total_pages: 1,
+} } });
+
+test('silent polling releases the spinner when it supersedes a slow initial load', async () => {
+  const releases = [];
+  const harness = stateHarness({ fetchList: () => new Promise(resolve => releases.push(resolve)) });
+  const initial = harness.render().fetchLogs();
+  const refresh = harness.render().fetchLogs({ silent: true });
+  releases[0](listEnvelope([{ id: 'old' }]));
+  await initial;
+  assert.equal(harness.render().loading, true);
+  releases[1](listEnvelope([{ id: 'new' }]));
+  await refresh;
+  assert.equal(harness.render().loading, false);
+  assert.equal(harness.render().logs[0].id, 'new');
+});
+
+test('a slow initial response cannot restore stale rows after polling finishes', async () => {
+  const releases = [];
+  const harness = stateHarness({ fetchList: () => new Promise(resolve => releases.push(resolve)) });
+  const initial = harness.render().fetchLogs();
+  const refresh = harness.render().fetchLogs({ silent: true });
+  releases[1](listEnvelope([{ id: 'new' }]));
+  await refresh;
+  releases[0](listEnvelope([{ id: 'old' }]));
+  await initial;
+  assert.equal(harness.render().loading, false);
+  assert.equal(harness.render().logs[0].id, 'new');
+});
+
+test('failed polling releases a superseded foreground spinner', async () => {
+  const requests = [];
+  const harness = stateHarness({ fetchList: () => new Promise((resolve, reject) => requests.push({ resolve, reject })) });
+  const initial = harness.render().fetchLogs();
+  const refresh = harness.render().fetchLogs({ silent: true });
+  requests[1].reject(new Error('polling failed'));
+  await refresh;
+  assert.equal(harness.render().loading, false);
+  requests[0].resolve(listEnvelope([{ id: 'old' }]));
+  await initial;
+  assert.deepEqual(harness.render().logs, []);
+});
+
+test('stale polling cannot dismiss a newer foreground spinner', async () => {
+  const releases = [];
+  const harness = stateHarness({ fetchList: () => new Promise(resolve => releases.push(resolve)) });
+  const initial = harness.render().fetchLogs();
+  releases[0](listEnvelope([{ id: 'initial' }]));
+  await initial;
+  const refresh = harness.render().fetchLogs({ silent: true });
+  assert.equal(harness.render().loading, false);
+  const foreground = harness.render().fetchLogs();
+  releases[1](listEnvelope([{ id: 'stale' }]));
+  await refresh;
+  assert.equal(harness.render().loading, true);
+  assert.equal(harness.render().logs[0].id, 'initial');
+  releases[2](listEnvelope([{ id: 'foreground' }]));
+  await foreground;
+  assert.equal(harness.render().loading, false);
+  assert.equal(harness.render().logs[0].id, 'foreground');
+});

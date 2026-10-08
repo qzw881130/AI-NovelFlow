@@ -23,6 +23,21 @@ TEMPORAL_DECISION_CONTRACT = "ELIGIBLE_THEN_SELECTED_V1"
 EARLY_COMPOSITION_CONTRACT = "EARLY_COMPOSITION_V2"
 
 
+def _attach_attention_snapshot(contract, shot, plan, clip, manifest):
+    # Optional metadata only: the physical manifests and frozen wiring are untouched.
+    if "visual_attention" not in plan and not (plan.get("validation") or {}).get("visual_attention"):
+        return
+    from app.services.video_director_ai import prepare_clip_visual_attention, safe_json_list
+    from app.services.visual_attention import execution_attention_snapshot
+    projection = prepare_clip_visual_attention(
+        plan, clip, safe_json_list(getattr(shot, "characters", None)),
+        manifest=manifest, duration=getattr(shot, "duration", None),
+    )
+    contract["visual_attention_snapshot"] = execution_attention_snapshot(
+        projection, temporal_manifest=contract.get("temporal_anchor_manifest"),
+    )
+
+
 def execution_temporal_state_ids(clip: dict) -> list[str]:
     """Merge validated execution selections without changing timed eligibility."""
     ids = list(clip.get("selected_temporal_target_ids") or [])
@@ -383,6 +398,7 @@ def compile_generate_clip(
             "duration_seconds": duration,
         },
     }
+    _attach_attention_snapshot(contract, shot, plan, clip, manifest)
     return {
         "execution_contract": contract,
         "video_reference_manifest": manifest,
@@ -511,6 +527,7 @@ def compile_temporal_extend_clip(
         "source_frame_start": 0,
     }
     contract["temporal_anchor_manifest"] = {"manifest_version": "1.0", "anchors": temporal_manifest}
+    _attach_attention_snapshot(contract, shot, plan, clip, compiled["video_reference_manifest"])
     return {
         "execution_contract": contract,
         "video_reference_manifest": compiled["video_reference_manifest"],

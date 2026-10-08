@@ -61,18 +61,18 @@ export default function ChapterGenerate() {
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [showResourcesModal, setShowResourcesModal] = useState(false);
 
+  const hasImageTasks = generatingShots.size > 0 || pendingShots.size > 0;
+  const hasVideoTasks = generatingVideos.size > 0 || pendingVideos.size > 0;
+  const hasTransitionTasks = generatingTransitions.size > 0;
+  const hasAudioTasks = generatingAudios.size > 0;
+  const hasKeyframeTasks = generatingKeyframes.size > 0;
+
   // 轮询任务状态
   useEffect(() => {
     if (!cid || !id) return;
 
-    // 如果有生成中的任务，开始轮询
-    const hasGeneratingTasks = generatingShots.size > 0 ||
-                               pendingShots.size > 0 ||
-                               generatingVideos.size > 0 ||
-                               pendingVideos.size > 0 ||
-                               generatingTransitions.size > 0 ||
-                               generatingAudios.size > 0 ||
-                               generatingKeyframes.size > 0;
+    // One chapter-level poll owns video status and active Shot refreshes.
+    const hasGeneratingTasks = hasImageTasks || hasVideoTasks || hasTransitionTasks || hasAudioTasks || hasKeyframeTasks;
 
     if (!hasGeneratingTasks) return;
 
@@ -83,20 +83,24 @@ export default function ChapterGenerate() {
     const pollTasks = async () => {
       if (cancelled) return;
 
+      if (document.hidden) {
+        timeoutId = window.setTimeout(pollTasks, 2000);
+        return;
+      }
       const checks = [];
-      if (generatingShots.size > 0 || pendingShots.size > 0) {
+      if (hasImageTasks) {
         checks.push(checkShotTaskStatus(cid));
       }
-      if (generatingVideos.size > 0 || pendingVideos.size > 0) {
+      if (hasVideoTasks) {
         checks.push(checkVideoTaskStatus(cid));
       }
-      if (generatingTransitions.size > 0) {
+      if (hasTransitionTasks) {
         checks.push(checkTransitionTaskStatus(cid));
       }
-      if (generatingAudios.size > 0) {
+      if (hasAudioTasks) {
         checks.push(checkAudioTaskStatus(cid));
       }
-      if (generatingKeyframes.size > 0) {
+      if (hasKeyframeTasks) {
         checks.push(checkKeyframeTaskStatus(cid, id));
       }
       if (checks.length > 0) {
@@ -116,7 +120,7 @@ export default function ChapterGenerate() {
         window.clearTimeout(timeoutId);
       }
     };
-  }, [cid, id, generatingShots.size, pendingShots.size, generatingVideos.size, pendingVideos.size, generatingTransitions.size, generatingAudios.size, generatingKeyframes.size]);
+  }, [cid, id, hasImageTasks, hasVideoTasks, hasTransitionTasks, hasAudioTasks, hasKeyframeTasks]);
 
   // 获取真实章节数据和角色列表
   useEffect(() => {

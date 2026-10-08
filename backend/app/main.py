@@ -6,6 +6,7 @@ import asyncio
 
 from app.api import characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props, novel_videos
 from app.api import novels, chapters, shots, hd_repaint
+from app.api import clip_execution_inspector
 from app.core.database import engine, Base
 from app.services.comfyui_monitor import init_monitor
 # 导入所有模型以确保创建表
@@ -251,6 +252,7 @@ app.include_router(files.router, prefix="/api/files", tags=["files"])
 app.include_router(prompt_templates.router, prefix="/api/prompt-templates", tags=["prompt-templates"])
 app.include_router(novel_videos.router, prefix="/api", tags=["novel-videos"])
 app.include_router(llm_logs.router, prefix="/api/llm-logs", tags=["llm-logs"])
+app.include_router(clip_execution_inspector.router, prefix="/api/clip-execution-inspector", tags=["clip-execution-inspector"])
 
 
 @app.get("/")

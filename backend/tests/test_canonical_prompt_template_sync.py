@@ -276,9 +276,9 @@ def test_keyframe_image_prompt_source_checksum():
 def test_unrelated_system_prompt_sources_remain_frozen():
     expected_hashes = {
         "06_NovelFlow_QwenEdit2511_ShotImagePrompt_V1.txt": "937f62ce9fbf9c25543abd9dca7b9d988eb770b878bfe1219f5d6095a2a296cd",
-        PLANNER_FILE: "ada57c8b3e12817fe2182188f9a7ffd55867a8717e11f1fea6ff3d35c75ca4fe",
+        PLANNER_FILE: "710702922247e6ac7a85e8121a3294c3969f3c4299d8bc3c163c5043abbbd10c",
         KEYFRAME_IMAGE_FILE: KEYFRAME_IMAGE_SHA256,
-        TRANSITION_FILE: "6bc10c2f0eab6165e13cce38bb17c29daead288d93af7aa75d98af81bea9c57c",
+        TRANSITION_FILE: "b482b0384cab1dd6e81cefc4091ea4c5d24a4d92f1c754de78e8c34368e29aa3",
         CLIP_PLANNER_FILE: CLIP_PLANNER_SHA256,
     }
 
@@ -322,3 +322,24 @@ def test_h3_system_sync_updates_stale_body_in_place_and_preserves_novel_override
     assert default.template == _prompt(filename)
     assert resolve_prompt_template(db_session, novel, attribute, template_type).id == override.id
     assert override.template == "custom body"
+
+
+def test_attention_replan_template_uses_existing_v1_rules_and_syncs(db_session):
+    from app.services.prompt_template_service import SYSTEM_KEYFRAME_PLANNING_TEMPLATES
+    filename = '08_NovelFlow_VisualAttentionReplan_V1.txt'
+    text = _prompt(filename)
+    full = _prompt(PLANNER_FILE)
+    rules = full[full.index('【Visual Attention Authority V1'):full.index('\nkeyframes 是按时间排序')]
+    assert rules in text  # no handoff heuristic/schema revision hidden in the new operation
+    assert 'canonical visual states are authoritative and read-only' in text
+    assert '顶层必须严格只有 visual_attention' in text
+    registered = [item for item in SYSTEM_KEYFRAME_PLANNING_TEMPLATES if item['type'] == 'visual_attention_replan']
+    assert len(registered) == 1 and registered[0]['template'] == text
+    service = PromptTemplateService(db_session)
+    service.init_system_templates()
+    template = service.template_repo.get_default_system_template('visual_attention_replan')
+    assert template.template == text
+    digest = sha256(text.encode()).hexdigest()
+    service.init_system_templates()
+    assert sha256(service.template_repo.get_default_system_template('visual_attention_replan').template.encode()).hexdigest() == digest
+    assert db_session.query(PromptTemplate).filter(PromptTemplate.type == 'visual_attention_replan').count() == 1
