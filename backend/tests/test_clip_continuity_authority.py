@@ -348,9 +348,13 @@ async def test_t09_no_dialogue_timed_continuous_state_derives_temporal_requireme
 
 @pytest.mark.asyncio
 async def test_same_scene_same_people_same_conversation_can_be_cut_under_continuous_take(tmp_path, monkeypatch):
+    # A conversation may cross a cut; a complete utterance must not be split.
     shot = _shot(tmp_path, continuity_mode="CONTINUOUS_TAKE", dialogues=[{
         "dialogue_id": "D1", "character_name": "皇帝", "text": EXACT_DIALOGUE,
-        "start_time": 1.0, "end_time": 10.0,
+        "start_time": 1.0, "end_time": 4.0,
+    }, {
+        "dialogue_id": "D2", "character_name": "侍从", "text": "已经关闭。",
+        "start_time": 7.0, "end_time": 10.0,
     }])
     response = [
         {"clip_index": 1, "start_time": 0, "end_time": 6, "continuity_to_previous": "NONE", "selected_temporal_target_ids": []},
@@ -363,6 +367,7 @@ async def test_same_scene_same_people_same_conversation_can_be_cut_under_continu
     assert llm_payload["shot"]["continuity_mode"] == "CONTINUOUS_TAKE"
     assert clips[1]["continuity_to_previous"] == "CUT"
     assert clips[1]["capability"] == "GENERATE"
+    assert [len(c["dialogue_assignment"]) for c in clips] == [1, 1]
 
 
 @pytest.mark.asyncio

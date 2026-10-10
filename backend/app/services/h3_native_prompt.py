@@ -204,7 +204,12 @@ def check_native_prompt(prompt, canonical, authority, raw_prompt, timeline):
     state_scope = (r"anchor|visual state|canonical staging|chronological references?"
                    if authority.get("anchor_policy") else r"anchor|visual state")
     if (authority.get("continuation") or {}).get("binding_verified") is True:
-        state_scope += r"|preceding (?:video|footage)|previous (?:video|AV|footage)|incoming (?:footage|video|context)"
+        # Hyphenated compound adjectives and whitespace are equivalent only for
+        # an actually verified continuation source. Never normalize final prose.
+        separator = r"(?:[^\S\r\n]+|[^\S\r\n]*[-\u2010\u2011][^\S\r\n]*)"
+        state_scope += (rf"|preceding{separator}(?:video|footage)"
+                        rf"|previous{separator}(?:video|AV|footage)"
+                        rf"|incoming{separator}(?:footage|video|context)")
     checks["reference_authority_scope"] = not authority.get("reference_bindings") or all(
         re.search(pattern, reference_scope, re.I) for pattern in
         [state_scope, r"costume|clothing", r"pose|posture", r"blocking|floor position", r"identit", r"face"])

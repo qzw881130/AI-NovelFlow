@@ -106,7 +106,7 @@ def test_continuous_camera_handoff_can_rebalance_between_unchanged_anchors(case)
     output['av_timeline']['execution_phases'][1]['description']=continuous
     output['optimized_prompt']=output['optimized_prompt'].replace(previous,continuous)
     assert audit(case,output)['passed']
-    assert 'CONTINUOUS_PATH_OPTIMIZABLE' in case[1]['execution_flexibility']['inter_anchor_camera_path']
+    assert 'VISIBILITY_ADAPTIVE_CAMERA' in case[1]['execution_flexibility']['inter_anchor_camera_path']
     assert output['av_timeline']['anchors']==case[2]['av_timeline']['anchors']
     assert output['authority_echo']['visual_anchor_order']==case[1]['immutable_authority']['visual_anchor_order']
     assert not opt.anchor_declarations(output['optimized_prompt'])
@@ -162,14 +162,14 @@ def test_inconsistent_timeline_is_blocked(case,mutation,check):
     assert check in audit(case,output)['blocking_findings']
 
 
-@pytest.mark.parametrize('value',[True, float('nan'), float('inf'), -1, 0, 3.99, 15.01, 20.01, '6'])
+@pytest.mark.parametrize('value',[True, float('nan'), float('inf'), -1, 0, 3.99, 20.01, '6'])
 def test_budget_is_finite_numeric_and_within_existing_cap(case,value):
     output=copy.deepcopy(case[2]);output['av_timeline']['optimized_duration']=value
     assert 'duration_within_workflow_and_20s' in audit(case,output)['blocking_findings']
 
 
 def test_twenty_seconds_and_lower_workflow_limit():
-    assert opt.workflow_duration_limits({'max_clip_duration':20})['maximum']==15
+    assert opt.workflow_duration_limits({'max_clip_duration':20})['maximum']==20
     assert opt.workflow_duration_limits({'max_clip_duration':12})['maximum']==12
     assert opt.workflow_duration_limits({'min_clip_duration':6})['minimum']==6
 
@@ -507,13 +507,38 @@ def test_camera_trace_binds_participants_and_local_order(case, change):
 @pytest.mark.parametrize('action', [
     'A restrained pan carries the view from <Subject 1> onto <Subject 2>, ending with the face and lips legible at the established standing place.',
     'The frame eases off <Subject 1> and settles around <Subject 2>; the face and lips can now be followed without either person changing position.',
+    'Cut from <Subject 1> to a readable view of <Subject 2> at the established standing place, preserving both floor positions and their eyelines.',
 ])
 def test_equivalent_camera_prose_needs_no_action_keyword_whitelist(case, action):
     output = copy.deepcopy(case[2])
     evidence = output['av_timeline']['handoffs'][0]['prompt_evidence']
     output['optimized_prompt'] = output['optimized_prompt'].replace(evidence['acquisition'], action)
     evidence['acquisition'] = action
+    if action.startswith('Cut from'):
+        output['optimized_prompt'] = output['optimized_prompt'].replace('continuous ensemble shot', 'speaker-motivated edited sequence')
+        handoff = output['av_timeline']['handoffs'][0]
+        handoff['camera_strategy'] = action
+        output['av_timeline']['execution_phases'][1]['description'] = action
     assert audit(case, output)['passed']
+
+
+def test_edited_prose_does_not_warn_that_upstream_continuous_wording_is_missing(case):
+    output = copy.deepcopy(case[2])
+    action = ('Cut from <Subject 1> to a readable view of <Subject 2> at the same standing place, '
+              'preserving both floor positions and their eyelines.')
+    handoff = output['av_timeline']['handoffs'][0]
+    evidence = handoff['prompt_evidence']
+    output['optimized_prompt'] = output['optimized_prompt'].replace(evidence['acquisition'], action).replace(
+        'continuous ensemble shot', 'speaker-motivated edited sequence')
+    evidence['acquisition'] = handoff['camera_strategy'] = action
+    output['av_timeline']['execution_phases'][1]['description'] = action
+    raw = case[0] + '\nCONTINUOUS_TAKE: upstream initial camera preference.'
+    result = audit((raw, case[1], output))
+    assert result['passed'], result['blocking_findings']
+    assert not any(w['code'] == 'CONTINUOUS_CAMERA_WORDING_WEAK' for w in result['warnings'])
+    # Editing freedom does not relax per-line source IDs or listener evidence.
+    output['optimized_prompt'] = output['optimized_prompt'].replace('<Subject 2> (S2)', '<Subject 2>')
+    assert not audit((raw, case[1], output))['checks']['stable_speaker_ids']
 
 
 @pytest.mark.parametrize('prior_view', [True, False])
@@ -564,3 +589,15 @@ def test_camera_can_start_before_release_and_finish_after_it(case):
         evidence['release'] + ' ' + evidence['acquisition'], concurrent)
     evidence['acquisition'] = concurrent
     assert audit(case, output)['passed']
+
+
+@pytest.mark.parametrize('duration', [15.375, 18.5, 20.0])
+def test_optimizer_and_worker_accept_extended_execution_budget(case, duration):
+    output=case[2]
+    output['optimized_prompt']=output['optimized_prompt'].replace('A 6-second', f'A {duration:g}-second')
+    output['av_timeline'].update(optimized_duration=duration, duration_delta=duration-5)
+    output['av_timeline']['execution_phases'][-1]['end']=duration
+    checked=audit(case)
+    assert checked['passed'], checked['blocking_findings']
+    task=NS(metadata_json=json.dumps({'capability':'GENERATE','optimize_h3_prompt':True,'h3_prompt_optimizer':record(case)}))
+    assert _apply_h3_execution_duration(task,5,NS(extension='{}'))[0]==duration

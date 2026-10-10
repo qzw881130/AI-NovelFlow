@@ -6,7 +6,8 @@ from copy import deepcopy
 
 from sqlalchemy.orm import Session
 
-from app.constants.capability import VIDEO_CAPABILITY_CONTRACTS
+from app.constants.capability import VIDEO_CAPABILITY_CONTRACTS, CLIP_PREFERRED_MAX_DURATION
+from app.services.clip_duration_planning import load_planning_budgets, observe_duration_plan
 from app.services.llm_service import LLMService
 from app.services.prompt_template_service import PromptTemplateService
 from app.services.clip_validator import validate_clip_plan
@@ -209,6 +210,8 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
         "visual_state_candidates": visual_state_candidates,
         "transition_context": transition_context,
         "planning_policy": {
+            "preferred_max_duration": CLIP_PREFERRED_MAX_DURATION,
+            "preferred_max_is_soft": True,
             "approval_mode": (planning_policy or {}).get("approval_mode", "AUTO_APPROVE"),
             "min_story_clip_duration": max(
                 float((planning_policy or {}).get("min_story_clip_duration") or 0),
@@ -645,6 +648,7 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
     if dialogue_timeline_source is None:
         dialogue_timeline_source, _ = resolve_canonical_dialogue_timeline(shot, video_plan)
     payload = build_clip_planner_input(shot, temporal_anchors, planning_policy, resolved_dialogue_timeline=dialogue_timeline_source)
+    payload["planning_policy"]["execution_budgets"] = load_planning_budgets(db)
     llm_payload = {
         key: value
         for key, value in payload.items()
@@ -661,6 +665,9 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         raise RuntimeError("DIALOGUE_TIMELINE_UNAVAILABLE: 有对白的 Shot 缺少合法 official dialogue timeline，不能静默降级生成视频。")
     max_clip_duration = float(VIDEO_CAPABILITY_CONTRACTS["GENERATE"]["max_duration"])
     min_clip_duration = float(VIDEO_CAPABILITY_CONTRACTS["GENERATE"]["min_duration"])
+    if any(e["end_time"] - e["start_time"] > max_clip_duration + 1e-6
+           for e in payload["speech_timing_intervals"]):
+        raise ValueError("DURATION_INFEASIBLE: 完整单句对白已超过产品执行上限，不能截断或压缩")
     candidates = payload.get("visual_state_candidates") or []
     canonical = payload.get("canonical_visual_plan") is True
     retry_structure = None
@@ -752,6 +759,12 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
             "start_time": float(clip.get("start_time", 0)),
             "end_time": float(clip.get("end_time", 0)),
         }
+    # Existing alignment uses the hard ceiling, never the preferred 15 seconds.
+    # A boundary it cannot repair must not silently produce partial utterances.
+    for clip in clips[:-1]:
+        if any(e["start_time"] < float(clip["end_time"]) < e["end_time"]
+               for e in payload["speech_timing_intervals"]):
+            raise ValueError("CLIP_BOUNDARY_INSIDE_DIALOGUE: 需在完整对白之外重新规划 Clip 边界")
     _project_temporal_targets(
         clips,
         payload.get("visual_state_candidates") or [],
@@ -784,6 +797,18 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         visual_state_candidates=payload.get("visual_state_candidates") or [],
     )
     merge_dialogue_ownership_validation(validation, dialogue_validation)
+    validation["duration_planning_policy"] = payload["planning_policy"]
+    for clip in clips:
+        observed = observe_duration_plan(clip, payload["speech_timing_intervals"],
+                                         payload["planning_policy"]["execution_budgets"])
+        clip["duration_planning"] = observed
+        if observed["status"] == "DURATION_INFEASIBLE":
+            finding = {"code": "DURATION_INFEASIBLE", "severity": "BLOCKING",
+                       "clip_index": clip["clip_index"],
+                       "message": "固定剧情时长或对白与公共区超出有效执行上限，需上层重新规划边界。"}
+            validation["passed"] = False
+            validation["blocking"].append(finding)
+            validation["findings"].append(finding)
     if canonical and validation["passed"]:
         validation["temporal_contract"] = TEMPORAL_DECISION_CONTRACT
         validation["composition_contract"] = EARLY_COMPOSITION_CONTRACT

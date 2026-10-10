@@ -55,8 +55,22 @@ def reference_drop_capability(workflow):
 def anchor_policy(authority, initial, context):
     references = authority['reference_bindings']
     catalog = []
+    if (len(authority['visual_anchor_order']) != len(initial['visual_anchors'])
+            or len({f['id'] for f in authority['visual_anchor_order']}) != len(authority['visual_anchor_order'])):
+        raise ValueError('H3_ANCHOR_CATALOG_MISMATCH: duplicate or incomplete canonical declarations')
     for fact, timing in zip(authority['visual_anchor_order'], initial['visual_anchors']):
-        ref = next((r for r in references if r['picture'] == fact.get('picture')), {})
+        if fact['id'] != timing['id'] or fact.get('picture') != timing.get('picture'):
+            raise ValueError('H3_ANCHOR_CATALOG_MISMATCH: declaration identity/timing mismatch')
+        matches = [r for r in references if r['picture'] == fact.get('picture')]
+        if fact.get('picture') and len(matches) != 1:
+            raise ValueError('H3_ANCHOR_CATALOG_MISMATCH: declared Picture missing or ambiguous in manifest')
+        ref = matches[0] if matches else {}
+        # Canonical KF identity comes from its declaration, checked against the
+        # manifest's source state. A Picture slot is never an Anchor ID alias.
+        if ref.get('state_index') is not None and (
+                ref.get('type') != 'DIRECTOR_VISUAL_ANCHOR'
+                or fact['id'] != f"KF{ref['state_index']}"):
+            raise ValueError('H3_ANCHOR_CATALOG_MISMATCH: canonical KF and manifest source state disagree')
         catalog.append({'anchor_id': fact['id'], 'original_time': timing['time'],
                         'source_picture': fact.get('picture'), 'source_kind': ref.get('type'),
                         'visual_reference_description': fact['visual_target'],

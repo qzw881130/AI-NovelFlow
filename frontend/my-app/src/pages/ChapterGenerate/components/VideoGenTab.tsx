@@ -1131,7 +1131,7 @@ function VideoDirectorPanel({
   const isCanonicalPlan = isCanonicalVisualPlan(plan);
   const isHistoricalPlan = !isCanonicalPlan && hasLegacyBatchPlanningState(plan);
   const selectedMode = plan.selected_mode || plan.recommended_mode || 'SINGLE_FRAME';
-  const maxClipDuration = plan.workflow_capability?.max_clip_duration || 15;
+  const maxClipDuration = Math.min(plan.workflow_capability?.max_clip_duration || 20, 20);
   const firstLastAvailable = plan.first_last_available ?? ((shot?.duration || 0) <= maxClipDuration);
   const keyframes = isCanonicalPlan ? getCanonicalVisualStates(plan) : (plan.keyframes || []);
   const clips = isCanonicalPlan ? [] : selectedMode === 'MULTI_KEYFRAME' ? (plan.window_plans || []) : (plan.clips || []);
@@ -3193,7 +3193,7 @@ export function VideoGenTab({
   const handleSelectVideoMode = useCallback(async (mode: VideoMode) => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
     if (isCanonicalVisualPlan(currentVideoDirectorPlan)) return;
-    const maxClipDuration = currentVideoDirectorPlan.workflow_capability?.max_clip_duration || 15;
+    const maxClipDuration = Math.min(currentVideoDirectorPlan.workflow_capability?.max_clip_duration || 20, 20);
     if (mode === 'FIRST_LAST_FRAME' && (currentShotData?.duration || 0) > maxClipDuration) {
       toast.info(`当前 Workflow 单次最大 ${maxClipDuration}s，本 Shot ${currentShotData?.duration || 0}s，请使用多关键帧`);
       return;

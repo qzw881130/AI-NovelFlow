@@ -1,11 +1,24 @@
 """Small, provider-facing capability contracts for Clip Planner V1."""
 
+CLIP_MAX_DURATION = 20.0
+# Planning headroom is a preference, never a provider validation ceiling.
+CLIP_PREFERRED_MAX_DURATION = 15.0
+
+
+def clip_duration_maximum(extension=None):
+    """Product ceiling intersected with an explicit, possibly lower workflow limit."""
+    extension = extension or {}
+    return min(CLIP_MAX_DURATION, float(
+        extension.get("max_clip_duration") or extension.get("max_seconds") or CLIP_MAX_DURATION
+    ))
+
+
 VIDEO_CAPABILITY_CONTRACTS = {
     "GENERATE": {
         "enabled": True,
         "provider": "MINIMAX_H3",
         "min_duration": 4.0,
-        "max_duration": 15.0,
+        "max_duration": CLIP_MAX_DURATION,
         "requires_previous_video": False,
         "min_temporal_anchors": 0,
         "max_temporal_anchors": 0,
@@ -15,7 +28,7 @@ VIDEO_CAPABILITY_CONTRACTS = {
         "enabled": True,
         "provider": "MINIMAX_H3",
         "min_duration": 4.0,
-        "max_duration": 15.0,
+        "max_duration": CLIP_MAX_DURATION,
         "requires_previous_video": False,
         "min_temporal_anchors": 0,
         "max_temporal_anchors": 0,
@@ -25,7 +38,7 @@ VIDEO_CAPABILITY_CONTRACTS = {
         "enabled": True,
         "provider": "MINIMAX_H3",
         "min_duration": 4.0,
-        "max_duration": 15.0,
+        "max_duration": CLIP_MAX_DURATION,
         "requires_previous_video": False,
         "min_temporal_anchors": 0,
         "max_temporal_anchors": 2,
@@ -35,7 +48,7 @@ VIDEO_CAPABILITY_CONTRACTS = {
         "enabled": True,
         "provider": "MINIMAX_H3",
         "min_duration": 4.0,
-        "max_duration": 15.0,
+        "max_duration": CLIP_MAX_DURATION,
         "requires_previous_video": False,
         "min_temporal_anchors": 0,
         "max_temporal_anchors": 4,
@@ -47,7 +60,7 @@ VIDEO_CAPABILITY_CONTRACTS = {
         "enabled": True,
         "provider": "MINIMAX_H3",
         "min_duration": 4.0,
-        "max_duration": 15.0,
+        "max_duration": CLIP_MAX_DURATION,
         "requires_previous_video": True,
         "min_temporal_anchors": 0,
         "max_temporal_anchors": 0,
@@ -57,7 +70,7 @@ VIDEO_CAPABILITY_CONTRACTS = {
         "enabled": True,
         "provider": "MINIMAX_H3",
         "min_duration": 4.0,
-        "max_duration": 15.0,
+        "max_duration": CLIP_MAX_DURATION,
         "requires_previous_video": True,
         "min_temporal_anchors": 1,
         "max_temporal_anchors": 8,
@@ -67,7 +80,7 @@ VIDEO_CAPABILITY_CONTRACTS = {
         "enabled": True,
         "provider": "MINIMAX_H3",
         "min_duration": 4.0,
-        "max_duration": 15.0,
+        "max_duration": CLIP_MAX_DURATION,
         "requires_previous_video": True,
         "min_temporal_anchors": 0,
         "max_temporal_anchors": 0,

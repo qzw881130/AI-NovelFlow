@@ -114,6 +114,8 @@ def resolve_canonical_excerpt(text, requirement, authority):
     result = resolve_excerpt(text, requirement.get('source_excerpt'))
     locations = result.get('locations') or []
     if not locations:
+        if result['status'] == 'UNRESOLVED':
+            return _resolve_canonical_fragments(text, requirement, authority, result)
         return result
     events = {e['id']: e for e in authority.get('dialogue_events', [])}
     # Only top-level source headings delimit ownership; an excerpt must stay
@@ -182,6 +184,87 @@ def resolve_canonical_excerpt(text, requirement, authority):
             'event_ids': [loc['event_id'] for loc in selected]}
 
 
+def _resolve_canonical_fragments(text, requirement, authority, result):
+    """Exact whole clauses in one source, in order; never search for keywords.
+
+    This conservative fallback handles omitted intervening prose, not paraphrase.
+    Structured event/section boundaries and implicit pronoun ownership need review.
+    The enclosing excerpt is real source text, including omissions; resolved_spans
+    separately identify what the model actually quoted. Neither proves semantics.
+    """
+    supplied = requirement.get('source_excerpt')
+    if not isinstance(supplied, str):
+        return result
+    fragments = [m[0].strip() for m in re.finditer(r'[^;；。.!！?？\n]+', supplied) if m[0].strip()]
+    if len(fragments) < 2:
+        return result
+    boundary = ';；。.!！?？\n:：'
+
+    def subjects(value):
+        found = set(re.findall(r'<Subject \d+>', value))
+        for subject, name in authority.get('subject_bindings', {}).items():
+            name = character_name(name)
+            if name and re.search(r'(?<![A-Za-z0-9_])' + re.escape(name) + r'(?![A-Za-z0-9_])', value):
+                found.add(subject)
+        return found
+
+    requested = subjects(str(requirement.get('requirement') or ''))
+    quoted = set().union(*(subjects(f) for f in fragments))
+    groups = []
+    for index, fragment in enumerate(fragments):
+        matches = []
+        for m in re.finditer(re.escape(fragment), text):
+            left = text[:m.start()].rstrip(' \t\r')
+            right = text[m.end():].lstrip(' \t\r')
+            # Reject arbitrary substring hits, including omission of negation,
+            # an actor prefix or the remainder of a clause.
+            if (left and left[-1] not in boundary) or (right and right[0] not in boundary):
+                continue
+            matches.append({'fragment_index': index, 'start': m.start(), 'end': m.end(),
+                            'excerpt': m[0], 'selected': False})
+        groups.append(matches)
+    locations = [loc for group in groups for loc in group]
+    result = {**result, 'excerpt': None, 'start': None, 'end': None,
+              'status': 'UNRESOLVED', 'method': None, 'mismatch': True,
+              'fragments': fragments, 'locations': locations}
+    if not all(groups):
+        return {**result, 'reason': 'MISSING_WHOLE_FRAGMENT'}
+    if not requested or not quoted or not quoted <= requested:
+        return {**result, 'status': 'OWNERSHIP_CONFLICT', 'reason': 'FRAGMENT_PARTICIPANTS'}
+    # A pronoun-only clause cannot acquire a new owner merely by being spliced
+    # after another actor's clause. Keep unsupported implicit attribution blocked.
+    if any(not subjects(f) and re.match(r'(?i)^(?:he|she|they|his|her|their)\b|^[他她它]', f) for f in fragments):
+        return {**result, 'status': 'OWNERSHIP_CONFLICT', 'reason': 'IMPLICIT_FRAGMENT_OWNER'}
+    # Keep all exact occurrences. Resolve only a unique ordered path; repeated
+    # clauses with multiple valid positions remain ambiguous, never pick first.
+    paths = [[]]
+    for group in groups:
+        paths = [path + [loc] for path in paths for loc in group
+                 if not path or path[-1]['end'] <= loc['start']]
+        if len(paths) > 128:
+            return {**result, 'status': 'AMBIGUOUS', 'reason': 'MULTIPLE_FRAGMENT_PATHS'}
+    if len(paths) != 1:
+        return {**result, 'status': 'AMBIGUOUS' if paths else 'UNRESOLVED',
+                'reason': 'MULTIPLE_FRAGMENT_PATHS' if paths else 'FRAGMENT_ORDER'}
+    selected = paths[0]
+    start, end = selected[0]['start'], selected[-1]['end']
+    paragraph_start = text.rfind('\n\n', 0, start) + 2
+    enclosing = text[start:end]
+    # Do not combine dialogue events, authority sections, or separate paragraphs.
+    if '\n\n' in enclosing or re.search(r'(?m)^\s*[A-Za-z_][\w]*:[ \t]*$', text[max(0, paragraph_start - 2):end]):
+        return {**result, 'status': 'OWNERSHIP_CONFLICT', 'reason': 'SOURCE_SECTION_BOUNDARY'}
+    for loc in selected:
+        # A colon can introduce an actor-owned clause. Never strip that actor.
+        prefix = re.split(r'[;；。.!！?？\n]', text[:loc['start']])[-1]
+        if not subjects(loc['excerpt']) and subjects(prefix) - requested:
+            return {**result, 'status': 'OWNERSHIP_CONFLICT', 'reason': 'SOURCE_CLAUSE_OWNER'}
+        loc['selected'] = True
+    return {**result, 'excerpt': enclosing, 'start': start, 'end': end,
+            'status': 'RESOLVED', 'method': 'CANONICAL_ORDERED_SPANS', 'mismatch': True,
+            'resolved_spans': [dict(loc) for loc in selected],
+            'semantic_review_required': True}
+
+
 def resolve_output_evidence(prompt, output, authority):
     from app.services.h3_native_prompt import sections, dialogue_events
     detail=sections(prompt).get('detailed_description', '');spoken=dialogue_events(prompt)
@@ -210,6 +293,7 @@ def resolve_output_evidence(prompt, output, authority):
     return {'version':1,'prompt_sha256':hashlib.sha256(prompt.encode()).hexdigest(),
             'entries':entries,'mismatches':[path for path,e in entries.items() if e['mismatch']],
             'unresolved':[path for path,e in entries.items() if e['status']!='RESOLVED'],
+            'semantic_review_required':[path for path,e in entries.items() if e.get('semantic_review_required')],
             'scope':'Text provenance only; resolved text is not proof of arbitrary semantic equivalence.'}
 
 

@@ -288,7 +288,7 @@ SYSTEM_H3_VIDEO_PROMPT_TEMPLATES: List[Dict] = [
     },
     {
         "name": "MiniMax H3 执行提示词优化",
-        "description": "以视觉输入优化 H3 执行表达，保留 canonical authority、局部说话人绑定与连续镜头",
+        "description": "依据说话人脸嘴可见性选择保留构图、连续运镜或切镜，保留 Canonical、对白归属与场景连续性",
         "template": load_template("14_MiniMax_H3_Execution_Prompt_Optimizer_V1.txt"),
         "type": "h3_execution_optimizer_prompt"
     }

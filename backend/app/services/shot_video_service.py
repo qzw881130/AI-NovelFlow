@@ -12,6 +12,7 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
+from app.constants.capability import clip_duration_maximum
 from app.models.novel import Novel, Chapter
 from app.models.task import Task
 from app.models.workflow import Workflow
@@ -1447,7 +1448,7 @@ async def generate_shot_video_task(
 
         extension = safe_json_dict(workflow.extension)
         workflow_capability = {
-            "max_clip_duration": int(extension.get("max_clip_duration") or extension.get("max_seconds") or 15),
+            "max_clip_duration": clip_duration_maximum(extension),
             "frame_count": extension.get("frame_count"),
             "workflow_name": workflow.name,
         }
@@ -1927,7 +1928,7 @@ async def _generate_multi_clip_video_task(
 
         extension = safe_json_dict(workflow.extension)
         workflow_capability = {
-            "max_clip_duration": int(extension.get("max_clip_duration") or extension.get("max_seconds") or 15),
+            "max_clip_duration": clip_duration_maximum(extension),
             "frame_count": extension.get("frame_count"),
             "workflow_name": workflow.name,
         }

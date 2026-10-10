@@ -79,7 +79,7 @@ def validate_clip_plan(
             if not contract or not contract.get("enabled"):
                 add("CAPABILITY_UNAVAILABLE", "BLOCKING", f"Capability {capability or '<missing>'} is unavailable.")
             elif planned < contract["min_duration"] or planned > contract["max_duration"]:
-                add("PROVIDER_DURATION_LIMIT", "BLOCKING", f"Clip {clip.get('clip_index')} is outside the 4-15 second H3 contract.")
+                add("PROVIDER_DURATION_LIMIT", "BLOCKING", f"Clip {clip.get('clip_index')} is outside the {contract['min_duration']:g}-{contract['max_duration']:g} second H3 contract.")
             if capability == "TEMPORAL_EXTEND":
                 anchor_ids = set(clip.get("temporal_anchor_ids") or [])
                 image_anchor_ids = set(available_inputs.get("temporal_anchor_images") or []) if available_inputs else set()

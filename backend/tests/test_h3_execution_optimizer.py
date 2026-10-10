@@ -113,6 +113,19 @@ def test_natural_rewording_does_not_require_internal_phase_echo(runtime):
  assert audit(runtime,output)['passed']
  assert 'PHASE' not in output['optimized_prompt'] and output['av_timeline']['execution_phases']
 
+
+@pytest.mark.parametrize('prefix', ['- ', '* ', '+ ', '  - '])
+def test_list_form_subject_definitions_preserve_strict_identity_contract(runtime, prefix):
+ # Saved canonical Clip prompts may use Markdown list items. Their identity
+ # authority must be identical to plain definitions, not an empty mapping.
+ raw = opt.re.sub(r'(?m)^(<Subject \d+> is)', prefix + r'\1', RAW)
+ assert opt.subject_bindings(raw) == runtime[0]['immutable_authority']['subject_bindings']
+ output = valid_output(runtime)
+ output['optimized_prompt'] = opt.re.sub(r'(?m)^(<Subject \d+> is)', prefix + r'\1', NATIVE)
+ assert audit(runtime, output, raw)['passed']
+ output['optimized_prompt'] = output['optimized_prompt'].replace('<Subject 1> is 皇帝', '<Subject 1> is 骗子2')
+ assert 'subject_binding' in audit(runtime, output, raw)['blocking_findings']
+
 def test_missing_authority_trace_is_blocked(runtime):
  output=valid_output(runtime);output.pop('authority_echo')
  assert 'authority_echo_preserved' in audit(runtime,output)['blocking_findings']
@@ -147,6 +160,30 @@ async def test_disabled_hook_preserves_h3(monkeypatch):
  forbidden=AsyncMock(side_effect=AssertionError('must not call'));monkeypatch.setattr(opt,'optimize_h3_execution_prompt',forbidden)
  assert await _apply_h3_execution_optimizer(Mock(),NS(metadata_json='{}'),None,None,RAW,'SINGLE_FRAME',{})==RAW
  forbidden.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('model_reports_insufficient', [False, True])
+async def test_infeasible_budget_is_reported_without_rewriting_or_retry(monkeypatch, runtime, model_reports_insufficient):
+ import copy
+ sample=copy.deepcopy(runtime)
+ output=valid_output(sample)
+ if model_reports_insufficient:
+  output['risks']=['INSUFFICIENT_AV_EXECUTION_BUDGET']
+ else:
+  sample[0]['immutable_authority']['dialogue_events'][0]['duration']=21
+ original=copy.deepcopy(sample)
+ monkeypatch.setattr(opt,'resolve_prompt_template',lambda *a:NS(type=opt.TEMPLATE_TYPE,id='14',name='registered',template='unchanged'))
+ monkeypatch.setattr(opt,'build_runtime_input',lambda *a:sample)
+ chat=AsyncMock(return_value={'success':True,'content':json.dumps(output)})
+ monkeypatch.setattr(opt,'LLMService',lambda:NS(chat_completion=chat))
+ monkeypatch.setattr(opt,'append_video_ai_call',lambda *a:None)
+ selected,record=await opt.optimize_h3_execution_prompt(Mock(),NS(id='novel'),NS(index=3,chapter_id='chapter'),RAW,'SINGLE_FRAME',{'planned_duration':4})
+ assert record['error_code']=='DURATION_INFEASIBLE' and record['requires_clip_replan']
+ assert record['status']=='FALLBACK' and not record['duration_applied'] and selected==RAW
+ assert chat.await_count==int(model_reports_insufficient) and sample==original
+ if model_reports_insufficient:
+  assert record['raw_response_content']==json.dumps(output) and record['optimized_prompt']==output['optimized_prompt']
 
 def test_proxy_cache_no_upscale(monkeypatch,tmp_path):
  from app.services.file_storage import file_storage

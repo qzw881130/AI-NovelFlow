@@ -5,6 +5,8 @@
 翻译键直接嵌入工作流配置中，便于维护
 """
 
+from app.constants.capability import CLIP_MAX_DURATION
+
 # 翻译键前缀
 I18N_PREFIX = "tasks"
 NAME_KEY_PREFIX = f"{I18N_PREFIX}.workflowNames"
@@ -251,7 +253,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "description": "MiniMax H3 多参考生视频，支持 0～9 张参考图",
         "descriptionKey": f"{DESC_KEY_PREFIX}.MiniMax H3 多参考生视频，支持 0～9 张参考图",
         "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["multi_reference_video"],
-        "extension": {"max_clip_duration": 15, "min_reference_images": 0, "max_reference_images": 9},
+        "extension": {"max_clip_duration": CLIP_MAX_DURATION, "min_reference_images": 0, "max_reference_images": 9},
     },
     {
         "filename": "temporal_extend_h3_v1_20260925.json",
@@ -430,7 +432,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "description": "MiniMax H3 首尾帧参考视频工作流，使用 START/END 两张图",
         "descriptionKey": f"{DESC_KEY_PREFIX}.MiniMax H3 首尾帧参考视频工作流，使用 START/END 两张图",
         "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["first_last_video"],
-        "extension": {"max_clip_duration": 15, "frame_count": 2},
+        "extension": {"max_clip_duration": CLIP_MAX_DURATION, "frame_count": 2},
     },
     {
         "filename": "three_frame_video_minimax_h3_ref2va.json",
@@ -440,7 +442,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "description": "MiniMax H3 三帧参考视频工作流，使用 3 张关键帧图",
         "descriptionKey": f"{DESC_KEY_PREFIX}.MiniMax H3 三帧参考视频工作流，使用 3 张关键帧图",
         "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["three_frame_video"],
-        "extension": {"max_clip_duration": 15, "frame_count": 3},
+        "extension": {"max_clip_duration": CLIP_MAX_DURATION, "frame_count": 3},
     },
     {
         "filename": "four_frame_video_minimax_h3_ref2va.json",
@@ -450,7 +452,7 @@ EXTRA_SYSTEM_WORKFLOWS = [
         "description": "MiniMax H3 四帧参考视频工作流，使用 4 张关键帧图",
         "descriptionKey": f"{DESC_KEY_PREFIX}.MiniMax H3 四帧参考视频工作流，使用 4 张关键帧图",
         "node_mapping": DEFAULT_WORKFLOW_NODE_MAPPINGS["four_frame_video"],
-        "extension": {"max_clip_duration": 15, "frame_count": 4},
+        "extension": {"max_clip_duration": CLIP_MAX_DURATION, "frame_count": 4},
     },
     {
         "filename": "transition_ltx2_camera.json",

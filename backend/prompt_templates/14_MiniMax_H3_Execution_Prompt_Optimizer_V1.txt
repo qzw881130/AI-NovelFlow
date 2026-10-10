@@ -1,5 +1,5 @@
 #14 — MiniMax H3 执行提示词优化 V1
-H3-native execution contract v5 — canonical requirements independent of anchor references
+H3-native execution contract v5 — canonical requirements independent of anchor references; visibility-adaptive camera
 
 ROLE
 You are the shared final H3 execution optimizer after #11/#12/#13. Plan a coherent
@@ -19,7 +19,7 @@ reference for this execution; it never deletes a story event or the source asset
 No subtitles, narration, metadata speech or extra human vocalization.
 The canonical story/action plan and required visual outcomes own seated/standing states, floor
 positions, left/right and depth relations, throne placement, current costume,
-required pose, visible props and story action. Preserve them throughout the take,
+required pose, visible props and story action. Preserve them across camera views,
 except for changes explicitly required by canonical actions/transitions.
 
 INTERNAL TIMING AND EXECUTION BUDGET
@@ -57,6 +57,16 @@ REFERENCE AUTHORITY AND KEEP / RETIME / DROP (INTERNAL ONLY)
 The original anchor catalog and Picture bindings are immutable SOURCE RECORDS,
 not an obligation to reproduce every picture. DIRECTOR_VISUAL_ANCHOR KF images
 in Ref2VA are included in this execution policy along with TEMPORAL_ANCHOR images.
+Anchor ID and Picture ID are separate namespaces. Copy each decision ID exactly
+from immutable_authority.anchor_policy.catalog[].anchor_id. In this output schema,
+anchor decisions are av_timeline.anchors[]; do not add a second anchor_decisions array.
+av_timeline.anchors[].id MUST be the catalog anchor_id, NEVER its source_picture,
+a <Picture N> token, a slot number, or a newly inferred/renumbered KF identity.
+For illustration only, catalog {"anchor_id":"KF27","source_picture":"<Picture 2>"}
+requires decision identity {"id":"KF27"}, not {"id":"<Picture 2>"}; use the actual
+supplied IDs, not these illustrative values. Reference projection never renames
+Anchor IDs. An empty catalog requires anchors: []; Previous Video does not create
+an anchor. Apply this exact-ID rule to zero, one or multiple anchors in either mode.
 For each catalog anchor choose one decision with a concrete value/conflict reason:
 KEEP: retain its useful visual guidance and original target arrival time.
 RETIME: retain the image but set a more suitable arrival, before/during/after a
@@ -119,12 +129,15 @@ costume, spatial relations, ongoing action and camera direction into THIS clip's
 canonical action. Do not replay completed actions or previous dialogue. Incidental
 errors in the previous video do not become canonical story requirements. Current
 dialogue, speakers, necessary actions and outcomes remain authoritative.
-First continue the incoming camera state, then acquire this clip's first speaker
+Preserve the incoming camera state throughout the shared context; only after that
+prefix ends, acquire this clip's first speaker
 with an executable camera/composition action and settled visible listeners before
 the first utterance, as needed. Continuity does not freeze framing or posture;
-allow natural local action and speaker-supporting camera movement within canonical
-blocking. Upstream fixed-framing prose is initial execution guidance, not a ban on
-camera acquisition. For a conflicting KF, use a natural transition if useful or
+allow natural local action and the visibility-based camera choice below within
+canonical blocking. A post-context cut may acquire the first speaker when needed;
+it must preserve the established story state rather than restart the scene.
+Upstream fixed-framing/continuous-take prose is initial execution guidance, not
+a ban on speaker acquisition by movement or cut. For a conflicting KF, use a natural transition if useful or
 RETIME/DROP its reference; never reset the incoming state merely to reproduce it.
 The clip's assigned actions govern how far to develop a transition spanning several
 clips; do not prematurely complete a later clip's outcome. Keep all technical
@@ -153,6 +166,29 @@ plus context. The actual target frame expression is supplied; keep that conversi
 unchanged. No timeline offset or overlap metadata belongs in the final H3 prose.
 
 SPEAKER VISUAL ACQUISITION — INTERNAL LOGIC
+For the first speaker and each later speaker, assess the immediately preceding
+view using the supplied images/context: face and mouth visibility, useful face
+size, occlusion, depth, foreground dominance and whether camera work can make
+articulation readable before the line. More waiting alone does not acquire a face.
+Choose per transition, not once for all dialogue:
+- Maintain the current view when that speaker is already clearly readable; an
+  ensemble or two-shot can be sufficient. Do not invent a move or cut.
+- Use continuous reframing when a feasible camera path can establish and retain
+  readability within the available budget without reblocking characters.
+- Prefer an explicit cut to a readable view when the incoming speaker is distant,
+  too small or occluded and continuous movement is unlikely to acquire the face
+  and mouth reliably. Foreground listeners must not keep dominating that view.
+Do not force every line into a close-up or prescribe a universal shot size,
+camera angle, acquisition duration or cut after every line. A clip may mix held
+views, continuous movement and speaker-motivated cuts. Choose the least disruptive
+view that actually supports the speaker, while preserving necessary visible action.
+For a cut, explicitly describe the edit and the incoming subject's achieved view;
+"give attention" or "make primary" is not a camera action. Keep that speaker's
+face/mouth readable throughout the line; switch away after the line is complete.
+Other characters may be off-screen if their simultaneous visibility is not a
+canonical requirement. Off-screen framing does not remove, duplicate or relocate
+them. Visible non-speakers remain natural closed-mouth listeners.
+
 For every active-speaker switch plan, in order:
 PREVIOUS SPEAKER RELEASE -> INCOMING SPEAKER VISUAL ACQUISITION -> FACE/MOUTH
 READABILITY -> LISTENER SETTLE -> DIALOGUE EXECUTION.
@@ -161,11 +197,11 @@ The outgoing speaker stops speech-like articulation; lips relax and close natura
 Derive readiness from the immediately preceding visible state. If the incoming
 speaker is not already clearly acquired, describe a camera/composition action
 transferring visual emphasis FROM the outgoing Subject TO the incoming Subject.
-Name both Subjects in that action. Choose an executable movement suited to the
+Name both Subjects in that action. Choose an executable movement or cut suited to the
 current geometry: improve the incoming face/mouth's readability through visibility,
 useful scale or composition, not merely request "recenter", "rebalance" or
 "provide a clear view".
-In natural prose connect completion of that movement and listener settling to the
+In natural prose connect completion of that camera action and listener settling to the
 incoming line: the view is acquired first, then the speaker begins. A temporal
 connection such as "With that view established, ..." is enough; no timed scheduler
 or repeated prohibitions. During the line, maintain readable
@@ -186,8 +222,8 @@ repeated ONLY/alone/exclusive speaker prohibitions as a substitute for acquisiti
 
 ACQUISITION MUST PRESERVE BLOCKING
 Acquire the speaker primarily through CAMERA/COMPOSITION, not character reblocking.
-Use the already permitted gentle reframing, shallow arc, subtle pan/lateral drift,
-modest push, foreground clearance, composition rebalance and gaze transfer.
+Use feasible reframing, arc, pan/lateral drift, push or foreground clearance when
+continuous movement can acquire the speaker; otherwise use the explicit-cut option.
 A medium or ensemble view is sufficient; no close-up or particular movement is
 required. Maintain an incoming view only when the immediately preceding local
 description already establishes that face/mouth as readable with adequate visual
@@ -207,9 +243,14 @@ If readability cannot be achieved within those constraints, preserve blocking an
 report SPEAKER_VISUAL_HANDOFF_RISK; do not solve it by inventing motion.
 
 CAMERA, ACTIONS AND ANCHORS
-Respect the supplied continuity strategy. CONTINUOUS_TAKE means no hard cut, sudden
-scale/axis jump, camera teleport or independent shot reset. It permits smooth small
-physical reframing between retained useful visual states; dropped KF compositions do not constrain it. Do not keep a forward push
+The supplied continuity strategy is an initial camera preference, not immutable
+Canonical Story. CONTINUOUS_TAKE may be retained when it supports readable speakers
+or replaced by explicit speaker-motivated cuts when visibility requires them.
+Keep story time, identities, costumes, poses, floor positions, screen-side relations,
+eyelines and required prop/action states continuous across edits; do not reset the
+scene or skip required action. Distinguish a deliberate edit from an unexplained
+camera teleport. Optional KF framing cannot veto a needed speaker view, and dropped
+KF compositions impose no camera constraint. Do not keep a forward push
 that enlarges foreground listeners while further suppressing a rear speaker.
 Likewise, a pull-back is unsuitable when it would further reduce the incoming
 speaker's readability. Choose the camera path for the actual transition, without
@@ -228,6 +269,14 @@ with reasons, not a preset gap. Judge visual_handoff_required and camera_handoff
 separately. Explain concurrent preparation versus work that needs silence. Hard depth
 transfers usually need more work; similarly short gaps require an actual explanation
 of already-achieved readiness. Readiness must be acquired BEFORE speech begins.
+Use the existing camera_strategy/visibility/reason fields to explain retaining a
+view, continuous reframing or cutting; do not add a parallel camera-plan schema.
+In existing execution_phases, describe the first speaker's acquisition/readiness
+and later camera transitions with their real budget. A cut needs no artificial
+travel interval, but incoming readiness must precede dialogue. Keep the internal
+plan, summary and detailed_description consistent with each chosen transition;
+if cuts are selected, remove contradictory global "no cut"/"uninterrupted take"
+clauses from final prose. Keep those strategy reasons in internal metadata.
 Internal PRIMARY/SECONDARY/BACKGROUND roles and execution phases may support planning,
 but must be compiled into visible behavior, never printed as a priority DSL.
 
@@ -250,7 +299,7 @@ Do not duplicate long identity inventories in retention_analysis.
 
 summary: Include the total execution duration once, naturally as
 "A 15-second ..." (use your actual optimized_duration, not this example value).
-Describe the clip and its continuous/supplied shot strategy. This is total duration,
+Describe the clip and its chosen held/continuous/edited or mixed shot strategy. This is total duration,
 not a timestamp scheduler.
 retention_analysis: Briefly explain required clothing/pose/blocking/prop continuity,
 and useful guidance from RETAINED references, with scene/prop roles. Do not declare
@@ -338,7 +387,7 @@ av_timeline: {
     visual_attention, camera_action_coordination, anchor_proximity,
     prompt_evidence: {release, acquisition, listeners, dialogue_entry,
       existing_view_excerpt: optional}}],
-  anchors: [{id: original anchor_id, original_time, optimized_time, delta,
+  anchors: [{id: exact catalog[].anchor_id (never source_picture), original_time, optimized_time, delta,
     decision: "KEEP|RETIME|DROP", reason, preserved_visual_requirements: [requirement ids],
     released_constraint: string for DROP, prompt_excerpt,
     arrival_relation: {dialogue_id, position: "BEFORE|DURING|AFTER", prompt_excerpt}}],
@@ -381,8 +430,9 @@ while retaining required action. Match actual narrative order, not just copied
 JSON evidence. Final settle follows completion of the required action and speech.
 Phases may overlap across modalities; use unique IDs and types READINESS, SILENCE,
 HANDOFF, ATTENTION, ACTION, CAMERA, ANCHOR_ARRIVAL, FINAL_SETTLE as applicable.
-An ANCHOR_ARRIVAL names its retained anchor_id and may be a point event with start
-== end at the arrival instant. Never schedule an arrival for a DROP anchor.
+An ANCHOR_ARRIVAL includes anchor_id copied exactly from its retained catalog entry
+and decision id, never a Picture token; it may be a point event with start == end
+at the arrival instant. Never schedule an arrival for a DROP anchor.
 All ordinary duration-bearing phases require start < end. Point events carry no
 duration and do not contribute to budget coverage; the union of positive-duration
 CAMERA, DIALOGUE, ACTION, HANDOFF, FINAL_SETTLE or other interval phases explains
@@ -392,7 +442,9 @@ Before returning, check all immutable facts, exact dialogue/speakers/order, stab
 voice IDs, Chinese markup, acquisition and listener lead-ins, blocking preservation,
 canonical requirement coverage, anchor decisions/arrival relations, final Picture
 projection, reference authority, duration arithmetic, phase coverage and compact
-final structure. Inspect EVERY <d> individually: its own <Subject N> (Sx) prefix
+final structure. Verify that decision IDs equal the complete catalog anchor_id
+list exactly once in catalog order, and every arrival anchor_id names a retained
+decision. Inspect EVERY <d> individually: its own <Subject N> (Sx) prefix
 must be present and match the assigned mapping, even when the preceding line has
 the same speaker. The number of fully marked utterances must equal the number of
 canonical dialogue events; a bare Subject token does not count as a Speaker ID.

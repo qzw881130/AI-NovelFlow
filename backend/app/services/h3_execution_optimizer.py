@@ -5,7 +5,7 @@ import json
 import math
 import re
 
-from app.constants.capability import VIDEO_CAPABILITY_CONTRACTS
+from app.constants.capability import CLIP_MAX_DURATION, VIDEO_CAPABILITY_CONTRACTS, clip_duration_maximum
 from app.services.llm_service import LLMService
 from app.services.llm.cancellation import LLMCallTerminated
 from app.services.video_director_ai import resolve_prompt_template, append_video_ai_call
@@ -23,8 +23,8 @@ def workflow_duration_limits(extension=None, capability="GENERATE"):
     contract = VIDEO_CAPABILITY_CONTRACTS.get(capability, VIDEO_CAPABILITY_CONTRACTS["GENERATE"])
     extension = extension or {}
     return {"minimum": max(float(contract["min_duration"]), float(extension.get("min_clip_duration") or extension.get("min_seconds") or contract["min_duration"])),
-            "maximum": min(20.0, float(contract["max_duration"]), float(extension.get("max_clip_duration") or extension.get("max_seconds") or contract["max_duration"])),
-            "absolute_maximum": 20.0, "frame_rule": "existing frozen workflow duration-to-frames conversion"}
+            "maximum": min(float(contract["max_duration"]), clip_duration_maximum(extension)),
+            "absolute_maximum": CLIP_MAX_DURATION, "frame_rule": "existing frozen workflow duration-to-frames conversion"}
 
 
 def _number(value):
@@ -93,7 +93,7 @@ def dialogue_events(prompt):
 
 def subject_bindings(prompt):
     bindings = {}
-    for subject, name in re.findall(r"(?m)^[ \t]*(<Subject \d+>)\s+is\s+([^,，\n.;；。:：]+)", prompt):
+    for subject, name in re.findall(r"(?m)^[ \t]*(?:[-*+][ \t]+)?(<Subject \d+>)\s+is\s+([^,，\n.;；。:：]+)", prompt):
         bindings.setdefault(subject, name.strip())
     return bindings
 
@@ -101,7 +101,7 @@ def subject_bindings(prompt):
 def anchor_declarations(prompt):
     result = []
     for line in prompt.splitlines():
-        match = re.match(r"\s*[-*]?\s*(KF\d+)\s*[—:@-].*?\b(?:Clip-local\s+|@\s*)?([\d.]+)s\b", line)
+        match = re.match(r"\s*[-*]?\s*(KF\d+)\s*[—:@|\-].*?\b(?:Clip-local\s+|@\s*)?([\d.]+)s\b", line)
         if match:
             picture = re.search(r"<Picture \d+>", line)
             result.append({"id": match[1], "time": float(match[2]), "picture": picture[0] if picture else None})
@@ -112,7 +112,7 @@ def anchor_facts(prompt):
     """Copy visual targets verbatim; arrival time alone is execution-owned."""
     result = []
     for line in prompt.splitlines():
-        match = re.match(r"\s*[-*]?\s*(KF\d+)\s*[—:@-](.*?)\b([\d.]+)s\b(.*)$", line)
+        match = re.match(r"\s*[-*]?\s*(KF\d+)\s*[—:@|\-](.*?)\b([\d.]+)s\b(.*)$", line)
         if match:
             picture = re.search(r"<Picture \d+>", match[4])
             result.append({"id": match[1], "order": len(result) + 1,
@@ -133,7 +133,7 @@ def temporal_declarations(prompt, anchors):
         elif str(source.get("id") or "").startswith("KF"):
             aliases.append(str(source["id"]))
         for alias in aliases:
-            matches = re.findall(r"(?m)^\s*[-*]?\s*" + re.escape(alias) + r"\s*[—:@-].*?([\d.]+)s\b", prompt)
+            matches = re.findall(r"(?m)^\s*[-*]?\s*" + re.escape(alias) + r"\s*[—:@|\-].*?([\d.]+)s\b", prompt)
             if matches:
                 result.extend({"anchor_id": anchor["anchor_id"], "time_seconds": float(time)} for time in matches)
                 break
@@ -141,7 +141,7 @@ def temporal_declarations(prompt, anchors):
 
 
 def _temporal_target_suffix(prompt, anchor_id):
-    match = re.search(r"(?m)^\s*[-*]?\s*" + re.escape(str(anchor_id)) + r"\s*[—:@-].*?[\d.]+s\b(.*)$", prompt)
+    match = re.search(r"(?m)^\s*[-*]?\s*" + re.escape(str(anchor_id)) + r"\s*[—:@|\-].*?[\d.]+s\b(.*)$", prompt)
     return match[1].strip() if match else None
 
 
@@ -230,7 +230,10 @@ def build_runtime_input(raw_prompt, generation_mode, clip, reference_manifest=No
                "raw_h3_prompt": raw_prompt, "immutable_authority": authority,
                "initial_execution_timing": initial_timing,
                "execution_flexibility": {
-                   "inter_anchor_camera_path": "CONTINUOUS_PATH_OPTIMIZABLE; upstream transition path prose is initial execution guidance",
+                   "inter_anchor_camera_path": "VISIBILITY_ADAPTIVE_CAMERA; upstream CONTINUOUS_TAKE/path prose is an initial preference, not immutable story. Preserve canonical state across views.",
+                   "speaker_camera_selection": "Assess the first and each incoming speaker from actual prior visibility: maintain a readable view, use feasible continuous reframing, or prefer an explicit cut for a distant/tiny/occluded face when movement is unreliable. No universal close-up or gap. Synchronize existing camera_strategy/execution_phases and final prose.",
+                   "camera_context_boundary": ("Preserve the shared context camera state; any new movement/cut must begin after the verified context prefix. Count overlap once."
+                       if continuation else "Ordinary time origin; no previous-video prefix or overlap."),
                    "anchor_camera_composition_and_blocking": ("SOFT_REFERENCE_KEEP_RETIME_DROP; preserve canonical actions, blocking and required outcomes independently of optional KF composition"
                        if authority.get("anchor_policy") else "IMMUTABLE_VISUAL_TARGETS; reach the prescribed states at optimized arrivals"),
                    "speaker_visual_hierarchy": "PRIMARY active speaker; SECONDARY/BACKGROUND listeners with canonical presence and spatial continuity",
@@ -415,8 +418,6 @@ def check_authority(raw_prompt, output, authority, initial_timing=None, limits=N
     for phase_type in ("ATTENTION", "CAMERA", "FINAL_SETTLE"):
         if not any(p.get("type") == phase_type for p in phases):
             warnings.append({"code": "EXECUTION_PHASE_MISSING", "type": phase_type})
-    if not re.search(r"(?i)continuous|uninterrupted", prompt) and re.search(r"(?i)continuous", raw_prompt):
-        warnings.append({"code": "CONTINUOUS_CAMERA_WORDING_WEAK"})
     blocking = [name for name, passed in checks.items() if not passed]
     if resolved_authority["echo_differences"]:
         warnings.append({"code": "AUTHORITY_ECHO_MISMATCH",
@@ -424,17 +425,30 @@ def check_authority(raw_prompt, output, authority, initial_timing=None, limits=N
                          "resolution": "Canonical input and manifest retained; see resolved_authority"})
     warnings.extend({"code": "EVIDENCE_MISMATCH", "path": path,
                      "resolution": evidence["entries"][path]["status"]} for path in evidence["mismatches"])
-    if evidence["unresolved"]:
+    review_paths = list(dict.fromkeys(evidence["unresolved"] + evidence.get("semantic_review_required", [])))
+    if review_paths:
         # Explicitly distinguish unverifiable meaning from a proven story error.
-        warnings.append({"code": "EVIDENCE_SEMANTIC_REVIEW_REQUIRED", "paths": evidence["unresolved"]})
+        warnings.append({"code": "EVIDENCE_SEMANTIC_REVIEW_REQUIRED", "paths": review_paths})
     return {"status": "PASS" if not blocking else "FAIL", "passed": not blocking,
             "checks": checks, "blocking_findings": blocking, "warnings": warnings,
             "resolved_evidence": evidence, "resolved_authority": resolved_authority,
             "evidence_provenance": {"status": "EVIDENCE_MISMATCH" if evidence["mismatches"] else "EXACT",
                                     "mismatches": evidence["mismatches"], "unresolved": evidence["unresolved"]},
-            "semantic_consistency": {"status": "REVIEW_REQUIRED" if evidence["unresolved"] else ("PASS" if not blocking else "FAIL"),
+            "semantic_consistency": {"status": "REVIEW_REQUIRED" if review_paths else ("PASS" if not blocking else "FAIL"),
                                      "scope": "Existing dialogue/identity/binding/order checks and located requirement text; arbitrary action meaning requires semantic preflight."},
             "scope": "immutable textual facts, AV execution consistency and local handoff evidence provenance; acquisition meaning requires semantic preflight, actual voice/lip/camera quality requires video review"}
+
+
+def duration_infeasibility(authority, limits):
+    """Only a proven fixed-speech lower bound; never a 15s soft-target gate."""
+    durations = [e["duration"] for e in authority["dialogue_events"]]
+    speech = (max(durations, default=0) if authority.get("allowed_dialogue_overlaps") else sum(durations))
+    overlap = (authority.get("continuation") or {}).get("overlap_seconds", 0)
+    minimum = speech + overlap
+    if minimum > limits["maximum"] + EPSILON:
+        return {"code": "DURATION_INFEASIBLE", "minimum_execution_duration": minimum,
+                "effective_max_duration": limits["maximum"], "requires_clip_replan": True}
+    return None
 
 
 async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_mode, clip,
@@ -455,6 +469,10 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
         record.update(runtime_input=runtime, prompt_template_id=template.id, prompt_template_name=template.name,
                       system_prompt_sha256=hashlib.sha256(template.template.encode()).hexdigest(), image_count=len(images))
         record["original_duration"] = runtime["clip"]["duration"]
+        infeasible = duration_infeasibility(runtime["immutable_authority"], runtime["duration_limits"])
+        if infeasible:
+            record.update(error_code="DURATION_INFEASIBLE", duration_feasibility=infeasible, requires_clip_replan=True)
+            raise ValueError("DURATION_INFEASIBLE: 固定对白与公共区超出有效执行上限，需上层重新规划 Clip 边界")
         if not images and runtime["visual_inputs"]:
             raise ValueError("VISION_INPUT_UNAVAILABLE: 不允许静默丢弃图片")
         previous_runtime = (reuse_record or {}).get("runtime_input") or {}
@@ -486,6 +504,13 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
         audit = check_authority(raw_prompt, parsed, runtime["immutable_authority"], runtime["initial_execution_timing"], runtime["duration_limits"])
         record.update(output=parsed, optimized_prompt=parsed["optimized_prompt"], authority_check=audit,
                       resolved_evidence=audit["resolved_evidence"], resolved_authority=audit["resolved_authority"])
+        risks = parsed.get("risks") or []
+        if isinstance(risks, list) and any(
+            (risk.get("code") if isinstance(risk, dict) else str(risk).split(":", 1)[0].strip())
+            == "INSUFFICIENT_AV_EXECUTION_BUDGET" for risk in risks
+        ):
+            record.update(error_code="DURATION_INFEASIBLE", requires_clip_replan=True)
+            raise ValueError("DURATION_INFEASIBLE: #14 报告执行预算不足，需上层重新规划；不改写 Canonical")
         if not audit["passed"]:
             raise ValueError("#14 canonical authority 不通过：" + ", ".join(audit["blocking_findings"]))
         if runtime["immutable_authority"].get("anchor_policy"):

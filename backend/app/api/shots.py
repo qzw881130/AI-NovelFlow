@@ -135,7 +135,7 @@ from app.services.clip_execution_compiler import (
     compile_temporal_extend_clip,
     get_canonical_execution_readiness,
 )
-from app.constants.capability import EXTEND_PHYSICAL_WORKFLOW_TYPE, EXTEND_WORKFLOW_ID, TEMPORAL_EXTEND_WORKFLOW_ID
+from app.constants.capability import clip_duration_maximum, EXTEND_PHYSICAL_WORKFLOW_TYPE, EXTEND_WORKFLOW_ID, TEMPORAL_EXTEND_WORKFLOW_ID
 from app.services.dialogue_ownership import assign_dialogues_to_clips
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.core.database import SessionLocal
@@ -1274,7 +1274,7 @@ def _resolve_shot_by_id_or_index(shot_repo: ShotRepository, chapter_id: str, sho
 
 def _get_video_workflow_capability(workflow: Optional[Workflow]) -> dict:
     extension = _safe_json_dict(workflow.extension if workflow else None)
-    max_clip_duration = int(extension.get("max_clip_duration") or extension.get("max_seconds") or 15)
+    max_clip_duration = clip_duration_maximum(extension)
     workflow_mode = str(extension.get("mode") or extension.get("video_mode") or "").lower()
     return {
         "single_frame": extension.get("single_frame", True),
@@ -1534,7 +1534,7 @@ def _validate_multi_keyframe_plan_for_execution(shot, plan: dict) -> tuple[bool,
     execution_windows = plan.get("execution_windows") if isinstance(plan.get("execution_windows"), list) else []
     keyframes = plan.get("keyframes") if isinstance(plan.get("keyframes"), list) else []
     workflow_capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else {}
-    max_clip_duration = int(workflow_capability.get("max_clip_duration") or 15)
+    max_clip_duration = clip_duration_maximum(workflow_capability)
     duration = int(shot.duration or 4)
 
     if not execution_windows:
@@ -2819,7 +2819,7 @@ async def save_video_director_plan(
     updates = request.model_dump(exclude_unset=True)
     plan = _merge_video_director_plan(shot, updates)
     duration = shot.duration or 4
-    max_clip_duration = _safe_json_dict(plan.get("workflow_capability")).get("max_clip_duration", 15)
+    max_clip_duration = clip_duration_maximum(_safe_json_dict(plan.get("workflow_capability")))
     if updates.get("selected_mode"):
         plan["first_last_available"] = duration <= max_clip_duration
         if updates["selected_mode"] == "MULTI_KEYFRAME":
@@ -3360,7 +3360,7 @@ async def _prepare_batch_video_details(db: Session, batch_task: Task, child_task
 
     if selected_mode == "FIRST_LAST_FRAME":
         capability = plan.get("workflow_capability") if isinstance(plan.get("workflow_capability"), dict) else {}
-        max_clip_duration = int(capability.get("max_clip_duration") or 15)
+        max_clip_duration = clip_duration_maximum(capability)
         if (shot.duration or 4) > max_clip_duration:
             await recommend_video_mode(
                 child_task.novel_id,

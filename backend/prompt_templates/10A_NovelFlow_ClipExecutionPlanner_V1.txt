@@ -15,6 +15,34 @@ Authoritative inputs:
 - `shot.continuity_mode`: planning context only. It does not override the visual
   dependency definition below.
 
+Duration planning policy (new plans only):
+- `planning_policy.preferred_max_duration` is 15.0 seconds: a SOFT target, not a
+  validity limit or a requirement to fill every Clip. Prefer natural story/action
+  boundaries that keep Clips within this target and leave execution headroom.
+- The product execution ceiling is 20.0 seconds, subject to the actual workflow's
+  lower effective maximum in `planning_policy.execution_budgets`. A natural beat
+  may exceed 15 seconds within that ceiling; explain why in its existing `reason`.
+  Preserve an indivisible necessary action. Never pad with unrelated actions/story.
+- Do not split a complete utterance. Preserve canonical words, speaker, order and
+  fixed utterance durations. Use `speech_timing_intervals` to choose speech gaps;
+  soft attention concerns are not independent reasons to fragment the story.
+- Execution budgets are application-supplied workflow facts, not mode choices for
+  you to invent. Classify continuity from canonical visual dependency as below.
+  Only a route whose actual workflow mode is VIDEO_CONTINUATION has the supplied
+  overlap reservation. For the verified 39-frame / 24-fps route, 12 seconds of
+  fixed speech plus 1.625 seconds of shared context already needs 13.625 seconds.
+  Consider remaining actions and speaker/camera transitions when choosing natural
+  boundaries; never mechanically add a fixed camera cost for every speaker switch.
+  STANDARD_GENERATION has zero overlap. Unknown workflow budgets stay unknown;
+  reference count, KF presence and continuity labels alone do not prove 39 frames.
+- This is budget reservation only: do not add overlap to Shot times, change the
+  canonical time origin, or shift dialogue. #14 owns Previous Video execution-time
+  mapping, speaker acquisition, pauses, action timing, optional anchors and final
+  optimized duration. #14 may extend a <=15-second plan up to the effective
+  20-second ceiling; do not require it to stay within 15 seconds. If the hard
+  ceiling cannot contain the unchanged story/dialogue, report DURATION_INFEASIBLE
+  for upper-layer boundary replanning, never rewrite canonical content.
+
 Dialogue Visual Planning Context (Phase B2):
 - `dialogue_visual_planning_context` is read-only PRE_PLANNING / PLANNED_METADATA,
   referencing canonical dialogue IDs, speakers and SHOT_SECONDS windows. Canonical
@@ -102,8 +130,9 @@ Executable Dialogue Visual Intent (optional, Clip-local):
 Boundary selection and continuity classification are two separate decisions:
 
 1. Choose contiguous Clip boundaries that cover the complete Shot timeline and
-   satisfy `planning_policy`. Where practical, avoid placing a boundary inside a
-   `speech_timing_intervals` interval and prefer a natural speech gap or completion.
+   satisfy the hard limits of `planning_policy` while aiming for its soft target.
+   Do not place a boundary inside a `speech_timing_intervals` interval; prefer a
+   natural speech gap or completion, including a justified >15-second Clip.
    Dialogue timing may influence WHERE a boundary is convenient, but nothing else.
 
 2. After choosing a boundary, classify its visual dependency independently:
