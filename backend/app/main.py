@@ -87,6 +87,7 @@ def ensure_schema_updates():
                 "h3_single_frame_prompt_template_id",
                 "h3_first_last_frame_prompt_template_id",
                 "h3_multi_keyframe_prompt_template_id",
+                "h3_execution_optimizer_prompt_template_id",
             ]
             for column in novel_prompt_columns:
                 if column not in novel_columns:
@@ -136,18 +137,15 @@ def ensure_schema_updates():
 async def reconcile_active_tasks_loop():
     """Periodically reconcile active tasks so stale ComfyUI states are corrected after restarts."""
     from app.core.database import SessionLocal
-    from app.repositories import TaskRepository
     from app.services.task_service import TaskService
 
     while True:
         db = SessionLocal()
         try:
-            task_repo = TaskRepository(db)
-            active_tasks = task_repo.list_active_tasks()
-            if active_tasks:
-                updated_count = await TaskService(db).reconcile_active_tasks(active_tasks, db=db)
-                if updated_count:
-                    print(f"[TaskReconcile] Updated {updated_count} stale active task(s)")
+            # Also recover receipts previously marked failed solely by a restart.
+            updated_count = await TaskService(db).reconcile_active_tasks(db=db)
+            if updated_count:
+                print(f"[TaskReconcile] Updated {updated_count} stale active task(s)")
             from app.services.background_workers import worker_manager
             worker_manager.reconcile_terminal_jobs()
         except asyncio.CancelledError:

@@ -29,9 +29,16 @@ def build_llm_request_info(
     payload: Dict[str, Any],
     proxy_url: str = None,
     timeout_seconds: int | float = None,
+    image_metadata: list | None = None,
 ) -> Dict[str, Any]:
     """构建用于日志展示的 LLM 请求参数，敏感字段会被脱敏。"""
+    from .multimodal import capture_image_inputs
+    from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
+    logged_payload, image_inputs = capture_image_inputs(payload, image_metadata)
+    parsed = urlsplit(endpoint)
+    endpoint = urlunsplit(parsed._replace(query=urlencode([(k, "***" if k.lower() in {"key", "api_key"} else v) for k, v in parse_qsl(parsed.query)])))
     return {
+        "imageInputs": image_inputs,
         "provider": provider,
         "baseUrl": base_url,
         "url": endpoint,
@@ -39,7 +46,7 @@ def build_llm_request_info(
         "proxyUrl": proxy_url or "",
         "timeoutSeconds": timeout_seconds,
         "headers": _sanitize_headers(headers),
-        "payload": payload,
+        "payload": logged_payload,
     }
 
 
@@ -58,6 +65,9 @@ def create_llm_log(
 ) -> Optional[str]:
     """在请求发出前创建一条进行中的 LLM 调用日志。"""
     log_id = str(uuid.uuid4())
+    if request_info:
+        for image in request_info.get("imageInputs") or []:
+            image["request_id"] = log_id
     try:
         from app.core.database import SessionLocal
         from app.models.llm_log import LLMLog

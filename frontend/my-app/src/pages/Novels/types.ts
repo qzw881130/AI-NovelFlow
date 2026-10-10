@@ -23,6 +23,7 @@ export interface NovelFormData {
   h3SingleFramePromptTemplateId: string;
   h3FirstLastFramePromptTemplateId: string;
   h3MultiKeyframePromptTemplateId: string;
+  h3ExecutionOptimizerPromptTemplateId: string;
   aspectRatio: string;
 }
 

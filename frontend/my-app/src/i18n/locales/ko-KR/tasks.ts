@@ -4,6 +4,7 @@ import enUS from '../en-US/tasks';
 export default {
   tasks: {
     ...enUS.tasks,
+    promptCharacterCount: '{count}자',
     comfyConfigNotInitialized: 'ComfyUI 설정 초기화 안 됨',
     comfyConfigMismatch: 'ComfyUI 설정 불일치',
     comfyConnectionFailed: 'ComfyUI 연결 실패',

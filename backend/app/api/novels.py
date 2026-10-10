@@ -44,6 +44,7 @@ PROMPT_TEMPLATE_EXPORT_FIELDS = [
     {"api_key": "h3SingleFramePromptTemplateId", "attr": "h3_single_frame_prompt_template_id", "label": "H3 单帧视频提示词模板", "type": "h3_single_frame_prompt"},
     {"api_key": "h3FirstLastFramePromptTemplateId", "attr": "h3_first_last_frame_prompt_template_id", "label": "H3 首尾帧视频提示词模板", "type": "h3_first_last_frame_prompt"},
     {"api_key": "h3MultiKeyframePromptTemplateId", "attr": "h3_multi_keyframe_prompt_template_id", "label": "H3 多关键帧视频提示词模板", "type": "h3_multi_keyframe_prompt"},
+    {"api_key": "h3ExecutionOptimizerPromptTemplateId", "attr": "h3_execution_optimizer_prompt_template_id", "label": "H3 执行提示词优化模板", "type": "h3_execution_optimizer_prompt"},
 ]
 
 
@@ -110,6 +111,7 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
         h3_single_frame_prompt_template_id=novel.h3_single_frame_prompt_template_id,
         h3_first_last_frame_prompt_template_id=novel.h3_first_last_frame_prompt_template_id,
         h3_multi_keyframe_prompt_template_id=novel.h3_multi_keyframe_prompt_template_id,
+        h3_execution_optimizer_prompt_template_id=novel.h3_execution_optimizer_prompt_template_id,
         aspect_ratio=novel.aspect_ratio or "16:9",
     )
     db.add(db_novel)
@@ -143,6 +145,7 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
             "h3SingleFramePromptTemplateId": db_novel.h3_single_frame_prompt_template_id,
             "h3FirstLastFramePromptTemplateId": db_novel.h3_first_last_frame_prompt_template_id,
             "h3MultiKeyframePromptTemplateId": db_novel.h3_multi_keyframe_prompt_template_id,
+            "h3ExecutionOptimizerPromptTemplateId": db_novel.h3_execution_optimizer_prompt_template_id,
             "aspectRatio": db_novel.aspect_ratio or "16:9",
             "createdAt": format_datetime(db_novel.created_at),
         }
@@ -383,6 +386,7 @@ async def update_novel(
         "h3SingleFramePromptTemplateId": "h3_single_frame_prompt_template_id",
         "h3FirstLastFramePromptTemplateId": "h3_first_last_frame_prompt_template_id",
         "h3MultiKeyframePromptTemplateId": "h3_multi_keyframe_prompt_template_id",
+        "h3ExecutionOptimizerPromptTemplateId": "h3_execution_optimizer_prompt_template_id",
         "aspectRatio": "aspect_ratio",
     }
     

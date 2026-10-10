@@ -1,0 +1,840 @@
+{
+  "baseline": "B3.1 frozen Shot3/Clip1 input; fake responses only",
+  "production_template_sha256": "841e1e6c7f57f4c633228f7d9a1b75309aae8839b7c072b19afc758fd4237170",
+  "user_content_sha256": "6ef571a200784a5c762635a9fd1f0246deeec2e5bb40ef29d530f6597fa20d54",
+  "response_off": {
+    "clips": [
+      {
+        "clip_index": 1,
+        "start_time": 0,
+        "end_time": 13.1,
+        "continuity_to_previous": "NONE",
+        "previous_clip_index": null,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": null,
+        "reason": "The complete 13.1-second shot fits the permitted duration and remains one Clip, preserving the canonical uninterrupted low-angle push along the same axis from KF1 through KF2 to KF3 while avoiding boundaries inside any dialogue interval. D1 and D2 have full primary attention support within the shared two-swindler composition; D3 has a legitimate handoff to the emperor followed by primary support; D5 has primary emperor support; and D6 has primary support within the shared swindler composition, so none requires restructuring. D4 is fully time-covered but its speaker is not listed in the attention role while the emperor remains primary; nearby planned membership is only auxiliary, so this is a soft visual-support concern and does not alter the continuous shared composition. Actual visibility, facial or mouth readability, and final speaker realization remain unknown."
+      }
+    ]
+  },
+  "response_on": {
+    "clips": [
+      {
+        "clip_index": 1,
+        "start_time": 0,
+        "end_time": 13.1,
+        "continuity_to_previous": "NONE",
+        "previous_clip_index": null,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": null,
+        "reason": "The complete 13.1-second shot fits the permitted duration and remains one Clip, preserving the canonical uninterrupted low-angle push along the same axis from KF1 through KF2 to KF3 while avoiding boundaries inside any dialogue interval. D1 and D2 have full primary attention support within the shared two-swindler composition; D3 has a legitimate handoff to the emperor followed by primary support; D5 has primary emperor support; and D6 has primary support within the shared swindler composition, so none requires restructuring. D4 is fully time-covered but its speaker is not listed in the attention role while the emperor remains primary; nearby planned membership is only auxiliary, so this is a soft visual-support concern and does not alter the continuous shared composition. Actual visibility, facial or mouth readability, and final speaker realization remain unknown.",
+        "dialogue_visual_intent": {
+          "version": 1,
+          "mode": "soft",
+          "events": [
+            {
+              "dialogue_id": "D4",
+              "intent": "SUPPORT_SPEAKER_PARTICIPATION",
+              "target_character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "synthetic_reaction": {
+    "speaker": "皇帝",
+    "primary": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+    "background_motion": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f"
+  },
+  "h3_input_off_sha256": "01bd027684940d835c2ed44885d0ff2167943889a47dff32a95c24c033589b76",
+  "h3_prompt_off_sha256": "dee13f2440f2c3e30f579bf18edb27650e67bdad9b2e22706a815042f2cc3a0d",
+  "compiler_shot_media": {
+    "image_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/shots/shot_58fa07ca_6c8d9075-32d0-4541-a35d-48f795b9c113_20261008_135326.png",
+    "image_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/chapter_6ad4afd6/shots/shot_58fa07ca_6c8d9075-32d0-4541-a35d-48f795b9c113_20261008_135326.png"
+  },
+  "accepted_off": {
+    "clips": [
+      {
+        "clip_index": 1,
+        "start_time": 0.0,
+        "end_time": 13.1,
+        "continuity_to_previous": "NONE",
+        "previous_clip_index": null,
+        "requires_temporal_control": false,
+        "selected_temporal_target_ids": [],
+        "early_composition_state_id": null,
+        "inherited_start_composition": null,
+        "reason": "The complete 13.1-second shot fits the permitted duration and remains one Clip, preserving the canonical uninterrupted low-angle push along the same axis from KF1 through KF2 to KF3 while avoiding boundaries inside any dialogue interval. D1 and D2 have full primary attention support within the shared two-swindler composition; D3 has a legitimate handoff to the emperor followed by primary support; D5 has primary emperor support; and D6 has primary support within the shared swindler composition, so none requires restructuring. D4 is fully time-covered but its speaker is not listed in the attention role while the emperor remains primary; nearby planned membership is only auxiliary, so this is a soft visual-support concern and does not alter the continuous shared composition. Actual visibility, facial or mouth readability, and final speaker realization remain unknown.",
+        "planned_duration": 13.1,
+        "execution_status": "PLANNED",
+        "approval_mode": "AUTO_APPROVE",
+        "visual_state_indexes": [
+          1,
+          2,
+          3
+        ],
+        "carry_in_state_index": null,
+        "dialogue_scope": {
+          "start_time": 0.0,
+          "end_time": 13.1
+        },
+        "capability": "GENERATE",
+        "temporal_anchor_ids": [],
+        "dialogue_assignment": [
+          {
+            "dialogue_id": "D1",
+            "segment_index": 1,
+            "speaker": "骗子1",
+            "text": "尊贵的陛下。",
+            "emotion_prompt": "恭敬奉承",
+            "estimated_duration": 1.25,
+            "source_order": 1,
+            "start_time": 1.0,
+            "end_time": 2.25,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D2",
+            "segment_index": 1,
+            "speaker": "骗子2",
+            "text": "我们终于有幸见到您了。",
+            "emotion_prompt": "殷勤欣喜",
+            "estimated_duration": 2.5,
+            "source_order": 2,
+            "start_time": 2.45,
+            "end_time": 4.95,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D3",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "听说你们会织一种特别的布？",
+            "emotion_prompt": "审视好奇",
+            "estimated_duration": 3.0,
+            "source_order": 3,
+            "start_time": 5.15,
+            "end_time": 8.15,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D4",
+            "segment_index": 1,
+            "speaker": "骗子1",
+            "text": "是的，陛下。",
+            "emotion_prompt": "自信恭敬",
+            "estimated_duration": 1.0,
+            "source_order": 4,
+            "start_time": 8.35,
+            "end_time": 9.35,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D5",
+            "segment_index": 1,
+            "speaker": "皇帝",
+            "text": "它有多漂亮？",
+            "emotion_prompt": "期待追问",
+            "estimated_duration": 1.25,
+            "source_order": 5,
+            "start_time": 9.55,
+            "end_time": 10.8,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          },
+          {
+            "dialogue_id": "D6",
+            "segment_index": 1,
+            "speaker": "骗子2",
+            "text": "它轻得像清晨的雾。",
+            "emotion_prompt": "陶醉描绘",
+            "estimated_duration": 2.0,
+            "source_order": 6,
+            "start_time": 11.0,
+            "end_time": 13.0,
+            "is_continuation": false,
+            "continues_in_next_clip": false
+          }
+        ],
+        "execution_intent": {
+          "version": 1,
+          "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+          "canonical_timeline_sha256": "951ff9ef07a3e9a47bbe35c73ab3a429e97c9af3f7015a5f5e14291e84404fa3",
+          "canonical_time_base": "SHOT_SECONDS",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D1",
+              "intended_window": {
+                "start": 1.0,
+                "end": 2.25
+              }
+            },
+            {
+              "dialogue_id": "D2",
+              "intended_window": {
+                "start": 2.45,
+                "end": 4.95
+              }
+            },
+            {
+              "dialogue_id": "D3",
+              "intended_window": {
+                "start": 5.15,
+                "end": 8.15
+              }
+            },
+            {
+              "dialogue_id": "D4",
+              "intended_window": {
+                "start": 8.35,
+                "end": 9.35
+              }
+            },
+            {
+              "dialogue_id": "D5",
+              "intended_window": {
+                "start": 9.55,
+                "end": 10.8
+              }
+            },
+            {
+              "dialogue_id": "D6",
+              "intended_window": {
+                "start": 11.0,
+                "end": 13.0
+              }
+            }
+          ],
+          "timing_reliability": "soft",
+          "speaker_realization_reliability": "soft",
+          "visual_support_status": "unknown"
+        },
+        "realization_review": "unreviewed",
+        "visual_support_evidence": {
+          "version": 1,
+          "basis": "PLANNED_METADATA",
+          "status": "derived",
+          "time_base": "CLIP_LOCAL_SECONDS",
+          "events": [
+            {
+              "dialogue_id": "D1",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[0]",
+                    "interval": {
+                      "start": 1.0,
+                      "end": 2.25
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.25,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF1",
+                "inside_state_ids": [],
+                "after_state_id": "KF2",
+                "nearest_state_ids": [
+                  "KF1"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF1",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "unknown",
+                    "membership_basis": "unknown"
+                  },
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D2",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[0]",
+                    "interval": {
+                      "start": 2.45,
+                      "end": 4.95
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 2.5,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF1",
+                "inside_state_ids": [
+                  "KF2"
+                ],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF2"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF1",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "unknown",
+                    "membership_basis": "unknown"
+                  },
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "inside",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D3",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[1]",
+                    "interval": {
+                      "start": 5.15,
+                      "end": 6.0
+                    },
+                    "roles": [
+                      "primary",
+                      "handoff_participant"
+                    ],
+                    "handoff_directions": [
+                      "to"
+                    ]
+                  },
+                  {
+                    "window_id": "visual_attention.windows[2]",
+                    "interval": {
+                      "start": 6.0,
+                      "end": 8.15
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 3.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": true
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF2"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D4",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[2]",
+                    "interval": {
+                      "start": 8.35,
+                      "end": 9.35
+                    },
+                    "roles": [
+                      "not_listed"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF2"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D5",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[2]",
+                    "interval": {
+                      "start": 9.55,
+                      "end": 10.8
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 1.25,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [],
+                "after_state_id": "KF3",
+                "nearest_state_ids": [
+                  "KF3"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "after",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            },
+            {
+              "dialogue_id": "D6",
+              "segment_index": 1,
+              "resolved_character": {
+                "status": "resolved",
+                "character_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+                "subject": null
+              },
+              "attention": {
+                "source_status": "VALID",
+                "overlaps": [
+                  {
+                    "window_id": "visual_attention.windows[3]",
+                    "interval": {
+                      "start": 11.0,
+                      "end": 13.0
+                    },
+                    "roles": [
+                      "primary"
+                    ],
+                    "handoff_directions": []
+                  }
+                ],
+                "speaker_identity_status": "resolved",
+                "coverage_duration": 2.0,
+                "coverage_ratio": 1.0,
+                "uncovered_intervals": [],
+                "handoff_overlap": false
+              },
+              "visual_states": {
+                "before_state_id": "KF2",
+                "inside_state_ids": [
+                  "KF3"
+                ],
+                "after_state_id": null,
+                "nearest_state_ids": [
+                  "KF3"
+                ],
+                "states": [
+                  {
+                    "state_id": "KF2",
+                    "time_relationship": "before",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  },
+                  {
+                    "state_id": "KF3",
+                    "time_relationship": "inside",
+                    "scope": "owned",
+                    "planned_speaker_membership": "present",
+                    "membership_basis": "canonical_Characters_block"
+                  }
+                ]
+              },
+              "anchors": {
+                "ordinary_visual": [],
+                "temporal": []
+              },
+              "identity_reference": {
+                "available": "unknown",
+                "reference_ids": []
+              },
+              "speaker_visibility": "unknown",
+              "face_readability": "unknown",
+              "mouth_readability": "unknown",
+              "competing_face_salience": "unknown"
+            }
+          ],
+          "reference_summary": {
+            "manifest_status": "unknown",
+            "scene_prop_references": []
+          }
+        }
+      }
+    ],
+    "validation": {
+      "passed": true,
+      "findings": [],
+      "blocking": [],
+      "review_required": [],
+      "warnings": [],
+      "dialogue_ownership": {
+        "passed": true,
+        "findings": [],
+        "source_dialogue_count": 6,
+        "assigned_segment_count": 6
+      },
+      "temporal_contract": "ELIGIBLE_THEN_SELECTED_V1",
+      "composition_contract": "EARLY_COMPOSITION_V2"
+    },
+    "temporal_anchors": []
+  },
+  "frozen_database": {
+    "background_jobs": {
+      "count": 124,
+      "sha256": "ea18686c00f4b54104148f98f54dd255b66d408084d17b4da52e1f12b49b642a"
+    },
+    "chapters": {
+      "count": 33,
+      "sha256": "7db9955ff8afd9370a3ce04b8dd99125eb51ea71eb2a8cb0be07dbe230a4a298"
+    },
+    "characters": {
+      "count": 99,
+      "sha256": "174a5d5e129b149f5866b23710858895bfa451d8c31d6cc724ab2ba87f6de57b"
+    },
+    "llm_logs": {
+      "count": 1101,
+      "sha256": "01bed81a0f9df1986def2a9f23f1334d4d0ddeff2f4209a5d8e169898e58e1fc"
+    },
+    "novels": {
+      "count": 12,
+      "sha256": "b5e231a554c9a5b251c892300d0db7ab627cf3181ea73fbb1202efe3ab24cd28"
+    },
+    "prompt_templates": {
+      "count": 39,
+      "sha256": "cac5723eed4c5614122fb7aaeb2c99b574c5a78fa393a7176046448d0fa21601"
+    },
+    "props": {
+      "count": 70,
+      "sha256": "7314c61d95e346cb4187dc8a2cf58375c0e55c4f56fe1a8948b13e869b6eddc4"
+    },
+    "scenes": {
+      "count": 38,
+      "sha256": "0829873d5e113d840a4cbba6efccad3213fce9f1d915c6d43e68c8760827306b"
+    },
+    "shots": {
+      "count": 169,
+      "sha256": "279ff1e59acfa2257bde28017c4129294d3b72c9c718b37e2dbadba4557afe10"
+    },
+    "system_configs": {
+      "count": 1,
+      "sha256": "aa1f061b4641f54a548f38c65cdc727c518c76265b4024f80cedfdb415a67296"
+    },
+    "tasks": {
+      "count": 868,
+      "sha256": "7eb01bc1763d760e1c11319bdb0a7949d1607eff691f84d64f2e69f76a448811"
+    },
+    "test_cases": {
+      "count": 3,
+      "sha256": "594ed4009585a9eec6d110a561c1295a1f4beb09343169af3cb5b8a0283c5c2f"
+    },
+    "workflows": {
+      "count": 58,
+      "sha256": "41bfc8a56cdb2ca546d6fe68dcdf057404757cd5ad4c336158d03367f208e575"
+    }
+  },
+  "schema_sha256": "113f3966b07f419c0f5311ac3f365654fa8406e1e8febf60b5c19dcad7377e52",
+  "frozen_files": {
+    "backend/prompt_templates/08_NovelFlow_VideoDirector_KeyframePlanner_V1.txt": "3ccfe43e13910c4193ee7c211351694195f78191e6f8ea4d985c30a28559ba36",
+    "backend/prompt_templates/08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt": "710702922247e6ac7a85e8121a3294c3969f3c4299d8bc3c163c5043abbbd10c",
+    "backend/prompt_templates/08_NovelFlow_VisualAttentionReplan_V1.txt": "5f19d1bf30c77a85b9b6fb8a1adafe44562a0414e9d09d7c256e811cce90505f",
+    "backend/prompt_templates/11_MiniMax_H3_SingleFrame_VideoPrompt_V1.txt": "1ea0cb25be2c6ec90ce44bea477f2f9f16be12a8b68be3ec484313a26b7ccb93",
+    "backend/prompt_templates/12_MiniMax_H3_FirstLastFrame_VideoPrompt_V1.txt": "c661f8b080b2f231a399a9e38333509cd9c753d35e3171457b795ccb137f5e96",
+    "backend/prompt_templates/13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt": "1a59220b39474966c9e75c8ecd2671c5ed37457a86950c18ac030ae378b54590",
+    "backend/workflows/Qwen3-TTS-Voice-Clone.json": "f387fd3099913ed572337817c5d28664e2a130c49316e6813da1e97952014391",
+    "backend/workflows/Qwen3-TTS-Voice-Design.json": "aad01dc738896873e61a9f7c9729b4918e177597b3f504c8005f62ed8bb1d039",
+    "backend/workflows/character_default.json": "ceba462e926bbb5a2994e3c8d5040c80fb534c1d13645e1164e5c2837bcef665",
+    "backend/workflows/character_single.json": "da4065aec82fba09f45d2e686d66420640c97db6ad3b48ad4f4635937a935660",
+    "backend/workflows/character_z_image_turbo_four_view.json": "52b73e03a0b9ce3c0fe1bf7c934de97f8aa11fe1acd545097dface7ef0cc4f48",
+    "backend/workflows/first_last_video_minimax_h3_ref2va.json": "a3f6c4e313749934e40142ee1164fa1fba6f82b0e488c40fc4659195203c4534",
+    "backend/workflows/four_frame_video_minimax_h3_ref2va.json": "d4afabe14fc231a3d479abeee8a21665f3ef876d08532c9c45b8b62b654d6516",
+    "backend/workflows/keyframe_flux2_klein.json": "cfcd74e935c19bfb97cc17f8db6ed9c86898f0746c0b9974361693d29dbb4a6b",
+    "backend/workflows/multi_reference_video_minimax_h3_ref2va_20260928.json": "bffac35dc9cd3c1f5a2a2e0a644b76c535af4ca139e616a686ccfa92b8b9ab93",
+    "backend/workflows/prop_default.json": "fcf7ed41429ab3878c226e3dbdbaed6da647eb3eff68c0fe85ae255f2faf3362",
+    "backend/workflows/prop_flux2_klein_20260831_api.json": "e47eda61b7ca56ac022ac3efc9c24ee204b4aa5a5c9e6fe538f183f287244ec8",
+    "backend/workflows/qwen_image_2_1_multi_image_edit_v20260926.json": "534a017603e601f057023a141bfad9e972b113a181deddab98a2e2f46f1a0b90",
+    "backend/workflows/scene_default.json": "da4065aec82fba09f45d2e686d66420640c97db6ad3b48ad4f4635937a935660",
+    "backend/workflows/scene_flux2_klein_20260831_api.json": "b4c34c013273d964cca37db5bc978b2018282675616c3016e7a18434c3c823c0",
+    "backend/workflows/shot_character_scene_flux2_klein_dual_ref_edit.json": "483d3886b44e432488a03e77d04b32e4a21142e031d3056d2c2056d7757122ad",
+    "backend/workflows/shot_character_scene_qwen_edit_2511.json": "f7cf953454f423f9bab8973b6c7346213c2e2b22dffdf4f1f51d09c3951711ad",
+    "backend/workflows/shot_flux2_klein.json": "ba71a4d5a575505b1d573c45102eb98370ee48081989672dedcc4492e6d5256b",
+    "backend/workflows/shot_flux2_klein_dual_reference.json": "a7718d465507eb41bc267478a6560e359749d106f081267bbf319769b3ed5ee7",
+    "backend/workflows/shot_flux2_klein_three_ref_edit.json": "0a21015bca9a8b6d844a122910b7b280193cfe0e4343873a7c6ea42629a50d82",
+    "backend/workflows/shot_scene_flux2_klein_single_ref_edit.json": "3f3495d8ed6c66b69ba4668127d3db59cbe7ece0e2b7193f8aa612c548ccc7b9",
+    "backend/workflows/shot_scene_prop_flux2_klein_dual_ref_edit.json": "483d3886b44e432488a03e77d04b32e4a21142e031d3056d2c2056d7757122ad",
+    "backend/workflows/shot_scene_prop_qwen_edit_2511.json": "bdfa9750e3acc21ebe2e46ebd0df7d824c6d8bdde89692491d2a25ade5b1d554",
+    "backend/workflows/shot_scene_qwen_edit_2511.json": "842ed29b02c27670bb7e982e2d282fe922268afd2fb5074f86ab4339662d3074",
+    "backend/workflows/single_image_edit_flux2_klein.json": "40d4efb962c1e06ab661abd8e4ebeb59d4fbee126da36f476b13bf4a4747b24d",
+    "backend/workflows/temporal_extend_h3_v1_20260925.json": "46ba428cb44b60e2a3317d849cc8bc3537166779ffdd90fbc486287adcb32f27",
+    "backend/workflows/three_frame_video_minimax_h3_ref2va.json": "286c34459ce9b695843614856ac23795c05df42d8adcb60fc98dd183c192fad0",
+    "backend/workflows/transition_ltx2_camera.json": "061de9bd6e82ddac532e77b36c0a43b6172c57d8d3d2dd60a395660b29e9bac6",
+    "backend/workflows/transition_ltx2_first_last_frame.json": "d761096bfc46ed3a211002aa59c942d8b6021f96067d5b715891aaca6cf9e7cc",
+    "backend/workflows/transition_ltx2_lighting.json": "955930e29e57d5ef102aec3f3dc48714513d70ad4a8805528c8158d53696db22",
+    "backend/workflows/video_continuation_h3_av_extend_minimal_v1_20260925.json": "f964c296f1be12914322d376c8028d2813d2c7f5688856ad32dfede3f57fc5b0",
+    "backend/workflows/video_minimax_h3_ref2va_fast.json": "29ba83ea1fea8f28a018377614ba30d5ba4b67b5adcce76e6b43731647ada712",
+    "backend/workflows/video_upscale_topaz_v1_api_20260923.json": "1a7c0853648907f69d634edbad8d3e1ccd19d118973bef74a68ff7ff32c82723",
+    "debug/workflows/AI生成动画-LTX-2.3 文&图生视频（高清放大版）-提示词括写 API.json": "6a1be56f6dc1ff335af74d1c2be00c964078ff5c0363b3faead1eb529240d40c",
+    "debug/workflows/AI生成动画-LTX-2.3 文&图生视频（高清放大版）-提示词括写.json": "9c07881ad18fdd0efe3051232e40e6f4e7987ca4cbb6fde1e9e0c251bbfeeeb5",
+    "debug/workflows/AI生成动画-LTX-2.3 文&图生视频（高清放大版）非括写版 API.json": "9f5f13bf8e58f8f064b26eb681051fa59553c2fa2256dcea23691d61ba9fa0aa",
+    "debug/workflows/AI生成动画-LTX-2.3 文&图生视频（高清放大版）非括写版.json": "b658a06d21d94546f8cea93109ed1a2ce49845ef70d6bac2fd872296b2a546ad",
+    "debug/workflows/AI生成动画-LTX-2.3_文&图升视频（Linux 精简版） API.json": "ae1a3809c200d2efe43e2be693ae7154552edee83eae424a5df17f2cf4b8435b",
+    "debug/workflows/AI生成动画-LTX-2.3_文&图升视频（精简版）.json": "3691393d569d04a136eb0509acab809eb8a5dcc28e392790caa6bcd25452d69f",
+    "debug/workflows/AI生成动画-LTX-2.3_文&图升视频（精简版）API.json": "0553210f5e40f47fb6ea2ed9e3b16ee85245dc0719fb1affec95b59caeb7a185",
+    "debug/workflows/AI生成动画-LTX-2.3首尾帧 非括写版 API.json": "1b7ab84a5abc22c057567e7c5b49976bf4a5ff2cfd1df852d577c57eeda11693",
+    "debug/workflows/AI生成动画-LTX-2.3首尾帧 非括写版.json": "38951e1921064b1ef6985aca804ff8fec7d70a2d6d4d2423ac093702fd3db184",
+    "debug/workflows/AI生成动画-LTX-2.3首尾帧-提示写括写 API.json": "32b9f70cf913423c905d11352ee5c98a8615d09ef5139ce068a123550f70ae04",
+    "debug/workflows/AI生成动画-LTX-2.3首尾帧-提示词括写.json": "02ba18aeb527691bf531dcb259936f1e69ed40e317520bf62485ead137bebafe",
+    "debug/workflows/Flux2-Klein-9B-生成场景图 API.json": "7bb828c286e50c028d952fa1d3fc7f7ef271f9b133f5831900d81adfe8f864f3",
+    "debug/workflows/Flux2-Klein-9B-生成场景图.json": "f2bd34500a982b1801e4cb49831b0b09b4c14fe7cffcc77ce685d0459c4c0548",
+    "debug/workflows/Flux2-Klein-shot-image-9B.json": "3f87d29df49aa60ca8162fc2f2cccefbf6e06b02fe41fbf14ddef0dcba22a9a7",
+    "debug/workflows/Flux2-Klein-shot-image-nono-banana-API.json": "1bf97c428ab4d627fadfc2d484436bda4a67be237e950347ad2f1ef5ba6adabb",
+    "debug/workflows/Flux2-Klein-shot-image-nono-banana.json": "b595c4d0ddc9ea448ea4378c84248ed895a6070193a8bc50539d1d5036bc1ce3",
+    "debug/workflows/LTX-2.3_-_I2V_T2V_Basic_GGUF-API.json": "226c9ef817e8cb568bbef2f0aade26efa5958666f5f7430550f4233d64ec1691",
+    "debug/workflows/LTX-2.3_-_I2V_T2V_Basic_GGUF.json": "ce46d8db86620800caf5944d6f2d630637ee303b08d79261d9ff4bb7c45887f4",
+    "debug/workflows/LTX-2.3_-_I2V_T2V_Basic_GGUF_Frames.json": "093a7d5f118f8931fa2b15f16f7f7fc9db66969c4ae03a49423a056484b79326",
+    "debug/workflows/LTX2首尾帧V1-转场视频.json": "e95da77fc41971821f8b6c53b707a7cc491d428cb49bff35172caf4e499399d2",
+    "debug/workflows/Ltx2高动态图生视频V1-提示词自动括写版.json": "5af5eb42182503bfbea8839c0d200a82acf625434eb6d7c549c420b2258f0c61",
+    "debug/workflows/Ltx2高动态图生视频V1-提示词非括写版-GGUF.json": "f8d6a59e359543e1daed5cc4a5287acef7c1d2024fffb03d7228ad80ce912a2f",
+    "debug/workflows/Ltx2高动态图生视频V1-提示词非括写版.json": "b31cfb3f09d309a1548ec7680906953a47ff44c2a5b3ec175ddae4bbd6221486",
+    "debug/workflows/MiniMax H3/Flux2_Klein_9B_三图参考编辑.json": "9d666fdb3c403d89ba6f9ec2934bc366be2a507226c4f6cc928f433628914b31",
+    "debug/workflows/MiniMax H3/Flux2_Klein_9B_三图参考编辑.png": "2a924ad2ef24144eab544ea602b1b3f6b6652d957ae878b037ebf7f8c9cbc92f",
+    "debug/workflows/MiniMax H3/Flux2_Klein_9B_二图参考编辑.json": "58d45e9ca785293e38218b00f5369f99532233bdf9ab3ee5a9e9662fdeb22f8a",
+    "debug/workflows/MiniMax H3/Flux2_Klein_9B_二图参考编辑.png": "df9ddc19a80895e072fc90ab34a0be5d68a96a66432140b6b751b4ceb986271b",
+    "debug/workflows/MiniMax H3/镜头推进转场——最推荐.json": "68976306ead4129fb8aa535ba06c3ef4972c207dcf19e46e20e16883257d7b80",
+    "debug/workflows/MiniMax H3/（动画 LLM 分镜生视频）Minimax+H3+ref2va加速工作流 API.json": "4789f861dd3b20af51a59a81af7938796268c4eb08b6943f7680aaed50dc6818",
+    "debug/workflows/MiniMax H3/（动画 LLM 分镜生视频）Minimax+H3+ref2va加速工作流.json": "cf2537250ece309957b03313f35e6749ae43374fbe2ca029251aa00a9be2be4c",
+    "debug/workflows/MiniMax H3/（动画 三图关键帧）Minimax+H3+ref2va加速工作流.json": "526354dea559b3d80baac0505d6ef7ce114044c6b0f099fe52b745e6f5581b20",
+    "debug/workflows/MiniMax H3/（动画 三图关键帧）Minimax+H3+ref2va加速工作流.png": "e311904785e6bc2d353d5391f23448959a17f376982642eacf2f26e1535b3165",
+    "debug/workflows/MiniMax H3/（动画 分镜生视频）Minimax+H3+ref2va加速工作流 API.json": "4d0f23d4fb14c20162234bb619661fdfff12d56ec77792344b4b933e9de479d6",
+    "debug/workflows/MiniMax H3/（动画 分镜生视频）Minimax+H3+ref2va加速工作流.json": "1cae7abc7b6da27868c8e1eddcf15b1406fa7898762a8a6fb701b23ee3e734dc",
+    "debug/workflows/MiniMax H3/（动画 分镜生视频）Minimax+H3+ref2va加速工作流.png": "0b9a4209273bb08e6b99290d543abc6da86b871d97129f287f86d8a975171fdf",
+    "debug/workflows/MiniMax H3/（动画 四图关键帧）Minimax+H3+ref2va加速工作流.json": "1f502f1fc9509283ebda6efbc0b0ba3abbb0fc9bb3a0cc27e71212190bb99dcf",
+    "debug/workflows/MiniMax H3/（动画 四图关键帧）Minimax+H3+ref2va加速工作流.png": "80ad8b04db8b999b850a0472b95e905e2aeec122c4a914ff97107f18dce6a403",
+    "debug/workflows/MiniMax H3/（动画 转场 云雾转场）Minimax+H3+ref2va加速工作流 API.json": "481c61e1e020964c079fd091555df6c8998d1991baa2d43444d5d467788cf04b",
+    "debug/workflows/MiniMax H3/（动画 转场 前景遮挡转场）Minimax+H3+ref2va加速工作流 API.json": "c2d647b806e85beabd229ed1901bb1c8fda595b162e92614c2e5cf88ddd3ab54",
+    "debug/workflows/MiniMax H3/（动画 转场 横向摇镜 _ Whip Pan）Minimax+H3+ref2va加速工作流 API.json": "f06ee632e521ad71c9be595c0b1e56456ecf55e6b6b62a99f938d3bf1d3e1d05",
+    "debug/workflows/MiniMax H3/（动画 转场 水墨晕染转场）Minimax+H3+ref2va加速工作流 API.json": "22e40f98d83d20e9b65728d9931ee53275f053ada9cfe9c89085681b7d69e7dc",
+    "debug/workflows/MiniMax H3/（动画 转场 直接变形 _ Morph）Minimax+H3+ref2va加速工作流 API.json": "d74cb477dcd8632f246d5b62454d8b3535ace2c9623e29abf192fd441abe0d65",
+    "debug/workflows/MiniMax H3/（动画 转场）Minimax+H3+ref2va加速工作流.json": "5e957dc88d785f3bcc38e2166a8baa543f537c0605ce1e2536eddebc417d962e",
+    "debug/workflows/MiniMax H3/（动画 转场）Minimax+H3+ref2va加速工作流.png": "141ea6dbb42d5aeb1be6052ace2d0f6aeee4089b72026174ede00ba809d5b40c",
+    "debug/workflows/MiniMax H3/（动画 首尾帧）Minimax+H3+ref2va加速工作流.json": "a55c3183fc3558903b0ba51f78f53a1352edc2201f919064ae0944724a72c572",
+    "debug/workflows/MiniMax H3/（动画 首尾帧）Minimax+H3+ref2va加速工作流.png": "8e72354087f5d57c9b3d96b4d3fdaa837f1c156cc2723b6871ca9210f2205ad1",
+    "debug/workflows/MiniMax H3/（单图编辑）Flux2 Klein 图像编辑9B版V1.json": "5195e0bd9382d5f696a145090390dda6008d092ae782d5dc32dceed26cff8cd4",
+    "debug/workflows/Z-image-turbo【四视图】.json": "bca92a3835c1ee791552219397e2e200dfc24fc48eae8ed92dd05b4c717fbdb3",
+    "debug/workflows/Z-image-turbo【四视图】.png": "8b30caef11b75f83723cdb247cc68f268db19d578b0f09d8462edc1b8876911b",
+    "debug/workflows/Z-image-turbo【四视图】API.json": "8ee41b6cd06b607b507b30ef3b2ddac416f4cbafdb0ef41025d0ce7f07370e29",
+    "debug/workflows/Z-image-turbo【非三视图】.json": "c174aa92b6a152bb98df25240c571f9d99088995cddd571b77ef6b52a8939541",
+    "debug/workflows/character-portrait-nono-banano-API.json": "dc5e197abbef0db30e354575941aa75e7211228bf1e62184775923efff96e8e7",
+    "debug/workflows/character-portrait-nono-banano.json": "1a28f00837e47a286ebdb92637e187b45ec48236af22c1d30e2b0644344790a7",
+    "debug/workflows/character_default_quant.json": "0b990bedfc64977f156a41fa49a147220e64a89ce72756092444f5c6aabcdd04",
+    "debug/workflows/firered-image-edit-1.1-gguf.json": "202ac215f8137efb2228410170152d4f521d2c515e5169f02bcc486f21c8f557",
+    "debug/workflows/klein-9b-文生图-fp8.json": "ce8c4d31b76195f9cd16f6b602378ba283c3b5ba5876160883656728d344fded",
+    "debug/workflows/qwenedit2511_三图参考_GGUF.json": "5e5c2da9a19520f82c0e5d96457243ef069342c39f42e6e13607138a68e853a1",
+    "debug/workflows/qwenedit2511_生成分镜图 API.json": "cad719dd3a075d7c8abd75a97ccf762b94d8f82b5c015f8144f4b5828989f5b4",
+    "debug/workflows/qwenedit2511_生成分镜图.json": "1c0bb886e70adc1391bed4eefc357ff352bdbdf5682832f8301364ca0f3fc0dd",
+    "debug/workflows/shot_flux2_klein_dual_reference_quant.json": "617612db9f7938819bac8e505b128742ba60a0af648dbeebe37be8b572ec2035",
+    "debug/workflows/shot_flux2_klein_reference_quant.json": "9599095ba107ecb24bc0c8f6baf30c4e558582ab3af101a1b159daf42e81f4ad",
+    "debug/workflows/图生图-gpt-image-2(三图) API.json": "874b22d45798be9d48d20e2d83b412a6ff049e7fcdacb47902e435e96c50cf3f",
+    "debug/workflows/图生图-gpt-image-2(三图).json": "eb0f41f3347ed170afc1f8d59fa5a2ac7b1dab6dd979eed75c4dc54492fa452a",
+    "debug/workflows/图生图-gpt-image-2(双图) API.json": "76d512321e7b0be4bc05a53fa3fa59668eea1f7400626f39ffccf98bb53bfd94",
+    "debug/workflows/图生图-gpt-image-2(双图).json": "b513370a3c075d326036c00607276c2a3b0a7c1f3bfea1027755dd7f9bc3084b",
+    "debug/workflows/文生图-gpt-image-2(角色图、场景图、道具) API.json": "28d2ad0018a2cfeff8e4f5a9eb5d3173d0cdacaa6e1f9833eb82ba23b63adc8f",
+    "debug/workflows/文生图-gpt-image-2(角色图、场景图、道具).json": "907faf55abf170fb4746733b79e21e80b9188bb85e68cc5844004b86e42a06c7",
+    "debug/workflows/（单图编辑）Flux2 Klein 图像编辑9B版V1 API copy.json": "22cb398b3112b41291026a920daa33b455e03dbb491e656924bf8754e14abddc",
+    "debug/workflows/（单图编辑）Flux2 Klein 图像编辑9B版V1 API.json": "22cb398b3112b41291026a920daa33b455e03dbb491e656924bf8754e14abddc",
+    "debug/workflows/（单图编辑）Flux2 Klein 图像编辑9B版V1 copy.json": "27ca6f9939baffd6d64224aaeb261530e43588c2a26d1750f9394c967bf8cf55",
+    "debug/workflows/（单图编辑）Flux2 Klein 图像编辑9B版V1.json": "27ca6f9939baffd6d64224aaeb261530e43588c2a26d1750f9394c967bf8cf55"
+  }
+}

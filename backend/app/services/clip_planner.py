@@ -14,27 +14,22 @@ from app.services.clip_execution_compiler import (
     TEMPORAL_DECISION_CONTRACT, EARLY_COMPOSITION_CONTRACT, execution_temporal_state_ids,
 )
 from app.services.dialogue_ownership import assign_dialogues_to_clips
-from app.services.video_director_ai import align_clip_boundaries_to_dialogue_gaps, build_dialogue_timeline
+from app.services.video_director_ai import (
+    align_clip_boundaries_to_dialogue_gaps, resolve_canonical_dialogue_timeline,
+    build_execution_intent_metadata,
+    build_dialogue_visual_support_evidence,
+    build_dialogue_visual_planning_context,
+    validate_dialogue_visual_intent,
+)
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.utils.time_utils import clip_time_seconds, CLIP_OWNERSHIP_TOLERANCE
 
 
-def _project_speech_timing_intervals(shot, video_plan: dict) -> list[dict]:
+def _project_speech_timing_intervals(shot, video_plan: dict, resolved_dialogue_timeline: list | None = None) -> list[dict]:
     """Expose dialogue timing to #10A without text, speaker, or speech semantics."""
-    try:
-        shot_dialogues = json.loads(getattr(shot, "dialogues", None) or "[]")
-    except Exception:
-        shot_dialogues = []
-    timeline = video_plan.get("dialogue_timeline_source")
-    generated, _, status = build_dialogue_timeline(
-        {"start_time": 0, "end_time": getattr(shot, "duration", None) or 4},
-        shot_dialogues,
-        json.loads(getattr(shot, "characters", None) or "[]"),
-    )
-    if status.get("status") == "ok" and generated:
-        timeline = generated
-    if not isinstance(timeline, list):
-        return []
+    timeline = resolved_dialogue_timeline
+    if timeline is None:
+        timeline, _ = resolve_canonical_dialogue_timeline(shot, video_plan)
 
     intervals = []
     for position, item in enumerate(timeline, 1):
@@ -55,7 +50,7 @@ def _project_speech_timing_intervals(shot, video_plan: dict) -> list[dict]:
     return intervals
 
 
-def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy: dict | None = None) -> dict:
+def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy: dict | None = None, *, resolved_dialogue_timeline: list | None = None) -> dict:
     image_url = getattr(shot, "image_url", None)
     image_path = getattr(shot, "image_path", None)
     shot_image_path = (url_to_local_path(image_url) if image_url else None) or image_path
@@ -66,6 +61,8 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
     except Exception:
         video_plan = {}
     keyframes = video_plan.get("keyframes") or []
+    if resolved_dialogue_timeline is None:
+        resolved_dialogue_timeline, _ = resolve_canonical_dialogue_timeline(shot, video_plan)
     try:
         legacy_keyframes = json.loads(getattr(shot, "keyframes", None) or "[]")
     except Exception:
@@ -205,7 +202,10 @@ def build_clip_planner_input(shot, temporal_anchors: list[dict], planning_policy
         # Historical mode remains readable for old plans, but canonical plans
         # must not expose it as #10A planning authority.
         "canonical_visual_plan": canonical_visual_plan,
-        "speech_timing_intervals": _project_speech_timing_intervals(shot, video_plan),
+        "speech_timing_intervals": _project_speech_timing_intervals(shot, video_plan, resolved_dialogue_timeline),
+        "dialogue_visual_planning_context": build_dialogue_visual_planning_context(
+            resolved_dialogue_timeline, video_plan, float(shot.duration or 4),
+        ),
         "visual_state_candidates": visual_state_candidates,
         "transition_context": transition_context,
         "planning_policy": {
@@ -636,11 +636,15 @@ def merge_dialogue_ownership_validation(validation: dict, dialogue_validation: d
         validation.setdefault("findings", []).append(finding)
 
 
-async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], planning_policy: dict | None = None) -> tuple[list[dict], dict]:
+async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], planning_policy: dict | None = None, *, resolved_dialogue_timeline: list | None = None) -> tuple[list[dict], dict]:
     template = PromptTemplateService(db).get_default_system_template("clip_execution_planner")
     if not template:
         raise RuntimeError("未配置 Clip Execution Planner 提示词模板")
-    payload = build_clip_planner_input(shot, temporal_anchors, planning_policy)
+    video_plan = json.loads(shot.video_director_plan or "{}")
+    dialogue_timeline_source = resolved_dialogue_timeline
+    if dialogue_timeline_source is None:
+        dialogue_timeline_source, _ = resolve_canonical_dialogue_timeline(shot, video_plan)
+    payload = build_clip_planner_input(shot, temporal_anchors, planning_policy, resolved_dialogue_timeline=dialogue_timeline_source)
     llm_payload = {
         key: value
         for key, value in payload.items()
@@ -652,18 +656,7 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         {key: value for key, value in state.items() if key not in {"image_available", "image_url", "source"}}
         for state in payload["visual_state_candidates"]
     ]
-    video_plan = json.loads(shot.video_director_plan or "{}")
     shot_dialogues = json.loads(shot.dialogues or "[]")
-    dialogue_timeline_source = video_plan.get("dialogue_timeline_source")
-    generated_timeline, _, timeline_status = build_dialogue_timeline(
-        {"start_time": 0, "end_time": shot.duration or 4},
-        shot_dialogues,
-        json.loads(getattr(shot, "characters", "[]") or "[]"),
-    )
-    if timeline_status.get("status") == "ok" and generated_timeline:
-        dialogue_timeline_source = generated_timeline
-    elif not isinstance(dialogue_timeline_source, list):
-        dialogue_timeline_source = []
     if shot_dialogues and not dialogue_timeline_source:
         raise RuntimeError("DIALOGUE_TIMELINE_UNAVAILABLE: 有对白的 Shot 缺少合法 official dialogue timeline，不能静默降级生成视频。")
     max_clip_duration = float(VIDEO_CAPABILITY_CONTRACTS["GENERATE"]["max_duration"])
@@ -780,6 +773,8 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
     assignments_by_index = {item["clip_index"]: item["dialogues"] for item in assignments}
     for clip in clips:
         clip["dialogue_assignment"] = assignments_by_index.get(clip["clip_index"], [])
+        validate_dialogue_visual_intent(clip, dialogue_timeline_source, video_plan)
+        clip.update(build_execution_intent_metadata(dialogue_timeline_source, clip))
     validation = validate_clip_plan(
         shot.duration or 4,
         clips,
@@ -792,4 +787,9 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
     if canonical and validation["passed"]:
         validation["temporal_contract"] = TEMPORAL_DECISION_CONTRACT
         validation["composition_contract"] = EARLY_COMPOSITION_CONTRACT
+    # B1 post evidence observes the completed plan, separately from B2 PRE context.
+    for clip in clips:
+        clip["visual_support_evidence"] = build_dialogue_visual_support_evidence(
+            dialogue_timeline_source, clip, video_plan, temporal_anchors=derived_temporal_anchors,
+        )
     return clips, validation

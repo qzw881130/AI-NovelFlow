@@ -5,6 +5,7 @@ NovelFlow 直接启动脚本
 通过 Python 代码直接启动 FastAPI 应用，不使用命令行调用，方便开发和调试
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -17,13 +18,14 @@ sys.path.insert(0, str(project_root))
 
 def main():
     port = 8000
+    reload_enabled = os.environ.get("NOVELFLOW_RELOAD") == "1"
     """直接启动 FastAPI 应用"""
     print("🎯 NovelFlow 后端服务启动器")
     print("=" * 40)
     print("🚀 正在启动服务...")
     print("🌐 地址: http://localhost:" + str(port))
     print("📚 文档: http://localhost:" + str(port) + "/docs")
-    print("🔧 开发模式: 开启")
+    print(f"🔧 开发热重载: {'开启（仅 app 目录）' if reload_enabled else '关闭'}")
     print("按 Ctrl+C 停止服务")
     print()
 
@@ -33,7 +35,8 @@ def main():
             "app.main:app",
             host="0.0.0.0",
             port=port,
-            reload=True,
+            reload=reload_enabled,
+            reload_dirs=[str(project_root / "app")] if reload_enabled else None,
             log_level="info"
         )
     except KeyboardInterrupt:

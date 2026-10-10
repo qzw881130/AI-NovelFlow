@@ -26,7 +26,7 @@ async function compile(relative) {
   const imports = outputText.replace(/(from\s+['"])(\.[^'"]+)(['"])/g, '$1$2.js$3');
   await writeFile(dest, imports);
 }
-for (const name of ['presentation.ts', 'labels.ts', 'components/ExecutionIdentity.tsx', 'components/ClipSummary.tsx', 'components/UnifiedTimeline.tsx', 'components/Filmstrip.tsx', 'components/FrameInspector.tsx', 'components/PromptAuthorityPanel.tsx', 'components/ObservationEditor.tsx']) {
+for (const name of ['presentation.ts', 'labels.ts', 'contactSheet.ts', 'components/ContactSheetModal.tsx', 'components/ExecutionIdentity.tsx', 'components/ClipSummary.tsx', 'components/UnifiedTimeline.tsx', 'components/Filmstrip.tsx', 'components/FrameInspector.tsx', 'components/PromptAuthorityPanel.tsx', 'components/ObservationEditor.tsx']) {
   await compile(`pages/ClipExecutionInspector/${name}`);
 }
 await compile('api/clipExecutionInspector.ts');
@@ -63,6 +63,8 @@ const { default: Filmstrip } = await load('pages/ClipExecutionInspector/componen
 const { default: FrameInspector, NativeAVPlayback } = await load('pages/ClipExecutionInspector/components/FrameInspector.js');
 const { ExecutionResultOptions } = await load('pages/ClipExecutionInspector/components/ExecutionIdentity.js');
 const { default: ObservationEditor } = await load('pages/ClipExecutionInspector/components/ObservationEditor.js');
+const { loadContactSheet } = await load('pages/ClipExecutionInspector/contactSheet.js');
+const { ContactSheetGrid } = await load('pages/ClipExecutionInspector/components/ContactSheetModal.js');
 const { inspectorApi } = await load('api/clipExecutionInspector.js');
 const render = (component, props) => renderToStaticMarkup(React.createElement(component, props));
 test.after(async () => { await rm(temp, { recursive: true, force: true }); });
@@ -277,4 +279,54 @@ test('aborted StrictMode load retries and saving the analysis URL preserves the 
     assert.equal(state.loading, false);
     assert.equal(calls.filter(call => call.method === 'GET' && call.url.includes('/analyses/')).length, 0);
   } finally { globalThis.fetch = originalFetch; }
+});
+
+
+test('Contact sheet reads every page, excludes event-only frames and sorts uniform frame identities', async () => {
+  const original = inspectorApi.sampling;
+  const calls = [];
+  const sample = (index, reasons) => ({ ...nativeFrameSample(fixture, index), reasons });
+  const base = { task_id: fixture.execution.task_id, artifact_id: fixture.artifact.artifact_id,
+    video_sha256: fixture.artifact.video_sha256, manifest_id: 'uniform-sheet' };
+  const controller = new AbortController();
+  inspectorApi.sampling = async (taskId, body, offset, signal) => {
+    calls.push({ taskId, body, offset, signal });
+    return { ...base, samples: offset === 0 ? [sample(340, ['UNIFORM', 'DIALOGUE:START']), sample(341, ['HUMAN_MARKER'])] :
+      [sample(364, ['UNIFORM']), sample(340, ['UNIFORM']), sample(255, ['UNIFORM'])], next_offset: offset === 0 ? 48 : null };
+  };
+  try {
+    const frames = await loadContactSheet(fixture, .5, 'analysis-a', controller.signal);
+    assert.deepEqual(frames.map(f => f.native_frame_index0), [255, 340, 364]);
+    assert.deepEqual(calls.map(c => c.offset), [0, 48]);
+    assert.equal(calls[0].body.uniform_interval_seconds, .5);
+    assert.equal(calls[0].body.event_enhanced, false);
+    assert.equal(calls[0].body.event_neighbors, false);
+    assert.equal(calls[0].body.analysis_id, 'analysis-a');
+    assert.equal(calls[0].signal, controller.signal);
+    const html = render(ContactSheetGrid, { samples: frames, timeDomain: 'CLIP_LOCAL' });
+    assert.match(html, /0s · 帧 0/);
+    assert.match(html, /3.541667s · 帧 85/);
+    assert.match(html, /Native 14.166667s · 帧 340/);
+    assert.equal((html.match(/<figure/g) || []).length, 3);
+    const native = render(ContactSheetGrid, { samples: [frames[1]], timeDomain: 'NATIVE_ONLY' });
+    assert.match(native, /帧 340/);
+    assert.doesNotMatch(native, /帧 85/);
+  } finally { inspectorApi.sampling = original; }
+});
+
+test('Contact sheet rejects changed sources between pages and stops after closing', async () => {
+  const original = inspectorApi.sampling;
+  const base = { task_id: fixture.execution.task_id, artifact_id: fixture.artifact.artifact_id,
+    video_sha256: fixture.artifact.video_sha256, manifest_id: 'same', samples: [] };
+  try {
+    for (const changed of [{ artifact_id: 'other' }, { video_sha256: 'other' }, { manifest_id: 'other' }]) {
+      inspectorApi.sampling = async (_task, _body, offset) => ({ ...base, ...(offset ? changed : {}), next_offset: offset ? null : 48 });
+      await assert.rejects(loadContactSheet(fixture, 1), /SOURCE_CHANGED/);
+    }
+    const controller = new AbortController();
+    let calls = 0;
+    inspectorApi.sampling = async () => { calls++; controller.abort(); return { ...base, next_offset: 48 }; };
+    await assert.rejects(loadContactSheet(fixture, 2, undefined, controller.signal), { name: 'AbortError' });
+    assert.equal(calls, 1);
+  } finally { inspectorApi.sampling = original; }
 });

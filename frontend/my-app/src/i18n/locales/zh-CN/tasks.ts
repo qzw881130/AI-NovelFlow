@@ -172,6 +172,7 @@ export default {
     },
     workflowDetails: '工作流详情',
     generationPrompt: '生成提示词',
+    promptCharacterCount: '{count} 字符',
     workflowJSON: '工作流 JSON',
     boundWorkflowParameters: '工作流绑定参数（{count} 项）',
     showOnlyMappedNodes: '只显示节点映射配置中的节点',

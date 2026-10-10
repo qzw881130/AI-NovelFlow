@@ -35,6 +35,7 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
   h3_single_frame_prompt: <Video className="h-4 w-4" />,
   h3_first_last_frame_prompt: <Video className="h-4 w-4" />,
   h3_multi_keyframe_prompt: <Video className="h-4 w-4" />,
+  h3_execution_optimizer_prompt: <Video className="h-4 w-4" />,
 };
 
 // Tab 标签页颜色映射
@@ -61,6 +62,7 @@ const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; borde
   h3_single_frame_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
   h3_first_last_frame_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
   h3_multi_keyframe_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
+  h3_execution_optimizer_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
 };
 
 const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: TemplateType[] }> = {
@@ -72,7 +74,7 @@ const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: Templa
   shot_image: { nameKey: 'promptConfig.categories.shotImage', types: ['shot_image_prompt'] },
   video_director: { nameKey: 'promptConfig.categories.videoDirector', types: ['video_mode_recommender', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'] },
   keyframe_image: { nameKey: 'promptConfig.categories.keyframeImage', types: ['temporal_reference_selector', 'keyframe_image_prompt'] },
-  video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt'] },
+  video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt', 'h3_execution_optimizer_prompt'] },
 };
 
 const CATEGORIES: TemplateCategory[] = ['story_context', 'style_design', 'asset_parse', 'asset_generation', 'shot_planning', 'shot_image', 'video_director', 'keyframe_image', 'video_generation'];

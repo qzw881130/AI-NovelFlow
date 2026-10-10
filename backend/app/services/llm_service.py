@@ -105,7 +105,8 @@ class LLMService:
         prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
-        character_id: str = None
+        character_id: str = None,
+        images: list | None = None,
     ) -> Dict[str, Any]:
         """
         发送对话请求
@@ -141,7 +142,8 @@ class LLMService:
             prompt_template_name=prompt_template_name,
             novel_id=novel_id,
             chapter_id=chapter_id,
-            character_id=character_id
+            character_id=character_id,
+            **({"images": images} if images else {}),
         )
 
     async def check_health(self) -> bool:

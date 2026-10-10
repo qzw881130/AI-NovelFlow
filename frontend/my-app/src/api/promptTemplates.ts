@@ -27,7 +27,8 @@ export type TemplateType =
   | 'clip_execution_planner'
   | 'h3_single_frame_prompt'
   | 'h3_first_last_frame_prompt'
-  | 'h3_multi_keyframe_prompt';
+  | 'h3_multi_keyframe_prompt'
+  | 'h3_execution_optimizer_prompt';
 
 export const promptTemplateApi = {
   /** 获取模板列表 */

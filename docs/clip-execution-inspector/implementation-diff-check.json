@@ -1,0 +1,262 @@
+{
+  "at": "2026-10-07T08:42:49.590352+00:00",
+  "head_before": "c27a939b19e2d21e57bd90911ee909b054c1d8ba",
+  "head_after": "c27a939b19e2d21e57bd90911ee909b054c1d8ba",
+  "status_after": " M backend/app/api/shots.py\n M backend/app/main.py\n M backend/app/services/clip_execution_compiler.py\n M backend/app/services/shot_video_service.py\n M backend/app/services/video_director_ai.py\n M backend/prompt_templates/08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt\n M backend/prompt_templates/10_NovelFlow_KeyframeTransition_Planner_V1.txt\n M backend/tests/test_canonical_director_visual_plan.py\n M backend/tests/test_canonical_prompt_template_sync.py\n M backend/tests/test_native_av_output_bound.py\n M frontend/my-app/src/App.tsx\n M frontend/my-app/src/pages/ChapterGenerate/components/VideoGenTab.tsx\n?? NOVELFLOW_DEVELOPMENT_HANDOFF.md\n?? backend/app/api/clip_execution_inspector.py\n?? backend/app/services/clip_execution_inspector_service.py\n?? backend/app/services/inspector_frame_service.py\n?? backend/app/services/inspector_store.py\n?? backend/app/services/visual_attention.py\n?? backend/tests/inspector_local_acceptance.py\n?? backend/tests/inspector_preview.py\n?? backend/tests/test_clip_execution_inspector.py\n?? backend/tests/test_visual_attention.py\n?? docs/clip-execution-inspector/\n?? docs/comfyui-runtime-configuration.md\n?? frontend/my-app/pnpm-lock.yaml\n?? frontend/my-app/pnpm-workspace.yaml\n?? frontend/my-app/src/api/clipExecutionInspector.ts\n?? frontend/my-app/src/pages/ClipExecutionInspector/\n?? frontend/my-app/tests/clipExecutionInspector.test.mjs\n?? frontend/my-app/tests/fixtures/\n",
+  "PRE_EXISTING": {
+    "backend/tests/test_native_av_output_bound.py": {
+      "before": "2b7803f658458ec6e6f5b4361b59c62c1dd0000f743c5978606bbfbccb9ccf0c",
+      "after": "2b7803f658458ec6e6f5b4361b59c62c1dd0000f743c5978606bbfbccb9ccf0c",
+      "unchanged": true
+    },
+    "NOVELFLOW_DEVELOPMENT_HANDOFF.md": {
+      "before": "4399028b559d66f76ca93cc0324f39717aac63f7a40023725fe0ca75508de673",
+      "after": "4399028b559d66f76ca93cc0324f39717aac63f7a40023725fe0ca75508de673",
+      "unchanged": true
+    },
+    "docs/clip-execution-inspector/REPORT.md": {
+      "before": "0a36c1357e32eb0c5dea32ca20a41e27bf1b4394213ffc006cafdf81d90e06b1",
+      "after": "0a36c1357e32eb0c5dea32ca20a41e27bf1b4394213ffc006cafdf81d90e06b1",
+      "unchanged": true
+    },
+    "docs/clip-execution-inspector/audit-evidence.json": {
+      "before": "bc7931f7a08708d47e0993023aee3ced06ad29b15035ce295622ec1196ebeee8",
+      "after": "bc7931f7a08708d47e0993023aee3ced06ad29b15035ce295622ec1196ebeee8",
+      "unchanged": true
+    },
+    "docs/clip-execution-inspector/current-data-source-map.md": {
+      "before": "2ea90ddab7ab622becb93ca692e959e9dba2574c74e5323fa4a86bb363c42a8d",
+      "after": "2ea90ddab7ab622becb93ca692e959e9dba2574c74e5323fa4a86bb363c42a8d",
+      "unchanged": true
+    },
+    "docs/clip-execution-inspector/execution-data-flow.md": {
+      "before": "dc3b1ad6633681ecc8b3e89ac7221cdfe4b0d2f7409ceb0945a43c835be0674f",
+      "after": "dc3b1ad6633681ecc8b3e89ac7221cdfe4b0d2f7409ceb0945a43c835be0674f",
+      "unchanged": true
+    },
+    "docs/clip-execution-inspector/frame-sampling-design.md": {
+      "before": "815319fc2465f7d22e2f494345279752e98e4e6c1479c23a0f0d8b8beb090a9f",
+      "after": "815319fc2465f7d22e2f494345279752e98e4e6c1479c23a0f0d8b8beb090a9f",
+      "unchanged": true
+    },
+    "docs/clip-execution-inspector/future-ab-design.md": {
+      "before": "2be6a5026fcda3f9a6264c780420d7bd7540ff3f9d3cf9214cc844023afc35d0",
+      "after": "2be6a5026fcda3f9a6264c780420d7bd7540ff3f9d3cf9214cc844023afc35d0",
+      "unchanged": true
+    },
+    "docs/clip-execution-inspector/v1-backend-design.md": {
+      "before": "db184bb65aa0fe18ddc9017d754a6d6b33ee45d4fd71501ec809dbc87769761d",
+      "after": "db184bb65aa0fe18ddc9017d754a6d6b33ee45d4fd71501ec809dbc87769761d",
+      "unchanged": true
+    },
+    "docs/clip-execution-inspector/v1-data-model.md": {
+      "before": "0edd4c8a94ee225bfc21f7bb25989de01c03e9f9116ec96060018a3df5d10e4f",
+      "after": "0edd4c8a94ee225bfc21f7bb25989de01c03e9f9116ec96060018a3df5d10e4f",
+      "unchanged": true
+    },
+    "docs/clip-execution-inspector/v1-frontend-design.md": {
+      "before": "b73ded90dcb0f636e3dc217f939e6531f32c5a8b613c37ad0a70e61edc86e1f4",
+      "after": "b73ded90dcb0f636e3dc217f939e6531f32c5a8b613c37ad0a70e61edc86e1f4",
+      "unchanged": true
+    },
+    "docs/clip-execution-inspector/v1-product-design.md": {
+      "before": "3ff625338f4c19c1458657cb1c7b259c4ca08a63802e0d12c03b98047c607be2",
+      "after": "3ff625338f4c19c1458657cb1c7b259c4ca08a63802e0d12c03b98047c607be2",
+      "unchanged": true
+    },
+    "docs/comfyui-runtime-configuration.md": {
+      "before": "8d1d86cab5f3e14686fbfc774a46664290ac9088ab330aa17bbdb111acbf2979",
+      "after": "8d1d86cab5f3e14686fbfc774a46664290ac9088ab330aa17bbdb111acbf2979",
+      "unchanged": true
+    },
+    "frontend/my-app/pnpm-lock.yaml": {
+      "before": "9820f2bd6b1d42462092736adc46bdfefd3f36cd289002d5ed561a8310c586e8",
+      "after": "9820f2bd6b1d42462092736adc46bdfefd3f36cd289002d5ed561a8310c586e8",
+      "unchanged": true
+    },
+    "frontend/my-app/pnpm-workspace.yaml": {
+      "before": "d6d0c24446d91ef762d37c6ba801bb516e65d7055aa9f8027fcd457409a97ce1",
+      "after": "d6d0c24446d91ef762d37c6ba801bb516e65d7055aa9f8027fcd457409a97ce1",
+      "unchanged": true
+    }
+  },
+  "INSPECTOR_V1": {
+    "modified": [
+      "backend/app/main.py",
+      "frontend/my-app/src/App.tsx",
+      "frontend/my-app/src/pages/ChapterGenerate/components/VideoGenTab.tsx"
+    ],
+    "new": [
+      "backend/app/api/clip_execution_inspector.py",
+      "backend/app/services/clip_execution_inspector_service.py",
+      "backend/app/services/inspector_frame_service.py",
+      "backend/app/services/inspector_store.py",
+      "backend/tests/inspector_local_acceptance.py",
+      "backend/tests/inspector_preview.py",
+      "backend/tests/test_clip_execution_inspector.py",
+      "docs/clip-execution-inspector/IMPLEMENTATION_REPORT.md",
+      "docs/clip-execution-inspector/c2-acceptance.json",
+      "docs/clip-execution-inspector/c2-ui-4-500.jpg",
+      "docs/clip-execution-inspector/implementation-baseline.json",
+      "docs/clip-execution-inspector/implementation-diff-check.json",
+      "frontend/my-app/src/api/clipExecutionInspector.ts",
+      "frontend/my-app/src/pages/ClipExecutionInspector/components/ClipSummary.tsx",
+      "frontend/my-app/src/pages/ClipExecutionInspector/components/Filmstrip.tsx",
+      "frontend/my-app/src/pages/ClipExecutionInspector/components/FrameInspector.tsx",
+      "frontend/my-app/src/pages/ClipExecutionInspector/components/ObservationEditor.tsx",
+      "frontend/my-app/src/pages/ClipExecutionInspector/components/PromptAuthorityPanel.tsx",
+      "frontend/my-app/src/pages/ClipExecutionInspector/components/UnifiedTimeline.tsx",
+      "frontend/my-app/src/pages/ClipExecutionInspector/index.tsx",
+      "frontend/my-app/src/pages/ClipExecutionInspector/inspector.css",
+      "frontend/my-app/src/pages/ClipExecutionInspector/labels.ts",
+      "frontend/my-app/src/pages/ClipExecutionInspector/presentation.ts",
+      "frontend/my-app/src/pages/ClipExecutionInspector/types.ts",
+      "frontend/my-app/src/pages/ClipExecutionInspector/useClipExecutionInspector.ts",
+      "frontend/my-app/tests/clipExecutionInspector.test.mjs",
+      "frontend/my-app/tests/fixtures/clip-execution-inspector-c2.json"
+    ]
+  },
+  "CONCURRENT_OTHER_SESSION": {
+    "modified": [
+      "backend/app/api/shots.py",
+      "backend/app/services/clip_execution_compiler.py",
+      "backend/app/services/shot_video_service.py",
+      "backend/app/services/video_director_ai.py",
+      "backend/prompt_templates/08_NovelFlow_VideoDirector_KeyframePlanner_V2_3Frame4Frame.txt",
+      "backend/prompt_templates/10_NovelFlow_KeyframeTransition_Planner_V1.txt",
+      "backend/tests/test_canonical_director_visual_plan.py",
+      "backend/tests/test_canonical_prompt_template_sync.py"
+    ],
+    "new": [
+      "backend/app/services/visual_attention.py",
+      "backend/tests/test_visual_attention.py"
+    ]
+  },
+  "database_table_checks": {
+    "novels": {
+      "before": "de22565eb9c244ea497a15bc1c205badcca9ae9cd64ef81a88213c929edbd9f3",
+      "after": "de22565eb9c244ea497a15bc1c205badcca9ae9cd64ef81a88213c929edbd9f3",
+      "unchanged": true
+    },
+    "tasks": {
+      "before": "e71d2473d2c8581c830f5809855e566a13915ce110ed9a7949c7cff72959920c",
+      "after": "e71d2473d2c8581c830f5809855e566a13915ce110ed9a7949c7cff72959920c",
+      "unchanged": true
+    },
+    "workflows": {
+      "before": "51853c2465e85931c6186f06dd53120331234dc1ae9ef748b842e63b9f0f599b",
+      "after": "51853c2465e85931c6186f06dd53120331234dc1ae9ef748b842e63b9f0f599b",
+      "unchanged": true
+    },
+    "prompt_templates": {
+      "before": "018cfb85c2ef9e1799d61589b64cf8e28f34b65b8c51cf9d2e44ea74c3d9431f",
+      "after": "7a180a668c40a65d7c12a021087511488ab6f35b14b909010a0ae2754e03d4bd",
+      "unchanged": false
+    },
+    "test_cases": {
+      "before": "b592d6139a7714aa7998a4cc27842195177de1b2d278eab46c788f8dae0aff81",
+      "after": "b592d6139a7714aa7998a4cc27842195177de1b2d278eab46c788f8dae0aff81",
+      "unchanged": true
+    },
+    "llm_logs": {
+      "before": "cca4952fd8a7f1dc19a057076409b2c37fe28daaee0199977317ad0e5a7424d0",
+      "after": "6214218fe468dd9f4f5ea2a23b1107256b49d96e3e9f7bc44a4b59624f76c80e",
+      "unchanged": false
+    },
+    "system_configs": {
+      "before": "40710256e4ffa9cefa461801cf6fcd20d9237ca4ef13dd17c0065e09a8c3ead1",
+      "after": "40710256e4ffa9cefa461801cf6fcd20d9237ca4ef13dd17c0065e09a8c3ead1",
+      "unchanged": true
+    },
+    "chapters": {
+      "before": "ad9e0284086582673d42d3a30ef0fb5dfbb9fd95bc4f60b1ec6657373b4b4f81",
+      "after": "ad9e0284086582673d42d3a30ef0fb5dfbb9fd95bc4f60b1ec6657373b4b4f81",
+      "unchanged": true
+    },
+    "characters": {
+      "before": "81dc6fabcfcd664f03ce193ef908c9747d04def785f08d3f4ab29f666997acbd",
+      "after": "81dc6fabcfcd664f03ce193ef908c9747d04def785f08d3f4ab29f666997acbd",
+      "unchanged": true
+    },
+    "scenes": {
+      "before": "3ea6ff64c05da76cce84227278e50d125db1668b5012d9283a63de2ccbd93630",
+      "after": "3ea6ff64c05da76cce84227278e50d125db1668b5012d9283a63de2ccbd93630",
+      "unchanged": true
+    },
+    "props": {
+      "before": "547e37e31d79ab0cc90f6df30ec6a825b1d5449e24f213e729766473e5747f5c",
+      "after": "547e37e31d79ab0cc90f6df30ec6a825b1d5449e24f213e729766473e5747f5c",
+      "unchanged": true
+    },
+    "shots": {
+      "before": "8e5fa8f4870d59ac61e8d0509b1797ed7802e9d99e737b2425b26deca607f197",
+      "after": "8e5fa8f4870d59ac61e8d0509b1797ed7802e9d99e737b2425b26deca607f197",
+      "unchanged": true
+    },
+    "background_jobs": {
+      "before": "07c615be2a7169cca41190d3bbebe48c79774522a1e9988f4441068daf94f992",
+      "after": "07c615be2a7169cca41190d3bbebe48c79774522a1e9988f4441068daf94f992",
+      "unchanged": true
+    }
+  },
+  "all_business_tables_unchanged": false,
+  "frozen_workflows_current_row_sha256": "cceead44210dabf8b57d204bd581c391efd90c1936e4fa2dfd03fe0bd6b6995b",
+  "all_workflows_table_unchanged": true,
+  "frame_cache_artifacts": {
+    "thumb": [
+      255,
+      257,
+      259,
+      261,
+      263,
+      279,
+      303,
+      327,
+      340,
+      351,
+      375,
+      377,
+      379,
+      382,
+      383,
+      385,
+      388,
+      389,
+      391,
+      394,
+      399,
+      423,
+      447,
+      448,
+      453,
+      454,
+      459,
+      460,
+      465,
+      466,
+      471,
+      495,
+      513,
+      515,
+      519,
+      521,
+      525,
+      527,
+      528
+    ],
+    "detail": [
+      255,
+      340,
+      363,
+      385,
+      388,
+      460
+    ]
+  },
+  "INSPECTOR_FRAME_EXTRACTIONS": 45,
+  "temporary_ui_analysis_removed": "894084cd-8176-40c1-9e05-2496b3b14ce7",
+  "commit": "NO",
+  "push": "NO",
+  "inspector_diff_whitespace_check": true,
+  "global_diff_check_note": "PRE_EXISTING: backend/tests/test_native_av_output_bound.py:34 blank line at EOF; preserved"
+}

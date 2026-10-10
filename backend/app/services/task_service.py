@@ -10,12 +10,14 @@ from pathlib import Path
 from typing import Dict, Any, Tuple
 
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
 
 from app.core.database import SessionLocal
 from app.core.config import get_settings
 from app.utils.time_utils import format_datetime
 from app.models.task import Task
 from app.services.canonical_execution_invalidation import CanonicalExecutionConflict
+from app.services.clip_result_recovery import INTERRUPTED_CLIP_ERROR, recover_completed_clip
 from app.services.required_visual_state_images import (
     commit_visual_state_image, task_provenance, validate_image_provenance,
 )
@@ -440,6 +442,17 @@ class TaskService:
             clip_metadata = json.loads(task.metadata_json or "{}")
         except (TypeError, ValueError):
             clip_metadata = {}
+        if task.type == "shot_export":
+            from app.services.shot_export_service import create_export
+            try:
+                data = create_export(db, task.novel_id, task.chapter_id, task.shot_id, clip_metadata.get("sections"))
+            except HTTPException as exc:
+                return {"success": False, "message": str(exc.detail), "status_code": exc.status_code}
+            retry = task_repo.get_by_id(data["task_id"])
+            retry.source_task_id = task.id
+            db.commit()
+            return {"success": True, "message": "已重新加入导出队列",
+                    "data": {"taskId": retry.id, "retryOfTaskId": task.id, "status": retry.status}}
         if task.type == "shot_video" and clip_metadata.get("execution_scope") == "CLIP":
             required = (
                 "clip_id", "clip_index", "clip_plan_revision", "capability",
@@ -714,8 +727,14 @@ class TaskService:
         """校准本地 running/pending 任务，避免 ComfyUI 已无任务但本地假死。"""
         db = db or self.db
         task_repo = TaskRepository(db)
-        tasks = tasks if tasks is not None else task_repo.list_active_tasks()
-        active_tasks = [task for task in tasks if task.status in ["pending", "running"]]
+        if tasks is None:
+            tasks = task_repo.list_active_tasks() + db.query(Task).filter(
+                Task.type == "shot_video", Task.status == "failed",
+                Task.error_message == INTERRUPTED_CLIP_ERROR,
+                Task.comfyui_prompt_id.isnot(None),
+            ).all()
+        active_tasks = [task for task in tasks if task.status in ["pending", "running"]
+                        or task.status == "failed" and task.error_message == INTERRUPTED_CLIP_ERROR]
         if not active_tasks:
             return 0
 
@@ -812,15 +831,24 @@ class TaskService:
                             continue
                     if task.type == "shot_video" and inactive_seconds(task) > 60:
                         if is_clip_only_task():
-                            # A CLIP_ONLY worker owns its Clip result; legacy
-                            # recovery must not attempt Shot assembly here.
-                            if persisted_jobs and not has_persisted_job:
-                                # No surviving worker can finish this execution.
-                                # Keep its receipt and existing Shot artifact; do
-                                # not invent a second Clip recovery/assembly owner.
+                            if not has_persisted_job:
+                                # Reuse the canonical worker's persistence path;
+                                # never enter legacy Shot recovery or resubmit GPU work.
+                                recovery_prompt_id = task.comfyui_prompt_id
+                                try:
+                                    recovered = await recover_completed_clip(task, prompt_state.get("history"), db, self.comfyui_service)
+                                    if recovered:
+                                        updated_count += 1
+                                        continue
+                                    error = "Clip 恢复失败：原提交工作流的输出节点没有可用视频"
+                                except (CanonicalExecutionConflict, ValueError) as exc:
+                                    error = str(exc)
+                                db.refresh(task)
+                                if task.status in {"cancelled", "completed"} or task.comfyui_prompt_id != recovery_prompt_id:
+                                    continue
                                 task.status = "failed"
-                                task.error_message = "服务重启中断 Clip 回写；已保留 ComfyUI prompt，未重新生成"
-                                task.current_step = "Clip 后台执行已中断"
+                                task.error_message = error
+                                task.current_step = "Clip 结果恢复被拒绝"
                                 task.completed_at = datetime.utcnow()
                                 updated_count += 1
                             continue

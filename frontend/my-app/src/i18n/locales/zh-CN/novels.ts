@@ -85,6 +85,8 @@ export default {
     h3SingleFramePromptHint: '选择用于构建 MiniMax H3 单帧视频提示词的模板',
     h3FirstLastFramePromptLabel: 'H3 首尾帧视频提示词模板',
     h3FirstLastFramePromptHint: '选择用于构建 MiniMax H3 首尾帧视频提示词的模板',
+    h3ExecutionOptimizerPromptLabel: 'MiniMax H3 执行提示词优化',
+    h3ExecutionOptimizerPromptHint: '基于视觉输入优化 H3 执行表达，保留导演意图与局部说话人归属',
     h3MultiKeyframePromptLabel: 'H3 多关键帧视频提示词模板',
     h3MultiKeyframePromptHint: '选择用于构建 MiniMax H3 多关键帧视频提示词的模板',
     promptTemplatesSection: '提示词模板配置',

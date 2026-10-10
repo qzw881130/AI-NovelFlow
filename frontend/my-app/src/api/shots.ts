@@ -2,6 +2,7 @@
  * 分镜相关 API
  */
 import { api } from './index';
+import { downloadQueuedShotExport } from './shotExports';
 
 // 分镜台词数据
 export interface DialogueData {
@@ -410,31 +411,11 @@ export const shotsApi = {
     URL.revokeObjectURL(url);
   },
 
-  downloadShotVideoMaterialsPackage: async (novelId: string, chapterId: string, shotId: string, sections?: string[]): Promise<void> => {
+  downloadShotVideoMaterialsPackage: async (novelId: string, chapterId: string, shotId: string, sections?: string[], onProgress?: (message: string) => void): Promise<void> => {
     if (sections && sections.length === 0) throw new Error('请至少选择一个导出项');
     const params = new URLSearchParams();
     sections?.forEach(section => params.append('include', section));
-    const query = sections ? `?${params}` : '';
-    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/download-video-materials${query}`, {
-      signal: AbortSignal.timeout(120_000),
-    });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.detail || data.message || '打包视频素材失败');
-    }
-    const blob = await response.blob();
-    const disposition = response.headers.get('content-disposition') || '';
-    const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
-    const filename = filenameMatch?.[1] || 'shot_video_materials.zip';
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    await downloadQueuedShotExport(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}`, params, onProgress);
   },
 
   resetShotVideoData: async (novelId: string, chapterId: string, shotId: string): Promise<{ success: boolean; message?: string; detail?: string }> => {
@@ -529,7 +510,7 @@ export const shotsApi = {
       shot_ids: string[];
       auto_complete_details?: boolean;
       use_reference_audio?: boolean;
-      skip_llm_when_prompt_exists?: boolean;
+      optimize_h3_prompt?: boolean; skip_llm_when_prompt_exists?: boolean;
       force_rerun?: boolean;
       auto_assemble?: boolean;
     }
@@ -544,6 +525,7 @@ export const shotsApi = {
           auto_complete_details: options.auto_complete_details ?? true,
           use_reference_audio: options.use_reference_audio ?? true,
           skip_llm_when_prompt_exists: options.skip_llm_when_prompt_exists ?? false,
+          optimize_h3_prompt: options.optimize_h3_prompt ?? false,
           force_rerun: options.force_rerun ?? true,
           auto_assemble: options.auto_assemble ?? true,
         }),
@@ -574,7 +556,7 @@ export const shotsApi = {
       use_reference_audio?: boolean;
       workflow_id?: string;
       selected_mode?: VideoMode;
-      skip_llm_when_prompt_exists?: boolean;
+      optimize_h3_prompt?: boolean; skip_llm_when_prompt_exists?: boolean;
     }
   ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string; detail?: string }> => {
     const response = await fetch(
@@ -588,6 +570,7 @@ export const shotsApi = {
           workflow_id: options?.workflow_id,
           selected_mode: options?.selected_mode,
           skip_llm_when_prompt_exists: options?.skip_llm_when_prompt_exists ?? false,
+          optimize_h3_prompt: options?.optimize_h3_prompt ?? false,
         }),
       }
     );
@@ -698,7 +681,7 @@ export const shotsApi = {
     chapterId: string,
     shotId: string,
     windowIndex: number,
-    options?: { use_reference_audio?: boolean; auto_merge?: boolean; skip_llm_when_prompt_exists?: boolean; clip_plan_revision?: number }
+    options?: { use_reference_audio?: boolean; auto_merge?: boolean; optimize_h3_prompt?: boolean; skip_llm_when_prompt_exists?: boolean; clip_plan_revision?: number }
   ): Promise<{ success: boolean; data?: { taskId: string; status: string }; message?: string; detail?: string }> => {
     const response = await fetch(
       `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/clips/${windowIndex}/generate`,
@@ -709,6 +692,7 @@ export const shotsApi = {
           use_reference_audio: options?.use_reference_audio ?? true,
           auto_merge: options?.auto_merge ?? true,
           skip_llm_when_prompt_exists: options?.skip_llm_when_prompt_exists ?? false,
+          optimize_h3_prompt: options?.optimize_h3_prompt ?? false,
           clip_plan_revision: options?.clip_plan_revision,
         }),
       }

@@ -121,7 +121,12 @@ from app.services.canonical_visual_speech_authority import (
 )
 from app.services.llm_service import LLMService
 from app.repositories import PromptTemplateRepository
-from app.services.video_director_ai import append_video_ai_call, build_dialogue_timeline, strip_media_refs
+from app.services.video_director_ai import (
+    append_video_ai_call, build_dialogue_timeline, strip_media_refs,
+    resolve_canonical_dialogue_timeline, timeline_matches_shot_dialogues,
+    build_execution_intent_metadata,
+    build_dialogue_visual_support_evidence,
+)
 from app.services.clip_planner import plan_clips, merge_dialogue_ownership_validation
 from app.services.clip_execution_compiler import (
     ClipExecutionCompileError,
@@ -366,6 +371,7 @@ class BatchShotVideoRequest(BaseModel):
     shot_ids: list[str]
     auto_complete_details: bool = True
     use_reference_audio: bool = True
+    optimize_h3_prompt: bool = False
     skip_llm_when_prompt_exists: bool = False
     force_rerun: bool = True
     auto_assemble: bool = True
@@ -374,6 +380,7 @@ class BatchShotVideoRequest(BaseModel):
 class SemanticClipGenerateRequest(BaseModel):
     use_reference_audio: bool = True
     auto_merge: bool = True
+    optimize_h3_prompt: bool = False
     skip_llm_when_prompt_exists: bool = False
     clip_plan_revision: Optional[int] = None
 
@@ -1583,13 +1590,13 @@ def _get_keyframe_planner_template(novel: Novel, template_repo: PromptTemplateRe
     return template
 
 
-def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: dict | None = None, previous_failures: list = None, *, attention_catalog: list | None = None) -> str:
+def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: dict | None = None, previous_failures: list = None, *, attention_catalog: list | None = None, resolved_dialogue_timeline: list | None = None) -> str:
     shot_dialogues = _safe_json_list(shot.dialogues)
-    dialogue_timeline_source, _, dialogue_timeline_status = build_dialogue_timeline(
-        {"start_time": 0, "end_time": shot.duration or 4},
-        shot_dialogues,
-        _safe_json_list(shot.characters),
-    )
+    if resolved_dialogue_timeline is None:
+        dialogue_timeline_source, dialogue_timeline_status = resolve_canonical_dialogue_timeline(shot, plan)
+    else:
+        dialogue_timeline_source = resolved_dialogue_timeline
+        dialogue_timeline_status = plan.get("dialogue_timeline_status") or {"status": "ok"}
     existing_keyframes = [
         {
             "index": keyframe.get("index"),
@@ -1636,28 +1643,10 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
     return "请根据 Shot 的叙事和有意义的视觉节拍，规划 canonical Director visual states。时长仅作上下文，不得换算为固定帧数。\n\n" + json.dumps(payload, ensure_ascii=False, indent=2)
 
 
-def _get_official_dialogue_timeline(db: Session, shot, fallback: list) -> list:
-    if not fallback:
-        return []
-    plan = _safe_json_dict(shot.video_director_plan)
-    persisted = plan.get("dialogue_timeline_source")
-    if isinstance(persisted, list) and _timeline_matches_shot_dialogues(persisted, fallback) and _timeline_is_non_overlapping(persisted):
-        return persisted
-    logs = db.query(LLMLog).filter(
-        LLMLog.chapter_id == shot.chapter_id,
-        LLMLog.task_type == "keyframe_planner",
-    ).order_by(LLMLog.created_at.desc()).all()
-    for log in logs:
-        try:
-            payload = json.loads((log.user_prompt or "").split("\n\n", 1)[-1])
-        except (TypeError, json.JSONDecodeError):
-            continue
-        if payload.get("shot", {}).get("id") != shot.id:
-            continue
-        timeline = payload.get("dialogue_timeline_source")
-        if isinstance(timeline, list) and _timeline_matches_shot_dialogues(timeline, fallback) and _timeline_is_non_overlapping(timeline):
-            return timeline
-    return fallback
+def _get_official_dialogue_timeline(db: Session, shot, fallback: list | None = None) -> list:
+    # Logs are diagnostic records, not a competing canonical owner.
+    timeline, _ = resolve_canonical_dialogue_timeline(shot, candidate=fallback)
+    return timeline
 
 
 def _attention_replan_source(db, novel, shot, template_repo):
@@ -1671,11 +1660,7 @@ def _attention_replan_source(db, novel, shot, template_repo):
     catalog, findings = character_catalog(
         _safe_json_list(shot.characters), CharacterRepository(db).list_by_novel(novel.id),
     )
-    fallback, _, timeline_status = build_dialogue_timeline(
-        {"start_time": 0, "end_time": shot.duration or 4},
-        _safe_json_list(shot.dialogues), _safe_json_list(shot.characters),
-    )
-    timeline = _get_official_dialogue_timeline(db, shot, fallback)
+    timeline, timeline_status = resolve_canonical_dialogue_timeline(shot, plan)
     physical_fields = {
         "image_url", "imageUrl", "image_path", "image_task_id", "prompt_text", "source",
         "provenance", "reference_image_url", "reference_mode", "generated_by_task_id",
@@ -1846,23 +1831,7 @@ def _timeline_is_non_overlapping(timeline: list) -> bool:
 
 
 def _timeline_matches_shot_dialogues(timeline: list, shot_timeline: list) -> bool:
-    if not isinstance(timeline, list) or not timeline:
-        return False
-    official_by_id = {
-        str(item.get("id")): item
-        for item in timeline
-        if isinstance(item, dict) and item.get("id") is not None
-    }
-    for expected in shot_timeline:
-        official = official_by_id.get(str(expected.get("id")))
-        if not official or str(official.get("text") or "").strip() != str(expected.get("text") or "").strip():
-            return False
-        try:
-            if float(official["end_time"]) <= float(official["start_time"]):
-                return False
-        except (KeyError, TypeError, ValueError):
-            return False
-    return True
+    return timeline_matches_shot_dialogues(timeline, shot_timeline)
 
 
 def _mark_video_director_planning_failed(shot, shot_repo: ShotRepository, plan: dict, message: str) -> None:
@@ -2345,20 +2314,12 @@ async def plan_shot_clips(
     if not shot or shot.chapter_id != chapter_id:
         raise HTTPException(status_code=404, detail="分镜不存在")
     current_plan = _safe_json_dict(shot.video_director_plan)
+    try:
+        dialogue_timeline_source, timeline_status = resolve_canonical_dialogue_timeline(shot, current_plan)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if current_plan.get("clip_plan") and not request.force:
         clips = current_plan["clip_plan"]
-        dialogue_timeline_source = current_plan.get("dialogue_timeline_source")
-        fallback_timeline, _, timeline_status = build_dialogue_timeline(
-            {"start_time": 0, "end_time": shot.duration or 4},
-            _safe_json_list(shot.dialogues),
-            _safe_json_list(shot.characters),
-        )
-        if timeline_status.get("status") == "overflow":
-            dialogue_timeline_source = []
-            current_plan["dialogue_timeline_source"] = []
-            current_plan["dialogue_timeline_status"] = timeline_status
-        elif not isinstance(dialogue_timeline_source, list):
-            dialogue_timeline_source = fallback_timeline
         dialogue_assignments, dialogue_validation = assign_dialogues_to_clips(
             _safe_json_list(shot.dialogues), clips, dialogue_timeline_source
         )
@@ -2369,10 +2330,7 @@ async def plan_shot_clips(
         merge_dialogue_ownership_validation(validation, dialogue_validation)
         if not validation["passed"]:
             return {"success": True, "data": {"clips": clips, "validation": validation}}
-        current_plan["clip_plan"] = clips
-        current_plan["clip_plan_validation"] = validation
-        shot.video_director_plan = json.dumps(current_plan, ensure_ascii=False)
-        db.commit()
+        # Reading an existing plan must not migrate metadata or rewrite its JSON.
         return {"success": True, "data": {"clips": clips, "validation": validation}}
     try:
         clips, validation = await plan_clips(
@@ -2381,6 +2339,7 @@ async def plan_shot_clips(
             shot,
             request.temporal_anchors,
             {"min_story_clip_duration": 2.0, "approval_mode": request.approval_mode},
+            resolved_dialogue_timeline=dialogue_timeline_source,
         )
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -2389,6 +2348,8 @@ async def plan_shot_clips(
         # canonical plan or advancing its revision.
         return {"success": True, "data": {"clips": clips, "validation": validation}}
     current_plan.update({
+        "dialogue_timeline_source": dialogue_timeline_source,
+        "dialogue_timeline_status": timeline_status,
         "clip_plan": clips,
         "temporal_anchors": request.temporal_anchors,
         "clip_plan_validation": validation,
@@ -2508,33 +2469,17 @@ async def plan_video_keyframes(
 
     plan = _safe_json_dict(shot.video_director_plan)
 
-    fallback_dialogue_timeline, _, fallback_timeline_status = build_dialogue_timeline(
-        {"start_time": 0, "end_time": shot.duration or 4},
-        _safe_json_list(shot.dialogues),
-        _safe_json_list(shot.characters),
-    )
-    dialogue_timeline_source = _get_official_dialogue_timeline(
-        db, shot, fallback_dialogue_timeline
-    )
-    plan["dialogue_timeline_status"] = fallback_timeline_status
-    if fallback_timeline_status.get("status") == "overflow":
-        dialogue_timeline_source = []
-        plan["dialogue_timeline_status"] = fallback_timeline_status
-    if (
-        plan.get("dialogue_timeline_source") != dialogue_timeline_source
-        or plan.get("dialogue_timeline_status") != fallback_timeline_status
-    ):
-        plan["dialogue_timeline_source"] = dialogue_timeline_source
-        plan["dialogue_timeline_status"] = fallback_timeline_status
-        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
-        db.commit()
+    try:
+        dialogue_timeline_source, timeline_status = resolve_canonical_dialogue_timeline(shot, plan)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
     if plan.get("canonical_visual_plan") is True and plan.get("keyframes") and not request.force:
         return {"success": True, "data": plan}
 
     duration = shot.duration or 4
     plan["dialogue_timeline_source"] = dialogue_timeline_source
-    plan["dialogue_timeline_status"] = fallback_timeline_status
+    plan["dialogue_timeline_status"] = timeline_status
 
     template = _get_keyframe_planner_template(novel, template_repo)
     attention_catalog, catalog_findings = character_catalog(
@@ -2547,7 +2492,7 @@ async def plan_video_keyframes(
     max_attempts = 2
     for attempt in range(1, max_attempts + 1):
         plan["dialogue_timeline_source"] = dialogue_timeline_source
-        user_content = _build_keyframe_planner_user_content(shot, plan, previous_failures=previous_failures, attention_catalog=attention_catalog)
+        user_content = _build_keyframe_planner_user_content(shot, plan, previous_failures=previous_failures, attention_catalog=attention_catalog, resolved_dialogue_timeline=dialogue_timeline_source)
         result = await llm_service.chat_completion(
             system_prompt=template.template,
             user_content=user_content,
@@ -2626,7 +2571,7 @@ async def plan_video_keyframes(
         "transitions": [],
         "validation": validation,
         "dialogue_timeline_source": dialogue_timeline_source,
-        "dialogue_timeline_status": fallback_timeline_status,
+        "dialogue_timeline_status": timeline_status,
         "visual_attention": attention_result["authority"],
     })
     plan.pop("task_error_message", None)
@@ -2938,6 +2883,7 @@ async def generate_video_director_clip(
                 use_reference_audio=request.use_reference_audio,
                 auto_merge=request.auto_merge,
                 skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
+                optimize_h3_prompt=request.optimize_h3_prompt,
                 clip_plan_revision=request.clip_plan_revision,
             ),
             shot_repo.db, novel_repo, chapter_repo, task_repo, shot_repo,
@@ -3004,6 +2950,7 @@ async def generate_video_director_clip(
         only_window_index=window_index,
         auto_merge_clips=request.auto_merge,
         skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
+        optimize_h3_prompt=request.optimize_h3_prompt,
     )
     return {"success": True, "message": "Clip 重新生成任务已创建", "data": {"taskId": task.id, "status": "pending"}}
 
@@ -3158,6 +3105,21 @@ async def _execute_phase_b_semantic_clip(
         ):
             return {"success": True, "message": "该 Clip 已有进行中的生成任务", "data": {"taskId": active.id, "status": active.status}}
 
+    try:
+        resolved_timeline, resolved_status = resolve_canonical_dialogue_timeline(shot, plan)
+        assignments, ownership = assign_dialogues_to_clips(_safe_json_list(shot.dialogues), clips, resolved_timeline)
+        if not ownership["passed"]:
+            raise ValueError("DIALOGUE_OWNERSHIP_INVALID: " + ", ".join(ownership["findings"]))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    clip = {**clip, "dialogue_assignment": next(item["dialogues"] for item in assignments if item["clip_index"] == window_index)}
+    execution_semantics = build_execution_intent_metadata(resolved_timeline, clip)
+    execution_semantics["visual_support_evidence"] = build_dialogue_visual_support_evidence(
+        resolved_timeline, clip, plan, reference_manifest=compiled.get("video_reference_manifest"),
+        temporal_anchors=(compiled["execution_contract"].get("temporal_anchor_manifest") or {}).get("anchors", []),
+        subject_bindings=(compiled["execution_contract"].get("visual_attention_snapshot") or {}).get("characters", []),
+    )
+
     task = task_repo.create_shot_video_task(
         novel_id=novel_id,
         chapter_id=chapter_id,
@@ -3185,6 +3147,8 @@ async def _execute_phase_b_semantic_clip(
         "approval_status": "GENERATING",
         "auto_merge": False,
         "skip_llm_when_prompt_exists": request.skip_llm_when_prompt_exists,
+        "optimize_h3_prompt": request.optimize_h3_prompt,
+        **execution_semantics,
         **compiled,
     }
     if capability in {"EXTEND", "TEMPORAL_EXTEND"}:
@@ -3200,12 +3164,17 @@ async def _execute_phase_b_semantic_clip(
         raise HTTPException(status_code=400, detail="当前 Clip 没有可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频")
     metadata["prompt_text"] = reusable_prompt
     task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    if not plan.get("dialogue_timeline_source"):
+        plan["dialogue_timeline_source"] = resolved_timeline
+        plan["dialogue_timeline_status"] = resolved_status
+        shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
     db.commit()
     enqueue_shot_video_task(
         task.id, novel_id, chapter_id, shot.index, workflow.id, shot.image_url or "",
         clip_metadata=metadata,
         use_reference_audio=request.use_reference_audio,
         skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
+        optimize_h3_prompt=request.optimize_h3_prompt,
     )
     return {"success": True, "message": f"semantic Clip {capability} 任务已创建", "data": {"taskId": task.id, "status": "pending"}}
 
@@ -3295,6 +3264,7 @@ async def _regenerate_semantic_video_director_clip(
         "use_reference_audio": request.use_reference_audio,
         "auto_merge": request.auto_merge,
         "skip_llm_when_prompt_exists": request.skip_llm_when_prompt_exists,
+        "optimize_h3_prompt": request.optimize_h3_prompt,
         "is_clip_regeneration": True,
     }
     if request.skip_llm_when_prompt_exists and not metadata["prompt_text"]:
@@ -3307,6 +3277,7 @@ async def _regenerate_semantic_video_director_clip(
         selected_mode="SINGLE_FRAME", clip_metadata=metadata,
         use_reference_audio=request.use_reference_audio,
         skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
+        optimize_h3_prompt=request.optimize_h3_prompt,
     )
     return {"success": True, "message": "semantic Clip 重新生成任务已创建", "data": {"taskId": task.id, "status": "pending"}}
 
@@ -3533,7 +3504,10 @@ def _prepare_and_enqueue_batch_video_child(
         if not end_image_url or not url_to_local_path(end_image_url):
             raise ValueError("首尾帧模式需要先生成 END 关键帧图片")
 
-    file_storage.delete_shot_video(child_task.novel_id, child_task.chapter_id, shot.index)
+    parent = db.query(Task).filter(Task.id == child_task.parent_task_id).first()
+    optimize_h3_prompt = bool(_safe_json_dict(parent.metadata_json if parent else None).get("optimize_h3_prompt", False))
+    if not optimize_h3_prompt:
+        file_storage.delete_shot_video(child_task.novel_id, child_task.chapter_id, shot.index)
     shot.video_url = None
     child_task.workflow_id = workflow.id
     child_task.workflow_name = workflow.name
@@ -3557,6 +3531,7 @@ def _prepare_and_enqueue_batch_video_child(
         use_reference_audio=use_reference_audio,
         selected_mode=selected_mode,
         skip_llm_when_prompt_exists=skip_llm_when_prompt_exists,
+        optimize_h3_prompt=optimize_h3_prompt,
     )
 
 
@@ -3999,6 +3974,7 @@ async def _run_semantic_shot_for_batch(db: Session, batch_task: Task, batch_chil
                         use_reference_audio=bool(batch_metadata.get("use_reference_audio", True)),
                         auto_merge=False,
                         skip_llm_when_prompt_exists=bool(batch_metadata.get("skip_llm_when_prompt_exists", False)),
+                        optimize_h3_prompt=bool(batch_metadata.get("optimize_h3_prompt", False)),
                         clip_plan_revision=revision,
                     ),
                     db,
@@ -4308,6 +4284,7 @@ async def generate_shot_videos_batch(
             "auto_complete_details": data.auto_complete_details,
             "use_reference_audio": data.use_reference_audio,
             "skip_llm_when_prompt_exists": data.skip_llm_when_prompt_exists,
+            "optimize_h3_prompt": data.optimize_h3_prompt,
             "force_rerun": data.force_rerun,
             "auto_assemble": data.auto_assemble,
         }, ensure_ascii=False),
@@ -4487,7 +4464,8 @@ async def generate_shot_video(
     # 清除该分镜的旧视频文件和记录。所有 preflight 通过后再删除，避免计划未就绪时丢失旧视频。
     if shot.video_url:
         print(f"[GenerateVideo] Clearing old video record for shot {shot_id}: {shot.video_url}")
-    file_storage.delete_shot_video(novel_id, chapter_id, shot_index)
+    if not request.optimize_h3_prompt:
+        file_storage.delete_shot_video(novel_id, chapter_id, shot_index)
     shot.video_url = None
     shot.video_task_id = None
     shot_repo.update_video_status(shot, "generating")
@@ -4524,6 +4502,7 @@ async def generate_shot_video(
         use_reference_audio=request.use_reference_audio,
         selected_mode=selected_mode,
         skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
+        optimize_h3_prompt=request.optimize_h3_prompt,
     )
 
     return {
@@ -5969,6 +5948,32 @@ async def download_shot_llm_data(
     )
 
 
+@router.post("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/export-video-materials", status_code=202)
+async def queue_shot_video_materials(novel_id: str, chapter_id: str, shot_id: str,
+                                   include: Optional[list[str]] = Query(None), db: Session = Depends(get_db)):
+    from app.services.shot_export_service import create_export
+    return {"success": True, "data": create_export(db, novel_id, chapter_id, shot_id, include)}
+
+
+@router.get("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/exports/{task_id}")
+def shot_export_status(novel_id: str, chapter_id: str, shot_id: str, task_id: str, db: Session = Depends(get_db)):
+    from app.services.shot_export_service import get_export, export_status
+    return {"success": True, "data": export_status(get_export(db, novel_id, chapter_id, shot_id, task_id))}
+
+
+@router.get("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/exports/{task_id}/download")
+def download_shot_export(novel_id: str, chapter_id: str, shot_id: str, task_id: str, db: Session = Depends(get_db)):
+    from app.services.shot_export_service import get_export, export_file
+    task = get_export(db, novel_id, chapter_id, shot_id, task_id)
+    if task.status != "completed":
+        raise HTTPException(status_code=409, detail="生产包尚未完成")
+    path = export_file(task)
+    if not path.is_file():
+        raise HTTPException(status_code=410, detail="生产包文件已不存在，请重新导出")
+    filename = json.loads(task.metadata_json)["filename"]
+    return FileResponse(path, media_type="application/zip", filename=filename)
+
+
 @router.get("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/download-video-materials", response_model=None)
 def download_shot_video_materials(
     novel_id: str,
@@ -5991,17 +5996,21 @@ def download_shot_video_materials(
     if not shot:
         raise HTTPException(status_code=404, detail="分镜不存在")
 
+    zip_buffer = BytesIO()
+    filename = write_shot_video_materials_package(db, novel, chapter, shot, selected, zip_buffer)
+    zip_buffer.seek(0)
+    return StreamingResponse(zip_buffer, media_type="application/zip",
+                             headers={"Content-Disposition": f'attachment; filename="{filename}"'})
+
+
+def write_shot_video_materials_package(db, novel, chapter, shot, selected, zip_buffer, progress_callback=None):
+    """Shared disk/stream builder for legacy and canonical Shot packages."""
+    novel_id, chapter_id = novel.id, chapter.id
     current_plan = _safe_json_dict(shot.video_director_plan)
     if current_plan.get("canonical_visual_plan") is True:
-        zip_buffer = BytesIO()
         with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_STORED) as archive:
-            build_shot_production_package(archive, db, novel, chapter, shot, included_sections=selected)
-        zip_buffer.seek(0)
-        return StreamingResponse(
-            zip_buffer,
-            media_type="application/zip",
-            headers={"Content-Disposition": f'attachment; filename="shot_{int(shot.index):03d}_production.zip"'},
-        )
+            build_shot_production_package(archive, db, novel, chapter, shot, included_sections=selected, progress_callback=progress_callback)
+        return f"shot_{int(shot.index):03d}_production.zip"
 
     def safe_json(value, default):
         if isinstance(value, (dict, list)):
@@ -6020,7 +6029,6 @@ def download_shot_video_materials(
         path = Path(local_path or str(value))
         return path if path.is_file() else None
 
-    zip_buffer = BytesIO()
     manifest = {
         "version": 1,
         "novel_id": novel_id,
@@ -6295,12 +6303,7 @@ def download_shot_video_materials(
             raise HTTPException(status_code=404, detail="当前分镜没有可打包的视频素材")
         zip_file.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
 
-    zip_buffer.seek(0)
-    return StreamingResponse(
-        zip_buffer,
-        media_type="application/zip",
-        headers={"Content-Disposition": f'attachment; filename="shot_{shot.index:03d}_video_materials.zip"'},
-    )
+    return f"shot_{int(shot.index):03d}_video_materials.zip"
 
 
 @router.get("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}", response_model=dict)

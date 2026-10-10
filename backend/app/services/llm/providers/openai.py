@@ -10,6 +10,7 @@ import time
 import json
 from typing import Dict, Any, Optional
 from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
+from ..multimodal import attach_image_inputs
 from ..metrics import normalize_metrics
 from ..cancellation import LLMCallTerminated
 from ..http_retry import post_llm_request
@@ -116,7 +117,8 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
-        character_id: str = None
+        character_id: str = None,
+        images: list | None = None,
     ) -> LLMResponse:
         """
         发送对话请求
@@ -141,6 +143,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         body = self._build_request_body(
             system_prompt, user_content, temperature, max_tokens, response_format
         )
+        body = attach_image_inputs(body, self.config.provider, images)
 
         # 获取代理配置
         proxy = self._get_proxy_config()
@@ -156,6 +159,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             payload=body,
             proxy_url=proxy,
             timeout_seconds=timeout,
+            image_metadata=[{k: v for k, v in item.items() if k != "url"} for item in images or []],
         )
         if self.config.provider in ("ollama", "custom"):
             old_http_proxy = os.environ.pop('HTTP_PROXY', None)
@@ -169,7 +173,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         log_id = None
         try:
             async with client:
-                print(f"[openai chat_completion] endpoint:{endpoint}, headers:{headers}, timeout:{timeout}")
+                print(f"[openai chat_completion] endpoint:{endpoint}, headers:{request_info['headers']}, timeout:{timeout}")
                 log_id = create_llm_log(
                     provider=self.config.provider,
                     model=self.config.model,
@@ -183,6 +187,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                     used_proxy=used_proxy,
                     request_info=request_info,
                 )
+                self.last_log_id = log_id
                 response = await post_llm_request(
                     client, log_id, endpoint, headers=headers, body=body, timeout=timeout,
                 )

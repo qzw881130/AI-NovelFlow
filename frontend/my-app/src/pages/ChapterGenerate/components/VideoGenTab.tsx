@@ -1,3 +1,4 @@
+import { H3OptimizerResult } from './H3OptimizerResult';
 /**
  * VideoGenTab - 视频生成 Tab（阶段 4）
  *
@@ -2661,6 +2662,7 @@ export function VideoGenTab({
   const [recommendingShotId, setRecommendingShotId] = useState<string | null>(null);
   const [planningKeyframesShotId, setPlanningKeyframesShotId] = useState<string | null>(null);
   const [planningClipsShotId, setPlanningClipsShotId] = useState<string | null>(null);
+  const [optimizeH3Prompt, setOptimizeH3Prompt] = useState(true);
   const [isSubmittingCanonicalShot, setIsSubmittingCanonicalShot] = useState(false);
   const [generatingMissingKeyframesShotId, setGeneratingMissingKeyframesShotId] = useState<string | null>(null);
 
@@ -3575,7 +3577,7 @@ export function VideoGenTab({
       const result = await shotsApi.generateVideosBatch(
         effectiveNovelId,
         effectiveChapterId,
-        buildSemanticBatchRequest([currentShotId], true),
+        { ...buildSemanticBatchRequest([currentShotId], true), optimize_h3_prompt: optimizeH3Prompt },
       );
       if (!result.success) throw new Error(result.detail || result.message || t('chapterGenerate.semanticExecutionFailed'));
       await checkVideoTaskStatus(effectiveChapterId);
@@ -3654,12 +3656,13 @@ export function VideoGenTab({
       toast.error('首尾帧模式需要先生成 END 关键帧图片。');
       return;
     }
-    if (hasVideo && !window.confirm(t('chapterGenerate.videoExistsConfirmDelete'))) return;
+    if (hasVideo && !optimizeH3Prompt && !window.confirm(t('chapterGenerate.videoExistsConfirmDelete'))) return;
     setShowGenerateVideoMenu(false);
 
     try {
       await generateShotVideo(effectiveNovelId, effectiveChapterId, currentShotId, currentSelectedVideoMode, {
         skipLlmWhenPromptExists: mode === 'video_only',
+        optimizeH3Prompt,
       });
       markTabComplete(3);
     } catch (error) {
@@ -3759,6 +3762,7 @@ export function VideoGenTab({
         use_reference_audio: true,
         auto_merge: false,
         skip_llm_when_prompt_exists: useExistingPrompt,
+        optimize_h3_prompt: optimizeH3Prompt,
         clip_plan_revision: Number(currentVideoDirectorPlan.clip_plan_revision || 0),
       });
       if (result.success) {
@@ -3782,7 +3786,7 @@ export function VideoGenTab({
       console.error('Clip 重新生成失败:', error);
       toast.error('Clip 重新生成失败');
     }
-  }, [currentIsCanonicalPlan, currentShotId, effectiveChapterId, effectiveNovelId, currentVideoDirectorPlan.clip_plan_revision]);
+  }, [currentIsCanonicalPlan, currentShotId, effectiveChapterId, effectiveNovelId, currentVideoDirectorPlan.clip_plan_revision, optimizeH3Prompt]);
 
   const handleMergeDirectorClips = useCallback(async () => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
@@ -4017,7 +4021,7 @@ export function VideoGenTab({
           force_rerun: semanticSelected.length > 0 ? false : true,
           auto_assemble: autoAssemble,
         };
-      const result = await shotsApi.generateVideosBatch(effectiveNovelId, effectiveChapterId, request);
+      const result = await shotsApi.generateVideosBatch(effectiveNovelId, effectiveChapterId, { ...request, optimize_h3_prompt: optimizeH3Prompt });
       if (!result.success) {
         throw new Error(result.detail || result.message || '批量生成视频失败');
       }
@@ -4183,11 +4187,11 @@ export function VideoGenTab({
     }
   };
 
-  const handleDownloadVideoMaterials = async (sections: string[]) => {
+  const handleDownloadVideoMaterials = async (sections: string[], onProgress?: (message: string) => void) => {
     if (!effectiveNovelId || !effectiveChapterId || !currentShotId) return;
     setIsDownloadingVideoMaterials(true);
     try {
-      await shotsApi.downloadShotVideoMaterialsPackage(effectiveNovelId, effectiveChapterId, currentShotId, sections);
+      await shotsApi.downloadShotVideoMaterialsPackage(effectiveNovelId, effectiveChapterId, currentShotId, sections, onProgress);
       toast.success('Shot 生产包已开始下载');
     } catch (error) {
       console.error('下载视频素材失败:', error);
@@ -4362,6 +4366,10 @@ export function VideoGenTab({
           <div className="min-w-[240px] flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm font-semibold text-gray-900">Shot {selectedVideo || 0}</span>
+              <label className="flex items-center gap-1 text-sm font-normal">
+                <input type="checkbox" checked={optimizeH3Prompt} onChange={event => setOptimizeH3Prompt(event.target.checked)} />
+                H3 提示词优化
+              </label>
               <span className="text-xs tabular-nums text-gray-500">{Number(currentShotData?.duration || 0)} 秒</span>
               <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${currentShotVideoResult.className}`}>
                 {currentShotVideoResult.label}
@@ -4370,6 +4378,7 @@ export function VideoGenTab({
             <div className="mt-1 text-xs text-gray-600" title={currentShotVideoResult.detail}>
               {currentShotVideoResult.detail}
             </div>
+            <H3OptimizerResult record={[...(currentVideoDirectorPlan.ai_calls || [])].reverse().find((call: any) => String(call.step) === '14')?.parsed_result} />
             {currentIsCanonicalPlan && currentOptionalMissingVisualStateCount > 0 && (
               <div className="mt-1 text-xs text-gray-500">
                 {getCanonicalVisualStates(currentVideoDirectorPlan).length} 个视觉状态 · {t('chapterGenerate.optionalMissingStates', { count: currentOptionalMissingVisualStateCount })}

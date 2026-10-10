@@ -1,0 +1,603 @@
+{
+  "raw_prompt": "subject_definitions:\n<Subject 1> is 皇帝，一名约五十五岁、略丰腴的人类男性君主；宽椭圆脸，高而饱满的额头，浅蓝灰色微垂双眼皮眼，左眼下方细小褐痣，冷调浅肤色与自然年龄纹，银灰色及耳微卷后梳头发、后移发际线、修整精致的银灰色短络腮胡与小尖须。保持威严而略显虚荣的稳定身份气质。当前服装仅延续 Previous AV 所建立的状态，不以身份参考中的默认礼服替换。\n\n<Subject 2> is 宫廷总管，一名约四十八岁、清瘦端正的人类男性；瘦削长脸，清楚的颧骨与锐利下颌线，深蓝灰色狭长内双眼，右侧太阳穴浅褐色斑，冷调浅肤色，深灰色直发后梳并束成短低发束，修整整齐的深灰色短山羊胡。保持谨慎、干练而克制的稳定身份气质。当前服装仅延续 Previous AV 所建立的状态，不以身份参考中的默认官员服饰替换。\n\n<Subject 3> is 骗子1，一名约三十五岁、高瘦修长的人类男性；长窄脸，略高颧骨与清晰下颌线，灰绿色微微上挑的细长双眼皮眼，右侧鼻翼旁小褐痣，暖调浅肤色，深棕色微卷短发后梳，修剪整齐的深棕色小胡子。保持精明而从容的稳定身份气质。当前服装仅延续 Previous AV 所建立的状态，不以身份参考中的默认旅行装束替换。\n\n<Subject 4> is 骗子2，一名约三十二岁、稍矮敦实而灵便的人类男性；圆中带方的脸型，宽下颌与短圆下巴，琥珀褐色圆杏眼，左侧嘴角下方明显小黑痣，暖调浅麦色皮肤与自然红润双颊，左分栗褐色浓密短卷发，面部无胡须。保持殷勤活络的稳定身份气质。当前服装仅延续 Previous AV 所建立的状态，不以身份参考中的默认旅行装束替换。\n\nofficial_character_identity_lock:\n具有时间锚定的视觉条件是角色当前已建立视觉身份与当前外观的首要视觉权威；本 Clip 以 Previous AV 的结束视觉状态作为当前时间起点。人物身份参考用于防止跨帧身份漂移，只补充稳定身份信息，不得覆盖时间视觉条件中清楚可见的身份特征或当前服装。\n\n对每个 <Subject N>，全程保持同一张脸、年龄、身体比例、发型或胡须轮廓、肤色、永久标记、稳定身体特征、身份定义特征及唯一主体身份。当前服装是独立于稳定身份的连续性域，只服从 Previous AV 建立的当前服装状态；不得恢复、叠加、混合或局部显露身份资产中的冲突历史服装或默认服装。不得重新设计、美化、老化、年轻化、换脸、变色或替换任何主体。\n\n不得将阴影、暗光、色彩分级、距离、运动模糊或环境照明误解为肤色、发色、胡须颜色或当前服装颜色发生变化。若稳定身份细节因姿态、遮挡、距离或照明而暂时不可见，在其重新可见时必须正确保持。若文字身份描述与时间视觉条件中清楚可见的当前身份特征直接冲突，以时间视觉条件为准。\n\n允许姿态、表情、视线方向、身体朝向和局部自然动作按当前连续状态轻微变化，但不得复制人物、交换身份、无依据镜像左右关系、瞬移、无依据使人物消失或出现、重置场景，亦不得新增人物或超出既有王宫大厅、高背宝座与既有宽边礼帽范围的道具。保持四名主体之间既有空间关系和唯一性。旁白不构成 Subject。禁止字幕、标题、说明文字、对话气泡、标志、水印、UI 或任何画面文字。\n\nkeyframe_timeline:\n当前 Clip 没有 owned canonical visual state，也没有 Clip-local temporal target；不得从 carry-in state、身份参考或资源顺序虚构新的 KF 状态。\n\nReference binding — <Picture 1>: 王宫大厅的场景视觉参考，仅用于保持既有大厅建筑、材质、尺度与整体环境一致。\n\nReference binding — <Picture 2>: <Subject 3> 的稳定身份参考，不作为当前服装、当前姿势、当前站位或动作权威。\n\nReference binding — <Picture 3>: <Subject 1> 的稳定身份参考，不作为当前服装、当前姿势、当前站位或动作权威。\n\nReference binding — <Picture 4>: <Subject 2> 的稳定身份参考，不作为当前服装、当前姿势、当前站位或动作权威。\n\nReference binding — <Picture 5>: <Subject 4> 的稳定身份参考，不作为当前服装、当前姿势、当前站位或动作权威。\n\ndialogue_timeline:\nThis is the only source of exact spoken text in this prompt.\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\nAll assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.\nHuman vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.\nBefore the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation. Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nD7:\n  speaker: <Subject 3>\n  start_time: 0.1s\n  end_time: 3.1s\n  exact_dialogue: 亮得像太阳落在湖面上的光。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 3.1s to 3.3s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD8:\n  speaker: <Subject 3>\n  start_time: 3.3s\n  end_time: 7.05s\n  exact_dialogue: 它的颜色会随着人的动作微微变化。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 7.05s to 7.25s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD9:\n  speaker: <Subject 3>\n  start_time: 7.25s\n  end_time: 9.25s\n  exact_dialogue: 金色之中带着银色。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 9.25s to 9.45s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD10:\n  speaker: <Subject 3>\n  start_time: 9.45s\n  end_time: 12.7s\n  exact_dialogue: 银色之中又仿佛藏着淡淡的红。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nsilent_characters: <Subject 1>, <Subject 2>, <Subject 4>\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\n\nsummary:\n从 Previous AV 的结束视觉状态连续延伸，保持当前外观、空间关系、场景陈设与既有镜位：<Subject 1> 继续位于高背宝座上并将视线落向 <Subject 4> 展开的双手；<Subject 2> 保持在台阶侧方并朝向宝座前方；<Subject 3> 位于左侧，身体略向同伴与宝座方向倾斜；<Subject 4> 位于右侧，双手在身前相隔一定距离并以托举般的掌心向上姿态保持展示。整体维持王宫大厅中的四人群体关系和连续构图。\n\ndetailed_description:\n[Shot 1] Clip-local 0.0–12.8 seconds：直接延续 Previous AV 中尚在进行的同一镜头，不切换地点，不重置人物，不改变既有轴线、左右关系或景别。由于当前 Clip 没有新的 canonical transition，保持既有镜位、构图、站位和动作状态自然持续，不设计新的多阶段动作。\n\n<Subject 3> 保持左侧略微前倾的从容姿态，以细微而自然的视线变化、眉眼表情变化和克制的手部或肩部调整维持现场表现，不离开既有空间锚点。<Subject 4> 保持右侧双手展开、掌心向上的托举式展示姿态，双手间距稳定，仅允许符合身体平衡与呼吸节奏的轻微自然调整。<Subject 1> 稳坐高背宝座，视线持续关注 <Subject 4> 双手之间所示意的区域，以细小的眼神、眉部和坐姿重心变化表现专注。<Subject 2> 留在台阶侧方，身体朝向宝座前方，以克制的视线和姿态变化保持谨慎观察。\n\n镜头保持四名主体及高背宝座之间清晰、稳定的空间关系，不突然推进为孤立肖像，不频繁摇移，不凭空引入新动作或新物件。服装、帽饰及任何已经存在的物件都保持 Previous AV 建立的当前状态；自然布料摆动与身体惯性连续，不发生换装、穿插、融合、漂移或穿模。到达 Clip 末尾时只稳定保持当前情境，不发展新的剧情结果。\n\noverall_soundscape:\n宽阔王宫大厅内持续存在柔和、自然的室内空气底噪与空间混响。细微身体调整带来克制的布料摩擦声，鞋履或姿势重心变化仅在确有可见接触时产生轻微地面声；高背宝座与周围陈设保持符合材质和距离的微弱环境反射。声音保持贴合大厅尺度与画面距离，不添加无来源的音乐、额外物体声或场外事件。\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — SCENE / 王宫大厅: environment identity and appearance only; incidental people are not additional Subjects.\n\ncharacter_identity_binding:\n<Picture 2> ↔ <Subject 3> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 3> ↔ <Subject 1> — 皇帝 (Character asset bbfa698b-e38e-40db-8cc9-ae0ab381fc4f): identity only, exclusively for this Subject.\n<Picture 4> ↔ <Subject 2> — 宫廷总管 (Character asset 2eab8846-dc86-4e12-8c30-dfeca26cc6c5): identity only, exclusively for this Subject.\n<Picture 5> ↔ <Subject 4> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n\nexisting_body_binding:\nApply <Picture 2> identity to the single canonical (existing or explicitly entering) body of <Subject 3> — 骗子1, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 3> identity to the single canonical (existing or explicitly entering) body of <Subject 1> — 皇帝, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 4> identity to the single canonical (existing or explicitly entering) body of <Subject 2> — 宫廷总管, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 5> identity to the single canonical (existing or explicitly entering) body of <Subject 4> — 骗子2, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 皇帝: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 宫廷总管: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 3> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 4> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.00–12.70s: Maintain primary narrative emphasis around <Subject 3>, <Subject 4> within the established composition.",
+  "output": {
+    "optimized_prompt": "subject_definitions:\n<Subject 1> is 皇帝, a slightly full-built human male monarch around fifty-five with a broad oval face, high full forehead, pale blue-gray slightly drooping eyes, a small brown mole beneath the left eye, cool fair skin, swept-back silver-gray hair, and a refined short silver-gray beard and pointed goatee. <Picture 3> supplies identity only for <Subject 1>.\n<Subject 2> is 宫廷总管, a lean, composed human male around forty-eight with a long narrow face, defined cheekbones and jaw, narrow dark blue-gray eyes, a pale brown mark at the right temple, cool fair skin, swept-back dark-gray hair tied low, and a neat short dark-gray goatee. <Picture 4> supplies identity only for <Subject 2>.\n<Subject 3> is 骗子1, a tall, slender human male around thirty-five with a long narrow face, slightly high cheekbones, gray-green upturned eyes, a small brown mole beside the right nostril, warm fair skin, swept-back short wavy dark-brown hair, and a neat dark-brown mustache. <Picture 2> supplies identity only for <Subject 3>.\n<Subject 4> is 骗子2, a shorter, sturdy and agile human male around thirty-two with a rounded-square face, broad jaw, amber-brown eyes, a distinct dark mole below the left corner of his mouth, warm light-tan skin, dense chestnut curls parted left, and no facial hair. <Picture 5> supplies identity only for <Subject 4>.\n\nsummary:\nA 15-second continuous extension of the incoming low-angle palace-hall shot, carrying forward the established costumes, posture, spatial relationships, axis and ongoing slow forward camera movement while the two swindlers sustain the imaginary-cloth demonstration and 骗子1 delivers four consecutive Mandarin lines.\n\nretention_analysis:\n<Picture 1> guides only the architecture, materials, scale and atmosphere of the established 王宫大厅. The character identity pictures preserve each named face and permanent identity but do not overwrite the current costumes, hats, poses, floor positions or blocking inherited from the preceding video. <Subject 1> remains seated on the high-backed throne, <Subject 2> remains beside the steps, <Subject 3> remains on the left, and <Subject 4> remains on the right. The empty space between the displayed hands remains empty; no cloth or new prop appears.\n\ndetailed_description:\nContinue directly from the incoming shared footage without replaying any completed speech or action. Preserve the same low-angle axis, the throne and steps, and the established left-right arrangement of all four men. Once the inherited opening motion has passed, continue the restrained forward camera drift and make a subtle compositional adjustment that keeps <Subject 4>'s raised hands in context while giving the left-side <Subject 3> a clearly readable face and mouth. All four subjects remain in their established places: <Subject 1> stays seated on the throne, <Subject 2> stands at the side of the steps, and neither swindler translates across the floor. <Subject 1>, <Subject 2> and <Subject 4> listen naturally with relaxed closed lips and no speech-like articulation. With <Subject 3>'s face and mouth clearly established, <Subject 3> (S1) says, <d>[Chinese] 亮得像太阳落在湖面上的光。</d>\n\nDuring a brief natural pause, <Subject 3> closes and relaxes his lips while maintaining his poised, slightly inclined stance. The continuous low-angle view remains readable rather than becoming an isolated portrait. <Subject 4> begins a very gradual change within his existing display: his inner hand starts drawing toward his chest while the other remains forward and palm-up, preserving the impression of presenting something between them. The space between his hands stays visibly empty. <Subject 3> (S1) continues, <d>[Chinese] 它的颜色会随着人的动作微微变化。</d>\n\nAfter another brief closed-mouth pause, <Subject 3> subtly steadies his body and starts gathering his restrained gesture toward the front of his torso, without leaving the left-side position. <Subject 1> follows the demonstration from the throne and begins a slow seated shift of weight toward the front, his interest growing as his gaze expands from <Subject 4>'s hands toward both swindlers. <Subject 3> (S1) says, <d>[Chinese] 金色之中带着银色。</d>\n\nIn the next short pause, <Subject 3>'s mouth rests naturally closed. <Subject 2> remains beside the steps with hands lowered and cautiously redirects his gaze toward <Subject 1>. The camera continues its measured forward progress along the same axis, keeping the throne, steps and both swindlers within one coherent space; it does not yet complete the tighter group composition intended for the later part of the longer transition. <Subject 1> remains seated as his torso inclines only gradually and his hands begin moving nearer the forward portions of the armrests. <Subject 4> continues the slow asymmetrical hand transition without producing any object. <Subject 3> (S1) concludes, <d>[Chinese] 银色之中又仿佛藏着淡淡的红。</d>\n\nAfter the final word, <Subject 3>'s lips close and all four men settle into natural breathing, blinking and restrained reactions. Hold the partially developed transition: <Subject 3>'s gesture is more contained, <Subject 4> still presents with one hand while the other has moved somewhat inward, and <Subject 1> shows increasing seated interest without prematurely reaching the later final pose. Preserve all current clothing, hats, body identities and spatial relationships, with no text, subtitles, logos or interface graphics.\n\noverall_soundscape:\nSoft palace-hall room tone and spacious natural reverberation continue throughout. Restrained cloth rustle accompanies only visible posture and hand adjustments; faint contact sounds occur only when visibly motivated. No additional voices, vocalizations, unexplained objects or off-screen events are heard.\n\nnon_diegetic_music:\nN/A",
+    "duration": {
+      "original_duration": 12.8,
+      "optimized_duration": 15.0,
+      "duration_delta": 2.2,
+      "duration_changed": true,
+      "reason": "The 1.625-second preserved continuation prefix cannot contain new dialogue. Shifting the fixed-duration dialogue after that prefix, allowing a short first-speaker acquisition, preserving the three brief pauses, and retaining a final visual settle requires the validated 15.0-second maximum."
+    },
+    "complexity": {
+      "level": "MEDIUM",
+      "reasons": [
+        "The clip contains a 1.625-second inherited audiovisual prefix that must remain free of new dialogue and newly scheduled action.",
+        "Twelve seconds of fixed-duration dialogue leave limited time for initial speaker readiness, three pauses, continuing canonical motion and a final settle.",
+        "The ongoing transition coordinates a slow camera push with four spatially anchored performances while avoiding premature completion of a later outcome."
+      ]
+    },
+    "risks": [
+      {
+        "code": "CONTINUATION_TIMING_REPAIRED",
+        "detail": "The upstream first line began before earliest_new_dialogue=1.625. All utterances were shifted intact to begin after the preserved prefix and first-speaker acquisition."
+      },
+      {
+        "code": "SPEAKER_READABILITY_REVIEW",
+        "detail": "The ensemble geometry places <Subject 3> at the left foreground beside the visually prominent hand display of <Subject 4>; final video review should confirm that <Subject 3>'s mouth remains readable throughout all four lines."
+      },
+      {
+        "code": "ACTION_PACING_REVIEW",
+        "detail": "The canonical transition spans multiple clips. Review that this clip develops the slow hand, seated-weight and camera motions without prematurely reaching the later final group pose."
+      }
+    ],
+    "changes": [
+      {
+        "area": "dialogue timing",
+        "before": "D7 began at 0.1 seconds inside the preserved continuation prefix.",
+        "after": "D7 begins at 2.0 seconds; all four utterance durations and their order are unchanged.",
+        "reason": "New dialogue and corresponding articulation must begin after the 1.625-second shared context, with the speaker view acquired first."
+      },
+      {
+        "area": "duration",
+        "before": "12.8 seconds total clip-local duration.",
+        "after": "15.0 seconds total clip-local duration including shared context.",
+        "reason": "The extension accommodates the preserved prefix, fixed speech durations, pauses, readiness and final settling without speech compression."
+      },
+      {
+        "area": "canonical action",
+        "before": "The raw detailed description held the opening pose nearly static and stated that no new canonical transition existed.",
+        "after": "The prompt continues the supplied slow multi-clip transition through partial hand, posture, gaze and camera development.",
+        "reason": "The canonical transition source is authoritative and assigns these ongoing actions to this clip range."
+      },
+      {
+        "area": "speaker composition",
+        "before": "The established ensemble composition did not explicitly acquire <Subject 3>'s mouth after the shared prefix.",
+        "after": "A subtle camera/composition adjustment makes <Subject 3>'s face and mouth readable while preserving every character's established position.",
+        "reason": "The active speaker must be visually ready before new dialogue begins."
+      }
+    ],
+    "timing_recommendations": [
+      "Preserve the source-owned context through 1.625 seconds and do not introduce new mouth articulation or camera acquisition within it.",
+      "Use 1.625–2.0 seconds for a subtle composition adjustment that establishes <Subject 3>'s readable face and mouth.",
+      "Preserve the fixed 0.2-second closed-mouth pauses between the four lines.",
+      "Use the remaining 0.4 seconds after D10 for closed-mouth reactions and a meaningful partial-transition hold."
+    ],
+    "canonical_visual_requirements": [
+      {
+        "id": "CVR1",
+        "requirement": "Continue the incoming low-angle palace-hall shot without resetting the scene, axis, costumes or established spatial relationships.",
+        "source_id": "opening_state",
+        "source_excerpt": "直接延续 Previous AV 中尚在进行的同一镜头，不切换地点，不重置人物，不改变既有轴线、左右关系或景别。",
+        "prompt_excerpt": "Continue directly from the incoming shared footage without replaying any completed speech or action. Preserve the same low-angle axis, the throne and steps, and the established left-right arrangement of all four men."
+      },
+      {
+        "id": "CVR2",
+        "requirement": "<Subject 1> remains seated on the high-backed throne and gradually develops a forward weight shift and stronger interest.",
+        "source_id": "transition_1",
+        "source_excerpt": "皇帝起初仍坐在高背宝座上注视骗子2的双手，随后沿宝座坐面向前调整重心，上身持续前倾，双手分别移近扶手前端",
+        "prompt_excerpt": "<Subject 1> remains seated as his torso inclines only gradually and his hands begin moving nearer the forward portions of the armrests."
+      },
+      {
+        "id": "CVR3",
+        "requirement": "<Subject 2> stays beside the steps with hands lowered and cautiously shifts his gaze toward <Subject 1>.",
+        "source_id": "transition_1",
+        "source_excerpt": "宫廷总管始终垂手站在台阶侧方，不改变站位，只将谨慎的视线稳定移向皇帝。",
+        "prompt_excerpt": "<Subject 2> remains beside the steps with hands lowered and cautiously redirects his gaze toward <Subject 1>."
+      },
+      {
+        "id": "CVR4",
+        "requirement": "<Subject 3> remains on the left, gradually steadies from the slight inclination and gathers his restrained gesture toward his front.",
+        "source_id": "transition_1",
+        "source_excerpt": "骗子1保持左侧站位与从容神情，身体由略向同伴和皇帝倾斜逐渐稳定，手势收束到身前。",
+        "prompt_excerpt": "<Subject 3> subtly steadies his body and starts gathering his restrained gesture toward the front of his torso, without leaving the left-side position."
+      },
+      {
+        "id": "CVR5",
+        "requirement": "<Subject 4> remains on the right and gradually draws his inner hand toward his chest while the other hand continues the palm-up display.",
+        "source_id": "transition_1",
+        "source_excerpt": "骗子2从双手相隔、掌心向上的展示姿态开始，缓慢将靠内侧的一只手收向胸前，另一只手继续停留在身前维持托举般的展示轮廓",
+        "prompt_excerpt": "<Subject 4> begins a very gradual change within his existing display: his inner hand starts drawing toward his chest while the other remains forward and palm-up"
+      },
+      {
+        "id": "CVR6",
+        "requirement": "The space between the swindlers' presenting hands remains empty; no physical cloth or new object appears.",
+        "source_id": "transition_1",
+        "source_excerpt": "两人之间始终空置，不出现实体布料。",
+        "prompt_excerpt": "The space between his hands stays visibly empty."
+      },
+      {
+        "id": "CVR7",
+        "requirement": "Continue the slow forward camera movement on the established axis while preserving the throne, steps and both swindlers in one coherent space.",
+        "source_id": "transition_1",
+        "source_excerpt": "从既有低角度机位沿原轴线持续、缓慢推进，全程保持宝座、台阶与左右两名骗子处于同一连续空间。",
+        "prompt_excerpt": "The camera continues its measured forward progress along the same axis, keeping the throne, steps and both swindlers within one coherent space"
+      },
+      {
+        "id": "CVR8",
+        "requirement": "Preserve all four unique character identities and the costumes established by the previous video; identity references must not restore their default outfits.",
+        "source_id": "opening_state",
+        "source_excerpt": "当前服装是独立于稳定身份的连续性域，只服从 Previous AV 建立的当前服装状态",
+        "prompt_excerpt": "Preserve all current clothing, hats, body identities and spatial relationships"
+      },
+      {
+        "id": "CVR9",
+        "requirement": "Keep <Subject 3>'s face and mouth readable for all four utterances while the other three subjects remain natural closed-mouth listeners.",
+        "source_id": "opening_state",
+        "source_excerpt": "Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement",
+        "prompt_excerpt": "<Subject 1>, <Subject 2> and <Subject 4> listen naturally with relaxed closed lips and no speech-like articulation. With <Subject 3>'s face and mouth clearly established"
+      },
+      {
+        "id": "CVR10",
+        "requirement": "End on partial progress through the longer transition rather than completing its later tighter group outcome.",
+        "source_id": "transition_1",
+        "source_excerpt": "约从26秒起，摄影机在原有推进中自然收紧群像",
+        "prompt_excerpt": "it does not yet complete the tighter group composition intended for the later part of the longer transition."
+      }
+    ],
+    "reference_projection": [
+      {
+        "source_picture": "<Picture 1>",
+        "picture": "<Picture 1>"
+      },
+      {
+        "source_picture": "<Picture 2>",
+        "picture": "<Picture 2>"
+      },
+      {
+        "source_picture": "<Picture 3>",
+        "picture": "<Picture 3>"
+      },
+      {
+        "source_picture": "<Picture 4>",
+        "picture": "<Picture 4>"
+      },
+      {
+        "source_picture": "<Picture 5>",
+        "picture": "<Picture 5>"
+      }
+    ],
+    "authority_echo": {
+      "generation_mode": "EXTEND",
+      "dialogue_events": [
+        {
+          "id": "D7",
+          "speaker": "<Subject 3>",
+          "exact_dialogue": "亮得像太阳落在湖面上的光。",
+          "duration": 3.0,
+          "order": 1
+        },
+        {
+          "id": "D8",
+          "speaker": "<Subject 3>",
+          "exact_dialogue": "它的颜色会随着人的动作微微变化。",
+          "duration": 3.75,
+          "order": 2
+        },
+        {
+          "id": "D9",
+          "speaker": "<Subject 3>",
+          "exact_dialogue": "金色之中带着银色。",
+          "duration": 2.0,
+          "order": 3
+        },
+        {
+          "id": "D10",
+          "speaker": "<Subject 3>",
+          "exact_dialogue": "银色之中又仿佛藏着淡淡的红。",
+          "duration": 3.25,
+          "order": 4
+        }
+      ],
+      "subject_bindings": {
+        "<Subject 1>": "皇帝",
+        "<Subject 2>": "宫廷总管",
+        "<Subject 3>": "骗子1",
+        "<Subject 4>": "骗子2"
+      },
+      "reference_bindings": [
+        {
+          "picture": "<Picture 1>",
+          "type": "SCENE",
+          "subject": null,
+          "source_name": "王宫大厅",
+          "source_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 2>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 3>",
+          "source_name": "骗子1",
+          "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 3>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 1>",
+          "source_name": "皇帝",
+          "source_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 4>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 2>",
+          "source_name": "宫廷总管",
+          "source_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 5>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 4>",
+          "source_name": "骗子2",
+          "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "state_index": null,
+          "role": null
+        }
+      ],
+      "visual_anchor_order": [],
+      "temporal_anchor_order": [],
+      "allowed_dialogue_overlaps": [],
+      "continuation": {
+        "mode": "VIDEO_CONTINUATION",
+        "binding_verified": true,
+        "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+        "source_sha256": "e66f6e68c37661d172f44a9d47c4eb0334c8ae415e652fd5b4a1e468e18bb556",
+        "previous_frames": 362,
+        "fps": 24,
+        "context_frames": 39,
+        "overlap_frames": 39,
+        "overlap_seconds": 1.625,
+        "source_start_frame": 323,
+        "source_end_frame_exclusive": 362,
+        "clip_local_time_origin": "TARGET_AV_FRAME_0_INCLUDES_SHARED_CONTEXT",
+        "masked_time_origin": "SAME_AS_CLIP_LOCAL_NO_ADDITIONAL_SHIFT",
+        "cumulative_start_frame": 323,
+        "earliest_new_dialogue": 1.625,
+        "audio_hard_preserve_until": 1.425,
+        "audio_feather_until": 1.625,
+        "audio_feather_ticks": 8,
+        "duration_semantics": "TOTAL_C2_INCLUDING_CONTEXT; no worker overlap addition",
+        "frame_expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+        "assembly": "previous_frames + target_frames - context_frames",
+        "video_overlap": "blend source tail with decoded preserved prefix",
+        "audio_overlap": "decoded extension audio replaces source tail; feather is not new-speech budget"
+      },
+      "anchor_policy": {
+        "version": 1,
+        "catalog": [],
+        "canonical_visual_sources": [
+          {
+            "id": "opening_state",
+            "text": "subject_definitions:\n<Subject 1> is 皇帝，一名约五十五岁、略丰腴的人类男性君主；宽椭圆脸，高而饱满的额头，浅蓝灰色微垂双眼皮眼，左眼下方细小褐痣，冷调浅肤色与自然年龄纹，银灰色及耳微卷后梳头发、后移发际线、修整精致的银灰色短络腮胡与小尖须。保持威严而略显虚荣的稳定身份气质。当前服装仅延续 Previous AV 所建立的状态，不以身份参考中的默认礼服替换。\n\n<Subject 2> is 宫廷总管，一名约四十八岁、清瘦端正的人类男性；瘦削长脸，清楚的颧骨与锐利下颌线，深蓝灰色狭长内双眼，右侧太阳穴浅褐色斑，冷调浅肤色，深灰色直发后梳并束成短低发束，修整整齐的深灰色短山羊胡。保持谨慎、干练而克制的稳定身份气质。当前服装仅延续 Previous AV 所建立的状态，不以身份参考中的默认官员服饰替换。\n\n<Subject 3> is 骗子1，一名约三十五岁、高瘦修长的人类男性；长窄脸，略高颧骨与清晰下颌线，灰绿色微微上挑的细长双眼皮眼，右侧鼻翼旁小褐痣，暖调浅肤色，深棕色微卷短发后梳，修剪整齐的深棕色小胡子。保持精明而从容的稳定身份气质。当前服装仅延续 Previous AV 所建立的状态，不以身份参考中的默认旅行装束替换。\n\n<Subject 4> is 骗子2，一名约三十二岁、稍矮敦实而灵便的人类男性；圆中带方的脸型，宽下颌与短圆下巴，琥珀褐色圆杏眼，左侧嘴角下方明显小黑痣，暖调浅麦色皮肤与自然红润双颊，左分栗褐色浓密短卷发，面部无胡须。保持殷勤活络的稳定身份气质。当前服装仅延续 Previous AV 所建立的状态，不以身份参考中的默认旅行装束替换。\n\nofficial_character_identity_lock:\n具有时间锚定的视觉条件是角色当前已建立视觉身份与当前外观的首要视觉权威；本 Clip 以 Previous AV 的结束视觉状态作为当前时间起点。人物身份参考用于防止跨帧身份漂移，只补充稳定身份信息，不得覆盖时间视觉条件中清楚可见的身份特征或当前服装。\n\n对每个 <Subject N>，全程保持同一张脸、年龄、身体比例、发型或胡须轮廓、肤色、永久标记、稳定身体特征、身份定义特征及唯一主体身份。当前服装是独立于稳定身份的连续性域，只服从 Previous AV 建立的当前服装状态；不得恢复、叠加、混合或局部显露身份资产中的冲突历史服装或默认服装。不得重新设计、美化、老化、年轻化、换脸、变色或替换任何主体。\n\n不得将阴影、暗光、色彩分级、距离、运动模糊或环境照明误解为肤色、发色、胡须颜色或当前服装颜色发生变化。若稳定身份细节因姿态、遮挡、距离或照明而暂时不可见，在其重新可见时必须正确保持。若文字身份描述与时间视觉条件中清楚可见的当前身份特征直接冲突，以时间视觉条件为准。\n\n允许姿态、表情、视线方向、身体朝向和局部自然动作按当前连续状态轻微变化，但不得复制人物、交换身份、无依据镜像左右关系、瞬移、无依据使人物消失或出现、重置场景，亦不得新增人物或超出既有王宫大厅、高背宝座与既有宽边礼帽范围的道具。保持四名主体之间既有空间关系和唯一性。旁白不构成 Subject。禁止字幕、标题、说明文字、对话气泡、标志、水印、UI 或任何画面文字。\n\nkeyframe_timeline:\n当前 Clip 没有 owned canonical visual state，也没有 Clip-local temporal target；不得从 carry-in state、身份参考或资源顺序虚构新的 KF 状态。\n\nReference binding — <Picture 1>: 王宫大厅的场景视觉参考，仅用于保持既有大厅建筑、材质、尺度与整体环境一致。\n\nReference binding — <Picture 2>: <Subject 3> 的稳定身份参考，不作为当前服装、当前姿势、当前站位或动作权威。\n\nReference binding — <Picture 3>: <Subject 1> 的稳定身份参考，不作为当前服装、当前姿势、当前站位或动作权威。\n\nReference binding — <Picture 4>: <Subject 2> 的稳定身份参考，不作为当前服装、当前姿势、当前站位或动作权威。\n\nReference binding — <Picture 5>: <Subject 4> 的稳定身份参考，不作为当前服装、当前姿势、当前站位或动作权威。\n\ndialogue_timeline:\nThis is the only source of exact spoken text in this prompt.\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\nAll assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.\nHuman vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.\nBefore the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation. Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nD7:\n  speaker: <Subject 3>\n  start_time: 0.1s\n  end_time: 3.1s\n  exact_dialogue: 亮得像太阳落在湖面上的光。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 3.1s to 3.3s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD8:\n  speaker: <Subject 3>\n  start_time: 3.3s\n  end_time: 7.05s\n  exact_dialogue: 它的颜色会随着人的动作微微变化。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 7.05s to 7.25s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD9:\n  speaker: <Subject 3>\n  start_time: 7.25s\n  end_time: 9.25s\n  exact_dialogue: 金色之中带着银色。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 9.25s to 9.45s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD10:\n  speaker: <Subject 3>\n  start_time: 9.45s\n  end_time: 12.7s\n  exact_dialogue: 银色之中又仿佛藏着淡淡的红。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nsilent_characters: <Subject 1>, <Subject 2>, <Subject 4>\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\n\nsummary:\n从 Previous AV 的结束视觉状态连续延伸，保持当前外观、空间关系、场景陈设与既有镜位：<Subject 1> 继续位于高背宝座上并将视线落向 <Subject 4> 展开的双手；<Subject 2> 保持在台阶侧方并朝向宝座前方；<Subject 3> 位于左侧，身体略向同伴与宝座方向倾斜；<Subject 4> 位于右侧，双手在身前相隔一定距离并以托举般的掌心向上姿态保持展示。整体维持王宫大厅中的四人群体关系和连续构图。\n\ndetailed_description:\n[Shot 1] Clip-local 0.0–12.8 seconds：直接延续 Previous AV 中尚在进行的同一镜头，不切换地点，不重置人物，不改变既有轴线、左右关系或景别。由于当前 Clip 没有新的 canonical transition，保持既有镜位、构图、站位和动作状态自然持续，不设计新的多阶段动作。\n\n<Subject 3> 保持左侧略微前倾的从容姿态，以细微而自然的视线变化、眉眼表情变化和克制的手部或肩部调整维持现场表现，不离开既有空间锚点。<Subject 4> 保持右侧双手展开、掌心向上的托举式展示姿态，双手间距稳定，仅允许符合身体平衡与呼吸节奏的轻微自然调整。<Subject 1> 稳坐高背宝座，视线持续关注 <Subject 4> 双手之间所示意的区域，以细小的眼神、眉部和坐姿重心变化表现专注。<Subject 2> 留在台阶侧方，身体朝向宝座前方，以克制的视线和姿态变化保持谨慎观察。\n\n镜头保持四名主体及高背宝座之间清晰、稳定的空间关系，不突然推进为孤立肖像，不频繁摇移，不凭空引入新动作或新物件。服装、帽饰及任何已经存在的物件都保持 Previous AV 建立的当前状态；自然布料摆动与身体惯性连续，不发生换装、穿插、融合、漂移或穿模。到达 Clip 末尾时只稳定保持当前情境，不发展新的剧情结果。\n\noverall_soundscape:\n宽阔王宫大厅内持续存在柔和、自然的室内空气底噪与空间混响。细微身体调整带来克制的布料摩擦声，鞋履或姿势重心变化仅在确有可见接触时产生轻微地面声；高背宝座与周围陈设保持符合材质和距离的微弱环境反射。声音保持贴合大厅尺度与画面距离，不添加无来源的音乐、额外物体声或场外事件。\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — SCENE / 王宫大厅: environment identity and appearance only; incidental people are not additional Subjects.\n\ncharacter_identity_binding:\n<Picture 2> ↔ <Subject 3> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 3> ↔ <Subject 1> — 皇帝 (Character asset bbfa698b-e38e-40db-8cc9-ae0ab381fc4f): identity only, exclusively for this Subject.\n<Picture 4> ↔ <Subject 2> — 宫廷总管 (Character asset 2eab8846-dc86-4e12-8c30-dfeca26cc6c5): identity only, exclusively for this Subject.\n<Picture 5> ↔ <Subject 4> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n\nexisting_body_binding:\nApply <Picture 2> identity to the single canonical (existing or explicitly entering) body of <Subject 3> — 骗子1, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 3> identity to the single canonical (existing or explicitly entering) body of <Subject 1> — 皇帝, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 4> identity to the single canonical (existing or explicitly entering) body of <Subject 2> — 宫廷总管, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 5> identity to the single canonical (existing or explicitly entering) body of <Subject 4> — 骗子2, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 皇帝: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 宫廷总管: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 3> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 4> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.00–12.70s: Maintain primary narrative emphasis around <Subject 3>, <Subject 4> within the established composition."
+          },
+          {
+            "id": "transition_1",
+            "text": "从既有低角度机位沿原轴线持续、缓慢推进，全程保持宝座、台阶与左右两名骗子处于同一连续空间。前半段以左侧骗子1和右侧骗子2为主要视觉重心：骗子2从双手相隔、掌心向上的展示姿态开始，缓慢将靠内侧的一只手收向胸前，另一只手继续停留在身前维持托举般的展示轮廓；骗子1保持左侧站位与从容神情，身体由略向同伴和皇帝倾斜逐渐稳定，手势收束到身前。两人之间始终空置，不出现实体布料。皇帝起初仍坐在高背宝座上注视骗子2的双手，随后沿宝座坐面向前调整重心，上身持续前倾，双手分别移近扶手前端，视线逐渐覆盖两名骗子，神情由审视自然转为浓厚兴趣。宫廷总管始终垂手站在台阶侧方，不改变站位，只将谨慎的视线稳定移向皇帝。约从26秒起，摄影机在原有推进中自然收紧群像，使皇帝与两名骗子共同成为清晰主体，同时不改变人物左右关系；最终停在更紧密的低角度群像构图：皇帝坐至宝座前缘并明显前倾，双手靠近扶手前端，骗子1在左侧镇定地将手势收于身前，骗子2在右侧以一手继续展示、另一手靠近胸前，宫廷总管仍位于台阶侧方，宝座和台阶保持可见。"
+          }
+        ],
+        "drop_binding": {
+          "supported": true,
+          "mechanism": "EXISTING_REF2VA_OPTIONAL_IMAGES_0_TO_9",
+          "reference_node_id": "55"
+        },
+        "reference_semantics": "Soft Ref2VA reference conditioning; arrival is an internal target, not frame binding. Catalog facts record original resources, not mandatory full-image outcomes."
+      }
+    },
+    "av_timeline": {
+      "original_duration": 12.8,
+      "optimized_duration": 15.0,
+      "duration_delta": 2.2,
+      "duration_changed": true,
+      "reason": "The dialogue was shifted after the 1.625-second shared context and a short first-speaker acquisition; the validated maximum allows all fixed utterance durations, pauses, canonical action and final settling.",
+      "dialogue_events": [
+        {
+          "id": "D7",
+          "speaker": "<Subject 3>",
+          "original_start": 0.1,
+          "original_end": 3.1,
+          "duration": 3.0,
+          "optimized_start": 2.0,
+          "optimized_end": 5.0
+        },
+        {
+          "id": "D8",
+          "speaker": "<Subject 3>",
+          "original_start": 3.3,
+          "original_end": 7.05,
+          "duration": 3.75,
+          "optimized_start": 5.2,
+          "optimized_end": 8.95
+        },
+        {
+          "id": "D9",
+          "speaker": "<Subject 3>",
+          "original_start": 7.25,
+          "original_end": 9.25,
+          "duration": 2.0,
+          "optimized_start": 9.15,
+          "optimized_end": 11.15
+        },
+        {
+          "id": "D10",
+          "speaker": "<Subject 3>",
+          "original_start": 9.45,
+          "original_end": 12.7,
+          "duration": 3.25,
+          "optimized_start": 11.35,
+          "optimized_end": 14.6
+        }
+      ],
+      "handoffs": [],
+      "anchors": [],
+      "execution_phases": [
+        {
+          "id": "P01",
+          "start": 0.0,
+          "end": 1.625,
+          "type": "CONTEXT",
+          "description": "Preserve the source-owned shared audiovisual prefix with its incoming posture, costumes, blocking and camera motion; schedule no new dialogue or acquisition."
+        },
+        {
+          "id": "P02",
+          "start": 1.625,
+          "end": 2.0,
+          "type": "READINESS",
+          "description": "Continue the low-angle axis and subtly adjust composition to establish <Subject 3>'s readable face and mouth while all other visible characters settle as listeners."
+        },
+        {
+          "id": "P03",
+          "start": 1.625,
+          "end": 15.0,
+          "type": "CAMERA",
+          "description": "Continue the restrained forward camera drift along the established axis without a cut, teleport, axis change or premature tight-group arrival."
+        },
+        {
+          "id": "P04",
+          "start": 1.625,
+          "end": 14.6,
+          "type": "ACTION",
+          "description": "Gradually develop the assigned hand, gesture, gaze and seated-weight changes while preserving all floor positions and the empty imaginary-cloth space."
+        },
+        {
+          "id": "P05",
+          "start": 2.0,
+          "end": 5.0,
+          "type": "DIALOGUE",
+          "description": "D7 by <Subject 3> with readable synchronized Mandarin articulation."
+        },
+        {
+          "id": "P06",
+          "start": 5.0,
+          "end": 5.2,
+          "type": "SILENCE",
+          "description": "Brief closed-mouth pause; continue natural reactions and gradual canonical motion."
+        },
+        {
+          "id": "P07",
+          "start": 5.2,
+          "end": 8.95,
+          "type": "DIALOGUE",
+          "description": "D8 by <Subject 3> with readable synchronized Mandarin articulation."
+        },
+        {
+          "id": "P08",
+          "start": 8.95,
+          "end": 9.15,
+          "type": "SILENCE",
+          "description": "Brief closed-mouth pause; maintain the established speaker view."
+        },
+        {
+          "id": "P09",
+          "start": 9.15,
+          "end": 11.15,
+          "type": "DIALOGUE",
+          "description": "D9 by <Subject 3> with readable synchronized Mandarin articulation."
+        },
+        {
+          "id": "P10",
+          "start": 11.15,
+          "end": 11.35,
+          "type": "SILENCE",
+          "description": "Brief closed-mouth pause; preserve listener reactions and continuous camera motion."
+        },
+        {
+          "id": "P11",
+          "start": 11.35,
+          "end": 14.6,
+          "type": "DIALOGUE",
+          "description": "D10 by <Subject 3> with readable synchronized Mandarin articulation."
+        },
+        {
+          "id": "P12",
+          "start": 14.6,
+          "end": 15.0,
+          "type": "FINAL_SETTLE",
+          "description": "All mouths relax closed as the partially developed multi-clip transition settles without reaching its later final pose."
+        }
+      ]
+    }
+  },
+  "authority": {
+    "generation_mode": "EXTEND",
+    "dialogue_events": [
+      {
+        "id": "D7",
+        "speaker": "<Subject 3>",
+        "exact_dialogue": "亮得像太阳落在湖面上的光。",
+        "duration": 3.0,
+        "order": 1
+      },
+      {
+        "id": "D8",
+        "speaker": "<Subject 3>",
+        "exact_dialogue": "它的颜色会随着人的动作微微变化。",
+        "duration": 3.75,
+        "order": 2
+      },
+      {
+        "id": "D9",
+        "speaker": "<Subject 3>",
+        "exact_dialogue": "金色之中带着银色。",
+        "duration": 2.0,
+        "order": 3
+      },
+      {
+        "id": "D10",
+        "speaker": "<Subject 3>",
+        "exact_dialogue": "银色之中又仿佛藏着淡淡的红。",
+        "duration": 3.25,
+        "order": 4
+      }
+    ],
+    "subject_bindings": {
+      "<Subject 1>": "皇帝",
+      "<Subject 2>": "宫廷总管",
+      "<Subject 3>": "骗子1",
+      "<Subject 4>": "骗子2"
+    },
+    "reference_bindings": [
+      {
+        "picture": "<Picture 1>",
+        "type": "SCENE",
+        "subject": null,
+        "source_name": "王宫大厅",
+        "source_id": "0b65930f-51e6-41fa-afd6-de1e52028b2c",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 2>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 3>",
+        "source_name": "骗子1",
+        "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 3>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 1>",
+        "source_name": "皇帝",
+        "source_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 4>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 2>",
+        "source_name": "宫廷总管",
+        "source_id": "2eab8846-dc86-4e12-8c30-dfeca26cc6c5",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 5>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 4>",
+        "source_name": "骗子2",
+        "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+        "state_index": null,
+        "role": null
+      }
+    ],
+    "visual_anchor_order": [],
+    "temporal_anchor_order": [],
+    "allowed_dialogue_overlaps": [],
+    "continuation": {
+      "mode": "VIDEO_CONTINUATION",
+      "binding_verified": true,
+      "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+      "source_sha256": "e66f6e68c37661d172f44a9d47c4eb0334c8ae415e652fd5b4a1e468e18bb556",
+      "previous_frames": 362,
+      "fps": 24,
+      "context_frames": 39,
+      "overlap_frames": 39,
+      "overlap_seconds": 1.625,
+      "source_start_frame": 323,
+      "source_end_frame_exclusive": 362,
+      "clip_local_time_origin": "TARGET_AV_FRAME_0_INCLUDES_SHARED_CONTEXT",
+      "masked_time_origin": "SAME_AS_CLIP_LOCAL_NO_ADDITIONAL_SHIFT",
+      "cumulative_start_frame": 323,
+      "earliest_new_dialogue": 1.625,
+      "audio_hard_preserve_until": 1.425,
+      "audio_feather_until": 1.625,
+      "audio_feather_ticks": 8,
+      "duration_semantics": "TOTAL_C2_INCLUDING_CONTEXT; no worker overlap addition",
+      "frame_expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "assembly": "previous_frames + target_frames - context_frames",
+      "video_overlap": "blend source tail with decoded preserved prefix",
+      "audio_overlap": "decoded extension audio replaces source tail; feather is not new-speech budget"
+    },
+    "anchor_policy": {
+      "version": 1,
+      "catalog": [],
+      "canonical_visual_sources": [
+        {
+          "id": "opening_state",
+          "text": "subject_definitions:\n<Subject 1> is 皇帝，一名约五十五岁、略丰腴的人类男性君主；宽椭圆脸，高而饱满的额头，浅蓝灰色微垂双眼皮眼，左眼下方细小褐痣，冷调浅肤色与自然年龄纹，银灰色及耳微卷后梳头发、后移发际线、修整精致的银灰色短络腮胡与小尖须。保持威严而略显虚荣的稳定身份气质。当前服装仅延续 Previous AV 所建立的状态，不以身份参考中的默认礼服替换。\n\n<Subject 2> is 宫廷总管，一名约四十八岁、清瘦端正的人类男性；瘦削长脸，清楚的颧骨与锐利下颌线，深蓝灰色狭长内双眼，右侧太阳穴浅褐色斑，冷调浅肤色，深灰色直发后梳并束成短低发束，修整整齐的深灰色短山羊胡。保持谨慎、干练而克制的稳定身份气质。当前服装仅延续 Previous AV 所建立的状态，不以身份参考中的默认官员服饰替换。\n\n<Subject 3> is 骗子1，一名约三十五岁、高瘦修长的人类男性；长窄脸，略高颧骨与清晰下颌线，灰绿色微微上挑的细长双眼皮眼，右侧鼻翼旁小褐痣，暖调浅肤色，深棕色微卷短发后梳，修剪整齐的深棕色小胡子。保持精明而从容的稳定身份气质。当前服装仅延续 Previous AV 所建立的状态，不以身份参考中的默认旅行装束替换。\n\n<Subject 4> is 骗子2，一名约三十二岁、稍矮敦实而灵便的人类男性；圆中带方的脸型，宽下颌与短圆下巴，琥珀褐色圆杏眼，左侧嘴角下方明显小黑痣，暖调浅麦色皮肤与自然红润双颊，左分栗褐色浓密短卷发，面部无胡须。保持殷勤活络的稳定身份气质。当前服装仅延续 Previous AV 所建立的状态，不以身份参考中的默认旅行装束替换。\n\nofficial_character_identity_lock:\n具有时间锚定的视觉条件是角色当前已建立视觉身份与当前外观的首要视觉权威；本 Clip 以 Previous AV 的结束视觉状态作为当前时间起点。人物身份参考用于防止跨帧身份漂移，只补充稳定身份信息，不得覆盖时间视觉条件中清楚可见的身份特征或当前服装。\n\n对每个 <Subject N>，全程保持同一张脸、年龄、身体比例、发型或胡须轮廓、肤色、永久标记、稳定身体特征、身份定义特征及唯一主体身份。当前服装是独立于稳定身份的连续性域，只服从 Previous AV 建立的当前服装状态；不得恢复、叠加、混合或局部显露身份资产中的冲突历史服装或默认服装。不得重新设计、美化、老化、年轻化、换脸、变色或替换任何主体。\n\n不得将阴影、暗光、色彩分级、距离、运动模糊或环境照明误解为肤色、发色、胡须颜色或当前服装颜色发生变化。若稳定身份细节因姿态、遮挡、距离或照明而暂时不可见，在其重新可见时必须正确保持。若文字身份描述与时间视觉条件中清楚可见的当前身份特征直接冲突，以时间视觉条件为准。\n\n允许姿态、表情、视线方向、身体朝向和局部自然动作按当前连续状态轻微变化，但不得复制人物、交换身份、无依据镜像左右关系、瞬移、无依据使人物消失或出现、重置场景，亦不得新增人物或超出既有王宫大厅、高背宝座与既有宽边礼帽范围的道具。保持四名主体之间既有空间关系和唯一性。旁白不构成 Subject。禁止字幕、标题、说明文字、对话气泡、标志、水印、UI 或任何画面文字。\n\nkeyframe_timeline:\n当前 Clip 没有 owned canonical visual state，也没有 Clip-local temporal target；不得从 carry-in state、身份参考或资源顺序虚构新的 KF 状态。\n\nReference binding — <Picture 1>: 王宫大厅的场景视觉参考，仅用于保持既有大厅建筑、材质、尺度与整体环境一致。\n\nReference binding — <Picture 2>: <Subject 3> 的稳定身份参考，不作为当前服装、当前姿势、当前站位或动作权威。\n\nReference binding — <Picture 3>: <Subject 1> 的稳定身份参考，不作为当前服装、当前姿势、当前站位或动作权威。\n\nReference binding — <Picture 4>: <Subject 2> 的稳定身份参考，不作为当前服装、当前姿势、当前站位或动作权威。\n\nReference binding — <Picture 5>: <Subject 4> 的稳定身份参考，不作为当前服装、当前姿势、当前站位或动作权威。\n\ndialogue_timeline:\nThis is the only source of exact spoken text in this prompt.\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\nAll assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.\nHuman vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.\nBefore the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation. Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nD7:\n  speaker: <Subject 3>\n  start_time: 0.1s\n  end_time: 3.1s\n  exact_dialogue: 亮得像太阳落在湖面上的光。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 3.1s to 3.3s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD8:\n  speaker: <Subject 3>\n  start_time: 3.3s\n  end_time: 7.05s\n  exact_dialogue: 它的颜色会随着人的动作微微变化。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 7.05s to 7.25s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD9:\n  speaker: <Subject 3>\n  start_time: 7.25s\n  end_time: 9.25s\n  exact_dialogue: 金色之中带着银色。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 9.25s to 9.45s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD10:\n  speaker: <Subject 3>\n  start_time: 9.45s\n  end_time: 12.7s\n  exact_dialogue: 银色之中又仿佛藏着淡淡的红。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nsilent_characters: <Subject 1>, <Subject 2>, <Subject 4>\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\n\nsummary:\n从 Previous AV 的结束视觉状态连续延伸，保持当前外观、空间关系、场景陈设与既有镜位：<Subject 1> 继续位于高背宝座上并将视线落向 <Subject 4> 展开的双手；<Subject 2> 保持在台阶侧方并朝向宝座前方；<Subject 3> 位于左侧，身体略向同伴与宝座方向倾斜；<Subject 4> 位于右侧，双手在身前相隔一定距离并以托举般的掌心向上姿态保持展示。整体维持王宫大厅中的四人群体关系和连续构图。\n\ndetailed_description:\n[Shot 1] Clip-local 0.0–12.8 seconds：直接延续 Previous AV 中尚在进行的同一镜头，不切换地点，不重置人物，不改变既有轴线、左右关系或景别。由于当前 Clip 没有新的 canonical transition，保持既有镜位、构图、站位和动作状态自然持续，不设计新的多阶段动作。\n\n<Subject 3> 保持左侧略微前倾的从容姿态，以细微而自然的视线变化、眉眼表情变化和克制的手部或肩部调整维持现场表现，不离开既有空间锚点。<Subject 4> 保持右侧双手展开、掌心向上的托举式展示姿态，双手间距稳定，仅允许符合身体平衡与呼吸节奏的轻微自然调整。<Subject 1> 稳坐高背宝座，视线持续关注 <Subject 4> 双手之间所示意的区域，以细小的眼神、眉部和坐姿重心变化表现专注。<Subject 2> 留在台阶侧方，身体朝向宝座前方，以克制的视线和姿态变化保持谨慎观察。\n\n镜头保持四名主体及高背宝座之间清晰、稳定的空间关系，不突然推进为孤立肖像，不频繁摇移，不凭空引入新动作或新物件。服装、帽饰及任何已经存在的物件都保持 Previous AV 建立的当前状态；自然布料摆动与身体惯性连续，不发生换装、穿插、融合、漂移或穿模。到达 Clip 末尾时只稳定保持当前情境，不发展新的剧情结果。\n\noverall_soundscape:\n宽阔王宫大厅内持续存在柔和、自然的室内空气底噪与空间混响。细微身体调整带来克制的布料摩擦声，鞋履或姿势重心变化仅在确有可见接触时产生轻微地面声；高背宝座与周围陈设保持符合材质和距离的微弱环境反射。声音保持贴合大厅尺度与画面距离，不添加无来源的音乐、额外物体声或场外事件。\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — SCENE / 王宫大厅: environment identity and appearance only; incidental people are not additional Subjects.\n\ncharacter_identity_binding:\n<Picture 2> ↔ <Subject 3> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 3> ↔ <Subject 1> — 皇帝 (Character asset bbfa698b-e38e-40db-8cc9-ae0ab381fc4f): identity only, exclusively for this Subject.\n<Picture 4> ↔ <Subject 2> — 宫廷总管 (Character asset 2eab8846-dc86-4e12-8c30-dfeca26cc6c5): identity only, exclusively for this Subject.\n<Picture 5> ↔ <Subject 4> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n\nexisting_body_binding:\nApply <Picture 2> identity to the single canonical (existing or explicitly entering) body of <Subject 3> — 骗子1, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 3> identity to the single canonical (existing or explicitly entering) body of <Subject 1> — 皇帝, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 4> identity to the single canonical (existing or explicitly entering) body of <Subject 2> — 宫廷总管, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 5> identity to the single canonical (existing or explicitly entering) body of <Subject 4> — 骗子2, defined by Previous AV and canonical KF3. Do not create a second body or transfer this identity to another visible body.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 皇帝: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 宫廷总管: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 3> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 4> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.00–12.70s: Maintain primary narrative emphasis around <Subject 3>, <Subject 4> within the established composition."
+        },
+        {
+          "id": "transition_1",
+          "text": "从既有低角度机位沿原轴线持续、缓慢推进，全程保持宝座、台阶与左右两名骗子处于同一连续空间。前半段以左侧骗子1和右侧骗子2为主要视觉重心：骗子2从双手相隔、掌心向上的展示姿态开始，缓慢将靠内侧的一只手收向胸前，另一只手继续停留在身前维持托举般的展示轮廓；骗子1保持左侧站位与从容神情，身体由略向同伴和皇帝倾斜逐渐稳定，手势收束到身前。两人之间始终空置，不出现实体布料。皇帝起初仍坐在高背宝座上注视骗子2的双手，随后沿宝座坐面向前调整重心，上身持续前倾，双手分别移近扶手前端，视线逐渐覆盖两名骗子，神情由审视自然转为浓厚兴趣。宫廷总管始终垂手站在台阶侧方，不改变站位，只将谨慎的视线稳定移向皇帝。约从26秒起，摄影机在原有推进中自然收紧群像，使皇帝与两名骗子共同成为清晰主体，同时不改变人物左右关系；最终停在更紧密的低角度群像构图：皇帝坐至宝座前缘并明显前倾，双手靠近扶手前端，骗子1在左侧镇定地将手势收于身前，骗子2在右侧以一手继续展示、另一手靠近胸前，宫廷总管仍位于台阶侧方，宝座和台阶保持可见。"
+        }
+      ],
+      "drop_binding": {
+        "supported": true,
+        "mechanism": "EXISTING_REF2VA_OPTIONAL_IMAGES_0_TO_9",
+        "reference_node_id": "55"
+      },
+      "reference_semantics": "Soft Ref2VA reference conditioning; arrival is an internal target, not frame binding. Catalog facts record original resources, not mandatory full-image outcomes."
+    }
+  },
+  "initial": {
+    "duration": 12.8,
+    "dialogue_events": [
+      {
+        "id": "D7",
+        "speaker": "<Subject 3>",
+        "start_time": 0.1,
+        "end_time": 3.1,
+        "exact_dialogue": "亮得像太阳落在湖面上的光。"
+      },
+      {
+        "id": "D8",
+        "speaker": "<Subject 3>",
+        "start_time": 3.3,
+        "end_time": 7.05,
+        "exact_dialogue": "它的颜色会随着人的动作微微变化。"
+      },
+      {
+        "id": "D9",
+        "speaker": "<Subject 3>",
+        "start_time": 7.25,
+        "end_time": 9.25,
+        "exact_dialogue": "金色之中带着银色。"
+      },
+      {
+        "id": "D10",
+        "speaker": "<Subject 3>",
+        "start_time": 9.45,
+        "end_time": 12.7,
+        "exact_dialogue": "银色之中又仿佛藏着淡淡的红。"
+      }
+    ],
+    "visual_anchors": [],
+    "temporal_anchors": []
+  },
+  "limits": {
+    "minimum": 4.0,
+    "maximum": 15.0,
+    "absolute_maximum": 20.0,
+    "frame_rule": "existing frozen workflow duration-to-frames conversion"
+  }
+}

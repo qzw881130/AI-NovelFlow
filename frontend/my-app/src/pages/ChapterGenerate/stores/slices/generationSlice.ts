@@ -291,7 +291,7 @@ export const createGenerationSlice: StateCreator<
 
   // ========== 视频生成方法 ==========
 
-  generateShotVideo: async (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode, options?: { skipLlmWhenPromptExists?: boolean }) => {
+  generateShotVideo: async (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode, options?: { optimizeH3Prompt?: boolean; skipLlmWhenPromptExists?: boolean }) => {
     const refreshed = await shotsApi.getShot(novelId, chapterId, shotId);
     if (refreshed.success && refreshed.data) {
       set(state => ({
@@ -314,6 +314,7 @@ export const createGenerationSlice: StateCreator<
     try {
       const result = await shotsApi.generateVideo(novelId, chapterId, shotId, {
         selected_mode: selectedMode,
+        optimize_h3_prompt: options?.optimizeH3Prompt ?? false,
         skip_llm_when_prompt_exists: options?.skipLlmWhenPromptExists ?? false,
       });
 

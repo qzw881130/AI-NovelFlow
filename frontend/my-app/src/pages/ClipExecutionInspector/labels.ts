@@ -14,6 +14,7 @@ const en = {
   missingMedia: 'Source video is unavailable. Saved evidence and notes remain readable.', sourceChanged: 'Source changed; this analysis retains its saved evidence.',
   noFrames: 'No available frames', marker: 'Marker', untimed: 'Context / untimed evidence', tail: 'Outside planned duration', zoom: 'Zoom',
   revisionMeaning: 'Director / Shot / Clip semantic revision',
+  contactSheet: 'Contact sheet', close: 'Close', frameNumber: 'Frame', uniformOnly: 'Uniform samples only', zeroBasedFrames: 'Frame numbers start at 0',
   executionMeaning: 'One semantic Revision can have multiple Execution → Video results. The selector chooses a specific execution result.',
   DIALOGUE: 'Dialogue', LIFECYCLE: 'Lifecycle / Action', MOTION: 'Motion', SEMANTIC_KF: 'Semantic Target', PHYSICAL_ANCHOR: 'Physical Anchor', TRANSITION: 'Transition', CAMERA: 'Camera / Visual Direction', HUMAN: 'Human Observation',
 };
@@ -26,6 +27,7 @@ const zh: Labels = {
   browserSeek: '视频定位用于导航；精确帧证据以抽取图片为准。', clip: 'Clip Time · 片段局部时间', native: 'Native Time · 文件时间', planned: '计划时长', replacement: 'Replacement 帧数', nativeFrames: '完整 Native 帧数', latent: '请求 latent 帧数',
   missingMedia: '源视频不可用；已保存的证据和人工标记仍可读取。', sourceChanged: '源数据已改变；此分析保留保存时的证据。', noFrames: '没有可用帧', marker: '人工标记', untimed: '上下文 / 无精确时间证据', tail: '超出计划时长', zoom: '缩放',
   revisionMeaning: 'Director / Shot / Clip 语义修订',
+  contactSheet: '合并帧图', close: '关闭', frameNumber: '帧', uniformOnly: '仅按采样间隔取帧', zeroBasedFrames: '帧号从 0 开始',
   executionMeaning: 'Revision 表示语义修订；同一 Revision 可有多个 Execution → Video。下拉框选择具体执行结果。',
   DIALOGUE: '对白', LIFECYCLE: 'Lifecycle / 角色动作', MOTION: 'Motion / 运动要求', SEMANTIC_KF: 'Semantic Target · 语义 KF', PHYSICAL_ANCHOR: 'Physical Anchor · 物理锚点', TRANSITION: '过渡', CAMERA: 'Camera / 画面要求', HUMAN: '人工观察',
 };

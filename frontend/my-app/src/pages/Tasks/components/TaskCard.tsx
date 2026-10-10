@@ -473,6 +473,8 @@ export function TaskCard({
                     </a>
                   </div>
                 </div>
+              ) : task.type === 'shot_export' ? (
+                <a href={task.resultUrl} download className="text-sm underline inline-flex items-center gap-1">下载生产包</a>
               ) : (
                 <a href={task.resultUrl} target="_blank" rel="noopener noreferrer" className="text-sm underline inline-flex items-center gap-1">
                   {t('tasks.viewResult')}

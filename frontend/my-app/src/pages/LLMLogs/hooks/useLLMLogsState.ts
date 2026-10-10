@@ -3,7 +3,7 @@ import { toast } from '../../../stores/toastStore';
 import { useTranslation } from '../../../stores/i18nStore';
 import { llmLogsApi, LLM_CANCELLED_MESSAGE, type LLMLog, type Pagination, type FilterOptions, type LLMLogFilters, type LLMLogStatsGroupBy, type LLMLogStatsResponse, type LLMLogTokenStatsResponse } from '../../../api/llmLogs';
 
-export type PromptTab = 'params' | 'system' | 'user' | 'response';
+export type PromptTab = 'params' | 'system' | 'user' | 'images' | 'response';
 
 const TASK_CATEGORY_TYPES: Record<string, string[]> = {
   story_context: ['story_world_context_recommender'],
@@ -14,7 +14,7 @@ const TASK_CATEGORY_TYPES: Record<string, string[]> = {
   shot_image: ['shot_image_prompt'],
   video_director: ['video_mode_recommender', 'keyframe_description', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'],
   keyframe_image: ['temporal_reference_selector', 'keyframe_image_prompt'],
-  video_generation: ['expand_video_prompt', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt'],
+  video_generation: ['expand_video_prompt', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt', 'h3_execution_optimizer_prompt'],
 };
 
 const TASK_CATEGORY_OPTIONS = [
@@ -195,7 +195,7 @@ export function useLLMLogsState() {
       keyframe_planner: 'videoDirector', keyframe_transition: 'videoDirector',
       keyframe_image_prompt: 'keyframeImage', temporal_reference_selector: 'keyframeImage',
       clip_execution_planner: 'videoDirector', expand_video_prompt: 'videoGeneration', h3_single_frame_prompt: 'videoGeneration',
-      h3_first_last_frame_prompt: 'videoGeneration', h3_multi_keyframe_prompt: 'videoGeneration',
+      h3_first_last_frame_prompt: 'videoGeneration', h3_multi_keyframe_prompt: 'videoGeneration', h3_execution_optimizer_prompt: 'videoGeneration',
     };
     return type && categories[type]
       ? t(`promptConfig.categories.${categories[type]}`)
@@ -222,6 +222,7 @@ export function useLLMLogsState() {
       h3_single_frame_prompt: t('promptConfig.types.h3SingleFramePrompt'),
       h3_first_last_frame_prompt: t('promptConfig.types.h3FirstLastFramePrompt'),
       h3_multi_keyframe_prompt: t('promptConfig.types.h3MultiKeyframePrompt'),
+      h3_execution_optimizer_prompt: t('promptConfig.types.h3ExecutionOptimizerPrompt'),
     };
     if (!type) return '-';
     return labels[type] || type;
@@ -242,6 +243,11 @@ export function useLLMLogsState() {
     if (status === 'pending') return { bg: 'bg-amber-100', text: 'text-amber-700', label: t('llmLogs.pending') };
     return { bg: 'bg-red-100', text: 'text-red-700', label: t('common.failed') };
   };
+
+  useEffect(() => {
+    const logId = new URLSearchParams(window.location.search).get('logId');
+    if (logId) void llmLogsApi.fetchDetail(logId).then(data => { if (data.success && data.data) setSelectedLog(data.data); }).catch(error => console.error('加载日志详情失败:', error));
+  }, []);
 
   const closeModal = () => { setSelectedLog(null); setActivePromptTab('user'); };
 

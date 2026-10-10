@@ -37,7 +37,7 @@ test('packing deduplicates export and failure preserves the window and selection
   let reject;let count=0;const pending=new Promise((_,no)=>{reject=no;});
   const h=harness(()=>{count++;return pending;});let tree=h.render();
   button(tree,'导出所选内容').props.onClick();button(tree,'导出所选内容').props.onClick();assert.equal(count,1);
-  assert.equal(button(h.render(),'取消').props.disabled,true);
+  assert.equal(button(h.render(),'关闭').props.disabled,undefined);
   reject(new Error('test packing failure'));await settle();tree=h.render();
   assert.equal(h.closed(),0);assert.ok(flatten(tree).filter(node=>node.type==='input').every(node=>node.props.checked));
   assert.equal(text(flatten(tree).find(node=>node.props?.role==='alert')),'test packing failure');

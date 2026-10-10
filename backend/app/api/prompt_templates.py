@@ -54,6 +54,7 @@ PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
         ("h3_single_frame_prompt", "MiniMax H3 单帧视频提示词构建"),
         ("h3_first_last_frame_prompt", "MiniMax H3 首尾帧视频提示词构建"),
         ("h3_multi_keyframe_prompt", "MiniMax H3 多关键帧视频提示词构建"),
+        ("h3_execution_optimizer_prompt", "MiniMax H3 执行提示词优化"),
     ]),
 ]
 

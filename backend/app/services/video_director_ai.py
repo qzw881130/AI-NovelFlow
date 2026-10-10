@@ -1,8 +1,12 @@
 """Helpers for Video Director prompt call records and prompt builders."""
 import json
+import hashlib
+import math
 import re
+from copy import deepcopy
 from datetime import datetime
 from typing import Any, Optional
+from uuid import UUID
 
 from sqlalchemy.orm import Session
 
@@ -438,6 +442,484 @@ def _dialogue_text(dialogue: dict) -> str:
 
 def _dialogue_speaker(dialogue: dict) -> str:
     return str(dialogue.get("character_name") or dialogue.get("speaker") or dialogue.get("character") or "").strip()
+
+
+def timeline_matches_shot_dialogues(timeline: list, dialogues: list) -> bool:
+    """Check L1 identity with the existing ownership validator, without allocation."""
+    from app.services.dialogue_ownership import assign_dialogues_to_clips
+
+    ordered = [(index, item) for index, item in enumerate(dialogues or [])
+               if isinstance(item, dict) and _dialogue_text(item)]
+    ordered.sort(key=lambda pair: (pair[1].get("order") is None, pair[1].get("order", pair[0]), pair[0]))
+    expected_ids = [str(item.get("dialogue_id") or item.get("id") or f"D{order}")
+                    for order, (_, item) in enumerate(ordered, 1)]
+    if not isinstance(timeline, list) or len(timeline) != len(expected_ids):
+        return False
+    if not timeline:
+        return not expected_ids
+    try:
+        previous_end = 0.0
+        for order, (event, event_id) in enumerate(zip(timeline, expected_ids), 1):
+            if not isinstance(event, dict) or str(event.get("id")) != event_id:
+                return False
+            if "speaker" not in event or "text" not in event or event.get("source_order", order) != order:
+                return False
+            start, end = float(event["start_time"]), float(event["end_time"])
+            if not math.isfinite(start) or not math.isfinite(end) or start < previous_end or end <= start:
+                return False
+            previous_end = end
+        _, validation = assign_dialogues_to_clips(
+            dialogues, [{"clip_index": 1, "start_time": 0, "end_time": previous_end}], timeline,
+        )
+        return validation["passed"]
+    except (KeyError, TypeError, ValueError):
+        return False
+
+
+def resolve_canonical_dialogue_timeline(shot, plan: dict | None = None, *, candidate: list | None = None) -> tuple[list, dict]:
+    """Resolve SHOT_SECONDS once; never replace an existing L1 authority by estimates.
+
+    This read is pure. Planning callers persist a first candidate only when saving
+    their new plan and explicitly pass it to subsequent consumers.
+    """
+    plan = plan if plan is not None else safe_json_dict(getattr(shot, "video_director_plan", None))
+    dialogues = safe_json_list(getattr(shot, "dialogues", None))
+    persisted = plan.get("dialogue_timeline_source")
+    if persisted is not None and persisted != []:
+        if not timeline_matches_shot_dialogues(persisted, dialogues):
+            raise ValueError("CANONICAL_DIALOGUE_TIMELINE_INVALID: speaker/text/order/event identity or timing mismatch")
+        status = plan.get("dialogue_timeline_status")
+        if not isinstance(status, dict) or status.get("status") != "ok":
+            status = {"status": "ok", "source": "persisted_official"}
+        return persisted, status
+    if not any(isinstance(item, dict) and _dialogue_text(item) for item in dialogues):
+        return [], plan.get("dialogue_timeline_status") or {"status": "ok"}
+    if candidate is not None:
+        if not timeline_matches_shot_dialogues(candidate, dialogues):
+            raise ValueError("CANONICAL_DIALOGUE_TIMELINE_INVALID")
+        return candidate, {"status": "ok", "source": "resolved_candidate"}
+    ordered = [(index, item) for index, item in enumerate(dialogues) if isinstance(item, dict) and _dialogue_text(item)]
+    ordered.sort(key=lambda pair: (pair[1].get("order") is None, pair[1].get("order", pair[0]), pair[0]))
+    timeline, _, status = build_dialogue_timeline(
+        {"start_time": 0, "end_time": getattr(shot, "duration", None) or 4},
+        [item for _, item in ordered], safe_json_list(getattr(shot, "characters", None)),
+    )
+    for order, (event, (_, dialogue)) in enumerate(zip(timeline, ordered), 1):
+        event["id"] = str(dialogue.get("dialogue_id") or dialogue.get("id") or f"D{order}")
+        event["text"] = str(dialogue.get("text") or dialogue.get("dialogue") or "")
+    if status.get("status") == "ok" and not timeline_matches_shot_dialogues(timeline, dialogues):
+        raise ValueError("CANONICAL_DIALOGUE_TIMELINE_INVALID")
+    return timeline, status
+
+
+def project_resolved_dialogue_timeline(timeline: list, clip: dict, assignments: list) -> list:
+    """Derive clip-local intent from L1, retaining existing segment bookkeeping."""
+    clip_start, clip_end = float(clip.get("start_time") or 0), float(clip["end_time"])
+    by_id = {str(item.get("dialogue_id") or item.get("id")): item for item in assignments or [] if isinstance(item, dict)}
+    projected = []
+    for event in timeline:
+        start, end = max(clip_start, float(event["start_time"])), min(clip_end, float(event["end_time"]))
+        if end <= start:
+            continue
+        event_id = str(event["id"])
+        projected.append({
+            **by_id.get(event_id, {}),
+            "dialogue_id": event_id, "id": event_id,
+            "speaker": event["speaker"], "text": event["text"],
+            "emotion_prompt": event.get("emotion_prompt") or "",
+            "start_time": round(start, 2), "end_time": round(end, 2),
+            "local_start_time": round(start - clip_start, 2), "local_end_time": round(end - clip_start, 2),
+            "projection_mode": "intersection", "dialogue_timing_source": "official_projection",
+            "is_continuation": start > float(event["start_time"]) + 1e-6,
+            "continues_in_next_clip": end < float(event["end_time"]) - 1e-6,
+        })
+    return projected
+
+
+def build_execution_intent_metadata(timeline: list, clip: dict) -> dict:
+    """Optional L3 observability. L1 text/speaker/order/shot timing remain HARD."""
+    canonical = [{key: event[key] for key in ("id", "speaker", "text", "start_time", "end_time")} for event in timeline]
+    digest = hashlib.sha256(json.dumps(canonical, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    projected = project_resolved_dialogue_timeline(timeline, clip, [])
+    return {
+        "execution_intent": {
+            "version": 1,
+            "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+            "canonical_timeline_sha256": digest,
+            "canonical_time_base": "SHOT_SECONDS",
+            "time_base": "CLIP_LOCAL_SECONDS",
+            "events": [{"dialogue_id": item["dialogue_id"], "intended_window": {
+                "start": item["local_start_time"], "end": item["local_end_time"],
+            }} for item in projected],
+            "timing_reliability": "soft",
+            "speaker_realization_reliability": "soft",
+            "visual_support_status": "unknown",
+        },
+        # Operational APPROVED does not imply dialogue realization QA.
+        "realization_review": "unreviewed",
+    }
+
+
+DIALOGUE_VISUAL_INTENT_SECTION = "dialogue_visual_guidance"
+DIALOGUE_VISUAL_INTENT_RULE = (
+    "dialogue_visual_intents are soft visual execution guidance, separate from canonical speech authority. "
+    "Support the referenced canonical speaker's visual participation within the authored composition so the "
+    "speaking action remains visually attributable. Preserve shared/reaction composition, the existing reaction "
+    "subject, attention handoffs, continuity and camera design. Background participation, two-shots and "
+    "over-the-shoulder framing remain valid. This guidance adds no primary-subject, close-up, centering, "
+    "exclusive-focus or camera-cut requirement, and no new dialogue, speaker or timing authority. "
+    "Visibility, face/mouth readability, lip ownership and actual realization remain unknown. "
+    "Do not output or redefine dialogue_visual_guidance; the shared compiler supplies that section."
+)
+
+
+def validate_dialogue_visual_intent(clip: dict, timeline: list, plan: dict) -> dict | None:
+    """Validate an optional #10A judgment; never infer it from coverage or roles."""
+    if "dialogue_visual_intent" not in clip:
+        return None
+    value = clip["dialogue_visual_intent"]
+    if (not isinstance(value, dict) or set(value) != {"version", "mode", "events"}
+            or type(value.get("version")) is not int or value["version"] != 1
+            or value.get("mode") != "soft" or not isinstance(value.get("events"), list)):
+        raise ValueError("DIALOGUE_VISUAL_INTENT_SCHEMA_INVALID")
+    canonical = {event["id"]: event for event in timeline}
+    owned = {event["dialogue_id"] for event in project_resolved_dialogue_timeline(timeline, clip, [])}
+    catalog = (plan.get("visual_attention") or {}).get("character_catalog") or []
+    pairs = set()
+    for entry in catalog:
+        if not isinstance(entry, dict) or not isinstance(entry.get("character_name"), str):
+            continue
+        try:
+            uid = str(UUID(entry["character_id"]))
+        except (ValueError, TypeError, KeyError, AttributeError):
+            continue
+        pairs.add((entry["character_name"], uid))
+    seen = set()
+    for event in value["events"]:
+        if not isinstance(event, dict) or not isinstance(event.get("intent"), str) or event["intent"] not in {
+            "SUPPORT_SPEAKER_PARTICIPATION", "PRESERVE_EXISTING",
+        }:
+            raise ValueError("DIALOGUE_VISUAL_INTENT_ENUM_INVALID")
+        support = event["intent"] == "SUPPORT_SPEAKER_PARTICIPATION"
+        required = {"dialogue_id", "intent"} | ({"target_character_id"} if support else set())
+        if set(event) != required:
+            raise ValueError("DIALOGUE_VISUAL_INTENT_EVENT_SCHEMA_INVALID")
+        dialogue_id = event["dialogue_id"]
+        if not isinstance(dialogue_id, str) or dialogue_id not in canonical:
+            raise ValueError("DIALOGUE_VISUAL_INTENT_DIALOGUE_UNKNOWN")
+        if dialogue_id not in owned:
+            raise ValueError("DIALOGUE_VISUAL_INTENT_OUTSIDE_CLIP")
+        if dialogue_id in seen:
+            raise ValueError("DIALOGUE_VISUAL_INTENT_DUPLICATE")
+        seen.add(dialogue_id)
+        if support:
+            target = event["target_character_id"]
+            try:
+                valid_uuid = isinstance(target, str) and str(UUID(target)) == target
+            except ValueError:
+                valid_uuid = False
+            if not valid_uuid or target not in {uid for _, uid in pairs}:
+                raise ValueError("DIALOGUE_VISUAL_INTENT_TARGET_UNRESOLVED")
+            speaker = canonical[dialogue_id]["speaker"]
+            matches = {uid for name, uid in pairs if name == speaker or uid == speaker}
+            if matches != {target}:
+                raise ValueError("DIALOGUE_VISUAL_INTENT_SPEAKER_TARGET_MISMATCH")
+    return deepcopy(value)
+
+
+def executable_dialogue_visual_intents(clip: dict, timeline: list, plan: dict) -> list:
+    """The minimal H3 whitelist: explicit no-ops have no execution projection."""
+    value = validate_dialogue_visual_intent(clip, timeline, plan)
+    return [event for event in (value or {}).get("events", [])
+            if event["intent"] == "SUPPORT_SPEAKER_PARTICIPATION"]
+
+
+def render_dialogue_visual_guidance(intents: list, projected_dialogues: list, catalog: list, subjects: dict) -> str:
+    """Join canonical Clip-local windows and existing Subject bindings, without replanning."""
+    if not intents:
+        return ""
+    events = {event["dialogue_id"]: event for event in projected_dialogues}
+    lines = [f"{DIALOGUE_VISUAL_INTENT_SECTION}:", "Soft visual participation guidance; canonical speech authority remains unchanged."]
+    for intent in intents:
+        event = events[intent["dialogue_id"]]
+        names = {entry["character_name"] for entry in catalog
+                 if entry["character_id"] == intent["target_character_id"]}
+        tokens = {subjects[name] for name in names if name in subjects}
+        if len(tokens) != 1:
+            raise ValueError("DIALOGUE_VISUAL_INTENT_SUBJECT_UNRESOLVED")
+        subject = next(iter(tokens))
+        start, end = event["local_start_time"], event["local_end_time"]
+        lines.append(
+            f"{intent['dialogue_id']} ({start:.2f}–{end:.2f}s, canonical Clip-local projection): "
+            f"Support {subject}'s visual participation in the authored composition for visual attribution of "
+            "the canonical speaking action. Preserve shared/reaction composition and the existing reaction "
+            "subject, attention handoffs, continuity and camera design; background participation, two-shots "
+            "and over-the-shoulder framing remain valid. This adds no primary-subject, close-up, centering, "
+            "exclusive-focus or camera-cut requirement and no full-interval occupancy requirement. "
+            "Actual visibility, face/mouth readability, lip ownership and realization remain unknown."
+        )
+    return "\n".join(lines)
+
+
+def read_execution_semantics(metadata: dict | None) -> dict:
+    """Read old Clip/Task JSON without migration, mutation, or inferred QA PASS."""
+    metadata = metadata or {}
+    intent = metadata.get("execution_intent")
+    evidence = metadata.get("visual_support_evidence")
+    return {
+        "execution_intent": intent if isinstance(intent, dict) else {
+            "version": "legacy", "canonical_timeline_source": "unknown",
+            "canonical_timeline_sha256": None, "time_base": "unknown", "events": [],
+            "timing_reliability": "unknown", "speaker_realization_reliability": "unknown",
+            "visual_support_status": "unknown",
+        },
+        "realization_review": metadata.get("realization_review") or "unreviewed",
+        "visual_support_evidence": evidence if isinstance(evidence, dict) else {
+            "version": "legacy", "status": "unknown", "basis": "unknown", "events": [],
+        },
+    }
+
+
+def _dialogue_attention_evidence(projection: dict, character_id: str | None, start: float, end: float) -> dict:
+    """Interval coverage and listed UUID roles, never an alignment/quality score."""
+    overlaps, uncovered = [], []
+    cursor = start
+    known = projection.get("status") in {"VALID", "EMPTY", "NO_CLIP_INTERSECTION"}
+    for window in projection.get("windows") or []:
+        left, right = max(start, window["start_time_seconds"]), min(end, window["end_time_seconds"])
+        if left >= right:
+            continue
+        handoff = window.get("handoff") or {}
+        directions = [key for key in ("from", "to") if character_id and character_id in handoff.get(key, [])]
+        roles = []
+        if character_id is None:
+            roles = ["unresolved"]
+        else:
+            for key, role in (("primary_subjects", "primary"), ("background_motion_subjects", "background_motion")):
+                if character_id in window.get(key, []):
+                    roles.append(role)
+            if directions:
+                roles.append("handoff_participant")
+            if not roles:
+                roles = ["not_listed"]
+        overlaps.append({
+            "window_id": f"visual_attention.windows[{window['source_window_index']}]",
+            "interval": {"start": round(left, 6), "end": round(right, 6)},
+            "roles": roles, "handoff_directions": directions,
+        })
+        if left > cursor:
+            uncovered.append({"start": round(cursor, 6), "end": round(left, 6)})
+        cursor = max(cursor, right)
+    if known and cursor < end:
+        uncovered.append({"start": round(cursor, 6), "end": round(end, 6)})
+    duration = sum(item["interval"]["end"] - item["interval"]["start"] for item in overlaps)
+    return {
+        "source_status": projection["status"], "overlaps": overlaps,
+        "speaker_identity_status": "resolved" if character_id else "unresolved",
+        "coverage_duration": round(duration, 6) if known else None,
+        "coverage_ratio": round(duration / (end - start), 6) if known else None,
+        "uncovered_intervals": uncovered if known else [],
+        "handoff_overlap": any(item["handoff_directions"] for item in overlaps),
+    }
+
+
+def build_dialogue_visual_support_evidence(timeline: list, clip: dict, plan: dict, *,
+                                         reference_manifest: dict | None = None,
+                                         temporal_anchors: list | None = None,
+                                         subject_bindings: list | None = None) -> dict:
+    """Read-only PLANNED_METADATA joins. No observed pixels, scoring or decisions.
+
+    States remain point-in-time canonical states, not invented held intervals.
+    Only the selected Clip's manifests/anchors are inputs; adjacency is association,
+    never proof that a speaker is visible or that H3 will realize the dialogue.
+    """
+    def number(value):
+        try:
+            parsed = float(value)
+            return parsed if math.isfinite(parsed) else None
+        except (TypeError, ValueError):
+            return None
+
+    def identity(value):
+        try:
+            return str(UUID(value)) if isinstance(value, str) else None
+        except ValueError:
+            return None
+
+    start, end = float(clip.get("start_time") or 0), float(clip["end_time"])
+    projection = project_visual_attention(plan.get("visual_attention"), start, end)
+    catalog = projection.get("character_catalog") or []
+    bindings = subject_bindings if isinstance(subject_bindings, list) else []
+    reference_manifest = reference_manifest if isinstance(reference_manifest, dict) else {}
+    pairs = {(item.get("character_name"), identity(item.get("character_id")))
+             for item in catalog + bindings if isinstance(item, dict)}
+    pairs = {(name, uid) for name, uid in pairs if isinstance(name, str) and uid}
+
+    def resolve(value):
+        if value in {uid for _, uid in pairs}:
+            return value
+        matches = {uid for name, uid in pairs if name == value}
+        return next(iter(matches)) if len(matches) == 1 else None
+
+    states = []
+    for state in plan.get("keyframes") or []:
+        if not isinstance(state, dict):
+            continue
+        time = number(state.get("time_seconds"))
+        index = state.get("index")
+        if time is not None and type(index) is int:
+            states.append((time, index, state))
+    states.sort(key=lambda item: (item[0], item[1]))  # Existing chronological identity, not a quality ranking.
+    state_times = {index: time for time, index, _ in states}
+    references = (reference_manifest or {}).get("references")
+    refs = [item for item in references or [] if isinstance(item, dict)] if isinstance(references, list) else []
+    complete = (type((reference_manifest or {}).get("version")) is int
+                and reference_manifest["version"] == 1 and isinstance(references, list)
+                and len(refs) == len(references)
+                and all(type(ref.get("slot")) is int and ref["slot"] == slot
+                        and ref.get("kind") in {"DIRECTOR_VISUAL_ANCHOR", "CHARACTER_IDENTITY", "SCENE", "PROP"}
+                        for slot, ref in enumerate(refs, 1)))
+
+    def reference_identity(ref):
+        source = ref.get("source_identity")
+        return identity(ref.get("source_id") or (source.get("asset_id") if isinstance(source, dict) else source))
+
+    if any(ref.get("kind") == "CHARACTER_IDENTITY" and not reference_identity(ref) for ref in refs):
+        complete = False
+
+    def associations(items, left, right, *, temporal=False):
+        records = []
+        for ref in items:
+            source = ref.get("source") if isinstance(ref.get("source"), dict) else {}
+            index = source.get("keyframe_index") if temporal else ref.get("source_keyframe_index")
+            time = number(ref.get("time_seconds") if temporal else ref.get("source_time_seconds"))
+            if not temporal:
+                time = time if time is not None else state_times.get(index)
+                time = time - start if time is not None else None
+            relation = "unknown" if time is None else "before" if time < left else "after" if time > right else "inside"
+            distance = None if time is None else round(max(left - time, time - right, 0), 6)
+            records.append({
+                "reference_id": str(ref["anchor_id"]) if temporal else f"ordinary:slot:{ref['slot']}" if type(ref.get("slot")) is int else None,
+                "reference_type": "TEMPORAL_ANCHOR" if temporal else "DIRECTOR_VISUAL_ANCHOR",
+                "source_state_id": f"KF{index}" if index is not None else source.get("id") or None,
+                "slot": ref.get("slot"), "time_relationship": relation, "distance_seconds": distance,
+            })
+        distances = [item["distance_seconds"] for item in records if item["distance_seconds"] is not None]
+        for item in records:
+            item["nearest"] = item["distance_seconds"] == min(distances) if distances and item["distance_seconds"] is not None else None
+        return records
+
+    events = []
+    for event in project_resolved_dialogue_timeline(timeline, clip, clip.get("dialogue_assignment") or []):
+        left, right = event["local_start_time"], event["local_end_time"]
+        shot_left, shot_right = left + start, right + start
+        uid = resolve(event["speaker"])
+        subjects = {item.get("subject") for item in bindings if isinstance(item, dict)
+                    and identity(item.get("character_id")) == uid and item.get("subject")}
+        before = [item for item in states if item[0] < shot_left]
+        inside = [item for item in states if shot_left <= item[0] <= shot_right]
+        after = [item for item in states if item[0] > shot_right]
+        related = (before[-1:] + inside + after[:1])
+        distances = [max(shot_left - time, time - shot_right, 0) for time, _, _ in related]
+        state_records = []
+        for time, index, state in related:
+            members = state.get("characters", state.get("Characters"))
+            basis = "structured_characters"
+            if not isinstance(members, list):
+                members = _canonical_body_membership(state)
+                basis = "canonical_Characters_block" if members is not None else "unknown"
+            resolved_members = []
+            for member in members if members is not None else []:
+                token = (member.get("character_id") or member.get("character_name")) if isinstance(member, dict) else member
+                resolved_members.append(resolve(token) if isinstance(token, str) else None)
+            membership = "unknown"
+            if uid and members is not None:
+                if uid in resolved_members:
+                    membership = "present"
+                elif None not in resolved_members:
+                    membership = "absent_from_planned_membership"
+            state_records.append({
+                "state_id": f"KF{index}", "time_relationship": "before" if time < shot_left else "after" if time > shot_right else "inside",
+                "scope": "owned" if index in (clip.get("visual_state_indexes") or []) else "carry_in" if index == clip.get("carry_in_state_index") else "shot_context",
+                "planned_speaker_membership": membership, "membership_basis": basis,
+            })
+        matching_refs = [ref for ref in refs if uid and ref.get("kind") == "CHARACTER_IDENTITY" and reference_identity(ref) == uid]
+        selected_anchors = [a for a in temporal_anchors or [] if isinstance(a, dict)
+                            and a.get("anchor_id") in (clip.get("temporal_anchor_ids") or [])]
+        events.append({
+            "dialogue_id": event["dialogue_id"], "segment_index": event.get("segment_index"),
+            "resolved_character": {"status": "resolved" if uid else "unresolved", "character_id": uid,
+                                   "subject": next(iter(subjects)) if uid and len(subjects) == 1 else None},
+            "attention": _dialogue_attention_evidence(projection, uid, left, right),
+            "visual_states": {
+                "before_state_id": f"KF{before[-1][1]}" if before else None,
+                "inside_state_ids": [f"KF{index}" for _, index, _ in inside],
+                "after_state_id": f"KF{after[0][1]}" if after else None,
+                "nearest_state_ids": [f"KF{index}" for (time, index, _), distance in zip(related, distances) if distance == min(distances)],
+                "states": state_records,
+            },
+            "anchors": {
+                "ordinary_visual": associations([r for r in refs if r.get("kind") == "DIRECTOR_VISUAL_ANCHOR"], left, right),
+                "temporal": associations(selected_anchors, left, right, temporal=True),
+            },
+            "identity_reference": {"available": bool(matching_refs) if complete and uid else "unknown",
+                                   "reference_ids": [f"ordinary:slot:{ref.get('slot')}" for ref in matching_refs]},
+            "speaker_visibility": "unknown", "face_readability": "unknown",
+            "mouth_readability": "unknown", "competing_face_salience": "unknown",
+        })
+    return {
+        "version": 1, "basis": "PLANNED_METADATA", "status": "derived", "time_base": "CLIP_LOCAL_SECONDS",
+        "events": events,
+        "reference_summary": {"manifest_status": "complete" if complete else "unknown",
+                              "scene_prop_references": [{"reference_id": f"ordinary:slot:{ref.get('slot')}",
+                                                         "reference_type": ref["kind"]} for ref in refs if ref.get("kind") in {"SCENE", "PROP"}]},
+    }
+
+
+def build_dialogue_visual_planning_context(timeline: list, plan: dict, duration: float) -> dict:
+    """PRE_PLANNING projection of the B1 core, without future Clip/manifest facts.
+
+    The whole-Shot extent supplies SHOT_SECONDS associations, not proposed Clips.
+    Only upstream attention and states are read; historical Clip selections,
+    compiled slots and Subject/Picture bindings cannot enter this projection.
+    """
+    upstream = {key: plan.get(key) for key in ("visual_attention", "keyframes")}
+    core = build_dialogue_visual_support_evidence(
+        timeline, {"start_time": 0, "end_time": duration}, upstream,
+    )
+    projection = project_visual_attention(upstream["visual_attention"], 0, duration)
+    windows = {f"visual_attention.windows[{w['source_window_index']}]": w for w in projection["windows"]}
+    canonical = {str(e.get("dialogue_id") or e.get("id")): e for e in timeline}
+    events = []
+    for evidence in core["events"]:
+        event = canonical[evidence["dialogue_id"]]
+        attention = evidence["attention"]
+        for overlap in attention["overlaps"]:
+            window = windows[overlap["window_id"]]
+            overlap.update({key: deepcopy(window.get(key, [] if key != "handoff" else {}))
+                            for key in ("primary_subjects", "background_motion_subjects", "handoff")})
+        known = (attention["source_status"] in {"VALID", "EMPTY", "NO_CLIP_INTERSECTION"},
+                 bool(evidence["visual_states"]["states"]),
+                 evidence["resolved_character"]["status"] == "resolved")
+        events.append({
+            "dialogue_id": evidence["dialogue_id"],
+            # Read-only reference to L1; no text copy or output authority.
+            "canonical_reference": {"speaker": event["speaker"],
+                                    "intended_window": {"start": event["start_time"], "end": event["end_time"]}},
+            "source_status": "available" if all(known) else "partial" if any(known) else "unknown",
+            "resolved_character": {key: evidence["resolved_character"][key] for key in ("status", "character_id")},
+            "attention": attention, "visual_states": evidence["visual_states"],
+            "identity_reference": {"available": "unknown", "source_status": "unavailable_at_planning"},
+            "anchor_evidence": {"source_status": "unavailable_at_planning"},
+            **{key: evidence[key] for key in ("speaker_visibility", "face_readability", "mouth_readability", "competing_face_salience")},
+        })
+    statuses = {e["source_status"] for e in events}
+    return {
+        "version": 1, "basis": "PLANNED_METADATA", "phase": "PRE_PLANNING", "time_base": "SHOT_SECONDS",
+        "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+        "source_status": "available" if not statuses or statuses == {"available"} else "unknown" if statuses == {"unknown"} else "partial",
+        "character_catalog": projection["character_catalog"], "events": events,
+    }
 
 
 def align_clip_boundaries_to_dialogue_gaps(
@@ -1247,6 +1729,7 @@ async def build_h3_video_prompt(
     previous_av_present: bool = False,
     current_visual_state: Optional[dict] = None,
     visual_attention: Optional[dict] = None,
+    resolved_dialogue_timeline: Optional[list] = None,
 ) -> str:
     require_current_attention_transitions(safe_json_dict(shot.video_director_plan), clip)
     canonical_path = isinstance(clip, dict) and "visual_state_indexes" in clip
@@ -1341,6 +1824,12 @@ async def build_h3_video_prompt(
         )
         if canonical_path else []
     )
+    if resolved_dialogue_timeline is None:
+        plan = safe_json_dict(shot.video_director_plan)
+        if plan.get("dialogue_timeline_source"):
+            resolved_dialogue_timeline, _ = resolve_canonical_dialogue_timeline(shot, plan)
+    if resolved_dialogue_timeline is not None:
+        clip_dialogues = project_resolved_dialogue_timeline(resolved_dialogue_timeline, clip, clip_dialogues)
     is_multi_clip = route in {"endpoint", "multi"}
     is_semantic_clip = bool(clip_dialogues and any(isinstance(item, dict) and item.get("dialogue_id") for item in clip_dialogues))
     shot_characters = safe_json_list(shot.characters)
@@ -1377,6 +1866,14 @@ async def build_h3_video_prompt(
         safe_json_dict(shot.video_director_plan), clip, shot_characters,
         keyframes=sanitized_keyframes, transitions=sanitized_transitions,
         manifest=video_reference_manifest, duration=shot.duration or 4,
+    )
+    dialogue_visual_intents = executable_dialogue_visual_intents(
+        clip, resolved_dialogue_timeline or [], safe_json_dict(shot.video_director_plan),
+    )
+    visual_guidance = render_dialogue_visual_guidance(
+        dialogue_visual_intents, clip_dialogues,
+        (safe_json_dict(shot.video_director_plan).get("visual_attention") or {}).get("character_catalog") or [],
+        _subject_bindings("", clip_visible_characters),
     )
     payload = {
         "shot": {
@@ -1443,6 +1940,7 @@ async def build_h3_video_prompt(
         **({"visual_attention_timeline": {key: attention[key] for key in (
             "version", "time_base", "windows", "characters",
         )}} if attention["status"] == "VALID" else {}),
+        **({"dialogue_visual_intents": dialogue_visual_intents} if dialogue_visual_intents else {}),
         "workflow_capability": strip_media_refs(workflow_capability),
         "workflow_type": workflow_type,
         "workflow_name": workflow_name,
@@ -1458,7 +1956,7 @@ async def build_h3_video_prompt(
             f"{template.template}\n\n{_canonical_picture_mapping_contract()}\n\n{_canonical_speech_contract()}\n\n{_canonical_section_ownership_contract()}\n\n"
             "reference_binding_contract is deterministic compiler authority. Keep Subject definitions and visual actions consistent with it. Do not output or redefine reference_authority, character_identity_binding, existing_body_binding, initial_body_binding or motion_ownership sections; the compiler supplies them."
             if canonical_path else (f"{template.template}\n\n{ATTENTION_RULE}" if attention["status"] == "VALID" else template.template)
-        ),
+        ) + (f"\n\n{DIALOGUE_VISUAL_INTENT_RULE}" if dialogue_visual_intents else ""),
         user_content=user_content,
         temperature=0.3,
         max_tokens=1800,
@@ -1485,6 +1983,11 @@ async def build_h3_video_prompt(
         raise RuntimeError(result.get("error") or "H3 视频提示词生成失败")
 
     final_prompt = (result.get("content") or "").strip()
+    if dialogue_visual_intents:
+        final_prompt = re.sub(
+            r"(?ms)^dialogue_visual_guidance:[ \t]*\n.*?(?=^[a-z][a-z_]*:[ \t]*(?:\n|$)|\Z)",
+            "", final_prompt,
+        ).rstrip()
     # Remove only a model-redefined attention block before the existing audits;
     # preserve the raw response in the AI call and compile the owner block last.
     final_prompt = compile_visual_attention(final_prompt, {"status": "ABSENT"})
@@ -1555,6 +2058,8 @@ async def build_h3_video_prompt(
             if re.search(r"(?m)^(?:reference_authority|character_identity_binding|existing_body_binding|initial_body_binding|motion_ownership):\s*$", final_prompt):
                 raise ValueError("H3_REFERENCE_BINDING_SECTION_REDEFINED")
             final_prompt = f"{final_prompt}\n\n{binding_section}"
+    if visual_guidance:
+        final_prompt = f"{final_prompt}\n\n{visual_guidance}"
     final_prompt = compile_visual_attention(final_prompt, attention)
     append_video_ai_call(shot, {
         "step": step,

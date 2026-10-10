@@ -15,7 +15,7 @@ KEYFRAME_IMAGE_FILE = "09_NovelFlow_QwenEdit2511_KeyframeImagePrompt_V1.txt"
 KEYFRAME_IMAGE_SHA256 = "3164a133b38f671feafbd0a43f5d2c885193854bbb5ac057ded4b1b65f4f8e8a"
 TRANSITION_FILE = "10_NovelFlow_KeyframeTransition_Planner_V1.txt"
 CLIP_PLANNER_FILE = "10A_NovelFlow_ClipExecutionPlanner_V1.txt"
-CLIP_PLANNER_SHA256 = "ad67e809352bd9bee40beba3c3004598c5c85e05d4c4240307d845845a3a5c43"
+CLIP_PLANNER_SHA256 = "841e1e6c7f57f4c633228f7d9a1b75309aae8839b7c072b19afc758fd4237170"
 CLIP_BOUNDARY_CONTRACT_RULES = (
     "Tolerance is `0.05` seconds",
     "compare decimal times as written, without rounding",

@@ -326,6 +326,8 @@ export default {
       h3SingleFramePromptDesc: '用于构建 MiniMax H3 单帧图生视频最终提示词',
       h3FirstLastFramePrompt: 'MiniMax H3 首尾帧视频提示词构建',
       h3FirstLastFramePromptDesc: '用于构建 MiniMax H3 首尾帧视频最终提示词',
+      h3ExecutionOptimizerPrompt: 'MiniMax H3 执行提示词优化',
+      h3ExecutionOptimizerPromptDesc: '基于视觉输入优化 H3 执行表达，保留导演意图与局部说话人归属',
       h3MultiKeyframePrompt: 'MiniMax H3 多关键帧视频提示词构建',
       h3MultiKeyframePromptDesc: '用于构建 MiniMax H3 多关键帧视频最终提示词',
     },

@@ -15,6 +15,7 @@ from app.models.task import Task
 from app.services.file_storage import file_storage
 from app.services.clip_execution_compiler import TEMPORAL_DECISION_CONTRACT, EARLY_COMPOSITION_CONTRACT
 from app.services.shot_video_service import validate_semantic_clip_artifact
+from app.services.continuous_clip_av import cache_export_av_probes
 from app.utils.path_utils import url_to_local_path
 
 
@@ -534,6 +535,7 @@ def _write_resources(
     return result
 
 
+@cache_export_av_probes
 def build_shot_production_package(
     archive: ZipFile,
     db: Session,
@@ -541,6 +543,7 @@ def build_shot_production_package(
     chapter,
     shot,
     included_sections: set[str] | None = None,
+    progress_callback=None,
 ) -> dict:
     """Write a canonical Shot production package and return its manifest."""
     from app.services.shot_export_selection import SHOT_EXPORT_SECTIONS, SelectedShotArchive
@@ -573,6 +576,8 @@ def build_shot_production_package(
     revision = int(plan.get("clip_plan_revision") or 0)
     execution_clips = clips if sections & {"clip_videos", "final_video", "reference_images", "prompts", "workflows"} else []
     for position, clip in enumerate(execution_clips, 1):
+        if progress_callback:
+            progress_callback(position - 1, len(execution_clips))
         clip_index = int(clip.get("clip_index") or position)
         task, metadata, _, error, previous = _resolve_current_clip(db, novel.id, chapter.id, shot, plan, clip)
         record = _clip_summary(clip)
@@ -626,6 +631,9 @@ def build_shot_production_package(
         else:
             _warning(warnings, record["artifact"]["reason"], f"clip:{clip_index}")
         execution_records.append(record)
+
+    if progress_callback:
+        progress_callback(len(execution_clips), len(execution_clips))
 
     final_assembly = _final_assembly(
         archive, added, novel.id, shot, plan, execution_records,

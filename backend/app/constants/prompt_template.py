@@ -52,6 +52,7 @@ class PromptTemplateType:
     H3_FIRST_LAST_FRAME_PROMPT = "h3_first_last_frame_prompt"
     # MiniMax H3 多关键帧视频提示词
     H3_MULTI_KEYFRAME_PROMPT = "h3_multi_keyframe_prompt"
+    H3_EXECUTION_OPTIMIZER_PROMPT = "h3_execution_optimizer_prompt"
 
 
 # 所有提示词模板类型列表（按使用顺序排列）
@@ -78,6 +79,7 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.H3_SINGLE_FRAME_PROMPT,
     PromptTemplateType.H3_FIRST_LAST_FRAME_PROMPT,
     PromptTemplateType.H3_MULTI_KEYFRAME_PROMPT,
+    PromptTemplateType.H3_EXECUTION_OPTIMIZER_PROMPT,
 ]
 
 
@@ -232,6 +234,13 @@ PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
         "icon": "Video",
         "color": "rose",
         "file_number": "13",
+    },
+    PromptTemplateType.H3_EXECUTION_OPTIMIZER_PROMPT: {
+        "name_key": "promptConfig.types.h3ExecutionOptimizerPrompt",
+        "desc_key": "promptConfig.types.h3ExecutionOptimizerPromptDesc",
+        "icon": "Video",
+        "color": "rose",
+        "file_number": "14",
     },
 }
 

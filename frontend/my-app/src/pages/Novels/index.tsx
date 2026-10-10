@@ -66,6 +66,7 @@ export default function Novels() {
     h3SingleFramePromptTemplateId: '',
     h3FirstLastFramePromptTemplateId: '',
     h3MultiKeyframePromptTemplateId: '',
+    h3ExecutionOptimizerPromptTemplateId: '',
     aspectRatio: '16:9'
   });
   const [storyContextNovel, setStoryContextNovel] = useState<(typeof novels)[number] | null>(null);
@@ -96,6 +97,7 @@ export default function Novels() {
       h3SingleFramePromptTemplateId: '',
       h3FirstLastFramePromptTemplateId: '',
       h3MultiKeyframePromptTemplateId: '',
+      h3ExecutionOptimizerPromptTemplateId: '',
       aspectRatio: '16:9'
     });
   };
@@ -125,6 +127,7 @@ export default function Novels() {
       h3SingleFramePromptTemplateId: editingNovel.h3SingleFramePromptTemplateId,
       h3FirstLastFramePromptTemplateId: editingNovel.h3FirstLastFramePromptTemplateId,
       h3MultiKeyframePromptTemplateId: editingNovel.h3MultiKeyframePromptTemplateId,
+      h3ExecutionOptimizerPromptTemplateId: editingNovel.h3ExecutionOptimizerPromptTemplateId,
       aspectRatio: editingNovel.aspectRatio,
     });
     setEditingNovel(null);

@@ -1,3 +1,23 @@
+export interface LLMImageInput {
+  request_order: number;
+  logical_id: string;
+  reference_type?: string;
+  role?: string;
+  binding?: string;
+  source_path?: string;
+  source_asset_id?: string;
+  source_dimensions?: number[];
+  submitted_dimensions?: number[];
+  mime_type?: string;
+  is_proxy?: boolean;
+  size_bytes?: number;
+  sha256?: string;
+  request_id?: string;
+  submitted_url?: string | null;
+  status?: string;
+  unavailable_reason?: string;
+}
+
 /**
  * LLM 日志相关 API
  */
@@ -19,6 +39,7 @@ export interface LLMLog {
   system_prompt: string | null;
   user_prompt: string;
   request_info?: string | null;
+  image_inputs?: LLMImageInput[];
   response: string | null;
   status: 'pending' | 'success' | 'error';
   error_message: string | null;

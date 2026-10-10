@@ -6,6 +6,8 @@
 import json
 import os
 import random
+import hashlib
+import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -20,7 +22,14 @@ from app.services.file_storage import file_storage
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.repositories.shot_repository import ShotRepository
 from app.services.background_workers import persistent_job, worker_manager
-from app.services.video_director_ai import build_h3_video_prompt, safe_json_dict, safe_json_list, prepare_clip_visual_attention
+from app.services.video_director_ai import (
+    build_h3_video_prompt, safe_json_dict, safe_json_list, prepare_clip_visual_attention,
+    resolve_canonical_dialogue_timeline, project_resolved_dialogue_timeline,
+    build_execution_intent_metadata,
+    build_dialogue_visual_support_evidence,
+    executable_dialogue_visual_intents, render_dialogue_visual_guidance,
+    _subject_bindings, _clip_visible_characters,
+)
 from app.services.visual_attention import (
     execution_attention_snapshot, prompt_projection_metadata, reusable_attention_prompt,
     require_current_attention_transitions,
@@ -350,7 +359,7 @@ def _clip_dialogues_for_prompt(dialogues: list, clip: dict, shot_duration: float
     return selected
 
 
-def _semantic_clip_prompt_context(video_director_plan: dict, clip_metadata: dict) -> dict:
+def _semantic_clip_prompt_context(video_director_plan: dict, clip_metadata: dict, *, resolved_dialogue_timeline: list | None = None) -> dict:
     """Keep semantic Clip identity and project its official dialogue into Clip-local time."""
     try:
         clip_index = int(clip_metadata.get("clip_index"))
@@ -363,6 +372,9 @@ def _semantic_clip_prompt_context(video_director_plan: dict, clip_metadata: dict
     if not semantic_clip:
         raise ValueError("semantic Clip 不存在")
     clip = dict(semantic_clip)
+    compiled_intent = (clip_metadata.get("execution_contract") or {}).get("dialogue_visual_intent")
+    if compiled_intent is not None:
+        clip["dialogue_visual_intent"] = compiled_intent
     clip_start = _to_float_or_none(clip.get("start_time"))
     clip_end = _to_float_or_none(clip.get("end_time"))
     if clip_start is None or clip_end is None or clip_end <= clip_start:
@@ -373,6 +385,11 @@ def _semantic_clip_prompt_context(video_director_plan: dict, clip_metadata: dict
         if "dialogue_assignment" in clip_metadata
         else semantic_clip.get("dialogue_assignment") or []
     )
+    timeline = resolved_dialogue_timeline
+    if timeline is None and isinstance(video_director_plan.get("dialogue_timeline_source"), list):
+        timeline = video_director_plan["dialogue_timeline_source"]
+    if timeline is not None:
+        source_dialogues = project_resolved_dialogue_timeline(timeline, clip, source_dialogues)
     projected_dialogues = []
     for dialogue in source_dialogues:
         if not isinstance(dialogue, dict):
@@ -424,13 +441,14 @@ def _select_video_prompt_context(
     selected_mode: str,
     duration: float,
     clip_only_execution: bool,
+    *, resolved_dialogue_timeline: list | None = None,
 ) -> dict:
     """Select the prompt context used by the worker for semantic or legacy clips."""
     window_plans = video_director_plan.get("window_plans") if isinstance(video_director_plan.get("window_plans"), list) else []
     clip = (video_director_plan.get("clips") or [{}])[0] if isinstance(video_director_plan.get("clips"), list) else {}
     semantic_context = None
     if clip_metadata and clip_metadata.get("execution_scope") == "CLIP":
-        semantic_context = _semantic_clip_prompt_context(video_director_plan, clip_metadata)
+        semantic_context = _semantic_clip_prompt_context(video_director_plan, clip_metadata, resolved_dialogue_timeline=resolved_dialogue_timeline)
         clip = semantic_context["clip"]
     if selected_mode == "MULTI_KEYFRAME" and window_plans and not clip_only_execution:
         window_plan = window_plans[0]
@@ -481,6 +499,44 @@ def _update_window_plan_status(shot, window_index: int, status: str, db, task=No
     _update_window_plan(shot, window_index, {"status": status}, db, task=task)
 
 
+def _dialogue_visual_guidance_for_clip(plan: dict, clip: dict) -> str:
+    timeline = plan.get("dialogue_timeline_source") or []
+    intents = executable_dialogue_visual_intents(clip, timeline, plan)
+    if not intents:
+        return ""
+    catalog = (plan.get("visual_attention") or {}).get("character_catalog") or []
+    names = [entry["character_name"] for entry in catalog]
+    states = [state for state in plan.get("keyframes") or []
+              if state.get("index") in (clip.get("visual_state_indexes") or [])]
+    return render_dialogue_visual_guidance(
+        intents, project_resolved_dialogue_timeline(timeline, clip, []), catalog,
+        _subject_bindings("", _clip_visible_characters(states, names)),
+    )
+
+
+def clip_prompt_projection_metadata(plan: dict, clip: dict, attention: dict, prompt: str) -> dict:
+    """Extend the existing cache identity only for effective B4 semantics."""
+    metadata = prompt_projection_metadata(attention, prompt)
+    section = _dialogue_visual_guidance_for_clip(plan, clip)
+    if section:
+        metadata["dialogue_visual_intent_sha256"] = hashlib.sha256(section.encode()).hexdigest()
+    return metadata
+
+
+def reusable_clip_prompt(plan: dict, clip: dict, prompt: str, attention: dict, metadata=None) -> bool:
+    section = _dialogue_visual_guidance_for_clip(plan, clip)
+    count = len(re.findall(r"(?m)^dialogue_visual_guidance:", prompt or ""))
+    cached = dict(metadata or {})
+    fingerprint = cached.pop("dialogue_visual_intent_sha256", None)
+    if section:
+        if (count != 1 or section not in (prompt or "")
+                or fingerprint != hashlib.sha256(section.encode()).hexdigest()):
+            return False
+    elif count or fingerprint is not None:
+        return False
+    return reusable_attention_prompt(prompt, attention, cached if metadata is not None else None)
+
+
 def _update_clip_prompt(shot, clip: dict, prompt_text: str, db, attention=None) -> None:
     plan = safe_json_dict(shot.video_director_plan)
     clip_index = int((clip or {}).get("clip_index") or 1)
@@ -488,7 +544,7 @@ def _update_clip_prompt(shot, clip: dict, prompt_text: str, db, attention=None) 
     if semantic_clip is not None:
         semantic_clip["prompt_text"] = prompt_text
         if attention is not None:
-            semantic_clip["prompt_projection"] = prompt_projection_metadata(attention, prompt_text)
+            semantic_clip["prompt_projection"] = clip_prompt_projection_metadata(plan, clip, attention, prompt_text)
         shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
         db.commit()
         return
@@ -532,7 +588,7 @@ def get_semantic_clip_prompt(plan: dict, clip: dict, manifest=None) -> str:
     attention = prepare_clip_visual_attention(plan, clip, names, manifest=manifest)
     if "prompt_text" in clip:
         prompt = str(clip.get("prompt_text") or "")
-        return prompt if reusable_attention_prompt(prompt, attention, clip.get("prompt_projection")) else ""
+        return prompt if reusable_clip_prompt(plan, clip, prompt, attention, clip.get("prompt_projection")) else ""
     for legacy in plan.get("clips") or []:
         if not isinstance(legacy, dict):
             continue
@@ -542,7 +598,7 @@ def get_semantic_clip_prompt(plan: dict, clip: dict, manifest=None) -> str:
             and legacy.get("end_time") == clip.get("end_time")
         ):
             prompt = str(legacy.get("prompt_text") or "")
-            return prompt if reusable_attention_prompt(prompt, attention, legacy.get("prompt_projection")) else ""
+            return prompt if reusable_clip_prompt(plan, clip, prompt, attention, legacy.get("prompt_projection")) else ""
     return ""
 
 
@@ -551,7 +607,7 @@ def resolve_reusable_clip_prompt(plan, clip, metadata, attention, *, skip_llm, c
     require_current_attention_transitions(plan, clip)
     prompt = (metadata or {}).get("prompt_text") or ""
     cache = (metadata or {}).get("prompt_projection") or clip.get("prompt_projection")
-    if prompt and not reusable_attention_prompt(prompt, attention, cache):
+    if prompt and not reusable_clip_prompt(plan, clip, prompt, attention, cache):
         prompt = ""
     if skip_llm and not prompt:
         prompt = (get_semantic_clip_prompt(plan, clip, manifest) if clip_only
@@ -639,6 +695,8 @@ def _reset_multi_clip_window_plans_for_task(db, task, shot, only_window_index: i
     reset_keys = [
         "prompt_id",
         "workflow_json",
+        "h3_execution",
+        "execution_prompt_text",
         "video_url",
         "local_path",
         "source_video_url",
@@ -720,16 +778,140 @@ def _get_reusable_video_prompt(video_director_plan: dict, attention=None) -> str
     clips = video_director_plan.get("clips") if isinstance(video_director_plan.get("clips"), list) else []
     for clip in clips:
         prompt = (clip or {}).get("prompt_text")
-        if isinstance(prompt, str) and prompt.strip() and (attention is None or reusable_attention_prompt(prompt, attention, clip.get("prompt_projection"))):
+        if attention is None and "dialogue_visual_guidance:" in (prompt or ""):
+            continue
+        if isinstance(prompt, str) and prompt.strip() and (attention is None or reusable_clip_prompt(video_director_plan, clip, prompt, attention, clip.get("prompt_projection"))):
             return prompt.strip()
     ai_calls = video_director_plan.get("ai_calls") if isinstance(video_director_plan.get("ai_calls"), list) else []
     for call in reversed(ai_calls):
+        if str((call or {}).get("step")) == "14":
+            continue
         prompt = (call or {}).get("final_prompt")
         snapshot = ((call or {}).get("parsed_result") or {}).get("visual_attention") if isinstance((call or {}).get("parsed_result"), dict) else None
         metadata = prompt_projection_metadata(snapshot, prompt) if snapshot and isinstance(prompt, str) else None
-        if isinstance(prompt, str) and prompt.strip() and (attention is None or reusable_attention_prompt(prompt, attention, metadata)):
+        if (isinstance(prompt, str) and prompt.strip() and "dialogue_visual_guidance:" not in prompt
+                and (attention is None or reusable_attention_prompt(prompt, attention, metadata))):
             return prompt.strip()
     return ""
+
+
+async def _apply_h3_execution_optimizer(db, task, novel, shot, raw_prompt, mode, clip,
+                                        manifest=None, references=None, temporal=None,
+                                        previous_video_path=None, execution_context=None, workflow=None):
+    metadata = safe_json_dict(task.metadata_json)
+    if not metadata.get("optimize_h3_prompt", False):
+        return raw_prompt
+    from app.services.h3_execution_optimizer import optimize_h3_execution_prompt, workflow_duration_limits, VERSION
+    plan = safe_json_dict(shot.video_director_plan)
+    context = dict(execution_context or {})
+    context["worker_selected_mode"] = mode
+    if metadata.get("capability") in {"EXTEND", "TEMPORAL_EXTEND"}:
+        mode = metadata["capability"]
+    elif "visual_state_indexes" in clip:
+        owned = {int(index) for index in clip.get("visual_state_indexes") or []}
+        states = [item for item in plan.get("keyframes") or [] if int(item.get("index") or 0) in owned]
+        roles = {str(item.get("role") or "").upper() for item in states}
+        mode = "FIRST_LAST_FRAME" if len(states) == 2 and roles == {"START", "END"} else "MULTI_KEYFRAME" if len(states) > 1 else "SINGLE_FRAME"
+    context["canonical_transitions"] = [item for item in plan.get("transitions") or []
+        if float(item.get("end_time") or 0) > float(clip.get("start_time") or 0)
+        and float(item.get("start_time") or 0) < float(clip.get("end_time") or clip.get("planned_duration") or shot.duration or 4)]
+    context["continuity_to_previous"] = clip.get("continuity_to_previous")
+    context["duration_limits"] = workflow_duration_limits(safe_json_dict(workflow.extension) if workflow else {}, metadata.get("capability") or mode)
+    context["capability"] = metadata.get("capability") or mode
+    from app.services.h3_continuation import continuation_contract
+    continuation = continuation_contract(workflow, context["capability"], previous_video_path, context)
+    if continuation:
+        context["continuation"] = continuation
+    from app.services.h3_anchor_policy import reference_drop_capability
+    context["anchor_policy_version"] = 1
+    context["reference_drop_capability"] = reference_drop_capability(workflow)
+    # Sources remain unedited. #14 extracts story requirements, not every camera
+    # or KF composition detail, and traces the selected requirements to final prose.
+    context["canonical_visual_sources"] = [
+        {"id": "opening_state", "text": (getattr(shot, "description", None)
+            if float(clip.get("start_time") or 0) == 0 else None) or raw_prompt},
+        *[{"id": f"transition_{i}", "text": item["transition_description"]}
+          for i, item in enumerate(context["canonical_transitions"], 1) if item.get("transition_description")],
+    ]
+    reuse_record = None
+    if metadata.get("skip_llm_when_prompt_exists"):
+        for call in reversed(plan.get("ai_calls") or []):
+            candidate = call.get("parsed_result") or {}
+            if (str(call.get("step")) == "14" and candidate.get("version") == VERSION
+                    and candidate.get("clip_index") == clip.get("clip_index") and candidate.get("raw_prompt") == raw_prompt):
+                reuse_record = candidate
+                break
+    task.current_step = "#14 优化 H3 执行提示词..."
+    db.commit()
+    selected, record = await optimize_h3_execution_prompt(
+        db, novel, shot, raw_prompt, mode, clip, reference_manifest=manifest,
+        reference_images=references, temporal_anchors=temporal,
+        previous_video_path=previous_video_path, execution_context=context,
+        reuse_record=reuse_record,
+    )
+    metadata = safe_json_dict(task.metadata_json)
+    if record.get("status") != "OPTIMIZED":
+        record["generation_blocked"] = True
+    metadata["h3_prompt_optimizer"] = record
+    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    task.prompt_text = selected
+    db.commit()
+    if record.get("status") != "OPTIMIZED":
+        raise ValueError("#14 preflight 失败，停止视频生成：" + str(record.get("error") or "优化结果未通过校验"))
+    return selected
+
+
+def _apply_h3_execution_references(task, manifest, paths):
+    """Use #14's audited selection in the existing optional-image binding path."""
+    metadata = safe_json_dict(task.metadata_json)
+    record = metadata.get("h3_prompt_optimizer") or {}
+    selected = record.get("execution_reference_manifest")
+    if not metadata.get("optimize_h3_prompt") or not selected:
+        return manifest, paths
+    if manifest is None and not selected.get("excluded_references"):
+        # Existing non-Ref2VA paths keep their original image mechanism.
+        return manifest, paths
+    if record.get("status") != "OPTIMIZED" or not (record.get("authority_check") or {}).get("passed"):
+        raise ValueError("H3_REFERENCE_SELECTION_NOT_APPROVED")
+    original = (manifest or {}).get("references", [])
+    if len(original) != len(paths or []):
+        raise ValueError("H3_REFERENCE_MANIFEST_PATH_MISMATCH")
+    by_slot = {r["slot"]: (r, path) for r, path in zip(original, paths or [])}
+    execution_paths = []
+    for ref in selected["references"]:
+        old, path = by_slot[ref["source_slot"]]
+        if old.get("image_url") != ref.get("image_url"):
+            raise ValueError("H3_REFERENCE_SOURCE_CHANGED")
+        execution_paths.append(path)
+    metadata["video_reference_manifest"] = selected
+    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    task.reference_images = json.dumps([
+        {"label": f"Picture {r['slot']} / {r.get('kind', '')}", "url": r.get("image_url")}
+        for r in selected["references"]], ensure_ascii=False)
+    return selected, execution_paths
+
+
+def _apply_h3_execution_duration(task, original_duration, workflow, temporal_manifest=None):
+    """Choose duration once after #14; never mutate the canonical Clip budget."""
+    from app.services.h3_execution_optimizer import effective_execution_duration, workflow_duration_limits, retime_temporal_manifest
+    metadata = safe_json_dict(task.metadata_json)
+    record = metadata.get("h3_prompt_optimizer") if metadata.get("optimize_h3_prompt") else None
+    extension = safe_json_dict(workflow.extension)
+    limits = workflow_duration_limits(extension, metadata.get("capability") or "GENERATE")
+    if not metadata.get("capability") and (not record or record.get("status") != "OPTIMIZED"):
+        # Legacy Raw entries have no semantic capability contract. Retain their
+        # existing workflow minimum instead of imposing the canonical planner's.
+        limits["minimum"] = float(extension.get("min_clip_duration") or extension.get("min_seconds") or 0)
+    durations = effective_execution_duration(original_duration, record, limits)
+    temporal_manifest = retime_temporal_manifest(temporal_manifest, record or {})
+    metadata.update(durations)
+    contract = metadata.get("execution_contract")
+    if isinstance(contract, dict):
+        contract["h3_execution"] = durations
+        if temporal_manifest is not None:
+            contract["temporal_anchor_manifest"] = temporal_manifest
+    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    return durations["effective_duration"], temporal_manifest
 
 
 def enqueue_shot_video_task(
@@ -746,6 +928,7 @@ def enqueue_shot_video_task(
     auto_merge_clips: bool = False,
     skip_llm_when_prompt_exists: bool = False,
     clip_metadata: dict | None = None,
+    optimize_h3_prompt: bool | None = None,
 ) -> None:
     """Queue shot video generation in its dedicated serial worker."""
     if task_id in _queued_shot_video_task_ids:
@@ -770,6 +953,7 @@ def enqueue_shot_video_task(
                 auto_merge_clips=auto_merge_clips,
                 skip_llm_when_prompt_exists=skip_llm_when_prompt_exists,
                 clip_metadata=clip_metadata,
+                optimize_h3_prompt=optimize_h3_prompt,
             )
         finally:
             _queued_shot_video_task_ids.discard(task_id)
@@ -789,6 +973,7 @@ def enqueue_shot_video_task(
             "auto_merge_clips": auto_merge_clips,
             "skip_llm_when_prompt_exists": skip_llm_when_prompt_exists,
             "clip_metadata": clip_metadata,
+            "optimize_h3_prompt": optimize_h3_prompt,
         }
         worker_manager.worker("shot_video").enqueue(persistent_job(
             task_id,
@@ -815,6 +1000,7 @@ async def generate_shot_video_task(
     auto_merge_clips: bool = False,
     skip_llm_when_prompt_exists: bool = False,
     clip_metadata: dict | None = None,
+    optimize_h3_prompt: bool | None = None,
 ):
     """
     后台任务：生成分镜视频
@@ -839,6 +1025,11 @@ async def generate_shot_video_task(
         if task.status == "cancelled":
             return
 
+        metadata = safe_json_dict(task.metadata_json)
+        metadata["skip_llm_when_prompt_exists"] = skip_llm_when_prompt_exists
+        if optimize_h3_prompt is not None:
+            metadata["optimize_h3_prompt"] = optimize_h3_prompt
+        task.metadata_json = json.dumps(metadata, ensure_ascii=False)
         task.status = "running"
         task.started_at = datetime.utcnow()
         task.current_step = "准备生成视频..."
@@ -1110,6 +1301,7 @@ async def generate_shot_video_task(
                     )
                 task_metadata = safe_json_dict(task.metadata_json)
                 task_metadata.update(compiled)
+                clip_metadata["execution_contract"] = compiled["execution_contract"]
                 task.metadata_json = json.dumps(task_metadata, ensure_ascii=False)
                 phase_b_manifest = compiled["video_reference_manifest"]
                 temporal_manifest = (compiled.get("execution_contract") or {}).get("temporal_anchor_manifest")
@@ -1273,12 +1465,19 @@ async def generate_shot_video_task(
                 task.current_step = "Clip 计划已变化"
                 db.commit()
                 return
+        resolved_dialogue_timeline, timeline_status = resolve_canonical_dialogue_timeline(shot, video_director_plan)
+        if not video_director_plan.get("dialogue_timeline_source"):
+            # A first candidate becomes official only during this authorized execution.
+            video_director_plan["dialogue_timeline_source"] = resolved_dialogue_timeline
+            video_director_plan["dialogue_timeline_status"] = timeline_status
+            shot.video_director_plan = json.dumps(video_director_plan, ensure_ascii=False)
         prompt_context = _select_video_prompt_context(
             video_director_plan,
             clip_metadata,
             selected_mode,
             duration,
             clip_only_execution,
+            resolved_dialogue_timeline=resolved_dialogue_timeline,
         )
         clip = prompt_context["clip"]
         keyframes_for_prompt = prompt_context["keyframes"]
@@ -1286,11 +1485,21 @@ async def generate_shot_video_task(
         if clip_metadata and clip_metadata.get("execution_scope") == "CLIP":
             clip_dialogues = prompt_context["clip_dialogues"]
             metadata = safe_json_dict(task.metadata_json)
-            metadata["dialogue_assignment"] = clip_metadata.get("dialogue_assignment") or []
+            canonical_assignment = [{key: value for key, value in item.items() if key not in {
+                "id", "local_start_time", "local_end_time", "projection_mode", "dialogue_timing_source",
+            }} for item in clip_dialogues]
+            metadata["dialogue_assignment"] = canonical_assignment
+            metadata.update(build_execution_intent_metadata(resolved_dialogue_timeline, clip))
+            contract = metadata.get("execution_contract") or {}
+            metadata["visual_support_evidence"] = build_dialogue_visual_support_evidence(
+                resolved_dialogue_timeline, clip, video_director_plan, reference_manifest=phase_b_manifest,
+                temporal_anchors=(contract.get("temporal_anchor_manifest") or {}).get("anchors", []),
+                subject_bindings=(contract.get("visual_attention_snapshot") or {}).get("characters", []),
+            )
             task.metadata_json = json.dumps(metadata, ensure_ascii=False)
             for planned_clip in video_director_plan.get("clip_plan", []):
                 if int(planned_clip.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0):
-                    planned_clip["dialogue_assignment"] = clip_metadata.get("dialogue_assignment") or []
+                    planned_clip["dialogue_assignment"] = canonical_assignment
                     break
             shot.video_director_plan = json.dumps(video_director_plan, ensure_ascii=False)
             db.commit()
@@ -1299,7 +1508,7 @@ async def generate_shot_video_task(
                 safe_json_list(shot.dialogues),
                 clip,
                 duration,
-                video_director_plan.get("dialogue_timeline_source"),
+                resolved_dialogue_timeline,
             )
 
         attention = prepare_clip_visual_attention(
@@ -1362,6 +1571,7 @@ async def generate_shot_video_task(
                     if isinstance(item, dict) and item.get("index") == clip.get("carry_in_state_index")
                 ), None) if clip_only_execution else None,
                 visual_attention=attention,
+                resolved_dialogue_timeline=resolved_dialogue_timeline,
             )
         if _is_task_cancelled(db, task):
             _cleanup_task_generated_clip_videos(db, task, shot)
@@ -1370,13 +1580,13 @@ async def generate_shot_video_task(
             return
         task.prompt_text = shot_prompt
         metadata = safe_json_dict(task.metadata_json)
-        metadata["prompt_projection"] = prompt_projection_metadata(attention, shot_prompt)
+        metadata["prompt_projection"] = clip_prompt_projection_metadata(video_director_plan, clip, attention, shot_prompt)
         if clip_only_execution:
             metadata.setdefault("execution_contract", {})["visual_attention_snapshot"] = execution_attention_snapshot(
                 attention, shot_prompt, temporal_manifest,
             )
         task.metadata_json = json.dumps(metadata, ensure_ascii=False)
-        if selected_mode != "MULTI_KEYFRAME":
+        if selected_mode != "MULTI_KEYFRAME" or "dialogue_visual_intent" in clip:
             _update_clip_prompt(shot, clip, shot_prompt, db, attention)
         db.commit()
 
@@ -1436,6 +1646,26 @@ async def generate_shot_video_task(
         db.commit()
 
         previous_video_path = url_to_local_path((clip_metadata or {}).get("previous_approved_video_url")) if clip_metadata else None
+        if not previous_video_path and clip_only_execution:
+            previous_video_path = ((clip_metadata.get("execution_contract") or {}).get("previous_clip") or {}).get("local_path")
+        shot_prompt = await _apply_h3_execution_optimizer(
+            db, task, novel, shot, shot_prompt, selected_mode, clip,
+            manifest=phase_b_manifest, references=reference_images,
+            temporal=(temporal_manifest or {}).get("anchors", []),
+            previous_video_path=previous_video_path,
+            execution_context={**(safe_json_dict(task.metadata_json).get("execution_contract") or {}),
+                               "continuity_mode": video_director_plan.get("continuity_mode")},
+            workflow=workflow,
+        )
+        duration, temporal_manifest = _apply_h3_execution_duration(task, duration, workflow, temporal_manifest)
+        phase_b_manifest, reference_image_paths = _apply_h3_execution_references(
+            task, phase_b_manifest, reference_image_paths)
+        raw_frame_count = int(fps * duration)
+        frame_count = ((raw_frame_count // 8) * 8) + 1
+        if _is_task_cancelled(db, task):
+            return
+        task.current_step = "正在调用 ComfyUI 生成视频..."
+        db.commit()
         if clip_metadata and clip_metadata.get("capability") in {"EXTEND", "VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
             if clip_metadata.get("capability") in {"EXTEND", "TEMPORAL_EXTEND"}:
                 semantic_clip = next((item for item in safe_json_dict(shot.video_director_plan).get("clip_plan", []) if int(item.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0)), None)
@@ -1524,6 +1754,12 @@ async def generate_shot_video_task(
                         "uploaded_filename": filename,
                         "workflow_node_id": str(node_id) if node_id is not None else None,
                     }
+                if phase_b_manifest.get("selection_source") == "H3_PROMPT_OPTIMIZER":
+                    ref_node = submitted.get(str(binding_mapping.get("reference_to_video_node_id")), {})
+                    actual_inputs = [key for key in ref_node.get("inputs", {}) if key.startswith("ref_images.ref_image_")]
+                    if len(actual_inputs) != len(phase_b_manifest["references"]):
+                        raise ValueError("H3_REFERENCE_BINDING_COUNT_MISMATCH")
+                    phase_b_manifest["actual_binding_verified"] = bool(result.get("prompt_id"))
                 manifest_metadata["video_reference_manifest"] = phase_b_manifest
                 task.metadata_json = json.dumps(manifest_metadata, ensure_ascii=False)
             db.commit()
@@ -1791,7 +2027,19 @@ async def _generate_multi_clip_video_task(
                             "prompt_projection": prompt_projection_metadata(attention, clip_prompt),
                             "visual_attention_snapshot": execution_attention_snapshot(attention, clip_prompt)}, db, task=task)
 
+        clip_prompt = await _apply_h3_execution_optimizer(
+            db, task, novel, shot, clip_prompt, "MULTI_KEYFRAME", clip,
+            references=reference_images,
+            execution_context={"continuity_mode": video_director_plan.get("continuity_mode")},
+            workflow=workflow,
+        )
         clip_duration = max(1, float(clip["end_time"]) - float(clip["start_time"]))
+        clip_duration, _ = _apply_h3_execution_duration(task, clip_duration, workflow)
+        duration_snapshot = safe_json_dict(task.metadata_json)
+        _update_window_plan(shot, window_index, {
+            "h3_execution": {key: duration_snapshot.get(key) for key in ("original_duration", "optimized_duration", "effective_duration", "duration_source")},
+            "execution_prompt_text": clip_prompt,
+        }, db, task=task)
         raw_frame_count = int(fps * clip_duration)
         clip_frame_count = ((raw_frame_count // 8) * 8) + 1
         seed = random.randint(1, 2**32)
@@ -2321,6 +2569,7 @@ async def _enqueue_next_clip_if_needed(db, completed_task, shot, novel, clip_met
         "capability": next_capability,
         "planned_duration": next_clip.get("planned_duration"),
         "requested_duration": next_clip.get("planned_duration"),
+        "optimize_h3_prompt": safe_json_dict(completed_task.metadata_json).get("optimize_h3_prompt", False),
         "previous_approved_task_id": completed_task.id,
         "previous_approved_video_url": (
             safe_json_dict(completed_task.metadata_json).get("assembled_result", {}).get("url")
@@ -2372,6 +2621,7 @@ async def _save_generated_video(
     clip_metadata: dict | None = None,
     update_shot_result: bool = True,
     artifact_suffix: str = "",
+    validate_result=None,
 ):
     """下载并保存生成的视频"""
     task.current_step = "正在下载生成的视频..."
@@ -2455,6 +2705,12 @@ async def _save_generated_video(
             task.metadata_json = json.dumps(metadata, ensure_ascii=False)
 
         # 更新 Shot 记录中的视频数据
+        if validate_result is not None:
+            try:
+                validate_result()
+            except Exception:
+                Path(local_path).unlink(missing_ok=True)
+                raise
         shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
         if shot:
             result_fields = {

@@ -97,6 +97,7 @@ export interface Novel {
   h3SingleFramePromptTemplateId?: string;  // H3 单帧视频提示词模板
   h3FirstLastFramePromptTemplateId?: string;  // H3 首尾帧视频提示词模板
   h3MultiKeyframePromptTemplateId?: string;  // H3 多关键帧视频提示词模板
+  h3ExecutionOptimizerPromptTemplateId?: string;  // H3 执行提示词优化模板
   aspectRatio?: string;  // 画面比例: 16:9, 9:16, 4:3, 3:4, 1:1
   createdAt: string;
   updatedAt: string;
@@ -290,6 +291,10 @@ export interface ClipExecutionMetadata {
   capability?: string;
   planned_duration?: number;
   requested_duration?: number;
+  original_duration?: number;
+  optimized_duration?: number | null;
+  effective_duration?: number;
+  duration_source?: 'ORIGINAL' | 'H3_PROMPT_OPTIMIZER';
   actual_duration?: number | null;
   approval_status?: string;
   approval_mode?: string;
@@ -310,7 +315,7 @@ export interface ClipExecutionMetadata {
 
 export interface Task {
   id: string;
-  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'shot_video_hd' | 'shot_video_hd_batch' | 'chapter_video' | 'novel_video' | 'transition_video' | 'prop_image';
+  type: 'character_portrait' | 'character_voice' | 'character_audio' | 'narrator_audio' | 'scene_image' | 'shot_image' | 'shot_image_batch' | 'keyframe_image' | 'single_image_edit' | 'shot_video' | 'shot_video_batch' | 'shot_video_hd' | 'shot_video_hd_batch' | 'chapter_video' | 'novel_video' | 'transition_video' | 'prop_image' | 'shot_export';
   name: string;
   description?: string;
   status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';

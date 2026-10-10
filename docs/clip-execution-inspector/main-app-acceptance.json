@@ -1,0 +1,771 @@
+{
+  "at": "2026-10-07T10:42:51.737629+00:00",
+  "status": "PASS",
+  "preview_8011_closed": true,
+  "frontend_origin": "http://127.0.0.1:5173",
+  "backend_origin": "http://127.0.0.1:8000",
+  "api_coverage": [
+    {
+      "method": "GET",
+      "path": "/api/clip-execution-inspector/shots/{shot_id}/clips/{clip_index}/artifacts",
+      "status": "PASS",
+      "http_status": 200,
+      "observed_requests": 2
+    },
+    {
+      "method": "GET",
+      "path": "/api/clip-execution-inspector/executions/{task_id}",
+      "status": "PASS",
+      "http_status": 200,
+      "observed_requests": 1
+    },
+    {
+      "method": "GET",
+      "path": "/api/clip-execution-inspector/executions/{task_id}/evidence",
+      "status": "PASS",
+      "http_status": 200,
+      "observed_requests": 2
+    },
+    {
+      "method": "POST",
+      "path": "/api/clip-execution-inspector/executions/{task_id}/sampling",
+      "status": "PASS",
+      "http_status": 200,
+      "observed_requests": 25
+    },
+    {
+      "method": "GET",
+      "path": "/api/clip-execution-inspector/frames/{video_hash}/metadata/{native_frame_index0}",
+      "status": "PASS",
+      "http_status": 200,
+      "observed_requests": 5
+    },
+    {
+      "method": "GET",
+      "path": "/api/clip-execution-inspector/frames/{video_hash}/{render_version}/{preset}/{native_frame_index0}",
+      "status": "PASS",
+      "http_status": 200,
+      "observed_requests": 19
+    },
+    {
+      "method": "POST",
+      "path": "/api/clip-execution-inspector/analyses",
+      "status": "PASS",
+      "http_status": 200,
+      "observed_requests": 1
+    },
+    {
+      "method": "GET",
+      "path": "/api/clip-execution-inspector/analyses/{analysis_id}",
+      "status": "PASS",
+      "http_status": 200,
+      "observed_requests": 2
+    },
+    {
+      "method": "POST",
+      "path": "/api/clip-execution-inspector/analyses/{analysis_id}/observations",
+      "status": "PASS",
+      "http_status": 200,
+      "observed_requests": 1
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/clip-execution-inspector/analyses/{analysis_id}/observations/{observation_id}",
+      "status": "PASS",
+      "http_status": 200,
+      "observed_requests": 1
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/clip-execution-inspector/analyses/{analysis_id}/observations/{observation_id}",
+      "status": "PASS",
+      "http_status": 200,
+      "observed_requests": 1
+    }
+  ],
+  "api_checks": {
+    "status": "PASS",
+    "base_url": "http://127.0.0.1:5173/api/clip-execution-inspector",
+    "task_id": "8d4cb355-9540-42a8-b8a3-bc31a58eb9d1",
+    "artifact_id": "89869db1b05363db0fd00fcb2b7167cfcd06d95bb0fa8c2ea06c728c3b95f7be",
+    "cases": [
+      {
+        "requested": 3.542,
+        "local_frame_index0": 85,
+        "native_frame_index0": 340,
+        "native_pts": 14.166666666666666,
+        "sample_time": 3.5416666666666665
+      },
+      {
+        "requested": 4.5,
+        "local_frame_index0": 108,
+        "native_frame_index0": 363,
+        "native_pts": 15.125,
+        "sample_time": 4.5
+      },
+      {
+        "requested": 5.4,
+        "local_frame_index0": 130,
+        "native_frame_index0": 385,
+        "native_pts": 16.041666666666668,
+        "sample_time": 5.416666666666667
+      },
+      {
+        "requested": 5.55,
+        "local_frame_index0": 133,
+        "native_frame_index0": 388,
+        "native_pts": 16.166666666666668,
+        "sample_time": 5.541666666666667
+      },
+      {
+        "requested": 8.541667,
+        "local_frame_index0": 205,
+        "native_frame_index0": 460,
+        "native_pts": 19.166666666666668,
+        "sample_time": 8.541666666666666
+      }
+    ],
+    "intervals": [
+      {
+        "interval": 0.5,
+        "unique_frame_count": 49,
+        "deduplicated_count": 38
+      },
+      {
+        "interval": 1,
+        "unique_frame_count": 39,
+        "deduplicated_count": 37
+      },
+      {
+        "interval": 2,
+        "unique_frame_count": 34,
+        "deduplicated_count": 36
+      }
+    ],
+    "checks": [
+      {
+        "method": "GET",
+        "path": "/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1",
+        "status": 200,
+        "seconds": 0.345,
+        "bytes": 66720
+      },
+      {
+        "method": "GET",
+        "path": "/shots/9dd9db66-fb04-48f0-892f-1fb30ebe23b2/clips/2/artifacts?revision=1",
+        "status": 200,
+        "seconds": 0.11,
+        "bytes": 1488
+      },
+      {
+        "method": "GET",
+        "path": "/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/evidence?artifact_id=89869db1b05363db0fd00fcb2b7167cfcd06d95bb0fa8c2ea06c728c3b95f7be",
+        "status": 200,
+        "seconds": 0.189,
+        "bytes": 641125
+      },
+      {
+        "method": "POST",
+        "path": "/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling",
+        "status": 200,
+        "seconds": 0.101,
+        "bytes": 4848
+      },
+      {
+        "method": "GET",
+        "path": "/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/metadata/340",
+        "status": 200,
+        "seconds": 0.027,
+        "bytes": 248
+      },
+      {
+        "method": "GET",
+        "path": "/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/340",
+        "status": 200,
+        "seconds": 0.06,
+        "bytes": 82120
+      },
+      {
+        "method": "POST",
+        "path": "/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling",
+        "status": 200,
+        "seconds": 0.126,
+        "bytes": 4764
+      },
+      {
+        "method": "GET",
+        "path": "/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/metadata/363",
+        "status": 200,
+        "seconds": 0.035,
+        "bytes": 237
+      },
+      {
+        "method": "GET",
+        "path": "/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/363",
+        "status": 200,
+        "seconds": 0.069,
+        "bytes": 89560
+      },
+      {
+        "method": "POST",
+        "path": "/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling",
+        "status": 200,
+        "seconds": 0.102,
+        "bytes": 4838
+      },
+      {
+        "method": "GET",
+        "path": "/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/metadata/385",
+        "status": 200,
+        "seconds": 0.028,
+        "bytes": 250
+      },
+      {
+        "method": "GET",
+        "path": "/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/385",
+        "status": 200,
+        "seconds": 0.057,
+        "bytes": 86265
+      },
+      {
+        "method": "POST",
+        "path": "/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling",
+        "status": 200,
+        "seconds": 0.517,
+        "bytes": 4841
+      },
+      {
+        "method": "GET",
+        "path": "/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/metadata/388",
+        "status": 200,
+        "seconds": 0.033,
+        "bytes": 248
+      },
+      {
+        "method": "GET",
+        "path": "/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/388",
+        "status": 200,
+        "seconds": 0.098,
+        "bytes": 86222
+      },
+      {
+        "method": "POST",
+        "path": "/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling",
+        "status": 200,
+        "seconds": 0.136,
+        "bytes": 4857
+      },
+      {
+        "method": "GET",
+        "path": "/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/metadata/460",
+        "status": 200,
+        "seconds": 0.025,
+        "bytes": 249
+      },
+      {
+        "method": "GET",
+        "path": "/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/460",
+        "status": 200,
+        "seconds": 0.05,
+        "bytes": 137627
+      },
+      {
+        "method": "GET",
+        "path": "/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/thumb/340",
+        "status": 200,
+        "seconds": 0.041,
+        "bytes": 19127
+      },
+      {
+        "method": "POST",
+        "path": "/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0&limit=48",
+        "status": 200,
+        "seconds": 0.226,
+        "bytes": 52151
+      },
+      {
+        "method": "POST",
+        "path": "/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=48&limit=48",
+        "status": 200,
+        "seconds": 0.12,
+        "bytes": 2143
+      },
+      {
+        "method": "POST",
+        "path": "/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0&limit=48",
+        "status": 200,
+        "seconds": 0.158,
+        "bytes": 44618
+      },
+      {
+        "method": "POST",
+        "path": "/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0&limit=48",
+        "status": 200,
+        "seconds": 0.158,
+        "bytes": 40334
+      }
+    ]
+  },
+  "browser_checks": {
+    "status": "PASS",
+    "base_url": "http://127.0.0.1:5173",
+    "entered_from_c2": true,
+    "entry_repeated_after_fix": true,
+    "cases": [
+      {
+        "time": 3.542,
+        "text": "帧检查\nACTUAL FRAME · 实际画面\n\n请求时间 3.542s · actual Clip 3.541667s · Δ -0.000333s\n\nClip index0 85 / H3 position1 86 / Native index0 340 / Native PTS 14.166667s\n\n← frame\nframe →\nSampling provenance\nNative AV playback\nEXPECTED / PLAN EVIDENCE · 计划证据 · 3.541667s\nD4 · <Subject 3> / 侍从2 EXECUTION_SNAPSHOT\n\n蓝色礼服庄重，这件紫袍则更加高贵。两件各有妙处。\n\n0.1s–5.35s\n\nSource / provenance\n\n前一语义状态: KF2 · carry-in @-0.1s / 下一语义状态: Semantic KF3 @5.4s\n\n距目标的带符号时间\n\nSemantic KF3: +1.858333s\n\nPhysical Anchor · position1 206: +5s\n\nKF2→KF3 · 0s–5.4s CURRENT_PLAN\nexisting_body_binding · CLIP_SCOPE\nmotion_ownership · CLIP_SCOPE\nCamera / visual direction · 范围原文 · 0s–5.4s\n事件/请求精确时间的 EXPECTED · 3.542s\nD4 · <Subject 3> / 侍从2 EXECUTION_SNAPSHOT\n\n蓝色礼服庄重，这件紫袍则更加高贵。两件各有妙处。\n\n0.1s–5.35s\n\nSource / provenance\n\n前一语义状态: KF2 · carry-in @-0.1s / 下一语义状态: Semantic KF3 @5.4s\n\n距目标的带符号时间\n\nSemantic KF3: +1.858s\n\nPhysical Anchor · position1 206: +4.999667s\n\nKF2→KF3 · 0s–5.4s CURRENT_PLAN\nexisting_body_binding · CLIP_SCOPE\nmotion_ownership · CLIP_SCOPE\nCamera / visual direction · 范围原文 · 0s–5.4s\nPrompt Authority\nDialogue ownership / Speech authority FINAL_PROMPT\nMotion ownership FINAL_PROMPT\nBody lifecycle FINAL_PROMPT\nCamera / transition text FINAL_PROMPT\nReference authority FINAL_PROMPT\nSubject definitions FINAL_PROMPT\nVisual Attention Owner ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nForeground Speaker ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nBackground Entrant ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nBackground Motion Subject ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD"
+      },
+      {
+        "time": 4.5,
+        "text": "帧检查\nACTUAL FRAME · 实际画面\n\n请求时间 4.5s · actual Clip 4.5s · Δ 0s\n\nClip index0 108 / H3 position1 109 / Native index0 363 / Native PTS 15.125s\n\n← frame\nframe →\nSampling provenance\nNative AV playback\nEXPECTED / PLAN EVIDENCE · 计划证据 · 4.5s\nD4 · <Subject 3> / 侍从2 EXECUTION_SNAPSHOT\n\n蓝色礼服庄重，这件紫袍则更加高贵。两件各有妙处。\n\n0.1s–5.35s\n\nSource / provenance\n\n前一语义状态: KF2 · carry-in @-0.1s / 下一语义状态: Semantic KF3 @5.4s\n\n距目标的带符号时间\n\nSemantic KF3: +0.9s\n\nPhysical Anchor · position1 206: +4.041667s\n\nKF2→KF3 · 0s–5.4s CURRENT_PLAN\nexisting_body_binding · CLIP_SCOPE\nmotion_ownership · CLIP_SCOPE\nCamera / visual direction · 范围原文 · 0s–5.4s\nPrompt Authority\nDialogue ownership / Speech authority FINAL_PROMPT\nMotion ownership FINAL_PROMPT\nBody lifecycle FINAL_PROMPT\nCamera / transition text FINAL_PROMPT\nReference authority FINAL_PROMPT\nSubject definitions FINAL_PROMPT\nVisual Attention Owner ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nForeground Speaker ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nBackground Entrant ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nBackground Motion Subject ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD"
+      },
+      {
+        "time": 5.4,
+        "trigger": "Timeline Semantic KF3",
+        "text": "帧检查\nACTUAL FRAME · 实际画面\n\n请求时间 5.4s · actual Clip 5.416667s · Δ 0.016667s\n\nClip index0 130 / H3 position1 131 / Native index0 385 / Native PTS 16.041667s\n\n← frame\nframe →\nSampling provenance\nNative AV playback\nEXPECTED / PLAN EVIDENCE · 计划证据 · 5.416667s\n\n此刻没有已分配的台词\n\n前一语义状态: Semantic KF3 @5.4s / 下一语义状态: — @—\n\n距目标的带符号时间\n\nSemantic KF3: -0.016667s\n\nPhysical Anchor · position1 206: +3.125s\n\nKF3→KF4 · 5.4s–11.1s CURRENT_PLAN\nexisting_body_binding · CLIP_SCOPE\nmotion_ownership · CLIP_SCOPE\nCamera / visual direction · 范围原文 · 5.4s–11.1s\n事件/请求精确时间的 EXPECTED · 5.4s\n\n此刻没有已分配的台词\n\n前一语义状态: Semantic KF3 @5.4s / 下一语义状态: — @—\n\n距目标的带符号时间\n\nSemantic KF3: +0s\n\nPhysical Anchor · position1 206: +3.141667s\n\nKF3→KF4 · 5.4s–11.1s CURRENT_PLAN\nexisting_body_binding · CLIP_SCOPE\nmotion_ownership · CLIP_SCOPE\nCamera / visual direction · 范围原文 · 5.4s–11.1s\nPrompt Authority\nDialogue ownership / Speech authority FINAL_PROMPT\nMotion ownership FINAL_PROMPT\nBody lifecycle FINAL_PROMPT\nCamera / transition text FINAL_PROMPT\nReference authority FINAL_PROMPT\nSubject definitions FINAL_PROMPT\nVisual Attention Owner ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nForeground Speaker ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nBackground Entrant ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nBackground Motion Subject ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD"
+      },
+      {
+        "time": 5.55,
+        "trigger": "Timeline D5",
+        "text": "帧检查\nACTUAL FRAME · 实际画面\n\n请求时间 5.55s · actual Clip 5.541667s · Δ -0.008333s\n\nClip index0 133 / H3 position1 134 / Native index0 388 / Native PTS 16.166667s\n\n← frame\nframe →\nSampling provenance\nNative AV playback\nEXPECTED / PLAN EVIDENCE · 计划证据 · 5.541667s\n\n此刻没有已分配的台词\n\n前一语义状态: Semantic KF3 @5.4s / 下一语义状态: — @—\n\n距目标的带符号时间\n\nSemantic KF3: -0.141667s\n\nPhysical Anchor · position1 206: +3s\n\nKF3→KF4 · 5.4s–11.1s CURRENT_PLAN\nexisting_body_binding · CLIP_SCOPE\nmotion_ownership · CLIP_SCOPE\nCamera / visual direction · 范围原文 · 5.4s–11.1s\n事件/请求精确时间的 EXPECTED · 5.55s\nD5 · <Subject 5> / 宫廷总管 EXECUTION_SNAPSHOT\n\n陛下，宫门外来了两位织工。\n\n5.55s–8.3s\n\nSource / provenance\n\n前一语义状态: Semantic KF3 @5.4s / 下一语义状态: — @—\n\n距目标的带符号时间\n\nSemantic KF3: -0.15s\n\nPhysical Anchor · position1 206: +2.991667s\n\nKF3→KF4 · 5.4s–11.1s CURRENT_PLAN\nexisting_body_binding · CLIP_SCOPE\nmotion_ownership · CLIP_SCOPE\nCamera / visual direction · 范围原文 · 5.4s–11.1s\nPrompt Authority\nDialogue ownership / Speech authority FINAL_PROMPT\nMotion ownership FINAL_PROMPT\nBody lifecycle FINAL_PROMPT\nCamera / transition text FINAL_PROMPT\nReference authority FINAL_PROMPT\nSubject definitions FINAL_PROMPT\nVisual Attention Owner ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nForeground Speaker ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nBackground Entrant ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nBackground Motion Subject ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD"
+      },
+      {
+        "time": 8.541667,
+        "trigger": "Timeline Physical Anchor then exact input",
+        "text": "帧检查\nACTUAL FRAME · 实际画面\n\n请求时间 8.541667s · actual Clip 8.541667s · Δ 0s\n\nClip index0 205 / H3 position1 206 / Native index0 460 / Native PTS 19.166667s\n\n← frame\nframe →\nSampling provenance\nNative AV playback\nEXPECTED / PLAN EVIDENCE · 计划证据 · 8.541667s\nD6 · <Subject 1> / 皇帝 EXECUTION_SNAPSHOT\n\n织工有什么值得禀报的？\n\n8.5s–11s\n\nSource / provenance\n\n前一语义状态: Semantic KF3 @5.4s / 下一语义状态: — @—\n\n距目标的带符号时间\n\nSemantic KF3: -3.141667s\n\nPhysical Anchor · position1 206: +0s\n\nKF3→KF4 · 5.4s–11.1s CURRENT_PLAN\nexisting_body_binding · CLIP_SCOPE\nmotion_ownership · CLIP_SCOPE\nCamera / visual direction · 范围原文 · 5.4s–11.1s\n事件/请求精确时间的 EXPECTED · 8.541667s\nD6 · <Subject 1> / 皇帝 EXECUTION_SNAPSHOT\n\n织工有什么值得禀报的？\n\n8.5s–11s\n\nSource / provenance\n\n前一语义状态: Semantic KF3 @5.4s / 下一语义状态: — @—\n\n距目标的带符号时间\n\nSemantic KF3: -3.141667s\n\nPhysical Anchor · position1 206: 0s\n\nKF3→KF4 · 5.4s–11.1s CURRENT_PLAN\nexisting_body_binding · CLIP_SCOPE\nmotion_ownership · CLIP_SCOPE\nCamera / visual direction · 范围原文 · 5.4s–11.1s\nPrompt Authority\nDialogue ownership / Speech authority FINAL_PROMPT\nMotion ownership FINAL_PROMPT\nBody lifecycle FINAL_PROMPT\nCamera / transition text FINAL_PROMPT\nReference authority FINAL_PROMPT\nSubject definitions FINAL_PROMPT\nVisual Attention Owner ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nForeground Speaker ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nBackground Entrant ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD\nBackground Motion Subject ABSENT\n\n显式独立字段缺失；相关入场、运动要求请查看已有原文\n\nSubmitted graph text verified · ABSENT_EXPLICIT_FIELD"
+      }
+    ],
+    "crud": {
+      "analysis_id": "86cdd019-2ab9-48ea-ae47-5aedd0c069ce",
+      "create": true,
+      "reload": true,
+      "edit": true,
+      "delete": true,
+      "markers_before_reload": 1,
+      "markers_after_reload": 1,
+      "markers_after_delete": 0,
+      "markers_after_final_reload": 0
+    },
+    "filmstrip": {
+      "half_second": {
+        "frames": 49,
+        "pages": 2,
+        "last_native_frame": 528
+      },
+      "one_second": {
+        "frames": 39
+      },
+      "two_seconds": {
+        "frames": 34
+      }
+    },
+    "raw_evidence_loaded": true
+  },
+  "persistence_checks": {
+    "analysis_id": "86cdd019-2ab9-48ea-ae47-5aedd0c069ce",
+    "revision": 4,
+    "observations": 0,
+    "etag": "\"4\"",
+    "crud_requests": [
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/analyses",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/analyses/86cdd019-2ab9-48ea-ae47-5aedd0c069ce/observations",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/analyses/86cdd019-2ab9-48ea-ae47-5aedd0c069ce",
+        "status": 200
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/clip-execution-inspector/analyses/86cdd019-2ab9-48ea-ae47-5aedd0c069ce/observations/6c8be918-bc22-4f8b-8cad-a1ec0fb76e34",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/clip-execution-inspector/analyses/86cdd019-2ab9-48ea-ae47-5aedd0c069ce/observations/6c8be918-bc22-4f8b-8cad-a1ec0fb76e34",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/analyses/86cdd019-2ab9-48ea-ae47-5aedd0c069ce",
+        "status": 200
+      }
+    ],
+    "inspector_access_requests": [
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/shots/9dd9db66-fb04-48f0-892f-1fb30ebe23b2/clips/2/artifacts?revision=1",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/evidence?artifact_id=89869db1b05363db0fd00fcb2b7167cfcd06d95bb0fa8c2ea06c728c3b95f7be",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/metadata/340",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/340",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/metadata/363",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/363",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/metadata/385",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/385",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/metadata/388",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/388",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/metadata/460",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/460",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/thumb/340",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0&limit=48",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=48&limit=48",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0&limit=48",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0&limit=48",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/363",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/364",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/385",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/388",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/detail/460",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/thumb/267",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/thumb/291",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/thumb/315",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=48",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/thumb/528",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/thumb/379",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/thumb/382",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/thumb/383",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/evidence?artifact_id=89869db1b05363db0fd00fcb2b7167cfcd06d95bb0fa8c2ea06c728c3b95f7be",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/analyses",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/analyses/86cdd019-2ab9-48ea-ae47-5aedd0c069ce/observations",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/frames/e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9/frame-v1/thumb/340",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/analyses/86cdd019-2ab9-48ea-ae47-5aedd0c069ce",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/shots/9dd9db66-fb04-48f0-892f-1fb30ebe23b2/clips/2/artifacts",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "PATCH",
+        "path": "/api/clip-execution-inspector/analyses/86cdd019-2ab9-48ea-ae47-5aedd0c069ce/observations/6c8be918-bc22-4f8b-8cad-a1ec0fb76e34",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "DELETE",
+        "path": "/api/clip-execution-inspector/analyses/86cdd019-2ab9-48ea-ae47-5aedd0c069ce/observations/6c8be918-bc22-4f8b-8cad-a1ec0fb76e34",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "path": "/api/clip-execution-inspector/executions/8d4cb355-9540-42a8-b8a3-bc31a58eb9d1/sampling?offset=0",
+        "status": 200
+      },
+      {
+        "method": "GET",
+        "path": "/api/clip-execution-inspector/analyses/86cdd019-2ab9-48ea-ae47-5aedd0c069ce",
+        "status": 200
+      }
+    ],
+    "db_before": {
+      "tasks": {
+        "count": 813,
+        "sha256": "9959841a8f4bf5e34c235a43251e2f9e911a0811e8844566fd006634414a57a6"
+      },
+      "shots": {
+        "count": 169,
+        "sha256": "42299447ec0179194ea236322388e0c8629a59330ed719f61ba170d26e152786"
+      },
+      "workflows": {
+        "count": 58,
+        "sha256": "7ec3c31c7456349c2ac299d8450e230773324cc6abe2d4a0852c6ac68f1fcaac"
+      }
+    },
+    "db_after": {
+      "tasks": {
+        "count": 813,
+        "sha256": "9959841a8f4bf5e34c235a43251e2f9e911a0811e8844566fd006634414a57a6"
+      },
+      "shots": {
+        "count": 169,
+        "sha256": "42299447ec0179194ea236322388e0c8629a59330ed719f61ba170d26e152786"
+      },
+      "workflows": {
+        "count": 58,
+        "sha256": "7ec3c31c7456349c2ac299d8450e230773324cc6abe2d4a0852c6ac68f1fcaac"
+      }
+    },
+    "business_tables_unchanged": {
+      "tasks": true,
+      "shots": true,
+      "workflows": true
+    },
+    "preview_8011_closed": true
+  },
+  "cold_decode_364": {
+    "video_sha256": "e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9",
+    "native_frame_index0": 364,
+    "native_pts": 15.166666666666666,
+    "native_pts_exact": "91/6",
+    "stream_time_base": "1/12288",
+    "render_version": "frame-v1",
+    "decoded_native_pts": 15.166667,
+    "selection": "select n=364 from source beginning",
+    "preset": "detail",
+    "image_sha256": "23a5e8c5061aa41e11337721eca541b041e00f8e86d8ed77cb7df5bee81652ed"
+  },
+  "cached_images_after_main_acceptance": {
+    "thumb": 42,
+    "detail": 7
+  },
+  "additional_cached_images_since_first_45": 4,
+  "tests": {
+    "inspector_frontend": {
+      "passed": 7,
+      "failed": 0
+    },
+    "typescript": "PASS",
+    "production_build": "PASS"
+  },
+  "code_changes_this_followup": [
+    "frontend/my-app/src/pages/ClipExecutionInspector/useClipExecutionInspector.ts",
+    "frontend/my-app/tests/clipExecutionInspector.test.mjs"
+  ],
+  "generation_requests_initiated": 0,
+  "commit": false,
+  "push": false
+}

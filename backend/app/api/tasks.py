@@ -243,6 +243,11 @@ async def get_task_workflow(
     task = task_repo.get_by_id(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
+    try:
+        metadata = json.loads(task.metadata_json or "{}")
+    except (ValueError, TypeError):
+        metadata = {}
+    execution_duration = {key: metadata.get(key) for key in ("original_duration", "optimized_duration", "effective_duration", "duration_source")}
 
     # 如果任务保存了工作流JSON，直接返回
     if task.workflow_json:
@@ -261,6 +266,7 @@ async def get_task_workflow(
                     "seed": task.seed or extract_workflow_seed(workflow_obj),
                     "prompt": task.prompt_text or "未保存提示词",
                     "promptItems": _extract_character_prompt_items(task, workflow_obj, node_mapping),
+                    "executionDuration": execution_duration,
                 }
             }
         except Exception as e:
@@ -272,6 +278,7 @@ async def get_task_workflow(
                     "seed": task.seed or extract_workflow_seed(task.workflow_json),
                     "prompt": task.prompt_text or "未保存提示词",
                     "promptItems": [],
+                    "executionDuration": execution_duration,
                 }
             }
 
@@ -284,6 +291,7 @@ async def get_task_workflow(
             "seed": task.seed,
             "prompt": task.prompt_text or "未保存提示词",
             "promptItems": [],
+            "executionDuration": execution_duration,
             "note": "工作流尚未提交到ComfyUI或执行未完成，请稍后查看"
         }
     }
@@ -365,7 +373,8 @@ async def get_task_clip_workflow(
             "workflow": workflow_json,
             "nodeMapping": node_mapping,
             "seed": clip.get("seed") or extract_workflow_seed(workflow_json),
-            "prompt": clip.get("prompt_text") or "未保存提示词",
+            "prompt": clip.get("execution_prompt_text") or clip.get("prompt_text") or "未保存提示词",
+            "executionDuration": clip.get("h3_execution"),
             "referenceImages": clip.get("reference_images") if isinstance(clip.get("reference_images"), list) else [],
             "note": None if clip.get("workflow_json") else "该 Clip 尚未保存实际提交的工作流 JSON",
         }

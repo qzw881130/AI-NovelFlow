@@ -399,6 +399,14 @@ def compile_generate_clip(
         },
     }
     _attach_attention_snapshot(contract, shot, plan, clip, manifest)
+    if "dialogue_visual_intent" in clip:
+        from app.services.video_director_ai import (
+            resolve_canonical_dialogue_timeline, executable_dialogue_visual_intents,
+        )
+        timeline, _ = resolve_canonical_dialogue_timeline(shot, plan)
+        intents = executable_dialogue_visual_intents(clip, timeline, plan)
+        if intents:
+            contract["dialogue_visual_intent"] = {"version": 1, "mode": "soft", "events": intents}
     return {
         "execution_contract": contract,
         "video_reference_manifest": manifest,

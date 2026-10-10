@@ -1,4 +1,4 @@
-import type { Task } from '../../types';
+import type { Task, ClipExecutionMetadata } from '../../types';
 
 export type TaskFilter = 'all' | 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
@@ -18,6 +18,7 @@ export interface WorkflowData {
   nodeMapping?: Record<string, string | number | null>;
   prompt: string;
   seed?: number | null;
+  executionDuration?: Pick<ClipExecutionMetadata, 'original_duration' | 'optimized_duration' | 'effective_duration' | 'duration_source'>;
   promptItems?: Array<{
     nodeId: string;
     role: 'layout' | 'style' | 'appearance';

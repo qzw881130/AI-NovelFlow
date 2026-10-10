@@ -8,6 +8,7 @@ import asyncio
 import time
 from typing import Dict, Any, Optional
 from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
+from ..multimodal import attach_image_inputs
 from ..metrics import normalize_metrics
 from ..cancellation import LLMCallTerminated
 from ..http_retry import post_llm_request
@@ -71,7 +72,8 @@ class AnthropicProvider(BaseLLMProvider):
         prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
-        character_id: str = None
+        character_id: str = None,
+        images: list | None = None,
     ) -> LLMResponse:
         """
         发送对话请求
@@ -96,6 +98,7 @@ class AnthropicProvider(BaseLLMProvider):
         body = self._build_request_body(
             system_prompt, user_content, temperature, max_tokens, response_format
         )
+        body = attach_image_inputs(body, self.config.provider, images)
 
         # 获取代理配置
         proxy = self._get_proxy_config()
@@ -110,6 +113,7 @@ class AnthropicProvider(BaseLLMProvider):
             payload=body,
             proxy_url=proxy,
             timeout_seconds=timeout,
+            image_metadata=[{k: v for k, v in item.items() if k != "url"} for item in images or []],
         )
 
         client = httpx.AsyncClient(proxy=proxy, timeout=timeout)
@@ -130,6 +134,7 @@ class AnthropicProvider(BaseLLMProvider):
                     used_proxy=used_proxy,
                     request_info=request_info,
                 )
+                self.last_log_id = log_id
                 response = await post_llm_request(
                     client, log_id, endpoint, headers=headers, body=body, timeout=timeout,
                 )

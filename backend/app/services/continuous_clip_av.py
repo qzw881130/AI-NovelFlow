@@ -5,12 +5,27 @@ import json
 import subprocess
 from fractions import Fraction
 from pathlib import Path
+from contextvars import ContextVar
+from functools import wraps
 
 
 CONTINUOUS_CAPABILITIES = {"EXTEND", "TEMPORAL_EXTEND"}
 NATIVE_CONTINUITY_OUTPUT = "NATIVE_CONTINUITY_OUTPUT"
 OVERLAP_FRAMES = 39
 FPS = 24
+_export_probe_cache = ContextVar("export_probe_cache", default=None)
+
+
+def cache_export_av_probes(function):
+    """Reuse identical physical reads only within one export, never across jobs."""
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        token = _export_probe_cache.set({})
+        try:
+            return function(*args, **kwargs)
+        finally:
+            _export_probe_cache.reset(token)
+    return wrapped
 
 
 def is_clip_execution_contract(contract: dict) -> bool:
@@ -18,8 +33,26 @@ def is_clip_execution_contract(contract: dict) -> bool:
 
 
 def probe_clip_av(path: str) -> dict:
+    cache = _export_probe_cache.get()
+    if cache is None:
+        return _probe_clip_av(path)
+    source = Path(path).resolve()
+    stat = source.stat()
+    key = (str(source), stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+    if key not in cache:
+        result = _probe_clip_av(path)
+        # A file changed while probing must not supply cached provenance.
+        after = source.stat()
+        if (after.st_size, after.st_mtime_ns, after.st_ctime_ns) != (stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns):
+            raise ValueError("CLIP_AV_SOURCE_CHANGED")
+        cache[key] = result
+    return dict(cache[key])
+
+
+def _probe_clip_av(path: str) -> dict:
+    exporting = _export_probe_cache.get() is not None
     result = subprocess.run(
-        ["ffprobe", "-v", "error", "-count_frames", "-show_streams", "-of", "json", path],
+        ["ffprobe", "-v", "error", *([] if exporting else ["-count_frames"]), "-show_streams", "-of", "json", path],
         capture_output=True, text=True, timeout=60,
     )
     if result.returncode:
@@ -29,6 +62,20 @@ def probe_clip_av(path: str) -> dict:
     audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
     if not video:
         raise ValueError("CLIP_AV_UNREADABLE")
+    if exporting and not str(video.get("nb_frames") or "").isdigit():
+        # MP4 supplies its stored frame count immediately. Other containers
+        # may need decoding; that fallback belongs to the background export.
+        result = subprocess.run(
+            ["ffprobe", "-v", "error", "-count_frames", "-show_streams", "-of", "json", path],
+            capture_output=True, text=True, timeout=600,
+        )
+        if result.returncode:
+            raise ValueError("CLIP_AV_UNREADABLE")
+        streams = json.loads(result.stdout).get("streams", [])
+        video = next((s for s in streams if s.get("codec_type") == "video"), None)
+        audio = next((s for s in streams if s.get("codec_type") == "audio"), None)
+        if not video:
+            raise ValueError("CLIP_AV_UNREADABLE")
     fps = Fraction(video.get("avg_frame_rate") or video.get("r_frame_rate") or "0/1")
     count = int(video.get("nb_read_frames") or video.get("nb_frames") or 0)
     if fps != FPS or Fraction(video.get("r_frame_rate") or "0/1") != FPS or count <= 0 or float(video.get("start_time") or 0) != 0:

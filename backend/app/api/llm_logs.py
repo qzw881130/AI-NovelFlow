@@ -1,3 +1,4 @@
+from app.services.llm.multimodal import log_image_inputs
 """
 LLM 调用日志 API 路由
 
@@ -77,7 +78,7 @@ LLM_LOG_TASK_CATEGORY_TYPES = {
     "shot_image": ["shot_image_prompt"],
     "video_director": ["video_mode_recommender", "keyframe_description", "keyframe_planner", "keyframe_transition", "clip_execution_planner"],
     "keyframe_image": ["temporal_reference_selector", "keyframe_image_prompt"],
-    "video_generation": ["expand_video_prompt", "h3_single_frame_prompt", "h3_first_last_frame_prompt", "h3_multi_keyframe_prompt"],
+    "video_generation": ["expand_video_prompt", "h3_single_frame_prompt", "h3_first_last_frame_prompt", "h3_multi_keyframe_prompt", "h3_execution_optimizer_prompt"],
 }
 
 LLM_LOG_TASK_LABELS = {
@@ -102,6 +103,7 @@ LLM_LOG_TASK_LABELS = {
     "h3_single_frame_prompt": "视频生成-H3单帧视频提示词",
     "h3_first_last_frame_prompt": "视频生成-H3首尾帧视频提示词",
     "h3_multi_keyframe_prompt": "视频生成-H3多关键帧视频提示词",
+    "h3_execution_optimizer_prompt": "视频生成-MiniMax H3 执行提示词优化",
 }
 
 LLM_TASK_TEMPLATE_TYPES = {
@@ -126,6 +128,7 @@ LLM_TASK_TEMPLATE_TYPES = {
     "h3_single_frame_prompt": "h3_single_frame_prompt",
     "h3_first_last_frame_prompt": "h3_first_last_frame_prompt",
     "h3_multi_keyframe_prompt": "h3_multi_keyframe_prompt",
+    "h3_execution_optimizer_prompt": "h3_execution_optimizer_prompt",
 }
 
 # 上海时区 (东八区)
@@ -550,6 +553,7 @@ def get_llm_log_detail(
             "system_prompt": log.system_prompt,
             "user_prompt": log.user_prompt,
             "request_info": log.request_info,
+            "image_inputs": log_image_inputs(log.request_info),
             "response": log.response,
             "status": log.status,
             "error_message": log.error_message,

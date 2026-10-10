@@ -10,6 +10,7 @@ import re
 import time
 from typing import Dict, Any, Optional, List
 from ..base import BaseLLMProvider, LLMConfig, LLMResponse, create_llm_log, update_llm_log, build_llm_request_info
+from ..multimodal import attach_image_inputs
 from ..metrics import normalize_metrics
 from ..cancellation import LLMCallTerminated
 from ..http_retry import post_llm_request
@@ -87,7 +88,8 @@ class OllamaProvider(BaseLLMProvider):
         prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
-        character_id: str = None
+        character_id: str = None,
+        images: list | None = None,
     ) -> LLMResponse:
         """
         发送对话请求
@@ -112,6 +114,7 @@ class OllamaProvider(BaseLLMProvider):
         body = self._build_request_body(
             system_prompt, user_content, temperature, max_tokens, response_format
         )
+        body = attach_image_inputs(body, self.config.provider, images)
 
         # Ollama 不需要代理
         old_http_proxy = os.environ.pop('HTTP_PROXY', None)
@@ -132,6 +135,7 @@ class OllamaProvider(BaseLLMProvider):
             payload=body,
             proxy_url=None,
             timeout_seconds=timeout,
+            image_metadata=[{k: v for k, v in item.items() if k != "url"} for item in images or []],
         )
 
         log_id = None
@@ -150,6 +154,7 @@ class OllamaProvider(BaseLLMProvider):
                     used_proxy=used_proxy,
                     request_info=request_info,
                 )
+                self.last_log_id = log_id
                 response = await post_llm_request(
                     client, log_id, endpoint, headers=headers, body=body, timeout=timeout,
                 )

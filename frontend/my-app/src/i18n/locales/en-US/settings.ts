@@ -324,6 +324,8 @@ export default {
       h3SingleFramePromptDesc: 'Build the final MiniMax H3 image-to-video prompt for single-frame generation',
       h3FirstLastFramePrompt: 'MiniMax H3 First-Last-Frame Video Prompt Builder',
       h3FirstLastFramePromptDesc: 'Build the final MiniMax H3 first-last-frame video prompt',
+      h3ExecutionOptimizerPrompt: 'MiniMax H3 Execution Prompt Optimizer',
+      h3ExecutionOptimizerPromptDesc: 'Optimize H3 execution using visual inputs while preserving director intent and event speaker ownership',
       h3MultiKeyframePrompt: 'MiniMax H3 Multi-Keyframe Video Prompt Builder',
       h3MultiKeyframePromptDesc: 'Build the final MiniMax H3 multi-keyframe video prompt',
     },

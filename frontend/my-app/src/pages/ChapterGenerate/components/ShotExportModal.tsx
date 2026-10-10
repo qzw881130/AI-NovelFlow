@@ -19,19 +19,21 @@ export const SHOT_EXPORT_OPTIONS = [
 export function ShotExportModal({ shotIndex, onClose, onExport }: {
   shotIndex: number;
   onClose: () => void;
-  onExport: (sections: string[]) => Promise<void>;
+  onExport: (sections: string[], onProgress?: (message: string) => void) => Promise<void>;
 }) {
   const [selected, setSelected] = useState<Set<string>>(() => new Set(SHOT_EXPORT_OPTIONS.map(option => option.key)));
   const [packing, setPacking] = useState(false);
   const [error, setError] = useState('');
+  const [progress, setProgress] = useState('');
   const inFlight = useRef(false);
   const exportSelected = async () => {
     if (inFlight.current || selected.size === 0) return;
     inFlight.current = true;
     setPacking(true);
     setError('');
+    setProgress('');
     try {
-      await onExport(SHOT_EXPORT_OPTIONS.filter(option => selected.has(option.key)).map(option => option.key));
+      await onExport(SHOT_EXPORT_OPTIONS.filter(option => selected.has(option.key)).map(option => option.key), setProgress);
       onClose();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '导出失败，请重试');
@@ -41,11 +43,11 @@ export function ShotExportModal({ shotIndex, onClose, onExport }: {
     }
   };
   return createPortal(
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 p-4" onClick={event => { if (event.target === event.currentTarget && !packing) onClose(); }}>
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/50 p-4" onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
       <section role="dialog" aria-modal="true" aria-label="导出 Shot 生产包" className="flex max-h-[85vh] w-full max-w-xl flex-col rounded-xl bg-white shadow-xl">
         <header className="flex items-center justify-between border-b p-4">
           <h2 className="text-lg font-semibold">导出 Shot {shotIndex} 生产包</h2>
-          <button type="button" onClick={onClose} disabled={packing} aria-label="关闭导出窗口" className="rounded p-1 text-gray-500 hover:bg-gray-100 disabled:opacity-50"><X className="h-5 w-5" /></button>
+          <button type="button" onClick={onClose} aria-label="关闭导出窗口" className="rounded p-1 text-gray-500 hover:bg-gray-100"><X className="h-5 w-5" /></button>
         </header>
         <div className="space-y-4 overflow-y-auto p-4">
           <p className="text-sm text-gray-500">选择需要打包的内容。未生成或不可用的文件会跳过，ZIP 内会附带导出清单。</p>
@@ -66,9 +68,10 @@ export function ShotExportModal({ shotIndex, onClose, onExport }: {
             </div>
           </fieldset>)}
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+          {packing && <div role="status" className="space-y-1 text-sm text-blue-600"><p>{progress || '正在提交后台打包任务'}</p><p className="text-gray-500">关闭窗口不会中断后台打包，可在任务队列查看进度和下载结果。</p></div>}
         </div>
         <footer className="flex justify-end gap-3 border-t p-4">
-          <button type="button" disabled={packing} onClick={onClose} className="rounded-lg bg-gray-100 px-4 py-2 text-sm disabled:opacity-50">取消</button>
+          <button type="button" onClick={onClose} className="rounded-lg bg-gray-100 px-4 py-2 text-sm">{packing ? '关闭' : '取消'}</button>
           <button type="button" disabled={packing || selected.size === 0} onClick={() => void exportSelected()} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-50">
             {packing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}{packing ? '打包中...' : '导出所选内容'}
           </button>

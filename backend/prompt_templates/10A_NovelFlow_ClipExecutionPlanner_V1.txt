@@ -15,6 +15,90 @@ Authoritative inputs:
 - `shot.continuity_mode`: planning context only. It does not override the visual
   dependency definition below.
 
+Dialogue Visual Planning Context (Phase B2):
+- `dialogue_visual_planning_context` is read-only PRE_PLANNING / PLANNED_METADATA,
+  referencing canonical dialogue IDs, speakers and SHOT_SECONDS windows. Canonical
+  dialogue text, speaker, order, story ownership and timeline source remain HARD
+  authority. Do not rewrite speaker/text/order/timing or return new speech fields.
+  Canonical windows are story/planning authority; execution windows are intended
+  visual/speech guidance. H3 timing and speaker realization remain soft, not guaranteed.
+- Attention alignment, state proximity, planned membership and handoff are SOFT
+  context. Coverage measures time only: full coverage does not imply speaker support.
+  Review an interval whose speaker is always not_listed; improve visual reasoning
+  where practical using existing `reason`, state/transition context and composition
+  intent. not_listed is a planning concern, not a hard failure or validation rule;
+  planned membership present is auxiliary and cannot substitute for attention support.
+- Unknown is not false and is not FAIL. Actual visibility, face/mouth readability,
+  competing face salience and H3 realization success are UNKNOWN; do not invent them.
+  Identity resource existence, if known upstream, proves only a resource exists.
+  Unavailable-at-planning identity/anchor facts are unknown, not absent. Do not predict
+  compiled manifests, reference slots, Subject/Picture bindings or final anchor choices.
+- Prefer clear planned speaker support while preserving story, composition, continuity
+  and character relationships. Reaction framing with another primary subject and a
+  background-moving speaker, brief handoffs, two-shots, medium shots, over-the-shoulder,
+  shared composition and camera movement remain valid; speaker-primary is not a hard
+  rule. Avoid mechanical speaker close-ups, splitting or rejection because of unknowns.
+- This context must not change Clip count/start/end/duration, capability or temporal
+  selection. Keep existing boundary, continuity and anchor contracts; do not introduce
+  dialogue/handoff/density/tail splits or reselect anchors for weak evidence. Do not
+  rewrite upstream #08 states/attention or trigger an attention replan. Soft reasoning
+  in existing `reason` is non-authoritative and non-gating; do not output scores.
+  With no dialogue events, retain ordinary visual planning without speech reasoning.
+
+Dialogue Visual Evidence Review (required planning step):
+- Before deciding a Clip execution plan, review every canonical dialogue event
+  overlapping that candidate Clip in `dialogue_visual_planning_context`. Check its
+  canonical speaker/window, attention coverage, speaker roles (primary,
+  background_motion, handoff_participant, not_listed or unresolved), planned speaker
+  membership and which visual facts remain unknown. Do not skip this review merely
+  because canonical camera motion or Clip boundaries already appear straightforward.
+- Full coverage means the interval has attention windows; it does not mean the
+  canonical speaker receives visual support. A covered but not_listed speaker is a
+  SOFT dialogue visual planning concern, not a hard failure. Planned membership in
+  nearby point states is auxiliary context, not proof of interval speaker support.
+- Primary with full coverage is existing planned speaker-attention support. Preserve
+  it without mechanical close-ups, restructuring or splitting. Primary plus handoff
+  participation followed by primary can be a legitimate handoff, not a mismatch.
+  Background-motion speakers, shared composition and reaction framing are also valid;
+  another primary subject or a handoff alone does not make a dialogue event wrong.
+- Planned metadata is not observed truth. Never infer actual speaker visibility,
+  face/mouth readability, correct lip ownership or correct H3 speaker realization
+  from primary, membership, identity resources or state relations. Unknown is neither
+  false nor failure; keep unresolved and unavailable facts unknown.
+- This review informs explanatory reasoning and optional soft visual intent only. Do not change canonical text,
+  speaker, order or timing; Clip count/boundaries/duration, capability or temporal
+  selections; create temporal anchors; or rewrite upstream #08 states/attention.
+  Keep the output schema below with no new review, analysis, score or status fields.
+- In the existing `reason`, briefly identify relevant supplied event references and
+  explain how the concern, positive support or legitimate handoff/reaction composition
+  affects visual judgment or why it leaves the plan unchanged. Make handling of each
+  relevant case observable without copying the full JSON or claiming realization.
+  With no dialogue events, retain ordinary visual planning.
+
+Executable Dialogue Visual Intent (optional, Clip-local):
+- `reason` explains judgment and remains non-executable. When the evidence review
+  identifies a meaningful concern requiring downstream visual participation support,
+  express that judgment separately in optional `dialogue_visual_intent`.
+- Use only version=1, mode="soft", events=[...]. Each event references an existing
+  canonical dialogue_id overlapping this Clip. Do not copy dialogue text, speaker
+  names, start/end times, observed visibility/readability, Subject/Picture or slots.
+- The two allowed intent enums are SUPPORT_SPEAKER_PARTICIPATION and PRESERVE_EXISTING.
+  SUPPORT_SPEAKER_PARTICIPATION requires target_character_id: the supplied resolved
+  canonical speaker's stable UUID. Never guess an identity when unresolved.
+  PRESERVE_EXISTING carries only dialogue_id and intent and is a downstream no-op;
+  omitting it is preferred. Do not duplicate events or add free-form instructions.
+- Participation means support within the authored composition for visual attribution
+  of the speaking action, preserving shared/reaction composition, existing reaction
+  subject, attention handoffs, continuity and camera design. Background participation,
+  two-shots and over-the-shoulder framing remain valid. Speaker need not be primary.
+  This creates no close-up, centering, exclusive-focus, full-interval occupancy or cut
+  requirement. Do not remove a listener/reaction subject or create states or anchors.
+- Do not produce an intent for every dialogue. Existing support and legitimate
+  handoffs prefer omission/no-op; do not mechanically correct a positive support case.
+  Unknown facts stay unknown. This soft field cannot change canonical text/speaker/
+  order/timing, Clip boundaries/capability, temporal selections, #08 attention or refs.
+  Missing field is legal for old responses; no dialogue means omit it or events=[].
+
 Boundary selection and continuity classification are two separate decisions:
 
 1. Choose contiguous Clip boundaries that cover the complete Shot timeline and
@@ -217,8 +301,9 @@ pre-onset timing. Each CONTINUOUS Clip needs valid early or inherited coverage;
 otherwise preserve the existing explicit conflict path, never invent coverage or CUT.
 
 Forbidden authority:
-- Do not infer or output exact dialogue, speaker, language, speech state, mouth/lip
-  state, or dialogue progress.
+- Do not infer or rewrite exact dialogue or canonical speaker; the supplied read-only
+  speaker context may inform visual reasoning. Do not output speech fields, language,
+  speech state, mouth/lip state, or dialogue progress.
 - Do not select or number Pictures, ordinary references, keyframe image bindings,
   Previous AV Tasks/artifacts, temporal image bindings, physical workflows, provider
   modes, node IDs, task IDs, paths, URLs, provenance, or actual media duration.
@@ -240,7 +325,8 @@ Return JSON only:
       "selected_temporal_target_ids": [],
       "early_composition_state_id": null,
       "inherited_start_composition": null,
-      "reason": "visual boundary rationale"
+      "reason": "visual boundary rationale",
+      "dialogue_visual_intent": {"version": 1, "mode": "soft", "events": []}
     }
   ]
 }

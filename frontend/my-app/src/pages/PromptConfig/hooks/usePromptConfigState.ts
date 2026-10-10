@@ -30,6 +30,7 @@ export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descK
   h3_single_frame_prompt: { nameKey: 'promptConfig.types.h3SingleFramePrompt', descKey: 'promptConfig.types.h3SingleFramePromptDesc', defaultTemplate: '', fileNumber: '11' },
   h3_first_last_frame_prompt: { nameKey: 'promptConfig.types.h3FirstLastFramePrompt', descKey: 'promptConfig.types.h3FirstLastFramePromptDesc', defaultTemplate: '', fileNumber: '12' },
   h3_multi_keyframe_prompt: { nameKey: 'promptConfig.types.h3MultiKeyframePrompt', descKey: 'promptConfig.types.h3MultiKeyframePromptDesc', defaultTemplate: '', fileNumber: '13' },
+  h3_execution_optimizer_prompt: { nameKey: 'promptConfig.types.h3ExecutionOptimizerPrompt', descKey: 'promptConfig.types.h3ExecutionOptimizerPromptDesc', defaultTemplate: '', fileNumber: '14' },
 };
 
 export const TEMPLATE_TYPES: TemplateType[] = [
@@ -55,6 +56,7 @@ export const TEMPLATE_TYPES: TemplateType[] = [
   'h3_single_frame_prompt',
   'h3_first_last_frame_prompt',
   'h3_multi_keyframe_prompt',
+  'h3_execution_optimizer_prompt',
 ];
 
 export function usePromptConfigState() {
@@ -84,6 +86,7 @@ export function usePromptConfigState() {
     h3_single_frame_prompt: [],
     h3_first_last_frame_prompt: [],
     h3_multi_keyframe_prompt: [],
+    h3_execution_optimizer_prompt: [],
   });
   const [loadingByType, setLoadingByType] = useState<Record<TemplateType, boolean>>({
     scene_setting: true,
@@ -108,6 +111,7 @@ export function usePromptConfigState() {
     h3_single_frame_prompt: true,
     h3_first_last_frame_prompt: true,
     h3_multi_keyframe_prompt: true,
+    h3_execution_optimizer_prompt: true,
   });
 
   // 弹窗状态

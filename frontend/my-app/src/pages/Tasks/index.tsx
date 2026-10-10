@@ -115,6 +115,7 @@ export default function Tasks() {
       'keyframe_image': t('tasks.types.keyframeImage', { defaultValue: '关键帧图片' }),
       'single_image_edit': t('tasks.types.singleImageEdit'),
       'shot_video': t('tasks.types.shotVideo'),
+      'shot_export': 'Shot 生产包导出',
       'shot_video_batch': t('tasks.types.shotVideoBatch', { defaultValue: '批量分镜视频' }),
       'shot_video_hd': t('tasks.types.shotVideoHd', { defaultValue: '高清重绘' }),
       'shot_video_hd_batch': t('tasks.types.shotVideoHdBatch', { defaultValue: '批量高清重绘' }),
@@ -129,7 +130,7 @@ export default function Tasks() {
     const supportedTypes: Task['type'][] = [
       'character_portrait', 'character_voice', 'character_audio', 'narrator_audio',
       'scene_image', 'prop_image', 'shot_image', 'shot_image_batch', 'keyframe_image',
-      'single_image_edit', 'shot_video', 'shot_video_batch', 'shot_video_hd', 'shot_video_hd_batch', 'transition_video', 'chapter_video', 'novel_video',
+      'single_image_edit', 'shot_video', 'shot_video_batch', 'shot_video_hd', 'shot_video_hd_batch', 'transition_video', 'chapter_video', 'novel_video', 'shot_export',
     ];
     return Array.from(new Set<string>([...supportedTypes, ...taskTypes]));
   }, [taskTypes]);

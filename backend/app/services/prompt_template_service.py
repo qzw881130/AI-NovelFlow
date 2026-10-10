@@ -285,6 +285,12 @@ SYSTEM_H3_VIDEO_PROMPT_TEMPLATES: List[Dict] = [
         "description": "根据多张时间顺序关键帧、过渡 Segment 和精确对白构建 H3 多关键帧提示词",
         "template": load_template("13_MiniMax_H3_MultiKeyframe_VideoPrompt_V1.txt"),
         "type": "h3_multi_keyframe_prompt"
+    },
+    {
+        "name": "MiniMax H3 执行提示词优化",
+        "description": "以视觉输入优化 H3 执行表达，保留 canonical authority、局部说话人绑定与连续镜头",
+        "template": load_template("14_MiniMax_H3_Execution_Prompt_Optimizer_V1.txt"),
+        "type": "h3_execution_optimizer_prompt"
     }
 ]
 

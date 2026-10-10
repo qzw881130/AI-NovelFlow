@@ -167,6 +167,7 @@ export default {
     },
     workflowDetails: 'Workflow Details',
     generationPrompt: 'Generation Prompt',
+    promptCharacterCount: '{count} characters',
     workflowJSON: 'Workflow JSON',
     boundWorkflowParameters: 'Bound workflow parameters ({count})',
     showOnlyMappedNodes: 'Show mapped nodes only',

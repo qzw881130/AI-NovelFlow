@@ -99,6 +99,10 @@ export function WorkflowViewModal({
   };
 
   const promptItems = workflowData?.promptItems || [];
+  const promptCharacterCount = promptItems.length > 0
+    ? promptItems.reduce((total, item) => total + Array.from(item.content || '').length, 0)
+    : Array.from(workflowData?.prompt || '').length;
+  const executionDuration = workflowData?.executionDuration || viewingWorkflow.clipExecution;
   const workflowObject = typeof workflowData?.workflow === 'string'
     ? (() => {
         try { return JSON.parse(workflowData.workflow); } catch { return null; }
@@ -156,9 +160,12 @@ export function WorkflowViewModal({
                   Seed: <span className="font-mono font-medium">{workflowData.seed}</span>
                 </div>
               )}
+              {executionDuration?.effective_duration != null && <p className="rounded border border-blue-200 bg-blue-50 p-3 text-sm">
+                原始时长：{executionDuration.original_duration}s · #14 优化时长：{executionDuration.optimized_duration ?? '—'}s · 实际生成参数时长：{executionDuration.effective_duration}s · 来源：{executionDuration.duration_source}
+              </p>}
               {(!!viewingWorkflow.referenceImages?.length || viewingWorkflow.clipExecution?.previous_approved_video_url) && (
-                <div>
-                  <h4 className="text-sm font-medium text-gray-700 mb-2">
+              <div>
+                <h4 className="text-sm font-medium text-gray-700 mb-2">
                     {viewingWorkflow.referenceImages?.length ? t('tasks.referenceImages') : t('tasks.referenceVideo')}
                   </h4>
                   <div className="flex flex-wrap gap-2">
@@ -206,6 +213,9 @@ export function WorkflowViewModal({
                 <div className="flex items-center justify-between mb-2">
                   <h4 className="text-sm font-medium text-gray-700">
                     {t('tasks.generationPrompt')}{promptItems.length > 0 ? `（${promptItems.length} 项）` : ''}
+                    <span className="ml-2 text-xs font-normal text-gray-500">
+                      {t('tasks.promptCharacterCount', { count: promptCharacterCount })}
+                    </span>
                   </h4>
                   {promptItems.length === 0 && (
                     <button type="button" onClick={() => void copyText(workflowData.prompt)} className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50" title={t('common.copy')} aria-label={t('common.copy')}>

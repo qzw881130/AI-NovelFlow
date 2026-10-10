@@ -24,6 +24,7 @@ const TEMPLATE_FIELDS = [
   { key: 'h3SingleFramePromptTemplateId', labelKey: 'novels.h3SingleFramePromptLabel', hintKey: 'novels.h3SingleFramePromptHint', templateType: 'h3_single_frame_prompt', category: 'video_generation' },
   { key: 'h3FirstLastFramePromptTemplateId', labelKey: 'novels.h3FirstLastFramePromptLabel', hintKey: 'novels.h3FirstLastFramePromptHint', templateType: 'h3_first_last_frame_prompt', category: 'video_generation' },
   { key: 'h3MultiKeyframePromptTemplateId', labelKey: 'novels.h3MultiKeyframePromptLabel', hintKey: 'novels.h3MultiKeyframePromptHint', templateType: 'h3_multi_keyframe_prompt', category: 'video_generation' },
+  { key: 'h3ExecutionOptimizerPromptTemplateId', labelKey: 'novels.h3ExecutionOptimizerPromptLabel', hintKey: 'novels.h3ExecutionOptimizerPromptHint', templateType: 'h3_execution_optimizer_prompt', category: 'video_generation' },
 ] as const;
 
 const TEMPLATE_CATEGORIES = [

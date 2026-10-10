@@ -71,6 +71,8 @@ export default {
     splitPromptHint: 'Select prompt template for splitting chapters into shots',
     keyframeDescriptionPromptLabel: 'Keyframe Description Prompt Template',
     keyframeDescriptionPromptHint: 'Select prompt template for generating shot keyframe descriptions',
+    h3ExecutionOptimizerPromptLabel: 'MiniMax H3 Execution Prompt Optimizer',
+    h3ExecutionOptimizerPromptHint: 'Use visual inputs to optimize execution while preserving canonical facts and event speaker ownership',
     promptTemplatesSection: 'Prompt Template Configuration',
     defaultTemplate: 'Use Default',
     stylePrompt: 'Style',

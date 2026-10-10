@@ -253,8 +253,8 @@ def test_semantic_clip_transition_projection_fails_soft_without_expanding_scope(
 def test_semantic_clip_context_projects_transitions_without_mutating_canonical_authorities():
     transitions = _canonical_transitions()
     dialogue_timeline = [
-        {"dialogue_id": "D3", "speaker": "皇帝", "start_time": 8.0, "end_time": 10.0},
-        {"dialogue_id": "D4", "speaker": "侍从2", "start_time": 11.0, "end_time": 13.0},
+        {"id": "D3", "dialogue_id": "D3", "speaker": "皇帝", "text": "第一句。", "start_time": 8.0, "end_time": 10.0},
+        {"id": "D4", "dialogue_id": "D4", "speaker": "侍从2", "text": "第二句。", "start_time": 11.0, "end_time": 13.0},
     ]
     physical_manifest = {
         "version": 1,

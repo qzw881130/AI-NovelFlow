@@ -15,6 +15,7 @@ NOVEL_PROMPT_COLUMNS = [
     "h3_single_frame_prompt_template_id",
     "h3_first_last_frame_prompt_template_id",
     "h3_multi_keyframe_prompt_template_id",
+    "h3_execution_optimizer_prompt_template_id",
 ]
 
 

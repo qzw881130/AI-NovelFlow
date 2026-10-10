@@ -5,6 +5,7 @@ import { useClipExecutionInspector } from './useClipExecutionInspector';
 import ClipSummary from './components/ClipSummary';
 import UnifiedTimeline from './components/UnifiedTimeline';
 import Filmstrip from './components/Filmstrip';
+import ContactSheetModal from './components/ContactSheetModal';
 import FrameInspector from './components/FrameInspector';
 import ObservationEditor from './components/ObservationEditor';
 import { ExecutionResultOptions } from './components/ExecutionIdentity';
@@ -19,6 +20,7 @@ export default function ClipExecutionInspector() {
     const next = new URLSearchParams(query); next.set('analysis', id); setQuery(next, { replace: true });
   });
   const [timeInput, setTimeInput] = useState('0');
+  const [contactSheetOpen, setContactSheetOpen] = useState(false);
   useEffect(() => setTimeInput(String(state.requestedTime)), [state.requestedTime]);
   const p = state.projection;
   const observations = state.analysis?.observations.filter(o => o.variant_id === 'A') || [];
@@ -49,7 +51,9 @@ export default function ClipExecutionInspector() {
       <div className="cei-card cei-row cei-sampling-controls"><label>{l.sampling}<select value={state.interval} onChange={e => state.changeSampling(Number(e.target.value))}>{[.5, 1, 2].map(t => <option value={t} key={t}>{t}s</option>)}</select></label>
         <label><input type="checkbox" checked={state.events} onChange={e => state.setEvents(e.target.checked)} />{l.events}</label><label><input type="checkbox" checked={state.neighbors} disabled={!state.events} onChange={e => state.setNeighbors(e.target.checked)} />{l.neighbors}</label>
         <form className="cei-row" onSubmit={e => { e.preventDefault(); if (timeInput.trim()) void state.selectTime(Number(timeInput)); }}><label>{p.time_mapping.time_domain === 'CLIP_LOCAL' ? l.clip : l.native}<input type="number" min="0" max={p.time_mapping.axis_duration ?? undefined} step="any" value={timeInput} onChange={e => setTimeInput(e.target.value)} /></label><button type="submit">{l.view}</button></form>
+        <button onClick={() => setContactSheetOpen(true)}>{l.contactSheet}</button>
       </div>
+      {contactSheetOpen && <ContactSheetModal key={`${taskId}:${p.artifact.artifact_id}:${state.interval}`} projection={p} interval={state.interval} analysisId={state.analysis?.analysis_id} onClose={() => setContactSheetOpen(false)} />}
       {state.sampleError && <p className="cei-error" role="alert">{state.sampleError} <button onClick={() => void state.selectTime(state.requestedTime)}>{l.retry}</button></p>}
       <Filmstrip manifest={state.manifest} selected={state.selected} observations={observations} onSelect={state.selectFrame} onPage={state.setOffset} loading={state.sampling} />
       <FrameInspector projection={p} sample={state.selected} requested={state.requestedTime} observations={observations} onStep={state.stepFrame} onTime={t => void state.selectTime(t)} />

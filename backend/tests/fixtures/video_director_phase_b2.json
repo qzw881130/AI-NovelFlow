@@ -1,0 +1,1067 @@
+{
+  "variants": {
+    "planner": {
+      "shot": {
+        "chapter_id": "6ad4afd6-f37b-419f-9a1c-0e3e4ec47d1e",
+        "characters": "[\"皇帝\", \"宫廷总管\", \"骗子1\", \"骗子2\"]",
+        "continuity_mode": "CONTINUOUS_TAKE",
+        "description": "Scene: 宽阔庄严的王宫大厅内光线明亮，高背宝座位于抬高区域；全景，机位从大厅中央低角度拍向宝座。画面可见人物严格限定为皇帝、宫廷总管、骗子1、骗子2，共4名。\nCharacters:\n- 皇帝: 位于画面中央后方的高背宝座上，严格继承正式参考资产身份，身体正对两名骗子，目光审视地落在他们身上。\n- 宫廷总管: 位于宝座台阶侧方，身体朝向皇帝与两名骗子，恭敬垂手站立。\n- 骗子1: 位于画面左侧中景，严格继承正式参考资产身份，头戴宽边礼帽，面向皇帝深深鞠躬。\n- 骗子2: 位于画面右侧中景，严格继承正式参考资产身份，头戴宽边礼帽，面向皇帝深深鞠躬。\nAction: 骗子1与骗子2同时朝高背宝座上的皇帝行礼，皇帝居高临下仔细打量二人。",
+        "dialogues": "[{\"order\": 1, \"character_name\": \"骗子1\", \"text\": \"尊贵的陛下。\", \"emotion_prompt\": \"恭敬奉承\"}, {\"order\": 2, \"character_name\": \"骗子2\", \"text\": \"我们终于有幸见到您了。\", \"emotion_prompt\": \"殷勤欣喜\"}, {\"order\": 3, \"character_name\": \"皇帝\", \"text\": \"听说你们会织一种特别的布？\", \"emotion_prompt\": \"审视好奇\"}, {\"order\": 4, \"character_name\": \"骗子1\", \"text\": \"是的，陛下。\", \"emotion_prompt\": \"自信恭敬\"}, {\"order\": 5, \"character_name\": \"皇帝\", \"text\": \"它有多漂亮？\", \"emotion_prompt\": \"期待追问\"}, {\"order\": 6, \"character_name\": \"骗子2\", \"text\": \"它轻得像清晨的雾。\", \"emotion_prompt\": \"陶醉描绘\"}]",
+        "duration": 13.1,
+        "id": "58fa07ca-9cbf-44ba-9aca-57beb79a395c",
+        "image_path": null,
+        "image_url": null,
+        "index": 3,
+        "keyframes": "[]",
+        "props": "[\"高背宝座\", \"宽边礼帽\"]",
+        "scene": "王宫大厅",
+        "video_description": "从当前静态首帧状态继续，两名骗子直起身体并依次向皇帝致意。皇帝坐在高背宝座上询问布料，摄影机在宝座与两名骗子之间缓慢推进，不切换人物关系。骗子2张开双手，在身前比划不存在的华丽布料；骗子1与骗子2轮流描绘其轻盈、光亮和变幻的色彩，皇帝逐渐听得入神并向前倾身。确认布料还能检验智慧与职位资格后，皇帝起身走下台阶，在两名骗子面前来回踱步。两名骗子低头奉承，皇帝随即询问所需材料。骗子1与骗子2交换眼神后提出要求，皇帝毫不犹豫答应。宫廷总管短暂迟疑并试图提醒库存，皇帝转头施压，宫廷总管立刻低头退让。皇帝挥手重申命令，两名骗子再次深深鞠躬。镜头以皇帝满意站立、两名骗子保持行礼姿态收束。只有皇帝、宫廷总管、骗子1、骗子2按照dialogues顺序发声，不增加其他人物语音；仅保留脚步与大厅自然回声，不生成字幕或画面文字。",
+        "video_director_plan": "{\"canonical_visual_plan\": true, \"keyframes\": [{\"index\": 1, \"time_seconds\": 0.0, \"role\": \"START\", \"description\": \"\", \"timed_visual_target\": false, \"image_task_id\": \"6c8d9075-32d0-4541-a35d-48f795b9c113\"}, {\"index\": 2, \"time_seconds\": 4.95, \"role\": \"INTERMEDIATE\", \"description\": \"Scene: 王宫大厅内，摄影机仍从大厅中央沿原轴线低角度望向高背宝座，并较首帧缓慢靠近。\\nCharacters:\\n- 皇帝: 端坐在高背宝座中央，身体正对两名骗子，目光保持审视。\\n- 宫廷总管: 站在宝座台阶侧方，双手垂于身前，姿态恭敬。\\n- 骗子1: 位于画面左侧中景，身体已经直起，宽边礼帽与考究衣装保持不变，面向皇帝。\\n- 骗子2: 位于画面右侧中景，身体已经直起，面向皇帝，神情殷勤。\\nAction: 两名骗子在宝座前形成左右对称的站立关系，皇帝仍居高临下。\", \"timed_visual_target\": false, \"prompt_text\": \"编辑生成 current_keyframe.time_seconds=4.95 对应的单一完整剧情画面，当前视觉状态以本提示中的 canonical 描述为最高权威。\\n\\n<image_1> 是当前 Shot 的主分镜基线，仅用于回查皇帝、宫廷总管、骗子1、骗子2、王宫大厅及整体视觉基线；当前时间点的人物姿态、站位、空间关系和摄影机构图以当前关键帧描述为准，不把画面退回主分镜初始状态。\\n\\n<image_2> 是皇帝、宫廷总管、骗子1、骗子2的正式角色身份参考。使用 <image_2> 保持四名角色各自的身份、面部、发型、年龄、体型比例、服装与稳定外观一致；参考图中的展示姿态、站位、背景和多视图排版不属于当前剧情构图。同一角色的不同展示视图只代表同一个人，不得复制成额外人物。\\n\\n<image_3> 是“王宫大厅”的正式场景参考，只用于保持环境身份、宫殿建筑结构、空间材质、时代特征和稳定视觉细节；不得把场景参考中的人物带入画面。当前低角度机位、人物位置和剧情状态服从当前关键帧描述。\\n\\n<image_4> 是“高背宝座”和“宽边礼帽”的正式道具外观参考，只用于保持这两件道具的形制、材质与稳定外观；参考图的展示背景、排版及未列物体不得进入最终画面。\\n\\n当前必须达到的视觉状态：王宫大厅内部，摄影机位于大厅中央，沿主分镜原有空间轴线以低角度望向高背宝座；相较 <image_1> 的首帧构图，摄影机已经缓慢推进并明显靠近，形成已经到达的新稳定取景，不保留首帧较远的景别。高背宝座仍位于构图的权力中心，皇帝端坐在宝座中央并居高临下，身体正对宝座前方的两名骗子，目光保持审视。宫廷总管站在宝座台阶侧方，双手自然垂于身前，姿态恭敬。骗子1位于画面左侧中景，身体已经完全直起，不再保持先前可能存在的弯腰或起身过程；宽边礼帽与考究衣装保持稳定，身体面向皇帝。骗子2位于画面右侧中景，身体同样已经完全直起，面向皇帝，神情殷勤。两名骗子在宝座前形成清楚、均衡、左右对称的站立关系，皇帝与宝座保持居中且高于二人，宫廷总管位于台阶侧方，不破坏两名骗子的对称关系。\\n\\nVisual Delta 必须清楚可见：摄影机相较主分镜首帧沿原轴线向宝座方向推进，低角度关系保持，但景别已经更近；骗子1与骗子2均已到达直立站姿，并在画面左右中景形成明确对称；不得将二人保留为弯腰、半起身或动作过渡姿态。不得因参考图中的旧构图或展示姿态而弱化这些变化。\\n\\nContinuity Locks：保持四名角色身份及未被当前状态要求改变的面部、发型、体型、服装和配饰稳定；保持王宫大厅的建筑结构、空间方向、材质、时代和合理光线逻辑；保持高背宝座与宽边礼帽的正式外观；保持原有镜头轴线和世界左右方向，不镜像翻转人物关系。除当前明确要求的摄影机推进、两名骗子直立姿态与左右对称站位外，不增加无关动作、人物、道具或环境变化。\\n\\nSCENE PARTICIPANTS: exactly four unique visible people, preserving the four-person composition required by the current Visual State：皇帝、宫廷总管、骗子1、骗子2。四人各出现且只出现一次，不得复制、融合或互换身份；不得把角色参考中的多视图或肖像当作额外演员，不得加入侍从、卫兵、路人、人影、剪影、背景人群、镜中人物或任何第五个人。\\n\\n采用精确干净的二维动画线稿与受控线宽，平涂局部色彩，清晰利落的赛璐璐阴影形状与克制高光；人物、环境和道具保持统一的手绘轮廓与着色方式，以线条和色彩表达清楚的轮廓、空间层次与材质信息，不使用照片级纹理。保持正式角色、服装、道具、建筑和世界细节，不重新设计身份或资产。高质量、细节清晰、透视正确、人体比例自然、遮挡关系自然、环境连续稳定。\\n\\n只表现4.95秒这一刻已经到达的单一静态状态；不得出现起身前后两个版本、动作残影、重复人物、运动轨迹、连续漫画格、多面板、前后对比、角色设定多视图、参考图拼贴、contact sheet或资料页。不得生成字幕、对白框、标题、标签、说明文字、logo、水印或UI。\", \"image_url\": \"/api/files/story_bfc54b7d/images/keyframe_0_20261008_135435.png\", \"image_task_id\": \"5cc9a3e1-45cb-490c-b979-e489444303c5\"}, {\"index\": 3, \"time_seconds\": 13.0, \"role\": \"INTERMEDIATE\", \"description\": \"Scene: 王宫大厅内，摄影机沿同一轴线继续缓慢推进，宝座与两名骗子仍处于同一连续构图中。\\nCharacters:\\n- 皇帝: 坐在高背宝座上，视线落向骗子2摊开的双手。\\n- 宫廷总管: 保持在台阶侧方，身体朝向宝座前方。\\n- 骗子1: 站在左侧，身体略向同伴与皇帝倾斜，神情从容。\\n- 骗子2: 站在右侧，双手在身前展开并相隔一定距离，掌心托举般朝上。\\nAction: 骗子2以空置的双手构成展示华丽布料的明确轮廓，两名骗子之间没有出现实体布料。\", \"timed_visual_target\": false, \"prompt_text\": \"编辑为13.0秒当前关键帧的单一完整剧情画面：在王宫大厅内，摄影机沿前序画面的同一轴线继续向高背宝座缓慢推进，形成已经到达的、更靠近宝座的新稳定构图；明确改变骗子2的手部姿态，使其以空置双手展示并不存在的华丽布料，其余未指定变化保持连续。\\n\\n<image_1>是前序物理状态的连续性参考，提供动作起点以及未变化的人物外观、服装、王宫环境、宝座、光线、空间方向和前序摄影机轴线线索。当前位置、空间关系、姿态、朝向、表情、视线、手部动作和当前构图以本关键帧描述为准；与当前状态冲突的旧姿态必须改变，不因保留参考图而冻结骗子2原本垂下的双手或旧景别。\\n\\n<image_2>是皇帝、宫廷总管、骗子1、骗子2的合并角色身份参考。使用<image_2>保持四名角色各自的身份、面部、年龄、体型、发型、服装与稳定外观一致；其中的展示姿态、站位、背景或多视图排版不属于当前剧情构图。同一角色的不同展示视图均是同一个人，不得复制成额外人物。\\n\\n<image_3>是“王宫大厅”的正式场景参考，只用于保持环境身份、宫殿建筑结构、台阶、空间材质、时代特征和稳定视觉细节；当前摄影机、人物位置与剧情状态服从本关键帧。不得将场景参考中的人物或无关物体带入画面。\\n\\n<image_4>是“高背宝座”的正式道具外观参考，只用于保持宝座的形制、材质与稳定外观；参考图的展示背景、排版及未列物体不得进入最终画面。\\n\\nSCENE PARTICIPANTS: exactly four unique visible people：皇帝、宫廷总管、骗子1、骗子2。四人各出现且只出现一次，保持当前视觉状态要求的四人构图；不得复制、融合或互换任何角色，不得从角色或场景参考图增加侍从、卫兵、路人、背景人群、剪影、镜中人物或第五个人。\\n\\n当前画面中，高背宝座与两名骗子仍处于同一连续构图。皇帝坐在高背宝座上，身份、服装和端坐状态保持稳定，视线明确落向骗子2在身前摊开的双手。宫廷总管保持站在宝座台阶侧方，身体朝向宝座前方，延续恭敬而稳定的站姿。骗子1站在画面左侧，保留宽边礼帽与考究衣装，身体略向右侧同伴与宝座上的皇帝倾斜，神情从容。骗子2站在画面右侧，身体面向宝座区域，双手已经在身前明确展开，两手相隔足够距离，掌心如托举般朝上，以手臂和空置双掌构成正在展示一幅华丽布料的清晰轮廓。\\n\\n骗子2的双手之间必须完全空置，不出现任何实体布料、透明布料、半透明织物、发光织物、轮廓线布料或悬浮物；两名骗子之间同样没有实体布料。只通过骗子2清楚可读的双手间距、掌心方向与展示姿势表达这一动作，不使用文字、箭头或特效解释。\\n\\n保持四名人物的身份、面部、发型、年龄、体型比例、服装与配饰连续；保持王宫大厅的建筑结构、宝座台阶、材质、时代、合理光线、世界空间方向及人物左右关系连续。宽边礼帽继续由骗子1正常佩戴，不改变其既有外观。不得增加当前状态未要求的新道具、武器、装饰或剧情事件。\\n\\n摄影机沿<image_1>的原轴线继续推进，维持从大厅中央朝向高背宝座的空间方向和透视关系，但当前景别必须比前序画面明显更靠近，形成已经完成推进的新稳定取景；不保留旧景别，不跳轴，不镜像翻转左右关系。构图仍清楚容纳宝座上的皇帝、台阶侧方的宫廷总管以及左右站立的两名骗子，并让骗子2摊开的空手成为清晰可读的动作重点。\\n\\n采用统一的2D动画渲染：精准干净的线稿、受控的线条粗细、平涂固有色、清晰利落的赛璐璐阴影块和克制高光；人物、环境与道具的轮廓及明暗表现一致，以线条和色彩表达清楚的剪影与材质，不使用照片写实纹理。高质量、细节完整、透视正确、人体比例自然、手部结构准确、遮挡关系自然、环境连续稳定。\\n\\n只表现13.0秒这一个静态时间切片，不呈现动作起点或未来状态，不使用残影、重复人物或运动轨迹；不得生成前后帧并排、拼贴、对比图、漫画分格、contact sheet、设定表、多视图或资料页。不得出现字幕、对白框、标题、标签、说明文字、logo、水印或UI。\", \"image_url\": \"/api/files/story_bfc54b7d/images/keyframe_1_20261008_135519.png\", \"image_task_id\": \"917c7d2b-a392-415d-b625-af6b6b1b920a\"}], \"transitions\": [{\"segment_index\": 1, \"from_keyframe_index\": 1, \"to_keyframe_index\": 2, \"start_time\": 0.0, \"end_time\": 4.95, \"transition_description\": \"摄影机从首帧机位开始，沿王宫大厅中央原轴线保持低角度，平稳而缓慢地向高背宝座推进，全程不切镜、不跳轴，也不突然改变景别。由于首帧未提供具体人物初始调度，不补写额外起始动作；四人仅沿既有空间连续性自然稳定到终帧关系，不交叉换位。推进过程中以画面左侧的骗子1和右侧的骗子2为主要视觉关注，两人保持宽边礼帽与考究衣装不变，身体稳定为直立姿态并面向皇帝，最终在宝座前形成左右对称的中景站位。皇帝始终端坐于高背宝座中央，身体正对两名骗子，以居高临下的审视目光维持双方关系；宫廷总管保持在宝座台阶侧方，双手垂于身前、姿态恭敬，不产生抢夺焦点的移动。摄影机最终停在较首帧更靠近宝座的位置，同时保留两名骗子、皇帝与宫廷总管之间清晰完整的空间关系。\"}, {\"segment_index\": 2, \"from_keyframe_index\": 2, \"to_keyframe_index\": 3, \"start_time\": 4.95, \"end_time\": 13.0, \"transition_description\": \"摄影机保持大厅中央的原轴线和低角度，在同一镜头内持续缓慢向高背宝座推进，始终保留宝座上的皇帝与左右两名骗子的空间关系。开始阶段，两名骗子维持宝座前左右对称的直立姿态，皇帝端坐审视；随着推进，画面关注从两名骗子自然过渡到居高临下的皇帝，但不改变任何人的左右位置。宫廷总管始终站在宝座台阶侧方，双手垂于身前，仅保持自然呼吸与稳定重心。临近后段，骗子2留在画面右侧原位，将双臂朝身前抬起，双手逐渐向左右分开并翻转掌心向上，以空置双手围出托举华丽布料般的明确轮廓；整个过程中双手之间不出现实体布料。骗子1留在画面左侧，身体缓慢向右侧同伴及后方宝座方向略微倾斜，保持从容神情。皇帝不离开宝座，只将视线从两名骗子逐渐下移并落到骗子2摊开的双手上。摄影机继续沿原方向平稳推进，不切换机位、不跳轴，也不单独追随骗子2；到达终点时停在宝座与两名骗子仍同处一幅连续构图的状态：皇帝注视骗子2的空手展示，骗子1略微倾身，骗子2双手在身前分开、掌心向上，宫廷总管仍恭敬立于台阶侧方。\"}], \"visual_attention\": {\"version\": 1, \"time_base\": \"SHOT_SECONDS\", \"character_catalog\": [{\"character_id\": \"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\", \"character_name\": \"皇帝\"}, {\"character_id\": \"2eab8846-dc86-4e12-8c30-dfeca26cc6c5\", \"character_name\": \"宫廷总管\"}, {\"character_id\": \"e5744860-fb0a-4fb1-87a7-3abeb013878f\", \"character_name\": \"骗子1\"}, {\"character_id\": \"92b676cb-3c22-4d60-a4e2-a57ed662042b\", \"character_name\": \"骗子2\"}], \"windows\": [{\"start_time_seconds\": 0.0, \"end_time_seconds\": 4.95, \"primary_subjects\": [\"e5744860-fb0a-4fb1-87a7-3abeb013878f\", \"92b676cb-3c22-4d60-a4e2-a57ed662042b\"], \"background_motion_subjects\": []}, {\"start_time_seconds\": 4.95, \"end_time_seconds\": 6.0, \"primary_subjects\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\", \"e5744860-fb0a-4fb1-87a7-3abeb013878f\", \"92b676cb-3c22-4d60-a4e2-a57ed662042b\"], \"background_motion_subjects\": [], \"handoff\": {\"from\": [\"e5744860-fb0a-4fb1-87a7-3abeb013878f\", \"92b676cb-3c22-4d60-a4e2-a57ed662042b\"], \"to\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\"]}}, {\"start_time_seconds\": 6.0, \"end_time_seconds\": 10.8, \"primary_subjects\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\"], \"background_motion_subjects\": []}, {\"start_time_seconds\": 11.0, \"end_time_seconds\": 25.8, \"primary_subjects\": [\"e5744860-fb0a-4fb1-87a7-3abeb013878f\", \"92b676cb-3c22-4d60-a4e2-a57ed662042b\"], \"background_motion_subjects\": []}, {\"start_time_seconds\": 26.0, \"end_time_seconds\": 36.65, \"primary_subjects\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\", \"e5744860-fb0a-4fb1-87a7-3abeb013878f\", \"92b676cb-3c22-4d60-a4e2-a57ed662042b\"], \"background_motion_subjects\": []}, {\"start_time_seconds\": 36.85, \"end_time_seconds\": 45.45, \"primary_subjects\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\", \"e5744860-fb0a-4fb1-87a7-3abeb013878f\", \"92b676cb-3c22-4d60-a4e2-a57ed662042b\"], \"background_motion_subjects\": []}, {\"start_time_seconds\": 45.65, \"end_time_seconds\": 52.1, \"primary_subjects\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\"], \"background_motion_subjects\": []}, {\"start_time_seconds\": 52.1, \"end_time_seconds\": 53.3, \"primary_subjects\": [\"e5744860-fb0a-4fb1-87a7-3abeb013878f\"], \"background_motion_subjects\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\"]}, {\"start_time_seconds\": 53.3, \"end_time_seconds\": 55.0, \"primary_subjects\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\"], \"background_motion_subjects\": []}, {\"start_time_seconds\": 55.0, \"end_time_seconds\": 65.3, \"primary_subjects\": [\"e5744860-fb0a-4fb1-87a7-3abeb013878f\", \"92b676cb-3c22-4d60-a4e2-a57ed662042b\"], \"background_motion_subjects\": []}, {\"start_time_seconds\": 65.3, \"end_time_seconds\": 66.6, \"primary_subjects\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\"], \"background_motion_subjects\": []}, {\"start_time_seconds\": 66.7, \"end_time_seconds\": 69.45, \"primary_subjects\": [\"2eab8846-dc86-4e12-8c30-dfeca26cc6c5\"], \"background_motion_subjects\": []}, {\"start_time_seconds\": 69.45, \"end_time_seconds\": 70.3, \"primary_subjects\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\", \"2eab8846-dc86-4e12-8c30-dfeca26cc6c5\"], \"background_motion_subjects\": [], \"handoff\": {\"from\": [\"2eab8846-dc86-4e12-8c30-dfeca26cc6c5\"], \"to\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\"]}}, {\"start_time_seconds\": 70.3, \"end_time_seconds\": 71.85, \"primary_subjects\": [\"2eab8846-dc86-4e12-8c30-dfeca26cc6c5\"], \"background_motion_subjects\": []}, {\"start_time_seconds\": 72.05, \"end_time_seconds\": 74.3, \"primary_subjects\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\"], \"background_motion_subjects\": []}, {\"start_time_seconds\": 74.5, \"end_time_seconds\": 80.5, \"primary_subjects\": [\"92b676cb-3c22-4d60-a4e2-a57ed662042b\"], \"background_motion_subjects\": []}, {\"start_time_seconds\": 80.5, \"end_time_seconds\": 84.0, \"primary_subjects\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\", \"e5744860-fb0a-4fb1-87a7-3abeb013878f\", \"92b676cb-3c22-4d60-a4e2-a57ed662042b\"], \"background_motion_subjects\": [], \"handoff\": {\"from\": [\"92b676cb-3c22-4d60-a4e2-a57ed662042b\"], \"to\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\", \"e5744860-fb0a-4fb1-87a7-3abeb013878f\"]}}, {\"start_time_seconds\": 84.0, \"end_time_seconds\": 128.0, \"primary_subjects\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\", \"e5744860-fb0a-4fb1-87a7-3abeb013878f\", \"92b676cb-3c22-4d60-a4e2-a57ed662042b\"], \"background_motion_subjects\": []}]}, \"dialogue_timeline_source\": [{\"id\": \"D1\", \"speaker\": \"骗子1\", \"text\": \"尊贵的陛下。\", \"start_time\": 1.0, \"end_time\": 2.25, \"duration\": 1.25, \"estimated_speech_duration\": 1.25, \"min_required_duration\": 1.25, \"duration_sufficient\": true, \"emotion_prompt\": \"恭敬奉承\"}, {\"id\": \"D2\", \"speaker\": \"骗子2\", \"text\": \"我们终于有幸见到您了。\", \"start_time\": 2.45, \"end_time\": 4.95, \"duration\": 2.5, \"estimated_speech_duration\": 2.5, \"min_required_duration\": 2.5, \"duration_sufficient\": true, \"emotion_prompt\": \"殷勤欣喜\"}, {\"id\": \"D3\", \"speaker\": \"皇帝\", \"text\": \"听说你们会织一种特别的布？\", \"start_time\": 5.15, \"end_time\": 8.15, \"duration\": 3.0, \"estimated_speech_duration\": 3.0, \"min_required_duration\": 3.0, \"duration_sufficient\": true, \"emotion_prompt\": \"审视好奇\"}, {\"id\": \"D4\", \"speaker\": \"骗子1\", \"text\": \"是的，陛下。\", \"start_time\": 8.35, \"end_time\": 9.35, \"duration\": 1.0, \"estimated_speech_duration\": 1.0, \"min_required_duration\": 1.0, \"duration_sufficient\": true, \"emotion_prompt\": \"自信恭敬\"}, {\"id\": \"D5\", \"speaker\": \"皇帝\", \"text\": \"它有多漂亮？\", \"start_time\": 9.55, \"end_time\": 10.8, \"duration\": 1.25, \"estimated_speech_duration\": 1.25, \"min_required_duration\": 1.25, \"duration_sufficient\": true, \"emotion_prompt\": \"期待追问\"}, {\"id\": \"D6\", \"speaker\": \"骗子2\", \"text\": \"它轻得像清晨的雾。\", \"start_time\": 11.0, \"end_time\": 13.0, \"duration\": 2.0, \"estimated_speech_duration\": 2.0, \"min_required_duration\": 2.0, \"duration_sufficient\": true, \"emotion_prompt\": \"陶醉描绘\"}], \"dialogue_timeline_status\": {\"status\": \"ok\"}}"
+      },
+      "response": {
+        "clips": [
+          {
+            "clip_index": 1,
+            "continuity_to_previous": "NONE",
+            "early_composition_state_id": null,
+            "end_time": 13.1,
+            "reason": "fixed story interval",
+            "selected_temporal_target_ids": [],
+            "start_time": 0
+          }
+        ]
+      },
+      "calls_before": [
+        {
+          "system_prompt": "【提示词编号：#10A｜视频片段执行规划】\n\nYou are the NovelFlow Clip Execution Planner.\n\nCompile the supplied canonical Visual States and adjacent Visual Transitions into\nsemantic Clips. Do not rewrite story facts or create speech, physical references,\nworkflow choices, or execution provenance.\n\nAuthoritative inputs:\n- `visual_state_candidates`: canonical #08 visual facts, state times and eligible temporal candidates.\n- `transition_context`: canonical #10 visual change between adjacent states.\n- `shot.characters`, `shot.scene`, and `shot.props`: structural visual context only.\n- `speech_timing_intervals`: event ID plus start/end time only. These intervals are\n  boundary hints, not dialogue content, speaker authority, or continuity authority.\n- `shot.continuity_mode`: planning context only. It does not override the visual\n  dependency definition below.\n\nBoundary selection and continuity classification are two separate decisions:\n\n1. Choose contiguous Clip boundaries that cover the complete Shot timeline and\n   satisfy `planning_policy`. Where practical, avoid placing a boundary inside a\n   `speech_timing_intervals` interval and prefer a natural speech gap or completion.\n   Dialogue timing may influence WHERE a boundary is convenient, but nothing else.\n\n2. After choosing a boundary, classify its visual dependency independently:\n   - `CONTINUOUS` means the current Clip cannot faithfully establish its visual start\n     from its own first-owned canonical Visual State alone. Its starting body, camera,\n     spatial, object, or motion condition depends on the actual ending visual state\n     produced by the previous Clip.\n   - `CUT` means the current Clip can independently establish its start from its own\n     first-owned canonical Visual State and visual context. CUT remains valid in the\n     same scene, with the same characters, or during the same conversation when the\n     new composition/setup is independently grounded.\n   - The first Clip must use `NONE`.\n\nContinuity authority precedes execution feasibility. Decide CUT/CONTINUOUS from\ncanonical narrative, visual action, spatial and camera facts before inspecting early\ncomposition candidates or timed selections. CUT represents a justified independent\nvisual setup/edit or discontinuity; merely having a future first-owned state does\nnot permit skipping the authored motion that leads to it. Preserve explicitly\nuninterrupted cross-boundary action/camera motion unless canonical facts support an\nindependent reset. Do not invent a hard cut to replace required continuous motion.\nMissing early composition, unavailable timed coverage, missing images or provider\nlimits must NEVER turn an otherwise CONTINUOUS boundary into CUT. Same-scene genuine\nindependent edits remain valid; do not mechanically prefer CONTINUOUS.\n\nThe following facts alone NEVER imply `CONTINUOUS`: same scene, same characters,\nsame conversation, same story beat, dialogue continuing or ending at the boundary,\nno time jump, or the same Shot database row. Narrative continuity is not visual\nexecution continuity. A `CONTINUOUS_TAKE` value may guide visual inspection, but it\nmust not coerce a visually independent boundary from CUT to CONTINUOUS.\n\nDirector decision signals (not character-count routing rules):\n- Previous AV is continuity conditioning, not a default required resource. Do not\n  choose CONTINUOUS merely to reuse it or because a transition describes ordinary\n  visual progression; identify why the actual previous ending is necessary.\n- CROSS-BOUNDARY ACTION: strongly favor CONTINUOUS when an authored action must be\n  shown uninterrupted across the boundary, such as walking onward, reaching then\n  catching, completing a turn, or an opening door followed by continuous entry.\n- SPATIAL / CAMERA CONTINUITY: favor CONTINUOUS when the required start must inherit\n  exact body positions, camera movement phase, blocking, object state or spatial\n  relations from the previous ending. Shared setting alone is not this dependency.\n- CHARACTER SET CHANGE: compare explicit semantic presence in adjacent canonical\n  state descriptions and transition actions, not the whole-Shot character list.\n  Continued presence, EXIT and ENTER are visual narrative facts, not pixel detection.\n  Do not assume missing or ambiguous descriptions prove a character absent. These\n  inputs do not establish actual visibility in the generated Previous AV tail.\n  EXIT does not imply CUT. ENTER does not imply CUT either: distinguish a character\n  already present in the next visual beat from a required uninterrupted entry action.\n  Reappearance should reduce an automatic CONTINUOUS preference, but must not invent\n  a visual identity failure, new action, or physical reference requirement.\n- NATURAL EDIT POINT: visual beat, subject focus, composition, reaction framing or\n  scene re-establishment can make CUT appropriate even with unchanged characters.\n  A dialogue-focus change is relevant only when expressed as canonical visual focus;\n  speech timing intervals alone cannot supply speaker/focus or continuity authority.\n- RE-ESTABLISHMENT VALUE: when the next beat needs a new character combination,\n  framing, visual focus or multi-person spatial setup, and no required cross-boundary\n  action or exact inherited visual condition forbids it, prefer considering CUT with\n  independent first-owned canonical grounding over forcing Previous AV dependency.\n  Preserve authored actions and state facts; do not invent an edit that skips a\n  required action. After normalization, a CUT rationale must refer to its actual\n  first-owned state, never promote a shared-boundary/carry-in state to ownership.\n\nContrastive director examples (illustrative, not mandatory output labels):\n- ABC -> AB: C exits during otherwise continuing action; CONTINUOUS is valid.\n- AB -> A: B exits while action naturally continues; CONTINUOUS is valid.\n- A -> AC: C is already present in a new two-person beat; no entry process must be\n  shown and the new setup is independently grounded; CUT is a reasonable preference.\n- A -> AC: C must walk in through the opening door toward A as an uninterrupted\n  continuation of the prior action; CONTINUOUS remains appropriate.\n- AC -> ABC: B reappears with a new visual beat/focus/composition and no required\n  inherited action or condition; independently grounded CUT is reasonable.\n- ABC -> ABC: exact camera, blocking and action must continue; CONTINUOUS is appropriate.\n- ABC -> ABC: a new reaction or re-establishing setup is independently grounded,\n  without required cross-boundary motion; CUT is valid despite an unchanged cast.\n\nFor every later Clip, `reason` must explain either the concrete cross-boundary visual\ndependency that requires CONTINUOUS or the independent visual grounding that permits\nCUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.\n\n3. Early Composition selection AFTER boundary and continuity classification:\n   First distinguish two coverage sources. IN_CLIP establishes composition inside\n   this Clip; INHERITED START means the actual Previous AV is expected to carry an\n   already established canonical opening premise across this boundary. Neither\n   CONTINUOUS nor the existence of a carry-in proves inherited coverage.\n   Return `inherited_start_composition`: null, or the scoped semantic conclusion\n   {\"state_id\":\"KF2\", \"transition_to_state_id\":\"KF3\", \"premise_preserved\":true}.\n   IDs here are illustrative. Use the current canonical carry-in and its adjacent\n   outgoing transition containing the final Clip start, never a future or older\n   intervened state. The source must have been established strictly before start.\n   Judge the transition from that state up to this specific boundary and the opening\n   visible behavior: relevant subjects, spatial relations, facing/orientation,\n   camera axis/framing, important props and action phase must already support the\n   required opening composition. Ordinary continuous movement may preserve these\n   premises; a scene/camera reset, major blocking relocation, relevant subject\n   entrance/exit or a still-unestablished new composition requirement does not.\n   A distant carry-in in a progressed transition is not sufficient merely because\n   cast/scene/axis remain shared. If its old pose/framing no longer grounds the\n   opening, or canonical evidence cannot establish the required premise at this\n   boundary, return null. Use no fixed age threshold and do not inspect pixels.\n   For an inherited conclusion, existing reason must explain the concrete preserved\n   premises and why the opening important visible behavior needs no new composition.\n   This is a planning conclusion, not a claim that generated video has passed QA.\n   Previous AV's exact approved Task/native provenance is resolved by the application.\n   INHERITED START adds no image or temporal anchor; never promote its carry-in to\n   early_composition_state_id, selected_temporal_target_ids or a Picture. Keep\n   early_composition_state_id=null for inherited coverage. Timed selections remain\n   independent and may still add their own anchors for later timed visual arrival.\n   If an in-Clip composition is actually necessary instead, use that selection and\n   inherited_start_composition=null; do not automatically require both sources.\n\n   Return `early_composition_state_id`: one current Clip OWNED Visual State ID or null.\n   This is Clip-local execution selection, not a new state type or timed eligibility.\n   For CONTINUOUS without inherited coverage choose one meaningful early establishing composition: Previous AV\n   -> establish the current canonical composition -> subsequent speech/important visible action.\n   It may have timed_visual_target=false or true. Never relabel false as eligible.\n   It must be owned and satisfy `s + 0.05 < t < e`, not an endpoint or carry-in.\n   For overlapping speech intervals, first Clip-local onset is\n   `o = min(max(s, interval.start_time))` over intervals with\n   `interval.end_time > s AND interval.start_time < e`; also require `t < o`.\n   An onset at Clip start leaves no pre-speech window;\n   reconsider legal boundaries, never shift dialogue or invent a state.\n   With no speech, judge early suitability from canonical transitions and the first\n   important visible action; do not use a late result or endpoint as early grounding.\n   Merely being before Clip end is insufficient. Explain why a chosen state establishes\n   composition before the important visible action that depends on it.\n   No fixed seconds threshold, no speaker inference, no requirement for speaker close-up.\n   Prefer legal topology with owned pre-event states while preserving the authored\n   continuity semantics. If impossible, keep CONTINUOUS, use null with no invented\n   target, and state EARLY_COMPOSITION_COVERAGE_INVALID plus the missing coverage in\n   that Clip's existing reason. The application will reject this candidate as a\n   planning conflict. Do not substitute CUT to satisfy coverage, create states, or\n   initiate #08 replan.\n   NONE/CUT use null for both composition fields. CONTINUOUS may leave its in-Clip\n   composition null if a selected timed state meets the same early coverage OR a\n   valid inherited-start conclusion supplies coverage. Active speech at Clip start\n   still forbids later IN_CLIP establishment; it does not invalidate a premise\n   already established before the boundary and continuously inherited. Never move,\n   restart or rewrite dialogue. With none of these coverage sources, keep the\n   correct continuity and report EARLY_COMPOSITION_COVERAGE_INVALID.\n\n4. Timed target selection:\n   `timed_visual_target=true` means eligible, NOT selected, owned or execution-required.\n   For CONTINUOUS, explicitly return `selected_temporal_target_ids`: [] / one / several\n   current Clip OWNED eligible IDs. Select only when timed arrival at a material\n   blocking/composition/spatial/prop/arrangement state has incremental timed-image\n   control value relative to planned previous ending, carry-in, adjacent transition\n   and textual motion guidance. If planned guidance is sufficient, select [].\n   Reason from canonical planned context, NOT actual Previous AV tail pixels, actual\n   character visibility/absence, identity sufficiency or real ending media.\n   Images may be missing: planning comes before selected image preparation.\n   Never select false/non-owned/shared-boundary/carry-in states. At most 8, unique IDs.\n   Each selected target must be eligible AND owned AND satisfy `s + 0.05 < t <= e`.\n   Ownership's end tolerance does not permit selecting a target after `e`.\n   Timed and composition selections share a maximum of eight distinct physical\n   anchors. The same true state may serve both responsibilities but conditions once.\n   NONE and CUT must explicitly return []; END is not automatically selected.\n\nApplication-owned deterministic projection:\n- Exact boundary contract: `s` and `e` are Clip start/end seconds; `t` is the\n  canonical Visual State time. Tolerance is `0.05` seconds; compare decimal times\n  as written, without rounding them to force boundary membership.\n- Ordinary Visual State ownership: `t > s + 0.05 AND t <= e + 0.05`.\n  The start inequality is strict. At `t == s + 0.05`, the state is NOT owned by\n  the current Clip; never use it as a selected temporal or early composition state.\n- For later Clips, carry-in is the latest canonical state satisfying `t <= s + 0.05`\n  (ordered by time, then keyframe index). Boundary equality is on the carry-in side,\n  not the owned side. Carry-in is semantic context, not automatic proof of\n  inherited_start_composition; its source must still be strictly before start.\n- The first Clip owns the START state with keyframe index 1 as a special case and\n  has no carry-in. END uses ordinary ownership and is not automatically selected.\n- Application code derives `visual_state_indexes` from final boundaries.\n- Application code derives `carry_in_state_index` as semantic context only. Carry-in\n  is not an owned state, Picture, ordinary reference, temporal anchor, Previous AV,\n  or physical continuation decision.\n- You own selected_temporal_target_ids, a mandatory list, not physical bindings.\n- Application code validates this subset after normalization and derives anchors,\n  final `requires_temporal_control` and capability. NONE/CUT -> GENERATE;\n  CONTINUOUS + any valid timed/composition anchor -> TEMPORAL_EXTEND.\n  CONTINUOUS + inherited-start coverage only -> EXTEND, no temporal images.\n  Inherited coverage with timed targets -> TEMPORAL_EXTEND because of those targets.\n  New-contract CONTINUOUS requires early composition coverage.\n- Keep `requires_temporal_control=false` neutral in raw output; raw requires/capability\n  cannot override program authority. Do not invent temporal target IDs.\n- If normalization changes ownership/carry-in/previous ending/local-time context,\n  one constrained revalidation supplies fixed normalized boundaries, ALL eligible\n  timed candidates and owned composition candidates, including false states. Rejudge continuity AND both selections in that\n  structure; rejudge inherited_start_composition at this exact normalized boundary\n  against its current carry-in and adjacent transition. Second drift or illegal\n  selection hard fails; do not request more retries.\n  Reclassification may follow changed canonical visual dependencies after boundary\n  normalization, never the availability of early composition or timed targets.\n\nBefore final JSON, check each timed selection for eligibility, exact ownership and\nselected-time legality; check each early state for ownership, strict interior and\npre-onset timing. Each CONTINUOUS Clip needs valid early or inherited coverage;\notherwise preserve the existing explicit conflict path, never invent coverage or CUT.\n\nForbidden authority:\n- Do not infer or output exact dialogue, speaker, language, speech state, mouth/lip\n  state, or dialogue progress.\n- Do not select or number Pictures, ordinary references, keyframe image bindings,\n  Previous AV Tasks/artifacts, temporal image bindings, physical workflows, provider\n  modes, node IDs, task IDs, paths, URLs, provenance, or actual media duration.\n- Do not use legacy mode labels, fixed frame counts, provider capabilities, or\n  workflow names to choose Clip topology or continuity.\n- A Clip may own zero, one, or many canonical Visual States. Do not pad, thin, or\n  force a fixed 3/4-state shape.\n\nReturn JSON only:\n{\n  \"clips\": [\n    {\n      \"clip_index\": 1,\n      \"start_time\": 0,\n      \"end_time\": 10,\n      \"continuity_to_previous\": \"NONE\",\n      \"previous_clip_index\": null,\n      \"requires_temporal_control\": false,\n      \"selected_temporal_target_ids\": [],\n      \"early_composition_state_id\": null,\n      \"inherited_start_composition\": null,\n      \"reason\": \"visual boundary rationale\"\n    }\n  ]\n}\n\nContract markers are projected by the program after validation: timed selection retains ELIGIBLE_THEN_SELECTED_V1; composition coverage uses EARLY_COMPOSITION_V2. Do not author validation markers in model output.\n",
+          "user_content": "{\n  \"shot\": {\n    \"id\": \"58fa07ca-9cbf-44ba-9aca-57beb79a395c\",\n    \"duration\": 13.1,\n    \"continuity_mode\": \"CONTINUOUS_TAKE\",\n    \"characters\": [\n      \"皇帝\",\n      \"宫廷总管\",\n      \"骗子1\",\n      \"骗子2\"\n    ],\n    \"scene\": \"王宫大厅\",\n    \"props\": [\n      \"高背宝座\",\n      \"宽边礼帽\"\n    ]\n  },\n  \"canonical_visual_plan\": true,\n  \"speech_timing_intervals\": [\n    {\n      \"event_id\": \"D1\",\n      \"start_time\": 1.0,\n      \"end_time\": 2.25\n    },\n    {\n      \"event_id\": \"D2\",\n      \"start_time\": 2.45,\n      \"end_time\": 4.95\n    },\n    {\n      \"event_id\": \"D3\",\n      \"start_time\": 5.15,\n      \"end_time\": 8.15\n    },\n    {\n      \"event_id\": \"D4\",\n      \"start_time\": 8.35,\n      \"end_time\": 9.35\n    },\n    {\n      \"event_id\": \"D5\",\n      \"start_time\": 9.55,\n      \"end_time\": 10.8\n    },\n    {\n      \"event_id\": \"D6\",\n      \"start_time\": 11.0,\n      \"end_time\": 13.0\n    }\n  ],\n  \"visual_state_candidates\": [\n    {\n      \"visual_state_id\": \"KF1\",\n      \"keyframe_index\": 1,\n      \"time_seconds\": 0.0,\n      \"role\": \"START\",\n      \"description\": \"\",\n      \"timed_visual_target\": false\n    },\n    {\n      \"visual_state_id\": \"KF2\",\n      \"keyframe_index\": 2,\n      \"time_seconds\": 4.95,\n      \"role\": \"INTERMEDIATE\",\n      \"description\": \"Scene: 王宫大厅内，摄影机仍从大厅中央沿原轴线低角度望向高背宝座，并较首帧缓慢靠近。\\nCharacters:\\n- 皇帝: 端坐在高背宝座中央，身体正对两名骗子，目光保持审视。\\n- 宫廷总管: 站在宝座台阶侧方，双手垂于身前，姿态恭敬。\\n- 骗子1: 位于画面左侧中景，身体已经直起，宽边礼帽与考究衣装保持不变，面向皇帝。\\n- 骗子2: 位于画面右侧中景，身体已经直起，面向皇帝，神情殷勤。\\nAction: 两名骗子在宝座前形成左右对称的站立关系，皇帝仍居高临下。\",\n      \"timed_visual_target\": false\n    },\n    {\n      \"visual_state_id\": \"KF3\",\n      \"keyframe_index\": 3,\n      \"time_seconds\": 13.0,\n      \"role\": \"INTERMEDIATE\",\n      \"description\": \"Scene: 王宫大厅内，摄影机沿同一轴线继续缓慢推进，宝座与两名骗子仍处于同一连续构图中。\\nCharacters:\\n- 皇帝: 坐在高背宝座上，视线落向骗子2摊开的双手。\\n- 宫廷总管: 保持在台阶侧方，身体朝向宝座前方。\\n- 骗子1: 站在左侧，身体略向同伴与皇帝倾斜，神情从容。\\n- 骗子2: 站在右侧，双手在身前展开并相隔一定距离，掌心托举般朝上。\\nAction: 骗子2以空置的双手构成展示华丽布料的明确轮廓，两名骗子之间没有出现实体布料。\",\n      \"timed_visual_target\": false\n    }\n  ],\n  \"transition_context\": [\n    {\n      \"from_keyframe_index\": 1,\n      \"to_keyframe_index\": 2,\n      \"start_time\": 0.0,\n      \"end_time\": 4.95,\n      \"transition_description\": \"摄影机从首帧机位开始，沿王宫大厅中央原轴线保持低角度，平稳而缓慢地向高背宝座推进，全程不切镜、不跳轴，也不突然改变景别。由于首帧未提供具体人物初始调度，不补写额外起始动作；四人仅沿既有空间连续性自然稳定到终帧关系，不交叉换位。推进过程中以画面左侧的骗子1和右侧的骗子2为主要视觉关注，两人保持宽边礼帽与考究衣装不变，身体稳定为直立姿态并面向皇帝，最终在宝座前形成左右对称的中景站位。皇帝始终端坐于高背宝座中央，身体正对两名骗子，以居高临下的审视目光维持双方关系；宫廷总管保持在宝座台阶侧方，双手垂于身前、姿态恭敬，不产生抢夺焦点的移动。摄影机最终停在较首帧更靠近宝座的位置，同时保留两名骗子、皇帝与宫廷总管之间清晰完整的空间关系。\"\n    },\n    {\n      \"from_keyframe_index\": 2,\n      \"to_keyframe_index\": 3,\n      \"start_time\": 4.95,\n      \"end_time\": 13.0,\n      \"transition_description\": \"摄影机保持大厅中央的原轴线和低角度，在同一镜头内持续缓慢向高背宝座推进，始终保留宝座上的皇帝与左右两名骗子的空间关系。开始阶段，两名骗子维持宝座前左右对称的直立姿态，皇帝端坐审视；随着推进，画面关注从两名骗子自然过渡到居高临下的皇帝，但不改变任何人的左右位置。宫廷总管始终站在宝座台阶侧方，双手垂于身前，仅保持自然呼吸与稳定重心。临近后段，骗子2留在画面右侧原位，将双臂朝身前抬起，双手逐渐向左右分开并翻转掌心向上，以空置双手围出托举华丽布料般的明确轮廓；整个过程中双手之间不出现实体布料。骗子1留在画面左侧，身体缓慢向右侧同伴及后方宝座方向略微倾斜，保持从容神情。皇帝不离开宝座，只将视线从两名骗子逐渐下移并落到骗子2摊开的双手上。摄影机继续沿原方向平稳推进，不切换机位、不跳轴，也不单独追随骗子2；到达终点时停在宝座与两名骗子仍同处一幅连续构图的状态：皇帝注视骗子2的空手展示，骗子1略微倾身，骗子2双手在身前分开、掌心向上，宫廷总管仍恭敬立于台阶侧方。\"\n    }\n  ],\n  \"planning_policy\": {\n    \"approval_mode\": \"AUTO_APPROVE\",\n    \"min_story_clip_duration\": 4.0,\n    \"max_story_clip_duration\": 15.0\n  }\n}",
+          "temperature": 0.2,
+          "max_tokens": 2200,
+          "response_format": "json_object",
+          "task_type": "clip_execution_planner",
+          "prompt_template_name": "fixture",
+          "novel_id": "novel",
+          "chapter_id": "6ad4afd6-f37b-419f-9a1c-0e3e4ec47d1e"
+        }
+      ],
+      "clips_before": [
+        {
+          "clip_index": 1,
+          "continuity_to_previous": "NONE",
+          "early_composition_state_id": null,
+          "end_time": 13.1,
+          "reason": "fixed story interval",
+          "selected_temporal_target_ids": [],
+          "start_time": 0.0,
+          "planned_duration": 13.1,
+          "execution_status": "PLANNED",
+          "approval_mode": "AUTO_APPROVE",
+          "requires_temporal_control": false,
+          "previous_clip_index": null,
+          "visual_state_indexes": [
+            1,
+            2,
+            3
+          ],
+          "carry_in_state_index": null,
+          "dialogue_scope": {
+            "start_time": 0.0,
+            "end_time": 13.1
+          },
+          "capability": "GENERATE",
+          "temporal_anchor_ids": [],
+          "dialogue_assignment": [
+            {
+              "dialogue_id": "D1",
+              "segment_index": 1,
+              "speaker": "骗子1",
+              "text": "尊贵的陛下。",
+              "emotion_prompt": "恭敬奉承",
+              "estimated_duration": 1.25,
+              "source_order": 1,
+              "start_time": 1.0,
+              "end_time": 2.25,
+              "is_continuation": false,
+              "continues_in_next_clip": false
+            },
+            {
+              "dialogue_id": "D2",
+              "segment_index": 1,
+              "speaker": "骗子2",
+              "text": "我们终于有幸见到您了。",
+              "emotion_prompt": "殷勤欣喜",
+              "estimated_duration": 2.5,
+              "source_order": 2,
+              "start_time": 2.45,
+              "end_time": 4.95,
+              "is_continuation": false,
+              "continues_in_next_clip": false
+            },
+            {
+              "dialogue_id": "D3",
+              "segment_index": 1,
+              "speaker": "皇帝",
+              "text": "听说你们会织一种特别的布？",
+              "emotion_prompt": "审视好奇",
+              "estimated_duration": 3.0,
+              "source_order": 3,
+              "start_time": 5.15,
+              "end_time": 8.15,
+              "is_continuation": false,
+              "continues_in_next_clip": false
+            },
+            {
+              "dialogue_id": "D4",
+              "segment_index": 1,
+              "speaker": "骗子1",
+              "text": "是的，陛下。",
+              "emotion_prompt": "自信恭敬",
+              "estimated_duration": 1.0,
+              "source_order": 4,
+              "start_time": 8.35,
+              "end_time": 9.35,
+              "is_continuation": false,
+              "continues_in_next_clip": false
+            },
+            {
+              "dialogue_id": "D5",
+              "segment_index": 1,
+              "speaker": "皇帝",
+              "text": "它有多漂亮？",
+              "emotion_prompt": "期待追问",
+              "estimated_duration": 1.25,
+              "source_order": 5,
+              "start_time": 9.55,
+              "end_time": 10.8,
+              "is_continuation": false,
+              "continues_in_next_clip": false
+            },
+            {
+              "dialogue_id": "D6",
+              "segment_index": 1,
+              "speaker": "骗子2",
+              "text": "它轻得像清晨的雾。",
+              "emotion_prompt": "陶醉描绘",
+              "estimated_duration": 2.0,
+              "source_order": 6,
+              "start_time": 11.0,
+              "end_time": 13.0,
+              "is_continuation": false,
+              "continues_in_next_clip": false
+            }
+          ],
+          "execution_intent": {
+            "version": 1,
+            "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+            "canonical_timeline_sha256": "951ff9ef07a3e9a47bbe35c73ab3a429e97c9af3f7015a5f5e14291e84404fa3",
+            "canonical_time_base": "SHOT_SECONDS",
+            "time_base": "CLIP_LOCAL_SECONDS",
+            "events": [
+              {
+                "dialogue_id": "D1",
+                "intended_window": {
+                  "start": 1.0,
+                  "end": 2.25
+                }
+              },
+              {
+                "dialogue_id": "D2",
+                "intended_window": {
+                  "start": 2.45,
+                  "end": 4.95
+                }
+              },
+              {
+                "dialogue_id": "D3",
+                "intended_window": {
+                  "start": 5.15,
+                  "end": 8.15
+                }
+              },
+              {
+                "dialogue_id": "D4",
+                "intended_window": {
+                  "start": 8.35,
+                  "end": 9.35
+                }
+              },
+              {
+                "dialogue_id": "D5",
+                "intended_window": {
+                  "start": 9.55,
+                  "end": 10.8
+                }
+              },
+              {
+                "dialogue_id": "D6",
+                "intended_window": {
+                  "start": 11.0,
+                  "end": 13.0
+                }
+              }
+            ],
+            "timing_reliability": "soft",
+            "speaker_realization_reliability": "soft",
+            "visual_support_status": "unknown"
+          },
+          "realization_review": "unreviewed",
+          "visual_support_evidence": {
+            "version": 1,
+            "basis": "PLANNED_METADATA",
+            "status": "derived",
+            "time_base": "CLIP_LOCAL_SECONDS",
+            "events": [
+              {
+                "dialogue_id": "D1",
+                "segment_index": 1,
+                "resolved_character": {
+                  "status": "resolved",
+                  "character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+                  "subject": null
+                },
+                "attention": {
+                  "source_status": "VALID",
+                  "overlaps": [
+                    {
+                      "window_id": "visual_attention.windows[0]",
+                      "interval": {
+                        "start": 1.0,
+                        "end": 2.25
+                      },
+                      "roles": [
+                        "primary"
+                      ],
+                      "handoff_directions": []
+                    }
+                  ],
+                  "speaker_identity_status": "resolved",
+                  "coverage_duration": 1.25,
+                  "coverage_ratio": 1.0,
+                  "uncovered_intervals": [],
+                  "handoff_overlap": false
+                },
+                "visual_states": {
+                  "before_state_id": "KF1",
+                  "inside_state_ids": [],
+                  "after_state_id": "KF2",
+                  "nearest_state_ids": [
+                    "KF1"
+                  ],
+                  "states": [
+                    {
+                      "state_id": "KF1",
+                      "time_relationship": "before",
+                      "scope": "owned",
+                      "planned_speaker_membership": "unknown",
+                      "membership_basis": "unknown"
+                    },
+                    {
+                      "state_id": "KF2",
+                      "time_relationship": "after",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    }
+                  ]
+                },
+                "anchors": {
+                  "ordinary_visual": [],
+                  "temporal": []
+                },
+                "identity_reference": {
+                  "available": "unknown",
+                  "reference_ids": []
+                },
+                "speaker_visibility": "unknown",
+                "face_readability": "unknown",
+                "mouth_readability": "unknown",
+                "competing_face_salience": "unknown"
+              },
+              {
+                "dialogue_id": "D2",
+                "segment_index": 1,
+                "resolved_character": {
+                  "status": "resolved",
+                  "character_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+                  "subject": null
+                },
+                "attention": {
+                  "source_status": "VALID",
+                  "overlaps": [
+                    {
+                      "window_id": "visual_attention.windows[0]",
+                      "interval": {
+                        "start": 2.45,
+                        "end": 4.95
+                      },
+                      "roles": [
+                        "primary"
+                      ],
+                      "handoff_directions": []
+                    }
+                  ],
+                  "speaker_identity_status": "resolved",
+                  "coverage_duration": 2.5,
+                  "coverage_ratio": 1.0,
+                  "uncovered_intervals": [],
+                  "handoff_overlap": false
+                },
+                "visual_states": {
+                  "before_state_id": "KF1",
+                  "inside_state_ids": [
+                    "KF2"
+                  ],
+                  "after_state_id": "KF3",
+                  "nearest_state_ids": [
+                    "KF2"
+                  ],
+                  "states": [
+                    {
+                      "state_id": "KF1",
+                      "time_relationship": "before",
+                      "scope": "owned",
+                      "planned_speaker_membership": "unknown",
+                      "membership_basis": "unknown"
+                    },
+                    {
+                      "state_id": "KF2",
+                      "time_relationship": "inside",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    },
+                    {
+                      "state_id": "KF3",
+                      "time_relationship": "after",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    }
+                  ]
+                },
+                "anchors": {
+                  "ordinary_visual": [],
+                  "temporal": []
+                },
+                "identity_reference": {
+                  "available": "unknown",
+                  "reference_ids": []
+                },
+                "speaker_visibility": "unknown",
+                "face_readability": "unknown",
+                "mouth_readability": "unknown",
+                "competing_face_salience": "unknown"
+              },
+              {
+                "dialogue_id": "D3",
+                "segment_index": 1,
+                "resolved_character": {
+                  "status": "resolved",
+                  "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                  "subject": null
+                },
+                "attention": {
+                  "source_status": "VALID",
+                  "overlaps": [
+                    {
+                      "window_id": "visual_attention.windows[1]",
+                      "interval": {
+                        "start": 5.15,
+                        "end": 6.0
+                      },
+                      "roles": [
+                        "primary",
+                        "handoff_participant"
+                      ],
+                      "handoff_directions": [
+                        "to"
+                      ]
+                    },
+                    {
+                      "window_id": "visual_attention.windows[2]",
+                      "interval": {
+                        "start": 6.0,
+                        "end": 8.15
+                      },
+                      "roles": [
+                        "primary"
+                      ],
+                      "handoff_directions": []
+                    }
+                  ],
+                  "speaker_identity_status": "resolved",
+                  "coverage_duration": 3.0,
+                  "coverage_ratio": 1.0,
+                  "uncovered_intervals": [],
+                  "handoff_overlap": true
+                },
+                "visual_states": {
+                  "before_state_id": "KF2",
+                  "inside_state_ids": [],
+                  "after_state_id": "KF3",
+                  "nearest_state_ids": [
+                    "KF2"
+                  ],
+                  "states": [
+                    {
+                      "state_id": "KF2",
+                      "time_relationship": "before",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    },
+                    {
+                      "state_id": "KF3",
+                      "time_relationship": "after",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    }
+                  ]
+                },
+                "anchors": {
+                  "ordinary_visual": [],
+                  "temporal": []
+                },
+                "identity_reference": {
+                  "available": "unknown",
+                  "reference_ids": []
+                },
+                "speaker_visibility": "unknown",
+                "face_readability": "unknown",
+                "mouth_readability": "unknown",
+                "competing_face_salience": "unknown"
+              },
+              {
+                "dialogue_id": "D4",
+                "segment_index": 1,
+                "resolved_character": {
+                  "status": "resolved",
+                  "character_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+                  "subject": null
+                },
+                "attention": {
+                  "source_status": "VALID",
+                  "overlaps": [
+                    {
+                      "window_id": "visual_attention.windows[2]",
+                      "interval": {
+                        "start": 8.35,
+                        "end": 9.35
+                      },
+                      "roles": [
+                        "not_listed"
+                      ],
+                      "handoff_directions": []
+                    }
+                  ],
+                  "speaker_identity_status": "resolved",
+                  "coverage_duration": 1.0,
+                  "coverage_ratio": 1.0,
+                  "uncovered_intervals": [],
+                  "handoff_overlap": false
+                },
+                "visual_states": {
+                  "before_state_id": "KF2",
+                  "inside_state_ids": [],
+                  "after_state_id": "KF3",
+                  "nearest_state_ids": [
+                    "KF2"
+                  ],
+                  "states": [
+                    {
+                      "state_id": "KF2",
+                      "time_relationship": "before",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    },
+                    {
+                      "state_id": "KF3",
+                      "time_relationship": "after",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    }
+                  ]
+                },
+                "anchors": {
+                  "ordinary_visual": [],
+                  "temporal": []
+                },
+                "identity_reference": {
+                  "available": "unknown",
+                  "reference_ids": []
+                },
+                "speaker_visibility": "unknown",
+                "face_readability": "unknown",
+                "mouth_readability": "unknown",
+                "competing_face_salience": "unknown"
+              },
+              {
+                "dialogue_id": "D5",
+                "segment_index": 1,
+                "resolved_character": {
+                  "status": "resolved",
+                  "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                  "subject": null
+                },
+                "attention": {
+                  "source_status": "VALID",
+                  "overlaps": [
+                    {
+                      "window_id": "visual_attention.windows[2]",
+                      "interval": {
+                        "start": 9.55,
+                        "end": 10.8
+                      },
+                      "roles": [
+                        "primary"
+                      ],
+                      "handoff_directions": []
+                    }
+                  ],
+                  "speaker_identity_status": "resolved",
+                  "coverage_duration": 1.25,
+                  "coverage_ratio": 1.0,
+                  "uncovered_intervals": [],
+                  "handoff_overlap": false
+                },
+                "visual_states": {
+                  "before_state_id": "KF2",
+                  "inside_state_ids": [],
+                  "after_state_id": "KF3",
+                  "nearest_state_ids": [
+                    "KF3"
+                  ],
+                  "states": [
+                    {
+                      "state_id": "KF2",
+                      "time_relationship": "before",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    },
+                    {
+                      "state_id": "KF3",
+                      "time_relationship": "after",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    }
+                  ]
+                },
+                "anchors": {
+                  "ordinary_visual": [],
+                  "temporal": []
+                },
+                "identity_reference": {
+                  "available": "unknown",
+                  "reference_ids": []
+                },
+                "speaker_visibility": "unknown",
+                "face_readability": "unknown",
+                "mouth_readability": "unknown",
+                "competing_face_salience": "unknown"
+              },
+              {
+                "dialogue_id": "D6",
+                "segment_index": 1,
+                "resolved_character": {
+                  "status": "resolved",
+                  "character_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+                  "subject": null
+                },
+                "attention": {
+                  "source_status": "VALID",
+                  "overlaps": [
+                    {
+                      "window_id": "visual_attention.windows[3]",
+                      "interval": {
+                        "start": 11.0,
+                        "end": 13.0
+                      },
+                      "roles": [
+                        "primary"
+                      ],
+                      "handoff_directions": []
+                    }
+                  ],
+                  "speaker_identity_status": "resolved",
+                  "coverage_duration": 2.0,
+                  "coverage_ratio": 1.0,
+                  "uncovered_intervals": [],
+                  "handoff_overlap": false
+                },
+                "visual_states": {
+                  "before_state_id": "KF2",
+                  "inside_state_ids": [
+                    "KF3"
+                  ],
+                  "after_state_id": null,
+                  "nearest_state_ids": [
+                    "KF3"
+                  ],
+                  "states": [
+                    {
+                      "state_id": "KF2",
+                      "time_relationship": "before",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    },
+                    {
+                      "state_id": "KF3",
+                      "time_relationship": "inside",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    }
+                  ]
+                },
+                "anchors": {
+                  "ordinary_visual": [],
+                  "temporal": []
+                },
+                "identity_reference": {
+                  "available": "unknown",
+                  "reference_ids": []
+                },
+                "speaker_visibility": "unknown",
+                "face_readability": "unknown",
+                "mouth_readability": "unknown",
+                "competing_face_salience": "unknown"
+              }
+            ],
+            "reference_summary": {
+              "manifest_status": "unknown",
+              "scene_prop_references": []
+            }
+          }
+        }
+      ],
+      "validation_before": {
+        "passed": true,
+        "findings": [],
+        "blocking": [],
+        "review_required": [],
+        "warnings": [],
+        "dialogue_ownership": {
+          "passed": true,
+          "findings": [],
+          "source_dialogue_count": 6,
+          "assigned_segment_count": 6
+        },
+        "temporal_contract": "ELIGIBLE_THEN_SELECTED_V1",
+        "composition_contract": "EARLY_COMPOSITION_V2"
+      },
+      "temporal_anchors_before": []
+    },
+    "multiclip_planner": {
+      "shot": {
+        "id": "b1-multiclip",
+        "chapter_id": "fixture",
+        "index": 1,
+        "duration": 30,
+        "continuity_mode": "CONTINUOUS_TAKE",
+        "description": "",
+        "video_description": "",
+        "characters": "[\"皇帝\"]",
+        "scene": "",
+        "props": "[]",
+        "dialogues": "[{\"order\": 1, \"character_name\": \"皇帝\", \"text\": \"好。\"}, {\"order\": 2, \"character_name\": \"皇帝\", \"text\": \"继续。\"}]",
+        "video_director_plan": "{\"canonical_visual_plan\": true, \"dialogue_timeline_source\": [{\"id\": \"D1\", \"speaker\": \"皇帝\", \"text\": \"好。\", \"start_time\": 1, \"end_time\": 2}, {\"id\": \"D2\", \"speaker\": \"皇帝\", \"text\": \"继续。\", \"start_time\": 21, \"end_time\": 22}], \"dialogue_timeline_status\": {\"status\": \"ok\"}, \"keyframes\": [{\"index\": 1, \"role\": \"START\", \"time_seconds\": 0, \"description\": null, \"timed_visual_target\": false}, {\"index\": 2, \"role\": \"INTERMEDIATE\", \"time_seconds\": 10, \"description\": \"Characters:\\n- 皇帝: holds the established stance\", \"timed_visual_target\": false}, {\"index\": 3, \"role\": \"INTERMEDIATE\", \"time_seconds\": 20, \"description\": \"Characters:\\n- 皇帝: holds the established stance\", \"timed_visual_target\": true}, {\"index\": 4, \"role\": \"END\", \"time_seconds\": 30, \"description\": \"Characters:\\n- 皇帝: holds the established stance\", \"timed_visual_target\": false}], \"transitions\": [{\"from_keyframe_index\": 1, \"to_keyframe_index\": 2, \"start_time\": 0, \"end_time\": 10, \"transition_description\": \"The established stance and camera trajectory continue.\"}, {\"from_keyframe_index\": 2, \"to_keyframe_index\": 3, \"start_time\": 10, \"end_time\": 20, \"transition_description\": \"The established stance and camera trajectory continue.\"}, {\"from_keyframe_index\": 3, \"to_keyframe_index\": 4, \"start_time\": 20, \"end_time\": 30, \"transition_description\": \"The established stance and camera trajectory continue.\"}], \"visual_attention\": {\"version\": 1, \"time_base\": \"SHOT_SECONDS\", \"character_catalog\": [{\"character_id\": \"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\", \"character_name\": \"皇帝\"}], \"windows\": [{\"start_time_seconds\": 0, \"end_time_seconds\": 30, \"primary_subjects\": [\"bbfa698b-e38e-40db-8cc9-ae0ab381fc4f\"], \"background_motion_subjects\": []}]}}",
+        "image_url": null,
+        "image_path": null,
+        "keyframes": "[]"
+      },
+      "response": {
+        "clips": [
+          {
+            "clip_index": 1,
+            "start_time": 0,
+            "end_time": 15,
+            "continuity_to_previous": "NONE",
+            "reason": "established opening",
+            "selected_temporal_target_ids": [],
+            "early_composition_state_id": null
+          },
+          {
+            "clip_index": 2,
+            "start_time": 15,
+            "end_time": 30,
+            "continuity_to_previous": "CONTINUOUS",
+            "reason": "The same established stance and camera trajectory continue from the previous ending state.",
+            "selected_temporal_target_ids": [
+              "KF3"
+            ],
+            "early_composition_state_id": null
+          }
+        ]
+      },
+      "calls_before": [
+        {
+          "system_prompt": "【提示词编号：#10A｜视频片段执行规划】\n\nYou are the NovelFlow Clip Execution Planner.\n\nCompile the supplied canonical Visual States and adjacent Visual Transitions into\nsemantic Clips. Do not rewrite story facts or create speech, physical references,\nworkflow choices, or execution provenance.\n\nAuthoritative inputs:\n- `visual_state_candidates`: canonical #08 visual facts, state times and eligible temporal candidates.\n- `transition_context`: canonical #10 visual change between adjacent states.\n- `shot.characters`, `shot.scene`, and `shot.props`: structural visual context only.\n- `speech_timing_intervals`: event ID plus start/end time only. These intervals are\n  boundary hints, not dialogue content, speaker authority, or continuity authority.\n- `shot.continuity_mode`: planning context only. It does not override the visual\n  dependency definition below.\n\nBoundary selection and continuity classification are two separate decisions:\n\n1. Choose contiguous Clip boundaries that cover the complete Shot timeline and\n   satisfy `planning_policy`. Where practical, avoid placing a boundary inside a\n   `speech_timing_intervals` interval and prefer a natural speech gap or completion.\n   Dialogue timing may influence WHERE a boundary is convenient, but nothing else.\n\n2. After choosing a boundary, classify its visual dependency independently:\n   - `CONTINUOUS` means the current Clip cannot faithfully establish its visual start\n     from its own first-owned canonical Visual State alone. Its starting body, camera,\n     spatial, object, or motion condition depends on the actual ending visual state\n     produced by the previous Clip.\n   - `CUT` means the current Clip can independently establish its start from its own\n     first-owned canonical Visual State and visual context. CUT remains valid in the\n     same scene, with the same characters, or during the same conversation when the\n     new composition/setup is independently grounded.\n   - The first Clip must use `NONE`.\n\nContinuity authority precedes execution feasibility. Decide CUT/CONTINUOUS from\ncanonical narrative, visual action, spatial and camera facts before inspecting early\ncomposition candidates or timed selections. CUT represents a justified independent\nvisual setup/edit or discontinuity; merely having a future first-owned state does\nnot permit skipping the authored motion that leads to it. Preserve explicitly\nuninterrupted cross-boundary action/camera motion unless canonical facts support an\nindependent reset. Do not invent a hard cut to replace required continuous motion.\nMissing early composition, unavailable timed coverage, missing images or provider\nlimits must NEVER turn an otherwise CONTINUOUS boundary into CUT. Same-scene genuine\nindependent edits remain valid; do not mechanically prefer CONTINUOUS.\n\nThe following facts alone NEVER imply `CONTINUOUS`: same scene, same characters,\nsame conversation, same story beat, dialogue continuing or ending at the boundary,\nno time jump, or the same Shot database row. Narrative continuity is not visual\nexecution continuity. A `CONTINUOUS_TAKE` value may guide visual inspection, but it\nmust not coerce a visually independent boundary from CUT to CONTINUOUS.\n\nDirector decision signals (not character-count routing rules):\n- Previous AV is continuity conditioning, not a default required resource. Do not\n  choose CONTINUOUS merely to reuse it or because a transition describes ordinary\n  visual progression; identify why the actual previous ending is necessary.\n- CROSS-BOUNDARY ACTION: strongly favor CONTINUOUS when an authored action must be\n  shown uninterrupted across the boundary, such as walking onward, reaching then\n  catching, completing a turn, or an opening door followed by continuous entry.\n- SPATIAL / CAMERA CONTINUITY: favor CONTINUOUS when the required start must inherit\n  exact body positions, camera movement phase, blocking, object state or spatial\n  relations from the previous ending. Shared setting alone is not this dependency.\n- CHARACTER SET CHANGE: compare explicit semantic presence in adjacent canonical\n  state descriptions and transition actions, not the whole-Shot character list.\n  Continued presence, EXIT and ENTER are visual narrative facts, not pixel detection.\n  Do not assume missing or ambiguous descriptions prove a character absent. These\n  inputs do not establish actual visibility in the generated Previous AV tail.\n  EXIT does not imply CUT. ENTER does not imply CUT either: distinguish a character\n  already present in the next visual beat from a required uninterrupted entry action.\n  Reappearance should reduce an automatic CONTINUOUS preference, but must not invent\n  a visual identity failure, new action, or physical reference requirement.\n- NATURAL EDIT POINT: visual beat, subject focus, composition, reaction framing or\n  scene re-establishment can make CUT appropriate even with unchanged characters.\n  A dialogue-focus change is relevant only when expressed as canonical visual focus;\n  speech timing intervals alone cannot supply speaker/focus or continuity authority.\n- RE-ESTABLISHMENT VALUE: when the next beat needs a new character combination,\n  framing, visual focus or multi-person spatial setup, and no required cross-boundary\n  action or exact inherited visual condition forbids it, prefer considering CUT with\n  independent first-owned canonical grounding over forcing Previous AV dependency.\n  Preserve authored actions and state facts; do not invent an edit that skips a\n  required action. After normalization, a CUT rationale must refer to its actual\n  first-owned state, never promote a shared-boundary/carry-in state to ownership.\n\nContrastive director examples (illustrative, not mandatory output labels):\n- ABC -> AB: C exits during otherwise continuing action; CONTINUOUS is valid.\n- AB -> A: B exits while action naturally continues; CONTINUOUS is valid.\n- A -> AC: C is already present in a new two-person beat; no entry process must be\n  shown and the new setup is independently grounded; CUT is a reasonable preference.\n- A -> AC: C must walk in through the opening door toward A as an uninterrupted\n  continuation of the prior action; CONTINUOUS remains appropriate.\n- AC -> ABC: B reappears with a new visual beat/focus/composition and no required\n  inherited action or condition; independently grounded CUT is reasonable.\n- ABC -> ABC: exact camera, blocking and action must continue; CONTINUOUS is appropriate.\n- ABC -> ABC: a new reaction or re-establishing setup is independently grounded,\n  without required cross-boundary motion; CUT is valid despite an unchanged cast.\n\nFor every later Clip, `reason` must explain either the concrete cross-boundary visual\ndependency that requires CONTINUOUS or the independent visual grounding that permits\nCUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.\n\n3. Early Composition selection AFTER boundary and continuity classification:\n   First distinguish two coverage sources. IN_CLIP establishes composition inside\n   this Clip; INHERITED START means the actual Previous AV is expected to carry an\n   already established canonical opening premise across this boundary. Neither\n   CONTINUOUS nor the existence of a carry-in proves inherited coverage.\n   Return `inherited_start_composition`: null, or the scoped semantic conclusion\n   {\"state_id\":\"KF2\", \"transition_to_state_id\":\"KF3\", \"premise_preserved\":true}.\n   IDs here are illustrative. Use the current canonical carry-in and its adjacent\n   outgoing transition containing the final Clip start, never a future or older\n   intervened state. The source must have been established strictly before start.\n   Judge the transition from that state up to this specific boundary and the opening\n   visible behavior: relevant subjects, spatial relations, facing/orientation,\n   camera axis/framing, important props and action phase must already support the\n   required opening composition. Ordinary continuous movement may preserve these\n   premises; a scene/camera reset, major blocking relocation, relevant subject\n   entrance/exit or a still-unestablished new composition requirement does not.\n   A distant carry-in in a progressed transition is not sufficient merely because\n   cast/scene/axis remain shared. If its old pose/framing no longer grounds the\n   opening, or canonical evidence cannot establish the required premise at this\n   boundary, return null. Use no fixed age threshold and do not inspect pixels.\n   For an inherited conclusion, existing reason must explain the concrete preserved\n   premises and why the opening important visible behavior needs no new composition.\n   This is a planning conclusion, not a claim that generated video has passed QA.\n   Previous AV's exact approved Task/native provenance is resolved by the application.\n   INHERITED START adds no image or temporal anchor; never promote its carry-in to\n   early_composition_state_id, selected_temporal_target_ids or a Picture. Keep\n   early_composition_state_id=null for inherited coverage. Timed selections remain\n   independent and may still add their own anchors for later timed visual arrival.\n   If an in-Clip composition is actually necessary instead, use that selection and\n   inherited_start_composition=null; do not automatically require both sources.\n\n   Return `early_composition_state_id`: one current Clip OWNED Visual State ID or null.\n   This is Clip-local execution selection, not a new state type or timed eligibility.\n   For CONTINUOUS without inherited coverage choose one meaningful early establishing composition: Previous AV\n   -> establish the current canonical composition -> subsequent speech/important visible action.\n   It may have timed_visual_target=false or true. Never relabel false as eligible.\n   It must be owned and satisfy `s + 0.05 < t < e`, not an endpoint or carry-in.\n   For overlapping speech intervals, first Clip-local onset is\n   `o = min(max(s, interval.start_time))` over intervals with\n   `interval.end_time > s AND interval.start_time < e`; also require `t < o`.\n   An onset at Clip start leaves no pre-speech window;\n   reconsider legal boundaries, never shift dialogue or invent a state.\n   With no speech, judge early suitability from canonical transitions and the first\n   important visible action; do not use a late result or endpoint as early grounding.\n   Merely being before Clip end is insufficient. Explain why a chosen state establishes\n   composition before the important visible action that depends on it.\n   No fixed seconds threshold, no speaker inference, no requirement for speaker close-up.\n   Prefer legal topology with owned pre-event states while preserving the authored\n   continuity semantics. If impossible, keep CONTINUOUS, use null with no invented\n   target, and state EARLY_COMPOSITION_COVERAGE_INVALID plus the missing coverage in\n   that Clip's existing reason. The application will reject this candidate as a\n   planning conflict. Do not substitute CUT to satisfy coverage, create states, or\n   initiate #08 replan.\n   NONE/CUT use null for both composition fields. CONTINUOUS may leave its in-Clip\n   composition null if a selected timed state meets the same early coverage OR a\n   valid inherited-start conclusion supplies coverage. Active speech at Clip start\n   still forbids later IN_CLIP establishment; it does not invalidate a premise\n   already established before the boundary and continuously inherited. Never move,\n   restart or rewrite dialogue. With none of these coverage sources, keep the\n   correct continuity and report EARLY_COMPOSITION_COVERAGE_INVALID.\n\n4. Timed target selection:\n   `timed_visual_target=true` means eligible, NOT selected, owned or execution-required.\n   For CONTINUOUS, explicitly return `selected_temporal_target_ids`: [] / one / several\n   current Clip OWNED eligible IDs. Select only when timed arrival at a material\n   blocking/composition/spatial/prop/arrangement state has incremental timed-image\n   control value relative to planned previous ending, carry-in, adjacent transition\n   and textual motion guidance. If planned guidance is sufficient, select [].\n   Reason from canonical planned context, NOT actual Previous AV tail pixels, actual\n   character visibility/absence, identity sufficiency or real ending media.\n   Images may be missing: planning comes before selected image preparation.\n   Never select false/non-owned/shared-boundary/carry-in states. At most 8, unique IDs.\n   Each selected target must be eligible AND owned AND satisfy `s + 0.05 < t <= e`.\n   Ownership's end tolerance does not permit selecting a target after `e`.\n   Timed and composition selections share a maximum of eight distinct physical\n   anchors. The same true state may serve both responsibilities but conditions once.\n   NONE and CUT must explicitly return []; END is not automatically selected.\n\nApplication-owned deterministic projection:\n- Exact boundary contract: `s` and `e` are Clip start/end seconds; `t` is the\n  canonical Visual State time. Tolerance is `0.05` seconds; compare decimal times\n  as written, without rounding them to force boundary membership.\n- Ordinary Visual State ownership: `t > s + 0.05 AND t <= e + 0.05`.\n  The start inequality is strict. At `t == s + 0.05`, the state is NOT owned by\n  the current Clip; never use it as a selected temporal or early composition state.\n- For later Clips, carry-in is the latest canonical state satisfying `t <= s + 0.05`\n  (ordered by time, then keyframe index). Boundary equality is on the carry-in side,\n  not the owned side. Carry-in is semantic context, not automatic proof of\n  inherited_start_composition; its source must still be strictly before start.\n- The first Clip owns the START state with keyframe index 1 as a special case and\n  has no carry-in. END uses ordinary ownership and is not automatically selected.\n- Application code derives `visual_state_indexes` from final boundaries.\n- Application code derives `carry_in_state_index` as semantic context only. Carry-in\n  is not an owned state, Picture, ordinary reference, temporal anchor, Previous AV,\n  or physical continuation decision.\n- You own selected_temporal_target_ids, a mandatory list, not physical bindings.\n- Application code validates this subset after normalization and derives anchors,\n  final `requires_temporal_control` and capability. NONE/CUT -> GENERATE;\n  CONTINUOUS + any valid timed/composition anchor -> TEMPORAL_EXTEND.\n  CONTINUOUS + inherited-start coverage only -> EXTEND, no temporal images.\n  Inherited coverage with timed targets -> TEMPORAL_EXTEND because of those targets.\n  New-contract CONTINUOUS requires early composition coverage.\n- Keep `requires_temporal_control=false` neutral in raw output; raw requires/capability\n  cannot override program authority. Do not invent temporal target IDs.\n- If normalization changes ownership/carry-in/previous ending/local-time context,\n  one constrained revalidation supplies fixed normalized boundaries, ALL eligible\n  timed candidates and owned composition candidates, including false states. Rejudge continuity AND both selections in that\n  structure; rejudge inherited_start_composition at this exact normalized boundary\n  against its current carry-in and adjacent transition. Second drift or illegal\n  selection hard fails; do not request more retries.\n  Reclassification may follow changed canonical visual dependencies after boundary\n  normalization, never the availability of early composition or timed targets.\n\nBefore final JSON, check each timed selection for eligibility, exact ownership and\nselected-time legality; check each early state for ownership, strict interior and\npre-onset timing. Each CONTINUOUS Clip needs valid early or inherited coverage;\notherwise preserve the existing explicit conflict path, never invent coverage or CUT.\n\nForbidden authority:\n- Do not infer or output exact dialogue, speaker, language, speech state, mouth/lip\n  state, or dialogue progress.\n- Do not select or number Pictures, ordinary references, keyframe image bindings,\n  Previous AV Tasks/artifacts, temporal image bindings, physical workflows, provider\n  modes, node IDs, task IDs, paths, URLs, provenance, or actual media duration.\n- Do not use legacy mode labels, fixed frame counts, provider capabilities, or\n  workflow names to choose Clip topology or continuity.\n- A Clip may own zero, one, or many canonical Visual States. Do not pad, thin, or\n  force a fixed 3/4-state shape.\n\nReturn JSON only:\n{\n  \"clips\": [\n    {\n      \"clip_index\": 1,\n      \"start_time\": 0,\n      \"end_time\": 10,\n      \"continuity_to_previous\": \"NONE\",\n      \"previous_clip_index\": null,\n      \"requires_temporal_control\": false,\n      \"selected_temporal_target_ids\": [],\n      \"early_composition_state_id\": null,\n      \"inherited_start_composition\": null,\n      \"reason\": \"visual boundary rationale\"\n    }\n  ]\n}\n\nContract markers are projected by the program after validation: timed selection retains ELIGIBLE_THEN_SELECTED_V1; composition coverage uses EARLY_COMPOSITION_V2. Do not author validation markers in model output.\n",
+          "user_content": "{\n  \"shot\": {\n    \"id\": \"b1-multiclip\",\n    \"duration\": 30,\n    \"continuity_mode\": \"CONTINUOUS_TAKE\",\n    \"characters\": [\n      \"皇帝\"\n    ],\n    \"scene\": \"\",\n    \"props\": []\n  },\n  \"canonical_visual_plan\": true,\n  \"speech_timing_intervals\": [\n    {\n      \"event_id\": \"D1\",\n      \"start_time\": 1.0,\n      \"end_time\": 2.0\n    },\n    {\n      \"event_id\": \"D2\",\n      \"start_time\": 21.0,\n      \"end_time\": 22.0\n    }\n  ],\n  \"visual_state_candidates\": [\n    {\n      \"visual_state_id\": \"KF1\",\n      \"keyframe_index\": 1,\n      \"time_seconds\": 0,\n      \"role\": \"START\",\n      \"description\": \"\",\n      \"timed_visual_target\": false\n    },\n    {\n      \"visual_state_id\": \"KF2\",\n      \"keyframe_index\": 2,\n      \"time_seconds\": 10,\n      \"role\": \"INTERMEDIATE\",\n      \"description\": \"Characters:\\n- 皇帝: holds the established stance\",\n      \"timed_visual_target\": false\n    },\n    {\n      \"visual_state_id\": \"KF3\",\n      \"keyframe_index\": 3,\n      \"time_seconds\": 20,\n      \"role\": \"INTERMEDIATE\",\n      \"description\": \"Characters:\\n- 皇帝: holds the established stance\",\n      \"timed_visual_target\": true\n    },\n    {\n      \"visual_state_id\": \"KF4\",\n      \"keyframe_index\": 4,\n      \"time_seconds\": 30,\n      \"role\": \"END\",\n      \"description\": \"Characters:\\n- 皇帝: holds the established stance\",\n      \"timed_visual_target\": false\n    }\n  ],\n  \"transition_context\": [\n    {\n      \"from_keyframe_index\": 1,\n      \"to_keyframe_index\": 2,\n      \"start_time\": 0,\n      \"end_time\": 10,\n      \"transition_description\": \"The established stance and camera trajectory continue.\"\n    },\n    {\n      \"from_keyframe_index\": 2,\n      \"to_keyframe_index\": 3,\n      \"start_time\": 10,\n      \"end_time\": 20,\n      \"transition_description\": \"The established stance and camera trajectory continue.\"\n    },\n    {\n      \"from_keyframe_index\": 3,\n      \"to_keyframe_index\": 4,\n      \"start_time\": 20,\n      \"end_time\": 30,\n      \"transition_description\": \"The established stance and camera trajectory continue.\"\n    }\n  ],\n  \"planning_policy\": {\n    \"approval_mode\": \"AUTO_APPROVE\",\n    \"min_story_clip_duration\": 4.0,\n    \"max_story_clip_duration\": 15.0\n  }\n}",
+          "temperature": 0.2,
+          "max_tokens": 2200,
+          "response_format": "json_object",
+          "task_type": "clip_execution_planner",
+          "prompt_template_name": "fixture",
+          "novel_id": "novel",
+          "chapter_id": "fixture"
+        }
+      ],
+      "clips_before": [
+        {
+          "clip_index": 1,
+          "start_time": 0.0,
+          "end_time": 15.0,
+          "continuity_to_previous": "NONE",
+          "reason": "established opening",
+          "selected_temporal_target_ids": [],
+          "early_composition_state_id": null,
+          "planned_duration": 15.0,
+          "execution_status": "PLANNED",
+          "approval_mode": "AUTO_APPROVE",
+          "requires_temporal_control": false,
+          "previous_clip_index": null,
+          "visual_state_indexes": [
+            1,
+            2
+          ],
+          "carry_in_state_index": null,
+          "dialogue_scope": {
+            "start_time": 0.0,
+            "end_time": 15.0
+          },
+          "capability": "GENERATE",
+          "temporal_anchor_ids": [],
+          "dialogue_assignment": [
+            {
+              "dialogue_id": "D1",
+              "segment_index": 1,
+              "speaker": "皇帝",
+              "text": "好。",
+              "emotion_prompt": "",
+              "estimated_duration": 1.0,
+              "source_order": 1,
+              "start_time": 1.0,
+              "end_time": 2.0,
+              "is_continuation": false,
+              "continues_in_next_clip": false
+            }
+          ],
+          "execution_intent": {
+            "version": 1,
+            "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+            "canonical_timeline_sha256": "6414a95262ea96a83c0daa055ab63bcbd939e8af10d9f29be72f3fa3707f2dc0",
+            "canonical_time_base": "SHOT_SECONDS",
+            "time_base": "CLIP_LOCAL_SECONDS",
+            "events": [
+              {
+                "dialogue_id": "D1",
+                "intended_window": {
+                  "start": 1.0,
+                  "end": 2.0
+                }
+              }
+            ],
+            "timing_reliability": "soft",
+            "speaker_realization_reliability": "soft",
+            "visual_support_status": "unknown"
+          },
+          "realization_review": "unreviewed",
+          "visual_support_evidence": {
+            "version": 1,
+            "basis": "PLANNED_METADATA",
+            "status": "derived",
+            "time_base": "CLIP_LOCAL_SECONDS",
+            "events": [
+              {
+                "dialogue_id": "D1",
+                "segment_index": 1,
+                "resolved_character": {
+                  "status": "resolved",
+                  "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                  "subject": null
+                },
+                "attention": {
+                  "source_status": "VALID",
+                  "overlaps": [
+                    {
+                      "window_id": "visual_attention.windows[0]",
+                      "interval": {
+                        "start": 1.0,
+                        "end": 2.0
+                      },
+                      "roles": [
+                        "primary"
+                      ],
+                      "handoff_directions": []
+                    }
+                  ],
+                  "speaker_identity_status": "resolved",
+                  "coverage_duration": 1.0,
+                  "coverage_ratio": 1.0,
+                  "uncovered_intervals": [],
+                  "handoff_overlap": false
+                },
+                "visual_states": {
+                  "before_state_id": "KF1",
+                  "inside_state_ids": [],
+                  "after_state_id": "KF2",
+                  "nearest_state_ids": [
+                    "KF1"
+                  ],
+                  "states": [
+                    {
+                      "state_id": "KF1",
+                      "time_relationship": "before",
+                      "scope": "owned",
+                      "planned_speaker_membership": "unknown",
+                      "membership_basis": "unknown"
+                    },
+                    {
+                      "state_id": "KF2",
+                      "time_relationship": "after",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    }
+                  ]
+                },
+                "anchors": {
+                  "ordinary_visual": [],
+                  "temporal": []
+                },
+                "identity_reference": {
+                  "available": "unknown",
+                  "reference_ids": []
+                },
+                "speaker_visibility": "unknown",
+                "face_readability": "unknown",
+                "mouth_readability": "unknown",
+                "competing_face_salience": "unknown"
+              }
+            ],
+            "reference_summary": {
+              "manifest_status": "unknown",
+              "scene_prop_references": []
+            }
+          }
+        },
+        {
+          "clip_index": 2,
+          "start_time": 15.0,
+          "end_time": 30.0,
+          "continuity_to_previous": "CONTINUOUS",
+          "reason": "The same established stance and camera trajectory continue from the previous ending state.",
+          "selected_temporal_target_ids": [
+            "KF3"
+          ],
+          "early_composition_state_id": null,
+          "planned_duration": 15.0,
+          "execution_status": "PLANNED",
+          "approval_mode": "AUTO_APPROVE",
+          "requires_temporal_control": true,
+          "previous_clip_index": 1,
+          "visual_state_indexes": [
+            3,
+            4
+          ],
+          "carry_in_state_index": 2,
+          "dialogue_scope": {
+            "start_time": 15.0,
+            "end_time": 30.0
+          },
+          "capability": "TEMPORAL_EXTEND",
+          "temporal_anchor_ids": [
+            "clip-2-KF3"
+          ],
+          "dialogue_assignment": [
+            {
+              "dialogue_id": "D2",
+              "segment_index": 1,
+              "speaker": "皇帝",
+              "text": "继续。",
+              "emotion_prompt": "",
+              "estimated_duration": 1.0,
+              "source_order": 2,
+              "start_time": 21.0,
+              "end_time": 22.0,
+              "is_continuation": false,
+              "continues_in_next_clip": false
+            }
+          ],
+          "execution_intent": {
+            "version": 1,
+            "canonical_timeline_source": "shots.video_director_plan.dialogue_timeline_source",
+            "canonical_timeline_sha256": "6414a95262ea96a83c0daa055ab63bcbd939e8af10d9f29be72f3fa3707f2dc0",
+            "canonical_time_base": "SHOT_SECONDS",
+            "time_base": "CLIP_LOCAL_SECONDS",
+            "events": [
+              {
+                "dialogue_id": "D2",
+                "intended_window": {
+                  "start": 6.0,
+                  "end": 7.0
+                }
+              }
+            ],
+            "timing_reliability": "soft",
+            "speaker_realization_reliability": "soft",
+            "visual_support_status": "unknown"
+          },
+          "realization_review": "unreviewed",
+          "visual_support_evidence": {
+            "version": 1,
+            "basis": "PLANNED_METADATA",
+            "status": "derived",
+            "time_base": "CLIP_LOCAL_SECONDS",
+            "events": [
+              {
+                "dialogue_id": "D2",
+                "segment_index": 1,
+                "resolved_character": {
+                  "status": "resolved",
+                  "character_id": "bbfa698b-e38e-40db-8cc9-ae0ab381fc4f",
+                  "subject": null
+                },
+                "attention": {
+                  "source_status": "VALID",
+                  "overlaps": [
+                    {
+                      "window_id": "visual_attention.windows[0]",
+                      "interval": {
+                        "start": 6.0,
+                        "end": 7.0
+                      },
+                      "roles": [
+                        "primary"
+                      ],
+                      "handoff_directions": []
+                    }
+                  ],
+                  "speaker_identity_status": "resolved",
+                  "coverage_duration": 1.0,
+                  "coverage_ratio": 1.0,
+                  "uncovered_intervals": [],
+                  "handoff_overlap": false
+                },
+                "visual_states": {
+                  "before_state_id": "KF3",
+                  "inside_state_ids": [],
+                  "after_state_id": "KF4",
+                  "nearest_state_ids": [
+                    "KF3"
+                  ],
+                  "states": [
+                    {
+                      "state_id": "KF3",
+                      "time_relationship": "before",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    },
+                    {
+                      "state_id": "KF4",
+                      "time_relationship": "after",
+                      "scope": "owned",
+                      "planned_speaker_membership": "present",
+                      "membership_basis": "canonical_Characters_block"
+                    }
+                  ]
+                },
+                "anchors": {
+                  "ordinary_visual": [],
+                  "temporal": [
+                    {
+                      "reference_id": "clip-2-KF3",
+                      "reference_type": "TEMPORAL_ANCHOR",
+                      "source_state_id": "KF3",
+                      "slot": null,
+                      "time_relationship": "before",
+                      "distance_seconds": 1.0,
+                      "nearest": true
+                    }
+                  ]
+                },
+                "identity_reference": {
+                  "available": "unknown",
+                  "reference_ids": []
+                },
+                "speaker_visibility": "unknown",
+                "face_readability": "unknown",
+                "mouth_readability": "unknown",
+                "competing_face_salience": "unknown"
+              }
+            ],
+            "reference_summary": {
+              "manifest_status": "unknown",
+              "scene_prop_references": []
+            }
+          }
+        }
+      ],
+      "validation_before": {
+        "passed": true,
+        "findings": [],
+        "blocking": [],
+        "review_required": [],
+        "warnings": [],
+        "dialogue_ownership": {
+          "passed": true,
+          "findings": [],
+          "source_dialogue_count": 2,
+          "assigned_segment_count": 2
+        },
+        "temporal_contract": "ELIGIBLE_THEN_SELECTED_V1",
+        "composition_contract": "EARLY_COMPOSITION_V2"
+      },
+      "temporal_anchors_before": [
+        {
+          "anchor_id": "clip-2-KF3",
+          "time_seconds": 5.0,
+          "image_url": null,
+          "source": {
+            "type": "KEYFRAME",
+            "id": "KF3",
+            "keyframe_index": 3,
+            "image_task_id": null
+          },
+          "description": "Characters:\n- 皇帝: holds the established stance"
+        }
+      ]
+    }
+  },
+  "template_before": "【提示词编号：#10A｜视频片段执行规划】\n\nYou are the NovelFlow Clip Execution Planner.\n\nCompile the supplied canonical Visual States and adjacent Visual Transitions into\nsemantic Clips. Do not rewrite story facts or create speech, physical references,\nworkflow choices, or execution provenance.\n\nAuthoritative inputs:\n- `visual_state_candidates`: canonical #08 visual facts, state times and eligible temporal candidates.\n- `transition_context`: canonical #10 visual change between adjacent states.\n- `shot.characters`, `shot.scene`, and `shot.props`: structural visual context only.\n- `speech_timing_intervals`: event ID plus start/end time only. These intervals are\n  boundary hints, not dialogue content, speaker authority, or continuity authority.\n- `shot.continuity_mode`: planning context only. It does not override the visual\n  dependency definition below.\n\nBoundary selection and continuity classification are two separate decisions:\n\n1. Choose contiguous Clip boundaries that cover the complete Shot timeline and\n   satisfy `planning_policy`. Where practical, avoid placing a boundary inside a\n   `speech_timing_intervals` interval and prefer a natural speech gap or completion.\n   Dialogue timing may influence WHERE a boundary is convenient, but nothing else.\n\n2. After choosing a boundary, classify its visual dependency independently:\n   - `CONTINUOUS` means the current Clip cannot faithfully establish its visual start\n     from its own first-owned canonical Visual State alone. Its starting body, camera,\n     spatial, object, or motion condition depends on the actual ending visual state\n     produced by the previous Clip.\n   - `CUT` means the current Clip can independently establish its start from its own\n     first-owned canonical Visual State and visual context. CUT remains valid in the\n     same scene, with the same characters, or during the same conversation when the\n     new composition/setup is independently grounded.\n   - The first Clip must use `NONE`.\n\nContinuity authority precedes execution feasibility. Decide CUT/CONTINUOUS from\ncanonical narrative, visual action, spatial and camera facts before inspecting early\ncomposition candidates or timed selections. CUT represents a justified independent\nvisual setup/edit or discontinuity; merely having a future first-owned state does\nnot permit skipping the authored motion that leads to it. Preserve explicitly\nuninterrupted cross-boundary action/camera motion unless canonical facts support an\nindependent reset. Do not invent a hard cut to replace required continuous motion.\nMissing early composition, unavailable timed coverage, missing images or provider\nlimits must NEVER turn an otherwise CONTINUOUS boundary into CUT. Same-scene genuine\nindependent edits remain valid; do not mechanically prefer CONTINUOUS.\n\nThe following facts alone NEVER imply `CONTINUOUS`: same scene, same characters,\nsame conversation, same story beat, dialogue continuing or ending at the boundary,\nno time jump, or the same Shot database row. Narrative continuity is not visual\nexecution continuity. A `CONTINUOUS_TAKE` value may guide visual inspection, but it\nmust not coerce a visually independent boundary from CUT to CONTINUOUS.\n\nDirector decision signals (not character-count routing rules):\n- Previous AV is continuity conditioning, not a default required resource. Do not\n  choose CONTINUOUS merely to reuse it or because a transition describes ordinary\n  visual progression; identify why the actual previous ending is necessary.\n- CROSS-BOUNDARY ACTION: strongly favor CONTINUOUS when an authored action must be\n  shown uninterrupted across the boundary, such as walking onward, reaching then\n  catching, completing a turn, or an opening door followed by continuous entry.\n- SPATIAL / CAMERA CONTINUITY: favor CONTINUOUS when the required start must inherit\n  exact body positions, camera movement phase, blocking, object state or spatial\n  relations from the previous ending. Shared setting alone is not this dependency.\n- CHARACTER SET CHANGE: compare explicit semantic presence in adjacent canonical\n  state descriptions and transition actions, not the whole-Shot character list.\n  Continued presence, EXIT and ENTER are visual narrative facts, not pixel detection.\n  Do not assume missing or ambiguous descriptions prove a character absent. These\n  inputs do not establish actual visibility in the generated Previous AV tail.\n  EXIT does not imply CUT. ENTER does not imply CUT either: distinguish a character\n  already present in the next visual beat from a required uninterrupted entry action.\n  Reappearance should reduce an automatic CONTINUOUS preference, but must not invent\n  a visual identity failure, new action, or physical reference requirement.\n- NATURAL EDIT POINT: visual beat, subject focus, composition, reaction framing or\n  scene re-establishment can make CUT appropriate even with unchanged characters.\n  A dialogue-focus change is relevant only when expressed as canonical visual focus;\n  speech timing intervals alone cannot supply speaker/focus or continuity authority.\n- RE-ESTABLISHMENT VALUE: when the next beat needs a new character combination,\n  framing, visual focus or multi-person spatial setup, and no required cross-boundary\n  action or exact inherited visual condition forbids it, prefer considering CUT with\n  independent first-owned canonical grounding over forcing Previous AV dependency.\n  Preserve authored actions and state facts; do not invent an edit that skips a\n  required action. After normalization, a CUT rationale must refer to its actual\n  first-owned state, never promote a shared-boundary/carry-in state to ownership.\n\nContrastive director examples (illustrative, not mandatory output labels):\n- ABC -> AB: C exits during otherwise continuing action; CONTINUOUS is valid.\n- AB -> A: B exits while action naturally continues; CONTINUOUS is valid.\n- A -> AC: C is already present in a new two-person beat; no entry process must be\n  shown and the new setup is independently grounded; CUT is a reasonable preference.\n- A -> AC: C must walk in through the opening door toward A as an uninterrupted\n  continuation of the prior action; CONTINUOUS remains appropriate.\n- AC -> ABC: B reappears with a new visual beat/focus/composition and no required\n  inherited action or condition; independently grounded CUT is reasonable.\n- ABC -> ABC: exact camera, blocking and action must continue; CONTINUOUS is appropriate.\n- ABC -> ABC: a new reaction or re-establishing setup is independently grounded,\n  without required cross-boundary motion; CUT is valid despite an unchanged cast.\n\nFor every later Clip, `reason` must explain either the concrete cross-boundary visual\ndependency that requires CONTINUOUS or the independent visual grounding that permits\nCUT. Do not cite dialogue/story continuity as the reason for CONTINUOUS.\n\n3. Early Composition selection AFTER boundary and continuity classification:\n   First distinguish two coverage sources. IN_CLIP establishes composition inside\n   this Clip; INHERITED START means the actual Previous AV is expected to carry an\n   already established canonical opening premise across this boundary. Neither\n   CONTINUOUS nor the existence of a carry-in proves inherited coverage.\n   Return `inherited_start_composition`: null, or the scoped semantic conclusion\n   {\"state_id\":\"KF2\", \"transition_to_state_id\":\"KF3\", \"premise_preserved\":true}.\n   IDs here are illustrative. Use the current canonical carry-in and its adjacent\n   outgoing transition containing the final Clip start, never a future or older\n   intervened state. The source must have been established strictly before start.\n   Judge the transition from that state up to this specific boundary and the opening\n   visible behavior: relevant subjects, spatial relations, facing/orientation,\n   camera axis/framing, important props and action phase must already support the\n   required opening composition. Ordinary continuous movement may preserve these\n   premises; a scene/camera reset, major blocking relocation, relevant subject\n   entrance/exit or a still-unestablished new composition requirement does not.\n   A distant carry-in in a progressed transition is not sufficient merely because\n   cast/scene/axis remain shared. If its old pose/framing no longer grounds the\n   opening, or canonical evidence cannot establish the required premise at this\n   boundary, return null. Use no fixed age threshold and do not inspect pixels.\n   For an inherited conclusion, existing reason must explain the concrete preserved\n   premises and why the opening important visible behavior needs no new composition.\n   This is a planning conclusion, not a claim that generated video has passed QA.\n   Previous AV's exact approved Task/native provenance is resolved by the application.\n   INHERITED START adds no image or temporal anchor; never promote its carry-in to\n   early_composition_state_id, selected_temporal_target_ids or a Picture. Keep\n   early_composition_state_id=null for inherited coverage. Timed selections remain\n   independent and may still add their own anchors for later timed visual arrival.\n   If an in-Clip composition is actually necessary instead, use that selection and\n   inherited_start_composition=null; do not automatically require both sources.\n\n   Return `early_composition_state_id`: one current Clip OWNED Visual State ID or null.\n   This is Clip-local execution selection, not a new state type or timed eligibility.\n   For CONTINUOUS without inherited coverage choose one meaningful early establishing composition: Previous AV\n   -> establish the current canonical composition -> subsequent speech/important visible action.\n   It may have timed_visual_target=false or true. Never relabel false as eligible.\n   It must be owned and satisfy `s + 0.05 < t < e`, not an endpoint or carry-in.\n   For overlapping speech intervals, first Clip-local onset is\n   `o = min(max(s, interval.start_time))` over intervals with\n   `interval.end_time > s AND interval.start_time < e`; also require `t < o`.\n   An onset at Clip start leaves no pre-speech window;\n   reconsider legal boundaries, never shift dialogue or invent a state.\n   With no speech, judge early suitability from canonical transitions and the first\n   important visible action; do not use a late result or endpoint as early grounding.\n   Merely being before Clip end is insufficient. Explain why a chosen state establishes\n   composition before the important visible action that depends on it.\n   No fixed seconds threshold, no speaker inference, no requirement for speaker close-up.\n   Prefer legal topology with owned pre-event states while preserving the authored\n   continuity semantics. If impossible, keep CONTINUOUS, use null with no invented\n   target, and state EARLY_COMPOSITION_COVERAGE_INVALID plus the missing coverage in\n   that Clip's existing reason. The application will reject this candidate as a\n   planning conflict. Do not substitute CUT to satisfy coverage, create states, or\n   initiate #08 replan.\n   NONE/CUT use null for both composition fields. CONTINUOUS may leave its in-Clip\n   composition null if a selected timed state meets the same early coverage OR a\n   valid inherited-start conclusion supplies coverage. Active speech at Clip start\n   still forbids later IN_CLIP establishment; it does not invalidate a premise\n   already established before the boundary and continuously inherited. Never move,\n   restart or rewrite dialogue. With none of these coverage sources, keep the\n   correct continuity and report EARLY_COMPOSITION_COVERAGE_INVALID.\n\n4. Timed target selection:\n   `timed_visual_target=true` means eligible, NOT selected, owned or execution-required.\n   For CONTINUOUS, explicitly return `selected_temporal_target_ids`: [] / one / several\n   current Clip OWNED eligible IDs. Select only when timed arrival at a material\n   blocking/composition/spatial/prop/arrangement state has incremental timed-image\n   control value relative to planned previous ending, carry-in, adjacent transition\n   and textual motion guidance. If planned guidance is sufficient, select [].\n   Reason from canonical planned context, NOT actual Previous AV tail pixels, actual\n   character visibility/absence, identity sufficiency or real ending media.\n   Images may be missing: planning comes before selected image preparation.\n   Never select false/non-owned/shared-boundary/carry-in states. At most 8, unique IDs.\n   Each selected target must be eligible AND owned AND satisfy `s + 0.05 < t <= e`.\n   Ownership's end tolerance does not permit selecting a target after `e`.\n   Timed and composition selections share a maximum of eight distinct physical\n   anchors. The same true state may serve both responsibilities but conditions once.\n   NONE and CUT must explicitly return []; END is not automatically selected.\n\nApplication-owned deterministic projection:\n- Exact boundary contract: `s` and `e` are Clip start/end seconds; `t` is the\n  canonical Visual State time. Tolerance is `0.05` seconds; compare decimal times\n  as written, without rounding them to force boundary membership.\n- Ordinary Visual State ownership: `t > s + 0.05 AND t <= e + 0.05`.\n  The start inequality is strict. At `t == s + 0.05`, the state is NOT owned by\n  the current Clip; never use it as a selected temporal or early composition state.\n- For later Clips, carry-in is the latest canonical state satisfying `t <= s + 0.05`\n  (ordered by time, then keyframe index). Boundary equality is on the carry-in side,\n  not the owned side. Carry-in is semantic context, not automatic proof of\n  inherited_start_composition; its source must still be strictly before start.\n- The first Clip owns the START state with keyframe index 1 as a special case and\n  has no carry-in. END uses ordinary ownership and is not automatically selected.\n- Application code derives `visual_state_indexes` from final boundaries.\n- Application code derives `carry_in_state_index` as semantic context only. Carry-in\n  is not an owned state, Picture, ordinary reference, temporal anchor, Previous AV,\n  or physical continuation decision.\n- You own selected_temporal_target_ids, a mandatory list, not physical bindings.\n- Application code validates this subset after normalization and derives anchors,\n  final `requires_temporal_control` and capability. NONE/CUT -> GENERATE;\n  CONTINUOUS + any valid timed/composition anchor -> TEMPORAL_EXTEND.\n  CONTINUOUS + inherited-start coverage only -> EXTEND, no temporal images.\n  Inherited coverage with timed targets -> TEMPORAL_EXTEND because of those targets.\n  New-contract CONTINUOUS requires early composition coverage.\n- Keep `requires_temporal_control=false` neutral in raw output; raw requires/capability\n  cannot override program authority. Do not invent temporal target IDs.\n- If normalization changes ownership/carry-in/previous ending/local-time context,\n  one constrained revalidation supplies fixed normalized boundaries, ALL eligible\n  timed candidates and owned composition candidates, including false states. Rejudge continuity AND both selections in that\n  structure; rejudge inherited_start_composition at this exact normalized boundary\n  against its current carry-in and adjacent transition. Second drift or illegal\n  selection hard fails; do not request more retries.\n  Reclassification may follow changed canonical visual dependencies after boundary\n  normalization, never the availability of early composition or timed targets.\n\nBefore final JSON, check each timed selection for eligibility, exact ownership and\nselected-time legality; check each early state for ownership, strict interior and\npre-onset timing. Each CONTINUOUS Clip needs valid early or inherited coverage;\notherwise preserve the existing explicit conflict path, never invent coverage or CUT.\n\nForbidden authority:\n- Do not infer or output exact dialogue, speaker, language, speech state, mouth/lip\n  state, or dialogue progress.\n- Do not select or number Pictures, ordinary references, keyframe image bindings,\n  Previous AV Tasks/artifacts, temporal image bindings, physical workflows, provider\n  modes, node IDs, task IDs, paths, URLs, provenance, or actual media duration.\n- Do not use legacy mode labels, fixed frame counts, provider capabilities, or\n  workflow names to choose Clip topology or continuity.\n- A Clip may own zero, one, or many canonical Visual States. Do not pad, thin, or\n  force a fixed 3/4-state shape.\n\nReturn JSON only:\n{\n  \"clips\": [\n    {\n      \"clip_index\": 1,\n      \"start_time\": 0,\n      \"end_time\": 10,\n      \"continuity_to_previous\": \"NONE\",\n      \"previous_clip_index\": null,\n      \"requires_temporal_control\": false,\n      \"selected_temporal_target_ids\": [],\n      \"early_composition_state_id\": null,\n      \"inherited_start_composition\": null,\n      \"reason\": \"visual boundary rationale\"\n    }\n  ]\n}\n\nContract markers are projected by the program after validation: timed selection retains ELIGIBLE_THEN_SELECTED_V1; composition coverage uses EARLY_COMPOSITION_V2. Do not author validation markers in model output.\n",
+  "template_after_sha256": "841e1e6c7f57f4c633228f7d9a1b75309aae8839b7c072b19afc758fd4237170",
+  "aware_response": {
+    "clips": [
+      {
+        "clip_index": 1,
+        "continuity_to_previous": "NONE",
+        "early_composition_state_id": null,
+        "end_time": 13.1,
+        "reason": "Preserve the independently grounded opening and shared composition. D4 has full attention time coverage but its canonical speaker is not_listed; prefer using the planned KF2/KF3 shared spatial relationship to keep that speaker part of the shared composition through the reply. Respect adjacent authored transitions and the separate attention authority. This is planned visual reasoning, with actual visibility unknown; retain all timing and selections.",
+        "selected_temporal_target_ids": [],
+        "start_time": 0
+      }
+    ]
+  },
+  "frozen_functions": {
+    "backend/app/api/shots.py": {
+      "_build_keyframe_planner_user_content": "b9576eaea5bd8c7b40544ffe3611ccb08feb2a1187fc74e122fa00cde9ade2c9",
+      "_attention_replan_source": "36b5080f91cd416333dbcaa041f4671487561a2b4f0737d4558da7e04eb92a77",
+      "_replan_visual_attention": "f0ca889a193fc8bcc479302758e269e010a20f0c06dfbb097db592dae1b9da5d"
+    },
+    "backend/app/services/video_director_ai.py": {
+      "resolve_canonical_dialogue_timeline": "a516246a53c1be02010d6745c4eb2a8134da76a0f31de70b9c15258b5b243e37",
+      "build_execution_intent_metadata": "20dbaf3be5c1f598f6855d9d79fdb1def3be9ff3afef7c90865e2ba2e3d33546",
+      "_dialogue_attention_evidence": "ab8d1069ccdc4f0d24d83942954b336b6999ff26cab872d5d522c657f94ca236",
+      "build_dialogue_visual_support_evidence": "199e90e233f0ab43e9b66f1328e471e36a38ee7bc3d0c83bced67bffd0cb1808",
+      "build_h3_video_prompt": "138dd48f71013d9cbe471b3c05303ea71ed404dda8eb1a5b8c345cca6e618445"
+    }
+  }
+}

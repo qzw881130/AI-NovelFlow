@@ -1,3 +1,5 @@
+import { ImageInputs } from './ImageInputs';
+import { H3AVTimeline } from '../../../components/H3AVTimeline';
 import { Copy, Download, X } from 'lucide-react';
 import { useTranslation } from '../../../stores/i18nStore';
 import { toast } from '../../../stores/toastStore';
@@ -43,6 +45,7 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
   };
 
   const getActiveContent = () => {
+    if (activeTab === 'images') return JSON.stringify(log.image_inputs, null, 2);
     if (activeTab === 'params') return getRequestInfo();
     if (activeTab === 'system') return log.system_prompt || '';
     if (activeTab === 'user') return log.user_prompt || '';
@@ -61,6 +64,10 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
   };
 
   const activeContentLength = getActiveContent().length;
+  const avTimeline = (() => {
+    if (log.task_type !== 'h3_execution_optimizer_prompt') return undefined;
+    try { return JSON.parse(log.response || '{}').av_timeline; } catch { return undefined; }
+  })();
 
   const handleCopy = async () => {
     const content = getActiveContent();
@@ -150,6 +157,10 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
                   className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'user' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-50'}`}>
                   User Prompt
                 </button>
+                {!!log.image_inputs?.length && <button onClick={() => onTabChange('images')}
+                  className={`px-4 py-2 text-sm font-medium ${activeTab === 'images' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  图片输入 ({log.image_inputs.length})
+                </button>}
                 {log.response && (
                   <button onClick={() => onTabChange('response')}
                     className={`px-4 py-2 text-sm font-medium transition-colors ${activeTab === 'response' ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50' : 'text-gray-600 hover:bg-gray-50'}`}>
@@ -182,15 +193,16 @@ export function LogDetailModal({ log, activeTab, onTabChange, onClose, formatDat
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-            <div className="bg-gray-50 rounded-lg p-4">
+            {activeTab === 'response' && <H3AVTimeline timeline={avTimeline} />}
+            {activeTab === 'images' && log.image_inputs?.length ? <ImageInputs images={log.image_inputs} /> : <div className="bg-gray-50 rounded-lg p-4">
               <pre className="text-sm text-gray-700 whitespace-pre-wrap break-words overflow-x-auto">
                 {getDisplayContent()}
               </pre>
-            </div>
+            </div>}
           </div>
         </div>
         <div className="flex-shrink-0 px-6 py-3 border-t border-gray-200 bg-white text-xs text-gray-500 text-right">
-          {t('llmLogs.characterCount', { count: activeContentLength })}
+          {activeTab === 'images' ? `图片输入：${log.image_inputs?.length || 0}` : t('llmLogs.characterCount', { count: activeContentLength })}
         </div>
       </div>
     </div>

@@ -1,0 +1,597 @@
+{
+  "audit_date_local": "2026-10-07T15:35:09.748093+08:00",
+  "git_head": "c27a939b19e2d21e57bd90911ee909b054c1d8ba",
+  "scope": "READ_ONLY_AUDIT_AND_DESIGN_ONLY",
+  "methods": [
+    "source inspection",
+    "SQLite URI mode=ro and PRAGMA query_only=ON",
+    "existing Native C2 ffprobe streams/count_frames",
+    "existing Native C2 SHA256 verification"
+  ],
+  "not_performed": [
+    "application LLM calls",
+    "ComfyUI calls",
+    "frame extraction",
+    "image or video generation",
+    "visual classification",
+    "DB writes or migrations",
+    "workflow or pipeline changes",
+    "commit or push"
+  ],
+  "database": {
+    "path": "backend/novelflow.db",
+    "read_only_query_only": true,
+    "shots": 169,
+    "tasks": 813,
+    "semantic_plan_shots": 15,
+    "canonical_shots": 6,
+    "clip_task_status_counts": {
+      "completed": 68,
+      "failed": 12
+    },
+    "clip_contract_capability_counts": {
+      "None": 14,
+      "GENERATE": 25,
+      "EXTEND": 18,
+      "TEMPORAL_EXTEND": 23
+    },
+    "snapshot_field_counts": {
+      "clip_tasks": 80,
+      "metadata.execution_contract": 66,
+      "metadata.physical_output": 21,
+      "metadata.video_reference_manifest": 66,
+      "metadata.dialogue_assignment": 76,
+      "metadata.reference_binding_contract": 0,
+      "metadata.director_plan_snapshot": 0,
+      "metadata.comfyui_history": 0,
+      "column.workflow_json": 68,
+      "column.prompt_text": 80,
+      "column.comfyui_prompt_id": 68,
+      "column.video_director_clips": 8,
+      "column.reference_images": 46
+    },
+    "task_columns": [
+      "id",
+      "type",
+      "status",
+      "novel_id",
+      "chapter_id",
+      "shot_id",
+      "character_id",
+      "scene_id",
+      "prop_id",
+      "parent_task_id",
+      "batch_order",
+      "name",
+      "description",
+      "progress",
+      "current_step",
+      "result_url",
+      "error_message",
+      "comfyui_prompt_id",
+      "workflow_id",
+      "workflow_name",
+      "workflow_json",
+      "prompt_text",
+      "reference_images",
+      "video_director_clips",
+      "metadata_json",
+      "created_at",
+      "started_at",
+      "completed_at",
+      "updated_at",
+      "seed",
+      "source_task_id"
+    ]
+  },
+  "sample": {
+    "shot_id": "9dd9db66-fb04-48f0-892f-1fb30ebe23b2",
+    "novel_id": "bfc54b7d-04da-43e8-9e11-ff9a6032de5e",
+    "chapter_id": "6ad4afd6-f37b-419f-9a1c-0e3e4ec47d1e",
+    "shot_index": 2,
+    "shot_duration": 82,
+    "clip_index": 2,
+    "revision": 1,
+    "task_id": "8d4cb355-9540-42a8-b8a3-bc31a58eb9d1",
+    "status": "completed",
+    "prompt_id": "bfe9cf0c-4ce2-4ab3-9a56-1b1fee741528",
+    "skip_llm_when_prompt_exists": true,
+    "result_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/videos/shot_002_clip_2_8d4cb355_20261006_215552.mp4",
+    "media_exists": true,
+    "media_bytes": 7835584,
+    "media_sha256_verified": "e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9",
+    "prompt_chars": 15009,
+    "prompt_sha256": "c6810d4fbecf6d390a461c04bb1104a777e4e5fc144b55ede23289e8f78911f3",
+    "workflow_sha256_canonical_json": "83bfd61d650a1675e008ab7254531352f088bde319be6cfbbc46ce4ce45cd52e",
+    "plan_sha256_at_read": "85da9dd12ca9ac7c35adf6abbc996eb99aa7ae458efe2fd6cb2c131c2efd02b3",
+    "final_prompt_equals_current_clip_prompt": true,
+    "submitted_prompt_nodes": [
+      {
+        "node_id": "120",
+        "class_type": "CR Prompt Text",
+        "input": "prompt"
+      }
+    ],
+    "execution_contract": {
+      "version": 1,
+      "capability": "TEMPORAL_EXTEND",
+      "artifact_kind": "NATIVE_CONTINUITY_OUTPUT",
+      "clip": {
+        "clip_id": "9dd9db66-fb04-48f0-892f-1fb30ebe23b2:clip:2",
+        "clip_index": 2,
+        "clip_plan_revision": 1,
+        "start_seconds": 12.0,
+        "end_seconds": 23.1,
+        "duration_seconds": 11.100000000000001
+      },
+      "previous_clip": {
+        "clip_index": 1,
+        "clip_plan_revision": 1,
+        "generated_by_task_id": "f2d18748-0fc9-487c-b522-28caaeb26b06",
+        "result_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/videos/shot_002_clip_1_f2d18748_20261006_155239.mp4",
+        "physical_output": {
+          "frame_count": 294,
+          "fps": 24,
+          "timebase": "1/24",
+          "video_duration": 12.25,
+          "has_audio": true,
+          "audio_duration": 12.25,
+          "audio_start_time": 0.0,
+          "width": 864,
+          "height": 480,
+          "sha256": "67b4cb168b9e24f7ee165d6ce501c899e0709d393591f356b1a9ebf440c2c795",
+          "physical_output_role": "CLIP_ONLY"
+        },
+        "source_frame_start": 0
+      },
+      "temporal_anchor_manifest": {
+        "manifest_version": "1.0",
+        "anchors": [
+          {
+            "slot": 1,
+            "anchor_id": "clip-2-KF3",
+            "time_seconds": 5.4,
+            "frame_position": 206,
+            "image_url": "/api/files/story_bfc54b7d/images/keyframe_1_20261006_005412.png",
+            "description": null,
+            "source": {
+              "type": "KEYFRAME",
+              "id": "KF3",
+              "keyframe_index": 3,
+              "image_task_id": "45f4fa6b-5dd3-440f-90b3-661f2fc60c28"
+            },
+            "reachability": {
+              "policy": "CANONICAL_MOTION_WINDOW_V1",
+              "previous_state_index": 2,
+              "target_state_index": 3,
+              "semantic_frame_position": 135,
+              "effective_frame_position": 206,
+              "semantic_local_time": 5.4,
+              "earliest_reachable_local_time": 8.25,
+              "transition_start_local_time": 0.0,
+              "canonical_transition_duration_seconds": 5.5,
+              "requested_anchor_local_time": 8.25,
+              "effective_anchor_local_time": 8.541666666666666,
+              "motion_budget_seconds": 8.25,
+              "effective_frame_local_time": 8.541666666666666,
+              "placement_adjusted": true,
+              "clamped": false,
+              "reachability_reason": [
+                "ENTERING_NEW_BODY+COMPOSITE_MOTION+SETTLED_TARGET_AFTER_PRESENCE_CHANGE"
+              ],
+              "critical_subjects": [
+                {
+                  "character": "宫廷总管",
+                  "lifecycle": "ENTERING_NEW_BODY",
+                  "start_presence": "ABSENT",
+                  "target_presence": "PRESENT",
+                  "motion_ownership": "TRANSLATIONAL_MOTION",
+                  "motion_class": "COMPOSITE_MOTION",
+                  "motion_budget_seconds": 8.25,
+                  "motion_window_ratio": 1.5,
+                  "blocking_delta": {
+                    "previous_role": null,
+                    "target_role": "已从入口抵达皇帝侧前方并站定，身体朝向皇帝，姿态恭敬而急切。"
+                  },
+                  "reachability_reason": "ENTERING_NEW_BODY+COMPOSITE_MOTION+SETTLED_TARGET_AFTER_PRESENCE_CHANGE"
+                }
+              ],
+              "findings": []
+            },
+            "local_path": "/Volumes/Data/AI-NovelFlow-V2/backend/user_story/story_bfc54b7d/images/keyframe_1_20261006_005412.png",
+            "binding": {
+              "workflow_node_id": "117",
+              "uploaded_filename": "keyframe_1_20261006_005412.png"
+            }
+          }
+        ]
+      }
+    },
+    "physical_output": {
+      "frame_count": 529,
+      "fps": 24,
+      "timebase": "1/24",
+      "video_duration": 22.041666666666668,
+      "has_audio": true,
+      "audio_duration": 22.167,
+      "audio_start_time": 0.0,
+      "width": 960,
+      "height": 544,
+      "sha256": "e196add3a41492b97f14237fb819538a732cdd46f9defd99a62458f5b8cae8c9",
+      "physical_output_role": "NATIVE_CONTINUITY_OUTPUT",
+      "output_node_id": "65",
+      "source_video_url": "http://192.168.50.1:8288/view?filename=8d4cb355-9540-42a8-b8a3-bc31a58eb9d1_00001-audio.mp4&subfolder=story_bfc54b7d-04da-43e8-9e11-ff9a6032de5e\\chapter_6ad4afd6\\clips&type=output",
+      "result_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/videos/shot_002_clip_2_8d4cb355_20261006_215552.mp4",
+      "capability": "TEMPORAL_EXTEND",
+      "previous": {
+        "clip_index": 1,
+        "clip_plan_revision": 1,
+        "generated_by_task_id": "f2d18748-0fc9-487c-b522-28caaeb26b06",
+        "result_url": "/api/files/story_bfc54b7d/chapter_6ad4afd6/videos/shot_002_clip_1_f2d18748_20261006_155239.mp4",
+        "physical_output": {
+          "frame_count": 294,
+          "fps": 24,
+          "timebase": "1/24",
+          "video_duration": 12.25,
+          "has_audio": true,
+          "audio_duration": 12.25,
+          "audio_start_time": 0.0,
+          "width": 864,
+          "height": 480,
+          "sha256": "67b4cb168b9e24f7ee165d6ce501c899e0709d393591f356b1a9ebf440c2c795",
+          "physical_output_role": "CLIP_ONLY"
+        },
+        "source_frame_start": 0
+      },
+      "overlap_frames": 39,
+      "overlap_duration": 1.625,
+      "planned_semantic_duration": 11.100000000000001,
+      "native_cumulative_duration": 22.041666666666668,
+      "assembly_span": {
+        "start_frame": 255,
+        "end_frame": 529,
+        "replacement_frames": 39,
+        "net_new_frames": 235,
+        "net_new_duration": 9.791666666666666
+      },
+      "next_conditioning_role": "NATIVE_CONTINUITY_OUTPUT",
+      "raw_context_output": {
+        "physical_output_role": "RAW_CONTEXT_OUTPUT",
+        "output_node_id": "39",
+        "physical_duration": null
+      }
+    },
+    "dialogue_assignment": [
+      {
+        "dialogue_id": "D4",
+        "speaker": "侍从2",
+        "text": "蓝色礼服庄重，这件紫袍则更加高贵。两件各有妙处。",
+        "start_time": 12.1,
+        "end_time": 17.35,
+        "clip_start_time": 0.1,
+        "clip_end_time": 5.35
+      },
+      {
+        "dialogue_id": "D5",
+        "speaker": "宫廷总管",
+        "text": "陛下，宫门外来了两位织工。",
+        "start_time": 17.55,
+        "end_time": 20.3,
+        "clip_start_time": 5.55,
+        "clip_end_time": 8.3
+      },
+      {
+        "dialogue_id": "D6",
+        "speaker": "皇帝",
+        "text": "织工有什么值得禀报的？",
+        "start_time": 20.5,
+        "end_time": 23.0,
+        "clip_start_time": 8.5,
+        "clip_end_time": 11.0
+      }
+    ],
+    "subject_bindings": {
+      "皇帝": "<Subject 1>",
+      "侍从1": "<Subject 2>",
+      "侍从2": "<Subject 3>",
+      "侍从3": "<Subject 4>",
+      "宫廷总管": "<Subject 5>"
+    },
+    "ordinary_reference_bindings": [
+      {
+        "slot": 1,
+        "kind": "SCENE",
+        "source_name": "王宫更衣室",
+        "source_keyframe_index": null,
+        "binding": {
+          "uploaded_filename": "王宫更衣室_20261003_173153.png",
+          "workflow_node_id": "142"
+        }
+      },
+      {
+        "slot": 2,
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "皇帝",
+        "source_keyframe_index": null,
+        "binding": {
+          "uploaded_filename": "皇帝_20261003_181344.png",
+          "workflow_node_id": "141"
+        }
+      },
+      {
+        "slot": 3,
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "侍从2",
+        "source_keyframe_index": null,
+        "binding": {
+          "uploaded_filename": "侍从2_20261003_181315.png",
+          "workflow_node_id": "143"
+        }
+      },
+      {
+        "slot": 4,
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "宫廷总管",
+        "source_keyframe_index": null,
+        "binding": {
+          "uploaded_filename": "宫廷总管_20261003_181510.png",
+          "workflow_node_id": "137"
+        }
+      },
+      {
+        "slot": 5,
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "侍从1",
+        "source_keyframe_index": null,
+        "binding": {
+          "uploaded_filename": "侍从1_20261003_181406.png",
+          "workflow_node_id": "138"
+        }
+      },
+      {
+        "slot": 6,
+        "kind": "CHARACTER_IDENTITY",
+        "source_name": "侍从3",
+        "source_keyframe_index": null,
+        "binding": {
+          "uploaded_filename": "侍从3_20261003_181224.png",
+          "workflow_node_id": "140"
+        }
+      },
+      {
+        "slot": 7,
+        "kind": "PROP",
+        "source_name": "巨大镜子",
+        "source_keyframe_index": null,
+        "binding": {
+          "uploaded_filename": "巨大镜子_20261003_183437.png",
+          "workflow_node_id": "135"
+        }
+      },
+      {
+        "slot": 8,
+        "kind": "PROP",
+        "source_name": "紫色长袍",
+        "source_keyframe_index": null,
+        "binding": {
+          "uploaded_filename": "紫色长袍_20261003_174222.png",
+          "workflow_node_id": "136"
+        }
+      },
+      {
+        "slot": 9,
+        "kind": "PROP",
+        "source_name": "宫廷腰带",
+        "source_keyframe_index": null,
+        "binding": {
+          "uploaded_filename": "宫廷腰带_20261003_183843.png",
+          "workflow_node_id": "139"
+        }
+      }
+    ],
+    "submitted_anchor_node": {
+      "inputs": {
+        "keyframe_state": "{\"count\":1,\"positions\":[206]}",
+        "indexing": "1-based",
+        "crop": "center",
+        "+ Add keyframe": null,
+        "- Remove keyframe": null,
+        "conditioning": [
+          "55",
+          0
+        ],
+        "vae": [
+          "30",
+          0
+        ],
+        "latent": [
+          "55",
+          1
+        ],
+        "keyframe_image_1": [
+          "117",
+          0
+        ]
+      },
+      "class_type": "MiniMaxH3CustomKeyframes",
+      "_meta": {
+        "title": "#116 H3 Custom Keyframes — TEMPORAL ANCHOR"
+      }
+    },
+    "submitted_previous_av_node": {
+      "inputs": {
+        "video": "shot_002_clip_1_f2d18748_20261006_155239.mp4",
+        "force_rate": 24,
+        "custom_width": 0,
+        "custom_height": 0,
+        "frame_load_cap": 0,
+        "start_time": 0,
+        "format": "AnimateDiff"
+      },
+      "class_type": "VHS_LoadVideoFFmpeg",
+      "_meta": {
+        "title": "#66 Load Video FFmpeg (Upload) 🎥🅥🅗🅢"
+      }
+    },
+    "submitted_duration_node": {
+      "inputs": {
+        "value": 11.1
+      },
+      "class_type": "PrimitiveFloat",
+      "_meta": {
+        "title": "#125 Float(时长秒)"
+      }
+    },
+    "prompt_section_evidence": {
+      "dialogue_timeline": {
+        "text_start": 5784,
+        "text_end": 8556,
+        "preview": "This is the only source of exact spoken text in this prompt.\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\nAll assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.\nHuman vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.\nBefore the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation. Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nD4:\n  speaker: <Subject 3>\n  start_time: 0.1s\n  end_time: 5.35s\n  exact_dialogue: 蓝色礼服庄重，这件紫袍则更加高贵。两件各有妙处。\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articul",
+        "truncated": true
+      },
+      "existing_body_binding": {
+        "text_start": 12930,
+        "text_end": 14178,
+        "preview": "Apply <Picture 2> identity to the existing/current body of <Subject 1> — 皇帝, defined by Previous AV and canonical KF2. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 3> identity to the existing/current body of <Subject 3> — 侍从2, defined by Previous AV and canonical KF2. Do not create a second body or transfer this identity to another visible body.\n<Subject 5> — 宫廷总管 is absent from the carried-in start state KF2. Exactly one body enters during the assigned KF2→KF3 transition. <Picture 4> defines the identity of that entering body only. The entering body and its target-state body in KF3 are the same continuous body. The temporal target must not instantiate a separate copy. After arrival, the same body remains the sole body of this Subject; do not perform another entry or create a second body.\nApply <Picture 5> identity to the existing/current body of <Subject 2> — 侍从1, defined by Previous AV and canonical KF2. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 6> identity to the existing/current body of <Subject 4> — 侍从3, defined by Previous AV and canonical KF2. Do not create a second body or transfer this identity to another visible body.\n\n",
+        "truncated": false
+      },
+      "motion_ownership": {
+        "text_start": 14196,
+        "text_end": 15009,
+        "preview": "Only an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 皇帝: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 侍从1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 3> — 侍从2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 4> — 侍从3: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 5> — 宫廷总管: TRANSLATIONAL_MOTION; owns only the displacement assigned in KF2→KF3.",
+        "truncated": false
+      },
+      "detailed_description": {
+        "text_start": 8869,
+        "text_end": 10555,
+        "preview": "[Shot 1]\n\nClip-local 0.0–5.4 seconds, continuing the in-progress transition from carry-in KF2 toward KF3: <Subject 1> remains in the open central area and angled toward the giant mirror, gradually lowering the raised sleeve of the purple robe into a natural resting position while settling the gaze on the reflected image. <Subject 2> stays behind and to the left of <Subject 1>, making only a slight body-angle adjustment while keeping both hands near the collar area. <Subject 3> stays to the right of <Subject 1> and continues holding the court belt securely with both hands. <Subject 4> maintains the mirror-holding posture at the rear right and makes a small controlled adjustment so the mirror remains aligned toward <Subject 1>.\n\nThe camera continues the existing smooth orbit without reversing or mirroring the established left-right relationships, gradually bringing the dressing-room entrance into the medium-wide composition. <Subject 5> enters through the doorway, moves briskly along a clear path toward the front-side position near <Subject 1>, then decelerates naturally, stops, and turns the body toward <Subject 1> in a respectful, urgent posture. The camera adds a restrained lateral correction to accommodate the approach and settles into the stable KF3 medium-wide composition wit",
+        "truncated": true
+      }
+    },
+    "dedicated_authority_literal_matches": {
+      "visual_attention_owner": false,
+      "foreground_speaker": false,
+      "background_entrant": false,
+      "background_motion_subject": false
+    },
+    "ai_call_comparison": [
+      {
+        "step": "11",
+        "created_at_utc": "2026-10-05T17:14:03.338414",
+        "final_prompt_matches_selected_task": false,
+        "final_prompt_sha256": "fb3b5327de2bfa026f92900c2c29fb94105cf5ee27f47c6a780fbbf3fa289234",
+        "reference_binding_character_states": []
+      },
+      {
+        "step": "11",
+        "created_at_utc": "2026-10-06T08:34:52.838387",
+        "final_prompt_matches_selected_task": false,
+        "final_prompt_sha256": "a99ae2d7ac7c465c8aba2eb2438ef3a08e90b69243bb3abb8851aae8f0e31fe6",
+        "reference_binding_character_states": [
+          {
+            "name": "皇帝",
+            "subject": "<Subject 1>",
+            "body_binding": "EXISTING_CURRENT_BODY"
+          },
+          {
+            "name": "侍从2",
+            "subject": "<Subject 3>",
+            "body_binding": "EXISTING_CURRENT_BODY"
+          },
+          {
+            "name": "宫廷总管",
+            "subject": "<Subject 5>",
+            "body_binding": "CANONICAL_BODY_PRESENCE_UNKNOWN"
+          },
+          {
+            "name": "侍从1",
+            "subject": "<Subject 2>",
+            "body_binding": "EXISTING_CURRENT_BODY"
+          },
+          {
+            "name": "侍从3",
+            "subject": "<Subject 4>",
+            "body_binding": "EXISTING_CURRENT_BODY"
+          }
+        ]
+      }
+    ],
+    "ffprobe_verified": {
+      "video": {
+        "fps": "24/1",
+        "r_frame_rate": "24/1",
+        "stream_time_base": "1/12288",
+        "start_time": 0.0,
+        "duration": 22.041667,
+        "nb_frames": 529,
+        "nb_read_frames": 529,
+        "width": 960,
+        "height": 544
+      },
+      "audio": {
+        "start_time": 0.0,
+        "duration": 22.167,
+        "stream_time_base": "1/32000"
+      },
+      "format_duration": 22.167
+    },
+    "local_tool_version": "FFmpeg / ffprobe 7.1",
+    "mapping": {
+      "origin_frame_index0": 255,
+      "origin_native_pts": 10.625,
+      "replacement_frames": 274,
+      "replacement_duration": 11.416666666666666,
+      "last_native_frame_index0": 528,
+      "last_native_pts": 22.0,
+      "examples": [
+        {
+          "requested_clip_time": 3.542,
+          "local_frame_index0": 85,
+          "sample_clip_time": 3.5416666666666665,
+          "native_frame_index0": 340,
+          "native_pts": 14.166666666666666
+        },
+        {
+          "requested_clip_time": 4.5,
+          "local_frame_index0": 108,
+          "sample_clip_time": 4.5,
+          "native_frame_index0": 363,
+          "native_pts": 15.125
+        },
+        {
+          "requested_clip_time": 5.4,
+          "local_frame_index0": 130,
+          "sample_clip_time": 5.416666666666667,
+          "native_frame_index0": 385,
+          "native_pts": 16.041666666666668
+        },
+        {
+          "requested_clip_time": 5.55,
+          "local_frame_index0": 133,
+          "sample_clip_time": 5.541666666666667,
+          "native_frame_index0": 388,
+          "native_pts": 16.166666666666668
+        },
+        {
+          "requested_clip_time": 8.541666666666666,
+          "local_frame_index0": 205,
+          "sample_clip_time": 8.541666666666666,
+          "native_frame_index0": 460,
+          "native_pts": 19.166666666666668
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "No frame image was produced or visually verified.",
+    "No remote ComfyUI history was requested.",
+    "Current Shot plan is not a complete historical Task snapshot.",
+    "Dedicated authority literal absence is not proof that all relevant prose is absent.",
+    "FFprobe values and media hash were checked earlier in this audit; this evidence serializes those observed results."
+  ],
+  "official_docs": [
+    "https://ffmpeg.org/ffprobe.html",
+    "https://ffmpeg.org/ffmpeg-filters.html#select_002c-aselect",
+    "https://ffmpeg.org/ffmpeg.html#Advanced-options"
+  ]
+}

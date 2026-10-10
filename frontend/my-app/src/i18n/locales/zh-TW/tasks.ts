@@ -4,6 +4,7 @@ import zhCN from '../zh-CN/tasks';
 export default {
   tasks: {
     ...zhCN.tasks,
+    promptCharacterCount: '{count} 字元',
     comfyConfigNotInitialized: 'ComfyUI 配置未初始化',
     comfyConfigMismatch: 'ComfyUI 配置不一致',
     comfyConnectionFailed: 'ComfyUI 連線失敗',

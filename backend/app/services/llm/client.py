@@ -69,7 +69,8 @@ class LLMClient:
         prompt_template_name: str = None,
         novel_id: str = None,
         chapter_id: str = None,
-        character_id: str = None
+        character_id: str = None,
+        images: list | None = None,
     ) -> Dict[str, Any]:
         """
         发送对话请求
@@ -103,7 +104,8 @@ class LLMClient:
             prompt_template_name=prompt_template_name,
             novel_id=novel_id,
             chapter_id=chapter_id,
-            character_id=character_id
+            character_id=character_id,
+            **({"images": images} if images else {}),
         )
 
         # 转换为兼容旧 LLMService 的格式
@@ -111,11 +113,14 @@ class LLMClient:
             return {
                 "success": True,
                 "content": result.content,
+                "log_id": getattr(self._provider, "last_log_id", None),
                 "raw_response": result.raw_response
             }
         else:
             return {
                 "success": False,
+                "log_id": getattr(self._provider, "last_log_id", None),
+                "raw_response": result.raw_response,
                 "error": result.error,
                 "content": ""
             }
