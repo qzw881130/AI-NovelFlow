@@ -1,4 +1,6 @@
 import { H3OptimizerResult } from './H3OptimizerResult';
+import { ClipVisualStateReferences } from './ClipVisualStateReferences';
+import { visualStatePromptIsCurrent } from '../clipVisualStateReferences';
 /**
  * VideoGenTab - 视频生成 Tab（阶段 4）
  *
@@ -54,7 +56,6 @@ import {
   getCurrentSemanticExecutionState,
   getCarryInLabel,
   hasLegacyBatchPlanningState,
-  getOwnedVisualStateLabel,
   getSelectableBatchShotIndexes,
   getSemanticCapabilityLabel,
   getSemanticContinuityLabel,
@@ -239,6 +240,7 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
   const inspectorLabels = useInspectorLabels();
   const plan = (shot?.videoDirectorPlan || {}) as VideoDirectorPlan;
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [savingReferences, setSavingReferences] = useState(false);
   const [loading, setLoading] = useState(false);
   const clips = Array.isArray(plan.clip_plan) ? [...plan.clip_plan].sort((a, b) => Number(a.clip_index) - Number(b.clip_index)) : [];
   const revision = Number(plan.clip_plan_revision || 0);
@@ -342,7 +344,7 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
           const clipKey = String(clip.clip_index);
           const isRegenerating = regeneratingClipKey === clipKey;
           const preparation = clipPreparationPresentation(shot, Number(clip.clip_index));
-          const clipGenerationDisabled = !!isShotVideoGenerating || !!regeneratingClipKey || !preparation.executionReady;
+          const clipGenerationDisabled = !!isShotVideoGenerating || !!regeneratingClipKey || savingReferences || !preparation.executionReady;
           return (
             <div key={`${revision}-${clip.clip_index}`} className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
               <RequiredImagesPreparation shot={shot} novelId={novelId} chapterId={chapterId} clipIndex={Number(clip.clip_index)} onShot={onPreparationShot} />
@@ -363,7 +365,9 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
                     {carryInLabel}
                   </span>
                 )}
-                <span className="text-[11px] text-gray-600">视觉状态：{getOwnedVisualStateLabel(clip).replace(/KF/g, '')}</span>
+                <ClipVisualStateReferences shot={shot} clip={clip} novelId={novelId} chapterId={chapterId}
+                  disabled={savingReferences || !!isShotVideoGenerating || !!regeneratingClipKey || tasks.some(t => ['pending', 'queued', 'processing', 'running'].includes(t.status))}
+                  onShot={onPreparationShot} onSaving={setSavingReferences} />
                 <div className="ml-auto flex items-center gap-2">
                   {inspectorHref && <Link data-testid="clip-execution-inspector-entry" to={inspectorHref} target="_blank" rel="noopener noreferrer" className="rounded-md border border-indigo-200 px-2.5 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-50">{inspectorLabels.entry}</Link>}
                   {artifact.playbackUrl && (
@@ -387,8 +391,8 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
                     <button
                       type="button"
                       onClick={() => onRegenerateClip({ ...clip, clip_index: clip.clip_index }, 'video_only')}
-                      disabled={clipGenerationDisabled || !clip.prompt_text}
-                      title={!clip.prompt_text ? '缺少可复用的片段提示词，请先生成片段' : undefined}
+                      disabled={clipGenerationDisabled || !clip.prompt_text || !visualStatePromptIsCurrent(clip)}
+                      title={!visualStatePromptIsCurrent(clip) ? '视觉状态选择已改变，请使用生成片段更新提示词' : !clip.prompt_text ? '缺少可复用的片段提示词，请先生成片段' : undefined}
                       className="rounded-r-md border border-l-0 border-blue-200 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {currentPromptGenerateLabel}

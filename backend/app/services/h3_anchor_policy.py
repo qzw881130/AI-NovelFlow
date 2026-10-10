@@ -210,8 +210,10 @@ def check_anchor_policy(prompt, output, authority, spoken, detail, resolved_evid
         if anchor_id is None:
             # Accept an unambiguous stable ID in ordinary description, as in
             # historical point events; no camera/action wording interpretation.
+            # Hyphens belong to canonical IDs: KF6 inside clip-4-KF6 is not
+            # a second independently named anchor.
             named = [key for key in choices if re.search(
-                r'(?<![A-Za-z0-9_])' + re.escape(key) + r'(?![A-Za-z0-9_])', str(phase.get('description', '')))]
+                r'(?<![A-Za-z0-9_-])' + re.escape(key) + r'(?![A-Za-z0-9_-])', str(phase.get('description', '')))]
             anchor_id = named[0] if len(named) == 1 else None
         a = choices.get(anchor_id, {})
         checks['anchor_arrival_phase_binding'] &= (a.get('decision') in {'KEEP', 'RETIME'}

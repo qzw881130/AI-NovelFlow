@@ -174,6 +174,28 @@ def test_point_event_can_name_anchor_in_description_without_duplicating_field(ca
     assert audit(case)['anchor_arrival_phase_binding'] is passed
 
 
+@pytest.mark.parametrize('description,time,passed',[
+    ('Arrival for retimed linked temporal anchor clip-4-KF2.', 3.5, True),
+    ('Arrival for retained anchor KF2.', 3.0, True),
+    ('Arrival for KF2 and clip-4-KF2.', 3.5, False),
+    ('Arrival for clip-5-KF2.', 3.0, False),
+    ('Arrival for clip-4-KF20.', 3.5, False),
+    ('Arrival for clip-4-KF2.', 3.0, False),
+])
+def test_point_event_uses_complete_hyphenated_anchor_identity(case, description, time, passed):
+    authority, output, _ = case
+    authority['anchor_policy']['catalog'].append({'anchor_id':'clip-4-KF2','original_time':3.5})
+    anchor = copy.deepcopy(output['av_timeline']['anchors'][1])
+    anchor.update(id='clip-4-KF2', original_time=3.5, optimized_time=3.5)
+    output['av_timeline']['anchors'].append(anchor)
+    phase = output['av_timeline']['execution_phases'][1]
+    phase.pop('anchor_id')
+    phase.update(description=description, start=time, end=time)
+    before = copy.deepcopy(case)
+    assert audit(case)['anchor_arrival_phase_binding'] is passed
+    assert case == before
+
+
 def test_reference_scope_accepts_canonical_staging_without_requiring_word_anchor():
     from app.services.h3_native_prompt import check_native_prompt
     prompt='subject_definitions:\n<Subject 1> is A, with a stable face and identity.\nsummary:\nA 4-second view.\nretention_analysis:\nChronological references guide current clothing. Identity images do not overwrite canonical staging, current costume, pose, or blocking.\ndetailed_description:\nMaintain established floor positions.\noverall_soundscape:\nQuiet.\nnon_diegetic_music:\nN/A'

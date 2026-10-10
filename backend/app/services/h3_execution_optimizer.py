@@ -154,7 +154,7 @@ def build_runtime_input(raw_prompt, generation_mode, clip, reference_manifest=No
                      (float(clip.get("end_time", 4)) - float(clip.get("start_time", 0))))
     subjects = subject_bindings(raw_prompt)
     references = (reference_manifest or {}).get("references") or []
-    if not references:
+    if reference_manifest is None:
         references = [{"slot": i, "kind": "DIRECTOR_VISUAL_ANCHOR", "image_url": item.get("url"),
                        "source_role": item.get("label")} for i, item in enumerate(reference_images or [], 1)]
     bindings, visual, images = [], [], []

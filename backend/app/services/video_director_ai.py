@@ -14,6 +14,7 @@ from app.models.novel import Novel
 from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.llm_service import LLMService
 from app.services.prop_policy import get_visual_prop_names
+from app.services.clip_visual_state_references import disabled_visual_state_ids
 from app.services.visual_attention import (
     ATTENTION_RULE, attention_fingerprint, compile_visual_attention,
     consumed_transitions, execution_attention_snapshot, project_visual_attention,
@@ -1897,6 +1898,10 @@ async def build_h3_video_prompt(
         "visual_control_route": route if canonical_path else None,
         "visual_controls": mapped_semantic_controls if canonical_path else None,
         "physical_picture_manifest": physical_picture_mapping if canonical_path else None,
+        **({"disabled_visual_state_images": {
+            "state_ids": disabled_visual_state_ids(clip),
+            "scope": "Image conditioning only. Keep Canonical story, actions, dialogue and character facts from the textual states; do not require matching a disabled image or invent its Picture binding.",
+        }} if canonical_path and disabled_visual_state_ids(clip) else {}),
         **({"reference_binding_contract": reference_binding} if canonical_path else {}),
         "picture_mapping_contract": {
             "authority": "physical_picture_manifest",

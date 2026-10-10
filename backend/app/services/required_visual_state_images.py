@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.models.task import Task
 from app.services.clip_execution_compiler import (
-    get_generate_visual_start_readiness, EARLY_COMPOSITION_CONTRACT, execution_temporal_state_ids,
+    get_generate_visual_start_readiness, EARLY_COMPOSITION_CONTRACT, enabled_execution_temporal_state_ids,
 )
 from app.services.canonical_execution_invalidation import (
     ACTIVE_TASK_STATUSES, CanonicalExecutionConflict, canonical_clip_dependency_closure,
@@ -90,7 +90,7 @@ def project_required_execution_images(shot, plan: dict, tasks=(), clip_indexes=N
         if start["applicable"]:
             needs.append(("GENERATE_VISUAL_START", f"KF{start['visual_state_index']}", start.get("image_url"), start.get("grounding_source")))
         if clip.get("capability") == "TEMPORAL_EXTEND":
-            for sid in execution_temporal_state_ids(clip):
+            for sid in enabled_execution_temporal_state_ids(clip):
                 anchor = anchors.get(f"clip-{ci}-{sid}") or {}
                 if sid in (clip.get("selected_temporal_target_ids") or []):
                     needs.append(("SELECTED_TEMPORAL_TARGET", sid, anchor.get("image_url"), "KEYFRAME_IMAGE"))

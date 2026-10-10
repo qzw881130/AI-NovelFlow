@@ -27,6 +27,7 @@ from app.core.database import get_db
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.shot import Shot
 from app.models.task import Task
+from app.services.clip_visual_state_references import disabled_visual_state_ids, temporal_reference_enabled
 from app.services.visual_attention import (
     character_catalog, normalize_visual_attention, project_visual_attention,
     normalize_attention_replan_response, attention_source_sha256,
@@ -2710,6 +2711,59 @@ async def refresh_attention_transitions(
     return {"success": True, "data": _safe_json_dict(shot.video_director_plan)}
 
 
+class UpdateClipVisualStateReferencesRequest(BaseModel):
+    enabled_state_ids: list[str]
+    expected_plan_revision: int
+
+
+@router.patch(
+    "/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/video-director/clips/{clip_index}/visual-state-references",
+    response_model=dict,
+)
+def update_clip_visual_state_references(
+    novel_id: str, chapter_id: str, shot_id: str, clip_index: int,
+    request: UpdateClipVisualStateReferencesRequest,
+    db: Session = Depends(get_db),
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    if not chapter_repo.get_by_id(chapter_id, novel_id):
+        raise HTTPException(status_code=404, detail="章节不存在")
+    shot = shot_repo.get_by_id(shot_id)
+    if not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+    original = shot.video_director_plan
+    plan = deepcopy(_safe_json_dict(original))
+    if int(plan.get("clip_plan_revision") or 0) != request.expected_plan_revision:
+        raise HTTPException(status_code=409, detail="片段计划已更新，请刷新后重试")
+    clip = next((c for c in plan.get("clip_plan") or [] if c.get("clip_index") == clip_index), None)
+    if clip is None:
+        raise HTTPException(status_code=404, detail="片段不存在")
+    clip["visual_state_reference_config"] = {"enabled_state_ids": request.enabled_state_ids}
+    try:
+        disabled_visual_state_ids(clip)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="视觉状态 ID 必须唯一且属于当前片段") from exc
+    active = db.query(Task).filter(
+        Task.shot_id == shot.id, Task.type == "shot_video",
+        Task.status.in_(["pending", "queued", "processing", "running"]),
+    ).first()
+    if active or shot.video_status == "generating":
+        raise HTTPException(status_code=409, detail="视频生成中，请完成后修改视觉状态选择")
+    # Configuration for the next execution only; retain Canonical, revision,
+    # historical prompts, generated videos and source image assets verbatim.
+    with db.no_autoflush:
+        count = db.query(Shot).filter(Shot.id == shot.id, Shot.video_director_plan == original).update(
+            {Shot.video_director_plan: json.dumps(plan, ensure_ascii=False)}, synchronize_session=False,
+        )
+    if count != 1:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="分镜数据已更新，请刷新后重试")
+    db.commit()
+    db.refresh(shot)
+    return {"success": True, "data": shot_repo.to_response(shot)}
+
+
 class UpdateVisualStateDescriptionRequest(BaseModel):
     description: str
     expected_description: str
@@ -3049,7 +3103,7 @@ async def _execute_phase_b_semantic_clip(
                         raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE")
                     image_url = anchor.get("image_url") or anchor.get("image") or anchor.get("image_path")
                     source = anchor.get("source") or anchor.get("provenance")
-                    if not image_url or not isinstance(source, dict):
+                    if temporal_reference_enabled(clip, anchor) and (not image_url or not isinstance(source, dict)):
                         raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE")
                     resolved_temporal_anchors.append({
                         "anchor_id": str(anchor_id),

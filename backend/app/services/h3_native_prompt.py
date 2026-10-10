@@ -210,9 +210,18 @@ def check_native_prompt(prompt, canonical, authority, raw_prompt, timeline):
         state_scope += (rf"|preceding{separator}(?:video|footage)"
                         rf"|previous{separator}(?:video|AV|footage)"
                         rf"|incoming{separator}(?:footage|video|context)")
+    state_source = bool(re.search(state_scope, reference_scope, re.I))
+    if not state_source and (authority.get("continuation") or {}).get("binding_verified") is True:
+        # A carried-state retention clause may name its actual AV source in the
+        # opening instruction. Keep identity/costume/blocking scope in retention;
+        # do not borrow arbitrary later mentions or modify the model's prose.
+        opening = parts.get("detailed_description", "").strip()
+        state_source = bool(
+            re.match(r"(?:carry forward|preserve|retain)\s+(?:the\s+)?incoming\s+(?:posture|state|clothing|costume)\b", retention.strip(), re.I)
+            and re.match(r"(?:continue|preserve)\s+(?:the\s+)?(?:shared\s+)?(?:incoming|previous|preceding)[ -](?:footage|video|AV)\b", opening, re.I))
     checks["reference_authority_scope"] = not authority.get("reference_bindings") or all(
         re.search(pattern, reference_scope, re.I) for pattern in
-        [state_scope, r"costume|clothing", r"pose|posture", r"blocking|floor position", r"identit", r"face"])
+        [r"costume|clothing", r"pose|posture", r"blocking|floor position", r"identit", r"face"]) and state_source
     checks["blocking_preservation_wording"] = bool(re.search(
         r"(?:preserv|maintain|retain|remain|unchanged|established).{0,100}(?:floor positions?\b|blocking|seated|standing)", prompt, re.I))
     fixed_seated = seated_subjects(raw_prompt, authority["subject_bindings"])

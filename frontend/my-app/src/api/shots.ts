@@ -108,6 +108,7 @@ export interface CanonicalVisualTransition {
 export type SemanticClipCapability = 'GENERATE' | 'EXTEND' | 'TEMPORAL_EXTEND';
 
 export interface SemanticClipPlan {
+  visual_state_reference_config?: { enabled_state_ids: string[] } | null;
   clip_index: number;
   start_time: number;
   end_time: number;
@@ -596,6 +597,21 @@ export const shotsApi = {
       }
     );
     return response.json();
+  },
+
+  saveClipVisualStateReferences: async (
+    novelId: string, chapterId: string, shotId: string, clipIndex: number,
+    enabledStateIds: string[], expectedPlanRevision: number,
+  ): Promise<{ success: boolean; data?: Shot; message?: string }> => {
+    const response = await fetch(
+      `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/clips/${clipIndex}/visual-state-references`,
+      { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        enabled_state_ids: enabledStateIds, expected_plan_revision: expectedPlanRevision,
+      }) },
+    );
+    const result = await response.json();
+    if (!response.ok) throw new Error(typeof result.detail === 'string' ? result.detail : result.detail?.message || '保存视觉状态选择失败');
+    return result;
   },
 
   saveVisualStateDescription: async (

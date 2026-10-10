@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from app.utils.path_utils import local_path_to_url, url_to_local_path
+from app.services.clip_visual_state_references import visual_state_reference_enabled, temporal_reference_enabled
 
 
 class ClipExecutionCompileError(ValueError):
@@ -45,6 +46,10 @@ def execution_temporal_state_ids(clip: dict) -> list[str]:
     if composition:
         ids.append(composition)
     return list(dict.fromkeys(ids))
+
+
+def enabled_execution_temporal_state_ids(clip: dict) -> list[str]:
+    return [sid for sid in execution_temporal_state_ids(clip) if visual_state_reference_enabled(clip, sid)]
 
 
 def temporal_extend_frame_count(duration_seconds: float) -> int:
@@ -196,6 +201,9 @@ def get_generate_visual_start_readiness(shot, plan: dict, clip: dict) -> dict:
         if isinstance(item, dict) and item.get("index") is not None
     }
     first_state = states.get(first_index) if first_index is not None else None
+    if first_index is not None and not visual_state_reference_enabled(clip, f"KF{first_index}"):
+        result.update(applicable=False, code="VISUAL_START_REFERENCE_DISABLED")
+        return result
     time_seconds = first_state.get("time_seconds") if first_state else None
     result.update({
         "visual_state_index": first_index,
@@ -258,7 +266,7 @@ def get_canonical_execution_readiness(shot, plan: dict, clips: list[dict] | None
         if readiness["applicable"] and not readiness["ready"]:
             blockers.append(readiness)
         if clip.get("capability") == "TEMPORAL_EXTEND":
-            for state_id in execution_temporal_state_ids(clip):
+            for state_id in enabled_execution_temporal_state_ids(clip):
                 state = states.get(state_id) or {}
                 anchor = anchors.get(f"clip-{clip.get('clip_index')}-{state_id}") or {}
                 image_url = anchor.get("image_url")
@@ -309,6 +317,8 @@ def project_canonical_visual_references(shot, plan: dict, clip: dict, temporal_a
         state = states.get(index)
         if not state:
             raise ClipExecutionCompileError(f"视觉状态 KF{index} 不存在")
+        if not visual_state_reference_enabled(clip, f"KF{index}"):
+            continue
         if index in temporal_indexes:
             continue
         image_url = state.get("image_url") or state.get("imageUrl")
@@ -502,6 +512,10 @@ def compile_temporal_extend_clip(
     if previous_revision != revision or previous_clip_index != previous_index:
         raise ClipExecutionCompileError("PREVIOUS_AV_UNAVAILABLE")
 
+    if not temporal_anchors:
+        raise ClipExecutionCompileError("TEMPORAL_ANCHOR_UNAVAILABLE")
+    temporal_anchors = [a for a in temporal_anchors if temporal_reference_enabled(clip, a)]
+
     compiled = {
         "execution_contract": {
             "version": 1,
@@ -520,7 +534,7 @@ def compile_temporal_extend_clip(
     }
     temporal_manifest = project_temporal_anchor_positions(
         temporal_anchors, float(compiled["execution_contract"]["clip"]["duration_seconds"]),
-    )
+    ) if temporal_anchors else []
     from app.services.temporal_anchor_reachability import plan_temporal_anchor_reachability
     temporal_manifest = plan_temporal_anchor_reachability(plan, clip, temporal_manifest)
     contract = dict(compiled["execution_contract"])

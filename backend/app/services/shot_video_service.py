@@ -52,6 +52,7 @@ from app.services.canonical_execution_invalidation import (
 )
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.workflow_seed import extract_workflow_seed
+from app.services.clip_visual_state_references import disabled_visual_state_ids
 from app.services.continuous_clip_av import (
     CONTINUOUS_CAPABILITIES, NATIVE_CONTINUITY_OUTPUT, is_clip_execution_contract,
     probe_clip_av, validate_native_output, continuity_output_metadata, continuous_assembly_spans,
@@ -516,8 +517,11 @@ def _dialogue_visual_guidance_for_clip(plan: dict, clip: dict) -> str:
 
 
 def clip_prompt_projection_metadata(plan: dict, clip: dict, attention: dict, prompt: str) -> dict:
-    """Extend the existing cache identity only for effective B4 semantics."""
+    """Cache the effective image selection and dialogue visual guidance."""
     metadata = prompt_projection_metadata(attention, prompt)
+    disabled = disabled_visual_state_ids(clip)
+    if disabled:
+        metadata["disabled_visual_state_ids"] = disabled
     section = _dialogue_visual_guidance_for_clip(plan, clip)
     if section:
         metadata["dialogue_visual_intent_sha256"] = hashlib.sha256(section.encode()).hexdigest()
@@ -528,6 +532,8 @@ def reusable_clip_prompt(plan: dict, clip: dict, prompt: str, attention: dict, m
     section = _dialogue_visual_guidance_for_clip(plan, clip)
     count = len(re.findall(r"(?m)^dialogue_visual_guidance:", prompt or ""))
     cached = dict(metadata or {})
+    if cached.pop("disabled_visual_state_ids", []) != disabled_visual_state_ids(clip):
+        return False
     fingerprint = cached.pop("dialogue_visual_intent_sha256", None)
     if section:
         if (count != 1 or section not in (prompt or "")
@@ -806,6 +812,11 @@ async def _apply_h3_execution_optimizer(db, task, novel, shot, raw_prompt, mode,
     plan = safe_json_dict(shot.video_director_plan)
     context = dict(execution_context or {})
     context["worker_selected_mode"] = mode
+    if disabled_visual_state_ids(clip):
+        context["disabled_visual_state_images"] = {
+            "state_ids": disabled_visual_state_ids(clip),
+            "scope": "Textual Canonical facts remain required. These images are not supplied; do not use their image composition as a reference constraint or assign them Picture bindings.",
+        }
     if metadata.get("capability") in {"EXTEND", "TEMPORAL_EXTEND"}:
         mode = metadata["capability"]
     elif "visual_state_indexes" in clip:
@@ -1680,7 +1691,7 @@ async def generate_shot_video_task(
                 raise ValueError("PREVIOUS_AV_UNAVAILABLE" if clip_metadata.get("capability") in {"EXTEND", "TEMPORAL_EXTEND"} else "Clip continuation 缺少上一 Clip approved MP4")
             temporal_anchors = []
             if clip_metadata.get("capability") == "TEMPORAL_EXTEND":
-                if not temporal_manifest or not temporal_image_paths:
+                if temporal_manifest is None:
                     raise ValueError("TEMPORAL_ANCHOR_UNAVAILABLE")
                 temporal_anchors = [
                     {

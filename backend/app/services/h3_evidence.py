@@ -143,6 +143,10 @@ def resolve_canonical_excerpt(text, requirement, authority):
         return {**result, 'excerpt': None, 'start': None, 'end': None,
                 'status': 'OWNERSHIP_CONFLICT', 'mismatch': True}
     if not all('event_id' in loc for loc in owned):
+        if result['status'] == 'AMBIGUOUS':
+            collective = _resolve_collective_motion_locations(text, requirement, authority, result, headings)
+            if collective is not None:
+                return collective
         return result  # Never promote unknown repeated source scopes.
     description = str(requirement.get('requirement') or '')
     subjects = set(re.findall(r'<Subject \d+>', description))
@@ -182,6 +186,53 @@ def resolve_canonical_excerpt(text, requirement, authority):
             'end': selected[0]['end'] if len(selected) == 1 else None,
             'status': 'RESOLVED', 'method': 'CANONICAL_EVENT_LOCATIONS', 'mismatch': False,
             'event_ids': [loc['event_id'] for loc in selected]}
+
+
+def _resolve_collective_motion_locations(text, requirement, authority, result, headings):
+    """Locate an identical complete motion rule explicitly asserted for all Subjects.
+
+    Every canonical actor must own one matching row in the same motion_ownership
+    section. This resolves provenance only; it does not prove the CVR's prose.
+    """
+    description = str(requirement.get('requirement') or '')
+    aggregate = re.search(r'\ball\s+(?:(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+)?subjects\b', description, re.I)
+    if not aggregate or re.search(r'\b(?:except|excluding|other than)\b', description, re.I):
+        return None
+    bindings = authority.get('subject_bindings', {})
+    expected = set(bindings)
+    explicit = set(re.findall(r'<Subject \d+>', description))
+    if not expected or (explicit and explicit != expected):
+        return None
+    count = aggregate[1]
+    if count:
+        words = ['one','two','three','four','five','six','seven','eight','nine','ten']
+        if (int(count) if count.isdigit() else words.index(count.lower()) + 1) != len(expected):
+            return None
+    scopes = [(h.end(), headings[i + 1].start() if i + 1 < len(headings) else len(text))
+              for i,h in enumerate(headings) if h[1] == 'motion_ownership']
+    if len(scopes) != 1:
+        return None
+    begin, end = scopes[0]
+    supplied = requirement['source_excerpt']
+    rows = list(re.finditer(r'(?m)^(<Subject \d+>)[ \t]+—[ \t]+([^:\n]+):[ \t]+([^\n]+)$', text[begin:end]))
+    if len(rows) != len(expected) or {r[1] for r in rows} != expected:
+        return None
+    owned = []
+    for row in rows:
+        if (row[2].strip() != character_name(bindings[row[1]])
+                or row[3].strip().rstrip('.') != supplied.strip().rstrip('.')):
+            return None
+        start = begin + row.start(3)
+        owned.append({'start':start, 'end':start + len(supplied),
+                      'subject':row[1], 'section':'motion_ownership', 'selected':True})
+    # Preserve every exact match; an identical quote in another scope cannot
+    # silently acquire the all-Subjects ownership of these rows.
+    if {(x['start'],x['end']) for x in owned} != {(x['start'],x['end']) for x in result['locations']}:
+        return None
+    return {**result, 'excerpt':text[owned[0]['start']:owned[0]['end']],
+            'start':None, 'end':None, 'locations':owned, 'status':'RESOLVED',
+            'method':'CANONICAL_SUBJECT_LOCATIONS', 'mismatch':False,
+            'subject_ids':[x['subject'] for x in owned], 'semantic_review_required':True}
 
 
 def _resolve_canonical_fragments(text, requirement, authority, result):
