@@ -1609,7 +1609,7 @@ def _canonical_visual_body_speech_issues(body: str, subject_bindings: dict | Non
                 prefix = clause[:match.start()]
                 suffix = clause[match.end():]
                 if code == "CANONICAL_SPEECH_AUTHORITY_OUTSIDE_TIMELINE":
-                    if match.group() == "发声" and prefix.endswith("突") and suffix.startswith("源"):
+                    if match.group() == "发声" and prefix.endswith("突") and suffix.startswith(("源", "效")):
                         continue
                     if match.group() == "人声" and prefix.endswith("非"):
                         continue

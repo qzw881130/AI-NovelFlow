@@ -987,6 +987,8 @@ class TaskService:
         task.current_step = "生成完成"
         task.completed_at = datetime.utcnow()
         db.commit()
+        from app.services.image_review_worker import image_generation_completed
+        image_generation_completed(task.id)
         return True
 
     async def _recover_completed_keyframe_prompt(self, task: Task, prompt_history: dict, db: Session) -> bool:
@@ -1054,6 +1056,8 @@ class TaskService:
         task.current_step = "生成完成"
         task.completed_at = datetime.utcnow()
         db.commit()
+        from app.services.image_review_worker import image_generation_completed
+        image_generation_completed(task.id)
         return True
 
     @staticmethod
@@ -1390,6 +1394,7 @@ class TaskService:
                 "approval_status", "approval_mode", "previous_approved_task_id",
                 "previous_approved_video_url", "previous_approved_video_source", "temporal_anchor_ids", "dialogue_assignment",
                 "artifact_kind", "physical_output", "execution_contract",
+                "clip_playback",
             )
             return {key: metadata.get(key) for key in keys if key in metadata}
 

@@ -29,6 +29,7 @@ const TEMPLATE_TYPES = [
   'h3_first_last_frame_prompt',
   'h3_multi_keyframe_prompt',
   'h3_execution_optimizer_prompt',
+  'h3_preflight_repair_prompt',
 ] as const;
 type TemplateType = typeof TEMPLATE_TYPES[number];
 

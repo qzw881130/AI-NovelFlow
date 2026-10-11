@@ -6,6 +6,7 @@ import sys
 import pytest
 import tempfile
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 from unittest.mock import AsyncMock, patch, MagicMock
 
@@ -108,8 +109,7 @@ def client(db_session, db_engine):
     app.dependency_overrides[get_shot_repo] = make_repo_factory(ShotRepository)
     
     # Mock lifespan 中的启动逻辑，避免连接真实数据库和 ComfyUI
-    from app.main import lifespan
-    
+    @asynccontextmanager
     async def mock_lifespan(app):
         # 使用测试数据库初始化数据
         from app.api.test_cases import init_preset_test_cases
@@ -121,15 +121,12 @@ def client(db_session, db_engine):
         init_system_prompt_templates(db_session)
         await init_preset_test_cases(db_session)
         
-        # Mock ComfyUI 监控器
-        mock_monitor = MagicMock()
-        mock_monitor.start = AsyncMock()
-        mock_monitor.stop = AsyncMock()
-        
         yield
     
     # 使用 patch 来 mock lifespan 中的依赖
-    with patch('app.main.init_monitor', return_value=MagicMock(start=AsyncMock(), stop=AsyncMock())):
+    # Dependency overrides alone do not replace module-bound SessionLocal or
+    # the startup recovery queues. Never run production workers in API unit tests.
+    with patch.object(app.router, 'lifespan_context', mock_lifespan):
         with patch('app.core.database.SessionLocal', return_value=db_session):
             with TestClient(app) as c:
                 yield c

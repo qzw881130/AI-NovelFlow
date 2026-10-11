@@ -100,3 +100,19 @@ def test_unique_ordered_path_keeps_all_real_occurrences():
 ])
 def test_ambiguous_sections_or_implicit_different_owner_never_pass(text, quote):
     assert resolve(text, quote)['status'] != 'RESOLVED'
+
+
+def test_terminal_full_stop_keeps_entire_quote_and_actual_continuation():
+    source = '骗子1到达骗子2与木桌之间后停步，抬起一手抓住金丝卷靠近自己的一端；骗子2随即调整双手位置，将另一端收抵胸前并向后绷紧身体，两人的视线正面相对。'
+    quote = '骗子1到达骗子2与木桌之间后停步，抬起一手抓住金丝卷靠近自己的一端；骗子2随即调整双手位置，将另一端收抵胸前。'
+    req = {'source_excerpt':quote, 'requirement':'Subject 4 grips one end; Subject 5 holds the other end.'}
+    authority = {'subject_bindings':{'<Subject 4>':'骗子1','<Subject 5>':'骗子2','<Subject 6>':'宫廷总管'}}
+    before=copy.deepcopy(req)
+    e=resolve_canonical_excerpt(source,req,authority)
+    assert e['method']=='CANONICAL_TERMINAL_PUNCTUATION' and e['mismatch']
+    assert e['excerpt']==source and e['resolved_spans'][0]['excerpt']==quote[:-1]
+    assert req==before
+    for changed in [source.replace('并向后','并没有向后'),source.replace('并向后','并让宫廷总管向后'),source+source,source.replace('骗子2随即','宫廷总管随即')]:
+        assert resolve_canonical_excerpt(changed,req,authority)['status']!='RESOLVED'
+    wrong={**req,'requirement':'Subject 4 grips one end; Subject 6 holds the other end.'}
+    assert resolve_canonical_excerpt(source,wrong,authority)['status']!='RESOLVED'

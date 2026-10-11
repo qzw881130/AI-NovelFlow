@@ -1,0 +1,1321 @@
+{
+  "raw_prompt": "subject_definitions:\n<Subject 1> is 骗子1，一名约三十五岁、高瘦修长的人类男性；长窄脸、宽平额头、略高颧骨、清晰下颌与稍尖下巴，右侧鼻翼旁有小褐痣，灰绿色细长上挑双眼，暖调浅肤色，深棕色微卷短发向后梳理，发际线两侧略高，保留修剪整齐的深棕色小胡子。当前服装状态服从 KF1 所建立的视觉事实，不由历史或默认服装描述替换。\n<Subject 2> is 骗子2，一名约三十二岁、略矮敦实但动作灵便的人类男性；圆中带方的脸、饱满额头、较宽下颌与短圆下巴，左侧嘴角下方有明显小黑痣，琥珀褐色圆杏眼，暖调浅麦色皮肤与自然红润双颊，栗褐色浓密短卷发从左侧分开，面部无胡须。当前服装状态服从 KF1 所建立的视觉事实，不由历史或默认服装描述替换。\n<Subject 3> is 仆人1，一名约十九岁、偏瘦的人类男性；圆润脸型、略短中庭、饱满双颊、柔和下颌与圆下巴，鼻梁右侧有三颗清晰淡雀斑，暖褐色圆眼，暖调浅麦色皮肤，深棕色蓬松短直发与整齐短刘海，无胡须。当前服装状态服从 KF1 所建立的视觉事实，不由历史或默认服装描述替换。\n\nofficial_character_identity_lock:\nThe referenced visual anchors are the primary visual authority for the currently established visual identity of each <Subject N> at the corresponding chronological time anchor. The official character descriptions are identity-preservation constraints used to prevent character drift across frames. They supplement the referenced visual anchors but must not override clearly visible identity features established by those visual anchors.\n\nFor every <Subject N>, preserve the same face, age, body proportions, hair, facial hair, skin color, permanent markings, stable physical features, identity-defining accessories, and overall subject identity throughout the clip. Current costume is a separate continuity domain from stable identity. Preserve the current costume established by the authoritative chronological visual anchors; do not restore, layer, blend, partially reveal, or recolor a conflicting historical or default costume. Do not redesign, reinterpret, beautify, age, de-age, recolor, duplicate, replace, or exchange any <Subject N>. Do not interpret shadow, dark lighting, color grading, distance, environmental illumination, or motion blur as a change in skin, hair, facial hair, or costume color.\n\nTemporary expression, gaze, pose, body orientation, spatial position, and physically natural movement may change only as directed by the canonical transitions. If a stable identity detail is unclear because of pose, occlusion, distance, or lighting, preserve that detail when it becomes visible again. For current costume details, follow the chronological visual anchors. If textual identity information conflicts with a clearly visible feature in an authoritative visual anchor, follow the visual anchor.\n\nKeep <Subject 1>, <Subject 2>, and <Subject 3> complete, unique, anatomically coherent, and consistently identifiable. Do not introduce additional people or props. Do not create unsupported disappearance, appearance, mirrored left-right relationships, teleportation, costume changes, or scene resets. Keep the two foot-operated looms as distinct stable objects with consistent geometry and placement. No subtitles, captions, titles, speech bubbles, logos, watermarks, UI, or other on-screen text.\n\nkeyframe_timeline:\n- KF1 — START — Clip-local 0.00s: <Picture 1> is the authoritative starting visual state. Its actual composition, current appearances, poses, spatial relations, object placement, lighting, and framing must be followed directly; the empty textual description is not permission to invent or reset any initial pose.\n- KF2 — INTERMEDIATE — Clip-local 6.60s: TEXT_ONLY canonical state linked to the timed visual target for KF2 below. It has no ordinary Picture binding.\n- Timed visual target for KF2 — Clip-local 6.60s: In the palace weaving room, the camera has advanced slightly while following the established lateral path between the two looms, preserving a medium-wide view and the spatial relationship of both looms. <Subject 1> sits at the left loom, leans slightly toward <Subject 2>, and points one hand toward the empty space beside the raised left hand of <Subject 2>, with a serious, assured expression. <Subject 2> sits at the right loom with the left hand raised over the empty weaving area, two fingers carefully separated and gaze concentrated between them. Both focus on the same empty point beside the left hand of <Subject 2>, creating a deliberately earnest shared confirmation.\n- KF3 — INTERMEDIATE — Clip-local 10.80s: TEXT_ONLY. The camera continues its slow lateral movement in the established direction while keeping both looms in frame. <Subject 1> remains seated at the left loom, leans slightly backward as the serious expression gives way to restrained amusement, and looks toward <Subject 2>. <Subject 2> keeps the right hand suspended before the empty weaving area, relaxes the shoulders, turns the gaze toward <Subject 1>, and shows a clear smile. They exchange amused looks across the two looms while the weaving areas remain completely empty.\n- KF4 — INTERMEDIATE — Clip-local 11.60s: TEXT_ONLY canonical state linked to the timed visual target for KF4 below. It has no ordinary Picture binding.\n- Timed visual target for KF4 — Clip-local 11.60s: The continuous medium-wide lateral composition includes the room door at the edge of the background, left with a narrow opening. <Subject 1> sits upright at the left loom, faces the loom, holds both hands neatly above its operating area, and has returned to a serious expression. <Subject 2> faces downward toward the empty weaving area of the right loom, with two fingers again arranged as if carefully handling an invisible fine strand, and no remaining smile. Only the head of <Subject 3> cautiously appears through the narrow doorway while the body remains outside, with the gaze directed toward <Subject 1> and <Subject 2>. The two seated figures remain oriented away from the door, and the foreground-background relationship of all three figures is clearly readable.\n\nOrdinary reference bindings:\n- <Picture 2> is the palace weaving-room scene reference.\n- <Picture 3> is the identity reference for <Subject 1>.\n- <Picture 4> is the identity reference for <Subject 2>.\n- <Picture 5> is the identity reference for <Subject 3>.\n- <Picture 6> is the foot-operated loom reference; use it consistently for both loom instances without merging or redesigning them.\n\ndialogue_timeline:\nThis is the only source of exact spoken text in this prompt.\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\nAll assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.\nHuman vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.\nBefore the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation. Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nD1:\n  speaker: <Subject 1>\n  start_time: 1.0s\n  end_time: 1.75s\n  exact_dialogue: 慢一点。\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 1.75s to 1.95s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD2:\n  speaker: <Subject 2>\n  start_time: 1.95s\n  end_time: 2.7s\n  exact_dialogue: 怎么了？\n  segment: complete assigned span.\n  Only <Subject 2> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 2.7s to 2.9s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD3:\n  speaker: <Subject 1>\n  start_time: 2.9s\n  end_time: 5.4s\n  exact_dialogue: 你刚才差点把金线弄断。\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 5.4s to 5.6s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD4:\n  speaker: <Subject 2>\n  start_time: 5.6s\n  end_time: 6.35s\n  exact_dialogue: 哪一根？\n  segment: complete assigned span.\n  Only <Subject 2> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 6.35s to 6.55s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD5:\n  speaker: <Subject 1>\n  start_time: 6.55s\n  end_time: 7.8s\n  exact_dialogue: 你左手那根。\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 7.8s to 8.0s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD6:\n  speaker: <Subject 2>\n  start_time: 8.0s\n  end_time: 8.75s\n  exact_dialogue: 这一根？\n  segment: complete assigned span.\n  Only <Subject 2> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 8.75s to 8.95s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD7:\n  speaker: <Subject 1>\n  start_time: 8.95s\n  end_time: 9.45s\n  exact_dialogue: 对。\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 9.45s to 9.65s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD8:\n  speaker: <Subject 2>\n  start_time: 9.65s\n  end_time: 11.4s\n  exact_dialogue: 哦，幸好你提醒我。\n  segment: complete assigned span.\n  Only <Subject 2> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 11.4s to 11.6s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD9:\n  speaker: <Subject 3>\n  start_time: 11.6s\n  end_time: 13.85s\n  exact_dialogue: 两位大师，需要午餐吗？\n  segment: complete assigned span.\n  Only <Subject 3> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\n\nsummary:\nCreate one uninterrupted 13.85-second take grounded in KF1, with no inherited Previous AV state. Preserve the established left-right arrangement of <Subject 1>, <Subject 2>, and the two looms, the current appearances established at the start, and the stable geometry of the palace weaving room. Maintain a medium-wide ensemble composition as the camera travels smoothly along the established lateral path and gradually reveals the background doorway without cutting, jumping the axis, mirroring the layout, or abruptly changing scale.\n\ndetailed_description:\n[Shot 1]\n\n0.00–6.60s, KF1 → KF2: Continue directly from the actual KF1 visual state without supplying an unprovided initial pose or blocking arrangement. Move the camera smoothly along the established lateral path between the two foot-operated looms, gradually advancing slightly while maintaining a medium-wide view and preserving the left-right relationship of both looms. Keep <Subject 1> and <Subject 2> as a balanced shared visual focus. Let their movements resolve simply and naturally into their respective seated positions: <Subject 1> settles at the left loom, inclines slightly toward the right, and directs one hand toward the empty space beside the left hand of <Subject 2>. <Subject 2> remains at the right loom, raises the left hand into the empty weaving area, and carefully separates two fingers. Guide both gazes continuously toward the same point between the fingers and beside the raised hand. Their expressions and posture progressively settle into the serious, assured relationship defined by KF2. Do not cut, jump the axis, alter their left-right placement, or imply any visible cloth or thread in the empty weaving area.\n\n6.60–10.80s, KF2 → KF3: Continue the slow lateral camera movement in the same direction, keeping both looms and both seated figures visible together. <Subject 1> briefly maintains the pointing posture, then withdraws the arm, allows the serious expression to loosen, shifts from the slight forward inclination into a gentle backward lean, and moves the gaze toward <Subject 2> as restrained amusement becomes visible. <Subject 2> initially continues concentrating on the empty space between the raised fingers, then relaxes the shoulders and naturally lowers the left hand. Raise the right hand to hover in front of the same empty weaving area, then turn the gaze toward <Subject 1> as a clear smile develops. Preserve the empty weaving areas throughout and arrive naturally at KF3 with both figures looking at each other across the looms.\n\n10.80–11.60s, KF3 → KF4: Maintain the same continuous, slow lateral movement with both looms still in frame. <Subject 1> quickly suppresses the amused expression, moves from the slight backward lean into an upright seated posture, faces the left loom, and returns both hands neatly above the operating area with a serious expression. At the same time, <Subject 2> shifts the gaze away from <Subject 1> and back toward the empty weaving area of the right loom, restores a controlled shoulder posture, and adjusts the right hand into a careful two-finger motion over the invisible working position as the smile disappears. Neither seated figure turns toward the door. As the camera reaches the later part of this move, allow the door and its narrow opening to enter naturally at the background edge. <Subject 3> cautiously brings only the head through the opening while keeping the body outside and directing the gaze into the room. During the final 0.20 seconds, preserve the established foreground emphasis while making the doorway and <Subject 3> increasingly readable through depth, framing, and the ongoing lateral move, without turning the background figure into an overwhelming close-up or changing the axis.\n\n11.60–13.85s: Continue the KF4 arrangement naturally with minimal physically plausible settling movement. Keep <Subject 1> upright at the left loom and <Subject 2> controlled at the right loom, both oriented toward their empty operating areas. Keep only the head of <Subject 3> visible through the narrow doorway and the body outside. Preserve the clear foreground-background depth and the two-loom ensemble composition. Do not advance beyond this state or introduce any new action, object, character, costume change, camera cut, or scene development.\n\noverall_soundscape:\nNatural interior room tone for a large palace workroom, with restrained wooden ambience and subtle spatial reflections. Add grounded Foley only where supported by visible movement: faint clothing rustle during leaning and posture changes, light seat and wooden-frame creaks, delicate hand movement near the loom structures, and a very soft door-frame or hinge creak as the narrow doorway becomes occupied. Keep the sound perspective consistent with the medium-wide camera distance. Do not add music, fabricated weaving material sounds, machinery not present in the room, or unrelated exterior sound sources.\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — DIRECTOR_VISUAL_ANCHOR / KF1: director visual state, composition and staging; preserve its canonical current/target state.\n<Picture 2> — SCENE / 王宫织造室: environment identity and appearance only; incidental people are not additional Subjects.\n<Picture 6> — PROP / 脚踏织机: prop identity/appearance only; current canonical state decides who owns/holds it and where it is.\n\ncharacter_identity_binding:\n<Picture 3> ↔ <Subject 1> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 4> ↔ <Subject 2> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n<Picture 5> ↔ <Subject 3> — 仆人1 (Character asset 60b4bad6-6252-43fe-9234-5e1d192aee1b): identity only, exclusively for this Subject.\n\ninitial_body_binding:\nApply <Picture 3> identity to the initial body/role of <Subject 1> — 骗子1 in the Director visual state KF1. Preserve its clothing, pose and blocking; no Previous AV body is assumed.\nApply <Picture 4> identity to the initial body/role of <Subject 2> — 骗子2 in the Director visual state KF1. Preserve its clothing, pose and blocking; no Previous AV body is assumed.\nApply <Picture 5> identity to the initial body/role of <Subject 3> — 仆人1 in the Director visual state KF1. Preserve its clothing, pose and blocking; no Previous AV body is assumed.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 3> — 仆人1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.00–5.60s: Maintain primary narrative emphasis around <Subject 1>, <Subject 2> within the established composition.\n5.60–11.40s: Maintain primary narrative emphasis around <Subject 1>, <Subject 2> within the established composition.\n11.40–12.20s: Gradually redistribute attention from <Subject 1>, <Subject 2> toward <Subject 3>, allowing ensemble composition. Do not cut or imply that an approach must finish within this interval.\n12.20–13.85s: Maintain primary narrative emphasis around <Subject 1>, <Subject 3> within the established composition. The authorized actions of <Subject 2> remain background motion; accommodate them without shifting dominance solely because they move.",
+  "output": {
+    "optimized_prompt": "subject_definitions:\n<Subject 1> is 骗子1, a tall, lean human man of about thirty-five with a long narrow face, gray-green upturned eyes, swept-back short dark-brown hair, a neat dark-brown mustache, and a small brown mole beside the right nostril; <Picture 3> supplies identity only for <Subject 1>.\n<Subject 2> is 骗子2, a shorter, stockier but agile human man of about thirty-two with a rounded-square face, amber-brown eyes, thick short chestnut curls, no beard, and a small black mole below the left corner of his mouth; <Picture 4> supplies identity only for <Subject 2>.\n<Subject 3> is 仆人1, a slim human man of about nineteen with a softly rounded face, warm-brown eyes, fluffy short dark-brown hair, no beard, and three faint freckles beside the right side of his nose; <Picture 5> supplies identity only for <Subject 3>.\n\nsummary:\nA 15-second palace weaving-room scene uses a readable shared view for the rapid exchange between the two seated swindlers, continuing a slow lateral camera path before one deliberate, axis-preserving edit makes the servant’s face and mouth readable at the doorway. The action progresses from solemn imaginary weaving through concealed amusement and back to feigned seriousness.\n\nretention_analysis:\n<Picture 1> guides the opening arrangement, current costumes, lighting, and seated left-right relationship; its incidental visible weaving material does not override the canonically empty working areas. <Picture 2> supplies the palace weaving-room environment, and <Picture 6> supplies the consistent identity of two distinct foot-operated looms. The identity images apply only to permanent character identity and do not overwrite current costume, staging, pose, or blocking. <Subject 1> remains at the left loom, <Subject 2> at the right loom, and <Subject 3> remains outside the room with only his head entering the narrow doorway.\n\ndetailed_description:\nThe opening follows <Picture 1> for the established daylight room, costumes, seated arrangement, and two-loom geometry, while both operating areas remain completely empty. Only <Subject 1> and <Subject 2> are initially visible. The camera begins a gentle lateral move in the established direction, preserving their screen sides and floor positions. The move holds a readable two-shot of <Subject 1> and <Subject 2>, with both faces and mouths unobscured while they remain seated at their respective looms. All visible non-speakers listen naturally with relaxed closed lips and no speech-like articulation. <Subject 1> (S1) says, <d>[Chinese] 慢一点。</d>\n\n<Subject 1> finishes articulating and closes his lips, becoming a natural listener. Within the maintained unobstructed two-shot, composition transfers speaking emphasis from <Subject 1> to <Subject 2> without moving either man from his loom; <Subject 2> remains seated with a clearly readable face and mouth. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. With that view established, <Subject 2> (S2) asks, <d>[Chinese] 怎么了？</d>\n\n<Subject 2> ends his articulation and relaxes his closed lips. Within the same readable two-shot, composition transfers emphasis from <Subject 2> to <Subject 1>, whose seated face and mouth remain clear as he begins leaning slightly toward the right loom. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. With <Subject 1> ready, <Subject 1> (S1) says, <d>[Chinese] 你刚才差点把金线弄断。</d>\n\n<Subject 1> closes his lips and listens. The maintained two-shot transfers emphasis from <Subject 1> to <Subject 2>, keeping <Subject 2> seated and readable as his left hand rises over empty space and two fingers separate carefully. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. With his face and mouth clear, <Subject 2> (S2) asks, <d>[Chinese] 哪一根？</d>\n\n<Subject 2> stops articulating and settles into attentive silence. The shared composition transfers emphasis from <Subject 2> to <Subject 1>, preserving both seated positions while <Subject 1> points toward the empty space beside <Subject 2>’s raised left hand. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. With the pointing speaker clearly readable, <Subject 1> (S1) replies, <d>[Chinese] 你左手那根。</d> As he speaks, the serious shared pose fully forms: <Subject 1> points from the left loom, <Subject 2> holds two separated fingers above the right loom, and both gaze at the same empty point.\n\n<Subject 1> finishes and closes his lips. The maintained two-shot transfers emphasis from <Subject 1> to <Subject 2>, whose seated face, mouth, raised left hand, and empty working area remain readable. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. With that view established, <Subject 2> (S2) asks, <d>[Chinese] 这一根？</d>\n\n<Subject 2> ends articulation and listens with relaxed closed lips. The composition transfers emphasis from <Subject 2> to <Subject 1> within the already clear two-shot, preserving both looms and both seated positions. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. With <Subject 1>’s mouth clear, <Subject 1> (S1) answers, <d>[Chinese] 对。</d>\n\n<Subject 1> closes his lips and becomes a listener. The shared view transfers emphasis from <Subject 1> to <Subject 2>, retaining a readable seated view as <Subject 1> withdraws his arm and leans slightly back while <Subject 2> relaxes his shoulders, lowers the left hand, and raises the right hand over the same empty area. All other visible characters listen naturally with relaxed closed lips and no speech-like articulation. With <Subject 2> acquired, <Subject 2> (S2) says, <d>[Chinese] 哦，幸好你提醒我。</d> During the line, <Subject 1> shows restrained amusement and looks toward <Subject 2>; <Subject 2> turns toward him with a clear smile, the right hand suspended above empty space as they exchange amused looks across the looms.\n\nAfter the line, <Subject 2> stops articulating and closes his lips. Both men rapidly suppress their smiles: <Subject 1> returns upright with both hands above the left loom, while <Subject 2> looks down and resumes a serious two-finger gesture over the empty right-loom area. Neither turns toward the door. The lateral move reveals a narrow background opening where only <Subject 3>’s head cautiously appears, his body remaining outside. Once this three-level arrangement is established, make a deliberate axis-preserving edit transferring emphasis from <Subject 2> to <Subject 3>; the new layered view retains the seated men and loom relationship while giving <Subject 3> a useful, unobstructed face and mouth size at the doorway without changing anyone’s position. <Subject 1> and <Subject 2> listen naturally with relaxed closed lips and no speech-like articulation. With the doorway view established, <Subject 3> (S3) asks, <d>[Chinese] 两位大师，需要午餐吗？</d>\n\nHold the result briefly: <Subject 3> remains restrained with only his head inside the doorway, while <Subject 1> and <Subject 2> stay seated, serious, and oriented toward their empty working areas. No cloth or thread appears, and no later transition is prematurely completed.\n\noverall_soundscape:\nNatural interior room tone for a large palace workroom with restrained wooden ambience and subtle spatial reflections. Use only movement-supported Foley: faint clothing rustle, light seat and loom-frame creaks, delicate hand movement near wood, and a very soft door-frame or hinge creak. Maintain coherent perspective across the edit; add no extra human vocalization or fabricated weaving-material sounds.\n\nnon_diegetic_music:\nN/A",
+    "duration": {
+      "original_duration": 13.85,
+      "optimized_duration": 15.0,
+      "duration_delta": 1.15,
+      "duration_changed": true,
+      "reason": "The original schedule ended exactly with D9 and allowed only 0.20 seconds after D8 to acquire the distant background speaker. Extending to 15.0 seconds provides a feasible doorway-speaker acquisition before D9 and a brief final visual settle while preserving every utterance duration."
+    },
+    "complexity": {
+      "level": "HIGH",
+      "reasons": [
+        "Eight adjacent speaker changes require reliable mouth ownership and listener settling.",
+        "The final speaker begins as a small background figure visible only by the head through a narrow doorway.",
+        "Canonical action includes multiple coordinated hand, gaze, posture, and expression transitions while both loom working areas must remain empty.",
+        "The opening visual reference contains incidental visible weaving material that must yield to the canonical empty-area requirement.",
+        "The later canonical transition contains a seated-versus-standing wording conflict and extends beyond this clip’s intended outcome."
+      ]
+    },
+    "risks": [
+      {
+        "code": "SPEAKER_VISUAL_HANDOFF_RISK",
+        "detail": "Subject 3 is introduced at background depth with only his head visible. The plan uses extra silence and an explicit axis-preserving edit to obtain readable facial articulation without moving him through the doorway."
+      },
+      {
+        "code": "REFERENCE_CANON_CONFLICT",
+        "detail": "Picture 1 visibly suggests material on the looms, whereas the canonical story requires both weaving areas to remain completely empty. Canonical emptiness takes priority."
+      },
+      {
+        "code": "CANONICAL_STATE_CONFLICT",
+        "detail": "transition_4 describes Subject 1 lowering from a standing posture to sit even though the established opening and preceding transitions already require Subjects 1 and 2 to remain seated. This execution preserves the established seated state and does not invent a stand-up/reset."
+      },
+      {
+        "code": "MODEL_LIPSYNC_REVIEW_REQUIRED",
+        "detail": "Rapid alternating dialogue in one shared view and the depth change for Subject 3 require output review for correct Mandarin voice ownership, closed-mouth listeners, and readable articulation."
+      }
+    ],
+    "changes": [
+      {
+        "area": "duration",
+        "before": "13.85 seconds, with D9 ending at the clip boundary.",
+        "after": "15.0 seconds, with D9 moved to 12.40–14.65 and a 0.35-second final settle.",
+        "reason": "Creates executable readiness time for the distant doorway speaker and avoids ending on the final spoken syllable."
+      },
+      {
+        "area": "final speaker handoff",
+        "before": "A continuous medium-wide lateral view had only 0.20 seconds to make Subject 3’s background mouth readable.",
+        "after": "After KF4 is established, an axis-preserving edit obtains a layered readable doorway view before D9.",
+        "reason": "Waiting alone would not overcome Subject 3’s small background scale."
+      },
+      {
+        "area": "earlier dialogue handoffs",
+        "before": "Continuous ensemble framing without explicit local readiness evidence.",
+        "after": "The readable two-shot is retained, with local composition emphasis transfers and closed-mouth listener settling before every alternating line.",
+        "reason": "Both seated speakers are already visible at useful scale, so repeated cuts would be unnecessary and disruptive."
+      },
+      {
+        "area": "reference authority",
+        "before": "Picture 1 could be interpreted as requiring its full incidental loom contents.",
+        "after": "Picture 1 guides opening costume, arrangement, lighting, and geometry, while canonical empty working areas override incidental material.",
+        "reason": "Canonical visual outcomes outrank incidental reference-image details."
+      },
+      {
+        "area": "later transition",
+        "before": "transition_4 contains a later seated outcome described from a conflicting standing state.",
+        "after": "Only the in-clip doorway acquisition and restrained gaze development begin; the established seated state is preserved and later actions are not prematurely completed.",
+        "reason": "Maintains continuity with the authoritative opening and prior transitions."
+      }
+    ],
+    "timing_recommendations": [
+      "Keep D1 through D8 at their supplied starts because the shared two-shot already supports those rapid handoffs.",
+      "Use the interval after D8 to complete the serious-expression reset, reveal the doorway, and acquire Subject 3 before moving D9.",
+      "Place D9 at 12.40–14.65 seconds and reserve 14.65–15.00 seconds for a non-vocal final hold.",
+      "Review the generated result to confirm that the explicit edit occurs only after D8 has fully ended and that Subject 3 is readable before D9 begins."
+    ],
+    "canonical_visual_requirements": [
+      {
+        "id": "CVR1",
+        "requirement": "Open in the daylight palace weaving room with exactly Subjects 1 and 2 visible, seated at two distinct foot-operated looms in a stable left-right arrangement.",
+        "source_id": "opening_state",
+        "source_excerpt": "画面可见人物严格限定为骗子1、骗子2，共2名。骗子1: 位于画面左侧脚踏织机前……骗子2: 位于画面右侧脚踏织机前",
+        "prompt_excerpt": "Only <Subject 1> and <Subject 2> are initially visible. The camera begins a gentle lateral move in the established direction, preserving their screen sides and floor positions."
+      },
+      {
+        "id": "CVR2",
+        "requirement": "Keep both loom operating areas visibly empty throughout; imaginary thread remains empty space rather than materializing as cloth, thread, or another prop.",
+        "source_id": "opening_state",
+        "source_excerpt": "白昼光线照亮空置的织造区域",
+        "prompt_excerpt": "The opening follows <Picture 1> for the established daylight room, costumes, seated arrangement, and two-loom geometry, while both operating areas remain completely empty."
+      },
+      {
+        "id": "CVR3",
+        "requirement": "Form the serious shared confirmation pose with Subject 1 pointing beside Subject 2’s raised left hand, Subject 2 separating two fingers, and both gazing at the same empty point.",
+        "source_id": "transition_1",
+        "source_excerpt": "骗子1……将一只手明确指向骗子2左手附近的空处；骗子2……将左手抬至空置的编织区域，两根手指小心分开",
+        "prompt_excerpt": "As he speaks, the serious shared pose fully forms: <Subject 1> points from the left loom, <Subject 2> holds two separated fingers above the right loom, and both gaze at the same empty point."
+      },
+      {
+        "id": "CVR4",
+        "requirement": "Progress to the amused exchange with Subject 1 leaning slightly back, Subject 2’s right hand suspended over empty space, and both looking at each other with restrained-to-clear smiles.",
+        "source_id": "transition_2",
+        "source_excerpt": "过渡最终停在两人隔着织机相视而笑、骗子1稍向后仰、骗子2右手悬在空置编织区域前的状态",
+        "prompt_excerpt": "During the line, <Subject 1> shows restrained amusement and looks toward <Subject 2>; <Subject 2> turns toward him with a clear smile, the right hand suspended above empty space as they exchange amused looks across the looms."
+      },
+      {
+        "id": "CVR5",
+        "requirement": "Restore both swindlers to serious seated work poses without turning toward the door, reveal only Subject 3’s head through the narrow doorway, and preserve readable foreground-background relations.",
+        "source_id": "transition_3",
+        "source_excerpt": "两人均不回头……仆人1从门外谨慎地仅将头部探入缝内，身体始终留在门外",
+        "prompt_excerpt": "Neither turns toward the door. The lateral move reveals a narrow background opening where only <Subject 3>’s head cautiously appears, his body remaining outside."
+      },
+      {
+        "id": "CVR6",
+        "requirement": "Begin the next transition only far enough to make Subject 3 readable in the three-person relationship while preserving both loom positions and the established seated blocking.",
+        "source_id": "transition_4",
+        "source_excerpt": "摄影机先以极轻微的构图调整让背景门缝中的仆人1更清楚地进入三人关系，同时不改变两台织机的左右位置",
+        "prompt_excerpt": "the new layered view retains the seated men and loom relationship while giving <Subject 3> a useful, unobstructed face and mouth size at the doorway without changing anyone’s position."
+      }
+    ],
+    "reference_projection": [
+      {
+        "source_picture": "<Picture 1>",
+        "picture": "<Picture 1>"
+      },
+      {
+        "source_picture": "<Picture 2>",
+        "picture": "<Picture 2>"
+      },
+      {
+        "source_picture": "<Picture 3>",
+        "picture": "<Picture 3>"
+      },
+      {
+        "source_picture": "<Picture 4>",
+        "picture": "<Picture 4>"
+      },
+      {
+        "source_picture": "<Picture 5>",
+        "picture": "<Picture 5>"
+      },
+      {
+        "source_picture": "<Picture 6>",
+        "picture": "<Picture 6>"
+      }
+    ],
+    "authority_echo": {
+      "generation_mode": "MULTI_KEYFRAME",
+      "dialogue_events": [
+        {
+          "id": "D1",
+          "speaker": "<Subject 1>",
+          "exact_dialogue": "慢一点。",
+          "duration": 0.75,
+          "order": 1
+        },
+        {
+          "id": "D2",
+          "speaker": "<Subject 2>",
+          "exact_dialogue": "怎么了？",
+          "duration": 0.75,
+          "order": 2
+        },
+        {
+          "id": "D3",
+          "speaker": "<Subject 1>",
+          "exact_dialogue": "你刚才差点把金线弄断。",
+          "duration": 2.5,
+          "order": 3
+        },
+        {
+          "id": "D4",
+          "speaker": "<Subject 2>",
+          "exact_dialogue": "哪一根？",
+          "duration": 0.75,
+          "order": 4
+        },
+        {
+          "id": "D5",
+          "speaker": "<Subject 1>",
+          "exact_dialogue": "你左手那根。",
+          "duration": 1.25,
+          "order": 5
+        },
+        {
+          "id": "D6",
+          "speaker": "<Subject 2>",
+          "exact_dialogue": "这一根？",
+          "duration": 0.75,
+          "order": 6
+        },
+        {
+          "id": "D7",
+          "speaker": "<Subject 1>",
+          "exact_dialogue": "对。",
+          "duration": 0.5,
+          "order": 7
+        },
+        {
+          "id": "D8",
+          "speaker": "<Subject 2>",
+          "exact_dialogue": "哦，幸好你提醒我。",
+          "duration": 1.75,
+          "order": 8
+        },
+        {
+          "id": "D9",
+          "speaker": "<Subject 3>",
+          "exact_dialogue": "两位大师，需要午餐吗？",
+          "duration": 2.25,
+          "order": 9
+        }
+      ],
+      "subject_bindings": {
+        "<Subject 1>": "骗子1",
+        "<Subject 2>": "骗子2",
+        "<Subject 3>": "仆人1"
+      },
+      "reference_bindings": [
+        {
+          "picture": "<Picture 1>",
+          "type": "DIRECTOR_VISUAL_ANCHOR",
+          "subject": null,
+          "source_name": null,
+          "source_id": null,
+          "state_index": 1,
+          "role": "START"
+        },
+        {
+          "picture": "<Picture 2>",
+          "type": "SCENE",
+          "subject": null,
+          "source_name": "王宫织造室",
+          "source_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 3>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 1>",
+          "source_name": "骗子1",
+          "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 4>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 2>",
+          "source_name": "骗子2",
+          "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 5>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 3>",
+          "source_name": "仆人1",
+          "source_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 6>",
+          "type": "PROP",
+          "subject": null,
+          "source_name": "脚踏织机",
+          "source_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+          "state_index": null,
+          "role": null
+        }
+      ],
+      "visual_anchor_order": [
+        {
+          "id": "KF1",
+          "order": 1,
+          "declaration_prefix": "START — Clip-local",
+          "visual_target": ": <Picture 1> is the authoritative starting visual state. Its actual composition, current appearances, poses, spatial relations, object placement, lighting, and framing must be followed directly; the empty textual description is not permission to invent or reset any initial pose.",
+          "picture": "<Picture 1>"
+        },
+        {
+          "id": "KF2",
+          "order": 2,
+          "declaration_prefix": "INTERMEDIATE — Clip-local",
+          "visual_target": ": TEXT_ONLY canonical state linked to the timed visual target for KF2 below. It has no ordinary Picture binding.",
+          "picture": null
+        },
+        {
+          "id": "KF3",
+          "order": 3,
+          "declaration_prefix": "INTERMEDIATE — Clip-local",
+          "visual_target": ": TEXT_ONLY. The camera continues its slow lateral movement in the established direction while keeping both looms in frame. <Subject 1> remains seated at the left loom, leans slightly backward as the serious expression gives way to restrained amusement, and looks toward <Subject 2>. <Subject 2> keeps the right hand suspended before the empty weaving area, relaxes the shoulders, turns the gaze toward <Subject 1>, and shows a clear smile. They exchange amused looks across the two looms while the weaving areas remain completely empty.",
+          "picture": null
+        },
+        {
+          "id": "KF4",
+          "order": 4,
+          "declaration_prefix": "INTERMEDIATE — Clip-local",
+          "visual_target": ": TEXT_ONLY canonical state linked to the timed visual target for KF4 below. It has no ordinary Picture binding.",
+          "picture": null
+        }
+      ],
+      "temporal_anchor_order": [],
+      "allowed_dialogue_overlaps": [],
+      "anchor_policy": {
+        "version": 1,
+        "catalog": [
+          {
+            "anchor_id": "KF1",
+            "original_time": 0.0,
+            "source_picture": "<Picture 1>",
+            "source_kind": "DIRECTOR_VISUAL_ANCHOR",
+            "visual_reference_description": ": <Picture 1> is the authoritative starting visual state. Its actual composition, current appearances, poses, spatial relations, object placement, lighting, and framing must be followed directly; the empty textual description is not permission to invent or reset any initial pose.",
+            "role": "START — Clip-local",
+            "linked_anchor_id": null
+          },
+          {
+            "anchor_id": "KF2",
+            "original_time": 6.6,
+            "source_picture": null,
+            "source_kind": null,
+            "visual_reference_description": ": TEXT_ONLY canonical state linked to the timed visual target for KF2 below. It has no ordinary Picture binding.",
+            "role": "INTERMEDIATE — Clip-local",
+            "linked_anchor_id": null
+          },
+          {
+            "anchor_id": "KF3",
+            "original_time": 10.8,
+            "source_picture": null,
+            "source_kind": null,
+            "visual_reference_description": ": TEXT_ONLY. The camera continues its slow lateral movement in the established direction while keeping both looms in frame. <Subject 1> remains seated at the left loom, leans slightly backward as the serious expression gives way to restrained amusement, and looks toward <Subject 2>. <Subject 2> keeps the right hand suspended before the empty weaving area, relaxes the shoulders, turns the gaze toward <Subject 1>, and shows a clear smile. They exchange amused looks across the two looms while the weaving areas remain completely empty.",
+            "role": "INTERMEDIATE — Clip-local",
+            "linked_anchor_id": null
+          },
+          {
+            "anchor_id": "KF4",
+            "original_time": 11.6,
+            "source_picture": null,
+            "source_kind": null,
+            "visual_reference_description": ": TEXT_ONLY canonical state linked to the timed visual target for KF4 below. It has no ordinary Picture binding.",
+            "role": "INTERMEDIATE — Clip-local",
+            "linked_anchor_id": null
+          }
+        ],
+        "canonical_visual_sources": [
+          {
+            "id": "opening_state",
+            "text": "Scene: 王宫织造室中央摆放着脚踏织机，白昼光线照亮空置的织造区域；中全景，机位从两架脚踏织机斜前方拍摄。画面可见人物严格限定为骗子1、骗子2，共2名。\nCharacters:\n- 骗子1: 位于画面左侧脚踏织机前，身体朝向织机，双手抬在空置的编织区域前，神情一本正经。\n- 骗子2: 位于画面右侧脚踏织机前，身体朝向织机，两根手指停在空中，目光集中在指尖之间。\nAction: 骗子1与骗子2坐在脚踏织机前，对着空置的编织区域摆出正在工作的姿态。"
+          },
+          {
+            "id": "transition_1",
+            "text": "画面从起始帧已有状态连续演进，不补设未提供的初始站位或姿态。摄影机沿两架脚踏织机之间的既定横移轨迹平稳移动，并逐渐稍向前推进，始终维持中全景及左右两架织机的空间关系，以骗子1和骗子2为共同视觉主体。过程中，骗子1与骗子2的动作简洁地收束到各自织机前：骗子1稳定坐于左侧脚踏织机前，身体略向右侧的骗子2倾斜，并将一只手明确指向骗子2左手附近的空处；骗子2稳定坐于右侧脚踏织机前，将左手抬至空置的编织区域，两根手指小心分开。两人的视线连续汇聚到骗子2指尖之间及左手旁的同一处虚空位置，表情和姿态逐步形成严肃、笃定的共同确认关系。摄影机不切换机位、不跳轴，也不改变两人的左右关系，最终停在稍向前推进后的中全景构图，使左侧骗子1的指向、右侧骗子2抬起的左手以及两人共同注视的空处清晰处于同一空间关系中。"
+          },
+          {
+            "id": "transition_2",
+            "text": "摄影机从当前中全景机位沿既定方向继续缓慢横移，保持两架脚踏织机及两名骗子同时在画面内，不改变左右空间关系。骗子1先维持向右侧空置编织区域指示的姿态，随后收回手臂，严肃表情逐渐松动，身体从向骗子2倾斜缓缓转为稍向后仰，视线移向骗子2，脸上显出压不住的笑意。骗子2先继续凝视左手两指之间的空处，继而放松肩膀并自然放下左手，同时将右手抬至同一空置编织区域前悬停，再转眼看向左侧的骗子1，笑容逐渐明显。两架织机保持原位，编织区域始终空无一物。过渡最终停在两人隔着织机相视而笑、骗子1稍向后仰、骗子2右手悬在空置编织区域前的状态。"
+          },
+          {
+            "id": "transition_3",
+            "text": "摄影机沿既有方向保持连续、缓慢的横移，两架脚踏织机始终同框。骗子1迅速收住笑意，从稍向后仰恢复为挺直坐姿，面向左侧织机，将双手端正地停回操作部位上方，表情转为严肃；骗子2同时把视线从骗子1移回右侧织机的空置编织区域，肩部恢复克制姿态，右手调整为以两根手指整理虚空细线的动作，笑容完全消失。两人均不回头，最终背对房门保持专注工作的姿态。横移至后段时，房门及窄门缝自然进入背景边缘，仆人1从门外谨慎地仅将头部探入缝内，身体始终留在门外，视线投向两名骗子。摄影机不改变轴线或突然调整景别，前段持续以两名骗子为画面主体；最后0.2秒在保持两人及两架织机主体关系清晰的同时，让背景门缝与仆人1逐渐具备可读性，仅开始自然分配关注而不将仆人1提升为压倒性焦点。画面停在两名骗子前景端正操作、仆人1于背景门缝观察、三人前后景关系清晰成立的状态。"
+          },
+          {
+            "id": "transition_4",
+            "text": "承接原有中全景横移，摄影机先以极轻微的构图调整让背景门缝中的仆人1更清楚地进入三人关系，同时不改变两台织机的左右位置。仆人1始终只将头部探在门缝内，身体留在门外，保持拘谨姿态，目光逐渐从两名骗子之间移向骗子2与右侧织机的空置编织区域。随后，骗子1从左侧织机前挺直站姿平稳下沉，屈膝坐到织机前，身体始终朝向织机且不回头，双手随身体下降落到操作部位并稳稳扶住。骗子2也从右侧织机前向下坐定，脊背重新挺直；他收束整理虚空细线的双指动作，将一只手停悬在空置编织区域前，另一只手克制地朝背景门口方向抬起并停住，神情保持郑重。摄影机全程沿同一方向继续缓慢横移并略微靠近右侧织机，只做维持前后景关系的整体补偿，不单独追随或突出骗子2，始终保留左侧的骗子1、右侧织机以及背景门缝中的仆人1。最终停在骗子1坐姿稳定、双手扶住织机且没有回头，骗子2坐直并保持一手悬空、一手朝门口抬起，仆人1仍停在门外并注视骗子2与空置织机区域之间的状态。"
+          }
+        ],
+        "drop_binding": {
+          "supported": true,
+          "mechanism": "EXISTING_REF2VA_OPTIONAL_IMAGES_0_TO_9",
+          "reference_node_id": "136"
+        },
+        "reference_semantics": "Soft Ref2VA reference conditioning; arrival is an internal target, not frame binding. Catalog facts record original resources, not mandatory full-image outcomes."
+      }
+    },
+    "av_timeline": {
+      "original_duration": 13.85,
+      "optimized_duration": 15.0,
+      "duration_delta": 1.15,
+      "duration_changed": true,
+      "reason": "D1–D8 remain at their feasible supplied positions. D9 moves later so the doorway speaker can be visually acquired after KF4, and the extension provides a short final settle.",
+      "dialogue_events": [
+        {
+          "id": "D1",
+          "speaker": "<Subject 1>",
+          "original_start": 1.0,
+          "original_end": 1.75,
+          "duration": 0.75,
+          "optimized_start": 1.0,
+          "optimized_end": 1.75
+        },
+        {
+          "id": "D2",
+          "speaker": "<Subject 2>",
+          "original_start": 1.95,
+          "original_end": 2.7,
+          "duration": 0.75,
+          "optimized_start": 1.95,
+          "optimized_end": 2.7
+        },
+        {
+          "id": "D3",
+          "speaker": "<Subject 1>",
+          "original_start": 2.9,
+          "original_end": 5.4,
+          "duration": 2.5,
+          "optimized_start": 2.9,
+          "optimized_end": 5.4
+        },
+        {
+          "id": "D4",
+          "speaker": "<Subject 2>",
+          "original_start": 5.6,
+          "original_end": 6.35,
+          "duration": 0.75,
+          "optimized_start": 5.6,
+          "optimized_end": 6.35
+        },
+        {
+          "id": "D5",
+          "speaker": "<Subject 1>",
+          "original_start": 6.55,
+          "original_end": 7.8,
+          "duration": 1.25,
+          "optimized_start": 6.55,
+          "optimized_end": 7.8
+        },
+        {
+          "id": "D6",
+          "speaker": "<Subject 2>",
+          "original_start": 8.0,
+          "original_end": 8.75,
+          "duration": 0.75,
+          "optimized_start": 8.0,
+          "optimized_end": 8.75
+        },
+        {
+          "id": "D7",
+          "speaker": "<Subject 1>",
+          "original_start": 8.95,
+          "original_end": 9.45,
+          "duration": 0.5,
+          "optimized_start": 8.95,
+          "optimized_end": 9.45
+        },
+        {
+          "id": "D8",
+          "speaker": "<Subject 2>",
+          "original_start": 9.65,
+          "original_end": 11.4,
+          "duration": 1.75,
+          "optimized_start": 9.65,
+          "optimized_end": 11.4
+        },
+        {
+          "id": "D9",
+          "speaker": "<Subject 3>",
+          "original_start": 11.6,
+          "original_end": 13.85,
+          "duration": 2.25,
+          "optimized_start": 12.4,
+          "optimized_end": 14.65
+        }
+      ],
+      "handoffs": [
+        {
+          "from": "D1",
+          "to": "D2",
+          "from_subject": "<Subject 1>",
+          "to_subject": "<Subject 2>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.2,
+          "complexity": "LOW",
+          "complexity_reasoning": "Both seated speakers are already unobscured at useful scale in the same two-shot; no travel or depth acquisition is needed.",
+          "spatial_relation": "Subject 1 remains at the left loom and Subject 2 at the right loom.",
+          "depth_relation": "Both speakers occupy comparable foreground depth.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": false,
+          "camera_strategy": "Maintain the established two-shot and transfer compositional speaking emphasis without camera travel.",
+          "previous_speaker_release": "Subject 1 ends articulation, closes his lips, and becomes a listener.",
+          "next_speaker_readiness": "Subject 2 is already unobscured and readable while remaining seated at the right loom.",
+          "reason": "A maintained view is less disruptive than a cut and fully supports the incoming speaker.",
+          "strategy": "Use the short silence for lip release and emphasis transfer only.",
+          "visibility": "Subject 2’s face and mouth are already clear in the immediately preceding view.",
+          "readiness": "Readiness is pre-established by the opening two-shot and reconfirmed locally before D2.",
+          "listener_state": "All other visible characters have relaxed closed lips and natural listening behavior.",
+          "gaze_blocking": "No reblocking; eye lines remain within the loom exchange.",
+          "visual_attention": "Speaking emphasis shifts from the left seated man to the right seated man.",
+          "camera_action_coordination": "The camera continues its gentle lateral path without changing scale or axis.",
+          "anchor_proximity": "No anchor arrival competes with this handoff.",
+          "prompt_evidence": {
+            "release": "<Subject 1> finishes articulating and closes his lips, becoming a natural listener.",
+            "acquisition": "Within the maintained unobstructed two-shot, composition transfers speaking emphasis from <Subject 1> to <Subject 2> without moving either man from his loom; <Subject 2> remains seated with a clearly readable face and mouth.",
+            "listeners": "All other visible characters listen naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "With that view established,",
+            "existing_view_excerpt": "The move holds a readable two-shot of <Subject 1> and <Subject 2>, with both faces and mouths unobscured while they remain seated at their respective looms."
+          }
+        },
+        {
+          "from": "D2",
+          "to": "D3",
+          "from_subject": "<Subject 2>",
+          "to_subject": "<Subject 1>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.2,
+          "complexity": "LOW",
+          "complexity_reasoning": "Subject 1 remains readable in the shared view and only begins a local lean, so readiness requires no camera movement.",
+          "spatial_relation": "Subject 1 remains left of Subject 2 at separate looms.",
+          "depth_relation": "Comparable depth in the maintained two-shot.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": false,
+          "camera_strategy": "Retain the shared view and transfer compositional emphasis to Subject 1.",
+          "previous_speaker_release": "Subject 2 ends articulation and closes his lips.",
+          "next_speaker_readiness": "Subject 1’s seated face and mouth remain clear as his lean begins.",
+          "reason": "The incoming speaker is already acquired in the immediately preceding lead-in.",
+          "strategy": "Use the existing composition for a clean reciprocal handoff.",
+          "visibility": "Neither loom nor Subject 2 occludes Subject 1’s mouth.",
+          "readiness": "Subject 1 is visually ready before D3 begins.",
+          "listener_state": "Subject 2 listens with relaxed closed lips and natural reactions.",
+          "gaze_blocking": "The slight lean does not alter floor position or screen side.",
+          "visual_attention": "Emphasis returns from the right speaker to the left speaker.",
+          "camera_action_coordination": "Continuous lateral movement remains slow enough to retain both faces.",
+          "anchor_proximity": "No immediate anchor arrival constrains this handoff.",
+          "prompt_evidence": {
+            "release": "<Subject 2> ends his articulation and relaxes his closed lips.",
+            "acquisition": "Within the same readable two-shot, composition transfers emphasis from <Subject 2> to <Subject 1>, whose seated face and mouth remain clear as he begins leaning slightly toward the right loom.",
+            "listeners": "All other visible characters listen naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "With <Subject 1> ready,",
+            "existing_view_excerpt": "Within the maintained unobstructed two-shot, composition transfers speaking emphasis from <Subject 1> to <Subject 2> without moving either man from his loom; <Subject 2> remains seated with a clearly readable face and mouth."
+          }
+        },
+        {
+          "from": "D3",
+          "to": "D4",
+          "from_subject": "<Subject 1>",
+          "to_subject": "<Subject 2>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.2,
+          "complexity": "LOW",
+          "complexity_reasoning": "Subject 2 remains visible at matching depth; his raised hand does not cover his face or mouth.",
+          "spatial_relation": "Subject 2 stays at the right loom opposite Subject 1.",
+          "depth_relation": "Comparable seated depth.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": false,
+          "camera_strategy": "Maintain the two-shot and emphasize Subject 2 inside it.",
+          "previous_speaker_release": "Subject 1 closes his lips and listens.",
+          "next_speaker_readiness": "Subject 2 remains seated with a clear face and mouth while raising his left hand.",
+          "reason": "The hand action and incoming articulation can coexist without reframing.",
+          "strategy": "Release Subject 1, preserve the shared frame, then begin D4.",
+          "visibility": "Subject 2 is unobscured and large enough for articulation.",
+          "readiness": "The maintained view establishes Subject 2 before speech.",
+          "listener_state": "Subject 1 remains a natural closed-mouth listener.",
+          "gaze_blocking": "Both remain anchored at their looms; no side exchange occurs.",
+          "visual_attention": "Emphasis shifts right while retaining the imaginary-thread action.",
+          "camera_action_coordination": "The lateral camera remains continuous and does not enlarge a foreground obstruction.",
+          "anchor_proximity": "KF2 is still later and does not compete with this handoff.",
+          "prompt_evidence": {
+            "release": "<Subject 1> closes his lips and listens.",
+            "acquisition": "The maintained two-shot transfers emphasis from <Subject 1> to <Subject 2>, keeping <Subject 2> seated and readable as his left hand rises over empty space and two fingers separate carefully.",
+            "listeners": "All other visible characters listen naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "With his face and mouth clear,",
+            "existing_view_excerpt": "Within the same readable two-shot, composition transfers emphasis from <Subject 2> to <Subject 1>, whose seated face and mouth remain clear as he begins leaning slightly toward the right loom."
+          }
+        },
+        {
+          "from": "D4",
+          "to": "D5",
+          "from_subject": "<Subject 2>",
+          "to_subject": "<Subject 1>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.2,
+          "complexity": "MEDIUM",
+          "complexity_reasoning": "The view is already readable, but Subject 1’s pointing action must begin coherently and reach the KF2 state during D5.",
+          "spatial_relation": "Subject 1 points from the left loom toward empty space beside Subject 2’s left hand.",
+          "depth_relation": "Both remain in the same shared depth plane.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": false,
+          "camera_strategy": "Keep the two-shot and transfer emphasis to Subject 1 as the pointing gesture starts.",
+          "previous_speaker_release": "Subject 2 stops articulating and settles into silence.",
+          "next_speaker_readiness": "Subject 1 remains seated and readable before beginning the pointing reply.",
+          "reason": "No camera move is needed, but gesture timing must coordinate with the nearby anchor arrival.",
+          "strategy": "Begin the pointing gesture during the handoff and complete the shared confirmation pose during D5.",
+          "visibility": "Subject 1’s face and hand remain readable without obscuring Subject 2.",
+          "readiness": "Subject 1 is ready before D5; the gesture continues naturally during the line.",
+          "listener_state": "Subject 2 listens with relaxed closed lips while maintaining the raised-hand pose.",
+          "gaze_blocking": "Both stay seated and direct gaze to the same empty point.",
+          "visual_attention": "Emphasis shifts left while preserving the right-hand-side visual target.",
+          "camera_action_coordination": "The slow lateral advance maintains both the pointing hand and Subject 2’s raised fingers.",
+          "anchor_proximity": "KF2 arrives 0.05 seconds after D5 begins, so the final pose forms during the line.",
+          "prompt_evidence": {
+            "release": "<Subject 2> stops articulating and settles into attentive silence.",
+            "acquisition": "The shared composition transfers emphasis from <Subject 2> to <Subject 1>, preserving both seated positions while <Subject 1> points toward the empty space beside <Subject 2>’s raised left hand.",
+            "listeners": "All other visible characters listen naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "With the pointing speaker clearly readable,",
+            "existing_view_excerpt": "The maintained two-shot transfers emphasis from <Subject 1> to <Subject 2>, keeping <Subject 2> seated and readable as his left hand rises over empty space and two fingers separate carefully."
+          }
+        },
+        {
+          "from": "D5",
+          "to": "D6",
+          "from_subject": "<Subject 1>",
+          "to_subject": "<Subject 2>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.2,
+          "complexity": "LOW",
+          "complexity_reasoning": "KF2 has already formed with both faces readable, making the reciprocal question executable in the maintained view.",
+          "spatial_relation": "Subject 1 remains left and Subject 2 right.",
+          "depth_relation": "Comparable depth in the established medium-wide two-shot.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": false,
+          "camera_strategy": "Maintain the KF2-derived shared composition and emphasize Subject 2.",
+          "previous_speaker_release": "Subject 1 finishes and closes his lips.",
+          "next_speaker_readiness": "Subject 2 is readable with his left hand still raised over the empty area.",
+          "reason": "The incoming face is already acquired and no blocking change occurs.",
+          "strategy": "Use the brief silence only for speaker release and emphasis transfer.",
+          "visibility": "Subject 2’s mouth remains unobstructed by his fingers.",
+          "readiness": "Subject 2 is visually ready before D6.",
+          "listener_state": "Subject 1 listens with closed lips and restrained expression.",
+          "gaze_blocking": "The common gaze target remains empty space by Subject 2’s hand.",
+          "visual_attention": "Emphasis moves right without losing Subject 1’s reaction.",
+          "camera_action_coordination": "The camera continues laterally at a stable rate.",
+          "anchor_proximity": "KF2 has just been reached and remains useful as the handoff base.",
+          "prompt_evidence": {
+            "release": "<Subject 1> finishes and closes his lips.",
+            "acquisition": "The maintained two-shot transfers emphasis from <Subject 1> to <Subject 2>, whose seated face, mouth, raised left hand, and empty working area remain readable.",
+            "listeners": "All other visible characters listen naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "With that view established,",
+            "existing_view_excerpt": "The shared composition transfers emphasis from <Subject 2> to <Subject 1>, preserving both seated positions while <Subject 1> points toward the empty space beside <Subject 2>’s raised left hand."
+          }
+        },
+        {
+          "from": "D6",
+          "to": "D7",
+          "from_subject": "<Subject 2>",
+          "to_subject": "<Subject 1>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.2,
+          "complexity": "LOW",
+          "complexity_reasoning": "Subject 1 remains clear in the shared view and the reply is short, requiring no new camera acquisition.",
+          "spatial_relation": "Unchanged left-right loom positions.",
+          "depth_relation": "Comparable seated depth.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": false,
+          "camera_strategy": "Retain the two-shot and shift compositional emphasis left.",
+          "previous_speaker_release": "Subject 2 ends articulation and becomes a listener.",
+          "next_speaker_readiness": "Subject 1’s face and mouth remain clear.",
+          "reason": "The incoming speaker is already acquired immediately before the line.",
+          "strategy": "Use the maintained view for the concise confirmation.",
+          "visibility": "Subject 1 is unobscured and readable.",
+          "readiness": "Subject 1 is ready before D7.",
+          "listener_state": "Subject 2 listens with relaxed closed lips.",
+          "gaze_blocking": "No character translates or changes screen side.",
+          "visual_attention": "Emphasis returns to Subject 1.",
+          "camera_action_coordination": "The lateral move remains smooth and does not interrupt the short reply.",
+          "anchor_proximity": "No anchor arrival occurs during this gap.",
+          "prompt_evidence": {
+            "release": "<Subject 2> ends articulation and listens with relaxed closed lips.",
+            "acquisition": "The composition transfers emphasis from <Subject 2> to <Subject 1> within the already clear two-shot, preserving both looms and both seated positions.",
+            "listeners": "All other visible characters listen naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "With <Subject 1>’s mouth clear,",
+            "existing_view_excerpt": "The maintained two-shot transfers emphasis from <Subject 1> to <Subject 2>, whose seated face, mouth, raised left hand, and empty working area remain readable."
+          }
+        },
+        {
+          "from": "D7",
+          "to": "D8",
+          "from_subject": "<Subject 1>",
+          "to_subject": "<Subject 2>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.2,
+          "complexity": "MEDIUM",
+          "complexity_reasoning": "The incoming speaker is already visible, but coordinated arm withdrawal, hand exchange, gaze turn, and the KF3 amusement state occur during D8.",
+          "spatial_relation": "Both remain seated across the two looms.",
+          "depth_relation": "Comparable depth in the ensemble.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": false,
+          "camera_strategy": "Maintain the shared view and transfer emphasis to Subject 2 while preserving both reactions.",
+          "previous_speaker_release": "Subject 1 ends the short reply and closes his lips.",
+          "next_speaker_readiness": "Subject 2 remains readable before beginning D8.",
+          "reason": "The existing view supports speech while the amusement transition develops concurrently.",
+          "strategy": "Start D8 from a ready face, then allow the reciprocal smile and right-hand pose to form during the line.",
+          "visibility": "Subject 2’s face and mouth remain clear throughout the hand change.",
+          "readiness": "Subject 2 is ready before D8; later action does not delay speech.",
+          "listener_state": "Subject 1 listens with closed lips while his expression gradually softens.",
+          "gaze_blocking": "Both stay seated and only use local head, gaze, hand, and torso adjustments.",
+          "visual_attention": "Emphasis moves to Subject 2 while retaining Subject 1’s reaction for the amused exchange.",
+          "camera_action_coordination": "The continued lateral move keeps both faces and both looms visible through KF3.",
+          "anchor_proximity": "KF3 arrives during D8 as the smiles and reciprocal gaze become fully readable.",
+          "prompt_evidence": {
+            "release": "<Subject 1> closes his lips and becomes a listener.",
+            "acquisition": "The shared view transfers emphasis from <Subject 1> to <Subject 2>, retaining a readable seated view as <Subject 1> withdraws his arm and leans slightly back while <Subject 2> relaxes his shoulders, lowers the left hand, and raises the right hand over the same empty area.",
+            "listeners": "All other visible characters listen naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "With <Subject 2> acquired,",
+            "existing_view_excerpt": "The composition transfers emphasis from <Subject 2> to <Subject 1> within the already clear two-shot, preserving both looms and both seated positions."
+          }
+        },
+        {
+          "from": "D8",
+          "to": "D9",
+          "from_subject": "<Subject 2>",
+          "to_subject": "<Subject 3>",
+          "original_gap": 0.2,
+          "optimized_gap": 1.0,
+          "complexity": "HIGH",
+          "complexity_reasoning": "The incoming speaker is a small background head at a narrow doorway, separated by substantial depth from the outgoing foreground speaker. A maintained medium-wide view is insufficiently reliable for mouth readability.",
+          "spatial_relation": "Subject 2 remains seated at the right loom; Subject 3 remains outside the room with only his head in the background doorway.",
+          "depth_relation": "Hard foreground-to-background transfer from Subject 2 to Subject 3.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": true,
+          "camera_strategy": "Complete KF4, then use a deliberate axis-preserving edit to a layered view that retains the seated men and loom relationship while enlarging Subject 3 enough for readable articulation.",
+          "previous_speaker_release": "Subject 2 ends D8, closes his lips, suppresses his smile, and returns to serious listening behavior.",
+          "next_speaker_readiness": "Subject 3’s doorway face and mouth are unobstructed at useful scale before D9 begins, while only his head remains inside.",
+          "reason": "Additional waiting in the original medium-wide view would not itself acquire the distant mouth; a motivated edit is the least disruptive reliable solution.",
+          "strategy": "Use the extended silence for expression reset, doorway reveal, anchor arrival, edit, listener settle, and speaker readiness.",
+          "visibility": "The edited layered view clears foreground dominance without removing or relocating Subjects 1 and 2.",
+          "readiness": "Subject 3 is acquired before 12.40 seconds and remains readable throughout D9.",
+          "listener_state": "Subjects 1 and 2 remain visible as natural closed-mouth listeners, seated and oriented toward their empty loom areas.",
+          "gaze_blocking": "Subject 3 stays outside the doorway; Subjects 1 and 2 do not turn or reblock.",
+          "visual_attention": "Attention moves from Subject 2 to Subject 3 while the two swindlers remain contextually present.",
+          "camera_action_coordination": "The continuous lateral move first establishes KF4; the subsequent explicit edit preserves axis, screen sides, costumes, and story state.",
+          "anchor_proximity": "KF4 arrives at 11.60 seconds before the edit; D9 begins only after the resulting doorway view is established.",
+          "prompt_evidence": {
+            "release": "After the line, <Subject 2> stops articulating and closes his lips.",
+            "acquisition": "Once this three-level arrangement is established, make a deliberate axis-preserving edit transferring emphasis from <Subject 2> to <Subject 3>; the new layered view retains the seated men and loom relationship while giving <Subject 3> a useful, unobstructed face and mouth size at the doorway without changing anyone’s position.",
+            "listeners": "<Subject 1> and <Subject 2> listen naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "With the doorway view established,"
+          }
+        }
+      ],
+      "anchors": [
+        {
+          "id": "KF1",
+          "original_time": 0.0,
+          "optimized_time": 0.0,
+          "delta": 0.0,
+          "decision": "KEEP",
+          "reason": "The opening image usefully establishes current costumes, lighting, seated left-right arrangement, and room geometry. Canonical empty working areas override its incidental material details.",
+          "preserved_visual_requirements": [
+            "CVR1",
+            "CVR2"
+          ],
+          "released_constraint": "",
+          "prompt_excerpt": "The opening follows <Picture 1> for the established daylight room, costumes, seated arrangement, and two-loom geometry, while both operating areas remain completely empty.",
+          "arrival_relation": {
+            "dialogue_id": "D1",
+            "position": "BEFORE",
+            "prompt_excerpt": "The opening follows <Picture 1> for the established daylight room, costumes, seated arrangement, and two-loom geometry, while both operating areas remain completely empty."
+          }
+        },
+        {
+          "id": "KF2",
+          "original_time": 6.6,
+          "optimized_time": 6.6,
+          "delta": 0.0,
+          "decision": "KEEP",
+          "reason": "The serious pointing and raised-left-hand state coherently forms during D5 and supports the imaginary-thread exchange.",
+          "preserved_visual_requirements": [
+            "CVR3"
+          ],
+          "released_constraint": "",
+          "prompt_excerpt": "As he speaks, the serious shared pose fully forms: <Subject 1> points from the left loom, <Subject 2> holds two separated fingers above the right loom, and both gaze at the same empty point.",
+          "arrival_relation": {
+            "dialogue_id": "D5",
+            "position": "DURING",
+            "prompt_excerpt": "As he speaks, the serious shared pose fully forms: <Subject 1> points from the left loom, <Subject 2> holds two separated fingers above the right loom, and both gaze at the same empty point."
+          }
+        },
+        {
+          "id": "KF3",
+          "original_time": 10.8,
+          "optimized_time": 10.8,
+          "delta": 0.0,
+          "decision": "KEEP",
+          "reason": "The exchanged smiles and right-hand suspension are a useful story beat that develops naturally during D8.",
+          "preserved_visual_requirements": [
+            "CVR4"
+          ],
+          "released_constraint": "",
+          "prompt_excerpt": "During the line, <Subject 1> shows restrained amusement and looks toward <Subject 2>; <Subject 2> turns toward him with a clear smile, the right hand suspended above empty space as they exchange amused looks across the looms.",
+          "arrival_relation": {
+            "dialogue_id": "D8",
+            "position": "DURING",
+            "prompt_excerpt": "During the line, <Subject 1> shows restrained amusement and looks toward <Subject 2>; <Subject 2> turns toward him with a clear smile, the right hand suspended above empty space as they exchange amused looks across the looms."
+          }
+        },
+        {
+          "id": "KF4",
+          "original_time": 11.6,
+          "optimized_time": 11.6,
+          "delta": 0.0,
+          "decision": "KEEP",
+          "reason": "The serious reset and doorway reveal provide the necessary canonical state before the final speaker acquisition.",
+          "preserved_visual_requirements": [
+            "CVR5",
+            "CVR6"
+          ],
+          "released_constraint": "",
+          "prompt_excerpt": "Neither turns toward the door. The lateral move reveals a narrow background opening where only <Subject 3>’s head cautiously appears, his body remaining outside.",
+          "arrival_relation": {
+            "dialogue_id": "D8",
+            "position": "AFTER",
+            "prompt_excerpt": "Neither turns toward the door. The lateral move reveals a narrow background opening where only <Subject 3>’s head cautiously appears, his body remaining outside."
+          }
+        }
+      ],
+      "execution_phases": [
+        {
+          "id": "P01",
+          "start": 0.0,
+          "end": 1.0,
+          "type": "READINESS",
+          "description": "Establish Picture 1-derived opening continuity, canonical empty work areas, the two seated loom positions, and a readable two-shot before D1."
+        },
+        {
+          "id": "P02",
+          "start": 0.0,
+          "end": 11.6,
+          "type": "CAMERA",
+          "description": "Continue the slow lateral camera path while retaining stable left-right loom geometry and readable faces for Subjects 1 and 2."
+        },
+        {
+          "id": "A01",
+          "start": 0.0,
+          "end": 0.0,
+          "type": "ANCHOR_ARRIVAL",
+          "description": "Anchor KF1 KEEP arrival establishes the useful opening state."
+        },
+        {
+          "id": "P03",
+          "start": 1.0,
+          "end": 1.75,
+          "type": "DIALOGUE",
+          "description": "D1 by Subject 1 with Subject 2 listening closed-mouth."
+        },
+        {
+          "id": "P04",
+          "start": 1.75,
+          "end": 1.95,
+          "type": "HANDOFF",
+          "description": "Release Subject 1 and transfer compositional emphasis to already-readable Subject 2."
+        },
+        {
+          "id": "P05",
+          "start": 1.95,
+          "end": 2.7,
+          "type": "DIALOGUE",
+          "description": "D2 by Subject 2."
+        },
+        {
+          "id": "P06",
+          "start": 2.7,
+          "end": 2.9,
+          "type": "HANDOFF",
+          "description": "Release Subject 2 and restore speaking emphasis to Subject 1."
+        },
+        {
+          "id": "P07",
+          "start": 2.9,
+          "end": 5.4,
+          "type": "DIALOGUE",
+          "description": "D3 by Subject 1 while the serious imaginary-thread concern develops."
+        },
+        {
+          "id": "P08",
+          "start": 5.4,
+          "end": 5.6,
+          "type": "HANDOFF",
+          "description": "Release Subject 1 and prepare Subject 2’s raised-left-hand question."
+        },
+        {
+          "id": "P09",
+          "start": 5.6,
+          "end": 6.35,
+          "type": "DIALOGUE",
+          "description": "D4 by Subject 2."
+        },
+        {
+          "id": "P10",
+          "start": 6.35,
+          "end": 6.55,
+          "type": "HANDOFF",
+          "description": "Release Subject 2 and begin Subject 1’s pointing preparation."
+        },
+        {
+          "id": "P11",
+          "start": 6.55,
+          "end": 7.8,
+          "type": "DIALOGUE",
+          "description": "D5 by Subject 1; the KF2 pointing and shared-gaze state forms during the line."
+        },
+        {
+          "id": "A02",
+          "start": 6.6,
+          "end": 6.6,
+          "type": "ANCHOR_ARRIVAL",
+          "description": "Anchor KF2 KEEP arrival during D5."
+        },
+        {
+          "id": "P12",
+          "start": 7.8,
+          "end": 8.0,
+          "type": "HANDOFF",
+          "description": "Release Subject 1 and emphasize Subject 2 within the KF2-derived view."
+        },
+        {
+          "id": "P13",
+          "start": 8.0,
+          "end": 8.75,
+          "type": "DIALOGUE",
+          "description": "D6 by Subject 2."
+        },
+        {
+          "id": "P14",
+          "start": 8.75,
+          "end": 8.95,
+          "type": "HANDOFF",
+          "description": "Release Subject 2 and return emphasis to Subject 1."
+        },
+        {
+          "id": "P15",
+          "start": 8.95,
+          "end": 9.45,
+          "type": "DIALOGUE",
+          "description": "D7 by Subject 1."
+        },
+        {
+          "id": "P16",
+          "start": 9.45,
+          "end": 9.65,
+          "type": "HANDOFF",
+          "description": "Release Subject 1 and prepare Subject 2 while the amusement transition begins."
+        },
+        {
+          "id": "P17",
+          "start": 9.65,
+          "end": 11.4,
+          "type": "DIALOGUE",
+          "description": "D8 by Subject 2; reciprocal smiles, gaze exchange, and the KF3 right-hand pose form during speech."
+        },
+        {
+          "id": "A03",
+          "start": 10.8,
+          "end": 10.8,
+          "type": "ANCHOR_ARRIVAL",
+          "description": "Anchor KF3 KEEP arrival during D8."
+        },
+        {
+          "id": "P18",
+          "start": 11.4,
+          "end": 11.6,
+          "type": "ACTION",
+          "description": "End D8, close Subject 2’s lips, suppress both smiles, restore serious work poses, and reveal Subject 3’s head at the doorway."
+        },
+        {
+          "id": "A04",
+          "start": 11.6,
+          "end": 11.6,
+          "type": "ANCHOR_ARRIVAL",
+          "description": "Anchor KF4 KEEP arrival after D8."
+        },
+        {
+          "id": "P19",
+          "start": 11.6,
+          "end": 12.4,
+          "type": "CAMERA",
+          "description": "Use an axis-preserving edit to acquire Subject 3’s doorway face and mouth while retaining the seated men and loom relationship."
+        },
+        {
+          "id": "P20",
+          "start": 11.6,
+          "end": 12.4,
+          "type": "HANDOFF",
+          "description": "Transfer attention from Subject 2 to Subject 3, settle Subjects 1 and 2 as closed-mouth listeners, and establish Subject 3’s readiness."
+        },
+        {
+          "id": "P21",
+          "start": 12.4,
+          "end": 14.65,
+          "type": "DIALOGUE",
+          "description": "D9 by Subject 3 with only his head inside the doorway and both seated men listening."
+        },
+        {
+          "id": "P22",
+          "start": 14.65,
+          "end": 15.0,
+          "type": "FINAL_SETTLE",
+          "description": "Hold the serious seated loom arrangement and restrained doorway position without speech or advancement into later action."
+        }
+      ]
+    }
+  },
+  "authority": {
+    "generation_mode": "MULTI_KEYFRAME",
+    "dialogue_events": [
+      {
+        "id": "D1",
+        "speaker": "<Subject 1>",
+        "exact_dialogue": "慢一点。",
+        "duration": 0.75,
+        "order": 1
+      },
+      {
+        "id": "D2",
+        "speaker": "<Subject 2>",
+        "exact_dialogue": "怎么了？",
+        "duration": 0.75,
+        "order": 2
+      },
+      {
+        "id": "D3",
+        "speaker": "<Subject 1>",
+        "exact_dialogue": "你刚才差点把金线弄断。",
+        "duration": 2.5,
+        "order": 3
+      },
+      {
+        "id": "D4",
+        "speaker": "<Subject 2>",
+        "exact_dialogue": "哪一根？",
+        "duration": 0.75,
+        "order": 4
+      },
+      {
+        "id": "D5",
+        "speaker": "<Subject 1>",
+        "exact_dialogue": "你左手那根。",
+        "duration": 1.25,
+        "order": 5
+      },
+      {
+        "id": "D6",
+        "speaker": "<Subject 2>",
+        "exact_dialogue": "这一根？",
+        "duration": 0.75,
+        "order": 6
+      },
+      {
+        "id": "D7",
+        "speaker": "<Subject 1>",
+        "exact_dialogue": "对。",
+        "duration": 0.5,
+        "order": 7
+      },
+      {
+        "id": "D8",
+        "speaker": "<Subject 2>",
+        "exact_dialogue": "哦，幸好你提醒我。",
+        "duration": 1.75,
+        "order": 8
+      },
+      {
+        "id": "D9",
+        "speaker": "<Subject 3>",
+        "exact_dialogue": "两位大师，需要午餐吗？",
+        "duration": 2.25,
+        "order": 9
+      }
+    ],
+    "subject_bindings": {
+      "<Subject 1>": "骗子1",
+      "<Subject 2>": "骗子2",
+      "<Subject 3>": "仆人1"
+    },
+    "reference_bindings": [
+      {
+        "picture": "<Picture 1>",
+        "type": "DIRECTOR_VISUAL_ANCHOR",
+        "subject": null,
+        "source_name": null,
+        "source_id": null,
+        "state_index": 1,
+        "role": "START"
+      },
+      {
+        "picture": "<Picture 2>",
+        "type": "SCENE",
+        "subject": null,
+        "source_name": "王宫织造室",
+        "source_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 3>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 1>",
+        "source_name": "骗子1",
+        "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 4>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 2>",
+        "source_name": "骗子2",
+        "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 5>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 3>",
+        "source_name": "仆人1",
+        "source_id": "60b4bad6-6252-43fe-9234-5e1d192aee1b",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 6>",
+        "type": "PROP",
+        "subject": null,
+        "source_name": "脚踏织机",
+        "source_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+        "state_index": null,
+        "role": null
+      }
+    ],
+    "visual_anchor_order": [
+      {
+        "id": "KF1",
+        "order": 1,
+        "declaration_prefix": "START — Clip-local",
+        "visual_target": ": <Picture 1> is the authoritative starting visual state. Its actual composition, current appearances, poses, spatial relations, object placement, lighting, and framing must be followed directly; the empty textual description is not permission to invent or reset any initial pose.",
+        "picture": "<Picture 1>"
+      },
+      {
+        "id": "KF2",
+        "order": 2,
+        "declaration_prefix": "INTERMEDIATE — Clip-local",
+        "visual_target": ": TEXT_ONLY canonical state linked to the timed visual target for KF2 below. It has no ordinary Picture binding.",
+        "picture": null
+      },
+      {
+        "id": "KF3",
+        "order": 3,
+        "declaration_prefix": "INTERMEDIATE — Clip-local",
+        "visual_target": ": TEXT_ONLY. The camera continues its slow lateral movement in the established direction while keeping both looms in frame. <Subject 1> remains seated at the left loom, leans slightly backward as the serious expression gives way to restrained amusement, and looks toward <Subject 2>. <Subject 2> keeps the right hand suspended before the empty weaving area, relaxes the shoulders, turns the gaze toward <Subject 1>, and shows a clear smile. They exchange amused looks across the two looms while the weaving areas remain completely empty.",
+        "picture": null
+      },
+      {
+        "id": "KF4",
+        "order": 4,
+        "declaration_prefix": "INTERMEDIATE — Clip-local",
+        "visual_target": ": TEXT_ONLY canonical state linked to the timed visual target for KF4 below. It has no ordinary Picture binding.",
+        "picture": null
+      }
+    ],
+    "temporal_anchor_order": [],
+    "allowed_dialogue_overlaps": [],
+    "anchor_policy": {
+      "version": 1,
+      "catalog": [
+        {
+          "anchor_id": "KF1",
+          "original_time": 0.0,
+          "source_picture": "<Picture 1>",
+          "source_kind": "DIRECTOR_VISUAL_ANCHOR",
+          "visual_reference_description": ": <Picture 1> is the authoritative starting visual state. Its actual composition, current appearances, poses, spatial relations, object placement, lighting, and framing must be followed directly; the empty textual description is not permission to invent or reset any initial pose.",
+          "role": "START — Clip-local",
+          "linked_anchor_id": null
+        },
+        {
+          "anchor_id": "KF2",
+          "original_time": 6.6,
+          "source_picture": null,
+          "source_kind": null,
+          "visual_reference_description": ": TEXT_ONLY canonical state linked to the timed visual target for KF2 below. It has no ordinary Picture binding.",
+          "role": "INTERMEDIATE — Clip-local",
+          "linked_anchor_id": null
+        },
+        {
+          "anchor_id": "KF3",
+          "original_time": 10.8,
+          "source_picture": null,
+          "source_kind": null,
+          "visual_reference_description": ": TEXT_ONLY. The camera continues its slow lateral movement in the established direction while keeping both looms in frame. <Subject 1> remains seated at the left loom, leans slightly backward as the serious expression gives way to restrained amusement, and looks toward <Subject 2>. <Subject 2> keeps the right hand suspended before the empty weaving area, relaxes the shoulders, turns the gaze toward <Subject 1>, and shows a clear smile. They exchange amused looks across the two looms while the weaving areas remain completely empty.",
+          "role": "INTERMEDIATE — Clip-local",
+          "linked_anchor_id": null
+        },
+        {
+          "anchor_id": "KF4",
+          "original_time": 11.6,
+          "source_picture": null,
+          "source_kind": null,
+          "visual_reference_description": ": TEXT_ONLY canonical state linked to the timed visual target for KF4 below. It has no ordinary Picture binding.",
+          "role": "INTERMEDIATE — Clip-local",
+          "linked_anchor_id": null
+        }
+      ],
+      "canonical_visual_sources": [
+        {
+          "id": "opening_state",
+          "text": "Scene: 王宫织造室中央摆放着脚踏织机，白昼光线照亮空置的织造区域；中全景，机位从两架脚踏织机斜前方拍摄。画面可见人物严格限定为骗子1、骗子2，共2名。\nCharacters:\n- 骗子1: 位于画面左侧脚踏织机前，身体朝向织机，双手抬在空置的编织区域前，神情一本正经。\n- 骗子2: 位于画面右侧脚踏织机前，身体朝向织机，两根手指停在空中，目光集中在指尖之间。\nAction: 骗子1与骗子2坐在脚踏织机前，对着空置的编织区域摆出正在工作的姿态。"
+        },
+        {
+          "id": "transition_1",
+          "text": "画面从起始帧已有状态连续演进，不补设未提供的初始站位或姿态。摄影机沿两架脚踏织机之间的既定横移轨迹平稳移动，并逐渐稍向前推进，始终维持中全景及左右两架织机的空间关系，以骗子1和骗子2为共同视觉主体。过程中，骗子1与骗子2的动作简洁地收束到各自织机前：骗子1稳定坐于左侧脚踏织机前，身体略向右侧的骗子2倾斜，并将一只手明确指向骗子2左手附近的空处；骗子2稳定坐于右侧脚踏织机前，将左手抬至空置的编织区域，两根手指小心分开。两人的视线连续汇聚到骗子2指尖之间及左手旁的同一处虚空位置，表情和姿态逐步形成严肃、笃定的共同确认关系。摄影机不切换机位、不跳轴，也不改变两人的左右关系，最终停在稍向前推进后的中全景构图，使左侧骗子1的指向、右侧骗子2抬起的左手以及两人共同注视的空处清晰处于同一空间关系中。"
+        },
+        {
+          "id": "transition_2",
+          "text": "摄影机从当前中全景机位沿既定方向继续缓慢横移，保持两架脚踏织机及两名骗子同时在画面内，不改变左右空间关系。骗子1先维持向右侧空置编织区域指示的姿态，随后收回手臂，严肃表情逐渐松动，身体从向骗子2倾斜缓缓转为稍向后仰，视线移向骗子2，脸上显出压不住的笑意。骗子2先继续凝视左手两指之间的空处，继而放松肩膀并自然放下左手，同时将右手抬至同一空置编织区域前悬停，再转眼看向左侧的骗子1，笑容逐渐明显。两架织机保持原位，编织区域始终空无一物。过渡最终停在两人隔着织机相视而笑、骗子1稍向后仰、骗子2右手悬在空置编织区域前的状态。"
+        },
+        {
+          "id": "transition_3",
+          "text": "摄影机沿既有方向保持连续、缓慢的横移，两架脚踏织机始终同框。骗子1迅速收住笑意，从稍向后仰恢复为挺直坐姿，面向左侧织机，将双手端正地停回操作部位上方，表情转为严肃；骗子2同时把视线从骗子1移回右侧织机的空置编织区域，肩部恢复克制姿态，右手调整为以两根手指整理虚空细线的动作，笑容完全消失。两人均不回头，最终背对房门保持专注工作的姿态。横移至后段时，房门及窄门缝自然进入背景边缘，仆人1从门外谨慎地仅将头部探入缝内，身体始终留在门外，视线投向两名骗子。摄影机不改变轴线或突然调整景别，前段持续以两名骗子为画面主体；最后0.2秒在保持两人及两架织机主体关系清晰的同时，让背景门缝与仆人1逐渐具备可读性，仅开始自然分配关注而不将仆人1提升为压倒性焦点。画面停在两名骗子前景端正操作、仆人1于背景门缝观察、三人前后景关系清晰成立的状态。"
+        },
+        {
+          "id": "transition_4",
+          "text": "承接原有中全景横移，摄影机先以极轻微的构图调整让背景门缝中的仆人1更清楚地进入三人关系，同时不改变两台织机的左右位置。仆人1始终只将头部探在门缝内，身体留在门外，保持拘谨姿态，目光逐渐从两名骗子之间移向骗子2与右侧织机的空置编织区域。随后，骗子1从左侧织机前挺直站姿平稳下沉，屈膝坐到织机前，身体始终朝向织机且不回头，双手随身体下降落到操作部位并稳稳扶住。骗子2也从右侧织机前向下坐定，脊背重新挺直；他收束整理虚空细线的双指动作，将一只手停悬在空置编织区域前，另一只手克制地朝背景门口方向抬起并停住，神情保持郑重。摄影机全程沿同一方向继续缓慢横移并略微靠近右侧织机，只做维持前后景关系的整体补偿，不单独追随或突出骗子2，始终保留左侧的骗子1、右侧织机以及背景门缝中的仆人1。最终停在骗子1坐姿稳定、双手扶住织机且没有回头，骗子2坐直并保持一手悬空、一手朝门口抬起，仆人1仍停在门外并注视骗子2与空置织机区域之间的状态。"
+        }
+      ],
+      "drop_binding": {
+        "supported": true,
+        "mechanism": "EXISTING_REF2VA_OPTIONAL_IMAGES_0_TO_9",
+        "reference_node_id": "136"
+      },
+      "reference_semantics": "Soft Ref2VA reference conditioning; arrival is an internal target, not frame binding. Catalog facts record original resources, not mandatory full-image outcomes."
+    }
+  },
+  "initial": {
+    "duration": 13.85,
+    "dialogue_events": [
+      {
+        "id": "D1",
+        "speaker": "<Subject 1>",
+        "start_time": 1.0,
+        "end_time": 1.75,
+        "exact_dialogue": "慢一点。"
+      },
+      {
+        "id": "D2",
+        "speaker": "<Subject 2>",
+        "start_time": 1.95,
+        "end_time": 2.7,
+        "exact_dialogue": "怎么了？"
+      },
+      {
+        "id": "D3",
+        "speaker": "<Subject 1>",
+        "start_time": 2.9,
+        "end_time": 5.4,
+        "exact_dialogue": "你刚才差点把金线弄断。"
+      },
+      {
+        "id": "D4",
+        "speaker": "<Subject 2>",
+        "start_time": 5.6,
+        "end_time": 6.35,
+        "exact_dialogue": "哪一根？"
+      },
+      {
+        "id": "D5",
+        "speaker": "<Subject 1>",
+        "start_time": 6.55,
+        "end_time": 7.8,
+        "exact_dialogue": "你左手那根。"
+      },
+      {
+        "id": "D6",
+        "speaker": "<Subject 2>",
+        "start_time": 8.0,
+        "end_time": 8.75,
+        "exact_dialogue": "这一根？"
+      },
+      {
+        "id": "D7",
+        "speaker": "<Subject 1>",
+        "start_time": 8.95,
+        "end_time": 9.45,
+        "exact_dialogue": "对。"
+      },
+      {
+        "id": "D8",
+        "speaker": "<Subject 2>",
+        "start_time": 9.65,
+        "end_time": 11.4,
+        "exact_dialogue": "哦，幸好你提醒我。"
+      },
+      {
+        "id": "D9",
+        "speaker": "<Subject 3>",
+        "start_time": 11.6,
+        "end_time": 13.85,
+        "exact_dialogue": "两位大师，需要午餐吗？"
+      }
+    ],
+    "visual_anchors": [
+      {
+        "id": "KF1",
+        "time": 0.0,
+        "picture": "<Picture 1>"
+      },
+      {
+        "id": "KF2",
+        "time": 6.6,
+        "picture": null
+      },
+      {
+        "id": "KF3",
+        "time": 10.8,
+        "picture": null
+      },
+      {
+        "id": "KF4",
+        "time": 11.6,
+        "picture": null
+      }
+    ],
+    "temporal_anchors": []
+  },
+  "limits": {
+    "minimum": 4.0,
+    "maximum": 20.0,
+    "absolute_maximum": 20.0,
+    "frame_rule": "existing frozen workflow duration-to-frames conversion"
+  }
+}

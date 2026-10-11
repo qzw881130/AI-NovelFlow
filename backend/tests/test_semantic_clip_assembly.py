@@ -191,6 +191,16 @@ async def test_semantic_assembly_merges_exact_order_and_persists_provenance(
     shot.video_director_plan = json.dumps({"clip_plan_revision": 1, "clip_plan": list(reversed(clips))})
     db_session.commit()
     observed = {}
+    original_probe = shot_video_service.probe_clip_av
+
+    def export_probe(path):
+        # Validate the same hashes/frame counts, but avoid repeated full decoding
+        # of every cumulative prefix on the API event loop during assembly.
+        assert av._export_probe_cache.get() is not None
+        return original_probe(path)
+
+    monkeypatch.setattr(shot_video_service, 'probe_clip_av', export_probe)
+    monkeypatch.setattr(av, 'probe_clip_av', export_probe)
 
     monkeypatch.setattr(shot_video_service.file_storage, "_get_story_dir", lambda _: tmp_path)
 
@@ -228,3 +238,17 @@ async def test_semantic_assembly_merges_exact_order_and_persists_provenance(
     assert persisted['assembly_mode'] == 'NATIVE_OVERLAP_REPLACEMENT'
     assert persisted['assembly_spans']['frame_count'] == 770
     assert shot.video_url == "/api/files/assembled.mp4"
+
+
+def test_legacy_contract_clip_id_is_sufficient_but_conflicting_id_is_not(db_session, tmp_path, monkeypatch):
+    novel, chapter, shot, tasks, clips = _assembly_fixture(db_session, tmp_path, monkeypatch)
+    metadata = json.loads(tasks[1].metadata_json)
+    metadata.pop('clip_id')
+    tasks[1].metadata_json = json.dumps(metadata)
+    db_session.commit()
+    assert len(_resolve(db_session, shot, novel, chapter)) == 3
+    metadata['clip_id'] = 'another-clip'
+    tasks[1].metadata_json = json.dumps(metadata)
+    db_session.commit()
+    with pytest.raises(ValueError, match='provenance'):
+        _resolve(db_session, shot, novel, chapter)

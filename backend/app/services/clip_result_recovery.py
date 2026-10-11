@@ -45,6 +45,7 @@ async def recover_completed_clip(task, history: dict, db, comfyui_service) -> bo
     )
     if not result or not result.get("success") or not result.get("video_url"):
         return False
+    result["comfyui_history"] = history
     if native:
         result.update(physical_output_role=NATIVE_CONTINUITY_OUTPUT, output_node_id="65")
     prompt_id = task.comfyui_prompt_id

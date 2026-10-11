@@ -166,6 +166,7 @@ export default {
       sceneImage: "Generate scene image for '{name}'",
     },
     workflowDetails: 'Workflow Details',
+    downloadWorkflowArchive: 'Download ZIP',
     generationPrompt: 'Generation Prompt',
     promptCharacterCount: '{count} characters',
     workflowJSON: 'Workflow JSON',

@@ -13,8 +13,8 @@ const TASK_CATEGORY_TYPES: Record<string, string[]> = {
   shot_planning: ['split_chapter'],
   shot_image: ['shot_image_prompt'],
   video_director: ['video_mode_recommender', 'keyframe_description', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'],
-  keyframe_image: ['temporal_reference_selector', 'keyframe_image_prompt'],
-  video_generation: ['expand_video_prompt', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt', 'h3_execution_optimizer_prompt'],
+  keyframe_image: ['temporal_reference_selector', 'keyframe_image_prompt', 'image_quality_review_prompt'],
+  video_generation: ['expand_video_prompt', 'h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt'],
 };
 
 const TASK_CATEGORY_OPTIONS = [
@@ -193,9 +193,10 @@ export function useLLMLogsState() {
       shot_image_prompt: 'shotImage', split_chapter: 'shotPlanning',
       video_mode_recommender: 'videoDirector', keyframe_description: 'videoDirector',
       keyframe_planner: 'videoDirector', keyframe_transition: 'videoDirector',
-      keyframe_image_prompt: 'keyframeImage', temporal_reference_selector: 'keyframeImage',
+      keyframe_image_prompt: 'keyframeImage', temporal_reference_selector: 'keyframeImage', image_quality_review_prompt: 'keyframeImage',
       clip_execution_planner: 'videoDirector', expand_video_prompt: 'videoGeneration', h3_single_frame_prompt: 'videoGeneration',
       h3_first_last_frame_prompt: 'videoGeneration', h3_multi_keyframe_prompt: 'videoGeneration', h3_execution_optimizer_prompt: 'videoGeneration',
+      h3_preflight_repair_prompt: 'videoGeneration',
     };
     return type && categories[type]
       ? t(`promptConfig.categories.${categories[type]}`)
@@ -218,11 +219,13 @@ export function useLLMLogsState() {
       keyframe_planner: t('promptConfig.types.keyframePlanner'),
       keyframe_transition: t('promptConfig.types.keyframeTransition'),
       keyframe_image_prompt: t('promptConfig.types.keyframeImagePrompt'),
+      image_quality_review_prompt: t('promptConfig.types.imageQualityReviewPrompt'),
       temporal_reference_selector: t('promptConfig.types.temporalReferenceSelector'),
       h3_single_frame_prompt: t('promptConfig.types.h3SingleFramePrompt'),
       h3_first_last_frame_prompt: t('promptConfig.types.h3FirstLastFramePrompt'),
       h3_multi_keyframe_prompt: t('promptConfig.types.h3MultiKeyframePrompt'),
       h3_execution_optimizer_prompt: t('promptConfig.types.h3ExecutionOptimizerPrompt'),
+      h3_preflight_repair_prompt: t('promptConfig.types.h3PreflightRepairPrompt'),
     };
     if (!type) return '-';
     return labels[type] || type;

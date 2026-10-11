@@ -388,7 +388,8 @@ class FileStorageService:
             return False
 
     def get_merged_characters_path(self, novel_id: str, chapter_id: str,
-                                   shot_number: int, character_names: list = None) -> Path:
+                                   shot_number: int, character_names: list = None,
+                                   *, asset_signature: str = None) -> Path:
         """获取合并角色图保存路径
         
         Args:
@@ -399,6 +400,11 @@ class FileStorageService:
         story_dir = self._get_story_dir(novel_id)
         chapter_short = chapter_id[:8] if chapter_id else "unknown"
         save_dir = story_dir / f"chapter_{chapter_short}" / "merged_characters"
+        if asset_signature:
+            # Keep immutable keyframe variants outside the legacy Shot cleanup glob.
+            save_dir = save_dir / "keyframes"
+            save_dir.mkdir(parents=True, exist_ok=True)
+            return save_dir / f"shot_{shot_number:03d}_{asset_signature}_characters.png"
         save_dir.mkdir(parents=True, exist_ok=True)
         
         # 如果有角色名，使用角色名排序后的 hash 生成固定文件名

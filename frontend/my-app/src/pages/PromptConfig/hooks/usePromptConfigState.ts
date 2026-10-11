@@ -24,6 +24,7 @@ export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descK
   keyframe_description: { nameKey: 'promptConfig.types.keyframeDescription', descKey: 'promptConfig.types.keyframeDescriptionDesc', defaultTemplate: '' },
   keyframe_planner: { nameKey: 'promptConfig.types.keyframePlanner', descKey: 'promptConfig.types.keyframePlannerDesc', defaultTemplate: '', fileNumber: '08' },
   keyframe_image_prompt: { nameKey: 'promptConfig.types.keyframeImagePrompt', descKey: 'promptConfig.types.keyframeImagePromptDesc', defaultTemplate: '', fileNumber: '09' },
+  image_quality_review_prompt: { nameKey: 'promptConfig.types.imageQualityReviewPrompt', descKey: 'promptConfig.types.imageQualityReviewPromptDesc', defaultTemplate: '', fileNumber: '15' },
   temporal_reference_selector: { nameKey: 'promptConfig.types.temporalReferenceSelector', descKey: 'promptConfig.types.temporalReferenceSelectorDesc', defaultTemplate: '', fileNumber: '09A' },
   keyframe_transition: { nameKey: 'promptConfig.types.keyframeTransition', descKey: 'promptConfig.types.keyframeTransitionDesc', defaultTemplate: '', fileNumber: '10' },
   clip_execution_planner: { nameKey: 'promptConfig.types.clipExecutionPlanner', descKey: 'promptConfig.types.clipExecutionPlannerDesc', defaultTemplate: '', fileNumber: '10A' },
@@ -31,6 +32,7 @@ export const TEMPLATE_TYPE_CONFIG: Record<TemplateType, { nameKey: string; descK
   h3_first_last_frame_prompt: { nameKey: 'promptConfig.types.h3FirstLastFramePrompt', descKey: 'promptConfig.types.h3FirstLastFramePromptDesc', defaultTemplate: '', fileNumber: '12' },
   h3_multi_keyframe_prompt: { nameKey: 'promptConfig.types.h3MultiKeyframePrompt', descKey: 'promptConfig.types.h3MultiKeyframePromptDesc', defaultTemplate: '', fileNumber: '13' },
   h3_execution_optimizer_prompt: { nameKey: 'promptConfig.types.h3ExecutionOptimizerPrompt', descKey: 'promptConfig.types.h3ExecutionOptimizerPromptDesc', defaultTemplate: '', fileNumber: '14' },
+  h3_preflight_repair_prompt: { nameKey: 'promptConfig.types.h3PreflightRepairPrompt', descKey: 'promptConfig.types.h3PreflightRepairPromptDesc', defaultTemplate: '', fileNumber: '14A' },
 };
 
 export const TEMPLATE_TYPES: TemplateType[] = [
@@ -50,6 +52,7 @@ export const TEMPLATE_TYPES: TemplateType[] = [
   'keyframe_description',
   'keyframe_planner',
   'keyframe_image_prompt',
+  'image_quality_review_prompt',
   'temporal_reference_selector',
   'keyframe_transition',
   'clip_execution_planner',
@@ -57,6 +60,7 @@ export const TEMPLATE_TYPES: TemplateType[] = [
   'h3_first_last_frame_prompt',
   'h3_multi_keyframe_prompt',
   'h3_execution_optimizer_prompt',
+  'h3_preflight_repair_prompt',
 ];
 
 export function usePromptConfigState() {
@@ -80,6 +84,7 @@ export function usePromptConfigState() {
     keyframe_description: [],
     keyframe_planner: [],
     keyframe_image_prompt: [],
+    image_quality_review_prompt: [],
     temporal_reference_selector: [],
     keyframe_transition: [],
     clip_execution_planner: [],
@@ -87,6 +92,7 @@ export function usePromptConfigState() {
     h3_first_last_frame_prompt: [],
     h3_multi_keyframe_prompt: [],
     h3_execution_optimizer_prompt: [],
+    h3_preflight_repair_prompt: [],
   });
   const [loadingByType, setLoadingByType] = useState<Record<TemplateType, boolean>>({
     scene_setting: true,
@@ -105,6 +111,7 @@ export function usePromptConfigState() {
     keyframe_description: true,
     keyframe_planner: true,
     keyframe_image_prompt: true,
+    image_quality_review_prompt: true,
     temporal_reference_selector: true,
     keyframe_transition: true,
     clip_execution_planner: true,
@@ -112,6 +119,7 @@ export function usePromptConfigState() {
     h3_first_last_frame_prompt: true,
     h3_multi_keyframe_prompt: true,
     h3_execution_optimizer_prompt: true,
+    h3_preflight_repair_prompt: true,
   });
 
   // 弹窗状态
@@ -232,6 +240,17 @@ export function usePromptConfigState() {
     }
   };
 
+  const handleRestoreImageReviewDefault = async () => {
+    try {
+      const result = await promptTemplateApi.restoreImageReviewDefault();
+      if (!result.success) throw new Error(result.message || '恢复失败');
+      await fetchTemplates('image_quality_review_prompt');
+      toast.success(t('promptConfig.resetSuccess'));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t('common.saveFailed'));
+    }
+  };
+
   return {
     // State
     templatesByType,
@@ -240,7 +259,7 @@ export function usePromptConfigState() {
     modalType, editingPrompt, viewingPrompt,
     form, setForm, saving,
     // Actions
-    openModal, openViewModal, handleSave, handleCopy, handleDelete,
+    openModal, openViewModal, handleSave, handleCopy, handleDelete, handleRestoreImageReviewDefault,
     fetchTemplates,
   };
 }

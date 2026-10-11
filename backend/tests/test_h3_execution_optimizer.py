@@ -265,3 +265,23 @@ async def test_shared_hook_uses_the_canonical_builder_shape(monkeypatch,roles,ex
  assert invoke.call_args.kwargs['execution_context']['anchor_policy_version']==1
  assert invoke.call_args.kwargs['execution_context']['canonical_visual_sources']
  assert json.loads(task.metadata_json)['h3_prompt_optimizer']['status']=='OPTIMIZED'
+
+@pytest.mark.asyncio
+async def test_auto_repair_reuses_failed_raw_response_only_under_same_fingerprints(monkeypatch,runtime):
+ template='registered';output=valid_output(runtime)
+ monkeypatch.setattr(opt,'resolve_prompt_template',lambda *a:NS(type=opt.TEMPLATE_TYPE,id='14',name='registered',template=template))
+ monkeypatch.setattr(opt,'build_runtime_input',lambda *a:runtime)
+ monkeypatch.setattr(opt,'append_video_ai_call',lambda *a:None)
+ chat=AsyncMock(return_value={'success':False,'error':'must not call'})
+ monkeypatch.setattr(opt,'LLMService',lambda:NS(chat_completion=chat))
+ record={'version':opt.VERSION,'status':'FALLBACK','original_output':output,'output':output,
+  'raw_response_content':json.dumps(output,ensure_ascii=False),'llm_log_id':'saved-log',
+  'authority_check':{'passed':False},'runtime_input':runtime[0],
+  'raw_prompt_sha256':hashlib.sha256(RAW.encode()).hexdigest(),
+  'system_prompt_sha256':hashlib.sha256(template.encode()).hexdigest()}
+ _,result=await opt.optimize_h3_execution_prompt(Mock(),NS(id='novel'),NS(index=3,chapter_id='chapter'),RAW,'MULTI_KEYFRAME',{'clip_index':1,'planned_duration':4},reuse_record=record,execution_context={'preflight_auto_repair':True})
+ assert result['status']=='OPTIMIZED' and result['reused_result']
+ assert result['llm_log_id']=='saved-log';chat.assert_not_called()
+ changed={**record,'system_prompt_sha256':'different'}
+ _,result=await opt.optimize_h3_execution_prompt(Mock(),NS(id='novel'),NS(index=3,chapter_id='chapter'),RAW,'MULTI_KEYFRAME',{'clip_index':1,'planned_duration':4},reuse_record=changed,execution_context={'preflight_auto_repair':True})
+ assert not result.get('reused_result') and chat.await_count==1

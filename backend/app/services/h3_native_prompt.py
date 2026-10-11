@@ -96,7 +96,8 @@ def _explicit_listener_scope(prelude, incoming, authority, closed):
                           and re.search(r"listen|attentive|reaction|react|blink|breath", clause, re.I)
                           and re.search(r"natural|relaxed", clause, re.I)
                           and re.search(r"(?:no|without)\s+speech[ -]like\s+(?:mouth\s+)?(?:articulation|movement|motion)", clause, re.I))
-        universal = re.search(r"\ball\s+(?:the\s+)?(?:other|remaining)\s+(?:currently\s+)?(?:visible\s+)?(?:characters|people|subjects|listeners|non-speakers)\b", clause, re.I)
+        universal = re.search(r"\b(?:all\s+(?:the\s+)?(?:other|remaining)\s+(?:currently\s+)?(?:visible\s+)?(?:characters|people|subjects|listeners|non-speakers)"
+                              r"|every\s+other\s+(?:currently\s+)?visible\s+(?:character|person|subject|listener|non-speaker))\b", clause, re.I)
         enumerated = bool(listeners) and listeners <= set(re.findall(r"<Subject \d+>", clause))
         if complete_state and (universal or enumerated):
             return True
@@ -152,8 +153,16 @@ def _handoff_evidence_is_local(actual, canonical, timeline):
         else:
             existing = evidence.get("existing_view_excerpt")
             if (not isinstance(existing, str) or not existing.strip()
-                    or incoming["speaker"] not in existing or existing not in actual[i - 1]["prelude"]):
+                    or existing not in actual[i - 1]["prelude"]):
                 return False
+            if incoming["speaker"] not in existing:
+                # "Both faces and mouths" is unambiguous only when this exact
+                # preceding prelude explicitly names the two handoff Subjects.
+                pair = set(re.findall(r'<Subject \d+>', actual[i - 1]['prelude']))
+                if pair != {previous['speaker'], incoming['speaker']} or not re.search(
+                    r'\b(?:view|composition)\s+(?:keeps|holds)\s+both\s+(?:seated\s+)?'
+                    r'faces\s+and\s+mouths\s+(?:clearly\s+)?readable\b', existing, re.I):
+                    return False
     return True
 
 
@@ -211,6 +220,17 @@ def check_native_prompt(prompt, canonical, authority, raw_prompt, timeline):
                         rf"|previous{separator}(?:video|AV|footage)"
                         rf"|incoming{separator}(?:footage|video|context)")
     state_source = bool(re.search(state_scope, reference_scope, re.I))
+    if not state_source:
+        # A real START anchor can be named by its Picture slot rather than the
+        # word "anchor". Identity/scene Pictures cannot acquire this authority.
+        references = authority.get('reference_bindings', [])
+        if authority.get('anchor_policy'):
+            from app.services.h3_anchor_policy import projected_bindings
+            references = projected_bindings(authority, timeline.get('anchors') or [])
+        state_source = any(re.search(re.escape(ref['picture']) +
+            r"\s+(?:guides|supplies|establishes)\s+the\s+opening\s+(?:arrangement|state|staging)\b",
+            retention, re.I) for ref in references
+            if ref.get('type') == 'DIRECTOR_VISUAL_ANCHOR' and ref.get('role') == 'START')
     if not state_source and (authority.get("continuation") or {}).get("binding_verified") is True:
         # A carried-state retention clause may name its actual AV source in the
         # opening instruction. Keep identity/costume/blocking scope in retention;
@@ -228,7 +248,10 @@ def check_native_prompt(prompt, canonical, authority, raw_prompt, timeline):
     phase_text = "\n".join(str(p.get("description", "")) for p in timeline.get("execution_phases", []) if isinstance(p, dict))
     for subject, actor in fixed_seated.items():
         checks[f"seated_state_preserved_{subject}"] = bool(re.search(
-            actor + r"\s+(?:(?:remains|stays|is|keeps)\s+)?seated\b", prompt, re.I))
+            actor + r"\s+(?:(?:(?:remains|stays|is|keeps)\s+)?seated\b|(?:sits|is sitting)\s+(?:at|on|in)\b)", prompt, re.I)) or any(
+            subject in re.findall(r'<Subject \d+>', match[1])
+            for match in re.finditer(r'((?:<Subject \d+>\s*(?:,\s*|and\s+))+<Subject \d+>)'
+                                     r'\s+(?:remain|stay|are)\s+seated\b', prompt, re.I))
         checks[f"no_acquisition_reblocking_{subject}"] = not _positive_reblocking(prompt + "\n" + phase_text, actor)
     # Only explicit canonical spatial anchoring licenses this narrow check.
     # Natural limb/posture changes remain allowed; unknown prose needs review.

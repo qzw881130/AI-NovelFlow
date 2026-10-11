@@ -32,6 +32,7 @@ export interface SystemConfig {
   llmMaxTokens?: number;  // 最大token数
   llmTemperature?: string;  // 温度参数
   llmTimeout?: number;  // 请求超时（秒）
+  autoImageReviewEnabled?: boolean;
   
   // 代理配置
   proxy: ProxyConfig;
@@ -98,6 +99,7 @@ export interface Novel {
   h3FirstLastFramePromptTemplateId?: string;  // H3 首尾帧视频提示词模板
   h3MultiKeyframePromptTemplateId?: string;  // H3 多关键帧视频提示词模板
   h3ExecutionOptimizerPromptTemplateId?: string;  // H3 执行提示词优化模板
+  h3PreflightRepairPromptTemplateId?: string;  // H3 Preflight 自动修复模板
   aspectRatio?: string;  // 画面比例: 16:9, 9:16, 4:3, 3:4, 1:1
   createdAt: string;
   updatedAt: string;
@@ -284,6 +286,7 @@ export interface VideoDirectorTaskClip {
 }
 
 export interface ClipExecutionMetadata {
+  clip_playback?: { independent_url?: string | null; review_url?: string | null } | null;
   execution_scope?: string;
   clip_id?: string;
   clip_index?: number;

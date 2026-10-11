@@ -3,7 +3,7 @@ export interface LLMImageInput {
   logical_id: string;
   reference_type?: string;
   role?: string;
-  binding?: string;
+  binding?: string | Record<string, unknown> | null;
   source_path?: string;
   source_asset_id?: string;
   source_dimensions?: number[];

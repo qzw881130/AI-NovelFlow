@@ -422,6 +422,8 @@ export function ChapterGenerateLayout({
   useEffect(() => {
     if (id && cid) {
       loadWorkflowState(id, cid);
+      const eventQuery = new URLSearchParams(window.location.search);
+      if (eventQuery.get('eventShot') && eventQuery.get('tab') === 'video') setCurrentTab(3);
     }
   }, [id, cid, loadWorkflowState]);
 

@@ -342,6 +342,13 @@ export interface ShotUpdateRequest {
 }
 
 export const shotsApi = {
+  getShotAutoGeneration: (novelId: string, chapterId: string, shotId: string) =>
+    api.get<any>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/auto-generation`),
+  controlShotAutoGeneration: (novelId: string, chapterId: string, shotId: string, action: 'start' | 'pause' | 'resume') =>
+    api.post<any>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/auto-generation/${action}`, {}),
+  getClipPlayback: (novelId: string, chapterId: string, shotId: string, clipIndex: number) =>
+    api.get<{ independent_url: string | null; cumulative_url: string; independent_error?: string | null;
+      review_url?: string | null; review_error?: string | null }>(`/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/video-director/clips/${clipIndex}/playback`),
   /**
    * 获取章节的所有分镜列表
    */

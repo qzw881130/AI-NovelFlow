@@ -207,6 +207,7 @@ def check_anchor_policy(prompt, output, authority, spoken, detail, resolved_evid
         if not isinstance(phase, dict) or phase.get('type') != 'ANCHOR_ARRIVAL':
             continue
         anchor_id = phase.get('anchor_id')
+        named = [anchor_id] if anchor_id is not None else []
         if anchor_id is None:
             # Accept an unambiguous stable ID in ordinary description, as in
             # historical point events; no camera/action wording interpretation.
@@ -214,9 +215,15 @@ def check_anchor_policy(prompt, output, authority, spoken, detail, resolved_evid
             # a second independently named anchor.
             named = [key for key in choices if re.search(
                 r'(?<![A-Za-z0-9_-])' + re.escape(key) + r'(?![A-Za-z0-9_-])', str(phase.get('description', '')))]
-            anchor_id = named[0] if len(named) == 1 else None
-        a = choices.get(anchor_id, {})
-        checks['anchor_arrival_phase_binding'] &= (a.get('decision') in {'KEEP', 'RETIME'}
+        # A canonical anchor and its explicitly linked temporal resource may
+        # share one arrival. Unrelated anchors cannot borrow the same event.
+        roots = {expected.get(key, {}).get('linked_anchor_id') or key for key in named}
+        times = [choices.get(key, {}).get('optimized_time') for key in named]
+        shared_time = bool(times) and all(_same(value, times[0]) for value in times)
+        checks['anchor_arrival_phase_binding'] &= bool(named) and len(roots) == 1 and shared_time
+        for key in named:
+            a = choices.get(key, {})
+            checks['anchor_arrival_phase_binding'] &= (a.get('decision') in {'KEEP', 'RETIME'}
             and all(_number(v) for v in (phase.get('start'), phase.get('end'), a.get('optimized_time')))
             and phase['start'] <= a['optimized_time'] <= phase['end'])
     bindings = projected_bindings(authority, anchors)

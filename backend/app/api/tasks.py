@@ -15,9 +15,16 @@ from app.models.workflow import Workflow
 from app.models.task import Task
 from app.repositories import TaskRepository
 from app.services.task_service import TaskService
+from app.services.task_workflow_archive import build_workflow_archive
+from starlette.concurrency import run_in_threadpool
 from app.api.deps import get_task_repo
 
 router = APIRouter()
+
+IMAGE_TASK_TYPES = {
+    "character_portrait", "scene_image", "prop_image", "shot_image",
+    "keyframe_image", "single_image_edit",
+}
 
 
 def _extract_character_prompt_items(task, workflow_obj: dict, node_mapping: dict) -> list[dict]:
@@ -245,9 +252,17 @@ async def get_task_workflow(
         raise HTTPException(status_code=404, detail="任务不存在")
     try:
         metadata = json.loads(task.metadata_json or "{}")
+        metadata = metadata if isinstance(metadata, dict) else {}
     except (ValueError, TypeError):
         metadata = {}
     execution_duration = {key: metadata.get(key) for key in ("original_duration", "optimized_duration", "effective_duration", "duration_source")}
+    try:
+        reference_images = json.loads(task.reference_images or "[]")
+        reference_images = reference_images if isinstance(reference_images, list) else []
+    except (ValueError, TypeError):
+        reference_images = []
+    reference_video = metadata.get("previous_approved_video_url")
+    result_image = task.result_url if task.type in IMAGE_TASK_TYPES and task.status == "completed" else None
 
     # 如果任务保存了工作流JSON，直接返回
     if task.workflow_json:
@@ -267,6 +282,9 @@ async def get_task_workflow(
                     "prompt": task.prompt_text or "未保存提示词",
                     "promptItems": _extract_character_prompt_items(task, workflow_obj, node_mapping),
                     "executionDuration": execution_duration,
+                    "referenceImages": reference_images,
+                    "referenceVideo": reference_video,
+                    "resultImage": result_image,
                 }
             }
         except Exception as e:
@@ -279,6 +297,9 @@ async def get_task_workflow(
                     "prompt": task.prompt_text or "未保存提示词",
                     "promptItems": [],
                     "executionDuration": execution_duration,
+                    "referenceImages": reference_images,
+                    "referenceVideo": reference_video,
+                    "resultImage": result_image,
                 }
             }
 
@@ -292,9 +313,23 @@ async def get_task_workflow(
             "prompt": task.prompt_text or "未保存提示词",
             "promptItems": [],
             "executionDuration": execution_duration,
+            "referenceImages": reference_images,
+            "referenceVideo": reference_video,
+            "resultImage": result_image,
             "note": "工作流尚未提交到ComfyUI或执行未完成，请稍后查看"
         }
     }
+
+
+@router.get("/{task_id}/workflow/archive")
+async def download_task_workflow_archive(
+    task_id: str,
+    task_repo: TaskRepository = Depends(get_task_repo),
+    db: Session = Depends(get_db),
+):
+    """Download the submitted workflow and its local image/video references."""
+    result = await get_task_workflow(task_id, task_repo=task_repo, db=db)
+    return await run_in_threadpool(build_workflow_archive, task_id, result["data"])
 
 
 @router.get("/{task_id}/clips/{window_index}/workflow", response_model=dict)
@@ -367,6 +402,15 @@ async def get_task_clip_workflow(
                     pass
             db.commit()
 
+    try:
+        task_metadata = json.loads(task.metadata_json or "{}")
+        task_metadata = task_metadata if isinstance(task_metadata, dict) else {}
+    except (ValueError, TypeError):
+        task_metadata = {}
+    reference_video = clip.get("previous_approved_video_url")
+    if not reference_video and str(task_metadata.get("clip_index")) == str(window_index):
+        reference_video = task_metadata.get("previous_approved_video_url")
+
     return {
         "success": True,
         "data": {
@@ -376,6 +420,20 @@ async def get_task_clip_workflow(
             "prompt": clip.get("execution_prompt_text") or clip.get("prompt_text") or "未保存提示词",
             "executionDuration": clip.get("h3_execution"),
             "referenceImages": clip.get("reference_images") if isinstance(clip.get("reference_images"), list) else [],
+            "referenceVideo": reference_video,
+            "windowIndex": window_index,
             "note": None if clip.get("workflow_json") else "该 Clip 尚未保存实际提交的工作流 JSON",
         }
     }
+
+
+@router.get("/{task_id}/clips/{window_index}/workflow/archive")
+async def download_task_clip_workflow_archive(
+    task_id: str,
+    window_index: int,
+    task_repo: TaskRepository = Depends(get_task_repo),
+    db: Session = Depends(get_db),
+):
+    """Download the selected Clip workflow and its own references."""
+    result = await get_task_clip_workflow(task_id, window_index, db=db, task_repo=task_repo)
+    return await run_in_threadpool(build_workflow_archive, task_id, result["data"])

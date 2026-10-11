@@ -528,6 +528,8 @@ def test_visual_response_without_speech_remains_allowed(monkeypatch):
     "避免突发声源",
     "没有突发声源",
     "环境中不得加入突发声源",
+    "不添加无来源音乐、突发声效或画面外的新声源",
+    "木箱落地时的突发声效",
 ])
 def test_sudden_sound_source_is_not_speech_authority(text):
     assert h3._canonical_visual_body_speech_issues(text) == []

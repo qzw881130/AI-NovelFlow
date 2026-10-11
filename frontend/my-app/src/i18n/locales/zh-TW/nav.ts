@@ -7,6 +7,7 @@ export default {
     scenes: '場景庫',
     props: '道具庫',
     tasks: '任務佇列',
+    events: '事件中心',
     testCases: '測試案例',
     systemSettings: '系統組態',
     promptConfig: '提示詞組態',

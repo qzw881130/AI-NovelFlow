@@ -45,6 +45,7 @@ class Novel(Base):
     h3_first_last_frame_prompt_template_id = Column(String, nullable=True)  # H3 首尾帧视频提示词模板
     h3_multi_keyframe_prompt_template_id = Column(String, nullable=True)  # H3 多关键帧视频提示词模板
     h3_execution_optimizer_prompt_template_id = Column(String, nullable=True)  # H3 执行提示词优化模板
+    h3_preflight_repair_prompt_template_id = Column(String, nullable=True)  # H3 Preflight 自动修复模板
     
     aspect_ratio = Column(String, default="16:9")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

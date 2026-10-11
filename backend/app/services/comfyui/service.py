@@ -527,6 +527,7 @@ class ComfyUIService:
             video_url = result.get("video_url") or result.get("image_url")
             return {
                 **self._error_fields(result),
+                "comfyui_history": result.get("comfyui_history"),
                 "success": result.get("success") if result else False,
                 "video_url": video_url,
                 "message": str(result.get("message")) if result and result.get("message") else "",

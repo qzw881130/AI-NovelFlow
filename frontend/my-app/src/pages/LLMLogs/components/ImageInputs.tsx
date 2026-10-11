@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { LLMImageInput } from '../../../api/llmLogs';
 
+function displayMetadata(value: unknown, fallback = '-') {
+  if (value === null || value === undefined || value === '') return fallback;
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value);
+}
+
 export function ImageInputs({ images }: { images: LLMImageInput[] }) {
   const [index, setIndex] = useState<number | null>(null);
   const [failed, setFailed] = useState<Set<number>>(new Set());
@@ -18,17 +24,17 @@ export function ImageInputs({ images }: { images: LLMImageInput[] }) {
   }, [index, images.length]);
   const unavailable = (i: number) => failed.has(i) || images[i].status === 'unavailable' || !images[i].submitted_url;
   const picture = (i: number, large = false) => unavailable(i)
-    ? <div className="flex h-40 items-center justify-center text-sm text-gray-500" role="status">Unavailable · {images[i].unavailable_reason || '图片无法加载'}</div>
-    : <img src={images[i].submitted_url!} alt={images[i].logical_id} className={large ? 'max-h-[65vh] max-w-full object-contain mx-auto' : 'h-40 w-full object-contain'} onError={() => setFailed(current => new Set([...current, i]))} />;
+    ? <div className="flex h-40 items-center justify-center text-sm text-gray-500" role="status">Unavailable · {displayMetadata(images[i].unavailable_reason, '图片无法加载')}</div>
+    : <img src={images[i].submitted_url!} alt={displayMetadata(images[i].logical_id)} className={large ? 'max-h-[65vh] max-w-full object-contain mx-auto' : 'h-40 w-full object-contain'} onError={() => setFailed(current => new Set([...current, i]))} />;
   const info = (i: number) => <div className="text-xs space-y-1 break-words">
-    <div className="font-medium">{images[i].logical_id} · {images[i].reference_type || 'IMAGE_INPUT'}</div>
-    <div>{images[i].role || '-'} · {images[i].binding || '-'}</div>
+    <div className="font-medium">{displayMetadata(images[i].logical_id)} · {displayMetadata(images[i].reference_type, 'IMAGE_INPUT')}</div>
+    <div>{displayMetadata(images[i].role)} · {displayMetadata(images[i].binding)}</div>
     <div>提交尺寸 {images[i].submitted_dimensions?.join(' × ') || '未知'} · {images[i].mime_type || '-'} · {images[i].is_proxy ? 'Vision Proxy' : '提交图片'}</div>
     <div>源尺寸 {images[i].source_dimensions?.join(' × ') || '未知'}</div>
   </div>;
   return <>
     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-      {images.map((item, i) => <button key={`${item.request_order}-${item.logical_id}`} type="button" onClick={() => setIndex(i)} className="rounded border p-2 text-left hover:border-blue-500" aria-label={`查看图片 ${i + 1} ${item.logical_id}`}>
+      {images.map((item, i) => <button key={`${item.request_order}-${item.logical_id}`} type="button" onClick={() => setIndex(i)} className="rounded border p-2 text-left hover:border-blue-500" aria-label={`查看图片 ${i + 1} ${displayMetadata(item.logical_id)}`}>
         {picture(i)}{info(i)}
       </button>)}
     </div>

@@ -6,6 +6,7 @@ import { useTasksState } from './hooks/useTasksState';
 import { ImagePreviewModal, VideoPreviewModal } from './components/PreviewModals';
 import { WorkflowViewModal } from './components/WorkflowViewModal';
 import { TaskCard } from './components/TaskCard';
+import { ImageReviewModal } from './components/ImageReviewModal';
 import type { Task } from '../../types';
 import { getCanonicalClipTaskDescription } from './taskExecutionDisplay';
 
@@ -13,6 +14,7 @@ export default function Tasks() {
   const { t, i18n } = useTranslation();
   const [pageSize, setPageSize] = useState(30);
   const [currentPage, setCurrentPage] = useState(1);
+  const [reviewTask, setReviewTask] = useState<Task | null>(null);
   const {
     isLoading,
     filter,
@@ -295,6 +297,7 @@ export default function Tasks() {
                   onDelete={handleDelete}
                   onRetry={handleRetry}
                   onViewWorkflow={handleViewWorkflow}
+                  onImageReview={setReviewTask}
                   onViewClipWorkflow={handleViewClipWorkflow}
                   onToggleError={toggleErrorDetail}
                   onPreviewImage={openImagePreview}
@@ -349,6 +352,7 @@ export default function Tasks() {
         onPreviewVideo={setPreviewVideo}
         convertShotName={convertShotName}
       />
+      {reviewTask && <ImageReviewModal task={reviewTask} onClose={() => setReviewTask(null)} />}
       {previewImage && (
         <ImagePreviewModal
           imageUrl={previewImage}

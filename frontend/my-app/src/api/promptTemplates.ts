@@ -22,13 +22,15 @@ export type TemplateType =
   | 'keyframe_description'
   | 'keyframe_planner'
   | 'keyframe_image_prompt'
+  | 'image_quality_review_prompt'
   | 'temporal_reference_selector'
   | 'keyframe_transition'
   | 'clip_execution_planner'
   | 'h3_single_frame_prompt'
   | 'h3_first_last_frame_prompt'
   | 'h3_multi_keyframe_prompt'
-  | 'h3_execution_optimizer_prompt';
+  | 'h3_execution_optimizer_prompt'
+  | 'h3_preflight_repair_prompt';
 
 export const promptTemplateApi = {
   /** 获取模板列表 */
@@ -48,6 +50,8 @@ export const promptTemplateApi = {
 
   /** 复制模板 */
   copy: (id: string) => api.post<PromptTemplate>(`/prompt-templates/${id}/copy`),
+
+  restoreImageReviewDefault: () => api.post<PromptTemplate>('/prompt-templates/image-quality-review/restore-default'),
 
   /** 打包下载所有提示词模板 */
   downloadAll: async (): Promise<void> => {

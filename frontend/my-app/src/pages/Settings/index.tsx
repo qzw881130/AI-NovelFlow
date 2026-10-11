@@ -1,7 +1,7 @@
 // Settings 页面主组件
 
 import { useState, useEffect, useRef } from 'react';
-import { Save, Loader2, Bot, Network, Server, CheckCircle, Activity } from 'lucide-react';
+import { Save, Loader2, Bot, Network, Server, CheckCircle, Activity, Bell, ShieldCheck } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from '../../stores/i18nStore';
 import { toast } from '../../stores/toastStore';
@@ -10,11 +10,13 @@ import ProxyConfigPanel from './components/ProxyConfig';
 import ComfyUIConfig from './components/ComfyUIConfig';
 import WorkflowManager from './components/WorkflowManager';
 import SystemStatusConfig from './components/SystemStatusConfig';
+import NotificationConfig from './components/NotificationConfig';
+import GenerationQualityConfig from './components/GenerationQualityConfig';
 import type { SettingsFormData } from './types';
 import { configApi } from '../../api/config';
 import { DEFAULT_CONFIG } from '../../constants';
 
-type SettingsTab = 'llm' | 'proxy' | 'comfyui' | 'systemStatus' | 'workflows';
+type SettingsTab = 'llm' | 'proxy' | 'comfyui' | 'systemStatus' | 'workflows' | 'notifications' | 'generationQuality';
 
 const TAB_HASHES: Record<SettingsTab, string> = {
   llm: 'llm',
@@ -22,6 +24,8 @@ const TAB_HASHES: Record<SettingsTab, string> = {
   comfyui: 'comfyui',
   workflows: 'workflows',
   systemStatus: 'system-status',
+  notifications: 'notifications',
+  generationQuality: 'generation-quality',
 };
 
 const getTabFromHash = (hash: string): SettingsTab => {
@@ -73,6 +77,7 @@ export default function Settings() {
             llmMaxTokens: config.llmMaxTokens || DEFAULT_CONFIG.llmMaxTokens,
             llmTemperature: config.llmTemperature,
             llmTimeout: config.llmTimeout || DEFAULT_CONFIG.llmTimeout,
+            autoImageReviewEnabled: config.autoImageReviewEnabled ?? false,
             proxy: config.proxyEnabled !== undefined ? {
               enabled: config.proxyEnabled,
               httpProxy: config.httpProxy || '',
@@ -109,6 +114,8 @@ export default function Settings() {
             timeout: formData.llmTimeout,
           },
         };
+      } else if (activeTab === 'generationQuality') {
+        payload = { autoImageReviewEnabled: formData.autoImageReviewEnabled ?? false };
       } else if (activeTab === 'proxy') {
         payload = { proxy: formData.proxy };
       } else if (activeTab === 'comfyui') {
@@ -145,7 +152,7 @@ export default function Settings() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">{t('systemSettings.title')}</h1>
         <p className="mt-1 text-sm text-gray-500">
-          {t('systemSettings.subtitle')}
+          {activeTab === 'notifications' ? '设置通知通道、提示音和事件开关' : activeTab === 'generationQuality' ? t('systemSettings.imageQualityReview') : t('systemSettings.subtitle')}
         </p>
       </div>
 
@@ -153,16 +160,16 @@ export default function Settings() {
       <div className="card">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-2 bg-blue-100 rounded-lg">
-            <Bot className="h-5 w-5 text-blue-600" />
+            {activeTab === 'generationQuality' ? <ShieldCheck className="h-5 w-5 text-blue-600" /> : activeTab === 'notifications' ? <Bell className="h-5 w-5 text-blue-600" /> : <Bot className="h-5 w-5 text-blue-600" />}
           </div>
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">{t('systemSettings.llmConfig')}</h2>
-            <p className="text-sm text-gray-500">{t('systemSettings.subtitle')}</p>
+            <h2 className="text-lg font-semibold text-gray-900">{activeTab === 'notifications' ? '消息通知' : activeTab === 'generationQuality' ? t('systemSettings.generationQualityControl') : t('systemSettings.llmConfig')}</h2>
+            <p className="text-sm text-gray-500">{activeTab === 'notifications' ? '配置页面声音、外部推送与事件开关' : activeTab === 'generationQuality' ? t('systemSettings.imageQualityReview') : t('systemSettings.subtitle')}</p>
           </div>
         </div>
         
         {/* 标签页导航 */}
-        <div className="flex border-b border-gray-200 mb-6">
+        <div className="flex border-b border-gray-200 mb-6 overflow-x-auto">
           <button
             type="button"
             onClick={() => selectTab('llm')}
@@ -233,15 +240,24 @@ export default function Settings() {
               {t('systemSettings.systemStatusSettings')}
             </div>
           </button>
+          <button type="button" onClick={() => selectTab('notifications')}
+            className={`shrink-0 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'notifications' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            <span className="flex items-center gap-2"><Bell className="h-4 w-4" />消息通知</span>
+          </button>
+          <button type="button" onClick={() => selectTab('generationQuality')}
+            className={`shrink-0 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'generationQuality' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4" />{t('systemSettings.generationQualityControl')}</span>
+          </button>
         </div>
 
         {/* 工作流管理面板 - 独立于表单之外，避免嵌套表单问题 */}
         {activeTab === 'workflows' && (
           <WorkflowManager />
         )}
+        {activeTab === 'notifications' && <NotificationConfig />}
 
         {/* LLM/Proxy/ComfyUI 配置需要表单提交 */}
-        {activeTab !== 'workflows' && (
+        {activeTab !== 'workflows' && activeTab !== 'notifications' && (
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* LLM 配置面板 */}
             {activeTab === 'llm' && (
@@ -249,6 +265,16 @@ export default function Settings() {
                 formData={formData}
                 onFormDataChange={setFormData}
                 onUserModified={handleUserModified}
+              />
+            )}
+
+            {activeTab === 'generationQuality' && (
+              <GenerationQualityConfig
+                enabled={formData.autoImageReviewEnabled ?? false}
+                onChange={(enabled) => {
+                  handleUserModified();
+                  setFormData(previous => ({ ...previous, autoImageReviewEnabled: enabled }));
+                }}
               />
             )}
 

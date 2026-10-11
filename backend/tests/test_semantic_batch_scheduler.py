@@ -206,7 +206,7 @@ async def test_active_clip_task_is_reused_without_duplicate_execution(db_session
     db_session.commit()
     calls = []
     _install_execution_fake(db_session, monkeypatch, tmp_path, calls)
-    async def wait(db, task_id):
+    async def wait(db, task_id, **kwargs):
         return db.query(Task).filter(Task.id == task_id).one()
     monkeypatch.setattr(shots_api, "_wait_for_semantic_clip_task", wait)
     assert await shots_api._run_semantic_shot_for_batch(db_session, parent, child, shot) == "failed"

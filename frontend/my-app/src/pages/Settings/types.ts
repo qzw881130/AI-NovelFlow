@@ -79,6 +79,7 @@ export interface SettingsFormData {
   llmMaxTokens?: number;
   llmTemperature?: string;
   llmTimeout?: number;
+  autoImageReviewEnabled?: boolean;
   proxy: ProxyConfig;
   comfyUIHost: string;
   comfyUITimeout: number;

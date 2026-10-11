@@ -202,3 +202,14 @@ def test_reference_scope_accepts_canonical_staging_without_requiring_word_anchor
     authority={'subject_bindings':{'<Subject 1>':'A'},'reference_bindings':[{'picture':'<Picture 1>','type':'CHARACTER_IDENTITY','subject':'<Subject 1>'}],'anchor_policy':{'version':1}}
     checks,_=check_native_prompt(prompt,[],authority,'',{'handoffs':[]})
     assert checks['reference_authority_scope']
+
+@pytest.mark.parametrize('linked,time,decision,passed',[(True,3.0,'KEEP',True),(False,3.0,'KEEP',False),(True,3.5,'KEEP',False),(True,3.0,'DROP',False)])
+def test_explicitly_linked_anchor_names_can_share_one_arrival(case,linked,time,decision,passed):
+    authority,output,_=case
+    authority['anchor_policy']['catalog'].append({'anchor_id':'clip-4-KF2','original_time':3.0,'linked_anchor_id':'KF2' if linked else None})
+    a=copy.deepcopy(output['av_timeline']['anchors'][1]);a.update(id='clip-4-KF2',optimized_time=time,decision=decision)
+    output['av_timeline']['anchors'].append(a)
+    p=output['av_timeline']['execution_phases'][1];p.pop('anchor_id');p.update(description='Linked anchors KF2 and clip-4-KF2 arrive.',start=3.0,end=3.0)
+    before=copy.deepcopy(case)
+    assert audit(case)['anchor_arrival_phase_binding'] is passed
+    assert case==before

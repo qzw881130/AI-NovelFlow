@@ -5,6 +5,7 @@ import { toast } from '../../../stores/toastStore';
 import JSONEditor from '../../../components/JSONEditor';
 import type { Task } from '../../../types';
 import type { WorkflowData } from '../types';
+import { taskApi } from '../../../api/tasks';
 
 interface WorkflowViewModalProps {
   viewingWorkflow: Task | null;
@@ -103,6 +104,20 @@ export function WorkflowViewModal({
     ? promptItems.reduce((total, item) => total + Array.from(item.content || '').length, 0)
     : Array.from(workflowData?.prompt || '').length;
   const executionDuration = workflowData?.executionDuration || viewingWorkflow.clipExecution;
+  const referenceImages = workflowData?.referenceImages ?? viewingWorkflow.referenceImages ?? [];
+  const referenceVideo = workflowData?.referenceVideo || undefined;
+  const hasReferences = referenceImages.length > 0 || Boolean(referenceVideo);
+  const archiveButton = (
+    <button
+      type="button"
+      onClick={() => taskApi.downloadWorkflowArchive(viewingWorkflow.id, workflowData?.windowIndex)}
+      disabled={!workflowData?.workflow || loadingWorkflow}
+      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <Download className="h-4 w-4" />
+      {t('tasks.downloadWorkflowArchive')}
+    </button>
+  );
   const workflowObject = typeof workflowData?.workflow === 'string'
     ? (() => {
         try { return JSON.parse(workflowData.workflow); } catch { return null; }
@@ -163,17 +178,20 @@ export function WorkflowViewModal({
               {executionDuration?.effective_duration != null && <p className="rounded border border-blue-200 bg-blue-50 p-3 text-sm">
                 原始时长：{executionDuration.original_duration}s · #14 优化时长：{executionDuration.optimized_duration ?? '—'}s · 实际生成参数时长：{executionDuration.effective_duration}s · 来源：{executionDuration.duration_source}
               </p>}
-              {(!!viewingWorkflow.referenceImages?.length || viewingWorkflow.clipExecution?.previous_approved_video_url) && (
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-2">
-                    {viewingWorkflow.referenceImages?.length ? t('tasks.referenceImages') : t('tasks.referenceVideo')}
-                  </h4>
+              {hasReferences && (
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <h4 className="text-sm font-medium text-gray-700">
+                      {referenceImages.length ? t('tasks.referenceImages') : t('tasks.referenceVideo')}
+                    </h4>
+                    {archiveButton}
+                  </div>
                   <div className="flex flex-wrap gap-2">
-                    {(viewingWorkflow.referenceImages || []).map((image, index) => (
+                    {referenceImages.map((image, index) => (
                       <button
                         key={`${image.url}-${index}`}
                         type="button"
-                        onClick={() => onPreviewImages(viewingWorkflow.referenceImages || [], index)}
+                        onClick={() => onPreviewImages(referenceImages, index)}
                         className="group relative h-20 w-32 overflow-hidden rounded-md border border-gray-200 bg-white hover:shadow-md transition-shadow"
                         title={image.label || t('tasks.referenceImage')}
                       >
@@ -190,14 +208,14 @@ export function WorkflowViewModal({
                         <span className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
                       </button>
                     ))}
-                    {viewingWorkflow.clipExecution?.previous_approved_video_url && (
+                    {referenceVideo && (
                       <button
                         type="button"
-                        onClick={() => onPreviewVideo(viewingWorkflow.clipExecution!.previous_approved_video_url!)}
+                        onClick={() => onPreviewVideo(referenceVideo)}
                         className="group relative h-20 w-32 overflow-hidden rounded-md border border-gray-200 bg-black"
                         title={t('tasks.referenceVideo')}
                       >
-                        <video src={viewingWorkflow.clipExecution.previous_approved_video_url} muted preload="metadata" className="h-full w-full object-cover" />
+                        <video src={referenceVideo} muted preload="metadata" className="h-full w-full object-cover" />
                         <span className="absolute inset-0 flex items-center justify-center bg-black/15 text-white opacity-0 transition-opacity group-hover:opacity-100">
                           <Play className="h-6 w-6 fill-current" />
                         </span>
@@ -299,15 +317,18 @@ export function WorkflowViewModal({
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-sm font-medium text-gray-700">{t('tasks.workflowJSON')}</h4>
-                    <button
-                      type="button"
-                      onClick={downloadWorkflowJson}
-                      className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50"
-                      title="下载工作流 JSON"
-                      aria-label="下载工作流 JSON"
-                    >
-                      <Download className="h-4 w-4" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {!hasReferences && archiveButton}
+                      <button
+                        type="button"
+                        onClick={downloadWorkflowJson}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 transition-colors rounded hover:bg-blue-50"
+                        title="下载工作流 JSON"
+                        aria-label="下载工作流 JSON"
+                      >
+                        <Download className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                   <div className="border border-gray-200 rounded-lg overflow-hidden">
                     <JSONEditor

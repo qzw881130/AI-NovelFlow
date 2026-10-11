@@ -5,6 +5,7 @@ import { ToastContainer } from './components/Toast';
 import { useToastStore } from './stores/toastStore';
 import { useConfigStore } from './stores/configStore';
 import ErrorBoundary from './components/ErrorBoundary';
+import NotificationSoundListener from './components/NotificationSoundListener';
 import { STORAGE_KEYS } from './constants';
 
 // 懒加载页面组件 - 代码分割优化
@@ -18,6 +19,7 @@ const Characters = lazy(() => import('./pages/Characters'));
 const Scenes = lazy(() => import('./pages/Scenes'));
 const Props = lazy(() => import('./pages/Props'));
 const Tasks = lazy(() => import('./pages/Tasks'));
+const Events = lazy(() => import('./pages/Events'));
 const TestCases = lazy(() => import('./pages/TestCases'));
 const PromptConfig = lazy(() => import('./pages/PromptConfig'));
 const UIConfig = lazy(() => import('./pages/UIConfig'));
@@ -62,6 +64,7 @@ function App() {
 
   return (
     <>
+      <NotificationSoundListener />
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/welcome" replace />} />
@@ -82,6 +85,7 @@ function App() {
           <Route path="scenes" element={<LazyPage><Scenes /></LazyPage>} />
           <Route path="props" element={<LazyPage><Props /></LazyPage>} />
           <Route path="tasks" element={<LazyPage><Tasks /></LazyPage>} />
+          <Route path="events" element={<LazyPage><Events /></LazyPage>} />
           <Route path="test-cases" element={<LazyPage><TestCases /></LazyPage>} />
           <Route path="prompt-config" element={<LazyPage><PromptConfig /></LazyPage>} />
           <Route path="ui-config" element={<LazyPage><UIConfig /></LazyPage>} />

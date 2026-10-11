@@ -4,7 +4,9 @@
 """
 
 import json
+import hashlib
 import os
+import re
 import uuid
 from copy import deepcopy
 import httpx
@@ -48,6 +50,7 @@ from app.services.canonical_visual_speech_authority import (
 )
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.path_utils import local_path_to_url, url_to_local_path
+from app.utils.image_utils import merge_character_images
 from app.utils.workflow_seed import randomize_prompt_rewrite_seeds
 from app.utils.workflow_disconnect import (
     disconnect_reference_chain,
@@ -111,6 +114,7 @@ _KEYFRAME_REFERENCE_CONTEXT_FIELDS = (
     "sources",
     "name",
     "members",
+    "character_ids",
     "keyframe_index",
     "role",
     "composed",
@@ -281,12 +285,36 @@ class ShotKeyframeService:
                 candidates.append({"ref_id": f"KF{item.get('plan_keyframe_index') or item.get('frame_index')}", "type": "TEMPORAL_ANCHOR", "time_seconds": item.get("time_seconds"), "description": item.get("description") or ""})
         if shot.image_url and url_to_local_path(shot.image_url):
             candidates.append({"ref_id": "SHOT_IMAGE", "type": "DIRECTOR_VISUAL_ANCHOR", "description": shot.description or ""})
-        for name in json.loads(shot.characters or "[]"):
-            if name not in current_description:
+        # Legacy Shot data stores names, not IDs. Resolve exact, unique names once
+        # at this boundary; selector output and image binding use stable IDs only.
+        character_block = re.search(
+            r"(?:^|\n)Characters\s*[:：]([\s\S]*?)(?=\n(?:Action|Scene|Camera)\s*[:：]|\Z)",
+            current_description,
+        )
+        declared_names = {name.strip() for name in re.findall(
+            r"(?:^|\n)\s*-\s*([^:\n：]+)\s*[:：]", character_block[1]
+        )} if character_block else set()
+        seen_characters = set()
+        for identity in json.loads(shot.characters or "[]"):
+            character = db.query(Character).filter(Character.novel_id == novel.id, Character.id == identity).first()
+            if character is None:
+                matches = db.query(Character).filter(Character.novel_id == novel.id, Character.name == identity).all()
+                if len(matches) > 1:
+                    raise ValueError(f"角色名称无法唯一解析为 ID: {identity}")
+                character = matches[0] if matches else None
+            if not character or character.id in seen_characters:
                 continue
-            character = db.query(Character).filter(Character.novel_id == novel.id, Character.name == name).first()
-            if character and character.image_url and url_to_local_path(character.image_url):
-                candidates.append({"ref_id": f"CHAR:{name}", "type": "CHARACTER_IDENTITY", "description": name})
+            if declared_names and character.name not in declared_names:
+                continue
+            path = url_to_local_path(character.image_url)
+            if path and Path(path).is_file():
+                seen_characters.add(character.id)
+                candidates.append({
+                    "ref_id": f"CHAR:{character.id}", "type": "CHARACTER_IDENTITY",
+                    "character_id": character.id, "name": character.name, "description": character.name,
+                    "image_url": character.image_url,
+                    "image_sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(),
+                })
         if shot.scene:
             scene = db.query(Scene).filter(Scene.novel_id == novel.id, Scene.name == shot.scene).first()
             if scene and scene.image_url and url_to_local_path(scene.image_url):
@@ -330,11 +358,58 @@ class ShotKeyframeService:
         by_id = {item["ref_id"]: item for item in candidates}
         manifest = []
         for group in selected.get("selected_references", []):
-            ref_ids = group.get("ref_ids", [])
+            ref_ids = list(dict.fromkeys(group.get("ref_ids", [])))
+            if group.get("type") == "CHARACTER_IDENTITY":
+                if not ref_ids or len(manifest) >= 9:
+                    continue
+                assets = []
+                for ref_id in ref_ids:
+                    candidate = by_id.get(ref_id) or {}
+                    character_id = candidate.get("character_id")
+                    if (not character_id or candidate.get("type") != "CHARACTER_IDENTITY"
+                            or ref_id != f"CHAR:{character_id}"):
+                        raise ValueError(f"角色参考缺少有效的稳定 ID: {ref_id}")
+                    character = db.query(Character).filter(
+                        Character.id == character_id, Character.novel_id == novel.id
+                    ).first()
+                    if character is None:
+                        raise ValueError(f"角色参考不属于当前小说: {character_id}")
+                    # Use the selected asset snapshot, never the current Character.image_url.
+                    url = candidate.get("image_url")
+                    path = url_to_local_path(url)
+                    if not path or not Path(path).is_file():
+                        raise ValueError(f"选中的角色图片不存在: {character_id}")
+                    digest = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+                    if digest != candidate.get("image_sha256"):
+                        raise ValueError(f"选中的角色图片版本已变化: {character_id}")
+                    assets.append({"character_id": character_id, "name": candidate["name"],
+                                   "url": url, "path": path, "sha256": digest})
+                assets.sort(key=lambda asset: asset["character_id"])
+                if len(assets) == 1:
+                    path, url = assets[0]["path"], assets[0]["url"]
+                else:
+                    path = merge_character_images(
+                        novel.id, shot.chapter_id, shot.index,
+                        [(asset["name"], asset["path"]) for asset in assets], file_storage,
+                        character_assets=assets,
+                    )
+                    url = local_path_to_url(path)
+                    if not path or not url:
+                        raise ValueError("无法保存选中角色的合并参考图")
+                picture = len(manifest) + 1
+                manifest.append({
+                    "picture": picture, "picture_index": picture,
+                    "kind": "CHARACTER_IDENTITY", "type": "CHARACTER_IDENTITY",
+                    "sources": [f"CHAR:{asset['character_id']}" for asset in assets],
+                    "character_ids": [asset["character_id"] for asset in assets],
+                    "members": [asset["name"] for asset in assets], "character_assets": assets,
+                    "purpose": group.get("purpose"), "url": url, "path": path,
+                    "sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(),
+                    "composed": len(assets) > 1,
+                })
+                continue
             composed_url = None
-            if group.get("type") == "CHARACTER_IDENTITY" and len(ref_ids) > 1:
-                composed_url = shot.merged_character_image
-            elif group.get("type") == "PROP" and len(ref_ids) > 1:
+            if group.get("type") == "PROP" and len(ref_ids) > 1:
                 composed_url = shot.merged_prop_image
             composed_path = url_to_local_path(composed_url) if composed_url else None
             if composed_path and Path(composed_path).is_file() and len(manifest) < 9:
@@ -351,8 +426,6 @@ class ShotKeyframeService:
                     source = next((x for x in json.loads(shot.keyframes or "[]") if int(x.get("plan_keyframe_index") or x.get("frame_index") or -1) == index), None)
                     url = source.get("image_url") if source else None
                 elif ref_id == "SHOT_IMAGE": url = shot.image_url
-                elif ref_id.startswith("CHAR:"):
-                    x = db.query(Character).filter(Character.novel_id == novel.id, Character.name == ref_id[5:]).first(); url = x.image_url if x else None
                 elif ref_id.startswith("SCENE:"):
                     x = db.query(Scene).filter(Scene.novel_id == novel.id, Scene.name == ref_id[6:]).first(); url = x.image_url if x else None
                 elif ref_id.startswith("PROP:"):
@@ -983,6 +1056,8 @@ class ShotKeyframeService:
                     for index, reference in enumerate(reference_manifest):
                         if index >= len(load_nodes):
                             break
+                        if reference.get("sha256") and hashlib.sha256(Path(reference["path"]).read_bytes()).hexdigest() != reference["sha256"]:
+                            raise ValueError("选中的角色参考图片在上传前已变化")
                         upload_result = await comfyui_service.client.upload_image(reference["path"])
                         if not upload_result.get("success"):
                             persist_task_comfyui_error(task, upload_result)
@@ -995,6 +1070,8 @@ class ShotKeyframeService:
                                 "sources": reference["sources"],
                                 "node_id": node_id,
                                 "filename": upload_result.get("filename"),
+                                **({"character_ids": reference["character_ids"], "sha256": reference["sha256"]}
+                                   if reference.get("character_ids") else {}),
                             })
                     for node_id in load_nodes[len(reference_manifest):]:
                         if node_id in submitted_workflow:
@@ -1147,6 +1224,8 @@ class ShotKeyframeService:
                     task.current_step = "生成完成"
                     task.completed_at = datetime.utcnow()
                     db.commit()
+                    from app.services.image_review_worker import image_generation_completed
+                    image_generation_completed(task.id)
                 else:
                     raise ValueError("下载图片失败")
             else:

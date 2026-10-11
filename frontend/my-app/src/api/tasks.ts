@@ -1,7 +1,7 @@
 /**
  * 任务相关 API
  */
-import { api } from './index';
+import { api, API_BASE } from './index';
 
 /** Read-only projection of persisted Clip physical metadata. */
 export interface ClipPhysicalOutput {
@@ -54,6 +54,7 @@ export interface Task {
   currentStep?: string | null;
   canonicalImageProvenance?: import('./shots').CanonicalImageProvenance | null;
   clipExecution?: {
+    clip_playback?: { independent_url?: string | null; review_url?: string | null } | null;
     execution_scope?: string;
     clip_id?: string;
     clip_index?: number;
@@ -138,6 +139,19 @@ export const taskApi = {
 
   /** 获取多 Clip 任务中单个 Clip 的实际工作流 */
   fetchClipWorkflow: (id: string, windowIndex: number) => api.get(`/tasks/${id}/clips/${windowIndex}/workflow/`),
+
+  /** Let the browser stream the workflow ZIP directly, including large reference videos. */
+  downloadWorkflowArchive: (id: string, windowIndex?: number | null) => {
+    const path = windowIndex == null
+      ? `/tasks/${encodeURIComponent(id)}/workflow/archive`
+      : `/tasks/${encodeURIComponent(id)}/clips/${windowIndex}/workflow/archive`;
+    const link = document.createElement('a');
+    link.href = `${API_BASE}${path}`;
+    link.download = `workflow_${id}${windowIndex == null ? '' : `_clip_${windowIndex}`}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  },
 
   /** 重试任务 */
   retry: (id: string) => api.post(`/tasks/${id}/retry/`),

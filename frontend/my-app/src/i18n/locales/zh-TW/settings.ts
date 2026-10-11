@@ -5,6 +5,10 @@ export default {
   systemSettings: {
     ...zhCN.systemSettings,
     title: '系統組態',
+    generationQualityControl: '生成品質控制',
+    imageQualityReview: '圖片品質評審',
+    autoImageReview: '生成圖片後自動 AI 評審',
+    autoImageReviewDesc: '圖片生成成功後，後台自動呼叫 AI 進行品質評審。評審結果獨立記錄，不影響圖片生成狀態，不會自動觸發重繪，也不會阻斷影片生成。',
     workflow: {
       ...zhCN.systemSettings.workflow,
       voiceDesign: '音色設計',
@@ -160,6 +164,8 @@ export default {
     createPrompt: '建立提示詞範本',
     viewPrompt: '檢視提示詞範本',
     systemPresetReadonly: '系統預設（唯讀）',
+    effectiveImageReviewNotice: '系統預設與使用者自訂版本均由提示詞管理保存；新評審使用目前有效版本。',
+    restoreSystemDefault: '恢復系統預設版本',
 
     categories: {
       ...zhCN.promptConfig.categories,
@@ -194,6 +200,8 @@ export default {
       keyframeDescriptionDesc: '用於生成分鏡關鍵幀描述的提示詞模板',
       clipExecutionPlanner: 'Clip Execution Planner',
       clipExecutionPlannerDesc: '用於將已規劃的關鍵幀時間軸拆分為可執行的影片 Clip 計畫',
+      imageQualityReviewPrompt: 'AI 圖片品質評審',
+      imageQualityReviewPromptDesc: '依據生成圖、原始提示詞和參考圖來源綁定評審品質',
     },
 
     placeholderTip: '使用 {appearance} 和 {description} 作為佔位符',
@@ -202,6 +210,7 @@ export default {
     tipStyle: '僅描述媒介、線條、色彩、材質和光影；保留角色、道具和世界觀，不指定鏡頭、動作或對白。',
     templatePlaceholderStyle: '2D anime rendering, clean linework, flat colors, crisp cel shading',
     templateNames: {
+      'AI 图片质量评审': 'AI 圖片品質評審',
       '场景设定描述': '場景設定描述',
       '道具外观描述': '道具外觀描述',
       '故事世界上下文推荐': '故事世界上下文推薦',

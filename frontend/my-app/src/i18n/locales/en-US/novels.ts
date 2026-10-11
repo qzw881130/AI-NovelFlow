@@ -73,6 +73,8 @@ export default {
     keyframeDescriptionPromptHint: 'Select prompt template for generating shot keyframe descriptions',
     h3ExecutionOptimizerPromptLabel: 'MiniMax H3 Execution Prompt Optimizer',
     h3ExecutionOptimizerPromptHint: 'Use visual inputs to optimize execution while preserving canonical facts and event speaker ownership',
+    h3PreflightRepairPromptLabel: 'MiniMax H3 Preflight Auto Repair',
+    h3PreflightRepairPromptHint: 'Select the #14A repair prompt; use the system default when unspecified',
     promptTemplatesSection: 'Prompt Template Configuration',
     defaultTemplate: 'Use Default',
     stylePrompt: 'Style',

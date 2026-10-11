@@ -8,6 +8,7 @@ export default {
     scenes: '场景库',
     props: '道具库',
     tasks: '任务队列',
+    events: '事件中心',
     testCases: '测试用例',
     systemSettings: '系统配置',
     promptConfig: '提示词配置',

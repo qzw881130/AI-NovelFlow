@@ -6,6 +6,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime, timezone
 from sqlalchemy import inspect, text
 from sqlalchemy.orm import Session
 
@@ -47,6 +48,7 @@ class SystemConfigUpdate(BaseModel):
     parseCharactersPrompt: Optional[str] = None
     language: Optional[str] = None
     timezone: Optional[str] = None
+    autoImageReviewEnabled: Optional[bool] = None
 
 
 def get_or_create_config(db: Session) -> SystemConfigModel:
@@ -56,6 +58,12 @@ def get_or_create_config(db: Session) -> SystemConfigModel:
         columns = {column["name"] for column in inspector.get_columns("system_configs")}
         if "comfyui_timeout" not in columns:
             db.execute(text("ALTER TABLE system_configs ADD COLUMN comfyui_timeout INTEGER DEFAULT 900"))
+            db.commit()
+        if "auto_image_review_enabled" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled BOOLEAN NOT NULL DEFAULT 0"))
+            db.commit()
+        if "auto_image_review_enabled_at" not in columns:
+            db.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled_at DATETIME"))
             db.commit()
 
     config = db.query(SystemConfigModel).filter_by(id="default").first()
@@ -82,6 +90,7 @@ async def get_config(db: Session = Depends(get_db)):
             "llmMaxTokens": config.llm_max_tokens,
             "llmTemperature": config.llm_temperature,
             "llmTimeout": config.llm_timeout,
+            "autoImageReviewEnabled": bool(config.auto_image_review_enabled),
             # 代理配置
             "proxyEnabled": config.proxy_enabled,
             "httpProxy": config.http_proxy,
@@ -120,6 +129,7 @@ async def get_full_config(db: Session = Depends(get_db)):
             "llm_max_tokens": config.llm_max_tokens,
             "llm_temperature": config.llm_temperature,
             "llm_timeout": config.llm_timeout,
+            "auto_image_review_enabled": bool(config.auto_image_review_enabled),
             "proxy_enabled": config.proxy_enabled,
             "http_proxy": config.http_proxy,
             "https_proxy": config.https_proxy,
@@ -163,6 +173,11 @@ async def update_config(config: SystemConfigUpdate, db: Session = Depends(get_db
                 encrypted_key = encrypt_value(api_key)
                 db_config.llm_api_key = encrypted_key
                 updates["llm_api_key"] = api_key
+
+        if config.autoImageReviewEnabled is not None:
+            if config.autoImageReviewEnabled and (not db_config.auto_image_review_enabled or db_config.auto_image_review_enabled_at is None):
+                db_config.auto_image_review_enabled_at = datetime.now(timezone.utc)
+            db_config.auto_image_review_enabled = config.autoImageReviewEnabled
         
         if config.proxy:
             db_config.proxy_enabled = config.proxy.enabled

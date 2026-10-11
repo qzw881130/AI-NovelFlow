@@ -92,11 +92,11 @@ test('stale, failed, mismatched or unapproved native results are not READY', () 
   }
 });
 
-test('continuous native playback remains disabled; planned state is not mislabeled legacy', () => {
+test('native artifact requires materialized dual playback; planned state is not mislabeled legacy', () => {
   const { clip, task } = native();
   assert.equal(artifact(clip, task).playbackUrl, null);
   assert.equal(artifact({ ...clip, video_url: null, generated_by_task_id: undefined }).outputStatus, '尚无 native continuity output');
   assert.match(page, /video_url: getClipArtifactPresentation\(clip, task\)\.playbackUrl/);
-  assert.match(page, /selectedPreviewClipKey \? selectedPreviewClip\?\.video_url \|\| undefined/);
-  assert.match(page, /isContinuation && <button type="button" disabled/);
+  assert.match(page, /selectedPreviewClipKey \? selectedPreviewClipUrl \|\| selectedPreviewClip\?\.video_url \|\| undefined/);
+  assert.match(page, /<ClipPlaybackButtons/);
 });

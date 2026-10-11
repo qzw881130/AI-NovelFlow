@@ -49,12 +49,14 @@ PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
     ("关键帧生图", [
         ("temporal_reference_selector", "Temporal Anchor Reference Selector V1"),
         ("keyframe_image_prompt", "视频关键帧生图提示词构建"),
+        ("image_quality_review_prompt", "AI 图片质量评审"),
     ]),
     ("视频生成", [
         ("h3_single_frame_prompt", "MiniMax H3 单帧视频提示词构建"),
         ("h3_first_last_frame_prompt", "MiniMax H3 首尾帧视频提示词构建"),
         ("h3_multi_keyframe_prompt", "MiniMax H3 多关键帧视频提示词构建"),
         ("h3_execution_optimizer_prompt", "MiniMax H3 执行提示词优化"),
+        ("h3_preflight_repair_prompt", "MiniMax H3 Preflight 自动修复"),
     ]),
 ]
 
@@ -93,6 +95,21 @@ def init_system_prompt_templates(db: Session):
 
 
 # ==================== 模板 CRUD ====================
+
+@router.post("/image-quality-review/restore-default", response_model=dict)
+def restore_image_review_default(service: PromptTemplateService = Depends(get_template_service)):
+    try:
+        template = service.restore_image_review_default()
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"success": True, "data": service.to_response(template)}
+
+@router.get("/image-quality-review/effective", response_model=dict)
+def get_effective_image_review_template(service: PromptTemplateService = Depends(get_template_service)):
+    template = service.get_effective_image_review_template()
+    if not template:
+        raise HTTPException(status_code=404, detail="AI 图片质量评审系统模板未登记")
+    return {"success": True, "data": service.to_response(template)}
 
 @router.get("/", response_model=dict)
 def list_prompt_templates(

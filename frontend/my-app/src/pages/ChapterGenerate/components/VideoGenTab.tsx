@@ -1,3 +1,5 @@
+import { ShotAutoGeneration } from './ShotAutoGeneration';
+import { ClipPlaybackButtons } from './ClipPlaybackButtons';
 import { H3OptimizerResult } from './H3OptimizerResult';
 import { ClipVisualStateReferences } from './ClipVisualStateReferences';
 import { visualStatePromptIsCurrent } from '../clipVisualStateReferences';
@@ -34,6 +36,8 @@ import KeyframesManager from '../../../components/KeyframesManager';
 import AudioReferenceSelector from '../../../components/AudioReferenceSelector';
 import { ImagePreviewModal } from '../../../components/ImagePreviewModal';
 import { ImageEditModal } from '../../../components/ImageEditModal';
+import { ImageReviewModal } from '../../Tasks/components/ImageReviewModal';
+import { ImageQualityBadge, ImageQualitySummary, useImageQuality } from './ImageQualityStatus';
 import type { KeyframeData } from '../../../types';
 import type { CanonicalVisualState, SemanticClipPlan, VideoAiCall, VideoDirectorPlan, VideoMode } from '../../../api/shots';
 import { DIALOGUE_GAP_SECONDS, dialogueEmotion, dialogueSpeaker, dialogueText, estimateDialogueSeconds, formatUserFacingError, getClipDialoguesForDisplay, numberOrNull } from '../../../utils';
@@ -346,7 +350,7 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
           const preparation = clipPreparationPresentation(shot, Number(clip.clip_index));
           const clipGenerationDisabled = !!isShotVideoGenerating || !!regeneratingClipKey || savingReferences || !preparation.executionReady;
           return (
-            <div key={`${revision}-${clip.clip_index}`} className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
+            <div id={`event-clip-${shot.id}-${clip.clip_index}`} key={`${revision}-${clip.clip_index}`} className="rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm">
               <RequiredImagesPreparation shot={shot} novelId={novelId} chapterId={chapterId} clipIndex={Number(clip.clip_index)} onShot={onPreparationShot} />
               <p className="my-1 text-xs text-gray-600">片段执行：{preparation.label}</p>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
@@ -368,16 +372,10 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
                 <ClipVisualStateReferences shot={shot} clip={clip} novelId={novelId} chapterId={chapterId}
                   disabled={savingReferences || !!isShotVideoGenerating || !!regeneratingClipKey || tasks.some(t => ['pending', 'queued', 'processing', 'running'].includes(t.status))}
                   onShot={onPreparationShot} onSaving={setSavingReferences} />
-                <div className="ml-auto flex items-center gap-2">
+                <div className="ml-auto flex flex-wrap items-center gap-2">
                   {inspectorHref && <Link data-testid="clip-execution-inspector-entry" to={inspectorHref} target="_blank" rel="noopener noreferrer" className="rounded-md border border-indigo-200 px-2.5 py-1 text-[11px] font-medium text-indigo-700 hover:bg-indigo-50">{inspectorLabels.entry}</Link>}
-                  {artifact.playbackUrl && (
-                    <button type="button" onClick={() => onPreviewClip({ ...clip, clip_index: clip.clip_index, video_url: artifact.playbackUrl })} className="rounded-md border border-blue-200 px-2.5 py-1 text-[11px] font-medium text-blue-700 hover:bg-blue-50">
-                      播放片段 {clip.clip_index}
-                    </button>
-                  )}
-                  {isContinuation && <button type="button" disabled title={artifact.playbackUnavailableReason} className="rounded-md border border-gray-200 px-2.5 py-1 text-[11px] text-gray-500">
-                    独立预览暂不可用
-                  </button>}
+                  <ClipPlaybackButtons key={task?.id || `${shot.id}:${clip.clip_index}`} novelId={novelId} chapterId={chapterId} shotId={shot.id} clip={clip}
+                    ready={hasCurrentClipArtifact} playback={metadata?.clip_playback} onPreview={onPreviewClip} />
                   <div className="relative inline-flex">
                     <button
                       type="button"
@@ -1118,6 +1116,8 @@ function VideoDirectorPanel({
   const [showEndKeyframeMenu, setShowEndKeyframeMenu] = useState(false);
   const [showSelectedKeyframeMenu, setShowSelectedKeyframeMenu] = useState(false);
   const [openClipGenerateMenuKey, setOpenClipGenerateMenuKey] = useState<string | null>(null);
+  const [imageReviewTarget, setImageReviewTarget] = useState<{ task: { id: string; name: string }; autoStart: boolean } | null>(null);
+  const [loadingImageReviewTask, setLoadingImageReviewTask] = useState<string | null>(null);
 
   useEffect(() => {
     if (regeneratingClipKey && openClipGenerateMenuKey === regeneratingClipKey) {
@@ -1157,6 +1157,53 @@ function VideoDirectorPanel({
     if (kf.image_url || kf.imageUrl) return kf.image_url || kf.imageUrl;
     const legacyKeyframe = legacyKeyframes.find((item: any) => Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(kf.index));
     return legacyKeyframe?.image_url || legacyKeyframe?.imageUrl || null;
+  };
+  const getKeyframeImageTaskId = (kf: any): string | null => {
+    if (!kf) return null;
+    if (kf.role === 'START') return shot?.image_task_id || shot?.imageTaskId || null;
+    const legacyKeyframe = legacyKeyframes.find((item: any) => Number(item.plan_keyframe_index ?? item.planKeyframeIndex) === Number(kf.index));
+    return kf.image_task_id || kf.imageTaskId || legacyKeyframe?.image_task_id || legacyKeyframe?.imageTaskId || null;
+  };
+  const { current: imageQualities, error: imageQualityError } = useImageQuality(
+    keyframes.map((kf: any) => ({ taskId: getKeyframeImageTaskId(kf), imageUrl: getKeyframeImageUrl(kf) }))
+      .filter((image: any) => !!image.imageUrl), imageReviewTarget,
+  );
+  const renderImageQuality = (kf: any, imageUrl: string | null) => {
+    if (!imageUrl) return null;
+    const quality = imageQualities.find(item => item.taskId === getKeyframeImageTaskId(kf) && item.imageUrl === imageUrl);
+    return <ImageQualityBadge status={quality?.qualityStatus || 'NOT_REVIEWED'} summary={quality?.summary} />;
+  };
+  const openImageReview = async (kf: any, imageUrl: string, autoStart: boolean) => {
+    const taskId = getKeyframeImageTaskId(kf);
+    if (!taskId) return;
+    setLoadingImageReviewTask(taskId);
+    try {
+      const response = await taskApi.fetch(taskId);
+      const task = response.data as (Task & { promptText?: string }) | undefined;
+      if (!response.success || !task || task.status !== 'completed' || !['shot_image', 'keyframe_image'].includes(task.type)) {
+        throw new Error('当前视觉状态没有可评审的已完成图片任务');
+      }
+      const displayedImage = new URL(imageUrl, window.location.origin).pathname;
+      const generatedImage = task.resultUrl ? new URL(task.resultUrl, window.location.origin).pathname : '';
+      if (!generatedImage || displayedImage !== generatedImage) {
+        throw new Error('视觉状态图片与关联任务的生成结果不一致，请从对应图片任务评审');
+      }
+      if (!task.promptText?.trim()) throw new Error('关联图片任务缺少原始生图提示词');
+      setImageReviewTarget({ task: { id: task.id, name: task.name || `视觉状态 ${kf.index}` }, autoStart });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '无法打开 AI 评审');
+    } finally {
+      setLoadingImageReviewTask(null);
+    }
+  };
+  const renderImageReviewActions = (kf: any, imageUrl: string | null, compact = false) => {
+    const taskId = getKeyframeImageTaskId(kf);
+    if (!imageUrl || !taskId || isKeyframeGenerating(kf)) return null;
+    const busy = loadingImageReviewTask === taskId;
+    return <div className={`flex flex-wrap items-center gap-1.5 ${compact ? 'mt-2' : ''}`}>
+      <button type="button" disabled={busy} onClick={() => void openImageReview(kf, imageUrl, true)} className="rounded border border-blue-200 bg-white px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:opacity-50">{busy ? '加载中...' : 'AI 评审'}</button>
+      <button type="button" disabled={busy} onClick={() => void openImageReview(kf, imageUrl, false)} className="rounded border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50">查看评审历史</button>
+    </div>;
   };
   const getKeyframeFrameIndex = (kf: any) => {
     if (!kf || kf.role === 'START') return undefined;
@@ -1290,6 +1337,27 @@ function VideoDirectorPanel({
     setIsAdvancedDirectorOpen(false);
     setShowSelectedKeyframeMenu(false);
   }, [shot?.id, selectedMode]);
+
+  const eventTargetApplied = useRef('');
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const targetKey = `${shot?.id}:${selectedMode}:${window.location.search}`;
+    if (query.get('eventShot') !== shot?.id || eventTargetApplied.current === targetKey) return;
+    const stateId = query.get('visualState');
+    const clipId = query.get('clip');
+    const index = keyframes.findIndex((kf: any) => String(kf.index) === stateId);
+    if (stateId && index >= 0) {
+      setSelectedKeyframeIndex(index);
+      setIsAdvancedDirectorOpen(true);
+      requestAnimationFrame(() => document.getElementById(`event-state-${shot.id}-${stateId}`)?.scrollIntoView({ block: 'nearest', inline: 'center' }));
+      eventTargetApplied.current = targetKey;
+    } else if (clipId && clips.some((clip: any) => String(clip.clip_index) === clipId)) {
+      setSelectedClipKey(clipId);
+      setIsAdvancedDirectorOpen(true);
+      eventTargetApplied.current = targetKey;
+      requestAnimationFrame(() => document.getElementById(`event-clip-${shot.id}-${clipId}`)?.scrollIntoView({ block: 'center' }));
+    }
+  }, [shot?.id, selectedMode, keyframes, clips]);
 
   useEffect(() => {
     if (selectedKeyframeIndex >= keyframes.length) setSelectedKeyframeIndex(0);
@@ -1532,6 +1600,7 @@ function VideoDirectorPanel({
         {renderModeButton('MULTI_KEYFRAME')}
       </div>}
 
+      <ImageQualitySummary rows={imageQualities} error={imageQualityError} />
       {showKeyframeExecutionTimeline && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2">
           <div className="text-xs text-blue-700">
@@ -1839,15 +1908,15 @@ function VideoDirectorPanel({
                   const marker = keyframeClipCount > 1 ? '⇄' : kf.role === 'START' || kf.role === 'END' ? '★' : '◇';
                   const canonicalImageStatus = isCanonicalPlan ? getVisualStateExecutionImageStatus(kf, plan, keyframeImageUrl) : null;
                   return (
+                    <div id={`event-state-${shot.id}-${kf.index}`} key={`${kf.index}-${kf.time_seconds}`} className={isCanonicalPlan ? 'w-44 min-w-44' : 'min-w-24'}>
                     <button
-                      key={`${kf.index}-${kf.time_seconds}`}
                       type="button"
                       onClick={() => {
                         setSelectedKeyframeIndex(idx);
                         setSelectedClipKey(null);
                       }}
                       title={`${kf.role}${keyframeClipCount > 1 ? ` · ${t('chapterGenerate.sharedBoundary')}` : ''}${isGenerating ? ` · ${t('chapterGenerate.generatingShort')}` : hasImage ? ` · ${t('chapterGenerate.generated')}` : isCanonicalPlan ? ` · ${getVisualStateImageStatusLabel(kf)}` : ` · ${t('chapterGenerate.missingImage')}`}`}
-                      className={`relative ${isCanonicalPlan ? 'w-44 min-w-44 p-2 text-left' : 'h-14 min-w-24 px-2 py-1 text-center'} rounded-lg transition-all ${isCurrentKeyframe
+                      className={`relative w-full ${isCanonicalPlan ? 'p-2 text-left' : 'h-14 px-2 py-1 text-center'} rounded-lg transition-all ${isCurrentKeyframe
                         ? 'border border-blue-300 bg-blue-50 text-blue-700 shadow-sm ring-2 ring-blue-100'
                         : isInSelectedClip
                           ? 'border border-blue-100 bg-blue-50/50 text-blue-700'
@@ -1892,6 +1961,9 @@ function VideoDirectorPanel({
                       )}
                       {isCurrentKeyframe && <div className="absolute -bottom-1 left-2 right-2 h-1 rounded-full bg-blue-500" />}
                     </button>
+                    <div className="mt-1">{renderImageQuality(kf, keyframeImageUrl)}</div>
+                    {renderImageReviewActions(kf, keyframeImageUrl, true)}
+                    </div>
                   );
                 })}
               </div>
@@ -1981,6 +2053,8 @@ function VideoDirectorPanel({
                   </div>
                 )}
               </div>
+              <div className="my-2" data-testid="director-image-quality">{renderImageQuality(selectedKeyframe, selectedKeyframeImageUrl)}</div>
+              {renderImageReviewActions(selectedKeyframe, selectedKeyframeImageUrl)}
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-medium text-gray-700">
                   {isCanonicalPlan ? `${t('chapterGenerate.visualState')} ${selectedKeyframe?.index || 1}` : `KF${selectedKeyframe?.index || 1}`} · {selectedKeyframe?.time_seconds || 0}s
@@ -2383,6 +2457,15 @@ function VideoDirectorPanel({
         </div>
       </details>
     </div>
+    {imageReviewTarget && createPortal(
+      <ImageReviewModal
+        key={imageReviewTarget.task.id}
+        task={imageReviewTarget.task}
+        autoStart={imageReviewTarget.autoStart}
+        onClose={() => setImageReviewTarget(null)}
+      />,
+      document.body,
+    )}
     {viewingPromptClip?.prompt_text && createPortal((
       <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/50 p-4" onClick={() => setViewingPromptClip(null)}>
         <div className="flex max-h-[86vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
@@ -2566,6 +2649,7 @@ export function VideoGenTab({
   const [isRefreshingVideo, setIsRefreshingVideo] = useState(false);
   const [selectedPreviewClipKey, setSelectedPreviewClipKey] = useState<string | null>(null);
   const [selectedPreviewClipUrl, setSelectedPreviewClipUrl] = useState<string | null>(null);
+  const [selectedPlaybackSource, setSelectedPlaybackSource] = useState<{ url: string; label: string } | null>(null);
   const [semanticClipTasks, setSemanticClipTasks] = useState<Task[]>([]);
   const [regeneratingClipKey, setRegeneratingClipKey] = useState<string | null>(null);
   const regeneratingClipWasActiveRef = useRef(false);
@@ -2651,7 +2735,7 @@ export function VideoGenTab({
     ? hasCurrentAssembly(currentVideoDirectorPlan, semanticClipTasks) ? (currentVideoDirectorPlan.merged_video_url || currentShotVideoUrl) : undefined
     : currentShotVideoUrl;
   const previewVideoUrl = hasSemanticClipPlan
-    ? selectedPreviewClipKey ? selectedPreviewClip?.video_url || undefined : currentFinalShotVideoUrl
+    ? selectedPreviewClipKey ? selectedPreviewClipUrl || selectedPreviewClip?.video_url || undefined : currentFinalShotVideoUrl
     : selectedPreviewClipUrl || selectedPreviewClip?.video_url || currentFinalShotVideoUrl;
   const previewVideoLabel = selectedPreviewClip ? `C${selectedPreviewClip.window_index || selectedPreviewClip.clip_index}` : 'Shot';
   const previewClipMarkers = !selectedPreviewClip && !hasSemanticClipPlan && currentSelectedVideoMode === 'MULTI_KEYFRAME'
@@ -3741,6 +3825,8 @@ export function VideoGenTab({
   }, [currentShotData?.videoTaskId, currentShotId, refreshCurrentShotData, setShots, shotsList, t]);
 
   const handlePreviewClip = useCallback((clip: any) => {
+    setSelectedPlaybackSource(clip?.playback_source_label && clip?.video_url
+      ? { url: clip.video_url, label: clip.playback_source_label } : null);
     setSelectedPreviewClipKey(clip ? getPlanClipKey(clip) : null);
     setSelectedPreviewClipUrl(clip?.video_url || null);
   }, []);
@@ -4464,6 +4550,7 @@ export function VideoGenTab({
       <div className="flex-1 min-h-0 flex flex-col lg:flex-row gap-4 overflow-hidden">
         {/* 中间：视频提示词编辑 + 视频导演 */}
         <div className="video-main-column flex-1 min-w-0 flex flex-col gap-4 overflow-y-auto pr-1">
+          <ShotAutoGeneration novelId={effectiveNovelId} chapterId={effectiveChapterId} shotId={currentShotId || ''} onProgress={refreshCurrentShotData} />
           <VideoDirectorPanel
             shot={currentShotData}
             shotImageUrl={currentShotImageUrl}
@@ -4513,6 +4600,7 @@ export function VideoGenTab({
             <div>
               <h3 className="text-sm font-semibold text-gray-800">{selectedPreviewClip ? `片段预览 · ${previewVideoLabel}` : '最终 Shot 视频'}</h3>
               {selectedPreviewClip && <div className="text-xs text-gray-500">C{selectedPreviewClip.window_index || selectedPreviewClip.clip_index} · {selectedPreviewClip.start_time}-{selectedPreviewClip.end_time}s</div>}
+              {selectedPreviewClip && selectedPlaybackSource && selectedPlaybackSource.url === previewVideoUrl && <div className="mt-1 text-xs text-amber-700" data-testid="clip-playback-source">{selectedPlaybackSource.label}</div>}
               {!selectedPreviewClip && currentFinalShotVideoUrl && <div className="text-xs text-green-700">当前权威合并结果</div>}
             </div>
             <div className="flex items-center gap-1">

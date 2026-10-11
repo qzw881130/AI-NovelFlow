@@ -161,6 +161,7 @@ export default {
       chapterVideo: "為章節 '{name}' 生成影片",
     },
     workflowDetails: '工作流詳情',
+    downloadWorkflowArchive: '打包下載',
     generationPrompt: '生成提示詞',
     workflowJSON: '工作流 JSON',
     boundWorkflowParameters: '工作流綁定參數（{count} 項）',

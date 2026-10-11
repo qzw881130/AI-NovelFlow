@@ -283,10 +283,18 @@ async def test_each_completion_path_invalidates_exact_consumer(db_session,fixtur
         ok,_,message=await ShotKeyframeService().replace_keyframe_image(db_session,fixture.id,2,'/new.png');assert ok,message
     else:
         t=task(db_session,fixture,4)
+        from app.services import image_review_worker
+        completed_events = []
+        def on_completed(task_id):
+            db_session.refresh(t)
+            assert t.status == 'completed' and t.result_url == '/new.png'
+            completed_events.append(task_id)
+        monkeypatch.setattr(image_review_worker, 'image_generation_completed', on_completed)
         monkeypatch.setattr(tm.file_storage,'download_image',AsyncMock(return_value=str(tmp_path/'new.png')))
         monkeypatch.setattr(tm,'local_path_to_url',lambda _:'/new.png')
         service=TaskService();service.comfyui_service=SimpleNamespace(client=SimpleNamespace(_parse_outputs=lambda *a:{'success':True,'image_url':'mock://new'}))
         assert await service._recover_completed_keyframe_prompt(t,{'outputs':{'1':{}}},db_session)
+        assert completed_events == [t.id]
     assert [c['clip_index'] for c in plan(fixture)['clip_plan'] if c.get('video_url') is None]==[3,4,5,6]
 
 

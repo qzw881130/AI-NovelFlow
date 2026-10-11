@@ -82,7 +82,8 @@ async def test_multi_reference_video_uploads_only_supplied_images(db_session, mo
         return {"success": True, "prompt_id": "test-job"}
 
     async def wait_for_result(*_args, **_kwargs):
-        return {"success": True, "video_url": "video.mp4"}
+        return {"success": True, "video_url": "video.mp4",
+                "comfyui_history": {"prompt": [0, "test-job", queued[0]], "outputs": {}}}
 
     monkeypatch.setattr(service.client, "upload_image", upload_image)
     monkeypatch.setattr(service.client, "queue_prompt", queue_prompt)
@@ -97,6 +98,7 @@ async def test_multi_reference_video_uploads_only_supplied_images(db_session, mo
     )
 
     assert result["success"] and len(queued) == 1
+    assert result["comfyui_history"]["prompt"][2] == queued[0]
     graph = queued[0]
     assert graph["138"]["inputs"]["value"] == "test prompt"
     assert [graph[json.loads(workflow.node_mapping)[f"load_image_node_{i + 1}"]]["inputs"]["image"] for i in range(count)] == [

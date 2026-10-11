@@ -1,0 +1,773 @@
+{
+  "raw_prompt": "subject_definitions:\n- <Subject 1> is 骗子1, 约三十五岁的人类男性，身材高瘦、比例修长；长窄脸、宽平额头、略高颧骨、清晰下颌和稍尖下巴，右侧鼻翼旁有小褐痣；细长灰绿色上挑双眼皮眼，高直窄鼻，偏薄嘴唇；暖调浅肤色带轻微风吹日晒细纹；深棕色微卷短发向后梳理，发际线两侧略高，保留修剪整齐的深棕色小胡子且下巴无须。当前服装状态只延续权威时间视觉条件所建立的外观。\n- <Subject 2> is 骗子2, 约三十二岁的人类男性，身高略矮、体型稍显敦实而灵便；圆中带方的脸、饱满额头、较宽下颌和短圆下巴，左侧嘴角下方有明显小黑痣；中等大小的琥珀褐色圆杏眼，短鼻梁、圆钝鼻尖，暖调浅麦色皮肤与自然红润双颊；栗褐色浓密短卷发从左侧分开，面部无胡须。当前服装状态只延续权威时间视觉条件所建立的外观。\n\nofficial_character_identity_lock:\nThe referenced visual anchors are the primary visual authority for the currently established visual identity of each <Subject N> at the corresponding chronological time anchors. Official character descriptions are identity-preservation constraints that prevent character drift. They supplement the referenced visual anchors but must not override clearly visible identity features established by those anchors.\n\n对每个 <Subject N>，在整个 Clip 中保持同一主体身份，包括相同的脸、年龄、身体比例、发型或面部毛发、肤色、永久标记、稳定身体特征与身份定义配饰。当前服装是独立于稳定身份的连续性域：严格延续权威时间视觉条件与 canonical visual state 所建立的当前服装，不得用 official appearance 中的历史或默认服装恢复、覆盖、叠加、混穿或混色。若多个时间视觉锚点显示同一套服装，则全程保持该服装；除非正式视觉状态明确表现真实换装，否则不得制造服装变化。\n\n不得重新设计、美化、老化、年轻化、换脸、换色、替换或复制任何 <Subject N>。不得把阴影、暗光、冷暖调色、距离或运动模糊误解为肤色、发色或当前服装颜色改变。姿势、表情、视线、朝向、空间位置和自然动作可依 transition 改变。因姿势、遮挡、距离或照明而暂时不可见的稳定身份细节，在重新可见时必须保持。若文本身份描述与视觉锚点清楚可见的当前身份特征冲突，以视觉锚点为准。\n\n仅允许 <Subject 1> 与 <Subject 2> 出现在当前画面中；不得新增人物、人物复制、身份交换、无依据出现或消失、左右关系镜像翻转、场景重置、额外道具或无依据手持物。保持自然人体结构、座位和织机之间的物理接触关系，禁止瞬移、穿模和肢体畸变。画面中不得出现 subtitles、captions、titles、speech bubbles、logos、watermarks、UI 或任何 on-screen text。Character names、Subject labels 与其他 metadata tokens 均仅作为元数据标识，不得成为画面文字。\n\nkeyframe_timeline:\n- <Picture 1>: 王宫织造室的场景参考，建立织造室空间、关闭的房门与整体环境结构。\n- <Picture 2>: <Subject 1> 的稳定人物身份参考，仅用于身份保持，不将资产中的默认服装、站姿或肖像构图当作当前状态。\n- <Picture 3>: <Subject 2> 的稳定人物身份参考，仅用于身份保持，不将资产中的默认服装、站姿或肖像构图当作当前状态。\n- <Picture 4>: 脚踏织机的道具参考，保持其前现代木制结构、尺度和功能形态。\n- KF8 — INTERMEDIATE — Clip-local 10.15s — TEXT_ONLY: 王宫织造室内，摄影机在连续横移后形成偏向两位主体侧面的中全景，关闭的房门仍在背景，空置的编织区域清晰可见。<Subject 1> 靠坐在左侧织机前，眉眼舒展，带着狡黠而笃定的笑意看向 <Subject 2>。<Subject 2> 面向 <Subject 1>，原本困惑的神情已经舒展，嘴角扬起认同而会意的笑容。两位主体隔着织机交换会意视线，紧张感消散，空织机仍处于二者之间。\n\ndialogue_timeline:\nThis is the only source of exact spoken text in this prompt.\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\nAll assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.\nHuman vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.\nBefore the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation. Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nD16:\n  speaker: <Subject 1>\n  start_time: 0.1s\n  end_time: 0.85s\n  exact_dialogue: 怕什么？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 0.85s to 1.05s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD17:\n  speaker: <Subject 1>\n  start_time: 1.05s\n  end_time: 4.8s\n  exact_dialogue: 从现在开始，越有人来看，我们越安全。\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 4.8s to 5.0s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD18:\n  speaker: <Subject 2>\n  start_time: 5.0s\n  end_time: 5.75s\n  exact_dialogue: 为什么？\n  segment: complete assigned span.\n  Only <Subject 2> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 5.75s to 5.95s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD19:\n  speaker: <Subject 1>\n  start_time: 5.95s\n  end_time: 9.2s\n  exact_dialogue: 因为谁敢说自己什么都没看见？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 9.2s to 9.4s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD20:\n  speaker: <Subject 2>\n  start_time: 9.4s\n  end_time: 10.15s\n  exact_dialogue: 说得对。\n  segment: complete assigned span.\n  Only <Subject 2> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\n\nsummary:\n从所提供 Previous AV 的 ending visual state 连续延续，不切断既有空间关系、当前外观、座位位置和动作趋势。保持 <Subject 1> 与 <Subject 2> 分处织机两侧、空置编织区域位于二者之间、关闭房门位于背景的连续关系；当前服装和既有物体状态持续一致，不重置场景或引入新元素。\n\ndetailed_description:\n[Shot 1]\n\nClip-local 0.00s–10.15s，对应 Shot-global transition 与本 Clip 的有效交集。承接 Previous AV ending visual state 与 carry-in context，沿既有机位和运动方向继续执行单一连续镜头，从起始状态自然推进至 KF8。\n\n摄影机沿两架脚踏织机之间平稳横移，不切镜、不跳轴，逐渐形成偏向两位主体侧面的中全景。通过轻微而连续的构图补偿，让关闭的房门始终保留在背景，同时使二者之间空置的编织区域逐步变得更清楚。镜头不突然推近，不改为孤立肖像构图，并始终维持织机两侧的双人空间关系。\n\n开始时短暂承接既有松弛姿态：<Subject 2> 的肩膀下沉，身体稍靠椅背，一只手自然搭在织机旁；<Subject 1> 保持从容的侧向视线。随后视觉重心平滑移向 <Subject 1>。<Subject 1> 在左侧织机前进一步靠稳，但不离开座位；眉眼逐渐舒展，神情从镇定自然转为狡黠而笃定的笑意，视线持续落向 <Subject 2>。\n\n与此同时，<Subject 2> 不移动座位，只让上身和视线缓慢转向 <Subject 1>。肩颈进一步放松，残留的困惑与余悸逐步消退，嘴角自然扬起会意而认同的笑容。动作幅度克制、连贯，手与织机的接触自然稳定，没有突然挥动、起身或改变位置。\n\n摄影机以连续横移和细微构图调整，依次保证 <Subject 1> 的神态变化、<Subject 2> 的反应以及二者隔着织机的关系清晰可读。临近终点时，画面重心从 <Subject 1> 平滑分配到两位主体之间，并自然偏向 <Subject 2> 的会意反应，但不脱离双人关系。于 Clip-local 10.15s 准确到达 KF8；到达后不增加新动作、新人物或后续剧情。\n\noverall_soundscape:\n保持封闭王宫织造室内自然、克制的室内 room tone，包括轻微空间回响与低弱环境底噪。身体靠稳、转身和肩颈放松产生细微衣料摩擦声；手部与织机附近发生自然接触时带有轻微木质触碰声，座椅和木制织机可出现与可见重心变化一致的低弱吱呀声。织机保持空置，不添加持续运转声、脚踏声或不存在的纺织机械声。不凭空加入音乐、脚步、室外活动或其他无来源声响。\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — SCENE / 王宫织造室: environment identity and appearance only; incidental people are not additional Subjects.\n<Picture 4> — PROP / 脚踏织机: prop identity/appearance only; current canonical state decides who owns/holds it and where it is.\n\ncharacter_identity_binding:\n<Picture 2> ↔ <Subject 1> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 3> ↔ <Subject 2> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n\nexisting_body_binding:\nApply <Picture 2> identity to the existing/current body of <Subject 1> — 骗子1, defined by Previous AV and canonical KF7. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 3> identity to the existing/current body of <Subject 2> — 骗子2, defined by Previous AV and canonical KF7. Do not create a second body or transfer this identity to another visible body.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.00–0.10s: Maintain primary narrative emphasis around <Subject 2> within the established composition. The authorized actions of <Subject 1> remain background motion; accommodate them without shifting dominance solely because they move.\n0.10–4.80s: Maintain primary narrative emphasis around <Subject 1> within the established composition.\n4.80–5.95s: Maintain primary narrative emphasis around <Subject 2> within the established composition.\n5.95–9.20s: Maintain primary narrative emphasis around <Subject 1> within the established composition.\n9.20–10.20s: Gradually redistribute attention from <Subject 1> toward <Subject 2>, allowing ensemble composition. Do not cut or imply that an approach must finish within this interval. This is progress 0–0.606061 of the original handoff; do not restart it or complete it early.",
+  "output": {
+    "optimized_prompt": "subject_definitions:\n<Subject 1> is 骗子1, a tall, slim man around thirty-five with a long narrow face, warm light skin, gray-green eyes, swept-back short dark-brown hair, a neat dark-brown moustache, and a small brown mole beside his right nostril. <Picture 2> supplies identity only for <Subject 1>.\n<Subject 2> is 骗子2, a slightly shorter, sturdier man around thirty-two with a rounded-square face, warm light-tan skin, amber-brown eyes, thick short chestnut curls, no facial hair, and a small black mole below the left corner of his mouth. <Picture 3> supplies identity only for <Subject 2>.\n\nsummary:\nA 12-second continuous continuation in the palace weaving room carries forward the incoming ensemble view, then uses a slow lateral camera drift and subtle compositional emphasis within the readable two-shot. Both men remain seated at their established looms while attention passes naturally between speakers and resolves into their shared, knowing look.\n\nretention_analysis:\nPreserve the incoming bodies, current clothing, seated positions, left-right relationship, eyelines, and physical contact with the looms. <Picture 1> guides the palace weaving-room environment and closed background door; <Picture 4> guides the pre-modern wooden treadle looms, which remain empty and still. <Picture 2> and <Picture 3> are identity-only references and do not overwrite current costume, pose, staging, or blocking. The terminal side-biased ensemble state guides the relaxed expressions and clear empty weaving area without requiring an exact reference composition.\n\ndetailed_description:\nContinue the incoming camera state and motion through the shared opening context without replaying any completed action or dialogue. Only <Subject 1> and <Subject 2> are present. They remain seated in their established places on opposite sides of the empty wooden looms, with the closed door in the background and their current clothing unchanged. The camera then continues its gentle lateral drift between the looms, preserving the axis and gradually clarifying the empty weaving area. The ongoing lateral composition keeps both seated faces and mouths readable across the empty weaving space. <Subject 2> rests back with lowered shoulders and one hand naturally near his loom while <Subject 1> looks toward him with calm assurance. With <Subject 2> listening naturally with relaxed closed lips and no speech-like articulation, <Subject 1> (S1) asks, <d>[Chinese] 怕什么？</d>\n\nAfter a brief natural pause, <Subject 1> remains seated at the left loom and settles back more confidently. His eyes soften and a sly, assured smile begins to form; <Subject 2> remains a quiet listener with relaxed closed lips. The ongoing lateral composition keeps both seated faces and mouths readable across the empty weaving space. <Subject 1> (S1) says, <d>[Chinese] 从现在开始，越有人来看，我们越安全。</d>\n\n<Subject 1> ends his articulation, closes his lips naturally, and becomes an attentive listener. That same established ensemble view continues to hold <Subject 2>'s face and mouth at useful scale while <Subject 1> also remains readable; neither man leaves his seat or established loom position. <Subject 1> listens with relaxed closed lips and no speech-like articulation as <Subject 2> turns his gaze and upper body slightly toward him. With that readable view maintained, <Subject 2> (S2) asks, <d>[Chinese] 为什么？</d>\n\n<Subject 2> finishes the question, relaxes his mouth, and listens. The continuing lateral composition transfers emphasis from <Subject 2> to <Subject 1> while preserving both seated positions, bringing <Subject 1>'s face and mouth into stronger readable prominence and keeping <Subject 2> visibly available for reaction. <Subject 2> listens naturally with relaxed closed lips and no speech-like articulation. With <Subject 1>'s view established, <Subject 1> (S1) replies, <d>[Chinese] 因为谁敢说自己什么都没看见？</d>\n\n<Subject 1> completes the reply, lets his lips close, and holds his sly, confident smile as a listener. Without moving either man, the lateral ensemble composition transfers emphasis from <Subject 1> to <Subject 2>, keeping <Subject 2>'s face and mouth clearly readable while <Subject 1> remains seated at the left loom. <Subject 1> listens naturally with relaxed closed lips and no speech-like articulation. With <Subject 2>'s response view established, <Subject 2> (S2) answers, <d>[Chinese] 说得对。</d>\n\nAfter the line, both mouths relax. The camera settles into a side-biased medium-wide ensemble: <Subject 1> leans comfortably at the left loom with a sly, assured smile toward <Subject 2>; <Subject 2> faces him as his remaining confusion dissolves into an open, approving smile. They exchange a knowing look across the empty loom, the tension gone, while the empty weaving area stays clear and the door remains closed in the background. Hold this completed state briefly without beginning the next action.\n\noverall_soundscape:\nMaintain restrained indoor room tone in the enclosed palace weaving room, with mild natural reverberation and low ambient noise. Add only synchronized, subtle clothing rustle, quiet wood contact, and faint chair or loom creaks caused by visible posture adjustments. The empty looms do not run: no treadling, weaving mechanism, footsteps, outside activity, or extra human vocalization.\n\nnon_diegetic_music:\nN/A",
+    "duration": {
+      "original_duration": 10.2,
+      "optimized_duration": 12.0,
+      "duration_delta": 1.8,
+      "duration_changed": true,
+      "reason": "The verified 1.625-second shared continuation prefix cannot contain new dialogue. All utterances retain their exact durations and order after that boundary, while the existing short pauses are preserved and a brief post-dialogue anchor arrival and final hold complete the required visual outcome."
+    },
+    "complexity": {
+      "level": "MEDIUM",
+      "reasons": [
+        "Five fixed-duration utterances must follow a protected continuation prefix.",
+        "Three alternating-speaker handoffs occur within one seated ensemble arrangement.",
+        "The slow lateral camera path must support readable mouths without changing canonical blocking.",
+        "The final text-only visual anchor must be retimed after the shifted dialogue."
+      ]
+    },
+    "risks": [
+      {
+        "code": "CONTINUATION_SEAM_REVIEW",
+        "detail": "Verify that the preserved opening context transitions naturally into the new lateral reframing without restarting motion or duplicating prior dialogue."
+      },
+      {
+        "code": "ENSEMBLE_LIP_SYNC_REVIEW",
+        "detail": "Because both faces remain visible through several turns, review each speaker switch for correct articulation and naturally closed listener lips."
+      },
+      {
+        "code": "ANCHOR_ARRIVAL_MODEL_VARIANCE",
+        "detail": "KF8 is text-only soft guidance; the planned arrival is an internal target rather than deterministic frame binding."
+      }
+    ],
+    "changes": [
+      {
+        "area": "dialogue timing",
+        "before": "The first line began at 0.1 seconds inside the protected continuation context.",
+        "after": "All dialogue events move together by 1.525 seconds, beginning at the earliest permitted new-dialogue boundary.",
+        "reason": "New dialogue and mouth articulation cannot occur during the shared context prefix."
+      },
+      {
+        "area": "duration",
+        "before": "10.2 seconds total.",
+        "after": "12.0 seconds total.",
+        "reason": "The extension accommodates the protected context once, all fixed speech durations, preserved pauses, anchor arrival, and a meaningful final settle."
+      },
+      {
+        "area": "anchor timing",
+        "before": "KF8 targeted 10.15 seconds.",
+        "after": "KF8 is retimed to 11.8 seconds after the final response.",
+        "reason": "The required terminal expressions and shared look must follow the dialogue shifted beyond the protected context."
+      },
+      {
+        "area": "speaker camera execution",
+        "before": "General continuous lateral movement and visual-priority instructions.",
+        "after": "A readable seated ensemble is maintained, with explicit compositional emphasis transfers at each speaker switch.",
+        "reason": "This supports articulation while preserving the continuous camera preference and canonical seated blocking."
+      }
+    ],
+    "timing_recommendations": [
+      "Preserve the existing AV context unchanged through 1.625 seconds and begin no new articulation before that boundary.",
+      "Keep the 0.2-second pauses as natural release-and-attention beats rather than extending them mechanically.",
+      "Review that the final response finishes before the shared knowing look reaches its completed anchor state."
+    ],
+    "canonical_visual_requirements": [
+      {
+        "id": "CVR1",
+        "requirement": "Carry forward both existing bodies, current costumes, seated postures, established left-right positions, and loom contact from the previous clip.",
+        "source_id": "opening_state",
+        "source_excerpt": "保持 <Subject 1> 与 <Subject 2> 分处织机两侧、空置编织区域位于二者之间、关闭房门位于背景的连续关系；当前服装和既有物体状态持续一致",
+        "prompt_excerpt": "They remain seated in their established places on opposite sides of the empty wooden looms, with the closed door in the background and their current clothing unchanged."
+      },
+      {
+        "id": "CVR2",
+        "requirement": "Show the palace weaving room with its closed background door and stable environment.",
+        "source_id": "opening_state",
+        "source_excerpt": "<Picture 1>: 王宫织造室的场景参考，建立织造室空间、关闭的房门与整体环境结构。",
+        "prompt_excerpt": "<Picture 1> guides the palace weaving-room environment and closed background door"
+      },
+      {
+        "id": "CVR3",
+        "requirement": "Keep the pre-modern wooden treadle looms empty and still, with the empty weaving area visible between the men.",
+        "source_id": "transition_1",
+        "source_excerpt": "二人之间空置的编织区域随横移变得更加清楚",
+        "prompt_excerpt": "gradually clarifying the empty weaving area"
+      },
+      {
+        "id": "CVR4",
+        "requirement": "<Subject 1> remains seated at the left loom and develops a sly, assured smile while looking toward <Subject 2>.",
+        "source_id": "transition_1",
+        "source_excerpt": "骗子1在左侧织机前进一步靠稳，眉眼逐渐舒展，神情由镇定转为狡黠而笃定的笑意，身体位置不离开座位。",
+        "prompt_excerpt": "<Subject 1> leans comfortably at the left loom with a sly, assured smile toward <Subject 2>"
+      },
+      {
+        "id": "CVR5",
+        "requirement": "<Subject 2> remains seated, turns toward <Subject 1>, relaxes, and develops an approving, knowing smile.",
+        "source_id": "transition_1",
+        "source_excerpt": "骗子2不移动座位，只将上身和视线缓缓转向骗子1，残留的困惑与余悸逐步消退",
+        "prompt_excerpt": "<Subject 2> faces him as his remaining confusion dissolves into an open, approving smile."
+      },
+      {
+        "id": "CVR6",
+        "requirement": "Finish in a side-biased medium-wide ensemble with both men exchanging a knowing look across the empty loom and the tension dissipated.",
+        "source_id": "opening_state",
+        "source_excerpt": "两位主体隔着织机交换会意视线，紧张感消散，空织机仍处于二者之间。",
+        "prompt_excerpt": "They exchange a knowing look across the empty loom, the tension gone"
+      },
+      {
+        "id": "CVR7",
+        "requirement": "Only <Subject 1> and <Subject 2> appear; introduce no person, duplicate, prop, held object, text, or scene reset.",
+        "source_id": "opening_state",
+        "source_excerpt": "仅允许 <Subject 1> 与 <Subject 2> 出现在当前画面中；不得新增人物、人物复制、身份交换、无依据出现或消失、左右关系镜像翻转、场景重置、额外道具或无依据手持物。",
+        "prompt_excerpt": "Only <Subject 1> and <Subject 2> are present."
+      }
+    ],
+    "reference_projection": [
+      {
+        "source_picture": "<Picture 1>",
+        "picture": "<Picture 1>"
+      },
+      {
+        "source_picture": "<Picture 2>",
+        "picture": "<Picture 2>"
+      },
+      {
+        "source_picture": "<Picture 3>",
+        "picture": "<Picture 3>"
+      },
+      {
+        "source_picture": "<Picture 4>",
+        "picture": "<Picture 4>"
+      }
+    ],
+    "authority_echo": {
+      "generation_mode": "EXTEND",
+      "dialogue_events": [
+        {
+          "id": "D16",
+          "speaker": "<Subject 1>",
+          "exact_dialogue": "怕什么？",
+          "duration": 0.75,
+          "order": 1
+        },
+        {
+          "id": "D17",
+          "speaker": "<Subject 1>",
+          "exact_dialogue": "从现在开始，越有人来看，我们越安全。",
+          "duration": 3.75,
+          "order": 2
+        },
+        {
+          "id": "D18",
+          "speaker": "<Subject 2>",
+          "exact_dialogue": "为什么？",
+          "duration": 0.75,
+          "order": 3
+        },
+        {
+          "id": "D19",
+          "speaker": "<Subject 1>",
+          "exact_dialogue": "因为谁敢说自己什么都没看见？",
+          "duration": 3.25,
+          "order": 4
+        },
+        {
+          "id": "D20",
+          "speaker": "<Subject 2>",
+          "exact_dialogue": "说得对。",
+          "duration": 0.75,
+          "order": 5
+        }
+      ],
+      "subject_bindings": {
+        "<Subject 1>": "骗子1",
+        "<Subject 2>": "骗子2"
+      },
+      "reference_bindings": [
+        {
+          "picture": "<Picture 1>",
+          "type": "SCENE",
+          "subject": null,
+          "source_name": "王宫织造室",
+          "source_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 2>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 1>",
+          "source_name": "骗子1",
+          "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 3>",
+          "type": "CHARACTER_IDENTITY",
+          "subject": "<Subject 2>",
+          "source_name": "骗子2",
+          "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+          "state_index": null,
+          "role": null
+        },
+        {
+          "picture": "<Picture 4>",
+          "type": "PROP",
+          "subject": null,
+          "source_name": "脚踏织机",
+          "source_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+          "state_index": null,
+          "role": null
+        }
+      ],
+      "visual_anchor_order": [
+        {
+          "id": "KF8",
+          "order": 1,
+          "declaration_prefix": "INTERMEDIATE — Clip-local",
+          "visual_target": "— TEXT_ONLY: 王宫织造室内，摄影机在连续横移后形成偏向两位主体侧面的中全景，关闭的房门仍在背景，空置的编织区域清晰可见。<Subject 1> 靠坐在左侧织机前，眉眼舒展，带着狡黠而笃定的笑意看向 <Subject 2>。<Subject 2> 面向 <Subject 1>，原本困惑的神情已经舒展，嘴角扬起认同而会意的笑容。两位主体隔着织机交换会意视线，紧张感消散，空织机仍处于二者之间。",
+          "picture": null
+        }
+      ],
+      "temporal_anchor_order": [],
+      "allowed_dialogue_overlaps": [],
+      "continuation": {
+        "mode": "VIDEO_CONTINUATION",
+        "binding_verified": true,
+        "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+        "source_sha256": "6f72a0db851155653bb78f876f0727f6421d4f6d390a26d79f87f1daf99fbc3e",
+        "previous_frames": 753,
+        "fps": 24,
+        "context_frames": 39,
+        "overlap_frames": 39,
+        "overlap_seconds": 1.625,
+        "source_start_frame": 714,
+        "source_end_frame_exclusive": 753,
+        "clip_local_time_origin": "TARGET_AV_FRAME_0_INCLUDES_SHARED_CONTEXT",
+        "masked_time_origin": "SAME_AS_CLIP_LOCAL_NO_ADDITIONAL_SHIFT",
+        "cumulative_start_frame": 714,
+        "earliest_new_dialogue": 1.625,
+        "audio_hard_preserve_until": 1.425,
+        "audio_feather_until": 1.625,
+        "audio_feather_ticks": 8,
+        "duration_semantics": "TOTAL_C2_INCLUDING_CONTEXT; no worker overlap addition",
+        "frame_expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+        "assembly": "previous_frames + target_frames - context_frames",
+        "video_overlap": "blend source tail with decoded preserved prefix",
+        "audio_overlap": "decoded extension audio replaces source tail; feather is not new-speech budget"
+      },
+      "anchor_policy": {
+        "version": 1,
+        "catalog": [
+          {
+            "anchor_id": "KF8",
+            "original_time": 10.15,
+            "source_picture": null,
+            "source_kind": null,
+            "visual_reference_description": "— TEXT_ONLY: 王宫织造室内，摄影机在连续横移后形成偏向两位主体侧面的中全景，关闭的房门仍在背景，空置的编织区域清晰可见。<Subject 1> 靠坐在左侧织机前，眉眼舒展，带着狡黠而笃定的笑意看向 <Subject 2>。<Subject 2> 面向 <Subject 1>，原本困惑的神情已经舒展，嘴角扬起认同而会意的笑容。两位主体隔着织机交换会意视线，紧张感消散，空织机仍处于二者之间。",
+            "role": "INTERMEDIATE — Clip-local",
+            "linked_anchor_id": null
+          }
+        ],
+        "canonical_visual_sources": [
+          {
+            "id": "opening_state",
+            "text": "subject_definitions:\n- <Subject 1> is 骗子1, 约三十五岁的人类男性，身材高瘦、比例修长；长窄脸、宽平额头、略高颧骨、清晰下颌和稍尖下巴，右侧鼻翼旁有小褐痣；细长灰绿色上挑双眼皮眼，高直窄鼻，偏薄嘴唇；暖调浅肤色带轻微风吹日晒细纹；深棕色微卷短发向后梳理，发际线两侧略高，保留修剪整齐的深棕色小胡子且下巴无须。当前服装状态只延续权威时间视觉条件所建立的外观。\n- <Subject 2> is 骗子2, 约三十二岁的人类男性，身高略矮、体型稍显敦实而灵便；圆中带方的脸、饱满额头、较宽下颌和短圆下巴，左侧嘴角下方有明显小黑痣；中等大小的琥珀褐色圆杏眼，短鼻梁、圆钝鼻尖，暖调浅麦色皮肤与自然红润双颊；栗褐色浓密短卷发从左侧分开，面部无胡须。当前服装状态只延续权威时间视觉条件所建立的外观。\n\nofficial_character_identity_lock:\nThe referenced visual anchors are the primary visual authority for the currently established visual identity of each <Subject N> at the corresponding chronological time anchors. Official character descriptions are identity-preservation constraints that prevent character drift. They supplement the referenced visual anchors but must not override clearly visible identity features established by those anchors.\n\n对每个 <Subject N>，在整个 Clip 中保持同一主体身份，包括相同的脸、年龄、身体比例、发型或面部毛发、肤色、永久标记、稳定身体特征与身份定义配饰。当前服装是独立于稳定身份的连续性域：严格延续权威时间视觉条件与 canonical visual state 所建立的当前服装，不得用 official appearance 中的历史或默认服装恢复、覆盖、叠加、混穿或混色。若多个时间视觉锚点显示同一套服装，则全程保持该服装；除非正式视觉状态明确表现真实换装，否则不得制造服装变化。\n\n不得重新设计、美化、老化、年轻化、换脸、换色、替换或复制任何 <Subject N>。不得把阴影、暗光、冷暖调色、距离或运动模糊误解为肤色、发色或当前服装颜色改变。姿势、表情、视线、朝向、空间位置和自然动作可依 transition 改变。因姿势、遮挡、距离或照明而暂时不可见的稳定身份细节，在重新可见时必须保持。若文本身份描述与视觉锚点清楚可见的当前身份特征冲突，以视觉锚点为准。\n\n仅允许 <Subject 1> 与 <Subject 2> 出现在当前画面中；不得新增人物、人物复制、身份交换、无依据出现或消失、左右关系镜像翻转、场景重置、额外道具或无依据手持物。保持自然人体结构、座位和织机之间的物理接触关系，禁止瞬移、穿模和肢体畸变。画面中不得出现 subtitles、captions、titles、speech bubbles、logos、watermarks、UI 或任何 on-screen text。Character names、Subject labels 与其他 metadata tokens 均仅作为元数据标识，不得成为画面文字。\n\nkeyframe_timeline:\n- <Picture 1>: 王宫织造室的场景参考，建立织造室空间、关闭的房门与整体环境结构。\n- <Picture 2>: <Subject 1> 的稳定人物身份参考，仅用于身份保持，不将资产中的默认服装、站姿或肖像构图当作当前状态。\n- <Picture 3>: <Subject 2> 的稳定人物身份参考，仅用于身份保持，不将资产中的默认服装、站姿或肖像构图当作当前状态。\n- <Picture 4>: 脚踏织机的道具参考，保持其前现代木制结构、尺度和功能形态。\n- KF8 — INTERMEDIATE — Clip-local 10.15s — TEXT_ONLY: 王宫织造室内，摄影机在连续横移后形成偏向两位主体侧面的中全景，关闭的房门仍在背景，空置的编织区域清晰可见。<Subject 1> 靠坐在左侧织机前，眉眼舒展，带着狡黠而笃定的笑意看向 <Subject 2>。<Subject 2> 面向 <Subject 1>，原本困惑的神情已经舒展，嘴角扬起认同而会意的笑容。两位主体隔着织机交换会意视线，紧张感消散，空织机仍处于二者之间。\n\ndialogue_timeline:\nThis is the only source of exact spoken text in this prompt.\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\nAll assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.\nHuman vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.\nBefore the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation. Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nD16:\n  speaker: <Subject 1>\n  start_time: 0.1s\n  end_time: 0.85s\n  exact_dialogue: 怕什么？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 0.85s to 1.05s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD17:\n  speaker: <Subject 1>\n  start_time: 1.05s\n  end_time: 4.8s\n  exact_dialogue: 从现在开始，越有人来看，我们越安全。\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 4.8s to 5.0s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD18:\n  speaker: <Subject 2>\n  start_time: 5.0s\n  end_time: 5.75s\n  exact_dialogue: 为什么？\n  segment: complete assigned span.\n  Only <Subject 2> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 5.75s to 5.95s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD19:\n  speaker: <Subject 1>\n  start_time: 5.95s\n  end_time: 9.2s\n  exact_dialogue: 因为谁敢说自己什么都没看见？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 9.2s to 9.4s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD20:\n  speaker: <Subject 2>\n  start_time: 9.4s\n  end_time: 10.15s\n  exact_dialogue: 说得对。\n  segment: complete assigned span.\n  Only <Subject 2> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\n\nsummary:\n从所提供 Previous AV 的 ending visual state 连续延续，不切断既有空间关系、当前外观、座位位置和动作趋势。保持 <Subject 1> 与 <Subject 2> 分处织机两侧、空置编织区域位于二者之间、关闭房门位于背景的连续关系；当前服装和既有物体状态持续一致，不重置场景或引入新元素。\n\ndetailed_description:\n[Shot 1]\n\nClip-local 0.00s–10.15s，对应 Shot-global transition 与本 Clip 的有效交集。承接 Previous AV ending visual state 与 carry-in context，沿既有机位和运动方向继续执行单一连续镜头，从起始状态自然推进至 KF8。\n\n摄影机沿两架脚踏织机之间平稳横移，不切镜、不跳轴，逐渐形成偏向两位主体侧面的中全景。通过轻微而连续的构图补偿，让关闭的房门始终保留在背景，同时使二者之间空置的编织区域逐步变得更清楚。镜头不突然推近，不改为孤立肖像构图，并始终维持织机两侧的双人空间关系。\n\n开始时短暂承接既有松弛姿态：<Subject 2> 的肩膀下沉，身体稍靠椅背，一只手自然搭在织机旁；<Subject 1> 保持从容的侧向视线。随后视觉重心平滑移向 <Subject 1>。<Subject 1> 在左侧织机前进一步靠稳，但不离开座位；眉眼逐渐舒展，神情从镇定自然转为狡黠而笃定的笑意，视线持续落向 <Subject 2>。\n\n与此同时，<Subject 2> 不移动座位，只让上身和视线缓慢转向 <Subject 1>。肩颈进一步放松，残留的困惑与余悸逐步消退，嘴角自然扬起会意而认同的笑容。动作幅度克制、连贯，手与织机的接触自然稳定，没有突然挥动、起身或改变位置。\n\n摄影机以连续横移和细微构图调整，依次保证 <Subject 1> 的神态变化、<Subject 2> 的反应以及二者隔着织机的关系清晰可读。临近终点时，画面重心从 <Subject 1> 平滑分配到两位主体之间，并自然偏向 <Subject 2> 的会意反应，但不脱离双人关系。于 Clip-local 10.15s 准确到达 KF8；到达后不增加新动作、新人物或后续剧情。\n\noverall_soundscape:\n保持封闭王宫织造室内自然、克制的室内 room tone，包括轻微空间回响与低弱环境底噪。身体靠稳、转身和肩颈放松产生细微衣料摩擦声；手部与织机附近发生自然接触时带有轻微木质触碰声，座椅和木制织机可出现与可见重心变化一致的低弱吱呀声。织机保持空置，不添加持续运转声、脚踏声或不存在的纺织机械声。不凭空加入音乐、脚步、室外活动或其他无来源声响。\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — SCENE / 王宫织造室: environment identity and appearance only; incidental people are not additional Subjects.\n<Picture 4> — PROP / 脚踏织机: prop identity/appearance only; current canonical state decides who owns/holds it and where it is.\n\ncharacter_identity_binding:\n<Picture 2> ↔ <Subject 1> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 3> ↔ <Subject 2> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n\nexisting_body_binding:\nApply <Picture 2> identity to the existing/current body of <Subject 1> — 骗子1, defined by Previous AV and canonical KF7. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 3> identity to the existing/current body of <Subject 2> — 骗子2, defined by Previous AV and canonical KF7. Do not create a second body or transfer this identity to another visible body.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.00–0.10s: Maintain primary narrative emphasis around <Subject 2> within the established composition. The authorized actions of <Subject 1> remain background motion; accommodate them without shifting dominance solely because they move.\n0.10–4.80s: Maintain primary narrative emphasis around <Subject 1> within the established composition.\n4.80–5.95s: Maintain primary narrative emphasis around <Subject 2> within the established composition.\n5.95–9.20s: Maintain primary narrative emphasis around <Subject 1> within the established composition.\n9.20–10.20s: Gradually redistribute attention from <Subject 1> toward <Subject 2>, allowing ensemble composition. Do not cut or imply that an approach must finish within this interval. This is progress 0–0.606061 of the original handoff; do not restart it or complete it early."
+          },
+          {
+            "id": "transition_1",
+            "text": "摄影机承接原有机位与方向，沿两架脚踏织机之间继续平稳横移，不切镜、不跳轴，并逐渐形成偏向二人侧面的中全景；关闭的房门始终留在背景，二人之间空置的编织区域随横移变得更加清楚。开始时短暂维持骗子2肩膀下沉、身体稍靠椅背且一只手搭在织机旁的松弛姿态，骗子1仍从容侧目看着他。随后视觉重心自然移向骗子1：骗子1在左侧织机前进一步靠稳，眉眼逐渐舒展，神情由镇定转为狡黠而笃定的笑意，身体位置不离开座位。骗子2不移动座位，只将上身和视线缓缓转向骗子1，残留的困惑与余悸逐步消退，肩颈继续放松，嘴角渐渐扬起会意的笑容。过程中摄影机仅以连续横移和轻微构图补偿，依次保持骗子1的神态、骗子2的反应以及二人隔着织机的关系清晰可读。临近终点时，画面重心从骗子1平滑分配到两人之间，并开始自然偏向骗子2的会意反应，但不脱离双人关系。最终停在侧面中全景：骗子1靠坐于左侧织机前，带着狡黠笃定的笑意看向骗子2；骗子2面向骗子1，以舒展、认同的笑容回望；两人隔着空置织机保持会意视线，关闭的房门仍在背景，仆人1不进入画面或参与动作。"
+          },
+          {
+            "id": "transition_2",
+            "text": "承接两人隔着左侧织机交换会意视线的状态，摄影机沿既有方向继续缓慢横移，不改变轴线；最初短暂地将视觉重心从骗子1自然移向骗子2，同时始终以两人和织机关系为主体。骗子1先收回看向骗子2的视线，在左侧织机前由侧向姿态逐渐转正，身体朝向织机，双手依次移到拉动与推动操作部位。骗子2随即结束与骗子1的对视，将身体转向右侧脚踏织机并在机前坐稳，低头看向始终空置的编织区域，再将两根手指抬起并悬停在虚空中的操作位置。两人完成调度后，各自在对应织机前保持轻松而煞有介事的工作姿态，仅保留自然呼吸和极小的重心调整；骗子1神情笃定，骗子2维持克制的会意笑容。摄影机继续平稳横移并略作构图补偿，使两架脚踏织机、两人、关闭的房门和白昼照亮的空置编织区域逐渐完整纳入同一中全景，不单独追随任何一人。横移在终点平缓停住，两人分别停在左、右织机前的既定姿态，编织区域全程没有布料，房门全程保持关闭。"
+          }
+        ],
+        "drop_binding": {
+          "supported": true,
+          "mechanism": "EXISTING_REF2VA_OPTIONAL_IMAGES_0_TO_9",
+          "reference_node_id": "55"
+        },
+        "reference_semantics": "Soft Ref2VA reference conditioning; arrival is an internal target, not frame binding. Catalog facts record original resources, not mandatory full-image outcomes."
+      }
+    },
+    "av_timeline": {
+      "original_duration": 10.2,
+      "optimized_duration": 12.0,
+      "duration_delta": 1.8,
+      "duration_changed": true,
+      "reason": "The protected 1.625-second context is counted once; dialogue is shifted without changing any utterance duration, and the extended tail supports the retimed visual outcome and final hold.",
+      "dialogue_events": [
+        {
+          "id": "D16",
+          "speaker": "<Subject 1>",
+          "original_start": 0.1,
+          "original_end": 0.85,
+          "duration": 0.75,
+          "optimized_start": 1.625,
+          "optimized_end": 2.375
+        },
+        {
+          "id": "D17",
+          "speaker": "<Subject 1>",
+          "original_start": 1.05,
+          "original_end": 4.8,
+          "duration": 3.75,
+          "optimized_start": 2.575,
+          "optimized_end": 6.325
+        },
+        {
+          "id": "D18",
+          "speaker": "<Subject 2>",
+          "original_start": 5.0,
+          "original_end": 5.75,
+          "duration": 0.75,
+          "optimized_start": 6.525,
+          "optimized_end": 7.275
+        },
+        {
+          "id": "D19",
+          "speaker": "<Subject 1>",
+          "original_start": 5.95,
+          "original_end": 9.2,
+          "duration": 3.25,
+          "optimized_start": 7.475,
+          "optimized_end": 10.725
+        },
+        {
+          "id": "D20",
+          "speaker": "<Subject 2>",
+          "original_start": 9.4,
+          "original_end": 10.15,
+          "duration": 0.75,
+          "optimized_start": 10.925,
+          "optimized_end": 11.675
+        }
+      ],
+      "handoffs": [
+        {
+          "from": "D17",
+          "to": "D18",
+          "from_subject": "<Subject 1>",
+          "to_subject": "<Subject 2>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.2,
+          "complexity": "LOW",
+          "complexity_reasoning": "Both seated faces are already readable in the ensemble view, so the short pause only needs articulation release and a subtle emphasis shift.",
+          "spatial_relation": "The men remain on opposite sides of the empty looms, with <Subject 1> left and <Subject 2> right.",
+          "depth_relation": "Comparable ensemble depth and useful face scale; no hard foreground-background transfer.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": false,
+          "camera_strategy": "Maintain the established readable ensemble while allowing gaze and compositional emphasis to settle on <Subject 2>.",
+          "previous_speaker_release": "<Subject 1> closes his lips naturally and becomes a listener.",
+          "next_speaker_readiness": "<Subject 2>'s face and mouth are already visible at useful scale before his question.",
+          "reason": "Waiting is not used to acquire the speaker; the immediately preceding composition already supplies readiness.",
+          "strategy": "Release <Subject 1>, maintain the readable two-shot, settle <Subject 1> as listener, then begin <Subject 2>'s line.",
+          "visibility": "<Subject 2> remains unobscured and readable across the empty weaving area.",
+          "readiness": "Achieved before speech through the maintained ensemble view and slight upper-body turn.",
+          "listener_state": "<Subject 1> has relaxed closed lips and listens naturally.",
+          "gaze_blocking": "Both remain seated at their looms; <Subject 2> turns only his gaze and upper body toward <Subject 1>.",
+          "visual_attention": "Emphasis passes from <Subject 1> to <Subject 2> without removing either man.",
+          "camera_action_coordination": "The continuing lateral composition preserves both faces while the reaction becomes primary.",
+          "anchor_proximity": "The KF8 arrival is later, after all dialogue, and imposes no immediate handoff constraint.",
+          "prompt_evidence": {
+            "release": "<Subject 1> ends his articulation, closes his lips naturally, and becomes an attentive listener.",
+            "acquisition": "That same established ensemble view continues to hold <Subject 2>'s face and mouth at useful scale while <Subject 1> also remains readable; neither man leaves his seat or established loom position.",
+            "listeners": "<Subject 1> listens with relaxed closed lips and no speech-like articulation as <Subject 2> turns his gaze and upper body slightly toward him.",
+            "dialogue_entry": "With that readable view maintained,",
+            "existing_view_excerpt": "The ongoing lateral composition keeps both seated faces and mouths readable across the empty weaving space."
+          }
+        },
+        {
+          "from": "D18",
+          "to": "D19",
+          "from_subject": "<Subject 2>",
+          "to_subject": "<Subject 1>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.2,
+          "complexity": "LOW",
+          "complexity_reasoning": "The preceding ensemble explicitly keeps <Subject 1> readable, and only a compositional emphasis transfer is required.",
+          "spatial_relation": "<Subject 1> remains left of <Subject 2> across the loom.",
+          "depth_relation": "Both occupy compatible ensemble depth with no occluding foreground listener.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": false,
+          "camera_strategy": "Continue the lateral composition and strengthen <Subject 1>'s prominence without a cut or reblocking.",
+          "previous_speaker_release": "<Subject 2> relaxes his mouth after the question.",
+          "next_speaker_readiness": "<Subject 1>'s face and mouth remain readable and receive stronger compositional prominence before the reply.",
+          "reason": "The existing view already contains the incoming speaker at useful scale.",
+          "strategy": "Release <Subject 2>, transfer ensemble emphasis to <Subject 1>, settle <Subject 2> as listener, then start the reply.",
+          "visibility": "<Subject 1> remains visible and unobscured at his left loom.",
+          "readiness": "Established before speech by the maintained ensemble and emphasis shift.",
+          "listener_state": "<Subject 2> listens naturally with relaxed closed lips.",
+          "gaze_blocking": "Neither man moves seats or changes floor position; eyelines continue across the empty loom.",
+          "visual_attention": "Emphasis returns from <Subject 2> to <Subject 1>.",
+          "camera_action_coordination": "The existing lateral drift supports the emphasis change without interrupting spatial continuity.",
+          "anchor_proximity": "The later terminal anchor is compatible with the ongoing expression development.",
+          "prompt_evidence": {
+            "release": "<Subject 2> finishes the question, relaxes his mouth, and listens.",
+            "acquisition": "The continuing lateral composition transfers emphasis from <Subject 2> to <Subject 1> while preserving both seated positions, bringing <Subject 1>'s face and mouth into stronger readable prominence and keeping <Subject 2> visibly available for reaction.",
+            "listeners": "<Subject 2> listens naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "With <Subject 1>'s view established,",
+            "existing_view_excerpt": "That same established ensemble view continues to hold <Subject 2>'s face and mouth at useful scale while <Subject 1> also remains readable; neither man leaves his seat or established loom position."
+          }
+        },
+        {
+          "from": "D19",
+          "to": "D20",
+          "from_subject": "<Subject 1>",
+          "to_subject": "<Subject 2>",
+          "original_gap": 0.2,
+          "optimized_gap": 0.2,
+          "complexity": "LOW",
+          "complexity_reasoning": "The ensemble has kept <Subject 2> visible for reaction, allowing the final response to follow a concise emphasis transfer.",
+          "spatial_relation": "<Subject 1> remains seated left and <Subject 2> seated right across the empty loom.",
+          "depth_relation": "Shared ensemble depth with neither subject dominating through foreground scale.",
+          "visual_handoff_required": true,
+          "camera_handoff_required": false,
+          "camera_strategy": "Maintain the continuous lateral ensemble and shift readable emphasis to <Subject 2>.",
+          "previous_speaker_release": "<Subject 1> closes his lips and holds his confident expression as a listener.",
+          "next_speaker_readiness": "<Subject 2>'s face and mouth are clearly readable before his answer.",
+          "reason": "The incoming speaker is already present and readable, so an edit or new travel interval would be disruptive.",
+          "strategy": "Release <Subject 1>, settle him as listener, transfer emphasis to <Subject 2>, then execute the final response.",
+          "visibility": "<Subject 2> remains clearly visible at the right loom.",
+          "readiness": "Achieved before speech through maintained scale and compositional transfer.",
+          "listener_state": "<Subject 1> listens with relaxed closed lips and natural expression.",
+          "gaze_blocking": "Seated positions, loom separation, and mutual eyelines remain unchanged.",
+          "visual_attention": "Emphasis moves toward <Subject 2> while retaining the two-person relationship.",
+          "camera_action_coordination": "The transfer develops naturally into the final side-biased ensemble anchor.",
+          "anchor_proximity": "The response directly precedes the retimed KF8 arrival at 11.8 seconds.",
+          "prompt_evidence": {
+            "release": "<Subject 1> completes the reply, lets his lips close, and holds his sly, confident smile as a listener.",
+            "acquisition": "Without moving either man, the lateral ensemble composition transfers emphasis from <Subject 1> to <Subject 2>, keeping <Subject 2>'s face and mouth clearly readable while <Subject 1> remains seated at the left loom.",
+            "listeners": "<Subject 1> listens naturally with relaxed closed lips and no speech-like articulation.",
+            "dialogue_entry": "With <Subject 2>'s response view established,",
+            "existing_view_excerpt": "The continuing lateral composition transfers emphasis from <Subject 2> to <Subject 1> while preserving both seated positions, bringing <Subject 1>'s face and mouth into stronger readable prominence and keeping <Subject 2> visibly available for reaction."
+          }
+        }
+      ],
+      "anchors": [
+        {
+          "id": "KF8",
+          "original_time": 10.15,
+          "optimized_time": 11.8,
+          "delta": 1.65,
+          "decision": "RETIME",
+          "reason": "The visual state remains useful and canonical, but its original arrival precedes the shifted final utterance. Retiming places the completed shared expression after the last line.",
+          "preserved_visual_requirements": [
+            "CVR2",
+            "CVR3",
+            "CVR4",
+            "CVR5",
+            "CVR6"
+          ],
+          "released_constraint": "",
+          "prompt_excerpt": "The camera settles into a side-biased medium-wide ensemble: <Subject 1> leans comfortably at the left loom with a sly, assured smile toward <Subject 2>; <Subject 2> faces him as his remaining confusion dissolves into an open, approving smile.",
+          "arrival_relation": {
+            "dialogue_id": "D20",
+            "position": "AFTER",
+            "prompt_excerpt": "The camera settles into a side-biased medium-wide ensemble: <Subject 1> leans comfortably at the left loom with a sly, assured smile toward <Subject 2>; <Subject 2> faces him as his remaining confusion dissolves into an open, approving smile."
+          }
+        }
+      ],
+      "execution_phases": [
+        {
+          "id": "P01",
+          "start": 0.0,
+          "end": 1.625,
+          "type": "CONTEXT",
+          "description": "Preserve the verified incoming AV context, camera direction, costumes, seated blocking, and existing motion without new dialogue or acquisition."
+        },
+        {
+          "id": "P02",
+          "start": 1.625,
+          "end": 11.8,
+          "type": "CAMERA",
+          "description": "Continue the gentle lateral ensemble drift and use subtle compositional emphasis transfers while keeping both seated speakers readable."
+        },
+        {
+          "id": "P03",
+          "start": 1.625,
+          "end": 2.375,
+          "type": "DIALOGUE",
+          "description": "D16 by <Subject 1>."
+        },
+        {
+          "id": "P04",
+          "start": 2.375,
+          "end": 2.575,
+          "type": "SILENCE",
+          "description": "Natural pause with both mouths relaxed."
+        },
+        {
+          "id": "P05",
+          "start": 2.575,
+          "end": 6.325,
+          "type": "DIALOGUE",
+          "description": "D17 by <Subject 1> while his confident smile develops."
+        },
+        {
+          "id": "P06",
+          "start": 6.325,
+          "end": 6.525,
+          "type": "HANDOFF",
+          "description": "Release <Subject 1>, maintain readable <Subject 2>, and settle the listener."
+        },
+        {
+          "id": "P07",
+          "start": 6.525,
+          "end": 7.275,
+          "type": "DIALOGUE",
+          "description": "D18 by <Subject 2>."
+        },
+        {
+          "id": "P08",
+          "start": 7.275,
+          "end": 7.475,
+          "type": "HANDOFF",
+          "description": "Release <Subject 2> and transfer ensemble emphasis to readable <Subject 1>."
+        },
+        {
+          "id": "P09",
+          "start": 7.475,
+          "end": 10.725,
+          "type": "DIALOGUE",
+          "description": "D19 by <Subject 1>."
+        },
+        {
+          "id": "P10",
+          "start": 10.725,
+          "end": 10.925,
+          "type": "HANDOFF",
+          "description": "Release <Subject 1> and transfer ensemble emphasis to readable <Subject 2>."
+        },
+        {
+          "id": "P11",
+          "start": 10.925,
+          "end": 11.675,
+          "type": "DIALOGUE",
+          "description": "D20 by <Subject 2>."
+        },
+        {
+          "id": "P12",
+          "start": 11.675,
+          "end": 11.8,
+          "type": "ACTION",
+          "description": "Both mouths relax and the mutual approving expressions complete."
+        },
+        {
+          "id": "P13",
+          "start": 11.8,
+          "end": 11.8,
+          "type": "ANCHOR_ARRIVAL",
+          "description": "KF8 RETIME arrival: completed side-biased ensemble with shared knowing look, empty loom, and closed door."
+        },
+        {
+          "id": "P14",
+          "start": 11.8,
+          "end": 12.0,
+          "type": "FINAL_SETTLE",
+          "description": "Hold the completed visual outcome with natural breathing and no further speech or story action."
+        }
+      ]
+    }
+  },
+  "authority": {
+    "generation_mode": "EXTEND",
+    "dialogue_events": [
+      {
+        "id": "D16",
+        "speaker": "<Subject 1>",
+        "exact_dialogue": "怕什么？",
+        "duration": 0.75,
+        "order": 1
+      },
+      {
+        "id": "D17",
+        "speaker": "<Subject 1>",
+        "exact_dialogue": "从现在开始，越有人来看，我们越安全。",
+        "duration": 3.75,
+        "order": 2
+      },
+      {
+        "id": "D18",
+        "speaker": "<Subject 2>",
+        "exact_dialogue": "为什么？",
+        "duration": 0.75,
+        "order": 3
+      },
+      {
+        "id": "D19",
+        "speaker": "<Subject 1>",
+        "exact_dialogue": "因为谁敢说自己什么都没看见？",
+        "duration": 3.25,
+        "order": 4
+      },
+      {
+        "id": "D20",
+        "speaker": "<Subject 2>",
+        "exact_dialogue": "说得对。",
+        "duration": 0.75,
+        "order": 5
+      }
+    ],
+    "subject_bindings": {
+      "<Subject 1>": "骗子1",
+      "<Subject 2>": "骗子2"
+    },
+    "reference_bindings": [
+      {
+        "picture": "<Picture 1>",
+        "type": "SCENE",
+        "subject": null,
+        "source_name": "王宫织造室",
+        "source_id": "b6617b78-d2ba-498e-a397-64539107a1d7",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 2>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 1>",
+        "source_name": "骗子1",
+        "source_id": "e5744860-fb0a-4fb1-87a7-3abeb013878f",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 3>",
+        "type": "CHARACTER_IDENTITY",
+        "subject": "<Subject 2>",
+        "source_name": "骗子2",
+        "source_id": "92b676cb-3c22-4d60-a4e2-a57ed662042b",
+        "state_index": null,
+        "role": null
+      },
+      {
+        "picture": "<Picture 4>",
+        "type": "PROP",
+        "subject": null,
+        "source_name": "脚踏织机",
+        "source_id": "56bdcc59-0082-44d0-8661-ff705535f463",
+        "state_index": null,
+        "role": null
+      }
+    ],
+    "visual_anchor_order": [
+      {
+        "id": "KF8",
+        "order": 1,
+        "declaration_prefix": "INTERMEDIATE — Clip-local",
+        "visual_target": "— TEXT_ONLY: 王宫织造室内，摄影机在连续横移后形成偏向两位主体侧面的中全景，关闭的房门仍在背景，空置的编织区域清晰可见。<Subject 1> 靠坐在左侧织机前，眉眼舒展，带着狡黠而笃定的笑意看向 <Subject 2>。<Subject 2> 面向 <Subject 1>，原本困惑的神情已经舒展，嘴角扬起认同而会意的笑容。两位主体隔着织机交换会意视线，紧张感消散，空织机仍处于二者之间。",
+        "picture": null
+      }
+    ],
+    "temporal_anchor_order": [],
+    "allowed_dialogue_overlaps": [],
+    "continuation": {
+      "mode": "VIDEO_CONTINUATION",
+      "binding_verified": true,
+      "workflow_id": "6dcdf466-69f1-41e5-9ccf-7a51b0c7de71",
+      "source_sha256": "6f72a0db851155653bb78f876f0727f6421d4f6d390a26d79f87f1daf99fbc3e",
+      "previous_frames": 753,
+      "fps": 24,
+      "context_frames": 39,
+      "overlap_frames": 39,
+      "overlap_seconds": 1.625,
+      "source_start_frame": 714,
+      "source_end_frame_exclusive": 753,
+      "clip_local_time_origin": "TARGET_AV_FRAME_0_INCLUDES_SHARED_CONTEXT",
+      "masked_time_origin": "SAME_AS_CLIP_LOCAL_NO_ADDITIONAL_SHIFT",
+      "cumulative_start_frame": 714,
+      "earliest_new_dialogue": 1.625,
+      "audio_hard_preserve_until": 1.425,
+      "audio_feather_until": 1.625,
+      "audio_feather_ticks": 8,
+      "duration_semantics": "TOTAL_C2_INCLUDING_CONTEXT; no worker overlap addition",
+      "frame_expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "assembly": "previous_frames + target_frames - context_frames",
+      "video_overlap": "blend source tail with decoded preserved prefix",
+      "audio_overlap": "decoded extension audio replaces source tail; feather is not new-speech budget"
+    },
+    "anchor_policy": {
+      "version": 1,
+      "catalog": [
+        {
+          "anchor_id": "KF8",
+          "original_time": 10.15,
+          "source_picture": null,
+          "source_kind": null,
+          "visual_reference_description": "— TEXT_ONLY: 王宫织造室内，摄影机在连续横移后形成偏向两位主体侧面的中全景，关闭的房门仍在背景，空置的编织区域清晰可见。<Subject 1> 靠坐在左侧织机前，眉眼舒展，带着狡黠而笃定的笑意看向 <Subject 2>。<Subject 2> 面向 <Subject 1>，原本困惑的神情已经舒展，嘴角扬起认同而会意的笑容。两位主体隔着织机交换会意视线，紧张感消散，空织机仍处于二者之间。",
+          "role": "INTERMEDIATE — Clip-local",
+          "linked_anchor_id": null
+        }
+      ],
+      "canonical_visual_sources": [
+        {
+          "id": "opening_state",
+          "text": "subject_definitions:\n- <Subject 1> is 骗子1, 约三十五岁的人类男性，身材高瘦、比例修长；长窄脸、宽平额头、略高颧骨、清晰下颌和稍尖下巴，右侧鼻翼旁有小褐痣；细长灰绿色上挑双眼皮眼，高直窄鼻，偏薄嘴唇；暖调浅肤色带轻微风吹日晒细纹；深棕色微卷短发向后梳理，发际线两侧略高，保留修剪整齐的深棕色小胡子且下巴无须。当前服装状态只延续权威时间视觉条件所建立的外观。\n- <Subject 2> is 骗子2, 约三十二岁的人类男性，身高略矮、体型稍显敦实而灵便；圆中带方的脸、饱满额头、较宽下颌和短圆下巴，左侧嘴角下方有明显小黑痣；中等大小的琥珀褐色圆杏眼，短鼻梁、圆钝鼻尖，暖调浅麦色皮肤与自然红润双颊；栗褐色浓密短卷发从左侧分开，面部无胡须。当前服装状态只延续权威时间视觉条件所建立的外观。\n\nofficial_character_identity_lock:\nThe referenced visual anchors are the primary visual authority for the currently established visual identity of each <Subject N> at the corresponding chronological time anchors. Official character descriptions are identity-preservation constraints that prevent character drift. They supplement the referenced visual anchors but must not override clearly visible identity features established by those anchors.\n\n对每个 <Subject N>，在整个 Clip 中保持同一主体身份，包括相同的脸、年龄、身体比例、发型或面部毛发、肤色、永久标记、稳定身体特征与身份定义配饰。当前服装是独立于稳定身份的连续性域：严格延续权威时间视觉条件与 canonical visual state 所建立的当前服装，不得用 official appearance 中的历史或默认服装恢复、覆盖、叠加、混穿或混色。若多个时间视觉锚点显示同一套服装，则全程保持该服装；除非正式视觉状态明确表现真实换装，否则不得制造服装变化。\n\n不得重新设计、美化、老化、年轻化、换脸、换色、替换或复制任何 <Subject N>。不得把阴影、暗光、冷暖调色、距离或运动模糊误解为肤色、发色或当前服装颜色改变。姿势、表情、视线、朝向、空间位置和自然动作可依 transition 改变。因姿势、遮挡、距离或照明而暂时不可见的稳定身份细节，在重新可见时必须保持。若文本身份描述与视觉锚点清楚可见的当前身份特征冲突，以视觉锚点为准。\n\n仅允许 <Subject 1> 与 <Subject 2> 出现在当前画面中；不得新增人物、人物复制、身份交换、无依据出现或消失、左右关系镜像翻转、场景重置、额外道具或无依据手持物。保持自然人体结构、座位和织机之间的物理接触关系，禁止瞬移、穿模和肢体畸变。画面中不得出现 subtitles、captions、titles、speech bubbles、logos、watermarks、UI 或任何 on-screen text。Character names、Subject labels 与其他 metadata tokens 均仅作为元数据标识，不得成为画面文字。\n\nkeyframe_timeline:\n- <Picture 1>: 王宫织造室的场景参考，建立织造室空间、关闭的房门与整体环境结构。\n- <Picture 2>: <Subject 1> 的稳定人物身份参考，仅用于身份保持，不将资产中的默认服装、站姿或肖像构图当作当前状态。\n- <Picture 3>: <Subject 2> 的稳定人物身份参考，仅用于身份保持，不将资产中的默认服装、站姿或肖像构图当作当前状态。\n- <Picture 4>: 脚踏织机的道具参考，保持其前现代木制结构、尺度和功能形态。\n- KF8 — INTERMEDIATE — Clip-local 10.15s — TEXT_ONLY: 王宫织造室内，摄影机在连续横移后形成偏向两位主体侧面的中全景，关闭的房门仍在背景，空置的编织区域清晰可见。<Subject 1> 靠坐在左侧织机前，眉眼舒展，带着狡黠而笃定的笑意看向 <Subject 2>。<Subject 2> 面向 <Subject 1>，原本困惑的神情已经舒展，嘴角扬起认同而会意的笑容。两位主体隔着织机交换会意视线，紧张感消散，空织机仍处于二者之间。\n\ndialogue_timeline:\nThis is the only source of exact spoken text in this prompt.\nSpeak only the exact text spans assigned to this Clip; never repeat dialogue completed in a Previous AV.\nAll assigned dialogue is Mandarin Chinese only. Do not translate, paraphrase, repeat, prepend or append words, invent syllables or produce other languages or extra human voices.\nHuman vocalization and dialogue-related lip synchronization begin with the first authorized character and end with the last; no lead-in or trailing vocalization. Between assigned events no Subject has speech permission. Environmental ambience and synchronized Foley remain audible.\nBefore the first assigned event and after the last, no Subject may visibly perform speech-like mouth or lip articulation. Natural breathing, blinking, facial expression, jaw relaxation and non-speech facial movement remain allowed.\nD16:\n  speaker: <Subject 1>\n  start_time: 0.1s\n  end_time: 0.85s\n  exact_dialogue: 怕什么？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 0.85s to 1.05s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD17:\n  speaker: <Subject 1>\n  start_time: 1.05s\n  end_time: 4.8s\n  exact_dialogue: 从现在开始，越有人来看，我们越安全。\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 4.8s to 5.0s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD18:\n  speaker: <Subject 2>\n  start_time: 5.0s\n  end_time: 5.75s\n  exact_dialogue: 为什么？\n  segment: complete assigned span.\n  Only <Subject 2> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 5.75s to 5.95s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD19:\n  speaker: <Subject 1>\n  start_time: 5.95s\n  end_time: 9.2s\n  exact_dialogue: 因为谁敢说自己什么都没看见？\n  segment: complete assigned span.\n  Only <Subject 1> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nFrom 9.2s to 9.4s between dialogue events, no Subject may visibly perform speech-like mouth or lip articulation.\nD20:\n  speaker: <Subject 2>\n  start_time: 9.4s\n  end_time: 10.15s\n  exact_dialogue: 说得对。\n  segment: complete assigned span.\n  Only <Subject 2> may produce human vocalization and visibly articulate speech during this event; synchronize this Subject's mouth/lip movement to the exact assigned Mandarin dialogue and event timing. All other Subjects remain non-vocal and must not visibly perform speech-like mouth or lip articulation. Do not speak metadata labels. No subtitles, captions, or on-screen text.\nAll non-assigned characters remain silent; only refer to assigned dialogue IDs outside this block.\n\nsummary:\n从所提供 Previous AV 的 ending visual state 连续延续，不切断既有空间关系、当前外观、座位位置和动作趋势。保持 <Subject 1> 与 <Subject 2> 分处织机两侧、空置编织区域位于二者之间、关闭房门位于背景的连续关系；当前服装和既有物体状态持续一致，不重置场景或引入新元素。\n\ndetailed_description:\n[Shot 1]\n\nClip-local 0.00s–10.15s，对应 Shot-global transition 与本 Clip 的有效交集。承接 Previous AV ending visual state 与 carry-in context，沿既有机位和运动方向继续执行单一连续镜头，从起始状态自然推进至 KF8。\n\n摄影机沿两架脚踏织机之间平稳横移，不切镜、不跳轴，逐渐形成偏向两位主体侧面的中全景。通过轻微而连续的构图补偿，让关闭的房门始终保留在背景，同时使二者之间空置的编织区域逐步变得更清楚。镜头不突然推近，不改为孤立肖像构图，并始终维持织机两侧的双人空间关系。\n\n开始时短暂承接既有松弛姿态：<Subject 2> 的肩膀下沉，身体稍靠椅背，一只手自然搭在织机旁；<Subject 1> 保持从容的侧向视线。随后视觉重心平滑移向 <Subject 1>。<Subject 1> 在左侧织机前进一步靠稳，但不离开座位；眉眼逐渐舒展，神情从镇定自然转为狡黠而笃定的笑意，视线持续落向 <Subject 2>。\n\n与此同时，<Subject 2> 不移动座位，只让上身和视线缓慢转向 <Subject 1>。肩颈进一步放松，残留的困惑与余悸逐步消退，嘴角自然扬起会意而认同的笑容。动作幅度克制、连贯，手与织机的接触自然稳定，没有突然挥动、起身或改变位置。\n\n摄影机以连续横移和细微构图调整，依次保证 <Subject 1> 的神态变化、<Subject 2> 的反应以及二者隔着织机的关系清晰可读。临近终点时，画面重心从 <Subject 1> 平滑分配到两位主体之间，并自然偏向 <Subject 2> 的会意反应，但不脱离双人关系。于 Clip-local 10.15s 准确到达 KF8；到达后不增加新动作、新人物或后续剧情。\n\noverall_soundscape:\n保持封闭王宫织造室内自然、克制的室内 room tone，包括轻微空间回响与低弱环境底噪。身体靠稳、转身和肩颈放松产生细微衣料摩擦声；手部与织机附近发生自然接触时带有轻微木质触碰声，座椅和木制织机可出现与可见重心变化一致的低弱吱呀声。织机保持空置，不添加持续运转声、脚踏声或不存在的纺织机械声。不凭空加入音乐、脚步、室外活动或其他无来源声响。\n\nreference_authority:\nThis compiler-owned mapping is the only Picture-to-Character-to-Subject binding authority; Picture numbers never imply Subject numbers.\nCharacter Pictures provide stable face, age, facial structure, hair and personal identity only. Do not copy clothing, pose, position, action, blocking, portrait background or incidental props; they do not assign prop ownership.\nCurrent canonical temporal state (and Previous AV when present) owns current bodies, clothing, position, pose, blocking, action state and prop ownership. Director visual states own their initial/target composition and staging; temporal targets own their future state at the supplied timing.\n<Picture 1> — SCENE / 王宫织造室: environment identity and appearance only; incidental people are not additional Subjects.\n<Picture 4> — PROP / 脚踏织机: prop identity/appearance only; current canonical state decides who owns/holds it and where it is.\n\ncharacter_identity_binding:\n<Picture 2> ↔ <Subject 1> — 骗子1 (Character asset e5744860-fb0a-4fb1-87a7-3abeb013878f): identity only, exclusively for this Subject.\n<Picture 3> ↔ <Subject 2> — 骗子2 (Character asset 92b676cb-3c22-4d60-a4e2-a57ed662042b): identity only, exclusively for this Subject.\n\nexisting_body_binding:\nApply <Picture 2> identity to the existing/current body of <Subject 1> — 骗子1, defined by Previous AV and canonical KF7. Do not create a second body or transfer this identity to another visible body.\nApply <Picture 3> identity to the existing/current body of <Subject 2> — 骗子2, defined by Previous AV and canonical KF7. Do not create a second body or transfer this identity to another visible body.\n\nmotion_ownership:\nOnly an explicitly assigned Subject owns its translation; nearby Subjects do not inherit it. Camera motion does not assign body motion.\nLOCAL_MOTION / SPATIALLY_ANCHORED permits breathing, gaze/head turns, hand movements, natural posture adjustments and handling currently owned props, while preserving floor position/blocking; it does not freeze a person.\n<Subject 1> — 骗子1: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n<Subject 2> — 骗子2: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment.\n\nvisual_attention_timeline:\nVisual priority concerns narrative emphasis, not speech permission, visibility, body presence or motion permission. A background-moving Subject remains free to perform its authorized action; do not freeze or remove it. Primary attention may be maintained through ensemble framing, contextual reactions and brief occlusion; it does not require a portrait or continuous visibility. Preserve the supplied continuity mode. Do not redefine visual_attention_timeline; the compiler supplies this section.\n0.00–0.10s: Maintain primary narrative emphasis around <Subject 2> within the established composition. The authorized actions of <Subject 1> remain background motion; accommodate them without shifting dominance solely because they move.\n0.10–4.80s: Maintain primary narrative emphasis around <Subject 1> within the established composition.\n4.80–5.95s: Maintain primary narrative emphasis around <Subject 2> within the established composition.\n5.95–9.20s: Maintain primary narrative emphasis around <Subject 1> within the established composition.\n9.20–10.20s: Gradually redistribute attention from <Subject 1> toward <Subject 2>, allowing ensemble composition. Do not cut or imply that an approach must finish within this interval. This is progress 0–0.606061 of the original handoff; do not restart it or complete it early."
+        },
+        {
+          "id": "transition_1",
+          "text": "摄影机承接原有机位与方向，沿两架脚踏织机之间继续平稳横移，不切镜、不跳轴，并逐渐形成偏向二人侧面的中全景；关闭的房门始终留在背景，二人之间空置的编织区域随横移变得更加清楚。开始时短暂维持骗子2肩膀下沉、身体稍靠椅背且一只手搭在织机旁的松弛姿态，骗子1仍从容侧目看着他。随后视觉重心自然移向骗子1：骗子1在左侧织机前进一步靠稳，眉眼逐渐舒展，神情由镇定转为狡黠而笃定的笑意，身体位置不离开座位。骗子2不移动座位，只将上身和视线缓缓转向骗子1，残留的困惑与余悸逐步消退，肩颈继续放松，嘴角渐渐扬起会意的笑容。过程中摄影机仅以连续横移和轻微构图补偿，依次保持骗子1的神态、骗子2的反应以及二人隔着织机的关系清晰可读。临近终点时，画面重心从骗子1平滑分配到两人之间，并开始自然偏向骗子2的会意反应，但不脱离双人关系。最终停在侧面中全景：骗子1靠坐于左侧织机前，带着狡黠笃定的笑意看向骗子2；骗子2面向骗子1，以舒展、认同的笑容回望；两人隔着空置织机保持会意视线，关闭的房门仍在背景，仆人1不进入画面或参与动作。"
+        },
+        {
+          "id": "transition_2",
+          "text": "承接两人隔着左侧织机交换会意视线的状态，摄影机沿既有方向继续缓慢横移，不改变轴线；最初短暂地将视觉重心从骗子1自然移向骗子2，同时始终以两人和织机关系为主体。骗子1先收回看向骗子2的视线，在左侧织机前由侧向姿态逐渐转正，身体朝向织机，双手依次移到拉动与推动操作部位。骗子2随即结束与骗子1的对视，将身体转向右侧脚踏织机并在机前坐稳，低头看向始终空置的编织区域，再将两根手指抬起并悬停在虚空中的操作位置。两人完成调度后，各自在对应织机前保持轻松而煞有介事的工作姿态，仅保留自然呼吸和极小的重心调整；骗子1神情笃定，骗子2维持克制的会意笑容。摄影机继续平稳横移并略作构图补偿，使两架脚踏织机、两人、关闭的房门和白昼照亮的空置编织区域逐渐完整纳入同一中全景，不单独追随任何一人。横移在终点平缓停住，两人分别停在左、右织机前的既定姿态，编织区域全程没有布料，房门全程保持关闭。"
+        }
+      ],
+      "drop_binding": {
+        "supported": true,
+        "mechanism": "EXISTING_REF2VA_OPTIONAL_IMAGES_0_TO_9",
+        "reference_node_id": "55"
+      },
+      "reference_semantics": "Soft Ref2VA reference conditioning; arrival is an internal target, not frame binding. Catalog facts record original resources, not mandatory full-image outcomes."
+    }
+  },
+  "initial": {
+    "duration": 10.2,
+    "dialogue_events": [
+      {
+        "id": "D16",
+        "speaker": "<Subject 1>",
+        "start_time": 0.1,
+        "end_time": 0.85,
+        "exact_dialogue": "怕什么？"
+      },
+      {
+        "id": "D17",
+        "speaker": "<Subject 1>",
+        "start_time": 1.05,
+        "end_time": 4.8,
+        "exact_dialogue": "从现在开始，越有人来看，我们越安全。"
+      },
+      {
+        "id": "D18",
+        "speaker": "<Subject 2>",
+        "start_time": 5.0,
+        "end_time": 5.75,
+        "exact_dialogue": "为什么？"
+      },
+      {
+        "id": "D19",
+        "speaker": "<Subject 1>",
+        "start_time": 5.95,
+        "end_time": 9.2,
+        "exact_dialogue": "因为谁敢说自己什么都没看见？"
+      },
+      {
+        "id": "D20",
+        "speaker": "<Subject 2>",
+        "start_time": 9.4,
+        "end_time": 10.15,
+        "exact_dialogue": "说得对。"
+      }
+    ],
+    "visual_anchors": [
+      {
+        "id": "KF8",
+        "time": 10.15,
+        "picture": null
+      }
+    ],
+    "temporal_anchors": []
+  },
+  "limits": {
+    "minimum": 4.0,
+    "maximum": 20.0,
+    "absolute_maximum": 20.0,
+    "frame_rule": "existing frozen workflow duration-to-frames conversion"
+  }
+}

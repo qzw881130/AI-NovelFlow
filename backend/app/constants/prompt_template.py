@@ -41,6 +41,7 @@ class PromptTemplateType:
     KEYFRAME_PLANNER = "keyframe_planner"
     # 关键帧生图提示词
     KEYFRAME_IMAGE_PROMPT = "keyframe_image_prompt"
+    IMAGE_QUALITY_REVIEW_PROMPT = "image_quality_review_prompt"
     TEMPORAL_REFERENCE_SELECTOR = "temporal_reference_selector"
     # 关键帧过渡规划提示词
     KEYFRAME_TRANSITION = "keyframe_transition"
@@ -52,6 +53,7 @@ class PromptTemplateType:
     H3_FIRST_LAST_FRAME_PROMPT = "h3_first_last_frame_prompt"
     # MiniMax H3 多关键帧视频提示词
     H3_MULTI_KEYFRAME_PROMPT = "h3_multi_keyframe_prompt"
+    H3_PREFLIGHT_REPAIR_PROMPT = "h3_preflight_repair_prompt"
     H3_EXECUTION_OPTIMIZER_PROMPT = "h3_execution_optimizer_prompt"
 
 
@@ -73,6 +75,7 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.KEYFRAME_DESCRIPTION,
     PromptTemplateType.KEYFRAME_PLANNER,
     PromptTemplateType.KEYFRAME_IMAGE_PROMPT,
+    PromptTemplateType.IMAGE_QUALITY_REVIEW_PROMPT,
     PromptTemplateType.TEMPORAL_REFERENCE_SELECTOR,
     PromptTemplateType.KEYFRAME_TRANSITION,
     PromptTemplateType.CLIP_EXECUTION_PLANNER,
@@ -80,11 +83,22 @@ PROMPT_TEMPLATE_TYPES: List[str] = [
     PromptTemplateType.H3_FIRST_LAST_FRAME_PROMPT,
     PromptTemplateType.H3_MULTI_KEYFRAME_PROMPT,
     PromptTemplateType.H3_EXECUTION_OPTIMIZER_PROMPT,
+    PromptTemplateType.H3_PREFLIGHT_REPAIR_PROMPT,
 ]
 
 
 # 提示词模板类型配置（包含显示名称和描述的国际化键）
 PROMPT_TEMPLATE_TYPE_CONFIG: Dict[str, Dict] = {
+    PromptTemplateType.IMAGE_QUALITY_REVIEW_PROMPT: {
+        "name_key": "promptConfig.types.imageQualityReviewPrompt",
+        "desc_key": "promptConfig.types.imageQualityReviewPromptDesc",
+        "icon": "Images", "color": "emerald", "file_number": "15",
+    },
+    PromptTemplateType.H3_PREFLIGHT_REPAIR_PROMPT: {
+        "name_key": "promptConfig.types.h3PreflightRepairPrompt",
+        "desc_key": "promptConfig.types.h3PreflightRepairPromptDesc",
+        "icon": "Video", "color": "blue", "file_number": "14A",
+    },
     PromptTemplateType.SCENE_SETTING: {
         "name_key": "promptConfig.types.sceneSetting",
         "desc_key": "promptConfig.types.sceneSettingDesc",

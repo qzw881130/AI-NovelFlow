@@ -171,6 +171,7 @@ export default {
       sceneImage: "为场景 '{name}' 生成图片",
     },
     workflowDetails: '工作流详情',
+    downloadWorkflowArchive: '打包下载',
     generationPrompt: '生成提示词',
     promptCharacterCount: '{count} 字符',
     workflowJSON: '工作流 JSON',

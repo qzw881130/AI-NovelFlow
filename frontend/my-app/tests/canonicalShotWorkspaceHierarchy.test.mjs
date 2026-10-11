@@ -40,7 +40,7 @@ test('Debug Inspector defaults collapsed and resets when the Shot changes', () =
 
 test('current authoritative Final Shot is the default preview target', () => {
   assert.match(source, /hasCurrentAssembly\(currentVideoDirectorPlan, semanticClipTasks\)/);
-  assert.match(source, /selectedPreviewClipKey \? selectedPreviewClip\?\.video_url \|\| undefined : currentFinalShotVideoUrl/);
+  assert.match(source, /selectedPreviewClipKey \? selectedPreviewClipUrl \|\| selectedPreviewClip\?\.video_url \|\| undefined : currentFinalShotVideoUrl/);
   assert.match(source, /selectedPreviewClip \? `片段预览 · \$\{previewVideoLabel\}` : '最终 Shot 视频'/);
   assert.match(source, /setSelectedPreviewClipKey\(null\)[\s\S]*setSelectedPreviewClipUrl\(null\)[\s\S]*\}, \[currentShotId\]\)/);
 });
@@ -48,7 +48,7 @@ test('current authoritative Final Shot is the default preview target', () => {
 test('individual Clip preview remains reachable only through Advanced Director controls', () => {
   assert.match(advancedSource, /查看片段预览、恢复与对话分配/);
   assert.match(advancedSource, /onPreviewClip=\{onPreviewClip\}/);
-  assert.match(semanticPanelSource, /播放片段 \{clip\.clip_index\}/);
+  assert.match(semanticPanelSource, /<ClipPlaybackButtons/);
   assert.doesNotMatch(source, />\s*Shot 成片\s*</);
 });
 

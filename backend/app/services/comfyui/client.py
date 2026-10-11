@@ -297,6 +297,9 @@ class ComfyUIClient:
                                     strict_output_node=strict_output_node,
                                 )
                                 if result:
+                                    # Retain the actual receipt before ComfyUI's
+                                    # bounded in-memory history evicts it.
+                                    result["comfyui_history"] = prompt_history
                                     return result
 
                                 if self._is_completed_status(status):

@@ -29,6 +29,7 @@ class NovelBase(BaseModel):
     h3_first_last_frame_prompt_template_id: Optional[str] = Field(None, alias="h3FirstLastFramePromptTemplateId")  # H3 首尾帧视频提示词模板
     h3_multi_keyframe_prompt_template_id: Optional[str] = Field(None, alias="h3MultiKeyframePromptTemplateId")  # H3 多关键帧视频提示词模板
     h3_execution_optimizer_prompt_template_id: Optional[str] = Field(None, alias="h3ExecutionOptimizerPromptTemplateId")  # H3 执行提示词优化模板
+    h3_preflight_repair_prompt_template_id: Optional[str] = Field(None, alias="h3PreflightRepairPromptTemplateId")  # H3 Preflight 自动修复模板
     aspect_ratio: Optional[str] = Field("16:9", alias="aspectRatio")
 
 

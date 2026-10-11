@@ -115,6 +115,12 @@ def resolve_canonical_excerpt(text, requirement, authority):
     locations = result.get('locations') or []
     if not locations:
         if result['status'] == 'UNRESOLVED':
+            ellipsis = _resolve_explicit_ellipsis(text, requirement, authority, result)
+            if ellipsis is not None:
+                return ellipsis
+            terminal = _resolve_terminal_quote(text, requirement, authority, result)
+            if terminal is not None:
+                return terminal
             return _resolve_canonical_fragments(text, requirement, authority, result)
         return result
     events = {e['id']: e for e in authority.get('dialogue_events', [])}
@@ -233,6 +239,104 @@ def _resolve_collective_motion_locations(text, requirement, authority, result, h
             'start':None, 'end':None, 'locations':owned, 'status':'RESOLVED',
             'method':'CANONICAL_SUBJECT_LOCATIONS', 'mismatch':False,
             'subject_ids':[x['subject'] for x in owned], 'semantic_review_required':True}
+
+
+def _resolve_terminal_quote(text, requirement, authority, result):
+    """A misplaced final full stop, not arbitrary sub-clauses or fuzzy matching.
+
+    The ENTIRE supplied quote minus that one mark must exist contiguously at a
+    sentence boundary. Retain the actual same-actor, positive continuation in
+    resolved evidence; never discard a negation or invent a unique occurrence.
+    """
+    quote = requirement.get('source_excerpt') or ''
+    if not quote.endswith('。') or len(quote) < 24:
+        return None
+    literal = quote[:-1]
+    matches = list(re.finditer(re.escape(literal), text))
+    if len(matches) != 1:
+        return None
+    match = matches[0]
+    if match.start() and text[match.start()-1] not in '。；;\n':
+        return None
+    tail = re.match(r'(?:并|且)[^。；;\n]{1,100}[。；;]', text[match.end():])
+    if not tail or re.search(r'不|没|无|禁止|而非|改为|另一个|另一名', tail[0]):
+        return None
+    bindings = authority.get('subject_bindings', {})
+    def actors(value):
+        return {s for s,n in bindings.items() if character_name(n) and character_name(n) in value}
+    requested = {'<Subject '+n+'>' for n in re.findall(r'<?Subject (\d+)>?', str(requirement.get('requirement') or ''))}
+    quoted = actors(literal)
+    if not quoted or requested != quoted or not actors(tail[0]) <= quoted:
+        return None
+    end = match.end() + len(tail[0])
+    span = {'start':match.start(), 'end':match.end(), 'excerpt':literal, 'selected':True}
+    return {**result, 'status':'RESOLVED', 'method':'CANONICAL_TERMINAL_PUNCTUATION',
+            'excerpt':text[match.start():end], 'start':match.start(), 'end':end,
+            'locations':[span], 'resolved_spans':[span], 'mismatch':True,
+            'semantic_review_required':True}
+
+
+def _resolve_explicit_ellipsis(text, requirement, authority, result):
+    """Resolve explicit ellipsis quotes to ordered literal spans, not keywords.
+
+    Short actor labels may precede an omitted positive posture description only
+    within the same actor-led clause. Original excerpts remain unchanged.
+    """
+    quote = requirement.get('source_excerpt') or ''
+    if not re.search(r'…|\.{3,}', quote):
+        return None
+    bindings = {s: character_name(n) for s,n in authority.get('subject_bindings', {}).items()}
+    def participants(value):
+        ids = set(re.findall(r'<Subject \d+>', value))
+        for m in re.finditer(r'\bSubjects?\s+(\d+(?:\s*(?:,|and)\s*\d+)*)', value):
+            ids.update('<Subject '+n+'>' for n in re.findall(r'\d+', m[1]))
+        ids.update(s for s,n in bindings.items() if n and n in value)
+        return ids
+    requested = participants(str(requirement.get('requirement') or ''))
+    fragments = [f.strip() for f in re.split(r'…+|\.{3,}|[;；。!?！？\n]', quote) if f.strip()]
+    quoted = participants(quote)
+    if not requested or not quoted or not quoted <= requested or len(fragments) < 2:
+        return {**result, 'reason':'ELLIPSIS_PARTICIPANTS', 'status':'OWNERSHIP_CONFLICT'}
+    actors = set(bindings.values()) | set(bindings)
+    boundary = '，,;；。.!！?？\n:：'
+    groups = []
+    for i,f in enumerate(fragments):
+        label = f in actors
+        if len(f) < 6 and not label:
+            return {**result, 'reason':'ELLIPSIS_SHORT_FRAGMENT'}
+        matches = []
+        for m in re.finditer(re.escape(f), text):
+            left = text[:m.start()].rstrip(' \t-');right = text[m.end():].lstrip(' \t')
+            left_ok = not left or left[-1] in boundary or (not label and left.endswith('并'))
+            right_ok = label or not right or right[0] in boundary
+            if left_ok and right_ok:
+                matches.append({'fragment_index':i,'start':m.start(),'end':m.end(),'excerpt':m[0],'selected':False})
+        groups.append(matches)
+    locations = [m for group in groups for m in group]
+    failure = {**result,'locations':locations,'fragments':fragments}
+    if not all(groups):return {**failure,'reason':'MISSING_ELLIPSIS_FRAGMENT'}
+    paths = [[]]
+    for group in groups:
+        next_paths = []
+        for path in paths:
+            for loc in group:
+                if path and path[-1]['end'] > loc['start']:continue
+                if path and path[-1]['excerpt'] in actors:
+                    gap = text[path[-1]['end']:loc['start']]
+                    # Do not let an actor label borrow another actor's action.
+                    if re.search(r'[;；。\n]|不|没|禁止|而非|并非|[,，:：]\s*(?:' +
+                                 '|'.join(re.escape(n) for n in actors) + ')', gap):continue
+                next_paths.append(path+[loc])
+        paths = next_paths
+        if len(paths)>128:return {**failure,'status':'AMBIGUOUS','reason':'MULTIPLE_ELLIPSIS_PATHS'}
+    if len(paths)!=1:return {**failure,'status':'AMBIGUOUS' if paths else 'UNRESOLVED','reason':'ELLIPSIS_ORDER_OR_OWNER'}
+    chosen=paths[0];start,end=chosen[0]['start'],chosen[-1]['end'];enclosing=text[start:end]
+    if re.search(r'(?m)^\s*(?:D\d+|dialogue_timeline|subject_definitions|motion_ownership):',enclosing):
+        return {**failure,'status':'OWNERSHIP_CONFLICT','reason':'SOURCE_SECTION_BOUNDARY'}
+    for loc in chosen:loc['selected']=True
+    return {**failure,'status':'RESOLVED','method':'CANONICAL_EXPLICIT_ELLIPSIS',
+            'excerpt':enclosing,'start':start,'end':end,'mismatch':True,
+            'resolved_spans':[dict(loc) for loc in chosen],'semantic_review_required':True}
 
 
 def _resolve_canonical_fragments(text, requirement, authority, result):

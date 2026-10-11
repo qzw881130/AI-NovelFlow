@@ -24,6 +24,7 @@ export const DEFAULT_CONFIG: SystemConfig = {
   llmMaxTokens: 393216,
   llmTemperature: undefined,
   llmTimeout: 1800,
+  autoImageReviewEnabled: false,
   proxy: DEFAULT_PROXY,
   comfyUIHost: 'http://127.0.0.1:8188',
   comfyUITimeout: 900,

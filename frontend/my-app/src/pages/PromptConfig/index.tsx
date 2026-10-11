@@ -29,6 +29,7 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
   keyframe_description: <Film className="h-4 w-4" />,
   keyframe_planner: <Film className="h-4 w-4" />,
   keyframe_image_prompt: <Image className="h-4 w-4" />,
+  image_quality_review_prompt: <Image className="h-4 w-4" />,
   temporal_reference_selector: <Image className="h-4 w-4" />,
   keyframe_transition: <Route className="h-4 w-4" />,
   clip_execution_planner: <Route className="h-4 w-4" />,
@@ -36,6 +37,7 @@ const TYPE_ICONS: Record<TemplateType, React.ReactNode> = {
   h3_first_last_frame_prompt: <Video className="h-4 w-4" />,
   h3_multi_keyframe_prompt: <Video className="h-4 w-4" />,
   h3_execution_optimizer_prompt: <Video className="h-4 w-4" />,
+  h3_preflight_repair_prompt: <Video className="h-4 w-4" />,
 };
 
 // Tab 标签页颜色映射
@@ -56,6 +58,7 @@ const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; borde
   keyframe_description: { active: 'text-indigo-600 bg-indigo-50 border-indigo-200', inactive: 'text-gray-500 hover:text-indigo-600', border: 'border-indigo-200' },
   keyframe_planner: { active: 'text-indigo-600 bg-indigo-50 border-indigo-200', inactive: 'text-gray-500 hover:text-indigo-600', border: 'border-indigo-200' },
   keyframe_image_prompt: { active: 'text-emerald-600 bg-emerald-50 border-emerald-200', inactive: 'text-gray-500 hover:text-emerald-600', border: 'border-emerald-200' },
+  image_quality_review_prompt: { active: 'text-emerald-600 bg-emerald-50 border-emerald-200', inactive: 'text-gray-500 hover:text-emerald-600', border: 'border-emerald-200' },
   temporal_reference_selector: { active: 'text-emerald-600 bg-emerald-50 border-emerald-200', inactive: 'text-gray-500 hover:text-emerald-600', border: 'border-emerald-200' },
   keyframe_transition: { active: 'text-violet-600 bg-violet-50 border-violet-200', inactive: 'text-gray-500 hover:text-violet-600', border: 'border-violet-200' },
   clip_execution_planner: { active: 'text-violet-600 bg-violet-50 border-violet-200', inactive: 'text-gray-500 hover:text-violet-600', border: 'border-violet-200' },
@@ -63,6 +66,7 @@ const TAB_COLORS: Record<TemplateType, { active: string; inactive: string; borde
   h3_first_last_frame_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
   h3_multi_keyframe_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
   h3_execution_optimizer_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
+  h3_preflight_repair_prompt: { active: 'text-rose-600 bg-rose-50 border-rose-200', inactive: 'text-gray-500 hover:text-rose-600', border: 'border-rose-200' },
 };
 
 const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: TemplateType[] }> = {
@@ -73,8 +77,8 @@ const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: Templa
   shot_planning: { nameKey: 'promptConfig.categories.shotPlanning', types: ['chapter_split'] },
   shot_image: { nameKey: 'promptConfig.categories.shotImage', types: ['shot_image_prompt'] },
   video_director: { nameKey: 'promptConfig.categories.videoDirector', types: ['video_mode_recommender', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'] },
-  keyframe_image: { nameKey: 'promptConfig.categories.keyframeImage', types: ['temporal_reference_selector', 'keyframe_image_prompt'] },
-  video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt', 'h3_execution_optimizer_prompt'] },
+  keyframe_image: { nameKey: 'promptConfig.categories.keyframeImage', types: ['temporal_reference_selector', 'keyframe_image_prompt', 'image_quality_review_prompt'] },
+  video_generation: { nameKey: 'promptConfig.categories.videoGeneration', types: ['h3_single_frame_prompt', 'h3_first_last_frame_prompt', 'h3_multi_keyframe_prompt', 'h3_execution_optimizer_prompt', 'h3_preflight_repair_prompt'] },
 };
 
 const CATEGORIES: TemplateCategory[] = ['story_context', 'style_design', 'asset_parse', 'asset_generation', 'shot_planning', 'shot_image', 'video_director', 'keyframe_image', 'video_generation'];
@@ -300,7 +304,7 @@ export default function PromptConfig() {
 
       {/* 二级提示词类型 Tab */}
       <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-1 overflow-x-auto" role="tablist">
+        <nav className={`-mb-px flex gap-x-1 ${activeCategory === 'video_generation' ? 'flex-wrap' : 'overflow-x-auto'}`} role="tablist">
           {templateTypes.map(type => {
             const isActive = activeTab === type;
             const colors = TAB_COLORS[type];
@@ -327,6 +331,12 @@ export default function PromptConfig() {
 
       {/* Tab 内容区 */}
       <div role="tabpanel" className="card">
+        {activeTab === 'image_quality_review_prompt' && (
+          <div className="mb-4 flex items-center justify-between rounded-md bg-emerald-50 px-3 py-2 text-sm">
+            <span>{t('promptConfig.effectiveImageReviewNotice')}</span>
+            <button type="button" onClick={state.handleRestoreImageReviewDefault} className="font-medium text-emerald-700 hover:underline">{t('promptConfig.restoreSystemDefault')}</button>
+          </div>
+        )}
         <TemplateSection
           type={activeTab}
           templates={state.templatesByType[activeTab]}

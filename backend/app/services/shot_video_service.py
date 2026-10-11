@@ -56,6 +56,7 @@ from app.services.clip_visual_state_references import disabled_visual_state_ids
 from app.services.continuous_clip_av import (
     CONTINUOUS_CAPABILITIES, NATIVE_CONTINUITY_OUTPUT, is_clip_execution_contract,
     probe_clip_av, validate_native_output, continuity_output_metadata, continuous_assembly_spans,
+    cache_export_av_probes,
 )
 from app.services.native_av_mux import preserve_native_av
 
@@ -811,6 +812,7 @@ async def _apply_h3_execution_optimizer(db, task, novel, shot, raw_prompt, mode,
     from app.services.h3_execution_optimizer import optimize_h3_execution_prompt, workflow_duration_limits, VERSION
     plan = safe_json_dict(shot.video_director_plan)
     context = dict(execution_context or {})
+    context["preflight_auto_repair"] = bool(metadata.get("preflight_auto_repair", False))
     context["worker_selected_mode"] = mode
     if disabled_visual_state_ids(clip):
         context["disabled_visual_state_images"] = {
@@ -855,11 +857,32 @@ async def _apply_h3_execution_optimizer(db, task, novel, shot, raw_prompt, mode,
                 break
     task.current_step = "#14 优化 H3 执行提示词..."
     db.commit()
+    def persist_repair(state):
+        db.refresh(task)
+        current = safe_json_dict(task.metadata_json)
+        current["preflight_repair"] = state
+        task.metadata_json = json.dumps(current, ensure_ascii=False)
+        db.commit()
+
+    repair_state = metadata.get("preflight_repair") or {}
+    if context["preflight_auto_repair"] and not repair_state.get("l1_invocations"):
+        # The budget belongs to this Clip/revision, not to a replaceable Task.
+        # Explicit resume may create a new pre-submission attempt, but cannot buy
+        # another automatic L1 call by changing its task ID.
+        for prior in db.query(Task).filter(Task.shot_id == shot.id, Task.id != task.id).all():
+            pm = safe_json_dict(prior.metadata_json)
+            if (pm.get("execution_scope") == "CLIP"
+                    and pm.get("clip_index") == metadata.get("clip_index")
+                    and pm.get("clip_plan_revision") == metadata.get("clip_plan_revision")
+                    and (pm.get("preflight_repair") or {}).get("l1_invocations")):
+                repair_state = {**(pm.get("preflight_repair") or {}), "budget_source_task_id": prior.id}
+                break
     selected, record = await optimize_h3_execution_prompt(
         db, novel, shot, raw_prompt, mode, clip, reference_manifest=manifest,
         reference_images=references, temporal_anchors=temporal,
         previous_video_path=previous_video_path, execution_context=context,
         reuse_record=reuse_record,
+        repair_state=repair_state, persist_repair=persist_repair,
     )
     metadata = safe_json_dict(task.metadata_json)
     if record.get("status") != "OPTIMIZED":
@@ -2279,7 +2302,9 @@ def validate_semantic_clip_artifact(
         and is_clip_execution_contract(contract)
         and contract.get("capability") == semantic_clip.get("capability")
         and metadata.get("approval_status") == "APPROVED"
-        and str(metadata.get("clip_id") or "") == f"{shot.id}:clip:{clip_index}"
+        # Older approved runs stored this ID only inside the execution contract.
+        # An explicit conflicting top-level ID still fails; no history is rewritten.
+        and str(metadata.get("clip_id") or contract_clip.get("clip_id") or "") == f"{shot.id}:clip:{clip_index}"
         and int(metadata.get("clip_index") or 0) == clip_index
         and int(metadata.get("clip_plan_revision") or 0) == int(revision)
         and str(contract_clip.get("clip_id") or "") == f"{shot.id}:clip:{clip_index}"
@@ -2316,6 +2341,10 @@ def _continuous_assembly_projection(db, shot, units, novel_id, chapter_id) -> di
     return continuous_assembly_spans(projected)
 
 
+from app.services.business_events import observed_assembly
+
+
+@observed_assembly
 async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, novel_id: str, chapter_id: str, shot_index: int) -> dict:
     plan = safe_json_dict(shot.video_director_plan)
     semantic_clips = plan.get("clip_plan") if isinstance(plan.get("clip_plan"), list) else []
@@ -2327,7 +2356,7 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
         )
         if semantic_provenance:
             try:
-                assembly_units = _resolve_semantic_clip_assembly_units(
+                assembly_units = cache_export_av_probes(_resolve_semantic_clip_assembly_units)(
                     db, shot, semantic_clips, revision, novel_id, chapter_id,
                 )
             except ValueError as exc:
@@ -2392,7 +2421,9 @@ async def merge_video_director_clip_videos(db, shot, shot_repo: ShotRepository, 
             for item in assembly_units
         ):
             try:
-                continuity_projection = _continuous_assembly_projection(db, shot, assembly_units, novel_id, chapter_id)
+                continuity_projection = cache_export_av_probes(_continuous_assembly_projection)(
+                    db, shot, assembly_units, novel_id, chapter_id,
+                )
             except ValueError as exc:
                 return {"success": False, "message": str(exc)}
 
@@ -2641,6 +2672,14 @@ async def _save_generated_video(
     db.commit()
 
     video_url = result.get("video_url")
+    receipt = result.get("comfyui_history") or {}
+    receipt_prompt = receipt.get("prompt") or []
+    if (len(receipt_prompt) >= 3 and receipt_prompt[1] == task.comfyui_prompt_id
+            and receipt_prompt[2] == safe_json_dict(task.workflow_json)):
+        saved = safe_json_dict(task.metadata_json)
+        saved["comfyui_history"] = receipt
+        task.metadata_json = json.dumps(saved, ensure_ascii=False)
+        db.commit()
     contract = (safe_json_dict(task.metadata_json).get("execution_contract") or {})
     native_clip = bool(safe_json_dict(task.metadata_json).get("execution_scope") == "CLIP" and contract.get("capability") in CONTINUOUS_CAPABILITIES)
     if native_clip and (result.get("physical_output_role") != NATIVE_CONTINUITY_OUTPUT or result.get("output_node_id") != "65"):
@@ -2804,6 +2843,13 @@ async def _save_generated_video(
         task.current_step = "生成完成"
         task.completed_at = datetime.utcnow()
         metadata = safe_json_dict(task.metadata_json)
+        if task.error_message:
+            metadata.setdefault("resolved_execution_errors", []).append({
+                "error": task.error_message, "resolved_at": datetime.utcnow().isoformat(),
+                "resolution": "VALIDATED_VIDEO_SAVED", "prompt_id": task.comfyui_prompt_id,
+            })
+            task.error_message = None
+            task.metadata_json = json.dumps(metadata, ensure_ascii=False)
         if metadata.get("execution_scope") == "CLIP":
             media_duration = _probe_video_duration(local_path)
             semantic_clip_only = (
@@ -2841,6 +2887,18 @@ async def _save_generated_video(
                     shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
         db.commit()
 
+        if native_clip and receipt:
+            # Preserve the original Clip AV while its temporary ComfyUI files
+            # are available. Preview failure must not invalidate a saved video.
+            try:
+                from app.services.clip_playback import clip_playback
+                await clip_playback(db, shot, int(metadata["clip_index"]), novel_id, chapter_id)
+            except Exception as exc:
+                db.refresh(task)
+                saved = safe_json_dict(task.metadata_json)
+                saved["clip_playback_warning"] = str(exc)
+                task.metadata_json = json.dumps(saved, ensure_ascii=False)
+                db.commit()
         print(f"[VideoTask {task_id}] Video saved: {local_url}")
     else:
         task.status = "failed"

@@ -8,6 +8,7 @@ export default {
     scenes: 'Scenes',
     props: 'Props',
     tasks: 'Tasks',
+    events: 'Event Center',
     testCases: 'Test Cases',
     systemSettings: 'System Settings',
     promptConfig: 'Prompt Config',

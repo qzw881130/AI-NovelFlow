@@ -18,6 +18,10 @@ export interface WorkflowData {
   nodeMapping?: Record<string, string | number | null>;
   prompt: string;
   seed?: number | null;
+  windowIndex?: number;
+  referenceImages?: Array<{ label?: string; url: string }>;
+  referenceVideo?: string | null;
+  resultImage?: string | null;
   executionDuration?: Pick<ClipExecutionMetadata, 'original_duration' | 'optimized_duration' | 'effective_duration' | 'duration_source'>;
   promptItems?: Array<{
     nodeId: string;

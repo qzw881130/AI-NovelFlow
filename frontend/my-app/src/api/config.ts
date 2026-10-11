@@ -4,6 +4,7 @@
 import { api } from './index';
 
 export interface SystemConfig {
+  autoImageReviewEnabled?: boolean;
   parseCharactersPrompt?: string;
   comfyUIHost?: string;
   comfyUITimeout?: number;

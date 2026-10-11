@@ -55,13 +55,14 @@ def execution(db_session, tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_orphaned_generate_recovers_exact_clip_without_assembling_shot(execution, db_session):
-    task, shot, _, service, download, _ = execution
+    task, shot, history, service, download, _ = execution
     assert await service.reconcile_active_tasks([task]) == 1
     db_session.refresh(task)
     db_session.refresh(shot)
     assert task.status == "completed" and task.progress == 100
     assert task.error_message is None and task.comfyui_prompt_id == "original-prompt"
     assert json.loads(task.metadata_json)["approval_status"] == "APPROVED"
+    assert json.loads(task.metadata_json)["comfyui_history"] == history
     clip = json.loads(shot.video_director_plan)["clip_plan"][0]
     assert clip["generated_by_task_id"] == task.id and clip["video_url"] == task.result_url
     # The old assembly becomes stale; the Clip must never become the final Shot.

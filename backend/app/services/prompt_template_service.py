@@ -266,6 +266,15 @@ SYSTEM_KEYFRAME_PLANNING_TEMPLATES: List[Dict] = [
     }
 ]
 
+SYSTEM_IMAGE_QUALITY_REVIEW_TEMPLATES: List[Dict] = [
+    {
+        "name": "AI 图片质量评审",
+        "description": "根据真实生图提示词、生成图及参考图 Manifest 独立评审六项图片质量维度",
+        "template": load_template("15_NovelFlow_Image_Quality_Reviewer_V1.txt"),
+        "type": "image_quality_review_prompt",
+    }
+]
+
 # 系统预设的 MiniMax H3 视频生成最终提示词模板
 SYSTEM_H3_VIDEO_PROMPT_TEMPLATES: List[Dict] = [
     {
@@ -291,6 +300,12 @@ SYSTEM_H3_VIDEO_PROMPT_TEMPLATES: List[Dict] = [
         "description": "依据说话人脸嘴可见性选择保留构图、连续运镜或切镜，保留 Canonical、对白归属与场景连续性",
         "template": load_template("14_MiniMax_H3_Execution_Prompt_Optimizer_V1.txt"),
         "type": "h3_execution_optimizer_prompt"
+    },
+    {
+        "name": "MiniMax H3 Preflight 自动修复",
+        "description": "视频生成 / MiniMax H3 / Preflight 修复 V1；仅局部补齐合同，禁止重新规划",
+        "template": load_template("14A_MiniMax_H3_Preflight_Repair_V1.txt"),
+        "type": "h3_preflight_repair_prompt",
     }
 ]
 
@@ -423,6 +438,7 @@ SYSTEM_PROMPT_TEMPLATES = (
     SYSTEM_VIDEO_DIRECTOR_TEMPLATES +
     SYSTEM_KEYFRAME_DESCRIPTION_TEMPLATES +
     SYSTEM_KEYFRAME_PLANNING_TEMPLATES +
+    SYSTEM_IMAGE_QUALITY_REVIEW_TEMPLATES +
     SYSTEM_H3_VIDEO_PROMPT_TEMPLATES
 )
 
@@ -455,6 +471,23 @@ class PromptTemplateService:
                 tmpl_data.get("type", "character"),
                 is_system=True
             )
+
+            # #14A 曾以“定向修复”登记。沿用原记录的 ID，避免启动时再创建一份系统模板。
+            if tmpl_data["type"] == "h3_preflight_repair_prompt":
+                legacy = self.template_repo.get_by_name_and_type(
+                    "MiniMax H3 Preflight 定向修复", tmpl_data["type"], is_system=True
+                )
+                if legacy and not existing:
+                    legacy.name = tmpl_data["name"]
+                    existing = legacy
+                elif legacy and existing and legacy.id != existing.id:
+                    self.db.query(Novel).filter(
+                        Novel.h3_preflight_repair_prompt_template_id == legacy.id
+                    ).update(
+                        {Novel.h3_preflight_repair_prompt_template_id: existing.id},
+                        synchronize_session=False,
+                    )
+                    self.db.delete(legacy)
 
             if existing:
                 # 更新现有模板内容
@@ -519,6 +552,8 @@ class PromptTemplateService:
         template_type: str = "character"
     ) -> PromptTemplate:
         """创建用户自定义模板"""
+        if template_type == "image_quality_review_prompt":
+            self.restore_image_review_default()
         new_template = PromptTemplate(
             name=name,
             description=description,
@@ -534,6 +569,9 @@ class PromptTemplateService:
         source = self.template_repo.get_by_id(source_id)
         if not source:
             raise ValueError("源提示词模板不存在")
+
+        if source.type == "image_quality_review_prompt":
+            self.restore_image_review_default()
 
         new_template = PromptTemplate(
             name=f"{source.name} (副本)",
@@ -561,6 +599,10 @@ class PromptTemplateService:
         if template_obj.is_system:
             raise PermissionError("系统预设提示词不可编辑")
 
+        if template_obj.type == "image_quality_review_prompt":
+            self.restore_image_review_default()
+            template_obj.is_active = True
+
         if name is not None:
             template_obj.name = name
         if description is not None:
@@ -586,6 +628,26 @@ class PromptTemplateService:
     def get_default_system_template(self, template_type: str = "character") -> Optional[PromptTemplate]:
         """获取默认的系统模板"""
         return self.template_repo.get_default_system_template(template_type)
+
+    def get_effective_image_review_template(self) -> Optional[PromptTemplate]:
+        """Resolve the active user override, then the registered system default."""
+        custom = self.db.query(PromptTemplate).filter(
+            PromptTemplate.type == "image_quality_review_prompt",
+            PromptTemplate.is_system.is_(False),
+            PromptTemplate.is_active.is_(True),
+        ).order_by(PromptTemplate.updated_at.desc(), PromptTemplate.created_at.desc()).first()
+        return custom or self.get_default_system_template("image_quality_review_prompt")
+
+    def restore_image_review_default(self) -> PromptTemplate:
+        system = self.get_default_system_template("image_quality_review_prompt")
+        if not system:
+            raise ValueError("AI 图片质量评审系统模板未登记")
+        self.db.query(PromptTemplate).filter(
+            PromptTemplate.type == "image_quality_review_prompt",
+            PromptTemplate.is_system.is_(False),
+        ).update({PromptTemplate.is_active: False}, synchronize_session=False)
+        self.db.commit()
+        return system
 
     @staticmethod
     def to_response(template: PromptTemplate) -> dict:

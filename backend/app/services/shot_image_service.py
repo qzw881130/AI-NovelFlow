@@ -783,6 +783,8 @@ async def _save_generated_image(
         task.current_step = "生成完成"
         task.completed_at = datetime.utcnow()
         db.commit()
+        from app.services.image_review_worker import image_generation_completed
+        image_generation_completed(task.id)
 
 
         print(f"[ShotTask {task_id}] Completed, image saved: {local_path}")
@@ -796,6 +798,8 @@ async def _save_generated_image(
         task.current_step = "生成完成（使用远程图片）"
         task.completed_at = datetime.utcnow()
         db.commit()
+        from app.services.image_review_worker import image_generation_completed
+        image_generation_completed(task.id)
 
 
 

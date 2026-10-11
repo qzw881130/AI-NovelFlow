@@ -6,7 +6,7 @@ import asyncio
 
 from app.api import characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props, novel_videos
 from app.api import novels, chapters, shots, hd_repaint
-from app.api import clip_execution_inspector
+from app.api import clip_execution_inspector, notifications, image_reviews, events
 from app.core.database import engine, Base
 from app.services.comfyui_monitor import init_monitor
 # 导入所有模型以确保创建表
@@ -17,7 +17,9 @@ from app.models.test_case import TestCase
 from app.models.prompt_template import PromptTemplate
 from app.models.llm_log import LLMLog
 from app.models.system_config import SystemConfig  # 导入系统配置模型
+from app.models.notification import NotificationSettings, NotificationDelivery
 from app.models.shot import Shot
+from app.models.image_quality_review import ImageQualityReview
 
 
 def ensure_schema_updates():
@@ -88,6 +90,7 @@ def ensure_schema_updates():
                 "h3_first_last_frame_prompt_template_id",
                 "h3_multi_keyframe_prompt_template_id",
                 "h3_execution_optimizer_prompt_template_id",
+                "h3_preflight_repair_prompt_template_id",
             ]
             for column in novel_prompt_columns:
                 if column not in novel_columns:
@@ -116,6 +119,12 @@ def ensure_schema_updates():
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN batch_order INTEGER"))
             if "metadata_json" not in task_columns:
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN metadata_json TEXT"))
+            result = conn.execute(text("PRAGMA table_info(system_configs)"))
+            config_columns = [row[1] for row in result.fetchall()]
+            if "auto_image_review_enabled" not in config_columns:
+                conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled BOOLEAN NOT NULL DEFAULT 0"))
+            if "auto_image_review_enabled_at" not in config_columns:
+                conn.execute(text("ALTER TABLE system_configs ADD COLUMN auto_image_review_enabled_at DATETIME"))
             if "seed" not in task_columns:
                 conn.execute(text("ALTER TABLE tasks ADD COLUMN seed INTEGER"))
             if "source_task_id" not in task_columns:
@@ -162,6 +171,10 @@ async def lifespan(app: FastAPI):
     # Startup
     Base.metadata.create_all(bind=engine)
     ensure_schema_updates()
+    from app.services.business_events import install_business_event_hooks
+    remove_event_hooks = install_business_event_hooks()
+    from app.services.notification_service import notification_dispatch_loop
+    notification_task = asyncio.create_task(notification_dispatch_loop())
     
     # 初始化预设数据和系统配置
     from app.api.test_cases import init_preset_test_cases
@@ -196,11 +209,25 @@ async def lifespan(app: FastAPI):
     resume_active_hd_repaints()
     task_reconcile_task = asyncio.create_task(reconcile_active_tasks_loop())
     app.state.task_reconcile_task = task_reconcile_task
+    from app.services.image_review_worker import auto_review_loop
+    image_review_task = asyncio.create_task(auto_review_loop())
+    app.state.image_review_task = image_review_task
     
     yield
     
     # Shutdown
     task_reconcile_task.cancel()
+    image_review_task.cancel()
+    notification_task.cancel()
+    try:
+        await notification_task
+    except asyncio.CancelledError:
+        pass
+    remove_event_hooks()
+    try:
+        await image_review_task
+    except asyncio.CancelledError:
+        pass
     try:
         await task_reconcile_task
     except asyncio.CancelledError:
@@ -235,6 +262,8 @@ app.add_middleware(
 # Routers
 app.include_router(health.router, prefix="/api/health", tags=["health"])
 app.include_router(config.router, prefix="/api/config", tags=["config"])
+app.include_router(notifications.router, prefix="/api/notifications", tags=["notifications"])
+app.include_router(events.router, prefix="/api/events", tags=["events"])
 # 小说相关路由（拆分为多个模块）
 app.include_router(novels.router, prefix="/api/novels", tags=["novels"])
 app.include_router(chapters.router, prefix="/api/novels", tags=["novels"])
@@ -244,6 +273,7 @@ app.include_router(characters.router, prefix="/api/characters", tags=["character
 app.include_router(scenes.router, prefix="/api/scenes", tags=["scenes"])
 app.include_router(props.router, prefix="/api/props", tags=["props"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
+app.include_router(image_reviews.router, prefix="/api/tasks", tags=["image-reviews"])
 app.include_router(test_cases.router, prefix="/api/test-cases", tags=["test-cases"])
 app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"])
 app.include_router(files.router, prefix="/api/files", tags=["files"])

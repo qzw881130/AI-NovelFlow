@@ -77,8 +77,8 @@ LLM_LOG_TASK_CATEGORY_TYPES = {
     "shot_planning": ["split_chapter"],
     "shot_image": ["shot_image_prompt"],
     "video_director": ["video_mode_recommender", "keyframe_description", "keyframe_planner", "keyframe_transition", "clip_execution_planner"],
-    "keyframe_image": ["temporal_reference_selector", "keyframe_image_prompt"],
-    "video_generation": ["expand_video_prompt", "h3_single_frame_prompt", "h3_first_last_frame_prompt", "h3_multi_keyframe_prompt", "h3_execution_optimizer_prompt"],
+    "keyframe_image": ["temporal_reference_selector", "keyframe_image_prompt", "image_quality_review_prompt"],
+    "video_generation": ["expand_video_prompt", "h3_single_frame_prompt", "h3_first_last_frame_prompt", "h3_multi_keyframe_prompt", "h3_execution_optimizer_prompt", "h3_preflight_repair_prompt"],
 }
 
 LLM_LOG_TASK_LABELS = {
@@ -96,6 +96,7 @@ LLM_LOG_TASK_LABELS = {
     "keyframe_description": "视频导演-关键帧描述",
     "keyframe_planner": "视频导演-关键帧规划",
     "keyframe_image_prompt": "关键帧生图-关键帧生图提示词",
+    "image_quality_review_prompt": "关键帧生图-AI 图片质量评审",
     "temporal_reference_selector": "分镜生图-Temporal Anchor Reference Selector",
     "keyframe_transition": "视频导演-关键帧过渡规划",
     "clip_execution_planner": "视频导演-视频片段执行规划",
@@ -104,6 +105,7 @@ LLM_LOG_TASK_LABELS = {
     "h3_first_last_frame_prompt": "视频生成-H3首尾帧视频提示词",
     "h3_multi_keyframe_prompt": "视频生成-H3多关键帧视频提示词",
     "h3_execution_optimizer_prompt": "视频生成-MiniMax H3 执行提示词优化",
+    "h3_preflight_repair_prompt": "视频生成-MiniMax H3 Preflight 自动修复",
 }
 
 LLM_TASK_TEMPLATE_TYPES = {
@@ -121,6 +123,7 @@ LLM_TASK_TEMPLATE_TYPES = {
     "keyframe_description": "keyframe_description",
     "keyframe_planner": "keyframe_planner",
     "keyframe_image_prompt": "keyframe_image_prompt",
+    "image_quality_review_prompt": "image_quality_review_prompt",
     "temporal_reference_selector": "temporal_reference_selector",
     "keyframe_transition": "keyframe_transition",
     "clip_execution_planner": "clip_execution_planner",
@@ -129,6 +132,7 @@ LLM_TASK_TEMPLATE_TYPES = {
     "h3_first_last_frame_prompt": "h3_first_last_frame_prompt",
     "h3_multi_keyframe_prompt": "h3_multi_keyframe_prompt",
     "h3_execution_optimizer_prompt": "h3_execution_optimizer_prompt",
+    "h3_preflight_repair_prompt": "h3_preflight_repair_prompt",
 }
 
 # 上海时区 (东八区)

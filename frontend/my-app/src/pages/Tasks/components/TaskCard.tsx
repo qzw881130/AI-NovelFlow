@@ -14,6 +14,7 @@ interface TaskCardProps {
   onDelete: (id: string) => void;
   onRetry: (id: string) => void;
   onViewWorkflow: (task: Task) => void;
+  onImageReview: (task: Task) => void;
   onViewClipWorkflow: (task: Task, clip: VideoDirectorTaskClip) => void;
   onToggleError: (id: string) => void;
   onPreviewImage: (url: string) => void;
@@ -37,6 +38,7 @@ export function TaskCard({
   onDelete,
   onRetry,
   onViewWorkflow,
+  onImageReview,
   onViewClipWorkflow,
   onToggleError,
   onPreviewImage,
@@ -491,6 +493,10 @@ export function TaskCard({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {task.status === 'completed' && task.resultUrl && task.hasPromptText &&
+            ['character_portrait', 'shot_image', 'scene_image', 'prop_image', 'keyframe_image', 'single_image_edit'].includes(task.type) && (
+              <button onClick={() => onImageReview(task)} className="rounded px-2 py-1 text-sm font-medium text-blue-600 hover:bg-blue-50">AI 评审</button>
+          )}
           {getStatusIcon(task.status)}
           <span className="text-sm font-medium min-w-[60px]">{getStatusText(task.status)}</span>
           {task.status === 'failed' && (

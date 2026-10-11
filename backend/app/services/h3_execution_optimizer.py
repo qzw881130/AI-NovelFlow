@@ -39,6 +39,23 @@ def _text(value):
     return isinstance(value, str) and bool(value.strip())
 
 
+def _identity_picture_subjects(prompt, picture):
+    """Read identity assertions, without borrowing actors from later action prose."""
+    pairs = set()
+    for line in prompt.splitlines():
+        definition = re.match(r"\s*(<Subject \d+>)\s+is\b", line)
+        for sentence in re.split(r"(?<=[.!?。！？])\s+", line):
+            if picture not in sentence or not re.search(r"(?i)identity|↔|\bbind|\bapply", sentence):
+                continue
+            subjects = set(re.findall(r"<Subject \d+>", sentence))
+            # Resolve only the explicit 'this Subject' in its own definition.
+            # No carry-forward across paragraphs or inferred character names.
+            if not subjects and definition and re.search(r"\bthis Subject\b", sentence, re.I):
+                subjects.add(definition[1])
+            pairs.update(subjects)
+    return pairs
+
+
 def effective_execution_duration(original_duration, record=None, limits=None):
     """A validated #14 result wins; upstream duration is only the Raw fallback."""
     original = float(original_duration)
@@ -412,8 +429,7 @@ def check_authority(raw_prompt, output, authority, initial_timing=None, limits=N
         roles = re.findall(re.escape(ref["picture"]) + r"\s*(?:[—:-]|is)\s*(?:the\s+)?(?:authoritative\s+)?(DIRECTOR_VISUAL_ANCHOR|TEMPORAL_ANCHOR|CHARACTER_IDENTITY|SCENE|PROP)\b", prompt, re.I)
         if roles: checks[f"reference_role_{ref['picture']}"] = all(role.upper() == ref["type"] for role in roles)
         if ref["type"] == "CHARACTER_IDENTITY" and ref["subject"]:
-            lines = [line for line in prompt.splitlines() if ref["picture"] in line and re.search(r"(?i)identity|↔|\bbind|\bapply", line)]
-            pairs = {subject for line in lines for subject in re.findall(r"<Subject \d+>", line)}
+            pairs = _identity_picture_subjects(prompt, ref["picture"])
             checks[f"picture_binding_{ref['picture']}"] = pairs == {ref["subject"]}
     for phase_type in ("ATTENTION", "CAMERA", "FINAL_SETTLE"):
         if not any(p.get("type") == phase_type for p in phases):
@@ -453,7 +469,8 @@ def duration_infeasibility(authority, limits):
 
 async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_mode, clip,
                                       reference_manifest=None, reference_images=None, temporal_anchors=None,
-                                      previous_video_path=None, execution_context=None, reuse_record=None):
+                                      previous_video_path=None, execution_context=None, reuse_record=None,
+                                      repair_state=None, persist_repair=None):
     record = {"version": VERSION, "clip_index": clip.get("clip_index"), "status": "FALLBACK", "raw_prompt": raw_prompt,
               "optimized_prompt": None, "selected_prompt_source": "RAW", "duration_applied": False,
               "timing_applied": False, "raw_prompt_sha256": hashlib.sha256(raw_prompt.encode()).hexdigest()}
@@ -476,7 +493,11 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
         if not images and runtime["visual_inputs"]:
             raise ValueError("VISION_INPUT_UNAVAILABLE: 不允许静默丢弃图片")
         previous_runtime = (reuse_record or {}).get("runtime_input") or {}
-        can_reuse = (reuse_record and reuse_record.get("version") == VERSION and reuse_record.get("status") == "OPTIMIZED"
+        repairable_saved_response = bool((execution_context or {}).get("preflight_auto_repair")
+            and reuse_record and reuse_record.get("original_output") and reuse_record.get("raw_response_content")
+            and reuse_record.get("llm_log_id") and reuse_record.get("authority_check"))
+        can_reuse = (reuse_record and reuse_record.get("version") == VERSION
+                     and (reuse_record.get("status") == "OPTIMIZED" or repairable_saved_response)
                      and reuse_record.get("raw_prompt_sha256") == record["raw_prompt_sha256"]
                      and reuse_record.get("system_prompt_sha256") == record["system_prompt_sha256"]
                      and all(previous_runtime.get(key) == runtime.get(key) for key in (
@@ -484,7 +505,8 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
                          "execution_flexibility", "execution_context", "native_prompt_contract")))
         if can_reuse:
             record["reused_result"] = True
-            result = {"success": True, "content": json.dumps(reuse_record["output"], ensure_ascii=False),
+            result = {"success": True, "content": (reuse_record["raw_response_content"] if repairable_saved_response
+                       else json.dumps(reuse_record["output"], ensure_ascii=False)),
                       "log_id": reuse_record.get("llm_log_id"), "raw_response": reuse_record.get("raw_llm_response")}
         else:
             result = await LLMService().chat_completion(
@@ -502,6 +524,17 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
         if not isinstance(parsed, dict) or not isinstance(parsed.get("optimized_prompt"), str) or not parsed["optimized_prompt"].strip():
             raise ValueError("#14 structured response 缺少 optimized_prompt")
         audit = check_authority(raw_prompt, parsed, runtime["immutable_authority"], runtime["initial_execution_timing"], runtime["duration_limits"])
+        # Raw response stays intact. Repair only execution output, retaining all
+        # before/after evidence; the same Preflight remains the sole validator.
+        if not audit["passed"] and (execution_context or {}).get("preflight_auto_repair"):
+            from app.services.h3_preflight_repair import repair_output
+            record["original_output"] = json.loads(json.dumps(parsed))
+            parsed, audit, repair = await repair_output(
+                db, novel, shot, parsed, runtime, audit,
+                lambda value: check_authority(raw_prompt, value, runtime["immutable_authority"], runtime["initial_execution_timing"], runtime["duration_limits"]),
+                state=repair_state, persist=persist_repair,
+            )
+            record["preflight_repair"] = repair
         record.update(output=parsed, optimized_prompt=parsed["optimized_prompt"], authority_check=audit,
                       resolved_evidence=audit["resolved_evidence"], resolved_authority=audit["resolved_authority"])
         risks = parsed.get("risks") or []
