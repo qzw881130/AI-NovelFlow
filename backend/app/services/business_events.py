@@ -12,6 +12,7 @@ from uuid import uuid4
 
 from sqlalchemy import event, inspect, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import sessionmaker
 
 from app.core.database import SessionLocal
 from app.models.notification import BusinessEvent
@@ -283,10 +284,10 @@ def install_business_event_hooks(factory=SessionLocal):
     return remove
 
 
-def shot_operation_event(shot, event_type, *, stage, success, operation_id=None, details=None):
+def shot_operation_event(business_db, shot, event_type, *, stage, success, operation_id=None, details=None):
     """For operations with no Task row (planner and final assembly)."""
     try:
-        with SessionLocal() as db:
+        with sessionmaker(bind=business_db.get_bind())() as db:
             chapter = db.get(Chapter, shot.chapter_id)
             payload = {"novel_id": chapter.novel_id if chapter else None, "chapter_id": shot.chapter_id,
                        "shot_id": shot.id, "source": stage, "raw_status": "completed" if success else "failed",
@@ -307,7 +308,7 @@ def observed_assembly(fn):
         try:
             result = await fn(db, shot, *args, **kwargs)
         except Exception:
-            shot_operation_event(shot, "shot.assembly.failed", stage="shot_video.merge", success=False, operation_id=operation_id)
+            shot_operation_event(db, shot, "shot.assembly.failed", stage="shot_video.merge", success=False, operation_id=operation_id)
             raise
         if not result.get("skipped"):
             success = bool(result.get("success"))
@@ -315,7 +316,7 @@ def observed_assembly(fn):
             # file. Same final URL/revision is the same assembly result.
             plan = result.get("plan") or {}
             identity = f"{result.get('video_url')}:{plan.get('clip_plan_revision')}" if success else operation_id
-            shot_operation_event(shot, f"shot.assembly.{'completed' if success else 'failed'}",
+            shot_operation_event(db, shot, f"shot.assembly.{'completed' if success else 'failed'}",
                                  stage="shot_video.merge", success=success, operation_id=identity,
                                  details={"clip_count": len(plan.get("clip_plan") or [])})
         return result

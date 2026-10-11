@@ -1843,7 +1843,7 @@ def _mark_video_director_planning_failed(shot, shot_repo: ShotRepository, plan: 
     plan["error_message"] = message
     shot_repo.update(shot, video_director_plan=plan, video_status="failed", video_task_id=None)
     from app.services.business_events import shot_operation_event
-    shot_operation_event(shot, "shot.planning.failed", stage="video_director.planning", success=False)
+    shot_operation_event(shot_repo.db, shot, "shot.planning.failed", stage="video_director.planning", success=False)
 
 
 def _parse_keyframe_planner_content(content: str) -> dict:
@@ -2634,7 +2634,7 @@ async def plan_video_keyframes(
     plan["transitions"] = transitions
     shot_repo.update(shot, video_director_plan=plan)
     from app.services.business_events import shot_operation_event
-    shot_operation_event(shot, "shot.planning.completed", stage="video_director.planning", success=True)
+    shot_operation_event(db, shot, "shot.planning.completed", stage="video_director.planning", success=True)
     return {"success": True, "data": plan}
 
 

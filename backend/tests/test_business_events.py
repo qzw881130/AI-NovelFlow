@@ -243,8 +243,9 @@ def test_assembly_observation_preserves_result_and_failure(ledger):
     async def merge(db,shot,mode):
         if mode=='raise':raise ValueError('merge failed')
         return {'success':mode=='pass','video_url':'saved.mp4' if mode=='pass' else None,'plan':{'clip_plan_revision':1}}
-    assert asyncio.run(merge(db,shot,'pass'))['success']
-    asyncio.run(merge(db,shot,'pass'))
+    with patch.object(be, 'SessionLocal', side_effect=AssertionError('must not use default database')):
+        assert asyncio.run(merge(db,shot,'pass'))['success']
+        asyncio.run(merge(db,shot,'pass'))
     assert db.query(BusinessEvent).filter_by(event_type='shot.assembly.completed').count()==1
     with pytest.raises(ValueError):asyncio.run(merge(db,shot,'raise'))
     assert db.query(BusinessEvent).filter_by(event_type='shot.assembly.failed').count()==1

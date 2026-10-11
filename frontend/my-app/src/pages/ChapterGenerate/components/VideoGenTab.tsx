@@ -1351,13 +1351,13 @@ function VideoDirectorPanel({
       setIsAdvancedDirectorOpen(true);
       requestAnimationFrame(() => document.getElementById(`event-state-${shot.id}-${stateId}`)?.scrollIntoView({ block: 'nearest', inline: 'center' }));
       eventTargetApplied.current = targetKey;
-    } else if (clipId && clips.some((clip: any) => String(clip.clip_index) === clipId)) {
+    } else if (clipId && (hasSemanticClipPlan ? semanticClipPlan : clips).some((clip: any) => String(clip.clip_index) === clipId)) {
       setSelectedClipKey(clipId);
       setIsAdvancedDirectorOpen(true);
       eventTargetApplied.current = targetKey;
       requestAnimationFrame(() => document.getElementById(`event-clip-${shot.id}-${clipId}`)?.scrollIntoView({ block: 'center' }));
     }
-  }, [shot?.id, selectedMode, keyframes, clips]);
+  }, [shot?.id, selectedMode, keyframes, clips, hasSemanticClipPlan, semanticClipPlan]);
 
   useEffect(() => {
     if (selectedKeyframeIndex >= keyframes.length) setSelectedKeyframeIndex(0);
