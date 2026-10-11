@@ -70,8 +70,10 @@ Thumbs.db
 output/
 downloads/
 uploads/
+*.zip
 
 # Local docs
+docs/*/
 *.md
 *.yaml
 v2-doc/

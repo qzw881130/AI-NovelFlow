@@ -32,7 +32,7 @@ def measured(count=529, rate=24, pts=None):
 
 @pytest.fixture
 def sample(tmp_path):
-    evidence = json.loads((Path(__file__).parents[2] / "docs/clip-execution-inspector/audit-evidence.json").read_text())["sample"]
+    evidence = json.loads((Path(__file__).parent / "fixtures/clip_execution_inspector_audit_evidence.json").read_text())["sample"]
     metadata = {"execution_scope": "CLIP", "execution_contract": evidence["execution_contract"],
                 "physical_output": evidence["physical_output"], "dialogue_assignment": evidence["dialogue_assignment"]}
     prompt = "subject_definitions:\n<Subject 1> is 皇帝, human.\n<Subject 3> is 侍从2, human.\n<Subject 5> is 宫廷总管, human.\n\ndialogue_timeline:\n"
