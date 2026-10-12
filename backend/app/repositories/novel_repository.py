@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.novel import Novel, Chapter
 from app.models.shot import Shot
+from app.constants.prompt_template import NOVEL_PROMPT_TEMPLATE_FIELDS
 
 
 class NovelRepository:
@@ -93,13 +94,18 @@ class NovelRepository:
                 "promptTemplateId": n.prompt_template_id,
                 "scenePromptTemplateId": n.scene_prompt_template_id,
                 "propPromptTemplateId": n.prop_prompt_template_id,
+                "sceneSettingPromptTemplateId": n.scene_setting_prompt_template_id,
+                "propAppearancePromptTemplateId": n.prop_appearance_prompt_template_id,
                 "chapterSplitPromptTemplateId": n.chapter_split_prompt_template_id,
                 "keyframeDescriptionPromptTemplateId": n.keyframe_description_prompt_template_id,
                 "shotImagePromptTemplateId": n.shot_image_prompt_template_id,
                 "videoModeRecommenderPromptTemplateId": n.video_mode_recommender_prompt_template_id,
                 "keyframePlannerPromptTemplateId": n.keyframe_planner_prompt_template_id,
                 "keyframeImagePromptTemplateId": n.keyframe_image_prompt_template_id,
+                "temporalReferenceSelectorPromptTemplateId": n.temporal_reference_selector_prompt_template_id,
+                "imageQualityReviewPromptTemplateId": n.image_quality_review_prompt_template_id,
                 "keyframeTransitionPromptTemplateId": n.keyframe_transition_prompt_template_id,
+                "clipExecutionPlannerPromptTemplateId": n.clip_execution_planner_prompt_template_id,
                 "h3SingleFramePromptTemplateId": n.h3_single_frame_prompt_template_id,
                 "h3FirstLastFramePromptTemplateId": n.h3_first_last_frame_prompt_template_id,
                 "h3MultiKeyframePromptTemplateId": n.h3_multi_keyframe_prompt_template_id,
@@ -160,18 +166,29 @@ class NovelRepository:
         return novel
 
     def copy_with_chapters(self, source: Novel, title: str) -> Novel:
-        """Create a clean novel containing only copied chapter source text."""
+        """Copy source text, basic settings and valid prompt references only."""
+        from app.services.novel_prompt_templates import resolve_novel_prompt_template
         chapters = self.db.query(Chapter).filter(
             Chapter.novel_id == source.id
         ).order_by(Chapter.number, Chapter.id).all()
         copied = Novel(
             title=title,
+            author=source.author,
+            description=source.description,
+            aspect_ratio=source.aspect_ratio or "16:9",
             chapter_count=len(chapters),
             chapters=[
                 Chapter(number=chapter.number, title=chapter.title, content=chapter.content or "")
                 for chapter in chapters
             ],
         )
+        for template_type, field in NOVEL_PROMPT_TEMPLATE_FIELDS.items():
+            if getattr(source, field, None):
+                selected = resolve_novel_prompt_template(self.db, source, template_type)
+                # A missing/deactivated version returns to default through a null
+                # reference. Do not materialize the system default in the copy.
+                if selected and selected.id == getattr(source, field):
+                    setattr(copied, field, selected.id)
         try:
             self.db.add(copied)
             self.db.commit()
@@ -230,13 +247,18 @@ class NovelRepository:
             "promptTemplateId": novel.prompt_template_id,
             "scenePromptTemplateId": novel.scene_prompt_template_id,
             "propPromptTemplateId": novel.prop_prompt_template_id,
+            "sceneSettingPromptTemplateId": novel.scene_setting_prompt_template_id,
+            "propAppearancePromptTemplateId": novel.prop_appearance_prompt_template_id,
             "chapterSplitPromptTemplateId": novel.chapter_split_prompt_template_id,
             "keyframeDescriptionPromptTemplateId": novel.keyframe_description_prompt_template_id,
             "shotImagePromptTemplateId": novel.shot_image_prompt_template_id,
             "videoModeRecommenderPromptTemplateId": novel.video_mode_recommender_prompt_template_id,
             "keyframePlannerPromptTemplateId": novel.keyframe_planner_prompt_template_id,
             "keyframeImagePromptTemplateId": novel.keyframe_image_prompt_template_id,
+            "temporalReferenceSelectorPromptTemplateId": novel.temporal_reference_selector_prompt_template_id,
+            "imageQualityReviewPromptTemplateId": novel.image_quality_review_prompt_template_id,
             "keyframeTransitionPromptTemplateId": novel.keyframe_transition_prompt_template_id,
+            "clipExecutionPlannerPromptTemplateId": novel.clip_execution_planner_prompt_template_id,
             "h3SingleFramePromptTemplateId": novel.h3_single_frame_prompt_template_id,
             "h3FirstLastFramePromptTemplateId": novel.h3_first_last_frame_prompt_template_id,
             "h3MultiKeyframePromptTemplateId": novel.h3_multi_keyframe_prompt_template_id,

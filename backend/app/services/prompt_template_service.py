@@ -552,8 +552,6 @@ class PromptTemplateService:
         template_type: str = "character"
     ) -> PromptTemplate:
         """创建用户自定义模板"""
-        if template_type == "image_quality_review_prompt":
-            self.restore_image_review_default()
         new_template = PromptTemplate(
             name=name,
             description=description,
@@ -569,9 +567,6 @@ class PromptTemplateService:
         source = self.template_repo.get_by_id(source_id)
         if not source:
             raise ValueError("源提示词模板不存在")
-
-        if source.type == "image_quality_review_prompt":
-            self.restore_image_review_default()
 
         new_template = PromptTemplate(
             name=f"{source.name} (副本)",
@@ -600,7 +595,6 @@ class PromptTemplateService:
             raise PermissionError("系统预设提示词不可编辑")
 
         if template_obj.type == "image_quality_review_prompt":
-            self.restore_image_review_default()
             template_obj.is_active = True
 
         if name is not None:
@@ -637,17 +631,6 @@ class PromptTemplateService:
             PromptTemplate.is_active.is_(True),
         ).order_by(PromptTemplate.updated_at.desc(), PromptTemplate.created_at.desc()).first()
         return custom or self.get_default_system_template("image_quality_review_prompt")
-
-    def restore_image_review_default(self) -> PromptTemplate:
-        system = self.get_default_system_template("image_quality_review_prompt")
-        if not system:
-            raise ValueError("AI 图片质量评审系统模板未登记")
-        self.db.query(PromptTemplate).filter(
-            PromptTemplate.type == "image_quality_review_prompt",
-            PromptTemplate.is_system.is_(False),
-        ).update({PromptTemplate.is_active: False}, synchronize_session=False)
-        self.db.commit()
-        return system
 
     @staticmethod
     def to_response(template: PromptTemplate) -> dict:

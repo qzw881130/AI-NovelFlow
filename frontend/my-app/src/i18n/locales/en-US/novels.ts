@@ -10,7 +10,7 @@ export default {
     copySourcePlaceholder: 'Select a novel to copy',
     copyTitle: 'New Novel Title',
     copyTitleDefault: '{title} - Copy',
-    copyScopeHint: 'Only chapter titles, text, and order are copied. Characters, scenes, props, parsed data, and generated assets are not copied.',
+    copyScopeHint: 'Copies basic novel details, aspect ratio, prompt template selections, and chapter titles, text, and order. Characters, scenes, props, parsed data, and generated assets are excluded.',
     copyConfirm: 'Copy',
     copying: 'Copying...',
     copySuccess: 'Created "{title}" with {count} copied chapters',

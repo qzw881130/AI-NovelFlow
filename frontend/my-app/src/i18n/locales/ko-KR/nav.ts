@@ -7,7 +7,7 @@ export default {
     scenes: '장면',
     props: '소품',
     tasks: '작업',
-    testCases: '테스트 케이스',
+    testCases: '예시 소설',
     systemSettings: '시스템 설정',
     promptConfig: '프롬프트 설정',
     uiConfig: 'UI 설정',

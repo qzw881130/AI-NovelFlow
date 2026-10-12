@@ -659,6 +659,37 @@ def _mark_shot_video_failed(shot, shot_repo: ShotRepository, message: str):
     return shot_repo.update(shot, video_status="failed", video_director_plan=plan)
 
 
+def _project_semantic_clip_failure(db, task, shot, clip_metadata, message: str):
+    """Persist a failed Clip while keeping an explicitly paused batch paused."""
+    task.status = "failed"
+    task.error_message = message
+    task.completed_at = datetime.utcnow()
+    metadata = safe_json_dict(task.metadata_json)
+    metadata["approval_status"] = "FAILED"
+    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    plan = safe_json_dict(shot.video_director_plan)
+    for clip in plan.get("clip_plan", []):
+        if int(clip.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0):
+            clip["execution_status"] = "FAILED"
+            clip["error_message"] = message
+            break
+    plan["task_error_message"] = message
+    plan["error_message"] = message
+    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+    shot.video_status = "failed"
+    parent = db.get(Task, task.parent_task_id) if task.parent_task_id else None
+    if parent and (parent.status == "paused" or safe_json_dict(parent.metadata_json).get("pause_requested")):
+        parent.error_message = message
+        parent.current_step = f"已暂停；Clip {clip_metadata.get('clip_index')} 失败"
+        child = db.query(Task).filter(
+            Task.parent_task_id == parent.id, Task.shot_id == shot.id,
+            Task.batch_order.isnot(None),
+        ).first()
+        if child and child.status == "paused":
+            child.error_message = message
+            child.current_step = parent.current_step
+
+
 def _clear_shot_video_error(shot, shot_repo: ShotRepository, **fields):
     plan = safe_json_dict(shot.video_director_plan)
     plan.pop("task_error_message", None)
@@ -1805,18 +1836,13 @@ async def generate_shot_video_task(
             persist_task_comfyui_error(task, result)
             task.error_message = result.get("message", "生成失败")
             task.current_step = "生成失败"
+            task.completed_at = datetime.utcnow()
             if selected_mode == "MULTI_KEYFRAME" and clip.get("clip_index"):
                 _update_window_plan_status(shot, int(clip.get("clip_index") or 1), "FAILED", db, task=task)
-            if not clip_only_execution:
-                _mark_shot_video_failed(shot, shot_repo, task.error_message)
             if clip_metadata and clip_metadata.get("execution_scope") == "CLIP":
-                failed_plan = safe_json_dict(shot.video_director_plan)
-                for semantic_clip in failed_plan.get("clip_plan", []):
-                    if int(semantic_clip.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0):
-                        semantic_clip["execution_status"] = "FAILED"
-                        semantic_clip["error_message"] = task.error_message
-                        break
-                shot.video_director_plan = json.dumps(failed_plan, ensure_ascii=False)
+                _project_semantic_clip_failure(db, task, shot, clip_metadata, task.error_message)
+            elif not clip_only_execution:
+                _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
             return
 
@@ -1853,17 +1879,12 @@ async def generate_shot_video_task(
             task.status = "failed"
             task.error_message = str(e)
             task.current_step = "任务异常"
+            task.completed_at = datetime.utcnow()
             if 'shot' in locals() and shot:
-                if not clip_only_execution:
-                    _mark_shot_video_failed(shot, shot_repo, task.error_message)
                 if clip_metadata and clip_metadata.get("execution_scope") == "CLIP":
-                    failed_plan = safe_json_dict(shot.video_director_plan)
-                    for semantic_clip in failed_plan.get("clip_plan", []):
-                        if int(semantic_clip.get("clip_index") or 0) == int(clip_metadata.get("clip_index") or 0):
-                            semantic_clip["execution_status"] = "FAILED"
-                            semantic_clip["error_message"] = task.error_message
-                            break
-                    shot.video_director_plan = json.dumps(failed_plan, ensure_ascii=False)
+                    _project_semantic_clip_failure(db, task, shot, clip_metadata, task.error_message)
+                elif not clip_only_execution:
+                    _mark_shot_video_failed(shot, shot_repo, task.error_message)
             db.commit()
         except Exception:
             pass
@@ -2823,6 +2844,7 @@ async def _save_generated_video(
                         return
                 semantic_clip.update(result_fields)
                 semantic_clip["execution_status"] = "APPROVED"
+                semantic_clip.pop("error_message", None)
                 shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
                 if canonical_replacement:
                     invalidate_current_canonical_execution(

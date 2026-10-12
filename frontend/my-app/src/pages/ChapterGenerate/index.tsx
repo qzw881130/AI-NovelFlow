@@ -14,6 +14,7 @@ export default function ChapterGenerate() {
   const { t } = useTranslation();
   const { id, cid } = useParams<{ id: string; cid: string }>();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const initializedChapterRef = useRef<string | null>(null);
   const activeTasksSyncedChapterRef = useRef<string | null>(null);
 
   // 使用 Store 获取状态和方法
@@ -125,6 +126,9 @@ export default function ChapterGenerate() {
   // 获取真实章节数据和角色列表
   useEffect(() => {
     if (cid && id) {
+      const key = `${id}:${cid}`;
+      if (initializedChapterRef.current === key) return;
+      initializedChapterRef.current = key;
       activeTasksSyncedChapterRef.current = null;
       fetchNovel(id);
       fetchCharacters(id);

@@ -3181,6 +3181,10 @@ async def _execute_phase_b_semantic_clip(
         subject_bindings=(compiled["execution_contract"].get("visual_attention_snapshot") or {}).get("characters", []),
     )
 
+    reusable_prompt = get_semantic_clip_prompt(plan, clip, compiled["video_reference_manifest"]) if request.skip_llm_when_prompt_exists else ""
+    if request.skip_llm_when_prompt_exists and not reusable_prompt.strip():
+        raise HTTPException(status_code=400, detail="当前 Clip 没有可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频")
+
     task = task_repo.create_shot_video_task(
         novel_id=novel_id,
         chapter_id=chapter_id,
@@ -3221,9 +3225,6 @@ async def _execute_phase_b_semantic_clip(
         metadata["requires_temporal_control"] = bool(clip.get("requires_temporal_control"))
     if capability == "TEMPORAL_EXTEND":
         metadata["temporal_anchor_ids"] = [item["anchor_id"] for item in resolved_temporal_anchors]
-    reusable_prompt = get_semantic_clip_prompt(plan, clip, compiled["video_reference_manifest"]) if request.skip_llm_when_prompt_exists else ""
-    if request.skip_llm_when_prompt_exists and not reusable_prompt.strip():
-        raise HTTPException(status_code=400, detail="当前 Clip 没有可复用的视频最终 Prompt，请先使用 LLM+生成Clip视频")
     metadata["prompt_text"] = reusable_prompt
     task.metadata_json = json.dumps(metadata, ensure_ascii=False)
     if not plan.get("dialogue_timeline_source"):
@@ -4339,7 +4340,11 @@ async def run_shot_video_batch_task(batch_task_id: str) -> None:
                         status = await _run_semantic_shot_for_batch(db, batch_task, child, shot)
                         if status == "paused":
                             child.status = batch_task.status = "paused"
-                            child.current_step = batch_task.current_step = "已暂停；保留当前 Clip 及生成回执"
+                            if batch_task.error_message:
+                                child.error_message = child.error_message or batch_task.error_message
+                                child.current_step = batch_task.current_step = "已暂停；Clip 失败：" + batch_task.error_message
+                            else:
+                                child.current_step = batch_task.current_step = "已暂停；保留当前 Clip 及生成回执"
                             db.commit()
                             return
                         if status in {"waiting_review", "waiting_dependency"}:
@@ -4355,6 +4360,10 @@ async def run_shot_video_batch_task(batch_task_id: str) -> None:
                         child.completed_at = datetime.utcnow() if status in {"completed", "failed", "cancelled"} else child.completed_at
                         if status != "completed":
                             child.error_message = child.error_message or f"Semantic Shot Final {status}"
+                        if status in {"failed", "cancelled"}:
+                            # A returned Clip/assembly failure is as terminal as
+                            # an exception. Keep saved assets, update its UI state.
+                            shot.video_status = "failed"
                         db.commit()
                     else:
                         selected_mode = (
@@ -6047,6 +6056,7 @@ async def get_shots(
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
     db: Session = Depends(get_db),
+    include_ai_history: bool = True,
 ):
     """
     获取章节的所有分镜列表
@@ -6072,7 +6082,7 @@ async def get_shots(
         db.expire_all()
 
     shots = shot_repo.get_by_chapter(chapter_id)
-    shots_data = [shot_repo.to_response(shot) for shot in shots]
+    shots_data = [shot_repo.to_response(shot, include_ai_history=include_ai_history) for shot in shots]
 
     return {
         "success": True,
@@ -6548,6 +6558,27 @@ def write_shot_video_materials_package(db, novel, chapter, shot, selected, zip_b
     return f"shot_{int(shot.index):03d}_video_materials.zip"
 
 
+@router.get("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}/ai-calls/{call_index}", response_model=dict)
+async def get_shot_ai_call(
+    novel_id: str, chapter_id: str, shot_id: str, call_index: int,
+    created_at: Optional[str] = None,
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    shot_repo: ShotRepository = Depends(get_shot_repo),
+):
+    """Read one saved historical call; no regeneration, reconciliation or history write."""
+    chapter = chapter_repo.get_by_id(chapter_id, novel_id)
+    shot = shot_repo.get_by_id(shot_id)
+    if not chapter or not shot or shot.chapter_id != chapter_id:
+        raise HTTPException(status_code=404, detail="分镜不存在")
+    calls = _safe_json_dict(shot.video_director_plan).get("ai_calls", [])
+    if call_index < 0 or call_index >= len(calls):
+        raise HTTPException(status_code=404, detail="AI 调用记录不存在，请刷新")
+    call = calls[call_index]
+    if created_at is not None and str(call.get("created_at") or "") != created_at:
+        raise HTTPException(status_code=409, detail="AI 调用记录已更新，请刷新")
+    return {"success": True, "data": call}
+
+
 @router.get("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}", response_model=dict)
 async def get_shot(
     novel_id: str,
@@ -6557,6 +6588,7 @@ async def get_shot(
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
     db: Session = Depends(get_db),
+    include_ai_history: bool = True,
 ):
     """
     获取单个分镜详情
@@ -6594,7 +6626,7 @@ async def get_shot(
 
     return {
         "success": True,
-        "data": shot_repo.to_response(shot),
+        "data": shot_repo.to_response(shot, include_ai_history=include_ai_history),
         "message": "获取分镜成功",
     }
 

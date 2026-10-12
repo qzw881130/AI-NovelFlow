@@ -9,7 +9,7 @@ export default {
     props: '道具库',
     tasks: '任务队列',
     events: '事件中心',
-    testCases: '测试用例',
+    testCases: '示例小说',
     systemSettings: '系统配置',
     promptConfig: '提示词配置',
     uiConfig: '界面配置',

@@ -74,7 +74,7 @@ export const createDataSlice: StateCreator<
   fetchChapter: async (novelId: string, chapterId: string) => {
     set({ loading: true });
     try {
-      const res = await fetch(`${API_BASE}/novels/${novelId}/chapters/${chapterId}/`);
+      const res = await fetch(`${API_BASE}/novels/${novelId}/chapters/${chapterId}?include_shots=false`);
       const data = await res.json();
       if (data.success) {
         // 转换 snake_case 到 camelCase

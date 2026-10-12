@@ -51,8 +51,6 @@ export const promptTemplateApi = {
   /** 复制模板 */
   copy: (id: string) => api.post<PromptTemplate>(`/prompt-templates/${id}/copy`),
 
-  restoreImageReviewDefault: () => api.post<PromptTemplate>('/prompt-templates/image-quality-review/restore-default'),
-
   /** 打包下载所有提示词模板 */
   downloadAll: async (): Promise<void> => {
     const response = await fetch(`${API_BASE}/prompt-templates/export-all`);

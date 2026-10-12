@@ -205,7 +205,7 @@ def merge_character_images(
     )
 
 
-def _merge_selected_character_images(novel_id, chapter_id, shot_index, images, assets, storage):
+def _merge_selected_character_images(novel_id, chapter_id, shot_index, images, assets, storage, *, reference_kind="character"):
     """Cache only the selected ID + asset versions; preserve all historical variants."""
     import hashlib
     import json
@@ -213,24 +213,27 @@ def _merge_selected_character_images(novel_id, chapter_id, shot_index, images, a
     import uuid
     from pathlib import Path
 
+    id_key = f"{reference_kind}_id"
+    plural = "characters" if reference_kind == "character" else "props"
+    get_path = storage.get_merged_characters_path if reference_kind == "character" else storage.get_merged_props_path
     if len(images) != len(assets) or not images:
         raise ValueError("Selected character assets do not match merge inputs")
-    if len({a["character_id"] for a in assets}) != len(assets):
+    if len({a[id_key] for a in assets}) != len(assets):
         raise ValueError("Duplicate character ID in reference group")
 
     # Stable layout/cache for the same set, independent of selector ordering.
-    selected = sorted(zip(assets, images), key=lambda pair: pair[0]["character_id"])
+    selected = sorted(zip(assets, images), key=lambda pair: pair[0][id_key])
     members = []
     ordered_images = []
     for asset, (name, path) in selected:
         if hashlib.sha256(Path(path).read_bytes()).hexdigest() != asset["sha256"]:
-            raise ValueError(f"Selected character asset changed: {asset['character_id']}")
-        members.append({"character_id": asset["character_id"], "name": name,
+            raise ValueError(f"Selected character asset changed: {asset[id_key]}")
+        members.append({id_key: asset[id_key], "name": name,
                         "url": asset["url"], "sha256": asset["sha256"]})
         ordered_images.append((name, path))
     identity = {"layout_version": 1, "members": members}
     signature = hashlib.sha256(json.dumps(identity, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
-    output = storage.get_merged_characters_path(
+    output = get_path(
         novel_id, chapter_id, shot_index, asset_signature=signature
     )
     metadata_path = output.with_suffix(".json")
@@ -247,7 +250,7 @@ def _merge_selected_character_images(novel_id, chapter_id, shot_index, images, a
     try:
         result = _merge_labeled_images(
             novel_id, chapter_id, shot_index, ordered_images, storage,
-            "merged_characters", "characters", lambda *args: temporary,
+            f"merged_{plural}", plural, lambda *args: temporary,
             "MergeSelectedCharacters", cleanup_existing=False,
         )
         if not result:
@@ -255,7 +258,7 @@ def _merge_selected_character_images(novel_id, chapter_id, shot_index, images, a
         # Do not publish a cache built while a source file was being replaced.
         for asset, (_, path) in selected:
             if hashlib.sha256(Path(path).read_bytes()).hexdigest() != asset["sha256"]:
-                raise ValueError(f"Selected character asset changed: {asset['character_id']}")
+                raise ValueError(f"Selected character asset changed: {asset[id_key]}")
         temporary_metadata.write_text(json.dumps({
             "identity": identity, "image_sha256": hashlib.sha256(temporary.read_bytes()).hexdigest(),
         }, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -272,9 +275,15 @@ def merge_prop_images(
     chapter_id: str,
     shot_index: int,
     prop_images: List[Tuple[str, str]],
-    file_storage
+    file_storage,
+    *, prop_assets: Optional[list] = None,
 ) -> Optional[str]:
-    """合并多个道具图片为一个参考图"""
+    """合并多个道具图片为一个参考图；显式资产使用成员/版本隔离缓存。"""
+    if prop_assets is not None:
+        return _merge_selected_character_images(
+            novel_id, chapter_id, shot_index, prop_images, prop_assets, file_storage,
+            reference_kind="prop",
+        )
     return _merge_labeled_images(
         novel_id,
         chapter_id,

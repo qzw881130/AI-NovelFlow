@@ -261,13 +261,15 @@ class LLMService:
         else:
             return prompt
 
-    def _get_asset_description_prompt(self, template_type: str, fallback: str):
+    def _get_asset_description_prompt(self, template_type: str, fallback: str, novel_id: str = None):
         """Reuse registered system templates; file-backed fallback before seeding."""
         from app.core.database import SessionLocal
-        from app.services.prompt_template_service import PromptTemplateService
+        from app.models.novel import Novel
+        from app.services.novel_prompt_templates import resolve_novel_prompt_template
 
         with SessionLocal() as db:
-            template = PromptTemplateService(db).get_default_system_template(template_type)
+            novel = db.get(Novel, novel_id) if novel_id else None
+            template = resolve_novel_prompt_template(db, novel, template_type)
             if template:
                 return template.template, template.name
         return fallback, "场景设定描述" if template_type == "scene_setting" else "道具外观描述"
@@ -291,7 +293,7 @@ class LLMService:
             场景设定字符串（用于 AI 绘图的环境描述）
         """
         system_prompt, template_name = self._get_asset_description_prompt(
-            "scene_setting", get_scene_setting_prompt(style)
+            "scene_setting", get_scene_setting_prompt(style), novel_id
         )
 
         result = await self.chat_completion(
@@ -328,7 +330,7 @@ class LLMService:
             道具外观描述字符串（用于 AI 绘图）
         """
         system_prompt, template_name = self._get_asset_description_prompt(
-            "prop_appearance", get_prop_appearance_prompt(style)
+            "prop_appearance", get_prop_appearance_prompt(style), novel_id
         )
 
         result = await self.chat_completion(

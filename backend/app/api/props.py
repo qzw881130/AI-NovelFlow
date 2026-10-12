@@ -637,7 +637,8 @@ async def generate_prop_appearance(
         appearance = await get_llm_service().generate_prop_appearance(
             prop_name=prop.name,
             description=prop.description,
-            style="anime"
+            style="anime",
+            novel_id=prop.novel_id,
         )
 
         # 更新道具

@@ -11,11 +11,12 @@ from app.services.llm.http_retry import single_attempt_llm_request
 
 from app.models.image_quality_review import ImageQualityReview
 from app.models.novel import Character, Scene, Prop
+from app.models.novel import Novel
 from app.models.llm_log import LLMLog
 from app.models.shot import Shot
 from app.models.task import Task
 from app.services.llm_service import LLMService
-from app.services.prompt_template_service import PromptTemplateService
+from app.services.novel_prompt_templates import resolve_novel_prompt_template
 from app.services.vision_inputs import vision_proxy
 from app.utils.json_parser import safe_parse_llm_json
 
@@ -174,7 +175,8 @@ def create_image_review(db: Session, task_id: str, trigger: str = "manual") -> I
     try:
         snapshot = build_review_input(task, structured)
         review.input_snapshot_json = json.dumps(snapshot, ensure_ascii=False)
-        template = PromptTemplateService(db).get_effective_image_review_template()
+        novel = db.get(Novel, task.novel_id) if task.novel_id else None
+        template = resolve_novel_prompt_template(db, novel, "image_quality_review_prompt")
         if not template or not template.template.strip():
             raise ValueError("AI 图片质量评审系统提示词未登记")
         review.template_id, review.template_name = template.id, template.name

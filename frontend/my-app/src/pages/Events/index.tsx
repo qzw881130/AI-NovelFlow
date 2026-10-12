@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, AlertCircle, ArrowUpRight, ChevronLeft, ChevronRight, Loader2, RefreshCw, X } from 'lucide-react';
 import { eventsApi, type BusinessEvent, type EventDetail, type EventOptions, type EventPage } from '../../api/events';
@@ -18,22 +18,38 @@ export default function Events() {
   const [view, setView] = useState('all');
   const [page, setPage] = useState(1);
   const [refresh, setRefresh] = useState(0);
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState(0);
+  const [autoRefreshTick, setAutoRefreshTick] = useState(0);
   const [data, setData] = useState<EventPage | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const listRequestInFlight = useRef(false);
+  const lastListRequestKey = useRef('');
   const [selected, setSelected] = useState<string | null>(() => new URLSearchParams(window.location.search).get('event'));
   const [detail, setDetail] = useState<EventDetail | null>(null);
   const [detailError, setDetailError] = useState('');
   const [review, setReview] = useState<EventDetail['review_target']>(null);
 
+  useEffect(() => {
+    if (!autoRefreshInterval) return;
+    const timer = window.setInterval(() => {
+      if (!listRequestInFlight.current) setAutoRefreshTick(value => value + 1);
+    }, autoRefreshInterval);
+    return () => window.clearInterval(timer);
+  }, [autoRefreshInterval]);
   useEffect(() => { let active = true; void eventsApi.options().then(value => { if (active) setOptions(value); }).catch(err => { if (active) setError(String(err)); }); return () => { active = false; }; }, [refresh]);
   useEffect(() => {
-    let active = true; setLoading(true); setError('');
+    let active = true;
     const query = new URLSearchParams({ page: String(page), page_size: '25', view, timezone_offset: String(new Date().getTimezoneOffset()) });
     Object.entries(filters).forEach(([key, value]) => { if (value) query.set(key, key.endsWith('_time') ? new Date(value).toISOString() : value); });
-    void eventsApi.list(query).then(value => { if (active) setData(value); }).catch(err => { if (active) setError(String(err)); }).finally(() => { if (active) setLoading(false); });
+    const requestKey = `${query.toString()}:${refresh}`;
+    if (lastListRequestKey.current !== requestKey) setLoading(true);
+    lastListRequestKey.current = requestKey;
+    listRequestInFlight.current = true;
+    setError('');
+    void eventsApi.list(query).then(value => { if (active) setData(value); }).catch(err => { if (active) setError(String(err)); }).finally(() => { if (active) { listRequestInFlight.current = false; setLoading(false); } });
     return () => { active = false; };
-  }, [filters, page, view, refresh]);
+  }, [filters, page, view, refresh, autoRefreshTick]);
   useEffect(() => {
     let active = true; setDetail(null); setDetailError('');
     if (selected) void eventsApi.detail(selected).then(value => { if (active) setDetail(value); }).catch(err => { if (active) setDetailError(String(err)); });
@@ -53,7 +69,7 @@ export default function Events() {
   return <div className="mx-auto max-w-[1600px] space-y-5 p-6" data-testid="event-center">
     <header className="flex flex-wrap items-center justify-between gap-3">
       <div><h1 className="flex items-center gap-2 text-2xl font-semibold text-gray-900"><Activity className="text-blue-600" />事件中心</h1><p className="mt-1 text-sm text-gray-500">查看已发生的业务事件，定位评审、生成和合并结果。</p></div>
-      <div className="flex items-center gap-3"><Link to="/settings#notifications" className="text-sm text-blue-600">消息通知设置</Link><button className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm" onClick={() => setRefresh(v => v + 1)}><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />刷新</button></div>
+      <div className="flex flex-wrap items-center gap-3"><label className="inline-flex items-center gap-2 text-sm text-gray-600">自动更新<select aria-label="自动更新频率" className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900" value={autoRefreshInterval} onChange={e => setAutoRefreshInterval(Number(e.target.value))}><option value={0}>不更新</option><option value={5000}>每5秒刷新</option><option value={20000}>每20秒刷新</option></select></label><Link to="/settings#notifications" className="text-sm text-blue-600">消息通知设置</Link><button className="inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm" onClick={() => setRefresh(v => v + 1)}><RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />刷新</button></div>
     </header>
     <div className="flex flex-wrap gap-2" role="tablist" aria-label="事件视图">
       {([['all', '全部事件'], ['attention', '需要关注'], ['today', '今日异常']] as const).map(([key, label]) => <button key={key} role="tab" aria-selected={view === key} onClick={() => { setView(key); setPage(1); }} className={`rounded-lg border px-4 py-2 text-sm ${view === key ? 'border-blue-600 bg-blue-600 text-white' : 'bg-white text-gray-600'}`}>{label}<span className="ml-2 opacity-80">{data?.counts[key] ?? '—'}</span></button>)}

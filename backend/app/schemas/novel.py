@@ -18,13 +18,18 @@ class NovelBase(BaseModel):
     prompt_template_id: Optional[str] = Field(None, alias="promptTemplateId")  # 角色生成提示词模板
     scene_prompt_template_id: Optional[str] = Field(None, alias="scenePromptTemplateId")  # 场景生成提示词模板
     prop_prompt_template_id: Optional[str] = Field(None, alias="propPromptTemplateId")  # 道具生成提示词模板
+    scene_setting_prompt_template_id: Optional[str] = Field(None, alias="sceneSettingPromptTemplateId")
+    prop_appearance_prompt_template_id: Optional[str] = Field(None, alias="propAppearancePromptTemplateId")
     chapter_split_prompt_template_id: Optional[str] = Field(None, alias="chapterSplitPromptTemplateId")  # 分镜拆分提示词模板
     keyframe_description_prompt_template_id: Optional[str] = Field(None, alias="keyframeDescriptionPromptTemplateId")  # 关键帧描述提示词模板
     shot_image_prompt_template_id: Optional[str] = Field(None, alias="shotImagePromptTemplateId")  # 主分镜图提示词模板
     video_mode_recommender_prompt_template_id: Optional[str] = Field(None, alias="videoModeRecommenderPromptTemplateId")  # 视频模式推荐提示词模板
     keyframe_planner_prompt_template_id: Optional[str] = Field(None, alias="keyframePlannerPromptTemplateId")  # 关键帧规划提示词模板
     keyframe_image_prompt_template_id: Optional[str] = Field(None, alias="keyframeImagePromptTemplateId")  # 关键帧生图提示词模板
+    temporal_reference_selector_prompt_template_id: Optional[str] = Field(None, alias="temporalReferenceSelectorPromptTemplateId")
+    image_quality_review_prompt_template_id: Optional[str] = Field(None, alias="imageQualityReviewPromptTemplateId")
     keyframe_transition_prompt_template_id: Optional[str] = Field(None, alias="keyframeTransitionPromptTemplateId")  # 关键帧过渡规划提示词模板
+    clip_execution_planner_prompt_template_id: Optional[str] = Field(None, alias="clipExecutionPlannerPromptTemplateId")
     h3_single_frame_prompt_template_id: Optional[str] = Field(None, alias="h3SingleFramePromptTemplateId")  # H3 单帧视频提示词模板
     h3_first_last_frame_prompt_template_id: Optional[str] = Field(None, alias="h3FirstLastFramePromptTemplateId")  # H3 首尾帧视频提示词模板
     h3_multi_keyframe_prompt_template_id: Optional[str] = Field(None, alias="h3MultiKeyframePromptTemplateId")  # H3 多关键帧视频提示词模板

@@ -7,7 +7,7 @@ export default {
     scenes: 'シーン',
     props: '道具',
     tasks: 'タスク',
-    testCases: 'テストケース',
+    testCases: '小説の例',
     systemSettings: 'システム設定',
     promptConfig: 'プロンプト設定',
     uiConfig: 'UI設定',

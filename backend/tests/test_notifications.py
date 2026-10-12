@@ -58,7 +58,10 @@ def test_registry_defaults_and_config_persistence(notification_db, notification_
     response = api_request(notification_app, "GET", "/api/notifications/config")
     data = response.json()["data"]
     assert response.status_code == 200
-    assert len(EVENT_REGISTRY) == 26
+    # New business publishers can extend the registry without breaking existing
+    # subscription semantics; the API must expose every registered key once.
+    assert len(data["events"]) == len(EVENT_REGISTRY)
+    assert {event["event_code"] for event in data["events"]} == set(EVENT_REGISTRY)
     assert all(event["enabled"] == EVENT_REGISTRY[event["event_code"]].enabled for event in data["events"])
     assert not EVENT_REGISTRY["image.review.passed"].enabled
     assert EVENT_REGISTRY["image.review.failed"].enabled

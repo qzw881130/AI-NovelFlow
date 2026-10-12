@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 from fastapi import FastAPI
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event as sqlalchemy_event
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.database import Base, get_db
@@ -147,6 +147,22 @@ def test_h3_final_and_repair_no_prompt_leak_or_reuse_duplicates(ledger):
     assert all('SHOULD NOT STORE' not in r.details_json for r in db.query(BusinessEvent))
 
 
+def test_preflight_failure_without_l1_emits_optimizer_failure_only(ledger):
+    db, _ = ledger
+    shot = db.get(Shot, 'shot')
+    call = {'step': '14', 'created_at': '2026-10-12T00:30:00', 'status': 'failed',
+            'clip_index': 1, 'parsed_result': {
+                'llm_log_id': 'shot6-log',
+                'authority_check': {'passed': False, 'blocking_findings': ['canonical_visual_requirement_trace']},
+                'preflight_repair': {'resolution': 'L2_UNSAFE_OR_NONLOCAL', 'l1_invocations': 0, 'attempts': []},
+            }}
+    shot.video_director_plan = json.dumps({'ai_calls': [call]})
+    db.commit()
+    rows = db.query(BusinessEvent).all()
+    assert [row.event_type for row in rows] == ['clip.prompt.optimize.failed']
+    assert 'canonical_visual_requirement_trace' in rows[0].details_json
+
+
 def test_regeneration_does_not_also_emit_generation(ledger):
     db,_=ledger
     task=Task(type='shot_video',status='completed',name='C2',shot_id='shot',comfyui_prompt_id='p',metadata_json=json.dumps({'execution_scope':'CLIP','clip_index':2,'is_clip_regeneration':True}))
@@ -181,6 +197,34 @@ def test_filters_pagination_details_real_links_and_historical_import(ledger):
     assert request(db,'/api/events/options').json()['data']['shots'][0]['index']==4
     assert all(r.notification_status=='historical' for r in db.query(BusinessEvent).filter_by(historical=True))
     assert db.query(NotificationDelivery).count()==0
+
+
+def test_event_list_reads_only_related_display_columns(ledger):
+    db, _ = ledger
+    be.record_event(db, 'image.review.failed', {
+        'novel_id': 'novel', 'chapter_id': 'chapter', 'shot_id': 'shot',
+    }, dedupe_key='list-projection')
+    statements = []
+
+    def capture_sql(connection, cursor, statement, parameters, context, executemany):
+        if 'FROM business_events' in statement and 'LEFT OUTER JOIN shots' in statement:
+            statements.append(statement)
+
+    engine = db.get_bind()
+    sqlalchemy_event.listen(engine, 'before_cursor_execute', capture_sql)
+    try:
+        response = request(db, '/api/events')
+    finally:
+        sqlalchemy_event.remove(engine, 'before_cursor_execute', capture_sql)
+
+    assert response.status_code == 200
+    item = response.json()['data']['items'][0]
+    assert item['novel_title'] == '测试小说' and item['chapter_title'] == '章'
+    assert item['shot_index'] == 4
+    assert len(statements) == 1
+    assert 'shots.video_director_plan' not in statements[0]
+    assert 'chapters.content' not in statements[0]
+    assert 'novels.story_world_context' not in statements[0]
 
 
 def test_payload_is_allowlisted(ledger):
@@ -234,6 +278,23 @@ def test_history_import_idempotent_no_delivery(ledger):
     assert first['inserted']==1 and second['inserted']==0
     old=db.query(BusinessEvent).filter_by(review_id='old-review').one()
     assert old.historical and old.notification_status=='historical'
+    assert db.query(NotificationDelivery).count()==0
+
+
+def test_history_import_saved_assembly_preserves_original_record(ledger):
+    from scripts.backfill_business_events import backfill
+    db,_=ledger;shot=db.get(Shot,'shot')
+    saved=json.dumps({'clip_plan':[{'clip_index':1},{'clip_index':2}], 'assembled_result':{
+        'status':'COMPLETED','url':'/api/files/existing-shot.mp4',
+        'assembled_at':'2026-01-01T12:00:00','clip_plan_revision':3}})
+    shot.video_director_plan=saved;db.commit()
+    first=backfill(db,'novel',True);second=backfill(db,'novel',True)
+    assert first['inserted']==1 and second['inserted']==0
+    event=db.query(BusinessEvent).filter_by(event_type='shot.assembly.completed').one()
+    assert event.timestamp==datetime(2026,1,1,12)
+    assert event.historical and event.notification_status=='historical'
+    assert json.loads(event.details_json)['clip_count']==2
+    db.refresh(shot);assert shot.video_director_plan==saved
     assert db.query(NotificationDelivery).count()==0
 
 

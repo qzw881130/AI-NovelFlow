@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from sqlalchemy import text
 import asyncio
 
-from app.api import characters, tasks, config, health, test_cases, workflows, files, prompt_templates, llm_logs, scenes, props, novel_videos
+from app.api import characters, tasks, config, health, test_cases, examples, workflows, files, prompt_templates, llm_logs, scenes, props, novel_videos
 from app.api import novels, chapters, shots, hd_repaint
 from app.api import clip_execution_inspector, notifications, image_reviews, events
 from app.core.database import engine, Base
@@ -91,6 +91,11 @@ def ensure_schema_updates():
                 "h3_multi_keyframe_prompt_template_id",
                 "h3_execution_optimizer_prompt_template_id",
                 "h3_preflight_repair_prompt_template_id",
+                "scene_setting_prompt_template_id",
+                "prop_appearance_prompt_template_id",
+                "temporal_reference_selector_prompt_template_id",
+                "image_quality_review_prompt_template_id",
+                "clip_execution_planner_prompt_template_id",
             ]
             for column in novel_prompt_columns:
                 if column not in novel_columns:
@@ -176,8 +181,7 @@ async def lifespan(app: FastAPI):
     from app.services.notification_service import notification_dispatch_loop
     notification_task = asyncio.create_task(notification_dispatch_loop())
     
-    # 初始化预设数据和系统配置
-    from app.api.test_cases import init_preset_test_cases
+    # 初始化系统配置；示例小说仅在用户主动导入时创建。
     from app.api.prompt_templates import init_system_prompt_templates
     from app.api.config import init_system_config  # 导入配置初始化函数
     from app.core.database import SessionLocal
@@ -186,7 +190,6 @@ async def lifespan(app: FastAPI):
         # 从数据库加载系统配置
         init_system_config(db)
         init_system_prompt_templates(db)
-        await init_preset_test_cases(db)
     finally:
         db.close()
     
@@ -195,7 +198,8 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     
     monitor = init_monitor(settings.COMFYUI_HOST)
-    await monitor.start()
+    if settings.COMFYUI_MONITOR_ENABLED:
+        await monitor.start()
     from app.services.background_workers import resume_legacy_asset_jobs, worker_manager
     worker_manager.resume_persisted()
     resume_legacy_asset_jobs()
@@ -275,6 +279,7 @@ app.include_router(props.router, prefix="/api/props", tags=["props"])
 app.include_router(tasks.router, prefix="/api/tasks", tags=["tasks"])
 app.include_router(image_reviews.router, prefix="/api/tasks", tags=["image-reviews"])
 app.include_router(test_cases.router, prefix="/api/test-cases", tags=["test-cases"])
+app.include_router(examples.router, prefix="/api/examples", tags=["examples"])
 app.include_router(workflows.router, prefix="/api/workflows", tags=["workflows"])
 app.include_router(files.router, prefix="/api/files", tags=["files"])
 app.include_router(prompt_templates.router, prefix="/api/prompt-templates", tags=["prompt-templates"])

@@ -9,7 +9,7 @@ export default {
     props: 'Props',
     tasks: 'Tasks',
     events: 'Event Center',
-    testCases: 'Test Cases',
+    testCases: 'Example Novels',
     systemSettings: 'System Settings',
     promptConfig: 'Prompt Config',
     uiConfig: 'UI Config',

@@ -42,6 +42,8 @@ for code, name, category, description, enabled in (
     ("image.review.error", "AI 评审异常", "图片质量评审", "无法取得有效评审结果；原图片仍然保留", True),
     ("image.generation.completed", "图片生成完成", "图片生成", "角色、场景、道具或主分镜等图片任务完成（关键帧使用视觉状态事件）", False),
     ("image.generation.failed", "图片生成失败", "图片生成", "非关键帧图片任务最终失败", True),
+    ("example.import.completed", "示例小说导入完成", "示例小说", "示例小说及全部章回已导入", False),
+    ("example.import.failed", "示例小说导入失败", "示例小说", "示例小说导入未能完成", False),
 ):
     EVENT_REGISTRY[code] = NotificationEvent(code, name, category, description, enabled)
 

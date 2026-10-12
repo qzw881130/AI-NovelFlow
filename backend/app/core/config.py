@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     # ComfyUI
     COMFYUI_HOST: str = "http://127.0.0.1:8188"
     COMFYUI_TIMEOUT: int = 900
+    # Process-only maintenance option; does not disable generation or change saved config.
+    COMFYUI_MONITOR_ENABLED: bool = True
     SYSTEM_STATUS_SOURCE: str = "comfyui"
     
     # Output

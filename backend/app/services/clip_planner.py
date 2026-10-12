@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.constants.capability import VIDEO_CAPABILITY_CONTRACTS, CLIP_PREFERRED_MAX_DURATION
 from app.services.clip_duration_planning import load_planning_budgets, observe_duration_plan
 from app.services.llm_service import LLMService
-from app.services.prompt_template_service import PromptTemplateService
+from app.services.novel_prompt_templates import resolve_novel_prompt_template
 from app.services.clip_validator import validate_clip_plan
 from app.services.clip_execution_compiler import (
     TEMPORAL_DECISION_CONTRACT, EARLY_COMPOSITION_CONTRACT, execution_temporal_state_ids,
@@ -640,7 +640,7 @@ def merge_dialogue_ownership_validation(validation: dict, dialogue_validation: d
 
 
 async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], planning_policy: dict | None = None, *, resolved_dialogue_timeline: list | None = None) -> tuple[list[dict], dict]:
-    template = PromptTemplateService(db).get_default_system_template("clip_execution_planner")
+    template = resolve_novel_prompt_template(db, novel, "clip_execution_planner")
     if not template:
         raise RuntimeError("未配置 Clip Execution Planner 提示词模板")
     video_plan = json.loads(shot.video_director_plan or "{}")

@@ -165,7 +165,6 @@ export default {
     viewPrompt: '檢視提示詞範本',
     systemPresetReadonly: '系統預設（唯讀）',
     effectiveImageReviewNotice: '系統預設與使用者自訂版本均由提示詞管理保存；新評審使用目前有效版本。',
-    restoreSystemDefault: '恢復系統預設版本',
 
     categories: {
       ...zhCN.promptConfig.categories,

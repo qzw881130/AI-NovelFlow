@@ -38,7 +38,7 @@ export default {
     copySourcePlaceholder: 'コピーする小説を選択',
     copyTitle: '新しい小説名',
     copyTitleDefault: '{title} - コピー',
-    copyScopeHint: '章のタイトル、本文、順序のみをコピーします。キャラクター、シーン、小道具、解析結果、生成データはコピーされません。',
+    copyScopeHint: '小説の基本情報、画面比率、プロンプトテンプレートの選択、章のタイトル・本文・順序をコピーします。キャラクター、シーン、小道具、解析結果、生成素材はコピーしません。',
     copyConfirm: 'コピー',
     copying: 'コピー中...',
     copySuccess: '「{title}」を作成し、{count} 章をコピーしました',

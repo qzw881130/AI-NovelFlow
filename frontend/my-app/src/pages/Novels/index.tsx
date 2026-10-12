@@ -9,6 +9,7 @@ import { StoryWorldContextModal } from './components/StoryWorldContextModal';
 import { EditNovelModal } from './components/EditNovelModal';
 import { ParseConfirmDialog } from './components/ParseConfirmDialog';
 import type { NovelFormData } from './types';
+import { TEMPLATE_FIELDS, emptyNovelTemplateSelection } from './promptTemplateFields';
 
 export default function Novels() {
   const { t } = useTranslation();
@@ -45,30 +46,8 @@ export default function Novels() {
   } = useNovelsState();
 
   const [newNovel, setNewNovel] = useState<NovelFormData>({
-    title: '',
-    author: '',
-    description: '',
-    storyWorldContextPromptTemplateId: '',
-    stylePromptTemplateId: '',
-    characterParsePromptTemplateId: '',
-    sceneParsePromptTemplateId: '',
-    propParsePromptTemplateId: '',
-    promptTemplateId: '',
-    scenePromptTemplateId: '',
-    propPromptTemplateId: '',
-    chapterSplitPromptTemplateId: '',
-    keyframeDescriptionPromptTemplateId: '',
-    shotImagePromptTemplateId: '',
-    videoModeRecommenderPromptTemplateId: '',
-    keyframePlannerPromptTemplateId: '',
-    keyframeImagePromptTemplateId: '',
-    keyframeTransitionPromptTemplateId: '',
-    h3SingleFramePromptTemplateId: '',
-    h3FirstLastFramePromptTemplateId: '',
-    h3MultiKeyframePromptTemplateId: '',
-    h3ExecutionOptimizerPromptTemplateId: '',
-    h3PreflightRepairPromptTemplateId: '',
-    aspectRatio: '16:9'
+    title: '', author: '', description: '', aspectRatio: '16:9',
+    ...emptyNovelTemplateSelection(),
   });
   const [storyContextNovel, setStoryContextNovel] = useState<(typeof novels)[number] | null>(null);
 
@@ -76,62 +55,16 @@ export default function Novels() {
     e.preventDefault();
     await createNovel(newNovel);
     setShowCreateModal(false);
-    setNewNovel({
-      title: '',
-      author: '',
-      description: '',
-      storyWorldContextPromptTemplateId: '',
-      stylePromptTemplateId: '',
-      characterParsePromptTemplateId: '',
-      sceneParsePromptTemplateId: '',
-      propParsePromptTemplateId: '',
-      promptTemplateId: '',
-      scenePromptTemplateId: '',
-      propPromptTemplateId: '',
-      chapterSplitPromptTemplateId: '',
-      keyframeDescriptionPromptTemplateId: '',
-      shotImagePromptTemplateId: '',
-      videoModeRecommenderPromptTemplateId: '',
-      keyframePlannerPromptTemplateId: '',
-      keyframeImagePromptTemplateId: '',
-      keyframeTransitionPromptTemplateId: '',
-      h3SingleFramePromptTemplateId: '',
-      h3FirstLastFramePromptTemplateId: '',
-      h3MultiKeyframePromptTemplateId: '',
-      h3ExecutionOptimizerPromptTemplateId: '',
-      h3PreflightRepairPromptTemplateId: '',
-      aspectRatio: '16:9'
-    });
+    setNewNovel({ title: '', author: '', description: '', aspectRatio: '16:9', ...emptyNovelTemplateSelection() });
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingNovel) return;
     await updateNovel(editingNovel.id, {
-      title: editingNovel.title,
-      author: editingNovel.author,
-      description: editingNovel.description,
-      storyWorldContextPromptTemplateId: editingNovel.storyWorldContextPromptTemplateId,
-      stylePromptTemplateId: editingNovel.stylePromptTemplateId,
-      characterParsePromptTemplateId: editingNovel.characterParsePromptTemplateId,
-      sceneParsePromptTemplateId: editingNovel.sceneParsePromptTemplateId,
-      propParsePromptTemplateId: editingNovel.propParsePromptTemplateId,
-      promptTemplateId: editingNovel.promptTemplateId,
-      scenePromptTemplateId: editingNovel.scenePromptTemplateId,
-      propPromptTemplateId: editingNovel.propPromptTemplateId,
-      chapterSplitPromptTemplateId: editingNovel.chapterSplitPromptTemplateId,
-      keyframeDescriptionPromptTemplateId: editingNovel.keyframeDescriptionPromptTemplateId,
-      shotImagePromptTemplateId: editingNovel.shotImagePromptTemplateId,
-      videoModeRecommenderPromptTemplateId: editingNovel.videoModeRecommenderPromptTemplateId,
-      keyframePlannerPromptTemplateId: editingNovel.keyframePlannerPromptTemplateId,
-      keyframeImagePromptTemplateId: editingNovel.keyframeImagePromptTemplateId,
-      keyframeTransitionPromptTemplateId: editingNovel.keyframeTransitionPromptTemplateId,
-      h3SingleFramePromptTemplateId: editingNovel.h3SingleFramePromptTemplateId,
-      h3FirstLastFramePromptTemplateId: editingNovel.h3FirstLastFramePromptTemplateId,
-      h3MultiKeyframePromptTemplateId: editingNovel.h3MultiKeyframePromptTemplateId,
-      h3ExecutionOptimizerPromptTemplateId: editingNovel.h3ExecutionOptimizerPromptTemplateId,
-      h3PreflightRepairPromptTemplateId: editingNovel.h3PreflightRepairPromptTemplateId,
-      aspectRatio: editingNovel.aspectRatio,
+      title: editingNovel.title, author: editingNovel.author,
+      description: editingNovel.description, aspectRatio: editingNovel.aspectRatio,
+      ...Object.fromEntries(TEMPLATE_FIELDS.map(field => [field.key, editingNovel[field.key]])),
     });
     setEditingNovel(null);
   };

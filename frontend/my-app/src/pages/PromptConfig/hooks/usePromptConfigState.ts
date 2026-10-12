@@ -240,17 +240,6 @@ export function usePromptConfigState() {
     }
   };
 
-  const handleRestoreImageReviewDefault = async () => {
-    try {
-      const result = await promptTemplateApi.restoreImageReviewDefault();
-      if (!result.success) throw new Error(result.message || '恢复失败');
-      await fetchTemplates('image_quality_review_prompt');
-      toast.success(t('promptConfig.resetSuccess'));
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : t('common.saveFailed'));
-    }
-  };
-
   return {
     // State
     templatesByType,
@@ -259,7 +248,7 @@ export function usePromptConfigState() {
     modalType, editingPrompt, viewingPrompt,
     form, setForm, saving,
     // Actions
-    openModal, openViewModal, handleSave, handleCopy, handleDelete, handleRestoreImageReviewDefault,
+    openModal, openViewModal, handleSave, handleCopy, handleDelete,
     fetchTemplates,
   };
 }

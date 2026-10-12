@@ -11,7 +11,6 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from app.models.novel import Novel
-from app.repositories.prompt_template import PromptTemplateRepository
 from app.services.llm_service import LLMService
 from app.services.prop_policy import get_visual_prop_names
 from app.services.clip_visual_state_references import disabled_visual_state_ids
@@ -379,13 +378,8 @@ def append_video_ai_call(shot, call: dict) -> dict:
 
 
 def resolve_prompt_template(db: Session, novel: Novel, template_attr: str, template_type: str):
-    repo = PromptTemplateRepository(db)
-    template = None
-    template_id = getattr(novel, template_attr, None)
-    if template_id:
-        template = repo.get_by_id(template_id)
-    if not template:
-        template = repo.get_default_system_template(template_type)
+    from app.services.novel_prompt_templates import resolve_novel_prompt_template
+    template = resolve_novel_prompt_template(db, novel, template_type)
     if not template:
         raise RuntimeError(f"未配置 {template_type} 提示词模板")
     return template

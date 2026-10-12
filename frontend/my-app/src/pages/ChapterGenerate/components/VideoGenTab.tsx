@@ -468,6 +468,11 @@ const getLatestH3FinalPrompt = (plan: VideoDirectorPlan, clipIndex?: number) => 
   return String(call?.final_prompt || '');
 };
 
+const hasH3FinalPrompt = (plan: VideoDirectorPlan, clipIndex?: number) =>
+  (plan.ai_calls || []).some(call => ['11', '12', '13'].includes(String(call.step))
+    && (call.has_final_prompt || !!String(call.final_prompt || '').trim())
+    && (clipIndex === undefined || Number(call.clip_index) === clipIndex));
+
 const getKeyframeReferenceImages = (plan: VideoDirectorPlan, keyframeIndex?: number) => {
   if (keyframeIndex === undefined) return [];
   const keyframeLabel = new RegExp(`KF\\s*${keyframeIndex}\\b`);
@@ -592,6 +597,21 @@ function VideoAiCallsPanel({
     return aTime - bTime;
   });
   const latest = sortedCalls[sortedCalls.length - 1];
+  const [callDetails, setCallDetails] = useState<Record<string, VideoAiCall>>({});
+  const [detailError, setDetailError] = useState('');
+  const activeCall = sortedCalls[openIndex];
+  const detailKey = (call?: VideoAiCall) => `${shotId}:${call?.history_index}:${call?.created_at}:${call?.status}`;
+  const activeKey = detailKey(activeCall);
+  useEffect(() => {
+    if (!panelOpen || !activeCall?.details_deferred || !novelId || !chapterId || !shotId || callDetails[activeKey]) return;
+    let current = true;
+    setDetailError('');
+    shotsApi.getShotAiCall(novelId, chapterId, shotId, activeCall)
+      .then(detail => { if (current) setCallDetails(previous => ({ ...previous, [activeKey]: detail })); })
+      .catch(error => { if (current) setDetailError(error.message); });
+    return () => { current = false; };
+  }, [panelOpen, activeKey, novelId, chapterId, shotId]);
+
   const failedCallCount = calls.filter((call) => ['failed', 'error'].includes(String(call.status || '').toLowerCase())).length;
 
   const handleDownloadLlmData = async () => {
@@ -720,7 +740,8 @@ function VideoAiCallsPanel({
         </div>
       </div>
       {panelOpen && <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
-        {visibleCalls.map((call, idx) => {
+        {visibleCalls.map((summary, idx) => {
+          const call = callDetails[detailKey(summary)] || summary;
           const actualIndex = expanded ? idx : sortedCalls.length - 1;
           const isOpen = openIndex === actualIndex;
           const responseText = formatAiCallValue(call.response);
@@ -743,6 +764,7 @@ function VideoAiCallsPanel({
               </button>
               {isOpen && (
                 <div className="px-3 pb-3">
+                  {call.details_deferred && <p className="text-xs text-gray-500">{detailError || '正在读取历史调用正文…'}</p>}
                   {call.input_summary && <div className="text-xs text-gray-500">{call.input_summary}</div>}
                   <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
                    <div className="min-w-0">
@@ -2705,9 +2727,9 @@ export function VideoGenTab({
     : Array.isArray(currentVideoDirectorPlan.clip_plan) && currentVideoDirectorPlan.clip_plan.length > 0;
   const hasReusableVideoPrompt = !currentIsCanonicalPlan && currentSelectedVideoMode === 'MULTI_KEYFRAME'
     ? !!currentVideoDirectorPlan.window_plans?.length && currentVideoDirectorPlan.window_plans.every((windowPlan: any) => (
-      String(windowPlan?.prompt_text || getLatestH3FinalPrompt(currentVideoDirectorPlan, Number(windowPlan?.window_index))).trim().length > 0
+      !!String(windowPlan?.prompt_text || '').trim() || hasH3FinalPrompt(currentVideoDirectorPlan, Number(windowPlan?.window_index))
     ))
-    : !currentIsCanonicalPlan && getLatestH3FinalPrompt(currentVideoDirectorPlan).trim().length > 0;
+    : !currentIsCanonicalPlan && hasH3FinalPrompt(currentVideoDirectorPlan);
   const currentEndPlanKeyframe = (currentVideoDirectorPlan.keyframes || []).find((keyframe: any) => keyframe.role === 'END');
   const currentEndLegacyKeyframe = (currentShotData?.keyframes || []).find((keyframe: any) => (
     Number(keyframe.plan_keyframe_index) === Number(currentEndPlanKeyframe?.index || 2)
@@ -3190,11 +3212,22 @@ export function VideoGenTab({
     return [];
   }, [currentShotData?.duration]);
 
-  const handleOpenVideoPromptModal = useCallback(() => {
+  const handleOpenVideoPromptModal = useCallback(async () => {
     if (isCanonicalVisualPlan(currentVideoDirectorPlan)) return;
-    setVideoPromptDrafts(buildVideoPromptDrafts(currentVideoDirectorPlan));
-    setIsVideoPromptModalOpen(true);
-  }, [buildVideoPromptDrafts, currentVideoDirectorPlan]);
+    try {
+      let plan = currentVideoDirectorPlan;
+      if (plan.ai_history_deferred && effectiveNovelId && effectiveChapterId && currentShotId) {
+        const result = await shotsApi.getShot(effectiveNovelId, effectiveChapterId, currentShotId, undefined, true);
+        if (!result.success) throw new Error(result.message || '读取提示词失败');
+        plan = result.data.videoDirectorPlan || {};
+        updateCurrentShotVideoDirectorPlan(plan);
+      }
+      setVideoPromptDrafts(buildVideoPromptDrafts(plan));
+      setIsVideoPromptModalOpen(true);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '读取提示词失败');
+    }
+  }, [buildVideoPromptDrafts, currentVideoDirectorPlan, effectiveNovelId, effectiveChapterId, currentShotId, updateCurrentShotVideoDirectorPlan]);
 
   const handleChangeVideoPromptDraft = useCallback((key: string, prompt: string) => {
     setVideoPromptDrafts((drafts) => drafts.map((draft) => (
@@ -4468,7 +4501,11 @@ export function VideoGenTab({
             <div className="mt-1 text-xs text-gray-600" title={currentShotVideoResult.detail}>
               {currentShotVideoResult.detail}
             </div>
-            <H3OptimizerResult record={[...(currentVideoDirectorPlan.ai_calls || [])].reverse().find((call: any) => String(call.step) === '14')?.parsed_result} />
+            <H3OptimizerResult
+              key={currentShotId + ':' + (currentVideoDirectorPlan.ai_calls || []).length}
+              call={[...(currentVideoDirectorPlan.ai_calls || [])].reverse().find((call: any) => String(call.step) === '14')}
+              loadCall={call => shotsApi.getShotAiCall(effectiveNovelId!, effectiveChapterId!, currentShotId!, call)}
+            />
             {currentIsCanonicalPlan && currentOptionalMissingVisualStateCount > 0 && (
               <div className="mt-1 text-xs text-gray-500">
                 {getCanonicalVisualStates(currentVideoDirectorPlan).length} 个视觉状态 · {t('chapterGenerate.optionalMissingStates', { count: currentOptionalMissingVisualStateCount })}
@@ -4692,6 +4729,7 @@ export function VideoGenTab({
         </div>
         {!currentIsHistoricalPlan && (
           <VideoAiCallsPanel
+            key={currentShotId}
             calls={currentVideoDirectorPlan.ai_calls || []}
             novelId={effectiveNovelId}
             chapterId={effectiveChapterId}

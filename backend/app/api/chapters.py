@@ -120,7 +120,8 @@ async def create_chapter(
 async def get_chapter(
     novel_id: str, 
     chapter_id: str, 
-    chapter_repo: ChapterRepository = Depends(get_chapter_repo)
+    chapter_repo: ChapterRepository = Depends(get_chapter_repo),
+    include_shots: bool = True
 ):
     """获取章节详情"""
     chapter = chapter_repo.get_by_id(chapter_id, novel_id)
@@ -130,7 +131,7 @@ async def get_chapter(
     
     return {
         "success": True,
-        "data": chapter_repo.to_detail_response(chapter)
+        "data": chapter_repo.to_detail_response(chapter, include_shots=include_shots)
     }
 
 

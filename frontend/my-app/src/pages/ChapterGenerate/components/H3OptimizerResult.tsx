@@ -1,5 +1,25 @@
-export function H3OptimizerResult({ record }: { record?: any }) {
-  if (!record) return null;
+import { useState } from 'react';
+import type { VideoAiCall } from '../../../api/shots';
+
+export function H3OptimizerResult({ record: suppliedRecord, call, loadCall }: {
+  record?: any; call?: VideoAiCall; loadCall?: (call: VideoAiCall) => Promise<VideoAiCall>;
+}) {
+  const [loaded, setLoaded] = useState<VideoAiCall>();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const record = suppliedRecord || loaded?.parsed_result || call?.parsed_result;
+  if (!record && !call) return null;
+  const load = async () => {
+    if (record || loading || !call || !loadCall) return;
+    setLoading(true); setError('');
+    try { setLoaded(await loadCall(call)); }
+    catch (error) { setError(error instanceof Error ? error.message : '读取失败'); }
+    finally { setLoading(false); }
+  };
+  if (!record) return <details onToggle={event => { if (event.currentTarget.open) void load(); }} className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm" data-testid="h3-optimizer-result">
+    <summary className="cursor-pointer font-medium">#14 H3 提示词优化 · 最近片段 {call?.clip_index ?? '-'} · 查看优化记录</summary>
+    <p>{error || '正在读取优化记录…'}</p>
+  </details>;
   const output = record.output || {};
   return <details className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm max-h-80 overflow-y-auto" data-testid="h3-optimizer-result">
     <summary className="cursor-pointer font-medium">#14 H3 提示词优化 · 最近片段 {record.clip_index ?? record.runtime_input?.clip?.id ?? '-'} · {record.status === 'OPTIMIZED' ? '已采用优化提示词' : record.generation_blocked ? '校验未通过，生成已停止' : '已回退 Raw Prompt'}</summary>

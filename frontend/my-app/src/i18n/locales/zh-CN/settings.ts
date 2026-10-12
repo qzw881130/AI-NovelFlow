@@ -361,7 +361,6 @@ export default {
     copySuccess: '复制成功',
     resetSuccess: '已恢复默认提示词',
     effectiveImageReviewNotice: '系统默认模板与用户自定义版本均由提示词管理统一保存；新评审使用当前有效版本。',
-    restoreSystemDefault: '恢复系统默认版本',
     resetSuccessFrontend: '已恢复默认提示词（仅前端）',
     templateNames: {
       '场景设定描述': '场景设定描述',

@@ -421,13 +421,17 @@ class FileStorageService:
         return save_dir / filename
 
     def get_merged_props_path(self, novel_id: str, chapter_id: str,
-                              shot_number: int, prop_names: list = None) -> Path:
+                              shot_number: int, prop_names: list = None, *, asset_signature: str = None) -> Path:
         """获取合并道具图保存路径"""
         import hashlib
 
         story_dir = self._get_story_dir(novel_id)
         chapter_short = chapter_id[:8] if chapter_id else "unknown"
         save_dir = story_dir / f"chapter_{chapter_short}" / "merged_props"
+        if asset_signature:
+            save_dir = save_dir / "keyframes"
+            save_dir.mkdir(parents=True, exist_ok=True)
+            return save_dir / f"shot_{shot_number:03d}_{asset_signature}_props.png"
         save_dir.mkdir(parents=True, exist_ok=True)
 
         if prop_names and len(prop_names) > 0:

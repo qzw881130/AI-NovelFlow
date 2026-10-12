@@ -317,7 +317,8 @@ async def generate_scene_setting(
         setting = await get_llm_service().generate_scene_setting(
             scene_name=scene.name,
             description=scene.description,
-            style="anime"
+            style="anime",
+            novel_id=scene.novel_id,
         )
 
         # 更新场景

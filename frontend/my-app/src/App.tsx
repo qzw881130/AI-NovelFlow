@@ -20,7 +20,7 @@ const Scenes = lazy(() => import('./pages/Scenes'));
 const Props = lazy(() => import('./pages/Props'));
 const Tasks = lazy(() => import('./pages/Tasks'));
 const Events = lazy(() => import('./pages/Events'));
-const TestCases = lazy(() => import('./pages/TestCases'));
+const Examples = lazy(() => import('./pages/Examples'));
 const PromptConfig = lazy(() => import('./pages/PromptConfig'));
 const UIConfig = lazy(() => import('./pages/UIConfig'));
 const LLMLogs = lazy(() => import('./pages/LLMLogs'));
@@ -86,7 +86,8 @@ function App() {
           <Route path="props" element={<LazyPage><Props /></LazyPage>} />
           <Route path="tasks" element={<LazyPage><Tasks /></LazyPage>} />
           <Route path="events" element={<LazyPage><Events /></LazyPage>} />
-          <Route path="test-cases" element={<LazyPage><TestCases /></LazyPage>} />
+          <Route path="examples" element={<LazyPage><Examples /></LazyPage>} />
+          <Route path="test-cases" element={<Navigate to="/examples" replace />} />
           <Route path="prompt-config" element={<LazyPage><PromptConfig /></LazyPage>} />
           <Route path="ui-config" element={<LazyPage><UIConfig /></LazyPage>} />
           <Route path="llm-logs" element={<LazyPage><LLMLogs /></LazyPage>} />

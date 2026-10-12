@@ -23,7 +23,7 @@ def iso(value):
     return value.replace(tzinfo=timezone.utc).isoformat() if value and value.tzinfo is None else value.isoformat() if value else None
 
 
-def serialize(row, novel=None, chapter=None, shot=None):
+def serialize(row, novel_title=None, chapter_title=None, shot_index=None):
     registry = EVENT_REGISTRY.get(row.event_type)
     return {"event_id": row.id, "event_type": row.event_type,
             "name": registry.name if registry else row.event_type,
@@ -32,8 +32,8 @@ def serialize(row, novel=None, chapter=None, shot=None):
             **{key: getattr(row, key) for key in ("novel_id", "chapter_id", "shot_id", "visual_state_id", "clip_id",
                 "task_id", "review_id", "llm_log_id", "status", "raw_status", "needs_attention", "source", "trigger",
                 "message", "historical", "is_test", "notification_status")},
-            "novel_title": novel.title if novel else None, "chapter_title": chapter.title if chapter else None,
-            "shot_index": shot.index if shot else None, "details": obj(row.details_json)}
+            "novel_title": novel_title, "chapter_title": chapter_title,
+            "shot_index": shot_index, "details": obj(row.details_json)}
 
 
 def utc_naive(value):
@@ -74,7 +74,9 @@ def list_business_events(page: int = Query(1, ge=1), page_size: int = Query(25, 
     elif view == "today":
         query = query.filter(*today_filters)
     total = query.count()
-    rows = (query.add_entity(Novel).add_entity(Chapter).add_entity(Shot)
+    # Only the three display fields are needed here. Loading a complete Shot also
+    # fetches video_director_plan, which can be several MB for each event row.
+    rows = (query.add_columns(Novel.title, Chapter.title, Shot.index)
             .outerjoin(Novel, BusinessEvent.novel_id == Novel.id)
             .outerjoin(Chapter, BusinessEvent.chapter_id == Chapter.id)
             .outerjoin(Shot, BusinessEvent.shot_id == Shot.id)
@@ -104,7 +106,8 @@ def event_detail(event_id: str, db: Session = Depends(get_db)):
     novel = db.get(Novel, row.novel_id) if row.novel_id else None
     chapter = db.get(Chapter, row.chapter_id) if row.chapter_id else None
     shot = db.get(Shot, row.shot_id) if row.shot_id else None
-    result = serialize(row, novel, chapter, shot)
+    result = serialize(row, novel.title if novel else None,
+                       chapter.title if chapter else None, shot.index if shot else None)
     links = []
     if novel and chapter and shot and chapter.novel_id == novel.id and shot.chapter_id == chapter.id:
         params = {"tab": "video", "eventShot": shot.id}

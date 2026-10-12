@@ -832,15 +832,17 @@ class ComfyUIClient:
         queue_running = queue_info.get("queue_running", [])
         queue_pending = queue_info.get("queue_pending", [])
         
-        running_ids = set()
-        for item in queue_running:
-            if isinstance(item, list) and len(item) > 0:
-                running_ids.add(str(item[0]))
-        
-        pending_ids = set()
-        for item in queue_pending:
-            if isinstance(item, list) and len(item) > 0:
-                pending_ids.add(str(item[0]))
+        # ComfyUI queue entries are commonly [queue_number, prompt_id, graph, ...].
+        # Reuse the prompt-id lookup used by polling instead of treating the
+        # queue number as the prompt id.
+        running_ids = {
+            pid for pid in prompt_ids
+            if self._queue_contains_prompt({"queue_running": queue_running}, pid)
+        }
+        pending_ids = {
+            pid for pid in prompt_ids
+            if self._queue_contains_prompt({"queue_pending": queue_pending}, pid)
+        }
         
         # 从队列中删除等待中的任务
         for pid in prompt_ids:

@@ -6,9 +6,10 @@ from unittest.mock import AsyncMock, patch
 from sqlalchemy.orm import sessionmaker
 
 from app.models.prompt_template import PromptTemplate
+from app.models.novel import Novel
 from app.models.task import Task
 from app.models.system_config import SystemConfig
-from app.services.image_quality_review import DIMENSIONS, build_review_input, normalize_review_response, review_image_task
+from app.services.image_quality_review import DIMENSIONS, build_review_input, create_image_review, normalize_review_response, review_image_task
 from app.services.prompt_template_service import PromptTemplateService
 
 
@@ -45,6 +46,11 @@ def test_review_uses_active_template_and_preserves_task(db_session):
     service = PromptTemplateService(db_session)
     custom = service.copy_template("system-review")
     service.update_template(custom.id, template="用户修改后的版本")
+    novel = Novel(title="评审小说", image_quality_review_prompt_template_id=custom.id)
+    db_session.add(novel)
+    db_session.flush()
+    task.novel_id = novel.id
+    db_session.commit()
     calls = []
 
     class FakeLLM:
@@ -65,12 +71,31 @@ def test_review_uses_active_template_and_preserves_task(db_session):
         assert len(calls[0]["images"]) == 2
         assert calls[0]["images"][1]["sources"] == ["CHAR:骗子1", "CHAR:骗子2"]
         assert build_review_input(task)["target"]["current_anchor"]["description"]
-        service.restore_image_review_default()
+        custom.is_active = False
+        db_session.commit()
         second = asyncio.run(review_image_task(db_session, task.id))
         assert second.template_text == "系统版本"
         assert calls[1]["system_prompt"] == "系统版本"
     db_session.refresh(task)
     assert task.status == "completed" and task.result_url == "/api/files/generated.png"
+
+
+def test_novel_default_review_ignores_global_custom_version(db_session):
+    task = _task(db_session)
+    db_session.add(PromptTemplate(id="system-review", name="系统评审", type="image_quality_review_prompt",
+                                  template="系统版本", is_system=True, is_active=True))
+    db_session.commit()
+    custom = PromptTemplateService(db_session).copy_template("system-review")
+    PromptTemplateService(db_session).update_template(custom.id, template="全局当前自定义版本")
+    novel = Novel(title="未选择评审模板")
+    db_session.add(novel)
+    db_session.flush()
+    task.novel_id = novel.id
+    db_session.commit()
+
+    review = create_image_review(db_session, task.id)
+    assert review.template_id == "system-review"
+    assert review.template_text == "系统版本"
 
 
 def test_uncertain_identity_is_warning():
@@ -119,9 +144,15 @@ def test_prompt_management_and_review_history_api(client, db_session):
     assert changed.status_code == 200
     effective = client.get("/api/prompt-templates/image-quality-review/effective").json()["data"]
     assert effective["template"] == "已修改的评审系统提示词"
-    assert client.post("/api/prompt-templates/image-quality-review/restore-default").status_code == 200
-    effective = client.get("/api/prompt-templates/image-quality-review/effective").json()["data"]
-    assert effective["id"] == templates[0]["id"]
+    second = client.post(f"/api/prompt-templates/{templates[0]['id']}/copy").json()["data"]
+    assert client.put(f"/api/prompt-templates/{second['id']}", json={
+        "name": "另一个自定义评审", "description": "测试", "template": "另一个评审提示词",
+        "type": "image_quality_review_prompt",
+    }).status_code == 200
+    db_session.expire_all()
+    assert db_session.get(PromptTemplate, copied["id"]).is_active
+    assert db_session.get(PromptTemplate, second["id"]).is_active
+    assert client.post("/api/prompt-templates/image-quality-review/restore-default").status_code == 404
     task = _task(db_session)
     assert client.get(f"/api/tasks/{task.id}/image-reviews").json()["data"] == []
 
@@ -131,6 +162,12 @@ def test_automatic_review_is_off_until_enabled(db_session):
     task = _task(db_session)
     db_session.add(PromptTemplate(id="system-review", name="评审", type="image_quality_review_prompt",
                                   template="系统版本", is_system=True, is_active=True))
+    selected = PromptTemplate(id="custom-review", name="自定义评审", type="image_quality_review_prompt",
+                              template="自定义版本", is_system=False, is_active=True)
+    novel = Novel(title="已选择评审模板", image_quality_review_prompt_template_id=selected.id)
+    db_session.add_all([selected, novel])
+    db_session.flush()
+    task.novel_id = novel.id
     config = SystemConfig(id="default", auto_image_review_enabled=False)
     db_session.add(config)
     db_session.commit()
@@ -142,6 +179,8 @@ def test_automatic_review_is_off_until_enabled(db_session):
         db_session.commit()
         queued = enqueue_automatic_review(db_session, task.id)
         assert queued.status == "pending" and queued.trigger == "automatic"
+        assert queued.template_id == selected.id
+        assert queued.template_text == "自定义版本"
         assert enqueue_automatic_review(db_session, task.id).id == queued.id
         asyncio.run(process_review_queue(db_session))
         execute.assert_awaited_once_with(db_session, queued.id)

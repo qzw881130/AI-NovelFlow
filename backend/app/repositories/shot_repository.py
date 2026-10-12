@@ -126,6 +126,16 @@ class ShotRepository:
                     plan = json.loads(value) if isinstance(value, str) else dict(value)
                     plan.pop('required_execution_images', None)
                     plan.pop('clip_execution_readiness', None)
+                    if plan.pop('ai_history_deferred', False) or any(
+                        isinstance(call, dict) and call.get('details_deferred')
+                        for call in plan.get('ai_calls', [])
+                    ):
+                        # A page projection is not an edit to historical LLM records.
+                        stored = json.loads(shot.video_director_plan or '{}')
+                        if 'ai_calls' in stored:
+                            plan['ai_calls'] = stored['ai_calls']
+                        else:
+                            plan.pop('ai_calls', None)
                     value = plan
                 # JSON 字段需要序列化
                 if key in ('characters', 'props', 'dialogues', 'keyframes', 'video_director_plan') and isinstance(value, (list, dict)):
@@ -304,7 +314,7 @@ class ShotRepository:
         self.db.refresh(shot)
         return shot
 
-    def to_response(self, shot: Shot) -> dict:
+    def to_response(self, shot: Shot, *, include_ai_history: bool = True) -> dict:
         """
         将分镜对象转换为响应字典
 
@@ -333,6 +343,21 @@ class ShotRepository:
             video_director_plan["execution_readiness"] = get_canonical_execution_readiness(
                 shot, video_director_plan,
             )
+        if not include_ai_history and isinstance(video_director_plan.get("ai_calls"), list):
+            # Projection only: never mutate persisted history or the current execution plan.
+            summary_fields = {
+                "step", "title", "task_type", "prompt_template_name", "status",
+                "error_message", "input_summary", "clip_index", "workflow_type",
+                "workflow_name", "reference_images", "task_id", "created_at",
+            }
+            video_director_plan["ai_calls"] = [
+                {**{k: v for k, v in call.items() if k in summary_fields},
+                 "history_index": index, "details_deferred": True,
+                 "has_final_prompt": bool(str(call.get("final_prompt") or "").strip())}
+                for index, call in enumerate(video_director_plan["ai_calls"])
+                if isinstance(call, dict)
+            ]
+            video_director_plan["ai_history_deferred"] = True
         return {
             "id": shot.id,
             "chapterId": shot.chapter_id,

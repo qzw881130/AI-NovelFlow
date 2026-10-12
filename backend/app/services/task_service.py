@@ -1371,6 +1371,7 @@ class TaskService:
         from app.utils.workflow_seed import extract_workflow_seed
 
         shots = shots or {}
+        shot_plans = {}
 
         def parse_reference_images(value: str):
             if not value:
@@ -1413,7 +1414,9 @@ class TaskService:
                 if not shot or not shot.video_director_plan:
                     return []
                 try:
-                    plan = json.loads(shot.video_director_plan)
+                    if shot.id not in shot_plans:
+                        shot_plans[shot.id] = json.loads(shot.video_director_plan)
+                    plan = shot_plans[shot.id]
                 except Exception:
                     return []
                 if plan.get("selected_mode") != "MULTI_KEYFRAME":

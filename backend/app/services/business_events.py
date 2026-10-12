@@ -28,7 +28,8 @@ DETAIL_KEYS = {"shot_index", "visual_state_index", "clip_index", "task_type", "r
                "failed_dimensions", "review_dimensions", "template_id", "template_version",
                "llm_log_id", "result_key_sha256", "comfyui_prompt_id", "error_code", "stage",
                "blocking_findings", "repair_levels", "l1_invocations", "reused_result", "revision",
-               "clip_count", "dimension", "status", "summary", "historical_source", "attempt"}
+               "clip_count", "dimension", "status", "summary", "historical_source", "attempt",
+               "example_id", "chapter_count", "duration_ms"}
 
 
 def obj(value, default=None):
@@ -168,7 +169,8 @@ def task_events(task):
         return []
     payload = task_context(task)
     payload.update(source="task.result", raw_status=task.status,
-                   message=EVENT_REGISTRY[code].description)
+                   message=text_summary(task.error_message) if suffix == "failed" and task.error_message
+                   else EVENT_REGISTRY[code].description)
     # A retry is a new attempt; repeated saves of the same Comfy result are not.
     attempt = task.comfyui_prompt_id or str(task.started_at or task.created_at or task.id)
     result = [(code, payload, f"task:{task.id}:{attempt}:{code}", task.completed_at or task.updated_at or task.created_at)]
@@ -206,7 +208,9 @@ def shot_events(shot, previous, db):
         stamp = datetime.fromisoformat(call["created_at"]) if call.get("created_at") else None
         results.append((code, payload, key, stamp))
         repair = parsed.get("preflight_repair")
-        if repair:
+        # L0/no-repair preflight failures are optimization failures, not failed
+        # L1 repair attempts. The optimizer event above retains their findings.
+        if repair and int(repair.get("l1_invocations") or 0) > 0:
             passed = (parsed.get("authority_check") or {}).get("passed", False)
             results.append((f"preflight.repair.{'completed' if passed else 'failed'}",
                             {**payload, "source": "h3_preflight_repair.final", "details": {**payload["details"], "l1_invocations": repair.get("l1_invocations")}},

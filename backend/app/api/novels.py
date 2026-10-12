@@ -34,13 +34,18 @@ PROMPT_TEMPLATE_EXPORT_FIELDS = [
     {"api_key": "promptTemplateId", "attr": "prompt_template_id", "label": "角色生成提示词", "type": "character"},
     {"api_key": "scenePromptTemplateId", "attr": "scene_prompt_template_id", "label": "场景生成提示词", "type": "scene"},
     {"api_key": "propPromptTemplateId", "attr": "prop_prompt_template_id", "label": "道具生成提示词", "type": "prop"},
+    {"api_key": "sceneSettingPromptTemplateId", "attr": "scene_setting_prompt_template_id", "label": "场景设定描述提示词", "type": "scene_setting"},
+    {"api_key": "propAppearancePromptTemplateId", "attr": "prop_appearance_prompt_template_id", "label": "道具外观描述提示词", "type": "prop_appearance"},
     {"api_key": "chapterSplitPromptTemplateId", "attr": "chapter_split_prompt_template_id", "label": "分镜拆分提示词模板", "type": "chapter_split"},
     {"api_key": "keyframeDescriptionPromptTemplateId", "attr": "keyframe_description_prompt_template_id", "label": "关键帧描述提示词模板", "type": "keyframe_description"},
     {"api_key": "shotImagePromptTemplateId", "attr": "shot_image_prompt_template_id", "label": "主分镜图提示词模板", "type": "shot_image_prompt"},
     {"api_key": "videoModeRecommenderPromptTemplateId", "attr": "video_mode_recommender_prompt_template_id", "label": "视频生成模式推荐提示词模板", "type": "video_mode_recommender"},
     {"api_key": "keyframePlannerPromptTemplateId", "attr": "keyframe_planner_prompt_template_id", "label": "关键帧时间轴规划提示词模板", "type": "keyframe_planner"},
     {"api_key": "keyframeImagePromptTemplateId", "attr": "keyframe_image_prompt_template_id", "label": "关键帧生图提示词模板", "type": "keyframe_image_prompt"},
+    {"api_key": "temporalReferenceSelectorPromptTemplateId", "attr": "temporal_reference_selector_prompt_template_id", "label": "时序锚点参考选择器", "type": "temporal_reference_selector"},
+    {"api_key": "imageQualityReviewPromptTemplateId", "attr": "image_quality_review_prompt_template_id", "label": "AI 图片质量评审", "type": "image_quality_review_prompt"},
     {"api_key": "keyframeTransitionPromptTemplateId", "attr": "keyframe_transition_prompt_template_id", "label": "关键帧过渡规划提示词模板", "type": "keyframe_transition"},
+    {"api_key": "clipExecutionPlannerPromptTemplateId", "attr": "clip_execution_planner_prompt_template_id", "label": "视频片段执行规划", "type": "clip_execution_planner"},
     {"api_key": "h3SingleFramePromptTemplateId", "attr": "h3_single_frame_prompt_template_id", "label": "H3 单帧视频提示词模板", "type": "h3_single_frame_prompt"},
     {"api_key": "h3FirstLastFramePromptTemplateId", "attr": "h3_first_last_frame_prompt_template_id", "label": "H3 首尾帧视频提示词模板", "type": "h3_first_last_frame_prompt"},
     {"api_key": "h3MultiKeyframePromptTemplateId", "attr": "h3_multi_keyframe_prompt_template_id", "label": "H3 多关键帧视频提示词模板", "type": "h3_multi_keyframe_prompt"},
@@ -69,9 +74,8 @@ async def list_novels(novel_repo: NovelRepository = Depends(get_novel_repo)):
     }
 
 
-@router.post("/", response_model=dict)
-async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
-    """创建新小说"""
+def create_novel_in_session(novel: NovelCreate, db: Session) -> Novel:
+    """正式小说创建逻辑；由调用方决定何时提交事务。"""
     from app.repositories import PromptTemplateRepository
     
     prompt_template_repo = PromptTemplateRepository(db)
@@ -102,13 +106,18 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
         prompt_template_id=prompt_template_id,
         scene_prompt_template_id=novel.scene_prompt_template_id,
         prop_prompt_template_id=novel.prop_prompt_template_id,
+        scene_setting_prompt_template_id=novel.scene_setting_prompt_template_id,
+        prop_appearance_prompt_template_id=novel.prop_appearance_prompt_template_id,
         chapter_split_prompt_template_id=novel.chapter_split_prompt_template_id,
         keyframe_description_prompt_template_id=novel.keyframe_description_prompt_template_id,
         shot_image_prompt_template_id=novel.shot_image_prompt_template_id,
         video_mode_recommender_prompt_template_id=novel.video_mode_recommender_prompt_template_id,
         keyframe_planner_prompt_template_id=novel.keyframe_planner_prompt_template_id,
         keyframe_image_prompt_template_id=novel.keyframe_image_prompt_template_id,
+        temporal_reference_selector_prompt_template_id=novel.temporal_reference_selector_prompt_template_id,
+        image_quality_review_prompt_template_id=novel.image_quality_review_prompt_template_id,
         keyframe_transition_prompt_template_id=novel.keyframe_transition_prompt_template_id,
+        clip_execution_planner_prompt_template_id=novel.clip_execution_planner_prompt_template_id,
         h3_single_frame_prompt_template_id=novel.h3_single_frame_prompt_template_id,
         h3_first_last_frame_prompt_template_id=novel.h3_first_last_frame_prompt_template_id,
         h3_multi_keyframe_prompt_template_id=novel.h3_multi_keyframe_prompt_template_id,
@@ -117,6 +126,14 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
         aspect_ratio=novel.aspect_ratio or "16:9",
     )
     db.add(db_novel)
+    db.flush()
+    return db_novel
+
+
+@router.post("/", response_model=dict)
+async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
+    """创建新小说"""
+    db_novel = create_novel_in_session(novel, db)
     db.commit()
     db.refresh(db_novel)
     return {
@@ -137,13 +154,18 @@ async def create_novel(novel: NovelCreate, db: Session = Depends(get_db)):
             "promptTemplateId": db_novel.prompt_template_id,
             "scenePromptTemplateId": db_novel.scene_prompt_template_id,
             "propPromptTemplateId": db_novel.prop_prompt_template_id,
+            "sceneSettingPromptTemplateId": db_novel.scene_setting_prompt_template_id,
+            "propAppearancePromptTemplateId": db_novel.prop_appearance_prompt_template_id,
             "chapterSplitPromptTemplateId": db_novel.chapter_split_prompt_template_id,
             "keyframeDescriptionPromptTemplateId": db_novel.keyframe_description_prompt_template_id,
             "shotImagePromptTemplateId": db_novel.shot_image_prompt_template_id,
             "videoModeRecommenderPromptTemplateId": db_novel.video_mode_recommender_prompt_template_id,
             "keyframePlannerPromptTemplateId": db_novel.keyframe_planner_prompt_template_id,
             "keyframeImagePromptTemplateId": db_novel.keyframe_image_prompt_template_id,
+            "temporalReferenceSelectorPromptTemplateId": db_novel.temporal_reference_selector_prompt_template_id,
+            "imageQualityReviewPromptTemplateId": db_novel.image_quality_review_prompt_template_id,
             "keyframeTransitionPromptTemplateId": db_novel.keyframe_transition_prompt_template_id,
+            "clipExecutionPlannerPromptTemplateId": db_novel.clip_execution_planner_prompt_template_id,
             "h3SingleFramePromptTemplateId": db_novel.h3_single_frame_prompt_template_id,
             "h3FirstLastFramePromptTemplateId": db_novel.h3_first_last_frame_prompt_template_id,
             "h3MultiKeyframePromptTemplateId": db_novel.h3_multi_keyframe_prompt_template_id,
@@ -379,13 +401,18 @@ async def update_novel(
         "promptTemplateId": "prompt_template_id",
         "scenePromptTemplateId": "scene_prompt_template_id",
         "propPromptTemplateId": "prop_prompt_template_id",
+        "sceneSettingPromptTemplateId": "scene_setting_prompt_template_id",
+        "propAppearancePromptTemplateId": "prop_appearance_prompt_template_id",
         "chapterSplitPromptTemplateId": "chapter_split_prompt_template_id",
         "keyframeDescriptionPromptTemplateId": "keyframe_description_prompt_template_id",
         "shotImagePromptTemplateId": "shot_image_prompt_template_id",
         "videoModeRecommenderPromptTemplateId": "video_mode_recommender_prompt_template_id",
         "keyframePlannerPromptTemplateId": "keyframe_planner_prompt_template_id",
         "keyframeImagePromptTemplateId": "keyframe_image_prompt_template_id",
+        "temporalReferenceSelectorPromptTemplateId": "temporal_reference_selector_prompt_template_id",
+        "imageQualityReviewPromptTemplateId": "image_quality_review_prompt_template_id",
         "keyframeTransitionPromptTemplateId": "keyframe_transition_prompt_template_id",
+        "clipExecutionPlannerPromptTemplateId": "clip_execution_planner_prompt_template_id",
         "h3SingleFramePromptTemplateId": "h3_single_frame_prompt_template_id",
         "h3FirstLastFramePromptTemplateId": "h3_first_last_frame_prompt_template_id",
         "h3MultiKeyframePromptTemplateId": "h3_multi_keyframe_prompt_template_id",

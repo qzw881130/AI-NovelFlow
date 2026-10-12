@@ -72,8 +72,8 @@ def test_copy_novel_only_copies_chapter_source_text(db_session):
 
     assert copied.id != source.id
     assert copied.title == "原小说 - 副本"
-    assert copied.author == ""
-    assert copied.description == ""
+    assert copied.author == "原作者"
+    assert copied.description == "原描述"
     assert copied.chapter_count == 2
     assert [(chapter.number, chapter.title, chapter.content) for chapter in copied_chapters] == [
         (1, "第一章", "第一章正文"),

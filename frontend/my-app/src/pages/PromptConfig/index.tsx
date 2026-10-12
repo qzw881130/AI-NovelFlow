@@ -74,7 +74,7 @@ const CATEGORY_CONFIG: Record<TemplateCategory, { nameKey: string; types: Templa
   style_design: { nameKey: 'promptConfig.categories.styleDesign', types: ['style'] },
   asset_parse: { nameKey: 'promptConfig.categories.assetParse', types: ['character_parse', 'scene_parse', 'prop_parse'] },
   asset_generation: { nameKey: 'promptConfig.categories.assetGeneration', types: ['character', 'scene', 'prop', 'scene_setting', 'prop_appearance'] },
-  shot_planning: { nameKey: 'promptConfig.categories.shotPlanning', types: ['chapter_split'] },
+  shot_planning: { nameKey: 'promptConfig.categories.shotPlanning', types: ['chapter_split', 'keyframe_description'] },
   shot_image: { nameKey: 'promptConfig.categories.shotImage', types: ['shot_image_prompt'] },
   video_director: { nameKey: 'promptConfig.categories.videoDirector', types: ['video_mode_recommender', 'keyframe_planner', 'keyframe_transition', 'clip_execution_planner'] },
   keyframe_image: { nameKey: 'promptConfig.categories.keyframeImage', types: ['temporal_reference_selector', 'keyframe_image_prompt', 'image_quality_review_prompt'] },
@@ -331,12 +331,6 @@ export default function PromptConfig() {
 
       {/* Tab 内容区 */}
       <div role="tabpanel" className="card">
-        {activeTab === 'image_quality_review_prompt' && (
-          <div className="mb-4 flex items-center justify-between rounded-md bg-emerald-50 px-3 py-2 text-sm">
-            <span>{t('promptConfig.effectiveImageReviewNotice')}</span>
-            <button type="button" onClick={state.handleRestoreImageReviewDefault} className="font-medium text-emerald-700 hover:underline">{t('promptConfig.restoreSystemDefault')}</button>
-          </div>
-        )}
         <TemplateSection
           type={activeTab}
           templates={state.templatesByType[activeTab]}

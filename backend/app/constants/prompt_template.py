@@ -264,6 +264,36 @@ PROMPT_TEMPLATE_FILE_NUMBERS = {
     if config.get("file_number")
 }
 
+# The novel stores references to versions, never prompt bodies. Keep this map in
+# registry order so copying and runtime resolution cover every selectable type.
+NOVEL_PROMPT_TEMPLATE_FIELDS = {
+    "story_world_context_recommender": "story_world_context_prompt_template_id",
+    "style": "style_prompt_template_id",
+    "character_parse": "character_parse_prompt_template_id",
+    "scene_parse": "scene_parse_prompt_template_id",
+    "prop_parse": "prop_parse_prompt_template_id",
+    "character": "prompt_template_id",
+    "scene": "scene_prompt_template_id",
+    "prop": "prop_prompt_template_id",
+    "scene_setting": "scene_setting_prompt_template_id",
+    "prop_appearance": "prop_appearance_prompt_template_id",
+    "chapter_split": "chapter_split_prompt_template_id",
+    "shot_image_prompt": "shot_image_prompt_template_id",
+    "video_mode_recommender": "video_mode_recommender_prompt_template_id",
+    "keyframe_description": "keyframe_description_prompt_template_id",
+    "keyframe_planner": "keyframe_planner_prompt_template_id",
+    "keyframe_image_prompt": "keyframe_image_prompt_template_id",
+    "image_quality_review_prompt": "image_quality_review_prompt_template_id",
+    "temporal_reference_selector": "temporal_reference_selector_prompt_template_id",
+    "keyframe_transition": "keyframe_transition_prompt_template_id",
+    "clip_execution_planner": "clip_execution_planner_prompt_template_id",
+    "h3_single_frame_prompt": "h3_single_frame_prompt_template_id",
+    "h3_first_last_frame_prompt": "h3_first_last_frame_prompt_template_id",
+    "h3_multi_keyframe_prompt": "h3_multi_keyframe_prompt_template_id",
+    "h3_execution_optimizer_prompt": "h3_execution_optimizer_prompt_template_id",
+    "h3_preflight_repair_prompt": "h3_preflight_repair_prompt_template_id",
+}
+
 
 def get_template_type_name_key(template_type: str) -> str:
     """获取模板类型的名称国际化键"""

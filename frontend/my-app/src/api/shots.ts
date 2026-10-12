@@ -157,6 +157,9 @@ export interface PlanSemanticClipsResult {
 }
 
 export interface VideoAiCall {
+  history_index?: number;
+  details_deferred?: boolean;
+  has_final_prompt?: boolean;
   step?: string;
   title?: string;
   task_type?: string;
@@ -212,6 +215,7 @@ export interface PrepareRequiredImageItem {
 export interface PrepareRequiredImagesResult { items: PrepareRequiredImageItem[]; shot: Shot }
 
 export interface VideoDirectorPlan {
+  ai_history_deferred?: boolean;
   required_execution_images?: RequiredExecutionImage[];
   clip_execution_readiness?: Array<{ clip_index: number; images_ready: boolean; ready: boolean; code: string; previous_clip_index?: number | null }>;
   canonical_visual_plan?: boolean;
@@ -353,16 +357,24 @@ export const shotsApi = {
    * 获取章节的所有分镜列表
    */
   getShots: async (novelId: string, chapterId: string): Promise<{ success: boolean; data: Shot[]; message?: string }> => {
-    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/`);
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots?include_ai_history=false`);
     return response.json();
   },
 
   /**
    * 获取单个分镜详情
    */
-  getShot: async (novelId: string, chapterId: string, shotId: string, signal?: AbortSignal): Promise<{ success: boolean; data: Shot; message?: string }> => {
-    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}`, { signal });
+  getShot: async (novelId: string, chapterId: string, shotId: string, signal?: AbortSignal, includeAiHistory = false): Promise<{ success: boolean; data: Shot; message?: string }> => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}?include_ai_history=${includeAiHistory}`, { signal });
     return response.json();
+  },
+
+  getShotAiCall: async (novelId: string, chapterId: string, shotId: string, call: VideoAiCall): Promise<VideoAiCall> => {
+    const query = new URLSearchParams({ created_at: call.created_at || '' });
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}/ai-calls/${call.history_index}?${query}`);
+    const result = await response.json();
+    if (!response.ok || !result.success) throw new Error(result.detail || '读取 AI 调用失败');
+    return result.data;
   },
 
   downloadShotLlmData: async (novelId: string, chapterId: string, shotId: string): Promise<void> => {

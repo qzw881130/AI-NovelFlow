@@ -1,12 +1,14 @@
 """Resolve citations to actual text without rewriting model output or judging AV quality.
 
-Alignment is deliberately narrow: exact text, or the same ordered tokens with
-small additions in the actual text. It is NOT fuzzy semantic equivalence. Unknown
-paraphrases, ambiguous locations and polarity/participant changes need review.
+Alignment is deliberately narrow: exact text, ordered tokens, or unique long
+literal anchors in one canonical source. It is NOT fuzzy semantic equivalence.
+Resolved misquotes keep a semantic-review flag; ambiguous locations and
+polarity/participant changes remain blocked.
 """
 import hashlib
 import re
 import copy
+from difflib import SequenceMatcher
 
 TOKEN = re.compile(r'<(?:Subject|Picture)\s+\d+>|\w+(?:[’\']\w+)*', re.UNICODE)
 POLARITY = {'no', 'not', 'never', 'without', 'instead', 'cannot', "can't", "doesn't", "isn't"}
@@ -121,7 +123,12 @@ def resolve_canonical_excerpt(text, requirement, authority):
             terminal = _resolve_terminal_quote(text, requirement, authority, result)
             if terminal is not None:
                 return terminal
-            return _resolve_canonical_fragments(text, requirement, authority, result)
+            fragments = _resolve_canonical_fragments(text, requirement, authority, result)
+            if fragments['status'] == 'UNRESOLVED' and fragments.get('reason') == 'MISSING_WHOLE_FRAGMENT':
+                anchored = _resolve_anchored_canonical_citation(text, requirement, authority, fragments)
+                if anchored is not None:
+                    return anchored
+            return fragments
         return result
     events = {e['id']: e for e in authority.get('dialogue_events', [])}
     # Only top-level source headings delimit ownership; an excerpt must stay
@@ -418,6 +425,70 @@ def _resolve_canonical_fragments(text, requirement, authority, result):
             'status': 'RESOLVED', 'method': 'CANONICAL_ORDERED_SPANS', 'mismatch': True,
             'resolved_spans': [dict(loc) for loc in selected],
             'semantic_review_required': True}
+
+
+def _resolve_anchored_canonical_citation(text, requirement, authority, result):
+    """Locate a misquoted multi-clause citation from long, unique literal anchors.
+
+    This only resolves *where* the model appears to cite. It keeps the supplied
+    quote and mismatch for audit; prompt semantics remain subject to the other
+    authority checks and human review. A short or repeated anchor is not enough.
+    """
+    quote = requirement.get('source_excerpt') or ''
+    clauses = [part.strip() for part in re.split(r'[;；。.!！?？\n]', quote) if part.strip()]
+    if len(clauses) < 2 or not text:
+        return None
+    bindings = {s: character_name(n) for s, n in authority.get('subject_bindings', {}).items()}
+    # A numbered actor outside the bound cast cannot be inferred from a nearby
+    # valid camera/action anchor.
+    if any(token not in bindings for token in re.findall(r'<Subject \d+>', quote)):
+        return None
+    for name in bindings.values():
+        stem = re.sub(r'\d+$', '', name)
+        if stem != name and any(candidate not in bindings.values()
+                                for candidate in re.findall(re.escape(stem) + r'\d+', quote)):
+            return None
+    mentioned = {s for s, name in bindings.items() if name and name in quote}
+    requested = {s for s, name in bindings.items()
+                 if s in str(requirement.get('requirement') or '') or (name and name in str(requirement.get('requirement') or ''))}
+    if mentioned and (not requested or not mentioned <= requested):
+        return None
+    if re.search(r'不|没|无|禁止|而非|改为|并非|另一个|另一名', quote):
+        return None
+    spans = []
+    for index, clause in enumerate(clauses):
+        matches = [block for block in SequenceMatcher(None, clause, text, autojunk=False).get_matching_blocks()
+                   if block.size >= 12]
+        if len(matches) != 1:
+            return None
+        block = matches[0]
+        anchor = clause[block.a:block.a + block.size]
+        occurrences = list(re.finditer(re.escape(anchor), text))
+        if len(occurrences) != 1:
+            return None
+        match = occurrences[0]
+        if spans and match.start() < spans[-1]['end']:
+            return None
+        spans.append({'fragment_index': index, 'start': match.start(), 'end': match.end(),
+                      'excerpt': match[0], 'selected': True})
+    start, end = spans[0]['start'], spans[-1]['end']
+    terminal = re.search(r'[。.!！?？\n]', text[end:])
+    if terminal and terminal.start() <= 100:
+        end += terminal.end()
+    if '\n\n' in text[start:end] or end - start > 240:
+        return None
+    if re.search(r'(?m)^\s*[A-Za-z_][\w]*:[ \t]*$', text[start:end]):
+        return None
+    # Most of the supplied quote must be literal canonical text, even though
+    # short connecting phrases may be wrong. Never infer from a few keywords.
+    matched = sum(block.size for block in SequenceMatcher(None, quote, text[start:end], autojunk=False).get_matching_blocks())
+    if matched / len(quote) < 0.7:
+        return None
+    return {**result, 'status': 'RESOLVED', 'method': 'CANONICAL_UNIQUE_CITATION_ANCHORS',
+            'excerpt': text[start:end], 'start': start, 'end': end,
+            'locations': spans, 'resolved_spans': [dict(span) for span in spans],
+            'mismatch': True, 'semantic_review_required': True,
+            'reason': 'UNIQUE_LITERAL_ANCHORS;SUPPLIED_QUOTE_NOT_CANONICAL'}
 
 
 def resolve_output_evidence(prompt, output, authority):

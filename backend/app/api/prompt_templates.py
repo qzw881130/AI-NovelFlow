@@ -38,7 +38,7 @@ PROMPT_TEMPLATE_EXPORT_CATEGORIES = [
         ("prop_appearance", "道具外观描述提示词"),
     ]),
     ("风格设计", [("style", "风格提示词")]),
-    ("分镜规划", [("chapter_split", "分镜拆分提示词")]),
+    ("分镜规划", [("chapter_split", "分镜拆分提示词"), ("keyframe_description", "关键帧描述提示词")]),
     ("分镜生图", [("shot_image_prompt", "主分镜图生成提示词构建")]),
     ("视频导演", [
         ("video_mode_recommender", "视频生成模式推荐"),
@@ -95,14 +95,6 @@ def init_system_prompt_templates(db: Session):
 
 
 # ==================== 模板 CRUD ====================
-
-@router.post("/image-quality-review/restore-default", response_model=dict)
-def restore_image_review_default(service: PromptTemplateService = Depends(get_template_service)):
-    try:
-        template = service.restore_image_review_default()
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"success": True, "data": service.to_response(template)}
 
 @router.get("/image-quality-review/effective", response_model=dict)
 def get_effective_image_review_template(service: PromptTemplateService = Depends(get_template_service)):

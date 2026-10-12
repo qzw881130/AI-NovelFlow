@@ -89,15 +89,16 @@ def list_tasks(
 ):
     """获取任务列表"""
     if chapter_id:
-        # 按章节筛选
-        tasks = task_repo.get_by_chapter(chapter_id)
-        # 额外筛选类型和状态
+        # Page initialization reads several task kinds concurrently. Filter in SQL
+        # before loading large historical workflows/metadata for unrelated tasks.
+        query = db.query(Task).filter(Task.chapter_id == chapter_id)
         if type:
-            tasks = [t for t in tasks if t.type == type]
+            query = query.filter(Task.type == type)
         if status:
-            tasks = [t for t in tasks if t.status == status]
+            query = query.filter(Task.status == status)
         if shot_id:
-            tasks = [t for t in tasks if t.shot_id == shot_id]
+            query = query.filter(Task.shot_id == shot_id)
+        tasks = query.order_by(Task.created_at.desc()).all()
     else:
         tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
 

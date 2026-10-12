@@ -7,31 +7,10 @@ import { sceneApi } from '../../../api/scenes';
 import { propApi } from '../../../api/props';
 import type { PromptTemplate } from '../../../types';
 import type { ChapterRange, ConfirmDialogState, ParseType } from '../types';
+import { TEMPLATE_FIELDS } from '../promptTemplateFields';
 
 // 模板类型列表
-const TEMPLATE_TYPES = [
-  'story_world_context_recommender',
-  'style',
-  'character_parse',
-  'scene_parse',
-  'prop_parse',
-  'character',
-  'scene',
-  'prop',
-  'chapter_split',
-  'keyframe_description',
-  'shot_image_prompt',
-  'video_mode_recommender',
-  'keyframe_planner',
-  'keyframe_image_prompt',
-  'keyframe_transition',
-  'h3_single_frame_prompt',
-  'h3_first_last_frame_prompt',
-  'h3_multi_keyframe_prompt',
-  'h3_execution_optimizer_prompt',
-  'h3_preflight_repair_prompt',
-] as const;
-type TemplateType = typeof TEMPLATE_TYPES[number];
+const TEMPLATE_TYPES = TEMPLATE_FIELDS.map(field => field.templateType);
 
 export function useNovelsState() {
   const { t } = useTranslation();

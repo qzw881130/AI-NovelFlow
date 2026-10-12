@@ -359,7 +359,6 @@ export default {
     copySuccess: 'Copied successfully',
     resetSuccess: 'Reset to default prompt',
     effectiveImageReviewNotice: 'System and custom templates are managed here. New reviews use the active version.',
-    restoreSystemDefault: 'Restore system default',
     resetSuccessFrontend: 'Reset to default prompt (frontend only)',
     templateNames: {
       'AI 图片质量评审': 'AI Image Quality Review',

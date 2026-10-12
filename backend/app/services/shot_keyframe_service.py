@@ -25,7 +25,7 @@ from app.models.workflow import Workflow
 from app.models.novel import Novel, Chapter, Character, Scene, Prop
 from app.models.prompt_template import PromptTemplate
 from app.repositories.shot_repository import ShotRepository
-from app.repositories.prompt_template import PromptTemplateRepository
+from app.services.novel_prompt_templates import resolve_novel_prompt_template
 from app.services.comfyui import ComfyUIService
 from app.services.comfyui.errors import persist_task_comfyui_error
 from app.services.llm_service import LLMService
@@ -50,7 +50,7 @@ from app.services.canonical_visual_speech_authority import (
 )
 from app.services.prop_policy import PROP_EXISTENCE_REAL, get_visual_prop_names
 from app.utils.path_utils import local_path_to_url, url_to_local_path
-from app.utils.image_utils import merge_character_images
+from app.utils.image_utils import merge_character_images, merge_prop_images
 from app.utils.workflow_seed import randomize_prompt_rewrite_seeds
 from app.utils.workflow_disconnect import (
     disconnect_reference_chain,
@@ -323,13 +323,16 @@ class ShotKeyframeService:
             if name not in current_description:
                 continue
             prop = db.query(Prop).filter(Prop.novel_id == novel.id, Prop.name == name, Prop.existence == PROP_EXISTENCE_REAL).first()
-            if prop and prop.image_url and url_to_local_path(prop.image_url):
-                candidates.append({"ref_id": f"PROP:{name}", "type": "PROP", "description": name})
+            path = url_to_local_path(prop.image_url) if prop and prop.image_url else None
+            if path and Path(path).is_file():
+                candidates.append({"ref_id": f"PROP:{name}", "type": "PROP", "description": name,
+                                   "prop_id": prop.id, "name": prop.name, "image_url": prop.image_url,
+                                   "image_sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest()})
         return candidates
 
     async def _select_references(self, db: Session, novel: Novel, shot: Shot, keyframe: dict, candidates: list) -> tuple[dict, str, dict]:
         payload = {"shot": {"shot_id": shot.id, "duration": shot.duration, "continuity_mode": shot.continuity_mode or "NORMAL", "description": shot.description or "", "characters": json.loads(shot.characters or "[]"), "scene": shot.scene or "", "props": json.loads(shot.props or "[]")}, "current_anchor": {"anchor_id": f"KF{keyframe.get('plan_keyframe_index') or keyframe.get('frame_index')}", "index": keyframe.get("plan_keyframe_index") or keyframe.get("frame_index"), "time_seconds": keyframe.get("time_seconds"), "description": keyframe.get("description") or ""}, "available_references": candidates}
-        template = PromptTemplateRepository(db).get_default_system_template("temporal_reference_selector")
+        template = resolve_novel_prompt_template(db, novel, "temporal_reference_selector")
         if not template:
             raise RuntimeError("未配置 Temporal Anchor Reference Selector 提示词模板")
         result = await self.llm_service.chat_completion(system_prompt=template.template, user_content=json.dumps(payload, ensure_ascii=False, indent=2), temperature=0.2, max_tokens=1200, response_format="json_object", task_type="temporal_reference_selector", prompt_template_name=template.name, novel_id=novel.id, chapter_id=shot.chapter_id)
@@ -408,13 +411,57 @@ class ShotKeyframeService:
                     "composed": len(assets) > 1,
                 })
                 continue
-            composed_url = None
-            if group.get("type") == "PROP" and len(ref_ids) > 1:
-                composed_url = shot.merged_prop_image
-            composed_path = url_to_local_path(composed_url) if composed_url else None
-            if composed_path and Path(composed_path).is_file() and len(manifest) < 9:
-                picture = len(manifest) + 1
-                manifest.append({"picture": picture, "picture_index": picture, "kind": group.get("type"), "type": group.get("type"), "sources": ref_ids, "purpose": group.get("purpose"), "url": composed_url, "path": composed_path, "composed": True})
+            if group.get("type") == "PROP":
+                if not ref_ids or len(manifest) >= 9:
+                    continue
+                assets = []
+                for ref_id in ref_ids:
+                    candidate = by_id.get(ref_id) or {}
+                    prop = db.query(Prop).filter(
+                        Prop.id == candidate.get("prop_id"), Prop.novel_id == novel.id,
+                        Prop.existence == PROP_EXISTENCE_REAL,
+                    ).first()
+                    if (not prop or candidate.get("type") != "PROP"
+                            or ref_id != f"PROP:{candidate.get('name')}"):
+                        raise ValueError(f"道具参考缺少有效的稳定 ID: {ref_id}")
+                    url = candidate.get("image_url")
+                    path = url_to_local_path(url)
+                    if not path or not Path(path).is_file():
+                        raise ValueError(f"选中的道具图片不存在: {prop.id}")
+                    digest = hashlib.sha256(Path(path).read_bytes()).hexdigest()
+                    if digest != candidate.get("image_sha256"):
+                        raise ValueError(f"选中的道具图片版本已变化: {prop.id}")
+                    assets.append({"prop_id": prop.id, "name": candidate["name"],
+                                   "url": url, "path": path, "sha256": digest})
+                # Preserve the existing slot budget: only compose in the branch that
+                # previously used the Shot cache. That cache alone is not provenance.
+                legacy_path = url_to_local_path(shot.merged_prop_image) if shot.merged_prop_image else None
+                compose = len(assets) > 1 and legacy_path and Path(legacy_path).is_file()
+                groups = [assets] if compose else [[asset] for asset in assets]
+                for members in groups:
+                    if len(manifest) >= 9:
+                        break
+                    if compose:
+                        members = sorted(members, key=lambda asset: asset["prop_id"])
+                        path = merge_prop_images(
+                            novel.id, shot.chapter_id, shot.index,
+                            [(asset["name"], asset["path"]) for asset in members], file_storage,
+                            prop_assets=members,
+                        )
+                        url = local_path_to_url(path)
+                        if not path or not url:
+                            raise ValueError("无法保存选中道具的合并参考图")
+                    else:
+                        path, url = members[0]["path"], members[0]["url"]
+                    picture = len(manifest) + 1
+                    manifest.append({"picture": picture, "picture_index": picture,
+                                     "kind": "PROP", "type": "PROP",
+                                     "sources": [f"PROP:{asset['name']}" for asset in members],
+                                     "prop_ids": [asset["prop_id"] for asset in members],
+                                     "members": [asset["name"] for asset in members], "prop_assets": members,
+                                     "purpose": group.get("purpose"), "url": url, "path": path,
+                                     "sha256": hashlib.sha256(Path(path).read_bytes()).hexdigest(),
+                                     "composed": bool(compose)})
                 continue
             for ref_id in ref_ids:
                 candidate = by_id.get(ref_id)
@@ -437,14 +484,7 @@ class ShotKeyframeService:
         return manifest
 
     def _get_keyframe_image_prompt_template(self, db: Session, novel: Optional[Novel]) -> Optional[PromptTemplate]:
-        template = None
-        if novel and novel.keyframe_image_prompt_template_id:
-            template = db.query(PromptTemplate).filter(
-                PromptTemplate.id == novel.keyframe_image_prompt_template_id
-            ).first()
-        if not template:
-            template = PromptTemplateRepository(db).get_default_system_template("keyframe_image_prompt")
-        return template
+        return resolve_novel_prompt_template(db, novel, "keyframe_image_prompt")
 
     def _extract_keyframe_image_prompt(self, content: str) -> str:
         text = (content or "").strip()

@@ -35,7 +35,7 @@ export default {
     copySourcePlaceholder: '請選擇要複製的小說',
     copyTitle: '新小說名稱',
     copyTitleDefault: '{title} - 副本',
-    copyScopeHint: '僅複製所選小說的全部章回標題、正文和章回順序。角色、場景、道具、解析結果及生成內容不會複製。',
+    copyScopeHint: '複製小說基本資訊、畫面比例、提示詞範本選擇，以及全部章回標題、正文和順序。角色、場景、道具、解析結果及生成資產不會複製。',
     copyConfirm: '確認複製',
     copying: '正在複製...',
     copySuccess: '已建立《{title}》，複製了 {count} 個章回',

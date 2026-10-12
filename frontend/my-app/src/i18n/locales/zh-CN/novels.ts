@@ -10,7 +10,7 @@ export default {
     copySourcePlaceholder: '请选择要复制的小说',
     copyTitle: '新小说名称',
     copyTitleDefault: '{title} - 副本',
-    copyScopeHint: '仅复制所选小说的全部章回标题、正文和章回顺序。角色、场景、道具、解析结果及生成内容不会复制。',
+    copyScopeHint: '复制小说基础信息、画面比例、提示词模板选择，以及全部章回标题、正文和顺序。角色、场景、道具、解析结果及生成资产不会复制。',
     copyConfirm: '确认复制',
     copying: '正在复制...',
     copySuccess: '已创建《{title}》，复制了 {count} 个章回',

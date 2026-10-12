@@ -38,7 +38,7 @@ export default {
     copySourcePlaceholder: '복사할 소설을 선택하세요',
     copyTitle: '새 소설 제목',
     copyTitleDefault: '{title} - 사본',
-    copyScopeHint: '장 제목, 본문 및 순서만 복사합니다. 캐릭터, 장면, 소품, 분석 결과 및 생성 데이터는 복사하지 않습니다.',
+    copyScopeHint: '소설 기본 정보, 화면 비율, 프롬프트 템플릿 선택과 장 제목, 본문 및 순서를 복사합니다. 캐릭터, 장면, 소품, 분석 결과와 생성 자산은 복사하지 않습니다.',
     copyConfirm: '복사 확인',
     copying: '복사 중...',
     copySuccess: '「{title}」을 생성하고 {count}개 장을 복사했습니다',
