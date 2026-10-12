@@ -93,6 +93,7 @@ def record(case):
 def test_joint_retiming_preserves_facts_and_applies_duration(case):
     result=audit(case)
     assert result['passed'], result['blocking_findings']
+    assert result['duration_info']=={'planned_duration':5,'optimized_duration':6,'duration_delta':1}
     assert 'start_time' not in case[1]['immutable_authority']['dialogue_events'][0]
     assert 'time' not in case[1]['immutable_authority']['visual_anchor_order'][0]
     assert case[1]['initial_execution_timing']['duration']==5

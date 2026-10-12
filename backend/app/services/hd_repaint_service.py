@@ -69,11 +69,17 @@ def format_hd_execution(task: Task) -> dict:
     }
 
 
-def get_hd_repaint_variants(db: Session, shot_id: str) -> list[dict]:
-    tasks = db.query(Task).filter(
-        Task.type == "shot_video_hd",
-        Task.shot_id == shot_id,
-    ).order_by(Task.created_at.desc(), Task.id.desc()).all()
+def get_hd_repaint_variants(db: Session, shot_id: str, tasks: Optional[list[Task]] = None) -> list[dict]:
+    if tasks is None:
+        tasks = db.query(Task).filter(
+            Task.type == "shot_video_hd",
+            Task.shot_id == shot_id,
+        ).order_by(Task.created_at.desc(), Task.id.desc()).all()
+    else:
+        tasks = sorted(
+            (task for task in tasks if task.shot_id == shot_id and task.type == "shot_video_hd"),
+            key=lambda task: (task.created_at or datetime.min, task.id), reverse=True,
+        )
     grouped: dict[float, list[Task]] = {}
     for task in tasks:
         megapixels = hd_task_megapixels(task)

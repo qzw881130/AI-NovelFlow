@@ -6,6 +6,7 @@ import hashlib
 import json
 import httpx
 import shutil
+from uuid import uuid4
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -224,6 +225,53 @@ class FileStorageService:
         except Exception as e:
             print(f"[FileStorage] Failed to download video: {e}")
             return None
+
+    async def download_video_receipt(self, url: str, novel_id: str, chapter_id: str,
+                                     shot_number: int, variant: str = "draft", filename_suffix: str = "") -> str:
+        """Read an existing slow ComfyUI result in verified ranges, then publish atomically."""
+        story_dir = self._get_story_dir(novel_id)
+        chapter_short = chapter_id[:8] if chapter_id else "unknown"
+        save_dir = story_dir / f"chapter_{chapter_short}" / ("hd-videos" if variant == "hd" else "videos")
+        save_dir.mkdir(parents=True, exist_ok=True)
+        suffix = f"_{filename_suffix}" if filename_suffix else ""
+        destination = save_dir / f"shot_{shot_number:03d}{suffix}_{datetime.now():%Y%m%d_%H%M%S}.mp4"
+        temporary = destination.with_name(f".{destination.name}.{uuid4().hex}.download")
+        try:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(120.0, connect=10.0)) as client:
+                head = await client.head(url)
+                head.raise_for_status()
+                total = int(head.headers.get("content-length") or 0)
+                if total <= 0:
+                    raise ValueError("VIDEO_RECEIPT_CONTENT_LENGTH_MISSING")
+                etag = head.headers.get("etag")
+                with temporary.open("wb") as output:
+                    for start in range(0, total, 512 * 1024):
+                        end = min(start + 512 * 1024, total) - 1
+                        last_error = None
+                        for _ in range(2):
+                            try:
+                                headers = {"Range": f"bytes={start}-{end}"}
+                                if etag:
+                                    headers["If-Range"] = etag
+                                response = await client.get(url, headers=headers)
+                                response.raise_for_status()
+                                if (response.status_code != 206
+                                        or response.headers.get("content-range") != f"bytes {start}-{end}/{total}"
+                                        or len(response.content) != end - start + 1
+                                        or etag and response.headers.get("etag") not in {None, etag}):
+                                    raise ValueError("VIDEO_RECEIPT_RANGE_MISMATCH")
+                                output.write(response.content)
+                                break
+                            except (httpx.HTTPError, ValueError) as exc:
+                                last_error = exc
+                        else:
+                            raise ValueError(f"VIDEO_RECEIPT_DOWNLOAD_FAILED: {last_error}")
+            if temporary.stat().st_size != total:
+                raise ValueError("VIDEO_RECEIPT_SIZE_MISMATCH")
+            os.replace(temporary, destination)
+            return str(destination)
+        finally:
+            temporary.unlink(missing_ok=True)
 
     def delete_shot_video(self, novel_id: str, chapter_id: str, shot_number: int) -> bool:
         """删除指定分镜的旧视频文件"""

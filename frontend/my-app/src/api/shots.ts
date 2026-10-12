@@ -4,6 +4,8 @@
 import { api } from './index';
 import { downloadQueuedShotExport } from './shotExports';
 
+const shotReadsInFlight = new Map<string, Promise<{ success: boolean; data: Shot; message?: string }>>();
+
 // 分镜台词数据
 export interface DialogueData {
   type?: 'character' | 'narration';  // 台词类型：角色台词或旁白
@@ -17,6 +19,7 @@ export interface DialogueData {
 
 // 分镜数据（从后端 Shot 模型映射）
 export interface Shot {
+  summaryOnly?: boolean;
   id: string;
   chapterId: string;
   index: number;
@@ -356,8 +359,8 @@ export const shotsApi = {
   /**
    * 获取章节的所有分镜列表
    */
-  getShots: async (novelId: string, chapterId: string): Promise<{ success: boolean; data: Shot[]; message?: string }> => {
-    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots?include_ai_history=false`);
+  getShots: async (novelId: string, chapterId: string, signal?: AbortSignal): Promise<{ success: boolean; data: Shot[]; message?: string }> => {
+    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots?summary=true&include_ai_history=false`, { signal });
     return response.json();
   },
 
@@ -365,8 +368,20 @@ export const shotsApi = {
    * 获取单个分镜详情
    */
   getShot: async (novelId: string, chapterId: string, shotId: string, signal?: AbortSignal, includeAiHistory = false): Promise<{ success: boolean; data: Shot; message?: string }> => {
-    const response = await fetch(`/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}?include_ai_history=${includeAiHistory}`, { signal });
-    return response.json();
+    const url = `/api/novels/${novelId}/chapters/${chapterId}/shots/${shotId}?include_ai_history=${includeAiHistory}`;
+    if (signal) {
+      const response = await fetch(url, { signal });
+      return response.json();
+    }
+    const existing = shotReadsInFlight.get(url);
+    if (existing) return existing;
+    const request = fetch(url).then(response => response.json());
+    shotReadsInFlight.set(url, request);
+    try {
+      return await request;
+    } finally {
+      shotReadsInFlight.delete(url);
+    }
   },
 
   getShotAiCall: async (novelId: string, chapterId: string, shotId: string, call: VideoAiCall): Promise<VideoAiCall> => {

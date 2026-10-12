@@ -359,6 +359,7 @@ class ShotRepository:
             ]
             video_director_plan["ai_history_deferred"] = True
         return {
+            "summaryOnly": False,
             "id": shot.id,
             "chapterId": shot.chapter_id,
             "index": shot.index,
@@ -388,6 +389,90 @@ class ShotRepository:
             "mergedPropImage": shot.merged_prop_image,
             "dialogues": json.loads(shot.dialogues) if shot.dialogues else [],
             "keyframes": json.loads(shot.keyframes) if shot.keyframes else [],
+            "referenceAudioUrl": shot.reference_audio_url,
+            "referenceAudioType": shot.reference_audio_type or "none",
+            "createdAt": shot.created_at.isoformat() if shot.created_at else None,
+            "updatedAt": shot.updated_at.isoformat() if shot.updated_at else None,
+        }
+
+    def to_summary_response(self, shot: Shot, *, image_tasks=(), hd_variants=()) -> dict:
+        """Chapter navigation projection. Never expose historical prompts or manifests."""
+        from app.services.required_visual_state_images import project_required_execution_images
+        from app.services.clip_execution_compiler import get_canonical_execution_readiness
+
+        plan = json.loads(shot.video_director_plan or "{}") or {}
+        clip_fields = {
+            "clip_id", "clip_index", "start_time", "end_time", "planned_duration",
+            "capability", "continuity_to_previous", "previous_clip_index",
+            "visual_state_indexes", "carry_in_state_index", "requires_temporal_control",
+            "temporal_anchor_ids", "selected_temporal_target_ids", "early_composition_state_id",
+            "generated_by_task_id", "video_url", "local_path", "execution_status",
+            "approval_status", "status",
+        }
+        state_fields = {"index", "role", "time_seconds", "image_url", "image_task_id"}
+        plan_fields = {
+            "canonical_visual_plan", "clip_plan_revision", "clip_plan_validation",
+            "clip_plan_approval_mode", "assembly_status", "assembly_clip_plan_revision",
+            "assembly_task_ids", "merged_video_url", "merged_at", "selected_mode",
+            "recommended_mode",
+        }
+        summary_plan = {key: value for key, value in plan.items() if key in plan_fields}
+        summary_plan["clip_plan"] = [
+            {key: value for key, value in clip.items() if key in clip_fields}
+            for clip in (plan.get("clip_plan") or []) if isinstance(clip, dict)
+        ]
+        summary_plan["keyframes"] = [
+            {key: value for key, value in state.items() if key in state_fields}
+            for state in (plan.get("keyframes") or []) if isinstance(state, dict)
+        ]
+        window_fields = {
+            "window_index", "clip_index", "keyframe_indexes", "video_url", "local_path",
+            "generated_at", "status", "start_time", "end_time",
+        }
+        summary_plan["window_plans"] = [
+            {key: value for key, value in window.items() if key in window_fields}
+            for window in (plan.get("window_plans") or []) if isinstance(window, dict)
+        ]
+        summary_plan["clips"] = [
+            {key: value for key, value in clip.items() if key in window_fields}
+            for clip in (plan.get("clips") or []) if isinstance(clip, dict)
+        ]
+        if plan.get("canonical_visual_plan") is True:
+            required = project_required_execution_images(shot, plan, image_tasks)
+            summary_plan["required_execution_images"] = [
+                {key: item.get(key) for key in (
+                    "state_index", "state_id", "ready", "image_url", "active_task",
+                    "provenance", "consumer_clip_indexes", "consumers",
+                )}
+                for item in required
+            ]
+            summary_plan["execution_readiness"] = get_canonical_execution_readiness(shot, plan)
+        latest_hd = next((variant for variant in reversed(hd_variants) if variant.get("videoUrl")), None)
+        return {
+            "summaryOnly": True,
+            "id": shot.id, "chapterId": shot.chapter_id, "index": shot.index,
+            "description": shot.description, "video_description": "",
+            "characters": json.loads(shot.characters or "[]"), "scene": shot.scene,
+            "props": json.loads(shot.props or "[]"), "duration": shot.duration,
+            "continuity_mode": shot.continuity_mode or "NORMAL",
+            "videoDirectorPlan": summary_plan,
+            "imageUrl": shot.image_url, "imagePath": shot.image_path,
+            "imageStatus": shot.image_status, "imageTaskId": shot.image_task_id,
+            "videoUrl": shot.video_url, "videoStatus": shot.video_status,
+            "videoTaskId": shot.video_task_id,
+            "hdVideoVariants": list(hd_variants),
+            "hdVideoUrl": latest_hd.get("videoUrl") if latest_hd else shot.hd_video_url,
+            "hdVideoStatus": latest_hd.get("status") if latest_hd else (shot.hd_video_status or "pending"),
+            "hdVideoTaskId": latest_hd.get("latestCompletedTaskId") if latest_hd else shot.hd_video_task_id,
+            "hdVideoSourceTaskId": latest_hd.get("sourceTaskId") if latest_hd else shot.hd_video_source_task_id,
+            "hdVideoMegapixels": latest_hd.get("targetMegapixels") if latest_hd else shot.hd_video_megapixels,
+            "mergedCharacterImage": shot.merged_character_image,
+            "mergedPropImage": shot.merged_prop_image,
+            "dialogues": json.loads(shot.dialogues or "[]"),
+            "keyframes": [
+                {key: frame.get(key) for key in ("frame_index", "plan_keyframe_index", "image_url", "image_task_id")}
+                for frame in json.loads(shot.keyframes or "[]")
+            ],
             "referenceAudioUrl": shot.reference_audio_url,
             "referenceAudioType": shot.reference_audio_type or "none",
             "createdAt": shot.created_at.isoformat() if shot.created_at else None,

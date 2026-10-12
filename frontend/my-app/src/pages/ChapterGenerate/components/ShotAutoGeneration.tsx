@@ -8,26 +8,47 @@ export function ShotAutoGeneration({ novelId, chapterId, shotId, disabled = fals
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const progressCallback = useRef(onProgress);
+  const progressSignature = useRef('');
   progressCallback.current = onProgress;
   useEffect(() => {
     setState(null); setError('');
+    progressSignature.current = '';
     if (!novelId || !chapterId) return;
-    let stopped = false; let timer: ReturnType<typeof setTimeout>; let signature = '';
+    let stopped = false;
+    const load = async () => {
+      try {
+        const r = await shotsApi.getShotAutoGeneration(novelId, chapterId, shotId);
+        if (!stopped && r.success) {
+          setState(r.data);
+          const next = JSON.stringify([r.data?.status, r.data?.current_step]);
+          if (r.data && progressSignature.current !== next) progressCallback.current?.();
+          progressSignature.current = next;
+        }
+      }
+      catch { /* Status polling never starts or retries generation. */ }
+    };
+    void load(); return () => { stopped = true; };
+  }, [novelId, chapterId, shotId]);
+  useEffect(() => {
+    if (!novelId || !chapterId) return;
+    const delay = ['pending', 'running'].includes(state?.status) ? 3000 : 30000;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
         const r = await shotsApi.getShotAutoGeneration(novelId, chapterId, shotId);
         if (!stopped && r.success) {
           setState(r.data);
           const next = JSON.stringify([r.data?.status, r.data?.current_step]);
-          if (r.data && signature !== next) progressCallback.current?.();
-          signature = next;
+          if (r.data && progressSignature.current !== next) progressCallback.current?.();
+          progressSignature.current = next;
         }
-      }
-      catch { /* Status polling never starts or retries generation. */ }
-      if (!stopped) timer = setTimeout(poll, 3000);
+      } catch { /* A later poll may recover. */ }
+      if (!stopped) timer = setTimeout(poll, delay);
     };
-    void poll(); return () => { stopped = true; clearTimeout(timer); };
-  }, [novelId, chapterId, shotId]);
+    timer = setTimeout(poll, delay);
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [novelId, chapterId, shotId, state?.status]);
   const control = async (action: 'start' | 'pause' | 'resume') => {
     if (!novelId || !chapterId || busy) return;
     setBusy(true); setError('');

@@ -285,3 +285,122 @@ async def test_auto_repair_reuses_failed_raw_response_only_under_same_fingerprin
  changed={**record,'system_prompt_sha256':'different'}
  _,result=await opt.optimize_h3_execution_prompt(Mock(),NS(id='novel'),NS(index=3,chapter_id='chapter'),RAW,'MULTI_KEYFRAME',{'clip_index':1,'planned_duration':4},reuse_record=changed,execution_context={'preflight_auto_repair':True})
  assert not result.get('reused_result') and chat.await_count==1
+
+
+@pytest.mark.asyncio
+async def test_http_502_is_transport_failure_with_original_log_id(monkeypatch, runtime):
+ monkeypatch.setattr(opt, 'resolve_prompt_template', lambda *a: NS(
+  type=opt.TEMPLATE_TYPE, id='14', name='registered', template='unchanged'))
+ monkeypatch.setattr(opt, 'build_runtime_input', lambda *a: runtime)
+ monkeypatch.setattr(opt, 'append_video_ai_call', lambda *a: None)
+ error='API 错误 (502): {"error":{"message":"Upstream service temporarily unavailable"}}'
+ chat=AsyncMock(return_value={'success':False,'error':error,'log_id':'c2-llm-log'})
+ monkeypatch.setattr(opt, 'LLMService', lambda: NS(chat_completion=chat))
+ selected,record=await opt.optimize_h3_execution_prompt(
+  Mock(),NS(id='novel'),NS(index=6,chapter_id='chapter'),RAW,'EXTEND',
+  {'clip_index':2,'planned_duration':4})
+ assert selected==RAW and record['status']=='FALLBACK'
+ assert record['error_code']=='LLM_TRANSPORT_ERROR'
+ assert record['failure_stage']=='LLM_REQUEST' and record['llm_log_id']=='c2-llm-log'
+ assert error in record['error'] and 'authority_check' not in record
+
+
+@pytest.mark.asyncio
+async def test_actual_preflight_failure_is_not_transport_or_repair_failure(monkeypatch, runtime):
+ monkeypatch.setattr(opt, 'resolve_prompt_template', lambda *a: NS(
+  type=opt.TEMPLATE_TYPE, id='14', name='registered', template='unchanged'))
+ monkeypatch.setattr(opt, 'build_runtime_input', lambda *a: runtime)
+ monkeypatch.setattr(opt, 'append_video_ai_call', lambda *a: None)
+ output=valid_output(runtime,NATIVE.replace('它有多漂亮？','篡改台词'))
+ chat=AsyncMock(return_value={'success':True,'content':json.dumps(output,ensure_ascii=False),'log_id':'preflight-log'})
+ monkeypatch.setattr(opt, 'LLMService', lambda: NS(chat_completion=chat))
+ _,record=await opt.optimize_h3_execution_prompt(
+  Mock(),NS(id='novel'),NS(index=6,chapter_id='chapter'),RAW,'GENERATE',
+  {'clip_index':1,'planned_duration':4})
+ assert record['status']=='FALLBACK' and record['error_code']=='PREFLIGHT_FAIL'
+ assert record['failure_stage']=='PREFLIGHT' and record['llm_log_id']=='preflight-log'
+ assert record['authority_check']['passed'] is False
+ assert not record.get('preflight_repair') and record['l1_invocations_this_call']==0
+
+
+@pytest.mark.asyncio
+async def test_failed_l1_is_classified_separately_from_preflight_only(monkeypatch, runtime):
+ from app.services import h3_preflight_repair
+ monkeypatch.setattr(opt, 'resolve_prompt_template', lambda *a: NS(
+  type=opt.TEMPLATE_TYPE, id='14', name='registered', template='unchanged'))
+ monkeypatch.setattr(opt, 'build_runtime_input', lambda *a: runtime)
+ monkeypatch.setattr(opt, 'append_video_ai_call', lambda *a: None)
+ output=valid_output(runtime,NATIVE.replace('它有多漂亮？','篡改台词'))
+ monkeypatch.setattr(opt, 'LLMService', lambda: NS(chat_completion=AsyncMock(return_value={
+  'success':True,'content':json.dumps(output,ensure_ascii=False),'log_id':'initial-log'})))
+ async def failed_repair(*args, **kwargs):
+  return args[3],args[5],{'l1_invocations':1,'resolution':'L1_FAILED','attempts':[{'level':'L1','llm_log_id':'repair-log'}]}
+ monkeypatch.setattr(h3_preflight_repair, 'repair_output', failed_repair)
+ _,record=await opt.optimize_h3_execution_prompt(
+  Mock(),NS(id='novel'),NS(index=6,chapter_id='chapter'),RAW,'GENERATE',
+  {'clip_index':1,'planned_duration':4},execution_context={'preflight_auto_repair':True})
+ assert record['error_code']=='REPAIR_FAIL' and record['status']=='FALLBACK'
+ assert record['l1_invocations_this_call']==1
+ assert record['preflight_repair']['attempts'][0]['llm_log_id']=='repair-log'
+
+
+@pytest.mark.asyncio
+async def test_repair_execution_exception_is_distinct_without_fake_l1_event(monkeypatch, runtime):
+ from app.services import h3_preflight_repair
+ monkeypatch.setattr(opt, 'resolve_prompt_template', lambda *a: NS(
+  type=opt.TEMPLATE_TYPE, id='14', name='registered', template='unchanged'))
+ monkeypatch.setattr(opt, 'build_runtime_input', lambda *a: runtime)
+ monkeypatch.setattr(opt, 'append_video_ai_call', lambda *a: None)
+ output=valid_output(runtime,NATIVE.replace('它有多漂亮？','篡改台词'))
+ monkeypatch.setattr(opt, 'LLMService', lambda: NS(chat_completion=AsyncMock(return_value={
+  'success':True,'content':json.dumps(output,ensure_ascii=False),'log_id':'initial-log'})))
+ monkeypatch.setattr(h3_preflight_repair, 'repair_output', AsyncMock(side_effect=ValueError('REPAIR_TEMPLATE_TYPE_MISMATCH')))
+ _,record=await opt.optimize_h3_execution_prompt(
+  Mock(),NS(id='novel'),NS(index=6,chapter_id='chapter'),RAW,'GENERATE',
+  {'clip_index':1,'planned_duration':4},execution_context={'preflight_auto_repair':True})
+ assert record['error_code']=='REPAIR_FAIL' and record['failure_stage']=='REPAIR'
+ assert record['l1_invocations_this_call']==0 and record['llm_log_id']=='initial-log'
+
+
+@pytest.mark.asyncio
+async def test_worker_failure_message_retains_code_and_task_evidence(monkeypatch):
+ from app.services.shot_video_service import _apply_h3_execution_optimizer
+ task=NS(id='task-c2',metadata_json=json.dumps({'optimize_h3_prompt':True,'clip_id':'shot:clip:2',
+                                                 'clip_index':2,'clip_plan_revision':1}))
+ shot=NS(video_director_plan='{}',duration=8.2)
+ record={'status':'FALLBACK','error_code':'LLM_TRANSPORT_ERROR','llm_log_id':'c2-llm-log',
+         'error':'API 错误 (502): Upstream service temporarily unavailable'}
+ monkeypatch.setattr(opt,'optimize_h3_execution_prompt',AsyncMock(return_value=(RAW,record)))
+ with pytest.raises(ValueError,match='LLM_TRANSPORT_ERROR.*502'):
+  await _apply_h3_execution_optimizer(Mock(),task,None,shot,RAW,'SINGLE_FRAME',
+                                     {'clip_index':2,'planned_duration':8.2})
+ saved=json.loads(task.metadata_json)
+ assert saved['h3_prompt_optimizer']['llm_log_id']=='c2-llm-log'
+ assert saved['h3_prompt_optimizer']['generation_blocked'] is True
+ assert saved['clip_id']=='shot:clip:2' and saved['clip_plan_revision']==1
+
+
+@pytest.mark.asyncio
+async def test_worker_preserves_original_canonical_transition_id_and_local_scope(monkeypatch):
+ from app.services.shot_video_service import _apply_h3_execution_optimizer
+ from app.services import h3_continuation
+ source={'segment_index':2,'from_keyframe_index':2,'to_keyframe_index':3,
+         'start_time':12.0,'end_time':22.0,'transition_description':'原始双人手势与正面推进。'}
+ task=NS(metadata_json=json.dumps({'optimize_h3_prompt':True,'capability':'EXTEND'}))
+ shot=NS(video_director_plan=json.dumps({'keyframes':[],'transitions':[source]}),duration=38)
+ monkeypatch.setattr(h3_continuation,'continuation_contract',lambda *a:{'binding_verified':True})
+ invoke=AsyncMock(return_value=('optimized',{'status':'OPTIMIZED'}))
+ monkeypatch.setattr(opt,'optimize_h3_execution_prompt',invoke)
+ clip={'clip_index':2,'start_time':13.7,'end_time':21.9,'planned_duration':8.2,
+       'visual_state_indexes':[],'carry_in_state_index':2,'continuity_to_previous':'CONTINUOUS'}
+ assert await _apply_h3_execution_optimizer(
+  Mock(),task,None,shot,RAW,'SINGLE_FRAME',clip,previous_video_path='/previous.mp4',
+  execution_context={'previous_clip':{'generated_by_task_id':'c1'}})=='optimized'
+ context=invoke.call_args.kwargs['execution_context']
+ assert context['canonical_visual_sources'][-1]=={'id':'transition_2','text':source['transition_description']}
+ projected=context['canonical_transitions'][0]
+ assert (projected['clip_local_start_time'],projected['clip_local_end_time'])==(0.0,8.2)
+ assert projected['target_state_owned'] is False
+ assert projected['action_progress']=='UNVERIFIED_FROM_PREVIOUS_VIDEO'
+ assert source=={'segment_index':2,'from_keyframe_index':2,'to_keyframe_index':3,
+                 'start_time':12.0,'end_time':22.0,'transition_description':'原始双人手势与正面推进。'}

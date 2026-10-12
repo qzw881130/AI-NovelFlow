@@ -34,6 +34,7 @@ from app.services.comfyui import ComfyUIService
 from app.services.comfyui.errors import task_comfyui_error, persist_task_comfyui_error
 from app.utils.path_utils import local_path_to_url, url_to_local_path
 from app.services.file_storage import file_storage
+from app.services.video_director_ai import safe_json_dict
 from app.services.prompt_builder import (
     build_character_prompt,
     build_scene_prompt,
@@ -761,6 +762,10 @@ class TaskService:
             return (now - updated_at).total_seconds()
 
         for task in active_tasks:
+            # Explicit receipt acceptance owns this Task; the ordinary worker
+            # must not race its download or turn it into another generation.
+            if safe_json_dict(task.metadata_json).get("manual_receipt_recovery"):
+                continue
             age_seconds = task_age_seconds(task)
             def is_clip_only_task() -> bool:
                 try:
@@ -1391,7 +1396,8 @@ class TaskService:
                 return None
             keys = (
                 "execution_scope", "clip_id", "clip_index", "clip_plan_revision",
-                "capability", "planned_duration", "requested_duration", "actual_duration", "assembled_media_duration", "assembled_result",
+                "capability", "planned_duration", "requested_duration", "optimized_duration", "effective_duration",
+                "duration_delta", "actual_duration", "actual_duration_delta", "assembled_media_duration", "assembled_result",
                 "approval_status", "approval_mode", "previous_approved_task_id",
                 "previous_approved_video_url", "previous_approved_video_source", "temporal_anchor_ids", "dialogue_assignment",
                 "artifact_kind", "physical_output", "execution_contract",

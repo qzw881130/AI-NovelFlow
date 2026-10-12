@@ -1842,7 +1842,9 @@ async def build_h3_video_prompt(
     sanitized_transitions = (
         [{key: item[key] for key in (
             "from_keyframe_index", "to_keyframe_index", "start_time", "end_time",
-            "duration", "transition_description",
+            "duration", "transition_description", "segment_index", "canonical_source_id",
+            "projection_mode", "clip_local_start_time", "clip_local_end_time",
+            "target_state_owned", "action_progress", "execution_scope",
         ) if key in item} for item in transitions or [] if isinstance(item, dict)]
         if canonical_path else _sanitize_transitions_for_h3(transitions)
     )
@@ -1955,7 +1957,18 @@ async def build_h3_video_prompt(
             f"{template.template}\n\n{_canonical_picture_mapping_contract()}\n\n{_canonical_speech_contract()}\n\n{_canonical_section_ownership_contract()}\n\n"
             "reference_binding_contract is deterministic compiler authority. Keep Subject definitions and visual actions consistent with it. Do not output or redefine reference_authority, character_identity_binding, existing_body_binding, initial_body_binding or motion_ownership sections; the compiler supplies them."
             if canonical_path else (f"{template.template}\n\n{ATTENTION_RULE}" if attention["status"] == "VALID" else template.template)
-        ) + (f"\n\n{DIALOGUE_VISUAL_INTENT_RULE}" if dialogue_visual_intents else ""),
+        ) + (f"\n\n{DIALOGUE_VISUAL_INTENT_RULE}" if dialogue_visual_intents else "") + (
+            "\n\nA Clip with no owned visual state can still carry a time slice of a canonical "
+            "cross-Clip transition. The supplied transition_description is the unchanged "
+            "source, not a command to replay its entire action. Use its clip_local_start_time "
+            "and clip_local_end_time only to locate this Clip's scope. Continue from the actual "
+            "Previous AV ending; do not infer completed gestures from planned seconds; do not "
+            "replay completed gestures or claim unseen progress. Advance the canonical action "
+            "only within this Clip; if the target KF belongs to a later Clip, do not claim its "
+            "final arrival here. Do not invent a new state, dialogue, Subject or Picture."
+            if canonical_path and any(item.get("projection_mode") == "CROSS_CLIP_CONTINUATION"
+                                      for item in sanitized_transitions) else ""
+        ),
         user_content=user_content,
         temperature=0.3,
         max_tokens=1800,

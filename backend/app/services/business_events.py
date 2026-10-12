@@ -29,7 +29,9 @@ DETAIL_KEYS = {"shot_index", "visual_state_index", "clip_index", "task_type", "r
                "llm_log_id", "result_key_sha256", "comfyui_prompt_id", "error_code", "stage",
                "blocking_findings", "repair_levels", "l1_invocations", "reused_result", "revision",
                "clip_count", "dimension", "status", "summary", "historical_source", "attempt",
-               "example_id", "chapter_count", "duration_ms"}
+               "example_id", "chapter_count", "duration_ms", "source_task_id",
+               "planned_duration", "optimized_duration", "actual_duration",
+               "duration_delta", "actual_duration_delta"}
 
 
 def obj(value, default=None):
@@ -111,15 +113,24 @@ def publish(event_type, payload=None, *, dedupe_key=None, timestamp=None, histor
 
 def task_context(task):
     meta = obj(task.metadata_json)
+    optimizer = meta.get("h3_prompt_optimizer") or {}
     anchor = (meta.get("reference_selector_input") or {}).get("current_anchor") or {}
     # Do not mistake legacy zero-based frame_index for the Director state index.
     state_index = anchor.get("index") or meta.get("plan_keyframe_index")
     return {"novel_id": task.novel_id, "chapter_id": task.chapter_id, "shot_id": task.shot_id,
             "task_id": task.id, "clip_id": meta.get("clip_id"),
+            "llm_log_id": optimizer.get("llm_log_id"),
             "visual_state_id": str(state_index) if state_index is not None else None,
             "trigger": meta.get("trigger") or ("automatic" if task.parent_task_id or meta.get("auto_pipeline") else None),
             "details": {"visual_state_index": state_index, "clip_index": meta.get("clip_index"),
-                        "task_type": task.type, "comfyui_prompt_id": task.comfyui_prompt_id}}
+                        "task_type": task.type, "comfyui_prompt_id": task.comfyui_prompt_id,
+                        "error_code": optimizer.get("error_code"),
+                        "source_task_id": task.source_task_id,
+                        "planned_duration": meta.get("planned_duration"),
+                        "optimized_duration": meta.get("optimized_duration"),
+                        "actual_duration": meta.get("actual_duration"),
+                        "duration_delta": meta.get("duration_delta"),
+                        "actual_duration_delta": meta.get("actual_duration_delta")}}
 
 
 def review_event(review, task=None):
@@ -160,7 +171,9 @@ def task_events(task):
         code = f"image.generation.{suffix}"
     elif task.type == "shot_video":
         if meta.get("execution_scope") == "CLIP" or meta.get("clip_index"):
-            code = "clip.regeneration.completed" if suffix == "completed" and meta.get("is_clip_regeneration") else f"clip.generation.{suffix}"
+            code = (f"clip.result.recovery.{suffix}" if meta.get("manual_receipt_recovery")
+                    else "clip.regeneration.completed" if suffix == "completed" and meta.get("is_clip_regeneration")
+                    else f"clip.generation.{suffix}")
         else:
             code = f"shot.generation.{suffix}"
     elif task.type in {"shot_image_batch", "shot_video_batch"}:
@@ -203,6 +216,7 @@ def shot_events(shot, previous, db):
         payload = {**base, "clip_id": f"{shot.id}:clip:{clip_index}" if clip_index else None,
                    "llm_log_id": parsed.get("llm_log_id"), "raw_status": call.get("status"),
                    "details": {**base["details"], "clip_index": clip_index, "stage": step,
+                               "error_code": parsed.get("error_code"),
                                "blocking_findings": (parsed.get("authority_check") or {}).get("blocking_findings", [])}}
         key = f"ai:{shot.id}:{step}:{parsed.get('llm_log_id') or call.get('created_at')}:{suffix}"
         stamp = datetime.fromisoformat(call["created_at"]) if call.get("created_at") else None
@@ -210,7 +224,7 @@ def shot_events(shot, previous, db):
         repair = parsed.get("preflight_repair")
         # L0/no-repair preflight failures are optimization failures, not failed
         # L1 repair attempts. The optimizer event above retains their findings.
-        if repair and int(repair.get("l1_invocations") or 0) > 0:
+        if repair and int(parsed.get("l1_invocations_this_call", repair.get("l1_invocations")) or 0) > 0:
             passed = (parsed.get("authority_check") or {}).get("passed", False)
             results.append((f"preflight.repair.{'completed' if passed else 'failed'}",
                             {**payload, "source": "h3_preflight_repair.final", "details": {**payload["details"], "l1_invocations": repair.get("l1_invocations")}},

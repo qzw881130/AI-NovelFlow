@@ -1238,7 +1238,15 @@ export const createGenerationSlice: StateCreator<
   },
 
   fetchActiveTasks: async (chapterId: string, novelId?: string) => {
-    // 获取所有活跃任务
+    // The Shot list already carries persisted terminal state. On page entry,
+    // avoid downloading every historical task just to discover no work is active.
+    try {
+      const response = await fetch(`/api/tasks/?chapter_id=${encodeURIComponent(chapterId)}&active_only=true&limit=1`);
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && Array.isArray(result.data) && result.data.length === 0) return;
+      }
+    } catch { /* Fall back to the existing reconciliation below. */ }
     await Promise.allSettled([
       get().checkShotTaskStatus(chapterId),
       get().checkVideoTaskStatus(chapterId),

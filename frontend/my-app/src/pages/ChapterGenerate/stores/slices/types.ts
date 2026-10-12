@@ -296,12 +296,12 @@ export interface ChapterGenerateStore
     ShotNavigatorSliceState {
   // ========== Data Actions ==========
   fetchNovel: (novelId: string) => Promise<void>;
-  fetchChapter: (novelId: string, chapterId: string) => Promise<void>;
+  fetchChapter: (novelId: string, chapterId: string, signal?: AbortSignal) => Promise<void>;
   fetchCharacters: (novelId: string) => Promise<void>;
   fetchScenes: (novelId: string) => Promise<void>;
   fetchProps: (novelId: string) => Promise<void>;
   fetchShots: (novelId: string, chapterId: string) => Promise<void>;
-  fetchShotsWithReturn: (novelId: string, chapterId: string) => Promise<Shot[]>;
+  fetchShotsWithReturn: (novelId: string, chapterId: string, signal?: AbortSignal) => Promise<Shot[]>;
   setParsedData: (data: ParsedData | null) => void;
   setEditableJson: (json: string) => void;
   setShots: (shots: Shot[]) => void;

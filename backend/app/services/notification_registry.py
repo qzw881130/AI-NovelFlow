@@ -44,6 +44,8 @@ for code, name, category, description, enabled in (
     ("image.generation.failed", "图片生成失败", "图片生成", "非关键帧图片任务最终失败", True),
     ("example.import.completed", "示例小说导入完成", "示例小说", "示例小说及全部章回已导入", False),
     ("example.import.failed", "示例小说导入失败", "示例小说", "示例小说导入未能完成", False),
+    ("clip.result.recovery.completed", "Clip 结果恢复完成", "Clip 生成", "已有 ComfyUI 视频已登记为 Clip 结果", False),
+    ("clip.result.recovery.failed", "Clip 结果恢复失败", "Clip 生成", "已有 ComfyUI 视频结果未能登记", True),
 ):
     EVENT_REGISTRY[code] = NotificationEvent(code, name, category, description, enabled)
 

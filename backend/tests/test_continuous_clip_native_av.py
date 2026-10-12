@@ -92,7 +92,8 @@ async def test_native_persistence_roles_provenance_and_metadata_round_trip(db_se
     assert task.status=='completed'
     assert metadata['execution_contract']==contract
     assert metadata['native_av_mux']['policy']=='CONTINUATION_VIDEO_AUTHORITATIVE_STREAM_COPY'
-    assert metadata['actual_duration'] is None and metadata['requested_duration']==8
+    assert metadata['actual_duration']==18.625 and metadata['requested_duration']==8
+    assert metadata['actual_duration']==output['native_cumulative_duration']
     assert output['physical_output_role']==av.NATIVE_CONTINUITY_OUTPUT
     assert output['raw_context_output']['physical_output_role']=='RAW_CONTEXT_OUTPUT'
     assert output['overlap_frames']==39 and output['overlap_duration']==1.625
@@ -100,6 +101,7 @@ async def test_native_persistence_roles_provenance_and_metadata_round_trip(db_se
     assert output['assembly_span']=={'start_frame':170,'end_frame':447,'replacement_frames':39,'net_new_frames':238,'net_new_duration':238/24}
     plan=json.loads(persistence[2].video_director_plan)
     assert plan['clip_plan'][1]['physical_output']==output
+    assert plan['clip_plan'][1]['actual_duration']==18.625
     assert plan['clip_plan'][1]['video_url']==task.result_url
     assert persistence[2].video_url is None
     if capability=='TEMPORAL_EXTEND':

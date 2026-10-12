@@ -176,8 +176,11 @@ def _project_semantic_clip_transitions(
     transitions: list,
     visual_state_indexes: list,
     carry_in_state_index=None,
+    *,
+    clip_start=None,
+    clip_end=None,
 ) -> list:
-    """Project canonical transitions into one semantic Clip without changing ownership."""
+    """Project owned transitions, or an unowned carry-in transition's time slice."""
     owned_indexes = []
     for raw_index in visual_state_indexes or []:
         try:
@@ -186,15 +189,12 @@ def _project_semantic_clip_transitions(
             continue
         if index > 0 and index not in owned_indexes:
             owned_indexes.append(index)
-    if not owned_indexes:
-        return []
-
     allowed_pairs = set(zip(owned_indexes, owned_indexes[1:]))
     try:
         carry_in = int(carry_in_state_index) if carry_in_state_index is not None else None
     except (TypeError, ValueError):
         carry_in = None
-    if carry_in is not None and carry_in > 0 and carry_in != owned_indexes[0]:
+    if owned_indexes and carry_in is not None and carry_in > 0 and carry_in != owned_indexes[0]:
         allowed_pairs.add((carry_in, owned_indexes[0]))
 
     projected = []
@@ -210,6 +210,36 @@ def _project_semantic_clip_transitions(
             continue
         if endpoints in allowed_pairs:
             projected.append(transition)
+        elif not owned_indexes and carry_in is not None and endpoints[0] == carry_in:
+            # A no-owned-state EXTEND Clip can continue an already-started
+            # canonical transition. Planned seconds locate the overlap only;
+            # they cannot establish which gestures the actual Previous AV did.
+            start = _to_float_or_none(transition.get("start_time"))
+            end = _to_float_or_none(transition.get("end_time"))
+            clip_first = _to_float_or_none(clip_start)
+            clip_last = _to_float_or_none(clip_end)
+            if (start is None or end is None or clip_first is None or clip_last is None
+                    or end <= start or clip_last <= clip_first):
+                continue
+            overlap_first, overlap_last = max(start, clip_first), min(end, clip_last)
+            if overlap_last <= overlap_first:
+                continue
+            segment = transition.get("segment_index")
+            projected.append({
+                **transition,
+                "canonical_source_id": f"transition_{segment}" if segment is not None else None,
+                "projection_mode": "CROSS_CLIP_CONTINUATION",
+                "clip_local_start_time": round(overlap_first - clip_first, 6),
+                "clip_local_end_time": round(overlap_last - clip_first, 6),
+                "target_state_owned": False,
+                "action_progress": "UNVERIFIED_FROM_PREVIOUS_VIDEO",
+                "execution_scope": (
+                    "Continue only unfinished actions from the actual Previous AV ending; "
+                    "do not replay completed gestures or infer progress from planned seconds. "
+                    "Advance toward the canonical target without claiming arrival at an "
+                    "unowned endpoint or inventing a new event."
+                ),
+            })
     return projected
 
 
@@ -429,6 +459,8 @@ def _semantic_clip_prompt_context(video_director_plan: dict, clip_metadata: dict
         source_transitions,
         clip.get("visual_state_indexes") or [],
         clip.get("carry_in_state_index"),
+        clip_start=clip_start,
+        clip_end=clip_end,
     )
     return {
         "clip": clip,
@@ -857,9 +889,20 @@ async def _apply_h3_execution_optimizer(db, task, novel, shot, raw_prompt, mode,
         states = [item for item in plan.get("keyframes") or [] if int(item.get("index") or 0) in owned]
         roles = {str(item.get("role") or "").upper() for item in states}
         mode = "FIRST_LAST_FRAME" if len(states) == 2 and roles == {"START", "END"} else "MULTI_KEYFRAME" if len(states) > 1 else "SINGLE_FRAME"
-    context["canonical_transitions"] = [item for item in plan.get("transitions") or []
-        if float(item.get("end_time") or 0) > float(clip.get("start_time") or 0)
-        and float(item.get("start_time") or 0) < float(clip.get("end_time") or clip.get("planned_duration") or shot.duration or 4)]
+    clip_start = float(clip.get("start_time") or 0)
+    clip_end = float(clip.get("end_time") or clip.get("planned_duration") or shot.duration or 4)
+    owned_states = {int(index) for index in clip.get("visual_state_indexes") or []}
+    context["canonical_transitions"] = [
+        {**item,
+         "canonical_source_id": f"transition_{item['segment_index']}" if item.get("segment_index") is not None else None,
+         "clip_local_start_time": round(max(float(item["start_time"]), clip_start) - clip_start, 6),
+         "clip_local_end_time": round(min(float(item["end_time"]), clip_end) - clip_start, 6),
+         "target_state_owned": int(item.get("to_keyframe_index") or 0) in owned_states,
+         "action_progress": "UNVERIFIED_FROM_PREVIOUS_VIDEO" if context.get("previous_clip") else "CANONICAL_START"}
+        for item in plan.get("transitions") or []
+        if item.get("start_time") is not None and item.get("end_time") is not None
+        and float(item["end_time"]) > clip_start and float(item["start_time"]) < clip_end
+    ]
     context["continuity_to_previous"] = clip.get("continuity_to_previous")
     context["duration_limits"] = workflow_duration_limits(safe_json_dict(workflow.extension) if workflow else {}, metadata.get("capability") or mode)
     context["capability"] = metadata.get("capability") or mode
@@ -875,7 +918,7 @@ async def _apply_h3_execution_optimizer(db, task, novel, shot, raw_prompt, mode,
     context["canonical_visual_sources"] = [
         {"id": "opening_state", "text": (getattr(shot, "description", None)
             if float(clip.get("start_time") or 0) == 0 else None) or raw_prompt},
-        *[{"id": f"transition_{i}", "text": item["transition_description"]}
+        *[{"id": item.get("canonical_source_id") or f"transition_{i}", "text": item["transition_description"]}
           for i, item in enumerate(context["canonical_transitions"], 1) if item.get("transition_description")],
     ]
     reuse_record = None
@@ -923,7 +966,8 @@ async def _apply_h3_execution_optimizer(db, task, novel, shot, raw_prompt, mode,
     task.prompt_text = selected
     db.commit()
     if record.get("status") != "OPTIMIZED":
-        raise ValueError("#14 preflight 失败，停止视频生成：" + str(record.get("error") or "优化结果未通过校验"))
+        code = record.get("error_code") or "PREFLIGHT_FAIL"
+        raise ValueError(f"#14 {code}，停止视频生成：" + str(record.get("error") or "优化结果未通过校验"))
     return selected
 
 
@@ -969,6 +1013,7 @@ def _apply_h3_execution_duration(task, original_duration, workflow, temporal_man
         # existing workflow minimum instead of imposing the canonical planner's.
         limits["minimum"] = float(extension.get("min_clip_duration") or extension.get("min_seconds") or 0)
     durations = effective_execution_duration(original_duration, record, limits)
+    durations["duration_delta"] = durations["effective_duration"] - float(original_duration)
     temporal_manifest = retime_temporal_manifest(temporal_manifest, record or {})
     metadata.update(durations)
     contract = metadata.get("execution_contract")
@@ -2686,6 +2731,8 @@ async def _save_generated_video(
     update_shot_result: bool = True,
     artifact_suffix: str = "",
     validate_result=None,
+    validate_media=None,
+    download_video_func=None,
 ):
     """下载并保存生成的视频"""
     task.current_step = "正在下载生成的视频..."
@@ -2722,7 +2769,8 @@ async def _save_generated_video(
         db.commit()
         return
 
-    local_path = await file_storage.download_video(
+    downloader = download_video_func or file_storage.download_video
+    local_path = await downloader(
         url=video_url,
         novel_id=novel_id,
         chapter_id=chapter_id,
@@ -2745,6 +2793,18 @@ async def _save_generated_video(
         return
 
     if local_path:
+        verified_media = None
+        if validate_media is not None:
+            try:
+                verified_media = validate_media(local_path)
+            except Exception as exc:
+                Path(local_path).unlink(missing_ok=True)
+                task.status = "failed"
+                task.error_message = f"Clip 视频文件校验失败：{exc}"
+                task.current_step = "Clip 视频文件校验失败"
+                task.completed_at = datetime.utcnow()
+                db.commit()
+                return
         relative_path = local_path.replace(str(file_storage.base_dir), "").replace("\\", "/")
         local_url = f"/api/files/{relative_path.lstrip('/')}"
 
@@ -2873,7 +2933,7 @@ async def _save_generated_video(
             task.error_message = None
             task.metadata_json = json.dumps(metadata, ensure_ascii=False)
         if metadata.get("execution_scope") == "CLIP":
-            media_duration = _probe_video_duration(local_path)
+            media_duration = verified_media["video_duration"] if verified_media else _probe_video_duration(local_path)
             semantic_clip_only = (
                 metadata.get("execution_scope") == "CLIP"
                 and (metadata.get("execution_contract") or {}).get("artifact_kind") == "CLIP_ONLY"
@@ -2890,23 +2950,30 @@ async def _save_generated_video(
                 }
             metadata.update({
                 "requested_duration": metadata.get("requested_duration"),
-                "actual_duration": None if native_clip else media_duration if metadata.get("capability") not in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"} or semantic_clip_only else None,
+                "actual_duration": media_duration,
+                "actual_duration_delta": (media_duration - metadata["effective_duration"]
+                                          if media_duration is not None and isinstance(metadata.get("effective_duration"), (int, float)) else None),
                 "assembled_media_duration": media_duration if metadata.get("assembled_result") else None,
                 "actual_fps": 24,
                 "approval_status": "APPROVED",
             })
+            if verified_media:
+                metadata["physical_output"] = {**verified_media, "physical_output_role": "CLIP_ONLY"}
             task.metadata_json = json.dumps(metadata, ensure_ascii=False)
-            if metadata.get("assembled_result"):
-                shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
-                if shot:
-                    plan = safe_json_dict(shot.video_director_plan)
-                    for semantic_clip in plan.get("clip_plan", []):
-                        if int(semantic_clip.get("clip_index") or 0) == int(metadata.get("clip_index") or 0):
+            shot = shot_repo.get_by_chapter_and_index(chapter_id, shot_index)
+            if shot:
+                plan = safe_json_dict(shot.video_director_plan)
+                for semantic_clip in plan.get("clip_plan", []):
+                    if int(semantic_clip.get("clip_index") or 0) == int(metadata.get("clip_index") or 0):
+                        semantic_clip["optimized_duration"] = metadata.get("optimized_duration")
+                        semantic_clip["actual_duration"] = metadata["actual_duration"]
+                        semantic_clip["duration_delta"] = metadata.get("duration_delta")
+                        semantic_clip["actual_duration_delta"] = metadata.get("actual_duration_delta")
+                        if metadata.get("assembled_result"):
                             semantic_clip["assembled_result"] = metadata["assembled_result"]
                             semantic_clip["assembled_media_duration"] = metadata["assembled_media_duration"]
-                            semantic_clip["actual_duration"] = metadata["actual_duration"]
-                            break
-                    shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
+                        break
+                shot.video_director_plan = json.dumps(plan, ensure_ascii=False)
         db.commit()
 
         if native_clip and receipt:

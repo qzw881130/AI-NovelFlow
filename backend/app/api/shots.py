@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 """
 
 import json
+import gzip
 import math
 import asyncio
 import os
@@ -16,10 +17,11 @@ from types import SimpleNamespace
 from hashlib import sha256
 from io import BytesIO
 from datetime import datetime, timedelta
+from time import perf_counter
 from pathlib import Path
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query, Request
+from fastapi.responses import FileResponse, StreamingResponse, Response
 from starlette.background import BackgroundTask
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -144,6 +146,20 @@ from app.core.database import SessionLocal
 from app.services.background_workers import persistent_job, worker_manager
 
 router = APIRouter()
+
+
+def _shot_read_response(payload: dict, request: Request, *, db_ms: float, projection_ms: float) -> Response:
+    started = perf_counter()
+    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    headers = {"Vary": "Accept-Encoding"}
+    if "gzip" in request.headers.get("accept-encoding", "").lower():
+        body = gzip.compress(body, compresslevel=3, mtime=0)
+        headers["Content-Encoding"] = "gzip"
+    headers["Server-Timing"] = (
+        f"db;dur={db_ms:.2f}, projection;dur={projection_ms:.2f}, "
+        f"serialize;dur={(perf_counter() - started) * 1000:.2f}"
+    )
+    return Response(content=body, media_type="application/json", headers=headers)
 
 
 def _probe_video_duration(video_path: Path) -> Optional[float]:
@@ -2945,6 +2961,7 @@ async def generate_video_director_clip(
                 auto_merge=request.auto_merge,
                 skip_llm_when_prompt_exists=request.skip_llm_when_prompt_exists,
                 optimize_h3_prompt=request.optimize_h3_prompt,
+                preflight_auto_repair=request.preflight_auto_repair,
                 clip_plan_revision=request.clip_plan_revision,
             ),
             shot_repo.db, novel_repo, chapter_repo, task_repo, shot_repo,
@@ -6052,11 +6069,13 @@ async def delete_dialogue_audio(
 async def get_shots(
     novel_id: str,
     chapter_id: str,
+    request: Request,
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
     db: Session = Depends(get_db),
     include_ai_history: bool = True,
+    summary: bool = False,
 ):
     """
     获取章节的所有分镜列表
@@ -6064,6 +6083,7 @@ async def get_shots(
     Returns:
         分镜列表，按 index 升序排列
     """
+    db_started = perf_counter()
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -6082,13 +6102,39 @@ async def get_shots(
         db.expire_all()
 
     shots = shot_repo.get_by_chapter(chapter_id)
-    shots_data = [shot_repo.to_response(shot, include_ai_history=include_ai_history) for shot in shots]
+    if summary:
+        from app.services.hd_repaint_service import get_hd_repaint_variants
+        shot_ids = [shot.id for shot in shots]
+        related_tasks = db.query(Task).filter(
+            Task.shot_id.in_(shot_ids),
+            Task.type.in_(["shot_image", "keyframe_image", "shot_video_hd"]),
+        ).all() if shot_ids else []
+        image_tasks = {}
+        hd_tasks = []
+        for task in related_tasks:
+            if task.type == "shot_video_hd":
+                hd_tasks.append(task)
+            else:
+                image_tasks.setdefault(task.shot_id, []).append(task)
+        db_ms = (perf_counter() - db_started) * 1000
+        projection_started = perf_counter()
+        shots_data = []
+        for shot in shots:
+            variants = get_hd_repaint_variants(db, shot.id, tasks=hd_tasks)
+            variant_summaries = [{**variant, "executions": []} for variant in variants]
+            shots_data.append(shot_repo.to_summary_response(
+                shot, image_tasks=image_tasks.get(shot.id, ()), hd_variants=variant_summaries,
+            ))
+    else:
+        db_ms = (perf_counter() - db_started) * 1000
+        projection_started = perf_counter()
+        shots_data = [shot_repo.to_response(shot, include_ai_history=include_ai_history) for shot in shots]
 
-    return {
+    return _shot_read_response({
         "success": True,
         "data": shots_data,
         "message": f"获取到 {len(shots_data)} 个分镜",
-    }
+    }, request, db_ms=db_ms, projection_ms=(perf_counter() - projection_started) * 1000)
 
 
 @router.patch("/{novel_id}/chapters/{chapter_id}/shots/batch", response_model=dict)
@@ -6584,6 +6630,7 @@ async def get_shot(
     novel_id: str,
     chapter_id: str,
     shot_id: str,
+    request: Request,
     novel_repo: NovelRepository = Depends(get_novel_repo),
     chapter_repo: ChapterRepository = Depends(get_chapter_repo),
     shot_repo: ShotRepository = Depends(get_shot_repo),
@@ -6599,6 +6646,7 @@ async def get_shot(
     Returns:
         分镜详情
     """
+    db_started = perf_counter()
     novel = novel_repo.get_by_id(novel_id)
     if not novel:
         raise HTTPException(status_code=404, detail="小说不存在")
@@ -6624,11 +6672,14 @@ async def get_shot(
         db.expire_all()
         shot = shot_repo.get_by_id(shot_id)
 
-    return {
+    db_ms = (perf_counter() - db_started) * 1000
+    projection_started = perf_counter()
+    data = shot_repo.to_response(shot, include_ai_history=include_ai_history)
+    return _shot_read_response({
         "success": True,
-        "data": shot_repo.to_response(shot, include_ai_history=include_ai_history),
+        "data": data,
         "message": "获取分镜成功",
-    }
+    }, request, db_ms=db_ms, projection_ms=(perf_counter() - projection_started) * 1000)
 
 
 @router.patch("/{novel_id}/chapters/{chapter_id}/shots/{shot_id}", response_model=dict)

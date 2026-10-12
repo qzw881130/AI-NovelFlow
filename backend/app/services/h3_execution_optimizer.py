@@ -302,6 +302,11 @@ def check_authority(raw_prompt, output, authority, initial_timing=None, limits=N
     budget_valid = (_number(duration) and 0 < duration <= 20 and limits["minimum"] <= duration <= limits["maximum"])
     checks["duration_within_workflow_and_20s"] = budget_valid
     original_duration = initial_timing.get("duration")
+    duration_info = {
+        "planned_duration": original_duration,
+        "optimized_duration": duration,
+        "duration_delta": duration - original_duration if _number(duration) and _number(original_duration) else None,
+    }
     checks["duration_original_delta_changed"] = (
         _same(timeline.get("original_duration"), original_duration) and _number(duration)
         and _same(timeline.get("duration_delta"), duration - original_duration)
@@ -447,6 +452,7 @@ def check_authority(raw_prompt, output, authority, initial_timing=None, limits=N
         warnings.append({"code": "EVIDENCE_SEMANTIC_REVIEW_REQUIRED", "paths": review_paths})
     return {"status": "PASS" if not blocking else "FAIL", "passed": not blocking,
             "checks": checks, "blocking_findings": blocking, "warnings": warnings,
+            "duration_info": duration_info,
             "resolved_evidence": evidence, "resolved_authority": resolved_authority,
             "evidence_provenance": {"status": "EVIDENCE_MISMATCH" if evidence["mismatches"] else "EXACT",
                                     "mismatches": evidence["mismatches"], "unresolved": evidence["unresolved"]},
@@ -473,9 +479,11 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
                                       repair_state=None, persist_repair=None):
     record = {"version": VERSION, "clip_index": clip.get("clip_index"), "status": "FALLBACK", "raw_prompt": raw_prompt,
               "optimized_prompt": None, "selected_prompt_source": "RAW", "duration_applied": False,
-              "timing_applied": False, "raw_prompt_sha256": hashlib.sha256(raw_prompt.encode()).hexdigest()}
+              "timing_applied": False, "l1_invocations_this_call": 0,
+              "raw_prompt_sha256": hashlib.sha256(raw_prompt.encode()).hexdigest()}
     template = None
     result = {}
+    failure_stage = "INPUT"
     try:
         template = resolve_prompt_template(db, novel, "h3_execution_optimizer_prompt_template_id", TEMPLATE_TYPE)
         if template.type != TEMPLATE_TYPE:
@@ -509,6 +517,7 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
                        else json.dumps(reuse_record["output"], ensure_ascii=False)),
                       "log_id": reuse_record.get("llm_log_id"), "raw_response": reuse_record.get("raw_llm_response")}
         else:
+            failure_stage = "LLM_REQUEST"
             result = await LLMService().chat_completion(
                 system_prompt=template.template, user_content=json.dumps(runtime, ensure_ascii=False, indent=2),
                 images=images, response_format="json_object", task_type=TEMPLATE_TYPE,
@@ -517,9 +526,13 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
         record.update(llm_log_id=result.get("log_id"), raw_llm_response=result.get("raw_response"),
                       raw_response_content=result.get("content") or "")
         if not result.get("success"):
+            record["error_code"] = "LLM_TRANSPORT_ERROR" if re.search(
+                r"(?i)\b(?:HTTP\s*)?(?:429|5\d\d)\b|timeout|timed out|connection|网络|连接",
+                str(result.get("error") or "")) else "LLM_REQUEST_ERROR"
             if re.search(r"(?i)vision.*unsupported|unsupported.*(?:image|vision)|(?:image|vision).*not support|does not support.*image", str(result.get("error"))):
                 record["capability_error"] = "VISION_CAPABILITY_UNAVAILABLE"
             raise RuntimeError("#14 含图片请求失败；请检查模型 vision 能力与调用日志：" + str(result.get("error")))
+        failure_stage = "PREFLIGHT"
         parsed = safe_parse_llm_json(result.get("content") or "", default=None)
         if not isinstance(parsed, dict) or not isinstance(parsed.get("optimized_prompt"), str) or not parsed["optimized_prompt"].strip():
             raise ValueError("#14 structured response 缺少 optimized_prompt")
@@ -529,12 +542,18 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
         if not audit["passed"] and (execution_context or {}).get("preflight_auto_repair"):
             from app.services.h3_preflight_repair import repair_output
             record["original_output"] = json.loads(json.dumps(parsed))
+            failure_stage = "REPAIR"
+            prior_l1_calls = int((repair_state or {}).get("l1_invocations") or 0)
             parsed, audit, repair = await repair_output(
                 db, novel, shot, parsed, runtime, audit,
                 lambda value: check_authority(raw_prompt, value, runtime["immutable_authority"], runtime["initial_execution_timing"], runtime["duration_limits"]),
                 state=repair_state, persist=persist_repair,
             )
             record["preflight_repair"] = repair
+            record["l1_invocations_this_call"] = max(0, int(repair.get("l1_invocations") or 0) - prior_l1_calls)
+            if not audit["passed"] and record["l1_invocations_this_call"]:
+                record["error_code"] = "REPAIR_FAIL"
+            failure_stage = "PREFLIGHT"
         record.update(output=parsed, optimized_prompt=parsed["optimized_prompt"], authority_check=audit,
                       resolved_evidence=audit["resolved_evidence"], resolved_authority=audit["resolved_authority"])
         risks = parsed.get("risks") or []
@@ -545,6 +564,7 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
             record.update(error_code="DURATION_INFEASIBLE", requires_clip_replan=True)
             raise ValueError("DURATION_INFEASIBLE: #14 报告执行预算不足，需上层重新规划；不改写 Canonical")
         if not audit["passed"]:
+            record.setdefault("error_code", "PREFLIGHT_FAIL")
             raise ValueError("#14 canonical authority 不通过：" + ", ".join(audit["blocking_findings"]))
         if runtime["immutable_authority"].get("anchor_policy"):
             from app.services.h3_anchor_policy import project_reference_manifest
@@ -576,6 +596,11 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
     except LLMCallTerminated:
         raise
     except Exception as error:
+        record.setdefault("error_code", "LLM_TRANSPORT_ERROR" if failure_stage == "LLM_REQUEST"
+                          else "REPAIR_FAIL" if failure_stage == "REPAIR"
+                          else "PREFLIGHT_FAIL" if failure_stage == "PREFLIGHT"
+                          else "INPUT_VALIDATION_ERROR")
+        record["failure_stage"] = failure_stage
         record.update(status="FALLBACK", selected_prompt_source="RAW", duration_applied=False, timing_applied=False,
                       optimized_duration=None, effective_duration=record.get("original_duration") or clip.get("planned_duration") or clip.get("duration"), duration_source="ORIGINAL")
         record["error"] = str(error)

@@ -294,3 +294,120 @@ def test_semantic_clip_context_projects_transitions_without_mutating_canonical_a
     assert context["clip"]["video_reference_manifest"] == physical_manifest
     assert [item["dialogue_id"] for item in context["clip_dialogues"]] == ["D3", "D4"]
     assert plan == before
+
+
+def test_shot6_unowned_c2_projects_only_its_carry_in_transition_slice():
+    transition_2 = {
+        "segment_index": 2, "from_keyframe_index": 2, "to_keyframe_index": 3,
+        "start_time": 12.0, "end_time": 22.0,
+        "transition_description": "骗子1继续精细穿引；骗子2检查右侧空织机并伸手协调。",
+    }
+    plan = {
+        "clip_plan": [
+            {"clip_index": 1, "start_time": 0.0, "end_time": 13.7,
+             "visual_state_indexes": [1, 2], "dialogue_assignment": [
+                 {"dialogue_id": "D1", "speaker": "骗子1", "text": "原句。", "start_time": 1.0, "end_time": 2.0}]},
+            {"clip_index": 2, "start_time": 13.7, "end_time": 21.9,
+             "visual_state_indexes": [], "carry_in_state_index": 2,
+             "previous_clip_index": 1, "continuity_to_previous": "CONTINUOUS",
+             "dialogue_assignment": []},
+            {"clip_index": 3, "start_time": 21.9, "end_time": 38.0,
+             "visual_state_indexes": [3, 4], "carry_in_state_index": 2,
+             "previous_clip_index": 2, "continuity_to_previous": "CONTINUOUS",
+             "dialogue_assignment": []},
+        ],
+        "keyframes": [{"index": i} for i in range(1, 5)],
+        "transitions": [
+            {"segment_index": 1, "from_keyframe_index": 1, "to_keyframe_index": 2,
+             "start_time": 0.0, "end_time": 12.0, "transition_description": "C1 已完成的起始动作。"},
+            transition_2,
+            {"segment_index": 3, "from_keyframe_index": 3, "to_keyframe_index": 4,
+             "start_time": 22.0, "end_time": 38.0, "transition_description": "C3 后续动作。"},
+        ],
+    }
+    before = json.loads(json.dumps(plan, ensure_ascii=False))
+    c1 = _semantic_clip_prompt_context(plan, {"clip_index": 1})
+    c2 = _semantic_clip_prompt_context(plan, {"clip_index": 2})
+    c3 = _semantic_clip_prompt_context(plan, {"clip_index": 3})
+    assert [item["segment_index"] for item in c1["transitions"]] == [1]
+    assert [(d["dialogue_id"], d["text"]) for d in c1["clip_dialogues"]] == [("D1", "原句。")]
+    assert c2["clip_dialogues"] == []
+    assert [item["segment_index"] for item in c2["transitions"]] == [2]
+    projected = c2["transitions"][0]
+    assert projected["transition_description"] == transition_2["transition_description"]
+    assert projected["canonical_source_id"] == "transition_2"
+    assert (projected["clip_local_start_time"], projected["clip_local_end_time"]) == (0.0, 8.2)
+    assert projected["action_progress"] == "UNVERIFIED_FROM_PREVIOUS_VIDEO"
+    assert projected["target_state_owned"] is False
+    assert "do not replay completed gestures" in projected["execution_scope"]
+    assert "unowned endpoint" in projected["execution_scope"]
+    assert [item["segment_index"] for item in c3["transitions"]] == [2, 3]
+    assert c3["clip"]["carry_in_state_index"] == 2
+    assert plan == before
+
+
+def test_unowned_transition_requires_matching_carry_in_and_time_overlap():
+    transitions = _canonical_transitions()
+    assert _project_semantic_clip_transitions(
+        transitions, [], 2, clip_start=6.0, clip_end=8.0,
+    ) == []  # Transition 2→3 ended at 5s; transition 3→4 is not this carry-in.
+    assert _project_semantic_clip_transitions(
+        transitions, [], 2, clip_start=4.0, clip_end=6.0,
+    )[0]["canonical_source_id"] == "transition_2"
+
+
+def test_unowned_c2_h3_builder_receives_canonical_action_without_inventing_picture(monkeypatch):
+    captured = {}
+
+    class CaptureOnlyLLM:
+        async def chat_completion(self, **kwargs):
+            captured.update(kwargs)
+            return {"success": False, "error": "offline capture complete"}
+
+    monkeypatch.setattr(video_director_ai, "LLMService", CaptureOnlyLLM)
+    monkeypatch.setattr(video_director_ai, "resolve_prompt_template", lambda *_: SimpleNamespace(
+        template="registered #11 template", name="test #11"))
+    transition = {
+        "segment_index": 2, "from_keyframe_index": 2, "to_keyframe_index": 3,
+        "start_time": 12.0, "end_time": 22.0,
+        "transition_description": "骗子1持续精细穿引；骗子2检查右侧空织机。",
+    }
+    plan = {"clip_plan": [{"clip_index": 2, "start_time": 13.7, "end_time": 21.9,
+                           "planned_duration": 8.2, "capability": "EXTEND",
+                           "visual_state_indexes": [], "carry_in_state_index": 2,
+                           "continuity_to_previous": "CONTINUOUS", "dialogue_assignment": []}],
+            "keyframes": [{"index": 2}, {"index": 3}], "transitions": [transition]}
+    context = _semantic_clip_prompt_context(plan, {"clip_index": 2})
+    manifest = {"references": [
+        {"slot": 1, "kind": "SCENE", "source_name": "织造室", "source_id": "scene"},
+        {"slot": 2, "kind": "CHARACTER_IDENTITY", "source_name": "骗子1", "source_id": "person-1"},
+        {"slot": 3, "kind": "CHARACTER_IDENTITY", "source_name": "骗子2", "source_id": "person-2"},
+    ]}
+    shot = SimpleNamespace(id="shot", index=6, chapter_id="chapter", description="两人在织机前",
+                           video_description="", duration=38, continuity_mode="NORMAL",
+                           characters=json.dumps(["骗子1", "骗子2"], ensure_ascii=False),
+                           scene="织造室", props="[]", dialogues="[]",
+                           video_director_plan=json.dumps(plan, ensure_ascii=False))
+    with pytest.raises(RuntimeError, match="offline capture complete"):
+        asyncio.run(video_director_ai.build_h3_video_prompt(
+            db=SimpleNamespace(commit=lambda: None), novel=SimpleNamespace(id="novel"),
+            shot=shot, selected_mode="SINGLE_FRAME", clip=context["clip"],
+            workflow_capability={}, workflow_type="VIDEO_CONTINUATION", workflow_name="frozen",
+            start_image_url=None, keyframes=context["keyframes"],
+            transitions=context["transitions"], clip_dialogues=context["clip_dialogues"],
+            reference_images=[], video_reference_manifest=manifest, previous_av_present=True,
+        ))
+    payload = json.loads(captured["user_content"].split("\n\n", 1)[1])
+    assert payload["visual_controls"] == []
+    assert [(item["picture"], item["kind"]) for item in payload["physical_picture_manifest"]] == [
+        ("<Picture 1>", "SCENE"), ("<Picture 2>", "CHARACTER_IDENTITY"),
+        ("<Picture 3>", "CHARACTER_IDENTITY")]
+    assert [(item["picture"], item["subject"]) for item in payload["reference_binding_contract"]["characters"]] == [
+        ("<Picture 2>", "<Subject 1>"), ("<Picture 3>", "<Subject 2>")]
+    assert payload["dialogue_timeline_source"] == []
+    assert payload["transitions"][0]["transition_description"] == transition["transition_description"]
+    assert payload["transitions"][0]["canonical_source_id"] == "transition_2"
+    assert payload["transitions"][0]["clip_local_end_time"] == 8.2
+    assert payload["transitions"][0]["target_state_owned"] is False
+    assert "do not replay completed gestures" in captured["system_prompt"]
+    assert "do not claim its final arrival here" in captured["system_prompt"]

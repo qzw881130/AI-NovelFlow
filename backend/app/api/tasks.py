@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, load_only
 from typing import Optional
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.models.novel import Novel, Chapter
@@ -83,22 +84,29 @@ def list_tasks(
         type: Optional[str] = None,
         chapter_id: Optional[str] = None,
         shot_id: Optional[str] = None,
+        active_only: bool = False,
         limit: int = 50,
         db: Session = Depends(get_db),
         task_repo: TaskRepository = Depends(get_task_repo)
 ):
     """获取任务列表"""
-    if chapter_id:
+    if chapter_id or active_only:
         # Page initialization reads several task kinds concurrently. Filter in SQL
         # before loading large historical workflows/metadata for unrelated tasks.
-        query = db.query(Task).filter(Task.chapter_id == chapter_id)
+        query = db.query(Task)
+        if chapter_id:
+            query = query.filter(Task.chapter_id == chapter_id)
         if type:
             query = query.filter(Task.type == type)
         if status:
             query = query.filter(Task.status == status)
         if shot_id:
             query = query.filter(Task.shot_id == shot_id)
-        tasks = query.order_by(Task.created_at.desc()).all()
+        if active_only:
+            query = query.filter(Task.status.in_(["pending", "queued", "running", "processing"]))
+            tasks = query.order_by(Task.created_at.desc()).limit(max(1, min(limit, 50))).all()
+        else:
+            tasks = query.order_by(Task.created_at.desc()).all()
     else:
         tasks = task_repo.list_by_filters(status=status, task_type=type, limit=limit)
 
@@ -169,6 +177,35 @@ async def get_task(task_id: str, task_repo: TaskRepository = Depends(get_task_re
 
 
 # ==================== 任务操作 ====================
+
+
+class CompletedClipReceiptAcceptance(BaseModel):
+    expected_prompt_id: str
+    clip_plan_revision: int
+
+
+@router.post("/{task_id}/accept-completed-clip", response_model=dict)
+async def accept_completed_clip_receipt(
+    task_id: str,
+    request: CompletedClipReceiptAcceptance,
+    task_service: TaskService = Depends(get_task_service),
+):
+    """Accept one completed C1 receipt while retaining the cancelled attempt."""
+    from app.services.clip_result_recovery import accept_cancelled_generate_receipt
+    from app.services.canonical_execution_invalidation import CanonicalExecutionConflict
+
+    source = task_service.db.get(Task, task_id)
+    if not source:
+        raise HTTPException(status_code=404, detail="原任务不存在")
+    try:
+        recovered = await accept_cancelled_generate_receipt(
+            source, request.expected_prompt_id, request.clip_plan_revision,
+            task_service.db, task_service.comfyui_service,
+        )
+    except (CanonicalExecutionConflict, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    return {"success": True, "data": {"taskId": recovered.id, "sourceTaskId": source.id,
+                                      "status": recovered.status, "videoUrl": recovered.result_url}}
 
 @router.post("/{task_id}/cancel", response_model=dict)
 async def cancel_task(
@@ -256,7 +293,10 @@ async def get_task_workflow(
         metadata = metadata if isinstance(metadata, dict) else {}
     except (ValueError, TypeError):
         metadata = {}
-    execution_duration = {key: metadata.get(key) for key in ("original_duration", "optimized_duration", "effective_duration", "duration_source")}
+    execution_duration = {key: metadata.get(key) for key in (
+        "planned_duration", "original_duration", "optimized_duration", "effective_duration", "actual_duration",
+        "duration_delta", "actual_duration_delta", "duration_source",
+    )}
     try:
         reference_images = json.loads(task.reference_images or "[]")
         reference_images = reference_images if isinstance(reference_images, list) else []

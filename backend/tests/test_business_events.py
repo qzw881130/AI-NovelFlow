@@ -163,6 +163,51 @@ def test_preflight_failure_without_l1_emits_optimizer_failure_only(ledger):
     assert 'canonical_visual_requirement_trace' in rows[0].details_json
 
 
+def test_transport_failure_events_keep_code_log_task_and_clip_without_repair_event(ledger):
+    db, _ = ledger
+    shot = db.get(Shot, 'shot')
+    call = {'step': '14', 'created_at': '2026-10-12T01:00:00', 'status': 'error',
+            'clip_index': 2, 'parsed_result': {
+                'llm_log_id': 'llm-502', 'error_code': 'LLM_TRANSPORT_ERROR',
+                'error': 'API 错误 (502): Upstream service temporarily unavailable',
+            }}
+    shot.video_director_plan = json.dumps({'ai_calls': [call]})
+    db.commit()
+    task = Task(id='task-502', type='shot_video', status='failed', name='C2', shot_id='shot',
+                chapter_id=shot.chapter_id,
+                error_message='#14 LLM_TRANSPORT_ERROR，停止视频生成：API 错误 (502)',
+                metadata_json=json.dumps({
+                    'execution_scope': 'CLIP', 'clip_id': 'shot:clip:2', 'clip_index': 2,
+                    'h3_prompt_optimizer': call['parsed_result'],
+                }))
+    db.add(task)
+    db.commit()
+    rows = {row.event_type: row for row in db.query(BusinessEvent).all()}
+    assert set(rows) == {'clip.prompt.optimize.failed', 'clip.generation.failed'}
+    assert rows['clip.prompt.optimize.failed'].llm_log_id == 'llm-502'
+    assert 'LLM_TRANSPORT_ERROR' in rows['clip.prompt.optimize.failed'].details_json
+    assert rows['clip.generation.failed'].task_id == 'task-502'
+    assert rows['clip.generation.failed'].clip_id == 'shot:clip:2'
+    assert rows['clip.generation.failed'].llm_log_id == 'llm-502'
+    assert 'LLM_TRANSPORT_ERROR' in rows['clip.generation.failed'].details_json
+
+
+def test_prior_l1_budget_does_not_emit_new_repair_failure_without_new_call(ledger):
+    db, _ = ledger
+    shot = db.get(Shot, 'shot')
+    shot.video_director_plan = json.dumps({'ai_calls': [{
+        'step': '14', 'created_at': '2026-10-12T01:10:00', 'status': 'error',
+        'clip_index': 2, 'parsed_result': {
+            'llm_log_id': 'current-log', 'error_code': 'PREFLIGHT_FAIL',
+            'l1_invocations_this_call': 0,
+            'preflight_repair': {'l1_invocations': 1, 'resolution': 'L1_ALREADY_ATTEMPTED'},
+            'authority_check': {'passed': False, 'blocking_findings': ['canonical_visual_requirement_trace']},
+        },
+    }]})
+    db.commit()
+    assert [row.event_type for row in db.query(BusinessEvent).all()] == ['clip.prompt.optimize.failed']
+
+
 def test_regeneration_does_not_also_emit_generation(ledger):
     db,_=ledger
     task=Task(type='shot_video',status='completed',name='C2',shot_id='shot',comfyui_prompt_id='p',metadata_json=json.dumps({'execution_scope':'CLIP','clip_index':2,'is_clip_regeneration':True}))

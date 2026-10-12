@@ -4,6 +4,7 @@ import { useTranslation } from '../../stores/i18nStore';
 
 // 导入 Store
 import { useChapterGenerateStore } from './stores';
+import { shotsApi } from '../../api/shots';
 
 // 导入组件
 import { FullTextModal, MergedImageModal, ImagePreviewModal, SplitConfirmDialog } from './components/Modals';
@@ -129,15 +130,46 @@ export default function ChapterGenerate() {
       const key = `${id}:${cid}`;
       if (initializedChapterRef.current === key) return;
       initializedChapterRef.current = key;
+      const controller = new AbortController();
       activeTasksSyncedChapterRef.current = null;
-      fetchNovel(id);
-      fetchCharacters(id);
-      fetchScenes(id);
-      fetchProps(id);
-      fetchChapter(id, cid);
-      fetchTransitionWorkflows();
+      const timer = window.setTimeout(() => {
+        if (controller.signal.aborted) return;
+        fetchNovel(id);
+        fetchCharacters(id);
+        fetchScenes(id);
+        fetchProps(id);
+        fetchChapter(id, cid, controller.signal);
+        fetchTransitionWorkflows();
+      }, 0);
+      return () => {
+        window.clearTimeout(timer);
+        controller.abort();
+        if (initializedChapterRef.current === key) initializedChapterRef.current = null;
+      };
     }
   }, [cid, id, fetchProps]);
+
+  // The chapter list is a navigation projection. Only hydrate the selected
+  // Shot; selecting another one cancels the previous detail read.
+  const selectedShot = shots[currentShotIndex - 1];
+  useEffect(() => {
+    if (!id || !cid || !selectedShot?.id || selectedShot.chapterId !== cid || !selectedShot.summaryOnly) return;
+    const controller = new AbortController();
+    // Let the layout apply a URL Shot selection before dispatching the read.
+    const timer = window.setTimeout(() => {
+      shotsApi.getShot(id, cid, selectedShot.id, controller.signal).then(result => {
+        if (controller.signal.aborted || !result.success || !result.data) return;
+        useChapterGenerateStore.setState(state => ({
+          shots: state.shots.map(shot => shot.id === selectedShot.id
+            ? { ...shot, ...result.data, summaryOnly: false }
+            : shot),
+        }));
+      }).catch(error => {
+        if (!controller.signal.aborted) console.error('获取当前分镜详情失败:', error);
+      });
+    }, 0);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [id, cid, selectedShot?.id, selectedShot?.summaryOnly]);
 
   // 刷新页面后本地 generating 集合为空，需要先从后端恢复一次任务状态。
   useEffect(() => {
