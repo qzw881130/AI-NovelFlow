@@ -25,13 +25,19 @@ from app.services.notification_registry import EVENT_REGISTRY
 logger = logging.getLogger(__name__)
 IDS = ("novel_id", "chapter_id", "shot_id", "visual_state_id", "clip_id", "task_id", "review_id", "llm_log_id")
 DETAIL_KEYS = {"shot_index", "visual_state_index", "clip_index", "task_type", "review_id",
-               "failed_dimensions", "review_dimensions", "template_id", "template_version",
+               "failed_dimensions", "warning_dimensions", "review_dimensions", "template_id", "template_version",
                "llm_log_id", "result_key_sha256", "comfyui_prompt_id", "error_code", "stage",
                "blocking_findings", "repair_levels", "l1_invocations", "reused_result", "revision",
                "clip_count", "dimension", "status", "summary", "historical_source", "attempt",
                "example_id", "chapter_count", "duration_ms", "source_task_id",
                "planned_duration", "optimized_duration", "actual_duration",
-               "duration_delta", "actual_duration_delta"}
+               "duration_delta", "actual_duration_delta", "video_duration",
+               "elapsed_time", "success_count", "failure_count", "cancelled_count", "total_count",
+               "novel_name", "chapter_number"}
+DISPLAY_KEYS = {"shot_index", "clip_index", "visual_state_index", "duration_ms",
+                "actual_duration", "video_duration", "elapsed_time", "clip_count",
+                "chapter_count", "success_count", "failure_count", "cancelled_count", "total_count",
+                "stage", "repair_levels", "summary", "error_code", "novel_name", "chapter_number"}
 
 
 def obj(value, default=None):
@@ -86,7 +92,9 @@ def record_event(db, event_type, payload=None, *, dedupe_key=None, timestamp=Non
         needs_attention=status in {"FAIL", "ERROR"} or event_type == "task.review.required" or raw_status in {"WARNING", "REVIEW"},
         source=text_summary(payload.get("source") or "business"), trigger=payload.get("trigger"),
         message=text_summary(payload.get("message") or EVENT_REGISTRY[event_type].description),
-        details_json=json.dumps(safe_details(payload.get("details")), ensure_ascii=False),
+        details_json=json.dumps(safe_details({**(payload.get("details") if isinstance(payload.get("details"), dict) else {}),
+                                               **({key: payload[key] for key in DISPLAY_KEYS if key in payload}
+                                                  if is_test else {})}), ensure_ascii=False),
         historical=historical, is_test=is_test,
         notification_status="historical" if historical else "pending")
     db.add(row)
@@ -151,7 +159,8 @@ def review_event(review, task=None):
         status="ERROR" if verdict == "ERROR" else "SUCCESS" if verdict == "PASS" else "INFO" if verdict == "WARNING" else "FAIL",
         message=review.summary if review.status == "success" else "图片 AI 评审执行异常，请查看原始评审记录。",
         details={**payload.get("details", {}), "visual_state_index": state_index or payload.get("visual_state_id"),
-                 "failed_dimensions": [k for k, v in dimensions.items() if (v.get("status") if isinstance(v, dict) else v) in {"FAIL", "WARNING"}],
+                 "failed_dimensions": [k for k, v in dimensions.items() if (v.get("status") if isinstance(v, dict) else v) == "FAIL"],
+                 "warning_dimensions": [k for k, v in dimensions.items() if (v.get("status") if isinstance(v, dict) else v) == "WARNING"],
                  "review_dimensions": [{"dimension": k, "status": v.get("status") if isinstance(v, dict) else v} for k, v in dimensions.items()],
                  "template_id": review.template_id, "template_version": review.template_version,
                  "result_key_sha256": hashlib.sha256(str(snapshot.get("generated_image") or "").encode()).hexdigest()})

@@ -263,7 +263,7 @@ async def init_preset_test_cases(db: Session):
     testcase_repo = TestCaseRepository(db)
     
     # 获取默认提示词模板
-    default_template = template_repo.get_first_system_template()
+    default_template = template_repo.get_default_system_template("character")
     
     # 检查是否已存在预设测试用例
     existing_names = testcase_repo.get_preset_names()

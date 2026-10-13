@@ -166,6 +166,33 @@ def test_unknown_assets_and_narrator_are_optional_not_phantom_pictures(db_sessio
         "Person1": "NARRATOR_NOT_VISUAL", "Imagined": "NOT_VISUAL_ELIGIBLE"}
 
 
+@pytest.mark.parametrize("optimize, requested, expected", [
+    (False, None, False), (True, None, True), (True, True, True), (True, False, False),
+])
+def test_semantic_clip_persists_resolved_repair_setting(db_session, assets, monkeypatch, optimize, requested, expected):
+    from app.api import shots as api
+    from app.repositories import NovelRepository, ChapterRepository, TaskRepository, ShotRepository
+
+    shot, plan, clip = fixture(assets)
+    shot.video_director_plan = json.dumps(plan)
+    workflow = Workflow(id="repair-setting-workflow", name="Mock workflow", type="multi_reference_video",
+                        workflow_json="{}", node_mapping="{}", is_active=True)
+    db_session.add_all([shot, workflow]); db_session.commit()
+    monkeypatch.setattr(api.TaskService, "validate_workflow_node_mapping", lambda *_: (True, ""))
+    monkeypatch.setattr(api, "enqueue_shot_video_task", lambda *args, **kwargs: None)
+
+    response = asyncio.run(api._execute_phase_b_semantic_clip(
+        "n", "ch", "s", clip["clip_index"],
+        api.SemanticClipGenerateRequest(clip_plan_revision=1, auto_merge=False,
+                                        optimize_h3_prompt=optimize, preflight_auto_repair=requested),
+        db_session, NovelRepository(db_session), ChapterRepository(db_session),
+        TaskRepository(db_session), ShotRepository(db_session)))
+    task = db_session.get(Task, response["data"]["taskId"])
+    metadata = json.loads(task.metadata_json)
+    assert metadata["optimize_h3_prompt"] is optimize
+    assert metadata["preflight_auto_repair"] is expected
+
+
 @pytest.mark.parametrize("capability", ["GENERATE", "EXTEND", "TEMPORAL_EXTEND"])
 def test_api_manifest_worker_recompile_h3_and_upload_order_agree(db_session, assets, monkeypatch, capability):
     from app.api import shots as api

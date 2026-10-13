@@ -413,13 +413,11 @@ async def parse_props(
         # 获取道具解析提示词模板
         prompt_template = None
         prompt_template_name = None
-        if novel and novel.prop_parse_prompt_template_id:
-            # 使用小说配置的模板
-            template_repo = PromptTemplateRepository(db)
-            template = template_repo.get_by_id(novel.prop_parse_prompt_template_id)
-            if template:
-                prompt_template = template.template
-                prompt_template_name = template.name
+        template = PromptTemplateRepository(db).resolve_for_type(
+            novel.prop_parse_prompt_template_id if novel else None, "prop_parse")
+        if template:
+            prompt_template = template.template
+            prompt_template_name = template.name
         
         # 如果没有配置模板，使用默认模板文件
         if not prompt_template:
@@ -578,13 +576,8 @@ async def get_prop_prompt(
     novel = novel_repo.get_by_id(prop.novel_id)
 
     # 获取道具生成提示词模板
-    template = None
-    if novel and novel.prop_prompt_template_id:
-        template = prompt_template_repo.get_by_id(novel.prop_prompt_template_id)
-    if not template:
-        templates = prompt_template_repo.list_by_type('prop')
-        if templates:
-            template = templates[0]
+    template = prompt_template_repo.resolve_for_type(
+        novel.prop_prompt_template_id if novel else None, "prop")
 
     # 获取风格提示词
     style, style_template = get_style(db, novel, "prop")

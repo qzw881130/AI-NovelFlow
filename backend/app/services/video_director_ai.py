@@ -1635,21 +1635,57 @@ def _audit_final_h3_prompt(final_prompt: str, assigned_dialogues: list, silent_c
         for subject, name in re.findall(r"(<Subject\s+\d+>)\s+is\s+([^,\n.;]+)", final_prompt)
         if name.strip()
     }
+    # Dialogue text is authoritative only in the compiler-owned timeline.
+    # Searching the entire prompt counts a short utterance inside a different
+    # canonical utterance (e.g. 没有。 inside 我也没有。) or ordinary visual prose.
+    timeline_matches = list(re.finditer(
+        r"(?ms)^dialogue_timeline:[ \t]*\n(.*?)(?=^[a-z_][a-z_0-9]*:[ \t]*$|\Z)",
+        final_prompt,
+    ))
+    timeline = timeline_matches[0][1] if len(timeline_matches) == 1 else ""
+    record_pattern = (
+        r"(?m)^(D\d+):[ \t]*\n"
+        r"  speaker: (<Subject \d+>)[ \t]*\n"
+        r"  start_time: ([^\n]+)[ \t]*\n"
+        r"  end_time: ([^\n]+)[ \t]*\n"
+        r"  exact_dialogue: ([^\n]*)$"
+    )
+    records = re.findall(record_pattern, timeline)
+    record_ids = re.findall(r"(?m)^(D\d+):[ \t]*$", timeline)
+    exact_lines = re.findall(r"(?m)^  exact_dialogue: ([^\n]*)$", timeline)
+    timeline_required = bool(assigned_dialogues) or canonical_visual_body is not None
+    if ((timeline_required and len(timeline_matches) != 1) or len(records) != len(record_ids)
+            or len(records) != len(exact_lines)
+            or len(record_ids) != len(assigned_dialogues)):
+        issues.append("DIALOGUE_EXACT_TEXT_OCCURRENCE_INVALID")
+    if len(timeline_matches) > 1 or len(record_ids) != len(set(record_ids)):
+        issues.append("DIALOGUE_DUPLICATED_IN_PROMPT")
+    if ([record[0] for record in records] != [item.get("id") for item in assigned_dialogues]
+            or [record[4] for record in records] != [
+                _exact_spoken_text(item.get("text")) for item in assigned_dialogues
+            ]):
+        issues.append("DIALOGUE_ORDER_INVALID")
+    outside_timeline = (final_prompt[:timeline_matches[0].start()] + final_prompt[timeline_matches[0].end():]
+                        if len(timeline_matches) == 1 else final_prompt)
+    if (re.search(r"(?m)^[ \t]*(?:exact_dialogue|speaker):[ \t]*", outside_timeline)
+            or re.search(r"(?m)^D\d+:[ \t]*$", outside_timeline)):
+        issues.append("DIALOGUE_EXACT_TEXT_OCCURRENCE_INVALID")
     for item in assigned_dialogues:
         text = _exact_spoken_text(item.get("text"))
         speaker = item.get("speaker") or ""
-        occurrence_count = final_prompt.count(text) if text else 0
-        if occurrence_count > 1:
+        occurrence_count = sum(record[4] == text for record in records) if text else 0
+        authorized_count = sum(_exact_spoken_text(other.get("text")) == text for other in assigned_dialogues)
+        if occurrence_count > authorized_count:
             issues.append("DIALOGUE_DUPLICATED_IN_PROMPT")
-        if occurrence_count != 1:
+        if occurrence_count != authorized_count:
             issues.append("DIALOGUE_EXACT_TEXT_OCCURRENCE_INVALID")
-        if not speaker or not re.search(rf"(?m)^\s*speaker: <Subject \d+>\s*$", final_prompt):
+        subject = (subject_bindings or {}).get(speaker) or subject_mappings.get(speaker)
+        if not speaker or not subject or not any(record[0] == item.get("id") and record[1] == subject
+                                                  for record in records):
             issues.append("DIALOGUE_SPEAKER_MISSING")
-        if canonical_visual_body is not None:
-            subject = (subject_bindings or {}).get(speaker)
-            expected = f"{item['id']}:\n  speaker: {subject}\n  start_time: {item['start_time']}s\n  end_time: {item['end_time']}s\n  exact_dialogue: {text}"
-            if not subject or expected not in final_prompt:
-                issues.append("DIALOGUE_SPEAKER_TIMING_AUTHORITY_INVALID")
+        expected = (item.get("id"), subject, f"{item['start_time']}s", f"{item['end_time']}s", text)
+        if canonical_visual_body is not None and (not subject or expected not in records):
+            issues.append("DIALOGUE_SPEAKER_TIMING_AUTHORITY_INVALID")
         if not item.get("duration_sufficient"):
             issues.append("DIALOGUE_DURATION_INSUFFICIENT")
     for character in silent_characters:
@@ -1916,6 +1952,10 @@ async def build_h3_video_prompt(
         "clip_visible_characters": clip_visible_characters,
         "dialogue_timeline_source": assigned_dialogues,
         "dialogue_timeline_status": dialogue_timeline_status,
+        **({"clip_authority_presence": {
+            "has_dialogue": bool(assigned_dialogues),
+            "has_canonical_transition": bool(sanitized_transitions),
+        }} if canonical_path and step == "11" else {}),
         "silent_characters": silent_characters,
         **({} if canonical_path else {
             "frames": mapped_frames,
@@ -1958,6 +1998,24 @@ async def build_h3_video_prompt(
             "reference_binding_contract is deterministic compiler authority. Keep Subject definitions and visual actions consistent with it. Do not output or redefine reference_authority, character_identity_binding, existing_body_binding, initial_body_binding or motion_ownership sections; the compiler supplies them."
             if canonical_path else (f"{template.template}\n\n{ATTENTION_RULE}" if attention["status"] == "VALID" else template.template)
         ) + (f"\n\n{DIALOGUE_VISUAL_INTENT_RULE}" if dialogue_visual_intents else "") + (
+            "\n\n#11 Clip authority: dialogue_timeline_source and transitions are independent. "
+            "No assigned dialogue means no speech for this Clip, not no visual action. "
+            "When transitions is nonempty, describe its canonical actors, actions and camera "
+            "progression within the supplied Clip interval, using clip_local_start_time "
+            "and clip_local_end_time when present, whether or not dialogue exists. "
+            "When transitions is empty, say only that no canonical transition was projected "
+            "into this Clip; do not claim the Canonical Shot has no action. Never invent a "
+            "transition, change its actors or facts, or move it outside its projected interval."
+            if canonical_path and step == "11" else ""
+        ) + (
+            "\n\nA cross-Clip transition may begin near this Clip's end while its target state "
+            "belongs to the next Clip. The unchanged transition_description is Shot-level "
+            "authority, not permission to perform the whole action here. Use only the "
+            "clip_local_start_time–clip_local_end_time slice and execution_scope; show the "
+            "opening progression without claiming the unowned target or later gestures."
+            if canonical_path and any(item.get("projection_mode") == "CROSS_CLIP_OPENING"
+                                      for item in sanitized_transitions) else ""
+        ) + (
             "\n\nA Clip with no owned visual state can still carry a time slice of a canonical "
             "cross-Clip transition. The supplied transition_description is the unchanged "
             "source, not a command to replay its entire action. Use its clip_local_start_time "

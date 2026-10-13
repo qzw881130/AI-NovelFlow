@@ -329,7 +329,10 @@ def test_shot6_unowned_c2_projects_only_its_carry_in_transition_slice():
     c1 = _semantic_clip_prompt_context(plan, {"clip_index": 1})
     c2 = _semantic_clip_prompt_context(plan, {"clip_index": 2})
     c3 = _semantic_clip_prompt_context(plan, {"clip_index": 3})
-    assert [item["segment_index"] for item in c1["transitions"]] == [1]
+    assert [item["segment_index"] for item in c1["transitions"]] == [1, 2]
+    assert c1["transitions"][1]["projection_mode"] == "CROSS_CLIP_OPENING"
+    assert (c1["transitions"][1]["clip_local_start_time"],
+            c1["transitions"][1]["clip_local_end_time"]) == (12.0, 13.7)
     assert [(d["dialogue_id"], d["text"]) for d in c1["clip_dialogues"]] == [("D1", "原句。")]
     assert c2["clip_dialogues"] == []
     assert [item["segment_index"] for item in c2["transitions"]] == [2]
@@ -352,11 +355,24 @@ def test_unowned_transition_requires_matching_carry_in_and_time_overlap():
         transitions, [], 2, clip_start=6.0, clip_end=8.0,
     ) == []  # Transition 2→3 ended at 5s; transition 3→4 is not this carry-in.
     assert _project_semantic_clip_transitions(
-        transitions, [], 2, clip_start=4.0, clip_end=6.0,
-    )[0]["canonical_source_id"] == "transition_2"
+        transitions, [], 2, clip_start=5.0, clip_end=7.0,
+    ) == []  # Touching at the 5s boundary is not a positive overlap.
+    projected = _project_semantic_clip_transitions(
+        transitions, [], 2, clip_start=4.5, clip_end=6.0,
+    )[0]
+    assert projected["canonical_source_id"] == "transition_2"
+    assert (projected["start_time"], projected["end_time"]) == (2, 5)
+    assert (projected["clip_local_start_time"], projected["clip_local_end_time"]) == (0.0, 0.5)
 
 
-def test_unowned_c2_h3_builder_receives_canonical_action_without_inventing_picture(monkeypatch):
+@pytest.mark.parametrize(
+    ("has_dialogue", "has_transition"),
+    [(False, False), (True, False), (False, True), (True, True)],
+    ids=["neither", "dialogue-only", "transition-only", "both"],
+)
+def test_unowned_c2_h3_builder_receives_canonical_action_without_inventing_picture(
+    monkeypatch, has_dialogue, has_transition,
+):
     captured = {}
 
     class CaptureOnlyLLM:
@@ -372,11 +388,15 @@ def test_unowned_c2_h3_builder_receives_canonical_action_without_inventing_pictu
         "start_time": 12.0, "end_time": 22.0,
         "transition_description": "骗子1持续精细穿引；骗子2检查右侧空织机。",
     }
+    dialogue = {"dialogue_id": "D1", "speaker": "骗子1", "text": "继续。",
+                "start_time": 14.0, "end_time": 15.0, "estimated_duration": 1.0}
     plan = {"clip_plan": [{"clip_index": 2, "start_time": 13.7, "end_time": 21.9,
                            "planned_duration": 8.2, "capability": "EXTEND",
                            "visual_state_indexes": [], "carry_in_state_index": 2,
-                           "continuity_to_previous": "CONTINUOUS", "dialogue_assignment": []}],
-            "keyframes": [{"index": 2}, {"index": 3}], "transitions": [transition]}
+                           "continuity_to_previous": "CONTINUOUS",
+                           "dialogue_assignment": [dialogue] if has_dialogue else []}],
+            "keyframes": [{"index": 2}, {"index": 3}],
+            "transitions": [transition] if has_transition else []}
     context = _semantic_clip_prompt_context(plan, {"clip_index": 2})
     manifest = {"references": [
         {"slot": 1, "kind": "SCENE", "source_name": "织造室", "source_id": "scene"},
@@ -404,10 +424,20 @@ def test_unowned_c2_h3_builder_receives_canonical_action_without_inventing_pictu
         ("<Picture 3>", "CHARACTER_IDENTITY")]
     assert [(item["picture"], item["subject"]) for item in payload["reference_binding_contract"]["characters"]] == [
         ("<Picture 2>", "<Subject 1>"), ("<Picture 3>", "<Subject 2>")]
-    assert payload["dialogue_timeline_source"] == []
-    assert payload["transitions"][0]["transition_description"] == transition["transition_description"]
-    assert payload["transitions"][0]["canonical_source_id"] == "transition_2"
-    assert payload["transitions"][0]["clip_local_end_time"] == 8.2
-    assert payload["transitions"][0]["target_state_owned"] is False
-    assert "do not replay completed gestures" in captured["system_prompt"]
-    assert "do not claim its final arrival here" in captured["system_prompt"]
+    assert payload["clip_authority_presence"] == {
+        "has_dialogue": has_dialogue,
+        "has_canonical_transition": has_transition,
+    }
+    assert bool(payload["dialogue_timeline_source"]) is has_dialogue
+    assert bool(payload["transitions"]) is has_transition
+    assert "No assigned dialogue means no speech for this Clip, not no visual action" in captured["system_prompt"]
+    assert "do not claim the Canonical Shot has no action" in captured["system_prompt"]
+    if has_transition:
+        assert payload["transitions"][0]["transition_description"] == transition["transition_description"]
+        assert payload["transitions"][0]["canonical_source_id"] == "transition_2"
+        assert (payload["transitions"][0]["start_time"], payload["transitions"][0]["end_time"]) == (12.0, 22.0)
+        assert (payload["transitions"][0]["clip_local_start_time"],
+                payload["transitions"][0]["clip_local_end_time"]) == (0.0, 8.2)
+        assert payload["transitions"][0]["target_state_owned"] is False
+        assert "do not replay completed gestures" in captured["system_prompt"]
+        assert "do not claim its final arrival here" in captured["system_prompt"]

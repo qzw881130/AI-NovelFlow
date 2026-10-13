@@ -11,6 +11,8 @@ from app.core.database import SessionLocal
 from app.core.security import get_encryption_key
 from app.models.notification import BusinessEvent, NotificationDelivery, NotificationSettings
 from app.services.notification_channels import send_feishu, send_telegram
+from app.services.notification_dedupe import INTERMEDIATE_FAILURES, failure_delivery_decision
+from app.services.notification_format import format_notification, resolve_business_context
 from app.services.notification_registry import EVENT_REGISTRY
 
 logger = logging.getLogger(__name__)
@@ -95,15 +97,45 @@ class NotificationService:
             if not event_switches(settings).get(row.event_type, EVENT_REGISTRY[row.event_type].enabled):
                 result["status"] = "event_disabled"
             else:
-                payload = {key: getattr(row, key) for key in (
-                    "task_id", "shot_id", "visual_state_id", "clip_id", "review_id", "status", "trigger", "message")
-                    if getattr(row, key) is not None}
-                message = NotificationService._message(row.event_type, payload, row.is_test)
+                try:
+                    decision = failure_delivery_decision(
+                        db, row,
+                        final_subscribed=event_switches(settings).get(
+                            "clip.generation.failed", EVENT_REGISTRY["clip.generation.failed"].enabled),
+                        external_enabled=settings.feishu_enabled or settings.telegram_enabled,
+                    )
+                except Exception:
+                    db.rollback()
+                    logger.warning("Notification chain unavailable for %s", event_id)
+                    decision = "send"
+                message = None
+                if decision == "send" and (settings.feishu_enabled or settings.telegram_enabled):
+                    try:
+                        context = resolve_business_context(db, row)
+                    except Exception:
+                        db.rollback()
+                        logger.warning("Notification context unavailable for %s", event_id)
+                        context = {}
+                    message = format_notification(row, context)
                 for channel, enabled in (("PAGE_SOUND", settings.page_sound_enabled),
                                          ("FEISHU", settings.feishu_enabled),
                                          ("TELEGRAM", settings.telegram_enabled)):
                     if not enabled:
                         result["channels"][channel] = "disabled"
+                        continue
+                    if channel == "PAGE_SOUND" and row.event_type in INTERMEDIATE_FAILURES:
+                        existing_sound = db.query(NotificationDelivery.id).filter_by(
+                            event_code=row.event_type, channel="PAGE_SOUND",
+                            detail=json.dumps({"event_id": row.id}),
+                        ).first()
+                        if existing_sound:
+                            result["channels"][channel] = "queued"
+                            continue
+                    if channel != "PAGE_SOUND" and decision in {"hold", "suppress"}:
+                        status = "deferred" if decision == "hold" else "suppressed_duplicate"
+                        result["channels"][channel] = status
+                        if decision == "suppress":
+                            NotificationService._record(db, row.event_type, channel, status, row.is_test, row.id)
                         continue
                     try:
                         if channel == "PAGE_SOUND":
@@ -121,7 +153,7 @@ class NotificationService:
                         status = "failed"
                     result["channels"][channel] = status
                     NotificationService._record(db, row.event_type, channel, status, row.is_test, row.id)
-                result["status"] = "processed"
+                result["status"] = "pending" if decision == "hold" else "processed"
         except Exception:
             db.rollback()
             logger.exception("Event retained; notification delivery failed: %s", event_id)
@@ -172,13 +204,6 @@ class NotificationService:
                     db.close()
                 except Exception:
                     logger.warning("Could not close notification database session")
-
-    @staticmethod
-    def _message(event_code: str, payload: dict[str, Any], is_test: bool) -> str:
-        event = EVENT_REGISTRY[event_code]
-        prefix = "[NovelFlow 开发模拟事件]" if is_test else "[NovelFlow 通知]"
-        detail = json.dumps(payload, ensure_ascii=False, default=str)[:1200] if payload else ""
-        return f"{prefix} {event.name}\n事件：{event_code}" + (f"\n数据：{detail}" if detail else "")
 
     @staticmethod
     def _record(db: Session, event_code: str, channel: str, status: str, is_test: bool, event_id: str | None = None) -> None:

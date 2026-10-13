@@ -319,8 +319,9 @@ async def test_single_clip_semantic_execution_still_runs_final_assembly(db_sessi
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("previous_capability", ["SINGLE_FRAME", "VIDEO_CONTINUATION", "TEMPORAL_EXTEND"])
+@pytest.mark.parametrize("repair_flag", [None, True, False])
 async def test_semantic_continuation_enqueue_uses_previous_assembled_result_when_available(
-    db_session, tmp_path, monkeypatch, previous_capability,
+    db_session, tmp_path, monkeypatch, previous_capability, repair_flag,
 ):
     from app.models.workflow import Workflow
     from app.services import shot_video_service
@@ -354,11 +355,14 @@ async def test_semantic_continuation_enqueue_uses_previous_assembled_result_when
         metadata_json=json.dumps(previous_metadata),
     )
     workflow = Workflow(id="temporal-workflow", name="Temporal", type="TEMPORAL_EXTEND", workflow_json="{}", is_active=True)
+    completed_metadata = {"assembled_result": {"url": previous_url}}
+    if repair_flag is not None:
+        completed_metadata["preflight_auto_repair"] = repair_flag
     completed = Task(
         id="completed-clip", type="shot_video", status="completed", name="C1",
         novel_id=novel.id, chapter_id=chapter.id, shot_id=shot.id,
         result_url=previous_url,
-        metadata_json=json.dumps({"assembled_result": {"url": previous_url}}),
+        metadata_json=json.dumps(completed_metadata),
     )
     db_session.add_all([shot, previous, workflow, completed])
     db_session.commit()
@@ -376,6 +380,7 @@ async def test_semantic_continuation_enqueue_uses_previous_assembled_result_when
     next_task = db_session.query(Task).filter(Task.id != completed.id, Task.shot_id == shot.id).order_by(Task.created_at.desc()).first()
     next_metadata = json.loads(next_task.metadata_json)
     assert next_metadata["capability"] == "TEMPORAL_EXTEND"
+    assert next_metadata["preflight_auto_repair"] is (repair_flag if repair_flag is not None else False)
     assert next_metadata["previous_approved_video_url"] == previous_url
     if previous_capability in {"VIDEO_CONTINUATION", "TEMPORAL_EXTEND"}:
         assert next_metadata["previous_approved_video_source"] == "approved_assembled_result"

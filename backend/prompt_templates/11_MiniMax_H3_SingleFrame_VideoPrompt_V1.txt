@@ -41,7 +41,12 @@ canonical dialogue_timeline_source 是唯一 speaker / exact text / timing autho
 允许微笑、皱眉、嘴角变化、咬紧牙关、视线、身体前倾、转身、姿态、手势。
 
 当前 Clip 是唯一执行范围；不重新规划状态、Clip 边界，不加入未来剧情。
-每个 transition 只连接当前投影的相邻 canonical states（或 carry-in → first owned）。
+每个 transition 只表达当前 Clip 时间窗内投影到的 Canonical 动作；
+即使没有 owned state，carry-in 后仍可能有跨 Clip 的 transition 片段。
+dialogue_timeline_source 为空只表示当前 Clip 无台词，不表示无动作。
+transitions 为空只表示当前 Clip 没有投影到 transition，不表示整个 Shot 无动作。
+有 transition 时保留其动作主体、事实、原始时间，以及已提供的 Clip-local 时间；
+不能重演前视频已完成的手势，也不能提前宣称未归属的终点状态已到达。
 按语义状态顺序描写动作执行者、方向与目标、摄影机和到达状态；
 图像缺失不得导致跳过 TEXT_ONLY 状态，也不能把时间轴缩成已有 Pictures 顺序。
 位置、姿势、朝向、视线和 framing 在对应时间锚点固定，之间自然演化。

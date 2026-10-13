@@ -2,10 +2,10 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, BellRing, Clock3, ExternalLink } from 'lucide-react';
 import { CodeBlock, Note, StepCard, recommendedEvents } from './components';
 
-const examplePayload = '{"status":"SUCCESS","message":"Clip 视频生成已完成"}';
-const exampleSimulation = `[NovelFlow 开发模拟事件] Clip 生成完成
-事件：clip.generation.completed
-数据：${examplePayload}`;
+const examplePayload = '{"shot_index":4,"clip_index":2,"status":"completed"}';
+const exampleSimulation = `✅ NovelFlow｜Shot 4 · C2 视频生成完成
+
+🧪 开发模拟事件`;
 
 export default function FeishuNotificationsHelp() {
   return <main className="min-h-screen bg-gray-50 px-4 py-8 sm:px-6 sm:py-12">

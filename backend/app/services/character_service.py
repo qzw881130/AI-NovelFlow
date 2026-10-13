@@ -460,13 +460,8 @@ class CharacterService:
                 # 获取角色生成提示词模板
                 from app.repositories import PromptTemplateRepository
                 template_repo = PromptTemplateRepository(db)
-                template = None
-                if novel and novel.prompt_template_id:
-                    template = template_repo.get_by_id(novel.prompt_template_id)
-
-                # 如果没有指定模板，使用默认系统模板
-                if not template:
-                    template = template_repo.get_default_system_template("character")
+                template = template_repo.resolve_for_type(
+                    novel.prompt_template_id if novel else None, "character")
 
                 # 获取风格提示词
                 style, style_template = get_style(db, novel, "character")

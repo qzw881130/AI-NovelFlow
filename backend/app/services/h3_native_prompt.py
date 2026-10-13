@@ -4,6 +4,7 @@ These checks reject structural mistakes and explicit blocking contradictions.
 They do not certify cinematic feasibility, lip sync, or arbitrary prose semantics.
 """
 import re
+from collections import Counter
 
 SECTIONS = (
     "subject_definitions", "summary", "retention_analysis", "detailed_description",
@@ -195,10 +196,11 @@ def check_native_prompt(prompt, canonical, authority, raw_prompt, timeline):
     }
     expected_tags = sum(bool(re.search(r"[\u3400-\u9fff]", e["exact_dialogue"])) for e in canonical)
     checks["chinese_marker_count"] = prompt.count("[Chinese]") == expected_tags
-    # Each exact line occurs once per canonical event, including intentional repeats.
-    checks["exact_dialogue_occurrence_count"] = all(
-        prompt.count(e["exact_dialogue"]) == sum(c["exact_dialogue"] == e["exact_dialogue"] for c in canonical)
-        for e in canonical)
+    # Count complete <d> events, not substrings in other utterances or prose.
+    checks["exact_dialogue_occurrence_count"] = (
+        Counter(e["exact_dialogue"] for e in actual)
+        == Counter(e["exact_dialogue"] for e in canonical)
+    )
     switches = [i for i in range(1, len(canonical)) if canonical[i]["speaker"] != canonical[i-1]["speaker"]]
     closed = r"closed[ -](?:mouths?|lips)|(?:mouths?|lips)\s+(?:(?:are|remain|stay|relax|settle|naturally)\s+)*(?:closed|close)"
     checks["speaker_switch_camera_evidence"] = _handoff_evidence_is_local(actual, canonical, timeline)
@@ -243,7 +245,11 @@ def check_native_prompt(prompt, canonical, authority, raw_prompt, timeline):
         re.search(pattern, reference_scope, re.I) for pattern in
         [r"costume|clothing", r"pose|posture", r"blocking|floor position", r"identit", r"face"]) and state_source
     checks["blocking_preservation_wording"] = bool(re.search(
-        r"(?:preserv|maintain|retain|remain|unchanged|established).{0,100}(?:floor positions?\b|blocking|seated|standing)", prompt, re.I))
+        r"(?:preserv|maintain|retain|remain|unchanged|established).{0,100}(?:floor positions?\b|blocking|seated|standing)", prompt, re.I)
+        or ((authority.get("continuation") or {}).get("binding_verified") is True
+            and re.search(r"\bdo not overwrite\b[^.!?]{0,160}\b(?:floor positions?\b|blocking)"
+                          r"[^.!?]{0,100}\b(?:incoming|previous|preceding)\s+(?:video|footage)\b",
+                          parts.get("retention_analysis", ""), re.I)))
     fixed_seated = seated_subjects(raw_prompt, authority["subject_bindings"])
     phase_text = "\n".join(str(p.get("description", "")) for p in timeline.get("execution_phases", []) if isinstance(p, dict))
     for subject, actor in fixed_seated.items():

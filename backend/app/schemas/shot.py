@@ -215,7 +215,8 @@ class GenerateVideoRequest(BaseModel):
     use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
     workflow_id: Optional[str] = Field(None, description="指定工作流ID")
     selected_mode: Optional[VideoMode] = Field(None, description="视频导演选择的生成模式")
-    optimize_h3_prompt: bool = Field(False, description="通过注册 #14 优化 H3 执行提示词，失败自动回退 Raw")
+    optimize_h3_prompt: bool = Field(False, description="通过注册 #14 优化 H3 执行提示词")
+    preflight_auto_repair: Optional[bool] = Field(None, description="启用 #14 时默认执行 Preflight L0/L1 修复；显式 false 可关闭")
     skip_llm_when_prompt_exists: bool = Field(False, description="已有最终视频提示词时跳过 LLM，直接提交工作流")
 
 
@@ -224,8 +225,8 @@ class GenerateVideoDirectorClipRequest(BaseModel):
 
     use_reference_audio: bool = Field(True, description="是否使用参考音频（如果存在）")
     auto_merge: bool = Field(True, description="Clip 生成成功后是否自动重新合并 Shot 视频")
-    optimize_h3_prompt: bool = Field(False, description="通过注册 #14 优化 H3 执行提示词，失败自动回退 Raw")
-    preflight_auto_repair: bool = Field(False, description="按现有策略执行 Preflight L0/L1 修复")
+    optimize_h3_prompt: bool = Field(False, description="通过注册 #14 优化 H3 执行提示词")
+    preflight_auto_repair: Optional[bool] = Field(None, description="启用 #14 时默认执行 Preflight L0/L1 修复；显式 false 可关闭")
     skip_llm_when_prompt_exists: bool = Field(False, description="已有 Clip 最终视频提示词时跳过 LLM，直接提交工作流")
     clip_plan_revision: Optional[int] = Field(None, description="语义 Clip 计划 revision")
 

@@ -314,7 +314,11 @@ def _resolve_explicit_ellipsis(text, requirement, authority, result):
         matches = []
         for m in re.finditer(re.escape(f), text):
             left = text[:m.start()].rstrip(' \t-');right = text[m.end():].lstrip(' \t')
-            left_ok = not left or left[-1] in boundary or (not label and left.endswith('并'))
+            # A temporal connector may sit between the clause boundary and a
+            # quoted action. Keep the literal action, ordered spans and actor
+            # ownership checks below; this does not accept paraphrased text.
+            left_ok = (not left or left[-1] in boundary
+                       or (not label and left.endswith(('并', '，随后', ',随后'))))
             right_ok = label or not right or right[0] in boundary
             if left_ok and right_ok:
                 matches.append({'fragment_index':i,'start':m.start(),'end':m.end(),'excerpt':m[0],'selected':False})
@@ -331,7 +335,7 @@ def _resolve_explicit_ellipsis(text, requirement, authority, result):
                 if path and path[-1]['excerpt'] in actors:
                     gap = text[path[-1]['end']:loc['start']]
                     # Do not let an actor label borrow another actor's action.
-                    if re.search(r'[;；。\n]|不|没|禁止|而非|并非|[,，:：]\s*(?:' +
+                    if re.search(r'[;；。\n]|不|没|禁止|而非|并非|[,，:：]\s*(?:随后\s*)?(?:' +
                                  '|'.join(re.escape(n) for n in actors) + ')', gap):continue
                 next_paths.append(path+[loc])
         paths = next_paths
@@ -494,7 +498,13 @@ def _resolve_anchored_canonical_citation(text, requirement, authority, result):
 def resolve_output_evidence(prompt, output, authority):
     from app.services.h3_native_prompt import sections, dialogue_events
     detail=sections(prompt).get('detailed_description', '');spoken=dialogue_events(prompt)
-    sources={s['id']:s['text'] for s in authority.get('anchor_policy', {}).get('canonical_visual_sources', [])}
+    policy=authority.get('anchor_policy') or {}
+    sources={s['id']:s['text'] for s in policy.get('canonical_visual_sources', [])}
+    # Director visual anchors are immutable authority too. A KF citation may
+    # quote its catalog description even when it is not a Transition source.
+    sources.update({a['anchor_id']:a['visual_reference_description']
+                    for a in policy.get('catalog', [])
+                    if a.get('anchor_id') not in sources and a.get('visual_reference_description')})
     entries={}
     def add(path, text, supplied, scope):
         entries[path]={**resolve_excerpt(text,supplied), 'scope':scope}

@@ -212,11 +212,8 @@ class SceneService:
                 # 获取场景生成提示词模板
                 from app.repositories import PromptTemplateRepository
                 template_repo = PromptTemplateRepository(db)
-                template = None
-                if novel and novel.scene_prompt_template_id:
-                    template = template_repo.get_by_id(novel.scene_prompt_template_id)
-                if not template:
-                    template = template_repo.get_default_system_template("scene")
+                template = template_repo.resolve_for_type(
+                    novel.scene_prompt_template_id if novel else None, "scene")
 
                 # 获取风格提示词
                 style, style_template = get_style(db, novel, "scene")

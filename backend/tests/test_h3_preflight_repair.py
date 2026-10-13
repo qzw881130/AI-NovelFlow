@@ -1,5 +1,6 @@
 import copy
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest.mock import AsyncMock
@@ -9,8 +10,131 @@ from app.services.h3_execution_optimizer import check_authority
 from app.models.novel import Novel
 from app.models.prompt_template import PromptTemplate
 F=Path(__file__).parent/'fixtures'
+C2=Path(__file__).resolve().parents[2]/'docs/performance/h3_11_14_validation'
 def fixture(name='approved_c1'):return json.loads((F/f'h3_v5_{name}.json').read_text())
 def check(f,o):return check_authority(f['raw_prompt'],o,f['authority'],f['initial'],f['limits'])
+
+
+@pytest.mark.asyncio
+async def test_c2_verified_floor_position_wording_l0_passes_full_preflight_without_llm(monkeypatch):
+ runtime=json.loads((C2/'14_RUNTIME_INPUT.json').read_text())
+ from app.utils.json_parser import safe_parse_llm_json
+ original=safe_parse_llm_json((C2/'14_LLM_RESPONSE.txt').read_text(),default=None)
+ raw=(C2/'11_RAW_PROMPT.txt').read_text()
+ assert original['optimized_prompt']==(C2/'14_CANDIDATE_PROMPT.txt').read_text()
+ assert runtime['raw_h3_prompt']==raw
+ assert runtime['execution_context']['canonical_transitions'][0]['canonical_source_id']=='transition_2'
+ assert runtime['immutable_authority']['dialogue_events']==[]
+ before_runtime=copy.deepcopy(runtime)
+ recheck=lambda candidate:check_authority(raw,candidate,runtime['immutable_authority'],
+                                           runtime['initial_execution_timing'],runtime['duration_limits'])
+ initial=recheck(original)
+ assert initial['blocking_findings']==['blocking_preservation_wording']
+ chat=AsyncMock()
+ monkeypatch.setattr(repair,'LLMService',lambda:NS(chat_completion=chat))
+ revised,audit,state=await repair.repair_output(None,None,None,original,runtime,initial,recheck)
+ assert state['resolution']=='L0_PASS' and state.get('l1_invocations',0)==0
+ assert audit['passed'] and not audit['blocking_findings'] and all(audit['checks'].values())
+ assert state['attempts'][0]['changes'][0]['code']=='VERIFIED_FLOOR_POSITION_WORDING'
+ addition=' Preserve these established floor positions.'
+ assert revised['optimized_prompt'].count(addition)==1
+ assert revised['optimized_prompt'].replace(addition,'',1)==original['optimized_prompt']
+ assert {k:v for k,v in revised.items() if k!='optimized_prompt'}=={k:v for k,v in original.items() if k!='optimized_prompt'}
+ assert runtime==before_runtime
+ assert revised['av_timeline']['optimized_duration']==8.2
+ assert set(re.findall(r'<Picture \d+>',revised['optimized_prompt']))=={'<Picture 1>','<Picture 2>','<Picture 3>'}
+ assert '<d>' not in revised['optimized_prompt']
+ chat.assert_not_called()
+
+
+def test_l0_only_restates_explicit_verified_floor_positions():
+ prompt=('subject_definitions:\n<Subject 1> is 甲.\n\nsummary:\nCurrent scene.\n\n'
+         'retention_analysis:\nContinue the current floor positions established by the incoming video.\n\n'
+         'detailed_description:\n<Subject 1> remains visible.\n\noverall_soundscape:\nQuiet.\n\nnon_diegetic_music:\nNone.')
+ output={'optimized_prompt':prompt}
+ authority={'subject_bindings':{'<Subject 1>':'甲'},'dialogue_events':[],
+            'continuation':{'binding_verified':True}}
+ fixed,changes=repair.deterministic_candidate(output,authority,['blocking_preservation_wording'])
+ assert changes[0]['code']=='VERIFIED_FLOOR_POSITION_WORDING'
+ assert fixed['optimized_prompt'].replace(' Preserve these established floor positions.','',1)==prompt
+ assert repair.deterministic_candidate(output,authority,[])[0]==output
+ unverified=copy.deepcopy(authority);unverified['continuation']['binding_verified']=False
+ assert repair.deterministic_candidate(output,unverified,['blocking_preservation_wording'])==(output,[])
+ vague={'optimized_prompt':prompt.replace('Continue the current floor positions established by the incoming video.',
+                                            'Continue the current scene.')}
+ assert repair.deterministic_candidate(vague,authority,['blocking_preservation_wording'])==(vague,[])
+
+
+@pytest.mark.asyncio
+async def test_l1_blocking_wording_only_local_insertion_and_full_recheck(monkeypatch):
+ f=fixture();output=copy.deepcopy(f['output'])
+ marker='unique blocking marker'
+ output['optimized_prompt']=output['optimized_prompt'].replace('retention_analysis:\n','retention_analysis:\n'+marker+'\n')
+ text=' Preserve established floor positions.'
+ chat=AsyncMock(return_value={'success':True,'content':json.dumps({'insertions':[{'after':marker,'text':text}]})})
+ monkeypatch.setattr(repair,'LLMService',lambda:NS(chat_completion=chat))
+ monkeypatch.setattr(repair,'resolve_prompt_template',lambda *a:NS(type=repair.TEMPLATE_TYPE,id='registered-id',name='repair',template='registered-v1'))
+ initial={'passed':False,'blocking_findings':['blocking_preservation_wording']}
+ def recheck(candidate):
+  return {'passed':True,'blocking_findings':[]} if text in candidate['optimized_prompt'] else initial
+ repaired,audit,state=await repair.repair_output(None,NS(id='n'),NS(chapter_id='c'),output,
+                                                  {'immutable_authority':f['authority']},initial,recheck)
+ assert state['resolution']=='L1_PASS' and audit['passed'] and state['l1_invocations']==1
+ assert chat.await_count==1
+ request=json.loads(chat.await_args.kwargs['user_content'])
+ assert request['failed_checks']==['blocking_preservation_wording']
+ assert request['original_optimized_output']==output
+ assert 'images' not in chat.await_args.kwargs
+ assert repaired['optimized_prompt'].replace(text,'',1)==output['optimized_prompt']
+ assert {k:v for k,v in repaired.items() if k!='optimized_prompt'}=={k:v for k,v in output.items() if k!='optimized_prompt'}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failed,section,text',[
+ ('reference_authority_scope','retention_analysis',' Identity references preserve permanent identity only.'),
+ ('speaker_switch_listener_settle','detailed_description',' All other visible characters listen naturally with relaxed closed lips and no speech-like articulation.'),
+ ('speaker_switch_listener_scope','detailed_description',' Every other visible character listens naturally with relaxed closed lips and no speech-like articulation.'),
+])
+async def test_existing_l1_repair_categories_remain_eligible(monkeypatch,failed,section,text):
+ f=fixture();output=copy.deepcopy(f['output']);marker='unique legacy repair marker'
+ output['optimized_prompt']=output['optimized_prompt'].replace(section+':\n',section+':\n'+marker+'\n')
+ chat=AsyncMock(return_value={'success':True,'content':json.dumps({'insertions':[{'after':marker,'text':text}]})})
+ monkeypatch.setattr(repair,'LLMService',lambda:NS(chat_completion=chat))
+ monkeypatch.setattr(repair,'resolve_prompt_template',lambda *a:NS(type=repair.TEMPLATE_TYPE,id='registered-id',name='repair',template='registered-v1'))
+ initial={'passed':False,'blocking_findings':[failed]}
+ recheck=lambda candidate:{'passed':True,'blocking_findings':[]} if text in candidate['optimized_prompt'] else initial
+ revised,audit,state=await repair.repair_output(None,NS(id='n'),NS(chapter_id='c'),output,
+                                                  {'immutable_authority':f['authority']},initial,recheck)
+ assert state['resolution']=='L1_PASS' and audit['passed'] and state['l1_invocations']==1
+ assert text in revised['optimized_prompt'] and chat.await_count==1
+
+
+@pytest.mark.asyncio
+async def test_l1_new_authority_conflict_still_fails(monkeypatch):
+ f=fixture();output=copy.deepcopy(f['output']);marker='unique blocking marker'
+ output['optimized_prompt']=output['optimized_prompt'].replace('retention_analysis:\n','retention_analysis:\n'+marker+'\n')
+ text=' Preserve established floor positions. PHASE'
+ chat=AsyncMock(return_value={'success':True,'content':json.dumps({'insertions':[{'after':marker,'text':text}]})})
+ monkeypatch.setattr(repair,'LLMService',lambda:NS(chat_completion=chat))
+ monkeypatch.setattr(repair,'resolve_prompt_template',lambda *a:NS(type=repair.TEMPLATE_TYPE,id='registered-id',name='repair',template='registered-v1'))
+ initial={'passed':False,'blocking_findings':['blocking_preservation_wording']}
+ def recheck(candidate):
+  return {'passed':False,'blocking_findings':['no_internal_execution_dsl']} if text in candidate['optimized_prompt'] else initial
+ repaired,audit,state=await repair.repair_output(None,NS(id='n'),NS(chapter_id='c'),output,
+                                                  {'immutable_authority':f['authority']},initial,recheck)
+ assert state['resolution']=='L1_FAILED_PREFLIGHT' and not audit['passed']
+ assert audit['blocking_findings']==initial['blocking_findings'] and repaired==output
+ assert state['attempts'][-1]['preflight']['blocking_findings']==['no_internal_execution_dsl']
+ assert chat.await_count==1
+
+
+@pytest.mark.asyncio
+async def test_preflight_passed_output_is_never_repaired(monkeypatch):
+ f=fixture();output=copy.deepcopy(f['output']);audit=check(f,output)
+ chat=AsyncMock();monkeypatch.setattr(repair,'LLMService',lambda:NS(chat_completion=chat))
+ revised,final,state=await repair.repair_output(None,None,None,output,{'immutable_authority':f['authority']},audit,lambda _:audit)
+ assert state['resolution']=='ALREADY_PASS' and revised==output and final==audit
+ chat.assert_not_called()
 
 @pytest.mark.parametrize('name',['approved_c1','c2_repeated_provenance','c3_fragment_provenance','c6_opening_authority'])
 def test_saved_approved_outputs_unchanged(name):

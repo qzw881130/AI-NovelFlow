@@ -180,7 +180,7 @@ def _project_semantic_clip_transitions(
     clip_start=None,
     clip_end=None,
 ) -> list:
-    """Project owned transitions, or an unowned carry-in transition's time slice."""
+    """Project canonical actions by Clip ownership and positive time overlap."""
     owned_indexes = []
     for raw_index in visual_state_indexes or []:
         try:
@@ -196,6 +196,9 @@ def _project_semantic_clip_transitions(
         carry_in = None
     if owned_indexes and carry_in is not None and carry_in > 0 and carry_in != owned_indexes[0]:
         allowed_pairs.add((carry_in, owned_indexes[0]))
+    clip_first = _to_float_or_none(clip_start)
+    clip_last = _to_float_or_none(clip_end)
+    has_clip_interval = clip_first is not None and clip_last is not None and clip_last > clip_first
 
     projected = []
     for transition in transitions or []:
@@ -208,38 +211,58 @@ def _project_semantic_clip_transitions(
             )
         except (TypeError, ValueError):
             continue
-        if endpoints in allowed_pairs:
-            projected.append(transition)
-        elif not owned_indexes and carry_in is not None and endpoints[0] == carry_in:
-            # A no-owned-state EXTEND Clip can continue an already-started
-            # canonical transition. Planned seconds locate the overlap only;
-            # they cannot establish which gestures the actual Previous AV did.
-            start = _to_float_or_none(transition.get("start_time"))
-            end = _to_float_or_none(transition.get("end_time"))
-            clip_first = _to_float_or_none(clip_start)
-            clip_last = _to_float_or_none(clip_end)
-            if (start is None or end is None or clip_first is None or clip_last is None
-                    or end <= start or clip_last <= clip_first):
-                continue
-            overlap_first, overlap_last = max(start, clip_first), min(end, clip_last)
-            if overlap_last <= overlap_first:
-                continue
-            segment = transition.get("segment_index")
-            projected.append({
-                **transition,
-                "canonical_source_id": f"transition_{segment}" if segment is not None else None,
-                "projection_mode": "CROSS_CLIP_CONTINUATION",
-                "clip_local_start_time": round(overlap_first - clip_first, 6),
-                "clip_local_end_time": round(overlap_last - clip_first, 6),
-                "target_state_owned": False,
-                "action_progress": "UNVERIFIED_FROM_PREVIOUS_VIDEO",
-                "execution_scope": (
-                    "Continue only unfinished actions from the actual Previous AV ending; "
-                    "do not replay completed gestures or infer progress from planned seconds. "
-                    "Advance toward the canonical target without claiming arrival at an "
-                    "unowned endpoint or inventing a new event."
-                ),
-            })
+        owned_pair = endpoints in allowed_pairs
+        unowned_carry = not owned_indexes and carry_in is not None and endpoints[0] == carry_in
+        outgoing_boundary = bool(owned_indexes) and endpoints[0] == owned_indexes[-1] and endpoints[1] not in owned_indexes
+        if not (owned_pair or unowned_carry or outgoing_boundary):
+            continue
+        if not has_clip_interval:
+            if owned_pair:
+                projected.append(transition)
+            continue
+
+        start = _to_float_or_none(transition.get("start_time"))
+        end = _to_float_or_none(transition.get("end_time"))
+        if start is None or end is None or end <= start:
+            if owned_pair:
+                projected.append(transition)  # Preserve legacy untimed authority.
+            continue
+        overlap_first, overlap_last = max(start, clip_first), min(end, clip_last)
+        if overlap_last <= overlap_first:
+            continue
+        target_owned = endpoints[1] in owned_indexes
+        segment = transition.get("segment_index")
+        scope = {
+            **transition,  # Keep the original Shot times and authoritative description.
+            "canonical_source_id": f"transition_{segment}" if segment is not None else None,
+            "clip_local_start_time": round(overlap_first - clip_first, 6),
+            "clip_local_end_time": round(overlap_last - clip_first, 6),
+            "target_state_owned": target_owned,
+            "action_progress": "UNVERIFIED_FROM_PREVIOUS_VIDEO" if start < clip_first else "CANONICAL_START",
+        }
+        if outgoing_boundary:
+            scope["projection_mode"] = "CROSS_CLIP_OPENING"
+            scope["execution_scope"] = (
+                "Only the opening slice of this original transition overlaps this Clip. "
+                "Show only its initial progression; do not perform later actions or claim "
+                "arrival at the unowned target state. The full source remains Shot authority "
+                "for the following Clip."
+            )
+        elif unowned_carry or start < clip_first:
+            scope["projection_mode"] = "CROSS_CLIP_CONTINUATION"
+            scope["execution_scope"] = (
+                "Continue only unfinished actions from the actual Previous AV ending; "
+                "do not replay completed gestures or infer progress from planned seconds. "
+                "Advance toward the canonical target without claiming arrival at an "
+                "unowned endpoint or inventing a new event."
+                if not target_owned else
+                "Continue only unfinished actions from the actual Previous AV ending; "
+                "do not replay completed gestures or infer progress from planned seconds. "
+                "Reach the owned target only within this Clip's projected interval."
+            )
+        else:
+            scope["projection_mode"] = "CLIP_INTERSECTION"
+        projected.append(scope)
     return projected
 
 
@@ -891,18 +914,24 @@ async def _apply_h3_execution_optimizer(db, task, novel, shot, raw_prompt, mode,
         mode = "FIRST_LAST_FRAME" if len(states) == 2 and roles == {"START", "END"} else "MULTI_KEYFRAME" if len(states) > 1 else "SINGLE_FRAME"
     clip_start = float(clip.get("start_time") or 0)
     clip_end = float(clip.get("end_time") or clip.get("planned_duration") or shot.duration or 4)
-    owned_states = {int(index) for index in clip.get("visual_state_indexes") or []}
-    context["canonical_transitions"] = [
-        {**item,
-         "canonical_source_id": f"transition_{item['segment_index']}" if item.get("segment_index") is not None else None,
-         "clip_local_start_time": round(max(float(item["start_time"]), clip_start) - clip_start, 6),
-         "clip_local_end_time": round(min(float(item["end_time"]), clip_end) - clip_start, 6),
-         "target_state_owned": int(item.get("to_keyframe_index") or 0) in owned_states,
-         "action_progress": "UNVERIFIED_FROM_PREVIOUS_VIDEO" if context.get("previous_clip") else "CANONICAL_START"}
-        for item in plan.get("transitions") or []
-        if item.get("start_time") is not None and item.get("end_time") is not None
-        and float(item["end_time"]) > clip_start and float(item["start_time"]) < clip_end
-    ]
+    if "visual_state_indexes" in clip or clip.get("carry_in_state_index") is not None:
+        context["canonical_transitions"] = _project_semantic_clip_transitions(
+            plan.get("transitions") or [], clip.get("visual_state_indexes") or [],
+            clip.get("carry_in_state_index"), clip_start=clip_start, clip_end=clip_end,
+        )
+    else:
+        # Legacy non-semantic clips have no ownership map; keep their old time view.
+        context["canonical_transitions"] = [
+            {**item,
+             "canonical_source_id": f"transition_{item['segment_index']}" if item.get("segment_index") is not None else None,
+             "clip_local_start_time": round(max(float(item["start_time"]), clip_start) - clip_start, 6),
+             "clip_local_end_time": round(min(float(item["end_time"]), clip_end) - clip_start, 6),
+             "target_state_owned": False,
+             "action_progress": "UNVERIFIED_FROM_PREVIOUS_VIDEO" if context.get("previous_clip") else "CANONICAL_START"}
+            for item in plan.get("transitions") or []
+            if item.get("start_time") is not None and item.get("end_time") is not None
+            and float(item["end_time"]) > clip_start and float(item["start_time"]) < clip_end
+        ]
     context["continuity_to_previous"] = clip.get("continuity_to_previous")
     context["duration_limits"] = workflow_duration_limits(safe_json_dict(workflow.extension) if workflow else {}, metadata.get("capability") or mode)
     context["capability"] = metadata.get("capability") or mode
@@ -918,8 +947,15 @@ async def _apply_h3_execution_optimizer(db, task, novel, shot, raw_prompt, mode,
     context["canonical_visual_sources"] = [
         {"id": "opening_state", "text": (getattr(shot, "description", None)
             if float(clip.get("start_time") or 0) == 0 else None) or raw_prompt},
-        *[{"id": item.get("canonical_source_id") or f"transition_{i}", "text": item["transition_description"]}
-          for i, item in enumerate(context["canonical_transitions"], 1) if item.get("transition_description")],
+        *[{
+            "id": item.get("canonical_source_id") or f"transition_{i}",
+            "text": item["transition_description"],
+            **({"clip_scope": {
+                "clip_local_start_time": item["clip_local_start_time"],
+                "clip_local_end_time": item["clip_local_end_time"],
+                "execution_scope": item["execution_scope"],
+            }} if item.get("execution_scope") else {}),
+        } for i, item in enumerate(context["canonical_transitions"], 1) if item.get("transition_description")],
     ]
     reuse_record = None
     if metadata.get("skip_llm_when_prompt_exists"):
@@ -1304,14 +1340,9 @@ async def generate_shot_video_task(
                     prop_appearances[prop_name] = prop.appearance
 
         # 获取风格设置（从 PromptTemplate 中获取）
-        style = ""
-        if novel.style_prompt_template_id:
-            from app.models.prompt_template import PromptTemplate
-            template = db.query(PromptTemplate).filter(
-                PromptTemplate.id == novel.style_prompt_template_id
-            ).first()
-            if template:
-                style = template.template or ""
+        from app.services.novel_prompt_templates import resolve_novel_prompt_template
+        style_template = resolve_novel_prompt_template(db, novel, "style")
+        style = (style_template.template or "") if style_template else ""
 
         print(f"[VideoTask {task_id}] Style: {style}")
         print(f"[VideoTask {task_id}] Characters: {character_appearances}")
@@ -2679,6 +2710,7 @@ async def _enqueue_next_clip_if_needed(db, completed_task, shot, novel, clip_met
         "planned_duration": next_clip.get("planned_duration"),
         "requested_duration": next_clip.get("planned_duration"),
         "optimize_h3_prompt": safe_json_dict(completed_task.metadata_json).get("optimize_h3_prompt", False),
+        "preflight_auto_repair": safe_json_dict(completed_task.metadata_json).get("preflight_auto_repair", False),
         "previous_approved_task_id": completed_task.id,
         "previous_approved_video_url": (
             safe_json_dict(completed_task.metadata_json).get("assembled_result", {}).get("url")

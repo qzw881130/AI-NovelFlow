@@ -26,6 +26,13 @@ Duration planning policy (new plans only):
 - Do not split a complete utterance. Preserve canonical words, speaker, order and
   fixed utterance durations. Use `speech_timing_intervals` to choose speech gaps;
   soft attention concerns are not independent reasons to fragment the story.
+- Never divide a narratively finished, unchanged tail into repeated EXTEND Clips
+  merely to cover the supplied Shot duration. Silent action is valid when it adds
+  visible story information. If the canonical end time still demands only repeated
+  holding, breathing, gazes, walking, or camera drift after the outcome is clear,
+  return `{"duration_replan_required": "brief concrete upstream reason"}` instead
+  of a padded Clip plan. The Shot/#08 timeline must be corrected upstream; do not
+  change its duration, dialogue, states or transitions here.
 - Execution budgets are application-supplied workflow facts, not mode choices for
   you to invent. Classify continuity from canonical visual dependency as below.
   Only a route whose actual workflow mode is VIDEO_CONTINUATION has the supplied

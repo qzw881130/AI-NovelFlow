@@ -44,17 +44,19 @@ class PromptTemplateRepository:
         ).first()
     
     def get_default_system_template(self, template_type: str = "character") -> Optional[PromptTemplate]:
-        """获取默认的系统模板（按创建时间最早的）"""
+        """获取同类型、已启用的系统模板；相同创建时间按 ID 稳定排序。"""
         return self.db.query(PromptTemplate).filter(
             PromptTemplate.is_system == True,
-            PromptTemplate.type == template_type
-        ).order_by(PromptTemplate.created_at.asc()).first()
-    
-    def get_first_system_template(self) -> Optional[PromptTemplate]:
-        """获取第一个系统模板（不区分类型）"""
-        return self.db.query(PromptTemplate).filter(
-            PromptTemplate.is_system == True
-        ).order_by(PromptTemplate.created_at.asc()).first()
+            PromptTemplate.type == template_type,
+            PromptTemplate.is_active == True,
+        ).order_by(PromptTemplate.created_at.asc(), PromptTemplate.id.asc()).first()
+
+    def resolve_for_type(self, selected_id: Optional[str], template_type: str) -> Optional[PromptTemplate]:
+        """小说选择优先；失效选择仅回退到同类型的启用系统模板。"""
+        selected = self.get_by_id(selected_id) if selected_id else None
+        if selected and selected.type == template_type and selected.is_active:
+            return selected
+        return self.get_default_system_template(template_type)
     
     def create(self, template: PromptTemplate) -> PromptTemplate:
         """创建模板"""

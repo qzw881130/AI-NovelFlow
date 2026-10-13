@@ -202,6 +202,7 @@ export default function NotificationConfig() {
       </summary>
       <div className="space-y-3 border-t border-gray-100 px-4 pb-4 pt-3">
         <p className="text-sm text-gray-500">仅开发环境中通过 NovelFlow 页面可用，支持已开放访问的局域网设备。消息会标注“开发模拟事件”，不会修改真实 Shot、Clip 或任务状态。</p>
+        <p className="text-sm text-gray-500">验证重复失败通知时，依次选择“Clip 提示词构建失败”和“Clip 生成失败”，填写相同的模拟 task_id、shot_index 与 clip_index；请勿填写真实 Task ID。前一条会等待最终失败事件，只向外部通道发送最终消息。</p>
         <select aria-label="模拟事件" className={inputClass} value={testEventCode} onChange={e => setTestEventCode(e.target.value)}>{config.events.map(event => <option key={event.event_code} value={event.event_code}>{event.name} · {event.event_code}</option>)}</select>
         <label className="block text-sm text-gray-700">Payload（JSON 对象）<textarea className={`${inputClass} mt-1 font-mono`} rows={3} value={testPayload} onChange={e => setTestPayload(e.target.value)} /></label>
         <div className="flex flex-wrap items-center justify-between gap-3"><span className="min-w-0 break-all text-xs text-gray-500" role="status">{testResult}</span><button type="button" disabled={disabled} className="btn-secondary gap-2" onClick={() => void simulateEvent()}><Send className="h-4 w-4" />发送模拟事件</button></div>

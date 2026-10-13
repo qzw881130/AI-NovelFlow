@@ -1,7 +1,8 @@
 """Bounded repair of #14 output using the existing authority check, never Canonical.
 
-Original JSON is immutable. L0 uses explicit bindings; L1 only adds short missing
-reference/listener prose. Timing, dialogue, camera plans and workflow stay frozen.
+Original JSON is immutable. L0 uses explicit bindings and verified continuity;
+L1 only adds short missing reference/listener/blocking prose. Timing, dialogue,
+camera plans and workflow stay frozen.
 """
 import copy
 import difflib
@@ -16,7 +17,8 @@ from app.services.llm.cancellation import LLMCallTerminated
 from app.utils.json_parser import safe_parse_llm_json
 
 TEMPLATE_TYPE = 'h3_preflight_repair_prompt'
-L1_CHECKS = {'reference_authority_scope', 'speaker_switch_listener_settle', 'speaker_switch_listener_scope'}
+L1_CHECKS = {'reference_authority_scope', 'speaker_switch_listener_settle',
+             'speaker_switch_listener_scope', 'blocking_preservation_wording'}
 
 
 def _one_edit(a, b):
@@ -30,7 +32,7 @@ def _one_edit(a, b):
     return any(long[:i]+long[i+1:] == short for i in range(len(long)))
 
 
-def deterministic_candidate(output, authority):
+def deterministic_candidate(output, authority, failed_checks=None):
     candidate = copy.deepcopy(output)
     prompt = candidate['optimized_prompt']
     bindings = authority['subject_bindings']
@@ -60,6 +62,24 @@ def deterministic_candidate(output, authority):
     expanded = re.sub(r'<Picture (\d+)>\s+(?:through|to)\s+<Picture (\d+)>', expand_range, retention, flags=re.I)
     if expanded != retention:
         prompt = prompt.replace(retention, expanded, 1)
+    # The candidate already attributes its current floor positions to verified
+    # incoming AV. Add only the missing preservation wording after that sentence;
+    # keep its original bytes intact for canonical evidence excerpts.
+    if ('blocking_preservation_wording' in (failed_checks or ())
+            and (authority.get('continuation') or {}).get('binding_verified') is True
+            and bindings and all(subject in prompt for subject in bindings)):
+        first_sentence = sections(prompt).get('retention_analysis', '').split('.', 1)[0]
+        if (re.match(r'^Continue (?:the )?(?:exact )?current\b', first_sentence, re.I)
+                and re.search(r'\bfloor positions?\b.{0,100}\bestablished by (?:the )?'
+                              r'(?:incoming|previous|preceding) (?:video|footage)\b', first_sentence, re.I)
+                and not re.search(r'\b(?:not|new|changed|different|relocated|swapped)\b', first_sentence, re.I)):
+            marker = 'retention_analysis:\n' + first_sentence + '.'
+            addition = ' Preserve these established floor positions.'
+            if prompt.count(marker) == 1:
+                revised = prompt.replace(marker, marker + addition, 1)
+                changes.append({'code':'VERIFIED_FLOOR_POSITION_WORDING',
+                                'after':first_sentence + '.', 'text':addition})
+                prompt = revised
     def name(match):
         subject, actual = match[2], match[3].strip()
         expected = bindings.get(subject)
@@ -102,8 +122,9 @@ def patch_budget(failed, authority):
     switches = sum(a['speaker'] != b['speaker'] for a,b in zip(events, events[1:]))
     listeners = switches if failed & {'speaker_switch_listener_settle', 'speaker_switch_listener_scope'} else 0
     reference = int('reference_authority_scope' in failed)
-    return {'max_insertions': max(1, listeners + reference),
-            'max_added_characters': min(2400, 600 * reference + 220 * listeners) or 600}
+    blocking = int('blocking_preservation_wording' in failed)
+    return {'max_insertions': max(1, listeners + reference + blocking),
+            'max_added_characters': min(2400, 600 * reference + 220 * listeners + 220 * blocking) or 600}
 
 
 def apply_insertions(original, response, failed, authority=None):
@@ -115,8 +136,11 @@ def apply_insertions(original, response, failed, authority=None):
     if not isinstance(edits,list) or not 1 <= len(edits) <= budget['max_insertions']:
         raise ValueError('REPAIR_PATCH_LIMIT')
     prompt=original['optimized_prompt'];parts=sections(prompt)
-    allowed={'retention_analysis'} if failed == {'reference_authority_scope'} else {'detailed_description'}
-    if 'reference_authority_scope' in failed:allowed.add('retention_analysis')
+    allowed=set()
+    if failed & {'reference_authority_scope', 'blocking_preservation_wording'}:
+        allowed.add('retention_analysis')
+    if failed & {'speaker_switch_listener_settle', 'speaker_switch_listener_scope'}:
+        allowed.add('detailed_description')
     total=0;offsets=[]
     for edit in edits:
         if not isinstance(edit,dict) or set(edit) != {'after','text'}:
@@ -128,6 +152,10 @@ def apply_insertions(original, response, failed, authority=None):
         # durations, new speaker declarations, cuts or body translations may be added.
         if not any(after in parts.get(section,'') for section in allowed):
             raise ValueError('REPAIR_SECTION_NOT_ALLOWED')
+        if failed == {'blocking_preservation_wording'} and not re.search(
+                r'\b(?:preserv\w*|maintain\w*|retain\w*|remain\w*)\b.{0,100}'
+                r'\b(?:floor positions?|blocking)\b', text, re.I):
+            raise ValueError('REPAIR_BLOCKING_WORDING_REQUIRED')
         protected_text = re.sub(r'<Subject \d+>|<Picture \d+>', '', text)
         for canonical_name in (authority or {}).get('subject_bindings', {}).values():
             # Digits in a known character name (e.g. 骗子1) are identity, not timing.
@@ -154,7 +182,11 @@ async def repair_output(db,novel,shot,output,runtime,audit,check,*,state=None,pe
     saved_input_matches = state.get('original_output') == original
     state.setdefault('original_output',original)
     state.setdefault('attempts',[])
-    candidate,changes=deterministic_candidate(output,runtime['immutable_authority'])
+    if audit.get('passed'):
+        state.update(resolution='ALREADY_PASS',final_preflight=audit,final_output=output)
+        if persist:persist(state)
+        return output,audit,state
+    candidate,changes=deterministic_candidate(output,runtime['immutable_authority'],audit.get('blocking_findings'))
     if changes:
         next_audit=check(candidate)
         before=set(audit['blocking_findings']);after=set(next_audit['blocking_findings'])

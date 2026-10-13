@@ -329,13 +329,8 @@ async def get_character_prompt(
     novel = novel_repo.get_by_id(character.novel_id)
 
     # 获取提示词模板
-    template = None
-    if novel and novel.prompt_template_id:
-        template = prompt_template_repo.get_by_id(novel.prompt_template_id)
-
-    # 如果没有指定模板，使用默认系统模板
-    if not template:
-        template = prompt_template_repo.get_first_system_template()
+    template = prompt_template_repo.resolve_for_type(
+        novel.prompt_template_id if novel else None, "character")
 
     # 获取风格提示词
     style, style_template = get_style(db, novel, "character")

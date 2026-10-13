@@ -2,7 +2,9 @@
 
 任务：根据 Shot 的叙事、动作、构图变化和有意义的视觉节拍，为整个 Shot 规划 canonical visual states。你决定需要多少状态；不得规划执行 Clip、physical workflow、GENERATE/EXTEND/TEMPORAL_EXTEND capability、Previous AV 或物理参考槽。
 
-只返回 JSON Object，顶层字段为 `keyframes` 与 `visual_attention`。不要输出任何 legacy mode、execution window、frame-count、workflow routing 或物理执行字段。程序会单独规划 semantic Clips 和物理执行。
+只返回 JSON Object，顶层字段为 `shot_duration`、`keyframes` 与 `visual_attention`。不要输出任何 legacy mode、execution window、frame-count、workflow routing 或物理执行字段。程序会单独规划 semantic Clips 和物理执行。
+
+`shot.duration` 是 #05 的时长估计。先根据完整对白、必要的无台词动作/反应、环境交代、悬念与最终可见结果核对自然结束点。若原估计过长且没有硬性时间约束，将 `shot_duration` 设为更短的整数秒；否则保持原值。不得短于任何正式对白的结束时间，不得增加剧情或台词来填满原估计。已完成状态后的呼吸、凝视、重复动作和极慢运镜不提供新的时长依据。缩短时必须把全部 visual states、END 和 visual_attention 窗口规划在新的 `shot_duration` 内，并输出位于新终点的 END；不要只改数字或只移动 Clip 边界。`duration_policy.can_shorten=false` 时必须保持原时长。
 
 【Visual Attention Authority V1 — #08唯一owner】
 在静态 keyframes 之外，输出 Shot 时间窗口的视觉叙事关注意图，不把窗口塞进 keyframe.description：
@@ -30,11 +32,11 @@ keyframes 是按时间排序的数组，每项：
 
 规划规则：
 - 只选择有意义、能用一张静态图片表达的视觉状态；不得为了目标数量补帧，不得强制 3 或 4 帧。
-- Shot duration 是规划上下文，不是把时长换算为 keyframe 数量的公式。
-- 至少输出一个状态；index 唯一；time_seconds 必须严格递增并处于 0 到 Shot duration 之间。
+- `shot_duration` 是本次完整 Shot 的有效时长，不能超过输入的 `shot.duration`。
+- 至少输出一个状态；index 唯一；time_seconds 必须严格递增并处于 0 到 `shot_duration` 之间。
 - 恰好一个 START，且它必须是首个状态、time_seconds=0、role="START"、description=null、timed_visual_target=false。不得重写 shot.description；START 的视觉内容由 Shot 主图/Shot 描述提供。
 - START `timed_visual_target` 必须为 false；输出 true 会导致整份 #08 结果被拒绝。
-- END 可选。仅当 Shot 确有有意义的最终可见状态时输出；若输出，必须是最后一个状态，role="END"、time_seconds=shot.duration，description 只描述 Shot 结束时真正可见、已到达的静态最终状态：最终姿态、表情、位置、视线、道具状态和环境状态。END = final visible state，不是 final narrative event + visible state；不得用“听完……”“说完……”“回答后……”“交流结束后……”“对话结束后……”或等价叙事完成事件修饰最终状态。不得仅因传统首尾帧模式而制造 END，也不得因为最后一句对白属于某角色，就让 END 自动围绕最后说话者构图。
+- END 在保持原时长时可选；缩短 Shot 时必须输出。若输出，必须是最后一个状态，role="END"、time_seconds=shot_duration，description 只描述 Shot 结束时真正可见、已到达的静态最终状态：最终姿态、表情、位置、视线、道具状态和环境状态。END = final visible state，不是 final narrative event + visible state；不得用“听完……”“说完……”“回答后……”“交流结束后……”“对话结束后……”或等价叙事完成事件修饰最终状态。不得仅因传统首尾帧模式而制造 END，也不得因为最后一句对白属于某角色，就让 END 自动围绕最后说话者构图。
 - 其他状态 role="INTERMEDIATE"；描述的是该时间点已经到达并稳定的静态视觉状态，不写连续过程，不提前呈现未来结果。
 - Visual State 必须优先对应真正可见的叙事变化。人物位置、动作结果、构图、视线、姿态、物体状态和环境状态等真实视觉变化，优先于 dialogue/speaker 变化。
 - Visual State 是静态视觉状态，不是说话状态。speaker change 或 dialogue boundary 本身不是 visual anchor；不得仅因某人开始、继续或结束某句台词就机械新建状态。若该时刻同时存在独立可见变化，可建立状态，但依据必须是视觉变化。

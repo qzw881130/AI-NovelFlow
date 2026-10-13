@@ -3,13 +3,14 @@ import asyncio
 import json
 from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, patch
+import pytest
 from sqlalchemy.orm import sessionmaker
 
 from app.models.prompt_template import PromptTemplate
 from app.models.novel import Novel
 from app.models.task import Task
 from app.models.system_config import SystemConfig
-from app.services.image_quality_review import DIMENSIONS, build_review_input, create_image_review, normalize_review_response, review_image_task
+from app.services.image_quality_review import DIMENSIONS, build_review_input, create_image_review, current_image_reviews, normalize_review_response, review_image_task
 from app.services.prompt_template_service import PromptTemplateService
 
 
@@ -100,9 +101,75 @@ def test_novel_default_review_ignores_global_custom_version(db_session):
 
 def test_uncertain_identity_is_warning():
     result = normalize_review_response(_response(visibility="OCCLUDED"))
-    assert result["overall"] == "WARNING"
+    assert result["overall"] == "PASS"
     assert result["dimensions"]["CHARACTER_IDENTITY"]["status"] == "WARNING"
+    assert result["dimensions"]["CHARACTER_IDENTITY"]["original_status"] == "FAIL"
     assert result["issues"][0]["severity"] == "WARNING"
+    assert result["issues"][0]["original_severity"] == "FAIL"
+
+
+def _dimension_response(name, *, status="FAIL", severity="FAIL"):
+    return json.dumps({"overall": "FAIL", "summary": f"{name} 需要处理",
+        "dimensions": {key: {"status": status if key == name else "PASS", "summary": "原始模型判断"}
+                       for key in DIMENSIONS},
+        "issues": [{"type": name, "severity": severity, "expected": "预期", "observed": "实际",
+                    "location": "画面中央", "evidence": "可见直接证据", "suggestion": "改进建议",
+                    "visibility": "OBSERVED"}]}, ensure_ascii=False)
+
+
+@pytest.mark.parametrize("name", ["CHARACTER_IDENTITY", "CHARACTER_COUNT", "HUMAN_ANATOMY"])
+def test_core_dimension_fail_still_fails_overall(name):
+    result = normalize_review_response(_dimension_response(name))
+    assert result["overall"] == "FAIL"
+    assert result["dimensions"][name]["status"] == "FAIL"
+    assert result["issues"][0]["severity"] == "FAIL"
+
+
+@pytest.mark.parametrize("name", ["ACTION_ACCURACY", "PROP_ACCURACY", "SCENE_CONSISTENCY"])
+def test_noncore_fail_is_warning_with_original_judgment_and_description(name):
+    result = normalize_review_response(_dimension_response(name))
+    assert result["overall"] == "PASS"
+    assert result["dimensions"][name] == {"status": "WARNING", "original_status": "FAIL",
+                                          "summary": "原始模型判断"}
+    assert result["issues"][0]["severity"] == "WARNING"
+    assert result["issues"][0]["original_severity"] == "FAIL"
+    assert result["issues"][0]["observed"] == "实际"
+    assert result["issues"][0]["suggestion"] == "改进建议"
+
+
+def test_noncore_warning_never_masks_simultaneous_core_failure():
+    data = json.loads(_dimension_response("CHARACTER_COUNT"))
+    data["dimensions"]["ACTION_ACCURACY"]["status"] = "FAIL"
+    data["issues"].append({**data["issues"][0], "type": "ACTION_ACCURACY"})
+    result = normalize_review_response(json.dumps(data, ensure_ascii=False))
+    assert result["overall"] == "FAIL"
+    assert result["dimensions"]["CHARACTER_COUNT"]["status"] == "FAIL"
+    assert result["dimensions"]["ACTION_ACCURACY"]["status"] == "WARNING"
+
+
+def test_noncore_review_keeps_raw_llm_result_and_generated_image(db_session):
+    task = _task(db_session)
+    db_session.add(PromptTemplate(id="system-review", name="AI 图片质量评审", type="image_quality_review_prompt",
+                                  template="系统版本", is_system=True, is_active=True))
+    db_session.commit()
+    original = _dimension_response("ACTION_ACCURACY")
+
+    class FakeLLM:
+        provider, model = "test", "vision-test"
+
+        async def chat_completion(self, **kwargs):
+            return {"success": True, "content": original, "log_id": None}
+
+    with patch("app.services.image_quality_review.vision_proxy", side_effect=lambda url, **kw: {**kw, "url": url}), \
+         patch("app.services.image_quality_review.LLMService", FakeLLM):
+        review = asyncio.run(review_image_task(db_session, task.id))
+    db_session.refresh(task)
+    assert review.status == "success" and review.overall == "PASS"
+    assert review.raw_response == original
+    assert json.loads(review.dimensions_json)["ACTION_ACCURACY"]["status"] == "WARNING"
+    assert json.loads(review.issues_json)[0]["suggestion"] == "改进建议"
+    assert current_image_reviews(db_session, [{"taskId": task.id, "imageUrl": task.result_url}])[0]["qualityStatus"] == "PASS"
+    assert task.status == "completed" and task.result_url == "/api/files/generated.png"
 
 
 def test_all_clear_result_is_pass():

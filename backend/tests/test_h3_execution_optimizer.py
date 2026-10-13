@@ -88,6 +88,42 @@ def test_vision_capability_explicit(runtime):
  body={'messages':[{'role':'user','content':'u'}]}
  assert len(capture_image_inputs(attach_image_inputs(body,'deepseek',runtime[1]))[1])==2
 
+@pytest.mark.asyncio
+async def test_llm_input_omits_only_duplicate_sources_and_keeps_saved_runtime(monkeypatch, runtime):
+ import copy
+ sample=copy.deepcopy(runtime[0]);images=runtime[1]
+ sources=[{'id':'opening_state','text':RAW},
+          {'id':'transition_2','text':'<Subject 1> and <Subject 2> continue the assigned action.'}]
+ built,_=opt.build_runtime_input(
+  'duration: 4s\n<Subject 1> is 皇帝.','SINGLE_FRAME',{'planned_duration':4},
+  execution_context={'anchor_policy_version':1,'canonical_visual_sources':copy.deepcopy(sources)})
+ assert built['immutable_authority']['anchor_policy']['canonical_visual_sources']==built['execution_context']['canonical_visual_sources']==sources
+ sample['immutable_authority']['anchor_policy']={'canonical_visual_sources':copy.deepcopy(sources)}
+ sample['execution_context']={'canonical_visual_sources':copy.deepcopy(sources),
+                              'canonical_transitions':[{'canonical_source_id':'transition_2',
+                                                        'transition_description':sources[1]['text']}],
+                              'continuation':{'context_frames':39}}
+ before=copy.deepcopy(sample)
+ template='unchanged #14 system prompt'
+ monkeypatch.setattr(opt,'resolve_prompt_template',lambda *a:NS(type=opt.TEMPLATE_TYPE,id='14',name='registered',template=template))
+ monkeypatch.setattr(opt,'build_runtime_input',lambda *a:(sample,images))
+ monkeypatch.setattr(opt,'append_video_ai_call',lambda *a:None)
+ chat=AsyncMock(return_value={'success':False,'error':'offline fixture','log_id':'offline-log'})
+ monkeypatch.setattr(opt,'LLMService',lambda:NS(chat_completion=chat))
+ _,record=await opt.optimize_h3_execution_prompt(
+  Mock(),NS(id='novel'),NS(index=6,chapter_id='chapter'),RAW,'MULTI_KEYFRAME',
+  {'clip_index':2,'planned_duration':4})
+ sent=chat.call_args.kwargs
+ expected=copy.deepcopy(before);expected['execution_context'].pop('canonical_visual_sources')
+ assert sent['system_prompt']==template and json.loads(sent['user_content'])==expected
+ assert sent['images'] is images and record['image_count']==len(images)
+ assert record['runtime_input']==before and sample==before
+ assert record['runtime_input']['immutable_authority']['anchor_policy']['canonical_visual_sources']==sources
+ assert record['runtime_input']['execution_context']['canonical_transitions']==before['execution_context']['canonical_transitions']
+ mismatch=copy.deepcopy(before)
+ mismatch['execution_context']['canonical_visual_sources'][0]['text']='different source'
+ assert opt.llm_input_view(mismatch) is mismatch
+
 def valid_output(runtime, prompt=NATIVE):
  initial=runtime[0]['initial_execution_timing'];duration=initial['duration']
  phases=[{'id':a,'type':b,'start':float(c),'end':float(d),'description':e} for a,b,c,d,e in opt.re.findall(r'(?m)^PHASE ([\w-]+) — ([A-Z_]+) — ([\d.]+)s–([\d.]+)s: (.+)$',RAW)]
@@ -397,7 +433,9 @@ async def test_worker_preserves_original_canonical_transition_id_and_local_scope
   Mock(),task,None,shot,RAW,'SINGLE_FRAME',clip,previous_video_path='/previous.mp4',
   execution_context={'previous_clip':{'generated_by_task_id':'c1'}})=='optimized'
  context=invoke.call_args.kwargs['execution_context']
- assert context['canonical_visual_sources'][-1]=={'id':'transition_2','text':source['transition_description']}
+ visual_source=context['canonical_visual_sources'][-1]
+ assert (visual_source['id'],visual_source['text'])==('transition_2',source['transition_description'])
+ assert visual_source['clip_scope']['clip_local_end_time']==8.2
  projected=context['canonical_transitions'][0]
  assert (projected['clip_local_start_time'],projected['clip_local_end_time'])==(0.0,8.2)
  assert projected['target_state_owned'] is False

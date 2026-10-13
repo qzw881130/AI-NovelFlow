@@ -247,6 +247,7 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
   const [tasks, setTasks] = useState<Task[]>([]);
   const [savingReferences, setSavingReferences] = useState(false);
   const [loading, setLoading] = useState(false);
+  const loadedTasksKeyRef = useRef('');
   const clips = Array.isArray(plan.clip_plan) ? [...plan.clip_plan].sort((a, b) => Number(a.clip_index) - Number(b.clip_index)) : [];
   const revision = Number(plan.clip_plan_revision || 0);
   const shotStatus = getSemanticShotStatusFromPlan(plan, tasks);
@@ -261,6 +262,8 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
     let cancelled = false;
     let timer: number | undefined;
     let controller: AbortController | null = null;
+    const tasksKey = `${chapterId}:${shot.id}:${revision}`;
+    if (loadedTasksKeyRef.current !== tasksKey) setLoading(true);
     const refresh = async () => {
       if (controller) return;
       if (document.hidden) {
@@ -268,7 +271,6 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
         return;
       }
       controller = new AbortController();
-      setLoading(true);
       let delay = 30000;
       try {
         const response = await taskApi.fetchShotTasks(chapterId, String(shot.id), controller.signal);
@@ -278,13 +280,11 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
         setTasks(listed);
         onTasksChange?.(listed);
       } catch {
-        if (!cancelled) {
-          setTasks([]);
-          onTasksChange?.([]);
-        }
+        // Keep the last known task statuses during a transient polling error.
       } finally {
         controller = null;
         if (!cancelled) {
+          loadedTasksKeyRef.current = tasksKey;
           setLoading(false);
           timer = window.setTimeout(refresh, delay);
         }

@@ -105,6 +105,20 @@ def test_review_verdicts(ledger, overall, status, code):
     assert task.status == 'completed'
 
 
+def test_image_review_pass_with_quality_warning_keeps_warning_event_details(ledger):
+    db, _ = ledger; task = image_task(db)
+    review = ImageQualityReview(task_id=task.id, status='success', overall='PASS', trigger='automatic',
+                                dimensions_json=json.dumps({
+                                    'CHARACTER_IDENTITY': {'status': 'PASS'},
+                                    'ACTION_ACCURACY': {'status': 'WARNING'}}))
+    db.add(review); db.commit()
+    event = db.query(BusinessEvent).filter_by(review_id=review.id).one()
+    details = json.loads(event.details_json)
+    assert event.event_type == 'image.review.passed' and event.status == 'SUCCESS'
+    assert details['failed_dimensions'] == []
+    assert details['warning_dimensions'] == ['ACTION_ACCURACY']
+
+
 def test_channels_off_and_subscription_off_still_record_and_delivery_dedup(ledger):
     db, _ = ledger
     result = asyncio.run(NotificationService.emit('image.review.failed', {'review_id':'r'}, db=db, dedupe_key='review:r'))

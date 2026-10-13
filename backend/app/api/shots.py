@@ -69,6 +69,7 @@ from app.services.shot_export_selection import SHOT_EXPORT_SECTIONS, SelectedSho
 
 generate_shot_task = enqueue_shot_image_task
 generate_shot_video_task = enqueue_shot_video_task
+
 from app.repositories.shot_repository import ShotRepository
 from app.services.task_service import TaskService
 from app.repositories import (
@@ -146,6 +147,11 @@ from app.core.database import SessionLocal
 from app.services.background_workers import persistent_job, worker_manager
 
 router = APIRouter()
+
+# Audited user copies still require the obsolete Workflow planning contract.
+# Keep their novel selections intact and reject Canonical planning before LLM calls.
+LEGACY_WORKFLOW_KEYFRAME_PLANNER_ID = "81901831-8915-4b8b-857f-58579af30e4a"
+LEGACY_WORKFLOW_KEYFRAME_TRANSITION_ID = "47d43de5-ff23-4df8-bf50-b44ea06bd18f"
 
 
 def _shot_read_response(payload: dict, request: Request, *, db_ms: float, projection_ms: float) -> Response:
@@ -390,6 +396,7 @@ class BatchShotVideoRequest(BaseModel):
     auto_complete_details: bool = True
     use_reference_audio: bool = True
     optimize_h3_prompt: bool = False
+    preflight_auto_repair: Optional[bool] = None
     skip_llm_when_prompt_exists: bool = False
     force_rerun: bool = True
     auto_assemble: bool = True
@@ -397,12 +404,27 @@ class BatchShotVideoRequest(BaseModel):
 
 
 class SemanticClipGenerateRequest(BaseModel):
-    preflight_auto_repair: bool = False
+    preflight_auto_repair: Optional[bool] = None
     use_reference_audio: bool = True
     auto_merge: bool = True
     optimize_h3_prompt: bool = False
     skip_llm_when_prompt_exists: bool = False
     clip_plan_revision: Optional[int] = None
+
+
+def _new_task_preflight_auto_repair(optimize_h3_prompt: bool, requested: Optional[bool]) -> bool:
+    """Resolve a new task once; persisted tasks keep their recorded setting."""
+    return bool(optimize_h3_prompt and requested is not False)
+
+
+def _batch_task_preflight_auto_repair(batch_metadata: dict, child_metadata: dict) -> bool:
+    if "preflight_auto_repair" in child_metadata:
+        return bool(child_metadata["preflight_auto_repair"])
+    if "preflight_auto_repair" in batch_metadata:
+        return bool(batch_metadata["preflight_auto_repair"])
+    # Existing batches did not persist this flag; automatic Shot was their only
+    # path that enabled repair. Keep that effective value on resume.
+    return bool(child_metadata.get("automatic_shot", batch_metadata.get("automatic_shot", False)))
 
 
 def _safe_filename_part(value: str) -> str:
@@ -518,11 +540,7 @@ def _safe_json_list(value):
 
 
 def _get_shot_image_prompt_template(novel: Novel, template_repo: PromptTemplateRepository):
-    template = None
-    if novel.shot_image_prompt_template_id:
-        template = template_repo.get_by_id(novel.shot_image_prompt_template_id)
-    if not template:
-        template = template_repo.get_default_system_template("shot_image_prompt")
+    template = template_repo.resolve_for_type(novel.shot_image_prompt_template_id, "shot_image_prompt")
     if not template:
         raise HTTPException(status_code=400, detail="未配置主分镜图提示词模板")
     return template
@@ -1266,6 +1284,16 @@ def _safe_json_dict(value):
         return {}
 
 
+def _lock_explicit_shot_duration_edit(shot, update_data: dict) -> None:
+    """A changed duration in an edit is an explicit user constraint for later #08 plans."""
+    requested = update_data.get("duration")
+    if requested is None or int(requested) == int(shot.duration or 0):
+        return
+    plan = dict(_safe_json_dict(update_data.get("video_director_plan", shot.video_director_plan)))
+    plan["shot_duration_locked"] = True
+    update_data["video_director_plan"] = plan
+
+
 def _reject_legacy_video_execution_for_canonical(plan: dict) -> None:
     """Keep canonical Shots on the semantic Clip execution authority."""
     if plan.get("canonical_visual_plan") is True:
@@ -1322,11 +1350,8 @@ def _get_video_workflow_capability(workflow: Optional[Workflow]) -> dict:
 
 
 def _get_video_mode_template(novel: Novel, template_repo: PromptTemplateRepository):
-    template = None
-    if novel.video_mode_recommender_prompt_template_id:
-        template = template_repo.get_by_id(novel.video_mode_recommender_prompt_template_id)
-    if not template:
-        template = template_repo.get_default_system_template("video_mode_recommender")
+    template = template_repo.resolve_for_type(
+        novel.video_mode_recommender_prompt_template_id, "video_mode_recommender")
     if not template:
         raise HTTPException(status_code=400, detail="未配置视频生成模式推荐提示词模板")
     return template
@@ -1600,13 +1625,11 @@ def _validate_multi_keyframe_plan_for_execution(shot, plan: dict) -> tuple[bool,
 
 
 def _get_keyframe_planner_template(novel: Novel, template_repo: PromptTemplateRepository):
-    template = None
-    if novel.keyframe_planner_prompt_template_id:
-        template = template_repo.get_by_id(novel.keyframe_planner_prompt_template_id)
-    if not template:
-        template = template_repo.get_default_system_template("keyframe_planner")
+    template = template_repo.resolve_for_type(novel.keyframe_planner_prompt_template_id, "keyframe_planner")
     if not template:
         raise HTTPException(status_code=400, detail="未配置关键帧规划提示词模板")
+    if template.id == LEGACY_WORKFLOW_KEYFRAME_PLANNER_ID:
+        raise HTTPException(status_code=409, detail="所选 #08 副本使用旧 Workflow 合同；请先选择兼容 Canonical 的模板")
     return template
 
 
@@ -1646,8 +1669,14 @@ def _build_keyframe_planner_user_content(shot, plan: dict, workflow_capability: 
         "existing_keyframes_policy": "旧规划仅作为非权威 index/role/time_seconds 结构参考；旧 description 不得覆盖 dialogue_timeline_source 或约束新的视觉状态。",
         "continuity_requirements": _build_continuity_requirements(shot),
         "requirements": {
-            "output_top_level_keys": ["keyframes", "visual_attention"],
+            "output_top_level_keys": ["shot_duration", "keyframes", "visual_attention"],
             "canonical_planner_rule": "规划 Shot 级 canonical visual states；不得规划 Clip/window、workflow 或物理参考槽。",
+        },
+        "duration_policy": {
+            "can_shorten": plan.get("shot_duration_locked") is not True,
+            "minimum_seconds": 4,
+            "maximum_seconds": shot.duration or 4,
+            "rule": "Only shorten an estimated Shot when all official dialogue and necessary visual action fit; synchronize END and attention to the new duration.",
         },
         "character_catalog": attention_catalog or [],
     }
@@ -1953,6 +1982,22 @@ def _normalize_keyframe_planner_result(parsed: dict, execution_windows: list | N
     return normalized_keyframes, [], validation
 
 
+def _resolve_planned_shot_duration(parsed: dict, current_duration: int, dialogue_timeline: list,
+                                   *, can_shorten: bool = True) -> int:
+    """Accept an optional #08 natural endpoint before normalizing its whole timeline."""
+    proposed = parsed.get("shot_duration")
+    if proposed is None:
+        return current_duration  # Existing novel-owned #08 templates remain compatible.
+    if type(proposed) is not int or proposed < 4 or proposed > current_duration:
+        raise ValueError("shot_duration 必须为 4 到当前 Shot duration 之间的整数秒")
+    if not can_shorten and proposed != current_duration:
+        raise ValueError("当前 Shot 时长已锁定，shot_duration 不得调整")
+    latest_dialogue_end = max((float(item.get("end_time") or 0) for item in dialogue_timeline), default=0.0)
+    if proposed + 1e-6 < latest_dialogue_end:
+        raise ValueError("shot_duration 不得早于正式对白结束时间")
+    return proposed
+
+
 def _preserve_matching_keyframe_assets(keyframes: list[dict], existing_plan: dict, legacy_keyframes: list[dict]) -> list[dict]:
     """Carry image provenance only when a replanned indexed state is unchanged."""
     canonical = {
@@ -1987,13 +2032,11 @@ def _preserve_matching_keyframe_assets(keyframes: list[dict], existing_plan: dic
 
 
 def _get_keyframe_transition_template(novel: Novel, template_repo: PromptTemplateRepository):
-    template = None
-    if novel.keyframe_transition_prompt_template_id:
-        template = template_repo.get_by_id(novel.keyframe_transition_prompt_template_id)
-    if not template:
-        template = template_repo.get_default_system_template("keyframe_transition")
+    template = template_repo.resolve_for_type(novel.keyframe_transition_prompt_template_id, "keyframe_transition")
     if not template:
         raise HTTPException(status_code=400, detail="未配置关键帧过渡规划提示词模板")
+    if template.id == LEGACY_WORKFLOW_KEYFRAME_TRANSITION_ID:
+        raise HTTPException(status_code=409, detail="所选 #10 副本使用旧 Workflow 合同；请先选择兼容 Canonical 的模板")
     return template
 
 
@@ -2504,6 +2547,8 @@ async def plan_video_keyframes(
     plan["dialogue_timeline_status"] = timeline_status
 
     template = _get_keyframe_planner_template(novel, template_repo)
+    if novel.keyframe_transition_prompt_template_id == LEGACY_WORKFLOW_KEYFRAME_TRANSITION_ID:
+        _get_keyframe_transition_template(novel, template_repo)
     attention_catalog, catalog_findings = character_catalog(
         _safe_json_list(shot.characters), CharacterRepository(db).list_by_novel(novel.id),
     )
@@ -2548,10 +2593,23 @@ async def plan_video_keyframes(
 
         try:
             parsed = _parse_keyframe_planner_content(result.get("content") or "{}")
-            keyframes, _, validation = _normalize_keyframe_planner_result(parsed, None, duration, get_style(db, novel, "character")[0])
-            attention_result = normalize_visual_attention(parsed.get("visual_attention"), attention_catalog, duration)
+            planned_duration = _resolve_planned_shot_duration(
+                parsed, duration, dialogue_timeline_source,
+                can_shorten=plan.get("shot_duration_locked") is not True,
+            )
+            keyframes, _, validation = _normalize_keyframe_planner_result(
+                parsed, None, planned_duration, get_style(db, novel, "character")[0])
+            if planned_duration < duration and (
+                keyframes[-1]["role"] != "END" or keyframes[-1]["time_seconds"] != planned_duration
+            ):
+                raise ValueError("缩短 Shot 时必须在新 shot_duration 输出 END 状态")
+            attention_result = normalize_visual_attention(
+                parsed.get("visual_attention"), attention_catalog, planned_duration)
+            if planned_duration < duration and attention_result["authority"] is None:
+                raise ValueError("缩短 Shot 时 visual_attention 必须位于新 shot_duration 内")
             validation["visual_attention"] = {"status": attention_result["status"],
                                                "findings": catalog_findings + attention_result["findings"]}
+            duration = planned_duration
             break
         except Exception as exc:
             error = str(exc)
@@ -2629,10 +2687,11 @@ async def plan_video_keyframes(
         "status": "success",
         "input_summary": f"Shot {shot.index} · canonical Director visual planning",
         "response": result.get("content") or "",
-        "parsed_result": {"keyframes": keyframes, "validation": validation, "visual_attention": attention_result["authority"]},
+        "parsed_result": {"shot_duration": duration, "keyframes": keyframes, "validation": validation, "visual_attention": attention_result["authority"]},
     })
     shot_repo.update(
         shot,
+        duration=duration,
         video_director_plan=plan,
         keyframes=legacy_keyframes,
     )
@@ -3011,6 +3070,12 @@ async def generate_video_director_clip(
     task.name = f"重新生成视频 Clip: 镜{shot.index} · C{window_index}"
     task.description = f"为章节 '{chapter.title}' 的分镜 {shot.index} 重新生成 Clip {window_index}"
     db = shot_repo.db
+    task.metadata_json = json.dumps({
+        **_safe_json_dict(task.metadata_json),
+        "optimize_h3_prompt": request.optimize_h3_prompt,
+        "preflight_auto_repair": _new_task_preflight_auto_repair(
+            request.optimize_h3_prompt, request.preflight_auto_repair),
+    }, ensure_ascii=False)
     if request.auto_merge:
         shot_repo.update_video_status(shot, "generating", task_id=task.id)
     db.commit()
@@ -3230,9 +3295,10 @@ async def _execute_phase_b_semantic_clip(
         "auto_merge": False,
         "skip_llm_when_prompt_exists": request.skip_llm_when_prompt_exists,
         "optimize_h3_prompt": request.optimize_h3_prompt,
-        "preflight_auto_repair": request.preflight_auto_repair,
         **execution_semantics,
         **compiled,
+        "preflight_auto_repair": _new_task_preflight_auto_repair(
+            request.optimize_h3_prompt, request.preflight_auto_repair),
     }
     if capability in {"EXTEND", "TEMPORAL_EXTEND"}:
         metadata["previous_approved_task_id"] = previous_provenance["generated_by_task_id"]
@@ -3345,6 +3411,8 @@ async def _regenerate_semantic_video_director_clip(
         "auto_merge": request.auto_merge,
         "skip_llm_when_prompt_exists": request.skip_llm_when_prompt_exists,
         "optimize_h3_prompt": request.optimize_h3_prompt,
+        "preflight_auto_repair": _new_task_preflight_auto_repair(
+            request.optimize_h3_prompt, request.preflight_auto_repair),
         "is_clip_regeneration": True,
     }
     if request.skip_llm_when_prompt_exists and not metadata["prompt_text"]:
@@ -4190,7 +4258,8 @@ async def _run_semantic_shot_for_batch(db: Session, batch_task: Task, batch_chil
                             or batch_metadata.get("automatic_shot") and task
                             and (_safe_json_dict(task.metadata_json).get("h3_prompt_optimizer") or {}).get("raw_response_content")),
                         optimize_h3_prompt=bool(batch_metadata.get("optimize_h3_prompt", False)),
-                        preflight_auto_repair=bool(batch_metadata.get("automatic_shot", False)),
+                        preflight_auto_repair=_batch_task_preflight_auto_repair(
+                            _safe_json_dict(batch_task.metadata_json), batch_metadata),
                         clip_plan_revision=revision,
                     ),
                     db,
@@ -4490,6 +4559,9 @@ async def generate_shot_videos_batch(
         data.skip_llm_when_prompt_exists = False
         data.auto_complete_details = False
 
+    preflight_auto_repair = _new_task_preflight_auto_repair(
+        data.optimize_h3_prompt, data.preflight_auto_repair)
+
     validated = []
     selected_shots = []
     for order, shot_id in enumerate(shot_ids, start=1):
@@ -4543,6 +4615,7 @@ async def generate_shot_videos_batch(
             "use_reference_audio": data.use_reference_audio,
             "skip_llm_when_prompt_exists": data.skip_llm_when_prompt_exists,
             "optimize_h3_prompt": data.optimize_h3_prompt,
+            "preflight_auto_repair": preflight_auto_repair,
             "force_rerun": data.force_rerun,
             "auto_assemble": data.auto_assemble,
         }, ensure_ascii=False),
@@ -4579,6 +4652,7 @@ async def generate_shot_videos_batch(
             "use_reference_audio": data.use_reference_audio,
             "skip_llm_when_prompt_exists": data.skip_llm_when_prompt_exists,
             "optimize_h3_prompt": data.optimize_h3_prompt,
+            "preflight_auto_repair": preflight_auto_repair,
             "batch_force_rerun": data.force_rerun,
             "batch_mode": "SEMANTIC_CLIP" if any(item["shot_id"] == shot.id and item["batch_mode"] == "SEMANTIC_CLIP" for item in selected_shots) else "LEGACY_SHOT",
             "clip_plan_revision": next((item["clip_plan_revision"] for item in selected_shots if item["shot_id"] == shot.id), None),
@@ -4752,6 +4826,12 @@ async def generate_shot_video(
 
     print(f"[GenerateVideo] Created task {task.id} for shot {shot.id}")
     task.description = f"{task.description}；视频模式：{VIDEO_MODE_LABELS.get(selected_mode, selected_mode)}"
+    task.metadata_json = json.dumps({
+        **_safe_json_dict(task.metadata_json),
+        "optimize_h3_prompt": request.optimize_h3_prompt,
+        "preflight_auto_repair": _new_task_preflight_auto_repair(
+            request.optimize_h3_prompt, request.preflight_auto_repair),
+    }, ensure_ascii=False)
     db = shot_repo.db
     db.commit()
     print(f"[GenerateVideo] selected_mode={selected_mode}, use_keyframes={request.use_keyframes}, use_reference_audio={request.use_reference_audio}")
@@ -6182,6 +6262,7 @@ async def batch_update_shots(
                 update_data[key] = shot_data[key]
 
         if update_data:
+            _lock_explicit_shot_duration_edit(shot, update_data)
             updated_shot = shot_repo.update(shot, **update_data)
             updated_shots.append(shot_repo.to_response(updated_shot))
 
@@ -6726,6 +6807,7 @@ async def update_shot(
             "message": "没有需要更新的字段",
         }
 
+    _lock_explicit_shot_duration_edit(shot, update_data)
     updated_shot = shot_repo.update(shot, **update_data)
 
     return {

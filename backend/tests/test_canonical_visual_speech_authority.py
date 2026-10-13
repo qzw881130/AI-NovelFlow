@@ -75,7 +75,10 @@ class FakeDB:
 
 class FakeTemplateRepo:
     def get_default_system_template(self, _template_type):
-        return SimpleNamespace(name="关键帧过渡规划", template="system #10")
+        return SimpleNamespace(id="system-10", name="关键帧过渡规划", template="system #10")
+
+    def resolve_for_type(self, _selected_id, template_type):
+        return self.get_default_system_template(template_type)
 
 
 @pytest.mark.parametrize(

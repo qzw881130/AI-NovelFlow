@@ -60,13 +60,8 @@ PROP ONLY. ISOLATED OBJECT. PLAIN SOLID NEUTRAL BACKGROUND. NO ENVIRONMENT. NO R
         # 创建 PromptTemplateRepository
         repo = PromptTemplateRepository(db)
         
-        # 从小说关联的风格模板获取
-        if novel and novel.style_prompt_template_id:
-            style_template = repo.get_by_id(novel.style_prompt_template_id)
-        
-        # 如果没有找到，使用默认系统风格模板
-        if not style_template:
-            style_template = repo.get_default_system_template("style")
+        style_template = repo.resolve_for_type(
+            novel.style_prompt_template_id if novel else None, "style")
         
         # 如果找到了模板，使用模板内容
         if style_template:

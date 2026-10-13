@@ -50,7 +50,9 @@ def _identity_picture_subjects(prompt, picture):
             subjects = set(re.findall(r"<Subject \d+>", sentence))
             # Resolve only the explicit 'this Subject' in its own definition.
             # No carry-forward across paragraphs or inferred character names.
-            if not subjects and definition and re.search(r"\bthis Subject\b", sentence, re.I):
+            if (not subjects and definition
+                    and len(set(re.findall(r"<Subject \d+>", line))) == 1
+                    and re.search(r"\bthis Subject\b|\b(?:his|her|their)\s+(?:permanent\s+)?identity\b", sentence, re.I)):
                 subjects.add(definition[1])
             pairs.update(subjects)
     return pairs
@@ -274,6 +276,153 @@ def build_runtime_input(raw_prompt, generation_mode, clip, reference_manifest=No
     return runtime, images
 
 
+def llm_input_view(runtime):
+    """Omit only a canonical source copy already present in immutable authority."""
+    context = runtime.get("execution_context") or {}
+    policy = (runtime.get("immutable_authority") or {}).get("anchor_policy") or {}
+    sources = policy.get("canonical_visual_sources")
+    if sources is None or context.get("canonical_visual_sources") != sources:
+        return runtime
+    return {**runtime, "execution_context": {
+        key: value for key, value in context.items() if key != "canonical_visual_sources"
+    }}
+
+
+def scope_quote_trace_warnings(output, authority, evidence):
+    """Identify missing source copies or quotes copied from Clip scope guidance.
+
+    This diagnoses provenance; it does not assert that the Prompt's action prose
+    semantically matches Canonical. Other Authority checks must independently pass.
+    """
+    requirements = output.get("canonical_visual_requirements") or []
+    if (not isinstance(requirements, list) or not requirements
+            or any(not isinstance(r, dict) or not _text(r.get("id")) for r in requirements)
+            or len({r["id"] for r in requirements}) != len(requirements)):
+        return None
+    sources = {s.get("id"): s for s in (authority.get("anchor_policy") or {}).get("canonical_visual_sources") or []
+               if isinstance(s, dict) and s.get("id")}
+    for anchor in (authority.get("anchor_policy") or {}).get("catalog") or []:
+        if anchor.get("anchor_id") and anchor.get("anchor_id") not in sources:
+            sources[anchor["anchor_id"]] = {"text": anchor.get("visual_reference_description")}
+    scope_quotes = []
+    for i, requirement in enumerate(requirements):
+        source = sources.get(requirement.get("source_id"))
+        source_entry = evidence["entries"].get(f"requirements.{i}.source") or {}
+        prompt_entry = evidence["entries"].get(f"requirements.{i}.prompt") or {}
+        if (not source or not _text(source.get("text"))
+                or not _text(requirement.get("requirement"))
+                or prompt_entry.get("status") != "RESOLVED"):
+            return None
+        if source_entry.get("status") == "RESOLVED":
+            continue
+        if source_entry.get("status") != "UNRESOLVED":
+            return None
+        quote = requirement.get("source_excerpt")
+        scope = (source.get("clip_scope") or {}).get("execution_scope") or ""
+        if (_text(quote) and (quote not in scope or quote in (source.get("text") or ""))):
+            return None
+        scope_quotes.append({"requirement_id": requirement["id"],
+                             "source_id": requirement.get("source_id"),
+                             "source_excerpt": quote,
+                             "canonical_source": source.get("text"),
+                             "execution_scope": scope,
+                             "prompt_excerpt": requirement.get("prompt_excerpt"),
+                             "evidence_issue": "SCOPE_QUOTE" if _text(quote) else "MISSING_SOURCE_QUOTE",
+                             "original_trace_status": source_entry.get("status"),
+                             "original_trace_reason": source_entry.get("reason")})
+    return scope_quotes or None
+
+
+def _auxiliary_wording_warnings(blocking, checks, raw_prompt, output, authority, evidence):
+    """Keep failed prose heuristics visible when independent authority still passes.
+
+    The compiler's LOCAL_MOTION label is an inference from transition prose, not
+    a structured Canonical prohibition. An absent English phrase is likewise not
+    proof that a Picture or staging fact changed. Explicit binding, dialogue,
+    timing, and requirement failures remain blocking.
+    """
+    policy = authority.get("anchor_policy") or {}
+    floor = [name for name in blocking if name.startswith("canonical_floor_position_<Subject ")]
+    eligible = {"reference_authority_scope", "blocking_preservation_wording",
+                "speaker_switch_listener_settle", "speaker_switch_listener_scope",
+                "speaker_switch_camera_evidence", "handoff_reasoning_schema",
+                "duration_output_matches_timeline", "no_final_state_machine_terms",
+                "canonical_visual_requirement_trace", *floor}
+    if (not policy or not set(blocking) <= eligible
+            or not all(checks.get(name) for name in (
+                "canonical_visual_requirement_consistency", "reference_projection_consistent",
+                "canonical_manifest_subject_consistent", "subject_binding", "subject_set",
+                "invented_picture", "picture_presence", "anchor_required_outcomes_retained"))
+            or any(not passed for name, passed in checks.items()
+                   if name.startswith(("picture_binding_", "reference_role_")))):
+        return []
+    warnings = []
+    dialogue_intact = all(checks.get(name) for name in (
+        "native_dialogue_markup", "dialogue_ids_speakers_text_order", "stable_speaker_ids",
+        "dialogue_duration_unchanged", "dialogue_timeline_matches_prompt_and_initial",
+        "dialogue_inside_budget", "all_speaker_handoffs_consistent"))
+    for name in ("reference_authority_scope", "blocking_preservation_wording"):
+        if (name == "blocking_preservation_wording"
+                and (authority.get("continuation") or {}).get("binding_verified") is True):
+            # A verified Previous AV has a safe existing L0/L1 repair path.
+            continue
+        if name in blocking:
+            warnings.append({"code": "AUXILIARY_WORDING_UNMATCHED", "original_check": name,
+                             "original_result": False,
+                             "reason": "Structured Picture, Subject, Canonical requirement, and Clip checks passed; this check tests English wording only",
+                             "semantic_content_review": "NOT_PROVEN_BY_WORDING"})
+    if dialogue_intact:
+        # A local, ordered handoff citation is still required before treating
+        # listener wording as a false negative. Missing/contradictory listener
+        # prose cannot be excused by the structured dialogue timeline alone.
+        for name in ("speaker_switch_listener_settle", "speaker_switch_listener_scope"):
+            if name in blocking and checks.get("speaker_switch_camera_evidence"):
+                warnings.append({"code": "AUXILIARY_HANDOFF_EVIDENCE_UNMATCHED", "original_check": name,
+                                 "original_result": False,
+                                 "reason": "Local handoff evidence and dialogue identities/timing passed; listener wording did not match",
+                                 "semantic_content_review": "NOT_PROVEN_BY_HANDOFF_EVIDENCE"})
+        for name in ("speaker_switch_camera_evidence", "handoff_reasoning_schema"):
+            if name in blocking:
+                warnings.append({"code": "AUXILIARY_HANDOFF_EVIDENCE_UNMATCHED", "original_check": name,
+                                 "original_result": False,
+                                 "reason": "Canonical dialogue, speaker order, timing, and handoff identities passed; optional handoff evidence did not match",
+                                 "semantic_content_review": "NOT_PROVEN_BY_HANDOFF_EVIDENCE"})
+    if ("duration_output_matches_timeline" in blocking
+            and checks.get("duration_within_workflow_and_20s")
+            and checks.get("prompt_duration_matches_timeline")
+            and checks.get("duration_original_delta_changed")):
+        warnings.append({"code": "AUXILIARY_DURATION_ECHO_MISMATCH",
+                         "original_check": "duration_output_matches_timeline", "original_result": False,
+                         "reason": "Executable timeline and final Prompt duration agree; redundant duration object differs"})
+    if ("no_final_state_machine_terms" in blocking
+            and checks.get("h3_native_six_sections") and checks.get("no_internal_execution_dsl")):
+        warnings.append({"code": "AUXILIARY_FORMAT_WORDING",
+                         "original_check": "no_final_state_machine_terms", "original_result": False,
+                         "reason": "Final Prompt remains parseable; non-executable wording contains an internal term"})
+    sources = {s.get("id"): s for s in policy.get("canonical_visual_sources") or []
+               if isinstance(s, dict) and s.get("id")}
+    for name in floor:
+        subject = name.removeprefix("canonical_floor_position_")
+        actor = authority.get("subject_bindings", {}).get(subject)
+        marker = f"{subject} — {actor}: LOCAL_MOTION / SPATIALLY_ANCHORED; no explicit translational assignment."
+        related = [r.get("source_id") for i, r in enumerate(output.get("canonical_visual_requirements") or [])
+                   if isinstance(r, dict) and str(r.get("source_id") or "").startswith("transition_")
+                   and actor and actor in str((sources.get(r.get("source_id")) or {}).get("text") or "")
+                   and (evidence.get("entries", {}).get(f"requirements.{i}.prompt") or {}).get("status") == "RESOLVED"]
+        # Explicit position swaps are still conflicts. Generic walking is not:
+        # the compiler can miss motion expressed as '前行' or '并行移动'.
+        explicit_swap = bool(re.search(re.escape(subject) +
+            r"[^.!?\n]{0,100}\b(?:teleports?|swaps?\s+positions|moves?\s+to\s+(?:the\s+)?(?:other|opposite)\s+side)\b",
+            output.get("optimized_prompt") or "", re.I))
+        if marker in raw_prompt and related and not explicit_swap:
+            warnings.append({"code": "INFERRED_STATIC_MOTION_ONLY", "original_check": name,
+                             "original_result": False, "subject": subject,
+                             "canonical_transition_ids": list(dict.fromkeys(related)),
+                             "reason": "Compiler found no motion keyword, while Canonical transition and located final prose describe this Subject; no explicit swap found",
+                             "semantic_content_review": "NOT_PROVEN_BY_MOTION_REGEX"})
+    return warnings
+
+
 def check_authority(raw_prompt, output, authority, initial_timing=None, limits=None):
     """Check immutable facts and execution consistency, without predicting AV quality."""
     from app.services.h3_evidence import resolve_authority
@@ -440,6 +589,24 @@ def check_authority(raw_prompt, output, authority, initial_timing=None, limits=N
         if not any(p.get("type") == phase_type for p in phases):
             warnings.append({"code": "EXECUTION_PHASE_MISSING", "type": phase_type})
     blocking = [name for name, passed in checks.items() if not passed]
+    auxiliary = _auxiliary_wording_warnings(blocking, checks, raw_prompt, output, authority, evidence)
+    if auxiliary:
+        warnings.extend(auxiliary)
+        advisory_checks = {item["original_check"] for item in auxiliary}
+        blocking = [name for name in blocking if name not in advisory_checks]
+    # Keep source provenance false in the original audit. A missing source copy
+    # or copied Clip scope can only warn after every independent check passes.
+    if blocking == ["canonical_visual_requirement_trace"]:
+        scope_quotes = scope_quote_trace_warnings(output, authority, evidence)
+        if scope_quotes:
+            blocking = []
+            warnings.append({"code": "CANONICAL_SOURCE_EVIDENCE_ONLY",
+                             "reason": "Source quote missing or copied from execution_scope; all independent authority checks passed",
+                             "original_check": "canonical_visual_requirement_trace",
+                             "original_result": False,
+                             "core_content_checks_passed": True,
+                             "semantic_content_review": "NOT_PROVEN_BY_TEXT_TRACE",
+                             "requirements": scope_quotes})
     if resolved_authority["echo_differences"]:
         warnings.append({"code": "AUTHORITY_ECHO_MISMATCH",
                          "paths": [d["path"] for d in resolved_authority["echo_differences"]],
@@ -519,7 +686,7 @@ async def optimize_h3_execution_prompt(db, novel, shot, raw_prompt, generation_m
         else:
             failure_stage = "LLM_REQUEST"
             result = await LLMService().chat_completion(
-                system_prompt=template.template, user_content=json.dumps(runtime, ensure_ascii=False, indent=2),
+                system_prompt=template.template, user_content=json.dumps(llm_input_view(runtime), ensure_ascii=False, indent=2),
                 images=images, response_format="json_object", task_type=TEMPLATE_TYPE,
                 prompt_template_name=template.name, novel_id=novel.id, chapter_id=shot.chapter_id,
             )

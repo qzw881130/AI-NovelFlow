@@ -23,6 +23,7 @@ from app.utils.json_parser import safe_parse_llm_json
 
 IMAGE_TYPES = {"character_portrait", "shot_image", "scene_image", "prop_image", "keyframe_image", "single_image_edit"}
 DIMENSIONS = ("CHARACTER_IDENTITY", "CHARACTER_COUNT", "HUMAN_ANATOMY", "ACTION_ACCURACY", "PROP_ACCURACY", "SCENE_CONSISTENCY")
+BLOCKING_DIMENSIONS = frozenset(("CHARACTER_IDENTITY", "CHARACTER_COUNT", "HUMAN_ANATOMY"))
 STATUSES = {"PASS", "WARNING", "FAIL"}
 
 
@@ -106,9 +107,11 @@ def normalize_review_response(raw: str) -> dict:
         )}
         if issue["severity"] not in {"WARNING", "FAIL"}:
             raise ValueError("评审问题严重程度无效")
+        issue["original_severity"] = issue["severity"]
         if issue["visibility"] not in {"OBSERVED", "OCCLUDED", "UNCERTAIN"}:
             issue["visibility"] = "UNCERTAIN"
-        if issue["visibility"] != "OBSERVED" or issue["location"] in {"", "无法确认", "未知"} or not issue["evidence"]:
+        if (issue["type"] not in BLOCKING_DIMENSIONS or issue["visibility"] != "OBSERVED"
+                or issue["location"] in {"", "无法确认", "未知"} or not issue["evidence"]):
             issue["severity"] = "WARNING"
         issues.append(issue)
     dimensions = {}
@@ -128,9 +131,11 @@ def normalize_review_response(raw: str) -> dict:
                            "evidence": "模型未给出可定位的直接视觉证据", "suggestion": "人工复核或补充清晰参考图",
                            "visibility": "UNCERTAIN"})
             status = "WARNING"
-        dimensions[name] = {"status": status, "summary": str(value.get("summary") or "")}
-    overall = "FAIL" if any(v["status"] == "FAIL" for v in dimensions.values()) else (
-        "WARNING" if any(v["status"] == "WARNING" for v in dimensions.values()) else "PASS")
+        if name not in BLOCKING_DIMENSIONS and status == "FAIL":
+            status = "WARNING"
+        dimensions[name] = {"status": status, "original_status": value["status"],
+                            "summary": str(value.get("summary") or "")}
+    overall = "FAIL" if any(dimensions[name]["status"] == "FAIL" for name in BLOCKING_DIMENSIONS) else "PASS"
     return {"overall": overall, "summary": str(data.get("summary") or ""),
             "dimensions": dimensions, "issues": issues}
 

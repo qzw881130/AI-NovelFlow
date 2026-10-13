@@ -15,7 +15,7 @@ KEYFRAME_IMAGE_FILE = "09_NovelFlow_QwenEdit2511_KeyframeImagePrompt_V1.txt"
 KEYFRAME_IMAGE_SHA256 = "3164a133b38f671feafbd0a43f5d2c885193854bbb5ac057ded4b1b65f4f8e8a"
 TRANSITION_FILE = "10_NovelFlow_KeyframeTransition_Planner_V1.txt"
 CLIP_PLANNER_FILE = "10A_NovelFlow_ClipExecutionPlanner_V1.txt"
-CLIP_PLANNER_SHA256 = "841e1e6c7f57f4c633228f7d9a1b75309aae8839b7c072b19afc758fd4237170"
+CLIP_PLANNER_SHA256 = "c12fce25131c2d312162f394b5b8c96b74c492758a79cf8e0917ae558725e932"
 CLIP_BOUNDARY_CONTRACT_RULES = (
     "Tolerance is `0.05` seconds",
     "compare decimal times as written, without rounding",
@@ -56,7 +56,8 @@ def test_canonical_visual_planner_keeps_schema_and_mature_visual_rules():
         '"timed_visual_target": false',
         "至少输出一个状态",
         "time_seconds 必须严格递增",
-        "END 可选",
+        "END 在保持原时长时可选",
+        "shot_duration",
         "Visual Beat Priority",
         "Speech-neutral Visual State",
         "WHAT IS VISIBLY TRUE AT THIS MOMENT",
@@ -276,10 +277,8 @@ def test_keyframe_image_prompt_source_checksum():
 def test_unrelated_system_prompt_sources_remain_frozen():
     expected_hashes = {
         "06_NovelFlow_QwenEdit2511_ShotImagePrompt_V1.txt": "937f62ce9fbf9c25543abd9dca7b9d988eb770b878bfe1219f5d6095a2a296cd",
-        PLANNER_FILE: "710702922247e6ac7a85e8121a3294c3969f3c4299d8bc3c163c5043abbbd10c",
         KEYFRAME_IMAGE_FILE: KEYFRAME_IMAGE_SHA256,
         TRANSITION_FILE: "b482b0384cab1dd6e81cefc4091ea4c5d24a4d92f1c754de78e8c34368e29aa3",
-        CLIP_PLANNER_FILE: CLIP_PLANNER_SHA256,
     }
 
     for filename, expected_hash in expected_hashes.items():

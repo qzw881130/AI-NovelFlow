@@ -739,19 +739,7 @@ class ShotKeyframeService:
             return False, [], f"生成关键帧描述失败：{str(e)}"
 
     def _get_keyframe_template(self, db: Session, novel: Optional[Novel]) -> Optional[PromptTemplate]:
-        template = None
-        if novel and novel.keyframe_description_prompt_template_id:
-            template = db.query(PromptTemplate).filter(
-                PromptTemplate.id == novel.keyframe_description_prompt_template_id
-            ).first()
-
-        if not template:
-            template = db.query(PromptTemplate).filter(
-                PromptTemplate.type == "keyframe_description",
-                PromptTemplate.is_system == True,
-                PromptTemplate.is_active == True
-            ).first()
-        return template
+        return resolve_novel_prompt_template(db, novel, "keyframe_description")
 
     def _build_keyframe_prompt(
         self,

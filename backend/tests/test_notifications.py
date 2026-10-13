@@ -12,7 +12,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.api import notifications
 from app.core.database import Base, get_db
-from app.models.notification import NotificationDelivery, NotificationSettings
+from app.models.notification import BusinessEvent, NotificationDelivery, NotificationSettings
+from app.models.task import Task
 from app.services import notification_channels
 from app.services.notification_registry import EVENT_REGISTRY
 from app.services.notification_service import NotificationService, decrypt_secret, get_or_create_settings
@@ -313,3 +314,73 @@ async def test_adapters_send_expected_requests_without_external_network(monkeypa
     assert json.loads(requests[1].content)["chat_id"] == "-100123"
     assert requests[1].url.path == "/bot123:token/sendMessage"
     assert not notification_channels.validate_feishu_webhook("http://127.0.0.1/open-apis/bot/v2/hook/unsafe")
+
+
+def test_development_endpoint_formats_five_events_without_business_tasks(notification_db, notification_app, monkeypatch):
+    db, _ = notification_db
+    settings = get_or_create_settings(db)
+    settings.feishu_enabled = settings.telegram_enabled = True
+    db.commit()
+    sent = []
+
+    async def fake_send(*args):
+        sent.append(args[-1])
+
+    monkeypatch.setattr("app.services.notification_service.send_feishu", fake_send)
+    monkeypatch.setattr("app.services.notification_service.send_telegram", fake_send)
+    monkeypatch.setattr("app.services.notification_service.decrypt_secret", lambda _: "mock")
+    cases = [
+        ("shot.planning.completed", {"shot_index": 7}, "Shot 7 规划完成"),
+        ("clip.prompt.build.failed", {"shot_index": 7, "clip_index": 1,
+                                      "error_code": "DIALOGUE_DUPLICATED_IN_PROMPT"}, "Shot 7 · C1"),
+        ("clip.generation.failed", {"shot_index": 7, "clip_index": 1,
+                                    "error_code": "DIALOGUE_DUPLICATED_IN_PROMPT"}, "Shot 7 · C1 生成失败"),
+        ("clip.prompt.optimize.failed", {"shot_index": 7, "clip_index": 1,
+                                         "error_code": "PREFLIGHT_FAIL"}, "Shot 7 · C1"),
+        ("preflight.repair.failed", {"shot_index": 7, "clip_index": 1,
+                                    "error_code": "PREFLIGHT_FAIL"}, "Shot 7 · C1"),
+    ]
+    for code, payload, expected in cases:
+        response = api_request(notification_app, "POST", "/api/notifications/test-event",
+                               {"event_code": code, "payload": payload})
+        assert response.status_code == 200
+        assert response.json()["data"]["status"] == "processed"
+        assert sent[-1] == sent[-2]
+        assert expected in sent[-1]
+        assert "开发模拟事件" in sent[-1]
+        assert "事件：" not in sent[-1] and "数据：" not in sent[-1]
+        assert "DIALOGUE_DUPLICATED_IN_PROMPT" not in sent[-1]
+        assert "PREFLIGHT_FAIL" not in sent[-1]
+    assert len(sent) == 10
+    assert db.query(BusinessEvent).count() == 5
+    assert db.query(Task).count() == 0
+
+
+def test_development_endpoint_sequential_failure_chain_sends_one_final_message(notification_db, notification_app, monkeypatch):
+    db, _ = notification_db
+    settings = get_or_create_settings(db)
+    settings.feishu_enabled = settings.telegram_enabled = True
+    db.commit()
+    sent = []
+
+    async def fake_send(*args):
+        sent.append(args[-1])
+
+    monkeypatch.setattr("app.services.notification_service.send_feishu", fake_send)
+    monkeypatch.setattr("app.services.notification_service.send_telegram", fake_send)
+    monkeypatch.setattr("app.services.notification_service.decrypt_secret", lambda _: "mock")
+    payload = {"shot_index": 7, "clip_index": 1, "task_id": "simulated-c1-failure",
+               "error_code": "DIALOGUE_DUPLICATED_IN_PROMPT"}
+    first = api_request(notification_app, "POST", "/api/notifications/test-event",
+                        {"event_code": "clip.prompt.build.failed", "payload": payload}).json()["data"]
+    assert first["status"] == "pending"
+    assert first["channels"] == {"PAGE_SOUND": "queued", "FEISHU": "deferred", "TELEGRAM": "deferred"}
+    assert not sent
+    second = api_request(notification_app, "POST", "/api/notifications/test-event",
+                         {"event_code": "clip.generation.failed", "payload": payload}).json()["data"]
+    assert second["status"] == "processed"
+    prompt = db.query(BusinessEvent).filter_by(event_type="clip.prompt.build.failed").one()
+    asyncio.run(NotificationService.dispatch_event(db, prompt.id))
+    assert len(sent) == 2 and sent[0] == sent[1]
+    assert sent[0].startswith("❌ NovelFlow｜Shot 7 · C1 生成失败")
+    assert db.query(Task).count() == 0

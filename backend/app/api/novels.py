@@ -227,9 +227,8 @@ async def recommend_story_world_context(
         raise HTTPException(status_code=404, detail="小说不存在")
 
     template_repo = PromptTemplateRepository(db)
-    template = template_repo.get_by_id(novel.story_world_context_prompt_template_id) if novel.story_world_context_prompt_template_id else None
-    if not template:
-        template = template_repo.get_default_system_template("story_world_context_recommender")
+    template = template_repo.resolve_for_type(
+        novel.story_world_context_prompt_template_id, "story_world_context_recommender")
     if not template:
         raise HTTPException(status_code=400, detail="未配置故事世界上下文推荐提示词模板")
 

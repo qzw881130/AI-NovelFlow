@@ -686,6 +686,9 @@ async def plan_clips(db: Session, novel, shot, temporal_anchors: list[dict], pla
         if not result.get("success"):
             raise RuntimeError(result.get("error") or "Clip Planner 调用失败")
         parsed = json.loads(result.get("content") or "{}")
+        duration_issue = str(parsed.get("duration_replan_required") or "").strip()
+        if duration_issue:
+            raise ValueError(f"UPSTREAM_SHOT_DURATION_REPLAN_REQUIRED: {duration_issue}")
         clips = parsed.get("clips") if isinstance(parsed.get("clips"), list) else []
         for index, clip in enumerate(clips, 1):
             clip["clip_index"] = int(clip.get("clip_index") or index)

@@ -291,7 +291,7 @@ export const createGenerationSlice: StateCreator<
 
   // ========== 视频生成方法 ==========
 
-  generateShotVideo: async (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode, options?: { optimizeH3Prompt?: boolean; skipLlmWhenPromptExists?: boolean }) => {
+  generateShotVideo: async (novelId: string, chapterId: string, shotId: string, selectedMode?: VideoMode, options?: { optimizeH3Prompt?: boolean; preflightAutoRepair?: boolean; skipLlmWhenPromptExists?: boolean }) => {
     const refreshed = await shotsApi.getShot(novelId, chapterId, shotId);
     if (refreshed.success && refreshed.data) {
       set(state => ({
@@ -315,6 +315,7 @@ export const createGenerationSlice: StateCreator<
       const result = await shotsApi.generateVideo(novelId, chapterId, shotId, {
         selected_mode: selectedMode,
         optimize_h3_prompt: options?.optimizeH3Prompt ?? false,
+        preflight_auto_repair: options?.preflightAutoRepair,
         skip_llm_when_prompt_exists: options?.skipLlmWhenPromptExists ?? false,
       });
 
@@ -941,154 +942,104 @@ export const createGenerationSlice: StateCreator<
             );
 
             const latestCompletedTask = sortedTasks.find(t => t.status === 'completed' && t.resultUrl);
-            const latestActiveTask = sortedTasks.find(t => ['pending', 'queued', 'running'].includes(String(t.status || '').toLowerCase()));
+            const latestActiveTask = sortedTasks.find(t => ['pending', 'queued', 'running', 'processing'].includes(String(t.status || '').toLowerCase()));
             taskMap[shotId] = latestCompletedTask && (!latestActiveTask || taskTime(latestCompletedTask) >= taskTime(latestActiveTask))
               ? latestCompletedTask
               : (latestActiveTask || sortedTasks[0]);
           }
 
-          const { shots, shotVideos, generatingVideos, pendingVideos } = get();
-          let shotVideosUpdated = false;
-          let generatingVideosUpdated = false;
-          let pendingVideosUpdated = false;
-          const terminalShotIds = new Set<string>();
-          const activeShotIds = new Set<string>();
-          const newShotVideos = { ...shotVideos };
-          const newGeneratingVideos = new Set(generatingVideos);
-          const newPendingVideos = new Set(pendingVideos);
+          // Task rows give quick status; only the selected active Shot needs a
+          // detail read on every tick. Other Shots refresh when they finish.
+          const current = get();
+          const selectedShotId = current.shots[current.currentShotIndex - 1]?.id;
+          const refreshShotIds = current.shots.filter(shot => {
+            const task = taskMap[shot.id];
+            if (!task) return false;
+            const status = String(task.status || '').toLowerCase();
+            const isActive = ['pending', 'queued', 'running', 'processing'].includes(status);
+            return (isActive && shot.id === selectedShotId)
+              || (status === 'completed' && (shot.videoStatus !== 'completed' || (!!task.resultUrl && shot.videoUrl !== task.resultUrl)))
+              || (['failed', 'cancelled'].includes(status)
+                && !shot.videoUrl && !current.shotVideos[shot.id] && shot.videoStatus !== 'failed');
+          }).map(shot => shot.id);
 
-          const updatedShots = shots.map(shot => {
+          // Finish the detail reads before publishing a single coherent state.
+          // Publishing task status first and stale Shot data second caused the
+          // video workspace to alternate between two states every poll.
+          const refreshedById = new Map<string, Shot>();
+          const novelId = current.chapter?.novelId || current.novel?.id;
+          if (novelId && refreshShotIds.length > 0) {
+            const refreshedShots = await Promise.allSettled(refreshShotIds.map(shotId =>
+              shotsApi.getShot(novelId, chapterId, shotId, controller.signal)
+            ));
+            if (controller.signal.aborted || (get().chapter?.id && get().chapter?.id !== chapterId)) return;
+            refreshedShots.forEach(result => {
+              if (result.status === 'fulfilled' && result.value.success && result.value.data) {
+                refreshedById.set(result.value.data.id, result.value.data);
+              }
+            });
+          }
+
+          set(state => {
+            if (state.chapter?.id && state.chapter.id !== chapterId) return state;
+            const nextShotVideos = { ...state.shotVideos };
+            const nextGeneratingVideos = new Set(state.generatingVideos);
+            const nextPendingVideos = new Set(state.pendingVideos);
+            const nextShots = state.shots.map(shot => {
               const task = taskMap[shot.id];
-              if (task) {
-                const hasExistingVideo = !!(shot.videoUrl || newShotVideos[shot.id] || (shot.videoDirectorPlan as any)?.merged_video_url);
-                const isCompleted = task.status === 'completed';
-                const isStaleFailedTask = (task.status === 'failed' || task.status === 'cancelled') && hasExistingVideo;
-                const isFailed = (task.status === 'failed' || task.status === 'cancelled') && !isStaleFailedTask;
-              const normalizedStatus = String(task.status || '').toLowerCase();
-              const isRunning = normalizedStatus === 'running';
-              const isPending = normalizedStatus === 'pending' || normalizedStatus === 'queued';
+              if (!task) return shot;
+
+              const refreshed = refreshedById.get(shot.id);
+              const base = refreshed ? { ...shot, ...refreshed } : shot;
+              const status = String(task.status || '').toLowerCase();
+              const isCompleted = status === 'completed';
+              const isRunning = status === 'running' || status === 'processing';
+              const isPending = status === 'pending' || status === 'queued';
               const isActive = isRunning || isPending;
-              const videoStatus = isCompleted || isStaleFailedTask ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : shot.videoStatus;
-              const taskErrorMessage = formatUserFacingError(task.errorMessage || task.error_message || task.error) || (task.status === 'cancelled' ? '视频任务已取消' : '');
-              const videoDirectorPlan = isFailed && taskErrorMessage
-                ? { ...(shot.videoDirectorPlan || {}), task_error_message: taskErrorMessage, error_message: taskErrorMessage }
-                : isCompleted || isStaleFailedTask
-                  ? (() => {
-                      const nextPlan = { ...(shot.videoDirectorPlan || {}) } as any;
-                      delete nextPlan.task_error_message;
-                      delete nextPlan.error_message;
-                      return nextPlan;
-                    })()
-                  : shot.videoDirectorPlan;
-
-              // 如果任务正在运行，确保在 generatingVideos 中
-              if (isRunning && !newGeneratingVideos.has(shot.id)) {
-                newGeneratingVideos.add(shot.id);
-                generatingVideosUpdated = true;
-              }
-              if (!isRunning && newGeneratingVideos.has(shot.id)) {
-                newGeneratingVideos.delete(shot.id);
-                generatingVideosUpdated = true;
-              }
-              if (isPending && !newPendingVideos.has(shot.id)) {
-                newPendingVideos.add(shot.id);
-                pendingVideosUpdated = true;
-              }
-              if (!isPending && newPendingVideos.has(shot.id)) {
-                newPendingVideos.delete(shot.id);
-                pendingVideosUpdated = true;
-              }
-              if (isActive) {
-                activeShotIds.add(shot.id);
+              const hasExistingVideo = !!(shot.videoUrl || state.shotVideos[shot.id] || (base.videoDirectorPlan as any)?.merged_video_url);
+              const isStaleFailedTask = (status === 'failed' || status === 'cancelled') && hasExistingVideo;
+              const isFailed = (status === 'failed' || status === 'cancelled') && !isStaleFailedTask;
+              const taskErrorMessage = formatUserFacingError(task.errorMessage || task.error_message || task.error)
+                || (status === 'cancelled' ? '视频任务已取消' : '');
+              let videoDirectorPlan = base.videoDirectorPlan;
+              if (isFailed && taskErrorMessage) {
+                videoDirectorPlan = { ...(videoDirectorPlan || {}), task_error_message: taskErrorMessage, error_message: taskErrorMessage };
+              } else if (isCompleted || isStaleFailedTask) {
+                videoDirectorPlan = { ...(videoDirectorPlan || {}) };
+                delete (videoDirectorPlan as any).task_error_message;
+                delete (videoDirectorPlan as any).error_message;
               }
 
-              if (isCompleted) {
-                if (task.resultUrl && newShotVideos[shot.id] !== task.resultUrl) {
-                  newShotVideos[shot.id] = task.resultUrl;
-                  shotVideosUpdated = true;
-                }
-                if ((task.resultUrl && shot.videoUrl !== task.resultUrl) || !task.resultUrl) {
-                  terminalShotIds.add(shot.id);
-                }
-              } else if (isActive && newShotVideos[shot.id]) {
-                delete newShotVideos[shot.id];
-                shotVideosUpdated = true;
-              } else if (isFailed) {
-                if (shot.videoStatus !== 'failed') {
-                  terminalShotIds.add(shot.id);
-                }
-              }
+              if (isRunning) nextGeneratingVideos.add(shot.id);
+              else nextGeneratingVideos.delete(shot.id);
+              if (isPending) nextPendingVideos.add(shot.id);
+              else nextPendingVideos.delete(shot.id);
+              if (isCompleted && task.resultUrl) nextShotVideos[shot.id] = task.resultUrl;
+              else if (isActive) delete nextShotVideos[shot.id];
+              else if (refreshed?.videoUrl) nextShotVideos[shot.id] = refreshed.videoUrl;
 
               return mergePolledVideoShot(shot, {
-                videoStatus,
-                videoUrl: isCompleted && task.resultUrl ? task.resultUrl : (isActive ? null : shot.videoUrl),
-                videoTaskId: isStaleFailedTask ? null : (task.id || shot.videoTaskId),
+                ...(refreshed || {}),
+                videoStatus: isCompleted || isStaleFailedTask ? 'completed' : isFailed ? 'failed' : isRunning ? 'generating' : isPending ? 'pending' : base.videoStatus,
+                videoUrl: isCompleted && task.resultUrl ? task.resultUrl : isActive ? null : base.videoUrl,
+                videoTaskId: isStaleFailedTask ? null : (task.id || base.videoTaskId),
                 videoDirectorPlan,
               });
-            }
-            return shot;
-          });
-
-          if (shotVideosUpdated || generatingVideosUpdated || pendingVideosUpdated) {
-            set({
-              shots: updatedShots,
-              shotVideos: newShotVideos,
-              generatingVideos: newGeneratingVideos,
-              pendingVideos: newPendingVideos
             });
-          } else if (updatedShots.some((shot, index) => shot !== shots[index])) {
-            set({ shots: updatedShots });
-          }
 
-          const refreshShotIds = new Set([...terminalShotIds, ...activeShotIds]);
-          if (refreshShotIds.size > 0) {
-            const novelId = get().chapter?.novelId || get().novel?.id;
-            if (novelId) {
-              const refreshedShots = await Promise.all(
-                Array.from(refreshShotIds).map((shotId) => shotsApi.getShot(novelId, chapterId, shotId, controller.signal))
-              );
-
-              if (controller.signal.aborted || (get().chapter?.id && get().chapter?.id !== chapterId)) return;
-              set(state => {
-                const nextShotVideos = { ...state.shotVideos };
-                const nextGeneratingVideos = new Set(state.generatingVideos);
-                const nextPendingVideos = new Set(state.pendingVideos);
-                const nextShots = state.shots.map(shot => {
-                  const refreshed = refreshedShots.find(result => result.success && result.data?.id === shot.id)?.data;
-                  if (!refreshed) return shot;
-                  if (refreshed.videoUrl) {
-                    nextShotVideos[shot.id] = refreshed.videoUrl;
-                  }
-                  if (terminalShotIds.has(shot.id)) {
-                    nextGeneratingVideos.delete(shot.id);
-                    nextPendingVideos.delete(shot.id);
-                  }
-                  const task = taskMap[shot.id];
-                  if (task?.status === 'failed' || task?.status === 'cancelled') {
-                    const taskErrorMessage = formatUserFacingError(task.errorMessage || task.error_message || task.error) || (task.status === 'cancelled' ? '视频任务已取消' : '');
-                    const videoDirectorPlan = taskErrorMessage
-                      ? { ...(refreshed.videoDirectorPlan || {}), task_error_message: taskErrorMessage, error_message: taskErrorMessage }
-                      : refreshed.videoDirectorPlan;
-                    return mergePolledVideoShot(shot, { ...refreshed, videoStatus: 'failed' as const, videoDirectorPlan });
-                  }
-                  return mergePolledVideoShot(shot, refreshed);
-                });
-
-                if (nextShots.every((shot, index) => shot === state.shots[index])
-                  && JSON.stringify(nextShotVideos) === JSON.stringify(state.shotVideos)
-                  && nextGeneratingVideos.size === state.generatingVideos.size
-                  && [...nextGeneratingVideos].every(id => state.generatingVideos.has(id))
-                  && nextPendingVideos.size === state.pendingVideos.size
-                  && [...nextPendingVideos].every(id => state.pendingVideos.has(id))) return state;
-                return {
-                  shots: nextShots,
-                  shotVideos: nextShotVideos,
-                  generatingVideos: nextGeneratingVideos,
-                  pendingVideos: nextPendingVideos,
-                };
-              });
-            }
-          }
+            if (nextShots.every((shot, index) => shot === state.shots[index])
+              && JSON.stringify(nextShotVideos) === JSON.stringify(state.shotVideos)
+              && nextGeneratingVideos.size === state.generatingVideos.size
+              && [...nextGeneratingVideos].every(id => state.generatingVideos.has(id))
+              && nextPendingVideos.size === state.pendingVideos.size
+              && [...nextPendingVideos].every(id => state.pendingVideos.has(id))) return state;
+            return {
+              shots: nextShots,
+              shotVideos: nextShotVideos,
+              generatingVideos: nextGeneratingVideos,
+              pendingVideos: nextPendingVideos,
+            };
+          });
         }
       } catch (error) {
         console.error('检查视频任务状态失败:', error);

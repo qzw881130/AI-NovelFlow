@@ -29,7 +29,7 @@ function referencesHarness(fetch) {
     const index = stateIndex++;
     if (!(index in states)) states[index] = initial;
     return [states[index], value => { states[index] = typeof value === 'function' ? value(states[index]) : value; }];
-  }, { fetch }, select => select(resources), project);
+  }, { fetchReferences: fetch }, select => select(resources), project);
   return { resources, render(shot, enabled = true) {
     stateIndex = 0; effectIndex = 0; queued = [];
     const result = hook(shot, enabled); queued.forEach(effect => effect()); return result;
@@ -75,7 +75,7 @@ const activeTask = { id: 'video-task', shotId: 'shot', status: 'running' };
 const response = tasks => ({ json: async () => ({ success: true, data: tasks }) });
 function makeStore(fetch, getShot) {
   const creator = sliceFactory({ getShot }, {}, value => value || '', fetch, { getItem: () => null });
-  return create((...args) => ({ ...creator(...args), chapter: { id: 'chapter', novelId: 'novel' }, shots: [originalShot()], generatingVideos: new Set(['shot']) }));
+  return create((...args) => ({ ...creator(...args), chapter: { id: 'chapter', novelId: 'novel' }, shots: [originalShot()], currentShotIndex: 1, generatingVideos: new Set(['shot']) }));
 }
 
 test('overlapping video polls share task and full-shot requests, including during the shot request', async () => {
@@ -88,6 +88,7 @@ test('overlapping video polls share task and full-shot requests, including durin
   assert.equal(first, store.getState().checkVideoTaskStatus('chapter'));
   list.resolve(response([activeTask])); await settle();
   assert.equal(first, store.getState().checkVideoTaskStatus('chapter'));
+  assert.equal(updates, 0, 'waiting for Shot detail must not publish an intermediate task state');
   detail.resolve({ success: true, data: structuredClone(before[0]) }); await first;
   assert.equal(lists, 1); assert.equal(shots, 1); assert.equal(store.getState().shots, before);
   assert.equal(updates, 0, 'identical responses must not publish a new Shot');
@@ -101,6 +102,36 @@ test('later polls still publish changed director plans and completed video resul
   completed = true; await store.getState().checkVideoTaskStatus('chapter');
   assert.equal(store.getState().shots[0].videoUrl, '/final.mp4'); assert.equal(store.getState().shotVideos.shot, '/final.mp4');
   assert.equal(store.getState().generatingVideos.size, 0);
+});
+
+test('active task status remains stable when the Shot detail still has an old terminal state', async () => {
+  let shotReads = 0;
+  const store = makeStore(async () => response([activeTask]), async () => {
+    shotReads++;
+    return { success: true, data: { ...originalShot(), videoStatus: 'failed', videoDirectorPlan: { clip_plan_revision: 1, progress: 50 } } };
+  });
+  const updates = [];
+  store.subscribe(state => updates.push(state.shots[0].videoStatus));
+  await store.getState().checkVideoTaskStatus('chapter');
+  await store.getState().checkVideoTaskStatus('chapter');
+  assert.equal(shotReads, 2);
+  assert.equal(store.getState().shots[0].videoStatus, 'generating');
+  assert.deepEqual(updates, ['generating'], 'unchanged task and detail must not repaint the workspace');
+});
+
+test('only the selected active Shot receives a detail read on each poll', async () => {
+  const readIds = [];
+  const store = makeStore(async () => response([
+    activeTask,
+    { ...activeTask, id: 'other-task', shotId: 'other' },
+  ]), async (_novel, _chapter, shotId) => {
+    readIds.push(shotId);
+    return { success: true, data: originalShot() };
+  });
+  store.setState({ shots: [originalShot(), { ...originalShot(), id: 'other', videoTaskId: 'other-task' }] });
+  await store.getState().checkVideoTaskStatus('chapter');
+  assert.deepEqual(readIds, ['shot']);
+  assert.equal(store.getState().generatingVideos.has('other'), true);
 });
 
 test('a failed poll releases the shared request for retry', async () => {
@@ -122,5 +153,5 @@ test('only the chapter page owns recurring video status and Shot refreshes', asy
   assert.doesNotMatch(video, /setTimeout\(refreshCurrentShot|setTimeout\(refreshActiveShot/);
   assert.doesNotMatch(sliceSource, /pollVideoTask/);
   assert.match(video, /setHoveredReferenceImage\(null\); \}, \[shot\?\.id,/);
-  assert.match(await read('api/tasks.ts'), /fetch: \(id: string\) => api\.get<Task>\(`\/tasks\/\$\{id\}`\)/);
+  assert.match(await read('api/tasks.ts'), /fetch: \(id: string, signal\?: AbortSignal\) => api\.get<Task>\(`\/tasks\/\$\{id\}`, \{ signal \}\)/);
 });

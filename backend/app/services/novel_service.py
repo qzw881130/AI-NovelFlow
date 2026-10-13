@@ -11,13 +11,13 @@ from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 
 from app.models.novel import Novel, Chapter, Character, Scene
-from app.models.prompt_template import PromptTemplate
 from app.core.database import SessionLocal
 from app.utils.time_utils import format_datetime
 from app.services.llm_service import LLMService
 from app.services.comfyui import ComfyUIService
 from app.services.file_storage import file_storage
 from app.services.prompt_builder import get_style
+from app.services.novel_prompt_templates import resolve_novel_prompt_template
 from app.services.visual_style_authority import strip_embedded_visual_style
 from app.utils.path_utils import url_to_local_path
 from app.utils.image_utils import load_chinese_font, merge_character_images
@@ -38,19 +38,7 @@ class NovelService:
 
     def _resolve_parse_template(self, novel_id: str, template_type: str):
         novel = self.db.query(Novel).filter(Novel.id == novel_id).first()
-        attr_by_type = {
-            "character_parse": "character_parse_prompt_template_id",
-            "scene_parse": "scene_parse_prompt_template_id",
-            "prop_parse": "prop_parse_prompt_template_id",
-        }
-        configured_id = getattr(novel, attr_by_type[template_type], None) if novel else None
-        template = self.db.query(PromptTemplate).filter(PromptTemplate.id == configured_id).first() if configured_id else None
-        if not template:
-            template = self.db.query(PromptTemplate).filter(
-                PromptTemplate.type == template_type,
-                PromptTemplate.is_system == True,
-            ).order_by(PromptTemplate.created_at.asc()).first()
-        return template
+        return resolve_novel_prompt_template(self.db, novel, template_type)
     
     # ==================== 角色解析 ====================
     
@@ -737,18 +725,7 @@ class NovelService:
             }
         
         # 获取拆分提示词模板
-        prompt_template = None
-        if novel.chapter_split_prompt_template_id:
-            prompt_template = self.db.query(PromptTemplate).filter(
-                PromptTemplate.id == novel.chapter_split_prompt_template_id
-            ).first()
-        
-        # 如果没有配置，使用默认模板
-        if not prompt_template:
-            prompt_template = self.db.query(PromptTemplate).filter(
-                PromptTemplate.type == "chapter_split",
-                PromptTemplate.is_system == True
-            ).first()
+        prompt_template = resolve_novel_prompt_template(self.db, novel, "chapter_split")
         
         if not prompt_template:
             return {"success": False, "message": "未找到章节拆分提示词模板"}

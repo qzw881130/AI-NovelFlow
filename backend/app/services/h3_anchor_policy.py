@@ -167,6 +167,8 @@ def check_anchor_policy(prompt, output, authority, spoken, detail, resolved_evid
     requirements = output.get('canonical_visual_requirements')
     requirements = requirements if isinstance(requirements, list) and all(isinstance(r, dict) for r in requirements) else []
     sources = {s['id']: s['text'] for s in policy['canonical_visual_sources']}
+    sources.update({a['anchor_id']: a['visual_reference_description'] for a in catalog
+                    if a.get('anchor_id') not in sources and a.get('visual_reference_description')})
     requirement_ids = {r.get('id') for r in requirements}
     checks['canonical_visual_requirement_trace'] = (bool(requirements) and len(requirement_ids) == len(requirements)
         and all(_text(r.get('id')) and _text(r.get('requirement')) and r.get('source_id') in sources
