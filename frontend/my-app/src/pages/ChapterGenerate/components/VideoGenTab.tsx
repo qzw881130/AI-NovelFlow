@@ -108,15 +108,16 @@ function ClipMetadataDetails({ children, task }: { children: (task?: Task) => Re
   useEffect(() => {
     if (!isOpen || !task) return;
     let cancelled = false;
-    taskApi.fetch(task.id).then((response) => {
+    const controller = new AbortController();
+    taskApi.fetch(task.id, controller.signal).then((response) => {
       const data = response.data;
       if (!cancelled && data?.id === task.id
         && data.clipExecution?.clip_plan_revision === task.clipExecution?.clip_plan_revision) {
         setTaskSnapshot({ source: task, data });
       }
     }).catch(() => { if (!cancelled) setTaskSnapshot(null); });
-    return () => { cancelled = true; };
-  }, [isOpen, task]);
+    return () => { cancelled = true; controller.abort(); };
+  }, [isOpen, task?.id, task?.status]);
 
   const updatePlacement = useCallback(() => {
     const summary = summaryRef.current;
@@ -173,7 +174,7 @@ function ClipMetadataDetails({ children, task }: { children: (task?: Task) => Re
           className="fixed z-[120] w-80 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-md border border-gray-200 bg-white p-3 text-[11px] leading-relaxed text-gray-600 shadow-xl"
           style={placement}
         >
-          {children(taskSnapshot?.source === task ? taskSnapshot?.data : task)}
+          {children(taskSnapshot?.source?.id === task?.id && taskSnapshot?.source?.status === task?.status ? taskSnapshot?.data : task)}
         </div>,
         document.body,
       )}
@@ -259,54 +260,51 @@ function SemanticClipExecutionPanel({ shot, chapterId, novelId, onPreparationSho
     }
     let cancelled = false;
     let timer: number | undefined;
-    const detailsByTaskId = new Map<string, Task>();
+    let controller: AbortController | null = null;
     const refresh = async () => {
+      if (controller) return;
+      if (document.hidden) {
+        timer = window.setTimeout(refresh, 30000);
+        return;
+      }
+      controller = new AbortController();
       setLoading(true);
+      let delay = 30000;
       try {
-        const response = await taskApi.fetchShotTasks(chapterId, String(shot.id));
+        const response = await taskApi.fetchShotTasks(chapterId, String(shot.id), controller.signal);
         if (cancelled) return;
         const listed = Array.isArray(response.data) ? response.data : [];
-        // The list carries provenance and native output, while ordinary image
-        // references live in the existing single-task detail response.
-        const currentTasks = clips.map(clip => resolveSemanticClipTask(clip, listed, revision)).filter((task): task is Task => !!task);
-        await Promise.all(currentTasks.filter(task => !detailsByTaskId.has(task.id)).map(async (task) => {
-          try {
-            const detail = await taskApi.fetch(task.id);
-            if (!cancelled && detail.data?.id === task.id
-              && detail.data.clipExecution?.clip_plan_revision === revision) {
-              detailsByTaskId.set(task.id, detail.data);
-            }
-          } catch { /* The list remains a usable read-only fallback. */ }
-        }));
-        if (cancelled) return;
-        const nextTasks = listed.map(task => {
-          const detail = detailsByTaskId.get(task.id);
-          return detail ? {
-            ...task,
-            clipExecution: {
-              ...detail.clipExecution,
-              ...task.clipExecution,
-              video_reference_manifest: detail.clipExecution?.video_reference_manifest,
-            },
-          } : task;
-        });
-        setTasks(nextTasks);
-        onTasksChange?.(nextTasks);
+        delay = listed.some(task => ['pending', 'queued', 'running', 'processing'].includes(task.status)) ? 2000 : 30000;
+        setTasks(listed);
+        onTasksChange?.(listed);
       } catch {
         if (!cancelled) {
           setTasks([]);
           onTasksChange?.([]);
         }
       } finally {
+        controller = null;
         if (!cancelled) {
           setLoading(false);
-          timer = window.setTimeout(refresh, 2000);
+          timer = window.setTimeout(refresh, delay);
         }
       }
     };
     refresh();
-    return () => { cancelled = true; if (timer !== undefined) window.clearTimeout(timer); };
-  }, [chapterId, shot?.id, revision, clips.length, onTasksChange]);
+    const onVisible = () => {
+      if (!document.hidden) {
+        if (timer !== undefined) window.clearTimeout(timer);
+        timer = window.setTimeout(refresh, 0);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      controller?.abort();
+      if (timer !== undefined) window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [chapterId, shot?.id, revision, clips.length, onTasksChange, isShotVideoGenerating, regeneratingClipKey]);
 
   if (clips.length === 0) return null;
   return (

@@ -98,6 +98,7 @@ export interface Task {
       continues_in_next_clip: boolean;
     }>;
   } | null;
+  ordinaryReferenceCount?: number | null;
 }
 
 export interface TaskPage {
@@ -107,6 +108,9 @@ export interface TaskPage {
   stats: { all: number; pending: number; running: number; completed: number; failed: number; cancelled: number };
   types: string[];
 }
+
+type TaskReferences = Pick<Task, 'id' | 'status' | 'referenceImages'>;
+const referenceTaskRequests = new Map<string, Promise<{ success: boolean; data?: TaskReferences; message?: string }>>();
 
 export const taskApi = {
   fetchPage: (page: number, pageSize: number, status: string, type: string, signal?: AbortSignal) => {
@@ -119,11 +123,23 @@ export const taskApi = {
   fetchList: (limit = 1000) => api.get<Task[]>(`/tasks/?limit=${limit}`),
 
   /** Get tasks attached to a single Shot, including Clip-scoped metadata. */
-  fetchShotTasks: (chapterId: string, shotId: string) =>
-    api.get<Task[]>(`/tasks/?chapter_id=${encodeURIComponent(chapterId)}&shot_id=${encodeURIComponent(shotId)}&type=shot_video&limit=100`),
+  fetchShotTasks: (chapterId: string, shotId: string, signal?: AbortSignal) =>
+    api.get<Task[]>(`/tasks/?chapter_id=${encodeURIComponent(chapterId)}&shot_id=${encodeURIComponent(shotId)}&type=shot_video&summary=true&limit=100`, { signal }),
 
   /** 获取单个任务 */
-  fetch: (id: string) => api.get<Task>(`/tasks/${id}`),
+  fetch: (id: string, signal?: AbortSignal) => api.get<Task>(`/tasks/${id}`, { signal }),
+
+  /** A completed image task's input references are immutable; share the read across mounts. */
+  fetchReferences: (id: string) => {
+    const pending = referenceTaskRequests.get(id);
+    if (pending) return pending;
+    const request = api.get<TaskReferences>(`/tasks/${id}?references_only=true`);
+    referenceTaskRequests.set(id, request);
+    request.then(result => {
+      if (!result.success || result.data?.status !== 'completed') referenceTaskRequests.delete(id);
+    }).catch(() => referenceTaskRequests.delete(id));
+    return request;
+  },
 
   /** 删除任务 */
   delete: (id: string) => api.delete(`/tasks/${id}/`),

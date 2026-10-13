@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bell, BellRing, Check, ChevronDown, Loader2, Play, Send, Volume2 } from 'lucide-react';
+import { Bell, BellRing, Check, ChevronDown, HelpCircle, Loader2, Play, Send, Volume2 } from 'lucide-react';
 import { notificationApi } from '../../../api/notifications';
 import type { NotificationConfig as Config, NotificationEvent } from '../../../api/notifications';
 import { playNotificationSound } from '../../../services/notificationSound';
@@ -145,7 +145,7 @@ export default function NotificationConfig() {
       </section>
 
         <section className="flex min-w-0 flex-col rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center justify-between gap-4"><div className="flex items-center gap-2"><BellRing className="h-5 w-5 text-blue-600" /><h3 className="font-semibold text-gray-900">飞书通知</h3></div>
+          <div className="flex items-center justify-between gap-4"><div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"><div className="flex items-center gap-2"><BellRing className="h-5 w-5 text-blue-600" /><h3 className="font-semibold text-gray-900">飞书通知</h3></div><a href="/help/feishu-notifications" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline"><HelpCircle className="h-4 w-4" />配置教程</a></div>
             <label className="flex shrink-0 items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={config.feishu.enabled} onChange={e => setConfig({ ...config, feishu: { ...config.feishu, enabled: e.target.checked } })} />开启</label></div>
           <div className="mt-3 space-y-3">
             <label className="block min-w-0 text-sm text-gray-700">自定义机器人 Webhook
@@ -161,7 +161,7 @@ export default function NotificationConfig() {
         </section>
 
         <section className="flex min-w-0 flex-col rounded-xl border border-gray-200 p-4">
-          <div className="flex items-center justify-between gap-4"><div className="flex items-center gap-2"><Send className="h-5 w-5 text-blue-600" /><h3 className="font-semibold text-gray-900">Telegram 通知</h3></div>
+          <div className="flex items-center justify-between gap-4"><div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"><div className="flex items-center gap-2"><Send className="h-5 w-5 text-blue-600" /><h3 className="font-semibold text-gray-900">Telegram 通知</h3></div><a href="/help/telegram-notifications" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 hover:underline"><HelpCircle className="h-4 w-4" />配置教程</a></div>
             <label className="flex shrink-0 items-center gap-2 text-sm text-gray-700"><input type="checkbox" checked={config.telegram.enabled} onChange={e => setConfig({ ...config, telegram: { ...config.telegram, enabled: e.target.checked } })} />开启</label></div>
           <div className="mt-3 space-y-3">
             <label className="block min-w-0 text-sm text-gray-700">Bot Token

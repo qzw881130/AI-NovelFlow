@@ -3,8 +3,13 @@
 
 只负责请求/响应处理，业务逻辑委托给 TaskService
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func
+import gzip
+import json
+from time import perf_counter
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import Response
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session, load_only
 from typing import Optional
 from pydantic import BaseModel
@@ -21,6 +26,114 @@ from starlette.concurrency import run_in_threadpool
 from app.api.deps import get_task_repo
 
 router = APIRouter()
+
+
+def _task_read_response(data: dict, request: Request, *, db_ms: float, projection_ms: float) -> Response:
+    started = perf_counter()
+    body = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    headers = {"Vary": "Accept-Encoding"}
+    if "gzip" in request.headers.get("accept-encoding", "").lower():
+        body = gzip.compress(body, compresslevel=3, mtime=0)
+        headers["Content-Encoding"] = "gzip"
+    headers["Server-Timing"] = (
+        f"db;dur={db_ms:.2f}, projection;dur={projection_ms:.2f}, "
+        f"serialize;dur={(perf_counter() - started) * 1000:.2f}"
+    )
+    return Response(content=body, media_type="application/json", headers=headers)
+
+
+def _json_value(value):
+    if not value:
+        return None
+    if not isinstance(value, str):
+        return value
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _task_summary_query(db: Session, *, status_only: bool):
+    """Select status columns without materializing workflow, prompt or metadata blobs."""
+    columns = [
+        Task.id, Task.type, Task.status, Task.name, Task.progress, Task.current_step,
+        Task.result_url, Task.error_message, Task.shot_id, Task.chapter_id,
+        Task.novel_id, Task.parent_task_id, Task.source_task_id, Task.batch_order,
+        Task.comfyui_prompt_id, Task.created_at, Task.started_at,
+        Task.completed_at, Task.updated_at,
+    ]
+    if not status_only:
+        safe_metadata = case(
+            (func.json_valid(Task.metadata_json) == 1, Task.metadata_json), else_="{}"
+        )
+        for key in (
+            "execution_scope", "clip_id", "clip_index", "clip_plan_revision",
+            "approval_status", "approval_mode", "artifact_kind", "capability",
+            "planned_duration", "actual_duration", "assembled_media_duration",
+            "assembled_result", "physical_output", "clip_playback",
+            "dialogue_assignment", "previous_approved_task_id",
+            "previous_approved_video_url", "previous_approved_video_source",
+            "comfyui_error",
+            "execution_contract.capability", "execution_contract.artifact_kind",
+            "execution_contract.previous_clip", "execution_contract.temporal_anchor_manifest.anchors",
+        ):
+            columns.append(func.json_extract(safe_metadata, f"$.{key}").label(key.replace(".", "__")))
+        columns.append(func.json_array_length(safe_metadata, "$.video_reference_manifest.references").label("ordinary_reference_count"))
+    return db.query(*columns)
+
+
+def _format_task_summaries(rows, *, status_only: bool) -> list[dict]:
+    from app.utils.time_utils import format_datetime
+
+    result = []
+    for row in rows:
+        value = row._mapping
+        task = {
+            "id": value["id"], "type": value["type"], "status": value["status"],
+            "name": value["name"], "progress": value["progress"],
+            "currentStep": value["current_step"], "resultUrl": value["result_url"],
+            "errorMessage": value["error_message"], "shotId": value["shot_id"],
+            "chapterId": value["chapter_id"], "novelId": value["novel_id"],
+            "parentTaskId": value["parent_task_id"], "sourceTaskId": value["source_task_id"],
+            "batchOrder": value["batch_order"], "comfyuiPromptId": value["comfyui_prompt_id"],
+            "createdAt": format_datetime(value["created_at"]),
+            "startedAt": format_datetime(value["started_at"]),
+            "completedAt": format_datetime(value["completed_at"]),
+        }
+        if not status_only:
+            execution = {key: value[key] for key in (
+                "execution_scope", "clip_id", "clip_index", "clip_plan_revision",
+                "approval_status", "approval_mode", "artifact_kind", "capability",
+                "planned_duration", "actual_duration", "assembled_media_duration",
+                "previous_approved_task_id", "previous_approved_video_url",
+                "previous_approved_video_source",
+            ) if value[key] is not None}
+            for key in ("assembled_result", "physical_output", "clip_playback", "dialogue_assignment"):
+                if value[key] is not None:
+                    execution[key] = _json_value(value[key])
+            previous_clip = _json_value(value["execution_contract__previous_clip"])
+            anchors = _json_value(value["execution_contract__temporal_anchor_manifest__anchors"])
+            if previous_clip is not None or anchors is not None or value["execution_contract__capability"] is not None:
+                execution["execution_contract"] = {
+                    "capability": value["execution_contract__capability"],
+                    "artifact_kind": value["execution_contract__artifact_kind"],
+                    **({"previous_clip": previous_clip} if previous_clip is not None else {}),
+                    **({"temporal_anchor_manifest": {"anchors": anchors}} if anchors is not None else {}),
+                }
+            if value["ordinary_reference_count"] is not None:
+                task["ordinaryReferenceCount"] = value["ordinary_reference_count"]
+            task["clipExecution"] = execution if execution.get("execution_scope") == "CLIP" else None
+            error = _json_value(value["comfyui_error"])
+            if isinstance(error, dict) and error.get("error_code"):
+                from app.services.comfyui.errors import error_payload
+                task["comfyuiError"] = error_payload(
+                    error["error_code"], error.get("stage"), error.get("effective_url"),
+                    error.get("underlying_error"), http_status=error.get("http_status"),
+                    attempts=error.get("attempts", 0), prompt_submitted=error.get("prompt_submitted", False),
+                    configured_url=error.get("configured_url"),
+                )
+        result.append(task)
+    return result
 
 IMAGE_TASK_TYPES = {
     "character_portrait", "scene_image", "prop_image", "shot_image",
@@ -80,16 +193,42 @@ def get_task_service(db: Session = Depends(get_db)) -> TaskService:
 
 @router.get("/", response_model=dict)
 def list_tasks(
+        request: Request,
         status: Optional[str] = None,
         type: Optional[str] = None,
         chapter_id: Optional[str] = None,
         shot_id: Optional[str] = None,
         active_only: bool = False,
+        summary: bool = False,
+        status_only: bool = False,
         limit: int = 50,
         db: Session = Depends(get_db),
         task_repo: TaskRepository = Depends(get_task_repo)
 ):
     """获取任务列表"""
+    started = perf_counter()
+    if summary or status_only:
+        query = _task_summary_query(db, status_only=status_only)
+        if chapter_id:
+            query = query.filter(Task.chapter_id == chapter_id)
+        if type:
+            query = query.filter(Task.type == type)
+        if status:
+            query = query.filter(Task.status == status)
+        if shot_id:
+            query = query.filter(Task.shot_id == shot_id)
+        if active_only:
+            query = query.filter(Task.status.in_(["pending", "queued", "running", "processing"]))
+        query = query.order_by(Task.created_at.desc())
+        if active_only or not chapter_id:
+            query = query.limit(max(1, min(limit, 1000)))
+        rows = query.all()
+        db_ms = (perf_counter() - started) * 1000
+        projected = perf_counter()
+        data = _format_task_summaries(rows, status_only=status_only)
+        return _task_read_response({"success": True, "data": data}, request,
+                                   db_ms=db_ms, projection_ms=(perf_counter() - projected) * 1000)
+
     if chapter_id or active_only:
         # Page initialization reads several task kinds concurrently. Filter in SQL
         # before loading large historical workflows/metadata for unrelated tasks.
@@ -112,7 +251,11 @@ def list_tasks(
 
     # The background reconciliation loop owns ComfyUI recovery. List reads must
     # not wait for remote queue/history calls or repeat them for every browser.
-    return {"success": True, "data": _format_task_rows(tasks, db)}
+    db_ms = (perf_counter() - started) * 1000
+    projected = perf_counter()
+    data = _format_task_rows(tasks, db)
+    return _task_read_response({"success": True, "data": data}, request,
+                               db_ms=db_ms, projection_ms=(perf_counter() - projected) * 1000)
 
 
 def _format_task_rows(tasks: list, db: Session) -> list:
@@ -164,16 +307,38 @@ def list_tasks_page(
 
 
 @router.get("/{task_id}", response_model=dict)
-async def get_task(task_id: str, task_repo: TaskRepository = Depends(get_task_repo)):
+async def get_task(task_id: str, request: Request, summary: bool = False, references_only: bool = False,
+                   db: Session = Depends(get_db), task_repo: TaskRepository = Depends(get_task_repo)):
     """获取任务详情"""
+    started = perf_counter()
+    if references_only:
+        row = db.query(Task.id, Task.status, Task.reference_images).filter(Task.id == task_id).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="任务不存在")
+        db_ms = (perf_counter() - started) * 1000
+        projected = perf_counter()
+        images = _json_value(row.reference_images)
+        return _task_read_response({"success": True, "data": {
+            "id": row.id, "status": row.status,
+            "referenceImages": images if isinstance(images, list) else [],
+        }}, request, db_ms=db_ms, projection_ms=(perf_counter() - projected) * 1000)
+    if summary:
+        row = _task_summary_query(db, status_only=False).filter(Task.id == task_id).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="任务不存在")
+        db_ms = (perf_counter() - started) * 1000
+        projected = perf_counter()
+        data = _format_task_summaries([row], status_only=False)[0]
+        return _task_read_response({"success": True, "data": data}, request,
+                                   db_ms=db_ms, projection_ms=(perf_counter() - projected) * 1000)
     task = task_repo.get_by_id(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="任务不存在")
-
-    return {
-        "success": True,
-        "data": TaskService.format_task_detail(task)
-    }
+    db_ms = (perf_counter() - started) * 1000
+    projected = perf_counter()
+    data = TaskService.format_task_detail(task)
+    return _task_read_response({"success": True, "data": data}, request,
+                               db_ms=db_ms, projection_ms=(perf_counter() - projected) * 1000)
 
 
 # ==================== 任务操作 ====================

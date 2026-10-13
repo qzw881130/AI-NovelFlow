@@ -25,6 +25,8 @@ const PromptConfig = lazy(() => import('./pages/PromptConfig'));
 const UIConfig = lazy(() => import('./pages/UIConfig'));
 const LLMLogs = lazy(() => import('./pages/LLMLogs'));
 const ClipExecutionInspector = lazy(() => import('./pages/ClipExecutionInspector'));
+const TelegramNotificationsHelp = lazy(() => import('./pages/Help/TelegramNotifications'));
+const FeishuNotificationsHelp = lazy(() => import('./pages/Help/FeishuNotifications'));
 
 /**
  * 加载中占位组件
@@ -48,7 +50,7 @@ function LazyPage({ children }: { children: React.ReactNode }) {
   );
 }
 
-function App() {
+function Application() {
   const { toasts, removeToast } = useToastStore();
   const { loadConfig } = useConfigStore();
 
@@ -97,6 +99,14 @@ function App() {
       <ToastContainer toasts={toasts} onRemove={removeToast} />
     </>
   );
+}
+
+function App() {
+  return <Routes>
+    <Route path="/help/telegram-notifications" element={<LazyPage><TelegramNotificationsHelp /></LazyPage>} />
+    <Route path="/help/feishu-notifications" element={<LazyPage><FeishuNotificationsHelp /></LazyPage>} />
+    <Route path="*" element={<Application />} />
+  </Routes>;
 }
 
 export default App;

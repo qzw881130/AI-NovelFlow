@@ -898,7 +898,7 @@ export const createGenerationSlice: StateCreator<
     const deadline = setTimeout(() => controller.abort(), 15000);
     const request = (async () => {
       try {
-        const response = await fetch(`/api/tasks/?chapter_id=${chapterId}&type=shot_video`, { signal: controller.signal });
+        const response = await fetch(`/api/tasks/?chapter_id=${chapterId}&type=shot_video&status_only=true`, { signal: controller.signal });
         const result = await response.json();
 
         if (controller.signal.aborted || (get().chapter?.id && get().chapter?.id !== chapterId)) return;
@@ -1241,7 +1241,7 @@ export const createGenerationSlice: StateCreator<
     // The Shot list already carries persisted terminal state. On page entry,
     // avoid downloading every historical task just to discover no work is active.
     try {
-      const response = await fetch(`/api/tasks/?chapter_id=${encodeURIComponent(chapterId)}&active_only=true&limit=1`);
+      const response = await fetch(`/api/tasks/?chapter_id=${encodeURIComponent(chapterId)}&active_only=true&status_only=true&limit=1`);
       if (response.ok) {
         const result = await response.json();
         if (result.success && Array.isArray(result.data) && result.data.length === 0) return;

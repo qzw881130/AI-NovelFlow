@@ -26,7 +26,7 @@ export function useShotReferenceImages(shot: ShotReferenceSource | null | undefi
     if (!enabled || !taskId) return;
     let cancelled = false;
     setLoadingTaskId(taskId);
-    taskApi.fetch(taskId)
+    taskApi.fetchReferences(taskId)
       .then((response) => {
         if (cancelled) return;
         const taskReferenceImages = response.data?.referenceImages;

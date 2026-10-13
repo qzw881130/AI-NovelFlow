@@ -43,6 +43,7 @@ export function getMaterializedTemporalAnchors(clip: SemanticClipPlan, task?: Ta
 }
 
 export function getOrdinaryImageReferenceCount(task?: Task): number | null {
+  if (task?.ordinaryReferenceCount != null) return task.ordinaryReferenceCount;
   const references = task?.clipExecution?.video_reference_manifest?.references;
   return Array.isArray(references) ? references.length : null;
 }

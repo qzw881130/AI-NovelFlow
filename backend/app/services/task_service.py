@@ -1534,14 +1534,10 @@ class TaskService:
             reference_images = []
         try:
             metadata = json.loads(task.metadata_json or "{}")
-            clip_metadata = metadata if metadata.get("execution_scope") == "CLIP" else None
-        except Exception:
+            clip_metadata = metadata if isinstance(metadata, dict) and metadata.get("execution_scope") == "CLIP" else None
+        except (ValueError, TypeError):
             clip_metadata = None
-        try:
-            raw_metadata = json.loads(task.metadata_json or "{}")
-            clip_execution = raw_metadata if raw_metadata.get("execution_scope") == "CLIP" else None
-        except Exception:
-            clip_execution = None
+        clip_execution = clip_metadata
 
         return {
             "id": task.id,
