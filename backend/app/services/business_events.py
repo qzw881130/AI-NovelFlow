@@ -152,7 +152,9 @@ def review_event(review, task=None):
     if state_index is not None:
         payload["visual_state_id"] = str(state_index)
     verdict = review.overall if review.status == "success" else "ERROR"
-    code = "image.review.error" if review.status == "error" else "image.review.passed" if verdict == "PASS" else "image.review.failed"
+    code = ("image.review.error" if review.status == "error" else
+            "image.review.failed" if verdict == "FAIL" else
+            "image.review.warning" if verdict == "WARNING" else "image.review.passed")
     dimensions = obj(review.dimensions_json)
     payload.update(review_id=review.id, task_id=review.task_id, llm_log_id=review.llm_log_id,
         source="image_quality_review", trigger=review.trigger, raw_status=verdict,

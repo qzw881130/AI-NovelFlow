@@ -24,7 +24,7 @@ LABELS = {
     "shot.generation.completed": "视频生成完成", "shot.generation.failed": "视频生成失败",
     "batch.generation.completed": "批量生成完成", "batch.generation.failed": "批量生成失败",
     "task.review.required": "需要人工审核", "comfyui.connection.failed": "连接失败",
-    "image.review.passed": "图片评审通过", "image.review.failed": "图片评审未通过",
+    "image.review.passed": "图片评审通过", "image.review.warning": "图片评审提醒", "image.review.failed": "图片评审未通过",
     "image.review.error": "图片评审异常",
     "image.generation.completed": "图片生成完成", "image.generation.failed": "图片生成失败",
     "example.import.completed": "导入完成", "example.import.failed": "导入失败",
@@ -325,7 +325,7 @@ def format_notification(row, context=None):
         if count is not None:
             facts.append(f"章节数量：{count}")
     if code.startswith("image.review"):
-        facts.append("评审结果：" + ("通过" if code.endswith(".passed") else "异常" if code.endswith(".error") else "未通过"))
+        facts.append("评审结果：" + ("通过" if code.endswith(".passed") else "提醒" if code.endswith(".warning") else "异常" if code.endswith(".error") else "未通过"))
     if code.startswith("image.generation"):
         facts.append("生成结果：" + ("完成" if code.endswith(".completed") else "失败"))
 

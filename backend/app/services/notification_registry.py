@@ -38,7 +38,8 @@ _EVENTS = (
 EVENT_REGISTRY = {code: NotificationEvent(code, name, category, description) for code, name, category, description in _EVENTS}
 for code, name, category, description, enabled in (
     ("image.review.passed", "AI 评审通过", "图片质量评审", "图片质量评审 PASS，不改变图片生成状态", False),
-    ("image.review.failed", "AI 评审不通过", "图片质量评审", "图片质量评审 FAIL 或 REVIEW；不自动重绘", True),
+    ("image.review.warning", "AI 评审提醒", "图片质量评审", "图片质量评审 WARNING，图片可保留", False),
+    ("image.review.failed", "AI 评审不通过", "图片质量评审", "图片质量评审 FAIL；主分镜图生图阶段最多自动重生两次", True),
     ("image.review.error", "AI 评审异常", "图片质量评审", "无法取得有效评审结果；原图片仍然保留", True),
     ("image.generation.completed", "图片生成完成", "图片生成", "角色、场景、道具或主分镜等图片任务完成（关键帧使用视觉状态事件）", False),
     ("image.generation.failed", "图片生成失败", "图片生成", "非关键帧图片任务最终失败", True),

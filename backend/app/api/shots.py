@@ -1035,8 +1035,20 @@ async def run_shot_image_batch_task(batch_task_id: str) -> None:
         )
         total = len(child_tasks)
         completed = 0
+        quality_failed = 0
+        review_incomplete = 0
         failed = 0
         cancelled = 0
+
+        def count_completed(child: Task) -> None:
+            nonlocal completed, quality_failed, review_incomplete
+            quality_status = (_safe_json_dict(child.metadata_json).get("shot_image_quality") or {}).get("status")
+            if quality_status == "FAIL":
+                quality_failed += 1
+            elif quality_status == "ERROR":
+                review_incomplete += 1
+            else:
+                completed += 1
 
         for index, child_task in enumerate(child_tasks, start=1):
             db.expire_all()
@@ -1056,14 +1068,16 @@ async def run_shot_image_batch_task(batch_task_id: str) -> None:
                 return
             if not child_task or child_task.status in {"completed", "cancelled"}:
                 if child_task and child_task.status == "completed":
-                    completed += 1
+                    count_completed(child_task)
                 elif child_task and child_task.status == "cancelled":
                     cancelled += 1
                 continue
             if child_task.status == "failed":
                 failed += 1
                 continue
-            if child_task.status == "running" and not child_task.comfyui_prompt_id:
+            quality_state = (_safe_json_dict(child_task.metadata_json).get("shot_image_quality") or {})
+            if (child_task.status == "running" and not child_task.comfyui_prompt_id
+                    and not quality_state.get("retry_pending")):
                 child_task.status = "pending"
                 child_task.started_at = None
                 child_task.current_step = "等待重新处理"
@@ -1076,25 +1090,36 @@ async def run_shot_image_batch_task(batch_task_id: str) -> None:
                 child_task.current_step = "准备提交分镜图工作流" if prompt_text else "正在生成分镜图提示词"
                 batch_task.current_step = f"正在处理 {index}/{total}：{child_task.current_step}"
                 db.commit()
-                await _prepare_and_enqueue_shot_image_generation(
-                    novel_id=child_task.novel_id,
-                    chapter_id=child_task.chapter_id,
-                    shot_id=child_task.shot_id,
-                    request=GenerateShotImageRequest(prompt_text=prompt_text) if prompt_text else None,
-                    db=db,
-                    novel_repo=NovelRepository(db),
-                    chapter_repo=ChapterRepository(db),
-                    task_repo=TaskRepository(db),
-                    workflow_repo=WorkflowRepository(db),
-                    shot_repo=ShotRepository(db),
-                    template_repo=PromptTemplateRepository(db),
-                    llm_service=LLMService(),
-                    existing_task=child_task,
-                )
+                try:
+                    await _prepare_and_enqueue_shot_image_generation(
+                        novel_id=child_task.novel_id,
+                        chapter_id=child_task.chapter_id,
+                        shot_id=child_task.shot_id,
+                        request=GenerateShotImageRequest(prompt_text=prompt_text) if prompt_text else None,
+                        db=db,
+                        novel_repo=NovelRepository(db),
+                        chapter_repo=ChapterRepository(db),
+                        task_repo=TaskRepository(db),
+                        workflow_repo=WorkflowRepository(db),
+                        shot_repo=ShotRepository(db),
+                        template_repo=PromptTemplateRepository(db),
+                        llm_service=LLMService(),
+                        existing_task=child_task,
+                    )
+                except Exception as exc:
+                    child_task.status = "failed"
+                    child_task.error_message = str(exc)
+                    child_task.current_step = "分镜图准备失败"
+                    child_task.completed_at = datetime.utcnow()
+                    failed += 1
+                    batch_task.progress = int(index / total * 100) if total else 100
+                    db.commit()
+                    continue
 
             status = await _wait_for_shot_image_child_task(db, child_task.id)
             if status == "completed":
-                completed += 1
+                db.refresh(child_task)
+                count_completed(child_task)
             elif status == "cancelled":
                 cancelled += 1
             else:
@@ -1107,11 +1132,14 @@ async def run_shot_image_batch_task(batch_task_id: str) -> None:
 
         batch_task = db.query(Task).filter(Task.id == batch_task_id).first()
         if batch_task:
-            batch_task.status = "completed" if failed == 0 and cancelled == 0 else "failed"
+            batch_task.status = "completed" if failed == 0 and cancelled == 0 and quality_failed == 0 else "failed"
             batch_task.progress = 100
             batch_task.completed_at = datetime.utcnow()
-            batch_task.current_step = f"完成：成功 {completed}，失败 {failed}，取消 {cancelled}"
-            batch_task.error_message = None if failed == 0 and cancelled == 0 else batch_task.current_step
+            batch_task.current_step = (
+                f"完成：成功 {completed}，审核未通过 {quality_failed}，审核未完成 {review_incomplete}，"
+                f"生成失败 {failed}，取消 {cancelled}"
+            )
+            batch_task.error_message = None if batch_task.status == "completed" else batch_task.current_step
             db.commit()
     except Exception as exc:
         batch_task = db.query(Task).filter(Task.id == batch_task_id).first()

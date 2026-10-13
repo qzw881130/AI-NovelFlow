@@ -5,6 +5,7 @@
 """
 
 import json
+import secrets
 from datetime import datetime
 from typing import Optional, Dict
 
@@ -27,6 +28,111 @@ from app.services.background_workers import (
     persistent_job, worker_manager, save_image_prompt, resume_image_prompt, ensure_task_active,
 )
 from app.utils.workflow_disconnect import disconnect_reference_chain
+from app.utils.workflow_seed import extract_workflow_seed, set_workflow_seed
+
+
+MAX_SHOT_IMAGE_QUALITY_GENERATIONS = 3
+
+
+def _task_metadata(task: Task) -> dict:
+    try:
+        value = json.loads(task.metadata_json or "{}")
+        return value if isinstance(value, dict) else {}
+    except (TypeError, ValueError):
+        return {}
+
+
+async def _regenerate_from_submitted_workflow(db, task, comfyui_service, workflow):
+    """Retry the same submitted graph and reference bindings with only a new seed."""
+    graph = json.loads(task.workflow_json or "{}")
+    if not isinstance(graph, dict) or not graph:
+        raise ValueError("AI 评审重生缺少已提交工作流快照")
+    previous_seed = extract_workflow_seed(graph)
+    if previous_seed is not None:
+        prior_attempts = (_task_metadata(task).get("shot_image_quality") or {}).get("attempts") or []
+        used_seeds = {item.get("seed") for item in prior_attempts if isinstance(item, dict)}
+        used_seeds.add(previous_seed)
+        next_seed = secrets.randbelow(2**31 - 1) + 1
+        while next_seed in used_seeds:
+            next_seed = secrets.randbelow(2**31 - 1) + 1
+        set_workflow_seed(graph, next_seed)
+    node_mapping = json.loads(workflow.node_mapping or "{}")
+    saved_output_node = (_task_metadata(task).get("image_attempt") or {}).get("save_image_node_id")
+    if saved_output_node:
+        node_mapping["save_image_node_id"] = saved_output_node
+
+    def save_prompt_id(prompt_id: str, queued_workflow: dict = None):
+        metadata = _task_metadata(task)
+        metadata.setdefault("shot_image_quality", {})["retry_pending"] = False
+        task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+        save_image_prompt(db, task, prompt_id, queued_workflow or graph,
+                          node_mapping.get("save_image_node_id"), reserve_retry=True)
+
+    task.current_step = "AI 评审未通过，重新生成图片..."
+    db.commit()
+    return await comfyui_service.generate_shot_image_with_workflow(
+        prompt=task.prompt_text, workflow_json=workflow.workflow_json,
+        node_mapping=node_mapping, workflow=graph, on_prompt_queued=save_prompt_id,
+    )
+
+
+async def _review_and_finish_shot_image(db, task, chapter_id: str, shot_index: int,
+                                        image_path: str | None, image_url: str,
+                                        shot_repo: ShotRepository) -> bool:
+    """Return True only when the same durable task needs another physical image."""
+    from app.services.image_quality_review import review_image_task
+
+    metadata = _task_metadata(task)
+    quality = metadata.setdefault("shot_image_quality", {})
+    if quality.get("pending_review") and task.result_url == image_url:
+        attempt = int(quality["generation_count"])
+    else:
+        attempt = int(quality.get("generation_count") or 0) + 1
+        quality["generation_count"] = attempt
+    quality["pending_review"] = True
+    quality["pending_image_path"] = image_path
+    quality["max_generations"] = MAX_SHOT_IMAGE_QUALITY_GENERATIONS
+    task.result_url = image_url
+    task.current_step = f"AI 图片质量评审中（{attempt}/{MAX_SHOT_IMAGE_QUALITY_GENERATIONS}）"
+    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    db.commit()
+
+    try:
+        review = await review_image_task(db, task.id, trigger="generation")
+        verdict = review.overall if review.status == "success" else "ERROR"
+        review_id = review.id
+        review_error = review.error_message
+    except Exception as exc:
+        verdict, review_id, review_error = "ERROR", None, str(exc)
+    quality["attempts"] = [*(quality.get("attempts") or []), {
+        "number": attempt, "image_url": image_url, "review_id": review_id,
+        "verdict": verdict, "review_error": review_error,
+        "seed": task.seed, "comfyui_prompt_id": task.comfyui_prompt_id,
+    }]
+    quality["status"] = verdict
+    quality["pending_review"] = False
+    quality.pop("pending_image_path", None)
+    if _is_task_cancelled(db, task):
+        return False
+    task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+    if verdict == "FAIL" and attempt < MAX_SHOT_IMAGE_QUALITY_GENERATIONS:
+        quality["retry_pending"] = True
+        task.result_url = None
+        task.comfyui_prompt_id = None
+        task.current_step = f"AI 评审 FAIL，准备重新生成（{attempt + 1}/{MAX_SHOT_IMAGE_QUALITY_GENERATIONS}）"
+        task.metadata_json = json.dumps(metadata, ensure_ascii=False)
+        db.commit()
+        return True
+
+    _update_shot_image(db, chapter_id, shot_index, image_path, image_url, shot_repo, task_id=task.id)
+    task.status = "completed"
+    task.progress = 100
+    task.current_step = ("生成完成；AI 审核未通过，需人工处理" if verdict == "FAIL" else
+                         "生成完成；AI 审核未完成" if verdict == "ERROR" else
+                         f"生成完成；AI 审核 {verdict}")
+    task.completed_at = datetime.utcnow()
+    db.commit()
+    return False
 
 
 def _is_task_cancelled(db, task) -> bool:
@@ -141,6 +247,7 @@ async def generate_shot_image_task(
     db = SessionLocal()
     task = None
     shot_repo = None
+    retry_requested = False
     try:
         # 获取任务
         task = db.query(Task).filter(Task.id == task_id).first()
@@ -151,7 +258,7 @@ async def generate_shot_image_task(
 
         # 更新任务状态为运行中
         task.status = "running"
-        task.started_at = datetime.utcnow()
+        task.started_at = task.started_at or datetime.utcnow()
         task.current_step = "准备生成环境..."
         db.commit()
 
@@ -181,9 +288,28 @@ async def generate_shot_image_task(
 
         validate_image_provenance(shot, task_provenance(task), task_id=task.id)
 
+        quality = _task_metadata(task).get("shot_image_quality") or {}
+        if quality.get("pending_review") and task.result_url:
+            retry_requested = await _review_and_finish_shot_image(
+                db, task, chapter_id, shot_index, quality.get("pending_image_path"),
+                task.result_url, shot_repo,
+            )
+            if retry_requested:
+                db.close()
+                await generate_shot_image_task(
+                    task_id, novel_id, chapter_id, shot_index, shot_description, workflow_id,
+                )
+            return
+
         comfyui_service = ComfyUIService()
         if task.comfyui_prompt_id:
             result = await resume_image_prompt(db, task, comfyui_service)
+        elif _task_metadata(task).get("shot_image_quality", {}).get("retry_pending"):
+            workflow = db.query(Workflow).filter(Workflow.id == workflow_id).first()
+            if not workflow:
+                _fail_shot_image_task(db, task, "工作流不存在", "生成失败", chapter_id, shot_index, shot_repo)
+                return
+            result = await _regenerate_from_submitted_workflow(db, task, comfyui_service, workflow)
         else:
             # 从 Shot 模型获取分镜数据
             shot_characters = json.loads(shot.characters) if shot.characters else []
@@ -354,9 +480,14 @@ async def generate_shot_image_task(
             return
 
         # 下载并保存生成的图片
-        await _save_generated_image(
-            result, task, chapter, novel_id, chapter_id, shot_index, db, task_id, shot.id, shot_repo
+        staged = await _save_generated_image(
+            result, task, chapter, novel_id, chapter_id, shot_index, db, task_id, shot.id, shot_repo,
+            stage_only=True,
         )
+        if staged:
+            retry_requested = await _review_and_finish_shot_image(
+                db, task, chapter_id, shot_index, staged[0], staged[1], shot_repo,
+            )
 
     except Exception as e:
         print(f"[ShotTask {task_id}] Error: {e}")
@@ -374,6 +505,10 @@ async def generate_shot_image_task(
             pass
     finally:
         db.close()
+    if retry_requested:
+        await generate_shot_image_task(
+            task_id, novel_id, chapter_id, shot_index, shot_description, workflow_id,
+        )
 
 
 # ==================== 辅助函数 ====================
@@ -730,6 +865,8 @@ async def _save_generated_image(
     task_id: str,
     shot_id: str = None,
     shot_repo: ShotRepository = None,
+    *,
+    stage_only: bool = False,
 ):
     """下载并保存生成的图片"""
     if _is_task_cancelled(db, task):
@@ -760,6 +897,9 @@ async def _save_generated_image(
     file_prefix = f"shot_{shot_id[:8]}" if shot_id else f"shot_{shot_index:03d}"
     if task_provenance(task):
         file_prefix += f"_{task.id}"
+    if stage_only:
+        next_attempt = int(_task_metadata(task).get("shot_image_quality", {}).get("generation_count") or 0) + 1
+        file_prefix += f"_{task.id}_quality{next_attempt}"
     local_path = await file_storage.download_image(
         url=image_url,
         novel_id=novel_id,
@@ -776,6 +916,9 @@ async def _save_generated_image(
         )
         local_url = f"/api/files/{relative_path.lstrip('/')}"
 
+        if stage_only:
+            return str(local_path), local_url
+
         _update_shot_image(db, chapter_id, shot_index, local_path, local_url, shot_repo, task_id=task.id)
         task.status = "completed"
         task.progress = 100
@@ -791,6 +934,8 @@ async def _save_generated_image(
     else:
         if _is_task_cancelled(db, task):
             return
+        if stage_only:
+            return None, image_url
         _update_shot_image(db, chapter_id, shot_index, None, image_url, shot_repo, task_id=task.id)
         task.status = "completed"
         task.progress = 100

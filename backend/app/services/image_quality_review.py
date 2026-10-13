@@ -36,8 +36,9 @@ def _json(value, default):
         return default
 
 
-def build_review_input(task: Task, structured_target: dict | None = None) -> dict:
-    if task.type not in IMAGE_TYPES or task.status != "completed" or not task.result_url or not task.prompt_text:
+def build_review_input(task: Task, structured_target: dict | None = None, *, generation_review: bool = False) -> dict:
+    in_generation = generation_review and task.type == "shot_image" and task.status == "running"
+    if task.type not in IMAGE_TYPES or (task.status != "completed" and not in_generation) or not task.result_url or not task.prompt_text:
         raise ValueError("评审需要已完成生图任务、真实生成图和原始提示词")
     metadata = _json(task.metadata_json, {})
     metadata = metadata if isinstance(metadata, dict) else {}
@@ -111,7 +112,8 @@ def normalize_review_response(raw: str) -> dict:
         if issue["visibility"] not in {"OBSERVED", "OCCLUDED", "UNCERTAIN"}:
             issue["visibility"] = "UNCERTAIN"
         if (issue["type"] not in BLOCKING_DIMENSIONS or issue["visibility"] != "OBSERVED"
-                or issue["location"] in {"", "无法确认", "未知"} or not issue["evidence"]):
+                or issue["location"] in {"", "无法确认", "未知"}
+                or not issue["observed"] or not issue["evidence"]):
             issue["severity"] = "WARNING"
         issues.append(issue)
     dimensions = {}
@@ -135,7 +137,9 @@ def normalize_review_response(raw: str) -> dict:
             status = "WARNING"
         dimensions[name] = {"status": status, "original_status": value["status"],
                             "summary": str(value.get("summary") or "")}
-    overall = "FAIL" if any(dimensions[name]["status"] == "FAIL" for name in BLOCKING_DIMENSIONS) else "PASS"
+    overall = ("FAIL" if any(dimensions[name]["status"] == "FAIL" for name in BLOCKING_DIMENSIONS)
+               else "WARNING" if any(value["status"] == "WARNING" for value in dimensions.values())
+               else "PASS")
     return {"overall": overall, "summary": str(data.get("summary") or ""),
             "dimensions": dimensions, "issues": issues}
 
@@ -178,7 +182,7 @@ def create_image_review(db: Session, task_id: str, trigger: str = "manual") -> I
                                 created_at=datetime.now(timezone.utc),
                                 input_snapshot_json=json.dumps({"generated_image": task.result_url}))
     try:
-        snapshot = build_review_input(task, structured)
+        snapshot = build_review_input(task, structured, generation_review=trigger == "generation")
         review.input_snapshot_json = json.dumps(snapshot, ensure_ascii=False)
         novel = db.get(Novel, task.novel_id) if task.novel_id else None
         template = resolve_novel_prompt_template(db, novel, "image_quality_review_prompt")
@@ -279,6 +283,8 @@ async def review_image_task(db: Session, task_id: str, trigger: str = "manual") 
             return await execute_image_review(db, current["reviewId"])
         if current["qualityStatus"] == "RUNNING":
             return db.get(ImageQualityReview, current["reviewId"])
+        if trigger == "generation" and current["reviewId"]:
+            return db.get(ImageQualityReview, current["reviewId"])
     review = create_image_review(db, task_id, trigger)
     return await execute_image_review(db, review.id)
 
@@ -293,7 +299,7 @@ def image_quality_state(review: ImageQualityReview | None) -> str:
     if not review:
         return "NOT_REVIEWED"
     if review.status == "success":
-        return "REVIEW" if review.overall == "WARNING" else (review.overall or "ERROR")
+        return review.overall or "ERROR"
     return {"pending": "PENDING", "running": "RUNNING", "error": "ERROR"}.get(review.status, "ERROR")
 
 

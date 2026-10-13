@@ -12,7 +12,7 @@ import { createPortal } from 'react-dom';
 import { useChapterGenerateStore } from '../stores';
 import { AlertTriangle, Box, ChevronDown, Download, Image, Loader2, Upload, Eye, X, Check, Square, Save, Users } from 'lucide-react';
 import { shotsApi } from '../../../api/shots';
-import { taskApi } from '../../../api/tasks';
+import { taskApi, type Task } from '../../../api/tasks';
 import { useTranslation } from '../../../stores/i18nStore';
 import type { Shot } from '../../../api/shots';
 import { ImageEditModal } from '../../../components/ImageEditModal';
@@ -118,6 +118,9 @@ export function ShotImageGenTab({
   const [previewImageSize, setPreviewImageSize] = useState<{ width: number; height: number } | null>(null);
   const [isEditingImage, setIsEditingImage] = useState(false);
   const [isReplacingImage, setIsReplacingImage] = useState(false);
+  const [currentImageTask, setCurrentImageTask] = useState<Task | null>(null);
+  const [batchTaskId, setBatchTaskId] = useState<string | null>(null);
+  const [batchProgressText, setBatchProgressText] = useState('');
 
   // 统一使用 shots prop（来自 store.shots）
   const shotsList = shots;
@@ -127,6 +130,35 @@ export function ShotImageGenTab({
   // 获取当前分镜对象
   const currentShotObj = shots.find(s => s.index === currentShotIndex);
   const currentShotId = currentShotObj?.id || shotsList[currentShotIndex - 1]?.id || '';
+
+  useEffect(() => {
+    const taskId = currentShotObj?.imageTaskId;
+    if (!taskId) { setCurrentImageTask(null); return; }
+    let active = true;
+    const poll = async () => {
+      try {
+        const result = await taskApi.fetch(taskId);
+        if (active && result.success && result.data) setCurrentImageTask(result.data);
+      } catch { /* Keep the last known review state during a temporary API error. */ }
+    };
+    void poll();
+    const timer = window.setInterval(() => { void poll(); }, 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [currentShotObj?.imageTaskId]);
+
+  useEffect(() => {
+    if (!batchTaskId) return;
+    let active = true;
+    const poll = async () => {
+      try {
+        const result = await taskApi.fetch(batchTaskId);
+        if (active && result.success && result.data) setBatchProgressText(result.data.currentStep || '批量生成中');
+      } catch { /* Keep the last known batch counts during a temporary API error. */ }
+    };
+    void poll();
+    const timer = window.setInterval(() => { void poll(); }, 5000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [batchTaskId]);
   const currentImageUrl = currentShotObj?.imageUrl || currentShotData?.imageUrl || shotImages[currentShotId];
 
   const hasImage = !!currentImageUrl;
@@ -330,6 +362,8 @@ export function ShotImageGenTab({
         const detailMessage = typeof result.detail === 'object' ? result.detail?.message : result.detail;
         throw new Error(result.message || detailMessage || '批量生成分镜图失败');
       }
+      setBatchTaskId(result.data?.batchTaskId || null);
+      setBatchProgressText('批量生成中');
       await checkShotTaskStatus(chapterId);
       toast.success(result.message || '批量分镜图任务已创建，关闭页面后会继续执行');
     } catch (error) {
@@ -720,6 +754,15 @@ export function ShotImageGenTab({
           </div>
         </div>
       </div>
+
+      {currentImageTask?.shotImageQuality && currentImageTask.id === currentShotObj?.imageTaskId && (
+        <div data-testid="shot-image-quality-status" className="mb-3 rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-700">
+          AI 审核：{currentImageTask.shotImageQuality.status || '进行中'} · 已生成次数：{currentImageTask.shotImageQuality.generation_count || 0}/{currentImageTask.shotImageQuality.max_generations || 3}
+          {currentImageTask.shotImageQuality.status === 'FAIL' && currentImageTask.status === 'completed' && ' · 需人工处理，可点击“LLM+生成分镜”手动重新生成'}
+          {currentImageTask.shotImageQuality.status === 'ERROR' && ' · 审核未完成，图片已保留'}
+        </div>
+      )}
+      {batchProgressText && <div data-testid="shot-image-batch-progress" className="mb-3 text-xs text-gray-600">{batchProgressText}</div>}
 
       {physicalReferencesBlocked && (
         <div data-testid="shot-image-reference-blocker" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">

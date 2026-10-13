@@ -93,7 +93,7 @@ def test_real_review_service_emits_after_save_without_changing_image(ledger, tri
     assert task.status == 'completed' and task.result_url == '/api/files/saved.png'
 
 
-@pytest.mark.parametrize('overall,status,code', [('PASS','success','passed'), ('WARNING','success','failed'), (None,'error','error')])
+@pytest.mark.parametrize('overall,status,code', [('PASS','success','passed'), ('WARNING','success','warning'), (None,'error','error')])
 def test_review_verdicts(ledger, overall, status, code):
     db, _ = ledger; task = image_task(db)
     review = ImageQualityReview(task_id=task.id, status=status, overall=overall, trigger='automatic')

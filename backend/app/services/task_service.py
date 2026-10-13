@@ -819,6 +819,10 @@ class TaskService:
                     continue
 
                 if state == "completed":
+                    if task.type == "shot_image" and persisted_jobs:
+                        # The durable image worker owns #15 review and quality retries.
+                        # Legacy receipt recovery would publish the image before review.
+                        continue
                     if task.type in {"shot_image", "keyframe_image"} and inactive_seconds(task) > 60:
                         try:
                             recover = self._recover_completed_shot_image_prompt if task.type == "shot_image" else self._recover_completed_keyframe_prompt
@@ -1536,6 +1540,7 @@ class TaskService:
             metadata = json.loads(task.metadata_json or "{}")
             clip_metadata = metadata if isinstance(metadata, dict) and metadata.get("execution_scope") == "CLIP" else None
         except (ValueError, TypeError):
+            metadata = {}
             clip_metadata = None
         clip_execution = clip_metadata
 
@@ -1549,6 +1554,7 @@ class TaskService:
             "currentStep": task.current_step,
             "resultUrl": task.result_url,
             "metadata": clip_metadata,
+            "shotImageQuality": metadata.get("shot_image_quality") if task.type == "shot_image" and isinstance(metadata, dict) else None,
             "clipExecution": clip_execution,
             "errorMessage": task.error_message,
             "comfyuiError": task_comfyui_error(task),

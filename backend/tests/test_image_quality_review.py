@@ -101,7 +101,7 @@ def test_novel_default_review_ignores_global_custom_version(db_session):
 
 def test_uncertain_identity_is_warning():
     result = normalize_review_response(_response(visibility="OCCLUDED"))
-    assert result["overall"] == "PASS"
+    assert result["overall"] == "WARNING"
     assert result["dimensions"]["CHARACTER_IDENTITY"]["status"] == "WARNING"
     assert result["dimensions"]["CHARACTER_IDENTITY"]["original_status"] == "FAIL"
     assert result["issues"][0]["severity"] == "WARNING"
@@ -128,7 +128,7 @@ def test_core_dimension_fail_still_fails_overall(name):
 @pytest.mark.parametrize("name", ["ACTION_ACCURACY", "PROP_ACCURACY", "SCENE_CONSISTENCY"])
 def test_noncore_fail_is_warning_with_original_judgment_and_description(name):
     result = normalize_review_response(_dimension_response(name))
-    assert result["overall"] == "PASS"
+    assert result["overall"] == "WARNING"
     assert result["dimensions"][name] == {"status": "WARNING", "original_status": "FAIL",
                                           "summary": "原始模型判断"}
     assert result["issues"][0]["severity"] == "WARNING"
@@ -145,6 +145,25 @@ def test_noncore_warning_never_masks_simultaneous_core_failure():
     assert result["overall"] == "FAIL"
     assert result["dimensions"]["CHARACTER_COUNT"]["status"] == "FAIL"
     assert result["dimensions"]["ACTION_ACCURACY"]["status"] == "WARNING"
+
+
+@pytest.mark.parametrize("name,visibility,observed,expected", [
+    ("CHARACTER_IDENTITY", "UNCERTAIN", "远景人物面容不可辨认", "WARNING"),
+    ("CHARACTER_IDENTITY", "OCCLUDED", "人物面部部分被遮挡", "WARNING"),
+    ("CHARACTER_COUNT", "UNCERTAIN", "无法确认远景是否缺少一人", "WARNING"),
+    ("CHARACTER_COUNT", "OBSERVED", "画面右侧明确多出一人", "FAIL"),
+    ("CHARACTER_IDENTITY", "OBSERVED", "两名角色的脸和服装身份明显交换", "FAIL"),
+    ("HUMAN_ANATOMY", "OBSERVED", "画面中央人物清楚可见第三只手", "FAIL"),
+    ("ACTION_ACCURACY", "OBSERVED", "动作与提示词不完全一致", "WARNING"),
+    ("PROP_ACCURACY", "OBSERVED", "道具颜色偏差", "WARNING"),
+    ("SCENE_CONSISTENCY", "OBSERVED", "背景布局偏差", "WARNING"),
+])
+def test_review_requires_observable_core_error_for_fail(name, visibility, observed, expected):
+    data = json.loads(_dimension_response(name))
+    data["issues"][0].update(visibility=visibility, observed=observed)
+    result = normalize_review_response(json.dumps(data, ensure_ascii=False))
+    assert result["overall"] == expected
+    assert result["dimensions"][name]["status"] == expected
 
 
 def test_noncore_review_keeps_raw_llm_result_and_generated_image(db_session):
@@ -164,11 +183,11 @@ def test_noncore_review_keeps_raw_llm_result_and_generated_image(db_session):
          patch("app.services.image_quality_review.LLMService", FakeLLM):
         review = asyncio.run(review_image_task(db_session, task.id))
     db_session.refresh(task)
-    assert review.status == "success" and review.overall == "PASS"
+    assert review.status == "success" and review.overall == "WARNING"
     assert review.raw_response == original
     assert json.loads(review.dimensions_json)["ACTION_ACCURACY"]["status"] == "WARNING"
     assert json.loads(review.issues_json)[0]["suggestion"] == "改进建议"
-    assert current_image_reviews(db_session, [{"taskId": task.id, "imageUrl": task.result_url}])[0]["qualityStatus"] == "PASS"
+    assert current_image_reviews(db_session, [{"taskId": task.id, "imageUrl": task.result_url}])[0]["qualityStatus"] == "WARNING"
     assert task.status == "completed" and task.result_url == "/api/files/generated.png"
 
 

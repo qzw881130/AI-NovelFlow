@@ -121,7 +121,7 @@ def test_batch_quality_mapping_and_result_mismatch_api(client, db_session, setup
         {"taskId": None, "imageUrl": "/api/files/upload.png"},
     ]})
     assert result.status_code == 200
-    assert [r["qualityStatus"] for r in result.json()["data"]] == ["REVIEW", "NOT_REVIEWED", "NOT_REVIEWED"]
+    assert [r["qualityStatus"] for r in result.json()["data"]] == ["WARNING", "NOT_REVIEWED", "NOT_REVIEWED"]
     history = client.get(f'/api/tasks/{setup_review.id}/image-reviews').json()["data"]
     assert history[0]["id"] == review.id
 

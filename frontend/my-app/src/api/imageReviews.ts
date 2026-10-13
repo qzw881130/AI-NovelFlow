@@ -14,7 +14,7 @@ export interface ImageReviewIssue {
 export interface ImageReview {
   id: string;
   taskId: string;
-  trigger: 'manual' | 'automatic';
+  trigger: 'manual' | 'automatic' | 'generation';
   status: 'pending' | 'running' | 'success' | 'error';
   overall: ReviewVerdict | null;
   summary: string | null;
@@ -29,7 +29,7 @@ export interface ImageReview {
   createdAt: string | null;
 }
 
-export type ImageQualityStatus = 'NOT_REVIEWED' | 'PENDING' | 'RUNNING' | 'PASS' | 'REVIEW' | 'FAIL' | 'ERROR';
+export type ImageQualityStatus = 'NOT_REVIEWED' | 'PENDING' | 'RUNNING' | 'PASS' | 'WARNING' | 'REVIEW' | 'FAIL' | 'ERROR';
 export interface CurrentReviewImage { taskId: string | null; imageUrl: string }
 export interface CurrentImageQuality extends CurrentReviewImage {
   qualityStatus: ImageQualityStatus;

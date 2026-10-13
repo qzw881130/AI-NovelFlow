@@ -1,17 +1,17 @@
 import { useEffect, useState } from 'react';
 import { imageReviewApi, type CurrentImageQuality, type CurrentReviewImage, type ImageQualityStatus } from '../../../api/imageReviews';
 
-export const QUALITY_STATES: ImageQualityStatus[] = ['NOT_REVIEWED', 'PENDING', 'RUNNING', 'PASS', 'REVIEW', 'FAIL', 'ERROR'];
+export const QUALITY_STATES: ImageQualityStatus[] = ['NOT_REVIEWED', 'PENDING', 'RUNNING', 'PASS', 'WARNING', 'REVIEW', 'FAIL', 'ERROR'];
 const labels: Record<ImageQualityStatus, string> = {
-  NOT_REVIEWED: '未评审', PENDING: '等待评审', RUNNING: '评审中', PASS: 'PASS', REVIEW: 'REVIEW', FAIL: 'FAIL', ERROR: '评审错误',
+  NOT_REVIEWED: '未评审', PENDING: '等待评审', RUNNING: '评审中', PASS: 'PASS', WARNING: 'WARNING', REVIEW: 'REVIEW', FAIL: 'FAIL', ERROR: '评审错误',
 };
 const styles: Record<ImageQualityStatus, string> = {
   NOT_REVIEWED: 'bg-gray-100 text-gray-600', PENDING: 'bg-blue-50 text-blue-700', RUNNING: 'bg-blue-100 text-blue-700',
-  PASS: 'bg-green-100 text-green-700', REVIEW: 'bg-amber-100 text-amber-800', FAIL: 'bg-red-100 text-red-700', ERROR: 'bg-orange-100 text-orange-800',
+  PASS: 'bg-green-100 text-green-700', WARNING: 'bg-amber-100 text-amber-800', REVIEW: 'bg-amber-100 text-amber-800', FAIL: 'bg-red-100 text-red-700', ERROR: 'bg-orange-100 text-orange-800',
 };
 
 export function ImageQualityBadge({ status, summary }: { status: ImageQualityStatus; summary?: string | null }) {
-  return <span data-quality-status={status} title={summary || `图片质量：${labels[status]}；不影响视频生成`} className={`inline-flex rounded px-1.5 py-0.5 text-[11px] ${styles[status]}`}>质量 · {labels[status]}</span>;
+  return <span data-quality-status={status} title={summary || `图片质量：${labels[status]}`} className={`inline-flex rounded px-1.5 py-0.5 text-[11px] ${styles[status]}`}>质量 · {labels[status]}</span>;
 }
 
 export function useImageQuality(images: CurrentReviewImage[], refreshKey: unknown) {
