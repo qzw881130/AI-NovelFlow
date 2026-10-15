@@ -2823,18 +2823,15 @@ export function VideoGenTab({
     if (storePendingVideos.has(shotId)) return { selectable: false, reason: '视频队列中' };
 
     const plan: VideoDirectorPlan = shot?.videoDirectorPlan || {};
-    if (isCanonicalVisualPlan(plan)) {
-      const eligibility = getCanonicalBatchEligibility(
-        plan,
-        batchShotTasks[shotId] || [],
-        (state) => getVideoDirectorKeyframeImageUrl(shot, state),
-        autoAssemble,
-      );
-      if (eligibility.selectable && !getShotImageUrl(shot)) return { selectable: false, reason: '缺少主分镜图' };
-      return eligibility;
-    }
-
-    return { selectable: false, reason: '历史生成模式已退役，请先规划 Canonical 视觉时间轴与 Clip' };
+    const eligibility = getCanonicalBatchEligibility(
+      plan,
+      batchShotTasks[shotId] || [],
+      (state) => getVideoDirectorKeyframeImageUrl(shot, state),
+      autoAssemble,
+      autoCompleteOverride,
+    );
+    if (eligibility.selectable && !getShotImageUrl(shot)) return { selectable: false, reason: '缺少主分镜图' };
+    return eligibility;
   }, [autoAssemble, autoCompleteDetails, batchShotTasks, generatingVideos, getShotImageUrl, getVideoDirectorKeyframeImageUrl, storePendingVideos]);
 
   const batchShotItems = shotsList.map((shot: any, idx: number) => {
@@ -2887,7 +2884,6 @@ export function VideoGenTab({
   )).length;
   const allVisibleSelectableSelected = selectableVisibleShotIndexes.length > 0
     && selectableVisibleShotIndexes.every((index) => executableSelectedSet.has(index));
-  const legacyCompatibilityVisible = false; // Legacy plans remain viewable, not executable selections.
   const batchSelectionSignature = batchShotItems.map((item) => `${item.shotIndex}:${item.selectable ? 1 : 0}`).join('|');
 
   useEffect(() => {
@@ -4001,16 +3997,7 @@ export function VideoGenTab({
       )),
     }));
     try {
-      const request = semanticSelected.length === selectedShotList.length
-        ? buildSemanticBatchRequest(selectedShotIds, autoAssemble)
-        : {
-          shot_ids: selectedShotIds,
-          auto_complete_details: autoCompleteDetails,
-          use_reference_audio: true,
-          skip_llm_when_prompt_exists: false,
-          force_rerun: semanticSelected.length > 0 ? false : true,
-          auto_assemble: autoAssemble,
-        };
+      const request = buildSemanticBatchRequest(selectedShotIds, autoAssemble, autoCompleteDetails);
       const result = await shotsApi.generateVideosBatch(effectiveNovelId, effectiveChapterId, { ...request, h3_prompt_pipeline: h3PromptPipeline, optimize_h3_prompt: h3PromptPipeline === 'legacy' && optimizeH3Prompt });
       if (!result.success) {
         throw new Error(result.detail || result.message || '批量生成视频失败');
@@ -4822,23 +4809,13 @@ export function VideoGenTab({
             </div>
 
             <div className="border-t border-gray-200 bg-gray-50 px-5 py-4">
-              {legacyCompatibilityVisible && (
-                <details className="mb-3 rounded-lg border border-gray-200 bg-white px-3 py-2">
-                  <summary className="cursor-pointer text-sm font-medium text-gray-700">高级兼容设置（legacy Shot）</summary>
-                  <label className="mt-3 flex cursor-pointer select-none items-start gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={autoCompleteDetails}
-                      onChange={(event) => {
-                        setAutoCompleteDetails(event.target.checked);
-                        setSelectedShots(new Set());
-                      }}
-                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span>自动完成细节（仅 legacy Shot）<span className="block text-[11px] text-gray-500">只影响历史兼容 Shot；canonical Shot 始终使用 Semantic Batch 权威。</span></span>
-                  </label>
-                </details>
-              )}
+              <label className="mb-3 flex cursor-pointer items-start gap-2 text-sm text-gray-700">
+                <input type="checkbox" checked={autoCompleteDetails} onChange={(event) => {
+                  setAutoCompleteDetails(event.target.checked);
+                  setSelectedShots(new Set());
+                }} className="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600" />
+                <span>自动补齐规划与必需图片<span className="block text-[11px] text-gray-500">复用已有规划和素材，仅准备缺失项；按依赖执行 Clip。</span></span>
+              </label>
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <label className="flex cursor-pointer select-none items-start gap-2 text-sm text-gray-700">

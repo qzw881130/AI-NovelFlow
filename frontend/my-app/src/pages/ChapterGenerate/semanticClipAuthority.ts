@@ -216,10 +216,10 @@ export function getSemanticShotStatusFromPlan(plan: VideoDirectorPlan, tasks: Ta
   return 'NOT_STARTED';
 }
 
-export function buildSemanticBatchRequest(shotIds: string[], autoAssemble = true) {
+export function buildSemanticBatchRequest(shotIds: string[], autoAssemble = true, autoCompleteDetails = false) {
   return {
     shot_ids: shotIds,
-    auto_complete_details: false,
+    auto_complete_details: autoCompleteDetails,
     use_reference_audio: true,
     skip_llm_when_prompt_exists: false,
     force_rerun: false,
@@ -232,8 +232,12 @@ export function getCanonicalBatchEligibility(
   tasks: Task[] = [],
   resolveImageUrl?: (state: NonNullable<VideoDirectorPlan['keyframes']>[number]) => string | null | undefined,
   autoAssemble = true,
+  autoCompleteDetails = false,
 ): { selectable: boolean; reason: string; authority: typeof CANONICAL_EXECUTION_AUTHORITY } {
   const readiness = getCanonicalSemanticReadiness(plan, resolveImageUrl);
+  if (autoCompleteDetails && ['NO_VISUAL_PLAN', 'CLIP_PLAN_MISSING', 'REQUIRED_IMAGES_MISSING', 'GENERATE_VISUAL_START_MISSING'].includes(readiness.state)) {
+    return { selectable: true, reason: '将自动补齐规划与必需图片，再执行 Clip', authority: CANONICAL_EXECUTION_AUTHORITY };
+  }
   if (readiness.state === 'NO_VISUAL_PLAN') return { selectable: false, reason: '请先规划视觉时间轴', authority: CANONICAL_EXECUTION_AUTHORITY };
   if (readiness.state === 'REQUIRED_IMAGES_MISSING') return { selectable: false, reason: `缺少必需视觉状态图：${readiness.requiredMissingIndexes.map((index) => `KF${index}`).join('、')}`, authority: CANONICAL_EXECUTION_AUTHORITY };
   if (readiness.state === 'CLIP_PLAN_MISSING') return { selectable: false, reason: '请先规划视频片段', authority: CANONICAL_EXECUTION_AUTHORITY };

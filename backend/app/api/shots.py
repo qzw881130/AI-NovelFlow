@@ -4181,7 +4181,8 @@ async def _prepare_automatic_shot(db: Session, parent: Task, child: Task, shot: 
 async def _run_semantic_shot_for_batch(db: Session, batch_task: Task, batch_child: Task, shot: Shot) -> str:
     from app.services.continuous_clip_av import cache_export_av_probes
     validate_artifact = cache_export_av_probes(validate_semantic_clip_artifact)
-    if _safe_json_dict(batch_child.metadata_json).get("automatic_shot"):
+    if (_safe_json_dict(batch_child.metadata_json).get("automatic_shot")
+            or _safe_json_dict(batch_child.metadata_json).get("auto_complete_details")):
         if not await _prepare_automatic_shot(db, batch_task, batch_child, shot):
             return "paused"
     batch_metadata = _safe_json_dict(batch_child.metadata_json)
@@ -4588,12 +4589,12 @@ async def generate_shot_videos_batch(
             raise HTTPException(status_code=404, detail=f"分镜不存在：{shot_id}")
         plan = _safe_json_dict(shot.video_director_plan)
         semantic = isinstance(plan.get("clip_plan"), list) and bool(plan.get("clip_plan"))
-        if not semantic and not data.automatic_shot:
+        if not semantic and not (data.automatic_shot or data.auto_complete_details):
             _reject_retired_h3_entry()
         if semantic and any(clip.get("capability") in {"SINGLE_FRAME", "FIRST_LAST_FRAME", "MULTI_KEYFRAME"}
                             for clip in plan["clip_plan"] if isinstance(clip, dict)):
             _reject_retired_h3_entry()
-        if semantic and plan.get("canonical_visual_plan") is True and not data.automatic_shot:
+        if semantic and plan.get("canonical_visual_plan") is True and not (data.automatic_shot or data.auto_complete_details):
             readiness = get_canonical_execution_readiness(shot, plan)
             if not readiness["ready"]:
                 detail = dict(readiness["blocking_clips"][0])
@@ -4605,7 +4606,7 @@ async def generate_shot_videos_batch(
         selected_shots.append({
             "shot_id": shot.id,
             "clip_plan_revision": int(plan.get("clip_plan_revision") or 0) if semantic else None,
-            "batch_mode": "SEMANTIC_CLIP" if semantic or data.automatic_shot else "LEGACY_SHOT",
+            "batch_mode": "SEMANTIC_CLIP" if semantic or data.automatic_shot or data.auto_complete_details else "LEGACY_SHOT",
         })
         active = db.query(Task).filter(
             Task.type == "shot_video",
@@ -4673,6 +4674,7 @@ async def generate_shot_videos_batch(
             **_safe_json_dict(child.metadata_json),
             "batch_shot_child": True,
             "automatic_shot": data.automatic_shot,
+            "auto_complete_details": data.auto_complete_details,
             "use_reference_audio": data.use_reference_audio,
             "skip_llm_when_prompt_exists": data.skip_llm_when_prompt_exists,
             "optimize_h3_prompt": data.optimize_h3_prompt,

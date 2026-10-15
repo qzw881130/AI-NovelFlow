@@ -117,13 +117,13 @@ test('legacy compatibility is hidden for canonical-only context and detected for
   assert.equal(hasLegacyBatchPlanningState({ selected_mode: 'MULTI_KEYFRAME', window_plans: [{ window_index: 1 }] }), true);
 });
 
-test('legacy auto-detail control is nested under the advanced compatibility section', async () => {
-  const componentUrl = new URL('../src/pages/ChapterGenerate/components/VideoGenTab.tsx', import.meta.url);
-  const componentSource = await readFile(componentUrl, 'utf8');
-  const advancedStart = componentSource.indexOf('<details className="mb-3');
-  const advancedEnd = componentSource.indexOf('</details>', advancedStart);
-  const controlIndex = componentSource.indexOf('自动完成细节（仅 legacy Shot）');
-  assert.ok(advancedStart >= 0 && advancedEnd > advancedStart);
-  assert.ok(controlIndex > advancedStart && controlIndex < advancedEnd);
-  assert.match(componentSource, /legacyCompatibilityVisible && \(/);
+test('batch can prepare missing canonical planning without changing the default direct-generation contract', async () => {
+  const { getCanonicalBatchEligibility, buildSemanticBatchRequest } = await import(authorityModuleUrl);
+  assert.equal(getCanonicalBatchEligibility({}, [], undefined, true, true).selectable, true);
+  assert.equal(getCanonicalBatchEligibility({}, [], undefined, true, false).selectable, false);
+  assert.equal(getCanonicalBatchEligibility({canonical_visual_plan: true, keyframes:[{index:1}]}, [], undefined, true, true).selectable, true);
+  assert.equal(buildSemanticBatchRequest(['s16','s17'], true, true).auto_complete_details, true);
+  assert.equal(buildSemanticBatchRequest(['s16','s17']).auto_complete_details, false);
+  assert.equal(buildSemanticBatchRequest(['s16','s17'],true,true).force_rerun, false);
+  assert.deepEqual(buildSemanticBatchRequest(['s16','s17'],true,true).shot_ids,['s16','s17']);
 });

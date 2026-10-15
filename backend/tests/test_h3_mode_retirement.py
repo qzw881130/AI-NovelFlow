@@ -113,7 +113,7 @@ async def test_legacy_entries_stop_before_tasks_llm_or_asset_mutation(entry):
         elif entry == 'clip_plan':
             await shots.generate_clip_plan_video('novel','chapter','shot',empty,nr,sr)
         elif entry == 'batch':
-            await shots.generate_shot_videos_batch('novel','chapter',shots.BatchShotVideoRequest(shot_ids=['shot']),empty,nr,cr,sr)
+            await shots.generate_shot_videos_batch('novel','chapter',shots.BatchShotVideoRequest(shot_ids=['shot'], auto_complete_details=False),empty,nr,cr,sr)
         else:
             await shots.save_video_director_plan('novel','chapter','shot',shots.SaveVideoDirectorPlanRequest(selected_mode='MULTI_KEYFRAME'),cr,sr)
     assert error.value.status_code == 410
